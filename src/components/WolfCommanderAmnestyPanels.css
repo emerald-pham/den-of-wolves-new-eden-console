@@ -1,0 +1,94 @@
+.wolf-amnesty {
+  display: grid;
+  gap: 1rem;
+  margin-block: 1.25rem;
+  padding: clamp(1rem, 3vw, 1.5rem);
+  border: 1px solid var(--cic-border, #557185);
+  background: var(--cic-panel, #0b1720);
+  color: var(--cic-text, #e6eef2);
+}
+
+.wolf-amnesty__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+}
+
+.wolf-amnesty__header h2 {
+  margin: 0;
+  font-size: clamp(1.15rem, 4vw, 1.5rem);
+}
+
+.wolf-amnesty__copy,
+.wolf-amnesty__condition,
+.wolf-amnesty__status {
+  max-width: 70ch;
+  line-height: 1.55;
+}
+
+.wolf-amnesty__form,
+.wolf-amnesty__offer {
+  display: grid;
+  gap: 0.85rem;
+  min-width: 0;
+}
+
+.wolf-amnesty__field {
+  display: grid;
+  gap: 0.4rem;
+  max-width: 44rem;
+  font-weight: 650;
+}
+
+.wolf-amnesty__field textarea,
+.wolf-amnesty__field select {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--cic-border, #8298a4);
+  border-radius: 0.25rem;
+  background: #101f29;
+  color: var(--cic-text, #e6eef2);
+  font: inherit;
+}
+
+.wolf-amnesty__field textarea {
+  min-height: 6rem;
+  resize: vertical;
+}
+
+.wolf-amnesty__details {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+  gap: 0.75rem 1rem;
+  margin: 0;
+}
+
+.wolf-amnesty__details div {
+  min-width: 0;
+}
+
+.wolf-amnesty__details dt {
+  color: var(--cic-muted, #a9bbc5);
+  font-size: 0.85rem;
+}
+
+.wolf-amnesty__details dd {
+  margin: 0.2rem 0 0;
+  overflow-wrap: anywhere;
+}
+
+.wolf-amnesty__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+@media (max-width: 36rem) {
+  .wolf-amnesty__actions > button {
+    flex: 1 1 100%;
+  }
+}

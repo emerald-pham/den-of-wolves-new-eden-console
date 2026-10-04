@@ -6,6 +6,9 @@ import { PDF_ESCORT_FIGHTER_WING } from '@/data/pdfConsoles';
 import { SHUTTLECRAFT } from '@/data/shuttles';
 import { craftHelpFor, type CraftHelp } from '@/data/craftHelp';
 import WolfCommanderTargetingPanel from '@/components/WolfCommanderTargetingPanel';
+import WolfCommanderCycleAttackDialPanel from '@/components/WolfCommanderCycleAttackDialPanel';
+import WolfCommanderRangeTargetDialPanel from '@/components/WolfCommanderRangeTargetDialPanel';
+import { WolfAmnestyCaptainPanel, WolfCommanderAddressAmnestyPanel } from '@/components/WolfCommanderAmnestyPanels';
 import VulcanAdditionalLabourPanel from '@/components/VulcanAdditionalLabourPanel';
 import DecisionAttribution from '@/components/DecisionAttribution';
 import ExtraShipCaptainWorkspace from '@/components/ExtraShipCaptainWorkspace';
@@ -218,7 +221,19 @@ export default function RoleBrief() {
         />
 
         {me.replacementStatus == null && me.replacementRoleId === 'wolf-commander' &&
+          <WolfCommanderCycleAttackDialPanel />}
+
+        {me.replacementStatus == null && me.replacementRoleId === 'wolf-commander' &&
+          <WolfCommanderRangeTargetDialPanel />}
+
+        {me.replacementStatus == null && me.replacementRoleId === 'wolf-commander' &&
           <WolfCommanderTargetingPanel />}
+
+        {me.replacementStatus == null && me.replacementRoleId === 'wolf-commander' &&
+          <WolfCommanderAddressAmnestyPanel />}
+
+        {me.replacementStatus == null && (brief.roleId === 'admiral' || brief.roleId.endsWith('-captain')) &&
+          <WolfAmnestyCaptainPanel shipId={brief.roleId === 'admiral' ? 'aegis' : brief.roleId.slice(0, -8)} />}
 
         {brief.roleId !== 'gorgoneion-captain' || canMountGorgoneionCaptainWorkspace
           ? <ExtraShipCaptainWorkspace roleId={brief.roleId} />

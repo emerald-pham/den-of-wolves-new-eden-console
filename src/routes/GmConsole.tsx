@@ -8,6 +8,7 @@ import EmergencyTimerPauseControl from '@/components/EmergencyTimerPauseControl'
 import WolfAttackRecoveryControl from '@/components/WolfAttackRecoveryControl';
 import GmWolfDecisionSummary from '@/components/GmWolfDecisionSummary';
 import { projectWolfAttackGmAftermathView, WolfAttackGmAftermathView } from '@/components/WolfAttackGmAftermathView';
+import { GmWolfAmnestyPanel } from '@/components/WolfCommanderAmnestyPanels';
 import ShipPlot from '@/components/ShipPlot';
 import { useFleetGroupNavigation } from '@/lib/useFleetGroupNavigation';
 import GmMutinyRecovery from '@/components/GmMutinyRecovery';
@@ -3135,6 +3136,7 @@ export default function GmConsole() {
                 </button>
               </div>
             </section>
+            <GmWolfAmnestyPanel />
             <section className="gm-wolf-preparation" aria-label="Private Wolf attack preparation">
               <p className="gm-console__status">
                 Private attack draft // {wolfAttackPreparation

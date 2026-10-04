@@ -272,11 +272,11 @@ import {
   type JumpTransition,
 } from './jumpDrive';
 import { deriveRoutineWolfAssignment } from './wolfAssignment';
-import { scheduledWolfAttackComposition } from './wolfAttackComposition';
 import {
   parseWolfArrivalPressureState,
   wolfArrivalPressureBlocksMissions,
   wolfArrivalPressureForMovement,
+  type WolfArrivalPressure,
 } from './arrivalPressure';
 import {
   firstArrivalMissionOpportunity,
@@ -619,12 +619,18 @@ import { wolfAttackWindowState, type WolfAttackWindow } from './wolfAttackWindow
 import {
   resolvedWolfAttackForCarryover,
   wolfWingCarryoverForPreparation,
+  type CommanderCycleCarryoverContext,
+  type PStationRepeatContext,
+  type ResolvedPStationRepeat,
+  type ResolvedWolfAttackForCarryover,
   type WolfWingCarryoverReceipt,
 } from './wolfAttackCarryover';
 import {
   validateWolfAttackPreparation,
   wolfAttackPreparationState,
+  wolfAttackCompositionForPreparation,
   type WolfAttackPreparation,
+  type WolfAttackPreparationCompositionRule,
 } from './wolfAttackPreparation';
 import {
   WOLF_ATTACK_PARKING_RELEASE,
@@ -699,6 +705,13 @@ import {
 } from './wolfCommandAndControl';
 import { isWolfAttackMemberView, projectWolfAttackMemberView } from './wolfAttackAudience';
 import { configuredWolfAttackTargetRing } from './wolfAttackTargetRing';
+import {
+  wolfThreatPursuit,
+  resolveWolfCommanderRangeTargetAdjustment,
+  resolveWolfAmnestyDecision,
+  type WolfAmnestyOffer,
+  type WolfThreatSiteCode,
+} from './wolfThreatProtocol';
 import { isWolfActionKind, wolfActionAuthorization } from './wolfActionAuthorization';
 import { resolveWolfSupplySabotage } from './wolfSupplySabotage';
 import {
@@ -20127,6 +20140,75 @@ export const setEmergencyTimerPaused = onCall<{
   });
 });
 
+/** Read server-scheduled base/Station triggers for one current fleet group. */
+export const getWolfAttackThreatWindowOptions = onCall<{
+  sessionId?: unknown;
+  instanceId?: unknown;
+  targetGroupId?: unknown;
+}>(async request => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  if (!isRecord(raw) || Object.keys(raw).some((key) => !['sessionId', 'instanceId', 'targetGroupId'].includes(key)) ||
+      typeof raw.sessionId !== 'string' || !/^[\w-]{1,128}$/.test(raw.sessionId) ||
+      typeof raw.instanceId !== 'string' || !/^[\w-]{1,128}$/.test(raw.instanceId) ||
+      typeof raw.targetGroupId !== 'string' || !/^fleet-[1-9][0-9]*$/.test(raw.targetGroupId)) {
+    throw new HttpsError('invalid-argument', 'Select a current fleet group to read scheduled Wolf threat sources.');
+  }
+  const { sessionId, instanceId, targetGroupId } = raw as {
+    sessionId: string; instanceId: string; targetGroupId: string;
+  };
+  return db.runTransaction(async (tx: Transaction) => {
+    const [session, player, instance, groupSnapshot, pressure] = await Promise.all([
+      tx.get(db.doc(`sessions/${sessionId}`)),
+      tx.get(db.doc(`sessions/${sessionId}/players/${uid}`)),
+      tx.get(db.doc(`sessions/${sessionId}/gmInstances/${instanceId}`)),
+      tx.get(db.doc(`sessions/${sessionId}/fleetGroups/${targetGroupId}`)),
+      tx.get(wolfArrivalPressureStateRef(sessionId, targetGroupId)),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    if (!isLiveGmInstance(instance, player, uid)) {
+      throw new HttpsError('permission-denied', 'A current facilitator instance is required to read Wolf threat choices.');
+    }
+    requireActiveGameplayPhase(session);
+    const group = groupSnapshot.exists ? fleetGroupRecord(groupSnapshot.data()) : undefined;
+    const activeVesselIds = wolfAttackActiveVesselIds(session);
+    if (!group || group.id !== targetGroupId || groupSnapshot.id !== targetGroupId ||
+        group.vesselIds.length === 0 || group.vesselIds.some((vesselId) => !activeVesselIds.includes(vesselId))) {
+      throw commandError('failed-precondition', 'The selected threat fleet group is no longer active.', 'conflict');
+    }
+    const chart = lockedNavigationChart(session);
+    const pressureState = pressure.exists ? parseWolfArrivalPressureState(pressure.data(), chart) : undefined;
+    if (pressure.exists && (!pressureState || pressureState.groupId !== targetGroupId || pressureState.chart !== chart)) {
+      throw commandError('failed-precondition', 'The selected group threat pressure record is malformed.', 'conflict');
+    }
+    const cycle = sessionTurn(session.get('currentTurn'));
+    const candidates = (pressureState?.entries ?? []).filter((entry) =>
+      entry.status === 'operational' && entry.groupId === targetGroupId &&
+      (entry.siteCode === 'L' || entry.siteCode === 'M' || entry.siteCode === 'P') &&
+      (entry.siteCode !== 'P' || entry.cycle === cycle));
+    const sources = [] as Array<Readonly<{
+      siteCode: WolfThreatSiteCode;
+      sourceId: string;
+      sourceCycle: number;
+      coordinate: string;
+    }>>;
+    for (const entry of candidates) {
+      const sourceId = `arrival-${entry.sourceTransitionId}`;
+      const schedule = await tx.get(db.doc(`sessions/${sessionId}/wolfAttackPressure/${sourceId}`));
+      try {
+        requireLiveWolfThreatSource(
+          session, targetGroupId, entry.siteCode, sourceId, groupSnapshot, schedule, pressure, cycle,
+        );
+      } catch {
+        continue;
+      }
+      sources.push({ siteCode: entry.siteCode, sourceId, sourceCycle: entry.cycle, coordinate: entry.coordinate });
+    }
+    sources.sort((left, right) => left.sourceCycle - right.sourceCycle || left.siteCode.localeCompare(right.siteCode));
+    return { type: 'wolf-attack-threat-window-options', sessionId, targetGroupId, cycle, sources };
+  });
+});
+
 /** Record the facilitator's approximate first Wolf-attack timing decision. */
 export const setWolfAttackWindow = onCall<{
   sessionId?: unknown;
@@ -20213,10 +20295,27 @@ export const setWolfAttackWindow = onCall<{
     const current = projection.exists ? wolfAttackWindowState(projection.data()) : undefined;
     const currentRevision = current?.revision ?? 0;
     const currentTurn = sessionTurn(session.get('currentTurn'));
+    if (change.status === 'due' && change.threatSiteCode === 'commander') {
+      const ledger = await tx.get(db.doc(
+        `sessions/${change.sessionId}/wolfCommanderCycleDials/cycle-${currentTurn}`,
+      ));
+      const savedMarker = ledger.exists && isRecord(ledger.data())
+        ? wolfCommanderCycleAttackMarker(ledger.get('commanderCycleAttack')) : undefined;
+      if (!savedMarker || ledger.get('type') !== 'wolf-commander-cycle-dial' ||
+          ledger.get('status') !== 'committed' || ledger.get('cycle') !== currentTurn ||
+          ledger.get('actorUid') !== savedMarker.commanderUid ||
+          savedMarker.cycle !== currentTurn || savedMarker.groupId !== change.targetGroupId) {
+        throw commandError(
+          'failed-precondition', 'Only the assigned Commander’s committed current-cycle dial can open this attack window.', 'conflict',
+        );
+      }
+    }
     const sameState = current?.status === change.status &&
       (change.status === 'deferred' ? current.turn === 2 : current.turn === currentTurn) &&
       (change.status !== 'due' || (current?.targetGroupId === change.targetGroupId &&
-        current?.threatSiteCode === change.threatSiteCode && current?.threatSourceId === change.threatSourceId));
+        current?.threatSiteCode === change.threatSiteCode && current?.threatSourceId === change.threatSourceId)) &&
+      !(change.status === 'due' && current?.status === 'resolved' && current.turn === currentTurn &&
+        current.threatSiteCode === 'P');
     if (change.expectedRevision !== currentRevision) {
       throw commandError(
         'failed-precondition',
@@ -20312,6 +20411,31 @@ export const setWolfAttackWindow = onCall<{
       turn = currentTurn;
     }
 
+    let selectedGroupSnapshot: DocumentSnapshot | undefined;
+    if (change.status === 'due' && change.targetGroupId) {
+      selectedGroupSnapshot = await tx.get(
+        db.doc(`sessions/${change.sessionId}/fleetGroups/${change.targetGroupId}`),
+      );
+      const selectedGroup = selectedGroupSnapshot.exists
+        ? fleetGroupRecord(selectedGroupSnapshot.data()) : undefined;
+      if (!selectedGroup || selectedGroup.id !== change.targetGroupId ||
+          selectedGroupSnapshot.id !== change.targetGroupId) {
+        throw commandError('failed-precondition', 'Select a current fleet group for this attack.', 'conflict');
+      }
+    }
+    if (change.status === 'due' &&
+        (change.threatSiteCode === 'L' || change.threatSiteCode === 'M' || change.threatSiteCode === 'P')) {
+      const sourceId = change.threatSourceId!;
+      const [schedule, pressure] = await Promise.all([
+        tx.get(db.doc(`sessions/${change.sessionId}/wolfAttackPressure/${sourceId}`)),
+        tx.get(wolfArrivalPressureStateRef(change.sessionId, change.targetGroupId!)),
+      ]);
+      requireLiveWolfThreatSource(
+        session, change.targetGroupId!, change.threatSiteCode,
+        sourceId, selectedGroupSnapshot, schedule, pressure, currentTurn,
+      );
+    }
+
     if (change.status === 'due') requireSmallShipsDockedAtBoundary(session, 'Wolf attack');
 
     const next: WolfAttackWindow = {
@@ -20349,6 +20473,755 @@ export const setWolfAttackWindow = onCall<{
   return result;
 });
 
+/** Commit the assigned Commander's private once-per-cycle attack dial. */
+export const commitWolfCommanderAttackDial = onCall<{
+  sessionId?: unknown;
+  requestId?: unknown;
+  expectedCycle?: unknown;
+  expectedNavigationRevision?: unknown;
+  targetGroupId?: unknown;
+}>(async request => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  const allowed = new Set(['sessionId', 'requestId', 'expectedCycle', 'expectedNavigationRevision', 'targetGroupId']);
+  if (!isRecord(raw) || Object.keys(raw).some((key) => !allowed.has(key))) {
+    throw new HttpsError('invalid-argument', 'The Commander attack dial accepts a current cycle, navigation revision, and fleet group only.');
+  }
+  const { sessionId } = requireSessionRequest(raw);
+  if (!isCanonicalRequestId(raw.requestId) || !Number.isSafeInteger(raw.expectedCycle) ||
+      (raw.expectedCycle as number) < 1 || !Number.isSafeInteger(raw.expectedNavigationRevision) ||
+      (raw.expectedNavigationRevision as number) < 0 || typeof raw.targetGroupId !== 'string' ||
+      !/^fleet-[1-9][0-9]*$/.test(raw.targetGroupId)) {
+    throw new HttpsError('invalid-argument', 'The Commander attack dial request is malformed.');
+  }
+  const requestId = raw.requestId;
+  const expectedCycle = raw.expectedCycle as number;
+  const expectedNavigationRevision = raw.expectedNavigationRevision as number;
+  const targetGroupId = raw.targetGroupId;
+  const sessionRef = db.doc(`sessions/${sessionId}`);
+  const playerRef = db.doc(`sessions/${sessionId}/players/${uid}`);
+  const playersRef = db.collection(`sessions/${sessionId}/players`);
+  const navigationRef = navigationStateRef(sessionId);
+  const groupsRef = db.collection(`sessions/${sessionId}/fleetGroups`);
+  const windowRef = db.doc(`sessions/${sessionId}/wolfAttackWindow/current`);
+  const attackStateRef = db.doc(`sessions/${sessionId}/wolfAttackState/current`);
+  const ledgerRef = db.doc(`sessions/${sessionId}/wolfCommanderCycleDials/cycle-${expectedCycle}`);
+  const auditRef = db.doc(`sessions/${sessionId}/wolfCommanderCycleDials/audit/${requestId}`);
+  const receiptRef = commandReceiptRef(sessionId, requestId);
+  const fingerprint: CommandFingerprint = {
+    action: 'commit-wolf-commander-attack-dial', sessionId, requestId,
+    actorUid: uid, instanceId: null, expectedRevision: expectedNavigationRevision,
+    payload: { expectedCycle, expectedNavigationRevision, targetGroupId },
+  };
+
+  return db.runTransaction(async (tx: Transaction) => {
+    const [session, player, players, navigation, groups, windowProjection, attackState, ledger, receipt, audit] =
+      await Promise.all([
+        tx.get(sessionRef), tx.get(playerRef), tx.get(playersRef), tx.get(navigationRef), tx.get(groupsRef),
+        tx.get(windowRef), tx.get(attackStateRef), tx.get(ledgerRef), tx.get(receiptRef), tx.get(auditRef),
+      ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    requireWolfCommanderPlayer(player, uid);
+    const assignedCommanders = assignedWolfCommanderUidsFromPlayers(players);
+    if (assignedCommanders.length !== 1 || assignedCommanders[0] !== uid) {
+      throw new HttpsError('permission-denied', 'A single currently assigned Wolf Commander is required.');
+    }
+    const replay = replayBoundCommand(
+      receipt, fingerprint,
+      (value): value is Record<string, unknown> => isRecord(value) &&
+        value.type === 'wolf-commander-cycle-attack' && value.status === 'committed' &&
+        value.sessionId === sessionId && value.requestId === requestId,
+      'Wolf Commander attack dial',
+    );
+    if (replay) return replay;
+    if (audit.exists) rejectLegacyEventReplay('Wolf Commander attack dial');
+    requireActiveGameplayPhase(session);
+    const cycle = sessionTurn(session.get('currentTurn'));
+    if (cycle !== expectedCycle || cycle < 1) {
+      throw commandError('failed-precondition', 'The cycle changed. Refresh the Commander attack dial.', 'stale-revision');
+    }
+    const phase = turnPhaseState(session.get('turnPhase'));
+    if (!phase || phase.turn !== cycle || phase.timerPause !== undefined ||
+        Date.now() >= Date.parse(phase.teamPhaseEndsAt)) {
+      throw commandError('failed-precondition', 'The Commander attack dial is available only during the live Team Phase.', 'invalid-phase');
+    }
+    if (ledger.exists) {
+      throw commandError('failed-precondition', 'The Commander has already committed an attack dial this cycle.', 'conflict');
+    }
+    const currentWindow = windowProjection.exists ? wolfAttackWindowState(windowProjection.data()) : undefined;
+    if (windowProjection.exists && !currentWindow) {
+      throw commandError('failed-precondition', 'The private Wolf timing marker is malformed.', 'conflict');
+    }
+    if (currentWindow && !(currentWindow.status === 'resolved' && currentWindow.turn < cycle) &&
+        !(currentWindow.status === 'deferred' && currentWindow.turn === cycle)) {
+      throw commandError('failed-precondition', 'Resolve the current Wolf timing window before committing another dial.', 'conflict');
+    }
+    const navigationRevision = navigation.get('revision');
+    if (!navigation.exists || navigationRevision !== expectedNavigationRevision) {
+      throw commandError('failed-precondition', 'Pursuit changed. Refresh the Commander attack dial.', 'stale-revision');
+    }
+    let pursuit: WolfAttackPursuitSnapshot;
+    try {
+      pursuit = wolfAttackPursuitSnapshot(session, navigation, groups, players, targetGroupId);
+    } catch (error) {
+      throw commandError('failed-precondition', error instanceof Error ? error.message : 'The selected group pursuit is unavailable.', 'conflict');
+    }
+    let attackNumber = 1;
+    if (attackState.exists) {
+      const priorState = attackState.data();
+      if (!currentWindow || currentWindow.status !== 'resolved' || currentWindow.turn !== priorState?.turn ||
+          !isRecord(priorState) || priorState.status !== 'resolved' || priorState.currentStep !== 'resolved' ||
+          !Number.isSafeInteger(priorState.turn) || (priorState.turn as number) >= cycle) {
+        throw commandError('failed-precondition', 'The prior Wolf attack must be finalized in an earlier cycle.', 'conflict');
+      }
+      const finalizationAudit = await tx.get(db.doc(
+        `sessions/${sessionId}/wolfAttackState/current/audit/wolf-finalized-${priorState.turn}`,
+      ));
+      let previous;
+      try {
+        const priorAttackNumber = priorState.attackNumber === undefined ? 1 : priorState.attackNumber as number;
+        const nextAttackNumber = priorAttackNumber + 1;
+        const commanderContext = wolfCommanderCarryoverContextForState(
+          priorState, nextAttackNumber,
+        );
+        if (priorAttackNumber > 3 && !commanderContext) {
+          throw new Error('The previous attack has no verifiable Commander cycle marker.');
+        }
+        previous = commanderContext
+          ? resolvedWolfAttackForCarryover(
+            priorState, finalizationAudit.exists ? finalizationAudit.data() : undefined, cycle, commanderContext,
+          )
+          : resolvedWolfAttackForCarryover(
+            priorState, finalizationAudit.exists ? finalizationAudit.data() : undefined, cycle,
+          );
+        if (previous.attackNumber + 1 !== nextAttackNumber) {
+          throw new Error('The previous Commander attack number changed.');
+        }
+      } catch (error) {
+        throw commandError(
+          'failed-precondition', error instanceof Error ? error.message : 'The previous attack is not a verifiable finalization.', 'conflict',
+        );
+      }
+      attackNumber = previous.attackNumber + 1;
+    } else if (currentWindow && currentWindow.status === 'resolved') {
+      throw commandError('failed-precondition', 'A resolved timing marker has no matching final attack.', 'conflict');
+    }
+    const marker = {
+      type: 'wolf-commander-cycle-attack',
+      cycle,
+      ledgerId: `cycle-${cycle}`,
+      groupId: pursuit.targetGroupId,
+      targetGroupPursuit: pursuit.targetGroupValue,
+      navigationRevision: pursuit.navigationRevision,
+      commanderUid: uid,
+      attackNumber,
+      ...(attackState.exists && isRecord(attackState.data()) ? {
+        parentAttackId: attackState.get('attackId'),
+        parentAttackNumber: attackState.get('attackNumber') ?? 1,
+        parentTurn: attackState.get('turn'),
+      } : {}),
+      requestId,
+    } as const;
+    const nextWindow: WolfAttackWindow = {
+      status: 'due', turn: cycle, revision: (currentWindow?.revision ?? 0) + 1,
+      targetGroupId: pursuit.targetGroupId, threatSiteCode: 'commander',
+    };
+    const result = {
+      status: 'committed', type: 'wolf-commander-cycle-attack', sessionId, requestId,
+      cycle, groupId: pursuit.targetGroupId, targetGroupPursuit: pursuit.targetGroupValue,
+      damageCapacity: 10 + pursuit.targetGroupValue, attackNumber,
+      navigationRevision: pursuit.navigationRevision, marker,
+      windowRevision: nextWindow.revision,
+    } as const;
+    tx.set(ledgerRef, {
+      type: 'wolf-commander-cycle-dial', status: 'committed', cycle,
+      commanderCycleAttack: marker, actorUid: uid,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(windowRef, { ...nextWindow, updatedAt: FieldValue.serverTimestamp() });
+    tx.set(auditRef, {
+      type: 'wolf-commander-cycle-dial', action: 'committed', cycle,
+      commanderCycleAttack: marker, actorUid: uid, requestId,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+});
+
+/** Read only the live group pursuit choices and once-per-cycle dial status. */
+export const getWolfCommanderCycleAttackDial = onCall<{ sessionId?: unknown }>(async request => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  if (isRecord(raw) && Object.keys(raw).some((key) => key !== 'sessionId')) {
+    throw new HttpsError('invalid-argument', 'The Commander pursuit dial query accepts only sessionId.');
+  }
+  const { sessionId } = requireSessionRequest(isRecord(raw) ? raw : {});
+  const sessionRef = db.doc(`sessions/${sessionId}`);
+  const playerRef = db.doc(`sessions/${sessionId}/players/${uid}`);
+  const playersRef = db.collection(`sessions/${sessionId}/players`);
+  const navigationRef = navigationStateRef(sessionId);
+  const groupsRef = db.collection(`sessions/${sessionId}/fleetGroups`);
+  const windowRef = db.doc(`sessions/${sessionId}/wolfAttackWindow/current`);
+  const attackStateRef = db.doc(`sessions/${sessionId}/wolfAttackState/current`);
+  return db.runTransaction(async (tx: Transaction) => {
+    const [session, player, players, navigation, groups, windowProjection, attackState] = await Promise.all([
+      tx.get(sessionRef), tx.get(playerRef), tx.get(playersRef), tx.get(navigationRef),
+      tx.get(groupsRef), tx.get(windowRef), tx.get(attackStateRef),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    requireWolfCommanderPlayer(player, uid);
+    const assigned = assignedWolfCommanderUidsFromPlayers(players);
+    if (assigned.length !== 1 || assigned[0] !== uid) {
+      throw new HttpsError('permission-denied', 'A single currently assigned Wolf Commander is required.');
+    }
+    requireActiveGameplayPhase(session);
+    const cycle = sessionTurn(session.get('currentTurn'));
+    if (cycle < 1) throw commandError('failed-precondition', 'No live cycle is available for the Commander dial.', 'invalid-phase');
+    const phase = turnPhaseState(session.get('turnPhase'));
+    const teamPhaseLive = Boolean(phase && phase.turn === cycle && phase.timerPause === undefined &&
+      Date.now() < Date.parse(phase.teamPhaseEndsAt));
+    const window = windowProjection.exists ? wolfAttackWindowState(windowProjection.data()) : undefined;
+    if (windowProjection.exists && !window) {
+      throw commandError('failed-precondition', 'The private Wolf timing marker is malformed.', 'conflict');
+    }
+    const ledgerRef = db.doc(`sessions/${sessionId}/wolfCommanderCycleDials/cycle-${cycle}`);
+    const ledger = await tx.get(ledgerRef);
+    let groupRows: Array<Readonly<{ groupId: string; pursuitValue: number }>> = [];
+    try {
+      const parsedGroups = groups.docs.map((snapshot) => {
+        const group = fleetGroupRecord(snapshot.data());
+        return group?.id === snapshot.id ? group : undefined;
+      });
+      if (parsedGroups.some((group) => !group) || parsedGroups.length === 0) {
+        throw new Error('The live fleet group authority is unavailable.');
+      }
+      const canonicalGroups = parsedGroups as FleetGroupRecord[];
+      const first = canonicalGroups[0]!;
+      const snapshot = wolfAttackPursuitSnapshot(session, navigation, groups, players, first.id);
+      groupRows = canonicalGroups.map((group) => ({
+        groupId: group.id,
+        pursuitValue: snapshot.groupValues[group.id]!,
+      })).sort((left, right) => left.groupId.localeCompare(right.groupId));
+    } catch (error) {
+      throw commandError(
+        'failed-precondition', error instanceof Error ? error.message : 'The current group pursuit dial is unavailable.', 'conflict',
+      );
+    }
+    if (ledger.exists) {
+      const marker = wolfCommanderCycleAttackMarker(ledger.get('commanderCycleAttack'));
+      if (!marker || ledger.get('type') !== 'wolf-commander-cycle-dial' || ledger.get('status') !== 'committed' ||
+          ledger.get('cycle') !== cycle || ledger.get('actorUid') !== uid || marker.commanderUid !== uid ||
+          marker.cycle !== cycle) {
+        throw commandError('failed-precondition', 'The private Commander dial ledger is malformed.', 'conflict');
+      }
+      return {
+        type: 'wolf-commander-cycle-dial-view', sessionId, cycle,
+        navigationRevision: marker.navigationRevision, status: 'committed', groups: groupRows,
+        groupId: marker.groupId, targetGroupPursuit: marker.targetGroupPursuit,
+        damageCapacity: 10 + marker.targetGroupPursuit, attackNumber: marker.attackNumber,
+      } as const;
+    }
+    let priorAttackVerifiable = true;
+    if (attackState.exists) {
+      const prior = attackState.data();
+      if (!isRecord(prior) || prior.status !== 'resolved' || prior.currentStep !== 'resolved' ||
+          !window || window.status !== 'resolved' || window.turn !== prior.turn || prior.turn >= cycle) {
+        priorAttackVerifiable = false;
+      } else {
+        const audit = await tx.get(db.doc(
+          `sessions/${sessionId}/wolfAttackState/current/audit/wolf-finalized-${prior.turn}`,
+        ));
+        const attackNumber = prior.attackNumber === undefined ? 1 : prior.attackNumber;
+        const commanderContext = Number.isSafeInteger(attackNumber) && (attackNumber as number) > 3
+          ? wolfCommanderCarryoverContextForState(prior, (attackNumber as number) + 1)
+          : undefined;
+        try {
+          if (Number.isSafeInteger(attackNumber) && (attackNumber as number) > 3 && !commanderContext) {
+            throw new Error('The prior attack has no verifiable Commander cycle marker.');
+          }
+          if (commanderContext) {
+            resolvedWolfAttackForCarryover(
+              prior, audit.exists ? audit.data() : undefined, cycle, commanderContext,
+            );
+          } else {
+            resolvedWolfAttackForCarryover(prior, audit.exists ? audit.data() : undefined, cycle);
+          }
+        } catch {
+          priorAttackVerifiable = false;
+        }
+      }
+    } else if (window?.status === 'resolved') {
+      priorAttackVerifiable = false;
+    }
+    const windowAvailable = !window ||
+      (window.status === 'resolved' && window.turn < cycle) ||
+      (window.status === 'deferred' && window.turn === cycle);
+    const status = teamPhaseLive && windowAvailable && priorAttackVerifiable ? 'available' : 'unavailable';
+    return {
+      type: 'wolf-commander-cycle-dial-view', sessionId, cycle,
+      navigationRevision: navigation.get('revision') as number,
+      status,
+      ...(status === 'unavailable' ? {
+        reason: !teamPhaseLive ? 'team-phase-closed' : 'attack-in-progress',
+      } : {}),
+      groups: groupRows,
+    } as const;
+  });
+});
+
+/** Publish the assigned Commander's single, attributed fleet message this Team Phase. */
+export const publishWolfCommanderAddress = onCall<{
+  sessionId?: unknown;
+  requestId?: unknown;
+  expectedCycle?: unknown;
+  message?: unknown;
+}>(async request => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  const allowed = new Set(['sessionId', 'requestId', 'expectedCycle', 'message']);
+  if (!isRecord(raw) || Object.keys(raw).some((key) => !allowed.has(key))) {
+    throw new HttpsError('invalid-argument', 'A Commander address accepts one message for the current cycle.');
+  }
+  const { sessionId } = requireSessionRequest(raw);
+  if (!isCanonicalRequestId(raw.requestId) || !Number.isSafeInteger(raw.expectedCycle) ||
+      (raw.expectedCycle as number) < 1 || typeof raw.message !== 'string' ||
+      raw.message.trim().length < 1 || raw.message.trim().length > 1000) {
+    throw new HttpsError('invalid-argument', 'The Commander address must be 1–1000 characters for a current cycle.');
+  }
+  const cycle = raw.expectedCycle as number;
+  const message = raw.message.trim();
+  const sessionRef = db.doc(`sessions/${sessionId}`);
+  const playerRef = db.doc(`sessions/${sessionId}/players/${uid}`);
+  const playersRef = db.collection(`sessions/${sessionId}/players`);
+  const addressRef = db.doc(`sessions/${sessionId}/wolfCommanderAddresses/cycle-${cycle}`);
+  const auditRef = db.doc(`sessions/${sessionId}/wolfCommanderAddresses/cycle-${cycle}/audit/${raw.requestId}`);
+  const eventId = `wolf-commander-address-${cycle}`;
+  const eventRef = db.doc(`sessions/${sessionId}/events/${eventId}`);
+  const receiptRef = commandReceiptRef(sessionId, raw.requestId);
+  const fingerprint: CommandFingerprint = {
+    action: 'publish-wolf-commander-address', sessionId, requestId: raw.requestId,
+    actorUid: uid, instanceId: null, expectedRevision: cycle,
+    payload: { expectedCycle: cycle, message },
+  };
+
+  return db.runTransaction(async (tx: Transaction) => {
+    const [session, player, players, address, event, receipt, audit] = await Promise.all([
+      tx.get(sessionRef), tx.get(playerRef), tx.get(playersRef), tx.get(addressRef),
+      tx.get(eventRef), tx.get(receiptRef), tx.get(auditRef),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    requireWolfCommanderPlayer(player, uid);
+    const assigned = assignedWolfCommanderUidsFromPlayers(players);
+    if (assigned.length !== 1 || assigned[0] !== uid) {
+      throw new HttpsError('permission-denied', 'A single currently assigned Wolf Commander is required.');
+    }
+    const replay = replayBoundCommand(
+      receipt, fingerprint,
+      (value): value is Record<string, unknown> => isRecord(value) &&
+        value.type === 'wolf-commander-address-result' && value.status === 'committed' &&
+        value.sessionId === sessionId && value.cycle === cycle && value.eventId === eventId,
+      'Wolf Commander address',
+    );
+    if (replay) return replay;
+    if (audit.exists) rejectLegacyEventReplay('Wolf Commander address');
+    requireActiveGameplayPhase(session);
+    if (sessionTurn(session.get('currentTurn')) !== cycle) {
+      throw commandError('failed-precondition', 'The cycle changed. Refresh the Commander address.', 'stale-revision');
+    }
+    const phase = turnPhaseState(session.get('turnPhase'));
+    const nowMs = Date.now();
+    if (!phase || phase.turn !== cycle || phase.timerPause !== undefined || nowMs >= Date.parse(phase.teamPhaseEndsAt)) {
+      throw commandError('failed-precondition', 'The Commander address is available only during the live Team Phase.', 'invalid-phase');
+    }
+    if (address.exists || event.exists) {
+      throw commandError('failed-precondition', 'The Commander has already addressed the fleet this cycle.', 'conflict');
+    }
+    const expiresAt = new Date(nowMs + 30_000).toISOString();
+    const serverTime = new Date(nowMs);
+    const result = {
+      type: 'wolf-commander-address-result', status: 'committed', sessionId,
+      cycle, actorRoleId: 'wolf-commander', eventId, expiresAt,
+    } as const;
+    tx.set(addressRef, {
+      type: 'wolf-commander-address', status: 'committed', sessionId, cycle,
+      actorUid: uid, actorRoleId: 'wolf-commander', requestId: raw.requestId,
+      message, expiresAt, createdAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(auditRef, {
+      type: 'wolf-commander-address', action: 'published', sessionId, cycle,
+      actorUid: uid, actorRoleId: 'wolf-commander', requestId: raw.requestId,
+      eventId, expiresAt, createdAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(eventRef, buildPrivacySafeEventRecord({
+      type: 'wolf-commander-address',
+      envelope: buildAuthoritativeEventEnvelope({
+        sessionId, actorUid: uid, actorRoleId: 'wolf-commander', turn: cycle, phase: 'active',
+        type: 'wolf-commander-address', requestId: raw.requestId as string, revision: 1,
+        serverTime, visibility: EventVisibility.Member,
+      }),
+      payload: { cycle, message, expiresAt },
+      createdAt: FieldValue.serverTimestamp(),
+    }));
+    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+});
+
+/** Offer the printed medium-jump amnesty condition to one active ship's captain. */
+export const createWolfAmnestyOffer = onCall<{
+  sessionId?: unknown;
+  requestId?: unknown;
+  expectedCycle?: unknown;
+  targetShipId?: unknown;
+  responseDeadlineMinutes?: unknown;
+}>(async request => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  const allowed = new Set(['sessionId', 'requestId', 'expectedCycle', 'targetShipId', 'responseDeadlineMinutes']);
+  if (!isRecord(raw) || Object.keys(raw).some((key) => !allowed.has(key))) {
+    throw new HttpsError('invalid-argument', 'An amnesty offer accepts a current cycle, target ship, and response deadline.');
+  }
+  const { sessionId } = requireSessionRequest(raw);
+  if (!isCanonicalRequestId(raw.requestId) || !Number.isSafeInteger(raw.expectedCycle) ||
+      (raw.expectedCycle as number) < 1 || typeof raw.targetShipId !== 'string' ||
+      !isFleetShipId(raw.targetShipId) || !Number.isSafeInteger(raw.responseDeadlineMinutes) ||
+      (raw.responseDeadlineMinutes as number) < 1 || (raw.responseDeadlineMinutes as number) > 1440) {
+    throw new HttpsError('invalid-argument', 'The amnesty offer is malformed.');
+  }
+  const cycle = raw.expectedCycle as number;
+  const targetShipId = raw.targetShipId;
+  const deadlineMinutes = raw.responseDeadlineMinutes as number;
+  const sessionRef = db.doc(`sessions/${sessionId}`);
+  const playerRef = db.doc(`sessions/${sessionId}/players/${uid}`);
+  const playersRef = db.collection(`sessions/${sessionId}/players`);
+  const addressRef = db.doc(`sessions/${sessionId}/wolfCommanderAddresses/cycle-${cycle}`);
+  const offerRef = db.doc(`sessions/${sessionId}/wolfCommanderAmnesty/current`);
+  const auditRef = db.doc(`sessions/${sessionId}/wolfCommanderAmnesty/current/audit/${raw.requestId}`);
+  const receiptRef = commandReceiptRef(sessionId, raw.requestId);
+  const fingerprint: CommandFingerprint = {
+    action: 'create-wolf-amnesty-offer', sessionId, requestId: raw.requestId,
+    actorUid: uid, instanceId: null, expectedRevision: cycle,
+    payload: { expectedCycle: cycle, targetShipId, responseDeadlineMinutes: deadlineMinutes },
+  };
+  return db.runTransaction(async (tx: Transaction) => {
+    const [session, player, players, address, current, receipt, audit] = await Promise.all([
+      tx.get(sessionRef), tx.get(playerRef), tx.get(playersRef), tx.get(addressRef),
+      tx.get(offerRef), tx.get(receiptRef), tx.get(auditRef),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    requireWolfCommanderPlayer(player, uid);
+    const assigned = assignedWolfCommanderUidsFromPlayers(players);
+    if (assigned.length !== 1 || assigned[0] !== uid) {
+      throw new HttpsError('permission-denied', 'A single currently assigned Wolf Commander is required.');
+    }
+    const replay = replayBoundCommand(
+      receipt, fingerprint,
+      (value): value is Record<string, unknown> => isRecord(value) && value.type === 'wolf-amnesty-offer' &&
+        value.sessionId === sessionId && value.commanderUid === uid,
+      'Wolf amnesty offer',
+    );
+    if (replay) return replay;
+    if (audit.exists) rejectLegacyEventReplay('Wolf amnesty offer');
+    requireActiveGameplayPhase(session);
+    if (sessionTurn(session.get('currentTurn')) !== cycle) {
+      throw commandError('failed-precondition', 'The cycle changed. Refresh the amnesty offer.', 'stale-revision');
+    }
+    const phase = turnPhaseState(session.get('turnPhase'));
+    if (!phase || phase.turn !== cycle || phase.timerPause !== undefined || Date.now() >= Date.parse(phase.openAirspaceEndsAt)) {
+      throw commandError('failed-precondition', 'Offer amnesty during the current live cycle.', 'invalid-phase');
+    }
+    if (!address.exists || address.get('type') !== 'wolf-commander-address' ||
+        address.get('status') !== 'committed' || address.get('actorUid') !== uid || address.get('cycle') !== cycle) {
+      throw commandError('failed-precondition', 'The Commander must address the fleet before offering amnesty.', 'conflict');
+    }
+    if (!activeVesselIdsForSession(session).includes(targetShipId)) {
+      throw commandError('failed-precondition', 'Choose a currently active ship for the amnesty offer.', 'conflict');
+    }
+    const targetCaptainRole = targetShipId === 'aegis' ? 'admiral' : `${targetShipId}-captain`;
+    const targetCaptains = players.docs.filter((candidate) =>
+      isActivePlayer(candidate) && candidate.get('role') === 'player' &&
+      candidate.get('replacementStatus') == null && currentRoleForAmnestyShip(candidate, targetShipId) === targetCaptainRole);
+    if (targetCaptains.length !== 1) {
+      throw commandError('failed-precondition', 'The target ship has no unique current captain to receive this offer.', 'conflict');
+    }
+    const previous = current.exists ? wolfAmnestyStoredOffer(current.data()) : undefined;
+    if (current.exists && !previous) {
+      throw commandError('failed-precondition', 'The private amnesty record is malformed.', 'conflict');
+    }
+    if (previous && (previous.status === 'offered' || previous.status === 'accepted-pending-facilitator')) {
+      throw commandError('failed-precondition', 'Resolve the existing private amnesty offer before making another.', 'conflict');
+    }
+    const now = Date.now();
+    const offerId = `amnesty-${cycle}-${raw.requestId}`;
+    const responseDeadline = new Date(now + deadlineMinutes * 60_000).toISOString();
+    const revision = (previous?.revision ?? 0) + 1;
+    const offer = {
+      type: 'wolf-amnesty-offer', sessionId, offerId, cycle, revision,
+      commanderUid: uid, targetShipId, targetUid: targetCaptains[0]!.id,
+      condition: 'surrender-by-medium-jump-to-0101', responseDeadline,
+      status: 'offered', createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
+    } as const;
+    const result = {
+      type: offer.type, sessionId, offerId, cycle, revision, commanderUid: uid,
+      targetShipId, targetUid: targetCaptains[0]!.id,
+      condition: offer.condition, responseDeadline, status: offer.status,
+    } as const;
+    tx.set(offerRef, offer);
+    tx.set(auditRef, {
+      type: 'wolf-amnesty-audit', action: 'offered', sessionId, offerId, cycle, revision,
+      commanderUid: uid, targetShipId, targetUid: targetCaptains[0]!.id,
+      condition: 'surrender-by-medium-jump-to-0101', responseDeadline,
+      actorUid: uid, actorRoleId: 'wolf-commander', requestId: raw.requestId,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+});
+
+/** Record the target captain's explicit accept/decline without applying a bargain. */
+export const respondToWolfAmnesty = onCall<{
+  sessionId?: unknown;
+  requestId?: unknown;
+  expectedRevision?: unknown;
+  answer?: unknown;
+}>(async request => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  const allowed = new Set(['sessionId', 'requestId', 'expectedRevision', 'answer']);
+  if (!isRecord(raw) || Object.keys(raw).some((key) => !allowed.has(key))) {
+    throw new HttpsError('invalid-argument', 'An amnesty response accepts only the current revision and answer.');
+  }
+  const { sessionId } = requireSessionRequest(raw);
+  if (!isCanonicalRequestId(raw.requestId) || !Number.isSafeInteger(raw.expectedRevision) ||
+      (raw.expectedRevision as number) < 1 || (raw.answer !== 'accept' && raw.answer !== 'decline')) {
+    throw new HttpsError('invalid-argument', 'The amnesty response is malformed.');
+  }
+  const answer = raw.answer;
+  const offerRef = db.doc(`sessions/${sessionId}/wolfCommanderAmnesty/current`);
+  const auditRef = db.doc(`sessions/${sessionId}/wolfCommanderAmnesty/current/audit/${raw.requestId}`);
+  const sessionRef = db.doc(`sessions/${sessionId}`);
+  const playerRef = db.doc(`sessions/${sessionId}/players/${uid}`);
+  const receiptRef = commandReceiptRef(sessionId, raw.requestId);
+  const fingerprint: CommandFingerprint = {
+    action: 'respond-to-wolf-amnesty', sessionId, requestId: raw.requestId,
+    actorUid: uid, instanceId: null, expectedRevision: raw.expectedRevision as number,
+    payload: { answer },
+  };
+  return db.runTransaction(async (tx: Transaction) => {
+    const [session, player, offerSnapshot, receipt, audit] = await Promise.all([
+      tx.get(sessionRef), tx.get(playerRef), tx.get(offerRef), tx.get(receiptRef), tx.get(auditRef),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    if (!isActivePlayer(player) || player.get('role') !== 'player' || player.get('replacementStatus') != null) {
+      throw new HttpsError('permission-denied', 'An active ship captain is required to respond to amnesty.');
+    }
+    const current = offerSnapshot.exists ? wolfAmnestyStoredOffer(offerSnapshot.data()) : undefined;
+    if (!current) throw commandError('failed-precondition', 'There is no current amnesty offer to answer.', 'invalid-phase');
+    if (current.targetUid !== uid || currentRoleForAmnestyShip(player, current.targetShipId) !==
+        (current.targetShipId === 'aegis' ? 'admiral' : `${current.targetShipId}-captain`)) {
+      throw new HttpsError('permission-denied', 'Only the current captain of the offered ship may respond.');
+    }
+    const replay = replayBoundCommand(
+      receipt, fingerprint,
+      (value): value is Record<string, unknown> => isRecord(value) && value.type === 'wolf-amnesty-offer' &&
+        value.sessionId === sessionId && value.offerId === current.offerId && value.response === answer,
+      'Wolf amnesty response',
+    );
+    if (replay) return replay;
+    if (audit.exists) rejectLegacyEventReplay('Wolf amnesty response');
+    requireActiveGameplayPhase(session);
+    const expectedRevision = raw.expectedRevision as number;
+    if (current.revision !== expectedRevision) {
+      throw commandError('failed-precondition', 'The private amnesty offer changed. Refresh before responding.', 'stale-revision');
+    }
+    let resolved: WolfAmnestyOffer;
+    try {
+      resolved = resolveWolfAmnestyDecision(
+        current, { kind: 'response', answer }, current.cycle, new Date().toISOString(),
+      );
+    } catch (error) {
+      throw commandError(
+        'failed-precondition', error instanceof Error ? error.message : 'The amnesty response is no longer available.', 'invalid-phase',
+      );
+    }
+    const revision = expectedRevision + 1;
+    const nextRecord = {
+      ...offerSnapshot.data(), status: resolved.status, response: resolved.response,
+      responseActorUid: uid, revision, updatedAt: FieldValue.serverTimestamp(),
+    };
+    const result = {
+      type: 'wolf-amnesty-offer', sessionId, offerId: current.offerId,
+      cycle: current.cycle, revision, commanderUid: current.commanderUid,
+      targetShipId: current.targetShipId, targetUid: current.targetUid,
+      condition: current.condition, responseDeadline: current.responseDeadline,
+      status: resolved.status, response: resolved.response,
+    } as const;
+    tx.set(offerRef, nextRecord);
+    tx.set(auditRef, {
+      type: 'wolf-amnesty-audit', action: `response-${answer}`, sessionId,
+      offerId: current.offerId, cycle: current.cycle, revision,
+      targetShipId: current.targetShipId, targetUid: uid, response: answer,
+      actorUid: uid, actorRoleId: current.targetShipId === 'aegis' ? 'admiral' : `${current.targetShipId}-captain`,
+      requestId: raw.requestId, createdAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+});
+
+/** Require a current GM ruling after acceptance or after an unanswered deadline. */
+export const recordWolfAmnestyConsequence = onCall<{
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  expectedRevision?: unknown;
+  text?: unknown;
+}>(async request => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  const allowed = new Set(['sessionId', 'instanceId', 'requestId', 'expectedRevision', 'text']);
+  if (!isRecord(raw) || Object.keys(raw).some((key) => !allowed.has(key))) {
+    throw new HttpsError('invalid-argument', 'A facilitator consequence accepts only its live revision and ruling text.');
+  }
+  const { sessionId } = requireSessionRequest(raw);
+  if (typeof raw.instanceId !== 'string' || !raw.instanceId.trim() || !isCanonicalRequestId(raw.requestId) ||
+      !Number.isSafeInteger(raw.expectedRevision) || (raw.expectedRevision as number) < 1 ||
+      typeof raw.text !== 'string' || raw.text.trim().length < 1 || raw.text.trim().length > 2000) {
+    throw new HttpsError('invalid-argument', 'The facilitator consequence is malformed.');
+  }
+  const text = raw.text.trim();
+  const offerRef = db.doc(`sessions/${sessionId}/wolfCommanderAmnesty/current`);
+  const auditRef = db.doc(`sessions/${sessionId}/wolfCommanderAmnesty/current/audit/${raw.requestId}`);
+  const sessionRef = db.doc(`sessions/${sessionId}`);
+  const playerRef = db.doc(`sessions/${sessionId}/players/${uid}`);
+  const instanceRef = db.doc(`sessions/${sessionId}/gmInstances/${raw.instanceId}`);
+  const receiptRef = commandReceiptRef(sessionId, raw.requestId);
+  const fingerprint: CommandFingerprint = {
+    action: 'record-wolf-amnesty-consequence', sessionId, requestId: raw.requestId,
+    actorUid: uid, instanceId: raw.instanceId, expectedRevision: raw.expectedRevision as number,
+    payload: { text },
+  };
+  return db.runTransaction(async (tx: Transaction) => {
+    const [session, player, instance, offerSnapshot, receipt, audit] = await Promise.all([
+      tx.get(sessionRef), tx.get(playerRef), tx.get(instanceRef), tx.get(offerRef), tx.get(receiptRef), tx.get(auditRef),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    if (!isLiveGmInstance(instance, player, uid)) {
+      throw new HttpsError('permission-denied', 'An active facilitator instance is required.');
+    }
+    const current = offerSnapshot.exists ? wolfAmnestyStoredOffer(offerSnapshot.data()) : undefined;
+    if (!current) throw commandError('failed-precondition', 'There is no current amnesty offer to adjudicate.', 'invalid-phase');
+    const replay = replayBoundCommand(
+      receipt, fingerprint,
+      (value): value is Record<string, unknown> => isRecord(value) && value.type === 'wolf-amnesty-offer' &&
+        value.sessionId === sessionId && value.offerId === current.offerId && value.status === 'facilitator-ruled',
+      'Wolf amnesty consequence',
+    );
+    if (replay) return replay;
+    if (audit.exists) rejectLegacyEventReplay('Wolf amnesty consequence');
+    requireActiveGameplayPhase(session);
+    const expectedRevision = raw.expectedRevision as number;
+    if (current.revision !== expectedRevision) {
+      throw commandError('failed-precondition', 'The private amnesty offer changed. Refresh before adjudicating.', 'stale-revision');
+    }
+    let resolved: WolfAmnestyOffer;
+    try {
+      resolved = resolveWolfAmnestyDecision(
+        current, { kind: 'facilitator-consequence', text }, current.cycle, new Date().toISOString(),
+      );
+    } catch (error) {
+      throw commandError(
+        'failed-precondition', error instanceof Error ? error.message : 'The amnesty offer is not ready for facilitator ruling.', 'invalid-phase',
+      );
+    }
+    const revision = expectedRevision + 1;
+    const nextRecord = {
+      ...offerSnapshot.data(), status: resolved.status, ruling: resolved.ruling,
+      facilitatorConsequence: resolved.facilitatorConsequence, rulingActorUid: uid,
+      revision, updatedAt: FieldValue.serverTimestamp(),
+    };
+    const result = {
+      type: 'wolf-amnesty-offer', sessionId, offerId: current.offerId,
+      cycle: current.cycle, revision, commanderUid: current.commanderUid,
+      targetShipId: current.targetShipId, targetUid: current.targetUid,
+      condition: current.condition, responseDeadline: current.responseDeadline,
+      status: resolved.status, ...(current.response ? { response: current.response } : {}),
+      ruling: resolved.ruling,
+    } as const;
+    tx.set(offerRef, nextRecord);
+    tx.set(auditRef, {
+      type: 'wolf-amnesty-audit', action: 'facilitator-consequence', sessionId,
+      offerId: current.offerId, cycle: current.cycle, revision,
+      targetShipId: current.targetShipId, targetUid: current.targetUid,
+      ...(current.response ? { response: current.response } : {}),
+      ruling: resolved.ruling, actorUid: uid, actorRoleId: 'gm',
+      requestId: raw.requestId, createdAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+});
+
+/** Return only the current amnesty offer to its Commander, target captain, or facilitator. */
+export const getWolfAmnestyView = onCall<{ sessionId?: unknown }>(async request => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  if (isRecord(raw) && Object.keys(raw).some((key) => key !== 'sessionId')) {
+    throw new HttpsError('invalid-argument', 'The amnesty query accepts only sessionId.');
+  }
+  const { sessionId } = requireSessionRequest(isRecord(raw) ? raw : {});
+  const sessionRef = db.doc(`sessions/${sessionId}`);
+  const playerRef = db.doc(`sessions/${sessionId}/players/${uid}`);
+  const playersRef = db.collection(`sessions/${sessionId}/players`);
+  const offerRef = db.doc(`sessions/${sessionId}/wolfCommanderAmnesty/current`);
+  return db.runTransaction(async (tx: Transaction) => {
+    const [session, player, players, offerSnapshot] = await Promise.all([
+      tx.get(sessionRef), tx.get(playerRef), tx.get(playersRef), tx.get(offerRef),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    if (!isActivePlayer(player)) throw new HttpsError('permission-denied', 'An active session member is required.');
+    const isGm = player.get('role') === 'gm';
+    const isCommander = player.get('role') === 'player' && player.get('replacementRoleId') === 'wolf-commander' &&
+      player.get('replacementStatus') == null && assignedWolfCommanderUidsFromPlayers(players).includes(uid);
+    const cycle = sessionTurn(session.get('currentTurn'));
+    const addressSnapshot = cycle > 0
+      ? await tx.get(db.doc(`sessions/${sessionId}/wolfCommanderAddresses/cycle-${cycle}`))
+      : undefined;
+    const commanderAddressPublished = Boolean(addressSnapshot?.exists &&
+      addressSnapshot.get('type') === 'wolf-commander-address' &&
+      addressSnapshot.get('status') === 'committed' && addressSnapshot.get('cycle') === cycle &&
+      addressSnapshot.get('actorUid') === uid);
+    if (!offerSnapshot.exists) {
+      return {
+        type: 'wolf-amnesty-view', sessionId, offer: null,
+        ...(isCommander ? { commanderAddressPublished } : {}),
+      } as const;
+    }
+    const offer = wolfAmnestyStoredOffer(offerSnapshot.data());
+    if (!offer) throw commandError('failed-precondition', 'The private amnesty record is malformed.', 'conflict');
+    const captainRole = offer.targetShipId === 'aegis' ? 'admiral' : `${offer.targetShipId}-captain`;
+    const isTargetCaptain = offer.targetUid === uid && player.get('role') === 'player' &&
+      player.get('replacementStatus') == null && currentRoleForAmnestyShip(player, offer.targetShipId) === captainRole;
+    if (!isGm && !isCommander && !isTargetCaptain) {
+      return { type: 'wolf-amnesty-view', sessionId, offer: null } as const;
+    }
+    return {
+      type: 'wolf-amnesty-view', sessionId,
+      offer: {
+        type: 'wolf-amnesty-offer', offerId: offer.offerId, cycle: offer.cycle,
+        revision: offer.revision, targetShipId: offer.targetShipId,
+        condition: offer.condition, responseDeadline: offer.responseDeadline,
+        status: offer.status, ...(offer.response ? { response: offer.response } : {}),
+        ...(offer.ruling ? { ruling: offer.ruling } : {}),
+        ...(isGm || isCommander ? { targetUid: offer.targetUid } : {}),
+      },
+      ...(isCommander ? { commanderAddressPublished } : {}),
+    } as const;
+  });
+});
+
 /** Stage private Wolf cards, targets, modifiers, and notes before declaration. */
 export const stageWolfAttackPreparation = onCall<{
   sessionId?: unknown;
@@ -20366,6 +21239,11 @@ export const stageWolfAttackPreparation = onCall<{
   const change = requireWolfAttackPreparationRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${change.sessionId}`);
   const projectionRef = db.doc(`sessions/${change.sessionId}/wolfAttackPreparation/current`);
+  const windowRef = db.doc(`sessions/${change.sessionId}/wolfAttackWindow/current`);
+  const attackStateRef = db.doc(`sessions/${change.sessionId}/wolfAttackState/current`);
+  const navigationRef = navigationStateRef(change.sessionId);
+  const fleetGroupsRef = db.collection(`sessions/${change.sessionId}/fleetGroups`);
+  const playersRef = db.collection(`sessions/${change.sessionId}/players`);
   const auditRef = db.doc(`sessions/${change.sessionId}/wolfAttackPreparation/current/audit/${change.requestId}`);
   const receiptRef = commandReceiptRef(change.sessionId, change.requestId);
   const canonicalAssignments = [...change.targetAssignments]
@@ -20394,11 +21272,13 @@ export const stageWolfAttackPreparation = onCall<{
   };
 
   const result = await db.runTransaction(async tx => {
-    const [session, player, instance, projection, receipt, audit] = await Promise.all([
+    const [session, player, instance, projection, windowProjection, attackState, receipt, audit] = await Promise.all([
       tx.get(sessionRef),
       tx.get(db.doc(`sessions/${change.sessionId}/players/${uid}`)),
       tx.get(db.doc(`sessions/${change.sessionId}/gmInstances/${change.instanceId}`)),
       tx.get(projectionRef),
+      tx.get(windowRef),
+      tx.get(attackStateRef),
       tx.get(receiptRef),
       tx.get(auditRef),
     ]);
@@ -20459,6 +21339,83 @@ export const stageWolfAttackPreparation = onCall<{
       );
     }
     const activeVesselIds = authoritativeActiveVesselIdsForWolfPreparation(session);
+    const window = windowProjection.exists ? wolfAttackWindowState(windowProjection.data()) : undefined;
+    let commanderMarker: WolfAttackStageState['commanderCycleAttack'];
+    if (window?.status === 'due' && window.turn === currentTurn && window.threatSiteCode === 'commander') {
+      const ledger = await tx.get(db.doc(
+        `sessions/${change.sessionId}/wolfCommanderCycleDials/cycle-${currentTurn}`,
+      ));
+      const savedMarker = ledger.exists ? wolfCommanderCycleAttackMarker(ledger.get('commanderCycleAttack')) : undefined;
+      if (!savedMarker || ledger.get('type') !== 'wolf-commander-cycle-dial' ||
+          ledger.get('status') !== 'committed' || ledger.get('cycle') !== currentTurn ||
+          ledger.get('actorUid') !== savedMarker.commanderUid || savedMarker.cycle !== currentTurn ||
+          savedMarker.groupId !== window.targetGroupId) {
+        throw commandError('failed-precondition', 'The current Commander dial is missing or malformed.', 'conflict');
+      }
+      commanderMarker = savedMarker;
+    }
+    const priorPRepeat = pStationRepeatContextForState(
+      attackState.exists ? attackState.data() : undefined,
+      currentTurn,
+    );
+    if (window?.status === 'due' && window.turn === currentTurn && window.threatSiteCode === 'P' &&
+        priorPRepeat && window.targetGroupId === priorPRepeat.groupId &&
+        window.threatSourceId === `arrival-${priorPRepeat.sourceTransitionId}`) {
+      throw commandError(
+        'failed-precondition',
+        'The P Station repeat roster is generated from the prior finalized survivor record.',
+        'conflict',
+      );
+    }
+    let compositionRule: WolfAttackPreparationCompositionRule | undefined;
+    if (window?.status === 'due' && window.turn === currentTurn && window.threatSiteCode) {
+      if (!window.targetGroupId) {
+        throw commandError('failed-precondition', 'The threat window has no selected fleet group.', 'conflict');
+      }
+      if (window.threatSiteCode === 'L' || window.threatSiteCode === 'M' || window.threatSiteCode === 'P') {
+        if (!window.threatSourceId) {
+          throw commandError('failed-precondition', 'The base or Station window has no arrival source.', 'conflict');
+        }
+        const [groupSnapshot, schedule, pressure] = await Promise.all([
+          tx.get(db.doc(`sessions/${change.sessionId}/fleetGroups/${window.targetGroupId}`)),
+          tx.get(db.doc(`sessions/${change.sessionId}/wolfAttackPressure/${window.threatSourceId}`)),
+          tx.get(wolfArrivalPressureStateRef(change.sessionId, window.targetGroupId)),
+        ]);
+        requireLiveWolfThreatSource(
+          session, window.targetGroupId, window.threatSiteCode,
+          window.threatSourceId, groupSnapshot, schedule, pressure, currentTurn,
+        );
+        compositionRule = { kind: window.threatSiteCode, targetGroupId: window.targetGroupId };
+      } else {
+        const [navigation, groups, players] = await Promise.all([
+          tx.get(navigationRef), tx.get(fleetGroupsRef), tx.get(playersRef),
+        ]);
+        let pursuit: WolfAttackPursuitSnapshot;
+        try {
+          pursuit = wolfAttackPursuitSnapshot(
+            session, navigation, groups, players, window.targetGroupId,
+          );
+        } catch (error) {
+          throw commandError(
+            'failed-precondition',
+            error instanceof Error ? error.message : 'The Commander pursuit dial is unavailable.',
+            'conflict',
+          );
+        }
+        if (window.threatSiteCode === 'commander' && commanderMarker &&
+            (commanderMarker.navigationRevision !== pursuit.navigationRevision ||
+             commanderMarker.targetGroupPursuit !== pursuit.targetGroupValue)) {
+          throw commandError('failed-precondition', 'The selected group pursuit changed after the Commander dial was committed.', 'stale-revision');
+        }
+        if (window.threatSiteCode === 'commander') {
+          requireCurrentAssignedWolfCommander(commanderMarker, players);
+        }
+        compositionRule = {
+          kind: 'commander', targetGroupId: window.targetGroupId,
+          targetGroupPursuit: pursuit.targetGroupValue,
+        };
+      }
+    }
     let validated: Omit<WolfAttackPreparation, 'revision'>;
     try {
       validated = validateWolfAttackPreparation({
@@ -20468,7 +21425,7 @@ export const stageWolfAttackPreparation = onCall<{
         targetAssignments: change.targetAssignments,
         modifiers: change.modifiers,
         notes: change.notes,
-      }, activeVesselIds);
+      }, activeVesselIds, compositionRule);
     } catch (error) {
       throw commandError(
         'failed-precondition',
@@ -20487,6 +21444,7 @@ export const stageWolfAttackPreparation = onCall<{
       turn: next.turn,
       revision: next.revision,
       actorUid: uid,
+      ...(commanderMarker ? { commanderCycleAttack: commanderMarker } : {}),
       ...(ignoredPlayerChoiceMarkers.length ? { ignoredPlayerChoiceMarkers } : {}),
       createdAt: FieldValue.serverTimestamp(),
     });
@@ -20541,11 +21499,18 @@ type WolfAttackDeclarationInputs = Readonly<{
   transitChainFingerprint: string;
   shuttleVisitLog: readonly PublicShuttleVisit[];
   targetRing: WolfTargetRing;
+  targetGroupId: string;
+  targetGroupVesselIds: readonly string[];
+  pStationSequence?: WolfAttackStageState['pStationSequence'];
+  commanderCycleAttack?: WolfAttackStageState['commanderCycleAttack'];
 }>;
 
 type WolfAttackPursuitSnapshot = Readonly<{
   navigationRevision: number;
   groupValues: Readonly<Record<string, number>>;
+  targetGroupId: string;
+  targetGroupValue: number;
+  targetGroupVesselIds: readonly string[];
   fleetGroups: readonly Readonly<{
     id: string;
     vesselIds: readonly string[];
@@ -20558,6 +21523,7 @@ function wolfAttackPursuitSnapshot(
   navigation: DocumentSnapshot,
   fleetGroups: { readonly docs: readonly DocumentSnapshot[] },
   players: { readonly docs: readonly DocumentSnapshot[] },
+  targetGroupId?: string,
 ): WolfAttackPursuitSnapshot {
   const raw = navigation.exists &&
     typeof (navigation as unknown as { data?: unknown }).data === 'function'
@@ -20604,9 +21570,30 @@ function wolfAttackPursuitSnapshot(
     parsedGroups as FleetGroupRecord[],
     players.docs,
   );
+  const resolvedTargetGroupId = targetGroupId ?? (canonicalGroups.length === 1 ? canonicalGroups[0]!.id : undefined);
+  if (!resolvedTargetGroupId) {
+    throw commandError(
+      'failed-precondition',
+      'Select the fleet group whose independent pursuit will govern this Wolf attack.',
+      'invalid-phase',
+    );
+  }
+  let targetGroupValue: number;
+  try {
+    targetGroupValue = wolfThreatPursuit(resolvedTargetGroupId, groupValues, parsedGroups as FleetGroupRecord[]);
+  } catch (error) {
+    throw commandError('failed-precondition', error instanceof Error ? error.message : 'Target-group pursuit is unavailable.', 'conflict');
+  }
+  const targetGroupVesselIds = canonicalGroups.find(({ id }) => id === resolvedTargetGroupId)?.vesselIds;
+  if (!targetGroupVesselIds || targetGroupVesselIds.length === 0) {
+    throw commandError('failed-precondition', 'The selected fleet group has no active vessels.', 'conflict');
+  }
   return {
     navigationRevision: revision as number,
     groupValues,
+    targetGroupId: resolvedTargetGroupId,
+    targetGroupValue,
+    targetGroupVesselIds,
     fleetGroups: canonicalGroups,
   };
 }
@@ -20617,6 +21604,125 @@ function wolfAttackPursuitFingerprint(pursuit: WolfAttackPursuitSnapshot): strin
     groupValues: Object.entries(pursuit.groupValues),
     fleetGroups: pursuit.fleetGroups,
   });
+}
+
+function wolfCommanderCycleAttackMarker(value: unknown): WolfAttackStageState['commanderCycleAttack'] | undefined {
+  if (!isRecord(value)) return undefined;
+  const required = [
+    'type', 'cycle', 'ledgerId', 'groupId', 'targetGroupPursuit', 'navigationRevision',
+    'commanderUid', 'attackNumber', 'requestId',
+  ];
+  const optional = ['parentAttackId', 'parentAttackNumber', 'parentTurn'];
+  if (Object.keys(value).some((key) => !required.includes(key) && !optional.includes(key)) ||
+      required.some((key) => !Object.hasOwn(value, key)) ||
+      value.type !== 'wolf-commander-cycle-attack' || !Number.isSafeInteger(value.cycle) ||
+      (value.cycle as number) < 1 || value.ledgerId !== `cycle-${value.cycle}` ||
+      typeof value.groupId !== 'string' || !/^fleet-[1-9][0-9]*$/.test(value.groupId) ||
+      !Number.isSafeInteger(value.targetGroupPursuit) || (value.targetGroupPursuit as number) < 0 ||
+      (value.targetGroupPursuit as number) > 10 || !Number.isSafeInteger(value.navigationRevision) ||
+      (value.navigationRevision as number) < 0 || typeof value.commanderUid !== 'string' ||
+      value.commanderUid.length === 0 || !Number.isSafeInteger(value.attackNumber) ||
+      (value.attackNumber as number) < 1 || !isCanonicalRequestId(value.requestId)) return undefined;
+  const hasParent = optional.some((key) => Object.hasOwn(value, key));
+  if (hasParent && (optional.some((key) => !Object.hasOwn(value, key)) ||
+      typeof value.parentAttackId !== 'string' ||
+      !/^wolf-attack-[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/.test(value.parentAttackId) ||
+      !Number.isSafeInteger(value.parentAttackNumber) || (value.parentAttackNumber as number) < 1 ||
+      value.attackNumber !== (value.parentAttackNumber as number) + 1 ||
+      !Number.isSafeInteger(value.parentTurn) || (value.parentTurn as number) < 1 ||
+      (value.parentTurn as number) >= (value.cycle as number))) return undefined;
+  if (!hasParent && value.attackNumber !== 1) return undefined;
+  return value as unknown as WolfAttackStageState['commanderCycleAttack'];
+}
+
+function wolfCommanderCarryoverContextForState(
+  stateValue: unknown,
+  nextAttackNumber: number,
+): CommanderCycleCarryoverContext | undefined {
+  if (!isRecord(stateValue)) return undefined;
+  const attackNumber = stateValue.attackNumber === undefined ? 1 : stateValue.attackNumber;
+  if (!Number.isSafeInteger(attackNumber) || (attackNumber as number) <= 3) return undefined;
+  const marker = wolfCommanderCycleAttackMarker(stateValue.commanderCycleAttack);
+  if (!marker || marker.attackNumber !== attackNumber || marker.cycle !== stateValue.turn ||
+      marker.parentAttackId !== stateValue.previousAttackId ||
+      marker.parentAttackNumber !== (attackNumber as number) - 1 ||
+      marker.parentTurn === undefined || marker.parentTurn >= marker.cycle ||
+      typeof stateValue.attackId !== 'string' || nextAttackNumber !== (attackNumber as number) + 1) {
+    return undefined;
+  }
+  return {
+    type: 'commander-cycle', expectedMarker: marker,
+    parentAttackId: stateValue.attackId, nextAttackNumber,
+  };
+}
+
+function sameWolfCommanderCycleAttackMarker(left: unknown, right: unknown): boolean {
+  if ((left === undefined || left === null) && (right === undefined || right === null)) return true;
+  if (left === undefined || left === null || right === undefined || right === null) return false;
+  const marker = wolfCommanderCycleAttackMarker(left);
+  const expected = wolfCommanderCycleAttackMarker(right);
+  if (!marker || !expected) return false;
+  const stable = (value: WolfAttackStageState['commanderCycleAttack']) => JSON.stringify(
+    Object.keys(value as unknown as Record<string, unknown>).sort().map((key) => [
+      key,
+      (value as unknown as Record<string, unknown>)[key],
+    ]),
+  );
+  return stable(marker) === stable(expected);
+}
+
+function requireWolfCommanderCycleDialForPursuit(
+  marker: WolfAttackStageState['commanderCycleAttack'],
+  pursuit: WolfAttackPursuitSnapshot,
+): void {
+  if (!marker || marker.groupId !== pursuit.targetGroupId ||
+      marker.targetGroupPursuit !== pursuit.targetGroupValue ||
+      marker.navigationRevision !== pursuit.navigationRevision) {
+    throw commandError(
+      'failed-precondition', 'The Commander dial no longer matches the selected group pursuit.', 'stale-revision',
+    );
+  }
+}
+
+function requireCurrentAssignedWolfCommander(
+  marker: WolfAttackStageState['commanderCycleAttack'],
+  players: { readonly docs: readonly DocumentSnapshot[] },
+): void {
+  const assigned = assignedWolfCommanderUidsFromPlayers(players);
+  if (!marker || assigned.length !== 1 || assigned[0] !== marker.commanderUid) {
+    throw commandError(
+      'failed-precondition', 'The Commander dial no longer belongs to the currently assigned Commander.', 'conflict',
+    );
+  }
+}
+
+function requirePreparationForSelectedAttack(
+  preparation: WolfAttackPreparation,
+  window: WolfAttackWindow,
+  pursuit: WolfAttackPursuitSnapshot,
+  allowPStationRepeat = false,
+): void {
+  const expectedKind = allowPStationRepeat && window.threatSiteCode === 'P'
+    ? 'p-station-repeat' : window.threatSiteCode;
+  if ((preparation.compositionKind ?? undefined) !== expectedKind ||
+      (expectedKind !== undefined && preparation.targetGroupId !== pursuit.targetGroupId)) {
+    throw commandError(
+      'failed-precondition',
+      'The private composition does not match the selected threat and fleet group.',
+      'conflict',
+    );
+  }
+  if (expectedKind === 'commander') {
+    const composition = wolfAttackCompositionForPreparation(preparation);
+    if (preparation.targetGroupPursuit !== pursuit.targetGroupValue ||
+        composition.damageCapacity !== 10 + pursuit.targetGroupValue) {
+      throw commandError(
+        'failed-precondition',
+        'The Commander dial changed with the selected fleet group pursuit; restage this exact composition.',
+        'stale-revision',
+      );
+    }
+  }
 }
 
 function wolfAttackActiveVesselIds(session: DocumentSnapshot): readonly string[] {
@@ -20658,6 +21764,30 @@ function configuredWolfTargetRingForSession(session: DocumentSnapshot): WolfTarg
   }
 }
 
+function configuredWolfTargetRingForGroup(
+  session: DocumentSnapshot,
+  targetGroupVesselIds: readonly string[],
+): WolfTargetRing {
+  const fullRing = configuredWolfTargetRingForSession(session);
+  const members = new Set(targetGroupVesselIds);
+  const ring = fullRing.filter((target) => members.has(target));
+  if (ring.length === 0 || ring.length !== new Set(ring).size) {
+    throw commandError('failed-precondition', 'The selected fleet group has no valid combat targets.', 'conflict');
+  }
+  return ring;
+}
+
+function configuredWolfTargetRingForAttack(
+  session: DocumentSnapshot,
+  state: DocumentSnapshot,
+): WolfTargetRing {
+  const targetGroupVesselIds = state.get('targetGroupVesselIds');
+  return Array.isArray(targetGroupVesselIds) && targetGroupVesselIds.length > 0 &&
+    targetGroupVesselIds.every((vesselId) => typeof vesselId === 'string')
+    ? configuredWolfTargetRingForGroup(session, targetGroupVesselIds as string[])
+    : configuredWolfTargetRingForSession(session);
+}
+
 function wolfAttackCarryoverDocumentRefs(
   sessionId: string,
   stateProjection: DocumentSnapshot,
@@ -20678,15 +21808,160 @@ function wolfAttackCarryoverDocumentRefs(
   };
 }
 
+function pStationRepeatContextForState(
+  value: unknown,
+  currentTurn: number,
+): PStationRepeatContext | undefined {
+  if (!isRecord(value) || !isRecord(value.pStationSequence) ||
+      typeof value.attackId !== 'string' || !Number.isSafeInteger(value.turn) ||
+      value.turn !== currentTurn || value.status !== 'resolved' || value.currentStep !== 'resolved') return undefined;
+  const marker = value.pStationSequence;
+  const attackNumber = value.attackNumber === undefined ? 1 : value.attackNumber;
+  if (!Number.isSafeInteger(attackNumber) || (attackNumber as number) < 1 ||
+      marker.type !== 'p-station-sequence' || marker.stationId !== 'P' ||
+      typeof marker.sequenceId !== 'string' || typeof marker.groupId !== 'string' ||
+      typeof marker.chart !== 'string' || typeof marker.coordinate !== 'string' ||
+      typeof marker.sourceTransitionId !== 'string' || !Number.isSafeInteger(marker.sourceCycle) ||
+      !Number.isSafeInteger(marker.attackNumber) || marker.attackNumber !== attackNumber) return undefined;
+  return {
+    type: 'p-station-repeat',
+    sequenceId: marker.sequenceId,
+    groupId: marker.groupId,
+    chart: marker.chart as ChartId,
+    coordinate: marker.coordinate,
+    stationId: 'P',
+    sourceTransitionId: marker.sourceTransitionId,
+    sourceCycle: marker.sourceCycle as number,
+    parentAttackId: value.attackId,
+    parentAttackNumber: attackNumber as number,
+    parentTurn: currentTurn,
+    nextAttackNumber: (attackNumber as number) + 1,
+  };
+}
+
+function sameWolfFinalizationValue(left: unknown, right: unknown): boolean {
+  const stable = (value: unknown): unknown => {
+    if (Array.isArray(value)) return value.map(stable);
+    if (isRecord(value)) return Object.fromEntries(
+      Object.keys(value).sort().map((key) => [key, stable(value[key])]),
+    );
+    return value;
+  };
+  try {
+    return JSON.stringify(stable(left)) === JSON.stringify(stable(right));
+  } catch {
+    return false;
+  }
+}
+
+function hasExactWolfRecordKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
+  return Object.keys(value).sort().join(',') === [...keys].sort().join(',');
+}
+
+function pStationRepeatPlanFromFinalization(
+  stateValue: unknown,
+  finalizationAuditValue: unknown,
+  currentTurn: number,
+): Readonly<{ plan: Record<string, unknown>; context: PStationRepeatContext }> | undefined {
+  if (!isRecord(stateValue) || !isRecord(finalizationAuditValue) ||
+      !isRecord(stateValue.pStationRepeat) || !isRecord(finalizationAuditValue.pStationRepeat)) return undefined;
+  const plan = finalizationAuditValue.pStationRepeat;
+  const statePlan = stateValue.pStationRepeat;
+  const context = plan.context;
+  const repeatKeys = [
+    'status', 'sequenceId', 'context', 'targetGroupId', 'threatSourceId', 'turn',
+    'nextAttackNumber', 'sourceInstanceIds', 'survivors', 'window', 'preparation',
+  ];
+  const contextKeys = [
+    'type', 'sequenceId', 'groupId', 'chart', 'coordinate', 'stationId', 'sourceTransitionId',
+    'sourceCycle', 'parentAttackId', 'parentAttackNumber', 'parentTurn', 'nextAttackNumber',
+  ];
+  const attackNumber = stateValue.attackNumber === undefined ? 1 : stateValue.attackNumber;
+  if (!sameWolfFinalizationValue(statePlan, plan) ||
+      !hasExactWolfRecordKeys(plan, repeatKeys) || !isRecord(context) ||
+      !hasExactWolfRecordKeys(context, contextKeys) || plan.status !== 'repeat' ||
+      context.type !== 'p-station-repeat' || context.stationId !== 'P' ||
+      typeof stateValue.attackId !== 'string' || !Number.isSafeInteger(attackNumber) ||
+      stateValue.status !== 'resolved' || stateValue.currentStep !== 'resolved' ||
+      stateValue.turn !== currentTurn || plan.turn !== currentTurn || context.parentTurn !== currentTurn ||
+      context.sourceCycle !== currentTurn || context.parentAttackId !== stateValue.attackId ||
+      context.parentAttackNumber !== attackNumber || plan.nextAttackNumber !== context.nextAttackNumber ||
+      plan.sequenceId !== context.sequenceId || plan.targetGroupId !== context.groupId ||
+      plan.threatSourceId !== `arrival-${context.sourceTransitionId}` ||
+      !Number.isSafeInteger(context.nextAttackNumber) ||
+      context.nextAttackNumber !== (attackNumber as number) + 1) return undefined;
+  return { plan, context: context as unknown as PStationRepeatContext };
+}
+
+function pStationRepeatPlanMatchesDeclaration(
+  plan: Record<string, unknown>,
+  previous: ResolvedPStationRepeat,
+  window: WolfAttackWindow,
+  preparation: WolfAttackPreparation,
+  currentTurn: number,
+): boolean {
+  const expectedSurvivors = previous.survivingShips.map(({ instanceId, shipId }) => ({ instanceId, shipId }));
+  const expectedWindow = {
+    status: 'due', turn: currentTurn, revision: window.revision,
+    targetGroupId: previous.repeatContext.groupId, threatSiteCode: 'P',
+    threatSourceId: `arrival-${previous.repeatContext.sourceTransitionId}`,
+  };
+  const expectedPreparation = {
+    turn: currentTurn,
+    shipIds: previous.survivingShips.map(({ shipId }) => shipId),
+    targetMode: 'pre-rolled', targetAssignments: [], modifiers: [], notes: '',
+    revision: preparation.revision, compositionKind: 'p-station-repeat',
+    targetGroupId: previous.repeatContext.groupId,
+  };
+  return sameWolfFinalizationValue(plan.context, previous.repeatContext) &&
+    plan.status === 'repeat' && plan.sequenceId === previous.repeatContext.sequenceId &&
+    plan.targetGroupId === window.targetGroupId && plan.targetGroupId === previous.repeatContext.groupId &&
+    plan.threatSourceId === window.threatSourceId &&
+    plan.threatSourceId === `arrival-${previous.repeatContext.sourceTransitionId}` &&
+    plan.turn === currentTurn && plan.nextAttackNumber === previous.attackNumber + 1 &&
+    sameWolfFinalizationValue(plan.sourceInstanceIds,
+      previous.survivingShips.map(({ instanceId }) => instanceId)) &&
+    sameWolfFinalizationValue(plan.survivors, expectedSurvivors) &&
+    isRecord(plan.window) && sameWolfFinalizationValue(plan.window, expectedWindow) &&
+    isRecord(plan.preparation) && sameWolfFinalizationValue(plan.preparation, expectedPreparation) &&
+    preparation.turn === currentTurn && preparation.revision === plan.preparation.revision &&
+    preparation.compositionKind === 'p-station-repeat' &&
+    preparation.targetGroupId === previous.repeatContext.groupId &&
+    sameWolfFinalizationValue(preparation.shipIds, expectedPreparation.shipIds) &&
+    sameWolfFinalizationValue(preparation.targetAssignments, []) &&
+    sameWolfFinalizationValue(preparation.modifiers, []) &&
+    preparation.targetMode === 'pre-rolled' && preparation.notes === '';
+}
+
+function wolfAttackThreatSourceDocumentRefs(
+  sessionId: string,
+  windowProjection: DocumentSnapshot,
+): Readonly<{ schedule: DocumentReference; pressure: DocumentReference }> | undefined {
+  const window = windowProjection.exists ? wolfAttackWindowState(windowProjection.data()) : undefined;
+  if (!window || (window.threatSiteCode !== 'L' && window.threatSiteCode !== 'M' && window.threatSiteCode !== 'P')) {
+    return undefined;
+  }
+  if (!window.targetGroupId || !window.threatSourceId) {
+    throw commandError('failed-precondition', 'The selected base or Station source is incomplete.', 'conflict');
+  }
+  return {
+    schedule: db.doc(`sessions/${sessionId}/wolfAttackPressure/${window.threatSourceId}`),
+    pressure: wolfArrivalPressureStateRef(sessionId, window.targetGroupId),
+  };
+}
+
 function validateWolfAttackDeclaration(
   session: DocumentSnapshot,
   player: DocumentSnapshot,
   instance: DocumentSnapshot,
   preparationProjection: DocumentSnapshot,
   windowProjection: DocumentSnapshot,
+  commanderLedgerProjection: DocumentSnapshot | undefined,
   stateProjection: DocumentSnapshot,
   finalizationAuditProjection: DocumentSnapshot | undefined,
   archiveProjection: DocumentSnapshot | undefined,
+  threatScheduleProjection: DocumentSnapshot | undefined,
+  threatPressureProjection: DocumentSnapshot | undefined,
   eventProjection: DocumentSnapshot,
   auditProjection: DocumentSnapshot,
   fleetGroups: { readonly docs: readonly DocumentSnapshot[] },
@@ -20746,9 +22021,22 @@ function validateWolfAttackDeclaration(
       'stale-revision',
     );
   }
+  let commanderCycleAttack: WolfAttackStageState['commanderCycleAttack'];
+  if (window.threatSiteCode === 'commander') {
+    const ledger = commanderLedgerProjection;
+    const marker = ledger?.exists ? wolfCommanderCycleAttackMarker(ledger.get('commanderCycleAttack')) : undefined;
+    if (!marker || ledger!.get('type') !== 'wolf-commander-cycle-dial' ||
+        ledger!.get('status') !== 'committed' || ledger!.get('cycle') !== currentTurn ||
+        ledger!.get('actorUid') !== marker.commanderUid || marker.cycle !== currentTurn ||
+        marker.groupId !== window.targetGroupId) {
+      throw commandError('failed-precondition', 'The current Commander attack dial is missing or malformed.', 'conflict');
+    }
+    commanderCycleAttack = marker;
+  }
   let attackNumber = 1;
   let previousAttackId: string | undefined;
   let carryover: WolfWingCarryoverReceipt | undefined;
+  let pStationPrevious: ResolvedPStationRepeat | undefined;
   if (stateProjection.exists) {
     if (!finalizationAuditProjection || !archiveProjection) {
       throw commandError(
@@ -20764,13 +22052,54 @@ function validateWolfAttackDeclaration(
         'conflict',
       );
     }
-    let previous;
-    try {
-      previous = resolvedWolfAttackForCarryover(
-        stateProjection.data(),
-        finalizationAuditProjection.exists ? finalizationAuditProjection.data() : undefined,
-        currentTurn,
+    let previous: ResolvedWolfAttackForCarryover;
+    const rawPrior = stateProjection.data();
+    const rawFinalizationAudit = finalizationAuditProjection.exists
+      ? finalizationAuditProjection.data() : undefined;
+    const finalizedPRepeat = pStationRepeatPlanFromFinalization(rawPrior, rawFinalizationAudit, currentTurn);
+    const sameCyclePRepeatCandidate = window.threatSiteCode === 'P' && isRecord(rawPrior) &&
+      rawPrior.status === 'resolved' && rawPrior.currentStep === 'resolved' && rawPrior.turn === currentTurn;
+    if (sameCyclePRepeatCandidate && !finalizedPRepeat) {
+      throw commandError(
+        'failed-precondition',
+        'The prior attack has no verifiable finalized P Station repeat plan.',
+        'conflict',
       );
+    }
+    const repeatContext = finalizedPRepeat?.context;
+    const rawPriorAttackNumber = isRecord(rawPrior)
+      ? (rawPrior.attackNumber === undefined ? 1 : rawPrior.attackNumber as number) : 1;
+    const commanderCarryoverContext = commanderCycleAttack && rawPriorAttackNumber > 3
+      ? wolfCommanderCarryoverContextForState(rawPrior, rawPriorAttackNumber + 1)
+      : undefined;
+    if (window.threatSiteCode === 'commander' && rawPriorAttackNumber > 3 && !commanderCarryoverContext) {
+      throw commandError(
+        'failed-precondition', 'The prior attack has no verifiable Commander cycle marker.', 'conflict',
+      );
+    }
+    try {
+      if (repeatContext) {
+        pStationPrevious = resolvedWolfAttackForCarryover(
+          rawPrior,
+          rawFinalizationAudit,
+          currentTurn,
+          repeatContext,
+        );
+        previous = pStationPrevious;
+      } else if (commanderCarryoverContext) {
+        previous = resolvedWolfAttackForCarryover(
+          rawPrior,
+          rawFinalizationAudit,
+          currentTurn,
+          commanderCarryoverContext,
+        );
+      } else {
+        previous = resolvedWolfAttackForCarryover(
+          rawPrior,
+          rawFinalizationAudit,
+          currentTurn,
+        );
+      }
     } catch (error) {
       throw commandError(
         'failed-precondition',
@@ -20778,10 +22107,33 @@ function validateWolfAttackDeclaration(
         'conflict',
       );
     }
-    if (previous.attackNumber >= 3) {
+    const isPStationRepeat = pStationPrevious !== undefined;
+    if (!isPStationRepeat && previous.attackNumber >= 3 && !commanderCycleAttack) {
       throw commandError(
         'failed-precondition',
         'Only one or two additional Wolf attacks may be selected after the first.',
+        'invalid-phase',
+      );
+    }
+    if (isPStationRepeat) {
+      if (window.threatSiteCode !== 'P' || window.targetGroupId !== pStationPrevious!.repeatContext.groupId ||
+          window.threatSourceId !== `arrival-${pStationPrevious!.repeatContext.sourceTransitionId}` ||
+          !finalizedPRepeat ||
+          !pStationRepeatPlanMatchesDeclaration(
+            finalizedPRepeat.plan, pStationPrevious!, window, preparation, currentTurn,
+          ) ||
+          preparation.compositionKind !== 'p-station-repeat' || preparation.targetGroupId !== pStationPrevious!.repeatContext.groupId ||
+          JSON.stringify(preparation.shipIds) !== JSON.stringify(pStationPrevious!.survivingShips.map(({ shipId }) => shipId))) {
+        throw commandError(
+          'failed-precondition',
+          'A P Station repeat must use the same group and the exact surviving force recorded by the prior attack.',
+          'conflict',
+        );
+      }
+    } else if (currentTurn === previous.turn) {
+      throw commandError(
+        'failed-precondition',
+        'Only an audited P Station sequence may repeat in the same cycle.',
         'invalid-phase',
       );
     }
@@ -20797,10 +22149,19 @@ function validateWolfAttackDeclaration(
     attackNumber = previous.attackNumber + 1;
     previousAttackId = previous.attackId;
   }
+  if (commanderCycleAttack && (commanderCycleAttack.attackNumber !== attackNumber ||
+      (previousAttackId === undefined
+        ? commanderCycleAttack.parentAttackId !== undefined ||
+          commanderCycleAttack.parentAttackNumber !== undefined || commanderCycleAttack.parentTurn !== undefined
+        : commanderCycleAttack.parentAttackId !== previousAttackId ||
+          commanderCycleAttack.parentAttackNumber !== attackNumber - 1 ||
+          commanderCycleAttack.parentTurn !== stateProjection.get('turn')))) {
+    throw commandError('failed-precondition', 'The Commander dial does not match the verified attack chain.', 'conflict');
+  }
   try {
     // P427 already validates this shape. Recheck the authoritative snapshot at
     // declaration so a malformed or legacy projection cannot become combat state.
-    scheduledWolfAttackComposition(currentTurn, preparation.shipIds);
+    wolfAttackCompositionForPreparation(preparation);
   } catch (error) {
     throw commandError(
       'failed-precondition',
@@ -20808,8 +22169,63 @@ function validateWolfAttackDeclaration(
       'conflict',
     );
   }
+  const parsedGroups = fleetGroups.docs.map((snapshot) => {
+    const group = fleetGroupRecord(snapshot.data());
+    return group?.id === snapshot.id ? group : undefined;
+  });
+  if (parsedGroups.some((group) => group === undefined)) {
+    throw commandError('failed-precondition', 'The stored fleet-group authority is malformed.', 'conflict');
+  }
+  const canonicalGroups = parsedGroups as FleetGroupRecord[];
+  const resolvedTargetGroupId = window.targetGroupId ??
+    (canonicalGroups.length === 1 ? canonicalGroups[0]!.id : undefined);
+  if (!resolvedTargetGroupId) {
+    throw commandError(
+      'failed-precondition',
+      'Select the fleet group whose independent pursuit will govern this Wolf attack.',
+      'invalid-phase',
+    );
+  }
+  const targetGroup = canonicalGroups.find(({ id }) => id === resolvedTargetGroupId);
+  if (!targetGroup) {
+    throw commandError('failed-precondition', 'The selected fleet group is no longer active.', 'conflict');
+  }
+  const expectedCompositionKind = pStationPrevious ? 'p-station-repeat' : window.threatSiteCode;
+  if ((preparation.compositionKind ?? undefined) !== expectedCompositionKind ||
+      (window.threatSiteCode !== undefined && preparation.targetGroupId !== resolvedTargetGroupId)) {
+    throw commandError(
+      'failed-precondition',
+      'The private composition does not match the selected threat and fleet group.',
+      'conflict',
+    );
+  }
+  let pStationSequence: WolfAttackStageState['pStationSequence'];
+  if (window.threatSiteCode === 'L' || window.threatSiteCode === 'M' || window.threatSiteCode === 'P') {
+    const groupSnapshot = fleetGroups.docs.find((snapshot) => snapshot.id === resolvedTargetGroupId);
+    const pressureEntry = requireLiveWolfThreatSource(
+      session, resolvedTargetGroupId, window.threatSiteCode, window.threatSourceId ?? '',
+      groupSnapshot, threatScheduleProjection, threatPressureProjection, currentTurn,
+    );
+    if (window.threatSiteCode === 'P') {
+      pStationSequence = {
+        type: 'p-station-sequence',
+        sequenceId: `wolf-p-station-${pressureEntry.sourceTransitionId}`,
+        groupId: pressureEntry.groupId,
+        chart: pressureEntry.chart,
+        coordinate: pressureEntry.coordinate,
+        stationId: 'P',
+        sourceTransitionId: pressureEntry.sourceTransitionId,
+        sourceCycle: pressureEntry.cycle,
+        attackNumber,
+      };
+    }
+  }
   const activeVesselIds = wolfAttackActiveVesselIds(session);
-  const targetRing = configuredWolfTargetRingForSession(session);
+  const targetGroupVesselIds = [...targetGroup.vesselIds].sort();
+  if (targetGroupVesselIds.some((vesselId) => !activeVesselIds.includes(vesselId))) {
+    throw commandError('failed-precondition', 'The selected fleet group is not part of the active fleet.', 'conflict');
+  }
+  const targetRing = configuredWolfTargetRingForGroup(session, targetGroupVesselIds);
   requireSmallShipsDockedAtBoundary(session, 'Wolf attack');
   const activeRoleIds = sessionActiveRoleIds(session);
   const parking = requireWolfAttackParking(
@@ -20828,6 +22244,10 @@ function validateWolfAttackDeclaration(
     ...(previousAttackId ? { previousAttackId } : {}),
     ...(carryover ? { carryover } : {}),
     ...parking, targetRing,
+    targetGroupId: resolvedTargetGroupId,
+    targetGroupVesselIds,
+    ...(pStationSequence ? { pStationSequence } : {}),
+    ...(commanderCycleAttack ? { commanderCycleAttack } : {}),
   };
 }
 
@@ -20838,7 +22258,7 @@ function wolfTargetingStageReceipt(
   targetRing: WolfTargetRing,
   pursuit: WolfAttackPursuitSnapshot,
 ): Record<string, unknown> {
-  const composition = scheduledWolfAttackComposition(turn, preparation.shipIds);
+  const composition = wolfAttackCompositionForPreparation(preparation);
   // P427's modifier vocabulary intentionally does not contain final roster
   // indexes. Keep those staged choices private and let the later targeting
   // command apply P428's typed modifier order after the affected players act.
@@ -20856,7 +22276,8 @@ function wolfTargetingStageReceipt(
     generatedAt: declaredAt,
     pursuitPressure: {
       navigationRevision: pursuit.navigationRevision,
-      groupValues: { ...pursuit.groupValues },
+      targetGroupId: pursuit.targetGroupId,
+      targetGroupValue: pursuit.targetGroupValue,
     },
     composition: {
       shipIds: [...composition.shipIds],
@@ -20874,7 +22295,7 @@ function wolfForceFieldPreTargetStageReceipt(
   targetRing: WolfTargetRing,
   pursuit: WolfAttackPursuitSnapshot,
 ): Record<string, unknown> {
-  const composition = scheduledWolfAttackComposition(turn, preparation.shipIds);
+  const composition = wolfAttackCompositionForPreparation(preparation);
   return {
     type: 'wolf-combat-calculation-stage',
     version: 1,
@@ -20883,7 +22304,8 @@ function wolfForceFieldPreTargetStageReceipt(
     generatedAt: declaredAt,
     pursuitPressure: {
       navigationRevision: pursuit.navigationRevision,
-      groupValues: { ...pursuit.groupValues },
+      targetGroupId: pursuit.targetGroupId,
+      targetGroupValue: pursuit.targetGroupValue,
     },
     targetRing: [...targetRing],
     composition: {
@@ -20892,6 +22314,57 @@ function wolfForceFieldPreTargetStageReceipt(
       damageCapacity: composition.damageCapacity,
     },
   };
+}
+
+function requireLiveWolfThreatSource(
+  session: DocumentSnapshot,
+  targetGroupId: string,
+  siteCode: WolfThreatSiteCode,
+  sourceId: string,
+  groupSnapshot: DocumentSnapshot | undefined,
+  scheduleSnapshot: DocumentSnapshot | undefined,
+  pressureSnapshot: DocumentSnapshot | undefined,
+  currentTurn: number,
+): WolfArrivalPressure {
+  const group = groupSnapshot?.exists ? fleetGroupRecord(groupSnapshot.data()) : undefined;
+  if (!group || group.id !== targetGroupId || groupSnapshot?.id !== targetGroupId) {
+    throw commandError('failed-precondition', 'The selected threat fleet group is unavailable.', 'conflict');
+  }
+  const activeVesselIds = wolfAttackActiveVesselIds(session);
+  if (!group.vesselIds.some((vesselId) => activeVesselIds.includes(vesselId))) {
+    throw commandError('failed-precondition', 'The selected threat fleet group is no longer active.', 'conflict');
+  }
+  let chart: ChartId;
+  try { chart = lockedNavigationChart(session); } catch (error) {
+    throw commandError('failed-precondition', error instanceof Error ? error.message : 'The locked chart is unavailable.', 'conflict');
+  }
+  const storedState = pressureSnapshot?.exists
+    ? parseWolfArrivalPressureState(pressureSnapshot.data(), chart) : undefined;
+  const schedule = scheduleSnapshot?.exists ? scheduleSnapshot.data() : undefined;
+  const transitionId = sourceId.slice('arrival-'.length);
+  const entry = storedState?.entries.find((candidate) => candidate.sourceTransitionId === transitionId);
+  if (!storedState || storedState.groupId !== targetGroupId || !entry || entry.status !== 'operational' ||
+      entry.siteCode !== siteCode || entry.groupId !== targetGroupId || entry.chart !== chart ||
+      entry.cycle > currentTurn || !isRecord(schedule) ||
+      schedule.type !== 'wolf-base-arrival-pressure-schedule' || schedule.status !== 'scheduled' ||
+      schedule.sessionId !== session.id || schedule.groupId !== targetGroupId || schedule.chart !== chart ||
+      schedule.coordinate !== entry.coordinate || schedule.siteCode !== siteCode ||
+      schedule.sourceShipId !== entry.sourceShipId || schedule.sourceTransitionId !== transitionId ||
+      schedule.sourceCycle !== entry.cycle || schedule.arrivalTiming !== 'immediate' ||
+      schedule.minimumBattleStations !== entry.minimumBattleStations ||
+      schedule.minimumOtherShipDamage !== entry.minimumOtherShipDamage ||
+      JSON.stringify(schedule.recurringUntil) !== JSON.stringify(entry.recurringUntil) ||
+      schedule.missionAccess !== entry.missionAccess || !group.vesselIds.includes(entry.sourceShipId)) {
+    throw commandError(
+      'failed-precondition',
+      'The selected Wolf threat does not match a live server-recorded arrival in this fleet group.',
+      'conflict',
+    );
+  }
+  if (siteCode === 'P' && entry.cycle !== currentTurn) {
+    throw commandError('failed-precondition', 'An Ancient Station attack must resolve in its arrival cycle.', 'invalid-phase');
+  }
+  return entry;
 }
 
 /** Atomically begin the server-owned Wolf attack lifecycle. */
@@ -20972,6 +22445,14 @@ export const declareWolfAttack = onCall<{
   const [preflightFinalizationAudit, preflightArchive] = preflightCarryoverRefs
     ? await Promise.all([preflightCarryoverRefs.finalizationAudit.get(), preflightCarryoverRefs.archive.get()])
     : [undefined, undefined];
+  const preflightWindowState = preflightWindow.exists ? wolfAttackWindowState(preflightWindow.data()) : undefined;
+  const preflightCommanderLedger = preflightWindowState?.threatSiteCode === 'commander'
+    ? await db.doc(`sessions/${declaration.sessionId}/wolfCommanderCycleDials/cycle-${preflightWindowState.turn}`).get()
+    : undefined;
+  const preflightThreatRefs = wolfAttackThreatSourceDocumentRefs(declaration.sessionId, preflightWindow);
+  const [preflightThreatSchedule, preflightThreatPressure] = preflightThreatRefs
+    ? await Promise.all([preflightThreatRefs.schedule.get(), preflightThreatRefs.pressure.get()])
+    : [undefined, undefined];
   await rejectForeignLegacyM1CommandBeforeReplay(
     declaration.sessionId, declaration.requestId, 'Wolf attack declaration', [eventRef.path],
   );
@@ -20982,14 +22463,24 @@ export const declareWolfAttack = onCall<{
   const declaredAt = new Date().toISOString();
   const preflight = validateWolfAttackDeclaration(
     preflightSession, preflightPlayer, preflightInstance, preflightPreparation,
-    preflightWindow, preflightState, preflightFinalizationAudit, preflightArchive,
+    preflightWindow, preflightCommanderLedger, preflightState, preflightFinalizationAudit, preflightArchive,
+    preflightThreatSchedule, preflightThreatPressure,
     preflightEvent, preflightAudit,
     preflightFleetGroups, preflightDepartures, preflightTransitChains, uid, declaration.expectedRevision,
     declaredAt, declaration.requestId,
   );
   const preflightPursuit = wolfAttackPursuitSnapshot(
-    preflightSession, preflightNavigation, preflightFleetGroups, preflightPlayers,
+    preflightSession, preflightNavigation, preflightFleetGroups, preflightPlayers, preflight.targetGroupId,
   );
+  requirePreparationForSelectedAttack(
+    preflight.preparation, preflight.window, preflightPursuit,
+    preflight.preparation.compositionKind === 'p-station-repeat' &&
+      preflight.attackNumber > 1 && preflight.pStationSequence !== undefined,
+  );
+  if (preflight.commanderCycleAttack) {
+    requireWolfCommanderCycleDialForPursuit(preflight.commanderCycleAttack, preflightPursuit);
+    requireCurrentAssignedWolfCommander(preflight.commanderCycleAttack, preflightPlayers);
+  }
   const preflightForceFieldChoice = wolfForceFieldChoiceAtDeclaration(
     preflightSession, preflightPlayers, preflightFleetGroups, preflight.targetRing,
     preflight.phase.turn, 1, declaredAt,
@@ -21028,6 +22519,16 @@ export const declareWolfAttack = onCall<{
     const [finalizationAudit, archive] = carryoverRefs
       ? await Promise.all([tx.get(carryoverRefs.finalizationAudit), tx.get(carryoverRefs.archive)])
       : [undefined, undefined];
+    const windowState = window.exists ? wolfAttackWindowState(window.data()) : undefined;
+    const commanderLedger = windowState?.threatSiteCode === 'commander'
+      ? await tx.get(db.doc(
+        `sessions/${declaration.sessionId}/wolfCommanderCycleDials/cycle-${windowState.turn}`,
+      ))
+      : undefined;
+    const threatSourceRefs = wolfAttackThreatSourceDocumentRefs(declaration.sessionId, window);
+    const [threatSchedule, threatPressure] = threatSourceRefs
+      ? await Promise.all([tx.get(threatSourceRefs.schedule), tx.get(threatSourceRefs.pressure)])
+      : [undefined, undefined];
     await rejectForeignLegacyM1Command(
       tx, declaration.sessionId, declaration.requestId, 'Wolf attack declaration', [eventRef.path],
     );
@@ -21037,11 +22538,21 @@ export const declareWolfAttack = onCall<{
       throw new HttpsError('permission-denied', 'An active facilitator instance is required.');
     }
     const inputs = validateWolfAttackDeclaration(
-      session, player, instance, preparation, window, state, finalizationAudit, archive, event, audit,
+      session, player, instance, preparation, window, commanderLedger, state, finalizationAudit, archive,
+      threatSchedule, threatPressure, event, audit,
       fleetGroups, departures, transitChains, uid, declaration.expectedRevision, declaredAt,
       declaration.requestId,
     );
-    const pursuit = wolfAttackPursuitSnapshot(session, navigation, fleetGroups, players);
+    const pursuit = wolfAttackPursuitSnapshot(session, navigation, fleetGroups, players, inputs.targetGroupId);
+    requirePreparationForSelectedAttack(
+      inputs.preparation, inputs.window, pursuit,
+      inputs.preparation.compositionKind === 'p-station-repeat' &&
+        inputs.attackNumber > 1 && inputs.pStationSequence !== undefined,
+    );
+    if (inputs.commanderCycleAttack) {
+      requireWolfCommanderCycleDialForPursuit(inputs.commanderCycleAttack, pursuit);
+      requireCurrentAssignedWolfCommander(inputs.commanderCycleAttack, players);
+    }
     const forceFieldChoice = wolfForceFieldChoiceAtDeclaration(
       session, players, fleetGroups, inputs.targetRing, inputs.phase.turn, 1, declaredAt,
     );
@@ -21051,7 +22562,10 @@ export const declareWolfAttack = onCall<{
         inputs.preparation.revision !== preflight.preparation.revision ||
         inputs.attackNumber !== preflight.attackNumber ||
         inputs.previousAttackId !== preflight.previousAttackId ||
+        inputs.targetGroupId !== preflight.targetGroupId ||
+        JSON.stringify(inputs.targetGroupVesselIds) !== JSON.stringify(preflight.targetGroupVesselIds) ||
         JSON.stringify(inputs.carryover) !== JSON.stringify(preflight.carryover) ||
+        !sameWolfCommanderCycleAttackMarker(inputs.commanderCycleAttack, preflight.commanderCycleAttack) ||
         wolfAttackPursuitFingerprint(pursuit) !== wolfAttackPursuitFingerprint(preflightPursuit) ||
         JSON.stringify(inputs.parkingDecisions) !== JSON.stringify(preflight.parkingDecisions) ||
         JSON.stringify(inputs.parkedShuttleDockings) !== JSON.stringify(preflight.parkedShuttleDockings) ||
@@ -21138,6 +22652,12 @@ export const declareWolfAttack = onCall<{
       attackNumber: inputs.attackNumber,
       ...(inputs.previousAttackId ? { previousAttackId: inputs.previousAttackId } : {}),
       ...(inputs.carryover ? { carryover: inputs.carryover } : {}),
+      targetGroupId: inputs.targetGroupId,
+      targetGroupVesselIds: [...inputs.targetGroupVesselIds],
+      ...(inputs.window.threatSiteCode ? { threatSiteCode: inputs.window.threatSiteCode } : {}),
+      ...(inputs.window.threatSourceId ? { threatSourceId: inputs.window.threatSourceId } : {}),
+      ...(inputs.pStationSequence ? { pStationSequence: inputs.pStationSequence } : {}),
+      ...(inputs.commanderCycleAttack ? { commanderCycleAttack: inputs.commanderCycleAttack } : {}),
       revision: 1,
       preparationRevision: inputs.preparation.revision,
       currentStep: WOLF_ATTACK_DECLARATION_STEP,
@@ -21171,6 +22691,9 @@ export const declareWolfAttack = onCall<{
       status: 'resolved',
       turn: inputs.window.turn,
       revision: inputs.window.revision + 1,
+      ...(inputs.window.targetGroupId ? { targetGroupId: inputs.window.targetGroupId } : {}),
+      ...(inputs.window.threatSiteCode ? { threatSiteCode: inputs.window.threatSiteCode } : {}),
+      ...(inputs.window.threatSourceId ? { threatSourceId: inputs.window.threatSourceId } : {}),
     };
     tx.update(sessionRef, {
       turnPhase: lockedPhase,
@@ -21206,6 +22729,8 @@ export const declareWolfAttack = onCall<{
       turn: stageState.turn,
       revision: stageState.revision,
       preparationRevision: stageState.preparationRevision,
+      ...(stageState.pStationSequence ? { pStationSequence: stageState.pStationSequence } : {}),
+      ...(stageState.commanderCycleAttack ? { commanderCycleAttack: stageState.commanderCycleAttack } : {}),
       actorUid: uid,
       createdAt: FieldValue.serverTimestamp(),
     });
@@ -22300,7 +23825,7 @@ function wolfAttackDecisionSummary(
   let boarding: Record<string, unknown> | undefined;
   if (currentStep === 'boarding' && targeting) {
     let targetRing: WolfTargetRing;
-    try { targetRing = configuredWolfTargetRingForSession(session); } catch { targetRing = targeting.ring as WolfTargetRing; }
+    try { targetRing = configuredWolfTargetRingForAttack(session, state); } catch { targetRing = targeting.ring as WolfTargetRing; }
     const rawRoster = state.get('combatRoster');
     const roster = Array.isArray(rawRoster) ? rawRoster as readonly WolfCombatShip[] : wolfCombatRoster(targeting);
     const parties = wolfBoardingPartyCounts(roster);
@@ -22994,9 +24519,10 @@ async function reconcileWolfAttackProgress(sessionId: string): Promise<void> {
             !Number.isSafeInteger(currentCalculation.composition.damageCapacity) ||
             !Array.isArray(currentCalculation.targetRing) || !isRecord(currentCalculation.pursuitPressure) ||
             !Number.isSafeInteger(currentCalculation.pursuitPressure.navigationRevision) ||
-            !isRecord(currentCalculation.pursuitPressure.groupValues)) return;
+            typeof currentCalculation.pursuitPressure.targetGroupId !== 'string' ||
+            !Number.isSafeInteger(currentCalculation.pursuitPressure.targetGroupValue)) return;
         let targetRing: WolfTargetRing;
-        try { targetRing = configuredWolfTargetRingForSession(session); } catch { return; }
+        try { targetRing = configuredWolfTargetRingForAttack(session, state); } catch { return; }
         if (JSON.stringify(currentCalculation.targetRing) !== JSON.stringify(targetRing) ||
             (forceFieldChoice.status === 'selected' &&
              (!(targetRing as readonly string[]).includes(String(forceFieldChoice.targetShipId)) ||
@@ -23004,14 +24530,18 @@ async function reconcileWolfAttackProgress(sessionId: string): Promise<void> {
             (forceFieldChoice.status === 'passed' && forceFieldChoice.targetShipId !== null)) return;
         const preparation = wolfAttackPreparationState(state.get('preparation'));
         if (!preparation || preparation.turn !== turn) return;
-        let composition: ReturnType<typeof scheduledWolfAttackComposition>;
-        try { composition = scheduledWolfAttackComposition(turn as number, preparation.shipIds); } catch { return; }
+        let composition: ReturnType<typeof wolfAttackCompositionForPreparation>;
+        try { composition = wolfAttackCompositionForPreparation(preparation); } catch { return; }
         if (JSON.stringify(composition.shipIds) !== JSON.stringify(currentCalculation.composition.shipIds) ||
             JSON.stringify(composition.counts) !== JSON.stringify(currentCalculation.composition.counts) ||
             composition.damageCapacity !== currentCalculation.composition.damageCapacity) return;
         const pursuit: WolfAttackPursuitSnapshot = {
           navigationRevision: currentCalculation.pursuitPressure.navigationRevision as number,
-          groupValues: currentCalculation.pursuitPressure.groupValues as Record<string, number>,
+          groupValues: {},
+          targetGroupId: currentCalculation.pursuitPressure.targetGroupId as string,
+          targetGroupValue: currentCalculation.pursuitPressure.targetGroupValue as number,
+          targetGroupVesselIds: Array.isArray(state.get('targetGroupVesselIds'))
+            ? state.get('targetGroupVesselIds') as string[] : [],
           fleetGroups: [],
         };
         const committedAt = new Date().toISOString();
@@ -23524,6 +25054,25 @@ type WolfCommanderTargetingResult = Readonly<{
   view: WolfCommanderTargetingView;
 }>;
 
+type WolfCommanderRangeTargetAdjustmentResult = Readonly<{
+  status: 'committed';
+  type: 'wolf-commander-range-target-adjustment';
+  sessionId: string;
+  requestId: string;
+  turn: number;
+  revision: number;
+  attackId: string;
+  range: WolfCombatRange;
+  rosterIndex: number;
+  instanceId: string;
+  shipId: string;
+  fromTarget: string;
+  toTarget: string;
+  fromTargetNumber: number;
+  toTargetNumber: number;
+  delta: -1 | 1;
+}>;
+
 type WolfCommanderTargetingReadResult =
   | WolfCommanderTargetingView
   | Readonly<{
@@ -23542,6 +25091,27 @@ function isWolfCommanderTargetingResult(value: unknown): value is WolfCommanderT
     value.currentStep === 'targeting' && Array.isArray(value.rerolledIndexes) &&
     value.rerolledIndexes.every((index) => Number.isSafeInteger(index) && (index as number) >= 0) &&
     isRecord(value.view) && value.view.type === 'wolf-commander-targeting-view';
+}
+
+function isWolfCommanderRangeTargetAdjustmentResult(value: unknown): value is WolfCommanderRangeTargetAdjustmentResult {
+  if (!isRecord(value)) return false;
+  const keys = new Set([
+    'status', 'type', 'sessionId', 'requestId', 'turn', 'revision', 'attackId', 'range', 'rosterIndex',
+    'instanceId', 'shipId', 'fromTarget', 'toTarget', 'fromTargetNumber', 'toTargetNumber', 'delta',
+  ]);
+  return Object.keys(value).length === keys.size && Object.keys(value).every((key) => keys.has(key)) &&
+    value.status === 'committed' && value.type === 'wolf-commander-range-target-adjustment' &&
+    typeof value.sessionId === 'string' && value.sessionId.length > 0 && isCanonicalRequestId(value.requestId) &&
+    Number.isSafeInteger(value.turn) && (value.turn as number) >= 1 &&
+    Number.isSafeInteger(value.revision) && (value.revision as number) >= 1 &&
+    typeof value.attackId === 'string' && value.attackId.length > 0 && isWolfCombatRange(value.range) &&
+    Number.isSafeInteger(value.rosterIndex) && (value.rosterIndex as number) >= 0 &&
+    typeof value.shipId === 'string' && wolfShipForId(value.shipId)?.id === value.shipId &&
+    value.instanceId === `${value.rosterIndex}:${value.shipId}` &&
+    typeof value.fromTarget === 'string' && typeof value.toTarget === 'string' &&
+    Number.isSafeInteger(value.fromTargetNumber) && (value.fromTargetNumber as number) >= 1 &&
+    Number.isSafeInteger(value.toTargetNumber) && (value.toTargetNumber as number) >= 1 &&
+    (value.delta === -1 || value.delta === 1);
 }
 
 type WolfCommanderTargetingInputs = Readonly<{
@@ -23599,12 +25169,12 @@ function wolfCommanderTargetingInputs(
     throw commandError('failed-precondition', 'The Wolf targeting preparation is unavailable.', 'conflict');
   }
   try {
-    const composition = scheduledWolfAttackComposition(turn as number, preparation.shipIds);
+    const composition = wolfAttackCompositionForPreparation(preparation);
     if (composition.shipIds.length !== receipt.rolls.length ||
         composition.shipIds.some((shipId, index) => receipt.rolls[index]?.shipId !== shipId)) {
       throw new Error('The Wolf targeting receipt does not match its preparation.');
     }
-    const expectedRing = configuredWolfTargetRingForSession(session);
+    const expectedRing = configuredWolfTargetRingForAttack(session, state);
     if (JSON.stringify(receipt.ring) !== JSON.stringify(expectedRing)) {
       throw new Error('The Wolf targeting receipt does not match the active fleet.');
     }
@@ -23632,6 +25202,56 @@ function requireWolfCommanderPlayer(player: DocumentSnapshot, uid: string): void
   if (player.get('replacementRoleId') !== 'wolf-commander') {
     throw new HttpsError('permission-denied', 'The historical role does not grant Wolf Commander authority.');
   }
+}
+
+type WolfAmnestyStoredOffer = WolfAmnestyOffer & Readonly<{
+  type: 'wolf-amnesty-offer';
+  sessionId: string;
+  revision: number;
+  commanderUid: string;
+  targetUid: string;
+  responseActorUid?: string;
+  rulingActorUid?: string;
+}>;
+
+function wolfAmnestyStoredOffer(value: unknown): WolfAmnestyStoredOffer | undefined {
+  if (!isRecord(value) || Object.keys(value).some((key) => ![
+    'type', 'sessionId', 'offerId', 'cycle', 'revision', 'commanderUid', 'targetShipId', 'targetUid',
+    'condition', 'responseDeadline', 'status', 'response', 'responseActorUid', 'ruling',
+    'facilitatorConsequence', 'rulingActorUid', 'createdAt', 'updatedAt',
+  ].includes(key)) || value.type !== 'wolf-amnesty-offer' || typeof value.sessionId !== 'string' ||
+      typeof value.offerId !== 'string' || !isCanonicalRequestId(value.offerId) ||
+      !Number.isSafeInteger(value.cycle) || (value.cycle as number) < 1 ||
+      !Number.isSafeInteger(value.revision) || (value.revision as number) < 1 ||
+      typeof value.commanderUid !== 'string' || typeof value.targetUid !== 'string' ||
+      typeof value.targetShipId !== 'string' || !isFleetShipId(value.targetShipId) ||
+      value.condition !== 'surrender-by-medium-jump-to-0101' ||
+      typeof value.responseDeadline !== 'string' || !Number.isFinite(Date.parse(value.responseDeadline)) ||
+      !['offered', 'accepted-pending-facilitator', 'declined', 'facilitator-ruled'].includes(String(value.status)) ||
+      (value.response !== undefined && value.response !== 'accept' && value.response !== 'decline') ||
+      (value.ruling !== undefined && (typeof value.ruling !== 'string' || value.ruling.trim().length === 0)) ||
+      (value.facilitatorConsequence !== undefined &&
+        (typeof value.facilitatorConsequence !== 'string' || value.facilitatorConsequence.trim().length === 0))) {
+    return undefined;
+  }
+  if ((value.status === 'offered' && value.response !== undefined) ||
+      (value.status === 'accepted-pending-facilitator' && value.response !== 'accept') ||
+      (value.status === 'declined' && value.response !== 'decline') ||
+      (value.status === 'facilitator-ruled' && typeof value.ruling !== 'string')) return undefined;
+  return value as unknown as WolfAmnestyStoredOffer;
+}
+
+/** Return only the current role when it is the target ship's captain. */
+function currentRoleForAmnestyShip(player: DocumentSnapshot, targetShipId: string): string | undefined {
+  const activeRoleId = player.get('activeConsoleRoleId');
+  const currentRoleId = typeof activeRoleId === 'string' && activeRoleId.length > 0
+    ? activeRoleId
+    : typeof player.get('replacementRoleId') === 'string' && player.get('replacementStatus') == null
+      ? player.get('replacementRoleId') as string
+      : player.get('assignedRoleId');
+  const captainRole = targetShipId === 'aegis' ? 'admiral' : `${targetShipId}-captain`;
+  return currentRoleId === captainRole && shipForRole(currentRoleId) === targetShipId
+    ? captainRole : undefined;
 }
 
 function requireAegisExecutiveOfficerPlayer(player: DocumentSnapshot, uid: string): void {
@@ -24367,6 +25987,237 @@ export const finishWolfCommanderTargetingRerolls = onCall<{
     });
     tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
     return result;
+  });
+});
+
+/** Record the Wolf Commander's one private target-dial adjustment for a live range. */
+export const applyWolfCommanderRangeTargetAdjustment = onCall<{
+  sessionId?: unknown;
+  requestId?: unknown;
+  attackId?: unknown;
+  expectedTurn?: unknown;
+  expectedRevision?: unknown;
+  range?: unknown;
+  rosterIndex?: unknown;
+  delta?: unknown;
+}>(async request => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  const allowed = new Set([
+    'sessionId', 'requestId', 'attackId', 'expectedTurn', 'expectedRevision', 'range', 'rosterIndex', 'delta',
+  ]);
+  if (!isRecord(raw) || Object.keys(raw).some((key) => !allowed.has(key))) {
+    throw new HttpsError('invalid-argument', 'The Commander target dial accepts a range, Wolf ship index, and ±1 adjustment only.');
+  }
+  const { sessionId } = requireSessionRequest(raw);
+  if (!isCanonicalRequestId(raw.requestId) || typeof raw.attackId !== 'string' || !raw.attackId.trim() ||
+      !Number.isSafeInteger(raw.expectedTurn) || (raw.expectedTurn as number) < 1 ||
+      !Number.isSafeInteger(raw.expectedRevision) || (raw.expectedRevision as number) < 1 ||
+      !isWolfCombatRange(raw.range) || !Number.isSafeInteger(raw.rosterIndex) || (raw.rosterIndex as number) < 0 ||
+      (raw.delta !== -1 && raw.delta !== 1)) {
+    throw new HttpsError('invalid-argument', 'The Commander target-dial request is malformed.');
+  }
+  const requestId = raw.requestId;
+  const attackId = raw.attackId;
+  const expectedTurn = raw.expectedTurn as number;
+  const expectedRevision = raw.expectedRevision as number;
+  const range = raw.range;
+  const rosterIndex = raw.rosterIndex as number;
+  const delta = raw.delta as -1 | 1;
+  const sessionRef = db.doc(`sessions/${sessionId}`);
+  const playerRef = db.doc(`sessions/${sessionId}/players/${uid}`);
+  const stateRef = db.doc(`sessions/${sessionId}/wolfAttackState/current`);
+  const auditRef = db.doc(`sessions/${sessionId}/wolfAttackState/current/audit/${requestId}`);
+  const receiptRef = commandReceiptRef(sessionId, requestId);
+  const fingerprint: CommandFingerprint = {
+    action: 'apply-wolf-commander-range-target-adjustment', sessionId, requestId,
+    actorUid: uid, instanceId: null, expectedRevision,
+    payload: { attackId, expectedTurn, range, rosterIndex, delta },
+  };
+
+  return db.runTransaction(async (tx: Transaction): Promise<WolfCommanderRangeTargetAdjustmentResult> => {
+    const [session, player, attack, receipt] = await Promise.all([
+      tx.get(sessionRef), tx.get(playerRef), tx.get(stateRef), tx.get(receiptRef),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    requireWolfCommanderPlayer(player, uid);
+    const replay = replayBoundCommand(
+      receipt, fingerprint, isWolfCommanderRangeTargetAdjustmentResult, 'Wolf Commander range target adjustment',
+    );
+    if (replay) return replay;
+    requireActiveGameplayPhase(session);
+    requireCurrentWolfAttackReceipt(session, attack, expectedTurn, attackId);
+    if (attack.get('currentStep') !== range) {
+      throw commandError('failed-precondition', 'The Commander target dial is available only during its current range.', 'invalid-phase');
+    }
+    if (attack.get('revision') !== expectedRevision) {
+      throw commandError('failed-precondition', 'The Wolf attack changed. Refresh before adjusting its target dial.', 'stale-revision');
+    }
+    let inputs: ReturnType<typeof requireWolfRangeState>;
+    try { inputs = requireWolfRangeState(session, attack, range); } catch (error) {
+      throw commandError(
+        'failed-precondition', error instanceof Error ? error.message : 'The current range authority is unavailable.', 'conflict',
+      );
+    }
+    if (inputs.turn !== expectedTurn || inputs.revision !== expectedRevision || rosterIndex >= inputs.roster.length) {
+      throw commandError('failed-precondition', 'The Commander target-dial selection is stale or outside this attack.', 'stale-revision');
+    }
+
+    const rawAdjustments = attack.get('commanderRangeAdjustments');
+    const adjustments = rawAdjustments === undefined ? {} : rawAdjustments;
+    if (!isRecord(adjustments) || Object.keys(adjustments).some((key) => !isWolfCombatRange(key))) {
+      throw commandError('failed-precondition', 'The private Commander target-dial ledger is malformed.', 'conflict');
+    }
+    const expectedEntryKeys = [
+      'type', 'status', 'attackId', 'turn', 'revision', 'range', 'rosterIndex', 'instanceId', 'shipId',
+      'fromTarget', 'toTarget', 'fromTargetNumber', 'toTargetNumber', 'delta', 'actorUid', 'actorRoleId', 'requestId',
+    ];
+    const usedRanges: Array<'long' | 'medium' | 'short'> = [];
+    for (const [savedRange, value] of Object.entries(adjustments)) {
+      if (!isRecord(value) || Object.keys(value).length !== expectedEntryKeys.length ||
+          Object.keys(value).some((key) => !expectedEntryKeys.includes(key)) ||
+          value.type !== 'wolf-commander-range-target-adjustment' || value.status !== 'committed' ||
+          value.attackId !== attackId || value.turn !== expectedTurn || value.range !== savedRange ||
+          !Number.isSafeInteger(value.revision) || (value.revision as number) < 1 ||
+          (value.revision as number) > expectedRevision || !Number.isSafeInteger(value.rosterIndex) ||
+          (value.rosterIndex as number) < 0 || typeof value.shipId !== 'string' ||
+          wolfShipForId(value.shipId)?.id !== value.shipId ||
+          value.instanceId !== `${value.rosterIndex}:${value.shipId}` ||
+          typeof value.fromTarget !== 'string' || !inputs.receipt.ring.includes(value.fromTarget as never) ||
+          typeof value.toTarget !== 'string' || !inputs.receipt.ring.includes(value.toTarget as never) ||
+          !Number.isSafeInteger(value.fromTargetNumber) || (value.fromTargetNumber as number) < 1 ||
+          (value.fromTargetNumber as number) > inputs.receipt.ring.length ||
+          !Number.isSafeInteger(value.toTargetNumber) || (value.toTargetNumber as number) < 1 ||
+          (value.toTargetNumber as number) > inputs.receipt.ring.length ||
+          (value.delta !== -1 && value.delta !== 1) || typeof value.actorUid !== 'string' ||
+          value.actorRoleId !== 'wolf-commander' || !isCanonicalRequestId(value.requestId)) {
+        throw commandError('failed-precondition', 'A saved Commander target-dial adjustment is malformed.', 'conflict');
+      }
+      usedRanges.push(savedRange.replace('-range', '') as 'long' | 'medium' | 'short');
+    }
+    if (adjustments[range] !== undefined) {
+      throw commandError('failed-precondition', 'The Commander has already adjusted a target during this range.', 'conflict');
+    }
+    const selected = inputs.roster[rosterIndex]!;
+    let resolved: ReturnType<typeof resolveWolfCommanderRangeTargetAdjustment>;
+    try {
+      resolved = resolveWolfCommanderRangeTargetAdjustment({
+        cycle: expectedTurn,
+        range: range.replace('-range', '') as 'long' | 'medium' | 'short',
+        rosterIndex,
+        shipId: selected.shipId,
+        currentTarget: selected.target,
+        delta,
+        targetRing: inputs.receipt.ring,
+        usedRanges,
+      });
+    } catch (error) {
+      throw commandError(
+        'failed-precondition', error instanceof Error ? error.message : 'The Wolf ship cannot use this target dial.', 'conflict',
+      );
+    }
+    const nextRevision = inputs.revision + 1;
+    const adjustment = {
+      type: 'wolf-commander-range-target-adjustment',
+      status: 'committed',
+      attackId,
+      turn: inputs.turn,
+      revision: nextRevision,
+      range,
+      rosterIndex,
+      instanceId: selected.instanceId,
+      shipId: selected.shipId,
+      fromTarget: resolved.fromTarget,
+      toTarget: resolved.toTarget,
+      fromTargetNumber: resolved.fromTargetNumber,
+      toTargetNumber: resolved.toTargetNumber,
+      delta,
+      actorUid: uid,
+      actorRoleId: 'wolf-commander',
+      requestId,
+    } as const;
+    const result: WolfCommanderRangeTargetAdjustmentResult = {
+      status: 'committed',
+      type: 'wolf-commander-range-target-adjustment',
+      sessionId,
+      requestId,
+      turn: inputs.turn,
+      revision: nextRevision,
+      attackId,
+      range,
+      rosterIndex,
+      instanceId: selected.instanceId,
+      shipId: selected.shipId,
+      fromTarget: resolved.fromTarget,
+      toTarget: resolved.toTarget,
+      fromTargetNumber: resolved.fromTargetNumber,
+      toTargetNumber: resolved.toTargetNumber,
+      delta,
+    };
+    tx.update(stateRef, {
+      revision: nextRevision,
+      commanderRangeAdjustments: { ...adjustments, [range]: adjustment },
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(auditRef, {
+      ...adjustment,
+      actorUid: uid,
+      actorRoleId: 'wolf-commander',
+      requestId,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+});
+
+/** Read a narrow, private view of the active attack's selected-group target dial. */
+export const getWolfCommanderRangeTargetDial = onCall<{ sessionId?: unknown }>(async request => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  if (isRecord(raw) && Object.keys(raw).some((key) => key !== 'sessionId')) {
+    throw new HttpsError('invalid-argument', 'The Commander target-dial query accepts only sessionId.');
+  }
+  const sessionId = requireSessionRequest(isRecord(raw) ? raw : {}).sessionId;
+  const sessionRef = db.doc(`sessions/${sessionId}`);
+  const playerRef = db.doc(`sessions/${sessionId}/players/${uid}`);
+  const attackRef = db.doc(`sessions/${sessionId}/wolfAttackState/current`);
+  return db.runTransaction(async (tx: Transaction) => {
+    const [session, player, attack] = await Promise.all([
+      tx.get(sessionRef), tx.get(playerRef), tx.get(attackRef),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    requireWolfCommanderPlayer(player, uid);
+    requireActiveGameplayPhase(session);
+    const range = attack.get('currentStep');
+    if (range !== 'long-range' && range !== 'medium-range' && range !== 'short-range') {
+      throw commandError('failed-precondition', 'No Wolf target dial is open at this range.', 'invalid-phase');
+    }
+    let inputs: ReturnType<typeof requireWolfRangeState>;
+    try { inputs = requireWolfRangeState(session, attack, range); } catch (error) {
+      throw commandError(
+        'failed-precondition', error instanceof Error ? error.message : 'The current range dial is unavailable.', 'conflict',
+      );
+    }
+    const adjustments = attack.get('commanderRangeAdjustments');
+    const adjustmentUsed = isRecord(adjustments) && adjustments[range] !== undefined;
+    return {
+      type: 'wolf-commander-range-target-dial-view',
+      sessionId,
+      attackId: attack.get('attackId'),
+      turn: inputs.turn,
+      revision: inputs.revision,
+      range,
+      ...(typeof attack.get('targetGroupId') === 'string' ? { targetGroupId: attack.get('targetGroupId') } : {}),
+      ring: inputs.receipt.ring.map((targetId, index) => ({ targetId, targetNumber: index + 1 })),
+      ships: inputs.roster.map((ship, rosterIndex) => ({
+        rosterIndex,
+        shipId: ship.shipId,
+        currentTarget: ship.target,
+        currentTargetNumber: inputs.receipt.ring.indexOf(ship.target) + 1,
+      })),
+      adjustmentUsed,
+    };
   });
 });
 
@@ -25491,7 +27342,7 @@ function requireWolfRangeState(
     throw commandError('failed-precondition', 'The private Wolf targeting receipt is unavailable.', 'conflict');
   }
   const receipt = parseWolfTargetingReceipt(calculationReceipt.targeting);
-  if (!receipt || JSON.stringify(receipt.ring) !== JSON.stringify(configuredWolfTargetRingForSession(session))) {
+  if (!receipt || JSON.stringify(receipt.ring) !== JSON.stringify(configuredWolfTargetRingForAttack(session, state))) {
     throw commandError('failed-precondition', 'The active Wolf targeting receipt is malformed or stale.', 'conflict');
   }
   const rawRoster = state.get('combatRoster');
@@ -27142,7 +28993,7 @@ function wolfForceFieldChoiceViewInputs(
     session, player, uid, groupSnapshot, rawChoice, turn as number,
   );
   let targetRing: WolfTargetRing;
-  try { targetRing = configuredWolfTargetRingForSession(session); } catch (error) {
+  try { targetRing = configuredWolfTargetRingForAttack(session, state); } catch (error) {
     throw commandError('failed-precondition', error instanceof Error ? error.message : 'The active fleet target ring is unavailable.', 'conflict');
   }
   const calculation = state.get('calculationReceipt');
@@ -27357,7 +29208,7 @@ function wolfBoardingDefenceInputs(
       'stale-revision');
   }
   let targetRing: WolfTargetRing;
-  try { targetRing = configuredWolfTargetRingForSession(session); } catch (error) {
+  try { targetRing = configuredWolfTargetRingForAttack(session, state); } catch (error) {
     throw commandError('failed-precondition',
       error instanceof Error ? error.message : 'The active fleet target ring is unavailable.', 'conflict');
   }

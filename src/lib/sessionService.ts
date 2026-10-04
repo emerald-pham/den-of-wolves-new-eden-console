@@ -4495,7 +4495,8 @@ function wolfAttackWindowReply(value: unknown): WolfAttackWindow | null {
     status: reply.status,
     turn: reply.turn,
     revision: reply.revision,
-    ...(typeof reply.targetGroupId === 'string' ? { targetGroupId: reply.targetGroupId as WolfAttackWindow['targetGroupId'] } : {}),
+    ...(typeof reply.targetGroupId === 'string'
+      ? { targetGroupId: reply.targetGroupId as NonNullable<WolfAttackWindow['targetGroupId']> } : {}),
     ...(reply.threatSiteCode === 'L' || reply.threatSiteCode === 'M' ||
       reply.threatSiteCode === 'P' || reply.threatSiteCode === 'commander'
       ? { threatSiteCode: reply.threatSiteCode } : {}),
@@ -4940,6 +4941,7 @@ export interface WolfAmnestyView {
   readonly type: 'wolf-amnesty-view';
   readonly sessionId: string;
   readonly offer: WolfAmnestyOfferView | null;
+  readonly commanderAddressPublished?: boolean;
 }
 
 export interface WolfAmnestyMutationResult {
@@ -5196,12 +5198,18 @@ function wolfAmnestyOfferViewReply(value: unknown): WolfAmnestyOfferView | null 
 function wolfAmnestyViewReply(value: unknown): WolfAmnestyView | null {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
   const raw = value as Record<string, unknown>;
-  if (Object.keys(raw).length !== 3 ||
-      Object.keys(raw).some((key) => !['type', 'sessionId', 'offer'].includes(key)) ||
-      raw.type !== 'wolf-amnesty-view' || typeof raw.sessionId !== 'string' || !raw.sessionId) return null;
-  if (raw.offer === null) return { type: 'wolf-amnesty-view', sessionId: raw.sessionId, offer: null };
+  if (Object.keys(raw).some((key) => !['type', 'sessionId', 'offer', 'commanderAddressPublished'].includes(key)) ||
+      raw.type !== 'wolf-amnesty-view' || typeof raw.sessionId !== 'string' || !raw.sessionId ||
+      (raw.commanderAddressPublished !== undefined && typeof raw.commanderAddressPublished !== 'boolean')) return null;
+  const common = {
+    type: 'wolf-amnesty-view' as const,
+    sessionId: raw.sessionId,
+    ...(typeof raw.commanderAddressPublished === 'boolean'
+      ? { commanderAddressPublished: raw.commanderAddressPublished } : {}),
+  };
+  if (raw.offer === null) return { ...common, offer: null };
   const offer = wolfAmnestyOfferViewReply(raw.offer);
-  return offer ? { type: 'wolf-amnesty-view', sessionId: raw.sessionId, offer } : null;
+  return offer ? { ...common, offer } : null;
 }
 
 function wolfAmnestyMutationResultReply(value: unknown): WolfAmnestyMutationResult | null {
@@ -5606,6 +5614,9 @@ export async function getWolfAttackThreatWindowOptions(
   requireFreshSessionAuthority('Reconnect before reading Wolf threat choices.');
   const sessionId = store.session.id;
   const cycle = store.session.currentTurn;
+  if (typeof cycle !== 'number' || !Number.isSafeInteger(cycle) || cycle < 1) {
+    throw new Error('A current game cycle is required to read Wolf threat choices.');
+  }
   const checkpoint = sessionAuthorityCheckpoint(sessionId, store.me.uid);
   await ensureSignedIn();
   const call = httpsCallable<{ sessionId: string; instanceId: string; targetGroupId: string }, unknown>(
