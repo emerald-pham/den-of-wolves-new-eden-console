@@ -3158,6 +3158,39 @@ it('denies client access to maintenance rollback snapshots, including GM clients
   }
 });
 
+describe('Wolf Agent Detector private report', () => {
+  it('allows only the current Shepherd Scientist to read the sanitized report and no client to write it', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await updateDoc(doc(db, SESSION), {
+        phase: 'active',
+        activeRoleIds: ['shepherd-scientist'],
+        activeVesselIds: ['shepherd'],
+        shuttleControl: { endeavour: { ownerRoleId: 'shepherd-scientist', holderUid: 'alice' } },
+      });
+      await updateDoc(doc(db, `${SESSION}/players/alice`), {
+        assignedRoleId: 'shepherd-scientist', activeConsoleRoleId: 'shepherd-scientist',
+      });
+      await updateDoc(doc(db, `${SESSION}/players/press`), {
+        assignedRoleId: 'shepherd-engineer', activeConsoleRoleId: 'shepherd-engineer',
+      });
+      await setDoc(doc(db, `${SESSION}/wolfAgentDetectorReports/alice`), {
+        type: 'wolf-agent-detector-test', status: 'committed', sessionId: 's1',
+        requestId: 'test-1', cycle: 1, revision: 1, investigatorUid: 'alice',
+        targetUid: 'press', targetDisplayName: 'Press Officer', reportedWolf: false,
+      });
+    });
+
+    const scientist = doc(as('alice'), `${SESSION}/wolfAgentDetectorReports/alice`);
+    await assertSucceeds(getDoc(scientist));
+    await assertFails(getDoc(doc(as('press'), `${SESSION}/wolfAgentDetectorReports/alice`)));
+    await assertFails(getDoc(doc(as('gm1'), `${SESSION}/wolfAgentDetectorReports/alice`)));
+    await assertFails(getDoc(doc(as('alice'), `${SESSION}/wolfAgentDetectorReports/press`)));
+    await assertFails(getDocs(collection(as('alice'), `${SESSION}/wolfAgentDetectorReports`)));
+    await assertFails(setDoc(scientist, { reportedWolf: true }));
+  });
+});
+
 describe('Press log audience', () => {
   it('allows only the connected Press Officer to read incoming Press entries', async () => {
     const pressEntry = `${SESSION}/pressLog/press-entry-1`;
