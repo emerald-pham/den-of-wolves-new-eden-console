@@ -1263,6 +1263,66 @@ try {
     const { useSessionStore } = await import('/src/store/useSessionStore.ts');
     return useSessionStore.getState().session?.fighterWingCounts?.['fighter-wing-alpha']?.count === 4;
   }, { timeout: 30_000 });
+  // Reuse this actual finalized attack for the activated P605a result-row
+  // acceptance; the separate recovery proof covers offline/revocation/motion.
+  const dradis = commanderPage.locator('.wolf-attack-dradis');
+  await dradis.waitFor({ state: 'visible' });
+  await commanderPage.getByRole('button', { name: 'Zoom into DRADIS panel', exact: true }).click();
+  await dradis.getByRole('region', { name: 'Wolf attack committed readings', exact: true }).waitFor();
+  assert.equal(await dradis.getAttribute('data-complete'), 'true');
+  const audience = (await db.doc(`sessions/${sessionId}/wolfAttackAudience/current`).get()).data();
+  const projectionRead = await fetch(
+    `http://127.0.0.1:${f.config.firestorePort}/v1/projects/${f.project}/databases/(default)/documents/sessions/${sessionId}/wolfAttackAudience/current`,
+    { headers: { Authorization: `Bearer ${wing.idToken}` } });
+  assert.equal(projectionRead.status, 200, 'The actual current Wing member may read only the entitled projection.');
+  const visibility = await commanderPage.evaluate(async () => {
+    const [{ readFleetGroupNavigation }, { localDradisContacts }, { ALL_VESSEL_DEFINITIONS }, { useSessionStore }] =
+      await Promise.all([import('/src/lib/fleetGroupService.ts'), import('/src/components/localDradisContacts.ts'),
+        import('/src/data/ships.ts'), import('/src/store/useSessionStore.ts')]);
+    const store = useSessionStore.getState();
+    const navigation = await readFleetGroupNavigation();
+    const contacts = localDradisContacts('aegis', navigation, store.session?.shipDamage);
+    return { currentSession: store.session?.id === store.me?.sessionId,
+      targetIds: contacts.flatMap(contact => 'id' in contact && contact.id.startsWith('ship:')
+        ? [contact.id.slice('ship:'.length)] : []),
+      vessels: ALL_VESSEL_DEFINITIONS.map(({ id, name }) => ({ id, name })) };
+  });
+  assert.equal(visibility.currentSession, true);
+  const targetIds = new Set(visibility.targetIds);
+  const vesselNames = new Map(visibility.vessels.map(vessel => [vessel.id, vessel.name]));
+  const safeRows = audience.results.flatMap(result => {
+    let target;
+    if (result.targetId === null) target = 'None';
+    else if (vesselNames.has(result.targetId)) {
+      if (!targetIds.has(result.targetId)) return [];
+      target = vesselNames.get(result.targetId);
+    } else if (/^Wolf contact [1-9][0-9]*$/.test(result.contactReference)) target = result.contactReference;
+    else return [];
+    return [{ range: result.range === 'boarding' ? 'Boarding' : `${result.range} range`, target,
+      bearing: typeof result.bearing === 'number' ? `${result.bearing}°` : 'Unknown', effect: result.effect }];
+  });
+  const renderedRows = await dradis.locator('.wolf-attack-dradis__result').evaluateAll(rows => rows.map(row => {
+    const fields = Object.fromEntries([...row.querySelectorAll('.wolf-attack-dradis__values > div')].map(item =>
+      [item.querySelector('dt')?.textContent?.trim(), item.querySelector('dd')?.textContent?.trim()]));
+    return { range: row.querySelector('.wolf-attack-dradis__result-header span')?.textContent?.trim(),
+      target: fields.Target, bearing: fields.Bearing, effect: fields.Effect, outcome: fields.Outcome, source: fields.Source };
+  }));
+  const rowKey = row => JSON.stringify([row.range, row.target?.toUpperCase(), row.bearing, row.effect]);
+  assert.deepEqual(renderedRows.map(rowKey).sort(), safeRows.map(rowKey).sort(),
+    'Current live DRADIS must render exactly the committed rows allowed by its local contacts.');
+  assert.ok(renderedRows.length > 0 && renderedRows.every(row => row.source && row.outcome));
+  assert.equal(await dradis.locator('[data-x], [data-y]').count(), 0, 'The reading invents no target geometry.');
+  assert.equal(await dradis.locator('[data-known="false"]').count(), safeRows.filter(row => row.bearing === 'Unknown').length);
+  const readingText = await dradis.innerText();
+  for (const result of audience.results) {
+    if (result.targetId && !vesselNames.has(result.targetId)) assert.equal(readingText.includes(result.targetId), false);
+  }
+  assert.deepEqual(Object.keys(audience).sort(), ['attackId', 'currentStep', 'deadlineAt', 'phase', 'range', 'redaction',
+    'results', 'revision', 'schemaVersion', 'serverTime', 'sessionId', 'status', 'turn', 'type', 'visibility',
+    'remainingThreatCount', 'returningThreatCount'].sort());
+  await dradis.screenshot({ path: `${uiDirectory}/committed-dradis-results.png` });
+  await commanderPage.getByRole('button', { name: 'Close DRADIS', exact: true }).click();
+  checks.actualCommittedDradisRowsMatchEntitledCurrentLocalContacts = true;
   assert.deepEqual(browserErrors, [], 'The complete authenticated browser proof must be free of console and page errors.');
   assert.deepEqual(browserHttpErrors, [], 'The complete authenticated browser proof must have no HTTP errors.');
   assert.deepEqual(browserRequestFailures, [], 'The complete authenticated browser proof must have no failed requests.');
@@ -1287,6 +1347,7 @@ try {
       newWingInstanceIds: secondState.carryover.rosterInstanceIds, compositionCapacity,
       composition: secondComposition, survivingBattlestationInstanceIds: battlestationReturns },
     browserEvidence: { contexts: 2, wingIdentity, pressIdentity, layouts,
+      dradisRenderedRows: renderedRows, dradisVisibleCommittedRows: safeRows.length,
       alphaCardScopedByVisibleHeading: 'Fighter Wing Alpha', bravoAtCapDisabled: true,
       initialAlphaCount: 4, afterFirstAttackLoss: 3, afterSecondAttackLoss: 2,
       afterHttpBuildCount: 3, afterUiBuildCount: 4,

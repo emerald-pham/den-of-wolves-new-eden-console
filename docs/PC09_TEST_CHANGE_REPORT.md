@@ -87,6 +87,7 @@ runtime identities; an unfinished run remains unfinished.
 | `src/components/AegisFighterWingLaunchPanel.test.tsx` | Changed | Preserve independent Alpha/Bravo launch, explicit pass and active-range Ace permission controls; reproduce absent/resolved/foreign/old-cycle reads and delayed replies after resolution using real authority fixtures. The async enabled-state assertion waits for its committed view. |
 | `src/components/TurnPhaseCoordinator.attackLock.test.tsx` | Added | Reproduce repeated normal-clock promotion during a current declared attack, cancel pending promotion, and preserve ordinary behavior for resolved, foreign-session and old-cycle views. |
 | `src/components/TurnPhaseCoordinator.test.tsx` | Changed | Add the existing public audience transport mock; preserve the original Team-deadline and emergency-pause assertions. |
+| `scripts/test-pc08-composed-attack-http.mjs` | Changed | Preserve the historical attack checks; add actual P605a entitled committed-row/local-contact comparisons, private preparation denial, all three real waiver acknowledgements, keyboard, responsive and recovery checks. Historical failures stay labelled. |
 | `scripts/pc09-ordinary-return-rebuild-positive-proof.mjs` | Added | Reconstruct the lost finite positive fixture with explicit full-runtime verification, disclosed current-GM +1 supplies, two real durable losses, surviving Station return, paid repair contingency, exact HTTP receipt retry and a separate Wing UI build; preserve all cost/capacity/error assertions. |
 | `src/components/AppHeader.test.tsx` | Changed | Explain Cycle 0 CIC authentication in Settings and remove the note after real start state; preserve existing header navigation and connection states. |
 | `src/components/ConnectionIndicator.test.tsx` | Changed | Match the authorized Cycle 0 visible and accessible wording while retaining all other statuses. |
@@ -141,7 +142,6 @@ runtime identities; an unfinished run remains unfinished.
 | `scripts/test-pc09-voyage-hooks-http.mjs` | Added | Run the bounded normal Auth/HTTP/browser scenario named by this driver, disclose setup/clock facts, and preserve labelled failure evidence. |
 | `scripts/test-pc09-wolf-agent-detector-http.mjs` | Added | Run the bounded normal Auth/HTTP/browser scenario named by this driver, disclose setup/clock facts, and preserve labelled failure evidence. |
 | `src/PC09ReviewScene.test.tsx` | Added | Check five isolated local steps, privacy labels, actual controls and visible parent return without live writes. |
-| `src/components/AegisFighterWingLaunchPanel.test.tsx` | Changed | Show current named source-officer Ace permission alongside ordinary AEGIS fighter controls. |
 | `src/components/ArrestPosseCalculator.test.tsx` | Changed | Keep private calculation and explicit attendance/deadline resolution current and source-bound. |
 | `src/components/ArrestPosseCalculatorResolution.test.tsx` | Added | Keep private calculation and explicit attendance/deadline resolution current and source-bound. |
 | `src/components/EndeavourResearchPanel.test.tsx` | Changed | Connect the completed Detector through real research controls and truth-free private reports. |
@@ -206,3 +206,10 @@ zero browser-error result. The disclosed pregame plan now adds exactly one
 extra full ration to Dione/Refinery 124, enough to cover that single post-combat
 halving. Both ordinary printed maintenance choices and all actual storage
 losses remain; no post-combat GM top-up, repair or dice patch is introduced.
+
+The strict positive driver also reuses its finalized ordinary battle for the
+assigned P605a committed-result readout check: exact current local-contact row
+filtering, actual public Rules read, unknown bearings, no invented geometry and
+no opaque Wolf IDs. Its screenshot crops the entitled instrument. The separate
+fresh DRADIS proof supplies recovery/revocation and eight viewport/motion cases;
+this adds no gameplay feature or second prepared-state claim.
