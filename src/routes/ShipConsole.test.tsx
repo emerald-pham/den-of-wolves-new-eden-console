@@ -1206,7 +1206,7 @@ it('routes the held Executive Officer maintenance sequence to the current AEGIS 
       .toHaveTextContent(/Storage.*Rations.*Unrest check.*Riot check.*Reactor.*Shuttle Bay Zeta.*Shuttle Bay Omega/i);
     expect(workspace.getByRole('table', { name: 'AEGIS ration schedule' }))
       .toHaveTextContent(/Food.*0.*3.*5.*8.*Water.*0.*2.*3.*6/i);
-    await userEvent.setup().click(workspace.getByRole('button', { name: 'Check storage', exact: true }));
+    await userEvent.setup().click(workspace.getByRole('button', { name: 'Check storage' }));
     expect(command).toHaveBeenCalledExactlyOnceWith('aegis', 'storage', 7, {}, 'executive-officer');
   } finally { command.mockRestore(); }
 });
@@ -1224,7 +1224,7 @@ it('keeps Executive Officer maintenance read-only for a foreign held station', (
   render(<MemoryRouter initialEntries={['/ships/aegis/roles/executive-officer']}>
     <Routes><Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} /></Routes>
   </MemoryRouter>);
-  expect(screen.getByRole('button', { name: 'Check storage', exact: true })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Check storage' })).toBeDisabled();
 });
 
 it('freezes ship gameplay controls while showing the final-turn evaluation state', async () => {
