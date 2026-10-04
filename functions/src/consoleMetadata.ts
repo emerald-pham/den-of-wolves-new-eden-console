@@ -20,6 +20,7 @@ export type ImplementedConsoleResolverId =
   | 'fighter.build'
   | 'wolf-attack.maliades-launch'
   | 'wolf-attack.command-and-control'
+  | 'wolf-attack.range-actions'
   | 'vip-card.draw'
   | 'jump.resolve';
 
@@ -312,11 +313,8 @@ export const SUPPLEMENTAL_CONSOLE_METADATA: Readonly<Record<string, Supplemental
       phase: 'Wolf attack',
       maintenanceStep: 4,
       charge: printed('Requires one console charge from the small-ship Reactor.'),
-      effect: 'Roll 3 dice total: one at long, one at medium, and one at short range. Each 6+ / 5+ / 4+ deals 1 damage at that range; the array can damage each target at most once per phase.',
-      resolver: unavailable(
-        'Missile Array firing is unavailable until the authoritative range-phase resolver lands.',
-        ['455'],
-      ),
+      effect: 'At each range, roll 3 dice. Each 6+ / 5+ / 4+ deals 1 damage at Long / Medium / Short range; the array can damage each target at most once per phase.',
+      resolver: implemented('wolf-attack.range-actions'),
     },
     'gorgoneion:force-field-projector': {
       consoleId: 'gorgoneion:force-field-projector',

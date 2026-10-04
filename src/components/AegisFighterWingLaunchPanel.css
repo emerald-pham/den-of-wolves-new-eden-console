@@ -45,7 +45,7 @@
 
 .aegis-fighter-launch__wing p,
 .aegis-fighter-launch__notice {
-  color: var(--cic-muted, #c4d0d5);
+  color: var(--cic-muted);
   font-size: 0.9rem;
   line-height: 1.45;
 }
@@ -63,7 +63,7 @@
 
 .aegis-fighter-launch__status {
   flex: 0 0 auto;
-  color: var(--cic-accent, #8bd8e8);
+  color: var(--cic-cyan);
   font-size: 0.8rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
