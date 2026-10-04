@@ -286,6 +286,46 @@ try {
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   const activeSettings = page.getByRole('dialog', { name: 'Session settings', exact: true });
   await activeSettings.waitFor();
+  const postGameGuidance = activeSettings.getByText(pregameSettingsNote, { exact: true });
+  try {
+    await postGameGuidance.waitFor({ state: 'detached', timeout: 10000 });
+  } catch (error) {
+    const diagnostic = await page.evaluate(async ({ expectedActorUid, expectedSessionId }) => {
+      const { useSessionStore } = await import('/src/store/useSessionStore.ts');
+      const state = useSessionStore.getState();
+      const indicator = document.querySelector('.app-header .indicator');
+      const notes = [...document.querySelectorAll('.settings-dialog p')]
+        .map(element => element.textContent?.trim() ?? '')
+        .filter(text => text === 'Awaiting CIC authentication means waiting for the GM to start the game.');
+      return {
+        identity: {
+          actorPresent: Boolean(state.me?.uid),
+          actorMatchesExpected: state.me?.uid === expectedActorUid,
+          sessionPresent: Boolean(state.session?.id),
+          sessionMatchesExpected: state.session?.id === expectedSessionId,
+        },
+        currentTurn: state.session?.currentTurn ?? null,
+        turnPhase: state.session?.turnPhase ?? null,
+        indicator: indicator ? {
+          ariaLabel: indicator.getAttribute('aria-label'),
+          title: indicator.getAttribute('title'),
+          status: indicator.getAttribute('data-status'),
+          text: indicator.textContent?.trim() ?? '',
+        } : null,
+        settingsOpen: Boolean(document.querySelector('[role="dialog"][aria-labelledby="settings-title"]')),
+        matchingGuidanceParagraphs: notes,
+      };
+    }, {
+      expectedActorUid: fixture.byRole('icebreaker-captain').localId,
+      expectedSessionId: fixture.sessionId,
+    });
+    await page.screenshot({
+      path: `${evidenceDirectory}/cycle1-settings-guidance-timeout-390x844.png`, fullPage: true,
+    });
+    await writeFile(`${evidenceDirectory}/cycle1-settings-guidance-timeout.json`,
+      `${JSON.stringify({ error: error instanceof Error ? error.message : String(error), ...diagnostic }, null, 2)}\n`);
+    throw error;
+  }
   assert.equal(await activeSettings.getByText(pregameSettingsNote, { exact: true }).count(), 0,
     'Cycle 0 Settings guidance disappears after the ordinary GM starts Cycle 1.');
   await page.screenshot({ path: `${evidenceDirectory}/cycle1-settings-no-pregame-guidance-390x844.png`, fullPage: true });
