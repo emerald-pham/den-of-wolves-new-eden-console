@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
@@ -6,6 +7,7 @@ import { chromium } from 'playwright';
 import { createPc07AuthenticatedSession } from './pc07-authenticated-session.mjs';
 import { runPc08UnionScenario as runUnionScenario } from './pc08-union-proof.mjs';
 
+const sourceCommit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: new URL('../', import.meta.url), encoding: 'utf8' }).trim();
 const evidencePath = process.env.PC08_DRADIS_EVIDENCE_PATH;
 const uiDirectory = process.env.PC08_DRADIS_UI_DIR;
 const localEmulatorEnv = Object.fromEntries((await readFile('.env.emulators.local', 'utf8'))
@@ -62,6 +64,7 @@ let playerContext;
 let playerPage;
 let pressContext;
 const browserErrors = [];
+const sessionStoreModuleUrls = new WeakMap();
 
 async function joinUiPlayer(joinCode, roleName) {
   if (!browser) browser = await chromium.launch({ channel: 'chrome', headless: true });
@@ -70,6 +73,14 @@ async function joinUiPlayer(joinCode, roleName) {
     reducedMotion: 'no-preference',
   });
   const page = await context.newPage();
+  sessionStoreModuleUrls.set(page, '/src/store/useSessionStore.ts');
+  page.on('request', request => {
+    const url = new URL(request.url());
+    if (url.pathname === '/src/store/useSessionStore.ts' &&
+        (url.searchParams.has('t') || !new URL(sessionStoreModuleUrls.get(page), appOrigin).searchParams.has('t'))) {
+      sessionStoreModuleUrls.set(page, url.href);
+    }
+  });
   page.on('pageerror', error => browserErrors.push(error.message));
   if (roleName === 'wing-commander') {
     await page.addInitScript(() => {
@@ -115,7 +126,9 @@ async function joinUiPlayer(joinCode, roleName) {
   await page.getByRole('textbox', { name: 'Session code', exact: true }).fill(joinCode);
   await page.getByRole('button', { name: 'Join a session', exact: true }).click();
   await page.getByRole('dialog', { name: 'CODE OF CONDUCT', exact: true }).waitFor();
-  const waiverCheckboxes = await page.getByRole('checkbox', { name: /^Acknowledge regulation/ }).all();
+  const acknowledgements = page.getByRole('checkbox', { name: /^Acknowledge regulation/ });
+  await acknowledgements.first().waitFor();
+  const waiverCheckboxes = await acknowledgements.all();
   assert.equal(waiverCheckboxes.length, 3, 'The current conduct gate presents each regulation.');
   for (const checkbox of waiverCheckboxes) {
     await checkbox.check();
@@ -129,11 +142,11 @@ async function joinUiPlayer(joinCode, roleName) {
         button instanceof HTMLButtonElement && !button.disabled;
     }, null, { timeout: 45000 });
   } catch (error) {
-    const waiverState = await page.evaluate(async () => {
+    const waiverState = await page.evaluate(async storeModuleUrl => {
       const checkboxes = [...document.querySelectorAll('.session-waiver__check input[type="checkbox"]')];
       const button = document.querySelector('.session-waiver__acknowledge');
       const [{ useSessionStore }, { auth }] = await Promise.all([
-        import('/src/store/useSessionStore.ts'), import('/src/lib/firebase.ts'),
+        import(storeModuleUrl), import('/src/lib/firebase.ts'),
       ]);
       const sessionState = useSessionStore.getState();
       return { checkboxCount: checkboxes.length, checked: checkboxes.map(checkbox => checkbox.checked),
@@ -143,7 +156,7 @@ async function joinUiPlayer(joinCode, roleName) {
         url: location.href, heading: document.querySelector('h1')?.textContent ?? null,
         sessionReady: Boolean(sessionState.me && auth().currentUser && sessionState.connection === 'live' &&
           sessionState.sessionSnapshotFreshness === 'server') };
-    });
+    }, sessionStoreModuleUrls.get(page));
     await page.screenshot({ path: uiDirectory + '/conduct-timeout.png', fullPage: true }).catch(() => undefined);
     throw new Error('Authenticated UI conduct gate did not become ready: ' + JSON.stringify(waiverState),
       { cause: error });
@@ -152,14 +165,14 @@ async function joinUiPlayer(joinCode, roleName) {
   const sessionReadyDeadline = Date.now() + 30000;
   let sessionReady = false;
   while (Date.now() < sessionReadyDeadline && !sessionReady) {
-    sessionReady = await page.evaluate(async () => {
+    sessionReady = await page.evaluate(async storeModuleUrl => {
       const [{ useSessionStore }, { auth }] = await Promise.all([
-        import('/src/store/useSessionStore.ts'), import('/src/lib/firebase.ts'),
+        import(storeModuleUrl), import('/src/lib/firebase.ts'),
       ]);
       const state = useSessionStore.getState();
       return Boolean(state.me && auth().currentUser && state.connection === 'live' &&
         state.sessionSnapshotFreshness === 'server');
-    });
+    }, sessionStoreModuleUrls.get(page));
     if (!sessionReady) await page.waitForTimeout(100);
   }
   assert.ok(sessionReady, 'The authenticated browser must receive its current session before rendering.');
@@ -863,15 +876,15 @@ try {
   const consoleSnapshotDeadline = Date.now() + 30000;
   let consoleSnapshot;
   while (Date.now() < consoleSnapshotDeadline) {
-    consoleSnapshot = await playerPage.evaluate(async () => {
+    consoleSnapshot = await playerPage.evaluate(async storeModuleUrl => {
       const [{ useSessionStore }, { auth }] = await Promise.all([
-        import('/src/store/useSessionStore.ts'), import('/src/lib/firebase.ts'),
+        import(storeModuleUrl), import('/src/lib/firebase.ts'),
       ]);
       const state = useSessionStore.getState();
       return { authUid: auth().currentUser?.uid ?? null, meUid: state.me?.uid ?? null,
         sessionId: state.session?.id ?? null, roleId: state.me?.activeConsoleRoleId ?? null,
         connection: state.connection, freshness: state.sessionSnapshotFreshness };
-    });
+    }, sessionStoreModuleUrls.get(playerPage));
     if (consoleSnapshot.authUid === expectedWing.localId && consoleSnapshot.meUid === expectedWing.localId &&
         consoleSnapshot.sessionId === sessionId && consoleSnapshot.roleId === 'wing-commander' &&
         consoleSnapshot.connection === 'live' && consoleSnapshot.freshness === 'server') break;
@@ -899,15 +912,15 @@ try {
   const roleSnapshotDeadline = Date.now() + 30000;
   let roleSnapshot;
   while (Date.now() < roleSnapshotDeadline) {
-    roleSnapshot = await playerPage.evaluate(async () => {
+    roleSnapshot = await playerPage.evaluate(async storeModuleUrl => {
       const [{ useSessionStore }, { auth }] = await Promise.all([
-        import('/src/store/useSessionStore.ts'), import('/src/lib/firebase.ts'),
+        import(storeModuleUrl), import('/src/lib/firebase.ts'),
       ]);
       const state = useSessionStore.getState();
       return { authUid: auth().currentUser?.uid ?? null, meUid: state.me?.uid ?? null,
         sessionId: state.session?.id ?? null, roleId: state.me?.activeConsoleRoleId ?? null,
         connection: state.connection, freshness: state.sessionSnapshotFreshness };
-    });
+    }, sessionStoreModuleUrls.get(playerPage));
     if (roleSnapshot.authUid === expectedWing.localId && roleSnapshot.meUid === expectedWing.localId &&
         roleSnapshot.sessionId === sessionId && roleSnapshot.roleId === 'wing-commander' &&
         roleSnapshot.connection === 'live' && roleSnapshot.freshness === 'server') break;
@@ -983,7 +996,9 @@ try {
   checks.authenticatedEightPlayerUnionHostTravelReplayRestrictionsAndReconnect = true;
   console.log('PC08 DRADIS: eight-player Wobbly/Ally setup, paired-host travel, parking, and reconnect verified.');
 
+  assert.deepEqual(f.heartbeatFailures, [], 'Ordinary presence must stay healthy throughout the combined proof.');
   const evidence = {
+    sourceCommit,
     kind: 'normal-authenticated-local-emulator-http-and-rendered-gameplay',
     rosterSize: 20,
     standardShuttleIds: fleetShuttles,
