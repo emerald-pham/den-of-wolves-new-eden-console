@@ -3,9 +3,41 @@ import {randomUUID} from 'node:crypto';
 import {readFile} from 'node:fs/promises';
 import {createRequire} from 'node:module';
 import {localGmAccessConfiguration,grantLocalGmAccess} from './local-gm-access.mjs';
+import {buildPc07ExplicitLoyaltyAssignments} from './pc07-explicit-loyalty-setup.mjs';
+
+/** Join actual browser clients into selected printed core seats before assigning the other actors. */
+export async function joinConfiguredBrowserPlayers({roles,players,joinCode,browserRoleId,joinBrowserPlayer,joinBrowserPlayers}={}) {
+ const configured=new Map();
+ if(joinBrowserPlayers!==undefined){
+  assert.ok(joinBrowserPlayers&&typeof joinBrowserPlayers==='object'&&!Array.isArray(joinBrowserPlayers),
+   'Browser core players must be provided as a role-to-join-function mapping.');
+  for(const [roleId,join]of Object.entries(joinBrowserPlayers)){
+   assert.equal(typeof join,'function',`Browser join for ${roleId} must be a function.`);
+   configured.set(roleId,join);
+  }
+ }
+ if(joinBrowserPlayer!==undefined){
+  assert.equal(typeof joinBrowserPlayer,'function','The singular browser join must be a function.');
+  assert.ok(browserRoleId,'The singular browser join requires a printed core role.');
+  assert.ok(!configured.has(browserRoleId),`${browserRoleId} must be configured once.`);
+  configured.set(browserRoleId,joinBrowserPlayer);
+ }
+ const browserIndexes=new Set();
+ for(const [roleId,join]of configured){
+  const index=roles.indexOf(roleId);
+  assert.ok(index>=0,`${roleId} must be a printed core station.`);
+  assert.ok(players[index],`An authenticated player must occupy ${roleId}.`);
+  const browserActor=await join(joinCode);
+  assert.ok(browserActor&&typeof browserActor==='object'&&browserActor.localId,
+   `The browser join for ${roleId} must return its authenticated player actor.`);
+  players[index]=browserActor;
+  browserIndexes.add(index);
+ }
+ return browserIndexes;
+}
 
 /** Normal local Auth/HTTP setup. Tokens stay in memory and never enter evidence. */
-export async function createPc07AuthenticatedSession(name,playerCount=8,{clearBriefing=true,keepAlive=false,expansion='base',capybaraEnabled=expansion==='capybara',browserRoleId,joinBrowserPlayer,joinPressPlayer,activeRoleIdsOverride,unionCraftStartingHosts={}}={}) {
+export async function createPc07AuthenticatedSession(name,playerCount=8,{clearBriefing=true,keepAlive=false,expansion='base',capybaraEnabled=expansion==='capybara',browserRoleId,joinBrowserPlayer,joinBrowserPlayers,joinPressPlayer,activeRoleIdsOverride,unionCraftStartingHosts={},explicitLoyaltySetup}={}) {
  const env=Object.fromEntries((await readFile('.env.emulators.local','utf8')).trim().split('\n').map(line=>line.split('=')));
  const project=process.env.VITE_FIREBASE_PROJECT_ID;
  const config=localGmAccessConfiguration('serve',{...env,VITE_LOCAL_GM_ACCESS:'1',VITE_FIREBASE_PROJECT_ID:project});
@@ -64,7 +96,9 @@ export async function createPc07AuthenticatedSession(name,playerCount=8,{clearBr
   ok(await call(gm,'claimGmInstance',{sessionId,instanceId,name:'Local facilitator',deviceLabel:'PC07 HTTP proof'}),'GM claim');
   startHeartbeat();
   const roles=activeRoleIdsOverride??recommendedRoleIds(playerCount);
-  const confirmed=ok(await call(gm,'confirmSetup',{sessionId,instanceId,requestId:randomUUID(),expectedSetupRevision:created.session.setupRevision??0,playerCount,chartId:'A',lockChart:true,expansion,turnLimit:6,dioneEnabled:playerCount>=12,capybaraEnabled,universalArbourEnabled:false,wolfCultEnabled:false,activeRoleIds:roles}),'confirm');
+  const explicitAssignments=explicitLoyaltySetup
+   ?buildPc07ExplicitLoyaltyAssignments(roles,explicitLoyaltySetup):null;
+  const confirmed=ok(await call(gm,'confirmSetup',{sessionId,instanceId,requestId:randomUUID(),expectedSetupRevision:created.session.setupRevision??0,playerCount,chartId:'A',lockChart:true,expansion,turnLimit:6,dioneEnabled:playerCount>=12,capybaraEnabled,universalArbourEnabled:false,wolfCultEnabled:explicitLoyaltySetup!==undefined,activeRoleIds:roles}),'confirm');
   let setupRevision=(await session.get()).get('setupRevision')??confirmed.setupRevision??created.session.setupRevision??0;
   const unionCraftSetupProof=[];
   for(const [craftId,hostShipId]of Object.entries(unionCraftStartingHosts)){
@@ -92,15 +126,31 @@ export async function createPc07AuthenticatedSession(name,playerCount=8,{clearBr
     staleHostDenied:true,setupRevision:initialized.setupRevision});
    setupRevision=initialized.setupRevision;
   }
-  const browserIndex=browserRoleId?roles.indexOf(browserRoleId):-1;
-  if(joinBrowserPlayer){assert.ok(browserIndex>=0,'The browser fills a printed core station.');players[browserIndex]=await joinBrowserPlayer(created.session.joinCode);}
+  const browserIndexes=await joinConfiguredBrowserPlayers({roles,players,joinCode:created.session.joinCode,
+   browserRoleId,joinBrowserPlayer,joinBrowserPlayers});
   for(const [i,player]of players.entries()){
-   if(i!==browserIndex)ok(await call(player,'joinSession',{joinCode:created.session.joinCode,displayName:`Local actor ${i+1}`}), 'join');
+   if(!browserIndexes.has(i))ok(await call(player,'joinSession',{joinCode:created.session.joinCode,displayName:`Local actor ${i+1}`}), 'join');
    ok(await call(gm,'assignRole',{sessionId,instanceId,requestId:randomUUID(),targetUid:player.localId,roleId:roles[i]}),'cast');
    const current=ok(await call(player,'resumeSession',{sessionId}),'resume');
    ok(await call(player,'claimSeat',{sessionId,seatId:roles[i],requestId:randomUUID(),expectedSetupRevision:current.session.setupRevision}),'seat');
    ok(await call(player,'refreshPresence',{sessionId,activeConsoleRoleId:roles[i]}),'console');
    heartbeatPlayers.set(player.localId,{actor:player,label:`player-${i+1}`});
+  }
+  const explicitLoyaltySetupProof=[];
+  if(explicitAssignments){
+   const setupOrder=[...explicitAssignments].sort((left,right)=>{
+    const order=kind=>kind==='wolf-agent'?0:kind==='wolf-cult'?1:kind==='intelligence-agent'?2:3;
+    return order(left.kind)-order(right.kind);
+   });
+   for(const assignment of setupOrder){
+    const player=players[roles.indexOf(assignment.roleId)];
+    assert.ok(player,`An occupied player must hold ${assignment.roleId}.`);
+    const result=ok(await call(gm,'assignLoyalty',{sessionId,instanceId,requestId:randomUUID(),
+     targetUid:player.localId,kind:assignment.kind,suspicion:assignment.suspicion}),
+     `assign ${assignment.kind} to ${assignment.roleId}`);
+    explicitLoyaltySetupProof.push({roleId:assignment.roleId,kind:assignment.kind,
+     suspicion:assignment.suspicion,targetUid:player.localId,setupRevision:result.setupRevision});
+   }
   }
   const press=joinPressPlayer?await joinPressPlayer(created.session.joinCode):undefined;
   if(press){ok(await call(press,'refreshPresence',{sessionId,activeConsoleRoleId:'press-officer'}),'Press claim');
@@ -109,8 +159,14 @@ export async function createPc07AuthenticatedSession(name,playerCount=8,{clearBr
   ok(await call(gm,'startGame',{sessionId,instanceId,requestId:randomUUID(),expectedSetupRevision:current.session.setupRevision}),'start');
   const hold=(await session.get()).get('turnPhase').timerPause;
   if(clearBriefing)ok(await call(players[0],'clearTurnAdvanceInterstitial',{sessionId,expectedCycle:1,expectedPausedAt:hold.pausedAt,requestId:randomUUID()}),'briefing clear');
-  return{db,config,project,gm,players,press,roles,unionCraftSetupProof,heartbeatFailures,sessionId,session,instanceId,call,ok,
-   byRole:role=>players[roles.indexOf(role)],cleanup:async()=>{
+  const loyaltyActors=explicitLoyaltySetup?{
+   wolfAgent:players[roles.indexOf(explicitLoyaltySetup.wolfAgentRoleId)],
+   wolfCult:players[roles.indexOf(explicitLoyaltySetup.wolfCultRoleId)],
+   intelligenceAgent:players[roles.indexOf(explicitLoyaltySetup.intelligenceAgentRoleId)],
+  }:undefined;
+  return{db,config,project,gm,players,press,roles,unionCraftSetupProof,explicitLoyaltySetupProof,
+   loyaltyActors,heartbeatFailures,sessionId,session,instanceId,call,ok,
+   byRole:role=>players[roles.indexOf(role)],byLoyalty:kind=>loyaltyActors?.[kind],cleanup:async()=>{
     clearInterval(gmHeartbeat);clearInterval(playerHeartbeat);
     await Promise.all([gmHeartbeatPending,playerHeartbeatPending]);
     await db.recursiveDelete(session);
