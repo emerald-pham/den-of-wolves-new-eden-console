@@ -2116,14 +2116,21 @@ it('automatically opens and restages the exact surviving P Station force in the 
   const finalized = testState.documents.get(statePath)!;
   const survivingWolfShips = (finalized.calculationReceipt as Fields).survivingWolfShips as Array<Fields>;
   expect(finalized).toMatchObject({ status: 'resolved', currentStep: 'resolved', attackNumber: 1,
-    pStationSequence: marker });
+    targetGroupId: 'fleet-1', threatSiteCode: 'P', threatSourceId: 'arrival-transition-1', pStationSequence: marker,
+    pStationRepeat: expect.objectContaining({ status: 'repeat', context: {
+      type: 'p-station-repeat', parentAttackId: 'wolf-attack-test-1', nextAttackNumber: 2,
+    } }) });
   expect(survivingWolfShips).toHaveLength(1);
   expect(survivingWolfShips[0]).toMatchObject({ instanceId: roster.at(-1)!.instanceId, shipId: 'wolf-assault-transport' });
   expect(testState.documents.get(`${statePath}/audit/wolf-finalized-1`)).toMatchObject({
     pStationSequence: marker, survivingWolfShips,
     pStationRepeat: expect.objectContaining({ status: 'repeat', sequenceId: marker.sequenceId,
+      context: { type: 'p-station-repeat', parentAttackId: 'wolf-attack-test-1', nextAttackNumber: 2 },
       sourceInstanceIds: [roster.at(-1)!.instanceId], nextAttackNumber: 2 }),
   });
+  expect(finalized.pStationRepeat).toEqual(
+    (testState.documents.get(`${statePath}/audit/wolf-finalized-1`) as Fields).pStationRepeat,
+  );
   expect(testState.documents.get('sessions/s1/wolfAttackWindow/current')).toMatchObject({
     status: 'due', turn: 1, revision: 6, targetGroupId: 'fleet-1', threatSiteCode: 'P',
     threatSourceId: 'arrival-transition-1',
