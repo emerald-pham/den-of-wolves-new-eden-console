@@ -1616,6 +1616,49 @@ it('invalidates cached DRADIS name width after a font face finishes loading', as
   }
 });
 
+it('reuses held contact-label geometry and invalidates it when the fix or an obstacle moves', () => {
+  const bounds = (left: number, top: number, width: number, height: number): DOMRect => ({
+    x: left, y: top, left, top, width, height,
+    right: left + width, bottom: top + height,
+  }) as DOMRect;
+  let markShift = 0;
+  let originLeft = 10;
+  let labelLayoutReads = 0;
+  vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+    if (this.classList.contains('contact-plot')) return bounds(0, 0, 320, 240);
+    if (this.classList.contains('contact-plot__origin')) return bounds(originLeft, 100, 50, 24);
+    if (this.classList.contains('contact-plot__blip')) return bounds(180 + markShift, 100, 8, 8);
+    if (this.classList.contains('contact-plot__tag')) {
+      labelLayoutReads += 1;
+      const anchor = this.closest<HTMLElement>('.contact-plot__contact')?.dataset.labelAnchor ?? 'south-east';
+      const left = anchor.endsWith('east') ? 180 + markShift - 11 - 60 : 188 + markShift + 11;
+      const top = anchor.startsWith('north') ? 100 - 8 - 18 : 108 + 8;
+      const style = (this as HTMLElement).style;
+      const x = Number.parseFloat(style.getPropertyValue('--label-clamp-x')) || 0;
+      const y = Number.parseFloat(style.getPropertyValue('--label-clamp-y')) || 0;
+      return bounds(left + x, top + y, 60, 18);
+    }
+    return bounds(0, 0, 0, 0);
+  });
+  const contact = { id: 'held-layout', tag: 'HELD CONTACT', x: 0.6, y: 0.2, z: 0.1, color: 'white' };
+  const { rerender } = render(<ContactPlot centerLabel="AEGIS" contacts={[contact]} />);
+  expect(labelLayoutReads).toBeGreaterThan(0);
+
+  labelLayoutReads = 0;
+  rerender(<ContactPlot centerLabel="AEGIS" contacts={[{ ...contact }]} />);
+  expect(labelLayoutReads).toBe(0);
+
+  markShift = 24;
+  labelLayoutReads = 0;
+  rerender(<ContactPlot centerLabel="AEGIS" contacts={[{ ...contact, x: 0.61 }]} />);
+  expect(labelLayoutReads).toBeGreaterThan(0);
+
+  originLeft = 190;
+  labelLayoutReads = 0;
+  rerender(<ContactPlot centerLabel="AEGIS" contacts={[{ ...contact, x: 0.61 }]} />);
+  expect(labelLayoutReads).toBeGreaterThan(0);
+});
+
 it('keeps crowded 20-contact label layout within the per-update geometry-read budget', () => {
   const bounds = (left: number, top: number, width: number, height: number): DOMRect => ({
     x: left, y: top, left, top, width, height,
