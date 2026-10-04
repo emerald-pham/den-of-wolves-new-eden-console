@@ -357,7 +357,7 @@ it('atomically locks airspace, snapshots parked craft, records a hidden stage re
     calculationReceipt: {
       type: 'wolf-combat-calculation-stage',
       step: 'targeting',
-      pursuitPressure: { navigationRevision: 0, groupValues: { 'fleet-1': 4 } },
+      pursuitPressure: { navigationRevision: 0, targetGroupId: 'fleet-1', targetGroupValue: 4 },
     },
   });
   expect(state.parkedCraftIds).toEqual(expect.arrayContaining([
@@ -1871,10 +1871,12 @@ it('uses only committed private pursuit authority and rejects malformed or chang
   session({ pursuitGroups: { fleet: 2 } });
   navigation({ revision: 7, pursuitGroups: { 'fleet-1': 6, 'fleet-2': 8 } });
   splitFleet();
+  dueWindow({ targetGroupId: 'fleet-2' });
   await declareWolfAttack.run(request({ ...baseData, requestId: 'private-pursuit' }));
   expect(mock.documents.get('sessions/s1/wolfAttackState/current')).toMatchObject({
     calculationReceipt: {
-      pursuitPressure: { navigationRevision: 7, groupValues: { 'fleet-1': 6, 'fleet-2': 8 } },
+      pursuitPressure: { navigationRevision: 7, targetGroupId: 'fleet-2', targetGroupValue: 8 },
+      targeting: { ring: ['quellon', 'shepherd', 'refinery-124'] },
     },
   });
 
@@ -1910,6 +1912,7 @@ it('uses only committed private pursuit authority and rejects malformed or chang
   session({ pursuitGroups: { fleet: 2 } });
   navigation({ revision: 8, pursuitGroups: { 'fleet-1': 6, 'fleet-2': 8 } });
   splitFleet();
+  dueWindow({ targetGroupId: 'fleet-2' });
   mock.update.mockClear();
   mock.set.mockClear();
   let transactionCount = 0;
@@ -1971,6 +1974,7 @@ it('rejects noncanonical fleet membership before any declaration write', async (
 it('rejects a canonical group partition changed during declaration', async () => {
   navigation({ revision: 5, pursuitGroups: { 'fleet-1': 4, 'fleet-2': 4 } });
   splitFleet();
+  dueWindow({ targetGroupId: 'fleet-1' });
   let transactionCount = 0;
   mock.runTransaction.mockImplementation(async (callback: (tx: unknown) => unknown) => {
     transactionCount += 1;

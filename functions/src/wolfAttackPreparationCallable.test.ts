@@ -202,6 +202,7 @@ it('requires the Commander composition to match ten plus only the selected group
     id: 'fleet-1', vesselIds: ['aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124'],
     memberUids: ['u1'],
   });
+  put('sessions/s1/players/u1', { uid: 'u1', role: 'gm', connected: true, fleetGroupId: 'fleet-1' });
   put('sessions/s1/serverState/navigation', { revision: 3, pursuitGroups: { 'fleet-1': 4 } });
   const exactDial = ['wolf-strikecarrier', ...Array<string>(3).fill('wolf-cruiser')];
   await expect(stageWolfAttackPreparation.run(request({
