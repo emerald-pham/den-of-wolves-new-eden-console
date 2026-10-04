@@ -260,3 +260,15 @@ now includes one extra full ration for each of the two launch hosts, before
 combat, retaining actual storage loss, maintenance cost and all acceptance
 assertions. This is a disclosed finite fixture correction, not a gameplay rule
 or additional post-combat authority.
+
+The next `45a75dca` attempt completed twelve branches with zero captured
+console/page, HTTP or failed-request errors, then stopped when actual AEGIS
+Storage damage halved its remaining 24 food/18 water to 12/9. Carrier rations
+left 4/3, below Gorgoneion's required full 8/6. Its failure and predicate inputs
+remain in `positive-rebuild-storage-reserve/`. The disclosed pregame carrier
+budget now works backwards from the printed costs across both possible
+cycle-3 and cycle-4 storage losses: 88 food, 66 water and 17 materials, including
+two possible paid drone repairs and both paid builds. All actual losses,
+full-ration, complete-receipt, browser-error and two-vacancy assertions remain.
+This is a finite source-backed fixture repair; no battle outcome is selected
+and no post-combat resource write is added. A complete strict pass is pending.

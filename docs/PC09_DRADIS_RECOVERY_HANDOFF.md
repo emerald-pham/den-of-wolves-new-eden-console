@@ -138,3 +138,16 @@ The aesthetic failure names two existing hardcoded colors in
 the single PC09 version/changelog, catalog facts, complete-group integration,
 fresh independent review, exact integrated validation, CI and release boundary.
 No catalog, version, push or deployment changes were made by this worker.
+
+## Fresh resumed root verification
+
+Root reran the unchanged normal Auth driver on `2ccd9762` client/driver against
+frozen Functions `296dd59b` (207 JS/hash `54d4c79e…7a260`). The inspectable
+`/tmp/dow-pc09-resumed-evidence/dradis/result.json` passes all nine checks and
+eight rendered cases, completed at 23:39:17 UTC. Its pre-run sidecar records
+source, runtime and Rules hash. Phone, desktop and short-landscape instrument
+screenshots were visually inspected. This declares a real targeting attack and
+proves recovery, private reads/write denial, revocation, keyboard and motion;
+it does not claim finalized combat rows. Those rows use the separate actual
+two-attack proof. Zero page exceptions are recorded; no production or physical
+device claim is made.

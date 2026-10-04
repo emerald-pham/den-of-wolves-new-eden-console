@@ -226,14 +226,27 @@ async function fundPregameResources() {
     gorgoneion: { cycles: 2, foodEach: gorgoneionRations.food[3], waterEach: gorgoneionRations.water[3],
       population: gorgoneionRations.population },
   };
+  // Storage loses floor(inventory / 2) at each ordinary maintenance. Neither
+  // of the first two maintenance cycles follows combat; cycles 3 and 4 can
+  // each halve AEGIS stores. Work backwards from the remaining printed costs
+  // using a conservative factor of two, without selecting any damage outcome.
+  const carrierStorageBudget = {
+    food: 2 * printedRationPlan.aegis.foodEach + printedRationPlan.gorgoneion.foodEach +
+      2 * (printedRationPlan.aegis.foodEach + printedRationPlan.gorgoneion.foodEach +
+        2 * printedRationPlan.aegis.foodEach),
+    water: 2 * printedRationPlan.aegis.waterEach + printedRationPlan.gorgoneion.waterEach +
+      2 * (printedRationPlan.aegis.waterEach + printedRationPlan.gorgoneion.waterEach +
+        2 * printedRationPlan.aegis.waterEach),
+    // One optional three-material drone repair after each attack, followed by
+    // two one-material builds after the second possible storage loss.
+    materials: 3 + 2 * (3 + 2 * 2),
+  };
   const targets = {
     aegis: {
-      food: printedRationPlan.aegis.cycles * printedRationPlan.aegis.foodEach +
-        printedRationPlan.gorgoneion.cycles * printedRationPlan.gorgoneion.foodEach,
-      water: printedRationPlan.aegis.cycles * printedRationPlan.aegis.waterEach +
-        printedRationPlan.gorgoneion.cycles * printedRationPlan.gorgoneion.waterEach,
+      food: carrierStorageBudget.food,
+      water: carrierStorageBudget.water,
       fuel: 6,
-      materials: 16,
+      materials: carrierStorageBudget.materials,
     },
     // One first-attack storage hit can halve the remaining stores at the second
     // host maintenance. Fund its extra ration reserve before any combat; the
@@ -247,7 +260,7 @@ async function fundPregameResources() {
     fighterBuilds: 2, materialPerBuild: 1,
     possibleRepairDroneRepairs: 2, materialPerDroneRepair: 3,
     plannedMaterialSpend: 2 * 1 + 2 * 3,
-    additionalMaterialReserve: Math.max(0, 16 - (2 * 1 + 2 * 3)),
+    additionalMaterialReserve: Math.max(0, targets.aegis.materials - (2 * 1 + 2 * 3)),
     fundedMaterialTarget: targets.aegis.materials,
     fundedMaintenanceFuelTarget: targets.aegis.fuel,
   };
@@ -295,8 +308,12 @@ async function fundPregameResources() {
     }
   }
   return { printedRationPlan, paidCostPlan, targets,
-    storageLossReserve: { ships: ['dione', 'refinery-124'], extraFullRationsEach: 1,
-      reason: 'first-attack storage damage may halve remaining stores before cycle-3 full rations' } };
+    storageLossReserve: {
+      aegis: { possibleMaintenanceHalvings: [3, 4], conservativeBudget: carrierStorageBudget,
+        reason: 'ordinary carrier and docked-small-ship full rations plus paid repairs/builds after either actual storage hit' },
+      launchHosts: { ships: ['dione', 'refinery-124'], extraFullRationsEach: 1,
+        reason: 'first-attack storage damage may halve remaining stores before cycle-3 full rations' },
+    } };
 }
 async function until(predicate, label) {
   for (let i = 0; i < 120; i++) {

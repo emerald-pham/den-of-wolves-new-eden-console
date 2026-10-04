@@ -136,3 +136,15 @@ The parent has integrated the P repair as `6105b131`, `807ea5cc`, and
 `a44a6385` in test-before-code order, and owns independent review and single
 checkpoint integration. The parent’s Functions runtime at
 `/tmp/pc09-owner-functions-a44a6385` was loaded and exercised for the P proof.
+
+## Fresh resumed P producer verification
+
+Root reran the committed normal P producer driver on `2ccd9762` against frozen
+`296dd59b` Functions (207 JS/hash `54d4c79e…7a260`). Inspectable launch, result
+and log are under `/tmp/dow-pc09-resumed-evidence/p-station/`. Seven checks and
+32 authenticated actions pass, completed at 23:42:12 UTC. Ordinary movement
+produces the arrival source; finalization atomically opens/restages exact
+survivors; the same GM makes the second declaration in cycle 1. Chart/deadline
+fixtures and pre-combat authorized GM repairs/maintenance remain disclosed.
+The result does not seed attack state, survivors, dice, finalization or repeat
+preparation. The old L/M and P paths above remain historical reported evidence.

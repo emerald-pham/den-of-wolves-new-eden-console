@@ -54,3 +54,13 @@ The current returned arrest case fields are `{ path, targetUid, revision, status
 - No release metadata, catalog status, remote branch, deployment, or merge was changed by this slice.
 
 The authenticated proofs used isolated demo Firebase emulator slot 8 (Auth 9179, Functions 5081, Firestore 8160, Hosting 5080, UI 4080, Hub 4480). The slot 8 emulator process is owned by this branch and is eligible for cleanup after the captured proof run.
+
+## Fresh resumed Detector verification
+
+Root's current frozen-runtime ordinary Auth proof is now inspectable under
+`/tmp/dow-pc09-resumed-evidence/detector/`. Its pre-run source/runtime/Rules
+sidecar binds `2ccd9762` driver to `296dd59b` Functions/207 JS/hash
+`54d4c79e…7a260`. Ordinary four-cycle research builds the device, three tests
+commit, a fourth denies, the current investigator reads a truth-free private
+report and other members deny. Each result has a separate server truth audit.
+The earlier lost files remain historical, without changing those outcomes.
