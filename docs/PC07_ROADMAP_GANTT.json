@@ -11,16 +11,16 @@
     "dependencyWaveCount": 21
   },
   "sources": {
-    "revision": "41d808b217588b639cce5a1bfeca09c15dffc15e",
-    "revisionDate": "2026-10-04T06:59:09-04:00",
+    "revision": "101c2d7e2210aa82f3eac1ca209eb8154f9220ca",
+    "revisionDate": "2026-10-04T08:52:09-04:00",
     "files": [
       {
         "path": "docs/implementation-prompts.json",
-        "sha256": "51517ec6c5cc4e2a567e5d871074e967b2e7d251a449e8bfdca33e811d3c2122"
+        "sha256": "549c9161e1c4ff78259073e1e7512afc218df5c426558cbc012a1128caa0db32"
       },
       {
         "path": "docs/CHECKPOINT_COMPLETION_PLAN.md",
-        "sha256": "8279c5531e2a0f1b9116af6907b776a5b012649803c67446611d3c056b92872a"
+        "sha256": "6a2eee02e71f4df3697bdd55cb99f35fd538cab48134e61d75d18aeb3e9debdc"
       }
     ]
   },
@@ -5846,7 +5846,7 @@
       "title": "Publish the immediate attack result.",
       "status": "missing",
       "catalogReadiness": "blocked",
-      "acceptance": "extend current crew/broadcast projection surfaces so affected crews see damage, casualties, boarding, and remaining threats while hidden prep stays private. Automatically deliver entitled operational outcomes, append the complete private GM receipt and make only approved public facts available to Press through the existing news path. Press controls publication; private causes, votes, suspicion, Wolf identity and GM notes remain restricted. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
+      "acceptance": "extend current crew/broadcast projection surfaces so affected crews see damage, casualties, boarding, and remaining threats while hidden prep stays private. Automatically deliver entitled operational outcomes, append the complete private GM receipt and make only approved public facts available to Press through the existing news path. Press controls publication; private causes, votes, suspicion, Wolf identity and GM notes remain restricted. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately. PC08 post-release audit follow-on: Before crediting this existing result projection, repair RANGE-06 at the P447/P450/P457 publisher seam and prove that member weapon rows identify the authoritative post-shift target without revealing private preparation.",
       "prerequisites": [
         {
           "id": "444",
@@ -5858,6 +5858,24 @@
           "id": "473",
           "status": "missing",
           "checkpoint": "PC09",
+          "inChart": true
+        },
+        {
+          "id": "447",
+          "status": "done",
+          "checkpoint": "PC08",
+          "inChart": true
+        },
+        {
+          "id": "450",
+          "status": "done",
+          "checkpoint": "PC08",
+          "inChart": true
+        },
+        {
+          "id": "457",
+          "status": "done",
+          "checkpoint": "PC08",
           "inChart": true
         }
       ],
@@ -6172,7 +6190,7 @@
       "title": "Rebuild fighters after combat.",
       "status": "missing",
       "catalogReadiness": "ready",
-      "acceptance": "the AEGIS Construction Bay spends one material per fighter up to the current wing cap. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
+      "acceptance": "the AEGIS Construction Bay spends one material per fighter up to the current wing cap. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately. PC08 post-release audit follow-on: Before crediting rebuild, repair RANGE-02 at P396/P452: combat losses must persist to the durable Alpha/Bravo inventory once, later ordinary launch must not restore them, and only accepted construction may spend material to replace fighters within the current cap. Prove loss, retry, next attack and authorized rebuild together.",
       "prerequisites": [
         {
           "id": "178",
@@ -6188,6 +6206,12 @@
         },
         {
           "id": "396",
+          "status": "done",
+          "checkpoint": "PC08",
+          "inChart": true
+        },
+        {
+          "id": "452",
           "status": "done",
           "checkpoint": "PC08",
           "inChart": true
@@ -6214,7 +6238,7 @@
       "title": "Publish the complete aftermath.",
       "status": "missing",
       "catalogReadiness": "blocked",
-      "acceptance": "extend current crew/GM/broadcast surfaces so each crew sees damage, casualties, stores, salvage, repairs, surviving/returning Wolves, and outstanding recovery work with one-GM next-action visibility. Automatically deliver entitled operational outcomes, append the complete private GM receipt and make only approved public facts available to Press through the existing news path. Press controls publication; private causes, votes, suspicion, Wolf identity and GM notes remain restricted. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
+      "acceptance": "extend current crew/GM/broadcast surfaces so each crew sees damage, casualties, stores, salvage, repairs, surviving/returning Wolves, and outstanding recovery work with one-GM next-action visibility. Automatically deliver entitled operational outcomes, append the complete private GM receipt and make only approved public facts available to Press through the existing news path. Press controls publication; private causes, votes, suspicion, Wolf identity and GM notes remain restricted. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately. PC08 post-release audit follow-on: Integrate the entitled current PDF state from the RANGE-07 repair at P398/P457/P458 and the accepted P483 fighter inventory into the existing aftermath projection; prove that refresh/reconnect agrees with authoritative private combat state while retaining its audience boundaries.",
       "prerequisites": [
         {
           "id": "474",
@@ -6230,6 +6254,18 @@
         },
         {
           "id": "482",
+          "status": "missing",
+          "checkpoint": "PC09",
+          "inChart": true
+        },
+        {
+          "id": "398",
+          "status": "done",
+          "checkpoint": "PC08",
+          "inChart": true
+        },
+        {
+          "id": "483",
           "status": "missing",
           "checkpoint": "PC09",
           "inChart": true
@@ -6250,7 +6286,8 @@
       "unfinishedPrerequisites": [
         "474",
         "477",
-        "482"
+        "482",
+        "483"
       ],
       "unfinishedExternalPrerequisites": []
     },
@@ -6326,13 +6363,31 @@
       "title": "Trigger Active Wolf Fortress attacks.",
       "status": "missing",
       "catalogReadiness": "ready",
-      "acceptance": "M includes at least one Battlestation and 20 other damage capacity under the authoritative composition. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
+      "acceptance": "M includes at least one Battlestation and 20 other damage capacity under the authoritative composition. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately. PC08 post-release audit follow-on: Before composing this trigger with ordinary attacks, repair the existing shared lifecycle blockers RANGE-01 and BOARDING-01 at P448/P469e/P470. Prove a legal later-cycle attack with destroyed AEGIS and surviving catalog-return cards without a fabricated current-maintenance dependency or malformed return manifest. This reconciles existing producer/consumer behavior; it does not activate or infer a new Station repetition rule.",
       "prerequisites": [
         {
           "id": "312",
           "status": "done",
           "checkpoint": null,
           "inChart": false
+        },
+        {
+          "id": "448",
+          "status": "done",
+          "checkpoint": "PC08",
+          "inChart": true
+        },
+        {
+          "id": "469e",
+          "status": "done",
+          "checkpoint": "PC08",
+          "inChart": true
+        },
+        {
+          "id": "470",
+          "status": "done",
+          "checkpoint": "PC08",
+          "inChart": true
         }
       ],
       "recordedConditions": {
@@ -6356,13 +6411,31 @@
       "title": "Trigger Ancient Space Station attacks.",
       "status": "missing",
       "catalogReadiness": "ready",
-      "acceptance": "P creates and repeats the required attacks while any Wolf force survives. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
+      "acceptance": "P creates and repeats the required attacks while any Wolf force survives. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately. PC08 post-release audit follow-on: Before composing the accepted repeated attacks, repair the existing lifecycle blockers RANGE-01 and BOARDING-01 at P448/P469e/P470. Prove a legal native final receipt and later attack with surviving Station/Wing cards and destroyed AEGIS. Resolve the current schema seam separately from this prompt's existing source-defined repetition criterion; the audit itself adds no Station rule.",
       "prerequisites": [
         {
           "id": "312",
           "status": "done",
           "checkpoint": null,
           "inChart": false
+        },
+        {
+          "id": "448",
+          "status": "done",
+          "checkpoint": "PC08",
+          "inChart": true
+        },
+        {
+          "id": "469e",
+          "status": "done",
+          "checkpoint": "PC08",
+          "inChart": true
+        },
+        {
+          "id": "470",
+          "status": "done",
+          "checkpoint": "PC08",
+          "inChart": true
         }
       ],
       "recordedConditions": {
@@ -6422,7 +6495,7 @@
       "title": "Recover during a Wolf attack.",
       "status": "missing",
       "catalogReadiness": "ready",
-      "acceptance": "a participant resumes at the current step with resolved actions locked and permitted pending actions intact. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
+      "acceptance": "a participant resumes at the current step with resolved actions locked and permitted pending actions intact. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately. PC08 post-release audit follow-on: Include the open PC08 recovery seams in docs/PC08_BUG_AUDIT.md: deterministic committed support treatment after holder removal (RANGE-05), successful mixed-source EO pass/assignment receipts (RANGE-03/04), current entitled PDF projection (RANGE-07), and active-attack applicability of EO/crew-defence retries (RANGE-08/BOARDING-02). Repair the progression seams RANGE-01/BOARDING-01 before composed recovery proof. Reject requests bound to another active attack/cycle or explicitly distinguish an authorized historical receipt lookup; retain legitimate same-attack replay, current actor/berth denial and zero duplicate costs, dice or damage. Prove through normal authenticated endpoints and connected consumers; seeded fixtures alone do not close recovery.",
       "prerequisites": [
         {
           "id": "433",
@@ -6441,6 +6514,48 @@
           "status": "done",
           "checkpoint": null,
           "inChart": false
+        },
+        {
+          "id": "398",
+          "status": "done",
+          "checkpoint": "PC08",
+          "inChart": true
+        },
+        {
+          "id": "448",
+          "status": "done",
+          "checkpoint": "PC08",
+          "inChart": true
+        },
+        {
+          "id": "453",
+          "status": "done",
+          "checkpoint": "PC08",
+          "inChart": true
+        },
+        {
+          "id": "457",
+          "status": "done",
+          "checkpoint": "PC08",
+          "inChart": true
+        },
+        {
+          "id": "459",
+          "status": "done",
+          "checkpoint": "PC08",
+          "inChart": true
+        },
+        {
+          "id": "466",
+          "status": "done",
+          "checkpoint": "PC08",
+          "inChart": true
+        },
+        {
+          "id": "470",
+          "status": "done",
+          "checkpoint": "PC08",
+          "inChart": true
         }
       ],
       "recordedConditions": {
@@ -6961,7 +7076,7 @@
       "title": "Run a complete Wolf attack playthrough.",
       "status": "missing",
       "catalogReadiness": "blocked",
-      "acceptance": "private prep, targeting, all ranges, fighters, boarding, damage, casualties, salvage, repair, returning threats, and aftermath resolve. Prove the normal workflow with one facilitator making only genuine choices or rulings, automatic arithmetic and state changes, direct entitled player results and complete private GM receipts. Preserve P503a's intentional acknowledgement sequence and optional Press publication control. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
+      "acceptance": "private prep, targeting, all ranges, fighters, boarding, damage, casualties, salvage, repair, returning threats, and aftermath resolve. Prove the normal workflow with one facilitator making only genuine choices or rulings, automatic arithmetic and state changes, direct entitled player results and complete private GM receipts. Preserve P503a's intentional acknowledgement sequence and optional Press publication control. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately. PC08 post-release audit follow-on: Compose the accepted PC09 results, aftermath/rebuild, ordinary later attacks and recovery after the prerequisite repairs recorded in docs/PC08_BUG_AUDIT.md. Reproduce and independently verify disposition of all ten open findings through their appropriate native and authenticated HTTP/UI/Rules paths before claiming complete attack proof; high-impact progression/persistence defects need repairs, and lower-impact historical-receipt contracts need an explicit recorded resolution. Keep seeded audit fixtures separate from this complete gameplay acceptance. P492/P493 remain separate PC09 trigger acceptances and supplementary scenarios, not hard prerequisites for this ordinary complete-attack proof.",
       "prerequisites": [
         {
           "id": "524",
@@ -6971,6 +7086,12 @@
         },
         {
           "id": "484",
+          "status": "missing",
+          "checkpoint": "PC09",
+          "inChart": true
+        },
+        {
+          "id": "621",
           "status": "missing",
           "checkpoint": "PC09",
           "inChart": true
@@ -6984,13 +7105,14 @@
         "releaseBoundaries": "none"
       },
       "sequenceRules": "WOLF-ATTACK",
-      "relatedConsumes": "none",
+      "relatedConsumes": "492;493",
       "group": "PC09-G4",
       "startWave": 14,
       "endWave": 14,
       "unfinishedPrerequisites": [
         "524",
-        "484"
+        "484",
+        "621"
       ],
       "unfinishedExternalPrerequisites": []
     },
@@ -11379,6 +11501,27 @@
       "sourceStatus": "missing"
     },
     {
+      "from": "447",
+      "to": "474",
+      "type": "hard_prompt",
+      "inChart": true,
+      "sourceStatus": "done"
+    },
+    {
+      "from": "450",
+      "to": "474",
+      "type": "hard_prompt",
+      "inChart": true,
+      "sourceStatus": "done"
+    },
+    {
+      "from": "457",
+      "to": "474",
+      "type": "hard_prompt",
+      "inChart": true,
+      "sourceStatus": "done"
+    },
+    {
       "from": "130",
       "to": "475",
       "type": "hard_prompt",
@@ -11498,6 +11641,13 @@
       "sourceStatus": "done"
     },
     {
+      "from": "452",
+      "to": "483",
+      "type": "hard_prompt",
+      "inChart": true,
+      "sourceStatus": "done"
+    },
+    {
       "from": "474",
       "to": "484",
       "type": "hard_prompt",
@@ -11513,6 +11663,20 @@
     },
     {
       "from": "482",
+      "to": "484",
+      "type": "hard_prompt",
+      "inChart": true,
+      "sourceStatus": "missing"
+    },
+    {
+      "from": "398",
+      "to": "484",
+      "type": "hard_prompt",
+      "inChart": true,
+      "sourceStatus": "done"
+    },
+    {
+      "from": "483",
       "to": "484",
       "type": "hard_prompt",
       "inChart": true,
@@ -11547,10 +11711,52 @@
       "sourceStatus": "done"
     },
     {
+      "from": "448",
+      "to": "492",
+      "type": "hard_prompt",
+      "inChart": true,
+      "sourceStatus": "done"
+    },
+    {
+      "from": "469e",
+      "to": "492",
+      "type": "hard_prompt",
+      "inChart": true,
+      "sourceStatus": "done"
+    },
+    {
+      "from": "470",
+      "to": "492",
+      "type": "hard_prompt",
+      "inChart": true,
+      "sourceStatus": "done"
+    },
+    {
       "from": "312",
       "to": "493",
       "type": "hard_prompt",
       "inChart": false,
+      "sourceStatus": "done"
+    },
+    {
+      "from": "448",
+      "to": "493",
+      "type": "hard_prompt",
+      "inChart": true,
+      "sourceStatus": "done"
+    },
+    {
+      "from": "469e",
+      "to": "493",
+      "type": "hard_prompt",
+      "inChart": true,
+      "sourceStatus": "done"
+    },
+    {
+      "from": "470",
+      "to": "493",
+      "type": "hard_prompt",
+      "inChart": true,
       "sourceStatus": "done"
     },
     {
@@ -11586,6 +11792,55 @@
       "to": "621",
       "type": "hard_prompt",
       "inChart": false,
+      "sourceStatus": "done"
+    },
+    {
+      "from": "398",
+      "to": "621",
+      "type": "hard_prompt",
+      "inChart": true,
+      "sourceStatus": "done"
+    },
+    {
+      "from": "448",
+      "to": "621",
+      "type": "hard_prompt",
+      "inChart": true,
+      "sourceStatus": "done"
+    },
+    {
+      "from": "453",
+      "to": "621",
+      "type": "hard_prompt",
+      "inChart": true,
+      "sourceStatus": "done"
+    },
+    {
+      "from": "457",
+      "to": "621",
+      "type": "hard_prompt",
+      "inChart": true,
+      "sourceStatus": "done"
+    },
+    {
+      "from": "459",
+      "to": "621",
+      "type": "hard_prompt",
+      "inChart": true,
+      "sourceStatus": "done"
+    },
+    {
+      "from": "466",
+      "to": "621",
+      "type": "hard_prompt",
+      "inChart": true,
+      "sourceStatus": "done"
+    },
+    {
+      "from": "470",
+      "to": "621",
+      "type": "hard_prompt",
+      "inChart": true,
       "sourceStatus": "done"
     },
     {
@@ -11772,6 +12027,13 @@
     },
     {
       "from": "484",
+      "to": "645",
+      "type": "hard_prompt",
+      "inChart": true,
+      "sourceStatus": "missing"
+    },
+    {
+      "from": "621",
       "to": "645",
       "type": "hard_prompt",
       "inChart": true,
