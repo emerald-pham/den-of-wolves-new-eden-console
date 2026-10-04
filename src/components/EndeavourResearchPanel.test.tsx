@@ -5,6 +5,7 @@ import { useSessionStore } from '@/store/useSessionStore';
 
 const mocks = vi.hoisted(() => ({
   read: vi.fn(), advance: vi.fn(), retry: vi.fn(), createAttempt: vi.fn(), purchaseUpgrade: vi.fn(), retryUpgrade: vi.fn(),
+  connectedPlayers: vi.fn(), detectorState: vi.fn(), detectorReport: vi.fn(), runDetector: vi.fn(),
 }));
 vi.mock('@/lib/endeavourResearchService', () => ({
   readEndeavourResearchWorkspace: mocks.read,
@@ -12,6 +13,16 @@ vi.mock('@/lib/endeavourResearchService', () => ({
   retryEndeavourResearchAttempt: mocks.retry,
   createEndeavourResearchAttempt: mocks.createAttempt,
 }));
+vi.mock('@/lib/firestore', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/firestore')>();
+  return {
+    ...actual,
+    subscribeConnectedPlayers: mocks.connectedPlayers,
+    subscribeMyWolfAgentDetectorState: mocks.detectorState,
+    subscribeMyWolfAgentDetectorReport: mocks.detectorReport,
+  };
+});
+vi.mock('@/lib/wolfAgentDetectorService', () => ({ runWolfAgentDetectorTest: mocks.runDetector }));
 vi.mock('@/lib/endeavourFieldUpgradeService', async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
   return {
@@ -68,9 +79,27 @@ beforeEach(() => {
   mocks.retryUpgrade.mockReset();
   mocks.retry.mockReset();
   mocks.createAttempt.mockReset();
+  mocks.connectedPlayers.mockReset();
+  mocks.detectorState.mockReset();
+  mocks.detectorReport.mockReset();
+  mocks.runDetector.mockReset();
   mocks.read.mockResolvedValue(workspace);
   mocks.advance.mockResolvedValue({ status: 'committed' });
   mocks.retry.mockResolvedValue({ status: 'replayed' });
+  mocks.connectedPlayers.mockImplementation((_sessionId, onPlayers) => {
+    onPlayers([{ uid: 'scientist', displayName: 'Scientist', role: 'player' },
+      { uid: 'target', displayName: 'Target', role: 'player' }]);
+    return vi.fn();
+  });
+  mocks.detectorState.mockImplementation((_sessionId, _uid, onState) => {
+    onState({ cycle: 0, revision: 0, testsUsed: 0 });
+    return vi.fn();
+  });
+  mocks.detectorReport.mockImplementation((_sessionId, _uid, onReport) => {
+    onReport(null);
+    return vi.fn();
+  });
+  mocks.runDetector.mockResolvedValue({ status: 'committed' });
   let requestIndex = 0;
   mocks.createAttempt.mockImplementation(({ workspace: observed, trackId, funding }) => ({
     sessionId: observed.sessionId,
@@ -122,6 +151,30 @@ it('shows private left-most progress and field-upgrade cost to the current Scien
   expect(await screen.findByRole('region', { name: 'Endeavour field-upgrade purchase controls' })).toBeVisible();
   expect(screen.getByText('Purchases are available during the live Coordination window.')).toBeVisible();
   expect(screen.getByRole('button', { name: 'Purchase selected upgrades' })).toBeDisabled();
+});
+
+it('offers the finished detector to the current Scientist and submits a selected target', async () => {
+  const user = userEvent.setup();
+  mocks.read.mockResolvedValue({
+    ...workspace,
+    tracks: [...workspace.tracks, {
+      trackId: 'wolf-agent-detector', name: 'Wolf Agent Detector', crossedBoxes: 5,
+      totalBoxes: 5, currentMaterialCost: null, complete: true,
+    }],
+    progress: { ...workspace.progress, 'wolf-agent-detector': 5 },
+  });
+  mocks.detectorState.mockImplementation((_sessionId, _uid, onState) => {
+    onState({ cycle: 3, revision: 2, testsUsed: 1 });
+    return vi.fn();
+  });
+
+  render(<EndeavourResearchPanel control={control} />);
+
+  expect(await screen.findByRole('region', { name: 'Wolf Agent Detector' })).toBeVisible();
+  expect(screen.getByText('2 tests remain this cycle.')).toBeVisible();
+  await user.selectOptions(screen.getByLabelText('Player to test'), 'target');
+  await user.click(screen.getByRole('button', { name: 'Run detector test' }));
+  await waitFor(() => expect(mocks.runDetector).toHaveBeenCalledWith('target', 2));
 });
 
 it('requires the post-rejection parent refresh result before accepting a delayed private projection', async () => {
