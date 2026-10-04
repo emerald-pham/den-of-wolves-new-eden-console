@@ -94,7 +94,7 @@ it('charges the canonical Missile Array id and renders only authoritative charge
 
   const gorgoneion = screen.getByRole('region', { name: 'Gorgoneion small-ship operations' });
   const missileArray = within(gorgoneion).getByRole('article', {
-    name: 'Missile Array system // unavailable',
+    name: 'Missile Array system // live-below',
   });
   expect(missileArray).toHaveTextContent('not charged');
   await user.click(within(gorgoneion).getByRole('checkbox', { name: 'Missile Array' }));
