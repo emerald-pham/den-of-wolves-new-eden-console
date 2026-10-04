@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { randomInt } from 'node:crypto';
 import type { CallableRequest } from 'firebase-functions/v2/https';
 import { parseWolfAttackAftermathCommand } from './wolfAttackAftermathCallable';
 
@@ -206,6 +207,84 @@ describe('Wolf attack aftermath command contract', () => {
     expect(mock.documents.get('sessions/s-1/wolfAttackAudience/current')?.results).toEqual(expect.arrayContaining([
       expect.objectContaining({ sourceId: 'warrior-salvage-drones', outcome: { materialsGained: 3 } }),
     ]));
+  });
+
+  it('rechecks current role and attack before replaying a resolved-action receipt', async () => {
+    const session = mock.documents.get('sessions/s-1')!;
+    session.activeVesselIds = ['aegis'];
+    session.smallShipStates = { warrior: { id: 'warrior', hostShipId: 'aegis', dockingRevision: 1,
+      population: 2_000, unrest: 0, cycle: { step: 5, revision: 1, results: {}, charges: ['salvage-drones'], turn: 7,
+        rationBonus: 0, chargingSkipped: false } } };
+    put('sessions/s-1/players/warrior-uid', { role: 'player', connected: true,
+      replacementRoleId: 'warrior-captain', replacementStatus: null, activeConsoleRoleId: null, seatId: null });
+    const command = { sessionId: 's-1', attackId: 'attack-7', requestId: 'warrior-replay-7', action: 'warrior-salvage' };
+    vi.mocked(randomInt).mockClear();
+
+    const first = await resolveWolfAttackAftermath.run(request(command, 'warrior-uid'));
+    expect(first).toMatchObject({ status: 'committed', materialsGained: 1 });
+    expect(randomInt).toHaveBeenCalledTimes(1);
+    const materialsAfterCommit = (mock.documents.get('sessions/s-1')?.shipResources as Fields).aegis;
+    const writesAfterCommit = mock.set.mock.calls.length + mock.update.mock.calls.length;
+    vi.mocked(randomInt).mockClear();
+    mock.set.mockClear();
+    mock.update.mockClear();
+
+    await expect(resolveWolfAttackAftermath.run(request(command, 'warrior-uid')))
+      .resolves.toEqual({ ...first, status: 'replayed' });
+    expect((mock.documents.get('sessions/s-1')?.shipResources as Fields).aegis).toEqual(materialsAfterCommit);
+    expect(mock.set).not.toHaveBeenCalled();
+    expect(mock.update).not.toHaveBeenCalled();
+    expect(randomInt).not.toHaveBeenCalled();
+    expect(writesAfterCommit).toBeGreaterThan(0);
+
+    mock.documents.get('sessions/s-1/players/warrior-uid')!.replacementRoleId = 'doctor';
+    await expect(resolveWolfAttackAftermath.run(request(command, 'warrior-uid')))
+      .rejects.toMatchObject({ code: 'permission-denied' });
+    expect(mock.set).not.toHaveBeenCalled();
+    expect(mock.update).not.toHaveBeenCalled();
+    expect(randomInt).not.toHaveBeenCalled();
+
+    mock.documents.get('sessions/s-1/players/warrior-uid')!.replacementRoleId = 'warrior-captain';
+    session.currentTurn = 8;
+    const attack = mock.documents.get('sessions/s-1/wolfAttackState/current')!;
+    attack.attackId = 'attack-8';
+    attack.turn = 8;
+    attack.status = 'declared';
+    await expect(resolveWolfAttackAftermath.run(request(command, 'warrior-uid')))
+      .rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(mock.set).not.toHaveBeenCalled();
+    expect(mock.update).not.toHaveBeenCalled();
+    expect(randomInt).not.toHaveBeenCalled();
+  });
+
+  it('requires the current shuttle holder before replaying a Scrap receipt', async () => {
+    const session = mock.documents.get('sessions/s-1')!;
+    session.activeVesselIds = ['aegis', 'capybara'];
+    session.capybaraEnabled = true;
+    session.shuttleDockings = [{ shuttleId: 'macaw', shipId: 'aegis', dockedAt: 'fixture' }];
+    session.shuttleControl = { macaw: { shuttleId: 'macaw', ownerRoleId: 'capybara-captain',
+      ownerUid: 'macaw-uid', holderUid: 'macaw-uid', revision: 0 } };
+    session.shuttleCargo = {};
+    const attack = mock.documents.get('sessions/s-1/wolfAttackState/current')!;
+    (attack.calculationReceipt as Fields).fleetDamage = [{ target: 'aegis', amount: 3, populationBefore: 2_500,
+      population: 1_000, state: { damagedSystemIds: [], destroyed: false },
+      draws: [{ casualty: true }, { casualty: true }, { casualty: true }] }];
+    put('sessions/s-1/players/macaw-uid', { role: 'player', connected: true, assignedRoleId: 'capybara-captain',
+      activeConsoleRoleId: 'capybara-captain', replacementRoleId: null, replacementStatus: null,
+      escapeState: null, fleetGroupId: 'fleet-1' });
+    put('sessions/s-1/fleetGroups/fleet-1', { id: 'fleet-1', vesselIds: ['aegis', 'capybara'], memberUids: ['macaw-uid'] });
+    const command = { sessionId: 's-1', attackId: 'attack-7', requestId: 'macaw-replay-7', action: 'collect-scrap',
+      shuttleId: 'macaw', targetShipId: 'aegis' };
+    await expect(resolveWolfAttackAftermath.run(request(command, 'macaw-uid')))
+      .resolves.toMatchObject({ status: 'committed', scrapGained: 1 });
+
+    ((session.shuttleControl as Fields).macaw as Fields).holderUid = 'another-player';
+    mock.set.mockClear();
+    mock.update.mockClear();
+    await expect(resolveWolfAttackAftermath.run(request(command, 'macaw-uid')))
+      .rejects.toMatchObject({ code: 'permission-denied' });
+    expect(mock.set).not.toHaveBeenCalled();
+    expect(mock.update).not.toHaveBeenCalled();
   });
 
   it('collects a qualifying attack Scrap opportunity once into the currently docked shuttle cargo', async () => {
