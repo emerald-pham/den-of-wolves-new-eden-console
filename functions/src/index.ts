@@ -25476,10 +25476,13 @@ export const assignWolfRangeTargets = onCall<{
       ...decision, status: 'committed', assignments, receipt: applied.receipt, committedAt,
     };
     const memberResults = Array.isArray(state.get('memberResults')) ? [...state.get('memberResults')] : [];
-    const supportActionIds = new Set(rangeBundles.support.actions.map(({ actionId }) => actionId));
+    const separatelyPublishedActionIds = new Set([
+      ...rangeBundles.support.actions,
+      ...(rangeBundles.escorts.actions ?? []),
+    ].map(({ actionId }) => actionId));
     for (const assignment of assignments) {
       const action = selectedActions.find(({ actionId }) => actionId === assignment.actionId)!;
-      if (supportActionIds.has(action.actionId)) continue;
+      if (separatelyPublishedActionIds.has(action.actionId)) continue;
       if (fixedTargetByActionId[action.actionId] && !weaponActionIds.includes(action.actionId)) continue;
       const slots = assignment.targetInstanceIds;
       const perHit = action.fixedDamage ?? action.dice?.damagePerSuccess ?? 1;
