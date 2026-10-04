@@ -415,6 +415,15 @@ try {
   }
   const storedTargetlessResults = finalState.memberResults.filter(result => result.targetId === null);
   assert.equal(targetlessResults.length, storedTargetlessResults.length, 'Ordinary hydration retains every committed support miss.');
+  const supportResults = audience.results.filter(result =>
+    ['highwall', 'gorgoneion-missile-array', 'boa'].includes(result.sourceId));
+  assert.ok(supportResults.length > 0, 'The ordinary attack publishes real support outcomes.');
+  assert.equal(supportResults.filter(result => result.effect.includes('AEGIS')).length, 0,
+    'Support outcomes retain their printed source label.');
+  assert.equal(new Set(supportResults.map(result => JSON.stringify([
+    result.range, result.sourceId, result.contactReference,
+  ]))).size, supportResults.length, 'Each source publishes each assigned contact once per range.');
+  checks.supportResultsAreUniqueAndPrinted = true;
   checks.resolvedAudienceHydratesThroughActualMemberSubscription = true;
   const snapshot = { phase: finalSession.turnPhase, resources: finalSession.shipResources, damage: finalSession.shipDamage,
     population: finalSession.shipSurvivors, ticker: finalSession.fleetTicker };
