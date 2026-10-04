@@ -1240,6 +1240,31 @@ describe('session header', () => {
     await assertFails(getDoc(gmProjection));
   });
 
+  it('keeps prisoner outcomes, deadlines, and attendance audit private to connected GMs', async () => {
+    const path = `${SESSION}/arrestCases/alice`;
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), path), {
+        type: 'arrest-case', sessionId: 's1', targetUid: 'alice', status: 'pending-resolution',
+        outcome: 'arrested', turn: 2, revision: 1, requiredPlayers: 5, presentPlayers: 5,
+        deadlineCycle: 3,
+      });
+      await setDoc(doc(ctx.firestore(), `${path}/audit/attempt-1`), {
+        type: 'arrest-posse-attendance-audit', targetUid: 'alice', presentPlayerUids: ['alice-2'],
+      });
+    });
+
+    await assertSucceeds(getDoc(doc(as('gm1'), path)));
+    await assertFails(getDoc(doc(as('alice'), path)));
+    await assertFails(getDoc(doc(as('press'), path)));
+    await assertFails(getDoc(doc(as('observer'), path)));
+    await assertFails(getDocs(collection(as('gm1'), `${SESSION}/arrestCases`)));
+    await assertSucceeds(getDocs(collection(as('gm1'), `${path}/audit`)));
+    await assertFails(getDocs(collection(as('alice'), `${path}/audit`)));
+    await assertFails(setDoc(doc(as('gm1'), path), { status: 'released' }));
+    await assertFails(updateDoc(doc(as('gm1'), path), { outcome: 'executed' }));
+    await assertFails(deleteDoc(doc(as('gm1'), path)));
+  });
+
   it('keeps Wolf Cult intelligence private to the current holder and connected GMs', async () => {
     const holderProjection = doc(as('alice'), `${SESSION}/wolfCultIntelligence/alice`);
     const otherPlayerProjection = doc(as('press'), `${SESSION}/wolfCultIntelligence/alice`);
