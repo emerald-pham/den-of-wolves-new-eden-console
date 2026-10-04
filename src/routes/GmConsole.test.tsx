@@ -43,6 +43,7 @@ vi.mock('@/lib/sessionService', () => ({
   setFighterWingCount: vi.fn(),
   extendAirspaceWindow: vi.fn(),
   setWolfAttackWindow: vi.fn(),
+  getWolfAttackThreatWindowOptions: vi.fn(),
   stageWolfAttackPreparation: vi.fn(),
   declareWolfAttack: vi.fn(),
   advanceWolfAttackToLongRange: vi.fn(),
@@ -111,7 +112,7 @@ vi.mock('@/lib/sameTableTradeService', () => ({
 }));
 
 const { kickGmInstance, kickPlayer, assignRole, releaseRole, setReplacementEligibility, assignReplacementRole, setCapybaraEnabled, setDioneEnabled, setPressEnabled, setDebriefMode, setGmControlsLocked,
-  replayTurnStartAnnouncement, advanceTurn, startGame, extendAirspaceWindow, setWolfAttackWindow, stageWolfAttackPreparation, declareWolfAttack, startWolfConsoleVisit, resolveWolfConsoleSabotage, setEmergencyTimerPaused, calculateArrestPosse,
+  replayTurnStartAnnouncement, advanceTurn, startGame, extendAirspaceWindow, setWolfAttackWindow, getWolfAttackThreatWindowOptions, stageWolfAttackPreparation, declareWolfAttack, startWolfConsoleVisit, resolveWolfConsoleSabotage, setEmergencyTimerPaused, calculateArrestPosse,
   advanceWolfAttackToLongRange,
   confirmSetup, setFacilitatorResponsibility, setFacilitatorCensusNote, deliverWolfCultIntelligence, authorUniversalArbourVision, authorFacilitatorRuleCall, setCandidatePlanCheckpoint, transitionCrisis, setDiseaseQuarantine, admitVoyage33, recordZealotryResponse, recordCivilUnrestResolution, applyShipCounterSteps, scavengeDestroyedShipStores, triggerDradisContact,
   setFighterWingCount } =
@@ -3607,6 +3608,78 @@ it('lets the facilitator mark and resolve the approximate Wolf window without st
   await waitFor(() => expect(turnControls).toHaveTextContent(
     /wolf-attack timing \/\/ resolved \/\/ cycle 1 \/\/ revision 2/i,
   ));
+});
+
+it('uses current group pursuit and live scheduled M source in the facilitator threat controls', async () => {
+  const user = userEvent.setup();
+  const activeSession = useSessionStore.getState().session;
+  if (!activeSession) throw new Error('Expected the test session.');
+  useSessionStore.getState().setSession({
+    ...activeSession, phase: 'active', currentTurn: 3,
+    pursuitGroups: { 'fleet-1': 2, 'fleet-2': 7 },
+  });
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  vi.mocked(getWolfAttackThreatWindowOptions).mockResolvedValue({
+    type: 'wolf-attack-threat-window-options', sessionId: 's1', targetGroupId: 'fleet-2', cycle: 3,
+    sources: [{ siteCode: 'M', sourceId: 'arrival-fortress-jump', sourceCycle: 3, coordinate: '0304' }],
+  });
+  vi.mocked(setWolfAttackWindow).mockResolvedValue({
+    status: 'due', turn: 3, revision: 1, targetGroupId: 'fleet-2',
+    threatSiteCode: 'M', threatSourceId: 'arrival-fortress-jump',
+  });
+  renderConsole();
+
+  const controls = await screen.findByRole('region', { name: /cycle controls/i });
+  const group = within(controls).getByRole('combobox', { name: 'Target fleet group' });
+  await user.selectOptions(group, 'fleet-2');
+  const source = await within(controls).findByRole('combobox', { name: 'Triggered Wolf site' });
+  await user.selectOptions(source, 'arrival-fortress-jump');
+  expect(controls).toHaveTextContent('Target group pursuit // 7');
+  await user.click(within(controls).getByRole('button', { name: /mark threat source due/i }));
+  expect(getWolfAttackThreatWindowOptions).toHaveBeenCalledWith('fleet-2');
+  expect(setWolfAttackWindow).toHaveBeenCalledWith('due', 0, {
+    targetGroupId: 'fleet-2', threatSiteCode: 'M', threatSourceId: 'arrival-fortress-jump',
+  });
+});
+
+it('offers the exact same-cycle P survivor repeat after the ordinary three-attack cap', async () => {
+  const user = userEvent.setup();
+  const activeSession = useSessionStore.getState().session;
+  if (!activeSession) throw new Error('Expected the test session.');
+  useSessionStore.getState().setSession({ ...activeSession, phase: 'active', currentTurn: 4,
+    pursuitGroups: { 'fleet-1': 4 },
+    turnPhase: { turn: 4, teamPhaseEndsAt: new Date(Date.now() - 1_000).toISOString(),
+      openAirspaceEndsAt: new Date(Date.now() + 300_000).toISOString(),
+      airspace: { state: 'lifted', tickerActive: true, pressAccess: false } },
+  } as never);
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  vi.mocked(subscribeGmWolfAttackWindow).mockImplementation((_id, onWindow) => {
+    onWindow({ status: 'resolved', turn: 4, revision: 3, targetGroupId: 'fleet-1',
+      threatSiteCode: 'P', threatSourceId: 'arrival-station-jump' });
+    return vi.fn();
+  });
+  vi.mocked(subscribeGmWolfAttackState).mockImplementation((_id, onState) => {
+    onState({ status: 'resolved', turn: 4, attackNumber: 3, revision: 9, currentStep: 'resolved',
+      deadlineAt: new Date(Date.now()).toISOString(), airspaceLocked: false,
+      parkedCraftIds: [], launchedCraftIds: [], attackId: 'p-attack-3' } as never);
+    return vi.fn();
+  });
+  vi.mocked(setWolfAttackWindow).mockResolvedValue({ status: 'due', turn: 4, revision: 4,
+    targetGroupId: 'fleet-1', threatSiteCode: 'P', threatSourceId: 'arrival-station-jump' });
+  renderConsole();
+
+  const button = await screen.findByRole('button', { name: /repeat surviving P station force/i });
+  expect(button).toBeEnabled();
+  await user.click(button);
+  expect(setWolfAttackWindow).toHaveBeenCalledWith('due', 3, {
+    targetGroupId: 'fleet-1', threatSiteCode: 'P', threatSourceId: 'arrival-station-jump',
+  });
 });
 
 it('offers a later attack window only after the current attack has finalized', async () => {
