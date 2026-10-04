@@ -87,6 +87,7 @@ vi.mock('@/lib/firestore', () => ({
   subscribeGmArbourVision: vi.fn(),
   subscribeGmFacilitatorRuleCall: vi.fn(),
   subscribeGmCrisisState: vi.fn(),
+  subscribeGmApproachingVesselResponse: vi.fn(() => vi.fn()),
   subscribeGmMissionOpportunities: vi.fn(() => vi.fn()),
   subscribeGmMissionStartSnapshots: vi.fn(() => vi.fn()),
   subscribeGmZealotryResponse: vi.fn(),
@@ -115,7 +116,7 @@ const { kickGmInstance, kickPlayer, assignRole, releaseRole, setReplacementEligi
   confirmSetup, setFacilitatorResponsibility, setFacilitatorCensusNote, deliverWolfCultIntelligence, authorUniversalArbourVision, authorFacilitatorRuleCall, setCandidatePlanCheckpoint, transitionCrisis, setDiseaseQuarantine, admitVoyage33, recordZealotryResponse, recordCivilUnrestResolution, applyShipCounterSteps, scavengeDestroyedShipStores, triggerDradisContact,
   setFighterWingCount } =
   await import('@/lib/sessionService');
-const { subscribeConnectedPlayers, subscribeSessionPlayers, subscribeReplacementEligibility, subscribeGmInstances, subscribeGmWolfAttackWindow, subscribeGmWolfAttackPreparation, subscribeGmWolfAttackState, subscribeWolfAttackMemberView, subscribeGmWolfAssignment, subscribeGmWolfActionReceipt, subscribeGmWolfSuspicionHistory, subscribeGmWolfClueDisclosure, subscribeGmWolfCultIntelligence, subscribeGmArbourVision, subscribeGmFacilitatorRuleCall, subscribeGmCrisisState, subscribeGmZealotryResponse, subscribeGmCivilUnrestResolution, subscribeGmArrestPosseCalculation, subscribeSessionEvents, subscribeDamageDraws } =
+const { subscribeConnectedPlayers, subscribeSessionPlayers, subscribeReplacementEligibility, subscribeGmInstances, subscribeGmWolfAttackWindow, subscribeGmWolfAttackPreparation, subscribeGmWolfAttackState, subscribeWolfAttackMemberView, subscribeGmWolfAssignment, subscribeGmWolfActionReceipt, subscribeGmWolfSuspicionHistory, subscribeGmWolfClueDisclosure, subscribeGmWolfCultIntelligence, subscribeGmArbourVision, subscribeGmFacilitatorRuleCall, subscribeGmCrisisState, subscribeGmApproachingVesselResponse, subscribeGmZealotryResponse, subscribeGmCivilUnrestResolution, subscribeGmArrestPosseCalculation, subscribeSessionEvents, subscribeDamageDraws } =
   await import('@/lib/firestore');
 const { runSmallShipMaintenance } = await import('@/lib/smallShipService');
 
