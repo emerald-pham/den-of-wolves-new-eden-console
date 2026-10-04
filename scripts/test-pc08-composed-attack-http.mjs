@@ -288,7 +288,6 @@ try {
   const force = await command(captain, 'getWolfForceFieldChoice');
   await exactRetry(captain, 'commitWolfForceFieldChoice', { requestId: randomUUID(), expectedTurn: force.turn,
     expectedRevision: force.revision, targetShipId: 'aegis' });
-  await until('private targeting', state => state.calculationReceipt?.step === 'targeting');
   await page.goto(`${uiUrl}/#/console`);
   await page.getByRole('heading', { name: 'Stations and consoles', exact: true }).waitFor();
   await browserUntil('fresh same-actor station choice', s => s.uid === eo.localId && s.sessionId === f.sessionId &&
@@ -306,6 +305,7 @@ try {
   assert.equal((await f.session.get()).get('shipResources').aegis.ore, 4);
   await page.screenshot({ path: `${dirname(evidencePath)}/normal-phone-enriched-warheads.png`, fullPage: true });
   checks.livePhoneWarheadPanelAndExactFiveOreRetry = true;
+  await until('private targeting after the purchase choice', state => state.calculationReceipt?.step === 'targeting');
   for (const wingId of ['fighter-wing-alpha', 'fighter-wing-bravo']) {
     const view = await command(wing, 'getAegisFighterWingLaunch', { wingId });
     await exactRetry(wing, 'launchAegisFighterWing', { wingId, requestId: randomUUID(), expectedTurn: view.turn,
