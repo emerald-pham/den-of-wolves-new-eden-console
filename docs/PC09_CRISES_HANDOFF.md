@@ -1,5 +1,11 @@
 # PC09 crises, President, and election handoff
 
+Evidence availability after the Mac reconnect: earlier external `/tmp` files
+referenced here were lost. These paths identify historical reported runs;
+committed sources and regressions survived. Fresh resumed artifacts and limits
+are recorded in [the execution record](PC09_EXECUTION_RECORD.md#reconnection-and-evidence-availability)
+and [the risk review](PC09_RISK_REVIEW.md). No missing file grants new proof.
+
 Branch `feat/pc09-crises-20261004`, based on `ffa3ccbe` (`main` audit: `b36119e9`, v0.5.67). Product-only implementation is `0039ea59`; test-only history precedes it. The parent task owns integrated review, checkpoint, release, and worktree cleanup. No catalog, release, version, changelog, push, merge, CI, or deployment changes were made here.
 
 ## Source-backed choices and boundaries

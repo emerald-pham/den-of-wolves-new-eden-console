@@ -1,5 +1,11 @@
 # PC09 threat-group handoff
 
+Evidence availability after the Mac reconnect: earlier external `/tmp` files
+referenced here were lost. These paths identify historical reported runs;
+committed sources and regressions survived. Fresh resumed artifacts and limits
+are recorded in [the execution record](PC09_EXECUTION_RECORD.md#reconnection-and-evidence-availability)
+and [the risk review](PC09_RISK_REVIEW.md). No missing file grants new proof.
+
 This is the bounded threat/Commander group handoff for branch
 `feat/pc09-threats-20261004` in `/private/tmp/dow-pc09-threats-20261004`.
 The parent remains checkpoint and release owner.

@@ -1,5 +1,11 @@
 # PC09 audit and recovery handoff — October 4, 2026
 
+Evidence availability after the Mac reconnect: earlier external `/tmp` files
+referenced here were lost. These paths identify historical reported runs;
+committed sources and regressions survived. Fresh resumed artifacts and limits
+are recorded in [the execution record](PC09_EXECUTION_RECORD.md#reconnection-and-evidence-availability)
+and [the risk review](PC09_RISK_REVIEW.md). No missing file grants new proof.
+
 This record covers the audit-owned PC09 repair group in worktree
 `/private/tmp/dow-pc09-audit-20261004`, branch `feat/pc09-audit-20261004`.
 The root task owner retains integration, independent risk review and release.

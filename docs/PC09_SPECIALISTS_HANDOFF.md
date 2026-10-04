@@ -1,5 +1,11 @@
 # PC09 Specialist Handoff
 
+Evidence availability after the Mac reconnect: earlier external `/tmp` files
+referenced here were lost. These paths identify historical reported runs;
+committed sources and regressions survived. Fresh resumed artifacts and limits
+are recorded in [the execution record](PC09_EXECUTION_RECORD.md#reconnection-and-evidence-availability)
+and [the risk review](PC09_RISK_REVIEW.md). No missing file grants new proof.
+
 Branch: `feat/pc09-specialists-20261004`  
 Product commit: `9784421a850e539f884c48c2b526c29ac8d9179b`  
 The product commit contains the specialist runtime/UI/rules only. Earlier isolated regression commits remain in the branch history, including `78fca0f1` (authenticated detector/prelude proof contracts and fixtures) and `845e41b9` (AEGIS permission-control regression).

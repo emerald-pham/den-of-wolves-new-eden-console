@@ -1,5 +1,11 @@
 # PC09 P605a DRADIS visualization handoff
 
+Evidence availability after the Mac reconnect: earlier external `/tmp` files
+referenced here were lost. These paths identify historical reported runs;
+committed sources and regressions survived. Fresh resumed artifacts and limits
+are recorded in [the execution record](PC09_EXECUTION_RECORD.md#reconnection-and-evidence-availability)
+and [the risk review](PC09_RISK_REVIEW.md). No missing file grants new proof.
+
 ## Disposition
 
 **Pending integrated checkpoint verification.** The owner activated the bounded P605a
