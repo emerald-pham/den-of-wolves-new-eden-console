@@ -3617,11 +3617,24 @@ it('uses current group pursuit and live scheduled M source in the facilitator th
   useSessionStore.getState().setSession({
     ...activeSession, phase: 'active', currentTurn: 3,
     pursuitGroups: { 'fleet-1': 2, 'fleet-2': 7 },
+    turnPhase: { turn: 3, teamPhaseEndsAt: new Date(Date.now() - 1_000).toISOString(),
+      openAirspaceEndsAt: new Date(Date.now() + 300_000).toISOString(),
+      airspace: { state: 'lifted', tickerActive: true, pressAccess: false } },
   });
   useSessionStore.getState().setConnection('live');
   useSessionStore.getState().setSessionSnapshotFreshness('server');
   useSessionStore.getState().setGmInstance(local);
   streamInstances([local]);
+  vi.mocked(subscribeGmWolfAttackWindow).mockImplementation((_id, onWindow) => {
+    onWindow({ status: 'resolved', turn: 2, revision: 2 });
+    return vi.fn();
+  });
+  vi.mocked(subscribeGmWolfAttackState).mockImplementation((_id, onState) => {
+    onState({ status: 'resolved', turn: 2, attackNumber: 1, revision: 3, currentStep: 'resolved',
+      deadlineAt: new Date(Date.now()).toISOString(), airspaceLocked: false, parkedCraftIds: [], launchedCraftIds: [],
+      attackId: 'attack-1' } as never);
+    return vi.fn();
+  });
   vi.mocked(getWolfAttackThreatWindowOptions).mockResolvedValue({
     type: 'wolf-attack-threat-window-options', sessionId: 's1', targetGroupId: 'fleet-2', cycle: 3,
     sources: [{ siteCode: 'M', sourceId: 'arrival-fortress-jump', sourceCycle: 3, coordinate: '0304' }],
