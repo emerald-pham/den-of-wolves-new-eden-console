@@ -117,7 +117,7 @@ it('requires facilitator text for an accepted offer and for an unanswered expire
     ...currentOffer, status: 'accepted-pending-facilitator', response: 'accept', targetUid: 'captain',
   } });
   const user = userEvent.setup();
-  const { rerender } = render(<GmWolfAmnestyPanel />);
+  render(<GmWolfAmnestyPanel />);
 
   expect(await screen.findByRole('heading', { name: 'Facilitator amnesty ruling' })).toBeVisible();
   const text = 'The Dione crew remains bound by the stated surrender condition.';
@@ -128,7 +128,7 @@ it('requires facilitator text for an accepted offer and for an unanswered expire
 
   const expired = { ...currentOffer, responseDeadline: new Date(Date.now() - 60_000).toISOString() };
   mocks.get.mockResolvedValue({ type: 'wolf-amnesty-view', sessionId: 's1', offer: expired });
-  rerender(<GmWolfAmnestyPanel />);
+  await user.click(screen.getByRole('button', { name: 'Refresh amnesty record' }));
   expect(await screen.findByText(/no response before the deadline/i)).toBeVisible();
   expect(screen.getByRole('button', { name: 'Record facilitator consequence' })).toBeEnabled();
 });
