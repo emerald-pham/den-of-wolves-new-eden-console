@@ -82,6 +82,9 @@ runtime identities; an unfinished run remains unfinished.
 
 | Test or gameplay driver | Change | Reason |
 |---|---|---|
+| `src/components/TurnPhaseCoordinator.attackLock.test.tsx` | Added | Reproduce repeated normal-clock promotion during a current declared attack, cancel pending promotion, and preserve ordinary behavior for resolved, foreign-session and old-cycle views. |
+| `src/components/TurnPhaseCoordinator.test.tsx` | Changed | Add the existing public audience transport mock; preserve the original Team-deadline and emergency-pause assertions. |
+| `scripts/pc09-ordinary-return-rebuild-positive-proof.mjs` | Added | Reconstruct the lost finite positive fixture with explicit full-runtime verification, disclosed current-GM +1 supplies, two real durable losses, surviving Station return, paid repair contingency, exact HTTP receipt retry and a separate Wing UI build; preserve all cost/capacity/error assertions. |
 | `src/components/AppHeader.test.tsx` | Changed | Explain Cycle 0 CIC authentication in Settings and remove the note after real start state; preserve existing header navigation and connection states. |
 | `src/components/ConnectionIndicator.test.tsx` | Changed | Match the authorized Cycle 0 visible and accessible wording while retaining all other statuses. |
 | `src/components/PresidentialElectionWorkspace.test.tsx` | Added | Show the approved VP fallback/vacancy explanation and preserve the keyboard-accessible election return route. |

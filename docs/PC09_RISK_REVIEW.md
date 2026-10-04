@@ -148,6 +148,24 @@ endpoints. The added PDF escort transition and current request-guard consumers
 are included. All three existing exact-transition inventory checks pass;
 there is no broad Functions fallback or pure-helper deployment target.
 
+The fresh ordinary two-attack proof reached real Short-range permission, then
+stopped because its reconstructed source assertion used `sourceId`; the exact
+server view and parser expose that identity as `id`. Test-only `4e85a6bc`
+keeps the Alpha/index identity checks and corrects the field, without removing
+an assertion. The failed trace additionally records 32 normal-clock promotion
+HTTP 400s while a declared attack holds airspace. Its complete failure remains
+under `/tmp/dow-pc09-resumed-evidence/positive-rebuild/`.
+
+Separate meaningful clock regressions fail twice with five passing controls
+before `c432a012`. That client-only repair follows the existing member-safe
+attack audience and cancels normal Team promotion for a current declared
+attack; old-cycle, foreign-session and resolved views retain ordinary behavior.
+It changes no server guard, endpoint, Rules or movement authority. Seven
+focused checks, lint and typecheck pass. The corrected ordinary run has a new
+directory and retains all browser HTTP, request, page/console, receipt, cost
+and two-vacancy assertions. This seventh additional acceptance repair belongs
+in the same existing reviewer's bounded follow-up.
+
 ## Evidence and completion boundary
 
 At owner `30651411035e55392f5ff97021b389c6620f0042`, the five focused Detector,
