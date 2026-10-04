@@ -141,6 +141,12 @@
           "purpose": "Bounded independent-review findings 4, 5 and 7: close-time/current-ballot guards and fail-closed office conflict; runner-up ballot clarification remains pending. Prepare corrected real Auth timing and governance Back-control proof, with no guessed policy.",
           "modelChanged": false,
           "effectiveModelConfirmed": false
+        },
+        {
+          "date": "2026-10-04",
+          "purpose": "Owner-approved finding 5 resolution: preserve President; use next eligible VP-ballot candidate with configured tie handling; require an explicit current-GM in-game decision if none exists. Separate red commits, narrow product repair and one corrected Coordination Auth/Back proof. Future PC11 remains outside scope.",
+          "modelChanged": false,
+          "effectiveModelConfirmed": false
         }
       ]
     },
@@ -336,7 +342,15 @@
       "worktree": "/private/tmp/dow-pc09-specialists-review-repairs-20261004",
       "branch": "fix/pc09-combat-ui-recovery-20261004",
       "reuseBoundary": "Completed specialist repair branch and its commits remain preserved; root verified only dependency symlinks untracked before switching to a new branch from fd34534c.",
-      "candidateCommit": "fd34534c1ceb50a2bd640da8dca56920a6b1dcb3"
+      "candidateCommit": "fd34534c1ceb50a2bd640da8dca56920a6b1dcb3",
+      "scopeChanges": [
+        {
+          "date": "2026-10-04",
+          "purpose": "Diagnostic normal Auth UI isolated legitimate attack airspace closure rejected by the client cursor and Ace consumer rejection of a different destroyed contact with canonical cumulative overkill. Separate regressions and narrow fixes integrated at 1ee0d936; fresh immutable-runtime connected combat/Commander acceptance follows. These are bounded acceptance repairs beyond the original nine review findings.",
+          "modelChanged": false,
+          "effectiveModelConfirmed": false
+        }
+      ]
     }
   ],
   "pending": [

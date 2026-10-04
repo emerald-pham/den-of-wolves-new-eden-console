@@ -160,3 +160,5 @@ All result, privacy, cost, capacity and browser-error assertions remain required
 | `scripts/prompt-602-return-navigation.mjs` | Changed | Add President and election routes to the existing prepared return inventory; its obsolete earlier role fixture still blocks that prepared run and earns no new route credit. |
 | `src/App.test.tsx` | Changed | Mock the new read-only amnesty projection for the current session so existing App behavior checks run with the added subscription. |
 | `src/config/returnNavigationContract.test.ts` | Changed | Cover both new governance routes in the existing visible-parent return contract. |
+| `functions/src/pc09SpecialistMechanics.rangeRecovery.test.ts` | Added | Compose real Long range math with later Ace application, preserving destroyed-contact overkill while denying forged destruction, destroyed targets and noncanonical live Ace damage. |
+| `src/lib/sessionSnapshotAuthority.combatRecovery.test.ts` | Added | Accept legitimate same-cycle attack closure/reopening only with a validated advancing phase revision; retain stale, missing, malformed and wrongly bound marker denials. |

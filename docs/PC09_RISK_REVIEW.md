@@ -62,6 +62,28 @@ normal setup/damage-baseline choices remain fixture inputs. The reviewer found
 no additional defect in the bounded PDF-reset delta; final reconciliation still
 needs the later aftermath-binding change. This remains assigned P493 work.
 
+The bounded connected combat diagnostic then reproduced two further acceptance
+defects, distinct from the reviewer's original nine findings. Successful member
+and resume replies still left the client showing open airspace after the server
+declared an attack in the same cycle. Red `85d2ff2f` and product `708407f5`
+honor only a validated advancing current-cycle phase revision; stale, malformed,
+nonadvancing and cross-cycle/phase markers retain denial. The actual Ace UI then
+sent its Medium command and received a 400 because a different, already-destroyed
+Wing retained three points of Long-range damage against capacity one. Ordinary
+range math permits that cumulative overkill. Red `074c57f6` and product
+`1ee0d936` preserve canonical destroyed contacts while retaining exact capped
+Ace damage and live-target requirements. The safe diagnostic is
+`/tmp/pc09-combat-recovery-evidence/diagnostic-row7/result.json.failure.json`;
+it remains a failed complete workflow. The client repairs pass 433 focused
+checks; mechanics/math and actual callable/surface checks pass 53 and 127.
+
+Owner product `1ee0d9360bc8df47e4bfda0995011e30e03c68b8` compiles and its
+207-file JavaScript tree matches the specialist's immutable source
+`01fd022076efb75db871f74473ffc470cd6d0e84` at
+`13f42faae99142705d72c8ec0bc3e5fd1df341e1693c70774228db4273ae27d6`.
+A fresh ordinary connected proof and this same reviewer's bounded verification
+remain required; neither fix grants checkpoint credit by itself.
+
 ## Evidence and completion boundary
 
 At owner `30651411035e55392f5ff97021b389c6620f0042`, the five focused Detector,

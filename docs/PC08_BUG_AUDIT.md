@@ -344,3 +344,40 @@ configuration were released. Other checkouts, reservations and dependencies
 were preserved. Exact final commits, validation and remote landing are supplied
 in the task handoff; open runtime findings must not be described as fixed by
 those documentation commits.
+
+## Subsequent PC09 branch repair record
+
+The historical audit above remains the record of the released 0.5.67 baseline.
+The separate authorized PC09 task has now integrated test-first repairs for all
+ten findings in its non-main owner branch. The fixed checkpoint allocation
+remains 49 IDs. No runtime release or finding closure is claimed by this interim
+record; the final reconciled review, complete ordinary acceptance and exact-SHA
+CI/deployment remain pending.
+
+| Original finding | PC09 repair and permanent regression | Current ordinary evidence and limits |
+|---|---|---|
+| RANGE-01 | The common range reader handles destroyed AEGIS before requiring live-carrier maintenance; later-cycle/no-maintenance controls pass. | Destroyed-carrier progression is native handler evidence. The ordinary complete battle proof uses live AEGIS and does not masquerade as this exact destroyed-carrier reproduction. |
+| RANGE-02 | Combat commits Alpha/Bravo losses once to durable inventory, and later launch reads that inventory. | Two ordinary attacks retain Alpha at three after an actual Short loss. Positive HTTP and Wing UI paid reconstruction is in a distinct disclosed-supplies run; the earlier cycle-4 riot/depleted-store run remains failed. |
+| RANGE-03 | The EO consumer validates the explicit authoritative pass and mixed-source result. | Native producer/consumer regression covers pass-with-hits. Ordinary EO choices run through actual UI/callables; the final connected recovery proof remains pending. |
+| RANGE-04 | Combined assignment validation accounts for already committed source contacts. | Native exact combined-total regression and authenticated mixed-source assignments are recorded separately; complete composed acceptance remains pending. |
+| RANGE-05 | Previously committed support is replayed deterministically after holder removal, while new writes still require the current holder. | Native exact removed-holder coverage passes. The connected proof retains committed support in the one lock; a new GM-kick-after-commit browser reproduction is not claimed. |
+| RANGE-06 | Entitled result targets come from the immutable resolved range roster after shifts. | Exact old/new target comparison passes natively. Genuine authenticated Medium shifts are recorded without claiming a new exact browser comparison. |
+| RANGE-07 | Every PDF combat transition republishes only its allowlisted member state atomically. | The normal Auth member projection equals private current state and renders the actual one-of-four surviving fighters, both resolved ranges and three losses. |
+| RANGE-08 | EO receipt replay validates current cycle and active attack identity before returning success. | Native cycle/attack drift and write/entropy-zero denials pass; ordinary exact same-attack retries remain successful. No extra charges or rolls are observed. |
+| BOARDING-01 | Carryover accepts the catalog's legal Wing and Battlestation survivors and binds the immutable audit/sequence. | Two actual attacks consume the earlier return manifest and return a surviving Battlestation. Real source-generated P finalization and same-cycle next declaration also pass. |
+| BOARDING-02 | Crew-defence replay validates applicability to the active attack before returning historical success. | Native old-attack denial and zero-write/dice controls pass; genuine same-attack boarding retries remain successful. No stale mounted-UI success is inferred. |
+
+The detailed commit and original connected-proof inventory is
+[`PC09_AUDIT_REPAIR_HANDOFF.md`](PC09_AUDIT_REPAIR_HANDOFF.md). The subsequent
+two-attack proof and genuine construction blocker are recorded separately in
+[`PC09_AUDIT_REBUILD_HANDOFF.md`](PC09_AUDIT_REBUILD_HANDOFF.md). Current complete
+workflow acceptance belongs in [`PC09_ACCEPTANCE_MATRIX.md`](PC09_ACCEPTANCE_MATRIX.md).
+The PC09 independent review found nine additional bounded defects; those
+dispositions and later acceptance repairs belong in
+[`PC09_RISK_REVIEW.md`](PC09_RISK_REVIEW.md), preserving this audit's definitions.
+
+The owner has since explicitly activated P605a and later superseded the
+intermediate post-PC09 hold. The parent also owns a separately authorized future
+PC11 for diegetic in-game rules, superseding the earlier no-PC11 planning
+instruction. None of those later owner decisions rewrites the historical audit
+or authorizes this PC09 task to implement a future checkpoint.
