@@ -21345,7 +21345,8 @@ function collectWolfRangeSupportChoices(input: Readonly<{
     const choice = choices[sourceId];
     if (choice) {
       if (choice.attackId !== attackId || choice.turn !== input.turn || choice.range !== input.range ||
-          choice.actorRoleId !== available.actorRoleId || choice.actorUid !== available.ownerUid ||
+          choice.actorRoleId !== available.actorRoleId ||
+          (available.ownerUid !== undefined && choice.actorUid !== available.ownerUid) ||
           choice.revision > input.inputs.revision || choice.hostShipId !== available.hostShipId ||
           choice.controlRevision !== available.controlRevision) {
         return { status: 'unsupported', actions: [], actionTargets: {}, automaticSourceIds: [], sourceIds: [], unavailableSourceIds: [] };
@@ -24923,11 +24924,6 @@ function requireWolfRangeState(
       !wolfRangeTargetProgressionMatches(range, receipt, roster as readonly WolfCombatShip[], state.get('rangeReceipts'))) {
     throw commandError('failed-precondition', 'The current private Wolf combat roster is malformed.', 'conflict');
   }
-  const cycles = isRecord(session.get('maintenanceCycles')) ? session.get('maintenanceCycles') : {};
-  const cycle = parseMaintenanceCycle(isRecord(cycles) ? cycles.aegis : undefined);
-  if (!cycle || cycle.turn !== turn) {
-    throw commandError('failed-precondition', 'The current AEGIS maintenance authority is unavailable.', 'conflict');
-  }
   const damageRoot = session.get('shipDamage');
   const rawDamage = isRecord(damageRoot) ? damageRoot.aegis : undefined;
   const knownDamageIds = new Set((SHIP_DAMAGE_DECKS.aegis ?? []).map(({ systemId }) => systemId));
@@ -24937,6 +24933,12 @@ function requireWolfRangeState(
       typeof rawDamage.destroyed !== 'boolean') {
     throw commandError('failed-precondition', 'The current AEGIS damage authority is malformed.', 'conflict');
   }
+  const cycles = isRecord(session.get('maintenanceCycles')) ? session.get('maintenanceCycles') : {};
+  const rawCycle = isRecord(cycles) ? cycles.aegis : undefined;
+  const cycle = parseMaintenanceCycle(rawCycle);
+  if ((rawCycle !== undefined && !cycle) || (!rawDamage.destroyed && (!cycle || cycle.turn !== turn))) {
+    throw commandError('failed-precondition', 'The current AEGIS maintenance authority is unavailable.', 'conflict');
+  }
   const upgradesRoot = session.get('shipUpgrades');
   const rawUpgrades = isRecord(upgradesRoot) ? upgradesRoot.aegis : undefined;
   if (rawUpgrades !== undefined && (!Array.isArray(rawUpgrades) ||
@@ -24945,7 +24947,7 @@ function requireWolfRangeState(
   }
   const actions = aegisWolfRangeActions({
     range,
-    charges: cycle.charges,
+    charges: rawDamage.destroyed ? [] : cycle!.charges,
     damagedSystemIds: rawDamage.damagedSystemIds as string[],
     destroyed: rawDamage.destroyed,
     upgrades: (rawUpgrades ?? []) as string[],
@@ -25008,7 +25010,11 @@ function wolfRangeChoiceView(
   const slots = lock?.dice
     .filter(({ actionId }) => status !== 'targets-required' || !fixedTargets[actionId])
     .map(({ actionId, successes, damagePerHit }) => ({ actionId, count: successes, damagePerHit })) ?? [];
-  const eligibleActions = status === 'pending' ? inputs.actions : [...inputs.actions, ...additionalActions];
+  const pendingSupportActions = additionalActions.filter(({ sourceId }) =>
+    sourceId === 'highwall' || sourceId === 'gorgoneion-missile-array' || sourceId === 'boa');
+  const eligibleActions = status === 'pending'
+    ? [...inputs.actions, ...pendingSupportActions]
+    : [...inputs.actions, ...additionalActions];
   const contacts = wolfRangeContacts(inputs.roster, range);
   const presentedContacts = range !== 'short-range' || status !== 'targets-required'
     ? contacts

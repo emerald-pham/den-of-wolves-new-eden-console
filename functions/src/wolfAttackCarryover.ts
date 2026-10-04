@@ -1,5 +1,6 @@
 import { isWolfCalculationReceipt } from './wolfCombatMath';
 import type { WolfAttackPreparation } from './wolfAttackPreparation';
+import { wolfShipForId } from './wolfShipCatalog';
 
 export interface ResolvedWolfAttackForCarryover {
   readonly state: Readonly<Record<string, unknown>>;
@@ -36,8 +37,18 @@ function sameValue(left: unknown, right: unknown): boolean {
   }
 }
 
-function isWingInstanceId(value: unknown): value is string {
-  return typeof value === 'string' && /^\d+:wolf-fighter-wing$/.test(value);
+function returningShipForInstanceId(value: unknown): Readonly<{ instanceId: string; shipId: string }> | undefined {
+  if (typeof value !== 'string') return undefined;
+  const match = /^(0|[1-9]\d*):(wolf-[a-z-]+)$/.exec(value);
+  if (!match || !Number.isSafeInteger(Number(match[1]))) return undefined;
+  const ship = wolfShipForId(match[2]!);
+  return ship?.returnRule.kind === 'next-attack'
+    ? { instanceId: value, shipId: ship.id }
+    : undefined;
+}
+
+function isReturningInstanceId(value: unknown): value is string {
+  return returningShipForInstanceId(value) !== undefined;
 }
 
 /**
@@ -94,10 +105,10 @@ export function resolvedWolfAttackForCarryover(
         !Number.isSafeInteger(carryover.sourceTurn) || (carryover.sourceTurn as number) < 1 ||
         (carryover.sourceTurn as number) >= (turn as number) ||
         !Array.isArray(carryover.sourceInstanceIds) ||
-        !carryover.sourceInstanceIds.every(isWingInstanceId) ||
+        !carryover.sourceInstanceIds.every(isReturningInstanceId) ||
         new Set(carryover.sourceInstanceIds).size !== carryover.sourceInstanceIds.length ||
         !Array.isArray(carryover.rosterInstanceIds) ||
-        !carryover.rosterInstanceIds.every(isWingInstanceId) ||
+        !carryover.rosterInstanceIds.every(isReturningInstanceId) ||
         new Set(carryover.rosterInstanceIds).size !== carryover.rosterInstanceIds.length ||
         carryover.sourceInstanceIds.length !== carryover.rosterInstanceIds.length ||
         audit.attackNumber !== attackNumber || audit.previousAttackId !== state.previousAttackId ||
@@ -113,7 +124,7 @@ export function resolvedWolfAttackForCarryover(
   }
 
   const returningInstanceIds = receipt.returningInstanceIds;
-  if (!returningInstanceIds.every(isWingInstanceId) ||
+  if (!returningInstanceIds.every(isReturningInstanceId) ||
       new Set(returningInstanceIds).size !== returningInstanceIds.length) {
     throw new Error('The previous Wolf attack return manifest is malformed.');
   }
@@ -123,7 +134,7 @@ export function resolvedWolfAttackForCarryover(
       throw new Error('The previous Wolf attack roster is malformed.');
     }
     const rosterReturns = state.combatRoster
-      .filter((ship) => record(ship) && ship.shipId === 'wolf-fighter-wing' && ship.destroyed === false)
+      .filter((ship) => record(ship) && ship.destroyed === false && isReturningInstanceId(ship.instanceId))
       .map((ship) => (ship as Record<string, unknown>).instanceId);
     if (!sameValue(rosterReturns, returningInstanceIds)) {
       throw new Error('The previous Wolf attack is not a verifiable finalized attack.');
@@ -144,16 +155,32 @@ export function wolfWingCarryoverForPreparation(
   preparation: WolfAttackPreparation,
   previous: ResolvedWolfAttackForCarryover,
 ): WolfWingCarryoverReceipt {
-  const wingSlots = preparation.shipIds.flatMap((shipId, rosterIndex) =>
-    shipId === 'wolf-fighter-wing' ? [rosterIndex] : []);
-  if (wingSlots.length < previous.returningInstanceIds.length) {
-    throw new Error('The next scheduled composition must include every surviving Fighter Wing from the previous attack.');
+  const preparedSlots = new Map<string, number[]>();
+  preparation.shipIds.forEach((shipId, rosterIndex) => {
+    if (!preparedSlots.has(shipId)) preparedSlots.set(shipId, []);
+    preparedSlots.get(shipId)!.push(rosterIndex);
+  });
+  const claimedByShip = new Map<string, number>();
+  const rosterInstanceIds = previous.returningInstanceIds.map((sourceInstanceId) => {
+    const returnedShip = returningShipForInstanceId(sourceInstanceId);
+    if (!returnedShip) throw new Error('The previous Wolf attack return manifest is malformed.');
+    const slots = preparedSlots.get(returnedShip.shipId) ?? [];
+    const offset = claimedByShip.get(returnedShip.shipId) ?? 0;
+    const rosterIndex = slots[offset];
+    if (rosterIndex === undefined) {
+      const label = (wolfShipForId(returnedShip.shipId)?.label ?? returnedShip.shipId).replace(/^Wolf /, '');
+      throw new Error(`The next scheduled composition must include every surviving ${label} from the previous attack.`);
+    }
+    claimedByShip.set(returnedShip.shipId, offset + 1);
+    return `${rosterIndex}:${returnedShip.shipId}`;
+  });
+  if (rosterInstanceIds.length !== previous.returningInstanceIds.length) {
+    throw new Error('The next scheduled composition must include every surviving returning ship from the previous attack.');
   }
   return {
     sourceAttackId: previous.attackId,
     sourceTurn: previous.turn,
     sourceInstanceIds: [...previous.returningInstanceIds],
-    rosterInstanceIds: wingSlots.slice(0, previous.returningInstanceIds.length)
-      .map((rosterIndex) => `${rosterIndex}:wolf-fighter-wing`),
+    rosterInstanceIds,
   };
 }
