@@ -31,6 +31,14 @@ describe('Refinery 124 Fighter Bay launch gate', () => {
       .toMatchObject({ craftId: 'pdf-escort-fighter-wing', cycle: 4 });
   });
 
+  it('accepts the canonical begin-step environmental check in a completed cycle', () => {
+    expect(authorizeRefineryFighterBayLaunch({ ...base, maintenanceCycle: {
+      ...base.maintenanceCycle, results: { ...base.maintenanceCycle.results,
+        '0': 'Ion Nebula: rolled 2; no damage.',
+      },
+    } })).toMatchObject({ craftId: 'pdf-escort-fighter-wing', cycle: 4 });
+  });
+
   it.each([
     ['one unrest die', { unrestRolls: [2], unrestBeforeCheck: 3 }],
     ['invalid unrest die', { unrestRolls: [2, 7], unrestBeforeCheck: 3 }],
