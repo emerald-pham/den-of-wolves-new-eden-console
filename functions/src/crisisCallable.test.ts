@@ -65,7 +65,7 @@ const baseData = {
 
 function request(data: Record<string, unknown> = baseData, uid = 'u1') {
   const withLegacyFixturePressure = data.state === 'delivered' && data.deliveryPressure === undefined
-    ? { ...data, deliveryPressure: 'steady' }
+    ? { ...data, deliveryPressure: 'hold' }
     : data;
   return { data: withLegacyFixturePressure, auth: { uid } } as CallableRequest<Record<string, unknown>>;
 }

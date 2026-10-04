@@ -125,9 +125,14 @@ beforeEach(() => {
 });
 
 const visitCapital = {
-  revision: 1, balance: 2, entries: [{ id: 'initial-gain', action: 'gain', amount: 1,
-    balanceAfter: 2, crisisId: 'crisis-1', crisisRevision: 4, crisisTitle: 'Approaching vessel',
-    cycle: 1, recordedAt: '2026-09-21T22:00:00.000Z' }],
+  revision: 2, balance: 2, entries: [
+    { id: 'initial-gain-1', action: 'gain', amount: 1, balanceAfter: 1,
+      crisisId: 'crisis-0', crisisRevision: 3, crisisTitle: 'Earlier crisis',
+      cycle: 1, recordedAt: '2026-09-21T21:00:00.000Z' },
+    { id: 'initial-gain-2', action: 'gain', amount: 1, balanceAfter: 2,
+      crisisId: 'crisis-1', crisisRevision: 4, crisisTitle: 'Approaching vessel',
+      cycle: 1, recordedAt: '2026-09-21T22:00:00.000Z' },
+  ],
 };
 function setCoordinationVisitFixture() {
   const teamPhaseEndsAt = '2026-10-04T10:00:00.000Z';
@@ -145,12 +150,12 @@ it('atomically spends one political capital and reduces one ship unrest during C
   setCoordinationVisitFixture();
   await expect(recordPresidentialVisit.run(request({
     sessionId: 's1', requestId: 'visit-request-1', shipId: 'dione',
-    expectedCapitalRevision: 1, expectedVesselRevision: 5,
+    expectedCapitalRevision: 2, expectedVesselRevision: 5,
   }))).resolves.toMatchObject({ status: 'committed', shipId: 'dione', unrest: 2,
-    politicalCapital: { revision: 2, balance: 1 } });
+    politicalCapital: { revision: 3, balance: 1 } });
   expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
     'shipUnrest.dione': 2, 'vesselActionRevisions.dione': 6,
-    politicalCapital: expect.objectContaining({ revision: 2, balance: 1 }),
+    politicalCapital: expect.objectContaining({ revision: 3, balance: 1 }),
   }));
   const event = mock.set.mock.calls.find(([path]) => String(path).includes('/events/'))?.[1];
   expect(event).toMatchObject({ type: 'presidential-visit', shipId: 'dione', unrest: 2,
@@ -163,7 +168,7 @@ it('rejects a Presidential visit outside Coordination without spending either co
   mock.turnState = { ...mock.turnState as object, phase: 'team' };
   await expect(recordPresidentialVisit.run(request({
     sessionId: 's1', requestId: 'visit-team-phase', shipId: 'dione',
-    expectedCapitalRevision: 1, expectedVesselRevision: 5,
+    expectedCapitalRevision: 2, expectedVesselRevision: 5,
   }))).rejects.toMatchObject({ code: 'failed-precondition' });
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();
