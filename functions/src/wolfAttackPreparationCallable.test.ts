@@ -16,8 +16,16 @@ const mock = vi.hoisted(() => {
       data: () => fields,
     };
   };
+  const querySnapshot = (path: string) => ({
+    docs: [...documents.keys()]
+      .filter((candidate) => candidate.startsWith(`${path}/`) && !candidate.slice(path.length + 1).includes('/'))
+      .map((candidate) => snapshot(candidate)),
+  });
   const ref = (path: string) => ({ path, id: path.split('/').at(-1) ?? '' });
-  const get = vi.fn(async (target: { path: string }) => snapshot(target.path));
+  const collection = (path: string) => ({ path });
+  const get = vi.fn(async (target: { path: string }) =>
+    target.path.endsWith('/fleetGroups') || target.path.endsWith('/players')
+      ? querySnapshot(target.path) : snapshot(target.path));
   const update = vi.fn((target: { path: string }, fields: Fields) => {
     documents.set(target.path, { ...(documents.get(target.path) ?? {}), ...fields });
   });
@@ -26,7 +34,7 @@ const mock = vi.hoisted(() => {
   });
   const runTransaction = vi.fn(async (callback: (tx: unknown) => unknown) =>
     callback({ get, update, set }));
-  return { documents, get, ...writes, update, set, runTransaction, db: { doc: ref, runTransaction } };
+  return { documents, get, ...writes, update, set, runTransaction, db: { doc: ref, collection, runTransaction } };
 });
 
 vi.mock('firebase-admin/app', () => ({ initializeApp: vi.fn() }));
@@ -151,6 +159,59 @@ it('rejects stale CAS, inactive targets, and invalid composition', async () => {
   }))).rejects.toMatchObject({ code: 'failed-precondition' });
   await expect(stageWolfAttackPreparation.run(request({
     ...baseData, requestId: 'bad-roster', shipIds: [...firstTurnCards.slice(1), 'wolf-destroyer'],
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+});
+
+it('accepts the published P arrival composition and binds it to the selected Station group', async () => {
+  session({ chartSelectionLocked: true, chartId: 'B' });
+  put('sessions/s1/wolfAttackWindow/current', {
+    status: 'due', turn: 1, revision: 1,
+    targetGroupId: 'fleet-1', threatSiteCode: 'P', threatSourceId: 'arrival-jump-station',
+  });
+  put('sessions/s1/fleetGroups/fleet-1', { id: 'fleet-1', vesselIds: ['aegis'], memberUids: ['u1'] });
+  put('sessions/s1/serverState/wolfArrivalPressure/groups/fleet-1', {
+    type: 'wolf-base-arrival-pressure-state', groupId: 'fleet-1', chart: 'B', revision: 1,
+    entries: [{
+      type: 'wolf-base-arrival-pressure', status: 'operational', groupId: 'fleet-1', chart: 'B',
+      coordinate: '1964', siteCode: 'P', sourceShipId: 'aegis', sourceTransitionId: 'jump-station',
+      cycle: 1, revision: 1, attackStatus: 'scheduled', arrivalTiming: 'immediate',
+      minimumBattleStations: 1, minimumOtherShipDamage: 20,
+      missionAccess: 'blockedWhileWolfForcesRemain', recurringUntil: ['allWolfForcesDestroyed'],
+    }],
+  });
+  put('sessions/s1/wolfAttackPressure/arrival-jump-station', {
+    type: 'wolf-base-arrival-pressure-schedule', status: 'scheduled', sessionId: 's1',
+    groupId: 'fleet-1', chart: 'B', coordinate: '1964', siteCode: 'P', sourceShipId: 'aegis',
+    sourceTransitionId: 'jump-station', sourceCycle: 1, arrivalTiming: 'immediate',
+    minimumBattleStations: 1, minimumOtherShipDamage: 20,
+    recurringUntil: ['allWolfForcesDestroyed'], missionAccess: 'blockedWhileWolfForcesRemain',
+  });
+  const stationRoster = ['wolf-battlestation', ...Array<string>(10).fill('wolf-strikecarrier')];
+  await expect(stageWolfAttackPreparation.run(request({
+    ...baseData, requestId: 'p-arrival-preparation', shipIds: stationRoster,
+  }))).resolves.toMatchObject({
+    compositionKind: 'P', targetGroupId: 'fleet-1', shipIds: stationRoster,
+  });
+});
+
+it('requires the Commander composition to match ten plus only the selected group pursuit', async () => {
+  put('sessions/s1/wolfAttackWindow/current', {
+    status: 'due', turn: 1, revision: 1, targetGroupId: 'fleet-1', threatSiteCode: 'commander',
+  });
+  put('sessions/s1/fleetGroups/fleet-1', {
+    id: 'fleet-1', vesselIds: ['aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124'],
+    memberUids: ['u1'],
+  });
+  put('sessions/s1/serverState/navigation', { revision: 3, pursuitGroups: { 'fleet-1': 4 } });
+  const exactDial = ['wolf-strikecarrier', ...Array<string>(3).fill('wolf-cruiser')];
+  await expect(stageWolfAttackPreparation.run(request({
+    ...baseData, requestId: 'commander-exact-dial', shipIds: exactDial,
+  }))).resolves.toMatchObject({
+    compositionKind: 'commander', targetGroupId: 'fleet-1', targetGroupPursuit: 4, shipIds: exactDial,
+  });
+  await expect(stageWolfAttackPreparation.run(request({
+    ...baseData, requestId: 'commander-wrong-dial', expectedRevision: 1,
+    shipIds: ['wolf-strikecarrier', 'wolf-cruiser', 'wolf-cruiser', 'wolf-destroyer'],
   }))).rejects.toMatchObject({ code: 'failed-precondition' });
 });
 
