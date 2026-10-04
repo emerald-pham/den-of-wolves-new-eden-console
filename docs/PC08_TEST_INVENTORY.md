@@ -100,6 +100,8 @@ separate; no case is skipped, deleted or weakened to satisfy this history check.
 |---|---|
 | `0889ef1f` / `0bfdb9bf` / `15edf16e` → `70db7e59` | Reproduce duplicated support rows, reject current-session/current-attack cycle and attack-identity drift in four receipt paths, bind fighter replay to its committed actor/request/range/revision, and reject fresh or saved PDF/Maliades launch passes after current group/member/berth removal. Retain valid after-resolution exact retries and no-write/no-new-dice assertions. Thirty failures with 160 controls, then five binding failures are preserved in `owner/range-review-red.log` and `range-review-binding-red.log`; all 195 cases pass in `range-review-green.log`. The separately corrected new Highwall assertion uses its printed three damage, with the first repair failure retained. |
 | `4b96ba1b`, composed support outcome assertion | Observe the actual member subscription after an ordinary attack and require one result per source/contact/range and printed support labels. Native duplicate-row red evidence already precedes the product repair. The fresh reconciled run remains required. |
+| Worker `ca4eeb09` → `950aee0c`, integrated as `e4f1e7ac` → `35059cba` | Reproduce all R1–R4: current boarding authority before receipt replay; entitled off-console EO remaining pending; Commander-adjusted 20/21/22-party Militia boundaries; and authoritative printed character death. Preserve legitimate finalized replay, revoked role/berth/custody/GM-lease denials, unavailable versus disconnected holders, Pallas committed choices and no repeat death/dice/writes. The discriminating red has 39 failures and 15 controls; all 317 checks across ten final worker suites pass. Build, scoped lint, typecheck and existing death-state hydration pass. `boarding/review-r1-r4-950aee0c-handback.md` retains exact logs and rationale. |
+| `4db5a2a1` / `9eeca2c5` / `258af5df` / `2943ee4d` → `f6cafa44` / `b8e84fd9`, Militia character changes | A committed risk must survive removal or replacement of its character both before and after dice lock, without revoking another character or changing its eligibility. Two initial failures and then four timing failures precede repairs. Wrong attack/cycle/role/request metadata still blocks finalization without new dice or mechanical/character writes. The first repair is incomplete and its two failures remain; the added negative tests' overbroad whole-document comparison is corrected separately to permit legitimate audience withdrawal while preserving all mechanical denials. Final reconciled three-suite result: 257/257 in `owner/reconciled-review-native-257-final-green.log`; build and scoped lint pass. |
 
 The harmless `ef0421c9` const/interface/draft-copy lint cleanup has no new
 behavior or weakened assertion; all eight affected presenter checks and lint
@@ -112,11 +114,12 @@ pass in `owner/range-review-ui-green.log` and `range-review-lint-green.log`.
 | `28955aff` / `d00c258d` → `c719c232`, final audience repair | Actual range miss producer → atomic boarding finalization must admit only the exact three named zero-damage null-target variants. Native/client negatives reject private, foreign, malformed and boarding variants. Six red failures with 92 prior cases green; 138 focused cases pass. The normal harness observes real browser member subscription hydration, rather than only an HTTP document. `composed-repair/audience-red.log`, `focused-green.log` and `attempt1/result.json`. Root integrates these as `a37a828d`, `35d4fad7` and `de4d1c5e`. |
 | `98f08cf7`, test/harness lint | Remove unused destructuring/helper/status bindings and make two existing await/cast lines unambiguous without changing assertions or runtime semantics. Preserve the first lint failure. Focused 98/98 and scoped lint pass; root integrates as `b00a6f72`. The authenticated proof remains bound to the unchanged `c719c232` runtime bytes. |
 
-The complete normal composed twenty-player proof passes ten checks, including
+The earlier normal composed twenty-player proof passes ten checks, including
 atomic finalization, member hydration, exact retry and actual movement after
-reopening. No further gameplay rerun is needed for documentation, release
-counts, computed-font styling or harmless harness lint; final full validation
-and independent review still apply to the reconciled candidate.
+reopening. Documentation, release counts, computed-font styling and harmless
+harness lint preserve that proof. The later R1–R7 behavior repairs require a
+fresh compiled/restarted composed run before follow-up independent review and
+final validation; the old result does not stand in for those new source bytes.
 
 The rows below cover every changed native or component suite, including worker
 fixtures. Detailed commit/red/green entries above retain the specific repairs;

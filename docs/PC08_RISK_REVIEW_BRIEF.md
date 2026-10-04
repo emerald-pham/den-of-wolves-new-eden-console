@@ -164,6 +164,27 @@ P605a visualization and later checkpoint outcomes remain outside this candidate.
 
 ## Evidence and interpretation
 
+The first independent review at `f2987486` returned R1–R7 together with changes
+required. All seven are now repaired; follow-up should focus on those findings
+and the materially changed historical Militia-choice/death guard. Boarding
+repairs integrate as `e4f1e7ac` → `35059cba`; range repairs are `70db7e59`.
+`f6cafa44` and `b8e84fd9` preserve a committed Militia risk after its holder is
+removed or takes another character, before or after lock. Only the still-current
+Militia character loses current role/console/seat authority and enters existing
+replacement eligibility. Historical death remains private, with
+`authorityRevoked: false` when current authority belongs to a later character.
+Saved historical choice metadata must bind actor role/request/cycle/attack and,
+after lock, the same immutable risk. Four timing cases and four binding denials
+pass with no extra dice or mechanical/character writes on denied finalization.
+The existing replacement workflow is reused; this adds no PC09 campaign scope.
+Current boarding and range authority always precedes replay; a legitimate
+finalized replay does not need a fresh-stage guard. Away/offline entitled holders
+remain pending, while removed, kicked, replaced or wrong-berth holders are
+unavailable. Coupled Pallas locked commitments remain immutable. Support results
+publish once with printed labels, and PDF/Maliades launch passes require current
+member/group/berth authority. Exact source digests and the 17-module/32-index/
+107-Function consumer audit are renewed after the last source repair.
+
 All seven archived primary v1.1 artifacts match private provenance checksums;
 both expansion PDFs apply and named component sheets control. The group source
 notes record precise citations and deliberate extensions without reproducing

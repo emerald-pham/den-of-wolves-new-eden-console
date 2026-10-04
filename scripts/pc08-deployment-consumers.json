@@ -388,7 +388,7 @@
     },
     "functions/src/wolfEscortRange.ts": {
       "before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "after": "8e7108640f545b954e1a7123d619ced17025b080886b5b254f83bb52aec13542",
+      "after": "fc9aa8ab87f527c3c5119f9cc639a8ee2b9cdee5f4b14f858fada0c49c396808",
       "consumers": [
         "advanceWolfAttackLifecycle",
         "assignWolfRangeTargets",
@@ -407,7 +407,7 @@
   },
   "index": {
     "before": "0d76ca4d97bb27f2b9315440ae42338d001f3ea835d300c6b8f95a4fe24f1ace",
-    "after": "c943e18b1629ab17273a2e28e0dfc75055022da5b7976415f11a6f6de8a4fea9",
+    "after": "d759626c9f3b6c63bbe9fd082cfd05d7d2c3b19d7c8199a55c7d7de96e81f161",
     "consumers": [
       "advanceTurn",
       "advanceWolfAttackLifecycle",

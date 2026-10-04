@@ -354,3 +354,31 @@ presenter checks and lint pass. `4b96ba1b` adds an ordinary composed-session
 assertion that each support contact is published once with its printed label.
 It extends the retained gameplay harness; it does not replace native red tests.
 A fresh compiled/restarted twenty-player run follows boarding reconciliation.
+
+The boarding owner hands back test `ca4eeb09` then source `950aee0c`, integrated
+as `e4f1e7ac` and `35059cba`. Its genuine red has 39 failures and 15 controls;
+all 317 final checks across ten suites, Functions build, scoped lint, client
+typecheck and existing death-state hydration pass. Root acknowledges release
+ownership; the worker completes its own ledger entry and parks its edit scope,
+preserving branches, dependencies and private evidence. No emulator is started
+for the worker's port-free repair. Its handback records every R1–R4 contract.
+
+Owner reconciliation catches a further R4 edge: removing the Militia character
+or choosing a later character after its risk commitment can strand combat.
+Test-only `4db5a2a1` reproduces two after-lock failures. `f6cafa44` preserves the
+historical private death while revoking authority only for the still-current
+Militia character, but its finalization guard is incomplete; the two failures
+remain recorded. Test-only `9eeca2c5` extends both cases before lock, reproducing
+four timing failures. `258af5df` adds four wrong attack/cycle/role/request denials;
+`2943ee4d` corrects only their overbroad whole-document comparison so legitimate
+audience withdrawal is allowed while all mechanical, character, eligibility and
+dice assertions remain. `b8e84fd9` retains the valid committed risk before lock
+and matches its immutable locked context afterward. Final native reconciliation
+passes all 257 checks; Functions build and scoped lint pass on the same source.
+Every failed attempt remains externally preserved; no test is skipped or deleted.
+
+The exact final source consumer audit at `b8e84fd9` still finds seventeen runtime
+modules, 32 changed index consumers and 107 unique Functions. AST and renewed
+manual initialization/import review agree; no broad deployment fallback is
+introduced. Fresh composed gameplay, bounded independent follow-up, full final
+validation, candidate CI and exact-main deployment remain pending.

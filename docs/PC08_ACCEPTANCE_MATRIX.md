@@ -6,6 +6,12 @@ representative normal authenticated local/emulator evidence and are reconciled
 into the 0.5.67 candidate. Final review, validation, CI and deployment remain
 pending. Root owns reconciliation and release; the catalog is status authority.
 
+All seven findings from the first independent review are repaired. Worker
+boarding checks pass 317/317; the final reconciled Boarding/Range/Declaration
+checks pass 257/257, including historical Militia commitment before and after
+dice lock without revoking a subsequent character. The fresh reconciled gameplay
+run and exact-candidate follow-up review remain required for the repaired bytes.
+
 Normal authenticated local/emulator behavior evidence, prepared rendering,
 independent exact-candidate review, final validation, CI and exact-main production
 deployment remain distinct. Every assigned row needs its complete functional
@@ -75,4 +81,3 @@ No prepared scene or unused pure helper establishes gameplay alone.
 | 423 | departure, current DRADIS transit/contact presentation, retarget, arrival, transfer, restriction parking, attack parking, reopen, and retry all remain authoritative; this proof does not introduce or imply the owner-deferred Wolf-attack visualization. | missing | Connected projection, plot and normal authenticated shuttle paths integrated | Travel/retarget/arrival/transfer/parking/retry and actual post-boarding departure/reopening proven; owner/authenticated-composed-complete/result.json; owner/authenticated-dradis-complete/result.json: all nineteen checks, standard and Union scenarios, eight renders, zero presence/browser failures | Combined exact-candidate review and release pending |
 | 605 | group-local ships, transit samples, parked craft, and hidden contacts remain truthful across supported orientations and sizes; every complete visible contact name stays inside the DRADIS viewport at every supported edge, orientation, and motion preference. | partial | Connected projection, plot and normal authenticated shuttle paths integrated | Eight viewport/motion renders, strict first sweep, Zoom and repaired painted tag bounds; owner/authenticated-dradis-complete/result.json: all nineteen checks, standard and Union scenarios, eight renders, zero presence/browser failures | Combined exact-candidate review and release pending |
 | 644 | every craft type travels, docks, transfers/acts, appears through the current DRADIS contact contract, parks under each restriction, and recovers after reconnect; the proof consumes attack state but does not add the owner-deferred Wolf-attack visualization. | missing | Connected projection, plot and normal authenticated shuttle paths integrated | Fifteen standard and both Union paths plus full composed Wing ranges/reopening proven; owner/authenticated-composed-complete/result.json; owner/authenticated-dradis-complete/result.json: all nineteen checks, standard and Union scenarios, eight renders, zero presence/browser failures | Combined exact-candidate review and release pending |
-

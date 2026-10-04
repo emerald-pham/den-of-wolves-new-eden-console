@@ -12,9 +12,10 @@ ruling, with surrounding printed calculations automatic.
 
 Status: the fixed 49 items are integrated into the 0.5.67 candidate. The first
 complete independent review identified seven correctness and authority defects.
-Root's support-result, stale-receipt and launch-pass repairs pass all 195 native
-Range/Declaration checks; the bounded boarding repair is in progress. Fresh
-reconciled gameplay, follow-up review, final validation, CI and deployment
+All seven repairs are integrated. The boarding owner's ten focused suites pass
+317 checks; the reconciled Boarding/Range/Declaration suites pass 257, including
+committed Militia risk before and after dice lock when its character changes.
+Fresh reconciled gameplay, follow-up review, final validation, CI and deployment
 remain pending. The owner's October 3 instruction authorizes execution and
 acceptance; playing the review scene is optional.
 
@@ -107,7 +108,12 @@ Its seven findings cover revoked boarding retries, an off-console EO's pending
 choice, Commander-adjusted Militia eligibility, the printed Militia death,
 duplicated support results, earlier-attack retries, and actual PDF/Maliades pass
 berths. These are agent-owned correctness repairs; they add no PC09 scope or
-owner approval step. Final follow-up review, validation, candidate CI and
+owner approval step. Current authorization precedes saved receipts; entitled
+off-console holders remain pending; Commander parties affect Militia eligibility;
+printed death enters the existing replacement workflow. A committed old
+character's risk still resolves without revoking a later character's authority.
+Support rows retain their printed labels once, and current cycle/attack/berth
+guards reject stale retries. Final follow-up review, validation, candidate CI and
 exact-main production deployment remain pending. Prepared rendering does not establish gameplay.
 Production gameplay or a physical device test is not claimed.
 
