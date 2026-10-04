@@ -11,16 +11,16 @@
     "dependencyWaveCount": 21
   },
   "sources": {
-    "revision": "43727f28b44090bf7aec7ce0697cfdd52a110143",
-    "revisionDate": "2026-10-03T07:19:49-04:00",
+    "revision": "ebbad230b815e6962e35f303cb529b5612e1d046",
+    "revisionDate": "2026-10-03T13:37:42-04:00",
     "files": [
       {
         "path": "docs/implementation-prompts.json",
-        "sha256": "581c23a60bd0521182b377ae025740091a92cf75b93b1e88174281c8f58f4240"
+        "sha256": "bbe38c531918cd87ae9eb82e8d2290197936976b8d614c0887ebbb8fddbafe6b"
       },
       {
         "path": "docs/CHECKPOINT_COMPLETION_PLAN.md",
-        "sha256": "6c097dbceba6bf35690e0437e76feffbcaa72d6553d647d9e363adae1ba977a8"
+        "sha256": "8279c5531e2a0f1b9116af6907b776a5b012649803c67446611d3c056b92872a"
       }
     ]
   },
@@ -40,12 +40,12 @@
     "release": "Review, validation, deployment and ordinary gameplay proof are required but have no invented duration."
   },
   "catalogSnapshot": {
-    "complete": 605,
+    "complete": 654,
     "total": 751,
     "statusCounts": {
-      "done": 605,
-      "partial": 15,
-      "missing": 131,
+      "done": 654,
+      "partial": 10,
+      "missing": 87,
       "blocked": 0,
       "in-progress": 0
     }
@@ -263,9 +263,9 @@
       "endWave": 10,
       "dependencyLayerCount": 5,
       "statusCounts": {
-        "done": 0,
-        "partial": 5,
-        "missing": 44,
+        "done": 49,
+        "partial": 0,
+        "missing": 0,
         "blocked": 0,
         "in-progress": 0
       },
@@ -352,7 +352,7 @@
         "in-progress": 0
       },
       "predecessorCheckpoint": "PC08",
-      "predecessorCompleteInCatalog": false,
+      "predecessorCompleteInCatalog": true,
       "releaseMilestone": {
         "afterWave": 14,
         "overallDoneTarget": 703,
@@ -782,9 +782,9 @@
       ],
       "assignedCount": 10,
       "statusCounts": {
-        "done": 0,
-        "partial": 1,
-        "missing": 9,
+        "done": 10,
+        "partial": 0,
+        "missing": 0,
         "blocked": 0,
         "in-progress": 0
       },
@@ -829,9 +829,9 @@
       ],
       "assignedCount": 8,
       "statusCounts": {
-        "done": 0,
+        "done": 8,
         "partial": 0,
-        "missing": 8,
+        "missing": 0,
         "blocked": 0,
         "in-progress": 0
       },
@@ -879,9 +879,9 @@
       ],
       "assignedCount": 13,
       "statusCounts": {
-        "done": 0,
-        "partial": 4,
-        "missing": 9,
+        "done": 13,
+        "partial": 0,
+        "missing": 0,
         "blocked": 0,
         "in-progress": 0
       },
@@ -947,9 +947,9 @@
       ],
       "assignedCount": 11,
       "statusCounts": {
-        "done": 0,
+        "done": 11,
         "partial": 0,
-        "missing": 11,
+        "missing": 0,
         "blocked": 0,
         "in-progress": 0
       },
@@ -1004,9 +1004,9 @@
       ],
       "assignedCount": 7,
       "statusCounts": {
-        "done": 0,
+        "done": 7,
         "partial": 0,
-        "missing": 7,
+        "missing": 0,
         "blocked": 0,
         "in-progress": 0
       },
@@ -3924,8 +3924,8 @@
       "id": "354",
       "checkpoint": "PC08",
       "title": "Remove stale contacts.",
-      "status": "missing",
-      "catalogReadiness": "ready",
+      "status": "done",
+      "catalogReadiness": "done",
       "acceptance": "the newest server snapshot removes or changes a departed/destroyed contact despite cached local data. Preserve the first qualifying sweep enlargement for its full duration, readable in-viewport names bound only to visible contacts and the minimized Zoom control across supported layouts and reduced motion. Use the existing contact/parking projection; this work does not activate P605a. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
       "prerequisites": [
         {
@@ -3954,8 +3954,8 @@
       "id": "355",
       "checkpoint": "PC08",
       "title": "Fold docked shuttles into host contacts.",
-      "status": "missing",
-      "catalogReadiness": "ready",
+      "status": "done",
+      "catalogReadiness": "done",
       "acceptance": "a docked craft appears at its host rather than as an independent in-flight object. Preserve the first qualifying sweep enlargement for its full duration, readable in-viewport names bound only to visible contacts and the minimized Zoom control across supported layouts and reduced motion. Use the existing contact/parking projection; this work does not activate P605a. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
       "prerequisites": [
         {
@@ -3984,8 +3984,8 @@
       "id": "356",
       "checkpoint": "PC08",
       "title": "Show undocked shuttle samples.",
-      "status": "missing",
-      "catalogReadiness": "ready",
+      "status": "done",
+      "catalogReadiness": "done",
       "acceptance": "an eligible travelling craft appears only from authoritative sampled transit state. Preserve the first qualifying sweep enlargement for its full duration, readable in-viewport names bound only to visible contacts and the minimized Zoom control across supported layouts and reduced motion. Use the existing contact/parking projection; this work does not activate P605a. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
       "prerequisites": [
         {
@@ -4014,8 +4014,8 @@
       "id": "357",
       "checkpoint": "PC08",
       "title": "Redact split-fleet contact metadata.",
-      "status": "missing",
-      "catalogReadiness": "ready",
+      "status": "done",
+      "catalogReadiness": "done",
       "acceptance": "labels, counts, events, and empty space cannot reveal another group's location. Preserve the first qualifying sweep enlargement for its full duration, readable in-viewport names bound only to visible contacts and the minimized Zoom control across supported layouts and reduced motion. Use the existing contact/parking projection; this work does not activate P605a. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
       "prerequisites": [
         {
@@ -4044,8 +4044,8 @@
       "id": "358",
       "checkpoint": "PC08",
       "title": "Reflect attack parking on DRADIS.",
-      "status": "missing",
-      "catalogReadiness": "ready",
+      "status": "done",
+      "catalogReadiness": "done",
       "acceptance": "all craft resolve to parked hosts while only combat-capable craft enter the battle projection; consume Prompt 433a state without adding the owner-deferred attack visualization. Preserve the first qualifying sweep enlargement for its full duration, readable in-viewport names bound only to visible contacts and the minimized Zoom control across supported layouts and reduced motion. Use the existing contact/parking projection; this work does not activate P605a. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
       "prerequisites": [
         {
@@ -4074,8 +4074,8 @@
       "id": "359",
       "checkpoint": "PC08",
       "title": "Merge contacts after rejoin.",
-      "status": "missing",
-      "catalogReadiness": "ready",
+      "status": "done",
+      "catalogReadiness": "done",
       "acceptance": "valid ships and craft from both groups appear once only after the group transaction commits. Preserve the first qualifying sweep enlargement for its full duration, readable in-viewport names bound only to visible contacts and the minimized Zoom control across supported layouts and reduced motion. Use the existing contact/parking projection; this work does not activate P605a. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
       "prerequisites": [
         {
@@ -4104,8 +4104,8 @@
       "id": "360",
       "checkpoint": "PC08",
       "title": "Deny direct DRADIS writes.",
-      "status": "missing",
-      "catalogReadiness": "ready",
+      "status": "done",
+      "catalogReadiness": "done",
       "acceptance": "clients cannot forge contact, coordinate, transit, arrival, range, or visit-log state. Preserve the first qualifying sweep enlargement for its full duration, readable in-viewport names bound only to visible contacts and the minimized Zoom control across supported layouts and reduced motion. Use the existing contact/parking projection; this work does not activate P605a. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
       "prerequisites": [
         {
@@ -4134,8 +4134,8 @@
       "id": "423",
       "checkpoint": "PC08",
       "title": "Run the shuttle-airspace scenario.",
-      "status": "missing",
-      "catalogReadiness": "ready",
+      "status": "done",
+      "catalogReadiness": "done",
       "acceptance": "departure, current DRADIS transit/contact presentation, retarget, arrival, transfer, restriction parking, attack parking, reopen, and retry all remain authoritative; this proof does not introduce or imply the owner-deferred Wolf-attack visualization. Preserve the first qualifying sweep enlargement for its full duration, readable in-viewport names bound only to visible contacts and the minimized Zoom control across supported layouts and reduced motion. Use the existing contact/parking projection; this work does not activate P605a. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
       "prerequisites": [
         {
@@ -4218,13 +4218,13 @@
       "id": "644",
       "checkpoint": "PC08",
       "title": "Run a complete shuttle-airspace playthrough.",
-      "status": "missing",
-      "catalogReadiness": "blocked",
+      "status": "done",
+      "catalogReadiness": "done",
       "acceptance": "every craft type travels, docks, transfers/acts, appears through the current DRADIS contact contract, parks under each restriction, and recovers after reconnect; the proof consumes attack state but does not add the owner-deferred Wolf-attack visualization. Preserve the first qualifying sweep enlargement for its full duration, readable in-viewport names bound only to visible contacts and the minimized Zoom control across supported layouts and reduced motion. Use the existing contact/parking projection; this work does not activate P605a. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
       "prerequisites": [
         {
           "id": "423",
-          "status": "missing",
+          "status": "done",
           "checkpoint": "PC08",
           "inChart": true
         }
@@ -4241,17 +4241,15 @@
       "group": "PC08-G1",
       "startWave": 7,
       "endWave": 7,
-      "unfinishedPrerequisites": [
-        "423"
-      ],
+      "unfinishedPrerequisites": [],
       "unfinishedExternalPrerequisites": []
     },
     {
       "id": "605",
       "checkpoint": "PC08",
       "title": "Make DRADIS responsive.",
-      "status": "partial",
-      "catalogReadiness": "ready",
+      "status": "done",
+      "catalogReadiness": "done",
       "acceptance": "group-local ships, transit samples, parked craft, and hidden contacts remain truthful across supported orientations and sizes; every complete visible contact name stays inside the DRADIS viewport at every supported edge, orientation, and motion preference. Preserve the first qualifying sweep enlargement for its full duration, readable in-viewport names bound only to visible contacts and the minimized Zoom control across supported layouts and reduced motion. Use the existing contact/parking projection; this work does not activate P605a. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
       "prerequisites": [
         {
@@ -4280,8 +4278,8 @@
       "id": "231",
       "checkpoint": "PC08",
       "title": "Gate the Refinery Fighter Bay.",
-      "status": "partial",
-      "catalogReadiness": "ready",
+      "status": "done",
+      "catalogReadiness": "done",
       "acceptance": "charged 8♦ authorizes only the PDF Colonel's wing during an attack. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
       "prerequisites": [
         {
@@ -4316,8 +4314,8 @@
       "id": "389",
       "checkpoint": "PC08",
       "title": "Resolve Highwall combat.",
-      "status": "missing",
-      "catalogReadiness": "ready",
+      "status": "done",
+      "catalogReadiness": "done",
       "acceptance": "fuelled Medium and Short attacks deal three damage on a server roll of 5+. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
       "prerequisites": [
         {
@@ -4370,8 +4368,8 @@
       "id": "396",
       "checkpoint": "PC08",
       "title": "Resolve Alpha and Bravo fighter state.",
-      "status": "missing",
-      "catalogReadiness": "ready",
+      "status": "done",
+      "catalogReadiness": "done",
       "acceptance": "launch, target shift, Medium attack, Short attack, losses, and per-wing limits remain independent. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. When this automatic normal procedure ships, preserve existing GM fighter/craft adjustments as explicit audited corrections rather than requiring them to enter routine combat losses or rolls. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
       "prerequisites": [
         {
@@ -4406,8 +4404,8 @@
       "id": "397",
       "checkpoint": "PC08",
       "title": "Resolve Maliades state.",
-      "status": "partial",
-      "catalogReadiness": "ready",
+      "status": "done",
+      "catalogReadiness": "done",
       "acceptance": "launch, three-damage destruction, fuel repair, Medium choice, and Short risk persist authoritatively. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. When this automatic normal procedure ships, preserve existing GM fighter/craft adjustments as explicit audited corrections rather than requiring them to enter routine combat losses or rolls. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
       "prerequisites": [
         {
@@ -4466,8 +4464,8 @@
       "id": "398",
       "checkpoint": "PC08",
       "title": "Resolve the PDF Escort Wing state.",
-      "status": "partial",
-      "catalogReadiness": "ready",
+      "status": "done",
+      "catalogReadiness": "done",
       "acceptance": "four-fighter cap, combat actions, launch requirement, and fuel-free mission participation remain distinct. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. When this automatic normal procedure ships, preserve existing GM fighter/craft adjustments as explicit audited corrections rather than requiring them to enter routine combat losses or rolls. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
       "prerequisites": [
         {
@@ -4502,8 +4500,8 @@
       "id": "443",
       "checkpoint": "PC08",
       "title": "Enforce Short Range fighter priority.",
-      "status": "missing",
-      "catalogReadiness": "blocked",
+      "status": "done",
+      "catalogReadiness": "done",
       "acceptance": "available Wolf Fighter Wings receive mandatory fleet damage before other Wolf ships. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
       "prerequisites": [
         {
@@ -4514,7 +4512,7 @@
         },
         {
           "id": "396",
-          "status": "missing",
+          "status": "done",
           "checkpoint": "PC08",
           "inChart": true
         }
@@ -4531,17 +4529,15 @@
       "group": "PC08-G3",
       "startWave": 7,
       "endWave": 7,
-      "unfinishedPrerequisites": [
-        "396"
-      ],
+      "unfinishedPrerequisites": [],
       "unfinishedExternalPrerequisites": []
     },
     {
       "id": "445",
       "checkpoint": "PC08",
       "title": "Resolve AEGIS Missile Launchers at Long Range.",
-      "status": "missing",
-      "catalogReadiness": "ready",
+      "status": "done",
+      "catalogReadiness": "done",
       "acceptance": "a charged, undamaged action deals two damage to one valid Wolf target. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
       "prerequisites": [
         {
@@ -4576,13 +4572,13 @@
       "id": "446",
       "checkpoint": "PC08",
       "title": "Spend ore on enriched warheads.",
-      "status": "missing",
-      "catalogReadiness": "blocked",
+      "status": "done",
+      "catalogReadiness": "done",
       "acceptance": "five AEGIS ore grants the printed one-attack missile bonuses and cannot be spent twice. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
       "prerequisites": [
         {
           "id": "445",
-          "status": "missing",
+          "status": "done",
           "checkpoint": "PC08",
           "inChart": true
         }
@@ -4599,17 +4595,15 @@
       "group": "PC08-G2",
       "startWave": 7,
       "endWave": 7,
-      "unfinishedPrerequisites": [
-        "445"
-      ],
+      "unfinishedPrerequisites": [],
       "unfinishedExternalPrerequisites": []
     },
     {
       "id": "447",
       "checkpoint": "PC08",
       "title": "Resolve AEGIS Missile Launchers at Medium Range.",
-      "status": "missing",
-      "catalogReadiness": "ready",
+      "status": "done",
+      "catalogReadiness": "done",
       "acceptance": "four server dice use 5+ and exact upgrade/warhead/target constraints. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. When the printed action requires distinct targets, preserve every original roll and successful hit, assign only to its legal distinct contacts, and record any excess successes as unused without rerolls or duplicate damage (PC07-A6). Keep each action’s printed target limits; independent actions may share a contact when their own rules permit. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
       "prerequisites": [
         {
@@ -4644,8 +4638,8 @@
       "id": "448",
       "checkpoint": "PC08",
       "title": "Resolve AEGIS Point Defence.",
-      "status": "missing",
-      "catalogReadiness": "ready",
+      "status": "done",
+      "catalogReadiness": "done",
       "acceptance": "the printed Medium and Short dice, thresholds, upgrade, and target limits resolve once. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. When the printed action requires distinct targets, preserve every original roll and successful hit, assign only to its legal distinct contacts, and record any excess successes as unused without rerolls or duplicate damage (PC07-A6). Keep each action’s printed target limits; independent actions may share a contact when their own rules permit. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
       "prerequisites": [
         {
@@ -4680,19 +4674,19 @@
       "id": "449",
       "checkpoint": "PC08",
       "title": "Authorize Fighter Bay launches.",
-      "status": "missing",
-      "catalogReadiness": "blocked",
+      "status": "done",
+      "catalogReadiness": "done",
       "acceptance": "Alpha and Bravo launch only from their own charged, undamaged bay under Wing Commander authority. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
       "prerequisites": [
         {
           "id": "443",
-          "status": "missing",
+          "status": "done",
           "checkpoint": "PC08",
           "inChart": true
         },
         {
           "id": "396",
-          "status": "missing",
+          "status": "done",
           "checkpoint": "PC08",
           "inChart": true
         }
@@ -4709,23 +4703,20 @@
       "group": "PC08-G3",
       "startWave": 8,
       "endWave": 8,
-      "unfinishedPrerequisites": [
-        "443",
-        "396"
-      ],
+      "unfinishedPrerequisites": [],
       "unfinishedExternalPrerequisites": []
     },
     {
       "id": "450",
       "checkpoint": "PC08",
       "title": "Shift targets with fleet fighters.",
-      "status": "missing",
-      "catalogReadiness": "blocked",
+      "status": "done",
+      "catalogReadiness": "done",
       "acceptance": "each eligible fighter performs no more than one permitted target-number adjustment with correct wraparound. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
       "prerequisites": [
         {
           "id": "449",
-          "status": "missing",
+          "status": "done",
           "checkpoint": "PC08",
           "inChart": true
         }
@@ -4742,22 +4733,20 @@
       "group": "PC08-G3",
       "startWave": 9,
       "endWave": 9,
-      "unfinishedPrerequisites": [
-        "449"
-      ],
+      "unfinishedPrerequisites": [],
       "unfinishedExternalPrerequisites": []
     },
     {
       "id": "451",
       "checkpoint": "PC08",
       "title": "Attack at Medium Range with fleet fighters.",
-      "status": "missing",
-      "catalogReadiness": "blocked",
+      "status": "done",
+      "catalogReadiness": "done",
       "acceptance": "each committed fighter rolls once and deals the printed damage on 5+. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
       "prerequisites": [
         {
           "id": "449",
-          "status": "missing",
+          "status": "done",
           "checkpoint": "PC08",
           "inChart": true
         }
@@ -4774,22 +4763,20 @@
       "group": "PC08-G3",
       "startWave": 9,
       "endWave": 9,
-      "unfinishedPrerequisites": [
-        "449"
-      ],
+      "unfinishedPrerequisites": [],
       "unfinishedExternalPrerequisites": []
     },
     {
       "id": "452",
       "checkpoint": "PC08",
       "title": "Attack at Short Range with fleet fighters.",
-      "status": "missing",
-      "catalogReadiness": "blocked",
+      "status": "done",
+      "catalogReadiness": "done",
       "acceptance": "each committed fighter hits on 3+ and is destroyed on 1–2 before any later use. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
       "prerequisites": [
         {
           "id": "449",
-          "status": "missing",
+          "status": "done",
           "checkpoint": "PC08",
           "inChart": true
         }
@@ -4806,17 +4793,15 @@
       "group": "PC08-G3",
       "startWave": 9,
       "endWave": 9,
-      "unfinishedPrerequisites": [
-        "449"
-      ],
+      "unfinishedPrerequisites": [],
       "unfinishedExternalPrerequisites": []
     },
     {
       "id": "453",
       "checkpoint": "PC08",
       "title": "Resolve Maliades at range.",
-      "status": "partial",
-      "catalogReadiness": "blocked",
+      "status": "done",
+      "catalogReadiness": "done",
       "acceptance": "its Medium target/damage choice, Short attack, self-risk, durability, and fuel repair remain authoritative. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
       "prerequisites": [
         {
@@ -4827,7 +4812,7 @@
         },
         {
           "id": "397",
-          "status": "partial",
+          "status": "done",
           "checkpoint": "PC08",
           "inChart": true
         },
@@ -4868,17 +4853,15 @@
       "group": "PC08-G3",
       "startWave": 7,
       "endWave": 7,
-      "unfinishedPrerequisites": [
-        "397"
-      ],
+      "unfinishedPrerequisites": [],
       "unfinishedExternalPrerequisites": []
     },
     {
       "id": "454",
       "checkpoint": "PC08",
       "title": "Resolve Highwall at range.",
-      "status": "missing",
-      "catalogReadiness": "ready",
+      "status": "done",
+      "catalogReadiness": "done",
       "acceptance": "only a fuelled Highwall rolls each eligible Medium/Short attack and deals three on 5+. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
       "prerequisites": [
         {
@@ -4907,8 +4890,8 @@
       "id": "455",
       "checkpoint": "PC08",
       "title": "Resolve the Gorgoneion Missile Array.",
-      "status": "missing",
-      "catalogReadiness": "ready",
+      "status": "done",
+      "catalogReadiness": "done",
       "acceptance": "three dice use 6+/5+/4+ by range with at most one hit per target from the array each phase. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. When the printed action requires distinct targets, preserve every original roll and successful hit, assign only to its legal distinct contacts, and record any excess successes as unused without rerolls or duplicate damage (PC07-A6). Keep each action’s printed target limits; independent actions may share a contact when their own rules permit. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
       "prerequisites": [
         {
@@ -4943,8 +4926,8 @@
       "id": "456",
       "checkpoint": "PC08",
       "title": "Launch the PDF Fighter Wing.",
-      "status": "missing",
-      "catalogReadiness": "blocked",
+      "status": "done",
+      "catalogReadiness": "done",
       "acceptance": "only charged, undamaged Refinery bay and Colonel authority make its fighters combat-eligible. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
       "prerequisites": [
         {
@@ -4955,7 +4938,7 @@
         },
         {
           "id": "449",
-          "status": "missing",
+          "status": "done",
           "checkpoint": "PC08",
           "inChart": true
         }
@@ -4972,22 +4955,20 @@
       "group": "PC08-G3",
       "startWave": 9,
       "endWave": 9,
-      "unfinishedPrerequisites": [
-        "449"
-      ],
+      "unfinishedPrerequisites": [],
       "unfinishedExternalPrerequisites": []
     },
     {
       "id": "457",
       "checkpoint": "PC08",
       "title": "Resolve PDF fighters at Medium Range.",
-      "status": "missing",
-      "catalogReadiness": "blocked",
+      "status": "done",
+      "catalogReadiness": "done",
       "acceptance": "each fighter chooses one target shift or one 5+ attack and cannot do both. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
       "prerequisites": [
         {
           "id": "456",
-          "status": "missing",
+          "status": "done",
           "checkpoint": "PC08",
           "inChart": true
         }
@@ -5004,22 +4985,20 @@
       "group": "PC08-G3",
       "startWave": 10,
       "endWave": 10,
-      "unfinishedPrerequisites": [
-        "456"
-      ],
+      "unfinishedPrerequisites": [],
       "unfinishedExternalPrerequisites": []
     },
     {
       "id": "458",
       "checkpoint": "PC08",
       "title": "Resolve PDF fighters at Short Range.",
-      "status": "missing",
-      "catalogReadiness": "blocked",
+      "status": "done",
+      "catalogReadiness": "done",
       "acceptance": "each fighter attacks on 3+ and is destroyed on 1–2. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
       "prerequisites": [
         {
           "id": "456",
-          "status": "missing",
+          "status": "done",
           "checkpoint": "PC08",
           "inChart": true
         }
@@ -5036,17 +5015,15 @@
       "group": "PC08-G3",
       "startWave": 10,
       "endWave": 10,
-      "unfinishedPrerequisites": [
-        "456"
-      ],
+      "unfinishedPrerequisites": [],
       "unfinishedExternalPrerequisites": []
     },
     {
       "id": "459",
       "checkpoint": "PC08",
       "title": "Resolve Boa's range actions.",
-      "status": "missing",
-      "catalogReadiness": "ready",
+      "status": "done",
+      "catalogReadiness": "done",
       "acceptance": "once at each range, Boa may spend one Scrap for one valid Wolf damage under the recorded ambiguity policy. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
       "prerequisites": [
         {
@@ -5081,8 +5058,8 @@
       "id": "461",
       "checkpoint": "PC08",
       "title": "Relocate Pallas or Chepu before boarding.",
-      "status": "missing",
-      "catalogReadiness": "ready",
+      "status": "done",
+      "catalogReadiness": "done",
       "acceptance": "a fuelled craft moves to one legal ship only at the start of Boarding. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
       "prerequisites": [
         {
@@ -5123,8 +5100,8 @@
       "id": "462",
       "checkpoint": "PC08",
       "title": "Apply engineering/service shuttle support.",
-      "status": "missing",
-      "catalogReadiness": "ready",
+      "status": "done",
+      "catalogReadiness": "done",
       "acceptance": "Philia, Blacksmith, Black Sheep, Condor, Chacau, Wobbly, and Ally enable host security teams from their actual craft definitions. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
       "prerequisites": [
         {
@@ -5159,8 +5136,8 @@
       "id": "465",
       "checkpoint": "PC08",
       "title": "Drop Assault Transport parties.",
-      "status": "missing",
-      "catalogReadiness": "ready",
+      "status": "done",
+      "catalogReadiness": "done",
       "acceptance": "each surviving transport contributes exactly four parties to its resolved target. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
       "prerequisites": [
         {
@@ -5195,8 +5172,8 @@
       "id": "466",
       "checkpoint": "PC08",
       "title": "Roll security-team defence.",
-      "status": "missing",
-      "catalogReadiness": "blocked",
+      "status": "done",
+      "catalogReadiness": "done",
       "acceptance": "each available team uses the printed 1 death, 2–3 no effect, 4+ kill result from server dice. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
       "prerequisites": [
         {
@@ -5207,7 +5184,7 @@
         },
         {
           "id": "465",
-          "status": "missing",
+          "status": "done",
           "checkpoint": "PC08",
           "inChart": true
         }
@@ -5224,17 +5201,15 @@
       "group": "PC08-G4",
       "startWave": 7,
       "endWave": 7,
-      "unfinishedPrerequisites": [
-        "465"
-      ],
+      "unfinishedPrerequisites": [],
       "unfinishedExternalPrerequisites": []
     },
     {
       "id": "394",
       "checkpoint": "PC08",
       "title": "Resolve Pallas boarding support.",
-      "status": "missing",
-      "catalogReadiness": "blocked",
+      "status": "done",
+      "catalogReadiness": "done",
       "acceptance": "its host contributes security teams and rerolls, with fuelled relocation only at the correct boundary. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
       "prerequisites": [
         {
@@ -5245,7 +5220,7 @@
         },
         {
           "id": "466",
-          "status": "missing",
+          "status": "done",
           "checkpoint": "PC08",
           "inChart": true
         }
@@ -5262,17 +5237,15 @@
       "group": "PC08-G4",
       "startWave": 8,
       "endWave": 8,
-      "unfinishedPrerequisites": [
-        "466"
-      ],
+      "unfinishedPrerequisites": [],
       "unfinishedExternalPrerequisites": []
     },
     {
       "id": "395",
       "checkpoint": "PC08",
       "title": "Resolve Chepu boarding support.",
-      "status": "missing",
-      "catalogReadiness": "blocked",
+      "status": "done",
+      "catalogReadiness": "done",
       "acceptance": "the equivalent support runs from Chepu's own owner, host, fuel, and mission state. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
       "prerequisites": [
         {
@@ -5283,7 +5256,7 @@
         },
         {
           "id": "466",
-          "status": "missing",
+          "status": "done",
           "checkpoint": "PC08",
           "inChart": true
         }
@@ -5300,17 +5273,15 @@
       "group": "PC08-G4",
       "startWave": 8,
       "endWave": 8,
-      "unfinishedPrerequisites": [
-        "466"
-      ],
+      "unfinishedPrerequisites": [],
       "unfinishedExternalPrerequisites": []
     },
     {
       "id": "460",
       "checkpoint": "PC08",
       "title": "Apply Macaw boarding support.",
-      "status": "missing",
-      "catalogReadiness": "blocked",
+      "status": "done",
+      "catalogReadiness": "done",
       "acceptance": "its authoritative host can contribute eligible security teams only while Macaw is correctly docked. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
       "prerequisites": [
         {
@@ -5321,7 +5292,7 @@
         },
         {
           "id": "466",
-          "status": "missing",
+          "status": "done",
           "checkpoint": "PC08",
           "inChart": true
         }
@@ -5338,28 +5309,26 @@
       "group": "PC08-G4",
       "startWave": 8,
       "endWave": 8,
-      "unfinishedPrerequisites": [
-        "466"
-      ],
+      "unfinishedPrerequisites": [],
       "unfinishedExternalPrerequisites": []
     },
     {
       "id": "463",
       "checkpoint": "PC08",
       "title": "Apply AEGIS and Pallas boarding rerolls.",
-      "status": "missing",
-      "catalogReadiness": "blocked",
+      "status": "done",
+      "catalogReadiness": "done",
       "acceptance": "independent reroll allowances cannot be reused or double-counted. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
       "prerequisites": [
         {
           "id": "394",
-          "status": "missing",
+          "status": "done",
           "checkpoint": "PC08",
           "inChart": true
         },
         {
           "id": "395",
-          "status": "missing",
+          "status": "done",
           "checkpoint": "PC08",
           "inChart": true
         },
@@ -5382,18 +5351,15 @@
       "group": "PC08-G4",
       "startWave": 9,
       "endWave": 9,
-      "unfinishedPrerequisites": [
-        "394",
-        "395"
-      ],
+      "unfinishedPrerequisites": [],
       "unfinishedExternalPrerequisites": []
     },
     {
       "id": "464",
       "checkpoint": "PC08",
       "title": "Apply Wolf Commander boarding leadership.",
-      "status": "missing",
-      "catalogReadiness": "blocked",
+      "status": "done",
+      "catalogReadiness": "done",
       "acceptance": "two parties are added at the printed point and incomplete consequence text routes to an explicit facilitator call. Keep that incomplete printed consequence as an explicit facilitator ruling, labeled and privately audited. Automatically calculate the source-defined party counts, rolls and surrounding boarding consequences; do not invent a deterministic replacement for the missing text. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
       "prerequisites": [
         {
@@ -5404,7 +5370,7 @@
         },
         {
           "id": "466",
-          "status": "missing",
+          "status": "done",
           "checkpoint": "PC08",
           "inChart": true
         }
@@ -5421,22 +5387,20 @@
       "group": "PC08-G4",
       "startWave": 8,
       "endWave": 8,
-      "unfinishedPrerequisites": [
-        "466"
-      ],
+      "unfinishedPrerequisites": [],
       "unfinishedExternalPrerequisites": []
     },
     {
       "id": "467",
       "checkpoint": "PC08",
       "title": "Apply surviving-boarder damage.",
-      "status": "missing",
-      "catalogReadiness": "blocked",
+      "status": "done",
+      "catalogReadiness": "done",
       "acceptance": "each remaining assault team deals one authoritative ship damage after defence. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
       "prerequisites": [
         {
           "id": "466",
-          "status": "missing",
+          "status": "done",
           "checkpoint": "PC08",
           "inChart": true
         }
@@ -5453,22 +5417,20 @@
       "group": "PC08-G4",
       "startWave": 8,
       "endWave": 8,
-      "unfinishedPrerequisites": [
-        "466"
-      ],
+      "unfinishedPrerequisites": [],
       "unfinishedExternalPrerequisites": []
     },
     {
       "id": "468",
       "checkpoint": "PC08",
       "title": "Resolve Militia Leader defence.",
-      "status": "missing",
-      "catalogReadiness": "blocked",
+      "status": "done",
+      "catalogReadiness": "done",
       "acceptance": "outnumbered teams gain the printed dice and optional front-line risk can kill the role holder. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
       "prerequisites": [
         {
           "id": "466",
-          "status": "missing",
+          "status": "done",
           "checkpoint": "PC08",
           "inChart": true
         },
@@ -5491,17 +5453,15 @@
       "group": "PC08-G4",
       "startWave": 8,
       "endWave": 8,
-      "unfinishedPrerequisites": [
-        "466"
-      ],
+      "unfinishedPrerequisites": [],
       "unfinishedExternalPrerequisites": []
     },
     {
       "id": "469",
       "checkpoint": "PC08",
       "title": "Resolve Wolf Fighter Wing destruction.",
-      "status": "missing",
-      "catalogReadiness": "ready",
+      "status": "done",
+      "catalogReadiness": "done",
       "acceptance": "each range applies its exact effect and surviving wings alone enter next-attack return state. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
       "prerequisites": [
         {
@@ -5530,8 +5490,8 @@
       "id": "469a",
       "checkpoint": "PC08",
       "title": "Resolve Assault Transport destruction.",
-      "status": "missing",
-      "catalogReadiness": "ready",
+      "status": "done",
+      "catalogReadiness": "done",
       "acceptance": "each range applies its exact effect and only surviving transports drop parties. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
       "prerequisites": [
         {
@@ -5560,8 +5520,8 @@
       "id": "469b",
       "checkpoint": "PC08",
       "title": "Resolve Wolf Destroyer destruction.",
-      "status": "missing",
-      "catalogReadiness": "ready",
+      "status": "done",
+      "catalogReadiness": "done",
       "acceptance": "each range applies the printed damage/return consequence from immutable card data. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
       "prerequisites": [
         {
@@ -5590,8 +5550,8 @@
       "id": "469c",
       "checkpoint": "PC08",
       "title": "Resolve Wolf Cruiser destruction.",
-      "status": "missing",
-      "catalogReadiness": "ready",
+      "status": "done",
+      "catalogReadiness": "done",
       "acceptance": "each range applies the printed damage/return consequence from immutable card data. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
       "prerequisites": [
         {
@@ -5620,8 +5580,8 @@
       "id": "469d",
       "checkpoint": "PC08",
       "title": "Resolve Strikecarrier destruction.",
-      "status": "missing",
-      "catalogReadiness": "ready",
+      "status": "done",
+      "catalogReadiness": "done",
       "acceptance": "each range effect and surviving-wing bonus timing use authoritative post-range state. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
       "prerequisites": [
         {
@@ -5650,8 +5610,8 @@
       "id": "469e",
       "checkpoint": "PC08",
       "title": "Resolve Battlestation destruction.",
-      "status": "missing",
-      "catalogReadiness": "ready",
+      "status": "done",
+      "catalogReadiness": "done",
       "acceptance": "each range effect, Short immunity, and station-specific consequence match the printed card. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
       "prerequisites": [
         {
@@ -5680,13 +5640,13 @@
       "id": "470",
       "checkpoint": "PC08",
       "title": "Carry surviving Wolf Fighter Wings forward.",
-      "status": "missing",
-      "catalogReadiness": "blocked",
+      "status": "done",
+      "catalogReadiness": "done",
       "acceptance": "surviving wings return in the next attack and destroyed wings do not. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
       "prerequisites": [
         {
           "id": "469",
-          "status": "missing",
+          "status": "done",
           "checkpoint": "PC08",
           "inChart": true
         }
@@ -5703,9 +5663,7 @@
       "group": "PC08-G5",
       "startWave": 7,
       "endWave": 7,
-      "unfinishedPrerequisites": [
-        "469"
-      ],
+      "unfinishedPrerequisites": [],
       "unfinishedExternalPrerequisites": []
     },
     {
@@ -5713,12 +5671,12 @@
       "checkpoint": "PC09",
       "title": "Enforce Battlestation Short Range immunity.",
       "status": "missing",
-      "catalogReadiness": "blocked",
+      "catalogReadiness": "ready",
       "acceptance": "Short damage is denied while Long/Medium vulnerability remains. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
       "prerequisites": [
         {
           "id": "469e",
-          "status": "missing",
+          "status": "done",
           "checkpoint": "PC08",
           "inChart": true
         },
@@ -5741,9 +5699,7 @@
       "group": "PC09-G1",
       "startWave": 11,
       "endWave": 11,
-      "unfinishedPrerequisites": [
-        "469e"
-      ],
+      "unfinishedPrerequisites": [],
       "unfinishedExternalPrerequisites": []
     },
     {
@@ -5751,18 +5707,18 @@
       "checkpoint": "PC09",
       "title": "Apply Strikecarrier wing bonus.",
       "status": "missing",
-      "catalogReadiness": "blocked",
+      "catalogReadiness": "ready",
       "acceptance": "the final bonus uses authoritative surviving-wing state at the correct step. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
       "prerequisites": [
         {
           "id": "469d",
-          "status": "missing",
+          "status": "done",
           "checkpoint": "PC08",
           "inChart": true
         },
         {
           "id": "470",
-          "status": "missing",
+          "status": "done",
           "checkpoint": "PC08",
           "inChart": true
         }
@@ -5779,10 +5735,7 @@
       "group": "PC09-G1",
       "startWave": 11,
       "endWave": 11,
-      "unfinishedPrerequisites": [
-        "469d",
-        "470"
-      ],
+      "unfinishedPrerequisites": [],
       "unfinishedExternalPrerequisites": []
     },
     {
@@ -5790,12 +5743,12 @@
       "checkpoint": "PC09",
       "title": "Apply surviving Wolf ship damage.",
       "status": "missing",
-      "catalogReadiness": "blocked",
+      "catalogReadiness": "ready",
       "acceptance": "after Boarding, every surviving card damages its resolved target by its printed value. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
       "prerequisites": [
         {
           "id": "469",
-          "status": "missing",
+          "status": "done",
           "checkpoint": "PC08",
           "inChart": true
         },
@@ -5818,9 +5771,7 @@
       "group": "PC09-G1",
       "startWave": 11,
       "endWave": 11,
-      "unfinishedPrerequisites": [
-        "469"
-      ],
+      "unfinishedPrerequisites": [],
       "unfinishedExternalPrerequisites": []
     },
     {
@@ -5828,12 +5779,12 @@
       "checkpoint": "PC09",
       "title": "Resolve Boa combat ambiguity.",
       "status": "missing",
-      "catalogReadiness": "blocked",
+      "catalogReadiness": "ready",
       "acceptance": "each range Scrap attack follows the recorded policy for destroyed/invalid targets and never spends on denial. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
       "prerequisites": [
         {
           "id": "459",
-          "status": "missing",
+          "status": "done",
           "checkpoint": "PC08",
           "inChart": true
         },
@@ -5856,9 +5807,7 @@
       "group": "PC09-G1",
       "startWave": 11,
       "endWave": 11,
-      "unfinishedPrerequisites": [
-        "459"
-      ],
+      "unfinishedPrerequisites": [],
       "unfinishedExternalPrerequisites": []
     },
     {
@@ -5996,18 +5945,18 @@
       "checkpoint": "PC09",
       "title": "Apply combat casualties.",
       "status": "missing",
-      "catalogReadiness": "blocked",
+      "catalogReadiness": "ready",
       "acceptance": "extend the existing population/threshold primitive so each applicable hit steps the target's exact population track and triggers thresholds once. Automatically deliver entitled operational outcomes, append the complete private GM receipt and make only approved public facts available to Press through the existing news path. Press controls publication; private causes, votes, suspicion, Wolf identity and GM notes remain restricted. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
       "prerequisites": [
         {
           "id": "466",
-          "status": "missing",
+          "status": "done",
           "checkpoint": "PC08",
           "inChart": true
         },
         {
           "id": "467",
-          "status": "missing",
+          "status": "done",
           "checkpoint": "PC08",
           "inChart": true
         }
@@ -6024,10 +5973,7 @@
       "group": "PC09-G2",
       "startWave": 11,
       "endWave": 11,
-      "unfinishedPrerequisites": [
-        "466",
-        "467"
-      ],
+      "unfinishedPrerequisites": [],
       "unfinishedExternalPrerequisites": []
     },
     {
@@ -6225,7 +6171,7 @@
       "checkpoint": "PC09",
       "title": "Rebuild fighters after combat.",
       "status": "missing",
-      "catalogReadiness": "blocked",
+      "catalogReadiness": "ready",
       "acceptance": "the AEGIS Construction Bay spends one material per fighter up to the current wing cap. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
       "prerequisites": [
         {
@@ -6236,13 +6182,13 @@
         },
         {
           "id": "469",
-          "status": "missing",
+          "status": "done",
           "checkpoint": "PC08",
           "inChart": true
         },
         {
           "id": "396",
-          "status": "missing",
+          "status": "done",
           "checkpoint": "PC08",
           "inChart": true
         }
@@ -6259,10 +6205,7 @@
       "group": "PC09-G2",
       "startWave": 11,
       "endWave": 11,
-      "unfinishedPrerequisites": [
-        "469",
-        "396"
-      ],
+      "unfinishedPrerequisites": [],
       "unfinishedExternalPrerequisites": []
     },
     {
@@ -6801,7 +6744,7 @@
       "checkpoint": "PC09",
       "title": "Activate the Militia Leader.",
       "status": "missing",
-      "catalogReadiness": "blocked",
+      "catalogReadiness": "ready",
       "acceptance": "boarding defence and front-line death risk resolve from current location and authoritative dice. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
       "prerequisites": [
         {
@@ -6812,7 +6755,7 @@
         },
         {
           "id": "468",
-          "status": "missing",
+          "status": "done",
           "checkpoint": "PC08",
           "inChart": true
         }
@@ -6829,9 +6772,7 @@
       "group": "PC09-G4",
       "startWave": 11,
       "endWave": 11,
-      "unfinishedPrerequisites": [
-        "468"
-      ],
+      "unfinishedPrerequisites": [],
       "unfinishedExternalPrerequisites": []
     },
     {
@@ -6839,7 +6780,7 @@
       "checkpoint": "PC09",
       "title": "Activate the PDF Fighter Ace.",
       "status": "missing",
-      "catalogReadiness": "blocked",
+      "catalogReadiness": "ready",
       "acceptance": "the replacement's personal-combat loop, damage, target, and result are server-resolved and usable in an attack. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
       "prerequisites": [
         {
@@ -6850,7 +6791,7 @@
         },
         {
           "id": "456",
-          "status": "missing",
+          "status": "done",
           "checkpoint": "PC08",
           "inChart": true
         }
@@ -6867,9 +6808,7 @@
       "group": "PC09-G4",
       "startWave": 11,
       "endWave": 11,
-      "unfinishedPrerequisites": [
-        "456"
-      ],
+      "unfinishedPrerequisites": [],
       "unfinishedExternalPrerequisites": []
     },
     {
@@ -7461,7 +7400,7 @@
       "checkpoint": "PC09",
       "title": "Create the Executive Officer workspace.",
       "status": "missing",
-      "catalogReadiness": "blocked",
+      "catalogReadiness": "ready",
       "acceptance": "maintenance, AEGIS weapons, Pallas, enriched warheads, and Command and Control route to real actions. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
       "prerequisites": [
         {
@@ -7496,7 +7435,7 @@
         },
         {
           "id": "394",
-          "status": "missing",
+          "status": "done",
           "checkpoint": "PC08",
           "inChart": true
         },
@@ -7508,43 +7447,43 @@
         },
         {
           "id": "445",
-          "status": "missing",
+          "status": "done",
           "checkpoint": "PC08",
           "inChart": true
         },
         {
           "id": "446",
-          "status": "missing",
+          "status": "done",
           "checkpoint": "PC08",
           "inChart": true
         },
         {
           "id": "447",
-          "status": "missing",
+          "status": "done",
           "checkpoint": "PC08",
           "inChart": true
         },
         {
           "id": "448",
-          "status": "missing",
+          "status": "done",
           "checkpoint": "PC08",
           "inChart": true
         },
         {
           "id": "449",
-          "status": "missing",
+          "status": "done",
           "checkpoint": "PC08",
           "inChart": true
         },
         {
           "id": "461",
-          "status": "missing",
+          "status": "done",
           "checkpoint": "PC08",
           "inChart": true
         },
         {
           "id": "463",
-          "status": "missing",
+          "status": "done",
           "checkpoint": "PC08",
           "inChart": true
         }
@@ -7561,16 +7500,7 @@
       "group": "PC09-G4",
       "startWave": 11,
       "endWave": 11,
-      "unfinishedPrerequisites": [
-        "394",
-        "445",
-        "446",
-        "447",
-        "448",
-        "449",
-        "461",
-        "463"
-      ],
+      "unfinishedPrerequisites": [],
       "unfinishedExternalPrerequisites": []
     },
     {
@@ -7578,7 +7508,7 @@
       "checkpoint": "PC10",
       "title": "Create the Wing Commander workspace.",
       "status": "missing",
-      "catalogReadiness": "blocked",
+      "catalogReadiness": "ready",
       "acceptance": "Starlight, both Fighter Bays, wings, scouting, missions, and fighter rebuilding show current authority and results. Use the existing ordinary-player station/console chooser, role-bound actions and truthful pending/committed results. Back and lost-station recovery return to the correct chooser with a reselect instruction, preserving safe local input. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
       "prerequisites": [
         {
@@ -7637,7 +7567,7 @@
         },
         {
           "id": "396",
-          "status": "missing",
+          "status": "done",
           "checkpoint": "PC08",
           "inChart": true
         },
@@ -7649,25 +7579,25 @@
         },
         {
           "id": "449",
-          "status": "missing",
+          "status": "done",
           "checkpoint": "PC08",
           "inChart": true
         },
         {
           "id": "450",
-          "status": "missing",
+          "status": "done",
           "checkpoint": "PC08",
           "inChart": true
         },
         {
           "id": "451",
-          "status": "missing",
+          "status": "done",
           "checkpoint": "PC08",
           "inChart": true
         },
         {
           "id": "452",
-          "status": "missing",
+          "status": "done",
           "checkpoint": "PC08",
           "inChart": true
         }
@@ -7684,13 +7614,7 @@
       "group": "PC10-G1",
       "startWave": 15,
       "endWave": 15,
-      "unfinishedPrerequisites": [
-        "396",
-        "449",
-        "450",
-        "451",
-        "452"
-      ],
+      "unfinishedPrerequisites": [],
       "unfinishedExternalPrerequisites": []
     },
     {
@@ -7923,7 +7847,7 @@
       "checkpoint": "PC10",
       "title": "Complete the PDF Colonel workspace.",
       "status": "missing",
-      "catalogReadiness": "blocked",
+      "catalogReadiness": "ready",
       "acceptance": "Fighter Bay, Escort Wing, Chepu, boarding, news relay, and mission participation remain role-bound. Use the existing ordinary-player station/console chooser, role-bound actions and truthful pending/committed results. Back and lost-station recovery return to the correct chooser with a reselect instruction, preserving safe local input. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
       "prerequisites": [
         {
@@ -7940,7 +7864,7 @@
         },
         {
           "id": "231",
-          "status": "partial",
+          "status": "done",
           "checkpoint": "PC08",
           "inChart": true
         },
@@ -7964,13 +7888,13 @@
         },
         {
           "id": "395",
-          "status": "missing",
+          "status": "done",
           "checkpoint": "PC08",
           "inChart": true
         },
         {
           "id": "398",
-          "status": "partial",
+          "status": "done",
           "checkpoint": "PC08",
           "inChart": true
         },
@@ -8005,11 +7929,7 @@
       "group": "PC10-G1",
       "startWave": 15,
       "endWave": 15,
-      "unfinishedPrerequisites": [
-        "231",
-        "395",
-        "398"
-      ],
+      "unfinishedPrerequisites": [],
       "unfinishedExternalPrerequisites": []
     },
     {
@@ -9761,7 +9681,7 @@
         },
         {
           "id": "644",
-          "status": "missing",
+          "status": "done",
           "checkpoint": "PC08",
           "inChart": true
         },
@@ -9817,7 +9737,6 @@
       "unfinishedPrerequisites": [
         "641",
         "642",
-        "644",
         "645",
         "647",
         "648",
@@ -10841,7 +10760,7 @@
       "to": "644",
       "type": "hard_prompt",
       "inChart": true,
-      "sourceStatus": "missing"
+      "sourceStatus": "done"
     },
     {
       "from": "351",
@@ -10981,7 +10900,7 @@
       "to": "443",
       "type": "hard_prompt",
       "inChart": true,
-      "sourceStatus": "missing"
+      "sourceStatus": "done"
     },
     {
       "from": "441",
@@ -11002,7 +10921,7 @@
       "to": "446",
       "type": "hard_prompt",
       "inChart": true,
-      "sourceStatus": "missing"
+      "sourceStatus": "done"
     },
     {
       "from": "441",
@@ -11037,35 +10956,35 @@
       "to": "449",
       "type": "hard_prompt",
       "inChart": true,
-      "sourceStatus": "missing"
+      "sourceStatus": "done"
     },
     {
       "from": "396",
       "to": "449",
       "type": "hard_prompt",
       "inChart": true,
-      "sourceStatus": "missing"
+      "sourceStatus": "done"
     },
     {
       "from": "449",
       "to": "450",
       "type": "hard_prompt",
       "inChart": true,
-      "sourceStatus": "missing"
+      "sourceStatus": "done"
     },
     {
       "from": "449",
       "to": "451",
       "type": "hard_prompt",
       "inChart": true,
-      "sourceStatus": "missing"
+      "sourceStatus": "done"
     },
     {
       "from": "449",
       "to": "452",
       "type": "hard_prompt",
       "inChart": true,
-      "sourceStatus": "missing"
+      "sourceStatus": "done"
     },
     {
       "from": "264",
@@ -11079,7 +10998,7 @@
       "to": "453",
       "type": "hard_prompt",
       "inChart": true,
-      "sourceStatus": "partial"
+      "sourceStatus": "done"
     },
     {
       "from": "431",
@@ -11142,21 +11061,21 @@
       "to": "456",
       "type": "hard_prompt",
       "inChart": true,
-      "sourceStatus": "missing"
+      "sourceStatus": "done"
     },
     {
       "from": "456",
       "to": "457",
       "type": "hard_prompt",
       "inChart": true,
-      "sourceStatus": "missing"
+      "sourceStatus": "done"
     },
     {
       "from": "456",
       "to": "458",
       "type": "hard_prompt",
       "inChart": true,
-      "sourceStatus": "missing"
+      "sourceStatus": "done"
     },
     {
       "from": "400",
@@ -11233,7 +11152,7 @@
       "to": "466",
       "type": "hard_prompt",
       "inChart": true,
-      "sourceStatus": "missing"
+      "sourceStatus": "done"
     },
     {
       "from": "261",
@@ -11247,7 +11166,7 @@
       "to": "394",
       "type": "hard_prompt",
       "inChart": true,
-      "sourceStatus": "missing"
+      "sourceStatus": "done"
     },
     {
       "from": "272",
@@ -11261,7 +11180,7 @@
       "to": "395",
       "type": "hard_prompt",
       "inChart": true,
-      "sourceStatus": "missing"
+      "sourceStatus": "done"
     },
     {
       "from": "399",
@@ -11275,21 +11194,21 @@
       "to": "460",
       "type": "hard_prompt",
       "inChart": true,
-      "sourceStatus": "missing"
+      "sourceStatus": "done"
     },
     {
       "from": "394",
       "to": "463",
       "type": "hard_prompt",
       "inChart": true,
-      "sourceStatus": "missing"
+      "sourceStatus": "done"
     },
     {
       "from": "395",
       "to": "463",
       "type": "hard_prompt",
       "inChart": true,
-      "sourceStatus": "missing"
+      "sourceStatus": "done"
     },
     {
       "from": "428",
@@ -11310,21 +11229,21 @@
       "to": "464",
       "type": "hard_prompt",
       "inChart": true,
-      "sourceStatus": "missing"
+      "sourceStatus": "done"
     },
     {
       "from": "466",
       "to": "467",
       "type": "hard_prompt",
       "inChart": true,
-      "sourceStatus": "missing"
+      "sourceStatus": "done"
     },
     {
       "from": "466",
       "to": "468",
       "type": "hard_prompt",
       "inChart": true,
-      "sourceStatus": "missing"
+      "sourceStatus": "done"
     },
     {
       "from": "280",
@@ -11380,14 +11299,14 @@
       "to": "470",
       "type": "hard_prompt",
       "inChart": true,
-      "sourceStatus": "missing"
+      "sourceStatus": "done"
     },
     {
       "from": "469e",
       "to": "471",
       "type": "hard_prompt",
       "inChart": true,
-      "sourceStatus": "missing"
+      "sourceStatus": "done"
     },
     {
       "from": "442",
@@ -11401,21 +11320,21 @@
       "to": "472",
       "type": "hard_prompt",
       "inChart": true,
-      "sourceStatus": "missing"
+      "sourceStatus": "done"
     },
     {
       "from": "470",
       "to": "472",
       "type": "hard_prompt",
       "inChart": true,
-      "sourceStatus": "missing"
+      "sourceStatus": "done"
     },
     {
       "from": "469",
       "to": "473",
       "type": "hard_prompt",
       "inChart": true,
-      "sourceStatus": "missing"
+      "sourceStatus": "done"
     },
     {
       "from": "130",
@@ -11429,7 +11348,7 @@
       "to": "580",
       "type": "hard_prompt",
       "inChart": true,
-      "sourceStatus": "missing"
+      "sourceStatus": "done"
     },
     {
       "from": "578",
@@ -11478,14 +11397,14 @@
       "to": "477",
       "type": "hard_prompt",
       "inChart": true,
-      "sourceStatus": "missing"
+      "sourceStatus": "done"
     },
     {
       "from": "467",
       "to": "477",
       "type": "hard_prompt",
       "inChart": true,
-      "sourceStatus": "missing"
+      "sourceStatus": "done"
     },
     {
       "from": "477",
@@ -11569,14 +11488,14 @@
       "to": "483",
       "type": "hard_prompt",
       "inChart": true,
-      "sourceStatus": "missing"
+      "sourceStatus": "done"
     },
     {
       "from": "396",
       "to": "483",
       "type": "hard_prompt",
       "inChart": true,
-      "sourceStatus": "missing"
+      "sourceStatus": "done"
     },
     {
       "from": "474",
@@ -11779,7 +11698,7 @@
       "to": "519",
       "type": "hard_prompt",
       "inChart": true,
-      "sourceStatus": "missing"
+      "sourceStatus": "done"
     },
     {
       "from": "515",
@@ -11793,7 +11712,7 @@
       "to": "520",
       "type": "hard_prompt",
       "inChart": true,
-      "sourceStatus": "missing"
+      "sourceStatus": "done"
     },
     {
       "from": "515",
@@ -12045,7 +11964,7 @@
       "to": "180",
       "type": "hard_prompt",
       "inChart": true,
-      "sourceStatus": "missing"
+      "sourceStatus": "done"
     },
     {
       "from": "436",
@@ -12059,49 +11978,49 @@
       "to": "180",
       "type": "hard_prompt",
       "inChart": true,
-      "sourceStatus": "missing"
+      "sourceStatus": "done"
     },
     {
       "from": "446",
       "to": "180",
       "type": "hard_prompt",
       "inChart": true,
-      "sourceStatus": "missing"
+      "sourceStatus": "done"
     },
     {
       "from": "447",
       "to": "180",
       "type": "hard_prompt",
       "inChart": true,
-      "sourceStatus": "missing"
+      "sourceStatus": "done"
     },
     {
       "from": "448",
       "to": "180",
       "type": "hard_prompt",
       "inChart": true,
-      "sourceStatus": "missing"
+      "sourceStatus": "done"
     },
     {
       "from": "449",
       "to": "180",
       "type": "hard_prompt",
       "inChart": true,
-      "sourceStatus": "missing"
+      "sourceStatus": "done"
     },
     {
       "from": "461",
       "to": "180",
       "type": "hard_prompt",
       "inChart": true,
-      "sourceStatus": "missing"
+      "sourceStatus": "done"
     },
     {
       "from": "463",
       "to": "180",
       "type": "hard_prompt",
       "inChart": true,
-      "sourceStatus": "missing"
+      "sourceStatus": "done"
     },
     {
       "from": "166",
@@ -12171,7 +12090,7 @@
       "to": "181",
       "type": "hard_prompt",
       "inChart": true,
-      "sourceStatus": "missing"
+      "sourceStatus": "done"
     },
     {
       "from": "422",
@@ -12185,28 +12104,28 @@
       "to": "181",
       "type": "hard_prompt",
       "inChart": true,
-      "sourceStatus": "missing"
+      "sourceStatus": "done"
     },
     {
       "from": "450",
       "to": "181",
       "type": "hard_prompt",
       "inChart": true,
-      "sourceStatus": "missing"
+      "sourceStatus": "done"
     },
     {
       "from": "451",
       "to": "181",
       "type": "hard_prompt",
       "inChart": true,
-      "sourceStatus": "missing"
+      "sourceStatus": "done"
     },
     {
       "from": "452",
       "to": "181",
       "type": "hard_prompt",
       "inChart": true,
-      "sourceStatus": "missing"
+      "sourceStatus": "done"
     },
     {
       "from": "166",
@@ -12430,7 +12349,7 @@
       "to": "233b",
       "type": "hard_prompt",
       "inChart": true,
-      "sourceStatus": "partial"
+      "sourceStatus": "done"
     },
     {
       "from": "272",
@@ -12458,14 +12377,14 @@
       "to": "233b",
       "type": "hard_prompt",
       "inChart": true,
-      "sourceStatus": "missing"
+      "sourceStatus": "done"
     },
     {
       "from": "398",
       "to": "233b",
       "type": "hard_prompt",
       "inChart": true,
-      "sourceStatus": "partial"
+      "sourceStatus": "done"
     },
     {
       "from": "401",
@@ -13235,7 +13154,7 @@
       "to": "651",
       "type": "hard_prompt",
       "inChart": true,
-      "sourceStatus": "missing"
+      "sourceStatus": "done"
     },
     {
       "from": "645",

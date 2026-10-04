@@ -347,7 +347,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 228 | NEW | done | 122;125;224 | none | none | none | none | none | none | none | E-AUDIT-228;E-198-230-PRODUCTION | M3;M5 | Resolve Refinery 124 Hydroponics. |
 | 229 | NEW | done | 122;125;224 | none | none | none | none | none | none | none | E-AUDIT-229;E-198-230-PRODUCTION | M3;M5 | Resolve Refinery 124 Water Reclamation. |
 | 230 | NEW | done | 122;125;224 | none | none | none | none | none | none | none | E-AUDIT-230;E-198-230-PRODUCTION | M3;M5 | Resolve both Fuel Refinery consoles. |
-| 231 | NEW | partial | 182;273 | none | none | none | none | none | none | none | E-AUDIT-231;E-231-REFINERY-FIGHTER-BAY-GATE | M3;M5 | Gate the Refinery Fighter Bay. |
+| 231 | NEW | done | 182;273 | none | none | none | none | none | none | none | E-AUDIT-231;E-231-REFINERY-FIGHTER-BAY-GATE;E-PC08-FINAL-20261003 | M3;M5 | Gate the Refinery Fighter Bay. |
 | 232 | PRESERVE | done | 177;287-304 | none | none | none | none | none | none | none | E-AUDIT-232;E-PC06-FINAL-20261002 | M3;M5 | Audit the Refinery 124 Jump Drive. |
 | 233 | NEW | done | 166 | none | none | none | none | none | none | none | E-AUDIT-233;E-FLEET-CAPTAIN-WORKSPACES-VERIFIED | M3;M5 | Complete the Refinery 124 Captain workspace. |
 | 233a | NEW | done | 166;224;230;271;361;377;383 | none | none | none | none | none | none | none | E-233A-REFINERY-ENGINEER-WORKSPACE;E-198-230-PRODUCTION;E-164-377-CARGO-AUTHORITY;E-383-CHACAU-REPAIRS;E-AUDIT-224;E-AUDIT-271;E-AUDIT-233A | M3;M5 | Complete the Refinery Engineer workspace. |
@@ -481,13 +481,13 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 351 | EXTEND | done | 433a | none | none | none | none | ATTACK-DRADIS | none | none | E-433A;E-ATTACK-DRADIS;E-PC07-FINAL-20261003 | M7 | Show only arrived local ships on DRADIS. |
 | 352 | EXTEND | done | 294 | none | none | none | none | none | none | none | E-AUDIT-352;E-PC06-FINAL-20261002 | M7 | Represent jumping ships in transition. |
 | 353 | EXTEND | done | 433a | none | none | none | none | ATTACK-DRADIS | none | none | E-ATTACK-DRADIS;E-433A;E-PC07-FINAL-20261003 | M7 | Publish sampled transit contacts. |
-| 354 | EXTEND | missing | 433a | none | none | none | none | ATTACK-DRADIS | none | none | E-ATTACK-DRADIS;E-433A | M7 | Remove stale contacts. |
-| 355 | EXTEND | missing | 433a | none | none | none | none | ATTACK-DRADIS | none | none | E-ATTACK-DRADIS;E-433A | M7 | Fold docked shuttles into host contacts. |
-| 356 | EXTEND | missing | 433a | none | none | none | none | ATTACK-DRADIS | none | none | E-ATTACK-DRADIS;E-433A | M7 | Show undocked shuttle samples. |
-| 357 | EXTEND | missing | 433a | none | none | none | none | ATTACK-DRADIS | none | none | E-ATTACK-DRADIS;E-433A | M7 | Redact split-fleet contact metadata. |
-| 358 | EXTEND | missing | 433a | none | none | none | none | ATTACK-DRADIS | none | none | E-ATTACK-DRADIS;E-433A | M7 | Reflect attack parking on DRADIS. |
-| 359 | EXTEND | missing | 433a | none | none | none | none | ATTACK-DRADIS | none | none | E-ATTACK-DRADIS;E-433A | M7 | Merge contacts after rejoin. |
-| 360 | EXTEND | missing | 433a | none | none | none | none | ATTACK-DRADIS | none | none | E-ATTACK-DRADIS;E-433A | M7 | Deny direct DRADIS writes. |
+| 354 | EXTEND | done | 433a | none | none | none | none | ATTACK-DRADIS | none | none | E-ATTACK-DRADIS;E-433A;E-PC08-FINAL-20261003 | M7 | Remove stale contacts. |
+| 355 | EXTEND | done | 433a | none | none | none | none | ATTACK-DRADIS | none | none | E-ATTACK-DRADIS;E-433A;E-PC08-FINAL-20261003 | M7 | Fold docked shuttles into host contacts. |
+| 356 | EXTEND | done | 433a | none | none | none | none | ATTACK-DRADIS | none | none | E-ATTACK-DRADIS;E-433A;E-PC08-FINAL-20261003 | M7 | Show undocked shuttle samples. |
+| 357 | EXTEND | done | 433a | none | none | none | none | ATTACK-DRADIS | none | none | E-ATTACK-DRADIS;E-433A;E-PC08-FINAL-20261003 | M7 | Redact split-fleet contact metadata. |
+| 358 | EXTEND | done | 433a | none | none | none | none | ATTACK-DRADIS | none | none | E-ATTACK-DRADIS;E-433A;E-PC08-FINAL-20261003 | M7 | Reflect attack parking on DRADIS. |
+| 359 | EXTEND | done | 433a | none | none | none | none | ATTACK-DRADIS | none | none | E-ATTACK-DRADIS;E-433A;E-PC08-FINAL-20261003 | M7 | Merge contacts after rejoin. |
+| 360 | EXTEND | done | 433a | none | none | none | none | ATTACK-DRADIS | none | none | E-ATTACK-DRADIS;E-433A;E-PC08-FINAL-20261003 | M7 | Deny direct DRADIS writes. |
 | 361 | PRESERVE | done | 161;162 | none | none | none | none | none | none | none | E-AUDIT-361 | M7 | Build the authoritative shuttle manifest. |
 | 362 | NEW | done | 361 | none | none | none | none | none | none | none | E-AUDIT-362 | M7 | Transfer shuttle control. |
 | 363 | NEW | done | 361;362 | none | none | none | none | none | none | none | E-AUDIT-363 | M7 | Resolve holder-based docking. |
@@ -516,16 +516,16 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 386 | NEW | done | 361;369 | none | none | none | none | none | none | none | E-AUDIT-386;E-386-SERVICE-SHUTTLE-RECHARGE | M7 | Resolve service-shuttle recharge. |
 | 387 | NEW | done | 386 | none | none | none | none | none | none | none | E-AUDIT-387;E-387-SERVICE-RECHARGE-IMMEDIATE-EFFECT | M7 | Trigger immediate effects from recharge. |
 | 388 | NEW | done | 265;111 | none | none | none | none | none | none | none | E-AUDIT-388;E-388-HIGHWALL-MINING | M7 | Resolve Highwall mining. |
-| 389 | NEW | missing | 265;426;433;439;440 | none | none | none | none | none | none | none | E-AUDIT-389 | M7 | Resolve Highwall combat. |
+| 389 | NEW | done | 265;426;433;439;440 | none | none | none | none | none | none | none | E-AUDIT-389;E-PC08-FINAL-20261003 | M7 | Resolve Highwall combat. |
 | 390 | NEW | done | 269;111 | none | none | none | none | none | none | none | E-AUDIT-390;E-390-IMPLEMENTED | M7 | Resolve Hummingbird harvesting. |
 | 391 | NEW | done | 267;165;124 | none | none | none | none | none | none | none | E-AUDIT-391;E-391-ENDEAVOUR-RESEARCH-LINK;E-391-FIELD-UPGRADE-INTEGRATION;E-PC05-FINAL-RELEASE-20260929 | M7 | Resolve Endeavour field upgrades. |
 | 392 | NEW | done | 401 | none | none | none | none | none | none | none | E-AUDIT-392;E-PC06-FINAL-20261002 | M7 | Apply Starlight mission bonuses. |
 | 393 | NEW | done | 401 | none | none | none | none | none | none | none | E-AUDIT-393;E-PC06-FINAL-20261002 | M7 | Apply Hummingbird mission bonuses. |
-| 394 | NEW | missing | 261;466 | none | none | none | none | none | none | none | E-AUDIT-394 | M7 | Resolve Pallas boarding support. |
-| 395 | NEW | missing | 272;466 | none | none | none | none | none | none | none | E-AUDIT-395 | M7 | Resolve Chepu boarding support. |
-| 396 | NEW | missing | 262;182 | none | none | none | none | none | none | none | E-AUDIT-396 | M7 | Resolve Alpha and Bravo fighter state. |
-| 397 | NEW | partial | 264;182;431;432a;433;433b | none | none | none | none | none | none | none | E-AUDIT-397;E-WOLF;E-397-MALIADES-STATE-PARTIAL;E-453-MALIADES-RANGE-BLOCKER | M7 | Resolve Maliades state. |
-| 398 | NEW | partial | 273;182 | none | none | none | none | none | none | none | E-AUDIT-398;E-398-PDF-ESCORT-PARTIAL | M7 | Resolve the PDF Escort Wing state. |
+| 394 | NEW | done | 261;466 | none | none | none | none | none | none | none | E-AUDIT-394;E-PC08-FINAL-20261003 | M7 | Resolve Pallas boarding support. |
+| 395 | NEW | done | 272;466 | none | none | none | none | none | none | none | E-AUDIT-395;E-PC08-FINAL-20261003 | M7 | Resolve Chepu boarding support. |
+| 396 | NEW | done | 262;182 | none | none | none | none | none | none | none | E-AUDIT-396;E-PC08-FINAL-20261003 | M7 | Resolve Alpha and Bravo fighter state. |
+| 397 | NEW | done | 264;182;431;432a;433;433b | none | none | none | none | none | none | none | E-AUDIT-397;E-WOLF;E-397-MALIADES-STATE-PARTIAL;E-453-MALIADES-RANGE-BLOCKER;E-PC08-FINAL-20261003 | M7 | Resolve Maliades state. |
+| 398 | NEW | done | 273;182 | none | none | none | none | none | none | none | E-AUDIT-398;E-398-PDF-ESCORT-PARTIAL;E-PC08-FINAL-20261003 | M7 | Resolve the PDF Escort Wing state. |
 | 399 | NEW | done | 253;164 | none | none | none | none | none | none | none | E-AUDIT-399;E-399-MACAW-MOVEMENT-CARGO-VERIFIED | M7 | Resolve Macaw movement and cargo. |
 | 400 | NEW | done | 253;164 | none | none | none | none | none | none | none | E-AUDIT-400;E-400-BOA-MOVEMENT-CARGO-VERIFIED | M7 | Resolve Boa movement and cargo. |
 | 401 | NEW | done | 315;361 | none | none | none | none | none | none | none | E-AUDIT-401;E-401-PC04-CANDIDATE;E-PC06-FINAL-20261002 | M7 | Validate mission eligibility and leader. |
@@ -557,7 +557,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 421 | NEW | done | 281;283 | none | none | none | none | none | none | none | E-AUDIT-421;E-421-SOURCE-VERIFIED | M7 | Encode Active Wolf Outpost L. |
 | 421a | NEW | done | 281;283 | none | none | none | none | none | none | none | E-AUDIT-421A;E-421A-SOURCE-VERIFIED | M7 | Encode Active Wolf Fortress M. |
 | 422 | PROVE | done | 401;409;415;410;411;412;414;622 | none | none | none | none | none | none | none | E-AUDIT-422;E-PC06-FINAL-20261002 | M7 | Run the complete away-mission scenario. |
-| 423 | PROVE | missing | 361;367;371;373;352;353;368;377;156;380 | none | none | none | none | none | none | none | E-AUDIT-423 | M7;M6 | Run the shuttle-airspace scenario. |
+| 423 | PROVE | done | 361;367;371;373;352;353;368;377;156;380 | none | none | none | none | none | none | none | E-AUDIT-423;E-PC08-FINAL-20261003 | M7;M6 | Run the shuttle-airspace scenario. |
 | 424 | PROVE | done | 336;337;328;347;338;339;343;401;409;307 | none | none | none | none | none | none | none | E-AUDIT-424;E-PC07-FINAL-20261003 | M7;M8 | Run the split-fleet exploration scenario. |
 | 425 | NEW | done | none | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-425-WOLF-CATALOG | M9 | Define the Wolf ship catalog. |
 | 426 | NEW | done | 425 | none | none | none | none | WOLF-ATTACK | none | 427;312;421;421a;494 | E-WOLF;E-AUDIT-426;E-426-SCHEDULED-COMPOSITION | M9 | Define attack-composition rules. |
@@ -581,39 +581,39 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 440 | NEW | done | 432;428 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-440;E-PC07-FINAL-20261003 | M9 | Resolve Short Range simultaneously. |
 | 441 | NEW | done | 438;439;440 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-441;E-PC07-FINAL-20261003 | M9 | Enforce the five-step attack order. |
 | 442 | NEW | done | 438;439;440;130 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-442;E-PC07-FINAL-20261003 | M9 | Apply range-specific destruction effects. |
-| 443 | NEW | missing | 440;396 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-443 | M9 | Enforce Short Range fighter priority. |
+| 443 | NEW | done | 440;396 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-443;E-PC08-FINAL-20261003 | M9 | Enforce Short Range fighter priority. |
 | 444 | NEW | done | 441;442 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-444;E-PC07-FINAL-20261003 | M9 | Close each range with an audit result. |
-| 445 | NEW | missing | 441;182 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-445 | M9 | Resolve AEGIS Missile Launchers at Long Range. |
-| 446 | NEW | missing | 445 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-446 | M9 | Spend ore on enriched warheads. |
-| 447 | NEW | missing | 441;182 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-447;E-PC07-A6-FUTURE-TARGET-LIMITS-20261003 | M9 | Resolve AEGIS Missile Launchers at Medium Range. |
-| 448 | NEW | missing | 441;182 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-448;E-PC07-A6-FUTURE-TARGET-LIMITS-20261003 | M9 | Resolve AEGIS Point Defence. |
-| 449 | NEW | missing | 443;396 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-449 | M9 | Authorize Fighter Bay launches. |
-| 450 | NEW | missing | 449 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-450 | M9 | Shift targets with fleet fighters. |
-| 451 | NEW | missing | 449 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-451 | M9 | Attack at Medium Range with fleet fighters. |
-| 452 | NEW | missing | 449 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-452 | M9 | Attack at Short Range with fleet fighters. |
-| 453 | NEW | partial | 264;397;431;432a;433;433b | none | none | none | none | WOLF-ATTACK | none | none | E-AUDIT-453;E-WOLF;E-453-MALIADES-RANGE-BLOCKER | M9 | Resolve Maliades at range. |
-| 454 | NEW | missing | 265 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-454 | M9 | Resolve Highwall at range. |
-| 455 | NEW | missing | 239;441 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-455;E-PC07-A6-FUTURE-TARGET-LIMITS-20261003 | M9 | Resolve the Gorgoneion Missile Array. |
-| 456 | NEW | missing | 273;449 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-456 | M9 | Launch the PDF Fighter Wing. |
-| 457 | NEW | missing | 456 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-457 | M9 | Resolve PDF fighters at Medium Range. |
-| 458 | NEW | missing | 456 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-458 | M9 | Resolve PDF fighters at Short Range. |
-| 459 | NEW | missing | 400;441 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-459 | M9 | Resolve Boa's range actions. |
-| 460 | NEW | missing | 399;466 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-460 | M9 | Apply Macaw boarding support. |
-| 461 | NEW | missing | 261;272;363 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-461 | M9 | Relocate Pallas or Chepu before boarding. |
-| 462 | NEW | missing | 361;386 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-462 | M9 | Apply engineering/service shuttle support. |
-| 463 | NEW | missing | 394;395;428 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-463 | M9 | Apply AEGIS and Pallas boarding rerolls. |
-| 464 | DECISION | missing | 435;466 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-464 | M9 | Apply Wolf Commander boarding leadership. |
-| 465 | NEW | missing | 426;428 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-465 | M9 | Drop Assault Transport parties. |
-| 466 | NEW | missing | 378;465 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-466 | M9 | Roll security-team defence. |
-| 467 | NEW | missing | 466 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-467 | M9 | Apply surviving-boarder damage. |
-| 468 | NEW | missing | 466;280 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-468 | M9 | Resolve Militia Leader defence. |
-| 469 | NEW | missing | 442 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-469 | M9 | Resolve Wolf Fighter Wing destruction. |
-| 469a | NEW | missing | 442 | none | none | none | none | none | none | none | E-AUDIT-469A | M9 | Resolve Assault Transport destruction. |
-| 469b | NEW | missing | 442 | none | none | none | none | none | none | none | E-AUDIT-469B | M9 | Resolve Wolf Destroyer destruction. |
-| 469c | NEW | missing | 442 | none | none | none | none | none | none | none | E-AUDIT-469C | M9 | Resolve Wolf Cruiser destruction. |
-| 469d | NEW | missing | 442 | none | none | none | none | none | none | none | E-AUDIT-469D | M9 | Resolve Strikecarrier destruction. |
-| 469e | NEW | missing | 442 | none | none | none | none | none | none | none | E-AUDIT-469E | M9 | Resolve Battlestation destruction. |
-| 470 | NEW | missing | 469 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-470 | M9 | Carry surviving Wolf Fighter Wings forward. |
+| 445 | NEW | done | 441;182 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-445;E-PC08-FINAL-20261003 | M9 | Resolve AEGIS Missile Launchers at Long Range. |
+| 446 | NEW | done | 445 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-446;E-PC08-FINAL-20261003 | M9 | Spend ore on enriched warheads. |
+| 447 | NEW | done | 441;182 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-447;E-PC07-A6-FUTURE-TARGET-LIMITS-20261003;E-PC08-FINAL-20261003 | M9 | Resolve AEGIS Missile Launchers at Medium Range. |
+| 448 | NEW | done | 441;182 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-448;E-PC07-A6-FUTURE-TARGET-LIMITS-20261003;E-PC08-FINAL-20261003 | M9 | Resolve AEGIS Point Defence. |
+| 449 | NEW | done | 443;396 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-449;E-PC08-FINAL-20261003 | M9 | Authorize Fighter Bay launches. |
+| 450 | NEW | done | 449 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-450;E-PC08-FINAL-20261003 | M9 | Shift targets with fleet fighters. |
+| 451 | NEW | done | 449 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-451;E-PC08-FINAL-20261003 | M9 | Attack at Medium Range with fleet fighters. |
+| 452 | NEW | done | 449 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-452;E-PC08-FINAL-20261003 | M9 | Attack at Short Range with fleet fighters. |
+| 453 | NEW | done | 264;397;431;432a;433;433b | none | none | none | none | WOLF-ATTACK | none | none | E-AUDIT-453;E-WOLF;E-453-MALIADES-RANGE-BLOCKER;E-PC08-FINAL-20261003 | M9 | Resolve Maliades at range. |
+| 454 | NEW | done | 265 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-454;E-PC08-FINAL-20261003 | M9 | Resolve Highwall at range. |
+| 455 | NEW | done | 239;441 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-455;E-PC07-A6-FUTURE-TARGET-LIMITS-20261003;E-PC08-FINAL-20261003 | M9 | Resolve the Gorgoneion Missile Array. |
+| 456 | NEW | done | 273;449 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-456;E-PC08-FINAL-20261003 | M9 | Launch the PDF Fighter Wing. |
+| 457 | NEW | done | 456 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-457;E-PC08-FINAL-20261003 | M9 | Resolve PDF fighters at Medium Range. |
+| 458 | NEW | done | 456 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-458;E-PC08-FINAL-20261003 | M9 | Resolve PDF fighters at Short Range. |
+| 459 | NEW | done | 400;441 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-459;E-PC08-FINAL-20261003 | M9 | Resolve Boa's range actions. |
+| 460 | NEW | done | 399;466 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-460;E-PC08-FINAL-20261003 | M9 | Apply Macaw boarding support. |
+| 461 | NEW | done | 261;272;363 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-461;E-PC08-FINAL-20261003 | M9 | Relocate Pallas or Chepu before boarding. |
+| 462 | NEW | done | 361;386 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-462;E-PC08-FINAL-20261003 | M9 | Apply engineering/service shuttle support. |
+| 463 | NEW | done | 394;395;428 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-463;E-PC08-FINAL-20261003 | M9 | Apply AEGIS and Pallas boarding rerolls. |
+| 464 | DECISION | done | 435;466 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-464;E-PC08-FINAL-20261003 | M9 | Apply Wolf Commander boarding leadership. |
+| 465 | NEW | done | 426;428 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-465;E-PC08-FINAL-20261003 | M9 | Drop Assault Transport parties. |
+| 466 | NEW | done | 378;465 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-466;E-PC08-FINAL-20261003 | M9 | Roll security-team defence. |
+| 467 | NEW | done | 466 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-467;E-PC08-FINAL-20261003 | M9 | Apply surviving-boarder damage. |
+| 468 | NEW | done | 466;280 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-468;E-PC08-FINAL-20261003 | M9 | Resolve Militia Leader defence. |
+| 469 | NEW | done | 442 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-469;E-PC08-FINAL-20261003 | M9 | Resolve Wolf Fighter Wing destruction. |
+| 469a | NEW | done | 442 | none | none | none | none | none | none | none | E-AUDIT-469A;E-PC08-FINAL-20261003 | M9 | Resolve Assault Transport destruction. |
+| 469b | NEW | done | 442 | none | none | none | none | none | none | none | E-AUDIT-469B;E-PC08-FINAL-20261003 | M9 | Resolve Wolf Destroyer destruction. |
+| 469c | NEW | done | 442 | none | none | none | none | none | none | none | E-AUDIT-469C;E-PC08-FINAL-20261003 | M9 | Resolve Wolf Cruiser destruction. |
+| 469d | NEW | done | 442 | none | none | none | none | none | none | none | E-AUDIT-469D;E-PC08-FINAL-20261003 | M9 | Resolve Strikecarrier destruction. |
+| 469e | NEW | done | 442 | none | none | none | none | none | none | none | E-AUDIT-469E;E-PC08-FINAL-20261003 | M9 | Resolve Battlestation destruction. |
+| 470 | NEW | done | 469 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-470;E-PC08-FINAL-20261003 | M9 | Carry surviving Wolf Fighter Wings forward. |
 | 471 | NEW | missing | 469e;442 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-471 | M9 | Enforce Battlestation Short Range immunity. |
 | 472 | NEW | missing | 469d;470 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-472 | M9 | Apply Strikecarrier wing bonus. |
 | 473 | NEW | missing | 469;130 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-473 | M9 | Apply surviving Wolf ship damage. |
@@ -763,7 +763,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 603 | EXTEND | done | 361 | none | none | none | none | none | none | none | E-AUDIT-603;E-603-NARROW-SHIP-CONSOLES | X | Make ship consoles work on narrow phones. |
 | 603a | REPAIR | done | none | none | SHARED-SESSION-CHROME;ROLE-SELECT | none | none | TICKER-LIFECYCLE | none | none | E-603A;E-TICKER | X | Keep the mobile session ticket out of routed content. |
 | 604 | EXTEND | done | 603 | none | none | none | none | none | none | none | E-AUDIT-604;E-604-SHORT-LANDSCAPE | X | Make maintenance work in short landscape. |
-| 605 | EXTEND | partial | 351 | none | none | none | none | none | none | none | E-AUDIT-605 | X | Make DRADIS responsive. |
+| 605 | EXTEND | done | 351 | none | none | none | none | none | none | none | E-AUDIT-605;E-PC08-FINAL-20261003 | X | Make DRADIS responsive. |
 | 605a | DEFERRED-OWNER | missing | 433a | none | none | OWNER-APPROVAL-DEFERRED-VISUALIZATION | none | ATTACK-DRADIS | none | none | E-605A;E-ATTACK-DRADIS | X | Visualize Wolf attacks on DRADIS. |
 | 606 | EXTEND | done | 361;365;367 | none | none | none | none | none | none | none | E-AUDIT-606;E-606-TOUCH | X | Make shuttle travel touch-operable. |
 | 607 | EXTEND | done | 289;303 | none | none | none | none | none | none | none | E-AUDIT-607;E-PC06-FINAL-20261002 | X | Make jump controls keyboard-complete. |
@@ -805,7 +805,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 641 | PROVE | missing | 159;320;422;524;540 | none | none | none | none | none | none | none | E-AUDIT-641 | M13 | Run a complete base-game playthrough. |
 | 642 | PROVE | missing | 584 | none | none | none | none | none | none | none | E-AUDIT-642 | M13 | Run a complete Capybara playthrough. |
 | 643 | PROVE | done | 424 | none | none | none | none | none | none | none | E-AUDIT-643;E-PC07-FINAL-20261003 | M13 | Run a complete split-fleet playthrough. |
-| 644 | PROVE | missing | 423 | none | none | none | none | none | none | none | E-AUDIT-644 | M13 | Run a complete shuttle-airspace playthrough. |
+| 644 | PROVE | done | 423 | none | none | none | none | none | none | none | E-AUDIT-644;E-PC08-FINAL-20261003 | M13 | Run a complete shuttle-airspace playthrough. |
 | 645 | PROVE | missing | 524;484 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-645 | M13;M9 | Run a complete Wolf attack playthrough. |
 | 646 | PROVE | done | 422 | none | none | none | none | none | none | none | E-AUDIT-646;E-PC06-FINAL-20261002 | M13 | Run a complete away-mission playthrough. |
 | 647 | PROVE | missing | 548;559 | none | none | none | none | none | none | none | E-AUDIT-647 | M13 | Prove Ancient Jump Ring success. |
@@ -1786,6 +1786,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | E-PC06-FINAL-20261002 | evidence / authority / release | PC06 fixed49 -> 556/751;98/293 | docs/PC06_ACCEPTANCE_MATRIX.md; docs/PC06_PLAYTEST_REPORT.md; docs/PC06_EXECUTION_RECORD.md; external evidence/pc06-49-acceptance-receipt.json; scripts/test-pc06-demo.emulator.mjs; scripts/test-pc06-mission-transaction.emulator.mjs | Fixed 49 behavior acceptances preserve7 ordinary production results and42 explicitly user-authorized representative local/emulator results. Native compiled transaction and actual Auth/HTTP/rules fixtures, local real UI, private reads, arithmetic, replay and denial evidence are distinguished individually. Catalog closures add 49 once; P343 remains PC07. Required final gates and exact-main deployment are separate release evidence, never inferred from a prepared review scene. |
 | E-PC07-A6-FUTURE-TARGET-LIMITS-20261003 | evidence / source-backed-assumption / future-alignment / no-closure-credit | PC07-A6 -> 447;448;455 future acceptance; no closures | docs/PRODUCT_MILESTONE_ASSUMPTIONS.md PC07-A6; docs/PC07_ATTACK_ENGINE_ASSUMPTIONS.md Excess hits; docs/PC07_PC10_ALIGNMENT.md; functions/src/wolfCombatMath.ts; functions/src/wolfCombatMath.test.ts | Carry the bounded excess-hit digital assumption into the unstarted weapon consumers only where their printed action requires distinct targets. Original rolls and successes remain in the private audit; successes beyond legal distinct-contact capacity are unused, with no reroll or repeated damage from that action. Other actions retain their own target limits, and independent actions may share a contact where their source rules allow. Status, prerequisites, fixed checkpoint membership and closure totals are unchanged. |
 | E-PC07-FINAL-20261003 | evidence / authority / release / local-gameplay | PC07 fixed49 -> 605/751;147/293 | docs/PC07_ACCEPTANCE_MATRIX.md; docs/PC07_PLAYTEST_REPORT.md; docs/PC07_EXECUTION_RECORD.md; docs/PC07_TEST_INVENTORY.md; scripts/test-pc07-split-http.mjs; scripts/test-pc07-full-attack-http.mjs; scripts/test-pc07-maintenance-matrix.emulator.mjs; external PC07-evidence/root-takeover/split-http.json and full-attack-ui-http.json; external PC07-evidence/split-sharing/rejoined-mission-current-custody-native.json and navigation-cursor-different-native.json | All fixed49 behavior acceptances have representative normal authenticated local/emulator proof. The 13-actor split branch uses normal admission, automatic Comms recovery, group-local rosters/notes/DRADIS, selected system sharing, passenger/fuel taxis, courier delivery, real independently charged jumps, exact retries and policy-based rejoin. Current native mission-custody and differing navigation-cursor branches retain their own source and fixture labels. The 18-actor attack branch composes setup, two maintenance cycles, real transit parking, disconnected pending choices, a reasoned hold, normal phone Commander reroll/finish, Captain choice/replay, explicit EO pass, three ranges, boarding, final damage and reopened movement. Twelve-vessel native maintenance, ordinary phone join/clear/maintenance/navigation and full Rules evidence cover the remaining foundations. Only disposable deadlines and separately labeled facilitator relocations accelerate these scenarios. No identity, dice, resource, role or result seeding is represented as ordinary play. Catalog closures add49 once and grant no PC08 or P605a credit. Independent review, final gates, CI and exact-main deployment remain separately recorded release evidence. |
+| E-PC08-FINAL-20261003 | evidence / authority / release / local-gameplay | PC08 fixed49 -> 654/751;196/293 | docs/PC08_ACCEPTANCE_MATRIX.md; docs/PC08_PLAYTEST_REPORT.md; docs/PC08_EXECUTION_RECORD.md; docs/PC08_TEST_INVENTORY.md; scripts/test-pc08-composed-attack-http.mjs; scripts/test-pc08-boarding-carryover-http.mjs; scripts/test-pc08-dradis-shuttle-airspace-http.mjs; external PC08-evidence/owner/authenticated-composed-complete/result.json; external PC08-evidence/boarding/sol-repro-243a0678.json; external PC08-evidence/owner/authenticated-dradis-complete/result.json | All fixed49 behavior acceptances have representative normal authenticated local/emulator proof. The complete twenty-player weapons branch uses normal role admission, charged maintenance, real shuttle transit parking, actual phone Enriched Warheads purchase, independent Alpha/Bravo/PDF/Maliades launch choices, Highwall/Gorgoneion/Boa source choices, paid once-only Scrap, one locked batch per range, safe Short Wing coverage, genuine boarding and movement/Press/clock reopening. The eighteen-player destruction branch preserves retained custody through the next cycle, excludes dead Wings and consumes nine surviving Wings once in a legal later attack while keeping earlier receipts immutable. The complete standard/Union shuttle branch proves all craft routes, current private DRADIS, restrictions, attack parking, reconnect and eight responsive/motion states including a full same-object first sweep. Native handler/Rules evidence supplements source math, current actor/CAS, privacy and denial boundaries. Only disposable deadlines and labeled normal facilitator decisions accelerate play; no seeded identity, dice or outcome is called ordinary play. Catalog closes49 once, with no PC09 or P605a credit. Independent review, final validation, CI, exact-main deployment and prepared presentation remain separately recorded. |
 <!-- END GENERATED PROMPT CATALOG: dependency -->
 
 ## Shared integrity gate

@@ -23,6 +23,21 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     implementationProgress: {
+      completed: 654, total: 751, percentage: '87.08%',
+      done: 654, partial: 10, active: 0, missing: 87, blocked: 0,
+    },
+    implementationPrompts: ["231","389","396","397","398","443","445","446","447","448","449","450","451","452","453","454","455","456","457","458","459","394","395","460","461","462","463","464","465","466","467","468","469","469a","469b","469c","469d","469e","470","354","355","356","357","358","359","360","423","605","644"],
+    changes: [
+      'PC08 is complete: crews choose weapons, independent fighter actions and boarding defence in their own consoles.',
+      'Battle rolls, resource costs, damage and fighter losses resolve once and survive reconnect. Surviving Wolf Wings return in the next attack.',
+      'DRADIS follows current local craft, keeps complete names readable and preserves the full first sweep.',
+      '654 of 751 planned items are complete in the catalog snapshot used to build this release (87.08%).',
+      '196 of 293 campaign items are complete (66.89%).',
+    ],
+  },
+  {
+    version: '0.5.66',
+    implementationProgress: {
       completed: 605, total: 751, percentage: '80.56%',
       done: 605, partial: 15, active: 0, missing: 131, blocked: 0,
     },

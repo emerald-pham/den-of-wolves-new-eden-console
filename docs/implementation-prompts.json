@@ -6433,6 +6433,13 @@
       "language": "All fixed49 behavior acceptances have representative normal authenticated local/emulator proof. The 13-actor split branch uses normal admission, automatic Comms recovery, group-local rosters/notes/DRADIS, selected system sharing, passenger/fuel taxis, courier delivery, real independently charged jumps, exact retries and policy-based rejoin. Current native mission-custody and differing navigation-cursor branches retain their own source and fixture labels. The 18-actor attack branch composes setup, two maintenance cycles, real transit parking, disconnected pending choices, a reasoned hold, normal phone Commander reroll/finish, Captain choice/replay, explicit EO pass, three ranges, boarding, final damage and reopened movement. Twelve-vessel native maintenance, ordinary phone join/clear/maintenance/navigation and full Rules evidence cover the remaining foundations. Only disposable deadlines and separately labeled facilitator relocations accelerate these scenarios. No identity, dice, resource, role or result seeding is represented as ordinary play. Catalog closures add49 once and grant no PC08 or P605a credit. Independent review, final gates, CI and exact-main deployment remain separately recorded release evidence.",
       "source": "docs/PC07_ACCEPTANCE_MATRIX.md; docs/PC07_PLAYTEST_REPORT.md; docs/PC07_EXECUTION_RECORD.md; docs/PC07_TEST_INVENTORY.md; scripts/test-pc07-split-http.mjs; scripts/test-pc07-full-attack-http.mjs; scripts/test-pc07-maintenance-matrix.emulator.mjs; external PC07-evidence/root-takeover/split-http.json and full-attack-ui-http.json; external PC07-evidence/split-sharing/rejoined-mission-current-custody-native.json and navigation-cursor-different-native.json",
       "type": "evidence / authority / release / local-gameplay"
+    },
+    {
+      "direction": "PC08 fixed49 -> 654/751;196/293",
+      "id": "E-PC08-FINAL-20261003",
+      "language": "All fixed49 behavior acceptances have representative normal authenticated local/emulator proof. The complete twenty-player weapons branch uses normal role admission, charged maintenance, real shuttle transit parking, actual phone Enriched Warheads purchase, independent Alpha/Bravo/PDF/Maliades launch choices, Highwall/Gorgoneion/Boa source choices, paid once-only Scrap, one locked batch per range, safe Short Wing coverage, genuine boarding and movement/Press/clock reopening. The eighteen-player destruction branch preserves retained custody through the next cycle, excludes dead Wings and consumes nine surviving Wings once in a legal later attack while keeping earlier receipts immutable. The complete standard/Union shuttle branch proves all craft routes, current private DRADIS, restrictions, attack parking, reconnect and eight responsive/motion states including a full same-object first sweep. Native handler/Rules evidence supplements source math, current actor/CAS, privacy and denial boundaries. Only disposable deadlines and labeled normal facilitator decisions accelerate play; no seeded identity, dice or outcome is called ordinary play. Catalog closes49 once, with no PC09 or P605a credit. Independent review, final validation, CI, exact-main deployment and prepared presentation remain separately recorded.",
+      "source": "docs/PC08_ACCEPTANCE_MATRIX.md; docs/PC08_PLAYTEST_REPORT.md; docs/PC08_EXECUTION_RECORD.md; docs/PC08_TEST_INVENTORY.md; scripts/test-pc08-composed-attack-http.mjs; scripts/test-pc08-boarding-carryover-http.mjs; scripts/test-pc08-dradis-shuttle-airspace-http.mjs; external PC08-evidence/owner/authenticated-composed-complete/result.json; external PC08-evidence/boarding/sol-repro-243a0678.json; external PC08-evidence/owner/authenticated-dradis-complete/result.json",
+      "type": "evidence / authority / release / local-gameplay"
     }
   ],
   "plan": {
@@ -12505,8 +12512,8 @@
         "acceptance": "charged 8♦ authorizes only the PDF Colonel's wing during an attack. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Gate the Refinery Fighter Bay."
       },
-      "description": "The pure server-domain Refinery Fighter Bay gate now authorizes only the exact P.D.F. Escort Fighter Wing for the active P.D.F. Colonel during the targeting step of a current Wolf attack. It requires a completed current-cycle Refinery maintenance authority with the 8♦ Fighter Bay charged, an operational undestroyed host, the canonical battle-table registration, and a not-yet-launched wing, while noncanonical rosters, lossy or incomplete maintenance state, malformed battle-table tuples, stale, duplicate, foreign, inactive, uncharged, damaged, and repeated cases fail closed. This closes Prompt 231's non-feature authorization contract only; Prompt 398 retains persistent launch/combat state, attack actions and results, callable integration, client projection, UI, deployment, and playable release. No production callable consumes this authorization yet.",
-      "evidenceIds": "E-AUDIT-231;E-231-REFINERY-FIGHTER-BAY-GATE",
+      "description": "Completed in PC08 through current-actor weapon/support choices, independent Alpha/Bravo/PDF/Maliades launch and range actions, server-locked shared dice and target assignment, source-defined costs/damage/losses and immutable retries. Native authority/math/privacy checks and the normal authenticated twenty-player composed attack establish this criterion; prepared controls and release gates retain separate evidence classes. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT.",
+      "evidenceIds": "E-AUDIT-231;E-231-REFINERY-FIGHTER-BAY-GATE;E-PC08-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "182;273",
@@ -12514,10 +12521,12 @@
       "milestoneHints": "M3;M5",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.67"
+      ],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "partial",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -15790,8 +15799,8 @@
         "acceptance": "the newest server snapshot removes or changes a departed/destroyed contact despite cached local data. Preserve the first qualifying sweep enlargement for its full duration, readable in-viewport names bound only to visible contacts and the minimized Zoom control across supported layouts and reduced motion. Use the existing contact/parking projection; this work does not activate P605a. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Remove stale contacts."
       },
-      "description": "Planned [EXTEND] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-ATTACK-DRADIS;E-433A",
+      "description": "Completed in PC08 through current group-local contact/transit/parking projections, host-folded craft, committed rejoin and private audience filtering. Normal authenticated standard and Union craft playthroughs, reconnect/direct-write denials and eight viewport/motion cases establish this criterion, including complete names and the full first sweep. Prepared rendering and exact release gates remain separate evidence classes. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT.",
+      "evidenceIds": "E-ATTACK-DRADIS;E-433A;E-PC08-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "433a",
@@ -15799,10 +15808,12 @@
       "milestoneHints": "M7",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.67"
+      ],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "ATTACK-DRADIS",
-      "status": "missing",
+      "status": "done",
       "tag": "EXTEND"
     },
     {
@@ -15813,8 +15824,8 @@
         "acceptance": "a docked craft appears at its host rather than as an independent in-flight object. Preserve the first qualifying sweep enlargement for its full duration, readable in-viewport names bound only to visible contacts and the minimized Zoom control across supported layouts and reduced motion. Use the existing contact/parking projection; this work does not activate P605a. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Fold docked shuttles into host contacts."
       },
-      "description": "Planned [EXTEND] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-ATTACK-DRADIS;E-433A",
+      "description": "Completed in PC08 through current group-local contact/transit/parking projections, host-folded craft, committed rejoin and private audience filtering. Normal authenticated standard and Union craft playthroughs, reconnect/direct-write denials and eight viewport/motion cases establish this criterion, including complete names and the full first sweep. Prepared rendering and exact release gates remain separate evidence classes. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT.",
+      "evidenceIds": "E-ATTACK-DRADIS;E-433A;E-PC08-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "433a",
@@ -15822,10 +15833,12 @@
       "milestoneHints": "M7",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.67"
+      ],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "ATTACK-DRADIS",
-      "status": "missing",
+      "status": "done",
       "tag": "EXTEND"
     },
     {
@@ -15836,8 +15849,8 @@
         "acceptance": "an eligible travelling craft appears only from authoritative sampled transit state. Preserve the first qualifying sweep enlargement for its full duration, readable in-viewport names bound only to visible contacts and the minimized Zoom control across supported layouts and reduced motion. Use the existing contact/parking projection; this work does not activate P605a. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Show undocked shuttle samples."
       },
-      "description": "Planned [EXTEND] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-ATTACK-DRADIS;E-433A",
+      "description": "Completed in PC08 through current group-local contact/transit/parking projections, host-folded craft, committed rejoin and private audience filtering. Normal authenticated standard and Union craft playthroughs, reconnect/direct-write denials and eight viewport/motion cases establish this criterion, including complete names and the full first sweep. Prepared rendering and exact release gates remain separate evidence classes. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT.",
+      "evidenceIds": "E-ATTACK-DRADIS;E-433A;E-PC08-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "433a",
@@ -15845,10 +15858,12 @@
       "milestoneHints": "M7",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.67"
+      ],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "ATTACK-DRADIS",
-      "status": "missing",
+      "status": "done",
       "tag": "EXTEND"
     },
     {
@@ -15859,8 +15874,8 @@
         "acceptance": "labels, counts, events, and empty space cannot reveal another group's location. Preserve the first qualifying sweep enlargement for its full duration, readable in-viewport names bound only to visible contacts and the minimized Zoom control across supported layouts and reduced motion. Use the existing contact/parking projection; this work does not activate P605a. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Redact split-fleet contact metadata."
       },
-      "description": "Planned [EXTEND] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-ATTACK-DRADIS;E-433A",
+      "description": "Completed in PC08 through current group-local contact/transit/parking projections, host-folded craft, committed rejoin and private audience filtering. Normal authenticated standard and Union craft playthroughs, reconnect/direct-write denials and eight viewport/motion cases establish this criterion, including complete names and the full first sweep. Prepared rendering and exact release gates remain separate evidence classes. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT.",
+      "evidenceIds": "E-ATTACK-DRADIS;E-433A;E-PC08-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "433a",
@@ -15868,10 +15883,12 @@
       "milestoneHints": "M7",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.67"
+      ],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "ATTACK-DRADIS",
-      "status": "missing",
+      "status": "done",
       "tag": "EXTEND"
     },
     {
@@ -15882,8 +15899,8 @@
         "acceptance": "all craft resolve to parked hosts while only combat-capable craft enter the battle projection; consume Prompt 433a state without adding the owner-deferred attack visualization. Preserve the first qualifying sweep enlargement for its full duration, readable in-viewport names bound only to visible contacts and the minimized Zoom control across supported layouts and reduced motion. Use the existing contact/parking projection; this work does not activate P605a. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Reflect attack parking on DRADIS."
       },
-      "description": "Planned [EXTEND] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-ATTACK-DRADIS;E-433A",
+      "description": "Completed in PC08 through current group-local contact/transit/parking projections, host-folded craft, committed rejoin and private audience filtering. Normal authenticated standard and Union craft playthroughs, reconnect/direct-write denials and eight viewport/motion cases establish this criterion, including complete names and the full first sweep. Prepared rendering and exact release gates remain separate evidence classes. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT.",
+      "evidenceIds": "E-ATTACK-DRADIS;E-433A;E-PC08-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "433a",
@@ -15891,10 +15908,12 @@
       "milestoneHints": "M7",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.67"
+      ],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "ATTACK-DRADIS",
-      "status": "missing",
+      "status": "done",
       "tag": "EXTEND"
     },
     {
@@ -15905,8 +15924,8 @@
         "acceptance": "valid ships and craft from both groups appear once only after the group transaction commits. Preserve the first qualifying sweep enlargement for its full duration, readable in-viewport names bound only to visible contacts and the minimized Zoom control across supported layouts and reduced motion. Use the existing contact/parking projection; this work does not activate P605a. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Merge contacts after rejoin."
       },
-      "description": "Planned [EXTEND] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-ATTACK-DRADIS;E-433A",
+      "description": "Completed in PC08 through current group-local contact/transit/parking projections, host-folded craft, committed rejoin and private audience filtering. Normal authenticated standard and Union craft playthroughs, reconnect/direct-write denials and eight viewport/motion cases establish this criterion, including complete names and the full first sweep. Prepared rendering and exact release gates remain separate evidence classes. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT.",
+      "evidenceIds": "E-ATTACK-DRADIS;E-433A;E-PC08-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "433a",
@@ -15914,10 +15933,12 @@
       "milestoneHints": "M7",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.67"
+      ],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "ATTACK-DRADIS",
-      "status": "missing",
+      "status": "done",
       "tag": "EXTEND"
     },
     {
@@ -15928,8 +15949,8 @@
         "acceptance": "clients cannot forge contact, coordinate, transit, arrival, range, or visit-log state. Preserve the first qualifying sweep enlargement for its full duration, readable in-viewport names bound only to visible contacts and the minimized Zoom control across supported layouts and reduced motion. Use the existing contact/parking projection; this work does not activate P605a. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Deny direct DRADIS writes."
       },
-      "description": "Planned [EXTEND] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-ATTACK-DRADIS;E-433A",
+      "description": "Completed in PC08 through current group-local contact/transit/parking projections, host-folded craft, committed rejoin and private audience filtering. Normal authenticated standard and Union craft playthroughs, reconnect/direct-write denials and eight viewport/motion cases establish this criterion, including complete names and the full first sweep. Prepared rendering and exact release gates remain separate evidence classes. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT.",
+      "evidenceIds": "E-ATTACK-DRADIS;E-433A;E-PC08-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "433a",
@@ -15937,10 +15958,12 @@
       "milestoneHints": "M7",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.67"
+      ],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "ATTACK-DRADIS",
-      "status": "missing",
+      "status": "done",
       "tag": "EXTEND"
     },
     {
@@ -16638,8 +16661,8 @@
         "acceptance": "fuelled Medium and Short attacks deal three damage on a server roll of 5+. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Resolve Highwall combat."
       },
-      "description": "Planned [NEW] prompt. Production execution depends on the member-safe attack projection and the authoritative Medium and Short range stages; the prior dependency row exposed only craft identity and attack composition, which cannot safely authorize a target or range action.",
-      "evidenceIds": "E-AUDIT-389",
+      "description": "Completed in PC08 through current-actor weapon/support choices, independent Alpha/Bravo/PDF/Maliades launch and range actions, server-locked shared dice and target assignment, source-defined costs/damage/losses and immutable retries. Native authority/math/privacy checks and the normal authenticated twenty-player composed attack establish this criterion; prepared controls and release gates retain separate evidence classes. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT.",
+      "evidenceIds": "E-AUDIT-389;E-PC08-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "265;426;433;439;440",
@@ -16647,10 +16670,12 @@
       "milestoneHints": "M7",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.67"
+      ],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -16763,8 +16788,8 @@
         "acceptance": "its host contributes security teams and rerolls, with fuelled relocation only at the correct boundary. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Resolve Pallas boarding support."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-394",
+      "description": "Completed in PC08 through current craft owner/host support, genuine Commander/crew/Militia choices, independent rerolls, printed automatic consequences, conditional private facilitator ruling, atomic finalization and once-only surviving-Wing return. Native checks and normal authenticated destroyed-host retention through a later attack establish this criterion. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT.",
+      "evidenceIds": "E-AUDIT-394;E-PC08-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "261;466",
@@ -16772,10 +16797,12 @@
       "milestoneHints": "M7",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.67"
+      ],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -16786,8 +16813,8 @@
         "acceptance": "the equivalent support runs from Chepu's own owner, host, fuel, and mission state. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Resolve Chepu boarding support."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-395",
+      "description": "Completed in PC08 through current craft owner/host support, genuine Commander/crew/Militia choices, independent rerolls, printed automatic consequences, conditional private facilitator ruling, atomic finalization and once-only surviving-Wing return. Native checks and normal authenticated destroyed-host retention through a later attack establish this criterion. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT.",
+      "evidenceIds": "E-AUDIT-395;E-PC08-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "272;466",
@@ -16795,10 +16822,12 @@
       "milestoneHints": "M7",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.67"
+      ],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -16809,8 +16838,8 @@
         "acceptance": "launch, target shift, Medium attack, Short attack, losses, and per-wing limits remain independent. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. When this automatic normal procedure ships, preserve existing GM fighter/craft adjustments as explicit audited corrections rather than requiring them to enter routine combat losses or rolls. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Resolve Alpha and Bravo fighter state."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-396",
+      "description": "Completed in PC08 through current-actor weapon/support choices, independent Alpha/Bravo/PDF/Maliades launch and range actions, server-locked shared dice and target assignment, source-defined costs/damage/losses and immutable retries. Native authority/math/privacy checks and the normal authenticated twenty-player composed attack establish this criterion; prepared controls and release gates retain separate evidence classes. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT.",
+      "evidenceIds": "E-AUDIT-396;E-PC08-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "262;182",
@@ -16818,10 +16847,12 @@
       "milestoneHints": "M7",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.67"
+      ],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -16832,8 +16863,8 @@
         "acceptance": "launch, three-damage destruction, fuel repair, Medium choice, and Short risk persist authoritatively. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. When this automatic normal procedure ships, preserve existing GM fighter/craft adjustments as explicit audited corrections rather than requiring them to enter routine combat losses or rolls. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Resolve Maliades state."
       },
-      "description": "Release 0.5.31 adds authoritative Maliades launch state, attack-scoped action reset, destroyed-launch denial, and transactional fuelled Team Phase repair. Damage survives later attacks while Medium/Short action records reset. Both range callables now fail closed before reading GM-only Wolf targeting state, and the console hides those actions until safe current target choices exist. Prompt 397 remains partial because ordinary attack declarations only reach targeting; completing its range actions requires P432a attack-stage advancement, P431 target-shift policy, and P433/P433b audience-safe choices and results. No ordinary production attack or live Medium/Short action has been verified.",
-      "evidenceIds": "E-AUDIT-397;E-WOLF;E-397-MALIADES-STATE-PARTIAL;E-453-MALIADES-RANGE-BLOCKER",
+      "description": "Completed in PC08 through current-actor weapon/support choices, independent Alpha/Bravo/PDF/Maliades launch and range actions, server-locked shared dice and target assignment, source-defined costs/damage/losses and immutable retries. Native authority/math/privacy checks and the normal authenticated twenty-player composed attack establish this criterion; prepared controls and release gates retain separate evidence classes. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT.",
+      "evidenceIds": "E-AUDIT-397;E-WOLF;E-397-MALIADES-STATE-PARTIAL;E-453-MALIADES-RANGE-BLOCKER;E-PC08-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "264;182;431;432a;433;433b",
@@ -16842,11 +16873,12 @@
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
       "releases": [
-        "0.5.31"
+        "0.5.31",
+        "0.5.67"
       ],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
-      "status": "partial",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -16857,8 +16889,8 @@
         "acceptance": "four-fighter cap, combat actions, launch requirement, and fuel-free mission participation remain distinct. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. When this automatic normal procedure ships, preserve existing GM fighter/craft adjustments as explicit audited corrections rather than requiring them to enter routine combat losses or rolls. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Resolve the PDF Escort Wing state."
       },
-      "description": "The source-backed production slice gives the active P.D.F. Colonel a Wolf Attack launch control for the PDF Escort Wing. The transaction requires the active targeting cycle, remaining fighters, and a charged, undamaged Refinery 124 8♦ Fighter Bay; it binds both session and wing revisions, records the launch and private receipt atomically, and exposes only a member-safe status projection. Medium/Short resolution, fighter-loss application, Away Mission bonus result integration, and an ordinary live production attack remain incomplete, so Prompt 398 stays partial.",
-      "evidenceIds": "E-AUDIT-398;E-398-PDF-ESCORT-PARTIAL",
+      "description": "Completed in PC08 through current-actor weapon/support choices, independent Alpha/Bravo/PDF/Maliades launch and range actions, server-locked shared dice and target assignment, source-defined costs/damage/losses and immutable retries. Native authority/math/privacy checks and the normal authenticated twenty-player composed attack establish this criterion; prepared controls and release gates retain separate evidence classes. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT.",
+      "evidenceIds": "E-AUDIT-398;E-398-PDF-ESCORT-PARTIAL;E-PC08-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "273;182",
@@ -16867,11 +16899,12 @@
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
       "releases": [
-        "0.5.36"
+        "0.5.36",
+        "0.5.67"
       ],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
-      "status": "partial",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -17626,8 +17659,8 @@
         "acceptance": "departure, current DRADIS transit/contact presentation, retarget, arrival, transfer, restriction parking, attack parking, reopen, and retry all remain authoritative; this proof does not introduce or imply the owner-deferred Wolf-attack visualization. Preserve the first qualifying sweep enlargement for its full duration, readable in-viewport names bound only to visible contacts and the minimized Zoom control across supported layouts and reduced motion. Use the existing contact/parking projection; this work does not activate P605a. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Run the shuttle-airspace scenario."
       },
-      "description": "Planned [PROVE] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-423",
+      "description": "Completed in PC08 through current group-local contact/transit/parking projections, host-folded craft, committed rejoin and private audience filtering. Normal authenticated standard and Union craft playthroughs, reconnect/direct-write denials and eight viewport/motion cases establish this criterion, including complete names and the full first sweep. Prepared rendering and exact release gates remain separate evidence classes. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT.",
+      "evidenceIds": "E-AUDIT-423;E-PC08-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "361;367;371;373;352;353;368;377;156;380",
@@ -17635,10 +17668,12 @@
       "milestoneHints": "M7;M6",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.67"
+      ],
       "section": "DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PROVE"
     },
     {
@@ -18217,8 +18252,8 @@
         "acceptance": "available Wolf Fighter Wings receive mandatory fleet damage before other Wolf ships. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Enforce Short Range fighter priority."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-WOLF;E-AUDIT-443",
+      "description": "Completed in PC08 through current-actor weapon/support choices, independent Alpha/Bravo/PDF/Maliades launch and range actions, server-locked shared dice and target assignment, source-defined costs/damage/losses and immutable retries. Native authority/math/privacy checks and the normal authenticated twenty-player composed attack establish this criterion; prepared controls and release gates retain separate evidence classes. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT.",
+      "evidenceIds": "E-WOLF;E-AUDIT-443;E-PC08-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "440;396",
@@ -18226,10 +18261,12 @@
       "milestoneHints": "M9",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.67"
+      ],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "WOLF-ATTACK",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -18265,8 +18302,8 @@
         "acceptance": "a charged, undamaged action deals two damage to one valid Wolf target. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Resolve AEGIS Missile Launchers at Long Range."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-WOLF;E-AUDIT-445",
+      "description": "Completed in PC08 through current-actor weapon/support choices, independent Alpha/Bravo/PDF/Maliades launch and range actions, server-locked shared dice and target assignment, source-defined costs/damage/losses and immutable retries. Native authority/math/privacy checks and the normal authenticated twenty-player composed attack establish this criterion; prepared controls and release gates retain separate evidence classes. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT.",
+      "evidenceIds": "E-WOLF;E-AUDIT-445;E-PC08-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "441;182",
@@ -18274,10 +18311,12 @@
       "milestoneHints": "M9",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.67"
+      ],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "WOLF-ATTACK",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -18288,8 +18327,8 @@
         "acceptance": "five AEGIS ore grants the printed one-attack missile bonuses and cannot be spent twice. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Spend ore on enriched warheads."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-WOLF;E-AUDIT-446",
+      "description": "Completed in PC08 through current-actor weapon/support choices, independent Alpha/Bravo/PDF/Maliades launch and range actions, server-locked shared dice and target assignment, source-defined costs/damage/losses and immutable retries. Native authority/math/privacy checks and the normal authenticated twenty-player composed attack establish this criterion; prepared controls and release gates retain separate evidence classes. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT.",
+      "evidenceIds": "E-WOLF;E-AUDIT-446;E-PC08-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "445",
@@ -18297,10 +18336,12 @@
       "milestoneHints": "M9",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.67"
+      ],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "WOLF-ATTACK",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -18311,8 +18352,8 @@
         "acceptance": "four server dice use 5+ and exact upgrade/warhead/target constraints. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. When the printed action requires distinct targets, preserve every original roll and successful hit, assign only to its legal distinct contacts, and record any excess successes as unused without rerolls or duplicate damage (PC07-A6). Keep each action’s printed target limits; independent actions may share a contact when their own rules permit. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Resolve AEGIS Missile Launchers at Medium Range."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-WOLF;E-AUDIT-447;E-PC07-A6-FUTURE-TARGET-LIMITS-20261003",
+      "description": "Completed in PC08 through current-actor weapon/support choices, independent Alpha/Bravo/PDF/Maliades launch and range actions, server-locked shared dice and target assignment, source-defined costs/damage/losses and immutable retries. Native authority/math/privacy checks and the normal authenticated twenty-player composed attack establish this criterion; prepared controls and release gates retain separate evidence classes. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT.",
+      "evidenceIds": "E-WOLF;E-AUDIT-447;E-PC07-A6-FUTURE-TARGET-LIMITS-20261003;E-PC08-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "441;182",
@@ -18320,10 +18361,12 @@
       "milestoneHints": "M9",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.67"
+      ],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "WOLF-ATTACK",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -18334,8 +18377,8 @@
         "acceptance": "the printed Medium and Short dice, thresholds, upgrade, and target limits resolve once. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. When the printed action requires distinct targets, preserve every original roll and successful hit, assign only to its legal distinct contacts, and record any excess successes as unused without rerolls or duplicate damage (PC07-A6). Keep each action’s printed target limits; independent actions may share a contact when their own rules permit. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Resolve AEGIS Point Defence."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-WOLF;E-AUDIT-448;E-PC07-A6-FUTURE-TARGET-LIMITS-20261003",
+      "description": "Completed in PC08 through current-actor weapon/support choices, independent Alpha/Bravo/PDF/Maliades launch and range actions, server-locked shared dice and target assignment, source-defined costs/damage/losses and immutable retries. Native authority/math/privacy checks and the normal authenticated twenty-player composed attack establish this criterion; prepared controls and release gates retain separate evidence classes. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT.",
+      "evidenceIds": "E-WOLF;E-AUDIT-448;E-PC07-A6-FUTURE-TARGET-LIMITS-20261003;E-PC08-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "441;182",
@@ -18343,10 +18386,12 @@
       "milestoneHints": "M9",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.67"
+      ],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "WOLF-ATTACK",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -18357,8 +18402,8 @@
         "acceptance": "Alpha and Bravo launch only from their own charged, undamaged bay under Wing Commander authority. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Authorize Fighter Bay launches."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-WOLF;E-AUDIT-449",
+      "description": "Completed in PC08 through current-actor weapon/support choices, independent Alpha/Bravo/PDF/Maliades launch and range actions, server-locked shared dice and target assignment, source-defined costs/damage/losses and immutable retries. Native authority/math/privacy checks and the normal authenticated twenty-player composed attack establish this criterion; prepared controls and release gates retain separate evidence classes. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT.",
+      "evidenceIds": "E-WOLF;E-AUDIT-449;E-PC08-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "443;396",
@@ -18366,10 +18411,12 @@
       "milestoneHints": "M9",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.67"
+      ],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "WOLF-ATTACK",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -18380,8 +18427,8 @@
         "acceptance": "each eligible fighter performs no more than one permitted target-number adjustment with correct wraparound. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Shift targets with fleet fighters."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-WOLF;E-AUDIT-450",
+      "description": "Completed in PC08 through current-actor weapon/support choices, independent Alpha/Bravo/PDF/Maliades launch and range actions, server-locked shared dice and target assignment, source-defined costs/damage/losses and immutable retries. Native authority/math/privacy checks and the normal authenticated twenty-player composed attack establish this criterion; prepared controls and release gates retain separate evidence classes. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT.",
+      "evidenceIds": "E-WOLF;E-AUDIT-450;E-PC08-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "449",
@@ -18389,10 +18436,12 @@
       "milestoneHints": "M9",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.67"
+      ],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "WOLF-ATTACK",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -18403,8 +18452,8 @@
         "acceptance": "each committed fighter rolls once and deals the printed damage on 5+. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Attack at Medium Range with fleet fighters."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-WOLF;E-AUDIT-451",
+      "description": "Completed in PC08 through current-actor weapon/support choices, independent Alpha/Bravo/PDF/Maliades launch and range actions, server-locked shared dice and target assignment, source-defined costs/damage/losses and immutable retries. Native authority/math/privacy checks and the normal authenticated twenty-player composed attack establish this criterion; prepared controls and release gates retain separate evidence classes. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT.",
+      "evidenceIds": "E-WOLF;E-AUDIT-451;E-PC08-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "449",
@@ -18412,10 +18461,12 @@
       "milestoneHints": "M9",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.67"
+      ],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "WOLF-ATTACK",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -18426,8 +18477,8 @@
         "acceptance": "each committed fighter hits on 3+ and is destroyed on 1–2 before any later use. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Attack at Short Range with fleet fighters."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-WOLF;E-AUDIT-452",
+      "description": "Completed in PC08 through current-actor weapon/support choices, independent Alpha/Bravo/PDF/Maliades launch and range actions, server-locked shared dice and target assignment, source-defined costs/damage/losses and immutable retries. Native authority/math/privacy checks and the normal authenticated twenty-player composed attack establish this criterion; prepared controls and release gates retain separate evidence classes. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT.",
+      "evidenceIds": "E-WOLF;E-AUDIT-452;E-PC08-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "449",
@@ -18435,10 +18486,12 @@
       "milestoneHints": "M9",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.67"
+      ],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "WOLF-ATTACK",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -18449,8 +18502,8 @@
         "acceptance": "its Medium target/damage choice, Short attack, self-risk, durability, and fuel repair remain authoritative. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Resolve Maliades at range."
       },
-      "description": "Release 0.5.31 keeps the printed Medium/Short damage math in the pure state domain and disables both production range endpoints and client controls. Authorized requests receive the same unavailable response before any GM-only Wolf attack read, transaction, roll, or write; member events omit target choices, dice, shifts, and damage mappings. Release 0.5.32 adds only a GM-controlled action to close targeting and enter Long Range; no range calculation/result or audience-safe Dione choice producer supplies current eligible targets, and no range result updates Wolf durability. Prompt 453 remains partial. Resume after P432a, P431, and P433/P433b provide the complete current-stage lifecycle, target-shift policy, and entitled choices/results; verify ordinary lifecycle, wrong actors, stale phases, duplicate targets, and reconnect against those producers. The member-readable Maliades state schema also needs an audience review before range results are stored.",
-      "evidenceIds": "E-AUDIT-453;E-WOLF;E-453-MALIADES-RANGE-BLOCKER",
+      "description": "Completed in PC08 through current-actor weapon/support choices, independent Alpha/Bravo/PDF/Maliades launch and range actions, server-locked shared dice and target assignment, source-defined costs/damage/losses and immutable retries. Native authority/math/privacy checks and the normal authenticated twenty-player composed attack establish this criterion; prepared controls and release gates retain separate evidence classes. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT.",
+      "evidenceIds": "E-AUDIT-453;E-WOLF;E-453-MALIADES-RANGE-BLOCKER;E-PC08-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "264;397;431;432a;433;433b",
@@ -18459,11 +18512,12 @@
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
       "releases": [
-        "0.5.31"
+        "0.5.31",
+        "0.5.67"
       ],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "WOLF-ATTACK",
-      "status": "partial",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -18474,8 +18528,8 @@
         "acceptance": "only a fuelled Highwall rolls each eligible Medium/Short attack and deals three on 5+. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Resolve Highwall at range."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-WOLF;E-AUDIT-454",
+      "description": "Completed in PC08 through current-actor weapon/support choices, independent Alpha/Bravo/PDF/Maliades launch and range actions, server-locked shared dice and target assignment, source-defined costs/damage/losses and immutable retries. Native authority/math/privacy checks and the normal authenticated twenty-player composed attack establish this criterion; prepared controls and release gates retain separate evidence classes. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT.",
+      "evidenceIds": "E-WOLF;E-AUDIT-454;E-PC08-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "265",
@@ -18483,10 +18537,12 @@
       "milestoneHints": "M9",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.67"
+      ],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "WOLF-ATTACK",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -18497,8 +18553,8 @@
         "acceptance": "three dice use 6+/5+/4+ by range with at most one hit per target from the array each phase. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. When the printed action requires distinct targets, preserve every original roll and successful hit, assign only to its legal distinct contacts, and record any excess successes as unused without rerolls or duplicate damage (PC07-A6). Keep each action’s printed target limits; independent actions may share a contact when their own rules permit. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Resolve the Gorgoneion Missile Array."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-WOLF;E-AUDIT-455;E-PC07-A6-FUTURE-TARGET-LIMITS-20261003",
+      "description": "Completed in PC08 through current-actor weapon/support choices, independent Alpha/Bravo/PDF/Maliades launch and range actions, server-locked shared dice and target assignment, source-defined costs/damage/losses and immutable retries. Native authority/math/privacy checks and the normal authenticated twenty-player composed attack establish this criterion; prepared controls and release gates retain separate evidence classes. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT.",
+      "evidenceIds": "E-WOLF;E-AUDIT-455;E-PC07-A6-FUTURE-TARGET-LIMITS-20261003;E-PC08-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "239;441",
@@ -18506,10 +18562,12 @@
       "milestoneHints": "M9",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.67"
+      ],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "WOLF-ATTACK",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -18520,8 +18578,8 @@
         "acceptance": "only charged, undamaged Refinery bay and Colonel authority make its fighters combat-eligible. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Launch the PDF Fighter Wing."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-WOLF;E-AUDIT-456",
+      "description": "Completed in PC08 through current-actor weapon/support choices, independent Alpha/Bravo/PDF/Maliades launch and range actions, server-locked shared dice and target assignment, source-defined costs/damage/losses and immutable retries. Native authority/math/privacy checks and the normal authenticated twenty-player composed attack establish this criterion; prepared controls and release gates retain separate evidence classes. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT.",
+      "evidenceIds": "E-WOLF;E-AUDIT-456;E-PC08-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "273;449",
@@ -18529,10 +18587,12 @@
       "milestoneHints": "M9",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.67"
+      ],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "WOLF-ATTACK",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -18543,8 +18603,8 @@
         "acceptance": "each fighter chooses one target shift or one 5+ attack and cannot do both. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Resolve PDF fighters at Medium Range."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-WOLF;E-AUDIT-457",
+      "description": "Completed in PC08 through current-actor weapon/support choices, independent Alpha/Bravo/PDF/Maliades launch and range actions, server-locked shared dice and target assignment, source-defined costs/damage/losses and immutable retries. Native authority/math/privacy checks and the normal authenticated twenty-player composed attack establish this criterion; prepared controls and release gates retain separate evidence classes. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT.",
+      "evidenceIds": "E-WOLF;E-AUDIT-457;E-PC08-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "456",
@@ -18552,10 +18612,12 @@
       "milestoneHints": "M9",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.67"
+      ],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "WOLF-ATTACK",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -18566,8 +18628,8 @@
         "acceptance": "each fighter attacks on 3+ and is destroyed on 1–2. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Resolve PDF fighters at Short Range."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-WOLF;E-AUDIT-458",
+      "description": "Completed in PC08 through current-actor weapon/support choices, independent Alpha/Bravo/PDF/Maliades launch and range actions, server-locked shared dice and target assignment, source-defined costs/damage/losses and immutable retries. Native authority/math/privacy checks and the normal authenticated twenty-player composed attack establish this criterion; prepared controls and release gates retain separate evidence classes. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT.",
+      "evidenceIds": "E-WOLF;E-AUDIT-458;E-PC08-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "456",
@@ -18575,10 +18637,12 @@
       "milestoneHints": "M9",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.67"
+      ],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "WOLF-ATTACK",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -18589,8 +18653,8 @@
         "acceptance": "once at each range, Boa may spend one Scrap for one valid Wolf damage under the recorded ambiguity policy. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Resolve Boa's range actions."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-WOLF;E-AUDIT-459",
+      "description": "Completed in PC08 through current-actor weapon/support choices, independent Alpha/Bravo/PDF/Maliades launch and range actions, server-locked shared dice and target assignment, source-defined costs/damage/losses and immutable retries. Native authority/math/privacy checks and the normal authenticated twenty-player composed attack establish this criterion; prepared controls and release gates retain separate evidence classes. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT.",
+      "evidenceIds": "E-WOLF;E-AUDIT-459;E-PC08-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "400;441",
@@ -18598,10 +18662,12 @@
       "milestoneHints": "M9",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.67"
+      ],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "WOLF-ATTACK",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -18612,8 +18678,8 @@
         "acceptance": "its authoritative host can contribute eligible security teams only while Macaw is correctly docked. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Apply Macaw boarding support."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-WOLF;E-AUDIT-460",
+      "description": "Completed in PC08 through current craft owner/host support, genuine Commander/crew/Militia choices, independent rerolls, printed automatic consequences, conditional private facilitator ruling, atomic finalization and once-only surviving-Wing return. Native checks and normal authenticated destroyed-host retention through a later attack establish this criterion. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT.",
+      "evidenceIds": "E-WOLF;E-AUDIT-460;E-PC08-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "399;466",
@@ -18621,10 +18687,12 @@
       "milestoneHints": "M9",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.67"
+      ],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "WOLF-ATTACK",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -18635,8 +18703,8 @@
         "acceptance": "a fuelled craft moves to one legal ship only at the start of Boarding. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Relocate Pallas or Chepu before boarding."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-WOLF;E-AUDIT-461",
+      "description": "Completed in PC08 through current craft owner/host support, genuine Commander/crew/Militia choices, independent rerolls, printed automatic consequences, conditional private facilitator ruling, atomic finalization and once-only surviving-Wing return. Native checks and normal authenticated destroyed-host retention through a later attack establish this criterion. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT.",
+      "evidenceIds": "E-WOLF;E-AUDIT-461;E-PC08-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "261;272;363",
@@ -18644,10 +18712,12 @@
       "milestoneHints": "M9",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.67"
+      ],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "WOLF-ATTACK",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -18658,8 +18728,8 @@
         "acceptance": "Philia, Blacksmith, Black Sheep, Condor, Chacau, Wobbly, and Ally enable host security teams from their actual craft definitions. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Apply engineering/service shuttle support."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-WOLF;E-AUDIT-462",
+      "description": "Completed in PC08 through current craft owner/host support, genuine Commander/crew/Militia choices, independent rerolls, printed automatic consequences, conditional private facilitator ruling, atomic finalization and once-only surviving-Wing return. Native checks and normal authenticated destroyed-host retention through a later attack establish this criterion. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT.",
+      "evidenceIds": "E-WOLF;E-AUDIT-462;E-PC08-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "361;386",
@@ -18667,10 +18737,12 @@
       "milestoneHints": "M9",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.67"
+      ],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "WOLF-ATTACK",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -18681,8 +18753,8 @@
         "acceptance": "independent reroll allowances cannot be reused or double-counted. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Apply AEGIS and Pallas boarding rerolls."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-WOLF;E-AUDIT-463",
+      "description": "Completed in PC08 through current craft owner/host support, genuine Commander/crew/Militia choices, independent rerolls, printed automatic consequences, conditional private facilitator ruling, atomic finalization and once-only surviving-Wing return. Native checks and normal authenticated destroyed-host retention through a later attack establish this criterion. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT.",
+      "evidenceIds": "E-WOLF;E-AUDIT-463;E-PC08-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "394;395;428",
@@ -18690,10 +18762,12 @@
       "milestoneHints": "M9",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.67"
+      ],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "WOLF-ATTACK",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -18704,8 +18778,8 @@
         "acceptance": "two parties are added at the printed point and incomplete consequence text routes to an explicit facilitator call. Keep that incomplete printed consequence as an explicit facilitator ruling, labeled and privately audited. Automatically calculate the source-defined party counts, rolls and surrounding boarding consequences; do not invent a deterministic replacement for the missing text. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Apply Wolf Commander boarding leadership."
       },
-      "description": "Planned [DECISION] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-WOLF;E-AUDIT-464",
+      "description": "Completed in PC08 through current craft owner/host support, genuine Commander/crew/Militia choices, independent rerolls, printed automatic consequences, conditional private facilitator ruling, atomic finalization and once-only surviving-Wing return. Native checks and normal authenticated destroyed-host retention through a later attack establish this criterion. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT.",
+      "evidenceIds": "E-WOLF;E-AUDIT-464;E-PC08-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "435;466",
@@ -18713,10 +18787,12 @@
       "milestoneHints": "M9",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.67"
+      ],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "WOLF-ATTACK",
-      "status": "missing",
+      "status": "done",
       "tag": "DECISION"
     },
     {
@@ -18727,8 +18803,8 @@
         "acceptance": "each surviving transport contributes exactly four parties to its resolved target. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Drop Assault Transport parties."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-WOLF;E-AUDIT-465",
+      "description": "Completed in PC08 through current craft owner/host support, genuine Commander/crew/Militia choices, independent rerolls, printed automatic consequences, conditional private facilitator ruling, atomic finalization and once-only surviving-Wing return. Native checks and normal authenticated destroyed-host retention through a later attack establish this criterion. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT.",
+      "evidenceIds": "E-WOLF;E-AUDIT-465;E-PC08-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "426;428",
@@ -18736,10 +18812,12 @@
       "milestoneHints": "M9",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.67"
+      ],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "WOLF-ATTACK",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -18750,8 +18828,8 @@
         "acceptance": "each available team uses the printed 1 death, 2–3 no effect, 4+ kill result from server dice. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Roll security-team defence."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-WOLF;E-AUDIT-466",
+      "description": "Completed in PC08 through current craft owner/host support, genuine Commander/crew/Militia choices, independent rerolls, printed automatic consequences, conditional private facilitator ruling, atomic finalization and once-only surviving-Wing return. Native checks and normal authenticated destroyed-host retention through a later attack establish this criterion. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT.",
+      "evidenceIds": "E-WOLF;E-AUDIT-466;E-PC08-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "378;465",
@@ -18759,10 +18837,12 @@
       "milestoneHints": "M9",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.67"
+      ],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "WOLF-ATTACK",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -18773,8 +18853,8 @@
         "acceptance": "each remaining assault team deals one authoritative ship damage after defence. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Apply surviving-boarder damage."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-WOLF;E-AUDIT-467",
+      "description": "Completed in PC08 through current craft owner/host support, genuine Commander/crew/Militia choices, independent rerolls, printed automatic consequences, conditional private facilitator ruling, atomic finalization and once-only surviving-Wing return. Native checks and normal authenticated destroyed-host retention through a later attack establish this criterion. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT.",
+      "evidenceIds": "E-WOLF;E-AUDIT-467;E-PC08-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "466",
@@ -18782,10 +18862,12 @@
       "milestoneHints": "M9",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.67"
+      ],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "WOLF-ATTACK",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -18796,8 +18878,8 @@
         "acceptance": "outnumbered teams gain the printed dice and optional front-line risk can kill the role holder. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Resolve Militia Leader defence."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-WOLF;E-AUDIT-468",
+      "description": "Completed in PC08 through current craft owner/host support, genuine Commander/crew/Militia choices, independent rerolls, printed automatic consequences, conditional private facilitator ruling, atomic finalization and once-only surviving-Wing return. Native checks and normal authenticated destroyed-host retention through a later attack establish this criterion. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT.",
+      "evidenceIds": "E-WOLF;E-AUDIT-468;E-PC08-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "466;280",
@@ -18805,10 +18887,12 @@
       "milestoneHints": "M9",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.67"
+      ],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "WOLF-ATTACK",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -18819,8 +18903,8 @@
         "acceptance": "each range applies its exact effect and surviving wings alone enter next-attack return state. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Resolve Wolf Fighter Wing destruction."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-WOLF;E-AUDIT-469",
+      "description": "Completed in PC08 through current craft owner/host support, genuine Commander/crew/Militia choices, independent rerolls, printed automatic consequences, conditional private facilitator ruling, atomic finalization and once-only surviving-Wing return. Native checks and normal authenticated destroyed-host retention through a later attack establish this criterion. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT.",
+      "evidenceIds": "E-WOLF;E-AUDIT-469;E-PC08-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "442",
@@ -18828,10 +18912,12 @@
       "milestoneHints": "M9",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.67"
+      ],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "WOLF-ATTACK",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -18842,8 +18928,8 @@
         "acceptance": "each range applies its exact effect and only surviving transports drop parties. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Resolve Assault Transport destruction."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-469A",
+      "description": "Completed in PC08 through current craft owner/host support, genuine Commander/crew/Militia choices, independent rerolls, printed automatic consequences, conditional private facilitator ruling, atomic finalization and once-only surviving-Wing return. Native checks and normal authenticated destroyed-host retention through a later attack establish this criterion. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT.",
+      "evidenceIds": "E-AUDIT-469A;E-PC08-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "442",
@@ -18851,10 +18937,12 @@
       "milestoneHints": "M9",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.67"
+      ],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -18865,8 +18953,8 @@
         "acceptance": "each range applies the printed damage/return consequence from immutable card data. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Resolve Wolf Destroyer destruction."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-469B",
+      "description": "Completed in PC08 through current craft owner/host support, genuine Commander/crew/Militia choices, independent rerolls, printed automatic consequences, conditional private facilitator ruling, atomic finalization and once-only surviving-Wing return. Native checks and normal authenticated destroyed-host retention through a later attack establish this criterion. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT.",
+      "evidenceIds": "E-AUDIT-469B;E-PC08-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "442",
@@ -18874,10 +18962,12 @@
       "milestoneHints": "M9",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.67"
+      ],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -18888,8 +18978,8 @@
         "acceptance": "each range applies the printed damage/return consequence from immutable card data. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Resolve Wolf Cruiser destruction."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-469C",
+      "description": "Completed in PC08 through current craft owner/host support, genuine Commander/crew/Militia choices, independent rerolls, printed automatic consequences, conditional private facilitator ruling, atomic finalization and once-only surviving-Wing return. Native checks and normal authenticated destroyed-host retention through a later attack establish this criterion. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT.",
+      "evidenceIds": "E-AUDIT-469C;E-PC08-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "442",
@@ -18897,10 +18987,12 @@
       "milestoneHints": "M9",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.67"
+      ],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -18911,8 +19003,8 @@
         "acceptance": "each range effect and surviving-wing bonus timing use authoritative post-range state. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Resolve Strikecarrier destruction."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-469D",
+      "description": "Completed in PC08 through current craft owner/host support, genuine Commander/crew/Militia choices, independent rerolls, printed automatic consequences, conditional private facilitator ruling, atomic finalization and once-only surviving-Wing return. Native checks and normal authenticated destroyed-host retention through a later attack establish this criterion. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT.",
+      "evidenceIds": "E-AUDIT-469D;E-PC08-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "442",
@@ -18920,10 +19012,12 @@
       "milestoneHints": "M9",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.67"
+      ],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -18934,8 +19028,8 @@
         "acceptance": "each range effect, Short immunity, and station-specific consequence match the printed card. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Resolve Battlestation destruction."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-469E",
+      "description": "Completed in PC08 through current craft owner/host support, genuine Commander/crew/Militia choices, independent rerolls, printed automatic consequences, conditional private facilitator ruling, atomic finalization and once-only surviving-Wing return. Native checks and normal authenticated destroyed-host retention through a later attack establish this criterion. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT.",
+      "evidenceIds": "E-AUDIT-469E;E-PC08-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "442",
@@ -18943,10 +19037,12 @@
       "milestoneHints": "M9",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.67"
+      ],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -18957,8 +19053,8 @@
         "acceptance": "surviving wings return in the next attack and destroyed wings do not. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Carry surviving Wolf Fighter Wings forward."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-WOLF;E-AUDIT-470",
+      "description": "Completed in PC08 through current craft owner/host support, genuine Commander/crew/Militia choices, independent rerolls, printed automatic consequences, conditional private facilitator ruling, atomic finalization and once-only surviving-Wing return. Native checks and normal authenticated destroyed-host retention through a later attack establish this criterion. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT.",
+      "evidenceIds": "E-WOLF;E-AUDIT-470;E-PC08-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "469",
@@ -18966,10 +19062,12 @@
       "milestoneHints": "M9",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.67"
+      ],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "WOLF-ATTACK",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -22534,8 +22632,8 @@
         "acceptance": "group-local ships, transit samples, parked craft, and hidden contacts remain truthful across supported orientations and sizes; every complete visible contact name stays inside the DRADIS viewport at every supported edge, orientation, and motion preference. Preserve the first qualifying sweep enlargement for its full duration, readable in-viewport names bound only to visible contacts and the minimized Zoom control across supported layouts and reduced motion. Use the existing contact/parking projection; this work does not activate P605a. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Make DRADIS responsive."
       },
-      "description": "Prompt 275a's focused geometry tests now prove intrinsic complete-name containment and two-axis clamping at top/right/bottom/left across 320x844, 1440x900, 844x390, compact/expanded, acquisition/privacy, normal and reduced motion. Full group-local transit/parking projection remains open, so this viewport regression cannot complete Prompt 605.",
-      "evidenceIds": "E-AUDIT-605",
+      "description": "Completed in PC08 through current group-local contact/transit/parking projections, host-folded craft, committed rejoin and private audience filtering. Normal authenticated standard and Union craft playthroughs, reconnect/direct-write denials and eight viewport/motion cases establish this criterion, including complete names and the full first sweep. Prepared rendering and exact release gates remain separate evidence classes. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT.",
+      "evidenceIds": "E-AUDIT-605;E-PC08-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "351",
@@ -22544,11 +22642,12 @@
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
       "releases": [
-        "0.3.10"
+        "0.3.10",
+        "0.5.67"
       ],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "none",
-      "status": "partial",
+      "status": "done",
       "tag": "EXTEND"
     },
     {
@@ -23555,8 +23654,8 @@
         "acceptance": "every craft type travels, docks, transfers/acts, appears through the current DRADIS contact contract, parks under each restriction, and recovers after reconnect; the proof consumes attack state but does not add the owner-deferred Wolf-attack visualization. Preserve the first qualifying sweep enlargement for its full duration, readable in-viewport names bound only to visible contacts and the minimized Zoom control across supported layouts and reduced motion. Use the existing contact/parking projection; this work does not activate P605a. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Run a complete shuttle-airspace playthrough."
       },
-      "description": "Planned [PROVE] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-644",
+      "description": "Completed in PC08 through current group-local contact/transit/parking projections, host-folded craft, committed rejoin and private audience filtering. Normal authenticated standard and Union craft playthroughs, reconnect/direct-write denials and eight viewport/motion cases establish this criterion, including complete names and the full first sweep. Prepared rendering and exact release gates remain separate evidence classes. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT.",
+      "evidenceIds": "E-AUDIT-644;E-PC08-FINAL-20261003",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "423",
@@ -23564,10 +23663,12 @@
       "milestoneHints": "M13",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.67"
+      ],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PROVE"
     },
     {
