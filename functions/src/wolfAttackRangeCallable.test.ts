@@ -2100,7 +2100,8 @@ it('automatically opens and restages the exact surviving P Station force in the 
     assignments: [{ actionId: shortAction.actionId, targetInstanceIds: targetIds }] });
   const marker = { type: 'p-station-sequence', sequenceId: 'wolf-p-station-transition-1', groupId: 'fleet-1',
     chart: 'B', coordinate: '1964', stationId: 'P', sourceTransitionId: 'transition-1', sourceCycle: 1, attackNumber: 1 };
-  put(statePath, { ...state, announcementId: state.attackId, attackNumber: 1, pStationSequence: marker,
+  put(statePath, { ...state, announcementId: state.attackId, attackNumber: 1,
+    targetGroupId: 'fleet-1', threatSiteCode: 'P', threatSourceId: 'arrival-transition-1', pStationSequence: marker,
     combatRoster: short.roster, rangeReceipts: [zeroDamage('long-range'), zeroDamage('medium-range'), short.receipt] });
   put('sessions/s1/wolfAttackWindow/current', { status: 'resolved', turn: 1, revision: 5,
     targetGroupId: 'fleet-1', threatSiteCode: 'P', threatSourceId: 'arrival-transition-1' });
@@ -2156,7 +2157,8 @@ it('stops the P Station repeat without opening a due window when no Wolf ships s
     assignments: [{ actionId: shortAction.actionId, targetInstanceIds: targetIds }] });
   const marker = { type: 'p-station-sequence', sequenceId: 'wolf-p-station-transition-1', groupId: 'fleet-1',
     chart: 'B', coordinate: '1964', stationId: 'P', sourceTransitionId: 'transition-1', sourceCycle: 1, attackNumber: 1 };
-  put(statePath, { ...state, announcementId: state.attackId, attackNumber: 1, pStationSequence: marker,
+  put(statePath, { ...state, announcementId: state.attackId, attackNumber: 1,
+    targetGroupId: 'fleet-1', threatSiteCode: 'P', threatSourceId: 'arrival-transition-1', pStationSequence: marker,
     combatRoster: short.roster, rangeReceipts: [emptyRange('long-range'), emptyRange('medium-range'), short.receipt] });
   put('sessions/s1/wolfAttackWindow/current', { status: 'resolved', turn: 1, revision: 5,
     targetGroupId: 'fleet-1', threatSiteCode: 'P', threatSourceId: 'arrival-transition-1' });
