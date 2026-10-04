@@ -15,10 +15,18 @@ const context = await browser.newContext({ viewport: { width: 390, height: 844 }
 const page = await context.newPage();
 const browserErrors = [];
 page.on('pageerror', error => browserErrors.push(error.message));
+page.on('request', request => {
+  const url = new URL(request.url());
+  if (/firebase|firestore|identitytoolkit|securetoken|cloudfunctions|googleapis\.com/i.test(url.hostname)) {
+    remoteFirebaseRequestOrigins.add(url.origin);
+  }
+});
 
 let fixture;
 const checks = {};
 const governanceReturnChecks = [];
+const pregameSettingsChecks = [];
+const remoteFirebaseRequestOrigins = new Set();
 const commandNames = [];
 let activeStage = 'browser setup';
 const setupDisclosure = {
@@ -30,6 +38,30 @@ const setupDisclosure = {
   facilitatorScenarioChoices: [],
   visitAttestation: 'The Coordination visit is a digital callable record; no physical visit is attested.',
 };
+
+const pregameSettingsNote = 'Awaiting CIC authentication means waiting for the GM to start the game.';
+
+async function inspectPregameSettings() {
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  const settings = page.getByRole('dialog', { name: 'Session settings', exact: true });
+  await settings.waitFor();
+  const note = settings.getByText(pregameSettingsNote, { exact: true });
+  await note.waitFor();
+  for (const [width, height] of [[390, 844], [844, 390], [1440, 900]]) {
+    await page.setViewportSize({ width, height });
+    await note.scrollIntoViewIfNeeded();
+    const rect = await note.evaluate(element => {
+      const box = element.getBoundingClientRect();
+      return { left: box.left, right: box.right, top: box.top, bottom: box.bottom, width: box.width, height: box.height };
+    });
+    assert.ok(rect.width > 0 && rect.height > 0, `Cycle 0 Settings guidance has visible geometry at ${width}x${height}.`);
+    assert.ok(rect.left >= 0 && rect.right <= width, `Cycle 0 Settings guidance is not horizontally clipped at ${width}x${height}.`);
+    await page.screenshot({ path: `${evidenceDirectory}/pregame-settings-${width}x${height}.png`, fullPage: true });
+    pregameSettingsChecks.push({ width, height, guidanceVisible: true, noHorizontalClipping: true });
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole('button', { name: 'Close settings', exact: true }).click();
+}
 
 async function joinThroughUi(joinCode) {
   await page.goto(baseUrl);
@@ -50,6 +82,7 @@ async function joinThroughUi(joinCode) {
     const state = useSessionStore.getState();
     return Boolean(state.me && state.session);
   });
+  await inspectPregameSettings();
   return page.evaluate(async () => {
     const { auth } = await import('/src/lib/firebase.ts');
     return { localId: auth().currentUser.uid, idToken: await auth().currentUser.getIdToken() };
@@ -246,6 +279,18 @@ try {
     browserRoleId: 'icebreaker-captain',
     joinBrowserPlayer: joinThroughUi,
   });
+  await page.waitForFunction(async () => {
+    const { useSessionStore } = await import('/src/store/useSessionStore.ts');
+    return Number(useSessionStore.getState().session?.currentTurn) >= 1;
+  }, undefined, { timeout: 30000 });
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  const activeSettings = page.getByRole('dialog', { name: 'Session settings', exact: true });
+  await activeSettings.waitFor();
+  assert.equal(await activeSettings.getByText(pregameSettingsNote, { exact: true }).count(), 0,
+    'Cycle 0 Settings guidance disappears after the ordinary GM starts Cycle 1.');
+  await page.screenshot({ path: `${evidenceDirectory}/cycle1-settings-no-pregame-guidance-390x844.png`, fullPage: true });
+  await page.getByRole('button', { name: 'Close settings', exact: true }).click();
+  checks.pregameSettingsGuidanceGeometryAndCycle1Removal = true;
   const president = fixture.byRole('dione-president');
   const captain = fixture.byRole('icebreaker-captain');
   const scientist = fixture.byRole('shepherd-scientist');
@@ -532,6 +577,9 @@ try {
   assert.equal(coordinationRoot.turnState.phase, 'coordination');
   assert.equal(coordinationRoot.turnPhase.airspace.state, 'lifted');
   activeStage = 'close-cycle election tally after the Coordination boundary';
+  assert.deepEqual([...remoteFirebaseRequestOrigins], [],
+    'The explicit Firebase Emulator client must not contact a remote Firebase API before election tally.');
+  checks.noRemoteFirebaseRequestOriginsBeforeElection = true;
   const election = await invoke(fixture.gm, 'resolvePresidentialElection', gmRequest({
     requestId: requestId(), expectedRevision: 1,
   }));
@@ -559,7 +607,9 @@ try {
   assert.doesNotMatch(JSON.stringify(memberElectionProjection), /winnerUid|candidateIdsByUid|voterShipIds|ballot\s*:/);
   const electedRoot = (await fixture.session.get()).data();
   assert.equal(electedRoot.presidentialOffices.presidentUid, captain.localId);
-  assert.equal(electedRoot.presidentialOffices.vicePresidentUid, president.localId);
+  assert.equal(electedRoot.presidentialOffices.vicePresidentUid, scientist.localId);
+  assert.notEqual(electedRoot.presidentialOffices.presidentUid, electedRoot.presidentialOffices.vicePresidentUid);
+  assert.equal(election.vicePresidentOutcome, 'runner-up');
   const newPresidentProjection = await member(captain);
   const oldPresidentProjection = await member(president);
   assert.equal(newPresidentProjection.currentMemberIsPresident, true);
@@ -642,6 +692,7 @@ try {
   checks.reconnectRetainsNextTeamAnnouncementsAndElectedOffice = true;
 
   assert.deepEqual(browserErrors, []);
+  assert.deepEqual([...remoteFirebaseRequestOrigins], [], 'No remote Firebase request origin was observed during the browser proof.');
   const sanitizedEvidence = {
     kind: 'normal-authenticated-local-emulator-crisis-election-http-ui',
     sourceCommit: process.env.PC09_SOURCE_COMMIT ?? 'not-specified',
@@ -650,6 +701,8 @@ try {
       crisisKindsResolved: ['Approaching Vessel', 'Disease Outbreak', 'Religious Zealotry', 'Civil Unrest', 'Presidential Election', 'four custom crisis outcomes'],
       capital: { reachedCap: true, atCapResolutionApplied: false, atCapDelta: 0, retryNoChange: true },
       election: { voters: voterUids.length, tally: 'server-computed population weighting', presidentChanged: true, vicePresidentChanged: true,
+        sharedUniqueLeaderResolvedFromVpBallotRunnerUp: election.tally.president.winnerUid === election.tally.vicePresident.winnerUid &&
+          election.vicePresidentCandidateId === candidateIdFor(scientist.localId) && election.vicePresidentOutcome === 'runner-up',
         ballotsPrivate: true, directReadsDenied: true, directWritesDenied: true },
       voyage33: { admitted: true, arrivalActivatedOnce: true, exactRetryStable: true },
       formalAnnouncements: { queuedBeforeNextTeam: announceCountBefore, deliveredAtCycle: 2, reconnectPreserved: true },
@@ -658,6 +711,8 @@ try {
     },
     setupDisclosure,
     governanceReturnChecks,
+    pregameSettingsChecks,
+    remoteFirebaseRequestOrigins: [...remoteFirebaseRequestOrigins],
     productionGameplay: false,
     preparedScene: false,
     identitiesAndTokensRetained: false,
@@ -674,6 +729,8 @@ try {
       route: new URL(page.url()).hash,
       checks,
       browserErrors,
+      remoteFirebaseRequestOrigins: [...remoteFirebaseRequestOrigins],
+      pregameSettingsChecks,
       setupDisclosure,
     }, null, 2)}\n`);
   }
