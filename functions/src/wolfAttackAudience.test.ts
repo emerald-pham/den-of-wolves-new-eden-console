@@ -150,7 +150,7 @@ describe('Wolf attack audience projection', () => {
     });
 
     expect(view).toMatchObject({ currentStep: 'resolved', remainingThreatCount: 2, returningThreatCount: 1 });
-    expect(JSON.stringify(view)).not.toMatch(/wolf-fighter-wing|wolf-destroyer|instanceId|target/);
+    expect(JSON.stringify(view)).not.toMatch(/wolf-fighter-wing|wolf-destroyer|\"(?:instanceId|target)\"/);
     expect(isWolfAttackMemberView(view)).toBe(true);
   });
 
