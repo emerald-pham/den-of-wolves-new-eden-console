@@ -11,12 +11,12 @@
     "dependencyWaveCount": 21
   },
   "sources": {
-    "revision": "7a7f37bcfe8d8e0d830c3de37981e6b720a137ea",
-    "revisionDate": "2026-10-04T10:44:38-04:00",
+    "revision": "0cd9a853046e3504537f8268bc78d9b4f8fc2528",
+    "revisionDate": "2026-10-04T11:08:09-04:00",
     "files": [
       {
         "path": "docs/implementation-prompts.json",
-        "sha256": "30d4545d7dc00c22717ba6930cb2482ea442ef9b5469961d7e32d0a056184c5a"
+        "sha256": "9a29218099278a7925c6cdb3c60cc80428d6db4e1f1d93b4364d53dcb3b54f71"
       },
       {
         "path": "docs/CHECKPOINT_COMPLETION_PLAN.md",
@@ -6363,7 +6363,7 @@
       "title": "Trigger Active Wolf Fortress attacks.",
       "status": "missing",
       "catalogReadiness": "ready",
-      "acceptance": "M includes at least one Battlestation and 20 other damage capacity under the authoritative composition. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately. PC08 post-release audit follow-on: Before composing this trigger with ordinary attacks, repair the existing shared lifecycle blockers RANGE-01 and BOARDING-01 at P448/P469e/P470. Prove a legal later-cycle attack with destroyed AEGIS and surviving catalog-return cards without a fabricated current-maintenance dependency or malformed return manifest. This reconciles existing producer/consumer behavior; it does not activate or infer a new Station repetition rule.",
+      "acceptance": "M includes at least two Battlestations and 25 other damage capacity under the authoritative composition, preserving the printed Fortress requirement and existing P323 arrival-pressure schedule (PC09-A8). Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately. PC08 post-release audit follow-on: Before composing this trigger with ordinary attacks, repair the existing shared lifecycle blockers RANGE-01 and BOARDING-01 at P448/P469e/P470. Prove a legal later-cycle attack with destroyed AEGIS and surviving catalog-return cards without a fabricated current-maintenance dependency or malformed return manifest. This reconciles existing producer/consumer behavior; it does not activate or infer a new Station repetition rule.",
       "prerequisites": [
         {
           "id": "312",

@@ -372,7 +372,7 @@ the original assumption; append the resolution so the decision is traceable.
 | Field | Record |
 |---|---|
 | ID and milestone | PC09-A5; P537–P540; recorded 2026-10-04. |
-| Source passage | Home Printing A4 SS v1.1 PDF p. 11 supplies the Approaching Vessel card and four response postures. Facilitator's Guide v1.1 PDF p. 12 / printed p. 11 delegates the vessel's truth, trap and response to the facilitator according to the fleet's performance; PDF p. 11 / printed p. 10 supplies difficulty judgment. Exact sources were inspected by the crisis worker. |
+| Source passage | Home Printing A4 SS v1.1 PDF p. 12 supplies the Approaching Vessel card and four response postures. Facilitator's Guide v1.1 PDF p. 12 / printed p. 11 delegates the vessel's truth, trap and response to the facilitator according to the fleet's performance; PDF p. 11 / printed p. 10 supplies difficulty judgment. Exact sources were inspected by the crisis worker; the page number above corrects its earlier handoff. |
 | Ambiguity and alternatives | The printed event does not define an automatic posture-to-trap algorithm or a universal pressure adjustment. Inventing one would change the rules. Merely storing a note without delivering the chosen consequence would leave the assigned event incomplete. |
 | Chosen reading | Record the facilitator's real/trap judgment, response, timing/deadline, pressure consequence and rationale against the current event before resolving it. Preserve the four printed choices. Approved public instructions reach their entitled audience; hidden truth, pressure reasoning and private receipt stay facilitator-only. A real vessel follows the existing Voyage admission path when that is the recorded ruling. |
 | Product effect | P537–P540 use current-event authority, immutable choice/receipt binding and once-only application. No client-invented global pressure or secret data is added to the member session. Retry, stale judgment and audience tests distinguish this explicit policy from automatic invented rules. |
@@ -388,6 +388,28 @@ the original assumption; append the resolution so the decision is traceable.
 | Chosen reading | Fix a facilitator-authored policy before opening ballots. Resolve eligible active voters, optional one-ship/population weighting and tally on the server; keep voter identifiers and ballots private and expose opaque candidate labels. Follow the configured tie rule, retaining explicit facilitator resolution where selected. Campaign/supply policy records do not themselves spend unpriced resources. Publish elected offices in a session-scoped projection separate from core seat assignments. The elected President can use existing bounded President powers; the previous office holder loses that office authority. No Vice President powers or automatic succession are inferred. |
 | Product effect | P524b–P524d and P528/P529 connect secret once-only ballots, server tally, current elected authority and formal next-Team announcement. Office assignment grants neither GM/private access nor generic resource writes. Press publication remains optional and distinct from mandatory formal announcements. |
 | Review state | Source-backed bounded assumption under the PC09 dispatch; authority/ballot privacy, native and authenticated proof, independent review and release remain required. |
+
+### PC09-A7 — Choose one Fighter Ace action per attack
+
+| Field | Record |
+|---|---|
+| ID and milestone | PC09-A7; P520 and finalization consumers; recorded 2026-10-04. |
+| Source passage | Home Printing A4 single-sided pack v1.1, PDF p. 19, PDF Fighter Ace replacement card. Root checked the extracted passage and full-page image. It grants one fighter with the commander's permission and one choice among its Long, Medium and Short options. The optional extra Short damage can hit the same or a different enemy. |
+| Ambiguity and alternatives | A per-range action allowance would multiply the printed single choice. The layout groups the later-range alternatives without supplying an additional action budget. Treating only the visible member result as damage would leave the authoritative roster and finalization inconsistent. |
+| Chosen reading | Commit one selected Ace action per attack, bound to its current range and actual fighter authority. Preserve all printed options, including repeated or distinct extra Short targets. Server rolls and resulting damage, target shifts, fighter loss and pilot death or escape follow the chosen option. |
+| Product effect | The private singular attack-bound receipt participates in ordered combat finalization without editing an immutable range receipt. Replay returns the original action; a new request cannot grant another action in the same attack. Native and authenticated tests must distinguish real roster damage from presentation-only results. |
+| Review state | Literal source reading within assigned PC09 scope; independent review and normal authenticated proof remain required. |
+
+### PC09-A8 — Preserve the printed Wolf Fortress attack strength
+
+| Field | Record |
+|---|---|
+| ID and milestone | PC09-A8; P492 and existing P323 arrival pressure; recorded 2026-10-04. |
+| Source passage | Facilitator's Guide v1.1, PDF p. 17 / printed p. 15, Active Wolf Fortress M. Root checked the primary passage; the threat worker visually checked the page. M requires at least two Battlestations plus 25 other damage capacity. L retains one Battlestation plus 20, as does the separate Station entry contract. |
+| Ambiguity and alternatives | P492's earlier minimum of one Battlestation plus 20 was weaker than the source and released P323 pressure schedule. Reducing M would change existing gameplay. The stronger printed composition also meets that weaker minimum. |
+| Chosen reading | Preserve two plus 25 for M and correct the catalog acceptance to state its exact requirement. Do not change L or Station strength or award new closure credit. |
+| Product effect | Generated and facilitator-authored M attacks reject insufficient strength. A separate test-only correction flags the earlier new fixture, followed by a product-only implementation commit. Existing pressure, later-attack and group-local authority remain consistent. |
+| Review state | Directly blocking source/catalog reconciliation within the frozen 49 IDs; proof, independent review and release remain required. |
 
 ### PC07-A1 — Preserve the server clock behind a cycle briefing
 
