@@ -493,6 +493,23 @@ it.each([
   noAdditionalWrites(before, draws);
 });
 
+it.each([
+  { name: 'attack', invalid: { attackId: 'another-attack' } },
+  { name: 'cycle', invalid: { turn: 2 } },
+  { name: 'role', invalid: { actorRoleId: 'gorgoneion-captain' } },
+  { name: 'request', invalid: { requestId: '' } },
+])('R4 rejects a removed holder historical choice with invalid $name binding', async ({ invalid }) => {
+  await militiaDeathFixture();
+  patch(`${sessionPath}/players/militia-1`, { replacementRoleId: null, replacementStatus: 'awaiting-re-role' });
+  const choices = fields(attackPath).boardingMilitiaChoices as Record<string, Fields>;
+  patch(attackPath, { boardingMilitiaChoices: { ...choices, aegis: { ...choices.aegis, ...invalid } } });
+  const before = structuredClone([...testState.documents.values()]);
+  const draws = entropy.randomInt.mock.calls.length;
+  await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
+  expect(fields(attackPath).status).toBe('declared');
+  noAdditionalWrites(before, draws);
+});
+
 it.each([{ frontLineDice: 0, rerollToSurvive: false }, { frontLineDice: 1, rerollToSurvive: true }])(
   'R4 leaves a living Militia character assigned for %j', async options => {
     await militiaDeathFixture(options.frontLineDice, options.rerollToSurvive);
