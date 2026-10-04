@@ -52,7 +52,7 @@ it.each([
     </Routes>
   </MemoryRouter>);
 
-  const back = screen.getByRole('link', { name: 'Back to stations', exact: true });
+    const back = screen.getByRole('link', { name: /^Back to stations$/ });
   back.focus();
   expect(back).toHaveFocus();
   await user.keyboard('{Enter}');

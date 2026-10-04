@@ -50,11 +50,11 @@ it.each(['cycle', 'phase', 'missing', 'invalid'] as const)('rejects an unbound %
   const authority = createSessionSnapshotAuthority();
   const open = snapshot('lifted', 2, 1);
   const stale = snapshot('restricted', 3, 2);
-  const marker = stale.turnState!;
-  const unbound = { ...stale, ...(kind === 'missing' ? { turnState: undefined } : { turnState: {
-    ...marker, ...(kind === 'cycle' ? { currentTurn: 3 } : kind === 'phase' ? { phase: 'coordination' as const }
+  const { turnState: marker, ...withoutMarker } = stale;
+  const unbound: GameSession = kind === 'missing' ? withoutMarker : { ...stale, turnState: {
+    ...marker!, ...(kind === 'cycle' ? { currentTurn: 3 } : kind === 'phase' ? { phase: 'coordination' as const }
       : { phaseRevision: Number.NaN }),
-  } }) };
+  } };
   expect(acceptServerSessionAuthority(authority, open, comparableSessionCursor(open.updatedAt))).toBe(true);
   expect(acceptServerSessionAuthority(authority, unbound, comparableSessionCursor(unbound.updatedAt))).toBe(false);
 });
