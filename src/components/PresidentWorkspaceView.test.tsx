@@ -21,7 +21,7 @@ it('renders the real President workspace from props and calls injected actions',
   const onRecordPresidentAction = vi.fn().mockResolvedValue(undefined);
   const onChangePoliticalCapital = vi.fn().mockResolvedValue(undefined);
   const onPresidentialVisit = vi.fn().mockResolvedValue(undefined);
-  render(<PresidentWorkspaceView session={session} live
+  const { rerender } = render(<PresidentWorkspaceView session={session} live
     onRecordPresidentAction={onRecordPresidentAction}
     onChangePoliticalCapital={onChangePoliticalCapital}
     onPresidentialVisit={onPresidentialVisit} />);
@@ -31,6 +31,15 @@ it('renders the real President workspace from props and calls injected actions',
   await user.click(screen.getByRole('button', { name: 'Record presidential address' }));
   await waitFor(() => expect(onRecordPresidentAction).toHaveBeenCalledWith('address', 'Fleet priorities and needs.'));
 
+  const coordinationSession = {
+    ...session,
+    turnPhase: { ...session.turnPhase!, airspace: { ...session.turnPhase!.airspace, state: 'lifted' } },
+    turnState: { ...session.turnState!, phase: 'coordination' },
+  } as GameSession;
+  rerender(<PresidentWorkspaceView session={coordinationSession} live
+    onRecordPresidentAction={onRecordPresidentAction}
+    onChangePoliticalCapital={onChangePoliticalCapital}
+    onPresidentialVisit={onPresidentialVisit} />);
   const visit = screen.getByRole('region', { name: 'Presidential visit' });
   await user.click(within(visit).getByRole('button', { name: 'Spend 1 and reduce unrest' }));
   await waitFor(() => expect(onPresidentialVisit).toHaveBeenCalledWith('shepherd'));
