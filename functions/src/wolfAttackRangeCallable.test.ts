@@ -2822,6 +2822,7 @@ function admitCurrentAce(sourceId = 'pdf-escort-fighter-wing', range = 'medium-r
     dice: [], assignments: [], unusedHitsByAction: [], damageByInstance: {}, destroyedInstanceIds: [],
     destructionDamageByTarget: Object.fromEntries(CORE_WOLF_TARGET_RING.map(target => [target, 0])) });
   put(path, { ...attack, currentStep: range,
+    ...(range === 'long-range' ? { rangeReceipts: [] } : {}),
     ...(range === 'short-range' ? { rangeReceipts: [emptyRange('long-range'), emptyRange('medium-range')] } : {}),
     aegisFighterWingState: { type: 'aegis-fighter-wing-combat-state', attackId: attack.attackId, cycle: 1, revision: 1,
       wings: { 'fighter-wing-alpha': { fighters: 4, launched: true, mediumResolved: range === 'short-range', shortResolved: false, losses: 0 },
@@ -2937,4 +2938,33 @@ it('rejects future Commander revisions before the Ace captures a malformed comba
   put(f.path, { ...state, commanderRangeAdjustments: { ...all, 'medium-range': { ...all['medium-range'] as Fields, revision: 99 } } });
   await expect(getPdfFighterAceCombatView.run(request({ sessionId: 's1' }, 'ace-current')))
     .rejects.toMatchObject({ code: 'failed-precondition' });
+});
+
+it.each(['permission', 'action'])('rejects an old Ace %s retry after the current attack identity changes', async kind => {
+  const f = admitCurrentAce();
+  const permission = f.permissionPayload();
+  await grantPdfFighterAcePermission.run(request(permission, f.officer));
+  const action = f.actionPayload();
+  if (kind === 'action') await commitPdfFighterAceCombat.run(request(action, 'ace-current'));
+  const state = testState.documents.get(f.path)!;
+  put(f.path, { ...state, attackId: 'new-attack-same-cycle' });
+  const saved = structuredClone([...testState.documents]);
+  const handler = kind === 'permission' ? grantPdfFighterAcePermission : commitPdfFighterAceCombat;
+  await expect(handler.run(request(kind === 'permission' ? permission : action, kind === 'permission' ? f.officer : 'ace-current')))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  expect([...testState.documents]).toEqual(saved);
+});
+
+it('acknowledges the same committed fatal Ace action without rolling or applying death and losses again', async () => {
+  const f = admitCurrentAce('fighter-wing-alpha', 'long-range');
+  await grantPdfFighterAcePermission.run(request(f.permissionPayload(), f.officer));
+  entropy.randomInt.mockReset().mockReturnValue(1);
+  const payload = { ...f.actionPayload(), targetId: 'contact-1' };
+  const committed = await commitPdfFighterAceCombat.run(request(payload, 'ace-current'));
+  expect(committed).toMatchObject({ aceDied: true, fighterDestroyed: true });
+  expect(testState.documents.get('sessions/s1/players/ace-current')).toMatchObject({ replacementStatus: 'awaiting-re-role' });
+  const saved = structuredClone([...testState.documents]);
+  await expect(commitPdfFighterAceCombat.run(request(payload, 'ace-current'))).resolves.toEqual({ ...committed, status: 'replayed' });
+  expect([...testState.documents]).toEqual(saved);
+  expect(entropy.randomInt).toHaveBeenCalledTimes(3);
 });
