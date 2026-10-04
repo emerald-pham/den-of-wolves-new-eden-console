@@ -1,7 +1,8 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { beginOpenAirspacePhase } from '@/lib/sessionService';
 import { phaseForSession } from '@/lib/turnPhase';
 import { useSessionStore } from '@/store/useSessionStore';
+import type { WolfAttackMemberView } from '@/types/game';
 
 /**
  * Any connected fleet screen may perform this idempotent handoff. The callable
@@ -11,12 +12,37 @@ import { useSessionStore } from '@/store/useSessionStore';
 export default function TurnPhaseCoordinator() {
   const session = useSessionStore((state) => state.session);
   const connection = useSessionStore((state) => state.connection);
+  const actorUid = useSessionStore((state) => state.me?.uid);
+  const [attack, setAttack] = useState<WolfAttackMemberView | null>(null);
   const phase = phaseForSession(session);
+  const sessionId = session?.id;
+
+  useEffect(() => {
+    let active = true;
+    let unsubscribe: (() => void) | undefined;
+    setAttack(null);
+    if (sessionId && actorUid && connection === 'live') {
+      void import('@/lib/firestore').then(({ subscribeWolfAttackMemberView }) => {
+        if (active) unsubscribe = subscribeWolfAttackMemberView(sessionId, view => {
+          if (active) setAttack(view?.sessionId === sessionId ? view : null);
+        });
+      }).catch(() => {
+        if (active) setAttack(null);
+      });
+    }
+    return () => {
+      active = false;
+      unsubscribe?.();
+    };
+  }, [sessionId, actorUid, connection]);
+
+  const attackLocked = attack?.sessionId === sessionId && attack?.turn === phase?.turn &&
+    attack?.status === 'declared';
 
   useEffect(() => {
     if (
       !session || !phase || phase.airspace.state === 'lifted' || phase.timerPause ||
-      connection !== 'live'
+      connection !== 'live' || attackLocked
     ) {
       return undefined;
     }
@@ -34,7 +60,7 @@ export default function TurnPhaseCoordinator() {
       window.clearTimeout(timer);
       if (retry !== undefined) window.clearTimeout(retry);
     };
-  }, [connection, phase, session]);
+  }, [connection, phase, session, attackLocked]);
 
   return null;
 }
