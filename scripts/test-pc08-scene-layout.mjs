@@ -148,6 +148,12 @@ test('PC08 real-presenter review is isolated and usable in eight viewport and mo
               const highwall = page.getByRole('region', {name: 'Highwall Cannon Medium Range choice', exact: true});
               const gorgoneion = page.getByRole('region', {name: 'Gorgoneion Missile Array Medium Range choice', exact: true});
               const boa = page.getByRole('region', {name: 'Boa Scrap Strike Medium Range choice', exact: true});
+              const escapedSupportControls = await page.locator('.wolf-range-support button,.wolf-range-support select').evaluateAll(elements =>
+                elements.filter(element => {
+                  const rect = element.getBoundingClientRect();
+                  return rect.width > 0 && (rect.left < -1 || rect.right > document.documentElement.clientWidth + 1 || rect.height < 44);
+                }).map(element => element.textContent));
+              assert.deepEqual(escapedSupportControls, [], `${label}: contained support touch controls`);
               await highwall.getByRole('button', {name: 'Use Highwall Cannon', exact: true}).click();
               assert.ok(await gorgoneion.getByRole('button', {name: 'Use Gorgoneion Missile Array', exact: true}).isEnabled());
               await gorgoneion.getByRole('button', {name: 'Pass this range', exact: true}).click();
@@ -156,7 +162,6 @@ test('PC08 real-presenter review is isolated and usable in eight viewport and mo
               await boa.getByRole('button', {name: 'Use Boa Scrap Strike', exact: true}).click();
               assert.match(await page.getByRole('status', {name: 'Prepared Boa balance'}).textContent(), /2 Scrap/);
               assert.equal(await boa.getByRole('button', {name: 'Use Boa Scrap Strike', exact: true}).count(), 0);
-              await contained();
               await page.screenshot({path: `${directory}/${width}x${height}-${reducedMotion}-support-choices.png`, fullPage: true});
               await page.getByRole('checkbox', {name: 'Missile launchers', exact: true}).check();
               await page.getByRole('button', {name: 'Use selected actions', exact: true}).click();
