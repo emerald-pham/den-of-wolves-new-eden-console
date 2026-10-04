@@ -167,3 +167,24 @@ Settings/header rendering passes at 390×844, 844×390 and 1440×900 in the
 three-browser preflight. The corrected ordinary election driver additionally
 checks removal after real GM start with a bounded subscribed-render wait.
 The single final checkpoint release remains pending.
+
+## Late current-attack acceptance repairs
+
+The strict positive two-attack driver exposed repeated normal-clock requests
+while combat held airspace. Client `c432a012` follows the existing entitled
+attack audience; Rules `514568b9` permits a current member's initial absent-doc
+read so the listener survives until the first server creation. Present-doc
+privacy and all write/list denials remain. Wing launch repair `d4b386fd` uses
+the existing current-attack controller, removes ordinary post-combat reads and
+keeps launched-wing Ace permissions during active ranges. Separate permanent
+red tests precede both changes. Twenty-nine client controls, three Rules
+startup/privacy checks and strict typecheck pass. Functions remain the frozen
+`296dd59b` runtime with 207 JavaScript files/hash `54d4c79e…7a260`.
+
+The earlier strict attempts retain their actual failures. The `c432a012` attempt
+passed twenty branch checks before an ambiguous construction locator and still
+recorded thirty HTTP errors; it is not full acceptance. The `d4b386fd` attempt
+stopped at the Press conduct gate before gameplay. A finite admission check
+uses all three genuine checkboxes and the ordinary countdown before another
+full positive attempt. Detailed dispositions are in the risk and test-change
+reports. No PC10 or additional gameplay feature is introduced.

@@ -23,7 +23,7 @@ identified separately; see the execution record's reconnection section.
 | 2, P2: aftermath map ordering | Firestore reordered nested fingerprint map keys, making an otherwise identical exact retry fail. | Red `4e79e4cb`; product `8271a6c1` compares exact maps semantically. Extra fields remain rejected and ordered arrays remain bound. Focused checks pass. |
 | 3, P2: Doctor off-marker population | A legal 1100-to-1000 casualty step was reverse-stepped to 1250 and rejected during mitigation. | Red `3a333e0e`; product `54f7e647` validates and calculates forward from the exact pre-damage population. The 1100 result and the existing 500-floor control pass. |
 | 4, P2: early election tally | A live close-cycle Team deadline still allowed immediate resolution after only one ballot. | Red `2fe2e5cb`; product `acb42c1e` denies the live deadline and permits legitimate post-deadline/Coordination resolution. `3d581eca` makes the existing post-close fixture deterministic. |
-| 5, P2: one holder elected to both offices | Individually legal separate President and VP ballots could produce the same unique plurality winner for both offices. | Initial `acb42c1e` fails closed. Owner-approved policy is implemented by `32e82bd8`: preserve the unique President winner, take the next eligible VP-ballot candidate, retain configured tie handling, and require an explicit current-GM in-game decision if none exists. Separate red `79031c00` / product `a45a9d85` keeps a tied President choice outside that unique-both fallback. Current Auth proof and this reviewer's targeted verification remain. |
+| 5, P2: one holder elected to both offices | Individually legal separate President and VP ballots could produce the same unique plurality winner for both offices. | Initial `acb42c1e` fails closed. Owner-approved policy is implemented by `32e82bd8`: preserve the unique President winner, take the next eligible VP-ballot candidate, retain configured tie handling, and require an explicit current-GM in-game decision if none exists. Separate red `79031c00` / product `a45a9d85` keeps a tied President choice outside that unique-both fallback. Fresh normal Auth proof passes the weighted shared-winner case and distinct VP-ballot runner-up; this reviewer's targeted verification remains. |
 | 6, P2: terminal election mutation | An already configured election accepted a fresh ballot or tally after failure/debrief. | Red `f616919c`; product `00fb7103` requires active gameplay before fresh mutation. All four terminal-phase regressions pass. |
 | 7, P3: historical replay applicability | VIP reroll acknowledged a revoked actor; ballot acknowledged a removed actor; Detector and aftermath acknowledged a different current cycle/attack. No extra spending, writes or entropy were demonstrated. | Ballot `acb42c1e`, aftermath red `98679b99` / product `f8bc87bd`, and specialist red `f4a61b4c` plus `c0ae8e2e` / product `d164af64` validate current actor and applicable cycle/attack before receipts. Valid same-operation retries after revision advances remain write-free and cost-free. |
 | 8, P2: queued discovery epoch | While the actor snapshot was pending, a group 1→2→1 change released an old queued discovery event without a new callback. | Red `1178873b`; product `f9191929` clears pending discovery whenever an established actor fingerprint changes, while preserving first-snapshot hydration. Nine discovery tests pass. |
@@ -160,11 +160,42 @@ Separate meaningful clock regressions fail twice with five passing controls
 before `c432a012`. That client-only repair follows the existing member-safe
 attack audience and cancels normal Team promotion for a current declared
 attack; old-cycle, foreign-session and resolved views retain ordinary behavior.
-It changes no server guard, endpoint, Rules or movement authority. Seven
-focused checks, lint and typecheck pass. The corrected ordinary run has a new
-directory and retains all browser HTTP, request, page/console, receipt, cost
-and two-vacancy assertions. This seventh additional acceptance repair belongs
-in the same existing reviewer's bounded follow-up.
+It changes no server guard, endpoint or movement authority. Seven focused
+checks passed, but the second ordinary attempt still recorded 29 clock HTTP
+400s and one launch-reader HTTP 400. That failed attempt completed twenty
+branch checks, including both attacks and the first paid HTTP build/retry,
+before an ambiguous Alpha locator. It remains a failure under
+`/tmp/dow-pc09-resumed-evidence/positive-rebuild-c432a012/`.
+
+The public attack listener initially read an absent document. Rules denied
+that read and ended the listener before the first server declaration. Separate
+red `698f191a` reproduces one failure with the outsider/write/list control
+passing. Product `514568b9` permits only current members to observe absence;
+present-document field, private-field and survivor-count validation remains.
+The first edited expression had a parentheses compilation error, retained in
+`attack-audience-startup-green.log`; its corrected three startup/privacy tests
+pass in `attack-audience-privacy-green.log`. Server clock denial remains intact.
+
+An eighth bounded repair addresses the launch panel's unconditional read after
+combat, when the ordinary next-cycle construction console has no current attack.
+Red `e031a3fa` has six failing lifecycle cases and three existing passing
+controls. `c68af790` awaits the committed async view while preserving the
+launch-enabled assertion. Product `d4b386fd` reuses the existing attack-choice
+controller, binds both wing views to the current member attack/revision and
+actor, and drops resolved, old-cycle and foreign-session audiences. Launched
+wings retain their Fighter Ace permission controls through active ranges.
+Twenty-nine panel/shared-authority/clock checks and strict typecheck pass.
+Neither late repair changes Functions or weakens their read/mutation guards.
+
+The next attempt on `d4b386fd` stopped before gameplay because the Press conduct
+acknowledgement remained disabled; its launch and log remain under
+`/tmp/dow-pc09-resumed-evidence/positive-rebuild-d4b386fd/`. It earns no gameplay
+credit. The driver now waits for actual waiver checkboxes, requires all three,
+checks their checked state, and captures admission diagnostics before cleanup.
+A finite admission-only check precedes the next strict positive attempt.
+All failed attempts remain separate. Full browser HTTP/request/page/console,
+receipt, cost and two-vacancy assertions remain required. Repairs seven and
+eight belong in the same existing reviewer's bounded follow-up.
 
 ## Evidence and completion boundary
 

@@ -43,6 +43,8 @@ The unchanged P602 prepared driver still stops at its obsolete player `/roles`
 fixture and earns no new browser return credit; the corrected real Auth election
 driver will cover the new governance return controls separately.
 
+The public attack Rules regression additionally proves authorized observation of absence before the first server declaration, with outsider, disconnected-member, creation, listing and present-document privacy denials retained. The positive driver waits for and verifies all three actual conduct acknowledgements; an admission failure now saves its own diagnostic and closes its browsers. No countdown is bypassed.
+
 The same review's ninth finding adds actual Doctor→ordinary next declaration
 and Doctor→P continuation tests, plus tampered audit/counter rejection. These
 preserve the immutable finalization audit/archive and verify the separate
@@ -82,6 +84,7 @@ runtime identities; an unfinished run remains unfinished.
 
 | Test or gameplay driver | Change | Reason |
 |---|---|---|
+| `src/components/AegisFighterWingLaunchPanel.test.tsx` | Changed | Preserve independent Alpha/Bravo launch, explicit pass and active-range Ace permission controls; reproduce absent/resolved/foreign/old-cycle reads and delayed replies after resolution using real authority fixtures. The async enabled-state assertion waits for its committed view. |
 | `src/components/TurnPhaseCoordinator.attackLock.test.tsx` | Added | Reproduce repeated normal-clock promotion during a current declared attack, cancel pending promotion, and preserve ordinary behavior for resolved, foreign-session and old-cycle views. |
 | `src/components/TurnPhaseCoordinator.test.tsx` | Changed | Add the existing public audience transport mock; preserve the original Team-deadline and emergency-pause assertions. |
 | `scripts/pc09-ordinary-return-rebuild-positive-proof.mjs` | Added | Reconstruct the lost finite positive fixture with explicit full-runtime verification, disclosed current-GM +1 supplies, two real durable losses, surviving Station return, paid repair contingency, exact HTTP receipt retry and a separate Wing UI build; preserve all cost/capacity/error assertions. |

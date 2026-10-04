@@ -94,9 +94,32 @@ function observeBrowserPage(page, actor) {
     resourceType: request.resourceType(), endpoint: sanitizeEndpoint(request.url()),
     error: sanitizeDiagnosticText(request.failure()?.errorText ?? 'request failed') }));
 }
-const f = await createPc07AuthenticatedSession('PC09 ordinary fighter loss, return and rebuild', 20, {
-  keepAlive: true, serializeFixtureCalls: true, expansion: 'capybara',
-  browserRoleId: 'wing-commander', joinBrowserPlayer: normalBrowserCommander, joinPressPlayer: normalBrowserPress });
+let f;
+try {
+  f = await createPc07AuthenticatedSession('PC09 ordinary fighter loss, return and rebuild', 20, {
+    keepAlive: true, serializeFixtureCalls: true, expansion: 'capybara',
+    browserRoleId: 'wing-commander', joinBrowserPlayer: normalBrowserCommander, joinPressPlayer: normalBrowserPress });
+} catch (error) {
+  const admissions = [];
+  for (const [actor, page] of [['wing-commander', commanderPage], ['press-officer', pressPage]]) {
+    if (!page || page.isClosed()) continue;
+    const waiver = page.getByRole('dialog', { name: 'CODE OF CONDUCT', exact: true });
+    admissions.push({ actor, waiverCount: await waiver.count(),
+      regulations: await waiver.getByRole('checkbox', { name: /^Acknowledge regulation/ })
+        .evaluateAll(inputs => inputs.map(input => ({ checked: input.checked, disabled: input.disabled }))),
+      status: await waiver.getByRole('status').allTextContents(),
+    });
+    await page.screenshot({ path: `${uiDirectory}/admission-failure-${actor}.png`, fullPage: true });
+  }
+  await writeFile(`${evidencePath}.admission-failure.json`, JSON.stringify({
+    stage: 'normal authenticated browser admission', sourceCommit: runtimeSourceSha,
+    runtimeDirectory, runtimeManifestPath, verifiedRuntimeHash, compiledFiles: runtimeFiles.length,
+    message: sanitizeDiagnosticText(error.message), admissions,
+    browserErrors, browserHttpErrors, browserRequestFailures,
+  }, null, 2) + '\n');
+  await browser?.close();
+  throw error;
+}
 const { db, session, sessionId, gm, instanceId, call, ok } = f;
 console.log(`Disposable normal session: ${sessionId}`);
 const stateRef = db.doc(`sessions/${sessionId}/wolfAttackState/current`);
@@ -124,10 +147,7 @@ async function normalBrowserCommander(joinCode) {
   await commanderPage.getByRole('button', { name: /^REDUCED MOTION/i }).click();
   await commanderPage.getByRole('textbox', { name: 'Session code', exact: true }).fill(joinCode);
   await commanderPage.getByRole('button', { name: 'Join a session', exact: true }).click();
-  await commanderPage.getByRole('dialog', { name: 'CODE OF CONDUCT', exact: true }).waitFor();
-  for (const checkbox of await commanderPage.getByRole('checkbox', { name: /^Acknowledge regulation/ }).all()) await checkbox.check();
-  const acknowledge = commanderPage.getByRole('button', { name: 'Acknowledge regulations and continue', exact: true });
-  await acknowledge.and(commanderPage.locator(':enabled')).waitFor(); await acknowledge.click();
+  await acknowledgeOrdinaryWaiver(commanderPage);
   await commanderPage.waitForFunction(async () => {
     const { useSessionStore } = await import('/src/store/useSessionStore.ts');
     return Boolean(useSessionStore.getState().me);
@@ -149,11 +169,7 @@ async function normalBrowserPress(joinCode) {
   await pressPage.getByRole('button', { name: /^REDUCED MOTION/i }).click();
   await pressPage.getByRole('textbox', { name: 'Session code', exact: true }).fill(joinCode);
   await pressPage.getByRole('button', { name: 'Join a session', exact: true }).click();
-  await pressPage.getByRole('dialog', { name: 'CODE OF CONDUCT', exact: true }).waitFor();
-  for (const checkbox of await pressPage.getByRole('checkbox', { name: /^Acknowledge regulation/ }).all()) await checkbox.check();
-  const acknowledge = pressPage.getByRole('button', { name: 'Acknowledge regulations and continue', exact: true });
-  await acknowledge.and(pressPage.locator(':enabled')).waitFor();
-  await acknowledge.click();
+  await acknowledgeOrdinaryWaiver(pressPage);
   await pressPage.waitForFunction(async () => {
     const { useSessionStore } = await import('/src/store/useSessionStore.ts');
     return Boolean(useSessionStore.getState().me);
@@ -162,6 +178,19 @@ async function normalBrowserPress(joinCode) {
     const { auth } = await import('/src/lib/firebase.ts');
     return { localId: auth().currentUser.uid, idToken: await auth().currentUser.getIdToken() };
   });
+}
+async function acknowledgeOrdinaryWaiver(page) {
+  const waiver = page.getByRole('dialog', { name: 'CODE OF CONDUCT', exact: true });
+  await waiver.waitFor();
+  const regulations = waiver.getByRole('checkbox', { name: /^Acknowledge regulation/ });
+  await regulations.first().waitFor();
+  assert.equal(await regulations.count(), 3, 'The ordinary waiver must present all three regulations.');
+  for (const checkbox of await regulations.all()) await checkbox.check();
+  assert.deepEqual(await regulations.evaluateAll(inputs => inputs.map(input => input.checked)), [true, true, true],
+    'All actual waiver checkboxes must be acknowledged before continuing.');
+  const acknowledge = waiver.getByRole('button', { name: 'Acknowledge regulations and continue', exact: true });
+  await acknowledge.and(page.locator(':enabled')).waitFor();
+  await acknowledge.click();
 }
 async function command(actor, name, data) {
   const result = ok(await call(actor, name, { sessionId, ...data }), name);

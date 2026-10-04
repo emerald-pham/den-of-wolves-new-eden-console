@@ -1,5 +1,12 @@
 # PC09 ordinary fighter loss, return, and rebuild handoff
 
+Evidence availability after reconnect: the external files in this historical
+row-5 report are absent. Its committed driver and recorded failure remain;
+the missing files earn no current proof. Fresh resumed root attempts are
+indexed in the execution record and risk review. The composed worker separately
+completed an API build/exact retry and a second genuine Wing UI build; root owns
+the stricter two-attack durable-loss/Station-return acceptance.
+
 This bounded row-5 proof supports P483/P645. It establishes the ordinary
 authenticated loss and return path through two resolved attacks, but did not
 complete the paid fighter rebuild because the source-generated cycle-4 state
