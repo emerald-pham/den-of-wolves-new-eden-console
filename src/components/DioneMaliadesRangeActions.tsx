@@ -18,7 +18,7 @@ export interface DioneMaliadesRangeActionView {
   readonly destroyed: boolean;
   readonly launched?: boolean;
   readonly targets: readonly Readonly<{ instanceId: string; label: string; targetNumber: number }>[];
-};
+}
 
 export interface DioneMaliadesRangeActionPanelViewProps {
   readonly view: DioneMaliadesRangeActionView;

@@ -170,7 +170,8 @@ export function WolfFighterRangeActionPanelView({
                           ...previous,
                           [fighterIndex]: (() => {
                             const current = previous[fighterIndex] ?? {};
-                            const { shift: _shift, ...rest } = current;
+                            const rest = { ...current };
+                            delete rest.shift;
                             const nextShift = event.target.value === '-1' || event.target.value === '1'
                               ? Number(event.target.value) as -1 | 1 : undefined;
                             return nextShift === undefined ? rest : { ...rest, shift: nextShift };

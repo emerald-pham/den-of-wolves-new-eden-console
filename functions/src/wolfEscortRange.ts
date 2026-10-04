@@ -51,8 +51,8 @@ export function collectWolfEscortRange(input: Readonly<{
   const actionTargets: Record<string, string> = {};
   const shifts: WolfRangeTargetShiftChoice[] = [];
   const legal = new Set(wolfRangeFixedTargetInstanceIds(range, input.roster));
-  let pdfMedium: PdfEscortWingMediumAction[] = [];
-  let maliadesMedium: MaliadesMediumChoice[] = [];
+  const pdfMedium: PdfEscortWingMediumAction[] = [];
+  const maliadesMedium: MaliadesMediumChoice[] = [];
   let pdfShort: number[] = [];
   let maliadesShort: string[] = [];
   for (const sourceId of ['pdf-escort-fighter-wing', 'maliades'] as const) {
