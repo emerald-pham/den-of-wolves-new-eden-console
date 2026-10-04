@@ -633,6 +633,7 @@ import {
   type WolfFighterLaunchChoiceSourceId,
   type WolfAttackStageState,
   wolfAttackBlocksNormalMovement,
+  pStationRepeatPlanForFinalization,
 } from './wolfAttackDeclaration';
 import {
   WOLF_ATTACK_STEPS,
@@ -22344,6 +22345,8 @@ async function reconcileWolfAttackBoarding(
   players: readonly DocumentSnapshot[],
   fleetGroupSnapshots: readonly DocumentSnapshot[],
   finalizationCache: { current?: WolfAttackFinalizationCache },
+  windowProjection: DocumentSnapshot,
+  preparationProjection: DocumentSnapshot,
 ): Promise<void> {
   const turn = state.get('turn');
   const revision = state.get('revision');
@@ -22722,13 +22725,38 @@ async function reconcileWolfAttackBoarding(
         marker.attackNumber !== attackNumber) return;
     pStationSequence = { ...marker };
   }
-  const resolvedState = {
+  const resolvedState: Record<string, unknown> = {
     ...state.data(), status: 'resolved', currentStep: 'resolved', revision: nextRevision,
     airspaceLocked: false, parkingReleaseCondition: 'normal-movement-reopened',
     calculationReceipt: receipt, memberResults, resolvedAt: committedAt,
     finalizationRequestId: `wolf-final-${attackId}`,
     updatedAt: FieldValue.serverTimestamp(),
   };
+  let pStationRepeat: ReturnType<typeof pStationRepeatPlanForFinalization>;
+  let pWindowRevision = 0;
+  let pPreparationRevision = 0;
+  if (pStationSequence) {
+    const currentWindow = windowProjection.exists
+      ? wolfAttackWindowState(windowProjection.data()) : undefined;
+    const currentPreparation = preparationProjection.exists
+      ? wolfAttackPreparationState(preparationProjection.data()) : undefined;
+    if (!currentWindow || currentWindow.status !== 'resolved' || currentWindow.turn !== turn ||
+        !currentPreparation || currentPreparation.turn !== turn ||
+        currentPreparation.revision !== state.get('preparationRevision')) return;
+    pWindowRevision = currentWindow.revision;
+    pPreparationRevision = currentPreparation.revision;
+  }
+  try {
+    pStationRepeat = pStationRepeatPlanForFinalization(resolvedState, receipt, {
+      windowRevision: pWindowRevision,
+      preparationRevision: pPreparationRevision,
+    });
+  } catch {
+    // A malformed P marker cannot mint another same-cycle attack. Keep the
+    // original lifecycle pending so the source-bound record can be repaired.
+    return;
+  }
+  if (pStationRepeat) resolvedState.pStationRepeat = pStationRepeat;
   const reopenedPhase: ActiveTurnPhase = {
     ...phase, airspace: { ...phase.airspace, state: 'lifted', tickerActive: true },
   };
@@ -22840,6 +22868,21 @@ async function reconcileWolfAttackBoarding(
   }
 
   tx.update(db.doc(`sessions/${sessionId}`), sessionPatch);
+  if (pStationRepeat?.status === 'repeat') {
+    const windowRef = db.doc(`sessions/${sessionId}/wolfAttackWindow/current`);
+    const preparationRef = db.doc(`sessions/${sessionId}/wolfAttackPreparation/current`);
+    tx.set(windowRef, { ...pStationRepeat.window, updatedAt: FieldValue.serverTimestamp() });
+    tx.set(preparationRef, { ...pStationRepeat.preparation, updatedAt: FieldValue.serverTimestamp() });
+    tx.set(db.doc(`${preparationRef.path}/audit/p-station-repeat-${attackId}`), {
+      type: 'wolf-attack-preparation-audit', action: 'p-station-survivors-restaged',
+      turn: pStationRepeat.turn, revision: pStationRepeat.preparation.revision,
+      actorUid: 'server', requestId: `p-station-repeat-${attackId}`,
+      sourceAttackId: attackId, sourceAttackNumber: pStationRepeat.context.parentAttackNumber,
+      sequenceId: pStationRepeat.sequenceId, pStationRepeat,
+      sourceInstanceIds: pStationRepeat.sourceInstanceIds, survivors: pStationRepeat.survivors,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+  }
   tx.update(db.doc(`sessions/${sessionId}/wolfAttackState/current`), resolvedState);
   tx.set(db.doc(`sessions/${sessionId}/wolfAttackState/current/audit/wolf-finalized-${turn}`), {
     type: 'wolf-attack-finalization', turn, revision: nextRevision, actorUid: 'server',
@@ -22847,6 +22890,7 @@ async function reconcileWolfAttackBoarding(
     attackNumber,
     survivingWolfShips: receipt.survivingWolfShips,
     ...(pStationSequence ? { pStationSequence } : {}),
+    ...(pStationRepeat ? { pStationRepeat } : {}),
     ...(typeof state.get('previousAttackId') === 'string'
       ? { previousAttackId: state.get('previousAttackId') } : {}),
     ...(isRecord(state.get('carryover')) ? { carryover: state.get('carryover') } : {}),
@@ -22890,13 +22934,16 @@ async function reconcileWolfAttackBoarding(
 async function reconcileWolfAttackProgress(sessionId: string): Promise<void> {
   const sessionRef = db.doc(`sessions/${sessionId}`);
   const stateRef = db.doc(`sessions/${sessionId}/wolfAttackState/current`);
+  const windowRef = db.doc(`sessions/${sessionId}/wolfAttackWindow/current`);
+  const preparationRef = db.doc(`sessions/${sessionId}/wolfAttackPreparation/current`);
   const pdfWingRef = db.doc(`sessions/${sessionId}/serverState/pdfEscortWing`);
   const playersRef = db.collection(`sessions/${sessionId}/players`);
   const fleetGroupsRef = db.collection(`sessions/${sessionId}/fleetGroups`);
   const finalizationCache: { current?: WolfAttackFinalizationCache } = {};
   await db.runTransaction(async (tx) => {
-    const [session, state, players, fleetGroups, pdfWing] = await Promise.all([
+    const [session, state, players, fleetGroups, pdfWing, windowProjection, preparationProjection] = await Promise.all([
       tx.get(sessionRef), tx.get(stateRef), tx.get(playersRef), tx.get(fleetGroupsRef), tx.get(pdfWingRef),
+      tx.get(windowRef), tx.get(preparationRef),
     ]);
     if (!session.exists || !state.exists || state.get('status') !== 'declared' ||
         state.get('airspaceLocked') !== true) return;
@@ -23068,7 +23115,8 @@ async function reconcileWolfAttackProgress(sessionId: string): Promise<void> {
 
     const step = state.get('currentStep');
     if (step === 'boarding') {
-      await reconcileWolfAttackBoarding(tx, sessionId, session, state, players.docs, fleetGroups.docs, finalizationCache);
+      await reconcileWolfAttackBoarding(tx, sessionId, session, state, players.docs, fleetGroups.docs,
+        finalizationCache, windowProjection, preparationProjection);
       if (summaryChanged) tx.update(stateRef, { decisionSummary, updatedAt: FieldValue.serverTimestamp() });
       return;
     }
