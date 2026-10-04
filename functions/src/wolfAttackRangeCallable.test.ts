@@ -208,16 +208,11 @@ it('records one private Commander target adjustment bound to the current attack 
 it('returns a private selected-group dial only to the current Wolf Commander', async () => {
   const attackPath = 'sessions/s1/wolfAttackState/current';
   const attack = testState.documents.get(attackPath)!;
-  const selectedTargeting = resolveWolfTargeting(
-    firstTurnWolfAttackComposition(), {}, ['aegis', 'dione'], () => 0,
-  );
   put(attackPath, {
     ...attack,
     currentStep: 'long-range',
-    targetGroupVesselIds: ['aegis', 'dione'],
-    calculationReceipt: { type: 'wolf-combat-calculation-stage', version: 1, turn: 1,
-      step: 'targeting', targeting: selectedTargeting },
-    combatRoster: wolfCombatRoster(selectedTargeting),
+    targetGroupId: 'fleet-1',
+    targetGroupVesselIds: ['aegis', 'dione', 'icebreaker', 'quellon', 'shepherd', 'refinery-124'],
   });
   put('sessions/s1/players/wolf-commander', {
     uid: 'wolf-commander', role: 'player', connected: true, replacementRoleId: 'wolf-commander',
@@ -226,12 +221,10 @@ it('returns a private selected-group dial only to the current Wolf Commander', a
   const dial = await getWolfCommanderRangeTargetDial.run(request({ sessionId: 's1' }, 'wolf-commander'));
   expect(dial).toMatchObject({
     type: 'wolf-commander-range-target-dial-view', sessionId: 's1', attackId: attack.attackId,
-    turn: 1, revision: 4, range: 'long-range',
+    turn: 1, revision: 4, range: 'long-range', targetGroupId: 'fleet-1',
     adjustmentUsed: false,
   });
-  expect(dial.ring).toEqual([
-    { targetId: 'aegis', targetNumber: 1 }, { targetId: 'dione', targetNumber: 2 },
-  ]);
+  expect(dial.ring).toEqual(CORE_WOLF_TARGET_RING.map((targetId, index) => ({ targetId, targetNumber: index + 1 })));
   expect(dial.ships).toContainEqual(expect.objectContaining({
     rosterIndex: 0, shipId: 'wolf-fighter-wing', currentTarget: 'aegis', currentTargetNumber: 1,
   }));
