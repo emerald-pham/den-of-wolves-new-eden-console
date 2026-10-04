@@ -32,6 +32,12 @@ it('locks the detector action after three tests in the current cycle', () => {
   expect(onTest).not.toHaveBeenCalled();
 });
 
+it('uses singular grammar when one detector test remains', () => {
+  render(<WolfAgentDetectorPanel cycle={4} testsUsed={2}
+    targets={[{ uid: 'target-1', label: 'Alex' }]} report={null} onTest={vi.fn()} />);
+  expect(screen.getByText('1 test remains this cycle.')).toBeVisible();
+});
+
 it('attests a physical VIP visit and consumes the hosted maintenance grant using injected actions', async () => {
   const onAttestVisit = vi.fn().mockResolvedValue(undefined);
   const onReroll = vi.fn().mockResolvedValue(undefined);
