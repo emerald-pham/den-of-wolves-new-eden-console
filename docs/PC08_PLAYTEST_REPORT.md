@@ -29,6 +29,17 @@ is then approved; all 7,606 unit/Functions and 157 Rules checks pass, while the
 web build catches one new fixture type error. The test-only correction passes
 all 115 Ship Console checks and the web build. This final fixture delta requires
 renewed exact approval/full validation; production source remains unchanged.
+Exact `e080a6cb` is subsequently approved. Its third full validation passes
+all tests, builds, roadmap, fonts, typography and the complete ticker gate,
+then catches landing JavaScript over the unchanged performance budget.
+The two-file loading repair `361c4a51` reduces it to 1.747 MB, passes the
+complete performance gate, and preserves all 39 attested gameplay artifacts.
+All 241 App/GM tests and six bundle controls pass. Normal authenticated GM
+entry/reload preserves the same identity/session/instance; normal
+eighteen-player recovery returns to fresh server state on phone and desktop.
+The GM entry proof covers loading and identity in the lobby, rather than
+live server gameplay. Independent bounded source review is clear; final
+exact approval/full validation, candidate CI and deployment remain pending.
 The owner's October 3 instruction authorizes execution and
 acceptance; playing the review scene is optional.
 

@@ -29,6 +29,21 @@ original seventeen map rows remain unchanged. The route fixture handback passes 
 fixture delta at `09d05709`; the updated exact receipt and complete validation
 precede the one candidate push.
 
+Exact `e080a6cb` is independently approved. Its third full run passes the
+7,606 unit/Functions and 157 Rules checks, both builds, roadmap, font,
+typography and complete ticker gates, then exposes landing JavaScript above
+the unchanged P637 limit. Source `361c4a51` defers the GM route and removes
+its forced manual chunk while preserving App identity/presence/recovery
+guards. Landing JavaScript is 1,746,935 bytes, below 1,850,458; the complete
+performance gate passes at 33.4 ms DRADIS p95 and zero long mobile frames.
+All 241 App/GM checks and six bundle-graph controls pass. Ordinary
+authenticated GM entry/reload preserves UID, session and GM instance; a
+separate eighteen-player phone/desktop return reaches fresh server state.
+Both proofs are attested while the owned runtime is live. All 39 earlier
+gameplay artifacts remain unchanged. Independent bounded source review
+clears `361c4a51`; renewed exact approval/full validation and release remain
+pending for this material loading repair. No candidate push has occurred.
+
 Normal authenticated local/emulator behavior evidence, prepared rendering,
 independent exact-candidate review, final validation, CI and exact-main production
 deployment remain distinct. Every assigned row needs its complete functional

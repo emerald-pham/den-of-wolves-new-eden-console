@@ -507,3 +507,40 @@ checks, scoped lint and the complete web build pass. Production source, map
 and gameplay artifacts remain unchanged. Another exact receipt/full validation
 renewal is required because this gate failed; earlier approved risk scope stays
 closed.
+
+Independent Sol 6.1 xhigh approves exact clean `e080a6cb`. The third full
+validation passes nine commands: diff, lint, all 7,606 unit/Functions and
+157 Rules checks, web/Functions builds, roadmap, font, typography and the
+complete ticker matrix plus both native lifecycle cases. P637 then rejects
+1,905,884 landing bytes against the unchanged 1,850,458 limit. Its recorded
+render timings remain within budget, but the complete performance gate fails.
+`owner/final-validation-third-failure*` and the complete red performance,
+typography and ticker outputs preserve the evidence. No push has occurred.
+
+Source `361c4a51` lazy-loads the GM route with an accessible station-return
+fallback and removes only the forced GM manual chunk. Deferral alone retains
+the shared-component chunk and remains over budget; that intermediate probe
+is retained. Automatic GM chunking excludes GM source from the static landing
+graph without changing React/Firebase/session-runtime groups, subscriptions,
+identity, presence or recovery guards. The final graph is 1,746,935 raw /
+467,798 gzip bytes; its largest chunk is 497,246 bytes. All 241 App/GM and
+six existing graph controls pass. Web build, lint and chunk limits pass, with
+the pre-existing App refresh warning retained. Complete P637 passes at
+33.4 ms DRADIS p95, 16.8 ms mobile frames and zero long mobile frames.
+
+Fresh row-3 runtimes compile the same Functions source. Ordinary Settings
+grant, session create/join/claim and explicit GM navigation load the deferred
+route only after navigation, including reload; UID/session/GM instance stay
+unchanged. This lobby loading/identity proof does not claim fresh GM server
+gameplay. Three driver selector/navigation failures are retained separately;
+the successful driver follows the actual station-return path. The ordinary
+eighteen-player tour-return run preserves EO identity/session/assignment and
+reaches fresh server state at phone and desktop with no prepared writes,
+injected authentication or browser errors. The bounded 44-artifact attestation
+is recorded while both owned reservations are live; all 39 earlier composed
+artifacts remain identical. Root inspects the GM and player captures, stops
+owned runtimes and retains row-3 configuration for final Rules validation.
+Independent Sol 6.1 xhigh clears the loading/configuration source at
+`361c4a51`; earlier approved risk scope remains closed. Root freezes these
+records before requesting the renewed actual exact receipt and full gate.
+The repeat is required by the failed P637 gate and material loading candidate.

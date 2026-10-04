@@ -237,3 +237,31 @@ complete web build also passes. See `owner/final-ui-typed-fixture-green.log`,
 `final-ui-typed-fixture-lint.log` and `final-ui-typed-build-green.log`.
 The failed full attempt remains `owner/final-validation-second-failure*`;
 renew exact approval and the full gate for this test-only candidate.
+
+The third full run at independently approved `e080a6cb` passes all 7,606
+unit/Functions and 157 Rules checks, web/Functions builds, roadmap, font,
+typography and the complete ticker matrix/native lifecycle gate. Its existing
+P637 budget provides a discriminating red: landing 1,905,884 bytes exceeds
+1,850,458. `owner/final-validation-third-failure*` and
+`owner/final-performance-budget-red-e080a6cb/` preserve the failed result.
+No budget, benchmark, gate or assertion is weakened.
+
+Source `361c4a51` defers GM loading and removes its forced manual chunk;
+the intermediate lazy-only over-budget measurement is separately retained.
+Existing 241 App/GM tests and six graph controls pass. The final build is
+1,746,935 raw / 467,798 gzip landing bytes, largest chunk 497,246 bytes.
+Complete P637 passes at 33.4 ms DRADIS p95 and zero long mobile frames.
+See `owner/lazy-gm-route-controls.log`, `lazy-gm-graph-controls.log`,
+`lazy-gm-automatic-chunk-build.log`, `lazy-gm-performance-green.log` and
+the preserved complete `lazy-gm-render-performance-green/` output.
+
+New bounded runtime checks use ordinary local UI authentication and actual
+navigation. GM entry/reload preserves UID/session/instance, requests the GM
+module only after explicit navigation and has no page errors; its lobby
+cache state is not evidence of live GM server gameplay. The normal
+eighteen-player tour-return driver preserves EO identity/session/assignment
+and recovers fresh server state on phone/desktop with no prepared writes.
+Both have the actual live-runtime 44-artifact attestation; all 39 older
+composed artifacts remain hash-identical. Three driver mismatch failures
+remain separate from the passing GM result. The failed performance gate and
+material App/Vite repair justify renewed exact approval and full validation.

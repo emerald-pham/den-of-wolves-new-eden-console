@@ -259,3 +259,27 @@ source, consumer map or attested artifact changed. The renewed review is bounded
 to this one fixture delta and the chronological evidence docs; all earlier
 approved source and risk scopes stay closed. A failed gate requires another
 actual exact receipt and complete validation before the first candidate push.
+
+Exact `e080a6cb` is approved, and its full run passes nine commands before
+the unchanged P637 landing limit fails. New source is bounded to `361c4a51`:
+App defers GmConsole using the existing lazy/Suspense pattern, with an
+accessible status and station return; Vite removes the forced GM chunk.
+App-level session resume, privacy and presence guards remain unchanged.
+Independent source review verifies that the static landing graph excludes
+GmConsole, recomputes 1,746,935 / 467,798 / 497,246 bytes, and finds no
+actionable issue. All 241 route tests, six graph controls, build/lint/chunk
+checks and complete P637 pass. Review reports are retained under
+`owner/lazy-gm-review/`.
+
+New ordinary local authenticated GM loading/reload evidence preserves
+UID/session/GM instance, without auth injection or pre-navigation GM loading.
+It covers lobby route loading/identity, not fresh GM server gameplay. New
+eighteen-player phone/desktop player recovery reaches server freshness with
+the same identity/session/EO assignment and no prepared writes or errors.
+Both results have an actual live-runtime 44-artifact attestation under
+`owner/lazy-gm-authenticated-entry/` and `owner/lazy-gm-session-recovery/`.
+All 39 older composed gameplay artifacts remain identical; App/Vite were
+outside that older set and receive this separate bounded proof/review.
+Renew the structured exact approval for the clean documentation freeze,
+keeping earlier approved authority/metadata/fixture/source scopes closed.
+Complete validation and release still require their actual results.
