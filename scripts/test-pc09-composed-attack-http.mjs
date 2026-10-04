@@ -55,7 +55,9 @@ async function snapshotIdentity() {
     const s = useSessionStore.getState();
     return { uid: auth().currentUser?.uid, memberUid: s.me?.uid, sessionId: s.session?.id,
       roleId: s.me?.assignedRoleId, activeConsoleRoleId: s.me?.activeConsoleRoleId,
-      connection: s.connection, freshness: s.sessionSnapshotFreshness };
+      connection: s.connection, freshness: s.sessionSnapshotFreshness,
+      cycle: s.session?.currentTurn, generation: s.me?.connectionGeneration,
+      identityRevision: s.identityHydrationRevision, snapshotVersion: s.sessionSnapshotVersion };
   }, sessionStoreModuleUrl);
 }
 async function browserUntil(label, ready) {
@@ -392,10 +394,36 @@ try {
   }
   let warheadRequest;
   const capture = request => { if (request.url().endsWith('/commitAegisEnrichedWarheadChoice')) warheadRequest = request.postDataJSON().data; };
+  const warheadResponses = [];
+  const captureResponse = async response => {
+    if (response.url().endsWith('/commitAegisEnrichedWarheadChoice')) {
+      const reply = await response.json().catch(() => ({}));
+      warheadResponses.push({ status: response.status(), resultType: reply.result?.type,
+        error: reply.error?.message });
+    }
+  };
   page.on('request', capture);
+  page.on('response', captureResponse);
+  observations.push({ kind: 'ordinary-warhead-click', identity: await snapshotIdentity() });
   await purchaseButton.click({ timeout: 30_000 });
+  await delay(1000);
+  // The current-authority controller deliberately drops a click if hydration
+  // supersedes its displayed checkpoint. Exercise one ordinary explicit
+  // refresh and user retry, and retain the observation rather than injecting
+  // a callable or bypassing the current-authority guard.
+  if (!warheadRequest) {
+    observations.push({ kind: 'ordinary-warhead-no-request', identity: await snapshotIdentity(),
+      panel: await page.locator('section').filter({ has: page.getByRole('heading', { name: 'Enriched warheads', exact: true }) }).innerText().catch(() => null),
+      responses: warheadResponses });
+    await page.getByRole('button', { name: 'Refresh enriched warheads', exact: true }).click();
+    await purchaseButton.and(page.locator(':enabled')).waitFor();
+    await purchaseButton.click();
+  }
   await until('ordinary live warhead purchase', state => state.enrichedWarheads?.status === 'enriched');
   page.off('request', capture);
+  page.off('response', captureResponse);
+  observations.push({ kind: 'ordinary-warhead-receipt', responses: warheadResponses,
+    identity: await snapshotIdentity() });
   assert.ok(warheadRequest, 'The actual panel sent the ordinary actor purchase.');
   assert.equal((await f.session.get()).get('shipResources').aegis.ore, 4);
   await command(eo, 'commitAegisEnrichedWarheadChoice', warheadRequest);
@@ -731,7 +759,9 @@ try {
   await page.screenshot({ path: `${dirname(evidencePath)}/failure.png`, fullPage: true }).catch(() => {});
   await writeFile(`${evidencePath}.failure.json`, `${JSON.stringify({ sourceCommit, message: error.message, checks, actions, ranges, boarding,
     step: state?.currentStep, revision: state?.revision, status: state?.status, resolutionBlocker: state?.resolutionBlocker,
-    decisionSummary: state?.decisionSummary, observations, browserErrors, sessionStoreModuleUrl }, null, 2)}\n`);
+    decisionSummary: state?.decisionSummary, observations, browserErrors, sessionStoreModuleUrl,
+    browserIdentity: await snapshotIdentity().catch(() => null),
+    visibleStatus: await page.getByRole('status').allInnerTexts().catch(() => []) }, null, 2)}\n`);
   throw error;
 } finally {
   const keepCleanupAlive = setInterval(() => {}, 1000);
