@@ -541,7 +541,7 @@ describe('central Wolf combat math', () => {
     expect(Object.isFrozen(resolved)).toBe(true);
   });
 
-  it('replays one attack-bound Fighter Ace action between its range and the next range snapshot', () => {
+  it('replays one permissioned Fighter Ace action before its selected range snapshot', () => {
     const targeting: WolfTargetingReceipt = {
       ring: CORE_WOLF_TARGET_RING, modifierOrder: ['commander-reroll', 'target-shift', 'command-and-control-redirect'],
       rolls: [
@@ -561,13 +561,22 @@ describe('central Wolf combat math', () => {
       assignments: [{ actionId: longAction.actionId, targetInstanceIds: [initial[0]!.instanceId] }],
       roster: initial,
     });
+    const permission = { type: 'pdf-fighter-ace-permission', attackId: 'attack-ace-replay', turn: 1,
+      sourceId: 'pdf-escort-fighter-wing', fighterIndex: 0, aceUid: 'ace-actor', actorUid: 'colonel-actor',
+      actorRoleId: 'refinery-124-pdf-colonel', requestId: 'ace-permission-replay', revision: 2 };
+    const sourceStateBefore = { sourceId: 'pdf-escort-fighter-wing', fighters: 4, losses: 0, revision: 1,
+      durableRevision: 1, launched: true, attackId: 'attack-ace-replay', cycle: 1 };
+    const sourceStateAfter = { ...sourceStateBefore, fighters: 3, losses: 1, revision: 2, durableRevision: 2 };
     const fighterAceAction = {
       type: 'pdf-fighter-ace-action', attackId: 'attack-ace-replay', turn: 1, revision: 17,
-      actorUid: 'ace-actor', sourceId: 'pdf-escort-fighter-wing',
+      actorUid: 'ace-actor', actorRoleId: 'pdf-fighter-ace', sourceId: 'pdf-escort-fighter-wing', fighterIndex: 0,
+      permission, permissionRequestId: permission.requestId, permissionRevision: permission.revision,
+      permissionActorUid: permission.actorUid, permissionActorRoleId: permission.actorRoleId,
+      sourceStateBefore, sourceStateAfter, rosterBefore: initial,
       targetInstanceId: initial[0]!.instanceId, targetShipId: initial[0]!.shipId,
       targetId: 'contact-1', range: 'long', targetShift: null, rolls: [3, 2, 3],
-      damage: 2, targetDestroyed: true, fighterDestroyed: false, aceDied: false, escaped: false,
-      targetResults: [{ instanceId: initial[0]!.instanceId, shipId: initial[0]!.shipId, damage: 2, destroyed: true }],
+      damage: 2, targetDestroyed: false, fighterDestroyed: true, aceDied: true, escaped: false,
+      targetResults: [{ instanceId: initial[0]!.instanceId, shipId: initial[0]!.shipId, damage: 2, destroyed: false }],
       requestId: 'ace-action-replay', committedAt: new Date(2_000).toISOString(),
     };
     const afterAce = long.roster.map((ship) => ship.instanceId === initial[0]!.instanceId
@@ -584,6 +593,7 @@ describe('central Wolf combat math', () => {
     const resolved = finalizeWolfAttack({
       requestId: 'wolf-final-attack-ace-replay',
       attackId: 'attack-ace-replay', fighterAceAction,
+      fighterAcePermissions: { [permission.sourceId]: permission },
       targeting, roster: short.roster, ranges: [long.receipt, medium.receipt, short.receipt],
       boardingDefence: [], forceFieldTargetId: null, targetRing: CORE_WOLF_TARGET_RING,
       phase: startTurnPhase(1, 1_000), now: 2_000,
@@ -647,7 +657,7 @@ describe('central Wolf combat math', () => {
       actorRoleId: 'wing-commander', requestId: 'ace-permission-1', revision: 2,
     };
     const fighterStateBefore = {
-      sourceId: 'fighter-wing-alpha', fighters: 4, losses: 0, revision: 1,
+      sourceId: 'fighter-wing-alpha', fighters: 4, losses: 0, revision: 1, durableRevision: 1,
       launched: true, attackId: 'attack-ace-pre-range', cycle: 1,
     };
     const fighterStateAfter = { ...fighterStateBefore, revision: 2 };
@@ -674,6 +684,7 @@ describe('central Wolf combat math', () => {
 
     expect(() => finalizeWolfAttack({
       requestId: 'wolf-final-ace-pre-range', attackId: 'attack-ace-pre-range', fighterAceAction,
+      fighterAcePermissions: { [permission.sourceId]: permission },
       targeting, roster: afterAce, ranges, boardingDefence: [], forceFieldTargetId: null,
       targetRing: CORE_WOLF_TARGET_RING, phase: startTurnPhase(1, 1_000), now: 2_000,
       fleetState: completeFleetState(), randomInt: () => 0,
@@ -695,9 +706,9 @@ describe('central Wolf combat math', () => {
     const permission = { type: 'pdf-fighter-ace-permission', attackId: 'stale-roster-attack', turn: 1,
       sourceId: 'fighter-wing-alpha', fighterIndex: 0, aceUid: 'ace-actor', actorUid: 'wing-commander',
       actorRoleId: 'wing-commander', requestId: 'stale-permission', revision: 2 };
-    const sourceStateBefore = { sourceId: 'fighter-wing-alpha', fighters: 4, losses: 0, revision: 1,
+    const sourceStateBefore = { sourceId: 'fighter-wing-alpha', fighters: 4, losses: 0, revision: 1, durableRevision: 1,
       launched: true, attackId: 'stale-roster-attack', cycle: 1 };
-    const sourceStateAfter = { ...sourceStateBefore, revision: 2 };
+    const sourceStateAfter = { ...sourceStateBefore, fighters: 3, losses: 1, revision: 2, durableRevision: 2 };
     const fighterAceAction = {
       type: 'pdf-fighter-ace-action', attackId: 'stale-roster-attack', turn: 1, revision: 3,
       actorUid: 'ace-actor', actorRoleId: 'pdf-fighter-ace', sourceId: 'fighter-wing-alpha', fighterIndex: 0,
@@ -714,6 +725,7 @@ describe('central Wolf combat math', () => {
 
     expect(() => finalizeWolfAttack({
       requestId: 'wolf-final-stale-ace-roster', attackId: 'stale-roster-attack', fighterAceAction,
+      fighterAcePermissions: { [permission.sourceId]: permission },
       targeting, roster, ranges, boardingDefence: [], forceFieldTargetId: null,
       targetRing: CORE_WOLF_TARGET_RING, phase: startTurnPhase(1, 1_000), now: 2_000,
       fleetState: completeFleetState(), randomInt: () => 0,
