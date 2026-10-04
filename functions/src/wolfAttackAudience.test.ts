@@ -88,7 +88,8 @@ describe('Wolf attack audience projection', () => {
       serverTime: '2026-10-02T19:40:00.000Z' })).toThrow(/malformed/i);
     const valid = projectWolfAttackMemberView({ sessionId: 'session-1', state: hiddenAttack,
       serverTime: '2026-10-02T19:40:00.000Z' });
-    const { status: _status, ...publicResult } = result;
+    const publicResult: Record<string, unknown> = { ...result };
+    delete publicResult.status;
     expect(isWolfAttackMemberView({ ...valid, results: [publicResult] })).toBe(false);
   });
 

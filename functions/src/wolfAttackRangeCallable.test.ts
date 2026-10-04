@@ -597,8 +597,8 @@ it('applies the Wing Commander Medium target and shift choices inside the EO ran
   const fighterView = await getWolfFighterRangeActionChoice.run(request({ sessionId: 's1', range: 'medium-range',
     sourceId: 'fighter-wing-alpha' }, 'wc-1'));
   const attackedContact = fighterView.targets[0]!.instanceId;
-  const chosenTarget = (testState.documents.get('sessions/s1/wolfAttackState/current')!.combatRoster as Array<{ instanceId: string }>)
-    [Number(attackedContact.replace('contact-', '')) - 1]!;
+  const chosenTarget = (testState.documents.get('sessions/s1/wolfAttackState/current')!.combatRoster as Array<{ instanceId: string }>)[
+    Number(attackedContact.replace('contact-', '')) - 1]!;
   await commitWolfFighterRangeActionChoice.run(request({ sessionId: 's1', requestId: 'eo-medium-wing-choice',
     expectedTurn: 1, expectedRevision: fighterView.revision, range: 'medium-range', sourceId: 'fighter-wing-alpha',
     actions: [
@@ -663,8 +663,8 @@ it('commits a fighter-only Medium target shift in the EO pass receipt', async ()
     sourceId: 'fighter-wing-alpha' }, 'wc-1'));
   const shiftedContact = fighterView.targets[0]!.instanceId;
   const shiftedIndex = Number(shiftedContact.replace('contact-', '')) - 1;
-  const startingTarget = (testState.documents.get('sessions/s1/wolfAttackState/current')!.combatRoster as Array<Fields>)
-    [shiftedIndex]!.target;
+  const startingTarget = (testState.documents.get('sessions/s1/wolfAttackState/current')!.combatRoster as Array<Fields>)[
+    shiftedIndex]!.target;
   await commitWolfFighterRangeActionChoice.run(request({ sessionId: 's1', requestId: 'eo-shift-only-wing-choice',
     expectedTurn: 1, expectedRevision: fighterView.revision, range: 'medium-range', sourceId: 'fighter-wing-alpha',
     actions: [{ fighterIndex: 0, kind: 'target-shift', targetContactId: shiftedContact, shift: 1 }],

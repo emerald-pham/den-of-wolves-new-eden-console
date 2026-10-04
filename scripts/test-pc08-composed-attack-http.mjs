@@ -88,11 +88,6 @@ async function command(actor, name, data = {}) {
   console.log(`${name}: ${result?.status ?? 'committed'}${result?.revision ? ` rev ${result.revision}` : ''}`);
   return result;
 }
-async function denied(actor, name, data = {}) {
-  const reply = await f.call(actor, name, { sessionId: f.sessionId, ...data });
-  assert.notEqual(reply.status, 200, `${name} unexpectedly succeeded.`);
-  assert.ok(['FAILED_PRECONDITION', 'PERMISSION_DENIED', 'INVALID_ARGUMENT'].includes(reply.error?.status));
-}
 async function attackState() { return (await f.db.doc(`sessions/${f.sessionId}/wolfAttackState/current`).get()).data(); }
 async function until(label, ready, timeout = 30_000) {
   const deadline = Date.now() + timeout;
@@ -138,7 +133,7 @@ async function maintain(shipId, consoles, refuelCraftIds) {
     if (action === 'bays') bayIndex += 1;
   }
 }
-function withoutReplayStatus(result) { const { status, ...rest } = result; return rest; }
+function withoutReplayStatus(result) { const rest = { ...result }; delete rest.status; return rest; }
 async function exactRetry(actor, name, request) {
   const first = await command(actor, name, request);
   const replay = await command(actor, name, request);
