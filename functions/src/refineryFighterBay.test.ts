@@ -23,6 +23,27 @@ const base = {
 };
 
 describe('Refinery 124 Fighter Bay launch gate', () => {
+  it('accepts the unrest metadata retained by ordinary completed maintenance', () => {
+    const maintenanceCycle = {
+      ...base.maintenanceCycle, unrestRolls: [2, 5], unrestBeforeCheck: 3,
+    };
+    expect(authorizeRefineryFighterBayLaunch({ ...base, maintenanceCycle }))
+      .toMatchObject({ craftId: 'pdf-escort-fighter-wing', cycle: 4 });
+  });
+
+  it.each([
+    ['one unrest die', { unrestRolls: [2], unrestBeforeCheck: 3 }],
+    ['invalid unrest die', { unrestRolls: [2, 7], unrestBeforeCheck: 3 }],
+    ['unpaired unrest dice', { unrestRolls: [2, 5] }],
+    ['unpaired prior unrest', { unrestBeforeCheck: 3 }],
+    ['invalid prior unrest', { unrestRolls: [2, 5], unrestBeforeCheck: 11 }],
+    ['unknown metadata', { unrestRolls: [2, 5], unrestBeforeCheck: 3, futureCharge: true }],
+  ])('rejects malformed completed maintenance: %s', (_label, metadata) => {
+    expect(() => authorizeRefineryFighterBayLaunch({
+      ...base, maintenanceCycle: { ...base.maintenanceCycle, ...metadata },
+    })).toThrow(/maintenance authority is malformed/i);
+  });
+
   it('authorizes only the P.D.F. Escort Wing from the charged operational 8♦ bay', () => {
     expect(authorizeRefineryFighterBayLaunch(base)).toEqual({
       type: 'refinery-fighter-bay-launch-authorization',

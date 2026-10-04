@@ -1125,6 +1125,45 @@ it('records an explicit PDF fighter pass once and exposes the durable choice on 
   expect(mock.set).not.toHaveBeenCalled();
 });
 
+it.each([
+  ['absent cycle map', undefined],
+  ['absent Refinery cycle', {}],
+  ['initial empty cycle', { 'refinery-124': { step: 0, revision: 0, results: {}, charges: [], refuelled: [] } }],
+  ['previous-cycle charge', { 'refinery-124': {
+    turn: 0, step: 0, revision: 9, results: { '5': 'Reactor powered up.', '7': 'Maintenance cycle complete.' },
+    charges: ['fighter-bay'], refuelled: [], completedAt: '2026-09-22T12:00:00.000Z',
+  } }],
+  ['unfinished current cycle', { 'refinery-124': {
+    turn: 1, step: 6, revision: 6, results: { '5': 'Reactor powered up.' }, charges: ['fighter-bay'], refuelled: [],
+  } }],
+])('reports an unavailable PDF launch without blocking targeting for %s', async (_label, maintenanceCycles) => {
+  await declareThenSeatPdfColonel();
+  mock.documents.get('sessions/s1')!.maintenanceCycles = maintenanceCycles;
+  await expect(getPdfEscortWingLaunch.run(request({ sessionId: 's1' }))).resolves.toMatchObject({
+    eligible: false, launched: false, reason: 'uncharged',
+  });
+  mock.update.mockClear();
+  mock.set.mockClear();
+  await expect(launchPdfEscortWing.run(request({
+    sessionId: 's1', requestId: 'launch-pdf-unmaintained', expectedTurn: 1,
+    expectedRevision: 1, expectedWingRevision: 0,
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it.each([
+  { 'refinery-124': { step: 0, revision: 0, results: {}, charges: [], refuelled: [], unrestRolls: [2, 7], unrestBeforeCheck: 3 } },
+  { 'refinery-124': null },
+  { 'refinery-124': { step: 0, revision: 0, results: {}, charges: [], refuelled: [], futureCharge: true } },
+  [],
+])('keeps a malformed present maintenance authority closed', async (maintenanceCycles) => {
+  await declareThenSeatPdfColonel();
+  mock.documents.get('sessions/s1')!.maintenanceCycles = maintenanceCycles;
+  await expect(getPdfEscortWingLaunch.run(request({ sessionId: 's1' })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+});
+
 it('denies fresh PDF launch while Refinery 124 is in mutiny', async () => {
   await declareThenSeatPdfColonel();
   mock.documents.get('sessions/s1')!.shipUnrest = { 'refinery-124': 8 };
