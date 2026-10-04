@@ -86,6 +86,20 @@ it('withdraws an unsafe future member schema and fences out older raw revisions'
   expect(onView).toHaveBeenLastCalledWith(expect.objectContaining({ revision: 6, currentStep: 'medium-range' }));
 });
 
+it('hydrates a resolved authoritative result with Firestore map ordering', () => {
+  const result = { bearing: null, contactReference: 'ship:dione', effect: 'damage',
+    outcome: { destroyed: false, damage: 2 }, range: 'long', serverTime: memberView.serverTime,
+    sourceId: 'aegis-missile-launchers', targetId: 'dione' };
+  const resolved = { ...memberView, currentStep: 'resolved', range: null, status: 'resolved',
+    remainingThreatCount: 3, returningThreatCount: 0, results: [result] };
+  const { callbacks, onView } = capture();
+  callbacks[0]?.(snapshot(resolved));
+  expect(onView).toHaveBeenLastCalledWith(resolved);
+  callbacks[0]?.(snapshot({ ...resolved, revision: resolved.revision + 1,
+    results: [{ ...result, actorUid: 'private-actor' }] }));
+  expect(onView).toHaveBeenLastCalledWith(null);
+});
+
 it('withdraws a cached member snapshot and does not restore it from an older server event', () => {
   const { callbacks, onView } = capture();
   callbacks[0]?.(snapshot(memberView));

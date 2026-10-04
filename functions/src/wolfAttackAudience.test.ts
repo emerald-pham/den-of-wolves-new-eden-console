@@ -138,6 +138,21 @@ describe('Wolf attack audience projection', () => {
     expect(JSON.stringify(view)).not.toMatch(/wolf-destroyer|initialDie|rolls/);
   });
 
+  it('accepts server map ordering without weakening the committed-result allowlist', () => {
+    const view = projectWolfAttackMemberView({ sessionId: 'session-1', state: hiddenAttack,
+      serverTime: '2026-10-02T19:40:00.000Z' });
+    const result = view.results[0]!;
+    // Firestore maps do not preserve the producer's JavaScript insertion order.
+    const storedResult = Object.fromEntries(Object.entries({ ...result,
+      outcome: { destroyed: false, damage: 2 } }).sort(([a], [b]) => a.localeCompare(b)));
+    expect(isWolfAttackMemberView({ ...view, results: [storedResult] })).toBe(true);
+    expect(isWolfAttackMemberView({ ...view, results: [{ ...storedResult, actorUid: 'private' }] })).toBe(false);
+    expect(isWolfAttackMemberView({ ...view, results: [{ ...storedResult, rolls: [6] }] })).toBe(false);
+    expect(isWolfAttackMemberView({ ...view, results: [{ ...storedResult,
+      outcome: { damage: 2, destroyed: false, hidden: 'private' } }] })).toBe(false);
+    expect(isWolfAttackMemberView({ ...view, results: [{ ...storedResult, range: 'long-range' }] })).toBe(false);
+  });
+
   it('publishes only aggregate surviving and returning threat counts after resolution', () => {
     const view = projectWolfAttackMemberView({
       sessionId: 'session-1',
