@@ -2187,6 +2187,44 @@ it('publishes each assigned support hit once with its printed source label', asy
   expect([...testState.documents]).toEqual(saved);
 });
 
+it('publishes each PDF Short editable hit once with its printed source label', async () => {
+  admitEscortRange();
+  for (const [sourceId, uid] of [['pdf-escort-fighter-wing', 'colonel-1'], ['maliades', 'engineer-1']]) {
+    const view = await getWolfEscortRangeActionChoice.run(request({ sessionId: 's1', sourceId, range: 'medium-range' }, uid));
+    await commitWolfEscortRangeActionChoice.run(request({ sessionId: 's1', sourceId, range: 'medium-range',
+      requestId: `review-${sourceId}-medium-pass`, expectedTurn: 1, expectedRevision: view.revision, actions: [] }, uid));
+  }
+  const medium = await getWolfRangeActionChoice.run(request({ sessionId: 's1' }));
+  await commitWolfRangeActionChoice.run(request({ sessionId: 's1', requestId: 'review-medium-eo-pass', expectedTurn: 1,
+    expectedRevision: medium.revision, range: 'medium-range', actionIds: [] }));
+  for (const [sourceId, uid] of [['pdf-escort-fighter-wing', 'colonel-1'], ['maliades', 'engineer-1']]) {
+    const view = await getWolfEscortRangeActionChoice.run(request({ sessionId: 's1', sourceId, range: 'short-range' }, uid));
+    await commitWolfEscortRangeActionChoice.run(request({ sessionId: 's1', sourceId, range: 'short-range',
+      requestId: `review-${sourceId}-short`, expectedTurn: 1, expectedRevision: view.revision,
+      ...(sourceId === 'maliades' ? { targetContactIds: [] } : { fighterIndexes: [0] }) }, uid));
+  }
+  const short = await getWolfRangeActionChoice.run(request({ sessionId: 's1' }));
+  const locked = await commitWolfRangeActionChoice.run(request({ sessionId: 's1', requestId: 'review-short-eo-pass', expectedTurn: 1,
+    expectedRevision: short.revision, range: 'short-range', actionIds: [] }));
+  expect(locked).toMatchObject({ choiceStatus: 'targets-required', hitSlots: [{ actionId: 'pdf-escort-wing-short-0', count: 1 }] });
+  const payload = { sessionId: 's1', requestId: 'review-short-pdf-assign', expectedTurn: 1,
+    expectedRevision: locked.revision, range: 'short-range', assignments: [{ actionId: 'pdf-escort-wing-short-0', contactIds: ['contact-1'] }] };
+  const committed = await assignWolfRangeTargets.run(request(payload));
+  const attack = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  const receipt = (attack.rangeReceipts as Fields[]).at(-1)!;
+  expect(receipt).toMatchObject({ dice: [{ actionId: 'pdf-escort-wing-short-0', successes: 1, damage: 1 }] });
+  const results = (attack.memberResults as Fields[]).filter(result => result.sourceId === 'pdf-escort-wing' && result.range === 'short-range');
+  const member = projectWolfAttackMemberView({ sessionId: 's1', state: attack, serverTime: new Date().toISOString() });
+  const safeResults = member.results.filter(result => result.sourceId === 'pdf-escort-wing' && result.range === 'short');
+  expect(safeResults).toHaveLength(1);
+  expect(results).toEqual([expect.objectContaining({ effect: 'PDF Escort Wing attack hit', outcome: { damage: 1, destroyed: true } })]);
+  const saved = structuredClone([...testState.documents]);
+  const draws = entropy.randomInt.mock.calls.length;
+  expect(await assignWolfRangeTargets.run(request(payload))).toEqual(committed);
+  expect([...testState.documents]).toEqual(saved);
+  expect(entropy.randomInt).toHaveBeenCalledTimes(draws);
+});
+
 const reviewReplayKinds = ['enriched', 'fighter-launch', 'fighter-range', 'fighter-pass'] as const;
 type ReviewReplayKind = typeof reviewReplayKinds[number];
 
