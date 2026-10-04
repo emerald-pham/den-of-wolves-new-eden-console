@@ -36,7 +36,8 @@ vi.mock('firebase-functions/v2/scheduler', () => ({ onSchedule: (_schedule: stri
 import { recordApproachingVesselResponse } from './index';
 
 const baseData = {
-  sessionId: 's1', instanceId: 'gm-1', requestId: 'response-1', expectedRevision: 3, crisisId: 'vessel-1',
+  sessionId: 's1', instanceId: 'gm-1', requestId: 'response-1', expectedCrisisRevision: 3,
+  expectedResponseRevision: 0, crisisId: 'vessel-1',
   vesselReality: 'real', responseChoices: ['prepare-medical-and-wait'],
   coordinationActions: ['medical'], responseInstructions: 'Medical team prepares to receive the ship.',
   rationale: 'The distress report is credible.',
