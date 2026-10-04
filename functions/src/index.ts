@@ -42766,11 +42766,19 @@ export const resolvePresidentialElection = onCall<{
     const presidentChoiceUid = uidForAlias(data.presidentCandidateId) ?? data.presidentCandidateId;
     const viceChoiceUid = uidForAlias(data.vicePresidentCandidateId) ?? data.vicePresidentCandidateId;
     const presidentDecision = resolveElectionWinner(tally.president, currentPresident, election.policy.tieRule, presidentChoiceUid);
+    const presidentIsUniqueVoteWinner = presidentDecision.status === 'winner' && presidentDecision.source === 'vote' &&
+      tally.president.winnerUid === presidentDecision.winnerUid;
     const currentVicePresident = isRecord(currentOfficeRaw) && typeof currentOfficeRaw.vicePresidentUid === 'string'
       ? currentOfficeRaw.vicePresidentUid : undefined;
+    if (!tally.president.winnerUid && presidentDecision.status === 'winner' &&
+        tally.vicePresident?.winnerUid === presidentDecision.winnerUid) {
+      throw commandError('failed-precondition',
+        'The configured President tie outcome matches the unique Vice President leader. The automatic Vice President runner-up applies only when one candidate uniquely wins both office ballots. No offices have changed; choose a distinct President candidate under the configured tie rule.',
+        'conflict');
+    }
     const viceDecision: ElectionVicePresidentDecision | undefined = election.policy.vicePresidentEnabled && tally.vicePresident
       ? resolveVicePresidentElection(tally.vicePresident,
-        presidentDecision.status === 'winner' ? presidentDecision.winnerUid : undefined,
+        presidentIsUniqueVoteWinner ? presidentDecision.winnerUid : undefined,
         currentVicePresident, election.policy.tieRule, viceChoiceUid, election.policy.eligibleVoterUids)
       : undefined;
     if (data.confirmVicePresidentVacancy && viceDecision?.status !== 'vacancy-required') {
@@ -42820,7 +42828,7 @@ export const resolvePresidentialElection = onCall<{
     const hasPresidentWinner = Boolean(presidentUid);
     const state = hasPresidentWinner ? 'resolved' as const : 'no-winner' as const;
     const vicePresidentOutcome = recordVicePresidentVacancy ? 'vacant' as const
-      : presidentUid && tally.vicePresident?.winnerUid === presidentUid && vicePresidentUid
+      : presidentIsUniqueVoteWinner && presidentUid && tally.vicePresident?.winnerUid === presidentUid && vicePresidentUid
         ? 'runner-up' as const : undefined;
     const next: StoredPresidentialElection = { ...electionWithoutPendingTies, revision: nextRevision, state, tally,
       ...(presidentUid ? { presidentUid } : {}), ...(vicePresidentUid ? { vicePresidentUid } : {}),
