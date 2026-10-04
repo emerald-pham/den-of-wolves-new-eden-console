@@ -591,7 +591,7 @@ credit and no P605a or 0.9.x/1.0.0 authorization.
 Authorized October 4 by the separate PC09 execution dispatch. Current main
 opens at 654/751 and 196/293 campaign closures; the fixed 49-ID target is
 703/751 and 245/293. The [execution record](PC09_EXECUTION_RECORD.md) fixes
-five complete implementation groups, isolated checkouts, shared-file boundaries,
+six complete implementation groups, isolated checkouts, shared-file boundaries,
 integration ownership and five optional owner-playable UI checks. Root retains
 all acceptance, integration, review and single-release accountability.
 
@@ -607,9 +607,12 @@ before closure; private source material stays outside Git.
 The latest transition review found no new UI feedback awaiting cooldown.
 Adopt existing CIC/typography, truthful contacts, clock recovery, one-facilitator
 automation, private audiences and normal authenticated emulator proof decisions.
-P605a remains separately owner-deferred pending explicit activation; the parent
-owns that decision while independent work continues. Its deferral cannot lower
-the fixed target or earn completion. Prepared solo review access is presentation
-only. Required independent Sol review, final focused/responsive/release checks,
+The owner explicitly activated P605a on October 4 and instructed completion
+of PC09 including visualization, then hold. The existing P433a projection and
+privacy contract remains; the visualization extends the established DRADIS
+design. The narrow Astra implementation exception and launch/change audit are
+recorded in the current feedback and model manifest; all tests, documentation,
+review and other work stay on Sol 6.1 or Luna 6. Prepared solo review access is
+presentation only. Required independent Sol review, final focused/responsive/release checks,
 exact-candidate CI and production deployment remain separate from gameplay proof.
 PC10 revision and later work remain outside this delivery.

@@ -28,7 +28,7 @@ seeded fixture produces a receipt. Root owns bounded fixes and final validation.
 | Crises and President | Explicit genuine policy choices, automatic arithmetic. PC09-A2's Coordination visit costs one capital and one unrest. PC09-A3 preserves fixed emergency cost and binds failed-jump alternative before mutation. Delivered crisis framing cannot become a hidden global pressure control. |
 | Election and Team start | Policy frozen before voting; eligibility/weights/tally server owned; individual ballots private. President/VP authority transitions and binding Team-start announcements cannot be forged, skipped, replayed into a different cycle or mistaken for optional Press publication. |
 | EO workspace | Existing maintenance authority is connected through shared controls; route tests exercise the action and foreign read-only view. Check current authority, lock/freeze/offline behavior and visible Pallas/parent return. |
-| DRADIS P605a | Activation remains explicitly deferred until parent conveys the owner's decision. If activated, review only the existing entitled projection: no invented bearing, unresolved telemetry, composition or cross-group leak. |
+| DRADIS P605a | The owner explicitly activated the existing visualization on October 4. Review only the P433a entitled projection: no invented bearing, unresolved telemetry, hidden composition or cross-group leak. Verify current authority, reconnect and contact visibility in the live adapter. |
 | Firestore and release | Private state and ballots deny direct member reads/writes. New callables enter appropriate consumer/deployment classifications. Retain short-lived WIF, exact-SHA typography and affected ticker gates. No production session mutation is authorized by local proof. |
 
 ## Evidence boundaries

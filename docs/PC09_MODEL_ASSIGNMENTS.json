@@ -1,0 +1,216 @@
+{
+  "schemaVersion": 1,
+  "auditBoundary": "Explicit launch/change records only. Runtime tools omit effective-model fields; do not infer runtime confirmation from policy intent or task existence.",
+  "ownerException": "GPT-6 Astra is authorized only for an isolated P605a product implementation worker. Coordinator remains Sol6.1 Max; tests, review, documentation and every other prompt stay Sol6.1 or Luna6. No session default change or inherited exception.",
+  "checkedAt": "2026-10-04",
+  "launches": [
+    {
+      "taskId": "/root",
+      "executionThreadId": "01a10709-1bca-70cd-a746-42e74c1fa010",
+      "purpose": "PC09 orchestration, owner implementation/integration, proof, documentation and release",
+      "scope": [
+        "PC09 only; complete then HOLD"
+      ],
+      "launchModel": "gpt-6.1-sol",
+      "launchEffort": "max",
+      "launchEvidence": "Parent codex_delegation explicitly selected the separate Sol 6.1 Max PC09 orchestrator; local runtime tools do not expose an effective model.",
+      "effectiveModelConfirmed": false,
+      "modelChanges": []
+    },
+    {
+      "taskId": "/root/pc09_aftermath",
+      "executionThreadId": null,
+      "purpose": "aftermath complete bounded behavior group, focused tests and handoff",
+      "scope": [
+        "471",
+        "472",
+        "473",
+        "580",
+        "474",
+        "475",
+        "476",
+        "477",
+        "478",
+        "479",
+        "480",
+        "481",
+        "482",
+        "483",
+        "484"
+      ],
+      "launchModel": "gpt-6-luna",
+      "launchEffort": "max",
+      "launchArguments": {
+        "task_name": "pc09_aftermath",
+        "model": "gpt-6-luna",
+        "reasoning_effort": "max",
+        "fork_turns": "none"
+      },
+      "launchEvidence": "Accepted collaboration.spawn_agent call returned this canonical taskId; collaboration.list_agents confirms the task exists but omits model/effort.",
+      "effectiveModelConfirmed": false,
+      "modelChanges": [],
+      "scopeChanges": []
+    },
+    {
+      "taskId": "/root/pc09_audit",
+      "executionThreadId": null,
+      "purpose": "audit complete bounded behavior group, focused tests and handoff",
+      "scope": [
+        "621",
+        "PC08-RANGE-01",
+        "PC08-RANGE-02",
+        "PC08-RANGE-03",
+        "PC08-RANGE-04",
+        "PC08-RANGE-05",
+        "PC08-RANGE-06",
+        "PC08-RANGE-07",
+        "PC08-RANGE-08",
+        "PC08-BOARDING-01",
+        "PC08-BOARDING-02"
+      ],
+      "launchModel": "gpt-6-luna",
+      "launchEffort": "max",
+      "launchArguments": {
+        "task_name": "pc09_audit",
+        "model": "gpt-6-luna",
+        "reasoning_effort": "max",
+        "fork_turns": "none"
+      },
+      "launchEvidence": "Accepted collaboration.spawn_agent call returned this canonical taskId; collaboration.list_agents confirms the task exists but omits model/effort.",
+      "effectiveModelConfirmed": false,
+      "modelChanges": [],
+      "scopeChanges": []
+    },
+    {
+      "taskId": "/root/pc09_crises",
+      "executionThreadId": null,
+      "purpose": "crises complete bounded behavior group, focused tests and handoff",
+      "scope": [
+        "523b",
+        "523c",
+        "524b",
+        "524c",
+        "524d",
+        "528",
+        "529",
+        "537",
+        "538",
+        "539",
+        "540"
+      ],
+      "launchModel": "gpt-6-luna",
+      "launchEffort": "max",
+      "launchArguments": {
+        "task_name": "pc09_crises",
+        "model": "gpt-6-luna",
+        "reasoning_effort": "max",
+        "fork_turns": "none"
+      },
+      "launchEvidence": "Accepted collaboration.spawn_agent call returned this canonical taskId; collaboration.list_agents confirms the task exists but omits model/effort.",
+      "effectiveModelConfirmed": false,
+      "modelChanges": [],
+      "scopeChanges": []
+    },
+    {
+      "taskId": "/root/pc09_specialists",
+      "executionThreadId": null,
+      "purpose": "specialists complete bounded behavior group, focused tests and handoff",
+      "scope": [
+        "214",
+        "503a",
+        "506",
+        "508",
+        "513",
+        "514",
+        "516",
+        "517",
+        "519",
+        "520"
+      ],
+      "launchModel": "gpt-6-luna",
+      "launchEffort": "max",
+      "launchArguments": {
+        "task_name": "pc09_specialists",
+        "model": "gpt-6-luna",
+        "reasoning_effort": "max",
+        "fork_turns": "none"
+      },
+      "launchEvidence": "Accepted collaboration.spawn_agent call returned this canonical taskId; collaboration.list_agents confirms the task exists but omits model/effort.",
+      "effectiveModelConfirmed": false,
+      "modelChanges": [],
+      "scopeChanges": []
+    },
+    {
+      "taskId": "/root/pc09_threats",
+      "executionThreadId": null,
+      "purpose": "threats complete bounded behavior group, focused tests and handoff",
+      "scope": [
+        "490",
+        "491",
+        "492",
+        "493",
+        "494",
+        "521",
+        "521a",
+        "521b"
+      ],
+      "launchModel": "gpt-6-luna",
+      "launchEffort": "max",
+      "launchArguments": {
+        "task_name": "pc09_threats",
+        "model": "gpt-6-luna",
+        "reasoning_effort": "max",
+        "fork_turns": "none"
+      },
+      "launchEvidence": "Accepted collaboration.spawn_agent call returned this canonical taskId; collaboration.list_agents confirms the task exists but omits model/effort.",
+      "effectiveModelConfirmed": false,
+      "modelChanges": [],
+      "scopeChanges": []
+    },
+    {
+      "taskId": "/root/pc09_dradis",
+      "executionThreadId": null,
+      "purpose": "P605a contract research initially; interrupted before implementation, then reassigned to test-only snapshot and later validation/documentation",
+      "scope": [
+        "605a"
+      ],
+      "launchModel": "gpt-6-luna",
+      "launchEffort": "max",
+      "launchArguments": {
+        "task_name": "pc09_dradis",
+        "model": "gpt-6-luna",
+        "reasoning_effort": "max",
+        "fork_turns": "none"
+      },
+      "launchEvidence": "Accepted collaboration.spawn_agent call returned this canonical taskId; collaboration.list_agents confirms the task exists but omits model/effort.",
+      "effectiveModelConfirmed": false,
+      "modelChanges": [],
+      "scopeChanges": [
+        "Interrupted at 2026-10-04 14:36:05 UTC; followup_task restricts work to tests/proof/documentation, with no model override"
+      ]
+    }
+  ],
+  "pending": [
+    {
+      "taskId": "/root/pc09_dradis_astra",
+      "scope": [
+        "605a product implementation only"
+      ],
+      "model": "gpt-6-astra",
+      "effort": "max",
+      "status": "Not launched; awaiting Luna test-first snapshot. No duplicate visualization implementation is running."
+    },
+    {
+      "taskId": "independent reconciled risk reviewer",
+      "model": "gpt-6.1-sol",
+      "effort": "max",
+      "status": "Not launched; waits for complete reconciled PC09 candidate."
+    }
+  ],
+  "findings": [
+    "No recorded model-change call or general model-default change.",
+    "No Astra launch has occurred at this snapshot.",
+    "The original Luna P605a delegate is now test-only; product implementation will be isolated in a separate Astra task.",
+    "Effective runtime models are unexposed; launch settings are auditable, backend effective-model confirmation remains unavailable."
+  ]
+}

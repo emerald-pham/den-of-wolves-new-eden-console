@@ -161,6 +161,9 @@ behavior; the owner is never asked to inspect code or perform rule arithmetic.
   before PC09 closure work; deferral earns no closure credit, cannot remove
   the ID or lower 703/751, and does not block the playable attack exit gate.
   Continue independent work while resolving it under existing policy.
+  **October 4 owner decision:** the owner explicitly activated this existing
+  P605a scope for PC09. Complete the checkpoint including visualization, then
+  hold for a new owner instruction. All P433a proof/privacy boundaries remain.
 
 ### PC10 — Endings, integration and full-game proof
 

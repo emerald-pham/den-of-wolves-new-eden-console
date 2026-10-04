@@ -6454,6 +6454,13 @@
       "language": "The finite post-release PC08 audit adds actual component dependencies to existing PC09 work: post-shift result projection consumes the shared range/shift publishers; rebuild consumes durable Short fighter losses; aftermath consumes current PDF projection and rebuild; repeated-attack features consume compatible shared ranges and finalized-return schemas; recovery consumes the affected fighter/support/crew receipt and projection primitives; complete ordinary attack proof consumes recovery. P492/P493 remain separate trigger obligations and related scenarios, not hard prerequisites of P645: ordinary scheduled attacks can prove the lifecycle repairs. Preserve every original prerequisite, fixed membership, P605a explicit activation and historical release status. These links order existing behavior and bounded repairs; they add no Git/release gate, new prompt or closure credit.",
       "source": "docs/PC08_BUG_AUDIT.md; docs/CHECKPOINT_COMPLETION_PLAN.md; final independent Sol 6.1 Max roadmap review",
       "type": "hard_prompt / related/consumes"
+    },
+    {
+      "direction": "PC09 P605a activation; hold after PC09",
+      "id": "E-PC09-P605A-ACTIVATION-20261004",
+      "language": "The owner explicitly instructed: do visualization, hold after doing checkpoint with viz. The parent conveyed that authorization to the MacBook PC09 orchestrator. This activates only the existing P605a scope after the released P433a contract/privacy foundation; fixed 49 IDs and 703/751 target remain. No hidden telemetry, preparation disclosure, rule changes or closure evidence are inferred. After PC09 including visualization, hold without starting or revising PC10 or later tasks until a new owner instruction. Cloud execution is only a parent-owned backup decision after 25 continuous hours of MacBook failure, not a brief disconnect.",
+      "source": "docs/PRODUCT_MILESTONE_FEEDBACK.md; docs/PC09_EXECUTION_RECORD.md",
+      "type": "owner decision / scope / stopping condition"
     }
   ],
   "plan": {
@@ -22667,13 +22674,13 @@
     {
       "changeClass": "non-feature",
       "closureEvidenceGates": "none",
-      "decisionOwner": "OWNER-APPROVAL-DEFERRED-VISUALIZATION",
+      "decisionOwner": "none",
       "definition": {
-        "acceptance": "only after Prompt 433a endpoint/schema/privacy proofs and explicit owner approval, render attack source, targets, phases, ranges, bearings, effects, and outcomes from the authoritative projection without changing current contact privacy or inventing telemetry. This visualization is intentionally excluded from, and cannot block, the playable Wolf-attack exit gate. The authorization to revise PC07–PC10 prompts is not activation of this visualization. Surface its separate activation decision before PC09 closure work; deferral earns no done credit and cannot remove the assigned ID or lower the fixed checkpoint target. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
+        "acceptance": "only after Prompt 433a endpoint/schema/privacy proofs and explicit owner approval, render attack source, targets, phases, ranges, bearings, effects, and outcomes from the authoritative projection without changing current contact privacy or inventing telemetry. This visualization is intentionally excluded from, and cannot block, the playable Wolf-attack exit gate. The authorization to revise PC07–PC10 prompts is not activation of this visualization. Surface its separate activation decision before PC09 closure work; deferral earns no done credit and cannot remove the assigned ID or lower the fixed checkpoint target. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately. The owner explicitly supplied the separate P605a activation on October 4, 2026: include this visualization in PC09, complete the checkpoint, then hold. This satisfies only the activation decision; all P433a functional/privacy, gameplay, review and release requirements remain.",
         "title": "Visualize Wolf attacks on DRADIS."
       },
-      "description": "[DEFERRED-OWNER] Ultimate Wolf-attack DRADIS visualization awaits explicit owner activation after Prompt 433a endpoint/privacy proof and is not a playable-attack blocker.",
-      "evidenceIds": "E-605A;E-ATTACK-DRADIS",
+      "description": "Explicitly activated by the owner on October 4, 2026 for PC09. Implement the DRADIS Wolf-attack visualization from the existing P433a authoritative entitled projection, preserving contact privacy and unknown bearings; no new telemetry, preparation disclosure or rule changes are authorized. Implementation and gameplay/review/release evidence remain pending. Complete the fixed PC09 checkpoint including this ID, then hold for a new owner instruction.",
+      "evidenceIds": "E-605A;E-ATTACK-DRADIS;E-PC09-P605A-ACTIVATION-20261004",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "433a",
@@ -22685,7 +22692,7 @@
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "ATTACK-DRADIS",
       "status": "missing",
-      "tag": "DEFERRED-OWNER"
+      "tag": "NEW"
     },
     {
       "changeClass": "non-feature",

@@ -16,11 +16,11 @@
     "files": [
       {
         "path": "docs/implementation-prompts.json",
-        "sha256": "549c9161e1c4ff78259073e1e7512afc218df5c426558cbc012a1128caa0db32"
+        "sha256": "0fa12c0400426a675aa752c8dc0dcd8cb4549279bbecdc9a91f5f28fc7b007b7"
       },
       {
         "path": "docs/CHECKPOINT_COMPLETION_PLAN.md",
-        "sha256": "6a2eee02e71f4df3697bdd55cb99f35fd538cab48134e61d75d18aeb3e9debdc"
+        "sha256": "649137e784097dce8bb13a2bd758a2f85451371221dcfd60c4e5d269cd6ba893"
       }
     ]
   },
@@ -5815,8 +5815,8 @@
       "checkpoint": "PC09",
       "title": "Visualize Wolf attacks on DRADIS.",
       "status": "missing",
-      "catalogReadiness": "recorded-gate",
-      "acceptance": "only after Prompt 433a endpoint/schema/privacy proofs and explicit owner approval, render attack source, targets, phases, ranges, bearings, effects, and outcomes from the authoritative projection without changing current contact privacy or inventing telemetry. This visualization is intentionally excluded from, and cannot block, the playable Wolf-attack exit gate. The authorization to revise PC07–PC10 prompts is not activation of this visualization. Surface its separate activation decision before PC09 closure work; deferral earns no done credit and cannot remove the assigned ID or lower the fixed checkpoint target. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
+      "catalogReadiness": "ready",
+      "acceptance": "only after Prompt 433a endpoint/schema/privacy proofs and explicit owner approval, render attack source, targets, phases, ranges, bearings, effects, and outcomes from the authoritative projection without changing current contact privacy or inventing telemetry. This visualization is intentionally excluded from, and cannot block, the playable Wolf-attack exit gate. The authorization to revise PC07–PC10 prompts is not activation of this visualization. Surface its separate activation decision before PC09 closure work; deferral earns no done credit and cannot remove the assigned ID or lower the fixed checkpoint target. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately. The owner explicitly supplied the separate P605a activation on October 4, 2026: include this visualization in PC09, complete the checkpoint, then hold. This satisfies only the activation decision; all P433a functional/privacy, gameplay, review and release requirements remain.",
       "prerequisites": [
         {
           "id": "433a",
@@ -5828,7 +5828,7 @@
       "recordedConditions": {
         "hardMilestone": "none",
         "hardContract": "none",
-        "decisionOwner": "OWNER-APPROVAL-DEFERRED-VISUALIZATION",
+        "decisionOwner": "none",
         "closureEvidenceGates": "none",
         "releaseBoundaries": "none"
       },
@@ -13461,15 +13461,5 @@
       "sourceStatus": "missing"
     }
   ],
-  "recordedConditions": [
-    {
-      "id": "605a",
-      "checkpoint": "PC09",
-      "hardMilestone": "none",
-      "hardContract": "none",
-      "decisionOwner": "OWNER-APPROVAL-DEFERRED-VISUALIZATION",
-      "closureEvidenceGates": "none",
-      "releaseBoundaries": "none"
-    }
-  ]
+  "recordedConditions": []
 }

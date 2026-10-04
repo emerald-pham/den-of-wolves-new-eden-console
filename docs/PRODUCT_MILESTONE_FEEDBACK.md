@@ -304,3 +304,27 @@ P433a projection/privacy prerequisite and exact functional scope. P605a remains
 deferred until an explicit owner decision returns; no activation is inferred.
 Fixed IDs and 703/751 target remain intact. The later PC10 revision and dispatch
 belong to the parent after PC09; no future checkpoint is started here.
+
+## PC09 visualization activation and hold — 2026-10-04
+
+The owner explicitly instructed “do visualization, hold after doing checkpoint
+with viz.” The parent conveyed this to the MacBook PC09 orchestrator. P605a is
+activated only within its existing P433a authoritative projection, contact
+privacy and source/target/phase/range/bearing/effect/outcome boundaries. Unknown
+bearings remain unknown; no hidden preparation, telemetry or rule change is
+authorized. The owner additionally said “match existing design pls”: extend the
+current DRADIS colors, typography, symbols, density, layouts and motion.
+
+The owner clarified GPT-6 Astra as an exception for the isolated P605a product
+implementation worker only. Coordination remains Sol 6.1 Max; tests, review,
+documentation and all other prompts remain Sol 6.1 or Luna 6. The
+[launch/change manifest](PC09_MODEL_ASSIGNMENTS.json) records explicit creation
+settings and the runtime-tool visibility limitation. Do not change a session
+default or inherit the exception in other work.
+
+Complete all 49 PC09 IDs and ten audit repairs, verify the single release, then
+hold for a new instruction. Do not revise or start PC10 or later tasks. Execution
+remains on the MacBook; a brief disconnect does not authorize migration. The
+parent owns any backup decision after 25 continuous hours of MacBook failure.
+This record grants activation and scope only, not implementation or closure
+credit.

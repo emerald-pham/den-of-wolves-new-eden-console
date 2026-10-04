@@ -144,15 +144,15 @@ Later UI themes can span multiple owner tours. PC05–PC08 are released, reachin
 654/751 overall and 196/293 campaign closures at the PC08 release snapshot.
 PC08 shipped as 0.5.67; the [PC08 report](PC08_PLAYTEST_REPORT.md) records its
 verified release and the [post-completion audit](PC08_BUG_AUDIT.md) records
-subsequent findings. PC09 is the next unstarted fixed 49 tranche, targeting
+subsequent findings. PC09 is the current authorized fixed 49 tranche, targeting
 703/751; PC10 retains its 48 IDs and 751/751 target. A documented
 same-count substitution may move an unstarted ID only
 with its dependencies satisfied and another baseline ID replacing it; it
-cannot change any cumulative target or lose any baseline ID. P605a's existing
-owner deferral must be resolved explicitly before closure; it remains in the
-baseline as a PC09 assignment and cannot silently disappear from PC09's
-49-ID closure obligation or the PC10 campaign endpoint. Independent PC09
-work may proceed, but its full closure still requires explicit P605a activation.
+cannot change any cumulative target or lose any baseline ID. The owner explicitly
+activated P605a on October 4 for PC09, preserving its existing P433a contract and
+privacy requirements. It remains in the 49-ID closure obligation and 703/751
+target. Complete PC09 including visualization, then hold; no PC10 revision,
+execution or later work starts until a new owner instruction.
 
 The post-release audit records ten open runtime findings (one P1, seven P2,
 two P3). PC09 must first repair the shared progression/carryover blockers, then

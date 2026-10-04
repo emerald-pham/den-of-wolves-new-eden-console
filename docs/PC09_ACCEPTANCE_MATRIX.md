@@ -10,7 +10,7 @@ No new closure is claimed at shaping. All ten audit repairs are in P621/P645 sco
 | 472 | Apply Strikecarrier wing bonus. | Aftermath | missing | Implementation and accepted proof pending bounded worker handoff. |
 | 473 | Apply surviving Wolf ship damage. | Aftermath | missing | Implementation and accepted proof pending bounded worker handoff. |
 | 580 | Resolve Boa combat ambiguity. | Aftermath | missing | Implementation and accepted proof pending bounded worker handoff. |
-| 605a | Visualize Wolf attacks on DRADIS. | Owner | missing | Owner-deferred; parent owns explicit activation decision. |
+| 605a | Visualize Wolf attacks on DRADIS. | DRADIS | missing | Explicit owner activation received October 4; existing P433a contract/privacy requirements retained. Implementation, authenticated/UI/privacy proof, review and release remain. |
 | 474 | Publish the immediate attack result. | Aftermath | missing | Implementation and accepted proof pending bounded worker handoff. |
 | 475 | Reuse the common damage draw path. | Aftermath | missing | Implementation and accepted proof pending bounded worker handoff. |
 | 476 | Destroy a ship on combat deck exhaustion. | Aftermath | missing | Implementation and accepted proof pending bounded worker handoff. |
@@ -54,9 +54,9 @@ No new closure is claimed at shaping. All ten audit repairs are in P621/P645 sco
 | 538 | Resolve the election privately. | Crises | missing | Implementation and accepted proof pending bounded worker handoff. |
 | 539 | Announce binding resolutions at Team start. | Crises | missing | Implementation and accepted proof pending bounded worker handoff. |
 | 540 | Run the full crisis scenario. | Crises | missing | Implementation and accepted proof pending bounded worker handoff. |
-| 180 | Create the Executive Officer workspace. | Owner | missing | Released combat/Pallas behavior recovered; source-required EO maintenance gap repaired test first through shared AEGIS controls. Three route regressions/characterizations and typecheck pass; actual authenticated EO maintenance, Pallas/visible return, network interruption/reload, four viewports and monospace pass at a58eeb14. Composed attack actions, review and release remain. |
+| 180 | Create the Executive Officer workspace. | Owner | missing | Released combat/Pallas behavior recovered; source-required EO maintenance gap repaired test first through shared AEGIS controls on a separate Maintenance page. All 153 shared route tests and typecheck pass. Actual authenticated EO maintenance, Pallas/visible return, network interruption/reload, four viewports and monospace pass at 584697f4. Composed attack actions, review and release remain. |
 
-Focused route selection omits 167 unrelated cases without changing or disabling any test.
+The full affected ShipConsole and FleetSystemsWorkspace files pass 153 tests.
 Prepared browser evidence, normal authenticated emulator gameplay, native tests,
 Rules, independent review, CI and deployment are recorded separately at closeout.
 No production-GM or physical-device evidence is inferred from local passes.
