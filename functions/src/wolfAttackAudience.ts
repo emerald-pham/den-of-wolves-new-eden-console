@@ -41,7 +41,8 @@ export interface WolfAttackMemberView {
 const OUTCOME_FIELDS = new Set([
   'damage', 'destroyed', 'remainingCapacity', 'shipsDestroyed', 'populationLoss',
   'survivingBoardingParties', 'securityCasualties', 'boarderCasualties',
-  'returnedCraftCount', 'overrun',
+  'returnedCraftCount', 'overrun', 'casualtiesPrevented', 'foodSpent', 'waterSpent',
+  'materialsGained', 'scrapGained',
 ]);
 const REDACTED_FIELDS = Object.freeze([
   'composition', 'unresolved-dice', 'facilitator-notes', 'intervention-state',

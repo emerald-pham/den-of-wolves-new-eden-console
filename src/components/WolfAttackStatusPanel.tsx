@@ -20,6 +20,17 @@ function formatOutcome(outcome: WolfAttackMemberView['results'][number]['outcome
   if (typeof outcome.populationLoss === 'number' && outcome.populationLoss > 0) {
     values.push(`${outcome.populationLoss} population lost`);
   }
+  if (typeof outcome.casualtiesPrevented === 'number' && outcome.casualtiesPrevented > 0) {
+    values.push(`${outcome.casualtiesPrevented} ${outcome.casualtiesPrevented === 1 ? 'casualty' : 'casualties'} prevented`);
+  }
+  if (typeof outcome.foodSpent === 'number' && outcome.foodSpent > 0) values.push(`${outcome.foodSpent} food spent`);
+  if (typeof outcome.waterSpent === 'number' && outcome.waterSpent > 0) values.push(`${outcome.waterSpent} water spent`);
+  if (typeof outcome.materialsGained === 'number' && outcome.materialsGained > 0) {
+    values.push(`${outcome.materialsGained} ${outcome.materialsGained === 1 ? 'material' : 'materials'} recovered`);
+  }
+  if (typeof outcome.scrapGained === 'number' && outcome.scrapGained > 0) {
+    values.push(`${outcome.scrapGained} Scrap collected`);
+  }
   if (typeof outcome.survivingBoardingParties === 'number') {
     values.push(`${outcome.survivingBoardingParties} boarding parties remain`);
   }
