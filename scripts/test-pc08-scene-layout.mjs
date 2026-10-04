@@ -210,6 +210,10 @@ test('PC08 real-presenter review is isolated and usable in eight viewport and mo
               await page.getByRole('button', {name: 'Maliades sample', exact: true}).click();
               await page.getByRole('button', {name: 'Medium Range sample', exact: true}).click();
               await page.getByRole('button', {name: 'Launch Maliades', exact: true}).click();
+              assert.ok(await page.locator('.dione-maliades-range__header h2').evaluate(element => {
+                const style = getComputedStyle(element), normalize = value => value.replace(/["']/g, '').replace(/\s+/g, '').toLowerCase();
+                return normalize(style.fontFamily) === normalize(style.getPropertyValue('--cic-display'));
+              }), `${width}px ${reducedMotion}: actual Maliades display font`);
               await page.getByRole('combobox', {name: 'Maliades Medium target shift target', exact: true}).selectOption('local-wolf-1');
               await page.getByRole('combobox', {name: 'Maliades Medium target shift', exact: true}).selectOption('1');
               await page.getByRole('combobox', {name: 'Maliades Medium attack target', exact: true}).selectOption('local-wolf-2');
