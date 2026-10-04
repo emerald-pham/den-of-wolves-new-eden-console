@@ -180,11 +180,15 @@ it('reads a filtered current-dice view and patches only selected receipt rolls',
 it('targets only the selected split group and records only that group pursuit as the attack dial input', async () => {
   const firstGroup = ['aegis', 'dione', 'icebreaker'];
   const secondGroup = ['shepherd', 'quellon', 'refinery-124'];
+  const commanderCards = [
+    ...Array<string>(9).fill('wolf-fighter-wing'),
+    ...Array<string>(4).fill('wolf-assault-transport'),
+  ];
   put('sessions/s1/fleetGroups/fleet-1', {
     id: 'fleet-1', vesselIds: firstGroup, memberUids: [],
   });
   put('sessions/s1/fleetGroups/fleet-2', {
-    id: 'fleet-2', vesselIds: secondGroup, memberUids: ['gm-1'],
+    id: 'fleet-2', vesselIds: secondGroup, memberUids: ['gm-1', 'wolf-1'],
   });
   put('sessions/s1/players/gm-1', {
     uid: 'gm-1', role: 'gm', connected: true, fleetGroupId: 'fleet-2',
@@ -193,8 +197,27 @@ it('targets only the selected split group and records only that group pursuit as
     status: 'due', turn: 1, revision: 1,
     targetGroupId: 'fleet-2', threatSiteCode: 'commander',
   });
+  put('sessions/s1/wolfAttackPreparation/current', {
+    turn: 1, revision: 1, shipIds: commanderCards, targetMode: 'pre-rolled',
+    targetAssignments: [{ cardIndex: 0, targetShipId: 'aegis' }],
+    modifiers: ['wolf-commander-target-reroll'], notes: 'hidden GM note',
+    compositionKind: 'commander', targetGroupId: 'fleet-2', targetGroupPursuit: 7,
+  });
   put('sessions/s1/serverState/navigation', {
     revision: 8, pursuitGroups: { 'fleet-1': 2, 'fleet-2': 7 },
+  });
+  put('sessions/s1/players/wolf-1', {
+    uid: 'wolf-1', role: 'player', connected: true, fleetGroupId: 'fleet-2',
+    replacementRoleId: 'wolf-commander',
+  });
+  const commanderCycleAttack = {
+    type: 'wolf-commander-cycle-attack', cycle: 1, ledgerId: 'cycle-1',
+    groupId: 'fleet-2', targetGroupPursuit: 7, navigationRevision: 8,
+    commanderUid: 'wolf-1', attackNumber: 1, requestId: 'commander-dial-cycle-1',
+  };
+  put('sessions/s1/wolfCommanderCycleDials/cycle-1', {
+    type: 'wolf-commander-cycle-dial', status: 'committed', cycle: 1,
+    actorUid: 'wolf-1', commanderCycleAttack,
   });
 
   await declare();
