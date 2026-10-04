@@ -124,13 +124,27 @@ it('walks the manual crisis lifecycle and publishes only safe member summaries',
   }
   expect(mock.documents.get('sessions/s1/crisisOutcomes/approaching-vessel')).toMatchObject({
     type: 'crisis-outcome', crisisId: 'approaching-vessel', revision: 4,
-    title: 'Approaching vessel', capitalGranted: false,
+    title: 'Approaching vessel', capitalGranted: true, capitalApplied: true, capitalBalance: 1,
   });
   expect(mock.documents.get('sessions/s1')).toMatchObject({
     resolvedCrisisOutcome: {
       crisisId: 'approaching-vessel', revision: 4, title: 'Approaching vessel',
     },
+    politicalCapital: {
+      revision: 1,
+      balance: 1,
+      entries: [{ action: 'gain', amount: 1, crisisId: 'approaching-vessel', crisisRevision: 4 }],
+    },
   });
+  const capitalAfterResolution = mock.documents.get('sessions/s1')?.politicalCapital;
+  const updateCountAfterResolution = mock.update.mock.calls.length;
+  await transitionCrisis.run(request({ ...baseData, requestId: 'crisis-resolved', expectedRevision: 3, state: 'resolved' }));
+  expect(mock.documents.get('sessions/s1')?.politicalCapital).toEqual(capitalAfterResolution);
+  expect(mock.update).toHaveBeenCalledTimes(updateCountAfterResolution);
+  const resolutionEvent = [...mock.documents.entries()].filter(([path]) => path.includes('/events/'))
+    .map(([, fields]) => fields)
+    .find((fields) => fields.state === 'resolved');
+  expect(resolutionEvent).toMatchObject({ politicalCapital: { action: 'gain', amount: 1, balance: 1 } });
   const event = [...mock.documents.entries()].filter(([path]) => path.includes('/events/'))
     .map(([, fields]) => fields)
     .find((fields) => fields.state === 'closed');
