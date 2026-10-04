@@ -17,7 +17,7 @@ beforeEach(() => {
     setupRevision: 2, createdAt: '', updatedAt: '',
   }, { uid: 'gm', sessionId: 's1', displayName: 'Facilitator', role: 'gm', seatId: null, joinedAt: '' });
   useSessionStore.getState().setGmInstance({
-    id: 'gm-instance', sessionId: 's1', uid: 'gm', name: 'Facilitator', deviceLabel: 'test device',
+    id: 'gm-instance', sessionId: 's1', uid: 'gm', name: 'Facilitator', deviceLabel: 'test device', claimedAt: '',
   });
   useSessionStore.getState().setConnection('live');
   useSessionStore.getState().setSessionSnapshotFreshness('server');
