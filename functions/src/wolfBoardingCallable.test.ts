@@ -462,6 +462,30 @@ it('R4 atomically consumes the committed front-line death through the existing r
   await expect(commitWolfBoardingSpecialChoice.run(request(militia.payload, militia.uid)))
     .rejects.toMatchObject({ code: 'permission-denied' });
 });
+
+it.each([
+  { name: 'removed character', delta: { replacementRoleId: null, replacementStatus: 'awaiting-re-role' } },
+  { name: 'another character', delta: { replacementRoleId: 'gorgoneion-captain', replacementStatus: null } },
+])('R4 resolves the committed death after $name without revoking later authority', async ({ delta }) => {
+  await militiaDeathFixture();
+  patch(`${sessionPath}/players/militia-1`, delta);
+  const player = structuredClone(fields(`${sessionPath}/players/militia-1`));
+  const eligibility = structuredClone(fields(`${sessionPath}/replacementEligibility/militia-1`));
+  const setup = fields(sessionPath).setupRevision;
+  await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
+  expect(fields(attackPath)).toMatchObject({ status: 'resolved', calculationReceipt: { boarding: [{ militiaLeaderKilled: true }] } });
+  expect(fields(`${sessionPath}/players/militia-1`)).toEqual(player);
+  expect(fields(`${sessionPath}/replacementEligibility/militia-1`)).toEqual(eligibility);
+  expect(fields(sessionPath).setupRevision).toEqual(setup);
+  expect(fields(`${attackPath}/audit/wolf-finalized-1`)).toMatchObject({ characterDeaths: [{
+    actorUid: 'militia-1', roleId: 'rosal-militia-leader', authorityRevoked: false,
+  }] });
+  const before = structuredClone([...testState.documents.values()]);
+  const draws = entropy.randomInt.mock.calls.length;
+  await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
+  noAdditionalWrites(before, draws);
+});
+
 it.each([{ frontLineDice: 0, rerollToSurvive: false }, { frontLineDice: 1, rerollToSurvive: true }])(
   'R4 leaves a living Militia character assigned for %j', async options => {
     await militiaDeathFixture(options.frontLineDice, options.rerollToSurvive);
