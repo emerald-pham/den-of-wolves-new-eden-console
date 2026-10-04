@@ -135,3 +135,17 @@ it('rejects a late discovery callback while revoked and requires a new server pr
   publish('playerDiscoveries/eo', { ...discovery, revision: 4 });
   expect(feed.visible()).toMatchObject({ revision: 4 });
 });
+
+it('requires a new discovery projection after the actor group changes away and back while confirmation is pending', async () => {
+  const feed = begin();
+  publish('players/eo', actor);
+  publish('playerDiscoveries/eo', discovery);
+  publish('players/eo', { ...actor, fleetGroupId: 'fleet-2' });
+  publish('players/eo', actor);
+  feed.resolve();
+  await vi.waitFor(() => expect(feed.onSession).toHaveBeenCalled());
+  expect(feed.onDiscovery.mock.calls.every(([projection]) => projection === null)).toBe(true);
+  expect(feed.visible()).toBeUndefined();
+  publish('playerDiscoveries/eo', { ...discovery, revision: 4 });
+  expect(feed.visible()).toMatchObject({ revision: 4 });
+});

@@ -96,8 +96,15 @@ vi.mock('@/lib/firestore', () => ({
   subscribeGmZealotryResponse: vi.fn(),
   subscribeGmCivilUnrestResolution: vi.fn(),
   subscribeGmArrestPosseCalculation: vi.fn(),
+  subscribeGmArrestCase: vi.fn(() => vi.fn()),
   subscribeSessionEvents: vi.fn(),
   subscribeDamageDraws: vi.fn(),
+}));
+
+vi.mock('@/lib/vipHostService', () => ({
+  attestVipHostVisit: vi.fn(),
+  subscribeGmVipHostVisit: vi.fn((_sessionId: string, _cycle: number,
+    onVisit: (visit: null) => void) => { onVisit(null); return vi.fn(); }),
 }));
 
 vi.mock('@/lib/smallShipService', () => ({
