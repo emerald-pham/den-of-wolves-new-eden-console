@@ -278,6 +278,59 @@ function samePlotBounds(a: DOMRect, b: DOMRect): boolean {
     a.width === b.width && a.height === b.height;
 }
 
+function contactLabelVisibleForLayout(plot: HTMLElement, label: HTMLElement): boolean {
+  // The PC02 fixture intentionally overrides acquisition opacity to display
+  // the full board. Keep its visible, unacquired labels in the collision pass.
+  if (plot.closest('.pc02-review__plot')) return true;
+  const contact = label.closest<HTMLElement>('.contact-plot__contact');
+  const apparent = contact?.querySelector<HTMLElement>('.contact-plot__apparent');
+  if (!contact || !apparent) return true;
+  // Normal motion hides an unacquired apparent return and its name. Reduced
+  // motion reveals stationary returns immediately, except for ambient
+  // contacts, whose CSS acquisition mask remains authoritative.
+  return apparent.dataset.acquired === 'true' ||
+    (plot.dataset.still === 'true' && contact.dataset.ambient !== 'true');
+}
+
+function contactLabelsForLayout(plot: HTMLElement): HTMLElement[] {
+  return [...plot.querySelectorAll<HTMLElement>('.contact-plot__tag')]
+    .filter((label) => contactLabelVisibleForLayout(plot, label));
+}
+
+function synchronizeContactLeaders(
+  plot: HTMLElement,
+  visibleContacts: readonly (HTMLElement | null)[],
+): Map<HTMLElement, SVGLineElement> {
+  const allContacts = [...plot.querySelectorAll<HTMLElement>('.contact-plot__contact')];
+  const leaders = [...plot.querySelectorAll<SVGLineElement>('.contact-plot__leader-line')];
+  const visible = new Set(visibleContacts.filter((contact): contact is HTMLElement => contact !== null));
+  const byContact = new Map<HTMLElement, SVGLineElement>();
+  allContacts.forEach((contact, index) => {
+    const leader = leaders[index];
+    if (!leader) return;
+    byContact.set(contact, leader);
+    if (!visible.has(contact)) leader.dataset.visible = 'false';
+  });
+  return byContact;
+}
+
+type MeasuredContactMark = { contact: HTMLElement; bounds: DOMRect | null };
+
+function measureContactMarks(plot: HTMLElement): MeasuredContactMark[] {
+  return [...plot.querySelectorAll<HTMLElement>('.contact-plot__contact')].map((contact) => ({
+    contact,
+    bounds: contact.querySelector<HTMLElement>('.contact-plot__blip')?.getBoundingClientRect() ?? null,
+  }));
+}
+
+function otherContactMarks(
+  marks: readonly MeasuredContactMark[],
+  contact: HTMLElement | null | undefined,
+): DOMRect[] {
+  return marks.flatMap((entry) => entry.contact !== contact && entry.bounds &&
+    entry.bounds.width > 0 && entry.bounds.height > 0 ? [entry.bounds] : []);
+}
+
 function labelObstacleElements(plot: HTMLElement): HTMLElement[] {
   const shipPlot = plot.closest<HTMLElement>('.ship-plot');
   const overlayControls = shipPlot?.querySelectorAll<HTMLElement>(
@@ -316,9 +369,10 @@ function hasCurrentContactLabelLayout(
   return labels.every((label, index) => {
     const contact = contacts[index];
     const mark = marks[index];
+    const apparent = contact?.querySelector<HTMLElement>('.contact-plot__apparent');
     if (!contact || !mark || mark.width <= 0 || mark.height <= 0 ||
       environment.contacts[index] !== contact || contact.dataset.labelAnchor === undefined ||
-      contact.querySelector<HTMLElement>('.contact-plot__apparent')?.dataset.acquired !== 'true') return false;
+      apparent?.dataset.acquired !== 'true') return false;
     const layout = contactLabelLayouts.get(contact);
     return Boolean(layout && layout.styleScope === styleScope &&
       samePlotBounds(layout.plotBounds, plotBounds) && samePlotBounds(layout.markBounds, mark) &&
@@ -342,8 +396,9 @@ function clampScannedContactLabels(
 ): DOMRect | undefined {
   const plotBounds = plot.getBoundingClientRect();
   if (plotBounds.width <= 0 || plotBounds.height <= 0) return plotBounds;
-  const labels = [...plot.querySelectorAll<HTMLElement>('.contact-plot__tag')];
+  const labels = contactLabelsForLayout(plot);
   const contacts = labels.map((label) => label.closest<HTMLElement>('.contact-plot__contact'));
+  const leaderByContact = synchronizeContactLeaders(plot, contacts);
   const indices = new Map(contacts.flatMap((contact, index) => contact ? [[contact, index] as const] : []));
   const targets = [...new Set(changedContacts.map((contact) => indices.get(contact)))]
     .filter((index): index is number => index !== undefined)
@@ -364,12 +419,12 @@ function clampScannedContactLabels(
   // First-acquisition flashes animate the blip's rendered scale even when
   // its held fix is stationary and no scan event targets it. Refresh every
   // mark in this read batch; only unchanged label rectangles can be reused.
+  const measuredMarks = measureContactMarks(plot);
+  const marksByContact = new Map(measuredMarks.map(({ contact, bounds }) => [contact, bounds]));
   const marks: DOMRect[] = [];
   for (const contact of contacts) {
-    const mark = contact?.querySelector<HTMLElement>('.contact-plot__blip');
-    if (!mark) return plotBounds;
-    const bounds = mark.getBoundingClientRect();
-    if (bounds.width <= 0 || bounds.height <= 0) return plotBounds;
+    const bounds = contact ? marksByContact.get(contact) : null;
+    if (!bounds || bounds.width <= 0 || bounds.height <= 0) return plotBounds;
     marks.push(bounds);
   }
   const shipPlot = plot.closest<HTMLElement>('.ship-plot');
@@ -441,7 +496,7 @@ function clampScannedContactLabels(
     if (!contact || !mark || mark.width <= 0 || mark.height <= 0) return plotBounds;
     const nearby = [
       ...obstacles,
-      ...marks.filter((_, otherIndex) => otherIndex !== index),
+      ...otherContactMarks(measuredMarks, contact),
     ];
     const directCandidates: { layout: LabelCandidateLayout; clearance: number }[] = [];
     for (const layout of [layouts.preferred, layouts.opposite]) {
@@ -478,7 +533,6 @@ function clampScannedContactLabels(
     obstacles.push(best.layout.bounds);
   }
 
-  const leaders = [...plot.querySelectorAll<SVGLineElement>('.contact-plot__leader-line')];
   for (const index of targets) {
     const label = labels[index]!;
     const contact = contacts[index]!;
@@ -498,7 +552,7 @@ function clampScannedContactLabels(
       chosenAnchor: layout.anchor,
       direct: true,
     });
-    const leader = leaders[index];
+    const leader = leaderByContact.get(contact);
     if (!leader || contact.dataset.moving === 'true' || layout.bounds.width === 0 || layout.bounds.height === 0) {
       if (leader) leader.dataset.visible = 'false';
       continue;
@@ -535,12 +589,14 @@ function clampContactLabels(
 ): void {
   const plotBounds = measuredPlotBounds ?? plot.getBoundingClientRect();
   if (plotBounds.width <= 0 || plotBounds.height <= 0) return;
-  const labels = [...plot.querySelectorAll<HTMLElement>('.contact-plot__tag')];
+  const labels = contactLabelsForLayout(plot);
   // Resolve each owner once. The scoring passes revisit each contact several
   // times, and repeated closest() walks add up during a moving plot update.
   const contacts = labels.map((label) => label.closest<HTMLElement>('.contact-plot__contact'));
-  const marks = contacts.map((contact) =>
-    contact?.querySelector<HTMLElement>('.contact-plot__blip')?.getBoundingClientRect() ?? null);
+  const leaderByContact = synchronizeContactLeaders(plot, contacts);
+  const measuredMarks = measureContactMarks(plot);
+  const marksByContact = new Map(measuredMarks.map(({ contact, bounds }) => [contact, bounds]));
+  const marks = contacts.map((contact) => contact ? marksByContact.get(contact) ?? null : null);
   const obstacleBounds = labelObstacleElements(plot).map((element) => ({
     element,
     bounds: element.getBoundingClientRect(),
@@ -710,8 +766,7 @@ function clampContactLabels(
     const marker = marks[index];
     if (!marker || !contacts[index] || !preferredLayouts[index] || !oppositeLayouts[index] ||
       preferredLayouts[index]!.bounds.width <= 0) return false;
-    const nearby = [...obstacles, ...marks.filter((mark, other): mark is DOMRect =>
-      other !== index && mark !== null && mark.width > 0 && mark.height > 0)];
+    const nearby = [...obstacles, ...otherContactMarks(measuredMarks, contacts[index])];
     return [preferredLayouts[index], oppositeLayouts[index]].every((layout) => {
       const { anchor, bounds } = layout!;
       const anchorGap = anchor.endsWith('east') ? marker.left - bounds.right : bounds.left - marker.right;
@@ -791,8 +846,7 @@ function clampContactLabels(
       preferredLayout && preferredLayout.bounds.width > 0) {
       const nearby = [
         ...obstacles,
-        ...marks.filter((mark, markIndex): mark is DOMRect =>
-          markIndex !== index && mark !== null && mark.width > 0 && mark.height > 0),
+        ...otherContactMarks(measuredMarks, contact),
       ];
       const preferred = preferredAnchors[index]!;
       const minX = plotBounds.left + LABEL_VIEWPORT_GUTTER_PX;
@@ -1063,11 +1117,10 @@ function clampContactLabels(
 
   // A name shifted to a nearby row needs a visible connection to its return.
   // Use rendered coordinates after 3D projection, so rotation cannot detach it.
-  const leaders = [...plot.querySelectorAll<SVGLineElement>('.contact-plot__leader-line')];
   for (const [index, label] of labels.entries()) {
-    const leader = leaders[index];
     const marker = marks[index];
     const contact = contacts[index];
+    const leader = contact ? leaderByContact.get(contact) : undefined;
     const bounds = finalBounds[index] ?? label.getBoundingClientRect();
     const preferred = preferredLayouts[index];
     const opposite = oppositeLayouts[index];

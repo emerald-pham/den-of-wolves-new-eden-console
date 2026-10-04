@@ -1,5 +1,6 @@
 import { useSessionStore } from '@/store/useSessionStore';
 import { act, cleanup, render, screen } from '@testing-library/react';
+import type { ReactElement } from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import ContactPlot, {
@@ -22,6 +23,39 @@ const plotIn = (container: HTMLElement) =>
   container.querySelector<HTMLElement>('.contact-plot');
 const contactsIn = (container: HTMLElement) =>
   Array.from(container.querySelectorAll<HTMLElement>('.contact-plot__contact'));
+const renderWithVisibleStaticReturns = (element: ReactElement) => {
+  // Geometry contracts need visible names without pretending a normal-motion
+  // sweep has acquired them; this fixture deliberately overrides opacity.
+  const rendered = render(<div className="pc02-review__plot">{element}</div>);
+  return {
+    ...rendered,
+    rerender: (next: ReactElement) => rendered.rerender(
+      <div className="pc02-review__plot">{next}</div>,
+    ),
+  };
+};
+function acquireContactLabels(container: HTMLElement): void {
+  const plot = plotIn(container);
+  if (!plot) return;
+  const contacts = contactsIn(container);
+  act(() => {
+    for (const contact of contacts) {
+      const apparent = contact.querySelector<HTMLElement>('.contact-plot__apparent');
+      if (apparent) {
+        apparent.dataset.acquired = 'true';
+        for (const axis of ['x', 'y', 'z']) {
+          const coordinate = contact.style.getPropertyValue(`--${axis}`);
+          if (coordinate) apparent.style.setProperty(`--fix-${axis}`, coordinate);
+        }
+      }
+      contact.dispatchEvent(new CustomEvent(CONTACT_SCAN_EVENT, {
+        bubbles: true,
+        detail: { fixChanged: true, layoutDeferred: true },
+      }));
+    }
+    plot.dispatchEvent(new Event(CONTACT_SCAN_LAYOUT_EVENT));
+  });
+}
 const ambientSession = {
   id: 'fleet-session',
   createdAt: '2026-01-01T00:00:00.000Z',
@@ -647,6 +681,7 @@ it.each([
   const { container, unmount } = render(
     <ContactPlot placement={placement} contacts={edgeContacts} />,
   );
+  if (!reduced) acquireContactLabels(container);
   const plot = plotIn(container);
   expect(plot).toHaveAttribute('data-still', String(reduced));
   const labels = [...container.querySelectorAll<HTMLElement>('.contact-plot__tag')];
@@ -695,7 +730,7 @@ it('keeps clustered contact names separate from each other and the plot origin a
     { tag: 'QUELLON', x: 0.11, y: 0.04, z: 0.3, color: 'white' },
     { tag: 'REFINERY 124', x: 0.13, y: 0.02, z: 0.3, color: 'white' },
   ];
-  const { container } = render(<ContactPlot contacts={contacts} centerLabel="AEGIS" />);
+  const { container } = renderWithVisibleStaticReturns(<ContactPlot contacts={contacts} centerLabel="AEGIS" />);
   const labels = [...container.querySelectorAll<HTMLElement>('.contact-plot__tag')];
   const origin = container.querySelector<HTMLElement>('.contact-plot__origin')!;
   const overlaps = (a: DOMRect, b: DOMRect) =>
@@ -744,7 +779,7 @@ it('keeps a contact name clear of the compact DRADIS controls', () => {
     return bounds(0, 0, 0, 0);
   });
 
-  const { container } = render(<div className="ship-plot">
+  const { container } = renderWithVisibleStaticReturns(<div className="ship-plot">
     <ContactPlot contacts={[{ tag: 'REFINERY 124', x: 0.2, y: 0.1, z: 0, color: 'white' }]} />
     <button className="ship-plot__toggle" type="button">Zoom</button>
   </div>);
@@ -781,7 +816,7 @@ it('keeps a name beside its return and chooses the side farthest from other cont
     }
     return bounds(0, 0, 0, 0);
   });
-  const { container } = render(<ContactPlot contacts={[
+  const { container } = renderWithVisibleStaticReturns(<ContactPlot contacts={[
     { tag: 'LEAD', x: 0.1, y: 0.1, z: 0, color: 'white' },
     { tag: 'PORT ABOVE', x: -0.1, y: 0.1, z: 0, color: 'white' },
     { tag: 'PORT BELOW', x: -0.1, y: -0.1, z: 0, color: 'white' },
@@ -827,7 +862,7 @@ it('moves an anchored name one nearby row when both sides have crowded contact m
     }
     return bounds(0, 0, 0, 0);
   });
-  const { container } = render(<ContactPlot contacts={marks.map((_, index) => ({
+  const { container } = renderWithVisibleStaticReturns(<ContactPlot contacts={marks.map((_, index) => ({
     tag: `RETURN ${index}`, x: 0.1 * index, y: 0, z: 0, color: 'white',
   }))} />);
   const lead = container.querySelector<HTMLElement>('.contact-plot__contact')!;
@@ -880,7 +915,7 @@ it('lets a name wider than the plot wrap inside the visible scan area', () => {
     return bounds(0, 0, 0, 0);
   });
 
-  const { container } = render(<ContactPlot contacts={[
+  const { container } = renderWithVisibleStaticReturns(<ContactPlot contacts={[
     { tag: 'VERY LONG USER DEFINED CONTACT NAME', x: 0.2, y: 0.1, z: 0, color: 'white' },
   ]} />);
   const label = container.querySelector<HTMLElement>('.contact-plot__tag')!;
@@ -1200,7 +1235,7 @@ it('remeasures only the changed label for a clear deferred sweep fix', () => {
     }
     return bounds(0, 0, 0, 0);
   });
-  const { container } = render(<ContactPlot contacts={marks.map((_, index) => ({
+  const { container } = renderWithVisibleStaticReturns(<ContactPlot contacts={marks.map((_, index) => ({
     id: `sweep-layout-${index}`,
     tag: `CONTACT ${index + 1}`,
     x: 0.55,
@@ -1274,7 +1309,7 @@ function mockAdjacentContactGeometry(
 it('rechecks an unscanned departing mark before laying out a deferred sweep', () => {
   const marks = [{ x: 160, y: 100 }, { x: 190, y: 100 }];
   mockAdjacentContactGeometry(marks, [88, 112, 62, 24]);
-  const { container } = render(<ContactPlot centerLabel="AEGIS" contacts={marks.map((_, index) => ({
+  const { container } = renderWithVisibleStaticReturns(<ContactPlot centerLabel="AEGIS" contacts={marks.map((_, index) => ({
     id: `departing-cache-${index}`, tag: `CONTACT ${index + 1}`,
     x: 0.55, y: index === 0 ? 0.38 : -0.38, z: 0.1, color: 'white',
   }))} />);
@@ -1330,7 +1365,7 @@ it('scores current neighbor bounds while an unscanned acquisition flash shrinks'
     { x: 233, y: 116, width: 16, height: 16, labelX: 237, labelY: 120 },
   ];
   mockAdjacentContactGeometry(marks, [84, 112, 10, 24]);
-  const { container } = render(<ContactPlot centerLabel="AEGIS" contacts={marks.map((_, index) => ({
+  const { container } = renderWithVisibleStaticReturns(<ContactPlot centerLabel="AEGIS" contacts={marks.map((_, index) => ({
     id: `acquisition-cache-${index}`, tag: `CONTACT ${index + 1}`,
     x: 0.55, y: index === 0 ? 0.38 : -0.38, z: 0.1, color: 'white',
   }))} />);
@@ -1519,7 +1554,7 @@ it('reuses intrinsic DRADIS name width across contact-position updates', () => {
     id: 'width-cache', tag: 'LONG RESEARCH CRUISER', x, y: 0.2, z: 0.1, color: 'white',
   }];
 
-  const { rerender } = render(<ContactPlot contacts={contacts(0.8)} />);
+  const { rerender } = renderWithVisibleStaticReturns(<ContactPlot contacts={contacts(0.8)} />);
   const firstUpdateReads = offsetWidthReads;
   expect(firstUpdateReads).toBeGreaterThan(0);
 
@@ -1571,7 +1606,7 @@ const cachedWidthTestContacts = (x: number) => [{
 
 it('reuses intrinsic DRADIS width across sweep visual-state transitions while relaying label geometry', () => {
   const { offsetWidthReads, labelBoundsReads } = mockIntrinsicWidthForCacheTests(() => 180);
-  const { container } = render(<ContactPlot contacts={cachedWidthTestContacts(0.8)} />);
+  const { container } = renderWithVisibleStaticReturns(<ContactPlot contacts={cachedWidthTestContacts(0.8)} />);
   const contact = contactsIn(container)[0]!;
   const apparent = contact.querySelector<HTMLElement>('.contact-plot__apparent')!;
   const initialWidthReads = offsetWidthReads();
@@ -1603,7 +1638,7 @@ it('invalidates cached DRADIS name width when responsive viewport rules change',
   const originalWidth = Object.getOwnPropertyDescriptor(window, 'innerWidth');
   Object.defineProperty(window, 'innerWidth', { configurable: true, value: 900 });
   try {
-    const { rerender } = render(<ContactPlot contacts={cachedWidthTestContacts(0.8)} />);
+    const { rerender } = renderWithVisibleStaticReturns(<ContactPlot contacts={cachedWidthTestContacts(0.8)} />);
     const firstUpdateReads = offsetWidthReads();
     expect(firstUpdateReads).toBeGreaterThan(0);
 
@@ -1625,7 +1660,7 @@ it('invalidates cached DRADIS name width when an ancestor style context changes'
   const { offsetWidthReads } = mockIntrinsicWidthForCacheTests((label) => (
     label.closest<HTMLElement>('.ship-plot')?.dataset.expanded === 'true' ? 210 : 180
   ));
-  const { container } = render(<div className="ship-plot" data-expanded="false">
+  const { container } = renderWithVisibleStaticReturns(<div className="ship-plot" data-expanded="false">
     <ContactPlot contacts={cachedWidthTestContacts(0.8)} />
   </div>);
   const firstUpdateReads = offsetWidthReads();
@@ -1646,7 +1681,7 @@ it('invalidates cached DRADIS name width after a font face finishes loading', as
   try {
     let fontLoaded = false;
     const { offsetWidthReads } = mockIntrinsicWidthForCacheTests(() => fontLoaded ? 210 : 180);
-    render(<ContactPlot contacts={cachedWidthTestContacts(0.8)} />);
+    renderWithVisibleStaticReturns(<ContactPlot contacts={cachedWidthTestContacts(0.8)} />);
     const firstUpdateReads = offsetWidthReads();
     expect(firstUpdateReads).toBeGreaterThan(0);
 
@@ -1687,7 +1722,7 @@ it('reuses held contact-label geometry and invalidates it when the fix or an obs
     return bounds(0, 0, 0, 0);
   });
   const contact = { id: 'held-layout', tag: 'HELD CONTACT', x: 0.6, y: 0.2, z: 0.1, color: 'white' };
-  const { container, rerender } = render(<ContactPlot centerLabel="AEGIS" contacts={[contact]} />);
+  const { container, rerender } = renderWithVisibleStaticReturns(<ContactPlot centerLabel="AEGIS" contacts={[contact]} />);
   expect(labelLayoutReads).toBeGreaterThan(0);
 
   const apparent = container.querySelector<HTMLElement>('.contact-plot__apparent')!;
@@ -1751,6 +1786,59 @@ it('defers hidden normal-motion labels until the sweep acquires their held retur
   expect(labelReads.every((name) => name.includes('FIRST RETURN'))).toBe(true);
 });
 
+it('keeps a partially acquired name bound to its own leader and hides stale hidden leaders', () => {
+  const bounds = (left: number, top: number, width: number, height: number): DOMRect => ({
+    x: left, y: top, left, top, width, height,
+    right: left + width, bottom: top + height,
+  }) as DOMRect;
+  const markLeft = [40, 140, 240];
+  const markTop = [175, 80, 40];
+  vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+    if (this.classList.contains('contact-plot')) return bounds(0, 0, 320, 240);
+    const contact = this.closest<HTMLElement>('.contact-plot__contact');
+    const index = contact ? contactsIn(document.body).indexOf(contact) : -1;
+    if (this.classList.contains('contact-plot__blip') && index >= 0) {
+      return bounds(markLeft[index]!, markTop[index]!, 8, 8);
+    }
+    if (this.classList.contains('contact-plot__tag') && contact && index >= 0) {
+      const anchor = contact.dataset.labelAnchor ?? 'south-east';
+      const left = anchor.endsWith('east') ? markLeft[index]! - 11 - 50 : markLeft[index]! + 19;
+      return bounds(left, 170, 50, 18);
+    }
+    return bounds(0, 0, 0, 0);
+  });
+  const { container } = render(<ContactPlot contacts={markLeft.map((_, index) => ({
+    id: `partial-acquisition-${index}`, tag: `CONTACT ${index + 1}`,
+    x: 0.4, y: 0.1, z: 0.1, color: 'white',
+  }))} />);
+  const contacts = contactsIn(container);
+  const leaders = [...container.querySelectorAll<SVGLineElement>('.contact-plot__leader-line')];
+  expect(leaders.map((leader) => leader.dataset.visible)).toEqual(['false', 'false', 'false']);
+
+  const selected = contacts[1]!;
+  const apparent = selected.querySelector<HTMLElement>('.contact-plot__apparent')!;
+  act(() => {
+    apparent.dataset.acquired = 'true';
+    selected.dispatchEvent(new CustomEvent(CONTACT_SCAN_EVENT, {
+      bubbles: true,
+      detail: { fixChanged: true },
+    }));
+  });
+
+  expect(leaders.map((leader) => leader.dataset.visible)).toEqual(['false', 'true', 'false']);
+  expect(selected.dataset.labelAnchor).toMatch(/west$/);
+
+  act(() => {
+    apparent.dataset.acquired = 'false';
+    selected.dispatchEvent(new CustomEvent(CONTACT_SCAN_EVENT, {
+      bubbles: true,
+      detail: { fixChanged: true },
+    }));
+  });
+
+  expect(leaders.map((leader) => leader.dataset.visible)).toEqual(['false', 'false', 'false']);
+});
+
 it('keeps crowded 20-contact label layout within the per-update geometry-read budget', () => {
   const bounds = (left: number, top: number, width: number, height: number): DOMRect => ({
     x: left, y: top, left, top, width, height,
@@ -1785,7 +1873,7 @@ it('keeps crowded 20-contact label layout within the per-update geometry-read bu
     color: 'white',
   }));
 
-  const { rerender } = render(<ContactPlot contacts={contacts} />);
+  const { rerender } = renderWithVisibleStaticReturns(<ContactPlot contacts={contacts} />);
   expect(labelLayoutReads).toBeLessThanOrEqual(20 * contacts.length);
 
   labelLayoutReads = 0;
@@ -1855,7 +1943,7 @@ it('skips the alternate anchor measurement when the preferred clear side has mor
     z: 0.1,
     color: 'white',
   }));
-  const { rerender } = render(<ContactPlot contacts={contacts} />);
+  const { rerender } = renderWithVisibleStaticReturns(<ContactPlot contacts={contacts} />);
   labelReads.fill(0);
 
   rerender(<ContactPlot contacts={contacts.map((contact) => ({
@@ -1888,7 +1976,7 @@ it('keeps a cached clear anchor when the input preference is unchanged', () => {
   const contact = {
     id: 'cached-clear-anchor', tag: 'CONTACT', x: 0.55, y: 0.38, z: 0.1, color: 'white',
   };
-  const { rerender } = render(<ContactPlot centerLabel="AEGIS" contacts={[contact]} />);
+  const { rerender } = renderWithVisibleStaticReturns(<ContactPlot centerLabel="AEGIS" contacts={[contact]} />);
   expect(document.querySelector('.contact-plot__contact')?.getAttribute('data-label-anchor'))
     .toBe('south-west');
   labelReads = 0;
@@ -1928,7 +2016,7 @@ it('measures alternate anchors as one geometry batch when several defaults chang
     id: `batched-anchor-${index}`, tag: `CONTACT ${index + 1}`,
     x: 0.55, y: 0.3, z: 0.1, color: 'white',
   }));
-  const { rerender } = render(<ContactPlot centerLabel="AEGIS" contacts={contacts} />);
+  const { rerender } = renderWithVisibleStaticReturns(<ContactPlot centerLabel="AEGIS" contacts={contacts} />);
   expect([...document.querySelectorAll<HTMLElement>('.contact-plot__contact')]
     .map((contact) => contact.dataset.labelAnchor)).toEqual(['south-east', 'south-east']);
   readAnchorSnapshots.length = 0;
@@ -1985,7 +2073,7 @@ it('batches crowded fallback translation probes while keeping names beside their
     return bounds(0, 0, 0, 0);
   });
 
-  const { container } = render(<ContactPlot contacts={marks.map((_, index) => ({
+  const { container } = renderWithVisibleStaticReturns(<ContactPlot contacts={marks.map((_, index) => ({
     id: `fallback-batch-${index}`, tag: `LONG CONTACT ${index + 1}`,
     x: 0.55, y: 0.38, z: 0.1, color: 'white',
   }))} />);
@@ -2040,7 +2128,7 @@ it('stops comparing distant obstacles once a collided lane cannot improve the ch
     }
     return bounds(0, 0, 0, 0);
   });
-  const { container } = render(<div className="ship-plot">
+  const { container } = renderWithVisibleStaticReturns(<div className="ship-plot">
     <span data-plot-obstacle="distant" />
     <ContactPlot centerLabel="AEGIS" contacts={[{ id: 'bounded-score', tag: 'CONTACT', x: 0.55, y: 0.38, z: 0.1, color: 'white' }]} />
   </div>);
@@ -2167,7 +2255,7 @@ it('fits an expanded DRADIS name using widths measured in the same label state',
     return bounds(0, 0, 0, 0);
   });
 
-  const { container } = render(<ContactPlot contacts={[
+  const { container } = renderWithVisibleStaticReturns(<ContactPlot contacts={[
     { tag: 'LONG RESEARCH CRUISER', x: 0.8, y: 0.2, z: 0.1, color: 'white' },
   ]} />);
   const label = container.querySelector<HTMLElement>('.contact-plot__tag')!;
