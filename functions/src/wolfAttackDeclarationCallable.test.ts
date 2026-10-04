@@ -462,6 +462,42 @@ it('carries every surviving catalog return, including Battlestations, into match
   });
 });
 
+it('resolves a finalized same-cycle P Station repeat from its complete immutable survivor list', () => {
+  const prior = resolvedPriorAttack();
+  const statePath = 'sessions/s1/wolfAttackState/current';
+  const auditPath = `${statePath}/audit/wolf-finalized-1`;
+  const auditBefore = mock.documents.get(auditPath)!;
+  const battlestation = { instanceId: '15:wolf-battlestation', shipId: 'wolf-battlestation',
+    target: 'aegis', damageTaken: 0, destroyed: false };
+  const combatRoster = [...prior.combatRoster as Fields[], battlestation];
+  const destroyedInstanceIds = combatRoster.filter((ship) => ship.destroyed === true).map((ship) => ship.instanceId);
+  const rangeReceipts = (prior.rangeReceipts as Fields[]).map((range, index) => ({
+    ...range, destroyedInstanceIds: index === 2 ? destroyedInstanceIds : [],
+  }));
+  const survivingWolfShips = combatRoster.filter((ship) => ship.destroyed === false)
+    .map(({ instanceId, shipId, target }) => ({ instanceId, shipId, target }));
+  const marker = { type: 'p-station-sequence', sequenceId: 'wolf-p-station-transition-1',
+    groupId: 'fleet-1', chart: 'A', coordinate: '0102', sourceTransitionId: 'transition-1',
+    sourceCycle: 1, attackNumber: 1 };
+  const receipt = { ...(prior.calculationReceipt as Fields), ranges: rangeReceipts, survivingWolfShips };
+  const state = { ...prior, combatRoster, rangeReceipts, pStationSequence: marker, calculationReceipt: receipt };
+  const audit = { ...auditBefore, pStationSequence: marker, receipt, rangeReceipts };
+  mock.documents.set(statePath, state);
+  mock.documents.set(auditPath, audit);
+  const repeatContext = { type: 'p-station-repeat', sequenceId: marker.sequenceId, groupId: marker.groupId,
+    chart: marker.chart, coordinate: marker.coordinate, sourceTransitionId: marker.sourceTransitionId,
+    sourceCycle: marker.sourceCycle, parentAttackId: prior.attackId, parentAttackNumber: 1,
+    parentTurn: 1, nextAttackNumber: 2 };
+  const readRepeat = resolvedWolfAttackForCarryover as unknown as (
+    stateValue: unknown, finalizationAuditValue: unknown, currentTurn: number, context: Fields,
+  ) => { survivingShips: readonly { instanceId: string; shipId: string }[] };
+
+  const resolved = readRepeat(state, audit, 1, repeatContext);
+
+  expect(resolved.survivingShips).toEqual(survivingWolfShips.map(({ instanceId, shipId }) => ({ instanceId, shipId })));
+  expect(() => resolvedWolfAttackForCarryover(state, audit, 1)).toThrow(/verifiable finalized attack/i);
+});
+
 function retainedHostNextDeclaration(host = 'quellon') {
   const roles = recommendedRoleIds(18);
   const craft = new Map(roleOwnedCraftForRoles(roles).map(entry => [entry.id, entry]));
