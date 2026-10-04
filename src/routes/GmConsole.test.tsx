@@ -3653,7 +3653,7 @@ it('uses current group pursuit and live scheduled M source in the facilitator th
   expect(controls).toHaveTextContent('Target group pursuit // 7');
   await user.click(within(controls).getByRole('button', { name: /mark threat source due/i }));
   expect(getWolfAttackThreatWindowOptions).toHaveBeenCalledWith('fleet-2');
-  expect(setWolfAttackWindow).toHaveBeenCalledWith('due', 0, {
+  expect(setWolfAttackWindow).toHaveBeenCalledWith('due', 2, {
     targetGroupId: 'fleet-2', threatSiteCode: 'M', threatSourceId: 'arrival-fortress-jump',
   });
 });
