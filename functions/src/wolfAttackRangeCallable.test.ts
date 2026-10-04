@@ -208,7 +208,17 @@ it('records one private Commander target adjustment bound to the current attack 
 it('returns a private selected-group dial only to the current Wolf Commander', async () => {
   const attackPath = 'sessions/s1/wolfAttackState/current';
   const attack = testState.documents.get(attackPath)!;
-  put(attackPath, { ...attack, currentStep: 'long-range' });
+  const selectedTargeting = resolveWolfTargeting(
+    firstTurnWolfAttackComposition(), {}, ['aegis', 'dione'], () => 0,
+  );
+  put(attackPath, {
+    ...attack,
+    currentStep: 'long-range',
+    targetGroupVesselIds: ['aegis', 'dione'],
+    calculationReceipt: { type: 'wolf-combat-calculation-stage', version: 1, turn: 1,
+      step: 'targeting', targeting: selectedTargeting },
+    combatRoster: wolfCombatRoster(selectedTargeting),
+  });
   put('sessions/s1/players/wolf-commander', {
     uid: 'wolf-commander', role: 'player', connected: true, replacementRoleId: 'wolf-commander',
   });
@@ -217,10 +227,15 @@ it('returns a private selected-group dial only to the current Wolf Commander', a
   expect(dial).toMatchObject({
     type: 'wolf-commander-range-target-dial-view', sessionId: 's1', attackId: attack.attackId,
     turn: 1, revision: 4, range: 'long-range',
-    ring: [{ targetId: 'aegis', targetNumber: 1 }, { targetId: 'dione', targetNumber: 2 }],
-    ships: [expect.objectContaining({ rosterIndex: 0, shipId: 'wolf-fighter-wing', currentTarget: 'aegis', currentTargetNumber: 1 })],
     adjustmentUsed: false,
   });
+  expect(dial.ring).toEqual([
+    { targetId: 'aegis', targetNumber: 1 }, { targetId: 'dione', targetNumber: 2 },
+  ]);
+  expect(dial.ships).toContainEqual(expect.objectContaining({
+    rosterIndex: 0, shipId: 'wolf-fighter-wing', currentTarget: 'aegis', currentTargetNumber: 1,
+  }));
+  expect(dial.ships).toHaveLength(firstTurnWolfAttackComposition().shipIds.length);
   expect(JSON.stringify(dial)).not.toMatch(/privateNotes|calculationReceipt|combatRoster/);
   await expect(getWolfCommanderRangeTargetDial.run(request({ sessionId: 's1' }, 'other')))
     .rejects.toMatchObject({ code: 'permission-denied' });
