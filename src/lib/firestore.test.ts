@@ -3143,6 +3143,7 @@ it('hydrates the complete GM-private attack state and keeps its revision monoton
   expect(onState).toHaveBeenCalledTimes(2);
   expect(onState).toHaveBeenLastCalledWith({
     status: 'declared', turn: 1, revision: 3, preparationRevision: 2,
+    attackNumber: 1, parkingReleaseCondition: 'normal-movement-reopened',
     currentStep: 'long-range', deadlineAt: '2026-09-12T23:00:00.000Z',
     airspaceLocked: true, parkedCraftIds: ['starlight'], launchedCraftIds: [],
     attackId: 'wolf-attack-1', preparation: privatePreparation, calculationReceipt, memberResults: [],

@@ -326,7 +326,7 @@ it('preserves a Commander finish across an unrelated Maliades revision before C&
   });
 });
 
-it('keeps a no-Commander redirect readable after an unrelated Maliades revision', async () => {
+it('retains a no-Commander redirect when the final Maliades launch automatically advances to Long Range', async () => {
   currentGame({ commander: false });
   await expect(applyAegisCommandAndControl.run(request({
     sessionId: 's1', requestId: 'redirect-before-maliades', expectedTurn: 1,
@@ -338,8 +338,13 @@ it('keeps a no-Commander redirect readable after an unrelated Maliades revision'
     sessionId: 's1', requestId: 'maliades-after-no-commander', expectedTurn: 1, expectedRevision: 2,
   }, 'dione-1'))).resolves.toMatchObject({ status: 'committed', revision: 3 });
   await expect(getAegisCommandAndControl.run(request({ sessionId: 's1' }))).resolves.toMatchObject({
-    revision: 3, eligible: false, rerollsFinalized: true,
-    reason: 'already-used', redirectedShipId: 'wolf-fighter-wing',
+    revision: 4, eligible: false, rerollsFinalized: false, reason: 'not-targeting',
+  });
+  expect(mock.documents.get('sessions/s1/wolfAttackState/current')).toMatchObject({
+    revision: 4, currentStep: 'long-range',
+    commandAndControl: { revision: 2, shipId: 'wolf-fighter-wing', actorUid: 'xo-1',
+      requestId: 'redirect-before-maliades', commanderCompletion: 'no-commander' },
+    commanderRerollCompletion: { status: 'no-commander', revision: 2, actorUid: 'xo-1' },
   });
 });
 

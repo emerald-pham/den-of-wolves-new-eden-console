@@ -12,6 +12,15 @@ const gorgoneionSupportSource = readFileSync(new URL('./gorgoneionMissionSupport
 const missionLifecycleSource = readFileSync(new URL('./awayMissionLifecycleCallable.ts', import.meta.url), 'utf8');
 const smallShipJumpSource = readFileSync(new URL('./smallShipJump.ts', import.meta.url), 'utf8');
 const turnInterstitialSource = readFileSync(new URL('./turnInterstitialCallable.ts', import.meta.url), 'utf8');
+const unionCraftSetupSource = readFileSync(new URL('./unionCraftSetupCallable.ts', import.meta.url), 'utf8');
+function sourceFunction(name: string): string {
+  const start = source.indexOf(`function ${name}(`);
+  if (start < 0) throw new Error(`Missing actual terminal authority helper: ${name}`);
+  const end = source.indexOf('\nfunction ', start + 1);
+  return source.slice(start, end < 0 ? undefined : end);
+}
+const rangeStateGuard = sourceFunction('requireWolfRangeState');
+const boardingSnapshotGuard = sourceFunction('wolfBoardingProtocolSnapshot') + sourceFunction('wolfBoardingDefenceInputs');
 const callablePattern = /export const (\w+) = onCall/g;
 const matches = [...source.matchAll(callablePattern)];
 const highwallWindowGuardStart = source.indexOf('function requireLiveHighwallMiningWindow(');
@@ -45,6 +54,31 @@ const terminalGuardDelegates: Readonly<Record<string, {
   readonly source: string;
   readonly guard: string;
 }>> = {
+  commitAegisEnrichedWarheadChoice: {
+    target: 'aegisEnrichedWarheadStartInputs(session, state)',
+    source: sourceFunction('aegisEnrichedWarheadStartInputs'),
+    guard: 'requireActiveGameplayPhase(session);',
+  },
+  assignWolfRangeTargets: {
+    target: 'requireWolfRangeState(session, state, range)', source: rangeStateGuard,
+    guard: 'requireActiveGameplayPhase(session);',
+  },
+  ...Object.fromEntries([
+    'getWolfFighterRangeActionChoice', 'commitWolfFighterRangeActionChoice',
+    'getWolfEscortRangeActionChoice', 'commitWolfEscortRangeActionChoice',
+    'getWolfRangeSupportActionChoice',
+  ].map(name => [name, {
+    target: 'requireWolfRangeState(session, attack, range)', source: rangeStateGuard,
+    guard: 'requireActiveGameplayPhase(session);',
+  }])),
+  ...Object.fromEntries(['commitWolfBoardingDefenceChoice', 'getWolfBoardingSpecialChoice'].map(name => [name, {
+    target: 'wolfBoardingProtocolSnapshot(session, state, players.docs, groups.docs)',
+    source: boardingSnapshotGuard, guard: 'requireActiveGameplayPhase(session);',
+  }])),
+  setUnionCraftStartingHost: {
+    target: 'createUnionCraftStartingHostHandler({', source: unionCraftSetupSource,
+    guard: 'deps.requireCastingWindow(session);',
+  },
   commitWolfRangeActionChoice: {
     target: 'requireWolfRangeState(session, state, range)',
     source: source.slice(source.indexOf('function requireWolfRangeState('), source.indexOf('function ', source.indexOf('function requireWolfRangeState(') + 9)),
@@ -171,6 +205,10 @@ it('keeps every delegated callable backed by a transaction-level terminal guard'
   expect(sameTableTradeSource.match(
     /dependencies\.requireNonterminalSessionPhase\(sessionSnapshot\.get\('phase'\)\);/g,
   )).toHaveLength(3);
+  expect(sourceFunction('wolfBoardingProtocolSnapshot')).toContain('wolfBoardingDefenceInputs(session, state)');
+  expect(sourceFunction('requireCastingWindow')).toContain("!['lobby', 'casting'].includes(String(session.get('phase')))");
+  expect(callableBody(matches.findIndex(match => match[1] === 'setUnionCraftStartingHost')))
+    .toContain('requireCastingWindow,');
 });
 
 it('requires the Highwall mining window guard to reject non-active sessions', () => {
