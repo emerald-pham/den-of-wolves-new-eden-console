@@ -402,7 +402,7 @@ it('does not open more than two additional facilitator-selected attacks', async 
   expect(mock.documents.has('sessions/s1/wolfAttackWindow/current/audit/wolf-fourth-due')).toBe(false);
 });
 
-it('denies a same-cycle Commander repeat and probes next-cycle eligibility after attack three', async () => {
+it('denies ordinary facilitator attack selection after the chain cap, even for a Commander source', async () => {
   session({ currentTurn: 1, activeVesselIds: ['aegis'] });
   put('sessions/s1/fleetGroups/fleet-1', { id: 'fleet-1', vesselIds: ['aegis'], memberUids: [] });
   put('sessions/s1/wolfAttackWindow/current', {
@@ -456,7 +456,11 @@ it('denies a same-cycle Commander repeat and probes next-cycle eligibility after
   await expect(setWolfAttackWindow.run(request({
     ...baseData, requestId: 'commander-cycle-4-attempt', expectedRevision: 8,
     targetGroupId: 'fleet-1', threatSiteCode: 'commander',
-  }))).resolves.toMatchObject({ status: 'due', turn: 4, revision: 9, threatSiteCode: 'commander' });
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.documents.get('sessions/s1/wolfAttackWindow/current')).toMatchObject({
+    status: 'resolved', turn: 3, revision: 8,
+  });
+  expect(mock.documents.has('sessions/s1/wolfAttackWindow/current/audit/commander-cycle-4-attempt')).toBe(false);
 });
 
 it('replays an exact request without a second projection or audit write', async () => {

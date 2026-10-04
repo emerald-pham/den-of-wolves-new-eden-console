@@ -240,6 +240,61 @@ function commanderCyclePriorAttack(): { state: Fields; audit: Fields; marker: Fi
   return { state, audit, marker };
 }
 
+function finalizedCommanderCycleAttack(cycle: number): { state: Fields; audit: Fields; marker: Fields } {
+  const prior = resolvedPriorAttack();
+  const statePath = 'sessions/s1/wolfAttackState/current';
+  const baseAudit = mock.documents.get(`${statePath}/audit/wolf-finalized-1`)!;
+  const parentAttackId = `wolf-attack-cycle-${cycle - 1}`;
+  const attackId = `wolf-attack-commander-cycle-${cycle}`;
+  const requestId = `wolf-final-${attackId}`;
+  const sourceInstanceIds = (prior.calculationReceipt as Fields).returningInstanceIds as string[];
+  const carryover = {
+    sourceAttackId: parentAttackId, sourceTurn: cycle - 1,
+    sourceInstanceIds, rosterInstanceIds: sourceInstanceIds,
+  };
+  const marker = {
+    type: 'wolf-commander-cycle-attack', cycle, ledgerId: `cycle-${cycle}`, groupId: 'fleet-2',
+    targetGroupPursuit: 8, navigationRevision: 7, commanderUid: 'wolfcmd', attackNumber: 4,
+    parentAttackId, parentAttackNumber: 3, parentTurn: cycle - 1,
+    requestId: `commander-dial-cycle-${cycle}`,
+  };
+  const receipt = {
+    ...(prior.calculationReceipt as Fields), requestId,
+    phase: { ...(prior.calculationReceipt as Fields).phase as Fields, turn: cycle },
+  };
+  const state: Fields = {
+    ...prior, attackId, announcementId: attackId, turn: cycle, attackNumber: 4,
+    previousAttackId: parentAttackId, carryover, commanderCycleAttack: marker,
+    finalizationRequestId: requestId, calculationReceipt: receipt,
+  };
+  const audit: Fields = {
+    ...baseAudit, turn: cycle, attackId, requestId, receipt, attackNumber: 4,
+    previousAttackId: parentAttackId, carryover, commanderCycleAttack: marker,
+    rangeReceipts: receipt.ranges,
+  };
+  put(statePath, state);
+  put(`${statePath}/audit/wolf-finalized-${cycle}`, audit);
+  return { state, audit, marker };
+}
+
+function commanderCycleActionFixture(cycle: number, priorTurn: number): void {
+  session({ currentTurn: cycle, turnPhase: {
+    turn: cycle, teamPhaseEndsAt: new Date(Date.now() + 60_000).toISOString(),
+    openAirspaceEndsAt: new Date(Date.now() + 600_000).toISOString(),
+    airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+  } });
+  put('sessions/s1/wolfAttackWindow/current', {
+    status: 'resolved', turn: priorTurn, revision: 8, targetGroupId: 'fleet-2', threatSiteCode: 'commander',
+  });
+  navigation({ revision: 7, pursuitGroups: { 'fleet-1': 2, 'fleet-2': 8 } });
+  splitFleet();
+  put('sessions/s1/players/wolfcmd', {
+    uid: 'wolfcmd', role: 'player', connected: true, fleetGroupId: 'fleet-1',
+    replacementRoleId: 'wolf-commander',
+  });
+  fleetGroup('fleet-1', { vesselIds: ['aegis', 'dione', 'icebreaker'], memberUids: ['u1', 'wolfcmd'] });
+}
+
 function navigation(fields: Fields = {}): void {
   put('sessions/s1/serverState/navigation', {
     revision: 0,
@@ -2080,6 +2135,99 @@ it('lets the assigned Commander commit ten plus the selected group pursuit once 
   expect(mock.documents.get('sessions/s1/wolfAttackWindow/current')).toMatchObject({
     targetGroupId: 'fleet-2', threatSiteCode: 'commander',
   });
+});
+
+it('allows the assigned Commander to use cycle four after the ordinary three-attack cap without consuming carryover', async () => {
+  const parent = resolvedPriorAttack();
+  const attackId = 'wolf-attack-commander-parent-three';
+  const requestId = `wolf-final-${attackId}`;
+  const sourceInstanceIds = (parent.calculationReceipt as Fields).returningInstanceIds as string[];
+  const carryover = {
+    sourceAttackId: 'wolf-attack-commander-parent-two', sourceTurn: 2,
+    sourceInstanceIds, rosterInstanceIds: sourceInstanceIds,
+  };
+  const receipt = {
+    ...(parent.calculationReceipt as Fields), requestId,
+    phase: { ...(parent.calculationReceipt as Fields).phase as Fields, turn: 3 },
+  };
+  const state = {
+    ...parent, attackId, announcementId: attackId, turn: 3, attackNumber: 3,
+    previousAttackId: carryover.sourceAttackId, carryover,
+    finalizationRequestId: requestId, calculationReceipt: receipt,
+  };
+  const statePath = 'sessions/s1/wolfAttackState/current';
+  const baseAudit = mock.documents.get(`${statePath}/audit/wolf-finalized-1`)!;
+  put(statePath, state);
+  put(`${statePath}/audit/wolf-finalized-3`, {
+    ...baseAudit, turn: 3, attackId, requestId, receipt, attackNumber: 3,
+    previousAttackId: carryover.sourceAttackId, carryover, rangeReceipts: receipt.ranges,
+  });
+  commanderCycleActionFixture(4, 3);
+
+  await expect(commitWolfCommanderAttackDial.run(request({
+    sessionId: 's1', requestId: 'commander-cycle-4-invalid-group', expectedCycle: 4,
+    expectedNavigationRevision: 7, targetGroupId: 'fleet-9',
+  }, 'wolfcmd'))).rejects.toMatchObject({ code: 'failed-precondition' });
+  const payload = {
+    sessionId: 's1', requestId: 'commander-cycle-4-after-cap', expectedCycle: 4,
+    expectedNavigationRevision: 7, targetGroupId: 'fleet-2',
+  };
+  const priorSnapshot = structuredClone(mock.documents.get(statePath));
+  const result = await commitWolfCommanderAttackDial.run(request(payload, 'wolfcmd'));
+  expect(result).toMatchObject({ attackNumber: 4, damageCapacity: 18, groupId: 'fleet-2' });
+  expect(mock.documents.get(statePath)).toEqual(priorSnapshot);
+  await expect(commitWolfCommanderAttackDial.run(request(payload, 'wolfcmd'))).resolves.toEqual(result);
+  await expect(commitWolfCommanderAttackDial.run(request({
+    ...payload, requestId: 'commander-cycle-4-second-dial',
+  }, 'wolfcmd'))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.documents.get('sessions/s1/wolfCommanderCycleDials/cycle-4')).toMatchObject({
+    status: 'committed', commanderCycleAttack: {
+      attackNumber: 4, groupId: 'fleet-2', targetGroupPursuit: 8, commanderUid: 'wolfcmd',
+    },
+  });
+});
+
+it('permits a later-cycle Commander attack above three only through the matching immutable prior marker', async () => {
+  const { state: prior, marker } = finalizedCommanderCycleAttack(4);
+  commanderCycleActionFixture(5, 4);
+  const priorSnapshot = structuredClone(mock.documents.get('sessions/s1/wolfAttackState/current'));
+  const payload = {
+    sessionId: 's1', requestId: 'commander-cycle-5', expectedCycle: 5,
+    expectedNavigationRevision: 7, targetGroupId: 'fleet-2',
+  };
+
+  await expect(commitWolfCommanderAttackDial.run(request(payload, 'wolfcmd'))).resolves.toMatchObject({
+    attackNumber: 5, damageCapacity: 18, groupId: 'fleet-2',
+  });
+  expect(mock.documents.get('sessions/s1/wolfAttackState/current')).toEqual(priorSnapshot);
+  expect(mock.documents.get('sessions/s1/wolfCommanderCycleDials/cycle-5')).toMatchObject({
+    commanderCycleAttack: { attackNumber: 5, parentAttackId: prior.attackId, parentAttackNumber: 4 },
+  });
+  expect(mock.documents.get('sessions/s1/wolfCommanderCycleDials/cycle-5')!.commanderCycleAttack)
+    .not.toEqual(marker);
+});
+
+it('denies a fifth Commander attack when the prior marker is missing or its finalization audit is changed', async () => {
+  for (const mode of ['missing-audit', 'tampered-marker'] as const) {
+    resetFixture();
+    const { audit, marker } = finalizedCommanderCycleAttack(4);
+    commanderCycleActionFixture(5, 4);
+    const auditPath = 'sessions/s1/wolfAttackState/current/audit/wolf-finalized-4';
+    if (mode === 'missing-audit') {
+      mock.documents.delete(auditPath);
+    } else {
+      put(auditPath, { ...audit, commanderCycleAttack: { ...marker, targetGroupPursuit: 9 } });
+    }
+    mock.update.mockClear();
+    mock.set.mockClear();
+
+    await expect(commitWolfCommanderAttackDial.run(request({
+      sessionId: 's1', requestId: `commander-cycle-5-${mode}`, expectedCycle: 5,
+      expectedNavigationRevision: 7, targetGroupId: 'fleet-2',
+    }, 'wolfcmd'))).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(mock.documents.has('sessions/s1/wolfCommanderCycleDials/cycle-5')).toBe(false);
+    expect(mock.documents.get('sessions/s1/wolfAttackState/current')).toMatchObject({ attackNumber: 4 });
+  }
 });
 
 it('rejects noncanonical fleet membership before any declaration write', async () => {
