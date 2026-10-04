@@ -16,7 +16,7 @@
 .dione-maliades-range__header h2 {
   margin: 0.2rem 0 0;
   color: var(--color-text-primary, #f5f1e8);
-  font-family: var(--font-display, Georgia, serif);
+  font-family: var(--cic-display);
 }
 
 .dione-maliades-range__status,
