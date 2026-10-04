@@ -208,6 +208,37 @@ function resolvedPriorAttack(fields: Fields = {}): Fields {
   return state;
 }
 
+function commanderCyclePriorAttack(): { state: Fields; audit: Fields; marker: Fields } {
+  const prior = resolvedPriorAttack();
+  const statePath = 'sessions/s1/wolfAttackState/current';
+  const auditPath = `${statePath}/audit/wolf-finalized-3`;
+  const marker = {
+    type: 'wolf-commander-cycle-attack', cycle: 3, ledgerId: 'cycle-3', groupId: 'fleet-1',
+    targetGroupPursuit: 4, navigationRevision: 7, commanderUid: 'commander-1', attackNumber: 4,
+    parentAttackId: 'wolf-attack-cycle-3', parentAttackNumber: 3, parentTurn: 2, requestId: 'commander-cycle-3',
+  };
+  const attackId = 'wolf-attack-commander-cycle-4';
+  const requestId = `wolf-final-${attackId}`;
+  const receipt = { ...(prior.calculationReceipt as Fields), requestId,
+    phase: { ...(prior.calculationReceipt as Fields).phase as Fields, turn: 3 } };
+  const carryover = { sourceAttackId: 'wolf-attack-cycle-3', sourceTurn: 2,
+    sourceInstanceIds: ['0:wolf-fighter-wing', '1:wolf-fighter-wing'],
+    rosterInstanceIds: ['0:wolf-fighter-wing', '1:wolf-fighter-wing'] };
+  const state: Fields = {
+    ...prior, attackId, announcementId: attackId, turn: 3, attackNumber: 4,
+    previousAttackId: carryover.sourceAttackId, carryover, commanderCycleAttack: marker,
+    finalizationRequestId: requestId, calculationReceipt: receipt,
+  };
+  const audit: Fields = {
+    ...mock.documents.get(auditPath.replace('wolf-finalized-3', 'wolf-finalized-1'))!,
+    turn: 3, attackId, attackNumber: 4, previousAttackId: carryover.sourceAttackId, carryover,
+    requestId, receipt, commanderCycleAttack: marker,
+  };
+  put(statePath, state);
+  put(auditPath, audit);
+  return { state, audit, marker };
+}
+
 function navigation(fields: Fields = {}): void {
   put('sessions/s1/serverState/navigation', {
     revision: 0,
@@ -501,6 +532,27 @@ it('resolves a finalized same-cycle P Station repeat from its complete immutable
 
   expect(resolved.survivingShips).toEqual(survivingWolfShips.map(({ instanceId, shipId }) => ({ instanceId, shipId })));
   expect(() => resolvedWolfAttackForCarryover(state, audit, 1)).toThrow(/verifiable finalized attack/i);
+});
+
+it('accepts an audited Commander cycle attack above three only for the next cross-cycle chain', () => {
+  const { state, audit, marker } = commanderCyclePriorAttack();
+  const context = { type: 'commander-cycle', expectedMarker: marker,
+    parentAttackId: state.attackId, nextAttackNumber: 5 };
+  const readWithCommanderContext = resolvedWolfAttackForCarryover as unknown as (
+    stateValue: unknown, auditValue: unknown, currentTurn: number, context: Fields,
+  ) => { attackId: string; attackNumber: number; returningInstanceIds: readonly string[] };
+
+  expect(readWithCommanderContext(state, audit, 4, context)).toMatchObject({
+    attackId: state.attackId, attackNumber: 4,
+    returningInstanceIds: ['0:wolf-fighter-wing', '1:wolf-fighter-wing'],
+  });
+  expect(() => readWithCommanderContext(state, audit, 3, context)).toThrow();
+  expect(() => readWithCommanderContext(state, audit, 4, { ...context, nextAttackNumber: 6 }))
+    .toThrow(/Commander cycle/i);
+  expect(() => readWithCommanderContext(state, { ...audit,
+    commanderCycleAttack: { ...marker, navigationRevision: 8 } }, 4, context))
+    .toThrow(/Commander cycle/i);
+  expect(() => resolvedWolfAttackForCarryover(state, audit, 4)).toThrow(/attack count is malformed/i);
 });
 
 function retainedHostNextDeclaration(host = 'quellon') {
