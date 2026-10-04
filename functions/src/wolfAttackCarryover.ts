@@ -26,6 +26,28 @@ export interface PStationRepeatContext {
   readonly nextAttackNumber: number;
 }
 
+export interface CommanderCycleCarryoverMarker {
+  readonly type: 'wolf-commander-cycle-attack';
+  readonly cycle: number;
+  readonly ledgerId: string;
+  readonly groupId: string;
+  readonly targetGroupPursuit: number;
+  readonly navigationRevision: number;
+  readonly commanderUid: string;
+  readonly attackNumber: number;
+  readonly parentAttackId?: string;
+  readonly parentAttackNumber?: number;
+  readonly parentTurn?: number;
+  readonly requestId: string;
+}
+
+export interface CommanderCycleCarryoverContext {
+  readonly type: 'commander-cycle';
+  readonly expectedMarker: CommanderCycleCarryoverMarker;
+  readonly parentAttackId: string;
+  readonly nextAttackNumber: number;
+}
+
 export interface ResolvedPStationRepeat extends ResolvedWolfAttackForCarryover {
   readonly repeatContext: PStationRepeatContext;
   readonly survivingShips: readonly Readonly<{ instanceId: string; shipId: string }>[];
@@ -119,6 +141,42 @@ function parsePStationRepeatContext(value: unknown): PStationRepeatContext | und
   return value as unknown as PStationRepeatContext;
 }
 
+function parseCommanderCycleMarker(value: unknown): CommanderCycleCarryoverMarker | undefined {
+  const baseKeys = ['type', 'cycle', 'ledgerId', 'groupId', 'targetGroupPursuit', 'navigationRevision',
+    'commanderUid', 'attackNumber', 'requestId'];
+  const parentKeys = ['parentAttackId', 'parentAttackNumber', 'parentTurn'];
+  if (!record(value)) return undefined;
+  const hasAnyParentKey = parentKeys.some((key) => Object.hasOwn(value, key));
+  const hasAllParentKeys = parentKeys.every((key) => Object.hasOwn(value, key));
+  if (hasAnyParentKey !== hasAllParentKeys || !hasExactKeys(value, [...baseKeys, ...(hasAllParentKeys ? parentKeys : [])]) ||
+      value.type !== 'wolf-commander-cycle-attack' || !Number.isSafeInteger(value.cycle) || (value.cycle as number) < 1 ||
+      value.ledgerId !== `cycle-${value.cycle}` || typeof value.groupId !== 'string' || !value.groupId.trim() ||
+      !Number.isSafeInteger(value.targetGroupPursuit) || (value.targetGroupPursuit as number) < 0 ||
+      !Number.isSafeInteger(value.navigationRevision) || (value.navigationRevision as number) < 0 ||
+      typeof value.commanderUid !== 'string' || !value.commanderUid.trim() ||
+      !Number.isSafeInteger(value.attackNumber) || (value.attackNumber as number) < 1 ||
+      typeof value.requestId !== 'string' || !value.requestId.trim()) return undefined;
+  if (hasAllParentKeys && (typeof value.parentAttackId !== 'string' ||
+      !/^wolf-attack-[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/.test(value.parentAttackId) ||
+      !Number.isSafeInteger(value.parentAttackNumber) || (value.parentAttackNumber as number) < 1 ||
+      value.attackNumber !== (value.parentAttackNumber as number) + 1 ||
+      !Number.isSafeInteger(value.parentTurn) || (value.parentTurn as number) < 1 ||
+      (value.parentTurn as number) > (value.cycle as number))) return undefined;
+  return value as unknown as CommanderCycleCarryoverMarker;
+}
+
+function parseCommanderCycleContext(value: unknown): CommanderCycleCarryoverContext | undefined {
+  if (!record(value) || !hasExactKeys(value, ['type', 'expectedMarker', 'parentAttackId', 'nextAttackNumber']) ||
+      value.type !== 'commander-cycle' ||
+      typeof value.parentAttackId !== 'string' ||
+      !/^wolf-attack-[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/.test(value.parentAttackId) ||
+      !Number.isSafeInteger(value.nextAttackNumber) || (value.nextAttackNumber as number) < 2) return undefined;
+  const expectedMarker = parseCommanderCycleMarker(value.expectedMarker);
+  if (!expectedMarker) return undefined;
+  return { type: 'commander-cycle', expectedMarker, parentAttackId: value.parentAttackId,
+    nextAttackNumber: value.nextAttackNumber as number };
+}
+
 function samePStationIdentity(
   sequence: NonNullable<ReturnType<typeof parsePStationSequence>>,
   context: PStationRepeatContext,
@@ -190,6 +248,12 @@ export function resolvedWolfAttackForCarryover(
   stateValue: unknown,
   finalizationAuditValue: unknown,
   currentTurn: number,
+  commanderCycleContext: CommanderCycleCarryoverContext,
+): ResolvedWolfAttackForCarryover;
+export function resolvedWolfAttackForCarryover(
+  stateValue: unknown,
+  finalizationAuditValue: unknown,
+  currentTurn: number,
   repeatContext?: unknown,
 ): ResolvedWolfAttackForCarryover | ResolvedPStationRepeat {
   if (!record(stateValue) || !record(finalizationAuditValue)) {
@@ -202,14 +266,19 @@ export function resolvedWolfAttackForCarryover(
   const receipt = state.calculationReceipt;
   const audit = finalizationAuditValue;
   const repeatWasRequested = repeatContext !== undefined;
-  const parsedContext = repeatWasRequested ? parsePStationRepeatContext(repeatContext) : undefined;
+  const contextType = record(repeatContext) ? repeatContext.type : undefined;
+  const parsedContext = contextType === 'p-station-repeat' ? parsePStationRepeatContext(repeatContext) : undefined;
+  const parsedCommanderContext = contextType === 'commander-cycle'
+    ? parseCommanderCycleContext(repeatContext) : undefined;
   if (state.type !== 'wolf-attack-state' || state.status !== 'resolved' || state.currentStep !== 'resolved' ||
       state.airspaceLocked !== false || state.parkingReleaseCondition !== 'normal-movement-reopened' ||
       typeof attackId !== 'string' || !/^wolf-attack-[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/.test(attackId) ||
       state.announcementId !== attackId || !Number.isSafeInteger(turn) || (turn as number) < 1 ||
       !Number.isSafeInteger(revision) || (revision as number) < 1 ||
       !Number.isSafeInteger(currentTurn) ||
-      (repeatWasRequested ? currentTurn !== turn : currentTurn <= (turn as number)) ||
+      (repeatWasRequested
+        ? contextType === 'p-station-repeat' ? currentTurn !== turn : currentTurn <= (turn as number)
+        : currentTurn <= (turn as number)) ||
       typeof state.resolvedAt !== 'string' || !Number.isFinite(Date.parse(state.resolvedAt)) ||
       typeof state.finalizationRequestId !== 'string' ||
       state.finalizationRequestId !== `wolf-final-${attackId}` || !isWolfCalculationReceipt(receipt) ||
@@ -227,7 +296,7 @@ export function resolvedWolfAttackForCarryover(
     throw new Error('The previous Wolf attack count is malformed.');
   }
   let pStationRepeat: ResolvedPStationRepeat | undefined;
-  if (repeatWasRequested) {
+  if (contextType === 'p-station-repeat') {
     const sequence = parsePStationSequence(state.pStationSequence);
     const auditedSequence = parsePStationSequence(audit.pStationSequence);
     if (!parsedContext || !sequence || !auditedSequence || !sameValue(sequence, auditedSequence) ||
@@ -243,6 +312,20 @@ export function resolvedWolfAttackForCarryover(
       state, attackId, turn: turn as number, attackNumber: attackNumber as number,
       returningInstanceIds: [...receipt.returningInstanceIds], repeatContext: parsedContext, survivingShips: survivors,
     };
+  } else if (repeatWasRequested) {
+    const marker = parseCommanderCycleMarker(state.commanderCycleAttack);
+    const auditedMarker = parseCommanderCycleMarker(audit.commanderCycleAttack);
+    const carryover = record(state.carryover) ? state.carryover : undefined;
+    if (!parsedCommanderContext || !marker || !auditedMarker || !sameValue(marker, auditedMarker) ||
+        !sameValue(marker, parsedCommanderContext.expectedMarker) ||
+        (attackNumber as number) <= 3 || parsedCommanderContext.parentAttackId !== attackId ||
+        parsedCommanderContext.nextAttackNumber !== (attackNumber as number) + 1 ||
+        marker.attackNumber !== attackNumber || marker.cycle !== turn || currentTurn <= marker.cycle ||
+        !marker.parentAttackId || marker.parentAttackId !== state.previousAttackId || !carryover ||
+        marker.parentAttackId !== carryover.sourceAttackId || marker.parentTurn !== carryover.sourceTurn ||
+        marker.parentAttackNumber !== (attackNumber as number) - 1) {
+      throw new Error('The previous Wolf attack is not a verifiable Commander cycle attack.');
+    }
   } else if ((attackNumber as number) > 3) {
     throw new Error('The previous Wolf attack count is malformed.');
   }
