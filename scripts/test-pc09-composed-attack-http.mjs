@@ -334,6 +334,7 @@ try {
   });
   assert.equal(boaCargo.shuttleAmount, 3, 'Normal holder cargo transfer supplies three paid range opportunities.');
   checks.normalBoaCargoTransferAndRetry = true;
+  await grantCurrentShip('aegis');
   await command(f.gm, 'unlockPressAirspace', { instanceId: f.instanceId });
   const phaseBefore = (await f.session.get()).get('turnPhase');
   const departureId = randomUUID();
