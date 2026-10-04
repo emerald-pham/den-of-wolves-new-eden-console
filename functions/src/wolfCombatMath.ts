@@ -1186,6 +1186,7 @@ export interface WolfAttackFinalizationInput {
   /** Declaration identity, required whenever a Fighter Ace action is replayed. */
   readonly attackId?: string;
   readonly fighterAceAction?: WolfFighterAceActionReceipt;
+  readonly commanderRangeAdjustments?: Readonly<Partial<Record<WolfCombatRange, unknown>>>;
   /** The source's current permission receipt, keyed by the committed source ID. */
   readonly fighterAcePermissions?: Readonly<Partial<Record<WolfFighterAceSourceId, WolfFighterAcePermissionReceipt>>>;
   readonly targeting: WolfTargetingReceipt;
@@ -1459,6 +1460,76 @@ export function replayWolfFighterAceBeforeRange(
   return { roster: nextRoster, destructionDamageByTarget: { ...destructionDamage } };
 }
 
+export interface WolfPreRangeMutationContext {
+  readonly attackId: string;
+  readonly turn: number;
+  readonly range: WolfCombatRange;
+  readonly targetRing: WolfTargetRing;
+  readonly commanderAdjustment?: unknown;
+  readonly fighterAceAction?: WolfFighterAceActionReceipt;
+  readonly persistedPermission?: unknown;
+}
+
+/** Replay genuine pre-range choices in their committed transaction order. */
+export function replayWolfPreRangeMutations(
+  roster: readonly WolfCombatShip[],
+  context: WolfPreRangeMutationContext,
+): WolfFighterAceReplayResult {
+  let current = [...roster];
+  const damage = damageRecord();
+  const steps: { revision: number; kind: 'commander' | 'ace' }[] = [];
+  const raw = context.commanderAdjustment;
+  if (raw !== undefined) {
+    if (!assertRecord(raw) || !hasExactReceiptKeys(raw, [
+      'type', 'status', 'attackId', 'turn', 'revision', 'range', 'rosterIndex', 'instanceId', 'shipId',
+      'fromTarget', 'toTarget', 'fromTargetNumber', 'toTargetNumber', 'delta', 'actorUid', 'actorRoleId', 'requestId',
+    ]) || !context.attackId || raw.type !== 'wolf-commander-range-target-adjustment' || raw.status !== 'committed' ||
+        raw.attackId !== context.attackId || raw.turn !== context.turn || !Number.isSafeInteger(context.turn) || context.turn < 1 ||
+        raw.range !== context.range || !Number.isSafeInteger(raw.revision) || (raw.revision as number) < 1 ||
+        !Number.isSafeInteger(raw.rosterIndex) || (raw.rosterIndex as number) < 0 ||
+        typeof raw.actorUid !== 'string' || !raw.actorUid || raw.actorRoleId !== 'wolf-commander' ||
+        typeof raw.requestId !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(raw.requestId) ||
+        (raw.delta !== -1 && raw.delta !== 1)) {
+      throw new Error('The Commander range adjustment binding is malformed or stale.');
+    }
+    steps.push({ revision: raw.revision as number, kind: 'commander' });
+  }
+  if (context.fighterAceAction) {
+    if (context.fighterAceAction.range !== context.range.replace('-range', '') ||
+        !Number.isSafeInteger(context.fighterAceAction.revision) || context.fighterAceAction.revision < 1) {
+      throw new Error('The Fighter Ace pre-range binding or revision is malformed.');
+    }
+    steps.push({ revision: context.fighterAceAction.revision, kind: 'ace' });
+  }
+  if (steps.length === 2 && steps[0]!.revision === steps[1]!.revision) {
+    throw new Error('Pre-range choices require distinct revisions to establish their committed order.');
+  }
+  for (const step of steps.sort((a, b) => a.revision - b.revision)) {
+    if (step.kind === 'ace') {
+      const ace = replayWolfFighterAceBeforeRange(current, context.fighterAceAction!, {
+        attackId: context.attackId, turn: context.turn, targetRing: context.targetRing,
+        persistedPermission: context.persistedPermission,
+      });
+      current = [...ace.roster];
+      context.targetRing.forEach((target) => addFleetDamage(damage, target, ace.destructionDamageByTarget[target]));
+    } else {
+      const adjustment = raw as Record<string, unknown>;
+      const index = adjustment.rosterIndex as number;
+      const selected = current[index];
+      const from = selected ? context.targetRing.indexOf(selected.target) + 1 : 0;
+      const to = from > 0 ? shiftWolfTargetDie(from, adjustment.delta as -1 | 1, context.targetRing) : 0;
+      if (!selected || selected.destroyed ||
+          selected.instanceId !== adjustment.instanceId || selected.shipId !== adjustment.shipId ||
+          selected.target !== adjustment.fromTarget || from !== adjustment.fromTargetNumber ||
+          to !== adjustment.toTargetNumber || context.targetRing[to - 1] !== adjustment.toTarget) {
+        throw new Error('The Commander range adjustment does not match its current roster identity and target dial.');
+      }
+      current[index] = { ...selected, target: adjustment.toTarget as WolfFleetTargetId };
+    }
+  }
+  return { roster: current, destructionDamageByTarget: damage };
+}
+
 export interface WolfAttackCalculationInput {
   readonly requestId: string;
   readonly composition: ScheduledWolfAttackComposition;
@@ -1540,7 +1611,7 @@ export function finalizeWolfAttack(input: WolfAttackFinalizationInput): WolfCalc
   const actionIds = new Set<string>();
   let snapshotBackedRangeSeen = false;
   let fighterAceActionApplied = false;
-  for (const range of input.ranges) {
+  for (const range of input.ranges as readonly WolfRangeReceipt[]) {
     const legacyRange = range.targetSnapshot === undefined && (range.targetShifts === undefined ||
       Array.isArray(range.targetShifts) && range.targetShifts.length === 0);
     const snapshotBackedRange = Array.isArray(range.targetSnapshot) && Array.isArray(range.targetShifts);
@@ -1552,16 +1623,21 @@ export function finalizeWolfAttack(input: WolfAttackFinalizationInput): WolfCalc
       throw new Error('Committed Wolf range receipts are malformed or out of order.');
     }
     const rangeName = range.range === 'long-range' ? 'long' : range.range === 'medium-range' ? 'medium' : 'short';
+    const preRange = replayWolfPreRangeMutations(replayRoster, {
+      attackId: input.attackId ?? '', turn: input.phase.turn, targetRing, range: range.range,
+      ...(input.commanderRangeAdjustments?.[range.range] !== undefined
+        ? { commanderAdjustment: input.commanderRangeAdjustments[range.range] } : {}),
+      ...(input.fighterAceAction?.range === rangeName ? {
+        fighterAceAction: input.fighterAceAction,
+        persistedPermission: input.fighterAcePermissions?.[input.fighterAceAction.sourceId],
+      } : {}),
+    });
+    replayRoster = [...preRange.roster];
+    targetRing.forEach((target) => addFleetDamage(
+      rangeDestructionDamage, target, preRange.destructionDamageByTarget[target],
+    ));
     if (input.fighterAceAction?.range === rangeName) {
       if (fighterAceActionApplied) throw new Error('The attack contains more than one Fighter Ace range action.');
-      const permission = input.fighterAcePermissions?.[input.fighterAceAction.sourceId];
-      const replayed = replayWolfFighterAceBeforeRange(replayRoster, input.fighterAceAction, {
-        attackId: input.attackId!, turn: input.phase.turn, targetRing, persistedPermission: permission,
-      });
-      replayRoster = [...replayed.roster];
-      targetRing.forEach((target) => addFleetDamage(
-        rangeDestructionDamage, target, replayed.destructionDamageByTarget[target],
-      ));
       fighterAceActionApplied = true;
     }
     if (snapshotBackedRange) {

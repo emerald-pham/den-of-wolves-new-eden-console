@@ -642,6 +642,7 @@ import {
   wolfRangeLegalTargetInstanceIds,
   wolfRangeFixedTargetInstanceIds,
   replayWolfRangeTargetSnapshot,
+  replayWolfPreRangeMutations,
   wolfCombatRoster,
   resolveWolfTargeting,
   wolfTargetNumberForRangeSource,
@@ -22471,8 +22472,12 @@ async function reconcileWolfAttackBoarding(
   const attackId = state.get('attackId');
   if (typeof attackId !== 'string' || !attackId) return;
   const rawFighterAceAction = state.get('pdfFighterAceAction');
-  const fighterAceAction = isRecord(rawFighterAceAction) && rawFighterAceAction.attackId === attackId
-    ? rawFighterAceAction as unknown as WolfFighterAceActionReceipt : undefined;
+  if (rawFighterAceAction !== undefined && (!isRecord(rawFighterAceAction) || rawFighterAceAction.attackId !== attackId)) return;
+  const fighterAceAction = rawFighterAceAction as WolfFighterAceActionReceipt | undefined;
+  const rawCommanderAdjustments = state.get('commanderRangeAdjustments');
+  if (rawCommanderAdjustments !== undefined && (!isRecord(rawCommanderAdjustments) ||
+      Object.keys(rawCommanderAdjustments).some((range) => !isWolfCombatRange(range)))) return;
+  const commanderRangeAdjustments = rawCommanderAdjustments as Partial<Record<WolfCombatRange, unknown>> | undefined;
   const rawFighterAcePermissions = state.get('fighterAcePermissions');
   const fighterAcePermissions = isRecord(rawFighterAcePermissions)
     ? rawFighterAcePermissions as unknown as Readonly<Partial<Record<WolfFighterAceActionReceipt['sourceId'], WolfFighterAcePermissionReceipt>>>
@@ -22501,7 +22506,7 @@ async function reconcileWolfAttackBoarding(
   const resolvedAt = new Date().toISOString();
   const fingerprint = JSON.stringify({
     attackId, turn: currentTurn, revision: currentRevision, phase,
-    targetRing, targeting, roster, ranges, boardingDefence, forceFieldTargetId, fighterAceAction, fighterAcePermissions,
+    targetRing, targeting, roster, ranges, boardingDefence, forceFieldTargetId, fighterAceAction, fighterAcePermissions, commanderRangeAdjustments,
     session: {
       currentTurn: session.get('currentTurn'), activeVesselIds: session.get('activeVesselIds'),
       shipDamage: session.get('shipDamage'), shipSurvivors: session.get('shipSurvivors'),
@@ -22522,6 +22527,7 @@ async function reconcileWolfAttackBoarding(
         requestId: `wolf-final-${attackId}`,
         attackId,
         ...(fighterAceAction ? { fighterAceAction, ...(fighterAcePermissions ? { fighterAcePermissions } : {}) } : {}),
+        ...(commanderRangeAdjustments ? { commanderRangeAdjustments } : {}),
         targeting,
         roster: roster as readonly WolfCombatShip[],
         ranges,
@@ -25349,6 +25355,103 @@ function wolfRangeTargetProgressionMatches(
     ship.instanceId === expected[index]?.instanceId && ship.target === expected[index]?.target);
 }
 
+/** Current persisted roster plus effective pending pre-range Commander choice. */
+function wolfCombatProgressionRoster(
+  state: DocumentSnapshot,
+  targeting: WolfTargetingReceipt,
+  range: WolfCombatRange | 'boarding',
+  persistedRoster: readonly WolfCombatShip[],
+): readonly WolfCombatShip[] {
+  const aceRaw = state.get('pdfFighterAceAction');
+  const commanderRaw = state.get('commanderRangeAdjustments');
+  if (aceRaw === undefined && commanderRaw === undefined) {
+    if (range !== 'boarding' && !wolfRangeTargetProgressionMatches(range, targeting, persistedRoster, state.get('rangeReceipts'))) {
+      throw new Error('The committed Wolf target progression is inconsistent.');
+    }
+    return persistedRoster;
+  }
+  if (aceRaw !== undefined && (!isRecord(aceRaw) || !['long', 'medium', 'short'].includes(String(aceRaw.range))) ||
+      commanderRaw !== undefined && (!isRecord(commanderRaw) || Object.keys(commanderRaw).some((key) => !isWolfCombatRange(key)))) {
+    throw new Error('The committed pre-range choice ledger is malformed.');
+  }
+  const ace = aceRaw as WolfFighterAceActionReceipt | undefined;
+  const commander = (commanderRaw ?? {}) as Partial<Record<WolfCombatRange, unknown>>;
+  const permissions = state.get('fighterAcePermissions');
+  const order: readonly WolfCombatRange[] = ['long-range', 'medium-range', 'short-range'];
+  const currentIndex = range === 'boarding' ? order.length : order.indexOf(range);
+  const receipts = state.get('rangeReceipts') ?? [];
+  if (!Array.isArray(receipts) || receipts.length !== currentIndex ||
+      Object.keys(commander).some((key) => order.indexOf(key as WolfCombatRange) > currentIndex) ||
+      ace && order.indexOf(`${ace.range}-range` as WolfCombatRange) > currentIndex) {
+    throw new Error('The pre-range choices or receipts are outside the current combat progression.');
+  }
+  let replay = [...wolfCombatRoster(targeting)];
+  let newReceiptSeen = false;
+  for (let index = 0; index <= currentIndex; index += 1) {
+    const atRange = order[index];
+    if (!atRange) break;
+    const atAce = ace?.range === atRange.replace('-range', '') ? ace : undefined;
+    const beforeChoices = replay;
+    const context = { attackId: String(state.get('attackId') ?? ''), turn: state.get('turn') as number,
+      range: atRange, targetRing: targeting.ring,
+      ...(commander[atRange] !== undefined ? { commanderAdjustment: commander[atRange] } : {}),
+      ...(atAce ? { fighterAceAction: atAce, persistedPermission: isRecord(permissions) ? permissions[atAce.sourceId] : undefined } : {}),
+    };
+    replay = [...replayWolfPreRangeMutations(replay, context).roster];
+    if (index === currentIndex) {
+      // Commander dials are recorded pending until the ordinary range commits;
+      // an earlier dial is already incorporated when the later Ace mutates it.
+      let expectedPersisted = beforeChoices;
+      if (atAce) {
+        const adjustment = commander[atRange];
+        const commanderPrecedesAce = isRecord(adjustment) && typeof adjustment.revision === 'number' && adjustment.revision < atAce.revision;
+        expectedPersisted = [...replayWolfPreRangeMutations(beforeChoices, {
+          ...context, ...(commanderPrecedesAce ? {} : { commanderAdjustment: undefined }),
+        }).roster];
+      }
+      if (!sameWolfCombatRoster(persistedRoster, expectedPersisted)) {
+        throw new Error('The current Wolf roster does not match its committed pre-range choices.');
+      }
+      return replay;
+    }
+    const receipt = receipts[index];
+    if (!isRecord(receipt) || receipt.range !== atRange) throw new Error('The committed range order is malformed.');
+    const hasSnapshot = receipt.targetSnapshot !== undefined;
+    const shifts = receipt.targetShifts === undefined && !hasSnapshot ? [] : receipt.targetShifts;
+    if (!Array.isArray(shifts) || !hasSnapshot && (newReceiptSeen || shifts.length > 0)) {
+      throw new Error('A legacy receipt cannot follow snapshot-backed progress.');
+    }
+    const snapshot = hasSnapshot ? receipt.targetSnapshot : replay.map(({ instanceId, target }) => ({ instanceId, target }));
+    if (!sameWolfTargetSnapshot(snapshot, replay.map(({ instanceId, target }) => ({ instanceId, target })))) {
+      throw new Error('The range target snapshot does not match committed pre-range choices.');
+    }
+    if (hasSnapshot) newReceiptSeen = true;
+    const targets = replayWolfRangeTargetSnapshot(snapshot as WolfRangeReceipt['targetSnapshot'], shifts as WolfRangeReceipt['targetShifts'], targeting.ring);
+    replay = replay.map((ship, rosterIndex) => ({ ...ship, target: targets[rosterIndex]!.target }));
+    if (!isRecord(receipt.damageByInstance)) throw new Error('The range damage receipt is unavailable.');
+    for (const [instanceId, damage] of Object.entries(receipt.damageByInstance)) {
+      const rosterIndex = replay.findIndex((ship) => ship.instanceId === instanceId);
+      const ship = replay[rosterIndex];
+      const catalog = ship ? wolfShipForId(ship.shipId) : undefined;
+      if (!ship || ship.destroyed || !catalog || !Number.isSafeInteger(damage) || (damage as number) < 1) {
+        throw new Error('The committed range damage receipt is malformed.');
+      }
+      const damageTaken = ship.damageTaken + (damage as number);
+      replay[rosterIndex] = { ...ship, damageTaken, destroyed: damageTaken >= catalog.damageCapacity };
+    }
+  }
+  if (!sameWolfCombatRoster(persistedRoster, replay)) throw new Error('The boarding roster does not match committed combat choices.');
+  return replay;
+}
+
+function sameWolfCombatRoster(actual: readonly WolfCombatShip[], expected: readonly WolfCombatShip[]): boolean {
+  return actual.length === expected.length && actual.every((ship, index) => {
+    const match = expected[index];
+    return !!match && ship.instanceId === match.instanceId && ship.shipId === match.shipId && ship.target === match.target &&
+      ship.damageTaken === match.damageTaken && ship.destroyed === match.destroyed;
+  });
+}
+
 function requireWolfRangeState(
   session: DocumentSnapshot,
   state: DocumentSnapshot,
@@ -25398,10 +25501,12 @@ function requireWolfRangeState(
         ship.instanceId !== `${index}:${receipt.rolls[index]?.shipId}` ||
         ship.shipId !== receipt.rolls[index]?.shipId || !receipt.ring.includes(ship.target as WolfFleetTargetId) ||
         !Number.isSafeInteger(ship.damageTaken) || (ship.damageTaken as number) < 0 ||
-        typeof ship.destroyed !== 'boolean') ||
-      !wolfRangeTargetProgressionMatches(range, receipt, roster as readonly WolfCombatShip[], state.get('rangeReceipts'))) {
+        typeof ship.destroyed !== 'boolean')) {
     throw commandError('failed-precondition', 'The current private Wolf combat roster is malformed.', 'conflict');
   }
+  let effectiveRoster: readonly WolfCombatShip[];
+  try { effectiveRoster = wolfCombatProgressionRoster(state, receipt, range, roster as readonly WolfCombatShip[]); }
+  catch (error) { throw commandError('failed-precondition', error instanceof Error ? error.message : 'The current private Wolf roster is malformed.', 'conflict'); }
   const damageRoot = session.get('shipDamage');
   const rawDamage = isRecord(damageRoot) ? damageRoot.aegis : undefined;
   const knownDamageIds = new Set((SHIP_DAMAGE_DECKS.aegis ?? []).map(({ systemId }) => systemId));
@@ -25437,7 +25542,7 @@ function requireWolfRangeState(
     revision: revision as number,
     deadlineAt,
     receipt,
-    roster: roster as readonly WolfCombatShip[],
+    roster: effectiveRoster,
     actions,
   };
 }
@@ -27268,9 +27373,10 @@ function wolfBoardingDefenceInputs(
       rawRanges.some((range, index) => !isRecord(range) || range.range !== expectedRangeOrder[index])) {
     throw commandError('failed-precondition', 'The committed Wolf range progression is incomplete or malformed.', 'conflict');
   }
+  const hasPreRangeChoices = state.get('pdfFighterAceAction') !== undefined || state.get('commanderRangeAdjustments') !== undefined;
   let snapshotBackedRangeSeen = false;
   let expectedTargets = wolfCombatRoster(receipt).map(({ instanceId, target }) => ({ instanceId, target }));
-  for (const range of rawRanges as readonly Record<string, unknown>[]) {
+  for (const range of hasPreRangeChoices ? [] : rawRanges as readonly Record<string, unknown>[]) {
     const legacyWithoutSnapshot = range.targetSnapshot === undefined && (range.targetShifts === undefined ||
       Array.isArray(range.targetShifts) && range.targetShifts.length === 0);
     if (legacyWithoutSnapshot) {
@@ -27300,11 +27406,15 @@ function wolfBoardingDefenceInputs(
   if (!Array.isArray(roster) || roster.length !== receipt.rolls.length ||
       roster.some((ship, index) => !isRecord(ship) ||
         ship.instanceId !== `${index}:${receipt.rolls[index]?.shipId}` ||
-        ship.shipId !== receipt.rolls[index]?.shipId || ship.target !== expectedTargets[index]?.target ||
+        ship.shipId !== receipt.rolls[index]?.shipId || !targetRing.includes(ship.target as WolfFleetTargetId) ||
+        !hasPreRangeChoices && ship.target !== expectedTargets[index]?.target ||
         !Number.isSafeInteger(ship.damageTaken) || (ship.damageTaken as number) < 0 ||
         typeof ship.destroyed !== 'boolean')) {
     throw commandError('failed-precondition', 'The current private Wolf combat roster is malformed.', 'conflict');
   }
+  let effectiveRoster: readonly WolfCombatShip[];
+  try { effectiveRoster = wolfCombatProgressionRoster(state, receipt, 'boarding', roster as readonly WolfCombatShip[]); }
+  catch (error) { throw commandError('failed-precondition', error instanceof Error ? error.message : 'The boarding roster is malformed.', 'conflict'); }
   const rawChoices = state.get('boardingDefenceChoices');
   if (rawChoices !== undefined && !isRecord(rawChoices)) {
     throw commandError('failed-precondition', 'The committed Wolf boarding choices are malformed.', 'conflict');
@@ -27316,8 +27426,8 @@ function wolfBoardingDefenceInputs(
     deadlineAt,
     targetRing,
     receipt,
-    roster: roster as readonly WolfCombatShip[],
-    boardingParties: wolfBoardingPartyCounts(roster as readonly WolfCombatShip[]),
+    roster: effectiveRoster,
+    boardingParties: wolfBoardingPartyCounts(effectiveRoster),
     choices: (rawChoices ?? {}) as Record<string, unknown>,
   };
 }
