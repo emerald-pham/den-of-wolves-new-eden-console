@@ -107,7 +107,7 @@ it('lets only the target captain answer and leaves the accepted offer pending fo
   expect(screen.getByText(/Response due/i)).toBeVisible();
   await user.click(screen.getByRole('button', { name: 'Accept offer' }));
   await waitFor(() => expect(mocks.respond).toHaveBeenCalledWith(1, 'accept'));
-  expect(await screen.findByText(/facilitator still needs to rule on the consequence/i)).toBeVisible();
+  expect(await screen.findByText(/awaiting facilitator ruling on the consequence/i)).toBeVisible();
   expect(screen.queryByText(/surrender completed|ship state changed/i)).not.toBeInTheDocument();
 });
 
