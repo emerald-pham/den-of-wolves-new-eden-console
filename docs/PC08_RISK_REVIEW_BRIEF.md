@@ -223,3 +223,28 @@ or missing acceptance. Root repairs, then follow-up focuses on unresolved findin
 or materially changed risk. Exact structured security receipt requires independent
 `gpt-6.1-sol` at `xhigh`, approving the final SHA with ISO timestamp and summary.
 Final validation, CI, merge, push and deployment remain pending until performed.
+
+Exact `c9cdba6e` approval is preserved. A failed complete test gate now requires
+bounded final reconciliation before an updated exact receipt. New production
+delta is only `1c6a4ce6`: the supplemental Gorgoneion description/resolver uses
+the printed three dice per range and an existing pure implemented constructor;
+two CSS files use existing CIC palette tokens and zero-radius corners. No
+combat, callable authority, Rules, client identity or projection handler changes.
+All 39 attested gameplay artifacts are hash-identical. The metadata module's
+four conservative consumers add two Functions to the union: final eighteen
+modules, 32 index consumers and 109 Functions, with all earlier rows unchanged.
+Review the exact module/map delta, the native guard-classification/automatic
+advance fixture assertions and final route fixtures; keep resolved scopes closed.
+Owner focused 293/293 and metadata-consumer 134/134 checks, Functions build,
+lint, seven selectors and the renewed eight-case rendering pass. Full final
+validation and deployment still require their actual terminal results.
+
+The four-file test-only UI handback `f818cd21` is integrated as `444db5d3`,
+with 226/226 focused tests and scoped lint/diff passing. It adds actual panel
+API mocks/subscription fixture values, corrects the prepared accessible region,
+and strengthens the Executive Officer integration with an exact choice request.
+Independent bounded metadata/source review is source-clear at `09d05709`, with
+its own 18/32/109 recomputation, seven selectors and 39-artifact continuity.
+Root sends the final UI-only delta and clean freeze for the updated actual
+exact receipt; earlier approved scope remains closed. Complete validation and
+release still require their actual results.

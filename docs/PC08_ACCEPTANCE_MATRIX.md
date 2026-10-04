@@ -20,6 +20,14 @@ result and 39-artifact runtime attestation are retained in
 `owner/authenticated-composed-reconciled-final/`; this supersedes older composed
 range/boarding proof for the repaired source. Closed DRADIS, destruction/carryover
 and tour-return branches retain their separately identified source evidence.
+The first full gate exposes final route fixtures, stale supplemental metadata
+and CIC styles. Owner repairs pass 293 focused checks and 134 metadata-consumer
+controls, with renewed eight-case rendering. The final map is eighteen modules,
+32 index consumers and 109 Functions; all attested gameplay handlers and the
+original seventeen map rows remain unchanged. The route fixture handback passes 226/226 checks and is integrated as
+`444db5d3`. Independent bounded source review clears the metadata/style/native
+fixture delta at `09d05709`; the updated exact receipt and complete validation
+precede the one candidate push.
 
 Normal authenticated local/emulator behavior evidence, prepared rendering,
 independent exact-candidate review, final validation, CI and exact-main production

@@ -451,3 +451,45 @@ configuration remains reserved for final Rules validation; foreign resources
 are untouched. A documentation-only freeze follows. Exact-commit independent
 approval, complete final validation, one candidate CI and exact-main deployment
 remain pending until their actual results are recorded.
+
+Independent Sol 6.1 xhigh approval is issued for exact clean `c9cdba6e`, after
+one documentation correction identifies the fresh composed Rules denials as
+GET/private reads. Its structured receipt and complete scope/limits remain
+external. The first full validation passes diff and lint but `test:all` fails;
+the captured-output diagnostic preserves 54 failures and 7,552 controls across
+nine files. Root owns repair before any push. A bounded Luna Max worker repairs
+four route/App/PC07 fixtures in the retained range worktree; root owns native
+fixtures, metadata, styles and final reconciliation. No test or gate is skipped.
+
+Test-only `eed91a32` binds the terminal classifier to the actual existing
+warhead/range/boarding helpers and Union casting factory, preserves complete
+GM DTO equality with current optional fields, and replaces a stale targeting
+expectation with automatic final-launch advance plus the immutable earlier
+redirect. All product authority and combat handlers remain unchanged.
+The retained diagnostic has three metadata/style failures and 285 controls;
+`1c6a4ce6` repairs the supplemental Gorgoneion printed description/implemented
+resolver and existing CIC token/square-corner contracts in two panel styles.
+Seven focused owner suites pass 293 checks; six metadata-consumer suites pass
+134. Functions build and scoped lint pass. A new complete eight-case scene and
+two parent returns pass; root inspects phone and landscape captures.
+
+The conservative consumer audit adds `consoleMetadata.ts` with four consumers
+and expands the union to 109 Functions across eighteen modules and 32 index
+consumers. Its shared charge/research/labour metadata entries stay unchanged;
+the supplemental object uses existing pure constructors. `09d05709` records
+the map after its missing-module red; seven selectors pass. All original
+seventeen rows, the index source and all 39 attested gameplay artifacts are
+unchanged. The prior exact receipt remains preserved; bounded follow-up must
+approve the final reconciled SHA before full validation is renewed. This rerun
+is justified by the failed gate and the material final metadata/style candidate.
+
+Root accepts the final test-only UI handback `f818cd21`, verifies its assigned
+`c9cdba6e` ancestry and four-file scope, then integrates it as `444db5d3`. Its
+original focused red is retained; all 226 focused tests and scoped lint/diff
+pass. The prior range repair branch, new fixture branch, dependency links and
+private evidence remain retained under Root ownership; the worker is ACKed and
+parked. Independent Sol 6.1 xhigh clears the bounded metadata/CSS/consumer-map
+and native-fixture delta at `09d05709`, recomputes 18/32/109 and hashes all 39
+gameplay artifacts unchanged. This closes source findings, while the final
+UI delta and clean documentation freeze still require an actual updated exact
+approval receipt before the full gate. No candidate push has occurred.

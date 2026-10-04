@@ -17,7 +17,14 @@ All seven repairs are integrated. The boarding owner's ten focused suites pass
 committed Militia risk before and after dice lock when its character changes.
 The fresh reconciled twenty-player run passes thirteen checks, and the bounded
 follow-up has no remaining source findings. Exact-commit approval, final
-validation, CI and deployment remain pending. The owner's October 3 instruction authorizes execution and
+validation, CI and deployment remain pending. The first full test gate exposes
+route fixture gaps and stale metadata/style contracts; focused owner repairs
+pass 293 checks, with 134 metadata-consumer controls and renewed eight-case
+rendering. All gameplay handlers retain their attested bytes. The final audited
+deployment scope is eighteen modules and 109 Functions. The test-only route
+fixture handback passes 226/226 and is integrated as `444db5d3`; independent
+bounded metadata/style review is source-clear. Root now freezes the reconciled
+candidate for an updated exact receipt and full validation. The owner's October 3 instruction authorizes execution and
 acceptance; playing the review scene is optional.
 
 PC08 contains the fixed 49 assigned items. Its catalog candidate moves from

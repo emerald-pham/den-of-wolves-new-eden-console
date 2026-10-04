@@ -2,6 +2,8 @@
 
 Root records reasons for every added or changed test before closeout. No test
 is skipped or deleted to pass. Separate test-only commits precede behavior.
+Rows retain chronological boundaries; later completed evidence supersedes earlier
+pending results without deleting failure provenance.
 
 | Commit / suite | Reason | Evidence |
 |---|---|---|
@@ -158,6 +160,39 @@ reopening. Documentation, release counts, computed-font styling and harmless
 harness lint preserve that proof. The later R1–R7 behavior repairs require a
 fresh compiled/restarted composed run before follow-up independent review and
 final validation; the old result does not stand in for those new source bytes.
+
+The first complete validation at independently approved `c9cdba6e` passes diff
+and lint, then stops at `test:all`. The existing validator omits captured child
+output on a nonzero exit, so the failed gate alone is repeated with visible
+output: 54 failures, 7,552 controls and six unhandled missing-mock errors across
+nine files. Both attempts are preserved in `owner/final-validation-first-*`
+and `owner/final-tests-diagnostic.log`; nothing has been pushed.
+Root test-only `eed91a32` retains exact GM projection equality while including
+the actual attack number and parking release condition; asserts the last
+Maliades launch's automatic Long Range advance and immutable prior C&C redirect;
+and follows the existing warhead/range/boarding/casting transaction guards in
+the terminal classifier. No new broad terminal exemption or product guard is
+introduced. The five-suite diagnostic retains three metadata/style failures
+and 285 controls. `1c6a4ce6` corrects the stale printed Gorgoneion description
+and resolver registration plus two panels' palette/corners to existing CIC
+tokens. All seven owner suites pass 293/293; six conservative metadata-consumer
+suites pass 134/134. Build and scoped lint pass. Tests are unchanged for these
+three existing red assertions; their failures precede the product repair.
+The renewed scene passes both parent controls and all eight viewport/motion
+cases in `owner/final-cic-token-render/`, with phone and landscape captures
+inspected. The final map has eighteen modules, 32 index consumers and 109
+Functions. Missing metadata audit is preserved red before `09d05709`; seven
+selectors then pass. All 39 attested gameplay artifacts and the previous
+seventeen consumer rows remain byte-identical. The test-only UI handback `f818cd21`, integrated as `444db5d3`, preserves the
+four-file baseline red and passes 226/226 focused tests plus scoped lint/diff.
+It supplies the mounted panels' actual read/commit API payloads and a null
+attack subscription when the fixture owns no attack; the prepared range query
+uses its actual accessible region. The stale pre-resolver expectation is
+replaced by a real Executive Officer range-panel integration that verifies the
+exact authoritative choice arguments. Wing-card lookup is scoped to its actual
+workspace. No production panel is mocked away, test skipped or behavior source
+changed. Evidence is in `ui-final-fixtures/`; Root acknowledges and owns the
+full reconciled validation, CI and release.
 
 The rows below cover every changed native or component suite, including worker
 fixtures. Detailed commit/red/green entries above retain the specific repairs;
