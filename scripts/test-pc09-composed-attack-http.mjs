@@ -7,7 +7,7 @@ import { dirname } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { chromium } from 'playwright';
 import { createPc07AuthenticatedSession } from './pc07-authenticated-session.mjs';
-import { runPc09DeductionPrelude } from './pc09-deduction-proof.mjs';
+import { runPc09DeductionPrelude } from './pc09-deduction-prelude.mjs';
 import { runPc09AftermathProof } from './pc09-aftermath-proof.mjs';
 
 const evidencePath = process.env.PC09_ATTACK_EVIDENCE_PATH;
@@ -17,6 +17,7 @@ await mkdir(dirname(evidencePath), { recursive: true });
 const require = createRequire(new URL('../functions/package.json', import.meta.url));
 const { MAINTENANCE_ORDERS } = require('../functions/lib/maintenanceOrder.js');
 const { SHIP_DAMAGE_DECKS } = require('../functions/lib/shipDamage.js');
+const { shipRationSchedule, INITIAL_SHIP_SURVIVORS } = require('../functions/lib/shipPopulation.js');
 const { CALLABLE_RATE_LIMIT_POLICIES } = require('../functions/lib/callableRateLimit.js');
 const sourceCommit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: new URL('../', import.meta.url), encoding: 'utf8' }).trim();
 const maintenanceIntervalMs = Math.ceil(CALLABLE_RATE_LIMIT_POLICIES.runMaintenance.windowMs /
@@ -26,6 +27,7 @@ const browser = await chromium.launch({ channel: 'chrome', headless: true });
 const context = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' });
 const page = await context.newPage();
 const browserErrors = [], checks = {}, actions = [], ranges = [], boarding = [], observations = [];
+const setupResourceAllocations = [];
 let attackTurn;
 let sessionStoreModuleUrl = '/src/store/useSessionStore.ts';
 let firestoreModuleUrl = '/src/lib/firestore.ts';
@@ -116,6 +118,21 @@ async function grantCurrentShip(shipId) {
   const claimedAt = typeof lease.claimedAt === 'string' ? lease.claimedAt : lease.claimedAt.toDate().toISOString();
   await command(f.gm, 'setGmShipConsoleWriteGrant', { instanceId: f.instanceId, shipId, enabled: true, claimedAt });
 }
+async function fundFixtureResource(shipId, resourceId, minimum) {
+  await grantCurrentShip(shipId);
+  const initial = (await f.session.get()).get('shipResources')[shipId][resourceId];
+  while (true) {
+    const current = await f.session.get();
+    const amount = current.get('shipResources')[shipId][resourceId];
+    if (amount >= minimum) break;
+    await command(f.gm, 'applyShipCounterSteps', {instanceId: f.instanceId, shipId, counter: 'resource', resourceId,
+      steps: Array(Math.min(12, minimum - amount)).fill(1), requestId: randomUUID(),
+      expectedRevision: current.get('vesselActionRevisions')[shipId] ?? 0});
+  }
+  setupResourceAllocations.push({shipId, resourceId, initial,
+    allocated: (await f.session.get()).get('shipResources')[shipId][resourceId],
+    boundary: 'Authenticated disposable-fixture allocation; not ordinary production or cargo proof'});
+}
 async function maintain(shipId, consoles, refuelCraftIds) {
   const maintenanceRole = { aegis: 'executive-officer', dione: 'dione-engineer',
     'refinery-124': 'refinery-124-engineer', icebreaker: 'icebreaker-engineer', capybara: 'capybara-captain' }[shipId];
@@ -123,17 +140,12 @@ async function maintain(shipId, consoles, refuelCraftIds) {
   assert.ok(maintenanceActor, 'Each maintenance lane has its ordinary held ship officer.');
   let bayIndex = 0;
   for (const action of ['begin', ...MAINTENANCE_ORDERS[shipId], 'end']) {
-    const current = await f.session.get();
-    if (action === 'reactor' && current.get('shipDamage')?.[shipId]?.damagedSystemIds?.length) {
-      await command(f.gm, 'repairAllShipDamage', { instanceId: f.instanceId, shipId, requestId: randomUUID(),
-        expectedRevision: current.get('vesselActionRevisions')?.[shipId] ?? 0 });
-    }
     const bays = SHIP_DAMAGE_DECKS[shipId].filter(card => card.systemId.startsWith('shuttle-bay'));
     const craftId = action === 'bays' ? refuelCraftIds[bayIndex] : undefined;
     const bayId = shipId === 'aegis' ? bays[bayIndex]?.systemId : bays[0]?.systemId;
     await command(maintenanceActor, 'runMaintenance', { consoleRoleId: maintenanceRole, shipId, action,
       requestId: randomUUID(), expectedRevision: (await f.session.get()).get('maintenanceCycles')?.[shipId]?.revision ?? 0,
-      ...(action === 'rations' ? { foodLevel: 0, waterLevel: 0 } : {}),
+      ...(action === 'rations' ? { foodLevel: 3, waterLevel: 3 } : {}),
       ...(action === 'reactor' ? { consoles } : {}),
       ...(action === 'bays' ? { refuels: craftId ? { [bayId]: craftId } : {} } : {}) });
     if (action === 'bays') bayIndex += 1;
@@ -247,13 +259,16 @@ async function completeBoarding() {
 }
 try {
   f = await createPc07AuthenticatedSession('PC09 ordinary deduction and complete Wolf attack', 20, { keepAlive: true,
-    expansion: 'capybara', browserRoleId: 'executive-officer', joinBrowserPlayer: joinThroughUi });
+    expansion: 'capybara', capybaraEnabled: true, browserRoleId: 'executive-officer', joinBrowserPlayer: joinThroughUi,
+    wolfAgentRoleId: 'refinery-124-pdf-colonel', wolfCultRoleId: 'wing-commander', intelligenceAgentRoleId: 'quellon-explorer' });
   console.log('Disposable PC09 normal authenticated session created.');
   const deduction = await runPc09DeductionPrelude(f, { directory: dirname(evidencePath) });
   checks.deduction = deduction.checks;
   assert.ok(deduction.checks, 'The ordinary deduction prelude must return its committed proof checks.');
   const eo = f.byRole('executive-officer'), wing = f.byRole('wing-commander');
   const captain = f.byRole('admiral'), commander = f.byRole('shepherd-scientist');
+  const warrior = f.byRole('quellon-captain');
+  assert.ok(warrior, 'The initially filled Quellon Captain station supplies the disclosed Warrior replacement.');
   // Optional ships are admitted in Coordination, then the next normal Team
   // phase charges their systems. The GM explicitly defers the first window.
   const setupCycle = (await f.session.get()).get('currentTurn');
@@ -263,13 +278,28 @@ try {
   await command(wing, 'beginOpenAirspacePhase', { expectedTurn: setupCycle });
   await command(f.gm, 'setSmallShipDocking', { instanceId: f.instanceId, requestId: randomUUID(),
     smallShipId: 'gorgoneion', hostShipId: 'aegis', docked: true, expectedRevision: 0 });
+  await command(f.gm, 'setSmallShipDocking', { instanceId: f.instanceId, requestId: randomUUID(),
+    smallShipId: 'warrior', hostShipId: 'aegis', docked: true, expectedRevision: 0 });
   await replace(captain, 'gorgoneion-captain');
   await replace(commander, 'wolf-commander');
+  await replace(warrior, 'warrior-captain');
   await command(f.gm, 'setWolfAttackWindow', { instanceId: f.instanceId, requestId: randomUUID(), expectedRevision: 0, status: 'deferred' });
   await command(f.gm, 'advanceTurn', { instanceId: f.instanceId, requestId: randomUUID(), expectedTurn: setupCycle, overridePhaseTimer: true });
   attackTurn = (await f.session.get()).get('currentTurn');
   const hold = (await f.session.get()).get('turnPhase').timerPause;
   await command(eo, 'clearTurnAdvanceInterstitial', { requestId: randomUUID(), expectedCycle: attackTurn, expectedPausedAt: hold.pausedAt });
+  // One explicit fixture allocation supplies printed full rations; ordinary
+  // officers still make and pay every maintenance choice. No GM damage repair
+  // or deterministic random result stands in for a player recovery action.
+  const rationSession = await f.session.get();
+  for (const shipId of ['aegis', 'dione', 'refinery-124', 'icebreaker', 'capybara']) {
+    const population = rationSession.get('shipSurvivors')?.[shipId] ?? INITIAL_SHIP_SURVIVORS[shipId];
+    const rations = shipRationSchedule(shipId, population);
+    await fundFixtureResource(shipId, 'food', rations.food[3] * (shipId === 'aegis' ? 2 : 1) + (shipId === 'aegis' ? 16 : 0));
+    await fundFixtureResource(shipId, 'water', rations.water[3] * (shipId === 'aegis' ? 2 : 1) + (shipId === 'aegis' ? 12 : 0));
+  }
+  await fundFixtureResource('aegis', 'materials', 6);
+  await fundFixtureResource('aegis', 'ore', 9);
   await maintain('aegis', ['command-and-control', 'missile-launchers', 'point-defence-lasers', 'fighter-bay-alpha', 'fighter-bay-bravo'], ['pallas', 'starlight']);
   await maintain('dione', ['fighter-bay'], ['maliades']);
   await maintain('refinery-124', ['fighter-bay'], []);
@@ -277,19 +307,15 @@ try {
   await maintain('capybara', ['scrap-refinery'], []);
   // The printed full ration choice is funded normally by the docked AEGIS
   // host, so setup unrest cannot skip the two consoles this proof needs.
-  for (const action of ['begin', 'rations', 'unrest', 'riot', 'reactor', 'end']) {
-    await command(captain, 'runSmallShipMaintenance', { smallShipId: 'gorgoneion', action, requestId: randomUUID(),
-      expectedRevision: (await f.session.get()).get('smallShipStates').gorgoneion.cycle.revision,
-      ...(action === 'rations' ? { foodLevel: 3, waterLevel: 3 } : {}),
-      ...(action === 'reactor' ? { consoles: ['missile-array', 'force-field-projector'] } : {}) });
-  }
-  await grantCurrentShip('aegis');
-  let current = await f.session.get();
-  while (current.get('shipResources').aegis.ore !== 9) {
-    await command(f.gm, 'adjustShipResource', { instanceId: f.instanceId, requestId: randomUUID(), shipId: 'aegis',
-      resourceId: 'ore', delta: current.get('shipResources').aegis.ore < 9 ? 1 : -1,
-      expectedRevision: current.get('vesselActionRevisions').aegis });
-    current = await f.session.get();
+  for (const [smallShipId, actor, consoles] of [
+    ['gorgoneion', captain, ['missile-array', 'force-field-projector']], ['warrior', warrior, ['salvage-drones']],
+  ]) {
+    for (const action of ['begin', 'rations', 'unrest', 'riot', 'reactor', 'end']) {
+      await command(actor, 'runSmallShipMaintenance', { smallShipId, action, requestId: randomUUID(),
+        expectedRevision: (await f.session.get()).get('smallShipStates')[smallShipId].cycle.revision,
+        ...(action === 'rations' ? { foodLevel: 3, waterLevel: 3 } : {}),
+        ...(action === 'reactor' ? { consoles } : {}) });
+    }
   }
   const phase = (await f.session.get()).get('turnPhase');
   // The only privileged fixture mutation accelerates this disposable clock.
@@ -394,7 +420,7 @@ try {
     support.push(await sourceChoice(f.byRole('capybara-recycler'), 'boa', range, 3));
     const view = await command(eo, 'getWolfRangeActionChoice');
     const locked = await exactRetry(eo, 'commitWolfRangeActionChoice', { requestId: randomUUID(), expectedTurn: view.turn,
-      expectedRevision: view.revision, range, actionIds: view.eligibleActions.map(action => action.actionId) });
+      expectedRevision: view.revision, range, actionIds: view.eligibleActions.filter(action => action.sourceId.startsWith('aegis-')).map(action => action.actionId) });
     const lockedState = await attackState();
     const lockedDice = lockedState.rangeDecisions?.[range]?.lock?.dice;
     if (locked.choiceStatus === 'targets-required') {
@@ -497,7 +523,9 @@ try {
   assert.equal(Object.hasOwn(member.session, 'wolfAttackState'), false);
   assert.equal(JSON.stringify(member.session.maliadesState).includes('rolls'), false);
   checks.privateRootEscortRulesAndMemberDurabilityAllowlist = true;
-  const aftermath = await runPc09AftermathProof(f, { directory: dirname(evidencePath), finalState });
+  await replace(captain, 'doctor');
+  const aftermath = await runPc09AftermathProof(f, { directory: dirname(evidencePath), finalState,
+    actorAllocations: {doctor: captain, warrior, macaw: f.byRole('capybara-captain'), boa: f.byRole('capybara-recycler'), wingCommander: wing, press: f.press} });
   checks.aftermath = aftermath.checks;
   assert.ok(aftermath.checks, 'The ordinary aftermath workflow must return its committed proof checks.');
   assert.deepEqual(browserErrors, []);
@@ -506,9 +534,9 @@ try {
     sourceCommit, ordinaryRoster: 20, preparedScene: false, productionGameplay: false,
     fixtureChanges: ['disposable clock deadlines only'], normalFacilitatorDecisions: ['Coordination-phase optional ship and replacement admission',
       'explicitly deferred first window and ordinary early cycle advance',
-      'current setup resource-allocation ship grant', 'audited resource adjustment to nine AEGIS ore', 'audited maintenance damage correction if required',
+      'explicit optional Wolf/Intel loyalty mode', 'current authenticated fixture resource allocation before printed full rations',
       ...(boarding.some(item => item.kind === 'commander-ruling') ? ['explicit incomplete Commander consequence ruling'] : [])],
-    checks, actions, ranges, boarding, audience, preparationInputs: { shipIds, targetAssignments: [] }, targetlessResultCount: targetlessResults.length,
+    checks, actions, setupResourceAllocations, ranges, boarding, audience, preparationInputs: { shipIds, targetAssignments: [] }, targetlessResultCount: targetlessResults.length,
     sessionStoreModuleUrl, firestoreModuleUrl, browserErrors, heartbeatFailures: f.heartbeatFailures,
     identitiesRetained: false, completedAt: new Date().toISOString() }, null, 2)}\n`);
   console.log('PC09 ordinary deduction, composed attack and aftermath proof passed.');
