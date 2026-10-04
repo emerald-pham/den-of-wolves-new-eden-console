@@ -2713,6 +2713,34 @@ it('commits the documented no-jump delay without fuel, movement, or damage mutat
   expect(mock.randomInt).not.toHaveBeenCalled();
 });
 
+it('uses a normal powered jump for a selected wrong printed location without inventing damage', async () => {
+  mock.jumpStates = { aegis: { lastFailureRequestId: 'wrong-location-failure' } };
+  mock.jumpFailures = {
+    'wrong-location-failure': {
+      type: 'ship-jump-failure', status: 'unresolved', adjudicable: true,
+      requestId: 'wrong-location-failure', shipId: 'aegis', origin: '0000', destination: '5143',
+      failureStatus: 'wrong-destination', failureRevision: 0, currentTurn: 1, fuelAtFailure: 4,
+    },
+  };
+
+  await expect(adjudicateFailedJump.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'wrong-location-resolution',
+    expectedRevision: 0, failureRequestId: 'wrong-location-failure', destination: '1413',
+    consequence: 'wrong-location',
+  }))).resolves.toMatchObject({
+    status: 'jumped', consequence: 'wrong-location', origin: '0000', destination: '1413',
+    damageCount: 0, damageDraws: [],
+  });
+
+  expect(mock.randomInt).not.toHaveBeenCalled();
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    'shipGalacticCoordinates.aegis': '1413',
+    'shipResources.aegis.fuel': 2,
+  }));
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1/jumpFailures/wrong-location-failure',
+    expect.objectContaining({ status: 'resolved', resolution: 'wrong-location' }));
+});
+
 it('replays an adjudication with its exact consequence without a second mutation', async () => {
   mock.jumpStates = { aegis: { lastFailureRequestId: 'replay-failure' } };
   mock.jumpFailures = {
@@ -2727,6 +2755,9 @@ it('replays an adjudication with its exact consequence without a second mutation
     failureRequestId: 'replay-failure', destination: '5143', consequence: 'wrong-location-half-d6-damage',
   };
   const first = await adjudicateFailedJump.run(request(command));
+  expect(first).toMatchObject({
+    status: 'jumped', consequence: command.consequence, destination: '5143', damageCount: 3,
+  });
   const [receiptPath, receipt] = mock.set.mock.calls.find(([path]) => String(path).includes('/commandReceipts/'))!;
   mock.commandReceiptRecord = receipt;
   mock.update.mockClear();
