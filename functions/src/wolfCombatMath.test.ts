@@ -717,6 +717,31 @@ describe('central Wolf combat math', () => {
     expect(damage.destroyed).toBe(false);
   });
 
+  it('publishes every surviving Wolf ship and its resolved target in the private final receipt', () => {
+    const targeting = resolveWolfTargeting(firstTurnWolfAttackComposition(), {}, EXPANDED_WOLF_TARGET_RING, () => 0);
+    const roster = wolfCombatRoster(targeting);
+    const ranges = (['long-range', 'medium-range', 'short-range'] as const).map((range) => ({
+      range, targetSnapshot: roster.map(({ instanceId, target }) => ({ instanceId, target })),
+      dice: [], assignments: [], targetShifts: [], unusedHitsByAction: [], damageByInstance: {}, destroyedInstanceIds: [],
+      destructionDamageByTarget: Object.fromEntries(EXPANDED_WOLF_TARGET_RING.map((target) => [target, 0])),
+    }));
+    const receipt = finalizeWolfAttack({
+      requestId: 'attack-survivors', targeting, roster, ranges,
+      targetRing: EXPANDED_WOLF_TARGET_RING,
+      boardingDefence: [...new Set(roster.filter(({ shipId }) => shipId === 'wolf-assault-transport')
+        .map(({ target }) => target))].map((target) => ({ target, securityTeams: 0 })),
+      forceFieldTargetId: null, phase: startTurnPhase(1, 1_000), now: 2_000, fleetState: {
+        ...completeFleetState(),
+        capybara: { damage: { damagedSystemIds: [], destroyed: false }, population: INITIAL_SHIP_SURVIVORS.capybara! },
+      }, randomInt: () => 0,
+    });
+
+    expect(receipt).toMatchObject({
+      survivingWolfShips: roster.filter(({ destroyed }) => !destroyed)
+        .map(({ instanceId, shipId, target }) => ({ instanceId, shipId, target })),
+    });
+  });
+
   it('persists combat deck exhaustion as a destroyed fleet result in the final calculation receipt', () => {
     const fullTargeting = resolveWolfTargeting(
       firstTurnWolfAttackComposition(), {}, EXPANDED_WOLF_TARGET_RING, () => 0,
