@@ -2,11 +2,14 @@
 
 ## Disposition
 
-**Pending root recovery follow-up.** The owner activated the bounded P605a visualization, and the
-candidate implementation is present, but this handoff does not claim P605a
-closure or a PC09 release. The normal authenticated recovery proof repeatedly
-fails to reacquire the panel after offline recovery, same-identity reload and
-ordinary console reselection. The checkpoint owner retains the repair,
+**Pending integrated checkpoint verification.** The owner activated the bounded P605a
+visualization. Sol subsequently diagnosed and repaired the recovery defect:
+normal authenticated offline/online, same-identity resume/reload and ordinary
+console reselection now reacquire the current local navigation and panel.
+The exact-candidate proof and remaining integration gates are recorded in
+[`PC09_DRADIS_RECOVERY_HANDOFF.md`](PC09_DRADIS_RECOVERY_HANDOFF.md).
+The earlier failed runs below remain historical failure evidence. This handoff
+does not claim P605a closure or a PC09 release. The checkpoint owner retains
 catalog, integrated review, final validation and release decisions. Prepared
 review scenes are presentation evidence only.
 
@@ -16,10 +19,14 @@ with the checkpoint; the catalog and generated views were not changed here.
 
 ## Scope and implementation
 
-The code-only candidate is `4280ffae6233a1bda651b59921a72a3ec6c3b65e`
-(`feat(dradis): show entitled committed Wolf attack readings`), based on
-`b36119e9cdcf43e65bdfc00538b67115b0214ee2`. Root integrated that product
-commit as `3c80d9fd`. The separate test-first commits are
+The original Astra product commit is
+`52d0ee9c6c8bfd25ae6866a2cdbacf222076870f`
+(`feat(dradis): show entitled committed Wolf attack readings`), integrated by
+Root as `3c80d9fdc0f8ecb1cae525fab5a7b499f8124f3c`.
+The earlier local candidate and failed harness source recorded below was
+`4280ffae6233a1bda651b59921a72a3ec6c3b65e`, based on
+`b36119e9cdcf43e65bdfc00538b67115b0214ee2`; its DRADIS product files are
+identical to the original product commit. The separate test-first commits are
 `9348741cf8160672fe7f998e4257029443dcfbfc` and fixture-only
 `4fbd229543fba63728da13eb7fd05cec8b5c8a88`.
 
@@ -82,7 +89,7 @@ They passed these P605 checks before recovery:
 - Browser Back removed the panel; Forward restored it. Going offline removed
   the subscribed projection.
 
-Recovery did **not** pass. Across two earlier complete authenticated runs and
+Recovery did **not** pass in these earlier runs. Across two earlier complete authenticated runs and
 the latest bounded run, the same-identity server refresh and same session/role
 were confirmed, and the driver used the ordinary `/console` chooser to reselect
 the EO station. It then timed out waiting for `.wolf-attack-dradis` to become
@@ -90,7 +97,8 @@ visible at `scripts/test-pc08-composed-attack-http.mjs:613`. The latest failure
 occurred after the regulation acknowledgement was stabilized and after the
 offline withdrawal assertion. The harness did not capture a sanitized DOM or
 local-navigation snapshot at failure, so the precise cause is not established.
-This is an open P605a gate; no reconnect or full acceptance claim is made.
+Those failures are preserved; the later bounded repair and current recovery
+proof are described in the recovery handoff. No full acceptance claim is made.
 
 The live-browser assertions are an extension of
 [`test-pc08-composed-attack-http.mjs`](../scripts/test-pc08-composed-attack-http.mjs)
@@ -109,14 +117,12 @@ contacts and preserves existing DRADIS behavior; the PC08 audit separately
 records open attack-result projection findings, so those are not implicitly
 resolved by this visualization.
 
-Root owns inspection and the post-reload repair. Resume by checking why the
-ordinary chooser returns to an EO role with live/fresh session state while the
-current `ShipPlot` attack panel does not return; preserve the current row-5
-evidence and do not seed a projection or widen endpoint visibility. Then rerun
-only the discriminating recovery case on the reconciled candidate and update
-this handoff. Root owns independent review, exact-candidate validation, CI,
-catalog status and the PC09 release boundary. This handoff records an unresolved
-acceptance gate, not an owner instruction to stop the task. Root transferred
-the bounded recovery work to a separate Sol 6.1 Max worker after the repeated
-Luna gate failures. The original Astra implementation worker remains finished
-and receives no new assignment.
+Sol's recovery handoff supplies the ordered regression and product commits,
+sanitized diagnosis and passing ordinary-auth recovery case. Root owns their
+integration, independent review, exact-candidate validation, CI, catalog status
+and the PC09 release boundary. Preserve the historical row-5 failures and the
+new diagnostic distinction. The activated P605a acceptance is required within
+the fixed 49-ID PC09 exit gate. The later owner instruction to continue through
+PC10 and post work superseded the earlier hold; the parent owns those separate
+dispatches after verified PC09 completion. The original Astra implementation
+worker remains finished and receives no new assignment.
