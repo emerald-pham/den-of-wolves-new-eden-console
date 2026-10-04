@@ -74,6 +74,15 @@ function put(path: string, fields: Fields): void {
   mock.documents.set(path, { ...fields });
 }
 
+function putApproachingResponse(crisisId: string, crisisRevision: number): void {
+  put('sessions/s1/approachingVesselResponses/current', {
+    type: 'approaching-vessel-response', sessionId: 's1', crisisId, crisisRevision,
+    state: 'debated', revision: 1, vesselReality: 'real', responseChoices: ['wait-briefly-then-leave'],
+    coordinationActions: [], responseInstructions: 'Wait briefly, then leave.',
+    rationale: 'The report is credible, with a short preparation delay.', actorUid: 'u1', instanceId: 'gm-1',
+  });
+}
+
 function provision(): void {
   put('sessions/s1', { phase: 'active', currentTurn: 2 });
   put('sessions/s1/players/u1', { uid: 'u1', role: 'gm', connected: true });
@@ -139,6 +148,7 @@ it('queues only an explicitly labeled formal crisis outcome for the next Team st
   await transitionCrisis.run(request({ ...baseData, requestId: 'delivery', expectedRevision: 1, state: 'delivered', deliveryPressure: 'hold' }));
   await transitionCrisis.run(request({ ...baseData, requestId: 'debate', expectedRevision: 2, state: 'debated' }));
   const formalAnnouncement = { title: 'Fleet supply pact', details: 'Every ship publishes its supply request.' };
+  putApproachingResponse(baseData.crisisId, 3);
   await transitionCrisis.run(request({
     ...baseData, requestId: 'formal-resolution', expectedRevision: 3, state: 'resolved', formalAnnouncement,
   }));
@@ -270,6 +280,7 @@ it('starts a new draft only after the prior crisis is closed', async () => {
   for (const [state, expectedRevision] of [
     ['delivered', 1], ['debated', 2], ['resolved', 3], ['announced', 4], ['closed', 5],
   ] as const) {
+    if (state === 'resolved') putApproachingResponse(baseData.crisisId, expectedRevision);
     await transitionCrisis.run(request({ ...baseData, requestId: `close-${state}`, expectedRevision, state }));
   }
   await expect(transitionCrisis.run(request({
@@ -431,6 +442,7 @@ it('delivers a durable public scouting report without exposing facilitator reali
 it('retires a delivered report when a closed crisis is replaced by a fresh draft', async () => {
   await transitionCrisis.run(request());
   for (const [state, expectedRevision] of [['delivered', 1], ['debated', 2], ['resolved', 3], ['announced', 4], ['closed', 5]] as const) {
+    if (state === 'resolved') putApproachingResponse(baseData.crisisId, expectedRevision);
     await transitionCrisis.run(request({ ...baseData, requestId: `report-${state}`, expectedRevision, state }));
   }
   expect(mock.documents.get('sessions/s1/crisisReports/current')).toMatchObject({ state: 'closed' });
