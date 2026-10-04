@@ -541,6 +541,90 @@ describe('central Wolf combat math', () => {
     expect(Object.isFrozen(resolved)).toBe(true);
   });
 
+  it('replays one attack-bound Fighter Ace action between its range and the next range snapshot', () => {
+    const targeting: WolfTargetingReceipt = {
+      ring: CORE_WOLF_TARGET_RING, modifierOrder: ['commander-reroll', 'target-shift', 'command-and-control-redirect'],
+      rolls: [
+        { rosterIndex: 0, shipId: 'wolf-cruiser', initialDie: 1, finalDie: 1, target: 'aegis', modifiers: [] },
+        { rosterIndex: 1, shipId: 'wolf-fighter-wing', initialDie: 2, finalDie: 2, target: 'dione', modifiers: [] },
+      ],
+    };
+    const initial = wolfCombatRoster(targeting);
+    const longAction = {
+      actionId: 'ordinary-long-hit', sourceId: 'aegis-missile-launchers',
+      range: 'long-range' as const, fixedDamage: 1, maxTargets: 1,
+    };
+    const long = resolveLockedWolfRange({
+      range: 'long-range', actions: [longAction],
+      locked: { range: 'long-range', dice: [{ actionId: longAction.actionId, sourceId: longAction.sourceId,
+        range: longAction.range, rolls: [], successes: 1, damage: 1, damagePerHit: 1 }] },
+      assignments: [{ actionId: longAction.actionId, targetInstanceIds: [initial[0]!.instanceId] }],
+      roster: initial,
+    });
+    const fighterAceAction = {
+      type: 'pdf-fighter-ace-action', attackId: 'attack-ace-replay', turn: 1, revision: 17,
+      actorUid: 'ace-actor', sourceId: 'pdf-escort-fighter-wing',
+      targetInstanceId: initial[0]!.instanceId, targetShipId: initial[0]!.shipId,
+      targetId: 'contact-1', range: 'long', targetShift: null, rolls: [3, 2, 3],
+      damage: 2, targetDestroyed: true, fighterDestroyed: false, aceDied: false, escaped: false,
+      targetResults: [{ instanceId: initial[0]!.instanceId, shipId: initial[0]!.shipId, damage: 2, destroyed: true }],
+      requestId: 'ace-action-replay', committedAt: new Date(2_000).toISOString(),
+    };
+    const afterAce = long.roster.map((ship) => ship.instanceId === initial[0]!.instanceId
+      ? { ...ship, damageTaken: 3, destroyed: true } : ship);
+    const medium = resolveLockedWolfRange({
+      range: 'medium-range', actions: [], locked: { range: 'medium-range', dice: [] },
+      assignments: [], roster: afterAce,
+    });
+    const short = resolveLockedWolfRange({
+      range: 'short-range', actions: [], locked: { range: 'short-range', dice: [] },
+      assignments: [], roster: medium.roster,
+    });
+
+    const resolved = finalizeWolfAttack({
+      requestId: 'wolf-final-attack-ace-replay',
+      attackId: 'attack-ace-replay', fighterAceAction,
+      targeting, roster: short.roster, ranges: [long.receipt, medium.receipt, short.receipt],
+      boardingDefence: [], forceFieldTargetId: null, targetRing: CORE_WOLF_TARGET_RING,
+      phase: startTurnPhase(1, 1_000), now: 2_000,
+      fleetState: completeFleetState(), randomInt: () => 0,
+    } as unknown as Parameters<typeof finalizeWolfAttack>[0]);
+
+    expect(resolved).toMatchObject({
+      fighterAce: { range: 'long', targetInstanceId: initial[0]!.instanceId, damage: 2, targetDestroyed: true },
+      survivingWolfShips: [{ instanceId: initial[1]!.instanceId, shipId: 'wolf-fighter-wing', target: 'dione' }],
+    });
+  });
+
+  it('rejects a Fighter Ace receipt from a different attack instead of treating its damage as range authority', () => {
+    const targeting: WolfTargetingReceipt = {
+      ring: CORE_WOLF_TARGET_RING, modifierOrder: ['commander-reroll', 'target-shift', 'command-and-control-redirect'],
+      rolls: [{ rosterIndex: 0, shipId: 'wolf-cruiser', initialDie: 1, finalDie: 1, target: 'aegis', modifiers: [] }],
+    };
+    const roster = wolfCombatRoster(targeting);
+    const ranges = (['long-range', 'medium-range', 'short-range'] as const).map((range) => ({
+      range, targetSnapshot: roster.map(({ instanceId, target }) => ({ instanceId, target })),
+      dice: [], assignments: [], targetShifts: [], unusedHitsByAction: [], damageByInstance: {}, destroyedInstanceIds: [],
+      destructionDamageByTarget: Object.fromEntries(EXPANDED_WOLF_TARGET_RING.map((target) => [target, 0])),
+    }));
+    const fighterAceAction = {
+      type: 'pdf-fighter-ace-action', attackId: 'another-attack', turn: 1, revision: 17,
+      actorUid: 'ace-actor', sourceId: 'pdf-escort-fighter-wing',
+      targetInstanceId: roster[0]!.instanceId, targetShipId: roster[0]!.shipId,
+      targetId: 'contact-1', range: 'medium', targetShift: null, rolls: [],
+      damage: 1, targetDestroyed: false, fighterDestroyed: false, aceDied: false, escaped: false,
+      targetResults: [{ instanceId: roster[0]!.instanceId, shipId: roster[0]!.shipId, damage: 1, destroyed: false }],
+      requestId: 'ace-action-stale', committedAt: new Date(2_000).toISOString(),
+    };
+
+    expect(() => finalizeWolfAttack({
+      requestId: 'wolf-final-current-attack', attackId: 'current-attack', fighterAceAction,
+      targeting, roster, ranges, boardingDefence: [], forceFieldTargetId: null,
+      targetRing: CORE_WOLF_TARGET_RING, phase: startTurnPhase(1, 1_000), now: 2_000,
+      fleetState: completeFleetState(), randomInt: () => 0,
+    } as unknown as Parameters<typeof finalizeWolfAttack>[0])).toThrow(/attack/i);
+  });
+
   it('preserves a wholly legacy in-progress attack without target snapshots or shifts', () => {
     const fullTargeting = resolveWolfTargeting(firstTurnWolfAttackComposition(), {}, undefined, () => 0);
     const selectedTransport = fullTargeting.rolls.find(({ shipId }) => shipId === 'wolf-assault-transport')!;
