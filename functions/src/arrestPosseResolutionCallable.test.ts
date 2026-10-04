@@ -57,10 +57,15 @@ function request(data: Record<string, unknown> = baseData, uid = 'u1') {
   return { data, auth: { uid } } as CallableRequest<Record<string, unknown>>;
 }
 function put(path: string, fields: Fields): void { mock.documents.set(path, { ...fields }); }
-function player(uid: string): void { put(`sessions/s1/players/${uid}`, { uid, role: 'player', connected: true, displayName: uid }); }
+function player(uid: string): void {
+  put(`sessions/s1/players/${uid}`, {
+    uid, role: 'player', connected: true, displayName: uid,
+    ...(uid === 'u2' ? { assignedRoleId: 'admiral' } : {}),
+  });
+}
 
 function provision(): void {
-  put('sessions/s1', { phase: 'active', currentTurn: 3, setupRevision: 2 });
+  put('sessions/s1', { phase: 'active', currentTurn: 3, setupRevision: 2, activeRoleIds: ['admiral'] });
   put('sessions/s1/players/u1', { uid: 'u1', role: 'gm', connected: true });
   put('sessions/s1/gmInstances/gm-1', { uid: 'u1', connected: true, lastSeenAt: new Date() });
   player('u2'); player('u3'); player('u4'); player('u5'); player('u6'); player('u7');
