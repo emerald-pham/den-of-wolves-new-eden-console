@@ -23,7 +23,8 @@ let lastMaintenanceStartedAt = 0;
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 const context = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' });
 const page = await context.newPage();
-const browserErrors = [], checks = {}, actions = [], ranges = [], boarding = [], observations = [];
+const browserErrors = [], checks = {}, actions = [], ranges = [], boarding = [], observations = [], dradisScreens = [];
+let p605a;
 const attackTurn = 2;
 let sessionStoreModuleUrl = '/src/store/useSessionStore.ts';
 let firestoreModuleUrl = '/src/lib/firestore.ts';
@@ -69,9 +70,14 @@ async function joinThroughUi(code) {
   await waiver.waitFor();
   const acknowledgements = waiver.getByRole('checkbox', { name: /^Acknowledge regulation/ });
   await acknowledgements.first().waitFor();
-  for (const checkbox of await acknowledgements.all()) await checkbox.check();
-  await waiver.getByRole('button', { name: 'Acknowledge regulations and continue', exact: true })
-    .and(page.locator(':enabled')).click();
+  for (let index = 0; index < await acknowledgements.count(); index += 1) {
+    await acknowledgements.nth(index).check();
+  }
+  assert.deepEqual(await acknowledgements.evaluateAll(checkboxes => checkboxes.map(checkbox => checkbox.checked)),
+    [true, true, true], 'The authenticated browser acknowledges every real session regulation.');
+  const acknowledge = waiver.getByRole('button', { name: 'Acknowledge regulations and continue', exact: true });
+  await waiver.getByRole('status').getByText('FINAL CONFIRMATION READY', { exact: true }).waitFor();
+  await acknowledge.click();
   await browserUntil('ordinary UI join', s => Boolean(s.uid && s.uid === s.memberUid));
   return page.evaluate(async () => {
     const { auth } = await import('/src/lib/firebase.ts');
@@ -472,7 +478,7 @@ try {
   await command(wing, 'requestShuttleDeparture', { requestId: randomUUID(), shuttleId: 'starlight', destinationShipId: 'icebreaker',
     expectedControlRevision: 0, expectedCycle: attackTurn });
   checks.finalReplayAndActualMovementAfterReopening = true;
-  for (const path of ['', '/wolfAttackState/current', '/serverState/pdfEscortWing']) {
+  for (const path of ['', '/wolfAttackState/current', '/wolfAttackPreparation/current', '/serverState/pdfEscortWing']) {
     const reply = await fetch(`http://127.0.0.1:${f.config.firestorePort}/v1/projects/${f.project}/databases/(default)/documents/sessions/${f.sessionId}${path}`,
       { headers: { Authorization: `Bearer ${eo.idToken}` } });
     assert.equal(reply.status, 403, 'Ordinary direct reads cannot disclose private authority.');
@@ -482,6 +488,136 @@ try {
   assert.equal(Object.hasOwn(member.session, 'wolfAttackState'), false);
   assert.equal(JSON.stringify(member.session.maliadesState).includes('rolls'), false);
   checks.privateRootEscortRulesAndMemberDurabilityAllowlist = true;
+
+  // P605a: this is the ordinary player's live ShipPlot, hydrated from the
+  // actual P433a member view and gated by the current local navigation sample.
+  const dradis = page.locator('.wolf-attack-dradis');
+  await dradis.waitFor({ state: 'visible', timeout: 30_000 });
+  const zoom = page.getByRole('button', { name: 'Zoom into DRADIS panel', exact: true });
+  if (await zoom.isVisible()) await zoom.click();
+  await dradis.getByRole('region', { name: 'Wolf attack committed readings', exact: true })
+    .waitFor({ state: 'visible', timeout: 10_000 });
+  assert.equal(await dradis.getAttribute('data-complete'), 'true');
+  const projectionAndVisibility = await page.evaluate(async storeModuleUrl => {
+    const [{ readFleetGroupNavigation }, { localDradisContacts }, { ALL_VESSEL_DEFINITIONS }, { useSessionStore }] =
+      await Promise.all([import('/src/lib/fleetGroupService.ts'), import('/src/components/localDradisContacts.ts'),
+        import('/src/data/ships.ts'), import(storeModuleUrl)]);
+    const state = useSessionStore.getState();
+    const navigation = await readFleetGroupNavigation();
+    const contacts = localDradisContacts('aegis', navigation, state.session?.shipDamage);
+    return { currentSession: state.session?.id === state.me?.sessionId, groupId: navigation.groupId,
+      targetIds: contacts.flatMap(contact => 'id' in contact && contact.id.startsWith('ship:')
+        ? [contact.id.slice('ship:'.length)] : []),
+      vessels: ALL_VESSEL_DEFINITIONS.map(({ id, name }) => ({ id, name })) };
+  }, sessionStoreModuleUrl);
+  assert.equal(projectionAndVisibility.currentSession, true);
+  assert.match(projectionAndVisibility.groupId, /^fleet-[1-9][0-9]*$/);
+  const localTargetIds = new Set(projectionAndVisibility.targetIds);
+  const vesselNames = new Map(projectionAndVisibility.vessels.map(vessel => [vessel.id, vessel.name]));
+  const safeRows = audience.results.flatMap(result => {
+    let target;
+    if (result.targetId === null) target = 'None';
+    else if (vesselNames.has(result.targetId)) {
+      if (!localTargetIds.has(result.targetId)) return [];
+      target = vesselNames.get(result.targetId);
+    } else if (/^Wolf contact [1-9][0-9]*$/.test(result.contactReference)) target = result.contactReference;
+    else return [];
+    return [{ range: result.range === 'boarding' ? 'Boarding' : `${result.range} range`, target,
+      bearing: typeof result.bearing === 'number' ? `${result.bearing}°` : 'Unknown', effect: result.effect }];
+  });
+  const renderedRows = await dradis.locator('.wolf-attack-dradis__result').evaluateAll(rows => rows.map(row => {
+    const fields = Object.fromEntries(Array.from(row.querySelectorAll('.wolf-attack-dradis__values > div')).map(item =>
+      [item.querySelector('dt')?.textContent?.trim(), item.querySelector('dd')?.textContent?.trim()]));
+    return { range: row.querySelector('.wolf-attack-dradis__result-header span')?.textContent?.trim(),
+      target: fields.Target, bearing: fields.Bearing, effect: fields.Effect, outcome: fields.Outcome, source: fields.Source };
+  }));
+  const rowKey = row => JSON.stringify([row.range, row.target?.toUpperCase(), row.bearing, row.effect]);
+  assert.deepEqual(renderedRows.map(rowKey).sort(), safeRows.map(row => rowKey(row)).sort(),
+    'The live readout renders exactly the committed rows eligible under current same-group/same-fix contacts.');
+  assert.ok(renderedRows.length > 0 && renderedRows.every(row => row.source && row.outcome));
+  assert.equal(await dradis.locator('[data-x], [data-y]').count(), 0, 'The textual readout invents no target geometry.');
+  assert.equal(await dradis.locator('[data-known="false"]').count(), safeRows.filter(row => row.bearing === 'Unknown').length);
+  const readoutText = await dradis.innerText();
+  for (const result of audience.results) {
+    if (result.targetId && !vesselNames.has(result.targetId)) {
+      assert.equal(readoutText.includes(result.targetId), false, 'Opaque Wolf IDs are never disclosed.');
+    }
+  }
+  assert.deepEqual(Object.keys(audience).sort(), ['attackId', 'currentStep', 'deadlineAt', 'phase', 'range', 'redaction',
+    'results', 'revision', 'schemaVersion', 'serverTime', 'sessionId', 'status', 'turn', 'type', 'visibility'].sort());
+  checks.p605aAuthenticatedProjectionAndLocalTargetFilter = true;
+
+  const readings = dradis.locator('.wolf-attack-dradis__readings');
+  await readings.focus();
+  assert.equal(await readings.evaluate(element => element === document.activeElement), true,
+    'The committed readings region is keyboard-focusable.');
+  await page.keyboard.press('Tab');
+  assert.equal(await readings.evaluate(element => element === document.activeElement), false,
+    'Keyboard navigation continues past the readings region.');
+  checks.p605aKeyboardFocus = true;
+  assert.equal(await page.locator('[data-motion]').first().getAttribute('data-motion'), 'reduce',
+    'The ordinary player selected reduced motion through the real landing control.');
+  const sweep = page.locator('.contact-plot__sweep').first();
+  assert.equal(await sweep.evaluate(element => getComputedStyle(element).animationDuration), '0s');
+  checks.p605aReducedMotion = true;
+
+  for (const [width, height] of [[320, 740], [390, 844], [844, 390], [1440, 900]]) {
+    await page.setViewportSize({ width, height });
+    const metrics = await page.evaluate(() => {
+      const panel = document.querySelector('.wolf-attack-dradis');
+      const list = document.querySelector('.wolf-attack-dradis__readings');
+      if (!panel || !list) throw new Error('DRADIS readout disappeared during responsive resize.');
+      const rect = panel.getBoundingClientRect();
+      return { docWidth: document.documentElement.scrollWidth, viewportWidth: document.documentElement.clientWidth,
+        panelWidth: rect.width, panelHeight: rect.height, readingsHeight: list.clientHeight,
+        font: getComputedStyle(panel).fontFamily, scroll: getComputedStyle(list).overflowY };
+    });
+    assert.ok(metrics.docWidth <= metrics.viewportWidth, `${width}x${height} horizontally overflows.`);
+    assert.ok(metrics.panelWidth > 0 && metrics.panelHeight > 0 && metrics.readingsHeight > 0);
+    assert.match(metrics.font, /mono|courier|menlo|consolas/i);
+    assert.equal(metrics.scroll, 'auto');
+    dradisScreens.push({ width, height, ...metrics });
+    await page.screenshot({ path: `${dirname(evidencePath)}/${width}x${height}-wolf-attack-dradis.png`, fullPage: true });
+  }
+  checks.p605aResponsiveCicAndScrollable = true;
+
+  const aboardUrl = page.url();
+  await page.goBack({ waitUntil: 'commit' });
+  await page.waitForFunction(previous => location.href !== previous, aboardUrl);
+  await dradis.waitFor({ state: 'detached', timeout: 10_000 });
+  await page.goForward({ waitUntil: 'commit' });
+  await dradis.waitFor({ state: 'visible', timeout: 15_000 });
+  checks.p605aBackAndReturn = true;
+
+  await context.setOffline(true);
+  await browserUntil('offline P605 authority withdrawal', state => state.connection === 'offline');
+  await dradis.waitFor({ state: 'detached', timeout: 10_000 });
+  checks.p605aOfflineWithdrawsProjection = true;
+  await context.setOffline(false);
+  const resumedEo = f.ok(await f.call(eo, 'resumeSession', { sessionId: f.sessionId }), 'P605 same-player resume');
+  assert.equal(resumedEo.player.assignedRoleId, 'executive-officer');
+  f.ok(await f.call(eo, 'refreshPresence', { sessionId: f.sessionId, activeConsoleRoleId: 'executive-officer' }),
+    'P605 current console refresh');
+  await page.reload();
+  await browserUntil('same actor fresh P605 reload', state => state.uid === eo.localId && state.memberUid === eo.localId &&
+    state.sessionId === f.sessionId && state.roleId === 'executive-officer' && state.connection === 'live' &&
+    state.freshness === 'server');
+  // Reload may restore the generic station chooser after Back; resume the
+  // authorized console through the ordinary route before requiring DRADIS.
+  await page.goto(`${uiUrl}/#/console`);
+  await page.getByRole('heading', { name: 'Stations and consoles', exact: true }).waitFor();
+  await page.getByRole('link', { name: 'AEGIS // Executive Officer // HELD BY YOU', exact: true }).click();
+  await browserUntil('same-actor current Executive Officer after reconnect', state => state.uid === eo.localId &&
+    state.sessionId === f.sessionId && state.roleId === 'executive-officer' &&
+    state.activeConsoleRoleId === 'executive-officer' && state.connection === 'live' && state.freshness === 'server');
+  await dradis.waitFor({ state: 'visible', timeout: 15_000 });
+  const reconnectZoom = page.getByRole('button', { name: 'Zoom into DRADIS panel', exact: true });
+  if (await reconnectZoom.isVisible()) await reconnectZoom.click();
+  assert.ok(await dradis.locator('.wolf-attack-dradis__result').count() > 0);
+  checks.p605aSameIdentityReconnectReload = true;
+  p605a = { visibleTargetIds: projectionAndVisibility.targetIds, eligibleRows: safeRows.length,
+    renderedRows: renderedRows.length, unknownBearingRows: renderedRows.filter(row => row.bearing === 'Unknown').length,
+    dradisScreens };
   assert.deepEqual(browserErrors, []);
   assert.deepEqual(f.heartbeatFailures, []);
   await writeFile(evidencePath, `${JSON.stringify({ kind: 'normal-authenticated-local-emulator-ui-http-composed-gameplay',
@@ -490,7 +626,7 @@ try {
       'explicitly deferred first window and ordinary early cycle advance',
       'current ship write grants', 'audited resource adjustment to nine AEGIS ore', 'audited maintenance damage correction if required',
       ...(boarding.some(item => item.kind === 'commander-ruling') ? ['explicit incomplete Commander consequence ruling'] : [])],
-    checks, actions, ranges, boarding, audience, preparationInputs: { shipIds, targetAssignments: [] }, targetlessResultCount: targetlessResults.length,
+    checks, actions, ranges, boarding, audience, p605a, preparationInputs: { shipIds, targetAssignments: [] }, targetlessResultCount: targetlessResults.length,
     sessionStoreModuleUrl, firestoreModuleUrl, browserErrors, heartbeatFailures: f.heartbeatFailures,
     identitiesRetained: false, completedAt: new Date().toISOString() }, null, 2)}\n`);
   console.log('PC08 ordinary composed source attack and live phone warhead proof passed.');
