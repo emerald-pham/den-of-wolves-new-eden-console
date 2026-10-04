@@ -32,9 +32,8 @@ function currentSourceActor(
   if (sourceId === 'gorgoneion-missile-array') {
     const ship = session.smallShipStates?.gorgoneion;
     return me.replacementRoleId === 'gorgoneion-captain' &&
-      session.activeRoleIds?.includes('gorgoneion-captain') === true &&
-      session.activeVesselIds?.includes('gorgoneion') === true &&
       typeof ship?.hostShipId === 'string' &&
+      session.activeVesselIds?.includes(ship.hostShipId) === true &&
       session.playerDiscovery?.fleetGroupVesselIds?.includes(ship.hostShipId) === true;
   }
   const shuttleId = sourceId;

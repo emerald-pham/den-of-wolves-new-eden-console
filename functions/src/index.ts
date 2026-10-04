@@ -21260,7 +21260,7 @@ function wolfRangeSupportAvailability(input: Readonly<{
   }
   const roleId = 'gorgoneion-captain';
   const smallShipStates = session.get('smallShipStates');
-  if (!activeRoles.includes(roleId) || !isRecord(smallShipStates) || !Object.hasOwn(smallShipStates, 'gorgoneion')) return empty(roleId);
+  if (!isRecord(smallShipStates) || !Object.hasOwn(smallShipStates, 'gorgoneion')) return empty(roleId);
   const admitted = isExtraShipAdmitted({ activeVesselIds: activeVessels, smallShipStates,
     smallShipId: 'gorgoneion', expansion: session.get('expansion'), capybaraEnabled: session.get('capybaraEnabled') });
   const smallShip = storedSmallShipState(session, 'gorgoneion');
@@ -25944,7 +25944,7 @@ function wolfRangeSupportActorHost(
   const admitted = isExtraShipAdmitted({ activeVesselIds: activeVessels, smallShipStates,
     smallShipId: 'gorgoneion', expansion: session.get('expansion'), capybaraEnabled: session.get('capybaraEnabled') });
   const smallShip = storedSmallShipState(session, 'gorgoneion');
-  if (!sessionActiveRoleIds(session).includes('gorgoneion-captain') || !admitted ||
+  if (!admitted ||
       !smallShip?.hostShipId || !activeVessels.includes(smallShip.hostShipId)) {
     throw new HttpsError('permission-denied', 'Gorgoneion is not admitted with a current host.');
   }
@@ -26030,7 +26030,7 @@ export const getWolfRangeSupportActionChoice = onCall<{
       fleetGroups: fleetGroups.docs, range, turn: inputs.turn, roster: inputs.roster,
       ring: inputs.receipt.ring, sourceId });
     if (!availability.applicable || !availability.ownerUid || availability.ownerUid !== uid) {
-      throw new HttpsError('permission-denied', `The current ${sourceId} support holder is required (${String(availability.ownerUid)}).`);
+      throw new HttpsError('permission-denied', `The current ${sourceId} support holder is required.`);
     }
     requireWolfRangeSupportActor(session, player, uid, players.docs, sourceId);
     const actorHostShipId = wolfRangeSupportActorHost(session, uid, sourceId);
