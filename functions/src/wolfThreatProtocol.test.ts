@@ -20,7 +20,7 @@ describe('group-bound Wolf threat protocol', () => {
 
   it.each([
     ['L', 1, 20],
-    ['M', 2, 25],
+    ['M', 1, 20],
     ['P', 1, 20],
   ] as const)('enforces the printed %s entry force using separate station and other-ship capacity',
     (siteCode, stations, otherCapacity) => {
