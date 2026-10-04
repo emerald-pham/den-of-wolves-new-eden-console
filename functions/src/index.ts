@@ -22395,7 +22395,7 @@ export const publishWolfCommanderAddress = onCall<{
     const expiresAt = new Date(nowMs + 30_000).toISOString();
     const serverTime = new Date(nowMs);
     const result = {
-      type: 'wolf-commander-address-result', status: 'committed', sessionId,
+      type: 'wolf-commander-address-result', status: 'committed', sessionId, requestId: raw.requestId,
       cycle, actorRoleId: 'wolf-commander', eventId, expiresAt,
     } as const;
     tx.set(addressRef, {
