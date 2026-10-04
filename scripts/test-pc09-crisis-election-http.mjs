@@ -651,13 +651,13 @@ try {
   assert.equal(election.state, 'resolved');
   assert.equal(election.tally.president.winnerUid, captain.localId);
   assert.equal(election.tally.vicePresident.winnerUid, captain.localId);
-  assert.equal(election.tally.president.scores[candidateIdFor(captain.localId)],
+  assert.equal(election.tally.president.scores[captain.localId],
     populationByRole['icebreaker-captain'] + populationByRole['shepherd-scientist'] +
       populationByRole.admiral + populationByRole['quellon-explorer']);
-  assert.equal(election.tally.president.scores[candidateIdFor(scientist.localId)],
+  assert.equal(election.tally.president.scores[scientist.localId],
     populationByRole['dione-president']);
-  assert.equal(election.tally.vicePresident.scores[candidateIdFor(captain.localId)], populationByRole['dione-president']);
-  assert.equal(election.tally.vicePresident.scores[candidateIdFor(scientist.localId)], populationByRole['icebreaker-captain']);
+  assert.equal(election.tally.vicePresident.scores[captain.localId], populationByRole['dione-president']);
+  assert.equal(election.tally.vicePresident.scores[scientist.localId], populationByRole['icebreaker-captain']);
   assert.equal(election.vicePresidentCandidateId, candidateIdFor(scientist.localId));
   assert.equal(election.vicePresidentOutcome, 'runner-up');
   assert.equal(election.tally.president.totalVotes, 5);
