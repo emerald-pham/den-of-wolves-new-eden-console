@@ -544,11 +544,28 @@ it('R1 preserves current Commander and private GM exact receipts after actual au
 });
 
 it('persists the validated P Station sequence marker with the immutable survivor receipt', async () => {
-  const marker = { type: 'p-station-sequence', sequenceId: 'sequence-1', groupId: 'fleet-1',
-    chart: 'New Eden', coordinate: 'P-1', stationId: 'P', sourceTransitionId: 'transition-p-1',
+  const marker = { type: 'p-station-sequence', sequenceId: 'wolf-p-station-transition-p-1', groupId: 'fleet-1',
+    chart: 'B', coordinate: '1964', stationId: 'P', sourceTransitionId: 'transition-p-1',
     sourceCycle: 1, attackNumber: 1 };
   const ruling = await commitSpecialFixture('commander-ruling');
-  patch(attackPath, { pStationSequence: marker });
+  // The marker must belong to a real P source and a legally prepared entry force.
+  // Preserve the prior boarding choices while adding its non-boarding Battlestation.
+  const pShipIds = [...firstTurnWolfAttackComposition().shipIds, 'wolf-battlestation'];
+  const pTargeting = resolveWolfTargeting({ ...firstTurnWolfAttackComposition(), shipIds: pShipIds } as Parameters<typeof resolveWolfTargeting>[0], {}, undefined, () => 0);
+  const pRoster = wolfCombatRoster(pTargeting);
+  const oldRanges = fields(attackPath).rangeReceipts as Fields[];
+  const preparation = { turn: 1, revision: 2, shipIds: pShipIds, targetMode: 'pre-rolled',
+    targetAssignments: [], modifiers: [], notes: '', compositionKind: 'P', targetGroupId: 'fleet-1' };
+  patch(attackPath, { pStationSequence: marker, targetGroupId: 'fleet-1', threatSiteCode: 'P',
+    threatSourceId: 'arrival-transition-p-1', attackNumber: 1, preparationRevision: 2, preparation,
+    combatRoster: pRoster,
+    calculationReceipt: { type: 'wolf-combat-calculation-stage', version: 1, turn: 1, step: 'targeting', targeting: pTargeting },
+    rangeReceipts: oldRanges.map(range => ({ ...range,
+      targetSnapshot: pRoster.map(({ instanceId, target }) => ({ instanceId, target })) })),
+  });
+  put('sessions/s1/wolfAttackWindow/current', { status: 'resolved', turn: 1, revision: 5,
+    targetGroupId: 'fleet-1', threatSiteCode: 'P', threatSourceId: 'arrival-transition-p-1' });
+  put('sessions/s1/wolfAttackPreparation/current', preparation);
 
   await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
 
