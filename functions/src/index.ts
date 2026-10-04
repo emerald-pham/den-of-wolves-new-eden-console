@@ -25863,6 +25863,7 @@ async function reconcileWolfAttackBoarding(
   }
   const resolvedState: Record<string, unknown> = {
     ...state.data(), status: 'resolved', currentStep: 'resolved', revision: nextRevision,
+    finalizationRevision: nextRevision, postFinalizationRevision: 0,
     airspaceLocked: false, parkingReleaseCondition: 'normal-movement-reopened',
     calculationReceipt: receipt, memberResults, resolvedAt: committedAt,
     finalizationRequestId: `wolf-final-${attackId}`,

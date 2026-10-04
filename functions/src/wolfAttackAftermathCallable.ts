@@ -129,6 +129,22 @@ function safeCounter(value: unknown): value is number {
   return Number.isSafeInteger(value) && (value as number) >= 0;
 }
 
+function postFinalizationBinding(state: RecordValue, revision: unknown):
+  Readonly<{ finalizationRevision: number; postFinalizationRevision: number }> | undefined {
+  if (!Number.isSafeInteger(revision) || (revision as number) < 1) return undefined;
+  const hasFinalizationRevision = Object.hasOwn(state, 'finalizationRevision');
+  const hasPostFinalizationRevision = Object.hasOwn(state, 'postFinalizationRevision');
+  if (!hasFinalizationRevision && !hasPostFinalizationRevision) {
+    return { finalizationRevision: revision as number, postFinalizationRevision: 0 };
+  }
+  const finalizationRevision = state.finalizationRevision;
+  const postFinalizationRevision = state.postFinalizationRevision;
+  if (!Number.isSafeInteger(finalizationRevision) || (finalizationRevision as number) < 1 ||
+      !safeCounter(postFinalizationRevision) ||
+      revision !== (finalizationRevision as number) + (postFinalizationRevision as number)) return undefined;
+  return { finalizationRevision: finalizationRevision as number, postFinalizationRevision };
+}
+
 function boundFingerprint(command: WolfAttackAftermathCommand, actorUid: string): RecordValue {
   return {
     action: `wolf-attack-aftermath:${command.action}`,
@@ -234,6 +250,11 @@ export const resolveWolfAttackAftermath = onCall<{
         attack.get('turn') !== session.get('currentTurn')) {
       throw new HttpsError('failed-precondition', 'This aftermath belongs to a stale or unresolved attack.');
     }
+    const stateData = attack.data() ?? {};
+    const revisionBinding = postFinalizationBinding(stateData, attack.get('revision'));
+    if (!revisionBinding) {
+      throw new HttpsError('failed-precondition', 'The resolved attack revision is not bound to its finalization.');
+    }
     const replay = replayResult(receiptDoc, fingerprint);
     if (replay) return replay;
     const receipt = attack.get('calculationReceipt');
@@ -241,7 +262,6 @@ export const resolveWolfAttackAftermath = onCall<{
     const damage = damageResults(receipt as unknown as RecordValue);
     const turn = attack.get('turn') as number;
     const now = new Date().toISOString();
-    const stateData = attack.data() ?? {};
     const privateAftermath = actionState(attack.get('aftermath'));
     const memberResults = Array.isArray(attack.get('memberResults'))
       ? [...attack.get('memberResults') as unknown[]] : [];
@@ -428,12 +448,16 @@ export const resolveWolfAttackAftermath = onCall<{
     }
 
     const nextRevision = (attack.get('revision') as number) + 1;
-    if (!Number.isSafeInteger(nextRevision) || nextRevision < 2) {
+    const nextPostFinalizationRevision = revisionBinding.postFinalizationRevision + 1;
+    if (!Number.isSafeInteger(nextRevision) || nextRevision < 2 ||
+        !Number.isSafeInteger(nextPostFinalizationRevision)) {
       throw new HttpsError('failed-precondition', 'The attack result revision is invalid.');
     }
     const nextState: RecordValue = {
       ...stateData,
       revision: nextRevision,
+      finalizationRevision: revisionBinding.finalizationRevision,
+      postFinalizationRevision: nextPostFinalizationRevision,
       memberResults: [...memberResults, ...publicResults],
       aftermath: privateAftermath,
       updatedAt: FieldValue.serverTimestamp(),

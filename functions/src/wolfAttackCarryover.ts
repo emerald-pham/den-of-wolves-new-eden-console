@@ -263,8 +263,19 @@ export function resolvedWolfAttackForCarryover(
   const attackId = state.attackId;
   const turn = state.turn;
   const revision = state.revision;
+  const finalizationRevision = state.finalizationRevision;
+  const postFinalizationRevision = state.postFinalizationRevision;
   const receipt = state.calculationReceipt;
   const audit = finalizationAuditValue;
+  const hasFinalizationRevision = finalizationRevision !== undefined;
+  const hasPostFinalizationRevision = postFinalizationRevision !== undefined;
+  const revisionBindingValid = hasFinalizationRevision === hasPostFinalizationRevision &&
+    (hasFinalizationRevision
+      ? Number.isSafeInteger(finalizationRevision) && (finalizationRevision as number) >= 1 &&
+        Number.isSafeInteger(postFinalizationRevision) && (postFinalizationRevision as number) >= 0 &&
+        Number.isSafeInteger(revision) && revision === (finalizationRevision as number) + (postFinalizationRevision as number) &&
+        Number.isSafeInteger(audit.revision) && audit.revision === finalizationRevision
+      : Number.isSafeInteger(revision) && Number.isSafeInteger(audit.revision) && revision === audit.revision);
   const repeatWasRequested = repeatContext !== undefined;
   const contextType = record(repeatContext) ? repeatContext.type : undefined;
   const parsedContext = contextType === 'p-station-repeat' ? parsePStationRepeatContext(repeatContext) : undefined;
@@ -275,6 +286,7 @@ export function resolvedWolfAttackForCarryover(
       typeof attackId !== 'string' || !/^wolf-attack-[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/.test(attackId) ||
       state.announcementId !== attackId || !Number.isSafeInteger(turn) || (turn as number) < 1 ||
       !Number.isSafeInteger(revision) || (revision as number) < 1 ||
+      !revisionBindingValid ||
       !Number.isSafeInteger(currentTurn) ||
       (repeatWasRequested
         ? contextType === 'p-station-repeat' ? currentTurn !== turn : currentTurn <= (turn as number)
@@ -284,7 +296,7 @@ export function resolvedWolfAttackForCarryover(
       state.finalizationRequestId !== `wolf-final-${attackId}` || !isWolfCalculationReceipt(receipt) ||
       receipt.phase.turn !== turn || receipt.requestId !== state.finalizationRequestId ||
       audit.type !== 'wolf-attack-finalization' || audit.actorUid !== 'server' ||
-      audit.attackId !== attackId || audit.turn !== turn || audit.revision !== revision ||
+      audit.attackId !== attackId || audit.turn !== turn ||
       audit.requestId !== state.finalizationRequestId || !sameValue(audit.receipt, receipt) ||
       !Array.isArray(audit.rangeReceipts) || !sameValue(audit.rangeReceipts, receipt.ranges) ||
       (state.rangeReceipts !== undefined && !sameValue(state.rangeReceipts, audit.rangeReceipts))) {
