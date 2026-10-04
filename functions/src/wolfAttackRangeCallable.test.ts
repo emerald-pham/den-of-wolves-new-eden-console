@@ -174,7 +174,9 @@ function admitEscortRange(): void {
 function admitRangeSupportChoices(): void {
   const session = testState.documents.get('sessions/s1')!;
   const attack = testState.documents.get('sessions/s1/wolfAttackState/current')!;
-  const targetSnapshot = (attack.combatRoster as Array<{ instanceId: string; target: string }>)
+  const supportTargeting = resolveWolfTargeting(firstTurnWolfAttackComposition(), {}, EXPANDED_WOLF_TARGET_RING, () => 0);
+  const supportRoster = wolfCombatRoster(supportTargeting);
+  const targetSnapshot = supportRoster
     .map(({ instanceId, target }) => ({ instanceId, target }));
   const emptyReceipt = (range: string) => ({ range, targetSnapshot, targetShifts: [], dice: [], assignments: [],
     unusedHitsByAction: [], damageByInstance: {}, destroyedInstanceIds: [],
@@ -208,6 +210,8 @@ function admitRangeSupportChoices(): void {
   const emptyLong = emptyReceipt('long-range');
   const emptyMedium = emptyReceipt('medium-range');
   put('sessions/s1/wolfAttackState/current', { ...attack, currentStep: 'short-range', revision: 7,
+    calculationReceipt: { type: 'wolf-combat-calculation-stage', version: 1, turn: 1, step: 'targeting',
+      targeting: supportTargeting }, combatRoster: supportRoster,
     battleTableCraftActions: [
       { craftId: 'highwall', kind: 'shuttle', ownerRoleId: 'icebreaker-miner' },
       { craftId: 'boa', kind: 'shuttle', ownerRoleId: 'capybara-recycler' },
