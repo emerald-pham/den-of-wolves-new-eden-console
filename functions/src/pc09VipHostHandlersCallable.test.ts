@@ -137,6 +137,8 @@ it('composes both VIP Host handlers with a clearly simulated GM physical-visit a
   const visit = await attestVipHostVisit.run(request({ ...visitRequest, shipId: simulatedGMPhysicalVisit.destinationShipId }));
   expect(visit).toMatchObject({ status: 'committed', type: 'vip-host-visit-attestation',
     shipId: 'aegis', cycle: 4, revision: 1, benefitStatus: 'available' });
+  expect(mock.documents.get(`sessions/${sessionId}/commandReceipts/visit-1`)?.result)
+    .toMatchObject({ status: 'committed', type: 'vip-host-visit-attestation', shipId: 'aegis', cycle: 4 });
   expect(mock.documents.get(`sessions/${sessionId}/vipHostVisits/4`)).toMatchObject({
     hostUid: 'host-uid', hostRoleId: 'vip-host', hostShipId: 'dione', shipId: 'aegis', attestedByUid: 'gm-uid',
   });
@@ -157,6 +159,8 @@ it('composes both VIP Host handlers with a clearly simulated GM physical-visit a
   const reroll = await rerollHostedShipMaintenance.run(request(rerollRequest));
   expect(reroll).toMatchObject({ status: 'committed', type: 'vip-host-maintenance-reroll',
     shipId: 'aegis', cycle: 4, grantRevision: 3, maintenanceRevision: 2 });
+  expect(mock.documents.get(`sessions/${sessionId}/commandReceipts/reroll-1`)?.result)
+    .toMatchObject({ status: 'committed', type: 'vip-host-maintenance-reroll', shipId: 'aegis', cycle: 4 });
   expect(entropy.randomInt).toHaveBeenCalledOnce();
   expect(entropy.randomInt).toHaveBeenCalledWith(1, 7);
   expect(mock.documents.get(`sessions/${sessionId}`).maintenanceCycles).toMatchObject({
