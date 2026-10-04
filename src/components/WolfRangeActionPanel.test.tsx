@@ -174,6 +174,6 @@ it('guides the EO through remaining Short Wing damage and labels a three-damage 
 
   expect(screen.getByText(/cover first.*2 damage remains/i)).toBeInTheDocument();
   expect(screen.getByText(/available after all fighter wings are covered/i)).toBeInTheDocument();
-  expect(screen.getByRole('combobox', { name: /highwall hit 1/i })).toBeInTheDocument();
+  expect(screen.getByRole('combobox', { name: /highwall cannon hit 1/i })).toBeInTheDocument();
   expect(screen.getByText(/highwall cannon.*3 damage per hit/i)).toBeInTheDocument();
 });
