@@ -94,6 +94,7 @@ dispatch with explicit commit/push/merge authorization. It preserves current
 source/privacy/CIC/one-facilitator decisions and the fixed count. No new gameplay
 or presentation correction was initially inferred. The parent first confirmed
 continuing the 48 independent IDs and audit repairs while preparing P605a's
-explicit decision, then conveyed the owner's activation and instruction to hold
-after completing PC09 including visualization. No later checkpoint work or
-dispatch is authorized by this latest instruction.
+explicit decision, then conveyed the owner's activation. The later owner
+instruction to proceed through PC10 and post superseded the intermediate hold.
+This owner task still stops after PC09; the parent owns the separate PC10
+revision and dispatch, and no later implementation starts in this checkout.
