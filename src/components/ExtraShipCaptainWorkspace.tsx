@@ -11,6 +11,7 @@ const GorgoneionMissionSupportWorkspace = lazy(() => import('./GorgoneionMission
 const WarriorRepairDronesPanel = lazy(() => import('./WarriorRepairDronesPanel'));
 const SmallShipJumpWorkspace = lazy(() => import('./SmallShipJumpWorkspace'));
 const WolfForceFieldChoicePanel = lazy(() => import('./WolfForceFieldChoicePanel'));
+const WolfAttackAftermathActionPanel = lazy(() => import('./WolfAttackAftermathActionPanel'));
 
 export default function ExtraShipCaptainWorkspace({ roleId }: { readonly roleId: RoleId }) {
   const session = useSessionStore((state) => state.session);
@@ -112,6 +113,13 @@ export default function ExtraShipCaptainWorkspace({ roleId }: { readonly roleId:
               Loading repair controls…
             </p>}>
               <WarriorRepairDronesPanel />
+            </Suspense>
+          )}
+          {workspace.roleId === 'warrior-captain' && (
+            <Suspense fallback={<p className="console-workspace__status" role="status">
+              Loading Salvage Drones controls…
+            </p>}>
+              <WolfAttackAftermathActionPanel operator="warrior" />
             </Suspense>
           )}
         </>

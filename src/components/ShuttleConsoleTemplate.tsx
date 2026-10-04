@@ -30,6 +30,7 @@ const SHUTTLE_CAPABILITIES: Record<ShuttleCapability, { component: ComponentType
 };
 const ScoutRequestControls = lazy(() => import('./ScoutRequestControls'));
 const ScoutTaxiCommunicationPanel = lazy(() => import('./ScoutTaxiCommunicationPanel'));
+const WolfAttackAftermathActionPanel = lazy(() => import('./WolfAttackAftermathActionPanel'));
 
 function operationPhaseLabel(phase: ShuttleOperationPhase): string {
   if (phase === 'Team') return 'Airspace closed';
@@ -88,6 +89,8 @@ export default function ShuttleConsoleTemplate({
   const workspaceCapabilities = controlPreview ? [] : shuttle.capabilities.filter(capability => SHUTTLE_CAPABILITIES[capability].placement === 'workspace');
   const instrumentCapabilities = controlPreview ? [] : shuttle.capabilities.filter(capability => SHUTTLE_CAPABILITIES[capability].placement === 'instruments');
   const scoutEntitlementId = scoutEntitlementForShuttle(shuttle.id);
+  const aftermathShuttleId: 'macaw' | 'boa' | null = shuttle.id === 'macaw'
+    ? 'macaw' : shuttle.id === 'boa' ? 'boa' : null;
   const renderCapability = (capability: ShuttleCapability) => {
     const Capability = SHUTTLE_CAPABILITIES[capability].component;
     return <Capability key={capability} shuttle={shuttle} />;
@@ -166,6 +169,13 @@ export default function ShuttleConsoleTemplate({
           {!controlPreview && shuttle.id === 'boa' && control &&
             <BoaRecyclingPanel control={control} docking={docking} fuelled={fuelled}
               hostName={host?.name} />}
+          {!controlPreview && control && aftermathShuttleId && (
+            <Suspense fallback={<p className="console-workspace__status" role="status">
+              Loading Scrap collection controls…
+            </p>}>
+              <WolfAttackAftermathActionPanel operator={{ shuttleId: aftermathShuttleId }} />
+            </Suspense>
+          )}
           {!controlPreview && (shuttle.id === 'highwall' || shuttle.id === 'boa') &&
             (['long-range', 'medium-range', 'short-range'] as const).map((range) => (
               <WolfRangeSupportActionPanel key={`${shuttle.id}-${range}`}

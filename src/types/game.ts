@@ -577,6 +577,45 @@ export interface WolfAttackPreparation {
   readonly notes: string;
 }
 
+export interface WolfAttackDoctorMitigation {
+  readonly shipId: string;
+  readonly casualtiesBefore: number;
+  readonly casualtiesAfter: number;
+  readonly casualtiesPrevented: number;
+  readonly foodSpent: number;
+  readonly waterSpent: number;
+}
+
+export interface WolfAttackAftermathLedger {
+  readonly doctor?: Readonly<{
+    action: 'doctor';
+    actorUid: string;
+    actorRoleId: 'doctor';
+    turn: number;
+    selectedShipIds: readonly string[];
+    mitigated: readonly WolfAttackDoctorMitigation[];
+    committedAt: string;
+  }>;
+  readonly warriorSalvage?: Readonly<{
+    action: 'warrior-salvage';
+    actorUid: string;
+    actorRoleId: 'warrior-captain';
+    turn: number;
+    hostShipId: string;
+    damageDice: readonly number[];
+    materialsGained: number;
+    committedAt: string;
+  }>;
+  readonly scrapClaims?: Readonly<Record<string, Readonly<{
+    shuttleId: 'macaw' | 'boa';
+    actorUid: string;
+    actorRoleId: 'capybara-captain' | 'capybara-recycler';
+    requestId: string;
+    scrap: 1;
+    committedAt: string;
+  }>>>;
+}
+
 /** GM-only attack view, including its private calculation and audit inputs. */
 export interface WolfAttackDeclarationState {
   readonly status: 'declared' | 'resolved';
@@ -600,6 +639,7 @@ export interface WolfAttackDeclarationState {
   readonly attackId?: string;
   readonly preparation?: WolfAttackPreparation;
   readonly calculationReceipt?: unknown;
+  readonly aftermath?: WolfAttackAftermathLedger;
   readonly forceFieldChoice?: WolfForceFieldPrivateStatus;
   readonly decisionSummary?: WolfAttackDecisionSummary;
   readonly memberResults?: readonly unknown[];
@@ -700,6 +740,9 @@ export interface WolfAttackMemberView {
   readonly deadlineAt: string;
   readonly serverTime: string;
   readonly visibility: 'members';
+  /** Aggregate only; never disclose surviving Wolf classes, IDs, or targets. */
+  readonly remainingThreatCount?: number;
+  readonly returningThreatCount?: number;
   readonly redaction: readonly [
     'composition', 'unresolved-dice', 'facilitator-notes', 'intervention-state',
   ];

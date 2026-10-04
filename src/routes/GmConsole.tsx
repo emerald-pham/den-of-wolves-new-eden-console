@@ -7,6 +7,7 @@ import ArrestPosseCalculator from '@/components/ArrestPosseCalculator';
 import EmergencyTimerPauseControl from '@/components/EmergencyTimerPauseControl';
 import WolfAttackRecoveryControl from '@/components/WolfAttackRecoveryControl';
 import GmWolfDecisionSummary from '@/components/GmWolfDecisionSummary';
+import { projectWolfAttackGmAftermathView, WolfAttackGmAftermathView } from '@/components/WolfAttackGmAftermathView';
 import ShipPlot from '@/components/ShipPlot';
 import { useFleetGroupNavigation } from '@/lib/useFleetGroupNavigation';
 import GmMutinyRecovery from '@/components/GmMutinyRecovery';
@@ -2767,6 +2768,9 @@ export default function GmConsole() {
     }
   }
 
+  const wolfAftermathView = wolfAttackState
+    ? projectWolfAttackGmAftermathView(wolfAttackState, session?.shipDamage) : null;
+
   return (
     <main className="ship-console ship-console--gameplay gm-console">
       <section className="ship-console__identity" aria-label="GM command">
@@ -3097,6 +3101,7 @@ export default function GmConsole() {
                   </pre>
                 </details>
               )}
+              {wolfAftermathView && <WolfAttackGmAftermathView view={wolfAftermathView} />}
             </section>
           </section>
           <section className="gm-console__module gm-crisis cic-frame" aria-label="Crisis state machine">

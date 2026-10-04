@@ -141,6 +141,23 @@ export function projectWolfAttackMemberView(input: Readonly<{
   if (projectedResults.some(result => result === undefined)) {
     throw new Error('A committed Wolf attack audience result is malformed.');
   }
+  let remainingThreatCount: number | undefined;
+  let returningThreatCount: number | undefined;
+  if (state.status === 'resolved' && record(state.calculationReceipt)) {
+    const survivors = state.calculationReceipt.survivingWolfShips;
+    const returning = state.calculationReceipt.returningInstanceIds;
+    if (survivors !== undefined || returning !== undefined) {
+      if (!Array.isArray(survivors) || survivors.some((ship) => !record(ship) ||
+          typeof ship.instanceId !== 'string' || typeof ship.shipId !== 'string' || typeof ship.target !== 'string') ||
+          !Array.isArray(returning) || returning.some((id) => typeof id !== 'string') ||
+          new Set(returning).size !== returning.length ||
+          returning.some((id) => !survivors.some((ship) => record(ship) && ship.instanceId === id))) {
+        throw new Error('The resolved Wolf threat receipt is malformed.');
+      }
+      remainingThreatCount = survivors.length;
+      returningThreatCount = returning.length;
+    }
+  }
   return Object.freeze({
     type: WOLF_ATTACK_MEMBER_VIEW_TYPE,
     schemaVersion: WOLF_ATTACK_MEMBER_VIEW_VERSION,
@@ -155,6 +172,7 @@ export function projectWolfAttackMemberView(input: Readonly<{
     deadlineAt: state.deadlineAt,
     serverTime: input.serverTime,
     visibility: 'members',
+    ...(remainingThreatCount === undefined ? {} : { remainingThreatCount, returningThreatCount }),
     redaction: REDACTED_FIELDS,
     results: Object.freeze(projectedResults as WolfAttackMemberResult[]),
   });
@@ -165,8 +183,11 @@ export function isWolfAttackMemberView(value: unknown): value is WolfAttackMembe
   if (!record(value)) return false;
   const allowed = new Set([
     'type', 'schemaVersion', 'sessionId', 'attackId', 'turn', 'revision', 'status', 'phase',
-    'currentStep', 'range', 'deadlineAt', 'serverTime', 'visibility', 'redaction', 'results',
+    'currentStep', 'range', 'deadlineAt', 'serverTime', 'visibility', 'remainingThreatCount',
+    'returningThreatCount', 'redaction', 'results',
   ]);
+  const hasRemainingThreatCount = Object.hasOwn(value, 'remainingThreatCount');
+  const hasReturningThreatCount = Object.hasOwn(value, 'returningThreatCount');
   return Object.keys(value).every(key => allowed.has(key)) &&
     value.type === WOLF_ATTACK_MEMBER_VIEW_TYPE && value.schemaVersion === WOLF_ATTACK_MEMBER_VIEW_VERSION &&
     typeof value.sessionId === 'string' && value.sessionId.length > 0 &&
@@ -177,6 +198,11 @@ export function isWolfAttackMemberView(value: unknown): value is WolfAttackMembe
     WOLF_ATTACK_PUBLIC_STEPS.includes(value.currentStep as WolfAttackPublicStep) &&
     value.range === publicRange(value.currentStep as WolfAttackPublicStep) &&
     validInstant(value.deadlineAt) && validInstant(value.serverTime) && value.visibility === 'members' &&
+    hasRemainingThreatCount === hasReturningThreatCount &&
+    (!hasRemainingThreatCount || (value.status === 'resolved' &&
+      Number.isSafeInteger(value.remainingThreatCount) && (value.remainingThreatCount as number) >= 0 &&
+      Number.isSafeInteger(value.returningThreatCount) && (value.returningThreatCount as number) >= 0 &&
+      (value.returningThreatCount as number) <= (value.remainingThreatCount as number))) &&
     Array.isArray(value.redaction) && JSON.stringify(value.redaction) === JSON.stringify(REDACTED_FIELDS) &&
     Array.isArray(value.results) && value.results.every(result => {
       const safe = resultProjection({ ...(record(result) ? result : {}), status: 'committed' });

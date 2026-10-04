@@ -6,6 +6,7 @@ import { replacementRoleFor } from '@/data/replacementRoles';
 import { useSessionStore } from '@/store/useSessionStore';
 
 const ScoutRequestControls = lazy(() => import('@/components/ScoutRequestControls'));
+const WolfAttackAftermathActionPanel = lazy(() => import('@/components/WolfAttackAftermathActionPanel'));
 
 export default function ReplacementRoleWorkspace() {
   const { roleId } = useParams();
@@ -47,6 +48,11 @@ export default function ReplacementRoleWorkspace() {
           {role.id === 'comms-officer' && (
             <Suspense fallback={<p className="console-workspace__status">Loading scouting request controls…</p>}>
               <ScoutRequestControls key={role.id} entitlementId="comms-officer" />
+            </Suspense>
+          )}
+          {role.id === 'doctor' && (
+            <Suspense fallback={<p className="console-workspace__status" role="status">Loading aftermath medical controls…</p>}>
+              <WolfAttackAftermathActionPanel operator="doctor" />
             </Suspense>
           )}
           <section className="console-workspace__section" aria-labelledby="replacement-workspace-boundary">

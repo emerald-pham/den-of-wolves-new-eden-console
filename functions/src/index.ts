@@ -438,6 +438,7 @@ import {
 export { repairConsolesFromAlly } from './allyRepairCallable';
 export { repairGorgoneionWithDrones } from './gorgoneionRepairDronesCallable';
 export { repairWarriorWithDrones } from './warriorRepairDronesCallable';
+export { resolveWolfAttackAftermath } from './wolfAttackAftermathCallable';
 export { transferBaseCapybaraCargo } from './baseCapybaraCargoTransferCallable';
 import { createResolvePendingScoutRequest, type ScoutMapCommit } from './scoutResultCallable';
 import { createAutomaticScoutResolver } from './scoutAutomaticResolution';
@@ -22181,6 +22182,10 @@ async function reconcileWolfAttackBoarding(
     }
   }
 
+  if (!Array.isArray(receipt.survivingWolfShips) || receipt.survivingWolfShips.some((ship) =>
+      !isRecord(ship) || typeof ship.instanceId !== 'string' || typeof ship.shipId !== 'string' ||
+      typeof ship.target !== 'string')) return;
+
   const currentShipDamage = shipDamage(session.get('shipDamage'));
   const nextShipDamage = { ...currentShipDamage };
   const nextShipSurvivors: Record<string, number> = {};
@@ -22340,6 +22345,27 @@ async function reconcileWolfAttackBoarding(
   });
 
   const nextRevision = (revision as number) + 1;
+  const attackNumber = Number.isSafeInteger(state.get('attackNumber'))
+    ? state.get('attackNumber') as number : 1;
+  const rawPStationSequence = state.get('pStationSequence');
+  let pStationSequence: Record<string, unknown> | undefined;
+  if (rawPStationSequence !== undefined) {
+    const markerKeys = ['type', 'sequenceId', 'groupId', 'chart', 'coordinate', 'stationId',
+      'sourceTransitionId', 'sourceCycle', 'attackNumber'];
+    const keysMatch = isRecord(rawPStationSequence) &&
+      Object.keys(rawPStationSequence).sort().join('|') === [...markerKeys].sort().join('|');
+    const marker = isRecord(rawPStationSequence) ? rawPStationSequence : undefined;
+    const validText = (value: unknown, max = 160) => typeof value === 'string' &&
+      value.length > 0 && value.length <= max && /^[A-Za-z0-9._:-]+$/.test(value);
+    if (!keysMatch || !marker || marker.type !== 'p-station-sequence' ||
+        !validText(marker.sequenceId) || !validText(marker.groupId) ||
+        typeof marker.chart !== 'string' || marker.chart.length < 1 || marker.chart.length > 160 ||
+        typeof marker.coordinate !== 'string' || marker.coordinate.length < 1 || marker.coordinate.length > 80 ||
+        marker.stationId !== 'P' || !validText(marker.sourceTransitionId) ||
+        !Number.isSafeInteger(marker.sourceCycle) || (marker.sourceCycle as number) < 1 ||
+        marker.attackNumber !== attackNumber) return;
+    pStationSequence = { ...marker };
+  }
   const resolvedState = {
     ...state.data(), status: 'resolved', currentStep: 'resolved', revision: nextRevision,
     airspaceLocked: false, parkingReleaseCondition: 'normal-movement-reopened',
@@ -22462,8 +22488,9 @@ async function reconcileWolfAttackBoarding(
   tx.set(db.doc(`sessions/${sessionId}/wolfAttackState/current/audit/wolf-finalized-${turn}`), {
     type: 'wolf-attack-finalization', turn, revision: nextRevision, actorUid: 'server',
     attackId, requestId: `wolf-final-${attackId}`, receipt,
-    attackNumber: isRecord(state.data()) && Number.isSafeInteger(state.get('attackNumber'))
-      ? state.get('attackNumber') : 1,
+    attackNumber,
+    survivingWolfShips: receipt.survivingWolfShips,
+    ...(pStationSequence ? { pStationSequence } : {}),
     ...(typeof state.get('previousAttackId') === 'string'
       ? { previousAttackId: state.get('previousAttackId') } : {}),
     ...(isRecord(state.get('carryover')) ? { carryover: state.get('carryover') } : {}),

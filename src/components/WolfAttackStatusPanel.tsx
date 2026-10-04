@@ -53,6 +53,11 @@ export function WolfAttackStatusView({ view }: Readonly<{ view: WolfAttackMember
         {' // '}
         <time dateTime={view.deadlineAt}>{view.deadlineAt}</time>
       </p>
+      {view.remainingThreatCount !== undefined && view.returningThreatCount !== undefined &&
+        <p className="wolf-attack-status__threats" aria-label="Remaining Wolf threat count">
+          {view.remainingThreatCount} remaining hostile ship{view.remainingThreatCount === 1 ? '' : 's'}
+          {' // '}{view.returningThreatCount} returning next attack
+        </p>}
       {view.results.length > 0 ? (
         <ol className="wolf-attack-status__results" aria-label="Committed attack results">
           {view.results.map((result, index) => (

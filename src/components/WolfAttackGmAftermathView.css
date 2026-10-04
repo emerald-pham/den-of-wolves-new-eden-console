@@ -1,0 +1,38 @@
+.wolf-attack-gm-aftermath {
+  display: grid;
+  gap: 1rem;
+  margin: 1rem 0;
+  padding: 1rem;
+  border-color: color-mix(in srgb, var(--cic-accent, #56d9c6) 46%, transparent);
+}
+
+.wolf-attack-gm-aftermath > header h3,
+.wolf-attack-gm-aftermath h4 {
+  margin: 0.2rem 0 0.55rem;
+}
+
+.wolf-attack-gm-aftermath > header small {
+  color: var(--cic-muted, #a8b5bb);
+  overflow-wrap: anywhere;
+}
+
+.wolf-attack-gm-aftermath section {
+  border-top: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  padding-top: 0.7rem;
+}
+
+.wolf-attack-gm-aftermath ul {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+.wolf-attack-gm-aftermath__damage > li {
+  padding: 0.35rem 0;
+}
+
+.wolf-attack-gm-aftermath p {
+  margin: 0.3rem 0;
+  overflow-wrap: anywhere;
+}

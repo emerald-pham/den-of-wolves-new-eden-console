@@ -70,6 +70,7 @@ import type {
   WolfAttackTargetMode,
   WolfAttackPreparationTargetAssignment,
   WolfAttackDeclarationState,
+  WolfAttackAftermathLedger,
   WolfAttackDecisionActor,
   WolfAttackDecisionSummary,
   WolfForceFieldPrivateStatus,
@@ -1595,6 +1596,83 @@ function wolfAttackDecisionSummary(value: unknown): WolfAttackDecisionSummary | 
   };
 }
 
+function wolfAttackAftermathLedger(value: unknown, turnValue: unknown): WolfAttackAftermathLedger | null {
+  const ledger = recordValue(value);
+  if (!ledger || !Number.isSafeInteger(turnValue) || Object.keys(ledger).some((key) =>
+      !['doctor', 'warriorSalvage', 'scrapClaims'].includes(key))) return null;
+  const validText = (item: unknown, max = 160): item is string => typeof item === 'string' &&
+    item.length > 0 && item.length <= max && /^[A-Za-z0-9._:-]+$/.test(item);
+  const validTime = (item: unknown): item is string => typeof item === 'string' && Number.isFinite(Date.parse(item));
+  const exactKeys = (item: RecordValue, keys: readonly string[]) =>
+    Object.keys(item).sort().join('|') === [...keys].sort().join('|');
+  let doctor: WolfAttackAftermathLedger['doctor'];
+  const rawDoctor = ledger.doctor;
+  if (rawDoctor !== undefined) {
+    const action = recordValue(rawDoctor);
+    if (!action || !exactKeys(action, ['action', 'actorUid', 'actorRoleId', 'turn', 'selectedShipIds', 'mitigated', 'committedAt']) ||
+        action.action !== 'doctor' || !validText(action.actorUid) || action.actorRoleId !== 'doctor' ||
+        action.turn !== turnValue || !validTime(action.committedAt) ||
+        !Array.isArray(action.selectedShipIds) || action.selectedShipIds.length < 1 || action.selectedShipIds.length > 8 ||
+        action.selectedShipIds.some((shipId) => !validText(shipId) || !/^[a-z0-9-]+$/.test(String(shipId))) ||
+        new Set(action.selectedShipIds).size !== action.selectedShipIds.length ||
+        !Array.isArray(action.mitigated) || action.mitigated.length !== action.selectedShipIds.length) return null;
+    const selectedShipIds = action.selectedShipIds as unknown[];
+    const mitigated = action.mitigated.map((raw, index) => {
+      const entry = recordValue(raw);
+      if (!entry || !exactKeys(entry, ['shipId', 'casualtiesBefore', 'casualtiesAfter', 'casualtiesPrevented', 'foodSpent', 'waterSpent']) ||
+          !validText(entry.shipId) || entry.shipId !== selectedShipIds[index]) return undefined;
+      const before = nonNegativeInteger(entry.casualtiesBefore);
+      const after = nonNegativeInteger(entry.casualtiesAfter);
+      const prevented = nonNegativeInteger(entry.casualtiesPrevented);
+      const food = nonNegativeInteger(entry.foodSpent);
+      const water = nonNegativeInteger(entry.waterSpent);
+      if (before === undefined || before < 1 || after !== Math.floor(before / 2) || prevented !== before - after ||
+          food !== (index === 0 ? 0 : 3) || water !== (index === 0 ? 0 : 3)) return undefined;
+      return { shipId: entry.shipId as string, casualtiesBefore: before, casualtiesAfter: after,
+        casualtiesPrevented: prevented, foodSpent: food, waterSpent: water };
+    });
+    if (mitigated.some((entry) => !entry)) return null;
+    doctor = { action: 'doctor', actorUid: action.actorUid, actorRoleId: 'doctor', turn: turnValue as number,
+      selectedShipIds: [...selectedShipIds] as string[], mitigated: mitigated as NonNullable<WolfAttackAftermathLedger['doctor']>['mitigated'],
+      committedAt: action.committedAt };
+  }
+  let warriorSalvage: WolfAttackAftermathLedger['warriorSalvage'];
+  const rawSalvage = ledger.warriorSalvage;
+  if (rawSalvage !== undefined) {
+    const action = recordValue(rawSalvage);
+    if (!action || !exactKeys(action, ['action', 'actorUid', 'actorRoleId', 'turn', 'hostShipId', 'damageDice', 'materialsGained', 'committedAt']) ||
+        action.action !== 'warrior-salvage' || !validText(action.actorUid) || action.actorRoleId !== 'warrior-captain' ||
+        action.turn !== turnValue || !validText(action.hostShipId) || !validTime(action.committedAt) ||
+        !Array.isArray(action.damageDice) || action.damageDice.some((die) => !Number.isSafeInteger(die) || (die as number) < 1 || (die as number) > 6)) return null;
+    const materials = nonNegativeInteger(action.materialsGained);
+    if (materials === undefined || materials !== action.damageDice.filter((die) => (die as number) >= 5).length) return null;
+    warriorSalvage = { action: 'warrior-salvage', actorUid: action.actorUid, actorRoleId: 'warrior-captain',
+      turn: turnValue as number, hostShipId: action.hostShipId, damageDice: [...action.damageDice] as number[],
+      materialsGained: materials, committedAt: action.committedAt };
+  }
+  let scrapClaims: WolfAttackAftermathLedger['scrapClaims'];
+  const rawClaims = ledger.scrapClaims;
+  if (rawClaims !== undefined) {
+    const claims = recordValue(rawClaims);
+    if (!claims) return null;
+    const parsed: Record<string, NonNullable<WolfAttackAftermathLedger['scrapClaims']>[string]> = {};
+    for (const [shipId, rawClaim] of Object.entries(claims)) {
+      const claim = recordValue(rawClaim);
+      if (!/^[a-z0-9-]+$/.test(shipId) || !claim ||
+          !exactKeys(claim, ['shuttleId', 'actorUid', 'actorRoleId', 'requestId', 'scrap', 'committedAt']) ||
+          (claim.shuttleId !== 'macaw' && claim.shuttleId !== 'boa') || !validText(claim.actorUid) ||
+          claim.actorRoleId !== (claim.shuttleId === 'macaw' ? 'capybara-captain' : 'capybara-recycler') ||
+          !validText(claim.requestId) || claim.scrap !== 1 || !validTime(claim.committedAt)) return null;
+      parsed[shipId] = { shuttleId: claim.shuttleId, actorUid: claim.actorUid,
+        actorRoleId: claim.shuttleId === 'macaw' ? 'capybara-captain' : 'capybara-recycler',
+        requestId: claim.requestId, scrap: 1, committedAt: claim.committedAt };
+    }
+    scrapClaims = parsed;
+  }
+  return { ...(doctor ? { doctor } : {}), ...(warriorSalvage ? { warriorSalvage } : {}),
+    ...(scrapClaims ? { scrapClaims } : {}) };
+}
+
 function wolfAttackDeclarationState(value: unknown): WolfAttackDeclarationState | null {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
   const state = value as Record<string, unknown>;
@@ -1659,6 +1737,8 @@ function wolfAttackDeclarationState(value: unknown): WolfAttackDeclarationState 
     ? rawLaunchedCraftIds.filter((id): id is string => typeof id === 'string')
     : [];
   const memberResults = state.memberResults === undefined ? [] : state.memberResults;
+  const aftermath = state.aftermath === undefined
+    ? undefined : wolfAttackAftermathLedger(state.aftermath, state.turn);
   const forceFieldChoice = state.forceFieldChoice === undefined
     ? undefined
     : parseWolfForceFieldPrivateStatus(state.forceFieldChoice, state.turn, state.revision);
@@ -1712,6 +1792,7 @@ function wolfAttackDeclarationState(value: unknown): WolfAttackDeclarationState 
     !preparation || !validCalculationReceipt ||
     (state.forceFieldChoice !== undefined && !forceFieldChoice) ||
     (state.decisionSummary !== undefined && !decisionSummary) ||
+    (state.aftermath !== undefined && !aftermath) ||
     !Array.isArray(memberResults) ||
     !Array.isArray(state.parkedCraftIds) || parkedCraftIds.length !== state.parkedCraftIds.length ||
     !Array.isArray(rawLaunchedCraftIds) || launchedCraftIds.length !== rawLaunchedCraftIds.length ||
@@ -1735,6 +1816,7 @@ function wolfAttackDeclarationState(value: unknown): WolfAttackDeclarationState 
     attackId: state.attackId,
     preparation,
     calculationReceipt: calculationReceipt!,
+    ...(aftermath ? { aftermath } : {}),
     ...(forceFieldChoice ? { forceFieldChoice } : {}),
     ...(decisionSummary ? { decisionSummary } : {}),
     memberResults: memberResults as readonly unknown[],
