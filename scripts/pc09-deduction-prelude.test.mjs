@@ -82,6 +82,12 @@ function fixture() {
           requestId: data.requestId, targetUid: wolfAgent.localId, defenders: 0,
           requiredPlayers: 6, censusRevision: 21,
         } };
+        if (name === 'resolveArrestPosse') return { status: 200, result: {
+          status: 'committed', type: 'arrest-posse-outcome', sessionId: 'session-1',
+          requestId: data.requestId, turn: 1, revision: 1, targetUid: data.targetUid,
+          requiredPlayers: 6, presentPlayers: data.presentPlayerUids.length,
+          outcome: 'arrested', deadlineCycle: 2,
+        } };
         throw new Error(`Unexpected authenticated action: ${name}`);
       },
       ok: (reply, name) => { assert.equal(reply.status, 200, name); return reply.result; },
@@ -115,6 +121,37 @@ test('runs investigator, physical Wolf sabotage, facilitator review, and proves 
   assert.equal(urlLog.some(entry => entry.authorization === 'Bearer gm-token'), true);
   assert.deepEqual(result.actors, { wolfAgent: f.loyaltyActors.wolfAgent, intelligenceAgent: f.loyaltyActors.intelligenceAgent });
   assert.equal(JSON.stringify(result.checks).includes('token-'), false);
+  assert.equal(result.arrestCase.path, `sessions/session-1/arrestCases/${f.loyaltyActors.wolfAgent.localId}`);
+  assert.equal(result.arrestCase.status, 'awaiting-facilitator-attendance');
+  assert.equal(result.arrestCase.deadlineCycle, null);
+  assert.equal(result.posseCandidates.length, 19);
+  assert.deepEqual(result.posseCandidates[0], { uid: 'uid-1', roleId: 'role-1' });
+});
+
+test('resolves a posse only from the caller supplied current non-target attendees', async () => {
+  const { f, callLog } = fixture();
+  const previousFetch = globalThis.fetch;
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'pc09-prelude-attendance-'));
+  let result;
+  try {
+    result = await runPc09DeductionPrelude(f, {
+      directory,
+      possePresentPlayerUids: [...f.players.slice(0, 5), f.players[6]].map(player => player.localId),
+    });
+  } finally {
+    globalThis.fetch = previousFetch;
+    await rm(directory, { recursive: true, force: true });
+  }
+  const resolution = callLog.find(entry => entry.name === 'resolveArrestPosse');
+  assert.ok(resolution);
+  assert.equal(resolution.actor, f.gm.localId);
+  assert.equal(resolution.data.expectedCycle, 1);
+  assert.equal(resolution.data.expectedRevision, 1);
+  assert.deepEqual(resolution.data.presentPlayerUids, ['uid-1', 'uid-2', 'uid-3', 'uid-4', 'uid-5', 'uid-7']);
+  assert.equal(result.arrestCase.status, 'pending-resolution');
+  assert.equal(result.arrestCase.targetUid, f.loyaltyActors.wolfAgent.localId);
+  assert.equal(result.arrestCase.deadlineCycle, 2);
+  assert.equal(result.arrestOutcome.deadlineCycle, 2);
 });
 
 test('refuses proof sessions without the normally assigned explicit role actors', async () => {
