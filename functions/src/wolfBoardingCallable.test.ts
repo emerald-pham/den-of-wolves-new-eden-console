@@ -554,6 +554,7 @@ it('persists the validated P Station sequence marker with the immutable survivor
 
   expect(fields(`${attackPath}/audit/wolf-finalized-1`)).toMatchObject({
     pStationSequence: marker,
+    survivingWolfShips: expect.any(Array),
     receipt: { survivingWolfShips: expect.any(Array) },
   });
   expect(fields(`${attackPath}/audit/wolf-finalized-1`).pStationSequence).toEqual(marker);
