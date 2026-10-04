@@ -5,6 +5,10 @@ import {readFileSync} from 'node:fs';
 import test from 'node:test';
 import {classifyChangedFiles, deploymentSelector} from './deployment-targets.mjs';
 
+// PC08 is a verified historical release. Preserve all consumer and source-drift
+// assertions against its exact shipped source as subsequent checkpoints land.
+const PC08_RELEASE = '2fae212a9b86d0daa5aef3797f4609abd02a618f';
+
 test('the standalone PC08 review page selects Hosting with no unknown deployment path', () => {
   const result = classifyChangedFiles(['pc08-review.html']);
   assert.deepEqual(result.targets, ['hosting']);
@@ -15,11 +19,13 @@ test('every PC08 runtime transition selects its exact consumers and rejects unau
   const baseline = 'ebbad230b815e6962e35f303cb529b5612e1d046';
   const inventory = JSON.parse(readFileSync('scripts/pc08-deployment-consumers.json', 'utf8'));
   assert.equal(inventory.baseline, baseline);
-  const files = execFileSync('git', ['diff', '--name-only', baseline, 'HEAD', '--', 'functions/src'], {encoding: 'utf8'})
+  const files = execFileSync('git', ['diff', '--name-only', baseline, PC08_RELEASE, '--', 'functions/src'], {encoding: 'utf8'})
     .trim().split('\n').filter(file => file.endsWith('.ts') && !file.endsWith('.test.ts'));
   assert.ok(files.length > 0, 'PC08 must audit its connected server changes');
   const hash = source => createHash('sha256').update(source).digest('hex');
-  const current = file => readFileSync(file, 'utf8');
+  const current = file => execFileSync('git', ['show', `${PC08_RELEASE}:${file}`], {
+    encoding: 'utf8', maxBuffer: 32 * 1024 * 1024,
+  });
   const previous = file => {
     try {
       return execFileSync('git', ['show', `${baseline}:${file}`], {
@@ -52,6 +58,6 @@ test('every PC08 runtime transition selects its exact consumers and rejects unau
     ? inventory.index : inventory.modules[file]).consumers))].sort().map(name => `functions:${name}`);
   assert.deepEqual(whole.sort(), ['hosting', ...expected].sort(), 'the reconciled release deploys all audited consumers exactly once with its required Hosting artifact');
   assert.equal(whole.includes('functions'), false, 'there is no broad Functions fallback');
-  const native = deploymentSelector({ before: baseline, after: 'HEAD', files, targets: ['functions'] }).split(',');
+  const native = deploymentSelector({ before: baseline, after: PC08_RELEASE, files, targets: ['functions'] }).split(',');
   assert.deepEqual(native.sort(), ['hosting', ...expected].sort(), 'the real Git source reader audits newly added modules too');
 });
