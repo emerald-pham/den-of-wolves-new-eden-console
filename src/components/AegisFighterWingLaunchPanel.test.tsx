@@ -116,7 +116,7 @@ it('waits for the first attack audience before reading launch authority', async 
   expect(screen.queryByRole('region', { name: /aegis fighter wing launches/i })).not.toBeInTheDocument();
 
   act(() => mocks.receive?.(audience({ currentStep: 'targeting', range: null })));
-  expect(await screen.findByRole('button', { name: /launch fighter wing alpha/i })).toBeEnabled();
+  await waitFor(() => expect(screen.getByRole('button', { name: /launch fighter wing alpha/i })).toBeEnabled());
   expect(mocks.getLaunch).toHaveBeenCalledTimes(2);
 });
 
