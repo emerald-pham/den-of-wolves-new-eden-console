@@ -175,7 +175,9 @@ describe('Wolf Commander cycle and target dial services', () => {
       status: 'committed', type: 'wolf-commander-cycle-attack', sessionId: 's1',
       requestId: payload.requestId, cycle: 4, groupId: 'fleet-2', targetGroupPursuit: 8,
       damageCapacity: 18, attackNumber: 4, navigationRevision: 7,
-      marker: { type: 'wolf-commander-cycle-attack', cycle: 4, groupId: 'fleet-2' }, windowRevision: 9,
+      marker: { type: 'wolf-commander-cycle-attack', cycle: 4, groupId: 'fleet-2',
+        targetGroupPursuit: 8, navigationRevision: 7, attackNumber: 4,
+        commanderUid: 'u1', requestId: 'commander-dial-cycle-4' }, windowRevision: 9,
     } })), { stream: vi.fn() });
     vi.mocked(httpsCallable).mockReturnValue(commit as never);
     await expect(commitWolfCommanderAttackDial('fleet-2', 4, 7)).resolves.toMatchObject({
