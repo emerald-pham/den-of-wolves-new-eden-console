@@ -214,7 +214,7 @@ it('rejects a caller-invented base source instead of opening an untriggered thre
   expect(mock.documents.has('sessions/s1/commandReceipts/wolf-forged-source')).toBe(false);
 });
 
-it('continues a P Station sequence in the same cycle beyond three attacks using the audited survivors only', async () => {
+it('does not make the facilitator reopen a finalized P Station repeat window', async () => {
   const sequence = {
     type: 'p-station-sequence', sequenceId: 'wolf-p-station-jump-station', groupId: 'fleet-1',
     chart: 'B', coordinate: '1964', stationId: 'P', sourceTransitionId: 'jump-station',
@@ -289,14 +289,14 @@ it('continues a P Station sequence in the same cycle beyond three attacks using 
   await expect(setWolfAttackWindow.run(request({
     ...baseData, requestId: 'wolf-station-repeat-4', expectedRevision: 3,
     targetGroupId: 'fleet-1', threatSiteCode: 'P', threatSourceId: 'arrival-jump-station',
-  }))).resolves.toEqual({
-    status: 'due', turn: 1, revision: 4, targetGroupId: 'fleet-1',
-    threatSiteCode: 'P', threatSourceId: 'arrival-jump-station',
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition', message: expect.stringMatching(/timing marker.*unavailable|automatic|finalized/i),
   });
-  expect(mock.documents.get('sessions/s1/wolfAttackPreparation/current')).toMatchObject({
-    turn: 1, compositionKind: 'p-station-repeat', targetGroupId: 'fleet-1',
-    shipIds: ['wolf-battlestation'],
+  expect(mock.documents.get('sessions/s1/wolfAttackWindow/current')).toMatchObject({
+    status: 'resolved', turn: 1, revision: 3,
   });
+  expect(mock.documents.has('sessions/s1/wolfAttackPreparation/current')).toBe(false);
+  expect(mock.documents.has('sessions/s1/commandReceipts/wolf-station-repeat-4')).toBe(false);
 });
 
 it('requires a due marker before resolving and permits deferred Turn 2 recovery', async () => {

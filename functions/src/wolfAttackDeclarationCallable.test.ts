@@ -539,6 +539,25 @@ it('declares a fourth same-cycle P Station attack from the immutable survivor ro
     attackNumber: 3, previousAttackId: prior.previousAttackId, carryover,
     pStationSequence: sequence, rangeReceipts: ranges,
   };
+  const pRepeatContext = {
+    type: 'p-station-repeat', sequenceId: sequence.sequenceId, groupId: sequence.groupId,
+    chart: 'B', coordinate: '1964', stationId: 'P', sourceTransitionId: 'jump-station',
+    sourceCycle: 1, parentAttackId: 'wolf-attack-station-3', parentAttackNumber: 3,
+    parentTurn: 1, nextAttackNumber: 4,
+  };
+  const pStationRepeat = {
+    status: 'repeat', sequenceId: sequence.sequenceId, context: pRepeatContext,
+    targetGroupId: 'fleet-1', threatSourceId: 'arrival-jump-station', turn: 1, nextAttackNumber: 4,
+    sourceInstanceIds: survivors.map(({ instanceId }) => instanceId),
+    survivors: survivors.map(({ instanceId, shipId }) => ({ instanceId, shipId })),
+    window: { status: 'due', turn: 1, revision: 5, targetGroupId: 'fleet-1',
+      threatSiteCode: 'P', threatSourceId: 'arrival-jump-station' },
+    preparation: { turn: 1, shipIds: survivors.map(({ shipId }) => shipId), targetMode: 'pre-rolled',
+      targetAssignments: [], modifiers: [], notes: '', revision: 7,
+      compositionKind: 'p-station-repeat', targetGroupId: 'fleet-1' },
+  };
+  prior.pStationRepeat = pStationRepeat;
+  audit.pStationRepeat = pStationRepeat;
   put('sessions/s1/wolfAttackState/current', prior);
   put('sessions/s1/wolfAttackState/current/audit/wolf-finalized-1', audit);
   session({ chartSelectionLocked: true, chartId: 'B' });
@@ -567,6 +586,19 @@ it('declares a fourth same-cycle P Station attack from the immutable survivor ro
     compositionKind: 'p-station-repeat', targetGroupId: 'fleet-1',
     targetAssignments: [], modifiers: [], notes: '',
   });
+
+  const finalizationAuditPath = 'sessions/s1/wolfAttackState/current/audit/wolf-finalized-1';
+  const completeFinalizationAudit = mock.documents.get(finalizationAuditPath)!;
+  const missingRepeatAudit = { ...completeFinalizationAudit };
+  delete missingRepeatAudit.pStationRepeat;
+  put(finalizationAuditPath, missingRepeatAudit);
+  await expect(declareWolfAttack.run(request({
+    ...baseData, requestId: 'wolf-station-repeat-without-finalizer-plan', expectedRevision: 6,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition', message: expect.stringMatching(/verifiable finalized P Station repeat/i),
+  });
+  expect(mock.documents.has('sessions/s1/events/wolf-attack-wolf-station-repeat-without-finalizer-plan')).toBe(false);
+  put(finalizationAuditPath, completeFinalizationAudit);
 
   await expect(declareWolfAttack.run(request({
     ...baseData, requestId: 'wolf-station-attack-four', expectedRevision: 6,
