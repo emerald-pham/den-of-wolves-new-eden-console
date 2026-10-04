@@ -4,7 +4,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { Link, MemoryRouter, Route, Routes } from 'react-router-dom';
 import { useSessionStore } from '@/store/useSessionStore';
 import ShipConsole from './ShipConsole';
-import type { Player } from '@/types/game';
+import type { Player, WolfAttackMemberView, WolfRangeActionChoiceView } from '@/types/game';
 
 const dismantlingPanelMock = vi.hoisted(() => ({ render: vi.fn() }));
 vi.mock('@/components/PermissionedDismantlingPanel', () => ({
@@ -16,11 +16,29 @@ vi.mock('@/components/PermissionedDismantlingPanel', () => ({
 
 vi.mock('@/lib/sessionService', () => ({
   getWolfBoardingDefenceChoice: vi.fn(async () => null),
+  getWolfBoardingSpecialChoice: vi.fn(async () => ({
+    type: 'wolf-boarding-special-choice-unavailable', sessionId: 's1', reason: 'no-special-choice',
+  })),
   getWolfRangeActionChoice: vi.fn(async () => null),
   getWolfForceFieldChoice: vi.fn(async () => null),
   commitWolfBoardingDefenceChoice: vi.fn(),
+  commitWolfBoardingSpecialChoice: vi.fn(async () => ({
+    status: 'committed', type: 'wolf-boarding-special-choice', sessionId: 's1', requestId: 'fixture-choice',
+    turn: 1, revision: 1, currentStep: 'boarding', choiceKind: 'commander',
+  })),
   commitWolfRangeActionChoice: vi.fn(),
+  assignWolfRangeTargets: vi.fn(),
   commitWolfForceFieldChoice: vi.fn(),
+  getAegisEnrichedWarheadChoice: vi.fn(async () => ({
+    type: 'aegis-enriched-warhead-view', sessionId: 's1', attackId: 'fixture-attack',
+    turn: 1, revision: 0, choiceStatus: 'unavailable', eligible: false, oreCost: 5,
+  })),
+  commitAegisEnrichedWarheadChoice: vi.fn(async () => ({
+    type: 'aegis-enriched-warhead-result', status: 'committed', sessionId: 's1',
+    requestId: 'fixture-choice', turn: 1, revision: 1,
+    view: { type: 'aegis-enriched-warhead-view', sessionId: 's1', attackId: 'fixture-attack',
+      turn: 1, revision: 1, choiceStatus: 'passed', eligible: false, oreCost: 5 },
+  })),
   refreshCommissarPurgeAuthority: vi.fn(async () => null),
   adjustShipResource: vi.fn(),
   adjustShipUnrest: vi.fn(),
@@ -39,7 +57,10 @@ vi.mock('@/lib/sessionService', () => ({
 }));
 
 vi.mock('@/lib/firestore', () => ({
-  subscribeWolfAttackMemberView: vi.fn(() => vi.fn()),
+  subscribeWolfAttackMemberView: vi.fn((_sessionId: string, onView: (view: WolfAttackMemberView | null) => void) => {
+    onView(null);
+    return vi.fn();
+  }),
   subscribeShipConfetti: vi.fn(),
   subscribeDamageDraws: vi.fn(),
   subscribeConnectedPlayers: vi.fn(() => vi.fn()),
@@ -70,6 +91,8 @@ const { setGmShipConsoleWriteGrant } = await import('@/lib/sessionService');
 const { adjustShipResource, adjustShipUnrest } = await import('@/lib/sessionService');
 const { buildFighter } = await import('@/lib/sessionService');
 const { getDioneMaliadesLaunch, launchDioneMaliades } = await import('@/lib/sessionService');
+const { getWolfRangeActionChoice, commitWolfRangeActionChoice } = await import('@/lib/sessionService');
+const { subscribeWolfAttackMemberView } = await import('@/lib/firestore');
 const { subscribeShipConfetti } = await import('@/lib/firestore');
 const { subscribeDamageDraws } = await import('@/lib/firestore');
 const { subscribeConnectedPlayers } = await import('@/lib/firestore');
@@ -90,6 +113,12 @@ beforeEach(() => {
     type: 'dione-maliades-launch-view', sessionId: 's1', turn: 1, revision: 0,
     launched: false, eligible: false, reason: 'waiting',
   });
+  vi.mocked(subscribeWolfAttackMemberView).mockReset().mockImplementation((_sessionId, onView) => {
+    onView(null);
+    return vi.fn();
+  });
+  vi.mocked(getWolfRangeActionChoice).mockReset();
+  vi.mocked(commitWolfRangeActionChoice).mockReset().mockResolvedValue(undefined);
   vi.mocked(launchDioneMaliades).mockReset();
   vi.mocked(selectConsoleRole).mockReset();
   vi.mocked(selectConsoleRole).mockImplementation(async (roleId) => {
@@ -1381,7 +1410,54 @@ it('gives the Wing Commander Starlight and fighter-wing operations without XO sy
   expect(screen.getByText('Starlight shuttle destination')).toBeInTheDocument();
 });
 
-it('keeps every registered AEGIS combat console reference-only until attack resolvers land', () => {
+it('connects AEGIS combat stations to the current Executive Officer range choice', async () => {
+  const session = useSessionStore.getState().session;
+  const me = useSessionStore.getState().me;
+  if (!session || !me) throw new Error('Expected the test session and player.');
+  useSessionStore.getState().setSession({
+    ...session,
+    phase: 'active',
+    currentTurn: 2,
+    activeRoleIds: ['executive-officer'],
+    activeVesselIds: ['aegis'],
+  });
+  useSessionStore.getState().setMe({
+    ...me,
+    assignedRoleId: 'executive-officer',
+    seatId: 'executive-officer',
+    activeConsoleRoleId: 'executive-officer',
+    fleetGroupId: 'fleet-1',
+  });
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+
+  const memberView: WolfAttackMemberView = {
+    type: 'wolf-attack-member-view', schemaVersion: 1, sessionId: 's1', attackId: 'attack-1',
+    turn: 2, revision: 4, status: 'declared', phase: 'active', currentStep: 'medium-range', range: 'medium',
+    deadlineAt: '2026-10-04T13:00:00.000Z', serverTime: '2026-10-04T12:45:00.000Z',
+    visibility: 'members', redaction: ['composition', 'unresolved-dice', 'facilitator-notes', 'intervention-state'],
+    results: [],
+  };
+  const rangeChoice: WolfRangeActionChoiceView = {
+    type: 'wolf-range-action-choice-view', sessionId: 's1', turn: 2, revision: 4,
+    currentStep: 'medium-range', range: 'medium-range', choiceStatus: 'pending',
+    deadlineAt: memberView.deadlineAt,
+    eligibleActions: [
+      { actionId: 'aegis-missile-launchers-medium', sourceId: 'aegis-missile-launchers', range: 'medium-range' },
+      { actionId: 'aegis-point-defence-medium', sourceId: 'aegis-point-defence-lasers', range: 'medium-range' },
+    ],
+    hitSlots: [],
+    contacts: [
+      { contactId: 'contact-1', targetShipId: 'dione', available: true },
+      { contactId: 'contact-2', targetShipId: 'shepherd', available: true },
+    ],
+  };
+  vi.mocked(subscribeWolfAttackMemberView).mockImplementation((_sessionId, onView) => {
+    onView(memberView);
+    return vi.fn();
+  });
+  vi.mocked(getWolfRangeActionChoice).mockResolvedValue(rangeChoice);
+
   render(
     <MemoryRouter initialEntries={['/ships/aegis/roles/executive-officer']}>
       <Routes><Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} /></Routes>
@@ -1408,6 +1484,15 @@ it('keeps every registered AEGIS combat console reference-only until attack reso
     expect(system).toBeVisible();
     expect(system.querySelector('button, a, input, select, textarea')).toBeNull();
   }
+
+  const actions = await screen.findByRole('region', { name: 'Wolf range actions' });
+  expect(within(actions).getByRole('checkbox', { name: 'Missile launchers' })).toBeVisible();
+  expect(within(actions).getByRole('checkbox', { name: 'Point-defence lasers' })).toBeVisible();
+  await userEvent.click(within(actions).getByRole('checkbox', { name: 'Missile launchers' }));
+  await userEvent.click(within(actions).getByRole('button', { name: 'Use selected actions' }));
+  expect(commitWolfRangeActionChoice).toHaveBeenCalledWith(
+    2, 4, 'medium-range', ['aegis-missile-launchers-medium'],
+  );
 });
 
 it('shows AEGIS battle-sheet damage through the shared fleet systems workspace', () => {
@@ -2148,7 +2233,8 @@ it('exposes the live Construction Bay action on the Wing Commander cards', async
     <Routes><Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} /></Routes>
   </MemoryRouter>);
 
-  const alpha = screen.getByRole('heading', { name: 'Fighter Wing Alpha' }).closest('article');
+  const wingWorkspace = screen.getByRole('region', { name: 'AEGIS Wing Commander console' });
+  const alpha = within(wingWorkspace).getByRole('heading', { name: 'Fighter Wing Alpha' }).closest('article');
   if (!alpha) throw new Error('Expected Fighter Wing Alpha card.');
   const build = within(alpha).getByRole('button', { name: /build 1 fighter/i });
   expect(build).toBeEnabled();

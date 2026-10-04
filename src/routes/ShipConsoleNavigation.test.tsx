@@ -3,15 +3,33 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { useSessionStore } from '@/store/useSessionStore';
+import type { WolfAttackMemberView } from '@/types/game';
 import ShipConsole from './ShipConsole';
 
 vi.mock('@/lib/sessionService', () => ({
   getWolfBoardingDefenceChoice: vi.fn(async () => null),
+  getWolfBoardingSpecialChoice: vi.fn(async () => ({
+    type: 'wolf-boarding-special-choice-unavailable', sessionId: 's1', reason: 'no-special-choice',
+  })),
   getWolfRangeActionChoice: vi.fn(async () => null),
   getWolfForceFieldChoice: vi.fn(async () => null),
   commitWolfBoardingDefenceChoice: vi.fn(),
+  commitWolfBoardingSpecialChoice: vi.fn(async () => ({
+    status: 'committed', type: 'wolf-boarding-special-choice', sessionId: 's1', requestId: 'fixture-choice',
+    turn: 1, revision: 1, currentStep: 'boarding', choiceKind: 'commander',
+  })),
   commitWolfRangeActionChoice: vi.fn(),
   commitWolfForceFieldChoice: vi.fn(),
+  getAegisEnrichedWarheadChoice: vi.fn(async () => ({
+    type: 'aegis-enriched-warhead-view', sessionId: 's1', attackId: 'fixture-attack',
+    turn: 1, revision: 0, choiceStatus: 'unavailable', eligible: false, oreCost: 5,
+  })),
+  commitAegisEnrichedWarheadChoice: vi.fn(async () => ({
+    type: 'aegis-enriched-warhead-result', status: 'committed', sessionId: 's1',
+    requestId: 'fixture-choice', turn: 1, revision: 1,
+    view: { type: 'aegis-enriched-warhead-view', sessionId: 's1', attackId: 'fixture-attack',
+      turn: 1, revision: 1, choiceStatus: 'passed', eligible: false, oreCost: 5 },
+  })),
   refreshCommissarPurgeAuthority: vi.fn(async () => null),
   getAegisCommandAndControl: vi.fn(async () => ({
     type: 'aegis-command-and-control-view', sessionId: 's1', turn: 1, revision: 0,
@@ -25,7 +43,10 @@ vi.mock('@/lib/sessionService', () => ({
 }));
 
 vi.mock('@/lib/firestore', () => ({
-  subscribeWolfAttackMemberView: vi.fn(() => vi.fn()),
+  subscribeWolfAttackMemberView: vi.fn((_sessionId: string, onView: (view: WolfAttackMemberView | null) => void) => {
+    onView(null);
+    return vi.fn();
+  }),
   subscribeShipConfetti: vi.fn(() => vi.fn()),
   subscribeDamageDraws: vi.fn(() => vi.fn()),
   subscribeConnectedPlayers: vi.fn(() => vi.fn()),

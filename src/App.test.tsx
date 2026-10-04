@@ -7,7 +7,7 @@ import {
   SESSION_STORAGE_KEY,
   useSessionStore,
 } from '@/store/useSessionStore';
-import type { ArbourVision, CommissarPurgeAuthority, FacilitatorRuleCall, GameSession, GmInstance, LoyaltyCensus, Player, RoleBrief, SetupReceipt, WolfCultIntelligence } from '@/types/game';
+import type { ArbourVision, CommissarPurgeAuthority, FacilitatorRuleCall, GameSession, GmInstance, LoyaltyCensus, Player, RoleBrief, SetupReceipt, WolfAttackMemberView, WolfCultIntelligence } from '@/types/game';
 import { SHIP_PLOT_RESIZE_MS } from '@/components/ShipPlot';
 import { SESSION_WAIVER_STORAGE_KEY } from '@/lib/sessionWaiver';
 import { MOTION_SAFETY_STORAGE_KEY } from '@/lib/motionSafety';
@@ -16,11 +16,28 @@ import { normalizeCommandError } from '@/lib/commandErrors';
 
 vi.mock('@/lib/sessionService', () => ({
   getWolfBoardingDefenceChoice: vi.fn(async () => null),
+  getWolfBoardingSpecialChoice: vi.fn(async () => ({
+    type: 'wolf-boarding-special-choice-unavailable', sessionId: 's1', reason: 'no-special-choice',
+  })),
   getWolfRangeActionChoice: vi.fn(async () => null),
   getWolfForceFieldChoice: vi.fn(async () => null),
   commitWolfBoardingDefenceChoice: vi.fn(),
+  commitWolfBoardingSpecialChoice: vi.fn(async () => ({
+    status: 'committed', type: 'wolf-boarding-special-choice', sessionId: 's1', requestId: 'fixture-choice',
+    turn: 1, revision: 1, currentStep: 'boarding', choiceKind: 'commander',
+  })),
   commitWolfRangeActionChoice: vi.fn(),
   commitWolfForceFieldChoice: vi.fn(),
+  getAegisEnrichedWarheadChoice: vi.fn(async () => ({
+    type: 'aegis-enriched-warhead-view', sessionId: 's1', attackId: 'fixture-attack',
+    turn: 1, revision: 0, choiceStatus: 'unavailable', eligible: false, oreCost: 5,
+  })),
+  commitAegisEnrichedWarheadChoice: vi.fn(async () => ({
+    type: 'aegis-enriched-warhead-result', status: 'committed', sessionId: 's1',
+    requestId: 'fixture-choice', turn: 1, revision: 1,
+    view: { type: 'aegis-enriched-warhead-view', sessionId: 's1', attackId: 'fixture-attack',
+      turn: 1, revision: 1, choiceStatus: 'passed', eligible: false, oreCost: 5 },
+  })),
   CONNECT_RETRY_INTERVAL_MS: 2_000,
   connectAutomatically: vi.fn().mockResolvedValue(undefined),
   beginOpenAirspacePhase: vi.fn().mockResolvedValue(undefined),
@@ -49,7 +66,10 @@ vi.mock('@/lib/firestore', () => ({
   sessionSnapshotAuthorityFor: vi.fn(() => ({ hasServerSessionAuthority: false })),
   subscribeConnectedPlayers: vi.fn(() => vi.fn()),
   subscribeSessionState: vi.fn(() => vi.fn()),
-  subscribeWolfAttackMemberView: vi.fn(() => vi.fn()),
+  subscribeWolfAttackMemberView: vi.fn((_sessionId: string, onView: (view: WolfAttackMemberView | null) => void) => {
+    onView(null);
+    return vi.fn();
+  }),
   subscribeLoyaltyCensus: vi.fn(() => vi.fn()),
   subscribeGmWolfHackingAlerts: vi.fn(() => vi.fn()),
   subscribePlayerHackingNotices: vi.fn(() => vi.fn()),

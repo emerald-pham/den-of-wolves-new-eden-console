@@ -3,15 +3,15 @@ import { expect, it, vi } from 'vitest';
 import { PC07AttackReview } from './PC07ReviewParts';
 
 const native = vi.hoisted(() => ({ commit: vi.fn(), read: vi.fn(), subscribe: vi.fn() }));
-vi.mock('@/lib/sessionService', async importOriginal => ({
-  ...await importOriginal<typeof import('@/lib/sessionService')>(),
+vi.mock(import('@/lib/sessionService'), async importOriginal => ({
+  ...await importOriginal(),
   commitWolfForceFieldChoice: native.commit, getWolfForceFieldChoice: native.read,
   commitWolfRangeActionChoice: native.commit, commitWolfRangeTargets: native.commit,
   getWolfRangeActionChoice: native.read, commitWolfBoardingDefenceChoice: native.commit,
   getWolfBoardingDefenceChoice: native.read,
 }));
-vi.mock('@/lib/firestore', async importOriginal => ({
-  ...await importOriginal<typeof import('@/lib/firestore')>(), subscribeWolfAttackMemberView: native.subscribe,
+vi.mock(import('@/lib/firestore'), async importOriginal => ({
+  ...await importOriginal(), subscribeWolfAttackMemberView: native.subscribe,
 }));
 
 it('lets the owner choose a local Captain target in the actual prepared presenter', () => {
@@ -27,7 +27,8 @@ it('lets the owner choose a local Captain target in the actual prepared presente
 
 it('retains the real explicit range pass and target assignment controls', () => {
   render(<PC07AttackReview />);
-  const range = screen.getByRole('region', { name: 'AEGIS range weapons' });
+  const preparedChoices = screen.getByRole('region', { name: 'Actual prepared attack choices' });
+  const range = within(preparedChoices).getByRole('region', { name: 'Wolf range actions' });
   fireEvent.click(within(range).getByRole('button', { name: 'Pass this range' }));
   expect(screen.getByRole('status', { name: 'Prepared choice callback result' })).toHaveTextContent('Local range pass');
   fireEvent.click(screen.getByRole('button', { name: 'Show locked hit targets sample' }));
