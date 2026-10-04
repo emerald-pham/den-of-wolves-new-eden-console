@@ -76,7 +76,8 @@ function put(path: string, fields: Fields): void {
 }
 
 function provision(currentTurn = 2, phase: 'team' | 'coordination' = 'team'): void {
-  const now = new Date();
+  const startedAt = phase === 'team' ? '2026-10-04T10:30:00.000Z' : '2026-10-04T11:00:00.000Z';
+  const endsAt = phase === 'team' ? '2026-10-04T11:00:00.000Z' : '2026-10-04T11:30:00.000Z';
   put('sessions/s1', {
     phase: 'active', currentTurn,
     activeRoleIds: ['dione-president', 'icebreaker-captain', 'shepherd-scientist'],
@@ -87,10 +88,10 @@ function provision(currentTurn = 2, phase: 'team' | 'coordination' = 'team'): vo
       openAirspaceEndsAt: '2026-10-04T11:30:00.000Z',
       airspace: { state: phase === 'team' ? 'restricted' : 'lifted', tickerActive: true, pressAccess: phase === 'coordination' },
     },
-    turnState: { currentTurn, maxTurn: 6, phase, phaseRevision: 1, startedAt: now.toISOString(), endsAt: '2026-10-04T11:30:00.000Z' },
+    turnState: { currentTurn, maxTurn: 6, phase, phaseRevision: 1, startedAt, endsAt },
   });
   put('sessions/s1/players/gm', { uid: 'gm', role: 'gm', connected: true });
-  put('sessions/s1/gmInstances/gm-instance', { uid: 'gm', connected: true, lastSeenAt: now });
+  put('sessions/s1/gmInstances/gm-instance', { uid: 'gm', connected: true, lastSeenAt: new Date() });
   put('sessions/s1/players/u2', { uid: 'u2', role: 'player', connected: true, assignedRoleId: 'dione-president' });
   put('sessions/s1/players/u3', { uid: 'u3', role: 'player', connected: true, assignedRoleId: 'icebreaker-captain' });
   put('sessions/s1/players/u4', { uid: 'u4', role: 'player', connected: true, assignedRoleId: 'shepherd-scientist' });
@@ -143,9 +144,9 @@ it('calculates a private population-weighted tally after the close cycle and com
   await configurePresidentialElection.run(request({
     sessionId: 's1', instanceId: 'gm-instance', requestId: 'configure-election', expectedRevision: 0, policy,
   }));
-  put('sessions/s1/presidentialElections/current/ballots/u2', { voterUid: 'u2', ballot: { presidentUid: 'u3', vicePresidentUid: 'u4' } });
-  put('sessions/s1/presidentialElections/current/ballots/u3', { voterUid: 'u3', ballot: { presidentUid: 'u3', vicePresidentUid: 'u2' } });
-  put('sessions/s1/presidentialElections/current/ballots/u4', { voterUid: 'u4', ballot: { presidentUid: 'u2', vicePresidentUid: 'u2' } });
+  put('sessions/s1/presidentialElections/current/ballots/u2', { type: 'presidential-election-ballot', sessionId: 's1', voterUid: 'u2', ballot: { presidentUid: 'u3', vicePresidentUid: 'u4' } });
+  put('sessions/s1/presidentialElections/current/ballots/u3', { type: 'presidential-election-ballot', sessionId: 's1', voterUid: 'u3', ballot: { presidentUid: 'u3', vicePresidentUid: 'u2' } });
+  put('sessions/s1/presidentialElections/current/ballots/u4', { type: 'presidential-election-ballot', sessionId: 's1', voterUid: 'u4', ballot: { presidentUid: 'u2', vicePresidentUid: 'u3' } });
   put('sessions/s1/players/u2', { uid: 'u2', role: 'player', connected: true, displayName: 'President Candidate' });
   put('sessions/s1/players/u3', { uid: 'u3', role: 'player', connected: true, displayName: 'Icebreaker Candidate' });
   put('sessions/s1/players/u4', { uid: 'u4', role: 'player', connected: true, displayName: 'Shepherd Candidate' });
