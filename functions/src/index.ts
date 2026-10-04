@@ -22209,6 +22209,32 @@ async function reconcileWolfAttackBoarding(
   const gmInstances = casualtyAlerts.length > 0
     ? await tx.get(db.collection(`sessions/${sessionId}/gmInstances`)) : undefined;
   const targetGmInstanceIds = gmInstances?.docs.map((instance) => instance.id) ?? [];
+  // Printed front-line deaths revoke the exact committed character in this
+  // resolution transaction and use the existing replacement eligibility flow.
+  const militiaChoices = state.get('boardingMilitiaChoices');
+  const characterDeaths: Array<Readonly<{
+    actorUid: string; roleId: 'rosal-militia-leader'; choiceRequestId: string;
+    targetShipId: string; reason: 'front-line-die-one';
+  }>> = [];
+  for (const boarding of receipt.boarding) {
+    if (!boarding.militiaLeaderKilled) continue;
+    const choice = isRecord(militiaChoices) ? militiaChoices[boarding.target] : undefined;
+    const actor = isRecord(choice) ? players.find((player) => player.id === choice.actorUid) : undefined;
+    if (!isRecord(choice) || choice.turn !== currentTurn || !isCanonicalRequestId(choice.requestId) ||
+        !actor || !currentRolePlayer(actor) || actor.get('replacementRoleId') !== 'rosal-militia-leader' ||
+        choice.attackId !== undefined && choice.attackId !== attackId ||
+        characterDeaths.some(({ actorUid }) => actorUid === actor.id)) return;
+    characterDeaths.push({ actorUid: actor.id, roleId: 'rosal-militia-leader',
+      choiceRequestId: choice.requestId, targetShipId: boarding.target, reason: 'front-line-die-one' });
+  }
+  const deathAuthorities = await Promise.all(characterDeaths.map(async (death) => {
+    const actor = players.find((player) => player.id === death.actorUid)!;
+    const eligibility = await tx.get(db.doc(`sessions/${sessionId}/replacementEligibility/${death.actorUid}`));
+    const seatId = actor.get('seatId');
+    const seat = typeof seatId === 'string'
+      ? await tx.get(db.doc(`sessions/${sessionId}/seats/${seatId}`)) : undefined;
+    return { death, eligibility, seat };
+  }));
   const audienceAlert = (shipId: string) => ({
     shipId, shipName: (FLEET_SHIP_NAMES as Readonly<Record<string, string>>)[shipId] ?? shipId,
     targetGmInstanceIds, createdAt: committedAt,
@@ -22303,6 +22329,7 @@ async function reconcileWolfAttackBoarding(
   const sessionPatch: Record<string, unknown> = {
     turnPhase: reopenedPhase, ...(turnState ? { turnState } : {}), fleetTicker,
     populationAlerts, unrestAlerts,
+    ...(characterDeaths.length > 0 ? { setupRevision: setupRevision(session) + characterDeaths.length } : {}),
     updatedAt: FieldValue.serverTimestamp(),
   };
   for (const [target, damage] of Object.entries(nextShipDamage)) {
@@ -22371,6 +22398,32 @@ async function reconcileWolfAttackBoarding(
     }));
   }
 
+  for (const { death, eligibility, seat } of deathAuthorities) {
+    const deathRequestId = `wolf-boarding-death-${attackId}-${death.actorUid}`;
+    const eligibilityRevision = replacementRevision(eligibility) + 1;
+    tx.update(db.doc(`sessions/${sessionId}/players/${death.actorUid}`), {
+      replacementRoleId: null, replacementStatus: 'awaiting-re-role',
+      activeConsoleRoleId: null, seatId: null,
+    });
+    if (seat?.exists && seat.get('status') === 'claimed' && seat.get('holderUid') === death.actorUid) {
+      tx.update(seat.ref, { status: 'open', holderUid: null, claimedAt: null });
+    }
+    tx.delete(db.doc(`sessions/${sessionId}/roleBriefs/${death.actorUid}`));
+    tx.delete(playerDiscoveryProjectionRef(sessionId, death.actorUid));
+    const eligibilityRecord = {
+      sessionId, targetUid: death.actorUid, reason: 'dead', eligible: true,
+      revision: eligibilityRevision, actorUid: 'server', requestId: deathRequestId,
+      source: 'wolf-boarding', attackId, targetShipId: death.targetShipId,
+      choiceRequestId: death.choiceRequestId, recordedAt: committedAt,
+    };
+    tx.set(db.doc(`sessions/${sessionId}/replacementEligibility/${death.actorUid}`), {
+      ...eligibilityRecord, updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(db.doc(`sessions/${sessionId}/replacementEligibility/${death.actorUid}/audit/${deathRequestId}`), {
+      ...eligibilityRecord, createdAt: FieldValue.serverTimestamp(),
+    });
+  }
+
   tx.update(db.doc(`sessions/${sessionId}`), sessionPatch);
   tx.update(db.doc(`sessions/${sessionId}/wolfAttackState/current`), resolvedState);
   tx.set(db.doc(`sessions/${sessionId}/wolfAttackState/current/audit/wolf-finalized-${turn}`), {
@@ -22381,6 +22434,12 @@ async function reconcileWolfAttackBoarding(
     ...(typeof state.get('previousAttackId') === 'string'
       ? { previousAttackId: state.get('previousAttackId') } : {}),
     ...(isRecord(state.get('carryover')) ? { carryover: state.get('carryover') } : {}),
+    characterDeaths,
+    boardingRerollAvailability: {
+      aegis: protocol.rerollChoices.aegis !== undefined ? { status: 'committed' }
+        : (protocol.diceCounts.aegis ?? 0) > 0 && protocol.aegisRerollActorUid === undefined
+          ? { status: 'unavailable', reason: 'no-current-executive-officer' } : { status: 'not-required' },
+    },
     boardingChoices: choices, rangeReceipts: ranges, createdAt: FieldValue.serverTimestamp(),
   });
   const eventId = `wolf-attack-resolved-${attackId}`;
@@ -26778,7 +26837,21 @@ function wolfBoardingResolutionChoices(
   const militia = isRecord(rawMilitia) ? rawMilitia : {};
   const rerolls = isRecord(rawRerolls) ? rawRerolls : {};
   const locked = Array.isArray(rawLocked) ? rawLocked as readonly WolfBoardingDefence[] : [];
-  const pallasHost = supportCraft.find(({ shuttleId }) => shuttleId === 'pallas')?.hostShipId ?? null;
+  let pallasHost = supportCraft.find(({ shuttleId }) => shuttleId === 'pallas')?.hostShipId ?? null;
+  // A committed reroll belongs to the locked defence, even if its holder later
+  // loses availability. Current custody still gates new submissions and replay.
+  const committedPallas = rerolls.pallas;
+  if (committedPallas !== undefined) {
+    if (!requireLockedRolls || !isRecord(committedPallas) ||
+        typeof committedPallas.actorUid !== 'string' || !isCanonicalRequestId(committedPallas.requestId) ||
+        committedPallas.turn !== inputs.turn || !Number.isSafeInteger(committedPallas.revision) ||
+        (committedPallas.revision as number) > inputs.revision ||
+        committedPallas.attackId !== undefined && committedPallas.attackId !== state.get('attackId')) return undefined;
+    const committedDefence = locked.find((entry) => entry.target === committedPallas.targetShipId);
+    if (!committedDefence || committedDefence.pallasRerollAvailable !== true ||
+        !Array.isArray(committedDefence.lockedRolls)) return undefined;
+    pallasHost = committedDefence.target;
+  }
   const attackedTargetIds = new Set(attackedTargets.map(({ target }) => target));
   if (Object.keys(rerolls).some((source) => source !== 'aegis' && source !== 'pallas')) return undefined;
   for (const source of ['aegis', 'pallas'] as const) {
@@ -26854,13 +26927,17 @@ type WolfBoardingProtocolSnapshot = Readonly<{
   protocol: WolfBoardingProtocolInput;
 }>;
 
-function wolfBoardingProtocolSnapshot(
+// Availability follows the current assignment and authoritative berth, not console presence.
+function currentRolePlayer(player: DocumentSnapshot): boolean {
+  return player.get('role') === 'player' && !isKickedPlayer(player) &&
+    player.get('replacementStatus') == null && playerEscapeState(player) === undefined;
+}
+
+function wolfBoardingCurrentAuthority(
   session: DocumentSnapshot,
-  state: DocumentSnapshot,
   players: readonly DocumentSnapshot[],
   fleetGroupSnapshots: readonly DocumentSnapshot[],
-): WolfBoardingProtocolSnapshot {
-  const inputs = wolfBoardingDefenceInputs(session, state);
+): Readonly<{ supportCraft: readonly WolfBoardingCraftAuthority[]; playerShipByUid: ReadonlyMap<string, string> }> {
   const groups = fleetGroupSnapshots.flatMap((snapshot) => {
     const group = fleetGroupRecord(snapshot.data());
     return group ? [group] : [];
@@ -26889,10 +26966,8 @@ function wolfBoardingProtocolSnapshot(
   const supportVisits = (rawVisits as unknown[]).filter((visit) => isRecord(visit) &&
     typeof visit.shuttleId === 'string' && boardingSupportShuttleIds.has(visit.shuttleId)) as
       WolfBoardingCraftAuthorityInput['visits'];
-  const currentRolePlayer = (player: DocumentSnapshot) => player.get('role') === 'player' &&
-    !isKickedPlayer(player) && player.get('replacementStatus') == null && playerEscapeState(player) === undefined;
   const roleHolders = players.flatMap((player) => {
-    if (!currentRolePlayer(player)) return [];
+    if (!currentRolePlayer(player) || player.get('replacementRoleId') != null) return [];
     const roleId = shuttleOwnerRoleForPlayer(player);
     return roleId ? [{ uid: player.id, roleId }] : [];
   });
@@ -26910,6 +26985,17 @@ function wolfBoardingProtocolSnapshot(
     throw commandError('failed-precondition',
       error instanceof Error ? error.message : 'The authoritative boarding shuttle support is malformed.', 'conflict');
   }
+  return { supportCraft, playerShipByUid };
+}
+
+function wolfBoardingProtocolSnapshot(
+  session: DocumentSnapshot,
+  state: DocumentSnapshot,
+  players: readonly DocumentSnapshot[],
+  fleetGroupSnapshots: readonly DocumentSnapshot[],
+): WolfBoardingProtocolSnapshot {
+  const inputs = wolfBoardingDefenceInputs(session, state);
+  const { supportCraft, playerShipByUid } = wolfBoardingCurrentAuthority(session, players, fleetGroupSnapshots);
   const assignedCommanders = players.filter((player) => currentRolePlayer(player) &&
     player.get('replacementRoleId') === 'wolf-commander').map((player) => player.id);
   if (assignedCommanders.length > 1) {
@@ -26962,7 +27048,7 @@ function wolfBoardingProtocolSnapshot(
     if (militia[0]) militiaUidByTarget[target] = militia[0].id;
   }
   const executiveOfficers = players.filter((player) => currentRolePlayer(player) &&
-    player.get('activeConsoleRoleId') === 'executive-officer' &&
+    player.get('replacementRoleId') == null &&
     boundCoreConsoleRole(player.get('assignedRoleId'), player.get('seatId')) === 'executive-officer' &&
     playerShipByUid.get(player.id) === 'aegis');
   if (executiveOfficers.length > 1) {
@@ -27339,12 +27425,13 @@ export const getWolfBoardingSpecialChoice = onCall<{
       }
       const availableSecurityTeams = isRecord(defense) && Number.isSafeInteger(defense.availableBefore)
         ? defense.availableBefore as number : wolfBoardingSecurityTeams(session, stage.target);
+      const boardingParties = snapshot.protocol.attackedTargets.find(({ target }) => target === stage.target)!.boardingParties;
       return { type: 'wolf-boarding-special-choice-view', sessionId, turn: snapshot.inputs.turn,
         revision: snapshot.inputs.revision, choice: { kind: 'militia', targetShipId: stage.target as WolfFleetTargetId,
-          boardingParties: snapshot.inputs.boardingParties[stage.target as WolfFleetTargetId], availableSecurityTeams,
+          boardingParties, availableSecurityTeams,
           selectedSecurityTeams: defense.securityTeams as number,
           maxFrontLineDice: Math.min(3, availableSecurityTeams),
-          doubleDiceAvailable: snapshot.inputs.boardingParties[stage.target as WolfFleetTargetId] > availableSecurityTeams } };
+          doubleDiceAvailable: boardingParties > availableSecurityTeams } };
     }
     if (stage.kind === 'aegis-reroll') {
       requireAegisExecutiveOfficerPlayer(player, uid);
@@ -27439,24 +27526,68 @@ export const commitWolfBoardingSpecialChoice = onCall<{
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     if (!player.exists) throw new HttpsError('permission-denied', 'Join the session first.');
-    const replay = replayBoundCommand(receipt, fingerprint, isWolfBoardingSpecialChoiceResult,
-      'Wolf boarding special choice');
-    if (replay) return replay;
-    const snapshot = wolfBoardingProtocolSnapshot(session, state, players.docs, groups.docs);
     if (kind === 'commander') {
       requireWolfCommanderPlayer(player, uid);
+      requireWolfBoardingSpecialPlayer(player, uid);
     } else if (kind === 'relocation' || kind === 'reroll' && choice.source === 'pallas') {
       requireWolfBoardingSpecialPlayer(player, uid);
     } else if (kind === 'reroll' && choice.source === 'aegis') {
       requireAegisExecutiveOfficerPlayer(player, uid);
+      if (player.get('replacementRoleId') != null) {
+        throw new HttpsError('permission-denied', 'The current AEGIS Executive Officer assignment is required.');
+      }
+      const group = groups.docs.find((candidate) => candidate.id === currentPlayerFleetGroupId(player));
+      if (!group) throw new HttpsError('permission-denied', 'A current AEGIS berth is required.');
+      requireAegisExecutiveOfficerCurrentBerth(player, uid, group);
     } else if (kind === 'militia') {
-      if (!isActivePlayer(player) || player.get('role') !== 'player' || player.get('replacementStatus') != null ||
-          player.get('replacementRoleId') !== 'rosal-militia-leader') {
+      requireWolfBoardingSpecialPlayer(player, uid);
+      if (player.get('replacementRoleId') !== 'rosal-militia-leader') {
         throw new HttpsError('permission-denied', 'The active Rosal Militia Leader is required.');
       }
-    } else if (kind === 'commander-ruling' && player.get('role') !== 'gm') {
-      throw new HttpsError('permission-denied', 'Only the active facilitator may record a Commander ruling.');
+      const group = groups.docs.find((candidate) => candidate.id === currentPlayerFleetGroupId(player));
+      if (!group || requireWolfBoardingPlayerBerth(player, uid, group).targetShipId !== choice.targetShipId) {
+        throw new HttpsError('permission-denied', 'The Militia Leader must be at the attacked ship.');
+      }
+    } else if (kind === 'commander-ruling') {
+      await requireFacilitatorInstance(tx, sessionId, uid, raw.instanceId as string);
     }
+    const replay = replayBoundCommand(receipt, fingerprint, isWolfBoardingSpecialChoiceResult,
+      'Wolf boarding special choice');
+    if (replay) {
+      const ledger = kind === 'commander' ? state.get('boardingCommanderChoice')
+        : kind === 'commander-ruling' ? state.get('boardingCommanderRuling')
+        : kind === 'relocation' ? state.get('boardingRelocationChoices')?.[choice.craftId as string]
+        : kind === 'militia' ? state.get('boardingMilitiaChoices')?.[choice.targetShipId as string]
+        : state.get('boardingRerollChoices')?.[choice.source as string];
+      if (!state.exists || state.get('type') !== 'wolf-attack-state' ||
+          typeof state.get('attackId') !== 'string' || !state.get('attackId') ||
+          sessionTurn(session.get('currentTurn')) !== replay.turn || state.get('turn') !== replay.turn ||
+          replay.turn !== raw.expectedTurn || replay.choiceKind !== kind ||
+          replay.revision !== (raw.expectedRevision as number) + 1 ||
+          !Number.isSafeInteger(state.get('revision')) || state.get('revision') < replay.revision ||
+          !isRecord(ledger) || ledger.actorUid !== uid || ledger.requestId !== requestId ||
+          ledger.turn !== replay.turn || ledger.revision !== replay.revision ||
+          receipt.get('attackId') !== undefined && receipt.get('attackId') !== state.get('attackId') ||
+          ledger.attackId !== undefined && ledger.attackId !== state.get('attackId')) {
+        throw commandError('failed-precondition', 'The saved boarding receipt belongs to an unavailable attack.', 'stale-revision');
+      }
+      if (kind === 'relocation' || kind === 'reroll' && choice.source === 'pallas') {
+        const { supportCraft } = wolfBoardingCurrentAuthority(session, players.docs, groups.docs);
+        const craftId = kind === 'relocation' ? choice.craftId : 'pallas';
+        const authority = supportCraft.find(({ shuttleId }) => shuttleId === craftId);
+        const host = kind === 'relocation' ? ledger.hostAfter : ledger.targetShipId;
+        const controlRevision = kind === 'relocation' ? ledger.controlRevisionAfter : ledger.controlRevision;
+        if (!authority || authority.holderUid !== uid || authority.hostShipId !== host ||
+            controlRevision !== undefined && authority.controlRevision !== controlRevision) {
+          throw new HttpsError('permission-denied', 'The saved boarding choice no longer has current shuttle custody.');
+        }
+      }
+      return replay;
+    }
+    if (typeof state.get('attackId') !== 'string' || !state.get('attackId')) {
+      throw commandError('failed-precondition', 'The current boarding attack identity is unavailable.', 'stale-revision');
+    }
+    const snapshot = wolfBoardingProtocolSnapshot(session, state, players.docs, groups.docs);
     if (raw.expectedTurn !== snapshot.inputs.turn || raw.expectedRevision !== snapshot.inputs.revision) {
       throw commandError('failed-precondition', 'The boarding choice is stale. Refresh the current attack.', 'stale-revision');
     }
@@ -27475,7 +27606,7 @@ export const commitWolfBoardingSpecialChoice = onCall<{
         throw commandError('failed-precondition', 'Lead only one current Wolf boarding target.', 'conflict');
       }
       statePatch = { boardingCommanderChoice: { targetShipId: choiceTargetId, actorUid: uid,
-        actorRoleId: 'wolf-commander', requestId, turn: snapshot.inputs.turn,
+        actorRoleId: 'wolf-commander', requestId, attackId: state.get('attackId'), turn: snapshot.inputs.turn,
         committedAt, revision: snapshot.inputs.revision + 1 } };
     } else if (kind === 'relocation') {
       if (stage.kind !== 'relocation' || stage.actorUid !== uid || stage.craftId !== choice.craftId) {
@@ -27512,7 +27643,7 @@ export const commitWolfBoardingSpecialChoice = onCall<{
       sessionPatch = { shuttleDockings: moved.dockings, shuttleVisitLog: moved.visits, shuttleControl: moved.control };
       const previous = isRecord(state.get('boardingRelocationChoices')) ? state.get('boardingRelocationChoices') as Record<string, unknown> : {};
       statePatch = { boardingRelocationChoices: { ...previous, [stage.craftId]: {
-        target: choice.targetShipId as string | null, actorUid: uid, requestId, turn: snapshot.inputs.turn,
+        target: choice.targetShipId as string | null, actorUid: uid, requestId, attackId: state.get('attackId'), turn: snapshot.inputs.turn,
         hostBefore: authority.hostShipId, hostAfter: choice.targetShipId ?? authority.hostShipId,
         controlRevisionBefore: authority.controlRevision, controlRevisionAfter: moved.control[stage.craftId]?.revision,
         committedAt, revision: snapshot.inputs.revision + 1,
@@ -27533,7 +27664,7 @@ export const commitWolfBoardingSpecialChoice = onCall<{
       const defense = snapshot.inputs.choices[stage.target];
       const available = isRecord(defense) && Number.isSafeInteger(defense.availableBefore)
         ? defense.availableBefore as number : wolfBoardingSecurityTeams(session, stage.target);
-      const parties = snapshot.inputs.boardingParties[stage.target as WolfFleetTargetId];
+      const parties = snapshot.protocol.attackedTargets.find(({ target }) => target === stage.target)!.boardingParties;
       if (choice.militiaDoubleTeams === true && parties <= available) {
         throw commandError('failed-precondition', 'Double dice are available only while parties outnumber Security Teams.', 'conflict');
       }
@@ -27544,7 +27675,7 @@ export const commitWolfBoardingSpecialChoice = onCall<{
       statePatch = { boardingMilitiaChoices: { ...previous, [stage.target]: {
         targetShipId: stage.target, militiaDoubleTeams: choice.militiaDoubleTeams,
         militiaFrontLineDice: choice.militiaFrontLineDice, actorUid: uid,
-        actorRoleId: 'rosal-militia-leader', requestId, turn: snapshot.inputs.turn,
+        actorRoleId: 'rosal-militia-leader', requestId, attackId: state.get('attackId'), turn: snapshot.inputs.turn,
         committedAt, revision: snapshot.inputs.revision + 1,
       } } };
     } else if (kind === 'reroll') {
@@ -27600,16 +27731,16 @@ export const commitWolfBoardingSpecialChoice = onCall<{
       rerolledValues = lockedRerollValues;
       statePatch = { boardingRerollChoices: { ...previous, [sourceKey]: {
         source, targetShipId: target, dieIndexes: [...dieIndexes], rolls: [...rerolledValues], actorUid: uid,
-        requestId, turn: snapshot.inputs.turn, committedAt, revision: snapshot.inputs.revision + 1,
+        ...(source === 'pallas' ? { controlRevision: snapshot.supportCraft.find(({ shuttleId }) => shuttleId === 'pallas')!.controlRevision } : {}),
+        requestId, attackId: state.get('attackId'), turn: snapshot.inputs.turn, committedAt, revision: snapshot.inputs.revision + 1,
       } } };
     } else {
       if (stage.kind !== 'commander-ruling' || stage.target !== choiceTargetId || player.get('role') !== 'gm' ||
           typeof raw.instanceId !== 'string') {
         throw commandError('failed-precondition', 'A facilitator ruling is not currently requested.', 'invalid-phase');
       }
-      await requireFacilitatorInstance(tx, sessionId, uid, raw.instanceId);
       statePatch = { boardingCommanderRuling: { targetShipId: stage.target, text: (choice.rulingText as string).trim(),
-        actorUid: uid, instanceId: raw.instanceId, requestId, turn: snapshot.inputs.turn,
+        actorUid: uid, instanceId: raw.instanceId, requestId, attackId: state.get('attackId'), turn: snapshot.inputs.turn,
         committedAt, revision: snapshot.inputs.revision + 1 } };
     }
     const nextRevision = snapshot.inputs.revision + 1;
@@ -27624,7 +27755,7 @@ export const commitWolfBoardingSpecialChoice = onCall<{
       revision: nextRevision, actorUid: uid, requestId, choice: requestPayload,
       ...(rerolledValues ? { rerolledValues: [...rerolledValues] } : {}),
       deadlineAt: snapshot.inputs.deadlineAt, createdAt: FieldValue.serverTimestamp() });
-    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    tx.set(receiptRef, { fingerprint, result, attackId: state.get('attackId'), createdAt: FieldValue.serverTimestamp() });
     return result;
   });
 });
