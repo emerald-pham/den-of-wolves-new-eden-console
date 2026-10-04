@@ -1,4 +1,5 @@
 import { chargeableConsoleIds, parseMaintenanceCycle } from './maintenance';
+import { MAINTENANCE_EVENT_RESULT_STEPS } from './maintenanceEvent';
 import { SHIP_DAMAGE_DECKS, type ShipDamageState } from './shipDamage';
 import {
   ROLE_OWNED_CRAFT_CATALOG,
@@ -136,7 +137,7 @@ export function authorizeRefineryFighterBayLaunch(input: Readonly<{
     'step', 'revision', 'results', 'charges', 'refuelled', 'turn', 'rationBonus',
     'startedAt', 'completedAt', 'damageDrawId', 'unrestRolls', 'unrestBeforeCheck',
   ];
-  const allowedResultKeys = new Set(['1', '2', '3', '4', '5', '6', '7']);
+  const allowedResultKeys = new Set<string>(MAINTENANCE_EVENT_RESULT_STEPS);
   const allowedCharges = new Set(chargeableConsoleIds(SHIP_ID));
   const knownShuttleIds = new Set(ROLE_OWNED_CRAFT_CATALOG
     .filter((craft) => craft.kind === 'shuttle')

@@ -11,8 +11,9 @@ craft has launched or explicitly passed; proof cannot rely on beating the
 automatic targeting trigger. Short Range records only the selected fighter
 indexes, including a zero-fighter pass, before the server samples any dice.
 Normal Refinery maintenance retains paired unrest dice and prior unrest. Its
-strict launch parser accepts those validated fields while rejecting malformed
-or unknown metadata. Absent, empty, stale and unfinished valid cycles make the
+strict launch parser accepts those validated fields and canonical environmental
+begin result 0 while rejecting malformed or unknown metadata/results. Absent,
+empty, stale and unfinished valid cycles make the
 PDF source unavailable and never eligible; malformed present authority remains
 an error. Review automatic targeting against the same safe launch view.
 An entitled assigned holder remains pending while disconnected or away from
