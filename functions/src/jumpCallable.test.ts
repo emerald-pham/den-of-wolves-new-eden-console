@@ -1880,7 +1880,7 @@ it.each(['ordinary', 'emergency', 'adjudication'] as const)(
     const reply = kind === 'adjudication'
       ? await adjudicateFailedJump.run(request({
         sessionId: 's1', instanceId: 'bridge', requestId: `revision-${kind}`,
-        expectedRevision: 0, failureRequestId: 'revision-failure', destination: '5143',
+        expectedRevision: 0, failureRequestId: 'revision-failure', destination: '5143', consequence: 'full-d6-damage',
       }))
       : await jumpShip.run(request({
         ...data, requestId: `revision-${kind}`, destination: '5143',
@@ -1964,7 +1964,7 @@ it.each(['ordinary', 'emergency', 'adjudication', 'manual-location'] as const)(
     } else if (kind === 'adjudication') {
       await adjudicateFailedJump.run(request({
         sessionId: 's1', instanceId: 'bridge', requestId: movementRequest.requestId,
-        expectedRevision: 0, failureRequestId: 'host-movement-failure', destination: '5143',
+        expectedRevision: 0, failureRequestId: 'host-movement-failure', destination: '5143', consequence: 'full-d6-damage',
       }));
     } else {
       await jumpShip.run(request({
@@ -2088,7 +2088,7 @@ it('spends all failure-bound fuel when the facilitator selects a cheaper under-f
 
   await expect(adjudicateFailedJump.run(request({
     sessionId: 's1', instanceId: 'bridge', requestId: 'cheaper-route-adjudication',
-    expectedRevision: 0, failureRequestId: 'long-route-failure', destination: '5143',
+    expectedRevision: 0, failureRequestId: 'long-route-failure', destination: '5143', consequence: 'full-d6-damage',
   }))).resolves.toMatchObject({
     status: 'jumped', destination: '5143', fuelSpent: mock.fuel, remainingFuel: 0,
   });
@@ -2138,7 +2138,7 @@ it('rejects facilitator adjudication when the failure record request id differs 
 
   await expect(adjudicateFailedJump.run(request({
     sessionId: 's1', instanceId: 'bridge', requestId: 'bad-record-identity',
-    expectedRevision: 0, failureRequestId: 'identity-failure', destination: '5143',
+    expectedRevision: 0, failureRequestId: 'identity-failure', destination: '5143', consequence: 'full-d6-damage',
   }))).rejects.toMatchObject({ code: 'failed-precondition' });
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();
@@ -2451,7 +2451,7 @@ it('completes an exact under-fueled failure with available fuel and a full serve
 
   await expect(adjudicateFailedJump.run(request({
     sessionId: 's1', instanceId: 'bridge', requestId: 'complete-underfunded',
-    expectedRevision: 0, failureRequestId: 'underfunded-failure', destination: '9997',
+    expectedRevision: 0, failureRequestId: 'underfunded-failure', destination: '9997', consequence: 'full-d6-damage',
   }))).resolves.toMatchObject({
     status: 'jumped', shipId: 'aegis', origin: '0000', destination: '9997',
     fuelSpent: 1, remainingFuel: 0, failureRoll: 6,
@@ -2493,7 +2493,7 @@ it('records the printed population value where a multi-card adjudication first c
 
   await expect(adjudicateFailedJump.run(request({
     sessionId: 's1', instanceId: 'bridge', requestId: 'dione-adjudication',
-    expectedRevision: 0, failureRequestId: 'dione-failure', destination: '5143',
+    expectedRevision: 0, failureRequestId: 'dione-failure', destination: '5143', consequence: 'full-d6-damage',
   }))).resolves.toMatchObject({ status: 'jumped', failureRoll: 6, damageDraws: expect.any(Array) });
 
   expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
@@ -2645,7 +2645,7 @@ it('rejects facilitator adjudication after fuel changes and performs no jump or 
 
   await expect(adjudicateFailedJump.run(request({
     sessionId: 's1', instanceId: 'bridge', requestId: 'stale-underfuel',
-    expectedRevision: 0, failureRequestId: 'changed-failure', destination: '9997',
+    expectedRevision: 0, failureRequestId: 'changed-failure', destination: '9997', consequence: 'full-d6-damage',
   }))).resolves.toMatchObject({ status: 'stale', shipId: 'aegis', currentRevision: 0 });
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.randomInt).not.toHaveBeenCalled();
@@ -2655,9 +2655,97 @@ it('denies jump-failure adjudication to a player before drawing damage', async (
   mock.role = 'player';
   await expect(adjudicateFailedJump.run(request({
     sessionId: 's1', instanceId: 'bridge', requestId: 'unauthorized-adjudication',
-    expectedRevision: 0, failureRequestId: 'missing-failure', destination: '5143',
+    expectedRevision: 0, failureRequestId: 'missing-failure', destination: '5143', consequence: 'full-d6-damage',
   }))).rejects.toMatchObject({ code: 'permission-denied' });
   expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.randomInt).not.toHaveBeenCalled();
+});
+
+it.each([
+  ['half-d6-damage', 3],
+  ['full-d6-damage', 6],
+] as const)('applies the explicitly selected %s to the current exact jump failure', async (consequence, damageCount) => {
+  mock.fuel = 1;
+  mock.jumpStates = { aegis: { lastFailureRequestId: `severity-${consequence}` } };
+  mock.jumpFailures = {
+    [`severity-${consequence}`]: {
+      type: 'ship-jump-failure', status: 'unresolved', adjudicable: true,
+      requestId: `severity-${consequence}`, shipId: 'aegis', origin: '0000', destination: '9997',
+      failureStatus: 'fuel-shortage', failureRevision: 0, currentTurn: 1, fuelAtFailure: 1,
+      requiredFuel: 3,
+    },
+  };
+  mock.randomInt.mockReturnValue(6);
+
+  const reply = await adjudicateFailedJump.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: `severity-request-${consequence}`,
+    expectedRevision: 0, failureRequestId: `severity-${consequence}`, destination: '5143', consequence,
+  }));
+
+  expect(reply).toMatchObject({ status: 'jumped', consequence, failureRoll: 6, damageDraws: expect.any(Array) });
+  expect((reply as { damageDraws: unknown[] }).damageDraws).toHaveLength(damageCount);
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1/jumpFailures/' + `severity-${consequence}`,
+    expect.objectContaining({ status: 'resolved', resolution: consequence }));
+});
+
+it('commits the documented no-jump delay without fuel, movement, or damage mutations', async () => {
+  mock.jumpStates = { aegis: { lastFailureRequestId: 'delay-failure' } };
+  mock.jumpFailures = {
+    'delay-failure': {
+      type: 'ship-jump-failure', status: 'unresolved', adjudicable: true,
+      requestId: 'delay-failure', shipId: 'aegis', origin: '0000', destination: '9997',
+      failureStatus: 'drive-failure', failureRevision: 0, currentTurn: 1, fuelAtFailure: 4,
+    },
+  };
+
+  await expect(adjudicateFailedJump.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'delay-failure-resolution',
+    expectedRevision: 0, failureRequestId: 'delay-failure', destination: '5143', consequence: 'nothing-happens',
+  }))).resolves.toMatchObject({ status: 'delayed', consequence: 'nothing-happens', shipId: 'aegis' });
+
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1/jumpFailures/delay-failure',
+    expect.objectContaining({ status: 'resolved', resolution: 'nothing-happens' }));
+  const sessionWrite = mock.update.mock.calls.find(([path]) => path === 'sessions/s1')?.[1];
+  expect(sessionWrite).toMatchObject({ 'shipJumpStates.aegis': expect.objectContaining({ lastJumpTurn: 1 }) });
+  expect(sessionWrite).not.toHaveProperty('shipResources.aegis.fuel');
+  expect(sessionWrite).not.toHaveProperty('shipGalacticCoordinates');
+  expect(sessionWrite).not.toHaveProperty('shipDamage');
+  expect(mock.randomInt).not.toHaveBeenCalled();
+});
+
+it('replays an adjudication with its exact consequence without a second mutation', async () => {
+  mock.jumpStates = { aegis: { lastFailureRequestId: 'replay-failure' } };
+  mock.jumpFailures = {
+    'replay-failure': {
+      type: 'ship-jump-failure', status: 'unresolved', adjudicable: true,
+      requestId: 'replay-failure', shipId: 'aegis', origin: '0000', destination: '9997',
+      failureStatus: 'fuel-shortage', failureRevision: 0, currentTurn: 1, fuelAtFailure: 4,
+    },
+  };
+  const command = {
+    sessionId: 's1', instanceId: 'bridge', requestId: 'replay-severity', expectedRevision: 0,
+    failureRequestId: 'replay-failure', destination: '5143', consequence: 'wrong-location-half-d6-damage',
+  };
+  const first = await adjudicateFailedJump.run(request(command));
+  const [receiptPath, receipt] = mock.set.mock.calls.find(([path]) => String(path).includes('/commandReceipts/'))!;
+  mock.commandReceiptRecord = receipt;
+  mock.update.mockClear();
+  mock.set.mockClear();
+
+  await expect(adjudicateFailedJump.run(request(command))).resolves.toEqual(first);
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(String(receiptPath)).toContain('/commandReceipts/');
+  expect(receipt).toMatchObject({ fingerprint: expect.objectContaining({ payload: expect.objectContaining({ consequence: command.consequence }) }) });
+});
+
+it('requires an explicit documented consequence before any adjudication work', async () => {
+  await expect(adjudicateFailedJump.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'no-consequence',
+    expectedRevision: 0, failureRequestId: 'missing-failure', destination: '5143',
+  }))).rejects.toMatchObject({ code: 'invalid-argument' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
   expect(mock.randomInt).not.toHaveBeenCalled();
 });
 
