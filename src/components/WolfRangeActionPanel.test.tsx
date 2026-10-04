@@ -20,6 +20,31 @@ const pendingView: WolfRangeActionChoiceView = {
   ],
 };
 
+// The server keeps committed support actions in this projection so they resolve
+// in the shared range lock; they are not additional EO-selectable weapons.
+it('submits only selectable AEGIS weapons when committed support actions share the range view', async () => {
+  const user = userEvent.setup();
+  const onUseActions = vi.fn();
+  const view: WolfRangeActionChoiceView = {
+    ...pendingView,
+    currentStep: 'long-range',
+    range: 'long-range',
+    eligibleActions: [
+      { actionId: 'aegis-missile-launchers-long', sourceId: 'aegis-missile-launchers', range: 'long-range' },
+      { actionId: 'gorgoneion-missile-array-long', sourceId: 'gorgoneion-missile-array', range: 'long-range' },
+      { actionId: 'boa-long-range', sourceId: 'boa', range: 'long-range' },
+    ],
+  };
+  render(<WolfRangeActionPanelView view={view} onUseActions={onUseActions}
+    onPass={vi.fn()} onAssignTargets={vi.fn()} />);
+
+  await user.click(screen.getByRole('checkbox', { name: /missile launchers/i }));
+  expect(screen.queryByRole('checkbox', { name: /gorgoneion missile array/i })).not.toBeInTheDocument();
+  expect(screen.queryByRole('checkbox', { name: /boa scrap strike/i })).not.toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: /use selected actions/i }));
+  expect(onUseActions).toHaveBeenCalledWith(['aegis-missile-launchers-long']);
+});
+
 it('requires a deliberate use or pass choice and explains the authoritative deadline', async () => {
   const user = userEvent.setup();
   const onUseActions = vi.fn();
