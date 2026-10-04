@@ -17,19 +17,18 @@ beforeEach(() => {
     setupRevision: 2, createdAt: '', updatedAt: '',
   }, { uid: 'gm', sessionId: 's1', displayName: 'Facilitator', role: 'gm', seatId: null, joinedAt: '' });
   useSessionStore.getState().setGmInstance({
-    id: 'gm-instance', sessionId: 's1', uid: 'gm', name: 'Facilitator', connected: true,
-    createdAt: '', lastSeenAt: '',
+    id: 'gm-instance', sessionId: 's1', uid: 'gm', name: 'Facilitator', deviceLabel: 'test device',
   });
   useSessionStore.getState().setConnection('live');
   useSessionStore.getState().setSessionSnapshotFreshness('server');
 });
 
 it('submits a facilitator execution with the current case and setup revisions', async () => {
-  mocks.call.mockResolvedValue({ data: {
-    status: 'committed', type: 'arrest-case-disposition', sessionId: 's1', requestId: expect.any(String),
+  mocks.call.mockImplementation(async (payload) => ({ data: {
+    status: 'committed', type: 'arrest-case-disposition', sessionId: 's1', requestId: payload.requestId,
     targetUid: 'player-2', turn: 4, revision: 2, deadlineCycle: 4, deadlineMet: true,
     disposition: 'executed', setupRevision: 3, replacementEligibilityRevision: 1,
-  } });
+  } }));
   await expect(resolveArrestCaseDisposition({
     targetUid: 'player-2', expectedCycle: 4, expectedRevision: 1,
     expectedSetupRevision: 2, disposition: 'executed',

@@ -148,7 +148,7 @@ it('offers release or execution only during the next Team Phase and binds the ru
     onDisposition,
   };
   const { rerender } = render(<ArrestPosseCalculator {...props} />);
-  expect(screen.getByText(/resolve the prisoner by the end of Team Phase 4/i)).toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: /prisoner ruling.*Team Phase 4/i })).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: 'Execute prisoner' })).not.toBeInTheDocument();
 
   rerender(<ArrestPosseCalculator {...props} currentCycle={4} deadlineTeamPhaseOpen />);
