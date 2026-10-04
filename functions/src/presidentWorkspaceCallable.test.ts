@@ -76,6 +76,9 @@ beforeEach(() => {
       const value = mock.events.get(path);
       return { exists: value !== undefined, get: (key: string) => value?.[key] };
     }
+    if (path.includes('/presidentialVisits/')) {
+      return { exists: false, get: () => undefined };
+    }
     if (path.startsWith('sessionStartRequests/') ||
         /\/(setupMutationRequests|gmResponsibilityRequests|seatMutationRequests|loyaltyAssignmentRequests)\//.test(path)) {
       return { exists: mock.legacyPaths.has(path), get: () => undefined };
