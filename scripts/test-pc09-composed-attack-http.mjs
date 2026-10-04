@@ -349,9 +349,12 @@ try {
   const eo = f.byRole('executive-officer'), wing = f.byRole('wing-commander');
   const captain = f.byRole('admiral'), commander = f.byRole('shepherd-scientist');
   const warrior = f.byRole('quellon-captain');
+  const doctor = f.byRole('quellon-engineer');
   const ace = f.byRole('refinery-124-captain');
   assert.ok(ace && f.press, 'The Ace starts with an ordinary Refinery berth; Press joins independently.');
   assert.ok(warrior, 'The initially filled Quellon Captain station supplies the disclosed Warrior replacement.');
+  assert.ok(doctor && ![captain, commander, warrior, ace].some(actor => actor.localId === doctor.localId),
+    'The ordinary Doctor must have a distinct actor from every attack replacement.');
   // Optional ships are admitted in Coordination, then the next normal Team
   // phase charges their systems. The GM explicitly defers the first window.
   const setupCycle = (await f.session.get()).get('currentTurn');
@@ -733,7 +736,7 @@ try {
     assert.equal(repaired.shipDamage.aegis.damagedSystemIds.includes('construction-bay'), false);
     checks.normalPaidMacawConstructionBayRecovery = true;
   }
-  await replace(captain, 'doctor');
+  await replace(doctor, 'doctor');
   const arrestTarget = deduction.actors.wolfAgent;
   const priorPosse = await f.db.doc(`sessions/${f.sessionId}/arrestPosseCalculations/current`).get();
   const calculation = await command(f.gm, 'calculateArrestPosse', { instanceId: f.instanceId,
@@ -760,7 +763,7 @@ try {
   checks.arrestAttendanceBoundary = 'authenticated simulated GM input; no physical attendance claim';
   checks.arrestEarlyDispositionDenied = true;
   const aftermath = await runPc09AftermathProof(f, { directory: dirname(evidencePath), finalState,
-    actorAllocations: {doctor: captain, warrior, macaw: f.byRole('capybara-captain'), boa: f.byRole('capybara-recycler'),
+    actorAllocations: {doctor, warrior, macaw: f.byRole('capybara-captain'), boa: f.byRole('capybara-recycler'),
       wingCommander: wing, press: f.press,
       // Doctor and the two unique docked Scrap/repair opportunities are proved
       // by a separate finite ordinary scenario. This attack preserves its own
