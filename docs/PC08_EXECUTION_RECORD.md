@@ -160,3 +160,12 @@ or restoring their movement. Test-only `2ab9ff0b` records two discriminating
 failures before the source change; 280 focused lifecycle checks pass. This
 repairs the already implemented retention contract and the PC08 next-attack
 consumer, with no later-checkpoint feature or additional catalog credit.
+
+The freshly restarted normal boarding consumer also exposed a launch-parser
+seam: completed Refinery maintenance stores legitimate unrest metadata which
+the older strict Fighter Bay allowlist rejected. Root owns the narrow parser
+repair and unavailable-cycle classification. Test-only `8ae4ef90` records six
+discriminating failures; 163 Bay, Declaration and Range checks pass afterwards.
+Unknown fields and malformed paired metadata still fail closed. The consumer
+will resume on a freshly compiled and restarted emulator; earlier runs that
+loaded an older module remain historical evidence, not current-source proof.

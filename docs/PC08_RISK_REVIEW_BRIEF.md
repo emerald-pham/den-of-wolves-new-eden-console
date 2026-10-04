@@ -10,6 +10,11 @@ Eligible launch choices must hold targeting until each independent wing or
 craft has launched or explicitly passed; proof cannot rely on beating the
 automatic targeting trigger. Short Range records only the selected fighter
 indexes, including a zero-fighter pass, before the server samples any dice.
+Normal Refinery maintenance retains paired unrest dice and prior unrest. Its
+strict launch parser accepts those validated fields while rejecting malformed
+or unknown metadata. Absent, empty, stale and unfinished valid cycles make the
+PDF source unavailable and never eligible; malformed present authority remains
+an error. Review automatic targeting against the same safe launch view.
 An entitled assigned holder remains pending while disconnected or away from
 the console; presence expiry must not silently turn any choice into a pass.
 Its simultaneous assignment batch gives lethal coverage to live Wolf Fighter

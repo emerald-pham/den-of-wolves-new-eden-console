@@ -27377,7 +27377,11 @@ function pdfEscortWingLaunchView(
     launchedCraftIds,
   } as unknown as RefineryFighterBayAttackAuthority;
   const cycles = session.get('maintenanceCycles');
-  const maintenanceCycle = isRecord(cycles) ? cycles['refinery-124'] : undefined;
+  if (cycles !== undefined && !isRecord(cycles)) {
+    throw commandError('failed-precondition', 'The authoritative Refinery maintenance map is malformed.', 'conflict');
+  }
+  const storedCycle = isRecord(cycles) ? cycles['refinery-124'] : undefined;
+  const maintenanceCycle = storedCycle === undefined ? emptyMaintenanceCycle() : storedCycle;
   const damageRoot = session.get('shipDamage');
   const damage = isRecord(damageRoot) ? damageRoot['refinery-124'] : undefined;
   try {
@@ -27399,7 +27403,9 @@ function pdfEscortWingLaunchView(
       }
       return { ...view, launched: true, choiceStatus: 'launched', reason: 'already-launched' };
     }
-    if (/Charge the Refinery 8♦ Fighter Bay/i.test(message)) return { ...view, reason: 'uncharged' };
+    if (/Charge the Refinery 8♦ Fighter Bay|charge is not from the current cycle|Complete maintenance before launching/i.test(message)) {
+      return { ...view, reason: 'uncharged' };
+    }
     if (/damaged Refinery 8♦ Fighter Bay/i.test(message)) return { ...view, reason: 'damaged' };
     if (/destroyed Refinery 124/i.test(message)) return { ...view, reason: 'destroyed' };
     throw commandError('failed-precondition', 'The authoritative Refinery Fighter Bay launch check is unavailable.', 'conflict');

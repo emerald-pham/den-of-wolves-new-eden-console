@@ -134,7 +134,7 @@ export function authorizeRefineryFighterBayLaunch(input: Readonly<{
   const rawRefuelled = rawCycle?.refuelled;
   const allowedCycleKeys = [
     'step', 'revision', 'results', 'charges', 'refuelled', 'turn', 'rationBonus',
-    'startedAt', 'completedAt', 'damageDrawId',
+    'startedAt', 'completedAt', 'damageDrawId', 'unrestRolls', 'unrestBeforeCheck',
   ];
   const allowedResultKeys = new Set(['1', '2', '3', '4', '5', '6', '7']);
   const allowedCharges = new Set(chargeableConsoleIds(SHIP_ID));
@@ -153,7 +153,10 @@ export function authorizeRefineryFighterBayLaunch(input: Readonly<{
     throw new Error('The Refinery maintenance authority is malformed.');
   }
   const cycle = parseMaintenanceCycle(rawCycle);
-  if (!cycle || cycle.turn !== attack.turn) {
+  if (!cycle) {
+    throw new Error('The Refinery maintenance authority is malformed.');
+  }
+  if (cycle.turn !== attack.turn) {
     throw new Error('The Refinery Fighter Bay charge is not from the current cycle.');
   }
   if (cycle.step !== 0 || typeof cycle.completedAt !== 'string' ||
