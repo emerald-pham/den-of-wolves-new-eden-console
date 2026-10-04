@@ -141,6 +141,15 @@ it('accepts one eligible private ballot during its configured Team cycles withou
 });
 
 it('calculates a private population-weighted tally after the close cycle and commits the elected offices', async () => {
+  const session = mock.documents.get('sessions/s1')!;
+  const turnPhase = session.turnPhase as Fields;
+  const airspace = turnPhase.airspace as Fields;
+  airspace.state = 'lifted';
+  airspace.pressAccess = true;
+  const turnState = session.turnState as Fields;
+  turnState.phase = 'coordination';
+  turnState.startedAt = turnPhase.teamPhaseEndsAt;
+  turnState.endsAt = turnPhase.openAirspaceEndsAt;
   await configurePresidentialElection.run(request({
     sessionId: 's1', instanceId: 'gm-instance', requestId: 'configure-election', expectedRevision: 0, policy,
   }));
