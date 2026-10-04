@@ -67,13 +67,14 @@ it('uses safe damage coverage to explain and enforce prepared Short Range target
   fireEvent.click(screen.getByRole('button', {name: '2 Weapons'}));
   fireEvent.click(screen.getByRole('button', {name: 'Short Range coverage sample'}));
   const coverage = screen.getByRole('status', {name: 'Short Range fighter coverage'});
-  expect(coverage).toHaveTextContent('4 damage remains on local-wing-1');
+  expect(coverage).toHaveTextContent('1 damage remains on local-wing-1');
+  expect(coverage).toHaveTextContent('1 damage remains on local-wing-2');
   expect(coverage).toHaveTextContent('Other ships are available after all fighter wings are covered');
   expect(screen.getByText('Highwall Cannon deals 3 damage per hit.')).toBeVisible();
   fireEvent.change(screen.getByRole('combobox', {name: 'Highwall Cannon hit 1'}), {target: {value: 'local-wing-1'}});
   fireEvent.change(screen.getByRole('combobox', {name: 'Point-defence lasers hit 1'}), {target: {value: 'local-ship-1'}});
   expect(screen.getByRole('button', {name: 'Commit target assignments'})).toBeDisabled();
-  fireEvent.change(screen.getByRole('combobox', {name: 'Point-defence lasers hit 1'}), {target: {value: 'local-wing-1'}});
+  fireEvent.change(screen.getByRole('combobox', {name: 'Point-defence lasers hit 1'}), {target: {value: 'local-wing-2'}});
   expect(screen.getByRole('button', {name: 'Commit target assignments'})).toBeEnabled();
   fireEvent.click(screen.getByRole('button', {name: 'Commit target assignments'}));
   expect(screen.getByRole('status', {name: 'Prepared weapon result'})).toHaveTextContent('Target committed');
