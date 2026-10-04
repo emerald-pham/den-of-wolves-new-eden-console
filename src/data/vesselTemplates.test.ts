@@ -131,9 +131,8 @@ describe('shared vessel templates', () => {
         id: 'force-field-projector', name: 'Force Field Projector', phase: 'Wolf attack', charge: 'reactor',
         effect: 'Before targeting, choose 1 ship. At the end of the Wolf attack, reduce the damage that ship takes by 2.',
         action: {
-          status: 'unavailable',
-          reason: 'Ship selection is unavailable until the authoritative before-targeting resolver lands; selection cannot occur after targeting begins.',
-          followOnPrompts: ['437'],
+          status: 'live-below',
+          reason: 'The live before-targeting choice panel appears below when the current Captain and charge permit.',
         },
       },
     ]);

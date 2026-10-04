@@ -67,13 +67,13 @@ it('shows the Force Field before-targeting deadline without offering retroactive
 
   const gorgoneion = screen.getByRole('region', { name: 'Gorgoneion small-ship operations' });
   const forceField = within(gorgoneion).getByRole('article', {
-    name: 'Force Field Projector system // unavailable',
+    name: 'Force Field Projector system // live-below',
   });
   expect(forceField).toHaveTextContent('Wolf attack // not charged');
   expect(forceField).toHaveTextContent('Before targeting, choose 1 ship');
   expect(forceField).toHaveTextContent('end of the Wolf attack');
   expect(forceField).toHaveTextContent('damage that ship takes by 2');
-  expect(forceField).toHaveTextContent(/selection is unavailable.*before-targeting.*cannot occur after targeting begins.*prompt 437/i);
+  expect(forceField).toHaveTextContent(/live control.*Captain workspace.*before-targeting.*current Captain and charge permit/i);
   expect(within(forceField).queryByRole('button')).not.toBeInTheDocument();
 });
 
@@ -134,7 +134,7 @@ it('charges the canonical Force Field Projector id and renders only authoritativ
 
   const gorgoneion = screen.getByRole('region', { name: 'Gorgoneion small-ship operations' });
   const forceField = within(gorgoneion).getByRole('article', {
-    name: 'Force Field Projector system // unavailable',
+    name: 'Force Field Projector system // live-below',
   });
   await user.click(within(gorgoneion).getByRole('checkbox', { name: 'Force Field Projector' }));
   await user.click(within(gorgoneion).getByRole('button', { name: 'Charge selected consoles' }));
