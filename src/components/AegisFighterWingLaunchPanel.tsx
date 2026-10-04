@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback } from 'react';
 import {
   getAegisFighterWingLaunch,
   launchAegisFighterWing,
@@ -6,8 +6,10 @@ import {
 } from '@/lib/sessionService';
 import type {
   AegisFighterWingLaunchView,
+  WolfAttackMemberView,
 } from '@/types/game';
-import { useWolfAttackChoiceAuthority } from '@/lib/wolfAttackChoiceController';
+import { useWolfAttackChoiceAuthority, useWolfAttackChoiceController } from '@/lib/wolfAttackChoiceController';
+import { useSessionStore } from '@/store/useSessionStore';
 import PdfFighterAcePermissionControl from './PdfFighterAcePermissionControl';
 import './AegisFighterWingLaunchPanel.css';
 
@@ -100,65 +102,55 @@ export default function AegisFighterWingLaunchPanel({
   sessionId: suppliedSessionId,
 }: Readonly<{ sessionId?: string }> = {}) {
   const authority = useWolfAttackChoiceAuthority('wing-commander', suppliedSessionId);
-  const [views, setViews] = useState<AegisFighterWingLaunchViews>({});
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<string>();
-  const [refreshToken, setRefreshToken] = useState(0);
-
+  const currentTurn = useSessionStore((state) => state.session?.currentTurn);
+  const expectedStep = useCallback((member: WolfAttackMemberView) =>
+    member.status === 'declared' && member.turn === currentTurn, [currentTurn]);
   const readViews = useCallback(async (): Promise<AegisFighterWingLaunchViews | null> => {
-    if (!authority.sessionId || !authority.actorReady || !authority.ready) return null;
     const results = await Promise.all([
       getAegisFighterWingLaunch('fighter-wing-alpha'),
       getAegisFighterWingLaunch('fighter-wing-bravo'),
     ]);
     if (results.some((result) => result === null)) return null;
     return { 'fighter-wing-alpha': results[0]!, 'fighter-wing-bravo': results[1]! };
-  }, [authority.actorReady, authority.ready, authority.sessionId]);
-
-  useEffect(() => {
-    let current = true;
-    if (!authority.sessionId || !authority.actorReady || !authority.ready) return () => { current = false; };
-    void readViews().then((next) => {
-      if (current && next) setViews(next);
-    }).catch((cause) => {
-      if (current) setMessage(cause instanceof Error ? cause.message : 'Could not read fighter launch authority.');
-    });
-    return () => { current = false; };
-  }, [authority.actorReady, authority.ready, authority.sessionId, readViews, refreshToken]);
+  }, []);
+  const { memberView, view, busy, error, message, runMutation } = useWolfAttackChoiceController({
+    authority, actor: 'wing-commander', expectedStep, read: readViews,
+    readMatches: launchReadMatches,
+    readFailureMessage: 'Could not read fighter launch authority.',
+    mutationFailureMessage: 'The fighter launch choice could not be committed.',
+  });
 
   if (!authority.sessionId || !authority.actorReady) return null;
   if (!authority.ready) return <section className="cic-frame aegis-fighter-launch" aria-label="AEGIS fighter wing launches">
     <p role="status">Waiting for the live server session before showing fighter bay choices.</p>
   </section>;
 
+  if (!memberView) return null;
+  const views = view ?? {};
+  const displayMessage = error ?? message;
+
   return <>
-    <AegisFighterWingLaunchPanelView views={views} busy={busy} {...(message ? { message } : {})}
-      onLaunch={(wingId, view) => {
-        setBusy(true);
-        setMessage(undefined);
-        void launchAegisFighterWing(wingId, view.turn, view.revision, view.wingRevision)
-          .then((result) => {
-            setViews((current) => ({ ...current, [wingId]: result }));
-            setMessage(`${wingId === 'fighter-wing-alpha' ? 'Alpha' : 'Bravo'} launched for this attack.`);
-            setRefreshToken((token) => token + 1);
-          })
-          .catch((cause) => setMessage(cause instanceof Error ? cause.message : 'The fighter wing could not launch.'))
-          .finally(() => setBusy(false));
-      }}
-      onPass={(wingId, view) => {
-        setBusy(true);
-        setMessage(undefined);
-        void passWolfFighterLaunchChoice(wingId, view.turn, view.revision, view.wingRevision)
-          .then(() => {
-            setMessage(`${wingId === 'fighter-wing-alpha' ? 'Alpha' : 'Bravo'} launch passed for this attack.`);
-            setRefreshToken((token) => token + 1);
-          })
-          .catch((cause) => setMessage(cause instanceof Error ? cause.message : 'The fighter launch choice could not be passed.'))
-          .finally(() => setBusy(false));
-      }} />
+    <AegisFighterWingLaunchPanelView views={views} busy={busy}
+      {...(displayMessage ? { message: displayMessage } : {})}
+      onLaunch={(wingId, wing) => runMutation(
+        () => launchAegisFighterWing(wingId, wing.turn, wing.revision, wing.wingRevision),
+        `${wingId === 'fighter-wing-alpha' ? 'Alpha' : 'Bravo'} launched for this attack.`,
+      )}
+      onPass={(wingId, wing) => runMutation(
+        () => passWolfFighterLaunchChoice(wingId, wing.turn, wing.revision, wing.wingRevision),
+        `${wingId === 'fighter-wing-alpha' ? 'Alpha' : 'Bravo'} launch passed for this attack.`,
+      )} />
     {WINGS.flatMap(({ id }) => views[id]?.launched ? [
       <PdfFighterAcePermissionControl key={id} sourceId={id}
-        enabled={authority.actorReady && authority.ready} refreshKey={refreshToken} />,
+        enabled={authority.actorReady && authority.ready} refreshKey={memberView.revision} />,
     ] : [])}
   </>;
+}
+
+function launchReadMatches(views: AegisFighterWingLaunchViews | null, member: WolfAttackMemberView): boolean {
+  return WINGS.every(({ id }) => {
+    const view = views?.[id];
+    return view?.sessionId === member.sessionId && view.turn === member.turn &&
+      view.attackId === member.attackId && view.revision === member.revision && view.wingId === id;
+  });
 }
