@@ -68,7 +68,7 @@ it('shows only the current group ring and applies one selected ship target adjus
   render(<WolfCommanderRangeTargetDialPanel />);
 
   expect(await screen.findByRole('heading', { name: 'Range target dial' })).toBeVisible();
-  expect(screen.getByText('Fleet 2 // long range')).toBeVisible();
+  expect(screen.getByText((_content, element) => element?.textContent === 'Fleet 2 // Long Range range')).toBeVisible();
   const selectedShip = screen.getByRole('combobox', { name: 'Wolf ship' });
   await user.selectOptions(selectedShip, '1');
   expect(screen.getByText('Current target // Refinery 124 // 6')).toBeVisible();
