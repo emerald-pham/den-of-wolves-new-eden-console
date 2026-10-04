@@ -1055,7 +1055,7 @@ it('caps excess server hits at the live distinct contacts and preserves the priv
     sessionId: 's1', requestId: 'lock-medium-overflow', expectedTurn: 1, expectedRevision: 4,
     range: 'medium-range', actionIds: ['aegis-missile-launchers-medium'],
   }));
-  expect(lock.hitSlots).toEqual([{ actionId: 'aegis-missile-launchers-medium', count: 5 }]);
+  expect(lock.hitSlots).toEqual([{ actionId: 'aegis-missile-launchers-medium', count: 5, damagePerHit: 1 }]);
   const committed = await assignWolfRangeTargets.run(request({
     sessionId: 's1', requestId: 'assign-medium-overflow', expectedTurn: 1, expectedRevision: lock.revision,
     range: 'medium-range', assignments: [{ actionId: 'aegis-missile-launchers-medium', contactIds: ['contact-11'] }],
@@ -1087,7 +1087,7 @@ it('commits an empty target assignment when Short Range has no legal live contac
     sessionId: 's1', requestId: 'lock-short-no-contact', expectedTurn: 1, expectedRevision: 4,
     range: 'short-range', actionIds: ['aegis-point-defence-lasers-short'],
   }));
-  expect(choice.hitSlots).toEqual([{ actionId: 'aegis-point-defence-lasers-short', count: 2 }]);
+  expect(choice.hitSlots).toEqual([{ actionId: 'aegis-point-defence-lasers-short', count: 2, damagePerHit: 1 }]);
   const committed = await assignWolfRangeTargets.run(request({
     sessionId: 's1', requestId: 'assign-short-no-contact', expectedTurn: 1, expectedRevision: choice.revision,
     range: 'short-range', assignments: [{ actionId: 'aegis-point-defence-lasers-short', contactIds: [] }],
@@ -1921,7 +1921,7 @@ it('rechecks the current support holder before returning an exact replay', async
   put('sessions/s1/players/miner-1', { ...actor, replacementStatus: 'replaced' });
 
   await expect(commitWolfRangeSupportActionChoice.run(request(payload, 'miner-1')))
-    .rejects.toMatchObject({ code: 'permission-denied' });
+    .rejects.toMatchObject({ code: 'failed-precondition' });
 });
 
 it('requires a fresh live source console to commit an otherwise valid support choice', async () => {
