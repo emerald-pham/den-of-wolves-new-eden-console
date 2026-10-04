@@ -696,6 +696,27 @@ describe('central Wolf combat math', () => {
     expect(damage).toEqual({ damagedSystemIds, destroyed: false });
   });
 
+  it('routes a required combat draw from an exhausted Capybara deck to destruction', () => {
+    const damage = {
+      damagedSystemIds: [
+        'storage', 'advanced-hydroponics', 'reactor', 'water-production',
+        'jump-drive', 'shuttle-bay', 'scrap-refinery',
+      ],
+      destroyed: false,
+    };
+    const result = applyWolfFleetDamage('capybara', 1, {
+      damage,
+      population: INITIAL_SHIP_SURVIVORS.capybara!,
+    }, () => 0, { exhaustedDeckPolicy: 'destroy' });
+
+    expect(result).toMatchObject({
+      amount: 1,
+      draws: [{ destroyed: true, casualty: false }],
+      state: { damagedSystemIds: damage.damagedSystemIds, destroyed: true },
+    });
+    expect(damage.destroyed).toBe(false);
+  });
+
   it('returns one immutable receipt with server time, deadline, rolls, damage, and casualties', () => {
     const phase = startTurnPhase(1, 1_000);
     const receipt = calculateWolfAttack({
