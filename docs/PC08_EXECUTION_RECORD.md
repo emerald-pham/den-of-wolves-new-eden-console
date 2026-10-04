@@ -137,3 +137,16 @@ callbacks. A new mounted asynchronous-read test reproduced the disappearing
 controls in AEGIS wings and enriched warheads, and the new escort panels. The
 repair changes their callback lifetime without changing shared authority rules.
 Twenty-seven focused client checks and TypeScript pass after this integration.
+
+The remaining boarding-finalization repair transferred from `/root/boarding`
+to `/root/boarding_repair`, Sol 6.1 at xhigh, after acknowledgement and parking.
+The fresh authenticated max-team reproduction at `e5799bac` reached four
+committed defence targets and all required special choices but did not
+finalize. Its failure evidence and original branch are preserved outside Git.
+Sol continues in the existing boarding checkout from the reconciled owner
+source, retaining isolated row 4, and owns the bounded lifecycle repair and
+normal next-attack survivor consumer. It is not the final independent reviewer.
+The DRADIS worker completed its standard and Union proof handoff and released
+only its owned row 5 processes and reservation. Range continues its remaining
+supporting-source APIs and safe Short Range coverage guide on a continuation
+branch from the reconciled owner source.

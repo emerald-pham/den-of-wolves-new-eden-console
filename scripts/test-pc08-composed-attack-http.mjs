@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
@@ -14,6 +15,11 @@ await mkdir(dirname(evidencePath), { recursive: true });
 const require = createRequire(new URL('../functions/package.json', import.meta.url));
 const { MAINTENANCE_ORDERS } = require('../functions/lib/maintenanceOrder.js');
 const { SHIP_DAMAGE_DECKS } = require('../functions/lib/shipDamage.js');
+const { CALLABLE_RATE_LIMIT_POLICIES } = require('../functions/lib/callableRateLimit.js');
+const sourceCommit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: new URL('../', import.meta.url), encoding: 'utf8' }).trim();
+const maintenanceIntervalMs = Math.ceil(CALLABLE_RATE_LIMIT_POLICIES.runMaintenance.windowMs /
+  CALLABLE_RATE_LIMIT_POLICIES.runMaintenance.maxRequests) + 50;
+let lastMaintenanceStartedAt = 0;
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 const context = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' });
 const page = await context.newPage();
@@ -59,6 +65,10 @@ async function joinThroughUi(code) {
   });
 }
 async function command(actor, name, data = {}) {
+  if (name === 'runMaintenance') {
+    await delay(Math.max(0, maintenanceIntervalMs - (Date.now() - lastMaintenanceStartedAt)));
+    lastMaintenanceStartedAt = Date.now();
+  }
   const result = f.ok(await f.call(actor, name, { sessionId: f.sessionId, ...data }), name);
   assert.notEqual(result?.status, 'stale', `${name} returned stale authority.`);
   actions.push({ name, status: result?.status ?? 'committed', revision: result?.revision ?? null });
@@ -372,7 +382,7 @@ try {
   assert.deepEqual(browserErrors, []);
   assert.deepEqual(f.heartbeatFailures, []);
   await writeFile(evidencePath, `${JSON.stringify({ kind: 'normal-authenticated-local-emulator-ui-http-composed-gameplay',
-    sourceCommit: process.env.PC08_SOURCE_COMMIT, ordinaryRoster: 20, preparedScene: false, productionGameplay: false,
+    sourceCommit, ordinaryRoster: 20, preparedScene: false, productionGameplay: false,
     fixtureChanges: ['disposable clock deadlines only'], normalFacilitatorDecisions: ['Coordination-phase optional ship and replacement admission',
       'explicitly deferred first window and ordinary early cycle advance',
       'current ship write grants', 'audited resource adjustment to nine AEGIS ore', 'audited maintenance damage correction if required',
@@ -382,7 +392,7 @@ try {
 } catch (error) {
   const state = f ? await attackState() : undefined;
   await page.screenshot({ path: `${dirname(evidencePath)}/failure.png`, fullPage: true }).catch(() => {});
-  await writeFile(`${evidencePath}.failure.json`, `${JSON.stringify({ message: error.message, checks, actions, ranges, boarding,
+  await writeFile(`${evidencePath}.failure.json`, `${JSON.stringify({ sourceCommit, message: error.message, checks, actions, ranges, boarding,
     step: state?.currentStep, revision: state?.revision, status: state?.status, resolutionBlocker: state?.resolutionBlocker,
     decisionSummary: state?.decisionSummary, observations, browserErrors }, null, 2)}\n`);
   throw error;
