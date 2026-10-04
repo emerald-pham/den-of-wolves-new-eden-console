@@ -22214,20 +22214,21 @@ async function reconcileWolfAttackBoarding(
   const militiaChoices = state.get('boardingMilitiaChoices');
   const characterDeaths: Array<Readonly<{
     actorUid: string; roleId: 'rosal-militia-leader'; choiceRequestId: string;
-    targetShipId: string; reason: 'front-line-die-one';
+    targetShipId: string; reason: 'front-line-die-one'; authorityRevoked: boolean;
   }>> = [];
   for (const boarding of receipt.boarding) {
     if (!boarding.militiaLeaderKilled) continue;
     const choice = isRecord(militiaChoices) ? militiaChoices[boarding.target] : undefined;
     const actor = isRecord(choice) ? players.find((player) => player.id === choice.actorUid) : undefined;
     if (!isRecord(choice) || choice.turn !== currentTurn || !isCanonicalRequestId(choice.requestId) ||
-        !actor || !currentRolePlayer(actor) || actor.get('replacementRoleId') !== 'rosal-militia-leader' ||
+        !actor ||
         choice.attackId !== undefined && choice.attackId !== attackId ||
         characterDeaths.some(({ actorUid }) => actorUid === actor.id)) return;
     characterDeaths.push({ actorUid: actor.id, roleId: 'rosal-militia-leader',
-      choiceRequestId: choice.requestId, targetShipId: boarding.target, reason: 'front-line-die-one' });
+      choiceRequestId: choice.requestId, targetShipId: boarding.target, reason: 'front-line-die-one',
+      authorityRevoked: currentRolePlayer(actor) && actor.get('replacementRoleId') === 'rosal-militia-leader' });
   }
-  const deathAuthorities = await Promise.all(characterDeaths.map(async (death) => {
+  const deathAuthorities = await Promise.all(characterDeaths.filter(({ authorityRevoked }) => authorityRevoked).map(async (death) => {
     const actor = players.find((player) => player.id === death.actorUid)!;
     const eligibility = await tx.get(db.doc(`sessions/${sessionId}/replacementEligibility/${death.actorUid}`));
     const seatId = actor.get('seatId');
@@ -22329,7 +22330,7 @@ async function reconcileWolfAttackBoarding(
   const sessionPatch: Record<string, unknown> = {
     turnPhase: reopenedPhase, ...(turnState ? { turnState } : {}), fleetTicker,
     populationAlerts, unrestAlerts,
-    ...(characterDeaths.length > 0 ? { setupRevision: setupRevision(session) + characterDeaths.length } : {}),
+    ...(deathAuthorities.length > 0 ? { setupRevision: setupRevision(session) + deathAuthorities.length } : {}),
     updatedAt: FieldValue.serverTimestamp(),
   };
   for (const [target, damage] of Object.entries(nextShipDamage)) {
