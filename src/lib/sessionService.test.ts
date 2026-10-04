@@ -92,6 +92,10 @@ const {
   getWolfRangeActionChoice,
   getWolfFighterRangeActionChoice,
   commitWolfFighterRangeActionChoice,
+  getWolfCommanderCycleAttackDial,
+  commitWolfCommanderAttackDial,
+  getWolfCommanderRangeTargetDial,
+  applyWolfCommanderRangeTargetAdjustment,
 } = await import('./sessionService');
 const { httpsCallable } = await import('firebase/functions');
 const { acceptCallableSessionAuthority, sessionSnapshotAuthorityFor } = await import('./firestore');
@@ -141,6 +145,76 @@ describe('Wolf range contact guidance DTO', () => {
     vi.mocked(httpsCallable).mockReturnValue(callable);
 
     await expect(getWolfRangeActionChoice()).rejects.toThrow(/invalid Wolf range choice view/i);
+  });
+});
+
+describe('Wolf Commander cycle and target dial services', () => {
+  beforeEach(() => {
+    useSessionStore.getState().reset();
+    useSessionStore.getState().setIdentity(
+      { ...session, phase: 'active', currentTurn: 4 }, { ...player, replacementRoleId: 'wolf-commander' },
+    );
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+  });
+
+  it('reads only authorized group pursuit and commits an attack dial through the Commander callable', async () => {
+    const view = {
+      type: 'wolf-commander-cycle-dial-view', sessionId: 's1', cycle: 4, navigationRevision: 7,
+      status: 'available', groups: [
+        { groupId: 'fleet-1', pursuitValue: 2 }, { groupId: 'fleet-2', pursuitValue: 8 },
+      ],
+    };
+    const read = callableReturning({ data: view });
+    vi.mocked(httpsCallable).mockReturnValue(read as never);
+    await expect(getWolfCommanderCycleAttackDial()).resolves.toEqual(view);
+    expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'getWolfCommanderCycleAttackDial');
+    expect(read).toHaveBeenCalledWith({ sessionId: 's1' });
+
+    const commit = Object.assign(vi.fn(async (payload: Record<string, unknown>) => ({ data: {
+      status: 'committed', type: 'wolf-commander-cycle-attack', sessionId: 's1',
+      requestId: payload.requestId, cycle: 4, groupId: 'fleet-2', targetGroupPursuit: 8,
+      damageCapacity: 18, attackNumber: 4, navigationRevision: 7,
+      marker: { type: 'wolf-commander-cycle-attack', cycle: 4, groupId: 'fleet-2' }, windowRevision: 9,
+    } })), { stream: vi.fn() });
+    vi.mocked(httpsCallable).mockReturnValue(commit as never);
+    await expect(commitWolfCommanderAttackDial('fleet-2', 4, 7)).resolves.toMatchObject({
+      cycle: 4, groupId: 'fleet-2', targetGroupPursuit: 8, damageCapacity: 18,
+    });
+    expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'commitWolfCommanderAttackDial');
+    expect(commit).toHaveBeenCalledWith(expect.objectContaining({
+      sessionId: 's1', expectedCycle: 4, expectedNavigationRevision: 7, targetGroupId: 'fleet-2',
+      requestId: expect.any(String),
+    }));
+  });
+
+  it('reads private range targets and submits only a ±1 roster adjustment', async () => {
+    const view = {
+      type: 'wolf-commander-range-target-dial-view', sessionId: 's1', attackId: 'wolf-attack-1',
+      turn: 4, revision: 12, range: 'medium-range', targetGroupId: 'fleet-2',
+      ring: [{ targetId: 'aegis', targetNumber: 1 }, { targetId: 'dione', targetNumber: 2 }],
+      ships: [{ rosterIndex: 0, shipId: 'wolf-cruiser', currentTarget: 'aegis', currentTargetNumber: 1 }],
+      adjustmentUsed: false,
+    };
+    const read = callableReturning({ data: view });
+    vi.mocked(httpsCallable).mockReturnValue(read as never);
+    await expect(getWolfCommanderRangeTargetDial()).resolves.toEqual(view);
+
+    const adjustment = Object.assign(vi.fn(async (payload: Record<string, unknown>) => ({ data: {
+      status: 'committed', type: 'wolf-commander-range-target-adjustment', sessionId: 's1',
+      requestId: payload.requestId, turn: 4, revision: 13, attackId: 'wolf-attack-1',
+      range: 'medium-range', rosterIndex: 0, instanceId: '0:wolf-cruiser', shipId: 'wolf-cruiser',
+      fromTarget: 'aegis', toTarget: 'dione', fromTargetNumber: 1, toTargetNumber: 2, delta: 1,
+    } })), { stream: vi.fn() });
+    vi.mocked(httpsCallable).mockReturnValue(adjustment as never);
+    await expect(applyWolfCommanderRangeTargetAdjustment(view, 0, 1)).resolves.toMatchObject({
+      attackId: 'wolf-attack-1', range: 'medium-range', fromTarget: 'aegis', toTarget: 'dione',
+    });
+    expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'applyWolfCommanderRangeTargetAdjustment');
+    expect(adjustment).toHaveBeenCalledWith(expect.objectContaining({
+      sessionId: 's1', attackId: 'wolf-attack-1', expectedTurn: 4, expectedRevision: 12,
+      range: 'medium-range', rosterIndex: 0, delta: 1,
+    }));
   });
 });
 const authorityService = await import('./sessionService') as unknown as {
