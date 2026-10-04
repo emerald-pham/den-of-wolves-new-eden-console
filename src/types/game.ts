@@ -736,6 +736,7 @@ export interface WolfRangeActionChoiceResult {
   readonly type: 'wolf-range-action-choice';
   readonly sessionId: string;
   readonly requestId: string;
+  readonly attackId: string;
   readonly turn: number;
   readonly revision: number;
   readonly range: WolfAttackRange;
@@ -782,6 +783,7 @@ export interface WolfRangeTargetAssignmentResult {
   readonly type: 'wolf-range-target-assignment';
   readonly sessionId: string;
   readonly requestId: string;
+  readonly attackId: string;
   readonly turn: number;
   readonly revision: number;
   readonly fromStep: WolfAttackRange;
@@ -847,6 +849,7 @@ export interface WolfBoardingDefenceChoiceResult {
   readonly type: 'wolf-boarding-defence-choice';
   readonly sessionId: string;
   readonly requestId: string;
+  readonly attackId: string;
   readonly turn: number;
   readonly revision: number;
   readonly targetShipId: WolfAttackTargetId;

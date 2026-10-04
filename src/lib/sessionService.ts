@@ -5834,7 +5834,7 @@ function wolfRangeActionChoiceResultReply(value: unknown): WolfRangeActionChoice
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
   const reply = value as Record<string, unknown>;
   const allowed = new Set([
-    'status', 'type', 'sessionId', 'requestId', 'turn', 'revision', 'range', 'currentStep', 'choiceStatus', 'hitSlots',
+    'status', 'type', 'sessionId', 'requestId', 'attackId', 'turn', 'revision', 'range', 'currentStep', 'choiceStatus', 'hitSlots',
   ]);
   const ranges: readonly WolfAttackRange[] = ['long-range', 'medium-range', 'short-range'];
   const steps = ['targeting', 'long-range', 'medium-range', 'short-range', 'boarding', 'resolved'];
@@ -5849,14 +5849,16 @@ function wolfRangeActionChoiceResultReply(value: unknown): WolfRangeActionChoice
   }) : [];
   if (Object.keys(reply).some((key) => !allowed.has(key)) || reply.status !== 'committed' ||
       reply.type !== 'wolf-range-action-choice' || typeof reply.sessionId !== 'string' ||
-      typeof reply.requestId !== 'string' || !reply.requestId || !Number.isSafeInteger(reply.turn) ||
+      typeof reply.requestId !== 'string' || !reply.requestId || typeof reply.attackId !== 'string' || !reply.attackId ||
+      !Number.isSafeInteger(reply.turn) ||
       (reply.turn as number) < 1 || !Number.isSafeInteger(reply.revision) || (reply.revision as number) < 1 ||
       !ranges.includes(reply.range as WolfAttackRange) || !steps.includes(String(reply.currentStep)) ||
       (reply.choiceStatus !== 'targets-required' && reply.choiceStatus !== 'passed') || !Array.isArray(reply.hitSlots) ||
       hitSlots.length !== reply.hitSlots.length || new Set(hitSlots.map(({ actionId }) => actionId)).size !== hitSlots.length) return null;
   return {
     status: 'committed', type: 'wolf-range-action-choice', sessionId: reply.sessionId, requestId: reply.requestId,
-    turn: reply.turn as number, revision: reply.revision as number, range: reply.range as WolfAttackRange,
+    attackId: reply.attackId, turn: reply.turn as number, revision: reply.revision as number,
+    range: reply.range as WolfAttackRange,
     currentStep: reply.currentStep as WolfRangeActionChoiceResult['currentStep'],
     choiceStatus: reply.choiceStatus, hitSlots,
   };
@@ -5944,19 +5946,21 @@ function wolfRangeTargetAssignmentResultReply(value: unknown): WolfRangeTargetAs
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
   const reply = value as Record<string, unknown>;
   const allowed = new Set([
-    'status', 'type', 'sessionId', 'requestId', 'turn', 'revision', 'fromStep', 'currentStep', 'committedContacts',
+    'status', 'type', 'sessionId', 'requestId', 'attackId', 'turn', 'revision', 'fromStep', 'currentStep', 'committedContacts',
   ]);
   const ranges: readonly WolfAttackRange[] = ['long-range', 'medium-range', 'short-range'];
   if (Object.keys(reply).some((key) => !allowed.has(key)) || reply.status !== 'committed' ||
       reply.type !== 'wolf-range-target-assignment' || typeof reply.sessionId !== 'string' ||
-      typeof reply.requestId !== 'string' || !reply.requestId || !Number.isSafeInteger(reply.turn) ||
+      typeof reply.requestId !== 'string' || !reply.requestId || typeof reply.attackId !== 'string' || !reply.attackId ||
+      !Number.isSafeInteger(reply.turn) ||
       (reply.turn as number) < 1 || !Number.isSafeInteger(reply.revision) || (reply.revision as number) < 1 ||
       !ranges.includes(reply.fromStep as WolfAttackRange) ||
       !['medium-range', 'short-range', 'boarding'].includes(String(reply.currentStep)) ||
       !Number.isSafeInteger(reply.committedContacts) || (reply.committedContacts as number) < 0) return null;
   return {
     status: 'committed', type: 'wolf-range-target-assignment', sessionId: reply.sessionId, requestId: reply.requestId,
-    turn: reply.turn as number, revision: reply.revision as number, fromStep: reply.fromStep as WolfAttackRange,
+    attackId: reply.attackId, turn: reply.turn as number, revision: reply.revision as number,
+    fromStep: reply.fromStep as WolfAttackRange,
     currentStep: reply.currentStep as WolfRangeTargetAssignmentResult['currentStep'],
     committedContacts: reply.committedContacts as number,
   };
@@ -6077,21 +6081,23 @@ function wolfBoardingDefenceChoiceResultReply(value: unknown): WolfBoardingDefen
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
   const reply = value as Record<string, unknown>;
   const allowed = new Set([
-    'status', 'type', 'sessionId', 'requestId', 'turn', 'revision', 'targetShipId', 'securityTeams', 'currentStep',
+    'status', 'type', 'sessionId', 'requestId', 'attackId', 'turn', 'revision', 'targetShipId', 'securityTeams', 'currentStep',
   ]);
   const targetIds: readonly WolfAttackTargetId[] = [
     'aegis', 'dione', 'icebreaker', 'quellon', 'shepherd', 'refinery-124', 'capybara',
   ];
   if (Object.keys(reply).some((key) => !allowed.has(key)) || reply.status !== 'committed' ||
       reply.type !== 'wolf-boarding-defence-choice' || typeof reply.sessionId !== 'string' ||
-      typeof reply.requestId !== 'string' || !reply.requestId || !Number.isSafeInteger(reply.turn) ||
+      typeof reply.requestId !== 'string' || !reply.requestId || typeof reply.attackId !== 'string' || !reply.attackId ||
+      !Number.isSafeInteger(reply.turn) ||
       (reply.turn as number) < 1 || !Number.isSafeInteger(reply.revision) || (reply.revision as number) < 1 ||
       !targetIds.includes(reply.targetShipId as WolfAttackTargetId) ||
       !Number.isSafeInteger(reply.securityTeams) || (reply.securityTeams as number) < 0 ||
       reply.currentStep !== 'boarding') return null;
   return {
     status: 'committed', type: 'wolf-boarding-defence-choice', sessionId: reply.sessionId,
-    requestId: reply.requestId, turn: reply.turn as number, revision: reply.revision as number,
+    requestId: reply.requestId, attackId: reply.attackId,
+    turn: reply.turn as number, revision: reply.revision as number,
     targetShipId: reply.targetShipId as WolfAttackTargetId,
     securityTeams: reply.securityTeams as number, currentStep: 'boarding',
   };

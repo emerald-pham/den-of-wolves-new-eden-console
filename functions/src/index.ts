@@ -24537,6 +24537,7 @@ type WolfRangeActionChoiceResult = Readonly<{
   type: 'wolf-range-action-choice';
   sessionId: string;
   requestId: string;
+  attackId: string;
   turn: number;
   revision: number;
   range: WolfCombatRange;
@@ -24550,6 +24551,7 @@ type WolfRangeTargetAssignmentResult = Readonly<{
   type: 'wolf-range-target-assignment';
   sessionId: string;
   requestId: string;
+  attackId: string;
   turn: number;
   revision: number;
   fromStep: WolfCombatRange;
@@ -24910,6 +24912,7 @@ function requireWolfRangeState(
   state: DocumentSnapshot,
   range: WolfCombatRange,
 ): Readonly<{
+  attackId: string;
   turn: number;
   revision: number;
   deadlineAt: string;
@@ -24924,10 +24927,12 @@ function requireWolfRangeState(
   }
   const turn = state.get('turn');
   const revision = state.get('revision');
+  const attackId = state.get('attackId');
   const deadlineAt = state.get('deadlineAt');
   const phase = turnPhaseState(session.get('turnPhase'));
   if (!Number.isSafeInteger(turn) || (turn as number) < 1 || turn !== sessionTurn(session.get('currentTurn')) ||
       !Number.isSafeInteger(revision) || (revision as number) < 1 ||
+      typeof attackId !== 'string' || attackId.length === 0 ||
       typeof deadlineAt !== 'string' || !Number.isFinite(Date.parse(deadlineAt)) ||
       !phase || phase.turn !== turn || phase.airspace.state !== 'restricted' || phase.timerPause !== undefined) {
     throw commandError(
@@ -24985,6 +24990,7 @@ function requireWolfRangeState(
     enrichedWarheads: currentAegisEnrichedWarheads(state) === 'enriched',
   });
   return {
+    attackId,
     turn: turn as number,
     revision: revision as number,
     deadlineAt,
@@ -25111,11 +25117,12 @@ function rangeChoiceViewIsSafe(value: unknown): value is WolfRangeActionChoiceVi
 function isWolfRangeActionChoiceResult(value: unknown): value is WolfRangeActionChoiceResult {
   if (!isRecord(value)) return false;
   const allowed = new Set([
-    'status', 'type', 'sessionId', 'requestId', 'turn', 'revision', 'range', 'currentStep', 'choiceStatus', 'hitSlots',
+    'status', 'type', 'sessionId', 'requestId', 'attackId', 'turn', 'revision', 'range', 'currentStep', 'choiceStatus', 'hitSlots',
   ]);
   return Object.keys(value).every((key) => allowed.has(key)) && value.status === 'committed' &&
     value.type === 'wolf-range-action-choice' && typeof value.sessionId === 'string' &&
-    isCanonicalRequestId(value.requestId) && Number.isSafeInteger(value.turn) &&
+    isCanonicalRequestId(value.requestId) && typeof value.attackId === 'string' && value.attackId.length > 0 &&
+    Number.isSafeInteger(value.turn) &&
     Number.isSafeInteger(value.revision) && isWolfCombatRange(value.range) &&
     ['targeting', 'long-range', 'medium-range', 'short-range', 'boarding', 'resolved'].includes(String(value.currentStep)) &&
     (value.choiceStatus === 'targets-required' || value.choiceStatus === 'passed') && Array.isArray(value.hitSlots) &&
@@ -25127,11 +25134,12 @@ function isWolfRangeActionChoiceResult(value: unknown): value is WolfRangeAction
 function isWolfRangeTargetAssignmentResult(value: unknown): value is WolfRangeTargetAssignmentResult {
   if (!isRecord(value)) return false;
   const allowed = new Set([
-    'status', 'type', 'sessionId', 'requestId', 'turn', 'revision', 'fromStep', 'currentStep', 'committedContacts',
+    'status', 'type', 'sessionId', 'requestId', 'attackId', 'turn', 'revision', 'fromStep', 'currentStep', 'committedContacts',
   ]);
   return Object.keys(value).every((key) => allowed.has(key)) && value.status === 'committed' &&
     value.type === 'wolf-range-target-assignment' && typeof value.sessionId === 'string' &&
-    isCanonicalRequestId(value.requestId) && Number.isSafeInteger(value.turn) && Number.isSafeInteger(value.revision) &&
+    isCanonicalRequestId(value.requestId) && typeof value.attackId === 'string' && value.attackId.length > 0 &&
+    Number.isSafeInteger(value.turn) && Number.isSafeInteger(value.revision) &&
     isWolfCombatRange(value.fromStep) && ['medium-range', 'short-range', 'boarding'].includes(String(value.currentStep)) &&
     Number.isSafeInteger(value.committedContacts) && (value.committedContacts as number) >= 0;
 }
@@ -25234,7 +25242,10 @@ export const commitWolfRangeActionChoice = onCall<{
     const group = await tx.get(db.doc(`sessions/${sessionId}/fleetGroups/${groupId}`));
     requireAegisExecutiveOfficerCurrentBerth(player, uid, group);
     const replay = replayBoundCommand(receipt, fingerprint, isWolfRangeActionChoiceResult, 'Wolf range action choice');
-    if (replay) return replay;
+    if (replay) {
+      requireCurrentWolfAttackReceipt(session, state, replay.turn, replay.attackId);
+      return replay;
+    }
     requireUsableShip(session, 'aegis');
     const inputs = requireWolfRangeState(session, state, range);
     if (raw.expectedTurn !== inputs.turn || raw.expectedRevision !== inputs.revision) {
@@ -25335,7 +25346,8 @@ export const commitWolfRangeActionChoice = onCall<{
     ) : memberResultsWithSources;
     const result: WolfRangeActionChoiceResult = {
       status: 'committed', type: 'wolf-range-action-choice', sessionId, requestId,
-      turn: inputs.turn, revision: nextRevision, range, currentStep: nextStep ?? range,
+      attackId: inputs.attackId, turn: inputs.turn, revision: nextRevision,
+      range, currentStep: nextStep ?? range,
       choiceStatus: resolvesImmediately ? 'passed' : 'targets-required', hitSlots,
     };
     tx.update(stateRef, {
@@ -25413,7 +25425,10 @@ export const assignWolfRangeTargets = onCall<{
     const group = await tx.get(db.doc(`sessions/${sessionId}/fleetGroups/${groupId}`));
     requireAegisExecutiveOfficerCurrentBerth(player, uid, group);
     const replay = replayBoundCommand(receipt, fingerprint, isWolfRangeTargetAssignmentResult, 'Wolf range target assignment');
-    if (replay) return replay;
+    if (replay) {
+      requireCurrentWolfAttackReceipt(session, state, replay.turn, replay.attackId);
+      return replay;
+    }
     requireUsableShip(session, 'aegis');
     const inputs = requireWolfRangeState(session, state, range);
     if (raw.expectedTurn !== inputs.turn || raw.expectedRevision !== inputs.revision) {
@@ -25552,7 +25567,8 @@ export const assignWolfRangeTargets = onCall<{
     );
     const result: WolfRangeTargetAssignmentResult = {
       status: 'committed', type: 'wolf-range-target-assignment', sessionId, requestId,
-      turn: inputs.turn, revision: nextRevision, fromStep: range, currentStep: nextStep,
+      attackId: inputs.attackId, turn: inputs.turn, revision: nextRevision,
+      fromStep: range, currentStep: nextStep,
       committedContacts: assignments.reduce((total, assignment) => total + assignment.targetInstanceIds.length, 0),
     };
     tx.update(stateRef, {
@@ -26752,6 +26768,7 @@ type WolfBoardingDefenceChoiceResult = Readonly<{
   type: 'wolf-boarding-defence-choice';
   sessionId: string;
   requestId: string;
+  attackId: string;
   turn: number;
   revision: number;
   targetShipId: WolfFleetTargetId;
@@ -26763,6 +26780,7 @@ function wolfBoardingDefenceInputs(
   session: DocumentSnapshot,
   state: DocumentSnapshot,
 ): Readonly<{
+  attackId: string;
   turn: number;
   revision: number;
   deadlineAt: string;
@@ -26779,10 +26797,12 @@ function wolfBoardingDefenceInputs(
   }
   const turn = state.get('turn');
   const revision = state.get('revision');
+  const attackId = state.get('attackId');
   const deadlineAt = state.get('deadlineAt');
   const phase = turnPhaseState(session.get('turnPhase'));
   if (!Number.isSafeInteger(turn) || (turn as number) < 1 || turn !== sessionTurn(session.get('currentTurn')) ||
       !Number.isSafeInteger(revision) || (revision as number) < 1 ||
+      typeof attackId !== 'string' || attackId.length === 0 ||
       typeof deadlineAt !== 'string' || !Number.isFinite(Date.parse(deadlineAt)) ||
       !phase || phase.turn !== turn || phase.airspace.state !== 'restricted' || phase.timerPause !== undefined) {
     throw commandError('failed-precondition',
@@ -26848,6 +26868,7 @@ function wolfBoardingDefenceInputs(
     throw commandError('failed-precondition', 'The committed Wolf boarding choices are malformed.', 'conflict');
   }
   return {
+    attackId,
     turn: turn as number,
     revision: revision as number,
     deadlineAt,
@@ -27179,11 +27200,12 @@ function requireWolfBoardingPlayerBerth(
 function isWolfBoardingDefenceChoiceResult(value: unknown): value is WolfBoardingDefenceChoiceResult {
   if (!isRecord(value)) return false;
   const allowed = new Set([
-    'status', 'type', 'sessionId', 'requestId', 'turn', 'revision', 'targetShipId', 'securityTeams', 'currentStep',
+    'status', 'type', 'sessionId', 'requestId', 'attackId', 'turn', 'revision', 'targetShipId', 'securityTeams', 'currentStep',
   ]);
   return Object.keys(value).every((key) => allowed.has(key)) && value.status === 'committed' &&
     value.type === 'wolf-boarding-defence-choice' && typeof value.sessionId === 'string' &&
-    isCanonicalRequestId(value.requestId) && Number.isSafeInteger(value.turn) &&
+    isCanonicalRequestId(value.requestId) && typeof value.attackId === 'string' && value.attackId.length > 0 &&
+    Number.isSafeInteger(value.turn) &&
     Number.isSafeInteger(value.revision) &&
     (EXPANDED_WOLF_TARGET_RING as readonly string[]).includes(String(value.targetShipId)) &&
     Number.isSafeInteger(value.securityTeams) && (value.securityTeams as number) >= 0 &&
@@ -27301,7 +27323,10 @@ export const commitWolfBoardingDefenceChoice = onCall<{
     }
     const replay = replayBoundCommand(receipt, fingerprint, isWolfBoardingDefenceChoiceResult,
       'Wolf boarding defence choice');
-    if (replay) return replay;
+    if (replay) {
+      requireCurrentWolfAttackReceipt(session, state, replay.turn, replay.attackId);
+      return replay;
+    }
     const snapshot = wolfBoardingProtocolSnapshot(session, state, players.docs, groups.docs);
     const inputs = snapshot.inputs;
     if (!inputs.targetRing.includes(targetShipId) || inputs.boardingParties[targetShipId] < 1) {
@@ -27324,7 +27349,8 @@ export const commitWolfBoardingDefenceChoice = onCall<{
     const nextRevision = inputs.revision + 1;
     const result: WolfBoardingDefenceChoiceResult = {
       status: 'committed', type: 'wolf-boarding-defence-choice', sessionId, requestId,
-      turn: inputs.turn, revision: nextRevision, targetShipId, securityTeams, currentStep: 'boarding',
+      attackId: inputs.attackId, turn: inputs.turn, revision: nextRevision,
+      targetShipId, securityTeams, currentStep: 'boarding',
     };
     tx.update(sessionRef, { [`shipResources.${targetShipId}.securityTeams`]: availableSecurityTeams - securityTeams,
       updatedAt: FieldValue.serverTimestamp() });
