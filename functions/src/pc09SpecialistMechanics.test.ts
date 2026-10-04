@@ -36,6 +36,25 @@ it('resolves Fighter Ace dice and source-specific fighter and pilot outcomes', (
   });
 });
 
+it('applies only actual Fighter Ace damage to the authoritative attack roster', () => {
+  const applyPdfFighterAceResults = specialistFunctions.applyPdfFighterAceResults as
+    (roster: readonly Record<string, unknown>[], results: readonly Record<string, unknown>[]) => readonly Record<string, unknown>[];
+  const roster = [
+    { instanceId: '0:wolf-scout', shipId: 'wolf-scout', target: 'shepherd', damageTaken: 0, destroyed: false },
+    { instanceId: '2:wolf-cruiser', shipId: 'wolf-cruiser', target: 'quellon', damageTaken: 1, destroyed: false },
+  ];
+  expect(applyPdfFighterAceResults(roster, [
+    { instanceId: '2:wolf-cruiser', shipId: 'wolf-cruiser', damage: 2, destroyed: true },
+    { instanceId: '0:wolf-scout', shipId: 'wolf-scout', damage: 0, destroyed: false },
+  ])).toEqual([
+    roster[0],
+    { ...roster[1], damageTaken: 3, destroyed: true },
+  ]);
+  expect(() => applyPdfFighterAceResults(roster, [
+    { instanceId: '2:wolf-cruiser', shipId: 'wolf-cruiser', damage: 1, destroyed: true },
+  ])).toThrow(/damage|capacity/i);
+});
+
 it('binds a hosted maintenance die to one current GM-attested Team visit outside Dione', () => {
   const createHostedMaintenanceGrant = specialistFunctions.createHostedMaintenanceGrant as
     (input: Record<string, unknown>) => Record<string, unknown>;
