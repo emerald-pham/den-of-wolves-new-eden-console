@@ -94,6 +94,7 @@ export default function RoleBrief() {
   const session = useSessionStore((state) => state.session);
   const me = useSessionStore((state) => state.me);
   const brief = useSessionStore((state) => state.roleBrief);
+  const briefLoading = useSessionStore((state) => state.roleBriefLoading);
   const connection = useSessionStore((state) => state.connection);
   const privateLoyalty = useSessionStore((state) => state.privateLoyalty);
   const arbourVision = useSessionStore((state) => state.arbourVision);
@@ -118,9 +119,27 @@ export default function RoleBrief() {
   const callOpen = callReviewAvailable && dismissedCallKey !== callKey;
 
   if (
-    !session || !me || !brief ||
+    !session || !me || me.sessionId !== session.id ||
     me.role !== 'player' ||
     me.replacementStatus != null ||
+    !(me.replacementRoleId ?? me.assignedRoleId)
+  ) {
+    return <Navigate to="/console" replace />;
+  }
+
+  if (!brief && briefLoading) {
+    return (
+      <main className="role-brief-screen">
+        <article className="role-brief cic-frame">
+          <Link className="session-mode__back cic-text-button" to="/console">Back to stations</Link>
+          <p role="status">Waiting for the current private briefing…</p>
+        </article>
+      </main>
+    );
+  }
+
+  if (
+    !brief ||
     brief.assignmentUid !== me.uid ||
     me.replacementRoleId !== brief.roleId && me.assignedRoleId !== brief.roleId
   ) {

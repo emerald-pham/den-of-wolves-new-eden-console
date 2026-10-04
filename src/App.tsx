@@ -962,7 +962,7 @@ function AppRoutes() {
           // projection that authorizes it. Hold the own-UID record until the
           // matching assignment arrives, while removing any former brief.
           pendingRoleBrief = next;
-          store.setRoleBrief(null);
+          store.setRoleBrief(null, true);
         },
         onAwayMissionHandPointers: (next) => {
           if (!callbackCurrent()) return;

@@ -457,6 +457,8 @@ interface SessionState {
   turnStartReplay: TurnStartReplay | null;
   privateLoyalty: PrivateLoyalty | null;
   roleBrief: RoleBrief | null;
+  /** True only while the current identity's private subscription is hydrating. */
+  roleBriefLoading: boolean;
   awayMissionHandPointer: AwayMissionHandPointer | null;
   awayMissionHand: AwayMissionHand | null;
   awayMissionHandPointers: readonly AwayMissionHandPointer[];
@@ -496,7 +498,7 @@ interface SessionState {
   clearGmAccess: () => void;
   setTurnStartReplay: (replay: TurnStartReplay | null) => void;
   setPrivateLoyalty: (loyalty: PrivateLoyalty | null) => void;
-  setRoleBrief: (brief: RoleBrief | null) => void;
+  setRoleBrief: (brief: RoleBrief | null, loading?: boolean) => void;
   setAwayMissionHandPointer: (pointer: AwayMissionHandPointer | null) => void;
   setAwayMissionHand: (hand: AwayMissionHand | null) => void;
   setAwayMissionHandPointers: (pointers: readonly AwayMissionHandPointer[]) => void;
@@ -536,6 +538,7 @@ const initial = {
   turnStartReplay: null,
   privateLoyalty: null,
   roleBrief: null,
+  roleBriefLoading: false,
   awayMissionHandPointer: null,
   awayMissionHand: null,
   awayMissionHandPointers: [] as readonly AwayMissionHandPointer[],
@@ -565,7 +568,7 @@ const initial = {
 } satisfies Pick<
   SessionState,
   'session' | 'seats' | 'me' | 'gmInstance' | 'gmAccessAuthenticatedAt' | 'turnStartReplay' | 'pendingCommands' |
-  'privateLoyalty' | 'roleBrief' | 'awayMissionHandPointer' | 'awayMissionHand' | 'awayMissionHandPointers' | 'awayMissionHands' | 'gmAwayMissionHandPointers' | 'gmLoyaltyCensus' | 'wolfCultIntelligence' | 'gmWolfCultIntelligence' | 'arbourVision' | 'gmArbourVision' | 'facilitatorRuleCall' | 'gmFacilitatorRuleCall' | 'gmCrisisState' | 'gmZealotryResponse' | 'gmCivilUnrestResolution' | 'gmSetupReceipt' | 'commissarPurgeAuthority' | 'communicationError' | 'mode' | 'lastRoute' | 'connection' |
+  'privateLoyalty' | 'roleBrief' | 'roleBriefLoading' | 'awayMissionHandPointer' | 'awayMissionHand' | 'awayMissionHandPointers' | 'awayMissionHands' | 'gmAwayMissionHandPointers' | 'gmLoyaltyCensus' | 'wolfCultIntelligence' | 'gmWolfCultIntelligence' | 'arbourVision' | 'gmArbourVision' | 'facilitatorRuleCall' | 'gmFacilitatorRuleCall' | 'gmCrisisState' | 'gmZealotryResponse' | 'gmCivilUnrestResolution' | 'gmSetupReceipt' | 'commissarPurgeAuthority' | 'communicationError' | 'mode' | 'lastRoute' | 'connection' |
   'sessionSnapshotFreshness' | 'voyage33MovementProjectionFresh' |
   'persistedSessionSnapshot' | 'identityHydrationRevision'
 >;
@@ -626,6 +629,7 @@ export const useSessionStore = create<SessionState>()(
       }),
       setIdentity: (session, me) => set((state) => ({
         session: clearVoyageMovement(session), me, roleBrief: null, awayMissionHandPointer: null, awayMissionHand: null,
+        roleBriefLoading: me.role === 'player',
         privateLoyalty: samePrivateAssignment(state.me, me) ? state.privateLoyalty : null,
         awayMissionHandPointers: [], awayMissionHands: [],
         gmAwayMissionHandPointers: [], wolfCultIntelligence: null, gmWolfCultIntelligence: null,
@@ -670,7 +674,7 @@ export const useSessionStore = create<SessionState>()(
       clearGmAccess: () => set({ gmAccessAuthenticatedAt: null }),
       setTurnStartReplay: (turnStartReplay) => set({ turnStartReplay }),
       setPrivateLoyalty: (privateLoyalty) => set({ privateLoyalty }),
-      setRoleBrief: (roleBrief) => set({ roleBrief }),
+      setRoleBrief: (roleBrief, loading = false) => set({ roleBrief, roleBriefLoading: roleBrief === null && loading }),
       setAwayMissionHandPointer: (awayMissionHandPointer) => set({ awayMissionHandPointer }),
       setAwayMissionHand: (awayMissionHand) => set({ awayMissionHand }),
       setAwayMissionHandPointers: (awayMissionHandPointers) => set({
@@ -754,6 +758,7 @@ export const useSessionStore = create<SessionState>()(
           turnStartReplay: null,
           privateLoyalty: null,
           roleBrief: null,
+          roleBriefLoading: false,
           awayMissionHandPointer: null,
           awayMissionHand: null,
           awayMissionHandPointers: [],
@@ -821,6 +826,7 @@ export const useSessionStore = create<SessionState>()(
           voyage33MovementProjectionFresh: false,
           persistedSessionSnapshot: hasRestoredSession && restoredSession !== null,
           identityHydrationRevision: current.identityHydrationRevision,
+          roleBriefLoading: current.roleBriefLoading,
         };
       },
     },
