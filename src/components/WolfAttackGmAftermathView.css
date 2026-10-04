@@ -3,7 +3,7 @@
   gap: 1rem;
   margin: 1rem 0;
   padding: 1rem;
-  border-color: color-mix(in srgb, var(--cic-accent, #56d9c6) 46%, transparent);
+  border-color: color-mix(in srgb, var(--cic-cyan) 46%, transparent);
 }
 
 .wolf-attack-gm-aftermath > header h3,
@@ -12,7 +12,7 @@
 }
 
 .wolf-attack-gm-aftermath > header small {
-  color: var(--cic-muted, #a8b5bb);
+  color: var(--cic-muted);
   overflow-wrap: anywhere;
 }
 
