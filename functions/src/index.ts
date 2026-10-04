@@ -13434,6 +13434,35 @@ function pdfFighterAceRange(value: unknown): 'long' | 'medium' | 'short' | null 
     : value === 'short-range' ? 'short' : null;
 }
 
+/** Fighter counts compact after a loss; a surviving Ace occupies its chosen slot for this range. */
+function fighterAceReservedIndex(state: DocumentSnapshot, sourceId: PdfFighterAceSourceId, range: WolfCombatRange): number | undefined {
+  const action = state.get('pdfFighterAceAction');
+  return isRecord(action) && action.attackId === state.get('attackId') && action.turn === state.get('turn') &&
+    action.sourceId === sourceId && `${action.range}-range` === range && isRecord(action.outcome) &&
+    action.outcome.fighterDestroyed === false && Number.isSafeInteger(action.fighterIndex)
+    ? action.fighterIndex as number : undefined;
+}
+
+function fighterAceOrdinaryChoiceIndexes(state: DocumentSnapshot, sourceId: PdfFighterAceSourceId,
+  range: 'long' | 'medium' | 'short'): readonly number[] {
+  if (range === 'long') return [];
+  const atRange = `${range}-range` as 'medium-range' | 'short-range';
+  const choice = sourceId === 'pdf-escort-fighter-wing'
+    ? wolfEscortChoice(state, atRange, sourceId) : wolfFighterRangeChoiceValue(state, atRange, sourceId);
+  if (choice === undefined) return [];
+  if (!isRecord(choice) || choice.status !== 'committed' || choice.attackId !== state.get('attackId') ||
+      choice.turn !== state.get('turn') || choice.range !== atRange || choice.sourceId !== sourceId) {
+    throw commandError('failed-precondition', 'The current ordinary fighter choice is malformed.', 'conflict');
+  }
+  const indexes = range === 'medium' && Array.isArray(choice.actions)
+    ? choice.actions.map((action: unknown) => isRecord(action) ? action.fighterIndex : undefined)
+    : range === 'short' && Array.isArray(choice.fighterIndexes) ? choice.fighterIndexes : undefined;
+  if (!indexes || indexes.some((index: unknown) => !Number.isSafeInteger(index) || (index as number) < 0)) {
+    throw commandError('failed-precondition', 'The current ordinary fighter slots are malformed.', 'conflict');
+  }
+  return indexes as number[];
+}
+
 function pdfFighterAceTargetRoster(
   session: DocumentSnapshot,
   state: DocumentSnapshot,
@@ -13450,18 +13479,19 @@ function pdfFighterAceTargetRoster(
       range: null, roster: [], actionUsed: false };
   }
   const calculation = state.get('calculationReceipt');
-  const receipt = isRecord(calculation) && calculation.step === WOLF_ATTACK_DECLARATION_STEP
+  const receipt = isRecord(calculation) && (calculation.step === WOLF_ATTACK_DECLARATION_STEP ||
+    state.get('status') === 'resolved' && calculation.type === 'wolf-combat-calculation')
     ? parseWolfTargetingReceipt(calculation.targeting) : undefined;
   if (!receipt) throw commandError('failed-precondition', 'The current Fighter Ace target contacts are unavailable.', 'conflict');
   let ring: WolfTargetRing;
-  try { ring = configuredWolfTargetRingForSession(session); } catch {
+  try { ring = configuredWolfTargetRingForAttack(session, state); } catch {
     throw commandError('failed-precondition', 'The current Fighter Ace target ring is unavailable.', 'conflict');
   }
   if (JSON.stringify(receipt.ring) !== JSON.stringify(ring)) {
     throw commandError('failed-precondition', 'The current Fighter Ace target ring is stale.', 'conflict');
   }
   const rawRoster = state.get('combatRoster');
-  const roster = rawRoster === undefined ? wolfCombatRoster(receipt) : rawRoster;
+  let roster = rawRoster === undefined ? wolfCombatRoster(receipt) : rawRoster;
   if (!Array.isArray(roster) || roster.length !== receipt.rolls.length ||
       roster.some((entry, index) => !isRecord(entry) ||
         entry.instanceId !== `${index}:${receipt.rolls[index]?.shipId}` ||
@@ -13469,6 +13499,15 @@ function pdfFighterAceTargetRoster(
         !Number.isSafeInteger(entry.damageTaken) || (entry.damageTaken as number) < 0 ||
         typeof entry.destroyed !== 'boolean')) {
     throw commandError('failed-precondition', 'The current Fighter Ace contact roster is malformed.', 'conflict');
+  }
+  const range = state.get('status') === 'declared' ? pdfFighterAceRange(state.get('currentStep')) : null;
+  if (range || state.get('status') === 'resolved') {
+    try {
+      roster = wolfCombatProgressionRoster(state, receipt,
+        range ? `${range}-range` as WolfCombatRange : 'boarding', roster as readonly WolfCombatShip[]);
+    } catch (cause) {
+      throw commandError('failed-precondition', cause instanceof Error ? cause.message : 'The current pre-range roster is malformed.', 'conflict');
+    }
   }
   const action = state.get('pdfFighterAceAction');
   let actionUsed = false;
@@ -13486,7 +13525,7 @@ function pdfFighterAceTargetRoster(
   }
   return {
     turn: turn as number, revision: revision as number, attackId,
-    range: state.get('status') === 'declared' ? pdfFighterAceRange(state.get('currentStep')) : null,
+    range,
     roster: roster as readonly WolfCombatShip[], actionUsed,
   };
 }
@@ -13506,7 +13545,8 @@ function pdfFighterAceCombatView(
       if (permission.attackId !== current.attackId || permission.turn !== current.turn || permission.aceUid !== uid) continue;
       try {
         const source = pdfFighterAceSourceState(session, state, pdfWing, sourceId);
-        if (source.snapshot.fighters > permission.fighterIndex) fighterSources.push({
+        if (source.snapshot.fighters > permission.fighterIndex &&
+            !fighterAceOrdinaryChoiceIndexes(state, sourceId, current.range).includes(permission.fighterIndex)) fighterSources.push({
           id: sourceId, label: pdfFighterAceSourceLabel(sourceId), fighters: source.snapshot.fighters,
           fighterIndex: permission.fighterIndex, permissionRequestId: permission.requestId,
           permissionRevision: permission.revision,
@@ -13608,7 +13648,8 @@ function pdfFighterAcePermissionView(
     sourceId, sourceLabel: pdfFighterAceSourceLabel(sourceId), status, reason,
     fighters: snapshot?.fighters ?? 0,
     availableFighterIndexes: status === 'ready' && snapshot
-      ? Array.from({ length: snapshot.fighters }, (_, index) => index) : [],
+      ? Array.from({ length: snapshot.fighters }, (_, index) => index)
+        .filter((index) => !fighterAceOrdinaryChoiceIndexes(state, sourceId, current.range!).includes(index)) : [],
   };
 }
 
@@ -13762,6 +13803,9 @@ export const grantPdfFighterAcePermission = onCall<{
     const ace = aceOwners[0]!;
     requireAceSourceOfficerAndSameFleet(sourceId, officer, ace, uid, ace.id, fleetGroups.docs, players.docs);
     const source = pdfFighterAceSourceState(session, state, pdfWing, sourceId);
+    if (fighterAceOrdinaryChoiceIndexes(state, sourceId, current.range).includes(fighterIndex)) {
+      throw commandError('failed-precondition', 'This fighter already has an ordinary range action.', 'conflict');
+    }
     const permission = createPdfFighterAcePermission({
       attackId, turn: current.turn, sourceId, fighterIndex, aceUid: ace.id,
       actorUid: uid, actorRoleId, requestId, revision: 1,
@@ -13966,8 +14010,12 @@ export const commitPdfFighterAceCombat = onCall<{
     if (source.snapshot.fighters <= fighterIndex) {
       throw commandError('failed-precondition', 'The authorized fighter slot is no longer available.', 'stale-revision');
     }
+    const ordinaryIndexes = fighterAceOrdinaryChoiceIndexes(state, sourceId, range);
+    if (ordinaryIndexes.includes(fighterIndex) || range === 'short' && extraTargetId !== undefined && ordinaryIndexes.length > 0) {
+      throw commandError('failed-precondition', 'The selected fighter source already has a conflicting ordinary range action.', 'conflict');
+    }
     let targetRing: WolfTargetRing;
-    try { targetRing = configuredWolfTargetRingForSession(session); } catch {
+    try { targetRing = configuredWolfTargetRingForAttack(session, state); } catch {
       throw commandError('failed-precondition', 'The current target ring is unavailable.', 'conflict');
     }
     return { replay: undefined, session, state, current: { ...current, target, extraTarget, targetRing,
@@ -24676,6 +24724,7 @@ function collectWolfEscortRangeChoices(input: Readonly<{
   return collectWolfEscortRange({ attackId, turn: input.turn, range: input.range,
     roster: input.inputs.roster, ring: input.inputs.receipt.ring,
     pdf, maliades, choices: input.attack.get('escortRangeChoices'),
+    reservedPdfFighterIndex: fighterAceReservedIndex(input.attack, 'pdf-escort-fighter-wing', input.range),
     owners: { 'pdf-escort-fighter-wing': colonels.length === 1,
       maliades: engineers.length === 1 && control?.maliades?.holderUid === engineers[0]?.id },
   });
@@ -24812,6 +24861,7 @@ function persistWolfEscortState(
   state: ReturnType<NonNullable<WolfEscortRangeBundle['applyLocked']>> | undefined,
   fighterState?: AegisFighterWingCombatState,
   session?: DocumentSnapshot,
+  attack?: DocumentSnapshot,
 ): void {
   const pdfMemberView = state?.pdfState ? projectPdfEscortWingMemberView(state.pdfState) : undefined;
   if (state?.pdfState && !pdfMemberView) {
@@ -24825,12 +24875,29 @@ function persistWolfEscortState(
     for (const wingId of ['fighter-wing-alpha', 'fighter-wing-bravo'] as const) {
       const wing = fighterState.wings[wingId];
       const current = counts[wingId];
-      if (!current || current.count !== wing.fighters + wing.losses) {
+      let persistedAceLoss = 0;
+      const ace = attack?.get('pdfFighterAceAction');
+      if (ace !== undefined) {
+        let receipt: ReturnType<typeof requirePdfFighterAceActionReceipt>;
+        try { receipt = requirePdfFighterAceActionReceipt(ace, { attackId: fighterState.attackId }); }
+        catch { throw commandError('failed-precondition', 'The persisted Ace source loss is malformed.', 'conflict'); }
+        if (receipt.turn !== fighterState.cycle || receipt.revision > (attack?.get('revision') as number)) {
+          throw commandError('failed-precondition', 'The persisted Ace source loss is stale.', 'conflict');
+        }
+        if (receipt.sourceId === wingId && receipt.outcome.fighterDestroyed) {
+          persistedAceLoss = 1;
+          if (!current || current.revision !== receipt.sourceStateAfter.durableRevision) {
+            throw commandError('failed-precondition', 'The durable Ace source revision changed.', 'conflict');
+          }
+        }
+      }
+      if (!current || wing.losses < persistedAceLoss || current.count !== wing.fighters + wing.losses - persistedAceLoss) {
         throw commandError('failed-precondition', 'The durable AEGIS fighter count changed during this attack.', 'conflict');
       }
-      if (wing.shortResolved && wing.losses > 0) {
+      const unpaidLosses = wing.losses - persistedAceLoss;
+      if (wing.shortResolved && unpaidLosses > 0) {
         fighterCountPatch[`fighterWingCounts.${wingId}`] = {
-          count: current.count - wing.losses,
+          count: current.count - unpaidLosses,
           revision: current.revision + 1,
         };
       }
@@ -24935,6 +25002,7 @@ function collectWolfAegisFighterRangeChoices(input: Readonly<{
   for (const wingId of launchedWings) {
     if (launchChoices[wingId]?.status !== 'launched') return { status: 'unsupported' };
     const choice = byRange[wingId];
+    const reservedIndex = fighterAceReservedIndex(input.attack, wingId, input.range);
     if (choice === undefined) {
       // Disconnected assigned holders remain in owners and keep the choice
       // pending. Only a genuinely absent/ineligible holder is unavailable.
@@ -24953,7 +25021,7 @@ function collectWolfAegisFighterRangeChoices(input: Readonly<{
               seenIndexes.has(action.fighterIndex as number) ||
               (action.kind !== 'attack' && action.kind !== 'target-shift')) return { status: 'unsupported' };
           const fighterIndex = action.fighterIndex as number;
-          if (fighterIndex < 0 || fighterIndex >= rawCombat.wings[wingId].fighters) return { status: 'unsupported' };
+          if (fighterIndex < 0 || fighterIndex >= rawCombat.wings[wingId].fighters || fighterIndex === reservedIndex) return { status: 'unsupported' };
           seenIndexes.add(fighterIndex);
           const rosterIndex = input.inputs.roster.findIndex(({ instanceId }) => instanceId === action.targetInstanceId);
           if (rosterIndex < 0) return { status: 'unsupported' };
@@ -24973,7 +25041,7 @@ function collectWolfAegisFighterRangeChoices(input: Readonly<{
       } else {
         if (!Array.isArray(choice.fighterIndexes) ||
             choice.fighterIndexes.some((fighterIndex, index) => !Number.isSafeInteger(fighterIndex) ||
-              (fighterIndex as number) < 0 || (fighterIndex as number) >= rawCombat.wings[wingId].fighters ||
+              (fighterIndex as number) < 0 || (fighterIndex as number) >= rawCombat.wings[wingId].fighters || fighterIndex === reservedIndex ||
               (index > 0 && (fighterIndex as number) <= (choice.fighterIndexes as number[])[index - 1]!))) {
           return { status: 'unsupported' };
         }
@@ -26238,7 +26306,7 @@ async function reconcileWolfAttackProgress(sessionId: string): Promise<void> {
         ? { memberResults: memberResultsWithSupport } : {}),
       updatedAt: FieldValue.serverTimestamp(),
     });
-    persistWolfEscortState(tx, sessionRef, pdfWingRef, appliedStates.escortState, appliedStates.fighterState, session);
+    persistWolfEscortState(tx, sessionRef, pdfWingRef, appliedStates.escortState, appliedStates.fighterState, session, state);
     tx.set(db.doc(`${stateRef.path}/audit/auto-${step}-${inputs.turn}`), {
       type: weaponUnavailable ? 'wolf-range-automatic-unavailable' : 'wolf-range-automatic-no-action',
       range: step, fromStep: step, toStep: nextStep, turn: inputs.turn, revision: nextRevision,
@@ -28712,6 +28780,12 @@ function wolfCombatProgressionRoster(
   }
   const ace = aceRaw as WolfFighterAceActionReceipt | undefined;
   const commander = (commanderRaw ?? {}) as Partial<Record<WolfCombatRange, unknown>>;
+  const revision = state.get('revision');
+  if (!Number.isSafeInteger(revision) || (revision as number) < 1 ||
+      ace && ace.revision > (revision as number) || Object.values(commander).some((choice) =>
+        !isRecord(choice) || !Number.isSafeInteger(choice.revision) || (choice.revision as number) > (revision as number))) {
+    throw new Error('The pre-range choices are outside the current attack revision.');
+  }
   const permissions = state.get('fighterAcePermissions');
   const order: readonly WolfCombatRange[] = ['long-range', 'medium-range', 'short-range'];
   const currentIndex = range === 'boarding' ? order.length : order.indexOf(range);
@@ -29245,7 +29319,7 @@ export const commitWolfRangeActionChoice = onCall<{
       } : {}),
       updatedAt: FieldValue.serverTimestamp(),
     });
-    if (resolvesImmediately) persistWolfEscortState(tx, sessionRef, pdfWingRef, appliedStates?.escortState, appliedStates?.fighterState, session);
+    if (resolvesImmediately) persistWolfEscortState(tx, sessionRef, pdfWingRef, appliedStates?.escortState, appliedStates?.fighterState, session, state);
     tx.set(auditRef, {
       type: 'wolf-range-action-choice', range, turn: inputs.turn, revision: nextRevision,
       actorUid: uid, actorRoleId: 'executive-officer', requestId,
@@ -29464,7 +29538,7 @@ export const assignWolfRangeTargets = onCall<{
       ...(appliedStates.fighterState ? { aegisFighterWingState: appliedStates.fighterState } : {}),
       updatedAt: FieldValue.serverTimestamp(),
     });
-    persistWolfEscortState(tx, sessionRef, pdfWingRef, appliedStates.escortState, appliedStates.fighterState, session);
+    persistWolfEscortState(tx, sessionRef, pdfWingRef, appliedStates.escortState, appliedStates.fighterState, session, state);
     tx.set(auditRef, {
       type: 'wolf-range-target-assignment', range, turn: inputs.turn, revision: nextRevision,
       fromStep: range, toStep: nextStep, actorUid: uid, actorRoleId: 'executive-officer', requestId,
@@ -29534,7 +29608,8 @@ function wolfFighterRangeActionView(
     revision: inputs.revision, wingId,
     wingLabel: wingId === 'fighter-wing-alpha' ? 'Fighter Wing Alpha' : 'Fighter Wing Bravo',
     range, choiceStatus: committed === undefined ? 'pending' : 'committed',
-    fighters: wing.launched ? Array.from({ length: wing.fighters }, (_, fighterIndex) => ({ fighterIndex })) : [],
+    fighters: wing.launched ? Array.from({ length: wing.fighters }, (_, fighterIndex) => ({ fighterIndex }))
+      .filter(({ fighterIndex }) => fighterIndex !== fighterAceReservedIndex(attack, wingId, range)) : [],
     targets, launched: wing.launched,
     ...(selectedFighterIndexes === undefined ? {} : { selectedFighterIndexes }),
   };
@@ -29678,7 +29753,7 @@ export const commitWolfFighterRangeActionChoice = onCall<{
     if ((range === 'medium-range' && wing.mediumResolved) || (range === 'short-range' && wing.shortResolved)) {
       throw commandError('failed-precondition', 'This wing has already resolved this range.', 'conflict');
     }
-    if (selectedIndexes.some((index) => index < 0 || index >= wing.fighters)) {
+    if (selectedIndexes.some((index) => index < 0 || index >= wing.fighters || index === fighterAceReservedIndex(attack, wingId, range))) {
       throw commandError('failed-precondition', 'A selected fighter is no longer available.', 'conflict');
     }
     let persistedActions: readonly Readonly<Record<string, unknown>>[] | undefined;
@@ -29839,7 +29914,8 @@ export const getWolfEscortRangeActionChoice = onCall<{ sessionId?: unknown; sour
     return sourceId === 'maliades'
       ? { type: 'dione-maliades-range-action-view', ...common, damage: state.maliades.damage, destroyed: state.maliades.destroyed }
       : { type: 'wolf-fighter-range-action-view', ...common, wingId: sourceId, wingLabel: 'P.D.F. Escort Fighter Wing',
-        fighters: state.launched ? Array.from({ length: state.pdf.fighters }, (_, fighterIndex) => ({ fighterIndex })) : [] };
+        fighters: state.launched ? Array.from({ length: state.pdf.fighters }, (_, fighterIndex) => ({ fighterIndex }))
+          .filter(({ fighterIndex }) => fighterIndex !== fighterAceReservedIndex(attack, sourceId, range)) : [] };
   });
 });
 
@@ -29926,14 +30002,15 @@ export const commitWolfEscortRangeActionChoice = onCall<{
     let persisted: WolfEscortFields;
     if (range === 'medium-range') {
       persisted = { actions: (choices as WolfEscortFields[]).map((action) => {
-        if (sourceId !== 'maliades' && (action.fighterIndex as number) >= state.pdf.fighters) throw commandError('failed-precondition', 'The selected PDF fighter is no longer available.', 'conflict');
+        if (sourceId !== 'maliades' && ((action.fighterIndex as number) >= state.pdf.fighters ||
+            action.fighterIndex === fighterAceReservedIndex(attack, sourceId, range))) throw commandError('failed-precondition', 'The selected PDF fighter is no longer available.', 'conflict');
         const ship = target(action.targetContactId as string);
         return { ...(sourceId === 'maliades' ? {} : { fighterIndex: action.fighterIndex }), kind: action.kind, targetInstanceId: ship.instanceId,
           ...(action.kind === 'target-shift' ? { shift: action.shift, targetNumber: wolfTargetNumberForRangeSource(sourceId === 'maliades' ? 'maliades' : 'pdf-escort-wing', ship.target, inputs.receipt.ring) } : {}) };
       }) };
     } else if (sourceId === 'maliades') persisted = { targetInstanceIds: (choices as string[]).map((id) => target(id).instanceId) };
     else {
-      if ((choices as number[]).some((index) => index >= state.pdf.fighters)) throw commandError('failed-precondition', 'The selected PDF fighter is no longer available.', 'conflict');
+      if ((choices as number[]).some((index) => index >= state.pdf.fighters || index === fighterAceReservedIndex(attack, sourceId, range))) throw commandError('failed-precondition', 'The selected PDF fighter is no longer available.', 'conflict');
       persisted = { fighterIndexes: [...choices as number[]].sort((a, b) => a - b) };
     }
     const nextRevision = inputs.revision + 1;

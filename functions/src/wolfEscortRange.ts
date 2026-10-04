@@ -32,6 +32,7 @@ export function collectWolfEscortRange(input: Readonly<{
   attackId: string; turn: number; range: WolfCombatRange; roster: readonly WolfCombatShip[];
   ring: WolfTargetRing; pdf: unknown; maliades: unknown; choices: unknown;
   owners: Readonly<Record<WolfEscortSourceId, boolean>>;
+  reservedPdfFighterIndex?: number;
 }>): WolfEscortRangeBundle {
   if (input.range !== 'medium-range' && input.range !== 'short-range') return { status: 'not-applicable' };
   const range = input.range;
@@ -97,7 +98,8 @@ export function collectWolfEscortRange(input: Readonly<{
         if (!exact(item, expected)) return { status: 'unsupported' };
         const rosterIndex = input.roster.findIndex(({ instanceId }) => instanceId === item.targetInstanceId);
         const index = sourceId === 'maliades' ? 0 : item.fighterIndex as number;
-        if (sourceId !== 'maliades' && (!Number.isSafeInteger(index) || index < 0 || index >= pdf.fighters || seen.has(index))) return { status: 'unsupported' };
+        if (sourceId !== 'maliades' && (!Number.isSafeInteger(index) || index < 0 || index >= pdf.fighters ||
+            index === input.reservedPdfFighterIndex || seen.has(index))) return { status: 'unsupported' };
         if (sourceId === 'maliades' && (seen.has(item.targetInstanceId) ||
           (item.kind === 'attack' ? attackSeen : shiftSeen))) return { status: 'unsupported' };
         seen.add(sourceId === 'maliades' ? item.targetInstanceId : index);
@@ -131,7 +133,8 @@ export function collectWolfEscortRange(input: Readonly<{
       });
     } else {
       if (raw.some((index, position) => !Number.isSafeInteger(index) || (index as number) < 0 ||
-          (index as number) >= pdf.fighters || (position > 0 && (index as number) <= (raw[position - 1] as number)))) return { status: 'unsupported' };
+          (index as number) >= pdf.fighters || index === input.reservedPdfFighterIndex ||
+          (position > 0 && (index as number) <= (raw[position - 1] as number)))) return { status: 'unsupported' };
       pdfShort = raw as number[];
       pdfShort.forEach((index) => actions.push({ actionId: `pdf-escort-wing-short-${index}`, sourceId: 'pdf-escort-wing', range,
         dice: { sides: 6, count: 1, successAt: 3, damagePerSuccess: 1 }, maxTargets: 1 }));

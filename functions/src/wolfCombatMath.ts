@@ -1334,7 +1334,8 @@ export function replayWolfFighterAceBeforeRange(
   const after = action.sourceStateAfter;
   if (!validateWolfFighterAceSourceState(before, action.sourceId as WolfFighterAceSourceId, context.attackId, context.turn) ||
       !validateWolfFighterAceSourceState(after, action.sourceId as WolfFighterAceSourceId, context.attackId, context.turn) ||
-      !before.launched || (action.fighterIndex as number) >= before.fighters || after.revision !== before.revision + 1 ||
+      !before.launched || (action.fighterIndex as number) >= before.fighters || after.revision !== before.revision +
+        (assertRecord(action.outcome) && action.outcome.fighterDestroyed === true ? 1 : 0) ||
       after.fighters !== before.fighters - (assertRecord(action.outcome) && action.outcome.fighterDestroyed === true ? 1 : 0) ||
       after.losses !== before.losses + (assertRecord(action.outcome) && action.outcome.fighterDestroyed === true ? 1 : 0) ||
       after.durableRevision !== before.durableRevision +
