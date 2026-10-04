@@ -542,3 +542,20 @@ it('R1 preserves current Commander and private GM exact receipts after actual au
   await expect(commitWolfBoardingSpecialChoice.run(request(commanderPayload))).resolves.toEqual(commanderResult);
   noAdditionalWrites(before, draws);
 });
+
+it('persists the validated P Station sequence marker with the immutable survivor receipt', async () => {
+  const marker = { type: 'p-station-sequence', sequenceId: 'sequence-1', groupId: 'fleet-1',
+    chart: 'New Eden', coordinate: 'P-1', stationId: 'P', sourceTransitionId: 'transition-p-1',
+    sourceCycle: 1, attackNumber: 1 };
+  const ruling = await commitSpecialFixture('commander-ruling');
+  patch(attackPath, { pStationSequence: marker });
+
+  await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
+
+  expect(fields(`${attackPath}/audit/wolf-finalized-1`)).toMatchObject({
+    pStationSequence: marker,
+    receipt: { survivingWolfShips: expect.any(Array) },
+  });
+  expect(fields(`${attackPath}/audit/wolf-finalized-1`).pStationSequence).toEqual(marker);
+  expect(ruling.result).toMatchObject({ status: 'committed' });
+});
