@@ -121,7 +121,7 @@
     },
     "functions/src/memberSession.ts": {
       "before": "12fc7d79aa0d479fdfb9bf4fdb5e37a3375b130320232ef1e688f7eb17c640fe",
-      "after": "987e8c3088822cdcc1414cb987714624339c916e53edfe83e657a1900184dc10",
+      "after": "c352549257c71339198cc55996deb5c529890103c2df397b9be1c3f260afd740",
       "consumers": [
         "getCurrentMemberSession",
         "joinSession",
@@ -139,7 +139,7 @@
     },
     "functions/src/pc09SpecialistMechanics.ts": {
       "before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "after": "5e0bec209395c5149bcc08ed5fea6190937f0b79ac6a4b95802677b1332c2eb3",
+      "after": "526f766bf313a42ee95a6cf1e8046a31726623fe74d0a3c505e81344adb2a41a",
       "consumers": [
         "advanceWolfAttackLifecycle",
         "assignWolfRangeTargets",
@@ -162,9 +162,36 @@
         "runWolfAgentDetectorTest"
       ]
     },
+    "functions/src/pdfEscortWingState.ts": {
+      "before": "7e350827d651f05c2b3ec96f1ef45b05bf661d97499c45ae3c95ea4d39ec423b",
+      "after": "345278323cbb4b227472b5f86020726ad9114d976da8247e4cf92deb538934fe",
+      "consumers": [
+        "advanceWolfAttackLifecycle",
+        "assignWolfRangeTargets",
+        "commitPdfFighterAceCombat",
+        "commitWolfEscortRangeActionChoice",
+        "commitWolfFighterRangeActionChoice",
+        "commitWolfRangeActionChoice",
+        "commitWolfRangeSupportActionChoice",
+        "dealPrivateInitialCards",
+        "declareWolfAttack",
+        "getPdfEscortWingLaunch",
+        "getPdfFighterAceCombatView",
+        "getPdfFighterAcePermissionView",
+        "getWolfEscortRangeActionChoice",
+        "getWolfRangeActionChoice",
+        "grantPdfFighterAcePermission",
+        "launchAegisFighterWing",
+        "launchDioneMaliades",
+        "launchPdfEscortWing",
+        "passWolfFighterLaunchChoice",
+        "readFleetGroupNavigation",
+        "refreshWolfAttackDecisionSummaryOnPlayerChange"
+      ]
+    },
     "functions/src/presidentialElection.ts": {
       "before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "after": "71bd861dede5a78dc2070bb2217fb82ba7bbfc0238abe4781ceb269e81fe7ac8",
+      "after": "11ba5880cf926cdc5ba33c1f4d1486caf137002ddca21578e8855a2ac973a95f",
       "consumers": [
         "configurePresidentialElection",
         "resolvePresidentialElection"
@@ -174,6 +201,7 @@
       "before": "91f9ce8249a0904711b576076636e9c8cde2875cd7724ae1b91b84cbd2db64cb",
       "after": "c2b5aa573cfcae6917f86258307f566d55651c88d72a2fbb7ac49f449ed9812f",
       "consumers": [
+        "acceptSameTableTradeOffer",
         "acknowledgeWolfHackingAlert",
         "addShipDamage",
         "adjudicateFailedJump",
@@ -195,6 +223,7 @@
         "assignReplacementRole",
         "assignRole",
         "assignWolfRangeTargets",
+        "attestPlayerHeldTokenBaseline",
         "attestVipHostVisit",
         "authorArbourVision",
         "authorFacilitatorRuleCall",
@@ -205,6 +234,7 @@
         "castPresidentialBallot",
         "claimGmInstance",
         "claimSeat",
+        "clearTurnAdvanceInterstitial",
         "commitAegisEnrichedWarheadChoice",
         "commitPdfFighterAceCombat",
         "commitWolfBoardingDefenceChoice",
@@ -219,6 +249,7 @@
         "confirmFleetPartition",
         "confirmSetup",
         "consentCommissarPurge",
+        "createSameTableTradeOffer",
         "createSession",
         "createWolfAmnestyOffer",
         "dealPrivateInitialCards",
@@ -229,6 +260,7 @@
         "dismissPopulationAlert",
         "dismissPressDispatch",
         "dismissUnrestAlert",
+        "dockVoyage33",
         "drawVipCard",
         "elevateToGm",
         "evacuateShuttleSurvivorsCommand",
@@ -238,12 +270,14 @@
         "getAegisCommandAndControl",
         "getAegisEnrichedWarheadChoice",
         "getAegisFighterWingLaunch",
+        "getBoardingSecurityTeamLocations",
         "getCommissarPurgeAuthority",
         "getDioneMaliadesLaunch",
         "getPdfEscortWingLaunch",
         "getPdfFighterAceCombatView",
         "getPdfFighterAcePermissionView",
         "getSessionPresence",
+        "getSmallShipJumpWorkspace",
         "getWolfAmnestyView",
         "getWolfAttackThreatWindowOptions",
         "getWolfBoardingDefenceChoice",
@@ -260,6 +294,8 @@
         "investigateAsIntelligenceAgent",
         "joinSession",
         "jumpShip",
+        "jumpSmallShip",
+        "jumpVoyage33",
         "kickGmInstance",
         "kickPlayer",
         "launchAegisFighterWing",
@@ -342,6 +378,7 @@
         "setShipConsoleLock",
         "setShipPreference",
         "setSmallShipDocking",
+        "setUnionCraftStartingHost",
         "setWolfAttackWindow",
         "shareKnownSystemDetails",
         "stageWolfAttackPreparation",
@@ -454,21 +491,21 @@
     },
     "functions/src/wolfAgentDetectorWriter.ts": {
       "before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "after": "0d3453b0e4a64bf530d7a80252625615a030ec588f6c2c3b8bd2107414ce55bd",
+      "after": "e3027defc34c77e8ef6da2b8d89c1ede3190927f277a35723980f1fd90be66a2",
       "consumers": [
         "runWolfAgentDetectorTest"
       ]
     },
     "functions/src/wolfAttackAftermath.ts": {
       "before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "after": "f12ef694dd458996df8543ebc3d7ee781e0efc7ea64ac0acd0aaa8ac21a83c8a",
+      "after": "af89f188e146929975e44316b105682591271624881cbe288d672d0c869f0ea4",
       "consumers": [
         "resolveWolfAttackAftermath"
       ]
     },
     "functions/src/wolfAttackAftermathCallable.ts": {
       "before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "after": "b4d58603f8bfe5fe03a117070d24895c088bcb2846cc7aee8569f230816f0744",
+      "after": "dc8a62aa2111627637d2dad2109fdc19f2ae23b8e0a15b3e1df0c78042807c42",
       "consumers": [
         "resolveWolfAttackAftermath"
       ]
@@ -495,7 +532,7 @@
     },
     "functions/src/wolfAttackCarryover.ts": {
       "before": "9f39a6b92ca92c4648ac20c01b38c0c82254fe485d5aefcfd91df3a98b726b8a",
-      "after": "d7fc5cee917a6eebef80d7c1d5a5a8c8703a2b0c6016d896db541f95aa7f2774",
+      "after": "3ac77357f5878ad65a35b1a1301865347e2dc2c1da26bcfbeed60e0c2ecd5275",
       "consumers": [
         "commitWolfCommanderAttackDial",
         "declareWolfAttack",
@@ -708,7 +745,7 @@
   },
   "index": {
     "before": "618e0058ec7e7076fee41dd17a8d1d6f0526841ce511f82b9e1671486a0625e1",
-    "after": "f417add4c7dc62e82e44bbe8dffcf44b408272f9b74b7324e735ba35ff9a2429",
+    "after": "0d907564b3693613258b3988d5903479b9fa672499e61920f2c66685f20217c2",
     "consumers": [
       "adjudicateFailedJump",
       "admitVoyage33",

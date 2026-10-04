@@ -104,6 +104,12 @@
           "purpose": "A distinct finite positive fighter-build fixture after the genuine depleted-rations/riot blocker: disclosed normal GM starting allocations, real source-defined combat losses and ordinary paid repair if needed; no product changes or capacity waiver.",
           "modelChanged": false,
           "effectiveModelConfirmed": false
+        },
+        {
+          "date": "2026-10-04",
+          "purpose": "After the Mac reset, reconstruct only the lost finite positive proof inputs and endpoint capture in the preserved driver; root Sol6.1 owns remaining positive gameplay acceptance. No runtime, Rules, emulator or full proof run is delegated.",
+          "modelChanged": false,
+          "effectiveModelConfirmed": false
         }
       ]
     },
@@ -145,6 +151,12 @@
         {
           "date": "2026-10-04",
           "purpose": "Owner-approved finding 5 resolution: preserve President; use next eligible VP-ballot candidate with configured tie handling; require an explicit current-GM in-game decision if none exists. Separate red commits, narrow product repair and one corrected Coordination Auth/Back proof. Future PC11 remains outside scope.",
+          "modelChanged": false,
+          "effectiveModelConfirmed": false
+        },
+        {
+          "date": "2026-10-04",
+          "purpose": "Restore the same branch after the Mac reset; complete the approved unique-winner VP policy with a regression rejecting nonunique President fallback and one corrected Auth/governance proof.",
           "modelChanged": false,
           "effectiveModelConfirmed": false
         }
@@ -271,7 +283,7 @@
       "threadIdEvidence": "Read-only read_thread metadata on the PC09 owner exposes the started/interacted/completed agentThreadId; this does not expose effective model.",
       "handoffInteractionAudit": {
         "classification": "Bounded P605a implementation dependency report to the PC09 owner; not another prompt or checkpoint coordination.",
-        "receivedContentSummary": "The worker identified that Luna\u2019s new session-switch test kept visibleTargetIds=[aegis] while expecting a Dione result in the replacement session. It reported the contradictory fixture without editing or running tests. Root separately corrected only that fixture in test-only commit 8346e4b2, preserving visibility and foreign-session assertions.",
+        "receivedContentSummary": "The worker identified that Luna\\u2019s new session-switch test kept visibleTargetIds=[aegis] while expecting a Dione result in the replacement session. It reported the contradictory fixture without editing or running tests. Root separately corrected only that fixture in test-only commit 8346e4b2, preserving visibility and foreign-session assertions.",
         "effect": "Root retained test ownership; Astra continued only the four P605a product files and ended with implementation commit 52d0ee9c.",
         "evidenceBoundary": "Summary of the message received by root and its separately committed disposition. Read-only worker transcript shows one interaction with /root but omits its raw payload; the final implementation handoff explicitly confirms the fixture remained untouched. No exact quote or effective-runtime confirmation is claimed.",
         "readOnlyInspectedThreadId": "01a10762-f9a3-72b8-b8a9-a326c4dc100a",
@@ -349,6 +361,18 @@
           "purpose": "Diagnostic normal Auth UI isolated legitimate attack airspace closure rejected by the client cursor and Ace consumer rejection of a different destroyed contact with canonical cumulative overkill. Separate regressions and narrow fixes integrated at 1ee0d936; fresh immutable-runtime connected combat/Commander acceptance follows. These are bounded acceptance repairs beyond the original nine review findings.",
           "modelChanged": false,
           "effectiveModelConfirmed": false
+        },
+        {
+          "date": "2026-10-04",
+          "purpose": "Restore the same branch after the Mac reset, integrate root emulator-isolation and CIC-copy changes, and complete finite local endpoint preflight plus the unchanged composed combat/API-retry/second-Wing-build proof.",
+          "modelChanged": false,
+          "effectiveModelConfirmed": false
+        },
+        {
+          "date": "2026-10-04",
+          "purpose": "Directly blocking current-private-brief hydration and Commander audit path repairs use separate permanent regressions and bounded product commits; include both in the original reviewer follow-up.",
+          "modelChanged": false,
+          "effectiveModelConfirmed": false
         }
       ]
     }
@@ -367,5 +391,15 @@
     "The original Luna P605a delegate finished its committed failing-test snapshot before the Astra launch; it owns later proof/testing/documentation, with no duplicate product implementation.",
     "Other five workers launched explicitly as Luna6 Max; root requested Sol6.1 Max and independent review remains Sol6.1.",
     "Effective runtime models are unexposed; launch settings are auditable, backend effective-model confirmation remains unavailable."
-  ]
+  ],
+  "reconnection": {
+    "firstSuccessfulCommandUtc": "2026-10-04T21:56:55Z",
+    "boundary": "Preserved common Git commits and branches; temporary worktrees/evidence absent. Restore only existing assigned owners; no new coordinator, reviewer, model change, Astra restart, or migration.",
+    "rootOwnedAdditions": [
+      "Emulator-only App Check isolation with production controls",
+      "Explicit user-authorized Cycle0 awaiting CIC authentication copy and explanation",
+      "Latest-runtime deployment consumer reconciliation",
+      "Remaining positive two-attack paid fighter rebuild acceptance"
+    ]
+  }
 }

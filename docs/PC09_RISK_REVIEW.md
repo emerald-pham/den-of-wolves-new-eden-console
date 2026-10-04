@@ -9,6 +9,12 @@ recorded in the model ledger; effective runtime model fields are unavailable.
 This report records the returned batch and the owner's bounded repairs. It
 does not yet grant checkpoint, review, CI or release completion.
 
+The Mac reconnection removed the earlier temporary checkouts and external
+proof files. Paths from the original review and pre-reset runs below are
+historical reported evidence, currently unavailable for inspection. Their
+source commits and permanent regressions survived. Fresh resumed evidence is
+identified separately; see the execution record's reconnection section.
+
 ## Returned findings and dispositions
 
 | Finding | Reproduction and consequence | Owner disposition |
@@ -17,13 +23,13 @@ does not yet grant checkpoint, review, CI or release completion.
 | 2, P2: aftermath map ordering | Firestore reordered nested fingerprint map keys, making an otherwise identical exact retry fail. | Red `4e79e4cb`; product `8271a6c1` compares exact maps semantically. Extra fields remain rejected and ordered arrays remain bound. Focused checks pass. |
 | 3, P2: Doctor off-marker population | A legal 1100-to-1000 casualty step was reverse-stepped to 1250 and rejected during mitigation. | Red `3a333e0e`; product `54f7e647` validates and calculates forward from the exact pre-damage population. The 1100 result and the existing 500-floor control pass. |
 | 4, P2: early election tally | A live close-cycle Team deadline still allowed immediate resolution after only one ballot. | Red `2fe2e5cb`; product `acb42c1e` denies the live deadline and permits legitimate post-deadline/Coordination resolution. `3d581eca` makes the existing post-close fixture deterministic. |
-| 5, P2: one holder elected to both offices | Individually legal separate President and VP ballots could produce the same unique plurality winner for both offices. | `acb42c1e` rejects that outcome before any write. The owner approved preserving President, taking the next eligible VP-ballot candidate, retaining configured tie handling and requiring an explicit current-GM in-game decision if none exists. The precise PC09-A6 resolution is recorded; implementation/current Auth proof and this reviewer's targeted verification remain. |
+| 5, P2: one holder elected to both offices | Individually legal separate President and VP ballots could produce the same unique plurality winner for both offices. | Initial `acb42c1e` fails closed. Owner-approved policy is implemented by `32e82bd8`: preserve the unique President winner, take the next eligible VP-ballot candidate, retain configured tie handling, and require an explicit current-GM in-game decision if none exists. Separate red `79031c00` / product `a45a9d85` keeps a tied President choice outside that unique-both fallback. Current Auth proof and this reviewer's targeted verification remain. |
 | 6, P2: terminal election mutation | An already configured election accepted a fresh ballot or tally after failure/debrief. | Red `f616919c`; product `00fb7103` requires active gameplay before fresh mutation. All four terminal-phase regressions pass. |
 | 7, P3: historical replay applicability | VIP reroll acknowledged a revoked actor; ballot acknowledged a removed actor; Detector and aftermath acknowledged a different current cycle/attack. No extra spending, writes or entropy were demonstrated. | Ballot `acb42c1e`, aftermath red `98679b99` / product `f8bc87bd`, and specialist red `f4a61b4c` plus `c0ae8e2e` / product `d164af64` validate current actor and applicable cycle/attack before receipts. Valid same-operation retries after revision advances remain write-free and cost-free. |
 | 8, P2: queued discovery epoch | While the actor snapshot was pending, a group 1→2→1 change released an old queued discovery event without a new callback. | Red `1178873b`; product `f9191929` clears pending discovery whenever an established actor fingerprint changes, while preserving first-snapshot hydration. Nine discovery tests pass. |
 | 9, P1: aftermath strands the next attack | A committed Doctor choice advanced live resolved revision 8→9 while the immutable finalization audit remained 8; the later-attack reader rejected that valid battle. The same reader also blocked P continuation. | Red `5e055977`; product `7a536084` records an immutable finalization revision and a separate post-finalization counter, validates their binding, and leaves the audit/archive unchanged. Actual Doctor→ordinary declaration and Doctor→P continuation handler compositions and tamper rejects pass within 242 focused checks. Final reviewer verification remains. |
 
-Original discriminating probes are retained outside Git under
+Original discriminating probes were reported outside Git under
 `/tmp/dow-pc09-risk-review-probes/`. The returned logs are
 `/tmp/dow-pc09-risk-review-product-probes-final.log` and
 `/tmp/dow-pc09-risk-review-discovery-probes.log`. They contain twelve failing
@@ -32,7 +38,7 @@ population control on the reviewed candidate. They are independent native
 handler/subscription fixtures, not production or authenticated emulator runs.
 
 The reviewer identified finding 9 during the same final evidence reconciliation.
-Its corrected discriminating probe is retained as
+Its corrected discriminating probe was reported as
 `/tmp/dow-pc09-risk-review-probes/functions/src/pc09Independent_aftermathCarryover.review.test.ts`
 and `/tmp/dow-pc09-risk-review-aftermath-carryover-probe-corrected.log`.
 The earlier malformed fixture is not used as evidence. This is one consolidated
@@ -98,9 +104,49 @@ returning 200, followed by a 30-millisecond private-brief rehydration gap that
 redirected the route to the chooser and lost its confirmation. The exact
 route/store lifecycle is retained in
 `/tmp/pc09-combat-recovery-evidence/commander-route-trace-reload/result.json.failure.json`.
-A bounded fail-closed waiting-state regression/repair owns that connected
-acceptance gap; the earlier speculative read-only transaction cause is not
-treated as reproduced in this scenario.
+Red `f14c1036` and product `81635fdf` now keep the route in an explicit
+fail-closed waiting state during the current actor's private-brief hydration.
+Absent, failed and foreign-actor results retain denial. A subsequent real
+Commander action exposed an invalid odd-length Firestore audit-document path;
+red `9dd732f8` / product `a8279c20` fixes its collection/document structure.
+The earlier speculative read-only transaction cause is not treated as
+reproduced in this scenario. Both deltas belong in the same bounded final
+review, rather than a second broad review.
+
+The resumed browser preflight reproduced an emulator client making remote App
+Check token exchanges. Red `f588bd47` / product `6589746b` skips client
+attestation only under the existing explicit emulator flag. Production provider
+and key requirements, server App Check enforcement, actor authorization and
+Rules remain unchanged. Five focused isolation/production controls pass.
+The fresh three-browser preflight captures 363 local Firebase events, zero
+remote origins or HTTP failures, and exactly one successful recovery for each
+original actor. Its 54 deliberately induced offline resource failures remain
+labelled in the raw trace; unexpected errors are zero.
+
+The fresh composed proof on client/driver
+`909b4f6d524103c348882d349e488f424f621a76` and immutable Functions source
+`7026d56f7f8506b76edd80cfc882afeae9be9c10` completed all three ranges,
+both EO recoveries, the permission-bound Ace UI action/replay, boarding,
+atomic finalization, entitled projections, private Rules denials, aftermath,
+arrest/deadline/next-Team disposition, and both required paid fighter builds.
+The first HTTP build's exact receipt replay leaves count, material and revision
+unchanged; the second genuine Wing UI build spends its own material.
+Current raw proof is
+`/tmp/pc09-combat-recovery-restored-20261004/composed-909b4f6d/result.json`.
+This proves that runtime and client combination, not the later election
+runtime, production gameplay or a physical device.
+The bounded session trace retains one EO `resumeSession` HTTP 500 from an
+emulator lock timeout, followed 126 milliseconds later by a successful 200.
+The same-identity recovery and all gameplay assertions pass; this run is not
+claimed to have zero HTTP failures. Its identity-free handoff is the sibling
+`safe-result.json`, and the same final reviewer must inspect this limitation.
+
+The resumed owner rebuilt the before/after TypeScript runtime dependency graph
+at `0e72fd95` and verified the compiled SDK metadata: 232 actual endpoints,
+24 changed runtime files, 117 changed index definitions and 216 named affected
+endpoints. The added PDF escort transition and current request-guard consumers
+are included. All three existing exact-transition inventory checks pass;
+there is no broad Functions fallback or pure-helper deployment target.
 
 ## Evidence and completion boundary
 

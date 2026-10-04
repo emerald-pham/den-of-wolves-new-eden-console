@@ -61,6 +61,16 @@ request is retried or hidden by that scheduler. Genuine browser actors renew
 their own presence rather than receiving duplicate synthetic heartbeats.
 All result, privacy, cost, capacity and browser-error assertions remain required.
 
+The final build retry requires the exact original committed receipt, with no
+count, material or revision change. Resuming setup browsers keeps their existing
+documents alive instead of immediately reloading and overlapping three resume
+requests; original UID/session/role, live projection and server state are still
+required. Local App Check isolation tests keep production-provider controls.
+The user-authorized Cycle 0 copy tests retain all other status meanings and
+verify the Settings explanation disappears at Cycle 1. Earlier external test
+logs were lost after reconnect; current artifact availability is recorded in
+the execution record, without changing historical pass/failure outcomes.
+
 Strict typing corrections omit a missing optional phase marker instead of
 assigning `undefined`, and use an anchored accessible-name matcher for Testing
 Library's keyboard Back query. All 13 relevant assertions still pass. A distinct
@@ -72,6 +82,11 @@ runtime identities; an unfinished run remains unfinished.
 
 | Test or gameplay driver | Change | Reason |
 |---|---|---|
+| `src/components/AppHeader.test.tsx` | Changed | Explain Cycle 0 CIC authentication in Settings and remove the note after real start state; preserve existing header navigation and connection states. |
+| `src/components/ConnectionIndicator.test.tsx` | Changed | Match the authorized Cycle 0 visible and accessible wording while retaining all other statuses. |
+| `src/components/PresidentialElectionWorkspace.test.tsx` | Added | Show the approved VP fallback/vacancy explanation and preserve the keyboard-accessible election return route. |
+| `src/lib/firebase.emulatorIsolation.test.ts` | Added | Prove explicit local mode does not initialize remote attestation; production still initializes and requires its key. |
+| `src/routes/RoleBrief.test.tsx` | Changed | Keep the current actor on a fail-closed waiting screen during private hydration and reject absent, failed or foreign brief results. |
 | `functions/src/approachingVesselResponse.test.ts` | Added | Keep the GM’s real/trap response private and validate explicit permitted timing/response choices. |
 | `functions/src/approachingVesselResponseCallable.test.ts` | Added | Keep the GM’s real/trap response private and validate explicit permitted timing/response choices. |
 | `functions/src/arrestCaseDispositionCallable.test.ts` | Added | Check private posse arithmetic, explicit current attendance, next-Team deadline and once-only disposition. |

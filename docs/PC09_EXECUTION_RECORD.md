@@ -33,9 +33,10 @@ its planning after PC09, PC10 and post-PC10 work. Browser-delivered text is not
 assumed private merely because an entry control is gated.
 
 The one fresh independent review and its bounded repairs are recorded in
-[`PC09_RISK_REVIEW.md`](PC09_RISK_REVIEW.md). Election conflict handling remains
-fail-closed until the approved bounded policy is implemented and verified. The
-owner has now approved preserving the President winner, taking the next eligible
+[`PC09_RISK_REVIEW.md`](PC09_RISK_REVIEW.md). The approved bounded election
+policy is implemented; corrected authenticated acceptance and the same
+reviewer's final bounded verification remain. The owner approved preserving
+the unique President winner, taking the next eligible
 candidate from the VP ballot, retaining configured tie handling, and requiring
 an explicit current-GM in-game decision if no other eligible candidate exists.
 The exact resolution is recorded under PC09-A6; no automatic replacement or
@@ -113,3 +114,56 @@ explicit decision, then conveyed the owner's activation. The later owner
 instruction to proceed through PC10 and post superseded the intermediate hold.
 This owner task still stops after PC09; the parent owns the separate PC10
 revision and dispatch, and no later implementation starts in this checkout.
+
+## Reconnection and evidence availability
+
+The selected Mac became unavailable around 21:20 UTC. The first successful
+resumed local command was `/bin/date -u` at **2026-10-04 21:56:55 UTC**.
+The original dirty checkout and common Git records survived. All PC09 branches
+and committed work were present, including owner `a8279c20`, election
+`659f6c4` and build-retry driver `3fc17ff6`. The registered temporary worktree
+directories and external `/tmp` evidence files were absent after reconnect.
+The owner restored the same checkout and branch from the preserved commit;
+the existing workers restored only their own assigned checkouts. A resumed
+process inspection found no surviving PC09 emulator, Vite or browser workers.
+The fresh registry initially showed all emulator rows available. No other
+worktree or production gameplay data was changed for recovery.
+
+Earlier external paths in PC09 handoffs and the risk record now identify
+historical reported runs whose files are unavailable. They must not be cited
+as currently inspectable artifacts. The committed regression tests, source
+commits and written dispositions remain. Fresh required proof artifacts are
+stored separately under `/tmp/dow-pc09-resumed-evidence/` or the resumed
+worker's explicitly named directory. Historical passes and failed attempts
+remain distinct; missing files do not turn a partial run into acceptance.
+
+Current browser isolation exposed a directly blocking development defect:
+the existing emulator client enabled an App Check debug token but still
+initialized Enterprise attestation, causing remote token exchanges. Red
+`f588bd47` reproduces the local-mode failures with passing production controls;
+`6589746b` skips client attestation only under the existing explicit emulator
+flag. Production still requires its Enterprise provider and configured key.
+Server App Check enforcement, callable authorization and Rules are unchanged.
+The next ordinary browser proof must capture endpoint origins and errors before
+gameplay; production App Check exchanges are not ignored or filtered.
+
+The approved election repair and its permanent regressions are integrated.
+A further handler regression (`79031c00`) proves that a tied President choice
+matching the unique VP leader must not silently activate the unique-both
+runner-up policy. Product `a45a9d85` fails that branch before writes while
+retaining the configured alternative tie choice. The no-candidate vacancy
+branch remains defensive pure/handler/projection/UI coverage: valid current
+ballots require distinct office choices and at least two eligible candidates.
+The ordinary authenticated proof must demonstrate a shared unique winner and
+the next eligible candidate from the VP ballot.
+
+The owner separately authorized the CIC waiting-copy amendment within PC09.
+`4d77bbfa` changes only the joined Cycle 0 blue header label to “Awaiting CIC
+authentication” and adds its GM-start explanation in Settings during Cycle 0.
+Reconnecting, offline and active-session states retain their existing meaning.
+The 52 focused header/accessibility checks pass; `42a76087` preserves the exact
+Settings-name assertion with a supported typed query. Fresh actual Cycle 0
+Settings/header rendering passes at 390×844, 844×390 and 1440×900 in the
+three-browser preflight. The corrected ordinary election driver additionally
+checks removal after real GM start with a bounded subscribed-render wait.
+The single final checkpoint release remains pending.
