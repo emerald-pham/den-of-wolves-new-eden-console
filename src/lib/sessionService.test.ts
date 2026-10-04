@@ -3963,14 +3963,14 @@ it('accepts locked synthetic fighter hits when the Executive Officer passes AEGI
   const commit = vi.fn(async (payload: Record<string, unknown>) => ({ data: {
     status: 'committed', type: 'wolf-range-action-choice', sessionId: 's1', requestId: payload.requestId,
     turn: 1, revision: 13, range: 'short-range', currentStep: 'short-range', choiceStatus: 'targets-required',
-    hitSlots: [{ actionId: 'aegis-alpha-wing-short-0', count: 1 }],
+    hitSlots: [{ actionId: 'aegis-alpha-wing-short-0', count: 1, damagePerHit: 1 }],
   } }));
   Object.assign(commit, { stream: vi.fn() });
   vi.mocked(httpsCallable).mockReturnValue(commit as never);
 
   await expect(commitWolfRangeActionChoice(1, 12, 'short-range', [])).resolves.toMatchObject({
     status: 'committed', choiceStatus: 'targets-required',
-    hitSlots: [{ actionId: 'aegis-alpha-wing-short-0', count: 1 }],
+    hitSlots: [{ actionId: 'aegis-alpha-wing-short-0', count: 1, damagePerHit: 1 }],
   });
   expect(commit).toHaveBeenCalledWith(expect.objectContaining({
     sessionId: 's1', expectedTurn: 1, expectedRevision: 12, range: 'short-range', actionIds: [],

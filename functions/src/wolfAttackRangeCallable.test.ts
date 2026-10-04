@@ -1909,6 +1909,21 @@ it('combines source choices in one locked range and guides Short Wing coverage a
   expect(assignmentView.contacts[10]).toMatchObject({ contactId: 'contact-11', available: true, requiredCoverageDamage: null });
 });
 
+it('rechecks the current support holder before returning an exact replay', async () => {
+  admitRangeSupportChoices();
+  const view = await getWolfRangeSupportActionChoice.run(request({
+    sessionId: 's1', sourceId: 'highwall', range: 'short-range',
+  }, 'miner-1'));
+  const payload = { sessionId: 's1', requestId: 'highwall-bound-replay', expectedTurn: 1,
+    expectedRevision: view.revision, sourceId: 'highwall', range: 'short-range', use: true };
+  await commitWolfRangeSupportActionChoice.run(request(payload, 'miner-1'));
+  const actor = testState.documents.get('sessions/s1/players/miner-1')!;
+  put('sessions/s1/players/miner-1', { ...actor, replacementStatus: 'replaced' });
+
+  await expect(commitWolfRangeSupportActionChoice.run(request(payload, 'miner-1')))
+    .rejects.toMatchObject({ code: 'permission-denied' });
+});
+
 it('keeps an offline entitled Executive Officer Enriched Warhead choice pending', async () => {
   enrichedWarheadFixture();
   put('sessions/s1/players/xo-1', { ...testState.documents.get('sessions/s1/players/xo-1')!, connected: false });
