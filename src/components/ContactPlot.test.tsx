@@ -918,6 +918,52 @@ it('keeps ambient contact names private until acquisition while labels are clamp
   expect(contact).not.toHaveTextContent('UNKNOWN CONTACT');
 });
 
+it('keeps reduced-motion stationary labels laid out while deferring an unacquired ambient contact', () => {
+  vi.useFakeTimers();
+  vi.setSystemTime('2026-01-01T00:10:00.000Z');
+  vi.spyOn(Math, 'random').mockReturnValue(0);
+  const ambientLayoutReads: boolean[] = [];
+  const bounds = (left: number, top: number, width: number, height: number): DOMRect => ({
+    x: left, y: top, left, top, width, height,
+    right: left + width, bottom: top + height,
+  }) as DOMRect;
+  vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+    if (this.classList.contains('contact-plot')) return bounds(0, 0, 320, 320);
+    if (this.classList.contains('contact-plot__blip')) return bounds(156, 156, 8, 8);
+    if (this.classList.contains('contact-plot__tag')) {
+      ambientLayoutReads.push(this.closest<HTMLElement>('.contact-plot__contact')?.dataset.ambient === 'true');
+      return bounds(120, 120, 80, 18);
+    }
+    return bounds(0, 0, 0, 0);
+  });
+  setMotionOverride('reduce');
+  const { container } = render(<ContactPlot
+    contacts={[{ tag: 'VISIBLE STATIONARY', x: 0.7, y: 0.2, z: 0.1, color: 'white' }]}
+    ambientSession={ambientSession}
+  />);
+
+  act(() => vi.advanceTimersByTime(
+    ambientContactIntervalMs(ambientSession.id, 1) - 10 * 60 * 1000,
+  ));
+
+  const plot = plotIn(container)!;
+  const ambient = container.querySelector<HTMLElement>("[data-ambient='true']");
+  if (!ambient) throw new Error('Expected the passing ambient contact.');
+  expect(plot).toHaveAttribute('data-still', 'true');
+  expect(ambient).toHaveTextContent('UNKNOWN CONTACT');
+  expect(ambientLayoutReads).toContain(false);
+  expect(ambientLayoutReads).not.toContain(true);
+
+  act(() => {
+    vi.advanceTimersByTime(AMBIENT_CLASSIFICATION_MS);
+    ambient.querySelector<HTMLElement>('.contact-plot__apparent')!.dataset.acquired = 'true';
+    ambient.dispatchEvent(new CustomEvent(CONTACT_SCAN_EVENT, { bubbles: true }));
+  });
+
+  expect(ambient).not.toHaveTextContent('UNKNOWN CONTACT');
+  expect(ambientLayoutReads).toContain(true);
+});
+
 it('holds the hostile tracks on the board after an intrusion so they can break up, then drops them', () => {
   vi.useFakeTimers();
   const { container, rerender } = render(<ContactPlot hostile />);
@@ -1663,6 +1709,46 @@ it('reuses held contact-label geometry and invalidates it when the fix or an obs
   labelLayoutReads = 0;
   rerender(<ContactPlot centerLabel="AEGIS" contacts={[{ ...contact, x: 0.61 }]} />);
   expect(labelLayoutReads).toBeGreaterThan(0);
+});
+
+it('defers hidden normal-motion labels until the sweep acquires their held return', () => {
+  const bounds = (left: number, top: number, width: number, height: number): DOMRect => ({
+    x: left, y: top, left, top, width, height,
+    right: left + width, bottom: top + height,
+  }) as DOMRect;
+  const labelReads: string[] = [];
+  vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+    if (this.classList.contains('contact-plot')) return bounds(0, 0, 320, 320);
+    if (this.classList.contains('contact-plot__blip')) return bounds(156, 156, 8, 8);
+    if (this.classList.contains('contact-plot__tag')) {
+      labelReads.push(this.textContent ?? '');
+      return bounds(120, 120, 80, 18);
+    }
+    return bounds(0, 0, 0, 0);
+  });
+  const { container } = render(<ContactPlot contacts={[
+    { tag: 'FIRST RETURN', x: 0.7, y: 0.2, z: 0.1, color: 'white' },
+    { tag: 'UNACQUIRED RETURN', x: -0.6, y: 0.1, z: 0.4, color: 'white' },
+  ]} />);
+
+  expect(plotIn(container)).toHaveAttribute('data-still', 'false');
+  expect(labelReads).toEqual([]);
+
+  const firstContact = contactsIn(container)[0]!;
+  const apparent = firstContact.querySelector<HTMLElement>('.contact-plot__apparent')!;
+  act(() => {
+    apparent.dataset.acquired = 'true';
+    apparent.style.setProperty('--fix-x', '0.7');
+    apparent.style.setProperty('--fix-y', '0.2');
+    apparent.style.setProperty('--fix-z', '0.1');
+    firstContact.dispatchEvent(new CustomEvent(CONTACT_SCAN_EVENT, {
+      bubbles: true,
+      detail: { fixChanged: true },
+    }));
+  });
+
+  expect(labelReads.length).toBeGreaterThan(0);
+  expect(labelReads.every((name) => name.includes('FIRST RETURN'))).toBe(true);
 });
 
 it('keeps crowded 20-contact label layout within the per-update geometry-read budget', () => {
