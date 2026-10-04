@@ -514,8 +514,8 @@ export async function runPc09AftermathProof(f, { directory, finalState, actorAll
       'A normal fighter replacement spends one construction material.');
     const revision = afterBuild.vesselActionRevisions.aegis;
     const replay = await command(f, actorAllocations.wingCommander, 'buildFighter', request);
-    assert.equal(replay.status, 'replayed');
-    sameReplyIgnoringStatus(built, replay);
+    assert.equal(replay.status, 'committed', 'Fighter construction replays its original committed vessel-action receipt.');
+    assert.deepEqual(replay, built, 'An exact fighter-build retry must return the complete original receipt.');
     const afterReplay = (await f.session.get()).data();
     assert.equal(afterReplay.fighterWingCounts[wingId].count, beforeCount + 1);
     assert.equal(afterReplay.shipResources.aegis.materials, beforeMaterials - 1);
