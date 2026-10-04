@@ -411,7 +411,7 @@ it.each([20, 21, 22])('R3 uses Commander-adjusted parties for the Militia bounda
   else await expect(commit()).rejects.toMatchObject({ code: 'failed-precondition' });
 });
 
-async function militiaDeathFixture(frontLineDice = 1, rerollToSurvive = false) {
+async function militiaDeathFixture(frontLineDice = 1, rerollToSurvive = false, stopBeforeLock = false) {
   completeBoardingFixture();
   seatMilitia();
   const targeting = resolveWolfTargeting({ ...firstTurnWolfAttackComposition(), shipIds: ['wolf-assault-transport'] }, {}, undefined, () => 0);
@@ -430,6 +430,7 @@ async function militiaDeathFixture(frontLineDice = 1, rerollToSurvive = false) {
     reason: 'removed', revision: 3, consumedByRequestId: 'earlier-assignment' });
   put(`${sessionPath}/secrets/loyalty-militia-1`, { ownerUid: 'militia-1', unchangedHistoricalLoyalty: true });
   entropy.randomInt.mockReturnValue(0);
+  if (stopBeforeLock) return militia;
   await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
   expect(fields(attackPath).resolutionBlocker).toBeUndefined();
   if (frontLineDice > 0) {
@@ -466,12 +467,18 @@ it('R4 atomically consumes the committed front-line death through the existing r
 it.each([
   { name: 'removed character', delta: { replacementRoleId: null, replacementStatus: 'awaiting-re-role' } },
   { name: 'another character', delta: { replacementRoleId: 'gorgoneion-captain', replacementStatus: null } },
-])('R4 resolves the committed death after $name without revoking later authority', async ({ delta }) => {
-  await militiaDeathFixture();
+].flatMap(change => ['before-lock', 'after-lock'].map(stage => ({ ...change, stage }))))(
+  'R4 resolves the committed death after $name at $stage without revoking later authority', async ({ delta, stage }) => {
+  await militiaDeathFixture(1, false, stage === 'before-lock');
   patch(`${sessionPath}/players/militia-1`, delta);
   const player = structuredClone(fields(`${sessionPath}/players/militia-1`));
   const eligibility = structuredClone(fields(`${sessionPath}/replacementEligibility/militia-1`));
   const setup = fields(sessionPath).setupRevision;
+  if (stage === 'before-lock') {
+    await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
+    await special('xo-1', { kind: 'reroll', source: 'aegis', targetShipId: 'aegis', dieIndexes: [] }, 'review-death-eo-pass');
+    await special('xo-1', { kind: 'reroll', source: 'pallas', targetShipId: 'aegis', dieIndexes: [] }, 'review-death-pallas-pass');
+  }
   await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
   expect(fields(attackPath)).toMatchObject({ status: 'resolved', calculationReceipt: { boarding: [{ militiaLeaderKilled: true }] } });
   expect(fields(`${sessionPath}/players/militia-1`)).toEqual(player);
