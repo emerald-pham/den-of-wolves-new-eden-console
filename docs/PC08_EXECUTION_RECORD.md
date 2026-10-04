@@ -169,3 +169,27 @@ discriminating failures; 163 Bay, Declaration and Range checks pass afterwards.
 Unknown fields and malformed paired metadata still fail closed. The consumer
 will resume on a freshly compiled and restarted emulator; earlier runs that
 loaded an older module remain historical evidence, not current-source proof.
+
+The complete fresh root DRADIS run at `b49d3434` now passes all nineteen checks:
+normal twenty-player setup, fifteen standard craft, normal eight-player Union
+setup and both Union craft, current private transit/contact projections,
+restrictions, attack parking, exact retries, reconnect and eight viewport/motion
+cases. The same first-acquisition objects complete their full 1.12-second sweep;
+there are no browser or presence failures. Its current result and runtime
+attestation are in `owner/authenticated-dradis-complete/` and
+`owner/authenticated-dradis-runtime-attestation.json`. The earlier terminal
+Union-label failure remains preserved.
+
+Sol's bounded boarding work completes at `243a0678`. The current authenticated
+eighteen-player consumer destroys Shepherd, retains Endeavour and Black Sheep
+without redocking or new battle registration, advances through the next Team
+boundary and declares a legal later attack. Nine surviving Wings enter that
+attack once; destroyed Wings are excluded, the retained control revisions stay
+unchanged and every earlier range/calculation/finalization receipt stays
+immutable. The declaration repair accepts exactly one valid docking, transit
+or retained-custody source from the actual printed manifest and excludes wrecked
+hosts. Four discriminating failures precede the repair; the root's 223 focused
+Parking, Maintenance and Declaration checks pass. Sol's row 4 processes stopped,
+its terminal result was retrieved and only its own reservation was released.
+Both original and repair branches, external evidence and dependency symlinks
+remain preserved under root ownership until release.

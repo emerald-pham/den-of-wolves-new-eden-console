@@ -35,6 +35,11 @@ boundary accepts that existing state only when the locked craft manifest,
 current control holder/revision, printed owner and actual destroyed active host
 agree. It never redocks, restores movement or changes custody; missing or
 duplicated craft and malformed retention still block advancement.
+The following declaration accepts retained custody as its own exact manifest
+source, excludes destroyed hosts, and never fabricates a docking, visit, decision
+or battle registration for that craft. Check current printed owner, holder and
+control revision before accepting it; valid retained custody cannot strand a
+later declaration, and malformed or duplicate sources must still fail closed.
 An explicit Medium whole-wing pass draws no dice or losses and cannot skip
 another entitled source's pending action.
 PDF Escort and Maliades use separate private escortRangeChoices and opaque
