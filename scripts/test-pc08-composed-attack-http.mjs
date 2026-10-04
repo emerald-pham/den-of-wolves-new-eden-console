@@ -26,11 +26,16 @@ const page = await context.newPage();
 const browserErrors = [], checks = {}, actions = [], ranges = [], boarding = [], observations = [];
 const attackTurn = 2;
 let sessionStoreModuleUrl = '/src/store/useSessionStore.ts';
+let firestoreModuleUrl = '/src/lib/firestore.ts';
 page.on('request', request => {
   const url = new URL(request.url());
   if (url.pathname === '/src/store/useSessionStore.ts' &&
       (url.searchParams.has('t') || !new URL(sessionStoreModuleUrl, uiUrl).searchParams.has('t'))) {
     sessionStoreModuleUrl = url.href;
+  }
+  if (url.pathname === '/src/lib/firestore.ts' &&
+      (url.searchParams.has('t') || !new URL(firestoreModuleUrl, uiUrl).searchParams.has('t'))) {
+    firestoreModuleUrl = url.href;
   }
 });
 page.on('pageerror', error => browserErrors.push(error.message));
@@ -392,6 +397,30 @@ try {
   assert.equal(finalSession.turnPhase.airspace.pressAccess, phaseBefore.airspace.pressAccess);
   assert.ok(Date.parse(finalSession.turnPhase.openAirspaceEndsAt) >= Date.parse(phaseBefore.openAirspaceEndsAt));
   checks.genuineBoardingChoicesAndAtomicPressMovementClockReopening = true;
+  const audience = await page.evaluate(async ({ moduleUrl, sessionId, attackId }) => {
+    const { subscribeWolfAttackMemberView } = await import(moduleUrl);
+    return new Promise((resolve, reject) => {
+      let unsubscribe = () => {};
+      const timer = setTimeout(() => { unsubscribe(); reject(new Error('Final member audience did not hydrate.')); }, 30_000);
+      unsubscribe = subscribeWolfAttackMemberView(sessionId, view => {
+        if (!view || view.attackId !== attackId || view.currentStep !== 'resolved') return;
+        clearTimeout(timer); unsubscribe(); resolve(view);
+      });
+    });
+  }, { moduleUrl: firestoreModuleUrl, sessionId: f.sessionId, attackId: finalState.attackId });
+  assert.equal(audience.revision, finalState.revision);
+  assert.equal(audience.status, 'resolved');
+  assert.equal(JSON.stringify(audience).includes('rolls'), false);
+  assert.equal(JSON.stringify(audience).includes('actorUid'), false);
+  const targetlessResults = audience.results.filter(result => result.targetId === null);
+  for (const result of targetlessResults) {
+    assert.ok(['highwall', 'gorgoneion-missile-array', 'boa'].includes(result.sourceId));
+    assert.deepEqual(result.outcome, { damage: 0 });
+    assert.equal(result.bearing, null);
+  }
+  const storedTargetlessResults = finalState.memberResults.filter(result => result.targetId === null);
+  assert.equal(targetlessResults.length, storedTargetlessResults.length, 'Ordinary hydration retains every committed support miss.');
+  checks.resolvedAudienceHydratesThroughActualMemberSubscription = true;
   const snapshot = { phase: finalSession.turnPhase, resources: finalSession.shipResources, damage: finalSession.shipDamage,
     population: finalSession.shipSurvivors, ticker: finalSession.fleetTicker };
   assert.deepEqual(await command(f.gm, 'declareWolfAttack', declareRequest), declaration);
@@ -419,10 +448,13 @@ try {
       'explicitly deferred first window and ordinary early cycle advance',
       'current ship write grants', 'audited resource adjustment to nine AEGIS ore', 'audited maintenance damage correction if required',
       ...(boarding.some(item => item.kind === 'commander-ruling') ? ['explicit incomplete Commander consequence ruling'] : [])],
-    checks, actions, ranges, boarding, identitiesRetained: false, completedAt: new Date().toISOString() }, null, 2)}\n`);
+    checks, actions, ranges, boarding, audience, targetlessResultCount: targetlessResults.length,
+    sessionStoreModuleUrl, firestoreModuleUrl, browserErrors, heartbeatFailures: f.heartbeatFailures,
+    identitiesRetained: false, completedAt: new Date().toISOString() }, null, 2)}\n`);
   console.log('PC08 ordinary composed source attack and live phone warhead proof passed.');
 } catch (error) {
   const state = f ? await attackState() : undefined;
+  if (state) await writeFile(`${evidencePath}.private-state.json`, `${JSON.stringify({ sourceCommit, state }, null, 2)}\n`);
   await page.screenshot({ path: `${dirname(evidencePath)}/failure.png`, fullPage: true }).catch(() => {});
   await writeFile(`${evidencePath}.failure.json`, `${JSON.stringify({ sourceCommit, message: error.message, checks, actions, ranges, boarding,
     step: state?.currentStep, revision: state?.revision, status: state?.status, resolutionBlocker: state?.resolutionBlocker,
