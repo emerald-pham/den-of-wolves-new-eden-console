@@ -1,5 +1,10 @@
 # PC08 playtest report
 
+**October 4 post-completion audit:** see [PC08 Bug Audit](PC08_BUG_AUDIT.md)
+for ten open runtime findings and targeted reproductions. The release/playtest
+evidence below remains historical and separately labeled. This audit changes
+planning only; it does not fix gameplay, revoke P605a's deferral or start PC09.
+
 **New assumptions come first.** [PC08-A1–A8](PRODUCT_MILESTONE_ASSUMPTIONS.md#pc08-a1--explicit-union-craft-starting-hosts)
 record explicit Union starting hosts, current-range shift timing, durable
 launch-or-pass windows, simultaneous Short Range Wing priority and Boa's live

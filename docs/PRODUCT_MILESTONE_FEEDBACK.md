@@ -264,3 +264,25 @@ PC10 criteria retain their local/emulator proof standard, fixed targets and
 source/authority/privacy requirements. P605a and release-version boundaries
 remain unchanged. The [PC08 execution record](PC08_EXECUTION_RECORD.md) and
 next checkpoint shape adopt every still-applicable prior feedback item.
+
+## PC08 audit and checkpoint sequence — 2026-10-04
+
+**Latest owner instruction reviewed:** audit completed PC08 first in a separate
+Sol 6.1 orchestrator; then run a separate PC09 orchestrator; after PC09, revise
+PC10 before its separate orchestrator; then continue the existing
+[post-completion work](POST_PROMPT_COMPLETION_TASKS.md). One checkpoint at a
+time. The audit may commit, push and merge its verified audit/roadmap changes.
+It must not start future checkpoint implementation, create PC11 or activate
+P605a by implication. The old PC08 thread remains untouched.
+
+| Item | Decision and disposition |
+|---|---|
+| PC08-AUDIT-F01 | Preserve the terminal 0.5.67 release and its exact evidence classes; investigate completed behavior and record finite, reproducible findings in [PC08 Bug Audit](PC08_BUG_AUDIT.md). Open findings require a named repair/proof path and are not marked fixed by this planning update. |
+| PC08-AUDIT-F03 | Ten reproduced runtime findings remain open (one P1, seven P2, two P3). Existing PC09 work orders progression/carryover repairs first, loss persistence before P483 rebuild, accurate projections before P474/P484, and receipt/recovery seams within P621 before composed P645 proof. The catalog annotates affected released rows without rewriting the historical release totals or claiming repair credit. |
+| PC08-AUDIT-F02 | Correct the recovery plan's stale PC08-unstarted text and its misleading PC10-only P605a wording. PC09 owns the unchanged P605a assignment; explicit activation remains separate, with no closure credit while deferred. |
+| PC10-F01 | In the revision after PC09, require a complete solo walkthrough of every role using two browsers, unlimited timers and a real authenticated GM cycle 0 → 1. Reuse existing functionality and exercise gaps end-to-end. Prepared-state tours alone cannot establish this acceptance. Retain the full twenty-player, complete game-loop and ending obligations. This audit records the requirement without shaping or implementing PC10. |
+
+Affected future checkpoints: PC09 repair/dependency ordering and the later PC10
+revision. Fixed membership, closure targets, P605a activation and release-version
+authority remain intact. The audit report supplies findings, proof limitations
+and the next owner's readiness/blockers.

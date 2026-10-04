@@ -557,3 +557,31 @@ final validation. Pass font, rendered typography, ticker, bundle and existing
 release gates, then candidate CI and exact-main deployment. Preserve exact
 evidence and fixed counts; no partial feature or presentation release completes
 PC08. Do not begin PC09 in this delivery.
+
+## Post-PC08 audit and next checkpoint sequence — October 4
+
+The owner requested a separate, finite audit only after PC08 became terminal.
+See [PC08 Bug Audit](PC08_BUG_AUDIT.md) for baseline verification, reproducible
+findings, independent review and follow-on ordering. This preserves the 0.5.67
+release evidence and does not start another checkpoint.
+
+Ten runtime findings remain open: one P1 progression blocker, seven P2 defects
+and two P3 stale acknowledgements. The catalog's existing PC09 criteria and
+dependency links place the shared progression/carryover repairs first, durable
+losses before P483 rebuild, result/projection fixes before P474/P484, and recovery/
+receipt disposition in P621 before P645. Affected PC08 rows explicitly qualify
+their historical `done` status; the audit is not new passing gameplay evidence.
+
+After the audit, a separate orchestrator shapes and executes PC09. Preserve
+P605a's explicit activation boundary and its assigned 49-ID closure target;
+continue independent ready work while that decision remains deferred. After
+PC09, revise PC10 before its separate orchestrator starts it. That revision must
+provide a complete solo walkthrough of every role using two browsers, unlimited
+timers and a real authenticated GM cycle 0 → 1. Reuse current functionality and
+test missing paths end-to-end; a prepared-state tour alone is not that proof.
+Full-table twenty-player, complete game-loop and implemented ending acceptance
+remain required. Then follow the existing post-completion work; do not create
+PC11. [The feedback record](PRODUCT_MILESTONE_FEEDBACK.md#pc08-audit-and-checkpoint-sequence--2026-10-04)
+preserves this instruction and its disposition. This section records sequence
+and the later revision requirement; it supplies no implementation or closure
+credit and no P605a or 0.9.x/1.0.0 authorization.

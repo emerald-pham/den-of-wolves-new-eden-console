@@ -1,5 +1,12 @@
 # PC08 acceptance matrix
 
+**Post-release qualification, October 4:** the separate
+[PC08 Bug Audit](PC08_BUG_AUDIT.md) finds ten open runtime defects in lifecycle,
+fighter persistence, result/projection consistency and historical receipts.
+This matrix preserves the release's accepted evidence. It is not fresh proof
+that the newly reproduced failing paths pass; affected catalog rows and existing
+PC09 acceptances explicitly record their repair/proof obligations.
+
 Opening baseline: 605/751 done; 147/293 campaign closures. Released 0.5.67
 completes exactly these 49 IDs: 654/751 and 196/293. Root owns the completed
 review, validation, CI and exact-source production release. The catalog is

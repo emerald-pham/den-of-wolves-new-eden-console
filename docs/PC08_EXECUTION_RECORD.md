@@ -1,5 +1,11 @@
 # PC08 execution record
 
+**Post-completion audit, October 4:** [PC08 Bug Audit](PC08_BUG_AUDIT.md)
+records ten open runtime findings after independently verifying this release.
+The historical completion and proof below are preserved. Affected catalog rows
+now name the open findings; existing PC09 acceptances/dependencies own repair and
+proof, with no runtime fix or new closure credit in the audit documentation.
+
 PC08 was released as **0.5.67 on October 4, 2026**. See the
 [final release closeout](#final-release-closeout) and
 [playtest report](PC08_PLAYTEST_REPORT.md) for current proof. Earlier candidate

@@ -140,15 +140,32 @@ already ready. Read every catalog row when shaping its work.
 
 The backlog is distributed evenly by prompt count, not estimated effort.
 Prompt complexity varies; implementation and proof remain part of each ID.
-Later UI themes can span multiple owner tours. PC05–PC07 are released, reaching
-605/751 overall and 147/293 campaign closures. PC08 is the next unstarted
-fixed 49 tranche, targeting 654/751; PC09–PC10 retain their assigned targets.
-The [PC07 report](PC07_PLAYTEST_REPORT.md) records the verified release. A documented
+Later UI themes can span multiple owner tours. PC05–PC08 are released, reaching
+654/751 overall and 196/293 campaign closures at the PC08 release snapshot.
+PC08 shipped as 0.5.67; the [PC08 report](PC08_PLAYTEST_REPORT.md) records its
+verified release and the [post-completion audit](PC08_BUG_AUDIT.md) records
+subsequent findings. PC09 is the next unstarted fixed 49 tranche, targeting
+703/751; PC10 retains its 48 IDs and 751/751 target. A documented
 same-count substitution may move an unstarted ID only
 with its dependencies satisfied and another baseline ID replacing it; it
 cannot change any cumulative target or lose any baseline ID. P605a's existing
 owner deferral must be resolved explicitly before closure; it remains in the
-baseline and cannot silently disappear from PC10's obligation.
+baseline as a PC09 assignment and cannot silently disappear from PC09's
+49-ID closure obligation or the PC10 campaign endpoint. Independent PC09
+work may proceed, but its full closure still requires explicit P605a activation.
+
+The post-release audit records ten open runtime findings (one P1, seven P2,
+two P3). PC09 must first repair the shared progression/carryover blockers, then
+durable fighter losses before P483 rebuild, and result/projection seams before
+P474/P484. P621 includes mixed-source receipt, holder-removal and attack-bound
+retry recovery; P645 follows the accepted aftermath and recovery dependencies.
+P492/P493 retain their separate trigger acceptances and are related proof,
+not hard prerequisites of the ordinary P645 playthrough. See
+[the finite findings and order](PC08_BUG_AUDIT.md#follow-on-order-and-pc09-readiness)
+and the catalog's existing PC09 acceptances. Historical PC08 `done` counts remain
+the released snapshot, with affected rows explicitly annotated **OPEN**; this
+does not give the newly failing paths repair credit or authorize future work in
+the audit. The dependency CLI reads statuses, not closure of these defects.
 
 ### PC05 — 49 assigned closures; 49/293 cumulative
 
