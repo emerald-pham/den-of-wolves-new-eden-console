@@ -19,8 +19,17 @@ it('runs a private detector test through an injected action and displays only th
   expect(screen.getByText('2 tests remain this cycle.')).toBeVisible();
   await user.click(screen.getByRole('button', { name: 'Run detector test' }));
   await waitFor(() => expect(onTest).toHaveBeenCalledWith('target-1'));
-  expect(screen.getByRole('status')).toHaveTextContent('Alex // Report: Wolf');
+  expect(screen.getByText('Alex // Report: Wolf // Cycle 4')).toBeVisible();
   expect(document.body.textContent).not.toMatch(/actual truth|accuracy roll|suspicion/i);
+});
+
+it('locks the detector action after three tests in the current cycle', () => {
+  const onTest = vi.fn();
+  render(<WolfAgentDetectorPanel cycle={4} testsUsed={3}
+    targets={[{ uid: 'target-1', label: 'Alex' }]} report={null} onTest={onTest} />);
+  expect(screen.getByText('0 tests remain this cycle.')).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Run detector test' })).toBeDisabled();
+  expect(onTest).not.toHaveBeenCalled();
 });
 
 it('attests a physical VIP visit and consumes the hosted maintenance grant using injected actions', async () => {
