@@ -124,7 +124,8 @@ it('walks the manual crisis lifecycle and publishes only safe member summaries',
   }
   expect(mock.documents.get('sessions/s1/crisisOutcomes/approaching-vessel')).toMatchObject({
     type: 'crisis-outcome', crisisId: 'approaching-vessel', revision: 4,
-    title: 'Approaching vessel', capitalGranted: true, capitalApplied: true, capitalBalance: 1,
+    title: 'Approaching vessel', capitalGranted: true, capitalApplied: true,
+    capitalDelta: 1, capitalBalance: 1, capitalRevision: 1,
   });
   expect(mock.documents.get('sessions/s1')).toMatchObject({
     resolvedCrisisOutcome: {
@@ -144,7 +145,12 @@ it('walks the manual crisis lifecycle and publishes only safe member summaries',
   const resolutionEvent = [...mock.documents.entries()].filter(([path]) => path.includes('/events/'))
     .map(([, fields]) => fields)
     .find((fields) => fields.state === 'resolved');
-  expect(resolutionEvent).toMatchObject({ politicalCapital: { action: 'gain', amount: 1, balance: 1 } });
+  expect(resolutionEvent).toMatchObject({ politicalCapitalAction: 'gain', politicalCapitalAmount: 1,
+    politicalCapitalApplied: true, politicalCapitalDelta: 1,
+    politicalCapitalBalance: 1, politicalCapitalRevision: 1 });
+  expect(mock.documents.get('sessions/s1/crisisState/current/audit/crisis-resolved'))
+    .toMatchObject({ capitalAction: 'gain', capitalAmount: 1, capitalApplied: true, capitalDelta: 1,
+      capitalBalance: 1, capitalRevision: 1 });
   const event = [...mock.documents.entries()].filter(([path]) => path.includes('/events/'))
     .map(([, fields]) => fields)
     .find((fields) => fields.state === 'closed');
@@ -155,6 +161,35 @@ it('walks the manual crisis lifecycle and publishes only safe member summaries',
     .find((fields) => fields.state === 'debated');
   expect(debatedEvent).toMatchObject({ type: 'crisis-state', state: 'debated', title: baseData.title });
   expect(debatedEvent).not.toHaveProperty('details');
+});
+
+it('resolves a crisis at the capital cap and records the handled zero-delta award', async () => {
+  const entries = Array.from({ length: 8 }, (_, index) => ({
+    id: `seed-${index + 1}`, action: 'gain', amount: 1, balanceAfter: index + 1,
+    crisisId: `prior-crisis-${index + 1}`, crisisRevision: 1,
+    crisisTitle: `Prior crisis ${index + 1}`, cycle: index + 1,
+    recordedAt: '2026-09-21T22:00:00.000Z',
+  }));
+  put('sessions/s1', { phase: 'active', currentTurn: 2, politicalCapital: { revision: 8, balance: 8, entries } });
+  await transitionCrisis.run(request());
+  await transitionCrisis.run(request({ ...baseData, requestId: 'delivery-cap', expectedRevision: 1,
+    state: 'delivered', deliveryPressure: 'hold' }));
+  await transitionCrisis.run(request({ ...baseData, requestId: 'debate-cap', expectedRevision: 2, state: 'debated' }));
+  putApproachingResponse(baseData.crisisId, 3);
+
+  await expect(transitionCrisis.run(request({ ...baseData, requestId: 'resolve-cap', expectedRevision: 3,
+    state: 'resolved' }))).resolves.toMatchObject({ status: 'committed', state: 'resolved', revision: 4 });
+  expect(mock.documents.get('sessions/s1/crisisOutcomes/approaching-vessel'))
+    .toMatchObject({ capitalGranted: true, capitalApplied: false, capitalDelta: 0, capitalBalance: 8, capitalRevision: 8 });
+  expect(mock.documents.get('sessions/s1')?.politicalCapital).toEqual({ revision: 8, balance: 8, entries });
+  expect(mock.documents.get('sessions/s1/crisisState/current/audit/resolve-cap'))
+    .toMatchObject({ capitalAction: 'gain', capitalAmount: 1, capitalApplied: false,
+      capitalDelta: 0, capitalBalance: 8, capitalRevision: 8 });
+  const resolutionEvent = [...mock.documents.entries()].filter(([path]) => path.includes('/events/'))
+    .map(([, fields]) => fields).find((fields) => fields.state === 'resolved');
+  expect(resolutionEvent).toMatchObject({ politicalCapitalAction: 'gain', politicalCapitalAmount: 1,
+    politicalCapitalApplied: false, politicalCapitalDelta: 0,
+    politicalCapitalBalance: 8, politicalCapitalRevision: 8 });
 });
 
 it('queues only an explicitly labeled formal crisis outcome for the next Team start', async () => {
