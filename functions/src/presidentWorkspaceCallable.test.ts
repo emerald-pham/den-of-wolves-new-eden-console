@@ -169,6 +169,31 @@ it('rejects a Presidential visit outside Coordination without spending either co
   expect(mock.set).not.toHaveBeenCalled();
 });
 
+it('limits the presidential fleet address to one action in each Team phase', async () => {
+  const teamPhaseEndsAt = '2026-10-04T10:20:00.000Z';
+  const openAirspaceEndsAt = '2026-10-04T10:40:00.000Z';
+  mock.turnPhase = { turn: 2, teamPhaseEndsAt, openAirspaceEndsAt,
+    airspace: { state: 'restricted', tickerActive: true, pressAccess: false } };
+  mock.turnState = { currentTurn: 2, maxTurn: 6, phase: 'team', phaseRevision: 1,
+    startedAt: '2026-10-04T10:00:00.000Z', endsAt: teamPhaseEndsAt };
+  await expect(recordPresidentActionCommand.run(request({ ...data, kind: 'address' })))
+    .resolves.toMatchObject({ revision: 1, entries: [{ kind: 'address', cycle: 2 }] });
+  mock.revision = 1;
+  mock.entries = [{ id: 'president-action:president-request-1', kind: 'address',
+    text: data.text, cycle: 2, recordedAt: '2026-10-04T10:00:00.000Z' }];
+  await expect(recordPresidentActionCommand.run(request({
+    ...data, requestId: 'second-team-address', kind: 'address', expectedRevision: 1,
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+});
+
+it('rejects presidential address outside Team phase before publication', async () => {
+  setCoordinationVisitFixture();
+  await expect(recordPresidentActionCommand.run(request({ ...data, kind: 'address' })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
 const capitalData = {
   sessionId: 's1', requestId: 'capital-request-1', action: 'gain',
   crisisId: 'crisis-1', crisisRevision: 4, expectedRevision: 0,
@@ -254,6 +279,14 @@ it('rejects non-President and malformed capital commands', async () => {
 });
 
 it.each(['fleet-policy', 'crisis', 'political-capital', 'address', 'visit', 'election'])('records one public %s action as the active President', async (kind) => {
+  if (kind === 'address') {
+    const teamPhaseEndsAt = '2026-10-04T10:20:00.000Z';
+    const openAirspaceEndsAt = '2026-10-04T10:40:00.000Z';
+    mock.turnPhase = { turn: 2, teamPhaseEndsAt, openAirspaceEndsAt,
+      airspace: { state: 'restricted', tickerActive: true, pressAccess: false } };
+    mock.turnState = { currentTurn: 2, maxTurn: 6, phase: 'team', phaseRevision: 1,
+      startedAt: '2026-10-04T10:00:00.000Z', endsAt: teamPhaseEndsAt };
+  }
   await expect(recordPresidentActionCommand.run(request({ ...data, kind, text: '  Hold formation.  ' })))
     .resolves.toMatchObject({
       revision: 1,
