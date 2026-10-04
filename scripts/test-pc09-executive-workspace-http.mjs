@@ -34,6 +34,15 @@ try {
   for (const name of ['Command and Control', 'Fighter Bay Alpha', 'Fighter Bay Bravo', 'Missile Launchers', 'Point Defence Lasers']) {
     await workspace.getByRole('article', { name: `${name} system // operational`, exact: true }).waitFor();
   }
+  await workspace.getByRole('heading', { name: 'Maintenance cycle', exact: true }).waitFor();
+  await workspace.getByRole('button', { name: 'Begin Maintenance Cycle: Cycle 1', exact: true }).click();
+  await workspace.getByRole('button', { name: 'ARE YOU SURE?', exact: true }).click();
+  await workspace.getByRole('button', { name: 'Check storage', exact: true }).and(b.page.locator(':enabled')).waitFor();
+  await workspace.getByRole('button', { name: 'Check storage', exact: true }).click();
+  await workspace.getByRole('button', { name: 'Proceed with rations', exact: true }).and(b.page.locator(':enabled')).waitFor();
+  const maintenance = (await f.session.get()).get('maintenanceCycles').aegis;
+  assert.equal(maintenance.turn, 1);
+  assert.equal(maintenance.step, 2, 'The actual EO controls advanced the authoritative maintenance lane.');
   for (const [width, height] of [[320, 844], [390, 844], [844, 390], [1440, 900]]) {
     await b.page.setViewportSize({ width, height });
     const geometry = await b.assertGeometry();
@@ -67,14 +76,14 @@ try {
   await writeFile(`${directory}/result.json`, `${JSON.stringify({
     kind: 'normal-authenticated-local-emulator-ui-http-workspace', sourceCommit,
     proofScriptCandidate: true, ordinaryRoster: 18, preparedScene: false,
-    checks: { realEOChooser: true, realBattleSystemShell: true,
+    checks: { realEOChooser: true, realBattleSystemShell: true, ordinaryEOMaintenanceActions: true,
       realPallasCargoBoardingRelocationRoute: true, visiblePallasReturn: true,
       sameActorNetworkRecoveryAndReload: true, noAuthStorageInjection: true },
     cases, moduleUrls: b.moduleUrls(), errors: b.errors, productionGameplay: false,
     physicalDeviceProof: false, authenticationSerialized: false,
     // The complete attack driver separately proves real warhead/range/C&C
     // mutations. This workspace driver never grants that missing proof itself.
-    remainingAcceptance: ['ordinary AEGIS maintenance, composed attack actions and integrated release'],
+    remainingAcceptance: ['composed attack actions and integrated release'],
     completedAt: new Date().toISOString(),
   }, null, 2)}\n`);
 } catch (error) {
