@@ -23067,6 +23067,7 @@ type WolfAttackDeclarationInputs = Readonly<{
   targetGroupId: string;
   targetGroupVesselIds: readonly string[];
   pStationSequence?: WolfAttackStageState['pStationSequence'];
+  pStationRepeatContext?: PStationRepeatContext;
   commanderCycleAttack?: WolfAttackStageState['commanderCycleAttack'];
 }>;
 
@@ -23602,6 +23603,7 @@ function validateWolfAttackDeclaration(
   let previousAttackId: string | undefined;
   let carryover: WolfWingCarryoverReceipt | undefined;
   let pStationPrevious: ResolvedPStationRepeat | undefined;
+  let pStationRepeatContext: PStationRepeatContext | undefined;
   if (stateProjection.exists) {
     if (!finalizationAuditProjection || !archiveProjection) {
       throw commandError(
@@ -23695,6 +23697,7 @@ function validateWolfAttackDeclaration(
           'conflict',
         );
       }
+      pStationRepeatContext = pStationPrevious!.repeatContext;
     } else if (currentTurn === previous.turn) {
       throw commandError(
         'failed-precondition',
@@ -23812,6 +23815,7 @@ function validateWolfAttackDeclaration(
     targetGroupId: resolvedTargetGroupId,
     targetGroupVesselIds,
     ...(pStationSequence ? { pStationSequence } : {}),
+    ...(pStationRepeatContext ? { pStationRepeatContext } : {}),
     ...(commanderCycleAttack ? { commanderCycleAttack } : {}),
   };
 }
@@ -24130,6 +24134,7 @@ export const declareWolfAttack = onCall<{
         inputs.targetGroupId !== preflight.targetGroupId ||
         JSON.stringify(inputs.targetGroupVesselIds) !== JSON.stringify(preflight.targetGroupVesselIds) ||
         JSON.stringify(inputs.carryover) !== JSON.stringify(preflight.carryover) ||
+        !sameWolfFinalizationValue(inputs.pStationRepeatContext, preflight.pStationRepeatContext) ||
         !sameWolfCommanderCycleAttackMarker(inputs.commanderCycleAttack, preflight.commanderCycleAttack) ||
         wolfAttackPursuitFingerprint(pursuit) !== wolfAttackPursuitFingerprint(preflightPursuit) ||
         JSON.stringify(inputs.parkingDecisions) !== JSON.stringify(preflight.parkingDecisions) ||
@@ -24191,6 +24196,10 @@ export const declareWolfAttack = onCall<{
           expectedRevision: currentPdfEscortWingState.revision,
           attackId: announcementId,
           attackCycle: inputs.phase.turn,
+          ...(inputs.pStationRepeatContext ? {
+            attackNumber: inputs.attackNumber,
+            pStationRepeatContext: inputs.pStationRepeatContext,
+          } : {}),
         });
       } catch (error) {
         throw commandError(

@@ -13,6 +13,7 @@ import {
   CORE_WOLF_TARGET_RING,
   type WolfTargetRing,
 } from './wolfCombatMath';
+import type { PStationRepeatContext } from './wolfAttackCarryover';
 
 export type PdfEscortWingRandomInt = (upperBound: number) => number;
 
@@ -292,7 +293,13 @@ export function initialPdfEscortWingState(): PdfEscortWingState {
 /** Bind per-attack actions to a declared attack while carrying forward losses. */
 export function beginPdfEscortWingAttack(
   state: PdfEscortWingState,
-  input: Readonly<{ expectedRevision: unknown; attackId: unknown; attackCycle: unknown }>,
+  input: Readonly<{
+    expectedRevision: unknown;
+    attackId: unknown;
+    attackCycle: unknown;
+    attackNumber?: unknown;
+    pStationRepeatContext?: PStationRepeatContext;
+  }>,
 ): PdfEscortWingState {
   requireExpectedRevision(state, input.expectedRevision);
   if (typeof input.attackId !== 'string' || input.attackId.trim().length === 0 ||
@@ -302,7 +309,35 @@ export function beginPdfEscortWingAttack(
   }
   if (state.attackId === input.attackId && state.attackCycle === input.attackCycle) return state;
   if (state.attackCycle !== null && (input.attackCycle as number) <= state.attackCycle) {
-    throw new Error('The PDF Escort Wing attack cycle must advance.');
+    const context = input.pStationRepeatContext as unknown;
+    const contextRecord = typeof context === 'object' && context !== null && !Array.isArray(context)
+      ? context as Record<string, unknown>
+      : undefined;
+    const contextKeys = [
+      'type', 'sequenceId', 'groupId', 'chart', 'coordinate', 'stationId', 'sourceTransitionId',
+      'sourceCycle', 'parentAttackId', 'parentAttackNumber', 'parentTurn', 'nextAttackNumber',
+    ];
+    const validPStationRepeat = contextRecord !== undefined &&
+      exactKeys(contextRecord, contextKeys) &&
+      contextRecord.type === 'p-station-repeat' &&
+      typeof contextRecord.sourceTransitionId === 'string' &&
+      /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(contextRecord.sourceTransitionId) &&
+      contextRecord.sequenceId === `wolf-p-station-${contextRecord.sourceTransitionId}` &&
+      typeof contextRecord.groupId === 'string' && contextRecord.groupId.trim().length > 0 &&
+      (contextRecord.chart === 'A' || contextRecord.chart === 'B' || contextRecord.chart === 'C') &&
+      typeof contextRecord.coordinate === 'string' && /^\d{4}$/.test(contextRecord.coordinate) &&
+      contextRecord.stationId === 'P' &&
+      Number.isSafeInteger(contextRecord.sourceCycle) && contextRecord.sourceCycle === state.attackCycle &&
+      typeof contextRecord.parentAttackId === 'string' && contextRecord.parentAttackId === state.attackId &&
+      Number.isSafeInteger(contextRecord.parentAttackNumber) && (contextRecord.parentAttackNumber as number) >= 1 &&
+      Number.isSafeInteger(contextRecord.parentTurn) && contextRecord.parentTurn === state.attackCycle &&
+      Number.isSafeInteger(contextRecord.nextAttackNumber) &&
+      contextRecord.nextAttackNumber === (contextRecord.parentAttackNumber as number) + 1 &&
+      input.attackId !== state.attackId && input.attackCycle === state.attackCycle &&
+      input.attackNumber === contextRecord.nextAttackNumber;
+    if (!validPStationRepeat) {
+      throw new Error('The PDF Escort Wing attack cycle must advance unless an exact P Station repeat context is verified.');
+    }
   }
   return freezeState({
     ...state,
