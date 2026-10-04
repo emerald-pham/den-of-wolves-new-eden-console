@@ -6659,11 +6659,11 @@ export async function commitWolfRangeActionChoice(
   const call = httpsCallable<typeof payload, unknown>(functions(), 'commitWolfRangeActionChoice');
   try {
     const reply = wolfRangeActionChoiceResultReply((await call(payload)).data);
-    const expectedChoiceStatus = reply && actionIds.length === 0 && reply.hitSlots.length === 0
-      ? 'passed' : 'targets-required';
+    const validChoiceStatus = reply && (actionIds.length === 0
+      ? reply.choiceStatus === 'passed' || reply.choiceStatus === 'targets-required'
+      : reply.choiceStatus === 'targets-required');
     if (!reply || reply.sessionId !== sessionId || reply.requestId !== requestId || reply.turn !== turn ||
-        reply.revision !== revision + 1 || reply.range !== range ||
-        reply.choiceStatus !== expectedChoiceStatus) {
+        reply.revision !== revision + 1 || reply.range !== range || !validChoiceStatus) {
       throw new Error('The server returned an invalid Wolf range choice receipt.');
     }
     if (!aegisExecutiveOfficerAuthorityCheckpointIsCurrent(sessionId, checkpoint)) {
@@ -6699,7 +6699,7 @@ export async function assignWolfRangeTargets(
     const reply = wolfRangeTargetAssignmentResultReply((await call(payload)).data);
     if (!reply || reply.sessionId !== sessionId || reply.requestId !== requestId || reply.turn !== turn ||
         reply.revision !== revision + 1 || reply.fromStep !== range ||
-        reply.committedContacts !== assignments.reduce((count, assignment) => count + assignment.contactIds.length, 0)) {
+        reply.committedContacts < assignments.reduce((count, assignment) => count + assignment.contactIds.length, 0)) {
       throw new Error('The server returned an invalid Wolf target assignment receipt.');
     }
     if (!aegisExecutiveOfficerAuthorityCheckpointIsCurrent(sessionId, checkpoint)) {
