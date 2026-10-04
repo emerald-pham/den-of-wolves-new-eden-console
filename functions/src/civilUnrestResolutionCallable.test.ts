@@ -113,7 +113,8 @@ it('accepts grievances submitted during delivery after the crisis advances to de
     type: 'crisis-state', sessionId: 's1', crisisId: 'unrest-1', crisisKind: 'civil-unrest',
     state: 'draft', revision: 3, title: lifecycle.title, details: lifecycle.details,
   });
-  await transitionCrisis.run(request({ ...lifecycle, requestId: 'delivery', expectedRevision: 3, state: 'delivered' }));
+  await transitionCrisis.run(request({ ...lifecycle, requestId: 'delivery', expectedRevision: 3,
+    state: 'delivered', deliveryPressure: 'hold' }));
   put('sessions/s1/civilUnrestGrievances/dione', {
     type: 'civil-unrest-grievance', sessionId: 's1', crisisId: 'unrest-1', shipId: 'dione',
     visibility: 'public', text: 'The Dione team requests a review.', revision: 3, crisisRevision: 4,

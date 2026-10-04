@@ -15,6 +15,8 @@ import { recommendedRoleIds } from '@/data/rolePresets';
 import { normalizeCommandError } from '@/lib/commandErrors';
 
 vi.mock('@/lib/sessionService', () => ({
+  getWolfAmnestyView: vi.fn(async () => ({ type: 'wolf-amnesty-view',
+    sessionId: useSessionStore.getState().session?.id ?? 's1', offer: null })),
   getWolfBoardingDefenceChoice: vi.fn(async () => null),
   getWolfBoardingSpecialChoice: vi.fn(async () => ({
     type: 'wolf-boarding-special-choice-unavailable', sessionId: 's1', reason: 'no-special-choice',

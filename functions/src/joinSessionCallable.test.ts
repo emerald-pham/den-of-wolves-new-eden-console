@@ -53,8 +53,11 @@ vi.mock('firebase-admin/firestore', () => ({
         let base;
         try { base = await mock.get(reference); }
         catch (error) {
-          if (reference.path !== 'sessions/s1/fleetGroups' && reference.path !== 'sessions/s1/shuttleDepartures') throw error;
-          base = { docs: [] };
+          if (reference.path === 'sessions/s1/presidentialElections/current' ||
+              reference.path === 'sessions/s1/presidentialElections/current/ballots/u1') {
+            base = { exists: false, data: () => undefined, get: () => undefined };
+          } else if (reference.path !== 'sessions/s1/fleetGroups' && reference.path !== 'sessions/s1/shuttleDepartures') throw error;
+          else base = { docs: [] };
         }
         if (reference.path === 'sessions/s1/fleetGroups' || reference.path === 'sessions/s1/shuttleDepartures') {
           const byId = new Map<string, { id: string; data: () => Record<string, unknown>; get: (field: string) => unknown }>(

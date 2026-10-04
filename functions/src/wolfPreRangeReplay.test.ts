@@ -89,8 +89,8 @@ describe('attack-bound pre-range mutation composition', () => {
     expect(replay.roster[10]).toMatchObject({ target: 'dione', damageTaken: 1, destroyed: false });
   });
 
-  it.each(['attackId', 'turn', 'revision', 'instanceId', 'fromTarget', 'toTarget', 'fromTargetNumber', 'actorRoleId'])
-  ('rejects a forged or stale Commander %s before advancing combat', (key) => {
+  it.each(['attackId', 'turn', 'revision', 'instanceId', 'fromTarget', 'toTarget', 'fromTargetNumber', 'actorRoleId'])(
+    'rejects a forged or stale Commander %s before advancing combat', (key) => {
     const f = fixture(true);
     expect(() => replayWolfPreRangeMutations(f.roster, { attackId: f.attackId, turn: f.turn,
       range: 'medium-range', targetRing: CORE_WOLF_TARGET_RING,

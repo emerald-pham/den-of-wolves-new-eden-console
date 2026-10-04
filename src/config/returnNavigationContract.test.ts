@@ -15,6 +15,8 @@ const ROUTE_PROOF_EXAMPLES: Readonly<Record<string, string>> = {
   '/gm': '/gm',
   '/console': '/console',
   '/press': '/press',
+  '/president': '/president',
+  '/election': '/election',
   '/shuttles/:shuttleId': '/shuttles/wobbly',
   '/ships/:shipId/roles': '/ships/aegis/roles',
   '/ships/:shipId/roles/:roleId': '/ships/aegis/roles/admiral',

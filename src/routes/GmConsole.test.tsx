@@ -49,6 +49,8 @@ vi.mock('@/lib/sessionService', () => ({
   advanceWolfAttackToLongRange: vi.fn(),
   commitWolfBoardingSpecialChoice: vi.fn(),
   getWolfBoardingSpecialChoice: vi.fn(),
+  getWolfAmnestyView: vi.fn(async () => ({ type: 'wolf-amnesty-view',
+    sessionId: useSessionStore.getState().session?.id ?? 's1', offer: null })),
   startWolfConsoleVisit: vi.fn(),
   resolveWolfConsoleSabotage: vi.fn(),
   setEmergencyTimerPaused: vi.fn(),
