@@ -46,7 +46,8 @@ async function snapshotIdentity() {
     const { useSessionStore } = await import(storeModuleUrl);
     const s = useSessionStore.getState();
     return { uid: auth().currentUser?.uid, memberUid: s.me?.uid, sessionId: s.session?.id,
-      roleId: s.me?.assignedRoleId, connection: s.connection, freshness: s.sessionSnapshotFreshness };
+      roleId: s.me?.assignedRoleId, activeConsoleRoleId: s.me?.activeConsoleRoleId,
+      connection: s.connection, freshness: s.sessionSnapshotFreshness };
   }, sessionStoreModuleUrl);
 }
 async function browserUntil(label, ready) {
@@ -318,10 +319,22 @@ try {
   await browserUntil('fresh same-actor station choice', s => s.uid === eo.localId && s.sessionId === f.sessionId &&
     s.roleId === 'executive-officer' && s.connection === 'live' && s.freshness === 'server');
   await page.getByRole('link', { name: 'AEGIS // Executive Officer // HELD BY YOU', exact: true }).click();
+  await browserUntil('fresh same-actor Executive Officer console', s => s.uid === eo.localId &&
+    s.sessionId === f.sessionId && s.activeConsoleRoleId === 'executive-officer' &&
+    s.connection === 'live' && s.freshness === 'server');
+  const purchaseButton = page.getByRole('button', { name: 'Enrich warheads // 5 ore', exact: true });
+  const hydrationNotice = page.getByText('The Executive Officer authority changed before this response arrived.', { exact: true }).first();
+  await Promise.race([purchaseButton.waitFor({ state: 'visible', timeout: 30_000 }),
+    hydrationNotice.waitFor({ state: 'visible', timeout: 30_000 })]);
+  if (!await purchaseButton.isVisible()) {
+    observations.push({ kind: 'ordinary-warhead-read-refresh', reason: await hydrationNotice.innerText(),
+      identity: await snapshotIdentity() });
+    await page.getByRole('button', { name: 'Refresh enriched warheads', exact: true }).click();
+  }
   let warheadRequest;
   const capture = request => { if (request.url().endsWith('/commitAegisEnrichedWarheadChoice')) warheadRequest = request.postDataJSON().data; };
   page.on('request', capture);
-  await page.getByRole('button', { name: 'Enrich warheads // 5 ore', exact: true }).click({ timeout: 30_000 });
+  await purchaseButton.click({ timeout: 30_000 });
   await until('ordinary live warhead purchase', state => state.enrichedWarheads?.status === 'enriched');
   page.off('request', capture);
   assert.ok(warheadRequest, 'The actual panel sent the ordinary actor purchase.');
