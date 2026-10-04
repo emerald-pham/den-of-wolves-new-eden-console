@@ -69,6 +69,7 @@ const resetFixture = () => {
       fleetDamage: [{ target: 'aegis', amount: 1, populationBefore: 2_500, population: 2_000,
         state: { damagedSystemIds: [], destroyed: false }, draws: [{ casualty: true }] }],
       forceField: { status: 'unavailable', preventedDamage: 0 }, returningInstanceIds: [],
+      survivingWolfShips: [],
     },
   });
 };
