@@ -3645,8 +3645,7 @@ it('uses current group pursuit and live scheduled M source in the facilitator th
   });
 });
 
-it('offers the exact same-cycle P survivor repeat after the ordinary three-attack cap', async () => {
-  const user = userEvent.setup();
+it('uses the finalized same-cycle P survivor repeat window without a manual repeat action', async () => {
   const activeSession = useSessionStore.getState().session;
   if (!activeSession) throw new Error('Expected the test session.');
   useSessionStore.getState().setSession({ ...activeSession, phase: 'active', currentTurn: 4,
@@ -3660,26 +3659,24 @@ it('offers the exact same-cycle P survivor repeat after the ordinary three-attac
   useSessionStore.getState().setGmInstance(local);
   streamInstances([local]);
   vi.mocked(subscribeGmWolfAttackWindow).mockImplementation((_id, onWindow) => {
-    onWindow({ status: 'resolved', turn: 4, revision: 3, targetGroupId: 'fleet-1',
+    onWindow({ status: 'due', turn: 4, revision: 4, targetGroupId: 'fleet-1',
       threatSiteCode: 'P', threatSourceId: 'arrival-station-jump' });
     return vi.fn();
   });
   vi.mocked(subscribeGmWolfAttackState).mockImplementation((_id, onState) => {
-    onState({ status: 'resolved', turn: 4, attackNumber: 3, revision: 9, currentStep: 'resolved',
+    onState({ status: 'resolved', turn: 4, attackNumber: 4, revision: 10, currentStep: 'resolved',
       deadlineAt: new Date(Date.now()).toISOString(), airspaceLocked: false,
       parkedCraftIds: [], launchedCraftIds: [], attackId: 'p-attack-3' } as never);
     return vi.fn();
   });
-  vi.mocked(setWolfAttackWindow).mockResolvedValue({ status: 'due', turn: 4, revision: 4,
-    targetGroupId: 'fleet-1', threatSiteCode: 'P', threatSourceId: 'arrival-station-jump' });
   renderConsole();
 
-  const button = await screen.findByRole('button', { name: /repeat surviving P station force/i });
-  expect(button).toBeEnabled();
-  await user.click(button);
-  expect(setWolfAttackWindow).toHaveBeenCalledWith('due', 3, {
-    targetGroupId: 'fleet-1', threatSiteCode: 'P', threatSourceId: 'arrival-station-jump',
-  });
+  const controls = await screen.findByRole('region', { name: /cycle controls/i });
+  expect(controls).toHaveTextContent(/wolf-attack timing \/\/ due \/\/ cycle 4 \/\/ revision 4/i);
+  expect(within(controls).getByRole('button', { name: 'Resolve timing' })).toBeEnabled();
+  expect(within(controls).getByRole('button', { name: 'Mark timing due' })).toBeDisabled();
+  expect(within(controls).queryByRole('button', { name: /repeat surviving P station force/i })).not.toBeInTheDocument();
+  expect(setWolfAttackWindow).not.toHaveBeenCalled();
 });
 
 it('offers a later attack window only after the current attack has finalized', async () => {
