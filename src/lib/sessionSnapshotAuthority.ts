@@ -1,4 +1,5 @@
 import type { GameSession } from '@/types/game';
+import { turnLimitForSession, turnStateForPhaseContext } from './turnPhase';
 import {
   LEGAL_LIFECYCLE_TRANSITIONS,
   type LifecyclePhase,
@@ -8,6 +9,8 @@ export type SessionLifecycleCursor = {
   readonly currentTurn: number;
   readonly phase?: LifecyclePhase;
   readonly airspaceState?: 0 | 1;
+  /** Canonical current-cycle phase revision, including attack closure/reopening. */
+  readonly phaseRevision?: number;
 };
 
 /** Session timestamp compared at the ISO millisecond precision of callable replies. */
@@ -223,10 +226,16 @@ function sessionLifecycleCursor(
           ? previous.airspaceState
           : undefined
     : undefined;
+  const turnState = phase === 'active'
+    ? turnStateForPhaseContext(session.turnState, turnPhase, currentTurn, turnLimitForSession(session))
+    : undefined;
+  const phaseRevision = turnState?.phaseRevision ??
+    (previous?.currentTurn === currentTurn && previous.phase === phase ? previous.phaseRevision : undefined);
   return {
     currentTurn,
     ...(phase ? { phase } : {}),
     ...(airspaceState === undefined ? {} : { airspaceState }),
+    ...(phaseRevision === undefined ? {} : { phaseRevision }),
   };
 }
 
@@ -249,6 +258,8 @@ function acceptsSessionLifecycleSnapshot(
     return false;
   }
   if (next.currentTurn < previous.currentTurn) return false;
+  if (next.currentTurn === previous.currentTurn && previous.phaseRevision !== undefined &&
+      next.phaseRevision !== undefined && next.phaseRevision < previous.phaseRevision) return false;
 
   if (previous.phase && next.phase && previous.phase !== next.phase) {
     const directTransition = LEGAL_LIFECYCLE_TRANSITIONS[previous.phase].includes(next.phase);
@@ -263,13 +274,16 @@ function acceptsSessionLifecycleSnapshot(
     ) return false;
   }
 
-  // Within one numbered turn, restricted Team precedes lifted Coordination.
-  // Ignore malformed/missing clocks rather than inventing client authority.
+  // A real attack closes already-open airspace in the same cycle and advances
+  // the canonical phase revision. Legacy/malformed clocks still cannot reopen
+  // an earlier Team projection solely because their timestamp changed.
   if (
     next.currentTurn === previous.currentTurn &&
     previous.phase === 'active' && next.phase === 'active' &&
     previous.airspaceState !== undefined && next.airspaceState !== undefined &&
-    next.airspaceState < previous.airspaceState
+    next.airspaceState < previous.airspaceState &&
+    !(previous.phaseRevision !== undefined && next.phaseRevision !== undefined &&
+      next.phaseRevision > previous.phaseRevision)
   ) return false;
 
   return true;
