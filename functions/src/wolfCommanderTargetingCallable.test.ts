@@ -177,6 +177,35 @@ it('reads a filtered current-dice view and patches only selected receipt rolls',
   expect(view).toMatchObject({ eligibleRerollIndexes: expect.not.arrayContaining([0, 2]) });
 });
 
+it('targets only the selected split group and records only that group pursuit as the attack dial input', async () => {
+  const firstGroup = ['aegis', 'dione', 'icebreaker'];
+  const secondGroup = ['shepherd', 'quellon', 'refinery-124'];
+  put('sessions/s1/fleetGroups/fleet-1', {
+    id: 'fleet-1', vesselIds: firstGroup, memberUids: [],
+  });
+  put('sessions/s1/fleetGroups/fleet-2', {
+    id: 'fleet-2', vesselIds: secondGroup, memberUids: ['gm-1'],
+  });
+  put('sessions/s1/players/gm-1', {
+    uid: 'gm-1', role: 'gm', connected: true, fleetGroupId: 'fleet-2',
+  });
+  put('sessions/s1/wolfAttackWindow/current', {
+    status: 'due', turn: 1, revision: 1,
+    targetGroupId: 'fleet-2', threatSiteCode: 'commander',
+  });
+  put('sessions/s1/serverState/navigation', {
+    revision: 8, pursuitGroups: { 'fleet-1': 2, 'fleet-2': 7 },
+  });
+
+  await declare();
+  const receipt = mock.documents.get('sessions/s1/wolfAttackState/current')!.calculationReceipt as Fields;
+  expect(receipt.pursuitPressure).toMatchObject({
+    targetGroupId: 'fleet-2', targetGroupValue: 7,
+  });
+  expect((receipt.targeting as Fields).ring).toEqual(['quellon', 'shepherd', 'refinery-124']);
+  expect((receipt.targeting as Fields).ring).not.toContain('aegis');
+});
+
 it('replays exactly without another random sample and rejects stale or consumed selections', async () => {
   await declare();
   cryptoMock.randomInt.mockImplementationOnce(() => 1);
