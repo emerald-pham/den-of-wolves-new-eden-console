@@ -297,8 +297,9 @@ async function completeBoarding() {
 try {
   // These are real browser joins. Pause their networks while the twenty-seat
   // API setup assigns roles, so three live subscription/presence loops do not
-  // contend with the emulator's setup transactions. Resume the same actors
-  // through the app before any gameplay acceptance.
+  // contend with the emulator's setup transactions. Resume the existing
+  // documents automatically through the app before any gameplay acceptance;
+  // forcing a reload here starts overlapping old/new-document resume writes.
   const joinDuringSetup = (join, clientContext) => async code => {
     const actor = await join(code);
     await clientContext.setOffline(true);
@@ -315,18 +316,18 @@ try {
     explicitLoyaltySetup: { wolfAgentRoleId: 'refinery-124-pdf-colonel', wolfCultRoleId: 'wing-commander',
       intelligenceAgentRoleId: 'quellon-explorer' } });
   console.log('Disposable PC09 normal authenticated session created.');
-  for (const client of [wingBrowser, aceBrowser]) {
+  for (const [client, roleId] of [[wingBrowser, 'wing-commander'], [aceBrowser, 'refinery-124-captain']]) {
     await client.context.setOffline(false);
-    await client.page.reload();
     await client.untilIdentity('same actor after setup network pause', state =>
-      state.uid === state.memberUid && state.sessionId === f.sessionId &&
+      state.uid === f.byRole(roleId).localId && state.uid === state.memberUid &&
+      state.sessionId === f.sessionId && state.roleId === roleId &&
       state.connection === 'live' && state.freshness === 'server');
   }
   await context.setOffline(false);
-  await page.reload();
   await browserUntil('same EO after setup network pause', state =>
     state.uid === f.byRole('executive-officer').localId && state.memberUid === state.uid &&
-    state.sessionId === f.sessionId && state.connection === 'live' && state.freshness === 'server');
+    state.sessionId === f.sessionId && state.roleId === 'executive-officer' &&
+    state.connection === 'live' && state.freshness === 'server');
   checks.setupNetworkPauseResumedSameAuthenticatedActors = true;
   // The explicit optional loyalty fixture starts with its complete 20-core
   // roster. Press then joins through the normal live-session UI; this keeps
