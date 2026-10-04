@@ -476,10 +476,11 @@ it('resolves a finalized same-cycle P Station repeat from its complete immutable
   }));
   const survivingWolfShips = combatRoster.filter((ship) => ship.destroyed === false)
     .map(({ instanceId, shipId, target }) => ({ instanceId, shipId, target }));
+  const returningInstanceIds = [...(prior.calculationReceipt as Fields).returningInstanceIds as string[], battlestation.instanceId];
   const marker = { type: 'p-station-sequence', sequenceId: 'wolf-p-station-transition-1',
     groupId: 'fleet-1', chart: 'A', coordinate: '0102', sourceTransitionId: 'transition-1',
     sourceCycle: 1, attackNumber: 1 };
-  const receipt = { ...(prior.calculationReceipt as Fields), ranges: rangeReceipts, survivingWolfShips };
+  const receipt = { ...(prior.calculationReceipt as Fields), ranges: rangeReceipts, returningInstanceIds, survivingWolfShips };
   const state = { ...prior, combatRoster, rangeReceipts, pStationSequence: marker, calculationReceipt: receipt };
   const audit = { ...auditBefore, pStationSequence: marker, receipt, rangeReceipts };
   mock.documents.set(statePath, state);
