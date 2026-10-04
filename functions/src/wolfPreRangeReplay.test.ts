@@ -30,7 +30,7 @@ function fixture(commanderFirst: boolean) {
     resolvedTargetShift: { instanceId: roster[10]!.instanceId, from: commanderFirst ? 2 : 1,
       to: commanderFirst ? 3 : 2, shift: 1 }, rosterBefore: aceBefore,
     targetResults: [{ instanceId: roster[10]!.instanceId, shipId: 'wolf-assault-transport', damage: 1, destroyed: false }],
-    sourceStateBefore: before, sourceStateAfter: { ...before, revision: 2 },
+    sourceStateBefore: before, sourceStateAfter: { ...before },
     outcome: { damage: 1, targetDestroyed: false, fighterDestroyed: false, aceDied: false, escaped: false },
     rolls: [], committedAt: '2026-10-04T12:00:00.000Z',
   };

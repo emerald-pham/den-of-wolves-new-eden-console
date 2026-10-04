@@ -608,7 +608,7 @@ function admitCommittedMediumAceForProgression() {
     range: 'medium', submittedTargetId: 'contact-11', extraTargetId: null, submittedTargetShift: 1,
     resolvedTargetShift: { instanceId: initial[10]!.instanceId, from: 1, to: 2, shift: 1 },
     rosterBefore: initial, targetResults: [{ instanceId: initial[10]!.instanceId, shipId: 'wolf-assault-transport', damage: 1, destroyed: false }],
-    sourceStateBefore: source, sourceStateAfter: { ...source, revision: 2 },
+    sourceStateBefore: source, sourceStateAfter: { ...source },
     outcome: { damage: 1, targetDestroyed: false, fighterDestroyed: false, aceDied: false, escaped: false },
     rolls: [], committedAt: '2026-10-04T12:00:00.000Z' };
   const after = initial.map((ship, index) => index === 10 ? { ...ship, target: 'dione', damageTaken: 1 } : ship);

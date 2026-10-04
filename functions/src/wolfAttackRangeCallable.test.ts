@@ -2773,7 +2773,7 @@ function admitCommittedMediumAceForProgression() {
     range: 'medium', submittedTargetId: 'contact-11', extraTargetId: null, submittedTargetShift: 1,
     resolvedTargetShift: { instanceId: initial[10]!.instanceId, from: 1, to: 2, shift: 1 },
     rosterBefore: initial, targetResults: [{ instanceId: initial[10]!.instanceId, shipId: 'wolf-assault-transport', damage: 1, destroyed: false }],
-    sourceStateBefore: source, sourceStateAfter: { ...source, revision: 2 },
+    sourceStateBefore: source, sourceStateAfter: { ...source },
     outcome: { damage: 1, targetDestroyed: false, fighterDestroyed: false, aceDied: false, escaped: false },
     rolls: [], committedAt: '2026-10-04T12:00:00.000Z' };
   const after = initial.map((ship, index) => index === 10 ? { ...ship, target: 'dione', damageTaken: 1 } : ship);
@@ -2901,7 +2901,12 @@ it('persists one Ace loss and three ordinary AEGIS Short losses without charging
   entropy.randomInt.mockReset().mockReturnValue(0);
   const lock = { sessionId: 's1', requestId: 'ace-short-lock', expectedTurn: 1,
     expectedRevision: testState.documents.get(f.path)!.revision, range: 'short-range', actionIds: [] };
-  await expect(commitWolfRangeActionChoice.run(request(lock))).resolves.toMatchObject({ currentStep: 'boarding' });
+  const locked = await commitWolfRangeActionChoice.run(request(lock));
+  expect(locked).toMatchObject({ choiceStatus: 'targets-required' });
+  await expect(assignWolfRangeTargets.run(request({ sessionId: 's1', requestId: 'ace-short-assign',
+    expectedTurn: 1, expectedRevision: locked.revision, range: 'short-range',
+    assignments: locked.hitSlots.map(({ actionId }: { actionId: string }) => ({ actionId, contactIds: [] })) })))
+    .resolves.toMatchObject({ currentStep: 'boarding' });
   expect(testState.documents.get('sessions/s1')!.fighterWingCounts).toMatchObject({
     'fighter-wing-alpha': { count: 0, revision: 2 }, 'fighter-wing-bravo': { count: 4, revision: 0 } });
   const saved = structuredClone([...testState.documents]);

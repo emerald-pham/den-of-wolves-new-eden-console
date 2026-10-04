@@ -636,7 +636,7 @@ describe('central Wolf combat math', () => {
       sourceId: 'pdf-escort-fighter-wing', fighterIndex: 0, permissionActor: permission,
       permissionActorUid: permission.actorUid, permissionActorRoleId: permission.actorRoleId,
       permissionRequestId: permission.requestId, permissionRevision: permission.revision,
-      sourceStateBefore, sourceStateAfter: { ...sourceStateBefore, revision: 2 }, rosterBefore: roster,
+      sourceStateBefore, sourceStateAfter: { ...sourceStateBefore }, rosterBefore: roster,
       submittedTargetId: 'contact-1', extraTargetId: null, range: 'medium', submittedTargetShift: null,
       resolvedTargetShift: null, rolls: [], outcome: { damage: 1, targetDestroyed: false,
         fighterDestroyed: false, aceDied: false, escaped: false },
@@ -677,7 +677,7 @@ describe('central Wolf combat math', () => {
       sourceId: 'fighter-wing-alpha', fighters: 4, losses: 0, revision: 1, durableRevision: 1,
       launched: true, attackId: 'attack-ace-pre-range', cycle: 1,
     };
-    const fighterStateAfter = { ...fighterStateBefore, revision: 2 };
+    const fighterStateAfter = { ...fighterStateBefore };
     const fighterAceAction = {
       type: 'pdf-fighter-ace-action', attackId: 'attack-ace-pre-range', turn: 1, revision: 3,
       requestId: 'ace-action-1', actorUid: 'ace-actor', actorRoleId: 'pdf-fighter-ace', fighterUid: 'ace-actor',
