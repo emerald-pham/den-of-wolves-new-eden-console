@@ -48,6 +48,7 @@ vi.mock('firebase-functions/v2/scheduler', () => ({
 
 import { getWolfAttackThreatWindowOptions, setWolfAttackWindow } from './index';
 import { emptySmallShipState } from './smallShip';
+import { organiserSitesForChart } from './starChartLookup';
 
 const baseData = {
   sessionId: 's1',
@@ -62,30 +63,34 @@ function request(data: Record<string, unknown> = baseData, uid = 'u1') {
 }
 
 it('projects only live source-backed threat choices to the active GM for the selected group', async () => {
+  const sites = organiserSitesForChart('B');
+  const outpost = Object.entries(sites).find(([, site]) => site.code === 'L')?.[0];
+  const fortress = Object.entries(sites).find(([, site]) => site.code === 'M')?.[0];
+  if (!outpost || !fortress) throw new Error('The test chart needs an outpost and fortress.');
   session({ chartSelectionLocked: true, chartId: 'B', activeVesselIds: ['aegis', 'dione'] });
   put('sessions/s1/fleetGroups/fleet-2', { id: 'fleet-2', vesselIds: ['aegis'], memberUids: [] });
   put('sessions/s1/serverState/wolfArrivalPressure/groups/fleet-2', {
     type: 'wolf-base-arrival-pressure-state', groupId: 'fleet-2', chart: 'B', revision: 2,
     entries: [
       { type: 'wolf-base-arrival-pressure', status: 'operational', groupId: 'fleet-2', chart: 'B',
-        coordinate: '1964', siteCode: 'L', sourceShipId: 'aegis', sourceTransitionId: 'jump-outpost',
+        coordinate: outpost, siteCode: 'L', sourceShipId: 'aegis', sourceTransitionId: 'jump-outpost',
         cycle: 1, revision: 1, attackStatus: 'scheduled', arrivalTiming: 'immediate', minimumBattleStations: 1,
         minimumOtherShipDamage: 20, missionAccess: 'blockedWhileWolfBaseOperational', recurringUntil: ['baseDestroyed', 'jumpAway'] },
       { type: 'wolf-base-arrival-pressure', status: 'operational', groupId: 'fleet-2', chart: 'B',
-        coordinate: '1965', siteCode: 'M', sourceShipId: 'aegis', sourceTransitionId: 'jump-fortress',
+        coordinate: fortress, siteCode: 'M', sourceShipId: 'aegis', sourceTransitionId: 'jump-fortress',
         cycle: 1, revision: 2, attackStatus: 'scheduled', arrivalTiming: 'immediate', minimumBattleStations: 2,
         minimumOtherShipDamage: 25, missionAccess: 'blockedWhileWolfBaseOperational', recurringUntil: ['baseDestroyed', 'jumpAway'] },
     ],
   });
   const schedule = {
     type: 'wolf-base-arrival-pressure-schedule', status: 'scheduled', sessionId: 's1', groupId: 'fleet-2',
-    chart: 'B', coordinate: '1964', siteCode: 'L', sourceShipId: 'aegis', sourceTransitionId: 'jump-outpost',
+    chart: 'B', coordinate: outpost, siteCode: 'L', sourceShipId: 'aegis', sourceTransitionId: 'jump-outpost',
     sourceCycle: 1, arrivalTiming: 'immediate', minimumBattleStations: 1, minimumOtherShipDamage: 20,
     recurringUntil: ['baseDestroyed', 'jumpAway'], missionAccess: 'blockedWhileWolfBaseOperational',
   };
   put('sessions/s1/wolfAttackPressure/arrival-jump-outpost', schedule);
   put('sessions/s1/wolfAttackPressure/arrival-jump-fortress', {
-    ...schedule, coordinate: '1965', siteCode: 'M', sourceTransitionId: 'jump-fortress', sourceCycle: 1,
+    ...schedule, coordinate: fortress, siteCode: 'M', sourceTransitionId: 'jump-fortress', sourceCycle: 1,
     minimumBattleStations: 2, minimumOtherShipDamage: 25,
   });
 
@@ -93,8 +98,8 @@ it('projects only live source-backed threat choices to the active GM for the sel
     .resolves.toEqual({
       type: 'wolf-attack-threat-window-options', sessionId: 's1', targetGroupId: 'fleet-2', cycle: 1,
       sources: [
-        { siteCode: 'L', sourceId: 'arrival-jump-outpost', sourceCycle: 1, coordinate: '1964' },
-        { siteCode: 'M', sourceId: 'arrival-jump-fortress', sourceCycle: 1, coordinate: '1965' },
+        { siteCode: 'L', sourceId: 'arrival-jump-outpost', sourceCycle: 1, coordinate: outpost },
+        { siteCode: 'M', sourceId: 'arrival-jump-fortress', sourceCycle: 1, coordinate: fortress },
       ],
     });
 });
