@@ -686,6 +686,33 @@ it('holds completed targeting until each eligible AEGIS Fighter Bay is launched 
   });
 });
 
+it.each([undefined, { aegis: { turn: 1, step: 7, revision: 2, results: {},
+  charges: ['fighter-bay-alpha', 'fighter-bay-bravo'], refuelled: [] } }])(
+  'reports destroyed AEGIS bays unavailable in a later cycle without requiring new maintenance: %j', async maintenanceCycles => {
+    const session = testState.documents.get('sessions/s1')!;
+    put('sessions/s1', { ...session, currentTurn: 2, activeRoleIds: ['wing-commander'], maintenanceCycles,
+      turnPhase: { ...(session.turnPhase as Fields), turn: 2 }, fighterWingCounts: initialFighterWingCounts(),
+      shipDamage: { aegis: { damagedSystemIds: [], destroyed: true } } });
+    const attack = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+    put('sessions/s1/wolfAttackState/current', { ...attack, turn: 2, currentStep: 'targeting',
+      preparation: { ...(attack.preparation as Fields), turn: 2 },
+      calculationReceipt: { ...(attack.calculationReceipt as Fields), turn: 2 } });
+    put('sessions/s1/players/wc-1', { uid: 'wc-1', role: 'player', connected: true,
+      assignedRoleId: 'wing-commander', activeConsoleRoleId: 'wing-commander', fleetGroupId: 'fleet-1' });
+    const group = testState.documents.get('sessions/s1/fleetGroups/fleet-1')!;
+    put('sessions/s1/fleetGroups/fleet-1', { ...group, memberUids: ['wc-1'], memberShipIds: { 'wc-1': 'aegis' } });
+    for (const wingId of ['fighter-wing-alpha', 'fighter-wing-bravo']) {
+      await expect(getAegisFighterWingLaunch.run(request({ sessionId: 's1', wingId }, 'wc-1')))
+        .resolves.toMatchObject({ eligible: false, launched: false, reason: 'destroyed' });
+      await expect(launchAegisFighterWing.run(request({ sessionId: 's1', wingId, requestId: `wrecked-${wingId}`,
+        expectedTurn: 2, expectedRevision: 4, expectedWingRevision: 0 }, 'wc-1')))
+        .rejects.toMatchObject({ code: 'failed-precondition' });
+    }
+    expect(entropy.randomInt).not.toHaveBeenCalled();
+    expect(testState.update).not.toHaveBeenCalled();
+    expect(testState.set).not.toHaveBeenCalled();
+  });
+
 it('keeps an assigned offline Wing Commander choice pending and accepts a reconnect retry', async () => {
   const session = testState.documents.get('sessions/s1')!;
   put('sessions/s1', { ...session,
