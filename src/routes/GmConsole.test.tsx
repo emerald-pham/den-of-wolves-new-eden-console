@@ -4390,6 +4390,31 @@ it('labels outbreak fields as public and submits them separately from private no
   ));
 });
 
+it('records a formal crisis outcome for the next Team start only after the facilitator marks it resolved', async () => {
+  const user = userEvent.setup();
+  const debated = { ...liveCrisis, state: 'debated' as const, revision: 3 };
+  vi.mocked(subscribeGmCrisisState).mockImplementation((_sessionId, publish) => {
+    publish(debated);
+    return vi.fn();
+  });
+  useSessionStore.getState().setSession({ ...useSessionStore.getState().session!, phase: 'active', currentTurn: 2 });
+  useSessionStore.getState().setGmInstance(local);
+  vi.mocked(transitionCrisis).mockResolvedValue('applied');
+  streamInstances([local]);
+  renderConsole();
+  const panel = await screen.findByRole('region', { name: 'Crisis state machine' });
+  await user.click(within(panel).getByRole('checkbox', { name: 'Announce a binding outcome at the next Team start' }));
+  await user.type(within(panel).getByRole('textbox', { name: 'Public outcome title' }), 'Mutual supply pact');
+  await user.type(within(panel).getByRole('textbox', { name: 'Public outcome details' }), 'Each ship publishes its supply request.');
+  await user.click(within(panel).getByRole('button', { name: 'Mark resolved' }));
+  await waitFor(() => expect(transitionCrisis).toHaveBeenCalledWith(
+    debated.crisisId, 'resolved', debated.title, debated.details,
+    { crisisKind: 'custom', configurationOverride: '', formalAnnouncement: {
+      title: 'Mutual supply pact', details: 'Each ship publishes its supply request.',
+    } },
+  ));
+});
+
 it('activates and releases quarantine while stating that communications remain available', async () => {
   const user = userEvent.setup();
   const outbreak = {
