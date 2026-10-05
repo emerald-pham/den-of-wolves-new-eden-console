@@ -1,6 +1,7 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { readFileSync } from 'node:fs';
 import CandidatePreparationPanel from './CandidatePreparationPanel';
 import { useSessionStore } from '@/store/useSessionStore';
 
@@ -17,6 +18,18 @@ const path = (code: 'N' | 'O' | 'P') => ({ code, coordinate: code === 'N' ? '679
   researchChoices: code === 'N' ? [{ id: 'reactor', name: 'Reactor' }] : [], engineeringShuttles: [],
   ships: [{ shipId: 'aegis', result: 'awaiting-choice', fuelCost: code === 'N' ? 5 : code === 'O' ? 6 : 0,
     reactorCapacity: code === 'P' ? 5 : 0, canAct: true, blocker: '' }],
+});
+it('gives each Ring research choice a 44px checkbox activation target', async () => {
+  const style = document.createElement('style');
+  style.textContent = readFileSync('src/components/CandidatePreparationPanel.css', 'utf8');
+  document.head.append(style);
+  try {
+    render(<CandidatePreparationPanel />);
+    const checkbox = await screen.findByRole('checkbox', { name: 'Reactor', exact: true });
+    const label = checkbox.closest('label');
+    expect(label).not.toBeNull();
+    expect(Number.parseFloat(getComputedStyle(label!).minHeight)).toBeGreaterThanOrEqual(44);
+  } finally { style.remove(); }
 });
 beforeEach(() => {
   vi.clearAllMocks(); service.recover.mockReturnValue(undefined);
