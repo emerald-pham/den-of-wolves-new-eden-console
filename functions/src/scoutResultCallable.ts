@@ -201,7 +201,8 @@ export async function resolveCommittedScoutRequest(
         request: pendingData, cadence: cadence.data(),
         session: {
           sessionId, phase: session.get('phase'), chartId: session.get('chartId'),
-          chartSelectionLocked: session.get('chartSelectionLocked'),
+          chartSelectionLocked: session.get('chartSelectionLocked') === true ||
+            session.get('configurationLocked') === true,
           currentCycle: session.get('currentTurn'),
         }, facilitator,
         fleetGroupId: groupForShip(groups.docs, pendingData.anchorShipId, activeVesselIds),
@@ -229,7 +230,8 @@ export async function resolveCommittedScoutRequest(
         request: pendingData, cadence: cadence.data(),
         session: {
           sessionId, phase: session.get('phase'), chartId: session.get('chartId'),
-          chartSelectionLocked: session.get('chartSelectionLocked'),
+          chartSelectionLocked: session.get('chartSelectionLocked') === true ||
+            session.get('configurationLocked') === true,
           currentCycle: session.get('currentTurn'),
         }, facilitator, fleetGroupId: note.fleetGroupId,
         recordedAt: note.recordedAt,

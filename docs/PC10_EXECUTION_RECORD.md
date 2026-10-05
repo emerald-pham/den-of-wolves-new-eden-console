@@ -149,3 +149,19 @@ restart hold was explicitly lifted on October 5. Preserved owner runtimes are
 reused, and heavy browser proofs run serially. Failed fresh base attempts retain
 their evidence and receive no gameplay acceptance credit.
 No closure or release credit is claimed by this record.
+
+The finite October 5 restore diagnosis retained failed fresh attempt 5: six
+paid maintenance cycles and two scout requests committed, then ordinary
+Admiral admission returned HTTP 500 with a transaction-lock timeout. A separate
+short fresh session restored 28 original personas with no retry or error; this
+does not establish an ending or resolve the earlier timeout. Targeted read-only
+inspection of the failed session found two scout requests and no result/audit,
+with `configurationLocked=true` and `chartSelectionLocked=false`. Both original
+records failed the unchanged resolution plan's chart-lock check, and both
+matched the existing navigation contract when either authoritative lock was
+true. Automatic-continuation logs recorded that exact validation failure.
+The resolver now normalizes those existing locks for initial resolution and
+replay; neither lock absent or a string value still fails closed. Separate red
+tests reproduced both automatic and GM recovery failures, followed by 62 green
+focused tests. Repaired authenticated scout/restore gameplay remains pending;
+the historical lock holder is not inferred from this later state.
