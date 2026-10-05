@@ -93,6 +93,19 @@ test('ending observation accepts the authoritative final-cycle snapshot without 
   assert.equal(isObservedGameEnding({ ...ended, debriefSource: 'failure-review', debriefResult: 'failure', debriefCause: 'pursuit-limit' }), true);
 });
 
+test('fresh ending proof distinguishes a real pursuit failure from final-cycle completion', async () => {
+  const { assertFreshEndingBranch } = await import('./pc10-full-game-cycle-ending.mjs');
+  const completed = { source: 'final-cycle', result: 'completed', cause: 'final-cycle', cycle: 8 };
+  const pursuit = { source: 'failure-review', result: 'failure', cause: 'pursuit-limit', cycle: 5 };
+  assert.doesNotThrow(() => assertFreshEndingBranch(completed, { branch: 'final-cycle', cycle: 8, limit: 8 }));
+  assert.doesNotThrow(() => assertFreshEndingBranch(pursuit, { branch: 'pursuit-limit', cycle: 5, limit: 8 }));
+  assert.throws(() => assertFreshEndingBranch(pursuit, { branch: 'final-cycle', cycle: 5, limit: 8 }));
+  assert.throws(() => assertFreshEndingBranch(completed, { branch: 'pursuit-limit', cycle: 8, limit: 8 }));
+  for (const changed of [{ cycle: 4 }, { source: 'candidate' }, { cause: 'total-fleet-loss' }, { result: 'success' }]) {
+    assert.throws(() => assertFreshEndingBranch({ ...pursuit, ...changed }, { branch: 'pursuit-limit', cycle: 5, limit: 8 }));
+  }
+});
+
 const setupActor = { sessionId: 'fresh-setup', uidHash: 'real-gm-hash', instanceId: 'live-gm-instance' };
 const liveSetup = { ...setupActor, hasAuth: true, sameActor: true, playerRole: 'gm', gmInstanceOwned: true,
   cycle: 0, phase: 'lobby', connection: 'live', freshness: 'server', confirmEnabled: true,
