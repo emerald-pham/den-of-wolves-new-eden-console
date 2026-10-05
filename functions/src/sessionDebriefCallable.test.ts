@@ -104,3 +104,14 @@ it('replays the original action receipt before rejecting a fresh terminal action
   await expect(call.begin(request({ ...base, requestId: 'fresh-debrief' })))
     .rejects.toMatchObject({ code: 'failed-precondition' });
 });
+
+it('rejects a corrupted stored command result instead of replaying unvalidated fields', async () => {
+  const call = handlers();
+  await call.begin(request());
+  const receiptPath = 'sessions/s1/debriefActions/debrief-1';
+  const receipt = database.documents.get(receiptPath)!;
+  database.documents.set(receiptPath, { ...receipt,
+    result: { phase: 'closed', committed: true, cycle: -1, result: 'private-note', extra: 'loyalty' } });
+
+  await expect(call.begin(request())).rejects.toMatchObject({ code: 'failed-precondition' });
+});
