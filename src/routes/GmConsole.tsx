@@ -18,6 +18,7 @@ import ShipPlot from '@/components/ShipPlot';
 import { useFleetGroupNavigation } from '@/lib/useFleetGroupNavigation';
 import GmMutinyRecovery from '@/components/GmMutinyRecovery';
 import { GmSetupChecklist } from '@/components/GmSetupChecklist';
+import GmLoyaltySetupPanel from '@/components/GmLoyaltySetupPanel';
 import UnionCraftStartingHostPanel from '@/components/UnionCraftStartingHostPanel';
 import PursuitTracker from '@/components/PursuitTracker';
 import JumpFailureAdjudicationPanel from '@/components/JumpFailureAdjudicationPanel';
@@ -4635,6 +4636,7 @@ export default function GmConsole() {
                     Wobbly and Ally are available only with their confirmed Union replacement station.
                   </p>
                 </fieldset>
+                <GmLoyaltySetupPanel players={allPlayers} />
                 <fieldset className="gm-production-start" aria-label="Full-game demo preparation">
                   <legend>Full-game demo // unlimited manual progression</legend>
                   {!fullGameDemo ? <>
