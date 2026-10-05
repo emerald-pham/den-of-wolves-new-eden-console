@@ -161,7 +161,7 @@ function blockerPattern(spec, view, reason) {
   if (spec.kind === 'range-actions' && reason && reason !== 'waiting') return reason === 'committed'
     ? /This range decision is committed/ : /No weapon choice is open/;
   if (spec.kind === 'boarding-defence') return ({ 'no-boarders': /No surviving boarding parties/,
-    'not-your-ship': /This ship’s defence choice is not open yet/, committed: /defence choice is locked/ })[reason];
+    'not-your-choice': /This ship’s defence choice is not open yet/, committed: /defence choice is locked/ })[reason];
   if (spec.kind === 'force-field') return ({ selected: /Force Field protects/, passed: /Captain recorded a pass/,
     'no-current-captain': /No current Gorgoneion Captain/,
     'ambiguous-current-captain': /Captain assignment is ambiguous/,
