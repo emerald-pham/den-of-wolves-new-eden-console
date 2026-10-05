@@ -229,7 +229,7 @@ test('a timer-held advance clicks only its actually offered confirmation and pre
 const presentationActor = (name, overrides = {}) => {
   const gm = name === 'gm';
   const expected = {
-    sessionId: 'fresh-presentation-session', uidHash: `${name}-uid-hash`,
+    hasAuth: true, sessionId: 'fresh-presentation-session', uidHash: `${name}-uid-hash`,
     profileRoleId: gm ? null : 'controller', playerRole: gm ? 'gm' : 'player',
     assignedRoleId: null, activeConsoleRoleId: null, instanceId: gm ? 'owned-gm-instance' : null,
     gmInstanceOwned: gm,
