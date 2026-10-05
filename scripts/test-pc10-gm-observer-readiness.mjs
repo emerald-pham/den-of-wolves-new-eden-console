@@ -149,13 +149,21 @@ test('waiting for paint never allows the next cycle to become the original opera
   assert.equal(f.counters().paintReads, 1);
 });
 
-function receiptSurface(actor = original()) {
+test('the existing single-argument affordance retains its immediate unavailable-control behavior', async () => {
+  const f = fixture({ paints: [mounted({ enabled: false })] });
+  const result = await recordLifecycleAffordance(f.locator);
+  assert.equal(result.offered, false);
+  assert.equal(Object.hasOwn(result, 'mountStatus'), false);
+  assert.deepEqual(f.counters().waits, []);
+});
+
+function receiptSurface(actor = original(), { httpStatus = 200, body = { result: { enabled: true } } } = {}) {
   const waits = [];
   const request = { method: () => 'POST', postDataJSON: () => ({ data: {
     sessionId: actor.sessionId, instanceId: actor.instanceId, shipId: 'aegis', enabled: true,
   } }) };
   const response = { url: () => 'http://127.0.0.1:5011/demo/us-central1/setGmShipConsoleWriteGrant',
-    request: () => request, status: () => 200, json: async () => ({ result: { enabled: true } }) };
+    request: () => request, status: () => httpStatus, json: async () => body };
   return { waits, surface: { storeModuleUrl: () => '/src/store/useSessionStore.ts', page: {
     evaluate: async () => actor,
     waitForResponse: async (predicate, options) => { waits.push(options.timeout); assert.equal(predicate(response), true); return response; },
@@ -188,3 +196,13 @@ test('the receipt chooser remains bound to the original pre-navigation GM rather
   assert.equal(clicks, 0);
   assert.deepEqual(f.waits, []);
 });
+
+for (const outcome of [{ httpStatus: 403, body: { error: { status: 'PERMISSION_DENIED' } } },
+  { body: { error: { status: 'UNAVAILABLE' } } }, { body: {} },
+  ...['denied', 'queued', 'stale'].map(status => ({ body: { result: { status } } }))]) {
+  test(`the shared deadline never credits a rejected actual UI receipt: ${JSON.stringify(outcome)}`, async () => {
+    const f = receiptSurface(original(), outcome);
+    await assert.rejects(captureLifecycleUiAction(f.surface, 'setGmShipConsoleWriteGrant', async () => {},
+      { gm: true, original: original(), deadlineAt: Date.now() + 500 }));
+  });
+}
