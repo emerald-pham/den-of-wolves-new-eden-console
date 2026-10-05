@@ -50,3 +50,16 @@ test('ration choices use the actual visible costs and current stores rather than
   assert.throws(() => proof.chooseAffordableRation(options, -1), /current stores/i);
   assert.throws(() => proof.chooseAffordableRation([{ value: '3', text: 'Normal // 6 // +9' }], 5), /affordable/i);
 });
+
+test('maintenance proof waits for the normal end reset and current-cycle completion receipt', () => {
+  assert.equal(typeof proof.isCompletedMaintenanceForCycle, 'function');
+  const completed = { turn: 1, step: 0, completedAt: '2026-10-05T09:24:48.910Z',
+    results: { '7': 'Maintenance cycle complete.' } };
+  assert.equal(proof.isCompletedMaintenanceForCycle(completed, 1), true);
+  assert.equal(proof.isCompletedMaintenanceForCycle({ ...completed, step: 7 }, 1), false);
+  assert.equal(proof.isCompletedMaintenanceForCycle({ ...completed, completedAt: undefined }, 1), false);
+  assert.equal(proof.isCompletedMaintenanceForCycle({ ...completed, completedAt: 'invalid' }, 1), false);
+  assert.equal(proof.isCompletedMaintenanceForCycle({ ...completed, results: {} }, 1), false);
+  assert.equal(proof.isCompletedMaintenanceForCycle(completed, 2), false);
+  assert.equal(proof.isCompletedMaintenanceForCycle(undefined, 1), false);
+});
