@@ -467,7 +467,8 @@ export function sessionDebriefProjection(
     }
     : undefined;
   return {
-    type: snapshot.type, version: snapshot.version, result: snapshot.result, cause: snapshot.cause,
+    type: snapshot.type, version: snapshot.version, source: snapshot.source,
+    result: snapshot.result, cause: snapshot.cause,
     cycle: snapshot.cycle, occurredAt: snapshot.occurredAt, committedAt: snapshot.committedAt,
     ...(outcome ? { outcome } : {}),
     ...(survivorOutcome ? { survivorOutcome: {

@@ -1536,7 +1536,7 @@ function sessionDebriefOutcome(value: unknown): NonNullable<NonNullable<GameSess
   }
   if (raw.result === 'failure' && raw.cause === 'pursuit-limit' &&
       Number.isSafeInteger(raw.navigationRevision) && Number(raw.navigationRevision) >= 1 &&
-      Object.keys(raw).length === 7 && raw.candidateCode === undefined) {
+      Object.keys(raw).length === 6 && raw.candidateCode === undefined) {
     return { type: 'game-outcome', result: 'failure', cause: 'pursuit-limit', cycle: Number(raw.cycle),
       navigationRevision: Number(raw.navigationRevision), occurredAt: raw.occurredAt };
   }
