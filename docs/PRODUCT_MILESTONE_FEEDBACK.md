@@ -338,3 +338,24 @@ followed by existing post-PC10 work. The PC09 task implements no future phase.
 The narrow Astra P605a implementation-only exception, existing DRADIS design,
 MacBook execution and 25-continuous-hour backup boundary remain unchanged.
 This decision changes sequence authorization only and grants no closure credit.
+
+## PC10 execution and later roadmap — 2026-10-05
+
+Decision source: the owner's separate PC10 orchestrator dispatch, after the
+verified PC09 0.5.68 release. It authorizes commit/push/merge and release
+verification without routine approvals, preserving fixed accounting, local
+emulator gameplay and all authority/review/render/exact-SHA gates.
+
+| Decision | Applied disposition |
+|---|---|
+| Actual GM and cycle 0→1; full-game demo beside existing single-cycle demo, unlimited/manual | [Execution record](PC10_EXECUTION_RECORD.md), PC10-A02 and affected proof criteria; preserve the existing real authentication/start flow. |
+| Every role/function through a fresh entire game across two browsers; interruption/retry/recovery/privacy | All 48 scoped criteria reference this revision; final role/function matrix and full-game acceptance remain incomplete until evidence exists. |
+| Three acceptance gates | Fresh ending rehearsal, about 21 independent authenticated sessions with overlapping actions, and action/cost/blocker/next-actor usability; distinguish browser/actor automation from human/device play. |
+| Primary Firebase joined-Settings QR | PC10-A01, ordinary join URL/code plus accessible equivalent, admission/Auth/consent/privacy and CIC design; zero new fixed closures. |
+| Preserve PC09 CIC copy | Cycle 0 AWAITING CIC AUTHENTICATION and Settings awaiting-GM-start explanation stay intact. |
+| Future post work, PC11, then PC12 backup | Recorded in execution/milestone/completion/alignment plans; current instruction supersedes earlier future-PC11 prohibition, and execution stops at PC10 handoff. |
+| PC12 remains a backup in the same repo | Firebase default/cloud intact; local authority, privacy, persistence/recovery, offline assets, WAN-disconnected multi-client proof and local Wi-Fi/server QR; no implicit state sync or security-setting authorization. |
+| Licensing and model boundaries | Parent retains exact licensing-scope decision; no notices/assets edits. Only Sol 6.1/Luna 6; ended PC09 Astra exception grants no later permission. Fast only if supported. |
+
+This alignment earns no implementation, closure, gameplay, review or release
+credit. Latest reviewed message is the October 5 separate-PC10 dispatch.

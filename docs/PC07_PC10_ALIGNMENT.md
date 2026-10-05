@@ -220,3 +220,28 @@ review, CI and production deployment are retained. Synthetic review scenes
 remain presentation only. PC10's full-table, end-to-end and actual ending proof
 may use local/emulator clients; version authorization and P605a exclusion stay
 intact. See the current policy in Product Milestones.
+
+## PC10 owner revision — October 5
+
+The separate PC10 dispatch authorizes the revised shape and execution in
+[PC10 execution record](PC10_EXECUTION_RECORD.md). Keep its fixed 48 assigned
+closures and 751/751 endpoint, with real authenticated GM cycle 0→1, an
+unlimited manually advanced full-game demo beside the existing single-cycle
+demo, fresh-game every-role/function acceptance across two browsers, about
+21 independent authenticated sessions with overlapping/reconnect/retry/privacy
+checks, and explicit action/cost/blocker/next-actor usability evidence.
+Prepared scenes alone are insufficient. The primary Firebase Settings join QR
+and full-game demo are explicit additions with zero fixed-catalog credit.
+Preserve Cycle 0 AWAITING CIC AUTHENTICATION and its Settings GM-start explanation.
+
+Record automated actors/browser concurrency separately from human device
+playtesting. PC10 completion returns to the parent before existing post-PC10
+work, then PC11 in-app cross-game rules guidance, then PC12 same-repository
+Mac authoritative offline LAN backup. This supersedes earlier future-PC11
+prohibitions; no later phase is executed by PC10. Firebase remains primary,
+cloud data/deployment stay intact, and no cloud/offline synchronization is
+implied. PC12 uses local identity/privacy/persistence/recovery, no runtime
+internet dependencies, WAN-disconnected multi-client proof, and local QR for
+user-entered Wi-Fi details and server URL. No credentials enter Git/reports,
+and no unauthorized network-security setting change is allowed. Licensing
+remains unresolved with the parent; notices/assets remain unchanged.
