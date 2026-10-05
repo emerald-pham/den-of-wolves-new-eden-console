@@ -54,7 +54,7 @@ beforeEach(() => {
     maintenanceCycles: { aegis: { step: 0, revision: 1, turn: 6, charges: ['jump-drive'], results: {}, refuelled: [] },
       shepherd: { step: 0, revision: 1, turn: 6, charges: ['jump-drive'], results: {}, refuelled: [] } },
     shipResources: Object.fromEntries(['aegis', 'shepherd'].map(ship => [ship,
-      { ore: 0, fuel: 6, materials: 10, food: 10, water: 10, securityTeams: 1 }])),
+      { ore: 0, fuel: 20, materials: 10, food: 10, water: 10, securityTeams: 1 }])),
     shipSurvivors: { aegis: 5000, shepherd: 5000 }, shuttleControl: {}, shuttleDockings: [],
   });
   put('sessions/s1/players/admiral', { role: 'player', connected: true, assignedRoleId: 'admiral', seatId: 'admiral', fleetGroupId: 'fleet-1' });
@@ -72,12 +72,12 @@ beforeEach(() => {
 describe('ordinary candidate callable authority and durable replay', () => {
   it('commits a server loss once, retains private arithmetic, revokes vessel actions and preserves demo state', async () => {
     const reply = await handlers.execute(request(command));
-    expect(reply).toMatchObject({ status: 'committed', outcome: 'lost', fuelSpent: 3 });
+    expect(reply).toMatchObject({ status: 'committed', outcome: 'lost', fuelSpent: 6 });
     expect(die).toHaveBeenCalledTimes(1);
     expect(documents.get('sessions/s1/candidateCalculationAudits/n1')).toMatchObject({ calculation: { die: 6, scouts: 2, total: 8 } });
     expect(documents.get('sessions/s1/players/admiral')).toMatchObject({ candidateDisposition: { outcome: 'lost', shipId: 'aegis' } });
     expect(documents.get('sessions/s1')).toMatchObject({ fullGameDemo: { status: 'active', progression: 'manual' },
-      shipResources: { aegis: { fuel: 3 } }, shipDamage: { aegis: { destroyed: true } }, shipSurvivors: { aegis: 0 } });
+      shipResources: { aegis: { fuel: 14 } }, shipDamage: { aegis: { destroyed: true } }, shipSurvivors: { aegis: 0 } });
     expect(JSON.stringify(reply)).not.toMatch(/die|scouts|total|hidden/);
   });
   it('recovers the exact request after debrief without fresh calculation, and rejects payload and actor collisions', async () => {
@@ -114,6 +114,9 @@ describe('ordinary candidate callable authority and durable replay', () => {
       .resolves.toMatchObject({ outcome: 'reached' });
     expect(commitTerminal).toHaveBeenCalledTimes(1);
     expect(commitTerminal.mock.calls[0]?.[3]).toMatchObject({ source: 'candidate', outcome: {
-      result: 'success', candidateCode: 'O', successfulShipIds: ['shepherd'], leftBehindShipIds: ['aegis'] } });
+      result: 'success', candidateCode: 'O' } });
+    expect(commitTerminal.mock.calls[0]?.[3].candidate.groups[0].losses).toEqual([
+      { shipId: 'aegis', reason: 'lost-in-nebula', audience: 'members' },
+    ]);
   });
 });
