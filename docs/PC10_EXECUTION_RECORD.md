@@ -22,9 +22,9 @@ No `.agents` directory or repository-local `SKILL.md` exists on this baseline;
 AGENTS, CLAUDE and the linked execution/source/aesthetic policies govern work.
 
 Only Sol 6.1 and Luna 6 workers are authorized. The PC09 Astra exception has
-ended. The owner requested Sol 6.1 Max and Fast. No exposed service-tier setter
-or worker launch argument supports Fast in this session; no undocumented
-configuration change or unsupported tier claim is made. Mac is primary; no
+ended. The owner requested Sol 6.1 Max and subsequently selected normal/default
+speed. No undocumented configuration change or unsupported tier claim is made.
+Mac is primary; no
 cloud transfer is authorized before 25 continuous hours of Mac failure.
 
 ## Revised product shape
@@ -32,8 +32,9 @@ cloud transfer is authorized before 25 continuous hours of Mac failure.
 Complete specialist workspaces, the three distinct candidate paths, endings,
 Capybara integration, cross-path recovery, privacy/security and full-game proof.
 Reuse existing role chooser, server-owned mutations, genuine GM choices and
-current GM authentication/start flow. Preserve Cycle 0 **AWAITING CIC
-AUTHENTICATION** and the Settings explanation that play awaits the GM's start.
+current GM authentication/start flow. The latest owner copy is Cycle 0
+**AWAITING CIC HANDSHAKE**; retain the Settings explanation that play awaits
+the GM's start. Historical PC09 evidence keeps its original wording.
 All printed-source decisions use the private routed source inventory and
 component precedence; no private source text is copied into Git.
 
@@ -134,11 +135,17 @@ GM/privacy, state persistence/recovery, and prove WAN-disconnected multi-client
 play. Built-in local QR generation covers user-entered Wi-Fi details and a
 separate server IP/URL. Match current design/fonts; credentials stay local and
 out of repository/reports. No network-security-setting change or implicit
-cloud/offline state sync is authorized. The separate licensing request remains
-with the parent; LICENSE, README ownership notices and assets stay unchanged.
+cloud/offline state sync is authorized. The owner separately approved CC0 for
+her own rights and contributions. Commit `2a3368aa` records that scope, excluding
+third-party/game material, dependencies, other contributors and assets with
+unconfirmed provenance. Existing asset bytes and third-party notices are retained.
 No email, HEY or inbox action is part of this task.
 
 ## Current state
 
-Planning revised; implementation and acceptance evidence remain pending.
+Planning and scoped implementation are present; complete reconciled acceptance,
+independent final review, CI and release verification remain pending. The Mac
+restart hold was explicitly lifted on October 5. Preserved owner runtimes are
+reused, and heavy browser proofs run serially. Failed fresh base attempts retain
+their evidence and receive no gameplay acceptance credit.
 No closure or release credit is claimed by this record.
