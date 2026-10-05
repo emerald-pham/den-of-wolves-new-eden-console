@@ -71,3 +71,29 @@ it('makes simulated demo attendance an explicit labeled choice distinct from rea
   await user.click(screen.getByRole('button', { name: /^Simulate attendance$/ }));
   await waitFor(() => expect(onResolve).toHaveBeenCalledWith('target', ['u1'], 3, 1, 'simulated-demo'));
 });
+
+it('shows a newer authoritative case instead of retaining an older local attendance reply', async () => {
+  const props = {
+    targetOptions: [{ uid: 'target', label: 'Target' }],
+    presentPlayerOptions: [{ uid: 'u1', label: 'Alex' }],
+    censusRevision: 8, expectedRevision: 1, expectedCycle: 3,
+    calculation: { type: 'arrest-posse-calculation' as const, sessionId: 's1', revision: 1,
+      requestId: 'calc-1', targetUid: 'target', defenders: 0, requiredPlayers: 2, censusRevision: 8 },
+    onCalculate: vi.fn(), onResolve: vi.fn().mockResolvedValue({
+      status: 'committed', type: 'arrest-posse-outcome', sessionId: 's1', requestId: 'case-1',
+      turn: 3, revision: 1, targetUid: 'target', requiredPlayers: 2, presentPlayers: 1, outcome: 'not-arrested',
+    }),
+  };
+  const user = userEvent.setup();
+  const view = render(<ArrestPosseCalculator {...props} />);
+  await user.click(within(screen.getByRole('group', { name: 'Posse attendance' })).getByLabelText('Alex'));
+  await user.click(screen.getByRole('button', { name: 'Resolve attendance' }));
+  expect(await screen.findByText('Posse did not reach the required number.')).toBeVisible();
+  view.rerender(<ArrestPosseCalculator {...props} caseOutcome={{
+    status: 'committed', type: 'arrest-posse-outcome', sessionId: 's1', requestId: 'case-2',
+    turn: 3, revision: 2, targetUid: 'target', requiredPlayers: 2, presentPlayers: 2,
+    outcome: 'arrested', deadlineCycle: 4,
+  }} />);
+  expect(screen.getByText('Arrested; resolve the prisoner by the end of Team Phase 4.')).toBeVisible();
+  expect(screen.queryByText('Posse did not reach the required number.')).not.toBeInTheDocument();
+});
