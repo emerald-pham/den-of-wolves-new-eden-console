@@ -39,6 +39,88 @@ export class SettingsVisualProofFailure extends Error {
   constructor(path) { super(`Actual Settings visual evidence failed: ${path}`); this.code='PC10_SETTINGS_VISUAL_CONTRACT'; this.evidencePath=path; }
 }
 const namedError = (code,message) => Object.assign(new Error(message),{code});
+const SETTINGS_STAGES = new Set(['source-binding-start','entry-audience','select-roster-actor','selected-actor-ready',
+  'normalize-demo-crew','normalize-manager-stations','focus-private-brief','private-brief-open','private-brief-back',
+  'browser-private-back','viewport-capture','final-audience','restore-audience','restore-dialog','restore-controller',
+  'restore-roster-actor','restore-entry-route','restore-viewport','restore-media','restore-scroll','restore-source-binding']);
+const SETTINGS_ERROR_CATEGORIES = new Map([
+  ['PC10_SETTINGS_SOURCE_DRIFT','source'],['PC10_SETTINGS_IDENTITY','identity'],['PC10_SETTINGS_PRIVACY','privacy'],
+  ['PC10_SETTINGS_RESTORATION','restoration'],['PC10_SETTINGS_VISUAL_CONTRACT','visual'],
+]);
+function classifySettingsFailure(error,stage) {
+  const code=SETTINGS_ERROR_CATEGORIES.has(error?.code) ? error.code : 'PC10_SETTINGS_PROOF_FAILED';
+  const category=SETTINGS_ERROR_CATEGORIES.get(code) ?? (error?.name==='TimeoutError' ? 'timeout'
+    : error?.name==='AssertionError' ? 'assertion' : 'operation-failed');
+  return {stage:SETTINGS_STAGES.has(stage)?stage:'unknown',code,category};
+}
+
+/** Use normal keyboard links without switching the selected authenticated actor.
+ * Ship consoles do not have Back; the crew manager is the existing route to it. */
+export async function navigateLiveSettingsToConsole({page,checkpoint,onStage=()=>{}}) {
+  await checkpoint();
+  if (new URL(page.url()).hash!=='#/console') {
+    if (new URL(page.url()).hash!=='#/demo-actors') {
+      onStage('normalize-demo-crew');
+      const crew=page.getByRole('link',{name:'Demo crew',exact:true});
+      await crew.focus(); await crew.press('Enter');
+      await page.waitForURL(url=>url.hash==='#/demo-actors'); await checkpoint();
+    }
+    onStage('normalize-manager-stations');
+    const back=page.getByRole('link',{name:'Back to stations',exact:true});
+    await back.focus(); await back.press('Enter');
+    await page.waitForURL(url=>url.hash==='#/console'); await checkpoint();
+  }
+  onStage('focus-private-brief');
+  const brief=page.getByRole('link',{name:'Open private brief',exact:true});
+  await brief.focus(); await checkpoint();
+  return brief;
+}
+
+/** Failure-only metadata captured before restoration can change the document.
+ * Its one-second read-only probe cap does not extend any action/SDK deadline. */
+export async function captureLiveSettingsFailure({page,stage,error,probeBudgetMs=1000}) {
+  const startedAt=Date.now();
+  let route='unknown';
+  try {
+    const hash=new URL(page.url()).hash;
+    route=({'#/console':'console','#/brief':'brief','#/demo-actors':'demo-actors','#/':'session-entry'})[hash] ??
+      (/^#\/ships\/[a-z0-9_-]+(?:\/(?:roles(?:\/[a-z0-9_-]+)?|observer))?$/i.test(hash)?'ship-console'
+        : /^#\/shuttles\/[a-z0-9_-]+$/i.test(hash)?'shuttle-console':'other');
+  } catch { /* No URL or query values are serialized. */ }
+  const definitions=[['demoCrew','link','Demo crew'],['managerBack','link','Back to stations'],
+    ['openPrivateBrief','link','Open private brief'],['settings','button','Settings'],
+    ['closeSettings','button','Close settings'],['currentActor','label','Current actor'],
+    ['crewController','link','Crew controller']];
+  const controls=Object.fromEntries(definitions.map(([key])=>[key,null]));
+  const probes=definitions.map(async([key,role,name])=>{
+    try {
+      const locator=role==='label' ? page.getByLabel(name,{exact:true}) : page.getByRole(role,{name,exact:true});
+      const visible=await locator.isVisible();
+      controls[key]=typeof visible==='boolean'?visible:null;
+    } catch { /* Unavailable probes stay null, never guessed false or true. */ }
+  });
+  const budget=Number.isSafeInteger(probeBudgetMs) && probeBudgetMs>0 && probeBudgetMs<=1000 ? probeBudgetMs : 1000;
+  let timer;
+  try {
+    const observed=await Promise.race([
+      Promise.all(probes).then(()=>({controls:{...controls},probeStatus:Object.values(controls).some(value=>value===null)?'unavailable':'complete'})),
+      new Promise(resolve=>{timer=setTimeout(()=>resolve({controls:{...controls},probeStatus:'timed-out'}),budget);}),
+    ]);
+    return {...classifySettingsFailure(error,stage),capturePhase:'before-restoration',route,
+      startedAt,capturedAt:Date.now(),...observed};
+  } finally { clearTimeout(timer); }
+}
+
+/** Preserve an original proof error while making restoration failure explicit.
+ * The caller's existing failed-status/actor/route gate still prohibits success. */
+export async function recordLiveSettingsRestoration({evidence,restore,stage}) {
+  try { await restore(); return true; }
+  catch (error) {
+    evidence.status='failed';
+    evidence.restorationFailure=classifySettingsFailure(error,stage());
+    return false;
+  }
+}
 
 /** Additive onStarted callback. It reuses only the parent's actual two surfaces. */
 export function createLiveSettingsQrProof({sourceRoot=process.cwd(),actorRoleId,expectedSourceSha}={}) {
@@ -55,6 +137,8 @@ export function createLiveSettingsQrProof({sourceRoot=process.cwd(),actorRoleId,
       renderedFixtures:false,decoderStatus:'pending separate native pixel decode',captures:[],visualFailures:[]};
     const write=async()=>writeFile(evidencePath,`${JSON.stringify(evidence,null,2)}\n`);
     let identityFailed=false,selected,expected,entry;
+    let currentStage='source-binding-start',restorationStage='restore-audience';
+    const stage=value=>{currentStage=value;evidence.stage=value;};
     const entryHref=page.url();
     const originalViewport=page.viewportSize(),originalMedia=await page.evaluate(()=>matchMedia('(prefers-reduced-motion: reduce)').matches);
     const originalScroll=await page.evaluate(()=>({x:scrollX,y:scrollY}));
@@ -62,6 +146,7 @@ export function createLiveSettingsQrProof({sourceRoot=process.cwd(),actorRoleId,
       evidence.bindingStart=await sourceBinding(root);
       if (expectedSourceSha && evidence.bindingStart.sourceCommit !== expectedSourceSha) throw namedError('PC10_SETTINGS_SOURCE_DRIFT','The expected source does not match.');
       assertStableSettingsBinding(evidence.bindingStart,evidence.bindingStart);
+      stage('entry-audience');
       entry=await crew.observe();
       assert.ok(entry.hasAuth && entry.sameActor && entry.sessionId===initial.sessionId,'Actual entry identity required.');
       assertSettingsReturnUrl(entryHref,{sessionId:initial.sessionId,roleId:entry.profileRoleId},initial.joinCode);
@@ -70,6 +155,7 @@ export function createLiveSettingsQrProof({sourceRoot=process.cwd(),actorRoleId,
         (actorRoleId ? undefined : roster.find(actor=>actor.roleId!=='press-officer'));
       assert.ok(selected,'Select an existing normally admitted core roster actor.');
       expected={sessionId:initial.sessionId,uidHash:selected.uidHash,roleId:selected.roleId};
+      stage('select-roster-actor');
       if (entry.uidHash!==selected.uidHash) {
         await page.getByLabel('Current actor',{exact:true}).selectOption(selected.roleId);
         await page.waitForURL(url=>url.searchParams.get('demoActor')===`${initial.sessionId}~${selected.roleId}`);
@@ -83,6 +169,7 @@ export function createLiveSettingsQrProof({sourceRoot=process.cwd(),actorRoleId,
         });
         return {...state,...granted};
       };
+      stage('selected-actor-ready');
       await crew.until('Original live roster actor for Settings',state=>state.hasAuth && state.sameActor &&
         state.uidHash===selected.uidHash && state.sessionId===initial.sessionId && state.playerRole==='player' &&
         state.connection==='live' && state.freshness==='server' && state.briefMatchesActor && state.briefRoleId===selected.roleId);
@@ -94,20 +181,19 @@ export function createLiveSettingsQrProof({sourceRoot=process.cwd(),actorRoleId,
       evidence.originalActor=await checkpoint();
       // The real private route is visited solely to exercise its existing Back.
       // Its private contents are neither serialized nor captured unmasked.
-      const openBrief=page.getByRole('link',{name:'Open private brief',exact:true});
-      if (!(await openBrief.isVisible().catch(()=>false))) {
-        const back=page.getByRole('link',{name:'Back to stations',exact:true});
-        await back.focus(); await back.press('Enter');
-      }
-      await openBrief.focus(); await openBrief.press('Enter');
+      const openBrief=await navigateLiveSettingsToConsole({page,checkpoint,onStage:stage});
+      stage('private-brief-open'); await openBrief.press('Enter');
       await page.waitForURL(url=>url.hash==='#/brief'); await checkpoint();
       const back=page.getByRole('link',{name:'Back to stations',exact:true});
+      stage('private-brief-back');
       await back.focus(); await back.press('Enter'); await page.waitForURL(url=>url.hash==='#/console');
-      await checkpoint(); await page.goBack(); await page.waitForURL(url=>url.hash==='#/brief'); await checkpoint();
+      await checkpoint(); stage('browser-private-back');
+      await page.goBack(); await page.waitForURL(url=>url.hash==='#/brief'); await checkpoint();
       await back.focus(); await back.press('Enter'); await page.waitForURL(url=>url.hash==='#/console');
       evidence.back={keyboardBackToStations:true,browserBackRestoredPrivateRoute:true,sameOriginalActor:true};
       await page.emulateMedia({reducedMotion:'reduce'});
       for (const viewport of VIEWPORTS) {
+        stage('viewport-capture');
         await checkpoint(); await page.setViewportSize({width:viewport.width,height:viewport.height});
         const settingsButton=page.getByRole('button',{name:'Settings',exact:true});
         await settingsButton.scrollIntoViewIfNeeded();
@@ -176,24 +262,28 @@ export function createLiveSettingsQrProof({sourceRoot=process.cwd(),actorRoleId,
         evidence.visualFailures.push(...failures.map(message=>({viewport:viewport.name,message})));
         await write();
       }
-      evidence.actorAfter=await checkpoint();
+      stage('final-audience'); evidence.actorAfter=await checkpoint();
       evidence.status=evidence.visualFailures.length ? 'visual-failed' : 'pixels-captured-awaiting-decode';
     } catch (error) {
-      evidence.status='failed'; evidence.error={code:error.code ?? 'PC10_SETTINGS_PROOF_FAILED',message:
-        error.code?.startsWith('PC10_SETTINGS_') ? error.message : 'Actual Settings callback did not complete; inspect preserved stage/source and parent diagnostics.'};
+      evidence.status='failed'; evidence.error={...classifySettingsFailure(error,currentStage),
+        message:'Actual Settings callback did not complete; inspect preserved pre-restoration diagnostics and source.'};
+      evidence.failureBeforeRestoration=await captureLiveSettingsFailure({page,stage:currentStage,error});
       throw error;
     } finally {
-      try {
+      await recordLiveSettingsRestoration({evidence,stage:()=>restorationStage,restore:async()=>{
         if (!identityFailed && entry && selected && expected) {
           const state=await crew.observe();
           if (state.sameActor && state.uidHash===selected.uidHash && state.sessionId===initial.sessionId) {
             const close=page.getByRole('button',{name:'Close settings',exact:true});
+            restorationStage='restore-dialog';
             if (await close.isVisible().catch(()=>false)) await close.press('Escape');
             if (entry.profileRoleId==='controller' && entry.uidHash!==selected.uidHash) {
+              restorationStage='restore-controller';
               await page.getByRole('link',{name:'Crew controller',exact:true}).click();
               await crew.until('Restore original controller after Settings',state=>state.sameActor && state.uidHash===entry.uidHash &&
                 state.sessionId===initial.sessionId && state.profileRoleId==='controller' && state.connection==='live' && state.freshness==='server');
             } else if (entry.uidHash!==selected.uidHash) {
+              restorationStage='restore-roster-actor';
               await page.getByLabel('Current actor',{exact:true}).selectOption(entry.profileRoleId);
               await crew.until('Restore original roster actor after Settings',state=>state.sameActor && state.uidHash===entry.uidHash &&
                 state.sessionId===initial.sessionId && state.profileRoleId===entry.profileRoleId && state.connection==='live' && state.freshness==='server');
@@ -201,6 +291,7 @@ export function createLiveSettingsQrProof({sourceRoot=process.cwd(),actorRoleId,
             const restored=await crew.observe();
             assert.ok(restored.sameActor && restored.uidHash===entry.uidHash && restored.sessionId===initial.sessionId);
             if (page.url()!==entryHref) {
+              restorationStage='restore-entry-route';
               // A normal browser reload keeps this document's original SDK identity.
               // The URL is checked above and carries no capability or credential.
               await page.goto(entryHref);
@@ -210,14 +301,16 @@ export function createLiveSettingsQrProof({sourceRoot=process.cwd(),actorRoleId,
             evidence.restoration={sameEntryActor:(await crew.observe()).uidHash===entry.uidHash,sameEntryRoute:page.url()===entryHref};
           } else evidence.restoration={skipped:'Current identity is not the original selected actor.'};
         } else evidence.restoration={skipped:'Fail-closed identity/privacy mismatch.'};
+        restorationStage='restore-viewport';
         if (originalViewport) await page.setViewportSize(originalViewport);
+        restorationStage='restore-media';
         await page.emulateMedia({reducedMotion:originalMedia?'reduce':'no-preference'});
+        restorationStage='restore-scroll';
         if (evidence.restoration?.sameEntryRoute) await page.evaluate(position=>scrollTo(position.x,position.y),originalScroll);
+        restorationStage='restore-source-binding';
         evidence.bindingEnd=await sourceBinding(root);
         assertStableSettingsBinding(evidence.bindingStart,evidence.bindingEnd);
-      } catch {
-        evidence.status='failed'; evidence.restorationFailure=true;
-      }
+      }});
       await write();
     }
     if (evidence.status==='failed' || evidence.restoration?.sameEntryActor!==true || evidence.restoration?.sameEntryRoute!==true) throw namedError('PC10_SETTINGS_RESTORATION','Original UI/source restoration was not verified.');
