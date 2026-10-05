@@ -13,6 +13,7 @@ test('specialist driver waits for matching live GM and ordinary crew projections
   const actor = { uidHash: 'same-actor-hash', sessionId: 'fresh-session', sameActor: true,
     profileRoleId: 'capybara-recycler', activeConsoleRoleId: 'capybara-recycler',
     connection: 'live', freshness: 'server' };
+  crew.observe = async () => actor;
   let polls = 0;
   const game = {
     context: { gm, initial: { sessionId: 'fresh-session' } },
@@ -40,6 +41,7 @@ test('specialist driver never commits a projection from another session or chang
   const actor = { uidHash: 'same-actor-hash', sessionId: 'fresh-session', sameActor: true,
     profileRoleId: 'capybara-recycler', activeConsoleRoleId: 'capybara-recycler',
     connection: 'live', freshness: 'server' };
+  crew.observe = async () => actor;
   await assert.rejects(driver.waitForCommit({ surface: crew, actor,
     inspect: async () => ({ ready: true, gmRevision: 9, crewRevision: 9,
       renderedStatusCode: 'public-result-visible' }) }), /fresh-session|same normally authenticated actor/i);
