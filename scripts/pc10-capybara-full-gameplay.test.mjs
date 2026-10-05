@@ -7,6 +7,7 @@ import {
   assertCapybaraRunContext,
   capybaraStageOutcome,
   projectCapybaraEvidence,
+  sourceActionStageOutcome,
 } from './pc10-capybara-full-gameplay.mjs';
 
 const makeRoster = () => [
@@ -109,6 +110,24 @@ test('specialist action receipt statuses require a source-approved success plus 
   }
   assert.equal(capybaraStageOutcome({ ...accepted,
     evidence: { ...accepted.evidence, projection: { ...accepted.evidence.projection, crew: undefined } } }).status, 'pending');
+});
+
+test('source-helper callback rows require the matching live UI request, exact replay, and committed branch', () => {
+  const branch = { status: 'committed', exactSourceAndRenderedReceipt: true, researchRevision: 8 };
+  const requests = [{ endpoint: 'advanceEndeavourResearchTrack', roleId: 'shepherd-scientist',
+    consoleRoleId: 'shepherd-scientist', cycle: 2, httpStatus: 200, resultStatus: 'committed',
+    exactOriginalSdkReplay: true, expectedRevision: 7 }];
+  assert.deepEqual(sourceActionStageOutcome({ branch, requests, endpoint: 'advanceEndeavourResearchTrack',
+    roleId: 'shepherd-scientist', cycle: 2 }), { status: 'completed', roleId: 'shepherd-scientist',
+    endpoint: 'advanceEndeavourResearchTrack', cycle: 2, sourceRevision: 8 });
+  for (const patch of [
+    { branch: { ...branch, status: 'blocked' } },
+    { branch: { ...branch, exactSourceAndRenderedReceipt: false } },
+    { requests: [{ ...requests[0], exactOriginalSdkReplay: false }] },
+    { requests: [{ ...requests[0], cycle: 1 }] },
+    { requests: [{ ...requests[0], roleId: 'another-actor' }] },
+  ]) assert.equal(sourceActionStageOutcome({ branch, requests, endpoint: 'advanceEndeavourResearchTrack',
+    roleId: 'shepherd-scientist', cycle: 2, ...patch }).status, 'pending');
 });
 
 test('Capybara callback composition is explicit, full-roster, and uses the canonical manual full-game runner', async () => {
