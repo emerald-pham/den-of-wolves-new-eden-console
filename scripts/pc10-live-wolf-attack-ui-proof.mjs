@@ -6,6 +6,7 @@ import { candidateGameplayTools } from './pc10-candidate-manual-ui-proof.mjs';
 import { CANDIDATE_PROOF_SHIPS } from './pc10-candidate-proof-helpers.mjs';
 import { assertWolfChoiceActor, createWolfChoiceWaiter, observeWolfChoiceActor } from './pc10-combat-choice-readiness.mjs';
 import { assertOriginalBaseActor, baseWolfActionExpectation } from './pc10-base-combat-deduction-contracts.mjs';
+import { selectBaseRangeTargetControls } from './pc10-base-range-target-controls.mjs';
 const attackSummary = value => value && ({
   status: value.status, revision: value.revision, currentStep: value.currentStep,
   turn: value.turn, enemyCount: value.preparation?.shipIds?.length,
@@ -29,7 +30,7 @@ export async function resolveLiveWolfAttack(context, { tools = candidateGameplay
     return result;
   }
   const select = (roleId, options = {}) => tools.select(roleId, { ...options, deadlineAt: stageDeadline });
-  async function uiReceipt(surface, endpoint, decision) {
+  async function uiReceipt(surface, endpoint, decision, expectedAction = {}) {
     const bound = readySources.get(surface);
     if (bound) {
       assertWolfChoiceActor(await observeWolfChoiceActor(surface), bound.actor);
@@ -49,7 +50,9 @@ export async function resolveLiveWolfAttack(context, { tools = candidateGameplay
     if (bound) {
       assertWolfChoiceActor(await observeWolfChoiceActor(surface), bound.actor);
       assertOriginalBaseActor(await gm.observe(), originalGm);
-      for (const [key, value] of Object.entries(baseWolfActionExpectation(endpoint, bound.expected)))
+      const expectedRequest = { ...expectedAction, ...baseWolfActionExpectation(endpoint, bound.expected),
+        ...(endpoint === 'assignWolfRangeTargets' ? { range: bound.expected.currentStep } : {}) };
+      for (const [key, value] of Object.entries(expectedRequest))
         assert.deepEqual(request?.[key], value, `The actual UI request must retain the ready source ${key}.`);
     }
     if (verifyReplay && typeof request?.requestId === 'string') {
@@ -193,20 +196,16 @@ export async function resolveLiveWolfAttack(context, { tools = candidateGameplay
       const button = await use.isEnabled() ? use : panel.getByRole('button', { name: 'Pass this range', exact: true });
       await uiReceipt(executive, 'commitWolfRangeActionChoice', () => button.click());
     } else {
-      const selects = panel.getByRole('combobox');
-      const assigned = new Map();
-      for (const selector of await selects.all()) {
-        const label = await selector.getAttribute('aria-label');
-        const source = label.replace(/ hit \d+$/, '');
-        const used = assigned.get(source) ?? [];
-        const options = await selector.locator('option').evaluateAll(nodes => nodes.filter(node => node.value && !node.disabled).map(node => node.value));
-        const chosen = options.find(value => !used.includes(value));
-        assert.ok(chosen, 'Every actual target assignment must be distinct and live.');
-        await selector.selectOption(chosen); assigned.set(source, [...used, chosen]);
-      }
+      const view = ready.choice;
+      assert.equal(view.turn, current.turn); assert.equal(view.revision, current.revision);
+      assert.equal(view.currentStep, current.currentStep); assert.equal(view.range, current.currentStep);
+      const assignments = await selectBaseRangeTargetControls({ panel, view,
+        deadlineAt: Math.min(stageDeadline, deadline),
+        checkpoint: async () => assertWolfChoiceActor(await observeWolfChoiceActor(executive), ready.originalActor),
+      });
       const commit = panel.getByRole('button', { name: 'Commit target assignments', exact: true });
       assert.equal(await commit.isVisible(), true, 'Current target assignment commit must remain rendered.');
-      await uiReceipt(executive, 'assignWolfRangeTargets', () => commit.click());
+      await uiReceipt(executive, 'assignWolfRangeTargets', () => commit.click(), { assignments });
     }
     await afterChoice(current);
   }
