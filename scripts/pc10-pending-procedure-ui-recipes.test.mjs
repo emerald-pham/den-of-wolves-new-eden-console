@@ -72,6 +72,32 @@ test('Boa recycling receipt binds its recycling ledger revision and printed cost
     cost: { ...input.cost, after: 2 } }).status, 'pending');
 });
 
+test('Shuttle evacuation binds its public ledger revision and current custody revision', () => {
+  const actor = { uidHash: 'holder-hash', sessionId: 'session-1', profileRoleId: 'quellon-explorer',
+    activeConsoleRoleId: 'quellon-explorer', sameActor: true, connection: 'live', freshness: 'server' };
+  const input = { caseId: 'core:evacuateShuttleSurvivorsCommand', expected: { sessionId: 'session-1',
+    uidHash: 'holder-hash', roleId: 'quellon-explorer', cycle: 2, sourceRevision: 4, controlRevision: 10,
+    shuttleId: 'starlight', groupId: 'fleet-1' }, offered: true, mountedUi: true,
+    actorBefore: actor, actorAfter: actor,
+    sourceBefore: { live: true, sessionId: 'session-1', cycle: 2, revision: 4, groupId: 'fleet-1' },
+    sourceAfter: { live: true, sessionId: 'session-1', cycle: 2, revision: 5, groupId: 'fleet-1' },
+    request: { sessionId: 'session-1', requestId: 'evac-1', expectedCycle: 2, shuttleId: 'starlight',
+      expectedEvacuationRevision: 4, expectedControlRevision: 10 },
+    response: { httpStatus: 200, result: { status: 'committed', requestId: 'evac-1', sessionId: 'session-1',
+      shuttleId: 'starlight', sourceShipId: 'quellon', destinationShipId: 'icebreaker', amount: 100,
+      sourcePopulation: 900, destinationPopulation: 600, cycle: 2, movedThisCycle: 100,
+      evacuationRevision: 5 }, exactReplay: true },
+    replay: { result: { status: 'replayed', requestId: 'evac-1', sessionId: 'session-1', shuttleId: 'starlight',
+      sourceShipId: 'quellon', destinationShipId: 'icebreaker', amount: 100, sourcePopulation: 900,
+      destinationPopulation: 600, cycle: 2, movedThisCycle: 100, evacuationRevision: 5 } },
+    rendered: { visible: true, resultStatus: 'committed' } };
+  assert.equal(evaluateProcedureCapture(input).status, 'completed');
+  assert.equal(evaluateProcedureCapture({ ...input,
+    request: { ...input.request, expectedEvacuationRevision: 3 } }).status, 'pending');
+  assert.equal(evaluateProcedureCapture({ ...input,
+    request: { ...input.request, expectedControlRevision: 9 } }).status, 'pending');
+});
+
 test('Boa mission choice receipt binds its choice revision to the current rendered workspace', () => {
   const actor = { uidHash: 'recycler-hash', sessionId: 'session-1', profileRoleId: 'capybara-recycler',
     activeConsoleRoleId: 'capybara-recycler', sameActor: true, connection: 'live', freshness: 'server' };
