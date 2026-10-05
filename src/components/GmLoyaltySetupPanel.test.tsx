@@ -77,12 +77,13 @@ describe('connected GM loyalty setup panel', () => {
     expect(screen.getByText(/Every current core role holder and claimed Press Officer needs a private record before start/i)).toBeInTheDocument();
   });
 
-  it('allows the first explicit assignment after a server-confirmed empty census', () => {
+  it('allows the first explicit assignment after a server-confirmed empty census', async () => {
+    const user = userEvent.setup();
     prepareGm({ universalArbourEnabled: true });
     useSessionStore.setState({ gmLoyaltyCensus: null, gmLoyaltyCensusStatus: 'empty' } as never);
     render(<GmLoyaltySetupPanel players={coreRoster} />);
 
-    expect(screen.getByRole('combobox', { name: 'Loyalty holder' })).toBeInTheDocument();
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Loyalty holder' }), 'u1');
     expect(screen.getByRole('combobox', { name: 'Private loyalty type' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Assign private loyalty' })).toBeEnabled();
     expect(screen.getByText(/0 of 3 configured/i)).toBeInTheDocument();
