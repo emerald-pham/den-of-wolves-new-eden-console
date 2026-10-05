@@ -139,15 +139,15 @@ test('every replacement has explicit eligibility, assignment and current-source 
   const warriorJump = matrix.find(row => row.id === 'warrior-captain:jump-drive');
   assert.equal(warriorJump.endpoint, 'jumpSmallShip');
   assert.equal(warriorJump.unavailableReason, undefined);
-  assert.match(warriorJump.prerequisite, /Coordination.*1\/1\/2.*no reactor charge/i);
+  assert.match(warriorJump.prerequisite, /Coordination.*1\/1\/2.*does not require a reactor charge/i);
   const warriorCargo = matrix.find(row => row.id === 'warrior-captain:cargo-transfer');
   assert.equal(warriorCargo.endpoint, 'transferWarriorCargo');
   assert.equal(warriorCargo.unavailableReason, undefined);
-  assert.match(warriorCargo.prerequisite, /positive whole.*Coordination.*host/i);
+  assert.match(warriorCargo.prerequisite, /Coordination.*positive whole.*host/i);
   const vulcanJump = matrix.find(row => row.id === 'vulcan-captain:jump-drive');
   assert.equal(vulcanJump.endpoint, 'jumpSmallShip');
   assert.equal(vulcanJump.unavailableReason, undefined);
-  assert.match(vulcanJump.prerequisite, /Coordination.*1\/1\/2.*no reactor charge/i);
+  assert.match(vulcanJump.prerequisite, /Coordination.*1\/1\/2.*does not require a reactor charge/i);
   for (const range of ['medium', 'short']) {
     const laser = matrix.find(row => row.id === `vulcan-captain:laser-cannon-${range}`);
     assert.equal(laser.endpoint, 'commitWolfRangeSupportActionChoice');
