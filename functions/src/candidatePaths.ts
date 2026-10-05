@@ -57,6 +57,8 @@ const ACTION_FIELDS: Record<CandidateActionName, string[]> = {
   'commit-engineering-shuttle': ['shuttleId'], 'ring-passage': ['shipId'],
   'sabotage-ring': [], 'nebula-jump': ['shipId'], 'contribute-reactor': ['shipId'],
 };
+const REPLY_FIELDS = ['type', 'status', 'sessionId', 'requestId', 'revision', 'code', 'action',
+  'summary', 'outcome', 'fuelSpent', 'remainingFuel'];
 
 /** No client-owned randomness, derived counts, outcome or private chart is accepted. */
 export function parseCandidateAction(raw: unknown): CandidateAction {
@@ -94,6 +96,11 @@ export function parseCandidateState(raw: unknown): CandidateState {
         !isRecord(value.ships) || !isRecord(value.reactors) ||
         Object.values(value.reactors).some(capacity => !counter(capacity) || capacity < 1 || capacity > 10) ||
         Object.values(value.ships).some(reply => !isRecord(reply) || reply.type !== 'candidate-action-result' ||
+          Object.keys(reply).some(field => !REPLY_FIELDS.includes(field)) || !id(reply.sessionId) ||
+          reply.code !== value.code || reply.action !== (value.code === 'N' ? 'ring-passage' : 'nebula-jump') ||
+          typeof reply.summary !== 'string' || reply.summary.length > 1000 ||
+          (reply.fuelSpent !== undefined && !counter(reply.fuelSpent)) ||
+          (reply.remainingFuel !== undefined && !counter(reply.remainingFuel)) ||
           reply.status !== 'committed' || !counter(reply.revision) || !id(reply.requestId) ||
           !['crossed', 'reached', 'lost'].includes(String(reply.outcome)))) return fail('Candidate site authority is malformed.');
   }

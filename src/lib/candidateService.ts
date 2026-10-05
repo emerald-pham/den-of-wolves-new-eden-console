@@ -50,21 +50,24 @@ function attemptIdentity(value: CandidateAttempt): string {
     instanceId: value.instanceId ?? null, shipId: value.shipId ?? null, amount: value.amount ?? null,
     trackIds: value.trackIds ?? [], shuttleId: value.shuttleId ?? null });
 }
-export function recoverCandidateAttempt(expectedGroupId: string): CandidateAttempt | undefined {
-  const c = context(expectedGroupId);
+function savedCandidateAttempt(c: { sessionId: string; uid: string }): CandidateAttempt | undefined {
   try {
     const text = localStorage.getItem(pendingKey(c.sessionId, c.uid));
     const value: unknown = text ? JSON.parse(text) : undefined;
-    if (record(value) && value.sessionId === c.sessionId && value.expectedGroupId === expectedGroupId &&
-        typeof value.requestId === 'string' && typeof value.action === 'string' &&
-        (value.instanceId === undefined || value.instanceId === c.instanceId)) return value as unknown as CandidateAttempt;
+    if (record(value) && value.sessionId === c.sessionId && typeof value.expectedGroupId === 'string' &&
+        typeof value.requestId === 'string' && typeof value.action === 'string') return value as unknown as CandidateAttempt;
   } catch { /* Unreadable local recovery never creates an action. */ }
   return undefined;
+}
+export function recoverCandidateAttempt(expectedGroupId: string): CandidateAttempt | undefined {
+  const c = context(expectedGroupId); const saved = savedCandidateAttempt(c);
+  return saved?.expectedGroupId === expectedGroupId &&
+    (saved.instanceId === undefined || saved.instanceId === c.instanceId) ? saved : undefined;
 }
 export function createCandidateAttempt(choice: Omit<CandidateAttempt, 'sessionId' | 'requestId' | 'instanceId'>): CandidateAttempt {
   requireFreshSessionAuthority('Reconnect before choosing a candidate action.');
   const c = context(choice.expectedGroupId);
-  if (recoverCandidateAttempt(choice.expectedGroupId)) throw new Error('Recover the original candidate request before making a new choice.');
+  if (savedCandidateAttempt(c)) throw new Error('Recover the original candidate request in its fleet group and GM connection before making a new choice.');
   return { ...choice, sessionId: c.sessionId, requestId: crypto.randomUUID(), ...(c.instanceId ? { instanceId: c.instanceId } : {}) };
 }
 export async function readCandidateWorkspace(expectedGroupId: string): Promise<CandidateWorkspace> {
@@ -90,7 +93,7 @@ export async function executeCandidateAttempt(attempt: CandidateAttempt): Promis
     throw new Error('This candidate request belongs to the original session and GM connection.');
   }
   const key = pendingKey(c.sessionId, c.uid);
-  const saved = recoverCandidateAttempt(attempt.expectedGroupId);
+  const saved = savedCandidateAttempt(c);
   if (saved && attemptIdentity(saved) !== attemptIdentity(attempt)) throw new Error('The original candidate request has different choices. Recover it before making another choice.');
   localStorage.setItem(key, JSON.stringify(attempt));
   const reply = (await httpsCallable<CandidateAttempt, unknown>(functions(), 'executeCandidateAction')(attempt)).data;
