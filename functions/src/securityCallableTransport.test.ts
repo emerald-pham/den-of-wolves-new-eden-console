@@ -22,11 +22,16 @@ async function serve(callable: ReturnType<typeof auditedOnCall>) {
   return fetch(`http://127.0.0.1:${address.port}/`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ data: {} }) });
 }
 
-it('enforces canonical App Check before a standalone handler constructed outside index initialization', async () => {
+it('declares canonical runtime defaults for a standalone handler constructed outside index initialization', () => {
   const handler = vi.fn(() => ({ status: 'accepted' }));
   const callable = auditedOnCall('standaloneAuthorityProbe', handler);
   expect(callable.__endpoint.maxInstances).toBe(10);
   expect(callable.__endpoint.region).toEqual(['us-central1']);
+});
+
+it('denies missing App Check before a standalone handler constructed outside index initialization', async () => {
+  const handler = vi.fn(() => ({ status: 'accepted' }));
+  const callable = auditedOnCall('standaloneAuthorityProbe', handler);
   const response = await serve(callable);
   expect(response.status).toBe(401);
   expect(await response.json()).toEqual({ error: { message: 'Unauthenticated', status: 'UNAUTHENTICATED' } });
