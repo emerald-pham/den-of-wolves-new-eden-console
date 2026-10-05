@@ -140,6 +140,7 @@ try {
   await page.goto(`${origin}/#/console`);
   const panel = page.getByRole('region', { name: 'Candidate preparation and actions' }).first();
   await panel.getByRole('heading', { name: 'Deep Nebula', exact: true }).waitFor();
+  await panel.getByText('Cycle 2 // candidate revision 0', { exact: true }).waitFor();
   const text = await panel.innerText(); assert.doesNotMatch(text, /scout bonus|scouts:|priorLosses|threshold|hiddenScoutCount/);
   for (const [name, viewport] of [['phone320', { width: 320, height: 844 }], ['phone390', { width: 390, height: 844 }],
     ['desktop', { width: 1440, height: 900 }], ['landscape', { width: 844, height: 390 }]]) {
@@ -151,6 +152,7 @@ try {
     assert.equal(geometry.overflow, false); assert.ok(geometry.buttons.every(button => button.height >= 44));
     evidence.geometry.push({ name, viewport, ...geometry });
     await page.screenshot({ path: `${dirname(output)}/candidate-${name}.png`, fullPage: true });
+    await panel.screenshot({ path: `${dirname(output)}/candidate-panel-${name}.png` });
   }
   await page.setViewportSize({ width: 390, height: 844 });
   await command(f.byRole('admiral'), 'refreshPresence', { activeConsoleRoleId: 'admiral' });
