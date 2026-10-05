@@ -46,6 +46,7 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
     throw new Error(`${label}: ${JSON.stringify(state)}`);
   }
   async function join(joinCode) {
+    console.log(`${label}: ordinary UI join started`);
     await page.goto(baseUrl);
     const motion = page.getByRole('button', { name: /^REDUCED MOTION/i });
     if (await motion.isVisible()) await motion.click();
@@ -55,10 +56,30 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
     await waiver.waitFor();
     const regulations = waiver.getByRole('checkbox', { name: /^Acknowledge regulation/ });
     await regulations.first().waitFor();
-    for (const checkbox of await regulations.all()) await checkbox.check();
-    await waiver.getByRole('button', { name: 'Acknowledge regulations and continue', exact: true })
-      .and(page.locator(':enabled')).click();
+    assert.equal(await regulations.count(), 3, 'All existing admission regulations must be present.');
+    for (const checkbox of await regulations.all()) {
+      await checkbox.check();
+      assert.equal(await checkbox.isChecked(), true, 'Every regulation must be explicitly acknowledged.');
+    }
+    try {
+      await waiver.getByRole('button', { name: 'Acknowledge regulations and continue', exact: true })
+        .and(page.locator(':enabled')).click();
+    } catch (error) {
+      const captureDirectory = process.env.PC10_EVIDENCE_DIRECTORY;
+      if (captureDirectory) {
+        await mkdir(captureDirectory, { recursive: true });
+        await page.screenshot({ path: `${captureDirectory}/${label}-consent-failure.png` });
+        await writeFile(`${captureDirectory}/${label}-consent-failure.json`, `${JSON.stringify({
+          label, message: error.message, regulationChecks: await regulations.evaluateAll(inputs => inputs.map(input => input.checked)),
+          consentStatus: await waiver.getByRole('status').allTextContents(),
+          buttonDisabled: await waiver.getByRole('button', { name: 'Acknowledge regulations and continue', exact: true }).isDisabled(),
+          identity: await observe(), browserErrors: errors,
+        }, null, 2)}\n`);
+      }
+      throw error;
+    }
     await until(`${label} ordinary Auth join`, state => state.hasAuth && state.sameActor && state.hasSession);
+    console.log(`${label}: ordinary UI admission and consent passed`);
     return page.evaluate(async () => {
       const { auth } = await import('/src/lib/firebase.ts');
       const current = auth().currentUser;
