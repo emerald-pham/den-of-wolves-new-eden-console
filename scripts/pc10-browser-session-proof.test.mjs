@@ -96,15 +96,17 @@ async function cdpCallableObservationActor({ durableConfigurationError } = {}) {
     return events;
   }, setOffline: async () => undefined, close: async () => undefined };
   const actor = await proof.createPc10BrowserActor({ newContext: async () => context }, 'http://localhost', 'admiral');
-  const start = (requestId = `protocol-${++nextRequest}`, name = 'getCurrentMemberSession') => {
+  const startRequest = ({ requestId = `protocol-${++nextRequest}`, name = 'getCurrentMemberSession',
+    method = 'POST', postData = JSON.stringify({ data: { requestId: 'private-request', sessionId: 'own-session' } }) } = {}) => {
     events.emit('Network.requestWillBeSent', { requestId, timestamp: 1, wallTime: 1,
-      request: { url: `http://localhost/demo/us-central1/${name}`, method: 'POST',
-        postData: JSON.stringify({ data: { requestId: 'private-request', sessionId: 'own-session' } }) } });
+      request: { url: `http://localhost/demo/us-central1/${name}`, method, postData } });
     return requestId;
   };
-  const receiveHeaders = (requestId, status = 200) => {
+  const start = (requestId = `protocol-${++nextRequest}`, name = 'getCurrentMemberSession') =>
+    startRequest({ requestId, name });
+  const receiveHeaders = (requestId, status = 200, name = 'getCurrentMemberSession') => {
     events.emit('Network.responseReceived', { requestId, timestamp: 2,
-      response: { url: 'http://localhost/demo/us-central1/getCurrentMemberSession', status } });
+      response: { url: `http://localhost/demo/us-central1/${name}`, status } });
   };
   const respond = (requestId, reply = { result: { status: 'committed', revision: 7 } }, status = 200) => {
     responseBodies.set(requestId, typeof reply === 'string' ? { body: reply, isBase64Encoded: false }
@@ -118,7 +120,7 @@ async function cdpCallableObservationActor({ durableConfigurationError } = {}) {
   const fail = (requestId, errorText = 'net::ERR_ABORTED') => {
     events.emit('Network.loadingFailed', { requestId, timestamp: 3, errorText, canceled: true });
   };
-  return { actor, page, context, events, commands, responseBodies, start, respond, finish, fail,
+  return { actor, page, context, events, commands, responseBodies, start, startRequest, respond, finish, fail,
     receiveHeaders, completeNavigation() { navigationComplete = true; events.emit('test-navigation-complete'); } };
 }
 
@@ -232,6 +234,40 @@ test('identical callable requests retain distinct CDP protocol lifecycles', asyn
   assert.equal(actor.observedCalls[1].revision, 5);
   assert.equal(JSON.stringify(actor.observedCalls).includes('protocol-one'), false);
   assert.equal(JSON.stringify(actor.observedCalls).includes('protocol-two'), false);
+});
+
+test('observed GET and OPTIONS requests to callable paths are ignored by protocol ID', async () => {
+  const { actor, startRequest, receiveHeaders, finish } = await cdpCallableObservationActor();
+  for (const method of ['GET', 'OPTIONS']) {
+    const requestId = startRequest({ requestId: `non-callable-${method}`, method });
+    receiveHeaders(requestId, method === 'OPTIONS' ? 204 : 200);
+    finish(requestId);
+  }
+  await actor.drainObservedCalls();
+  assert.deepEqual(actor.observedCalls, []);
+  assert.deepEqual(actor.callableObservationFailures, []);
+});
+
+test('an allowlisted response with no observed protocol request remains unbound and fails closed', async () => {
+  const { actor, events } = await cdpCallableObservationActor();
+  events.emit('Network.responseReceived', { requestId: 'truly-unbound', timestamp: 2,
+    response: { url: 'http://localhost/demo/us-central1/getCurrentMemberSession', status: 200 } });
+  await actor.drainObservedCalls();
+  assert.deepEqual(actor.observedCalls, []);
+  assert.equal(actor.callableObservationFailures.length, 1);
+  assert.equal(actor.callableObservationFailures[0].category, 'unknown-callable-lifecycle');
+});
+
+test('an observed named POST with malformed request metadata remains a failure', async () => {
+  const { actor, startRequest, respond, finish } = await cdpCallableObservationActor();
+  const requestId = startRequest({ requestId: 'malformed-post', postData: '{malformed' });
+  respond(requestId);
+  finish(requestId);
+  await actor.drainObservedCalls();
+  assert.equal(actor.observedCalls.length, 1);
+  assert.equal(actor.observedCalls[0].name, 'getCurrentMemberSession');
+  assert.equal(actor.callableObservationFailures.length, 1);
+  assert.equal(actor.callableObservationFailures[0].category, 'request-metadata-unavailable');
 });
 
 test('a completed HTTP200 with missing or malformed protocol body remains an observation failure', async () => {
