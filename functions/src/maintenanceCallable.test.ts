@@ -2320,7 +2320,9 @@ it('rejects illegal phase transitions and advances only valid numbered turns wit
     },
   });
   expect(mock.update).toHaveBeenCalledTimes(2);
-  expect(mock.set).toHaveBeenCalledTimes(2);
+  expect(mock.set).toHaveBeenCalledTimes(3);
+  expect(mock.set).toHaveBeenCalledWith(expect.stringMatching(/\/commandReceipts\/advance-test-/),
+    expect.objectContaining({ result: expect.objectContaining({ currentTurn: 3 }) }));
   expect(mock.set).toHaveBeenCalledWith('sessions/s1/turnInterstitials/3', expect.objectContaining({
     cycle: 3, status: 'held', pausedAt: expect.any(String),
   }));
@@ -2823,7 +2825,9 @@ it('commits one server-owned Coordination completion announcement with the next-
     turnStartAnnouncement: { turn: 2, survivorPopulation: 242_541 },
     turnPhase: expect.objectContaining({ turn: 2 }),
   }));
-  expect(mock.set).toHaveBeenCalledTimes(2);
+  expect(mock.set).toHaveBeenCalledTimes(3);
+  expect(mock.set).toHaveBeenCalledWith(expect.stringMatching(/\/commandReceipts\/advance-test-/),
+    expect.objectContaining({ result: expect.objectContaining({ currentTurn: 2 }) }));
   expect(mock.set).toHaveBeenCalledWith('sessions/s1/turnInterstitials/2', expect.objectContaining({
     cycle: 2, status: 'held', pausedAt: expect.any(String),
   }));
