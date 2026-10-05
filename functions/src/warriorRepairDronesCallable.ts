@@ -1,5 +1,6 @@
 import { writeStandardActionAudit } from './actionAudit';
 import { auditedOnCall } from './securityCallable';
+import { requireCandidateVesselsAvailable } from './candidateAvailability';
 import { FieldValue, Timestamp, getFirestore, type DocumentSnapshot } from 'firebase-admin/firestore';
 import { HttpsError, } from 'firebase-functions/v2/https';
 import { commandReceiptDisposition, type CommandFingerprint } from './commandIdempotency';
@@ -226,6 +227,7 @@ export const repairWarriorWithDrones = auditedOnCall<{
     const actorRoleId = currentCaptainRoleId(actor, uid);
     const replay = replayReply(receipt, fingerprint);
     if (replay) return replay;
+    requireCandidateVesselsAvailable(session, ['warrior', command.expectedHostShipId]);
     if (legacy.some((snapshot) => snapshot.exists)) {
       throw new HttpsError('failed-precondition', 'This Warrior Repair Drones request id is already bound to a legacy command.');
     }

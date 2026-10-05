@@ -1,5 +1,6 @@
 import { writeStandardActionAudit } from './actionAudit';
 import { auditedOnCall } from './securityCallable';
+import { requireCandidateVesselsAvailable } from './candidateAvailability';
 import { FieldValue, Timestamp, getFirestore, type DocumentSnapshot } from 'firebase-admin/firestore';
 import { HttpsError, } from 'firebase-functions/v2/https';
 import { commandReceiptDisposition, type CommandFingerprint } from './commandIdempotency';
@@ -238,6 +239,7 @@ export const transferBaseCapybaraCargo = auditedOnCall<{
     const activeRoleHolderUid = requireCaptainAuthority(actor, playersSnapshot.docs, uid);
     const replay = replayReply(receipt, fingerprint, command);
     if (replay) return replay;
+    requireCandidateVesselsAvailable(session, ['capybara-small', command.expectedHostShipId]);
 
     if (session.get('phase') !== 'active') {
       failClosed('Cargo Transfer is available only during active gameplay.');

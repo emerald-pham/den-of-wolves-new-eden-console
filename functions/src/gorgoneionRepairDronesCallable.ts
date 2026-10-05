@@ -1,5 +1,6 @@
 import { writeStandardActionAudit } from './actionAudit';
 import { auditedOnCall } from './securityCallable';
+import { requireCandidateVesselsAvailable } from './candidateAvailability';
 import { FieldValue, Timestamp, getFirestore, type DocumentSnapshot } from 'firebase-admin/firestore';
 import { HttpsError, } from 'firebase-functions/v2/https';
 import { commandReceiptDisposition, type CommandFingerprint } from './commandIdempotency';
@@ -215,6 +216,7 @@ export const repairGorgoneionWithDrones = auditedOnCall<{
     currentCaptainReplacementRole(actor);
     const replay = replayReply(receipt, fingerprint);
     if (replay) return replay;
+    requireCandidateVesselsAvailable(session, ['gorgoneion', command.expectedHostShipId]);
     if (legacy.some((snapshot) => snapshot.exists)) {
       throw new HttpsError('failed-precondition', 'This Repair Drones request id is already bound to another command.');
     }

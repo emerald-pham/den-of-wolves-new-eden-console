@@ -1,5 +1,6 @@
 import { writeStandardActionAudit } from './actionAudit';
 import { auditedOnCall } from './securityCallable';
+import { requireCandidateVesselsAvailable, requireCandidateCraftAvailable } from './candidateAvailability';
 import { FieldValue, Timestamp, getFirestore, type DocumentSnapshot } from 'firebase-admin/firestore';
 import { HttpsError, } from 'firebase-functions/v2/https';
 import { decideActionAuthorization } from './actionMetadata';
@@ -252,6 +253,8 @@ export const repairConsolesFromAlly = auditedOnCall<{
     }
     const replay = replayReply(receipt, fingerprint);
     if (replay) return replay;
+    requireCandidateCraftAvailable(session, ['ally']);
+    requireCandidateVesselsAvailable(session, ['ally', command.expectedHostShipId]);
     if (event.exists) {
       throw new HttpsError('failed-precondition', 'This Ally repair request has an unbound event receipt.');
     }
