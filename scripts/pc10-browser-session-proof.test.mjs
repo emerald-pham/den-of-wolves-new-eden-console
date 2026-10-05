@@ -97,9 +97,10 @@ async function cdpCallableObservationActor({ durableConfigurationError } = {}) {
   }, setOffline: async () => undefined, close: async () => undefined };
   const actor = await proof.createPc10BrowserActor({ newContext: async () => context }, 'http://localhost', 'admiral');
   const startRequest = ({ requestId = `protocol-${++nextRequest}`, name = 'getCurrentMemberSession',
-    method = 'POST', postData = JSON.stringify({ data: { requestId: 'private-request', sessionId: 'own-session' } }) } = {}) => {
+    method = 'POST', omitMethod = false,
+    postData = JSON.stringify({ data: { requestId: 'private-request', sessionId: 'own-session' } }) } = {}) => {
     events.emit('Network.requestWillBeSent', { requestId, timestamp: 1, wallTime: 1,
-      request: { url: `http://localhost/demo/us-central1/${name}`, method, postData } });
+      request: { url: `http://localhost/demo/us-central1/${name}`, ...(omitMethod ? {} : { method }), postData } });
     return requestId;
   };
   const start = (requestId = `protocol-${++nextRequest}`, name = 'getCurrentMemberSession') =>
@@ -266,6 +267,15 @@ test('an observed named POST with malformed request metadata remains a failure',
   await actor.drainObservedCalls();
   assert.equal(actor.observedCalls.length, 1);
   assert.equal(actor.observedCalls[0].name, 'getCurrentMemberSession');
+  assert.equal(actor.callableObservationFailures.length, 1);
+  assert.equal(actor.callableObservationFailures[0].category, 'request-metadata-unavailable');
+});
+
+test('an allowlisted request without method metadata is not presumed to be a POST', async () => {
+  const { actor, startRequest } = await cdpCallableObservationActor();
+  startRequest({ requestId: 'missing-method', omitMethod: true });
+  await actor.drainObservedCalls();
+  assert.deepEqual(actor.observedCalls, []);
   assert.equal(actor.callableObservationFailures.length, 1);
   assert.equal(actor.callableObservationFailures[0].category, 'request-metadata-unavailable');
 });
