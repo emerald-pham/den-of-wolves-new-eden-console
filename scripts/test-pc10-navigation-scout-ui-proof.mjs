@@ -365,3 +365,21 @@ test('a source read cannot loop through perpetual snapshot changes, and required
   await required.onStarted(unavailable.context);
   await assert.rejects(required.runNavigation([{ branch: 'natural-failure', roleId: 'gm', shipId: 'aegis' }]), /Required natural-failure/);
 });
+
+test('late current paint cannot be accepted after the original stage budget', async () => {
+  let time = 0;
+  await assert.rejects(waitForNavigationScoutPaint({ original: actor(), timeoutMs: 100,
+    now: () => time, inspect: async () => actor(), inspectPaint: async () => {
+      time = 101; return { mounted: true, current: true, eligible: true };
+    } }), /budget|deadline/);
+});
+
+test('a late UI result remains uncredited and does not start SDK receipt recovery', async () => {
+  let time = 0, sdk = 0;
+  await assert.rejects(captureNavigationScoutUiReceipt({ endpoint: 'jumpShip', original: actor(), timeoutMs: 100,
+    now: () => time, surface: { callable: async () => { sdk++; return { status: 'committed', result: { status: 'jumped' } }; } },
+    inspect: async () => actor(), choose: async () => {}, intent: { shipId: 'aegis', coordinate: '1100' },
+    waitForResponse: async () => ({ status: () => 200, json: async () => { time = 101; return { result: { status: 'jumped' } }; },
+      request: () => ({ postDataJSON: () => ({ data: jump() }) }) }) }), /budget|deadline/);
+  assert.equal(sdk, 0);
+});
