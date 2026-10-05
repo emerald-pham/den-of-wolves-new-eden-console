@@ -329,7 +329,7 @@ it('makes automatic loyalty guidance reachable beside full-game preparation in n
   useSessionStore.getState().setGmInstance(local);
   streamInstances([local]);
   renderConsole();
-  await userEvent.click(screen.getByRole('button', { name: 'Setup', exact: true }));
+  await userEvent.click(screen.getByRole('button', { name: 'Setup' }));
 
   const panel = screen.getByRole('region', { name: 'Explicit loyalty setup' });
   expect(panel).toHaveTextContent('Wolf designation and routine loyalty are assigned automatically');
@@ -357,7 +357,7 @@ it('makes the confirmed optional loyalty editor reachable for actual GM roster h
     return vi.fn();
   });
   renderConsole();
-  await userEvent.click(screen.getByRole('button', { name: 'Setup', exact: true }));
+  await userEvent.click(screen.getByRole('button', { name: 'Setup' }));
 
   const panel = screen.getByRole('region', { name: 'Explicit loyalty setup' });
   expect(within(panel).getByRole('combobox', { name: 'Loyalty holder' })).toBeEnabled();
