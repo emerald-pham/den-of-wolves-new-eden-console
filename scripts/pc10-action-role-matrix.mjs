@@ -238,7 +238,7 @@ const nonInteractiveExports = exports.filter((entry) => entry.kind !== 'callable
   actualServedUi: { status: 'not a player-invoked callable', staticClientSourceReferences: [] },
   eligibleActor: { status: 'not applicable to a player-invoked command', value: null },
   source: { callableExport: indexExportReference(name), serverReferences: serverActionReferences(name) },
-  inConsoleGuidance: { status: 'not applicable to a direct player control', deferredTo: 'PC11 for mechanic explanations' },
+  inConsoleGuidance: { status: 'not applicable to a direct player control' },
   evidence: { currentFreshGameProof: 'pending', authorityPrivacyRecoveryProof: 'pending',
     automatedBrowserProof: 'pending', nativeAppCheckProof: 'not applicable to non-callable export',
     humanDeviceProof: 'not claimed', humanPhysicalPlaytest: 'not claimed' },
