@@ -9,7 +9,6 @@ import {
   blockedSourceBranch,
   captureMountedUiAction,
   privateSafeActionReceipt,
-  sha256,
 } from './pc10-political-crisis-arrest-proof-contracts.mjs';
 
 const FAMILY = 'pending-arrest-posse-disposition';
