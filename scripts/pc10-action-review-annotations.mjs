@@ -48,6 +48,8 @@ const ANCHORS = [
   ['supply.alertAcknowledgement', 'functions/src/index.ts', 'acknowledgeWolfHackingAlert'],
   ['supply.receiptUi', 'src/routes/GmConsole.tsx', 'GmConsole'],
   ['supply.otherWolfControls', 'src/components/PrivateLoyaltyPanel.tsx', 'PrivateLoyaltyPanel'],
+  ['supply.appMount', 'src/App.tsx', 'App'],
+  ['supply.clientAdapter', 'src/lib/wolfActionService.ts', 'submitWolfSupplySabotage'],
 
   ['elevation.handler', 'functions/src/index.ts', 'elevateToGm'],
   ['elevation.request', 'functions/src/requestGuards.ts', 'requireElevationRequest'],
@@ -178,16 +180,23 @@ const reviewed = [
     guidance: { status: 'not-present-in-current-ui', summary: 'No current preference control or adjacent in-console guidance was located. This is an API-only path in the reviewed client source, so no current action hint is credited or marked as a blanket PC11 deferral.', sourceAnchorIds: ['preference.handler', 'setup.ui'] },
   },
   {
-    exportName: 'submitWolfSupplySabotage', classification: 'external/manual-only',
-    productPath: { status: 'facilitator-receipt-only-no-member-action-control', sourceAnchorIds: ['supply.receiptUi', 'supply.otherWolfControls'] },
-    actor: { family: 'active Wolf Agent or Wolf Cult with the exact assigned cover role and its eligible shuttle', identities: ['wolf-agent', 'wolf-cult'], sourceAnchorIds: ['supply.handler', 'supply.authorization'] },
-    requirements: { summary: 'Requires an active gameplay cycle, one unused Wolf action for that cycle, actor-only Wolf loyalty, matching assigned cover, an active cover-owned shuttle with positive selected cargo, and a valid facilitator census. A Press cover also requires the station to be enabled and held by this actor.', sourceAnchorIds: ['supply.handler', 'supply.authorization', 'supply.calculation', 'supply.request'] },
-    costs: { summary: 'Destroys floor(current selected cargo / 2) from the chosen cover-owned shuttle; cargo of one loses zero units but must be positive. The cycle’s Wolf action slot is consumed only after validation succeeds.', sourceAnchorIds: ['supply.handler', 'supply.calculation'] },
-    consequences: { summary: 'The server updates shuttle cargo and adds exactly two suspicion to the private loyalty/census, stores the private clue and action receipt, and creates a pending facilitator alert. The alert’s clue details remain in the private server/Gm path.', sourceAnchorIds: ['supply.handler', 'supply.calculation'] },
-    blockers: { summary: 'Stale cycle, malformed or mismatched loyalty/census, replacement/escape, inactive or wrong cover, unavailable shuttle, empty cargo, duplicate same-cycle Wolf action, or inconsistent alert history rejects before a fresh action commits.', sourceAnchorIds: ['supply.handler', 'supply.authorization', 'supply.calculation', 'supply.request'] },
+    exportName: 'submitWolfSupplySabotage', classification: 'served-ui-path',
+    productPath: {
+      status: 'served-ui-path',
+      currentSurface: 'PrivateLoyaltyPanel Wolf supply action',
+      currentMount: 'src/App.tsx → ScreenFade → PrivateLoyaltyPanel',
+      invocation: 'PrivateLoyaltyPanel → wolfActionService.submitWolfSupplySabotage → submitWolfSupplySabotage callable',
+      currentCallable: 'submitWolfSupplySabotage',
+      sourceAnchorIds: ['supply.appMount', 'supply.otherWolfControls', 'supply.clientAdapter', 'supply.handler'],
+    },
+    actor: { family: 'active connected player holding Wolf Agent or Wolf Cult loyalty in the matching setup-assigned cover role', identities: ['wolf-agent', 'wolf-cult'], sourceAnchorIds: ['supply.handler', 'supply.authorization', 'supply.otherWolfControls'] },
+    requirements: { summary: 'Requires an active gameplay cycle and an authenticated, connected active player; actor-only Wolf Agent or Wolf Cult loyalty; an unreplaced, non-escaped player with the setup-assigned cover role; one unused Wolf action for that cycle; a positive selected resource balance on an active shuttle owned by that cover; and a current facilitator loyalty census. A Press cover requires the Press station enabled and either no holder or this actor as holder.', sourceAnchorIds: ['supply.handler', 'supply.authorization', 'supply.calculation', 'supply.request', 'supply.otherWolfControls', 'supply.clientAdapter'] },
+    costs: { summary: 'Destroys floor(current selected cargo / 2), half rounded down, from the chosen cover-owned shuttle; cargo must be positive, though cargo of one loses zero units. The action adds exactly 2 suspicion and consumes the cycle’s single Wolf action slot after validation succeeds.', sourceAnchorIds: ['supply.handler', 'supply.authorization', 'supply.calculation'] },
+    consequences: { summary: 'The server reduces selected shuttle cargo, updates the actor’s private loyalty and the facilitator census, records a private clue, action receipt, and audit, and creates a pending private hacking alert. The actor receives a receipt with the cargo remaining and new suspicion; clue details stay in the private facilitator path.', sourceAnchorIds: ['supply.handler', 'supply.calculation', 'supply.receiptUi'] },
+    blockers: { summary: 'A stale cycle; unauthenticated or inactive actor; replacement status or escape state; non-Wolf loyalty or mismatched assigned cover; disabled or differently held Press station; inactive/wrong-cover shuttle; empty cargo; already-used same-cycle Wolf action; malformed roster, loyalty, census, or alert history; or a conflicting request receipt rejects the fresh action.', sourceAnchorIds: ['supply.handler', 'supply.authorization', 'supply.calculation', 'supply.request', 'supply.otherWolfControls'] },
     nextActor: { summary: 'The facilitator receives the pending private hacking alert and must acknowledge that exact alert; only after acknowledgement does the server publish an actor-free player notice.', sourceAnchorIds: ['supply.handler', 'supply.alertAcknowledgement'] },
-    clientCallTrace: { status: 'no-current-client-call-found', sourceTreeSha256: null, identifierReferenceCount: 0, interpretation: 'The member panel currently wires intelligence and homing-beacon actions, not this callable. The GmConsole renders the supply-sabotage receipt after a committed action; it is not the initiating control. The client-source hash binds the no-member-call scan.', sourceAnchorIds: ['supply.otherWolfControls', 'supply.receiptUi'] },
-    guidance: { status: 'facilitator-receipt-only', summary: 'The existing GM console explains committed supply loss and clue receipt. No current member-side supply-sabotage action control or pre-action guidance was located.', sourceAnchorIds: ['supply.receiptUi', 'supply.otherWolfControls'] },
+    clientCallTrace: { status: 'current-ui-service-call', sourceTreeSha256: null, identifierReferenceCount: null, interpretation: 'App mounts PrivateLoyaltyPanel inside ScreenFade. Its active-cycle Wolf supply control calls the wolfActionService adapter, which invokes the same-name callable; the current component, adapter, and mount references are hash-bound below. Static source and import evidence do not prove that a control is rendered, enabled, or usable in a running session.', sourceAnchorIds: ['supply.appMount', 'supply.otherWolfControls', 'supply.clientAdapter'] },
+    guidance: { status: 'current-member-action-guidance', summary: 'The mounted private loyalty panel explains half-cargo loss rounded down, the two-suspicion increase, and the one-action-per-cycle limit. It labels the shuttle cargo target selector and explains when no positive cargo is available.', sourceAnchorIds: ['supply.appMount', 'supply.otherWolfControls'] },
   },
   {
     exportName: 'elevateToGm', classification: 'external/manual-only',
@@ -718,7 +727,6 @@ function exportClassificationRows(canonicalMatrix, annotations, clientReferenceS
         ? { status: 'source-reviewed', detailRef: name }
         : { status: 'unresolved', fields: ['actor', 'requirements', 'costs', 'consequences', 'blockers', 'nextActor', 'guidance'],
           reason: 'No action-specific source review in this pass; names and import paths do not establish authority or mechanics.' },
-      ...(name === 'submitWolfSupplySabotage' ? { conditionalGapReferences: ['submitWolfSupplySabotage'] } : {}),
       acceptanceCredit: 0,
       proofStatus: 'pending; no runtime or gameplay evidence claimed',
     });
@@ -910,12 +918,7 @@ const artifact = {
     canonicalSnapshotSha256: baselineMatrixHash,
     canonicalSnapshotModified: false,
     clarification: 'The canonical 232-callable and 42-role generator snapshot is preserved. The 20 primary annotations, 6 Scout reviews, and three exact source shards cover its 232 callable contracts at the source-description layer. Role cells, actual usability, browser/native gameplay acceptance, and physical-play evidence remain uncredited. One additional transferWarriorCargo source export is recorded separately when present; it is not inserted into the frozen snapshot.',
-    explicitPc11GuidanceGaps: [{
-      exportName: 'submitWolfSupplySabotage',
-      status: 'server-action-not-surfaced-to-member-ui',
-      summary: 'The current member panel wires other Wolf actions while the GM console presents this action’s receipt. If this callable is later exposed as a member control, add adjacent requirements, selected-cargo loss and next-step guidance; this source pass does not claim that UI flow complete.',
-      sourceAnchorIds: ['supply.handler', 'supply.otherWolfControls', 'supply.receiptUi'],
-    }],
+    explicitPc11GuidanceGaps: [],
   },
   exportClassification: {
     counts: {
