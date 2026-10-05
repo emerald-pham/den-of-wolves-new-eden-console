@@ -4,8 +4,9 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { createTwoBrowserGameplay } from './pc10-two-browser-gameplay.mjs';
 import { resolveLiveWolfAttack } from './pc10-live-wolf-attack-ui-proof.mjs';
 import { assertWolfChoiceActor, observeWolfChoiceActor } from './pc10-combat-choice-readiness.mjs';
+import { selectBaseRangeTargetControls } from './pc10-base-range-target-controls.mjs';
 import { assertBaseCombatPrerequisites, assertOriginalBaseActor, assertRequiredBaseBranches, baseMemberRowsMatch, baseWolfActionExpectation,
-  BASE_COMBAT_CONTROL_LABELS, baseResearchPaintMatches, captureBaseUiReceipt, chooseBaseRangeAssignments,
+  BASE_COMBAT_CONTROL_LABELS, baseResearchPaintMatches, captureBaseUiReceipt,
   openingWolfCounts, openBaseEndeavourResearchRoute, originalRoleForUid, proofHash, uidHash, validatePrivateDeductionReply,
   waitForBaseMemberAftermath, waitForBaseResearchReceipt, waitForOriginalBaseActor,
 } from './pc10-base-combat-deduction-contracts.mjs';
@@ -113,7 +114,7 @@ export async function runBaseCombatAndDeduction(context, options = {}) {
     }
     throw new Error('The actual source attack revision did not advance; no phase or actor bypass.');
   }
-  async function receiptForAttack(surface, endpoint, decision) {
+  async function receiptForAttack(surface, endpoint, decision, expectedAction = {}) {
     const current = await readGm('wolfAttackState/current');
     assert.ok(current && current.status !== 'resolved');
     assert.equal(current.turn, originalGm.cycle);
@@ -130,7 +131,7 @@ export async function runBaseCombatAndDeduction(context, options = {}) {
         assert.ok(Date.now() < ready.deadlineAt, 'Do not click an expired current combat decision.');
       }
       return decision();
-    }, baseWolfActionExpectation(endpoint, current));
+    }, { ...expectedAction, ...baseWolfActionExpectation(endpoint, current) });
     if (ready) assertWolfChoiceActor(await observeWolfChoiceActor(surface), ready.actor);
     await waitAttack(current, ready?.deadlineAt); return result;
   }
@@ -372,18 +373,13 @@ export async function runBaseCombatAndDeduction(context, options = {}) {
         if (await commit.isVisible()) {
           const view = rangeReady.choice;
           assert.equal(view.turn, current.turn); assert.equal(view.revision, current.revision); assert.equal(view.currentStep, current.currentStep);
-          const assignments = chooseBaseRangeAssignments(view), labels = {
-            'aegis-missile-launchers': 'Missile launchers', 'aegis-point-defence-lasers': 'Point-defence lasers',
-            'aegis-alpha-wing': 'Alpha Fighter Wing', 'aegis-bravo-wing': 'Bravo Fighter Wing',
-            highwall: 'Highwall Cannon', 'gorgoneion-missile-array': 'Gorgoneion Missile Array',
-            boa: 'Boa Scrap Strike', 'pdf-escort-wing': 'PDF Escort Wing', maliades: 'Maliades' };
-          for (const assignment of assignments) {
-            const source = view.eligibleActions.find(action => action.actionId === assignment.actionId)?.sourceId;
-            assert.ok(labels[source], 'Only an actual entitled source label can select these targets.');
-            for (let i = 0; i < assignment.contactIds.length; i++)
-              await panel.getByRole('combobox', { name: `${labels[source]} hit ${i + 1}`, exact: true }).selectOption(assignment.contactIds[i]);
-          }
-          await receiptForAttack(executive, 'assignWolfRangeTargets', () => commit.click()); return true;
+          const currentReadiness = combatReadiness.get(executive);
+          assert.ok(currentReadiness, 'The current original actor and decision budget are required.');
+          const assignments = await selectBaseRangeTargetControls({ panel, view,
+            deadlineAt: currentReadiness.deadlineAt,
+            checkpoint: async () => assertWolfChoiceActor(await observeWolfChoiceActor(executive), currentReadiness.actor),
+          });
+          await receiptForAttack(executive, 'assignWolfRangeTargets', () => commit.click(), { assignments }); return true;
         }
       }
     }
