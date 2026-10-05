@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import { useSessionStore } from '@/store/useSessionStore';
 
 const submit = vi.hoisted(() => vi.fn());
@@ -8,11 +8,15 @@ vi.mock('@/lib/gmLoyaltyAssignmentService', () => ({ submitExplicitGmLoyaltyAssi
 
 import GmLoyaltySetupPanel from './GmLoyaltySetupPanel';
 
-const roster = [
-  { uid: 'u1', sessionId: 's1', displayName: 'Aegis', role: 'player', assignedRoleId: 'aegis-engineer', replacementStatus: null },
-  { uid: 'u2', sessionId: 's1', displayName: 'Dione', role: 'player', assignedRoleId: 'dione-engineer', replacementStatus: null },
-  { uid: 'u3', sessionId: 's1', displayName: 'Asterion', role: 'player', assignedRoleId: 'asterion-engineer', replacementStatus: null },
-  { uid: 'press', sessionId: 's1', displayName: 'Press', role: 'player', assignedRoleId: 'press-officer', replacementStatus: null },
+const coreRoster = [
+  { uid: 'u1', sessionId: 's1', displayName: 'Aegis', role: 'player', assignedRoleId: 'aegis-engineer', replacementStatus: null, connected: true },
+  { uid: 'u2', sessionId: 's1', displayName: 'Dione', role: 'player', assignedRoleId: 'dione-engineer', replacementStatus: null, connected: true },
+  { uid: 'u3', sessionId: 's1', displayName: 'Asterion', role: 'player', assignedRoleId: 'asterion-engineer', replacementStatus: null, connected: true },
+] as never;
+
+const rosterWithPress = [
+  ...coreRoster,
+  { uid: 'press', sessionId: 's1', displayName: 'Press', role: 'player', assignedRoleId: 'press-officer', replacementStatus: null, connected: true, activeConsoleRoleId: 'press-officer' },
 ] as never;
 
 function prepareGm({
@@ -50,29 +54,29 @@ describe('connected GM loyalty setup panel', () => {
   });
 
   it('explains that ordinary Wolves remain automatic and does not open an explicit loyalty form', () => {
-    render(<GmLoyaltySetupPanel players={roster} />);
-    expect(screen.getByRole('region', { name: /explicit loyalty setup/i })).toHaveTextContent(/ordinary Wolf designation is automatic/i);
+    render(<GmLoyaltySetupPanel players={coreRoster} />);
+    expect(screen.getByRole('region', { name: /explicit loyalty setup/i })).toHaveTextContent(/Wolf designation and routine loyalty are assigned automatically/i);
     expect(screen.getByText(/select an optional printed scenario/i)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /assign private loyalty/i })).not.toBeInTheDocument();
   });
 
   it('renders only source-allowed choices for the configured scenario and aggregate coverage', () => {
     prepareGm({ universalArbourEnabled: true });
-    render(<GmLoyaltySetupPanel players={roster} />);
+    render(<GmLoyaltySetupPanel players={coreRoster} />);
     const kind = screen.getByRole('combobox', { name: 'Private loyalty type' });
     expect(kind).toHaveDisplayValue('Fleet Loyalist');
     expect(screen.getByRole('option', { name: 'Universal Arbour' })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: 'Wolf Agent' })).toBeInTheDocument();
     expect(screen.queryByRole('option', { name: 'Wolf Cult' })).not.toBeInTheDocument();
     expect(screen.getByText(/explicit printed configuration/i)).toBeInTheDocument();
-    expect(screen.getByText(/0 of 3 current holders configured/i)).toBeInTheDocument();
-    expect(screen.getByText(/every current role holder needs a private record before start/i)).toBeInTheDocument();
+    expect(screen.getByText(/Current core holders \/\/ 0 of 3 configured/i)).toBeInTheDocument();
+    expect(screen.getByText(/Every current core role holder needs a private record before start/i)).toBeInTheDocument();
   });
 
   it('offers reciprocal Friend selection from other current holders and uses source suspicion', async () => {
     const user = userEvent.setup();
     prepareGm({ wolfCultEnabled: true });
-    render(<GmLoyaltySetupPanel players={roster} />);
+    render(<GmLoyaltySetupPanel players={coreRoster} />);
     await user.selectOptions(screen.getByRole('combobox', { name: 'Private loyalty type' }), 'friend');
     const partner = screen.getByRole('combobox', { name: 'Reciprocal Friend partner' });
     expect(partner).toHaveDisplayValue('Choose another current holder');
@@ -86,7 +90,7 @@ describe('connected GM loyalty setup panel', () => {
     prepareGm({ universalArbourEnabled: true });
     submit.mockRejectedValueOnce(Object.assign(new Error('network'), { code: 'functions/unavailable' }));
     submit.mockResolvedValueOnce({ setupRevision: 5 });
-    render(<GmLoyaltySetupPanel players={roster} />);
+    render(<GmLoyaltySetupPanel players={coreRoster} />);
     await user.selectOptions(screen.getByRole('combobox', { name: 'Loyalty holder' }), 'u1');
     await user.selectOptions(screen.getByRole('combobox', { name: 'Private loyalty type' }), 'universal-arbour');
     await user.click(screen.getByRole('button', { name: 'Assign private loyalty' }));
@@ -99,7 +103,7 @@ describe('connected GM loyalty setup panel', () => {
     await user.click(screen.getByRole('button', { name: 'Retry exact request' }));
     await waitFor(() => expect(submit).toHaveBeenCalledTimes(2));
     expect(submit.mock.calls[1]?.[0]).toEqual(original);
-    expect(await screen.findByRole('status')).toHaveTextContent(/committed by the server/i);
+    expect(await screen.findByText(/Private record committed by the server/i)).toBeInTheDocument();
   });
 
   it('ignores a late callable reply after session or GM identity changes', async () => {
@@ -107,10 +111,10 @@ describe('connected GM loyalty setup panel', () => {
     prepareGm({ universalArbourEnabled: true });
     let resolveCall!: (value: unknown) => void;
     submit.mockImplementation(() => new Promise((resolve) => { resolveCall = resolve; }));
-    render(<GmLoyaltySetupPanel players={roster} />);
+    render(<GmLoyaltySetupPanel players={coreRoster} />);
     await user.selectOptions(screen.getByRole('combobox', { name: 'Loyalty holder' }), 'u1');
     await user.click(screen.getByRole('button', { name: 'Assign private loyalty' }));
-    useSessionStore.getState().setMe({ uid: 'another-gm', sessionId: 's1', role: 'gm' } as never);
+    act(() => useSessionStore.getState().setMe({ uid: 'another-gm', sessionId: 's1', role: 'gm' } as never));
     resolveCall({ setupRevision: 5 });
     await waitFor(() => expect(screen.queryByText(/committed by the server/i)).not.toBeInTheDocument());
   });
@@ -119,7 +123,7 @@ describe('connected GM loyalty setup panel', () => {
     const user = userEvent.setup();
     prepareGm({ universalArbourEnabled: true });
     submit.mockRejectedValue(Object.assign(new Error('offline'), { code: 'functions/unavailable' }));
-    render(<GmLoyaltySetupPanel players={roster} />);
+    render(<GmLoyaltySetupPanel players={coreRoster} />);
     await user.selectOptions(screen.getByRole('combobox', { name: 'Loyalty holder' }), 'u1');
     await user.selectOptions(screen.getByRole('combobox', { name: 'Private loyalty type' }), 'universal-arbour');
     await user.click(screen.getByRole('button', { name: 'Assign private loyalty' }));
@@ -132,13 +136,15 @@ describe('connected GM loyalty setup panel', () => {
   });
 
   it('disables the editor until the optional tuple is confirmed and while authority is stale', () => {
-    prepareGm({ universalArbourEnabled: true, setupConfirmed: false });
-    const { rerender } = render(<GmLoyaltySetupPanel players={roster} />);
+    act(() => prepareGm({ universalArbourEnabled: true, setupConfirmed: false }));
+    const { rerender } = render(<GmLoyaltySetupPanel players={coreRoster} />);
     expect(screen.getByText(/confirm the optional choice before entering private records/i)).toBeInTheDocument();
     expect(screen.queryByRole('combobox', { name: 'Private loyalty type' })).not.toBeInTheDocument();
-    prepareGm({ universalArbourEnabled: true });
-    useSessionStore.getState().setSessionSnapshotFreshness('cache');
-    rerender(<GmLoyaltySetupPanel players={roster} />);
+    act(() => {
+      prepareGm({ universalArbourEnabled: true });
+      useSessionStore.getState().setSessionSnapshotFreshness('cache');
+    });
+    rerender(<GmLoyaltySetupPanel players={coreRoster} />);
     expect(screen.getByText(/live GM session authority is required/i)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Assign private loyalty' })).not.toBeInTheDocument();
   });
@@ -146,11 +152,25 @@ describe('connected GM loyalty setup panel', () => {
   it('never offers a Wolf kind in ordinary automatic mode and handles missing canonical holders as a blocker', () => {
     prepareGm();
     const { rerender } = render(<GmLoyaltySetupPanel players={[]} />);
-    expect(screen.getByText(/ordinary Wolf designation is automatic/i)).toBeInTheDocument();
+    expect(screen.getByText(/Wolf designation and routine loyalty are assigned automatically/i)).toBeInTheDocument();
     expect(screen.queryByRole('option', { name: 'Wolf Agent' })).not.toBeInTheDocument();
-    prepareGm({ wolfCultEnabled: true });
+    act(() => prepareGm({ wolfCultEnabled: true }));
     rerender(<GmLoyaltySetupPanel players={[]} />);
     expect(screen.getByText(/assign current core roles before configuring loyalty/i)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Assign private loyalty' })).not.toBeInTheDocument();
+  });
+
+  it('keeps claimed Press private loyalty blocked until the official server path supports it', () => {
+    prepareGm({ universalArbourEnabled: true });
+    render(<GmLoyaltySetupPanel players={rosterWithPress} />);
+    expect(screen.getByText(/release the claimed Press role before using explicit loyalty/i)).toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: 'Private loyalty type' })).not.toBeInTheDocument();
+  });
+
+  it('blocks the editor when both optional printed loyalty scenarios are enabled', () => {
+    prepareGm({ universalArbourEnabled: true, wolfCultEnabled: true });
+    render(<GmLoyaltySetupPanel players={coreRoster} />);
+    expect(screen.getByText(/choose exactly one explicit printed loyalty scenario/i)).toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: 'Private loyalty type' })).not.toBeInTheDocument();
   });
 });

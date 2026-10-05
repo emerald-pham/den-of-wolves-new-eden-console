@@ -92,6 +92,7 @@ describe('authenticated explicit loyalty adapter', () => {
     let resolveCall!: (value: unknown) => void;
     mocks.call.mockImplementation(() => new Promise((resolve) => { resolveCall = resolve; }));
     const pending = submitExplicitGmLoyaltyAssignment(request);
+    await vi.waitFor(() => expect(mocks.call).toHaveBeenCalledTimes(1));
     useSessionStore.getState().setGmInstance({
       id: 'gm-instance-2', sessionId: 's1', uid: 'gm-1',
     } as never);
