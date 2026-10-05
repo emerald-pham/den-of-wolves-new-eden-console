@@ -181,6 +181,21 @@ test('private research and mission selectors are hashed in request and response 
   assert.equal(JSON.stringify(evidence).includes('wolf-agent-detector'), false);
 });
 
+test('boarding proof retains the actually selected bounded Security Teams count', () => {
+  const evidence = projectSpecialistActionEvidence({
+    roleId: 'dione-engineer', endpoint: 'commitWolfBoardingDefenceChoice',
+    actor: { uidHash: 'sha256-defender', sessionId: 'session' },
+    request: { requestId: 'boarding-1', attackId: 'attack-1',
+      choice: { action: 'security-teams', targetShipId: 'dione', securityTeams: 2 } },
+    response: { httpStatus: 200, result: { status: 'committed', revision: 8, choiceStatus: 'committed' } },
+    replay: { status: 'committed', result: { status: 'replayed', revision: 8, choiceStatus: 'committed' } },
+    cost: null, projection: {},
+  });
+  assert.deepEqual(evidence.request.choice, {
+    action: 'security-teams', targetShipId: 'dione', securityTeams: 2,
+  });
+});
+
 test('callback records failures without calling a partial gameplay run complete', async () => {
   let saved;
   const game = { context: { gm: {}, initial: { sessionId: 'fresh-session' } },
