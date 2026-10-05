@@ -51,6 +51,18 @@ test('player mutation fence keeps the same original authenticated role/session/c
   ]) assert.throws(() => assertPlayerActorFence(changed, expected));
 });
 
+test('global electorate and group controls remain Auth-role bound without a ship-console selection', () => {
+  const expected = { sessionId: 'session-1', uidHash: 'b'.repeat(16), roleId: 'dione-captain',
+    stationRequired: false, cycle: 1, phase: 'active', turnStatePhase: 'team' };
+  const current = { sessionId: 'session-1', uidHash: expected.uidHash, sameActor: true,
+    profileRoleId: 'dione-captain', assignedRoleId: 'dione-captain', activeConsoleRoleId: null,
+    playerRole: 'player', cycle: 1, phase: 'active', turnStatePhase: 'team',
+    connection: 'live', freshness: 'server' };
+  assert.doesNotThrow(() => assertPlayerActorFence(current, expected));
+  assert.throws(() => assertPlayerActorFence({ ...current, profileRoleId: 'dione-engineer' }, expected));
+  assert.throws(() => assertPlayerActorFence({ ...current, uidHash: 'c'.repeat(16) }, expected));
+});
+
 test('GM mutation fence binds the current owned instance, same actor and live snapshot', () => {
   assert.doesNotThrow(() => assertGmInstanceFence(gm, gm));
   assert.throws(() => assertGmInstanceFence({ ...gm, instanceId: 'other' }, gm));
