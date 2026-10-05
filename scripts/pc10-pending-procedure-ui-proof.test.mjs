@@ -118,7 +118,7 @@ test('printed costs, real distinct consent, and replay-safe receipts are mandato
       sourceRevision: 7, groupId: 'group-1', distinctConsent: true },
     actorBefore: { ...actor, uidHash: 'holder-hash' }, actorAfter: { ...actor, uidHash: 'holder-hash' }, consent: {
     required: true, requestId: 'proposal-1', proposalId: 'proposal-1', status: 'committed', sameSession: true,
-    actorUidHash: 'holder-hash', counterpartyUidHash: 'holder-hash', groupId: 'group-1',
+    sessionId: 'session-1', actorUidHash: 'holder-hash', counterpartyUidHash: 'holder-hash', groupId: 'group-1',
   } });
   assert.equal(evaluateProcedureCapture(consent).status, 'pending');
   assert.equal(evaluateProcedureCapture({ ...consent, consent: { ...consent.consent,
@@ -134,6 +134,21 @@ test('evidence projection never persists raw requests, notes, UIDs, or random da
   const evaluated = evaluateProcedureCapture(raw);
   assert.equal(evaluated.status, 'completed');
   assert.doesNotMatch(JSON.stringify(evaluated), /private-instance|private note|raw-uid|hidden-card/);
-  assert.equal(evaluated.trainingChoice, 'GM training: a deliberate example ruling');
+  assert.equal(evaluated.trainingChoice, undefined, 'A player-side random action cannot claim a GM training choice.');
   assert.equal(evaluated.randomOutcomeRecorded, false);
+
+  const gmActor = { uidHash: 'gm-hash', sessionId: 'session-1', playerRole: 'gm', instanceId: 'gm-instance',
+    gmInstanceOwned: true, sameActor: true, connection: 'live', freshness: 'server' };
+  const gmDamage = evaluateProcedureCapture(capture({ caseId: 'gm:addShipDamage',
+    expected: { sessionId: 'session-1', uidHash: 'gm-hash', instanceId: 'gm-instance', roleId: 'gm',
+      cycle: 2, sourceRevision: 7 }, actorBefore: gmActor, actorAfter: gmActor,
+    sourceBefore: { live: true, sessionId: 'session-1', cycle: 2, revision: 7 },
+    sourceAfter: { live: true, sessionId: 'session-1', cycle: 2, revision: 8 },
+    request: { sessionId: 'session-1', instanceId: 'gm-instance', requestId: 'damage-1',
+      expectedCycle: 2, expectedRevision: 7, shipId: 'shepherd' },
+    trainingChoice: 'GM training: assign damage through the normal control.',
+  }));
+  assert.equal(gmDamage.status, 'completed');
+  assert.equal(gmDamage.trainingChoice, 'GM training: assign damage through the normal control.');
+  assert.equal(gmDamage.randomOutcomeRecorded, false);
 });
