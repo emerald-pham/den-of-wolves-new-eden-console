@@ -156,5 +156,6 @@ test('receipt endpoints refer to actual exported callable names rather than simi
   const endpoints = new Set(['joint', 'replacements'].flatMap(name => proof.createExtraRoleMatrix(name))
     .map(row => row.endpoint).filter(Boolean));
   for (const endpoint of endpoints)
-    assert.match(source, new RegExp(`export\\s+const\\s+${endpoint}\\s*=`), `Real callable ${endpoint} is required.`);
+    assert.ok(new RegExp(`export\\s+(?:const\\s+${endpoint}\\s*=|\\{[^}]*\\b${endpoint}\\b[^}]*\\})`).test(source),
+      `Real declared or re-exported callable ${endpoint} is required.`);
 });
