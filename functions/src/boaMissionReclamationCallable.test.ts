@@ -143,9 +143,10 @@ describe('Boa mission reclamation callables', () => {
     });
   });
 
-  it('replays an exact receipt after authority changes without writing again', async () => {
+  it('replays an exact receipt after terminal closure and authority changes without writing again', async () => {
     await callables.chooseBoaMissionReclamationOpportunity(request(command));
     const writeCount = mock.create.mock.calls.length + mock.set.mock.calls.length + mock.update.mock.calls.length;
+    put('sessions/s1', { ...SESSION_FIELDS, phase: 'closed' });
     put('sessions/s1/players/boa-player', {
       connected: false, role: 'player', assignedRoleId: 'wing-commander', fleetGroupId: 'fleet-1',
     });
@@ -154,6 +155,26 @@ describe('Boa mission reclamation callables', () => {
     });
     expect(mock.create.mock.calls.length + mock.set.mock.calls.length + mock.update.mock.calls.length).toBe(writeCount);
   });
+
+  it.each(['debrief', 'closed'] as const)(
+    'rejects fresh Boa workspace and mission-selection calls during the %s phase without writes', async (phase) => {
+      put('sessions/s1', { ...SESSION_FIELDS, phase });
+
+      await expect(callables.readBoaMissionReclamationWorkspace(request({ sessionId: SESSION })))
+        .rejects.toMatchObject({ code: 'permission-denied' });
+      await expect(callables.chooseBoaMissionReclamationOpportunity(request({
+        ...command, requestId: `boa-terminal-${phase}`,
+      }))).rejects.toMatchObject({ code: 'permission-denied' });
+
+      expect(mock.create).not.toHaveBeenCalled();
+      expect(mock.set).not.toHaveBeenCalled();
+      expect(mock.update).not.toHaveBeenCalled();
+      expect(mock.documents.has(`sessions/s1/boaMissionReclamationChoices/${ARRIVAL}`)).toBe(false);
+      expect(mock.documents.has(`sessions/s1/commandReceipts/boa-terminal-${phase}`)).toBe(false);
+      expect(mock.documents.has(`sessions/s1/actionAudits/boa-terminal-${phase}`)).toBe(false);
+      expect(mock.documents.has(`sessions/s1/procedureAudits/boa-terminal-${phase}`)).toBe(false);
+    },
+  );
 
   it('rejects stale control, foreign group, started locations, and a participant-free choice before writes', async () => {
     await expect(callables.chooseBoaMissionReclamationOpportunity(request({

@@ -21,7 +21,7 @@ function sourceFunction(name: string): string {
 }
 const rangeStateGuard = sourceFunction('requireWolfRangeState');
 const boardingSnapshotGuard = sourceFunction('wolfBoardingProtocolSnapshot') + sourceFunction('wolfBoardingDefenceInputs');
-const callablePattern = /export const (\w+) = (?:auditedOnCall|onCall)/g;
+const callablePattern = /export const (\w+) = (?:onCall|auditedOnCall)\b/g;
 const matches = [...source.matchAll(callablePattern)];
 const highwallWindowGuardStart = source.indexOf('function requireLiveHighwallMiningWindow(');
 const highwallWindowGuardEnd = source.indexOf('\nfunction highwallCargo(', highwallWindowGuardStart);
