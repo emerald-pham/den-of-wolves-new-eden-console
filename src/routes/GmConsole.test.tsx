@@ -3168,11 +3168,19 @@ it('requires a separate deliberate preparation before fresh full-game demo actor
     ...activeSession, phase: 'casting', currentTurn: 0, setupRevision: 4,
   });
   useSessionStore.getState().setGmInstance(local);
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
   streamInstances([local]);
-  vi.mocked(prepareFullGameDemo).mockResolvedValue({
-    status: 'committed', sessionId: 's1', requestId: 'prepare-demo',
-    fullGameDemo: { status: 'preparing', progression: 'manual' },
-    expectedSetupRevision: 4, currentSetupRevision: 4,
+  vi.mocked(prepareFullGameDemo).mockImplementation(async () => {
+    const current = useSessionStore.getState().session;
+    if (current) useSessionStore.getState().setSession({
+      ...current, fullGameDemo: { status: 'preparing', progression: 'manual' },
+    });
+    return {
+      status: 'committed', sessionId: 's1', requestId: 'prepare-demo',
+      fullGameDemo: { status: 'preparing', progression: 'manual' },
+      expectedSetupRevision: 4, currentSetupRevision: 4,
+    };
   });
   renderConsole();
 
@@ -3198,6 +3206,8 @@ it('opens a manual Coordination phase only through the GM full-game demo action'
     },
   } as never);
   useSessionStore.getState().setGmInstance(local);
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
   streamInstances([local]);
   vi.mocked(advanceFullGameDemoPhase).mockResolvedValue({
     status: 'committed', sessionId: 's1', requestId: 'demo-phase', currentTurn: 1,
