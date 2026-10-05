@@ -16,3 +16,10 @@ export function chooseAffordableRation(options, available) {
   if (!choices.length) throw Error('No visible affordable ration choice exists.');
   return choices[0].value;
 }
+
+/** Ordinary end resets step to zero; an unfinished or stale cycle cannot count. */
+export function isCompletedMaintenanceForCycle(cycle, turn) {
+  return Boolean(cycle && cycle.turn === turn && cycle.step === 0 &&
+    typeof cycle.completedAt === 'string' && Number.isFinite(Date.parse(cycle.completedAt)) &&
+    typeof cycle.results?.['7'] === 'string' && cycle.results['7'].length > 0);
+}

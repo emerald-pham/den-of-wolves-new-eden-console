@@ -8,7 +8,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { runFreshFullGameDemoUi } from './pc10-full-game-demo-ui-proof.mjs';
 import { assertSelectedActor } from './pc10-full-game-demo-proof-helpers.mjs';
 import { runPursuitLimitEnding } from './pc10-full-game-cycle-ending.mjs';
-import { chooseAffordableRation } from './pc10-extra-role-proof-helpers.mjs';
+import { chooseAffordableRation, isCompletedMaintenanceForCycle } from './pc10-extra-role-proof-helpers.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const scenario = process.argv[2] ?? 'joint';
@@ -186,8 +186,8 @@ async function maintenance(context, anchorRoleId, shipId, fuelCraft) {
         { roleId: anchorRoleId, shipId, function: action });
     } else await uiCommand(crew, 'runMaintenance', locator, { roleId: anchorRoleId, shipId, function: action });
   }
-  await waitState(gm, `${shipId} maintenance actually completed`, value => value.maintenance?.[shipId]?.turn === 1 &&
-    value.maintenance[shipId].step === 7 && value.maintenance[shipId].results?.['7']);
+  await waitState(gm, `${shipId} maintenance actually completed`, value =>
+    isCompletedMaintenanceForCycle(value.maintenance?.[shipId], 1));
   if (fuelCraft) await waitState(gm, `${fuelCraft} actually fuelled`, value => value.shuttleFuelled?.[fuelCraft] === true);
 }
 
