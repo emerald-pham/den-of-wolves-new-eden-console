@@ -94,8 +94,38 @@ test('terminal debrief alone cannot turn unavailable required Capybara actions g
 
   const all = Object.fromEntries(CAPYBARA_REQUIRED_STAGES.map(id => [id, { status: 'completed' }]));
   assert.equal(assessCapybaraGameplay({ context: validContext(), stages: all,
-    coreGameplay: { status: 'passed' }, terminal: { status: 'debrief', source: 'failure-review',
+    coreGameplay: { status: 'passed', manualProgression: true, serverActions: true, missionDelivered: true },
+    terminal: { status: 'debrief', source: 'failure-review',
       result: 'failure', cause: 'pursuit-limit', immutable: true } }).status, 'passed');
+});
+
+test('specialist action receipt statuses require a source-approved success plus both projections', () => {
+  const accepted = validStageOutcome('pdf-group-relay', 'refinery-124-pdf-colonel', 'sendFleetGroupMessage');
+  accepted.evidence.response.resultStatus = 'sent';
+  assert.equal(capybaraStageOutcome(accepted).status, 'completed');
+  for (const resultStatus of ['stale', 'denied', 'rejected', 'failed', 'unknown']) {
+    assert.equal(capybaraStageOutcome({ ...accepted,
+      evidence: { ...accepted.evidence, response: { ...accepted.evidence.response, resultStatus } } }).status, 'pending');
+  }
+  assert.equal(capybaraStageOutcome({ ...accepted,
+    evidence: { ...accepted.evidence, projection: { ...accepted.evidence.projection, crew: undefined } } }).status, 'pending');
+});
+
+test('Capybara callback composition is explicit, full-roster, and uses the canonical manual full-game runner', async () => {
+  const { capybaraFullGameDemoOptions } = await import('./pc10-capybara-full-gameplay.mjs');
+  const onSetup = async () => undefined;
+  const options = capybaraFullGameDemoOptions({ runFinalEnding: async () => undefined, onSetup,
+    sourceRoot: '/source', playerCount: 12,
+    chartId: 'B' });
+  assert.equal(options.playerCount, 20);
+  assert.equal(options.includePress, true);
+  assert.equal(options.capybaraEnabled, true);
+  assert.equal(options.gameplayOnly, true);
+  assert.equal(options.chartId, 'B');
+  assert.equal(typeof options.runEnding, 'function');
+  assert.equal(typeof options.onSetup, 'function');
+  await options.onSetup({ marker: 'user-hook' });
+  assert.equal(options.capybaraEnabled, true);
 });
 
 test('evidence projection omits private choices, raw actor/session identifiers, and credentials', () => {
