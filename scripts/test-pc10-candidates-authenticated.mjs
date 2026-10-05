@@ -198,6 +198,14 @@ try {
   console.log('Fresh normal Auth, maintenance, scout, jump, candidate UI, terminal and replay proof passed.');
 } catch (error) {
   evidence.failure = error instanceof Error ? error.message : String(error);
+  if (f) {
+    const session = await f.session.get(); const attack = await f.db.doc(`sessions/${f.sessionId}/wolfAttackState/current`).get();
+    evidence.failureAuthority = { phase: session.get('phase'), cycle: session.get('currentTurn'),
+      turnPhase: session.get('turnPhase'), pursuitEmergencyWindow: session.get('pursuitEmergencyWindow') ?? null,
+      maintenanceCycles: session.get('maintenanceCycles'), shipDamage: session.get('shipDamage'),
+      attack: attack.exists ? { status: attack.get('status'), currentStep: attack.get('currentStep'),
+        threatSiteCode: attack.get('threatSiteCode') ?? null } : null };
+  }
   await mkdir(dirname(output), { recursive: true });
   await writeFile(`${output}.failure.json`, `${JSON.stringify(evidence, null, 2)}\n`);
   throw error;
