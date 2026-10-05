@@ -272,11 +272,6 @@ async function selectActualOption(select, predicate = () => true) {
   return option;
 }
 
-async function enabledButton(page, name, panel) {
-  const scope = panel ?? page;
-  return one(scope.getByRole('button', { name, exact: typeof name === 'string' }));
-}
-
 async function positiveRenderedStatus(surface, endpoint, result) {
   const texts = await surface.page.getByRole('status').allTextContents().catch(() => []);
   const joined = texts.join(' ').replace(/\s+/g, ' ').trim();
@@ -451,11 +446,45 @@ async function planFor({ spec, surface, actor, state, context, target }) {
   if (endpoint === 'rechargeHostConsoleFromShuttle') {
     const panel = page.getByRole('region', { name: 'Service shuttle recharge', exact: true });
     const docking = state.shuttleDockings?.filter(row => row.shuttleId === target.shuttleId) ?? [];
-    if (docking.length !== 1) return block('the service shuttle must have exactly one current source-projected host');
+    const control = state.shuttleControl?.[target.shuttleId];
+    if (docking.length !== 1 || !control || hashUid(control.holderUid) !== actor.uidHash || !isRevision(control.revision)) {
+      return block('the current actor must hold the service shuttle at one unique docked host');
+    }
     target.hostShipId = docking[0].shipId;
-    target.maintenanceRevision = state.maintenanceCycles?.[target.hostShipId]?.revision ?? 0;
+    const hostMaintenance = state.maintenanceCycles?.[target.hostShipId];
+    const serviceLedger = state.serviceShuttleRecharges?.[target.shuttleId];
+    const serviceRevision = serviceLedger?.revision ?? 0;
+    const groupId = state.shipFleetGroupIds?.[target.hostShipId];
+    if (!state.activeVesselIds?.includes(target.hostShipId) || typeof groupId !== 'string' ||
+        state.turnPhase?.turn !== state.cycle || state.turnPhase?.airspace?.state !== 'lifted' ||
+        state.turnPhase?.timerPause !== undefined || state.shuttleFuelled?.[target.shuttleId] !== true ||
+        state.shipDamage?.[target.hostShipId]?.destroyed === true ||
+        !hostMaintenance || hostMaintenance.turn !== state.cycle || typeof hostMaintenance.completedAt !== 'string' ||
+        !isRevision(hostMaintenance.revision) || !isRevision(serviceRevision) || serviceLedger?.cycle === state.cycle) {
+      return block('the current Coordination window, fuel, host maintenance, and unused recharge ledger must be source-confirmed');
+    }
+    target.maintenanceRevision = hostMaintenance.revision;
+    target.serviceRevision = serviceRevision;
+    target.hostGroupId = groupId;
     const select = panel.getByLabel('Host console', { exact: true });
     return { offered: true, click: async () => {
+      const latest = await readActionState(surface);
+      const currentDockings = latest?.shuttleDockings?.filter(row => row.shuttleId === target.shuttleId) ?? [];
+      const currentControl = latest?.shuttleControl?.[target.shuttleId];
+      const currentMaintenance = latest?.maintenanceCycles?.[target.hostShipId];
+      const currentLedger = latest?.serviceShuttleRecharges?.[target.shuttleId];
+      if (!liveState(latest, context.initial.sessionId) || latest.cycle !== state.cycle ||
+          latest.turnPhase?.turn !== state.cycle || latest.turnPhase?.airspace?.state !== 'lifted' ||
+          latest.turnPhase?.timerPause !== undefined || currentDockings.length !== 1 ||
+          currentDockings[0].shipId !== target.hostShipId || hashUid(currentControl?.holderUid) !== actor.uidHash ||
+          currentControl?.revision !== control.revision || !latest.activeVesselIds?.includes(target.hostShipId) ||
+          latest.shipFleetGroupIds?.[target.hostShipId] !== groupId || latest.shuttleFuelled?.[target.shuttleId] !== true ||
+          latest.shipDamage?.[target.hostShipId]?.destroyed === true || !currentMaintenance ||
+          currentMaintenance.turn !== state.cycle || currentMaintenance.completedAt !== hostMaintenance.completedAt ||
+          currentMaintenance.revision !== hostMaintenance.revision ||
+          (currentLedger?.revision ?? 0) !== serviceRevision || currentLedger?.cycle === state.cycle) {
+        throw new Error('The current service-shuttle holder, host, maintenance, phase, fuel, or recharge ledger changed before the mounted action.');
+      }
       if (!await selectActualOption(select, option => option.offered && option.enabled)) throw new Error('No eligible host console is offered for recharge.');
       const action = await one(panel.getByRole('button', { name: /Recharge console/ })); if (!action) throw new Error('The live recharge choice is not enabled.');
       await action.click();
@@ -607,8 +636,8 @@ async function planFor({ spec, surface, actor, state, context, target }) {
     target.amount = Number(selectedAmount.value);
     if (!Number.isSafeInteger(target.amount)) return block('the selected survivor amount is not a whole printed quantity');
     const transitionBefore = shuttleEvacuationWitness(state, target, actor.uidHash, groupId);
-    if (!transitionBefore || transitionBefore.controlRevision !== expected.controlRevision ||
-        transitionBefore.evacuationRevision !== expected.sourceRevision ||
+    if (!transitionBefore || transitionBefore.controlRevision !== control.revision ||
+        transitionBefore.evacuationRevision !== (state.shuttleEvacuations?.[target.shuttleId]?.revision ?? 0) ||
         transitionBefore.movedThisCycle + target.amount > 5_000 || transitionBefore.sourcePopulation < target.amount) {
       return block('the selected evacuation no longer fits current custody, ledger, population, or cycle capacity');
     }
@@ -844,6 +873,25 @@ async function recipeFor({ context, game, spec }) {
       if (!liveState(latest, expected.sessionId)) return { offered: false, reason: 'current server projection became stale before action' };
       const latestRevision = revisionFor(spec.endpoint, latest, resolved.target, auxiliary);
       if (isRevision(latestRevision) && latestRevision !== expected.sourceRevision) return { offered: false, reason: 'source revision changed before action' };
+      if (spec.endpoint === 'rechargeHostConsoleFromShuttle') {
+        const hostShipId = expected.expectedHostShipId;
+        const dockings = latest.shuttleDockings?.filter(row => row.shuttleId === expected.shuttleId) ?? [];
+        const control = latest.shuttleControl?.[expected.shuttleId];
+        const maintenance = latest.maintenanceCycles?.[hostShipId];
+        const ledger = latest.serviceShuttleRecharges?.[expected.shuttleId];
+        const serviceRevision = ledger?.revision ?? 0;
+        if (dockings.length !== 1 || dockings[0].shipId !== hostShipId ||
+            hashUid(control?.holderUid) !== uidHash || control?.revision !== expected.controlRevision ||
+            !latest.activeVesselIds?.includes(hostShipId) || latest.shipFleetGroupIds?.[hostShipId] !== expected.groupId ||
+            latest.shuttleFuelled?.[expected.shuttleId] !== true || latest.shipDamage?.[hostShipId]?.destroyed === true ||
+            !maintenance || maintenance.turn !== expected.cycle || typeof maintenance.completedAt !== 'string' ||
+            maintenance.revision !== expected.maintenanceRevision || !isRevision(serviceRevision) ||
+            serviceRevision !== expected.sourceRevision || ledger?.cycle === expected.cycle ||
+            latest.turnPhase?.turn !== expected.cycle || latest.turnPhase?.airspace?.state !== 'lifted' ||
+            latest.turnPhase?.timerPause !== undefined) {
+          return { offered: false, reason: 'current service-shuttle holder, host, maintenance, Coordination phase, fuel, or ledger no longer matches the prepared action' };
+        }
+      }
       if (['requestShuttleDeparture', 'beginShuttleTransit', 'retargetShuttleTransit'].includes(spec.endpoint)) {
         const movement = await readShuttleMovement(surface, expected.sessionId, resolved.target.shuttleId).catch(() => undefined);
         const witness = shuttleMovementWitness(expected.sessionId, resolved.target.shuttleId, uidHash,
