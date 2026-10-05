@@ -22,6 +22,8 @@ import { serviceRechargeDamageState, serviceRechargeResourceState } from './serv
 import { SHIP_DAMAGE_DECKS, type ShipDamageState } from './shipDamage';
 import { writeStandardActionAudit } from './actionAudit';
 import { requireCandidateCraftAvailable, requireCandidateVesselsAvailable } from './candidateAvailability';
+import { parseMacawRepairLedger, recordMacawSalvageUse } from './macawRepair';
+import { turnPhaseDeadlinePassed, turnPhaseState } from './turnZero';
 import {
   ENGINEERING_DISMANTLING_CRAFT_IDS,
   MACAW_CONSENTED_DISMANTLING_SCRAP_GAIN,
@@ -804,6 +806,26 @@ function currentCapybaraScrap(session: DocumentSnapshot): number {
   return resources.scrap as number;
 }
 
+function requireMacawSourceAvailable(session: DocumentSnapshot, actor: DocumentSnapshot): void {
+  if (actor.get('candidateDisposition') != null) {
+    precondition('The Capybara Captain has reached a candidate disposition and cannot start a new Macaw action.');
+  }
+  requireActiveVesselIds(session, 'capybara');
+  requireCandidateVesselsAvailable(session, ['capybara']);
+  currentCapybaraScrap(session);
+}
+
+function requireMacawCoordinationCycle(session: DocumentSnapshot, timestamp: Date): number {
+  const cycle = session.get('currentTurn');
+  const phase = turnPhaseState(session.get('turnPhase'));
+  if (!Number.isSafeInteger(cycle) || (cycle as number) < 1 ||
+      !phase || phase.turn !== cycle || phase.airspace.state !== 'lifted' ||
+      phase.timerPause !== undefined || turnPhaseDeadlinePassed(phase, 'open', timestamp.getTime())) {
+    precondition('Macaw salvage is available only during the live Coordination cycle.');
+  }
+  return cycle as number;
+}
+
 function exactProposalRequestMatches(
   proposal: StoredProposal,
   command: ProposalCommand,
@@ -1473,6 +1495,28 @@ export function createPermissionedDismantlingCallables(
         };
       }
 
+      let macawRepairLedger: ReturnType<typeof recordMacawSalvageUse> | undefined;
+      let macawCycle: number | undefined;
+      if (isMacawScrapProposal(proposal)) {
+        requireMacawSourceAvailable(session, proposer);
+        macawCycle = requireMacawCoordinationCycle(session, timestamp);
+        const currentLedger = parseMacawRepairLedger(session.get('macawRepairs'));
+        if (!currentLedger) precondition('The authoritative Macaw repair and salvage allowance is unavailable.');
+        try {
+          macawRepairLedger = recordMacawSalvageUse({
+            currentCycle: macawCycle,
+            hostShipId: proposal.targetShipId,
+            systemId: proposal.targetConsoleId,
+            fuelled: isRecord(session.get('shuttleFuelled')) &&
+              (session.get('shuttleFuelled') as Data).macaw === true,
+            ledger: currentLedger,
+          });
+        } catch (cause) {
+          precondition(cause instanceof Error
+            ? cause.message : 'Macaw salvage exceeds its shared repair allowance.');
+        }
+      }
+
       let result: ReturnType<typeof resolvePermissionedDismantling>;
       try {
         result = resolvePermissionedDismantling({
@@ -1522,7 +1566,10 @@ export function createPermissionedDismantlingCallables(
         ['shipDamage.' + proposal.targetShipId]: result.targetDamage,
         ['shipResources.' + proposal.targetShipId]: result.targetResources,
         ...(isMacawScrapProposal(proposal)
-          ? { 'shipResources.capybara.scrap': result.macawScrapAfter }
+          ? {
+            'shipResources.capybara.scrap': result.macawScrapAfter,
+            macawRepairs: macawRepairLedger,
+          }
           : {}),
         updatedAt: appliedAt,
       });
@@ -1589,10 +1636,13 @@ export function createPermissionedDismantlingCallables(
             targetRevisionBefore: target.revision,
             targetRevisionAfter: target.revision + 1,
             scrapGain: MACAW_CONSENTED_DISMANTLING_SCRAP_GAIN,
+            cycle: macawCycle,
+            repairRevision: macawRepairLedger?.revision,
           },
           consequences: {
             damagedConsoleId: proposal.targetConsoleId,
             capybaraScrapAfter: result.macawScrapAfter,
+            repairHostShipIds: macawRepairLedger?.hosts.map(({ shipId }) => shipId),
           },
           audience: { operational: 'actor' },
         });
