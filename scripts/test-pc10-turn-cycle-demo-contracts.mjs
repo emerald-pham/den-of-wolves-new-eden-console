@@ -49,10 +49,11 @@ test('fleet replay/extension never fabricate an idempotent exact replay', () => 
 test('advance requires an actual matching source result and current original actor', () => {
   const before = { ...original, cycle: 1, phase: 'active' };
   const after = { ...before, cycle: 2 };
-  assert.doesNotThrow(() => assertActualCycleTransition(before, after, { turn: 2 }));
-  assert.throws(() => assertActualCycleTransition(before, { ...after, uidHash: 'other' }, { turn: 2 }));
-  assert.throws(() => assertActualCycleTransition(before, { ...after, cycle: 1 }, { turn: 2 }));
-  assert.throws(() => assertActualCycleTransition(before, after, { turn: 3 }));
+  assert.doesNotThrow(() => assertActualCycleTransition(before, after, { currentTurn: 2 }));
+  assert.throws(() => assertActualCycleTransition(before, { ...after, uidHash: 'other' }, { currentTurn: 2 }));
+  assert.throws(() => assertActualCycleTransition(before, { ...after, cycle: 1 }, { currentTurn: 2 }));
+  assert.throws(() => assertActualCycleTransition(before, after, { currentTurn: 3 }));
+  assert.throws(() => assertActualCycleTransition(before, after, { turn: 2 }));
 });
 test('debrief visual mode is not a genuine terminal; actual snapshot must match session and cycle', () => {
   assert.throws(() => assertObservedTerminal({ ...original, phase: 'active', debriefMode: { active: true } }));

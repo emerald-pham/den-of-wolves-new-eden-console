@@ -70,6 +70,11 @@ test('state-idempotent grant/logout are distinguished from receipt-bound mutatio
   assert.equal(recoveryProtocol('logoutGmAccess'), 'state-idempotent');
   assert.equal(recoveryProtocol('claimGmInstance'), 'stable-instance-repeat');
 });
+test('disconnect is generation-bound cleanup and only Press confetti has an exact receipt', () => {
+  assert.equal(recoveryProtocol('disconnectFromSession'), 'generation-bound-cleanup');
+  assert.equal(recoveryProtocol('popShipConfetti', { shipId: 'snn-press-shuttle' }), 'receipt');
+  assert.equal(recoveryProtocol('popShipConfetti', { shipId: 'aegis' }), 'no-safe-exact-replay');
+});
 test('casting release never becomes an active-game mutation; stale clearing needs real disconnection', () => {
   assert.equal(lifecycleCaseAvailability('casting-release', { phase: 'active', cycle: 1 }).status, 'blocked');
   assert.equal(lifecycleCaseAvailability('casting-release', { phase: 'casting', cycle: 0 }).status, 'ready');
