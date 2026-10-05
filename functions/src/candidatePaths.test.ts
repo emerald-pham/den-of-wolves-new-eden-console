@@ -162,4 +162,19 @@ describe('candidate source calculations and explicit choices', () => {
     expect(() => resolveCandidateAction(a, empty(), { ...c, expectedGroupId: 'fleet-2' })).toThrow(/group/i);
     expect(() => resolveCandidateAction({ ...a, phase: 'debrief' }, empty(), c)).toThrow(/active|terminal/i);
   });
+  it('keeps separate group choices at the same candidate while earlier Nebula losses help later attempts there', () => {
+    const a = authority('O');
+    const first = resolveCandidateAction(a, empty(), command('nebula-jump', { shipId: 'aegis' }), 6);
+    const wing = { ...a, groupId: 'fleet-2', vesselIds: ['shepherd'],
+      actor: { ...a.actor, shipIds: ['shepherd'] } };
+    const second = resolveCandidateAction(wing, first.state, command('nebula-jump', {
+      shipId: 'shepherd', requestId: 'wing-jump', expectedGroupId: 'fleet-2', expectedRevision: 1,
+    }), 6);
+    expect(second.reply.outcome).toBe('reached');
+    expect(second.calculation).toMatchObject({ priorLosses: 1, total: 9 });
+    expect(Object.values(second.state.sites).map(site => site.groupId).sort()).toEqual(['fleet-1', 'fleet-2']);
+    const view = candidateWorkspace(wing, second.state);
+    expect(view.paths[0]?.ships.map(ship => ship.shipId)).toEqual(['shepherd']);
+    expect(JSON.stringify(view)).not.toMatch(/aegis|priorLosses|hiddenScoutCount/);
+  });
 });

@@ -37,6 +37,11 @@ it('explains the three distinct costs and next actor through connected operation
   expect(screen.getAllByText(/Each ship crew chooses its next action/)).toHaveLength(3);
   expect(screen.queryByText(/scout bonus|hidden modifier|wolf roster/i)).not.toBeInTheDocument();
 });
+it('offers safe Cycle 6 planning encouragement without revealing the private GM decision', async () => {
+  render(<CandidatePreparationPanel />);
+  expect(await screen.findByText(/Cycle 6.*agree.*New Eden plan/i)).toBeInTheDocument();
+  expect(screen.queryByText(/GM.*plan.*missing|GM.*plan.*complete/i)).not.toBeInTheDocument();
+});
 it('sends the actual selected ship material choice and shows its committed receipt', async () => {
   const user = userEvent.setup(); render(<CandidatePreparationPanel />);
   await screen.findByRole('heading', { name: 'Ancient Jump Ring' });
