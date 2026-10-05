@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
+import { runInNewContext } from 'node:vm';
 import { createPc10CallableObservationBoundary, createPc10BrowserTable } from './pc10-browser-session-proof.mjs';
 import { createPc10NativeDurableObservationLedger } from './pc10-native-durable-observer.mjs';
 const target = new URL('./pc10-presence-functional-contract.mjs', import.meta.url);
@@ -199,4 +200,69 @@ test('native callback can only acknowledge source-classified presence body loss 
 
 test('invalid table contract option is rejected before any browser or fixture resource can start', async () => {
   await assert.rejects(createPc10BrowserTable({ presenceFunctionalContract: 'truthy-waiver' }), /Unsupported presence functional contract/);
+});
+
+
+test('the original strict cohort helper retains SDK/document and readonly authority evidence without enabling a limitation', async () => {
+  const roles = [roleId, 'refinery-124-pdf-colonel'], events = [], actorIds = ['original-core-one', 'original-core-two'];
+  const values = new Map([[`sessions/${sessionId}`, { phase: 'active', currentTurn: 1 }]]);
+  for (const [index, role] of roles.entries()) {
+    values.set(`sessions/${sessionId}/players/${actorIds[index]}`, { connected: true, role: 'player', assignedRoleId: role,
+      seatId: role, activeConsoleRoleId: role, connectionGeneration: 2, lastSeenAt: { toMillis: () => Date.now() - 1 } });
+    values.set(`activeMemberships/${actorIds[index]}`, { sessionId, connectedAt: { toMillis: () => Date.now() - 1 } });
+    values.set(`sessions/${sessionId}/seats/${role}`, { roleId: role, holderUid: actorIds[index], status: 'claimed' });
+  }
+  const db = { doc: path => ({ path }), runTransaction: async (operation, settings) => {
+    assert.equal(settings.readOnly, true); events.push('authority-read');
+    return operation({ get: async ref => ({ id: ref.path.split('/').at(-1), exists: values.has(ref.path), get: key => values.get(ref.path)?.[key] }) });
+  } };
+  const players = actorIds.map(localId => ({ localId }));
+  const fixture = { db, project, sessionId, config: { firestorePort: 8180 }, roles, players,
+    press: { localId: 'original-press' }, gm: { localId: 'original-gm' }, call: () => assert.fail('Use the original SDK context'),
+    byRole: role => players[roles.indexOf(role)], cleanup: async () => undefined };
+  let issued = 0, release;
+  const parallelGate = new Promise(resolve => { release = resolve; });
+  const create = runInNewContext(`(${createPc10BrowserTable.toString().replaceAll('import.meta.url', 'pc10ModuleUrl')})`, {
+    assert, URL, createHash, process: { env: { VITE_FIREBASE_PROJECT_ID: project } },
+    pc10ModuleUrl: new URL('./pc10-browser-session-proof.mjs', import.meta.url).href,
+    mkdir: async () => undefined, execFileSync: () => 'source-bound-native-fixture', readFile: async () => Buffer.from('compiled-fixture'),
+    compiledFunctionsBinding: async () => ({ sha256: 'compiled-bound-native-fixture' }),
+    createRequire: () => () => ({ recommendedRoleIds: count => { assert.equal(count, 2); return roles; } }),
+    chromium: { launch: async () => ({ close: async () => undefined }) },
+    PC10_PROOF_CALLABLE_ACTIONS: (await import('./pc10-proof-diagnostics.mjs')).PC10_PROOF_CALLABLE_ACTIONS,
+    createPc07AuthenticatedSession: async () => fixture, writeFile: async () => undefined,
+    createPc10CallableTrace: (await import('./pc10-proof-diagnostics.mjs')).createPc10CallableTrace,
+    pc10SafeCallableOutcome: (await import('./pc10-proof-diagnostics.mjs')).pc10SafeCallableOutcome,
+    validatePc10PresenceFunctionalContract: implementation.validatePc10PresenceFunctionalContract,
+    buildPc10PresenceSdkRenewal: implementation.buildPc10PresenceSdkRenewal,
+    capturePc10PresenceAuthority: implementation.capturePc10PresenceAuthority,
+    evaluatePc10PresenceInstrumentationContract: implementation.evaluatePc10PresenceInstrumentationContract,
+    createPc10BrowserActor: async (_browser, _url, label, _viewport, options) => {
+      assert.equal(options.presenceFunctionalContract, undefined);
+      const invocationByReply = new WeakMap(), invocations = [];
+      return { label, errors: [], observedCalls: [], callableObservationFailures: [], callableObservationBoundaries: [],
+        identityObservations: [], explicitSdkInvocations: invocations, join: async () => undefined, bindOriginIdentity: () => undefined,
+        callable: async (name, data, witnessOptions) => {
+          assert.equal(name, 'refreshPresence'); assert.equal(data.sessionId, sessionId);
+          assert.equal(witnessOptions?.retainPresenceAuthority, true, 'Strict cohort requests evidence without enabling an exception');
+          const startedAt = Date.now(); events.push(`original-sdk-${label}`); issued++; if (issued === roles.length) release();
+          await parallelGate; const reply = { status: 200, result: { sessionId } };
+          const invocation = { kind: 'explicit-sdk-invocation', name, roleId: label, startedAt, completedAt: Date.now(), nativeDocumentHash: 'b'.repeat(64) };
+          invocations.push(invocation); invocationByReply.set(reply, invocation); return reply;
+        }, sdkInvocationForReply: reply => invocationByReply.get(reply), drainObservedCalls: async () => undefined,
+      };
+    },
+  });
+  const table = await create({ baseUrl: 'http://localhost:5173', directory: '/native-fixture-no-writes', coreCount: 2, captureMode: 'native-durable' });
+  const replies = await table.renewPresenceCohort(roles); assert.equal(replies.length, 2); assert.equal(issued, 2);
+  assert.deepEqual(events, ['authority-read', `original-sdk-${roles[0]}`, `original-sdk-${roles[1]}`, 'authority-read']);
+  const evidence = await table.writeEvidence('native-cohort-no-writes.json');
+  assert.equal(evidence.presenceSdkRenewals.length, 2); assert.equal(evidence.presenceAuthoritySnapshots.length, 4);
+  assert.equal(evidence.presenceFunctionalAssessment.instrumentationLimitations.length, 0);
+  assert.equal(evidence.presenceFunctionalAssessment.presenceFunctionalContract, null);
+  assert.equal(evidence.presenceFunctionalAssessment.strictTransportStatus, 'passed');
+  assert.ok(evidence.presenceSdkRenewals.every(value => value.originalSdkSessionMatches && value.nativeDocumentHash === 'b'.repeat(64)));
+  assert.equal(evidence.actions.length, 2); assert.ok(evidence.actions.every(value => value.status === 200));
+  for (const id of actorIds) assert.equal(JSON.stringify(evidence).includes(id), false);
+  await table.cleanup();
 });
