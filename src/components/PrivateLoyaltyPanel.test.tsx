@@ -1,10 +1,14 @@
 import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import { useSessionStore } from '@/store/useSessionStore';
 import { revealAndroidProof } from '@/lib/androidProofService';
-import { submitWolfHomingBeacon, submitWolfIntelligence } from '@/lib/wolfActionService';
+import {
+  submitWolfHomingBeacon,
+  submitWolfIntelligence,
+  submitWolfSupplySabotage,
+} from '@/lib/wolfActionService';
 import { investigatePlayer } from '@/lib/intelligenceInvestigationService';
 import {
   subscribeConnectedPlayers,
@@ -16,6 +20,7 @@ vi.mock('@/lib/androidProofService', () => ({ revealAndroidProof: vi.fn() }));
 vi.mock('@/lib/wolfActionService', () => ({
   submitWolfHomingBeacon: vi.fn(),
   submitWolfIntelligence: vi.fn(),
+  submitWolfSupplySabotage: vi.fn(),
 }));
 vi.mock('@/lib/intelligenceInvestigationService', () => ({ investigatePlayer: vi.fn() }));
 vi.mock('@/lib/firestore', () => ({
@@ -36,6 +41,7 @@ beforeEach(() => {
   vi.mocked(revealAndroidProof).mockReset();
   vi.mocked(submitWolfIntelligence).mockReset();
   vi.mocked(submitWolfHomingBeacon).mockReset();
+  vi.mocked(submitWolfSupplySabotage).mockReset();
   vi.mocked(investigatePlayer).mockReset();
   vi.mocked(subscribeConnectedPlayers).mockReset();
   vi.mocked(subscribeConnectedPlayers).mockReturnValue(vi.fn());
@@ -103,6 +109,52 @@ it('sends a short private Wolf handler message and applies the server suspicion 
   expect(useSessionStore.getState().privateLoyalty).toMatchObject({
     kind: 'wolf-agent', suspicion: 3,
   });
+});
+
+it('offers only positive cargo on the active cover-role shuttle and commits a private one-action result', async () => {
+  const user = userEvent.setup();
+  prepareLivePlayer();
+  useSessionStore.getState().setSession({
+    id: 's1', phase: 'active', currentTurn: 2,
+    activeRoleIds: ['dione-engineer', 'wing-commander'],
+    shuttleCargo: {
+      maliades: { fuel: 5, ore: 0 },
+      philia: { ore: 0 },
+      starlight: { materials: 7 },
+    },
+  } as never);
+  useSessionStore.getState().setMe({
+    ...useSessionStore.getState().me!,
+    assignedRoleId: 'dione-engineer', activeConsoleRoleId: 'dione-engineer',
+  });
+  useSessionStore.getState().setPrivateLoyalty({ kind: 'wolf-agent', suspicion: 0 });
+  vi.mocked(submitWolfSupplySabotage).mockResolvedValue({
+    status: 'committed', type: 'wolf-supply-sabotage', sessionId: 's1',
+    requestId: 'wolf-sabotage-1', cycle: 2, revision: 1,
+    coverRoleId: 'dione-engineer', shuttleId: 'maliades', resourceId: 'fuel',
+    destroyedAmount: 2, remainingAmount: 3, suspicion: 4,
+  });
+
+  render(<PrivateLoyaltyPanel />);
+  const target = screen.getByRole('combobox', { name: 'Shuttle cargo target' });
+  expect(within(target).getAllByRole('option').map((option) => option.textContent)).toEqual([
+    'Choose a shuttle cargo resource', 'Maliades // Strytium Fuel (5)',
+  ]);
+  expect(screen.getByText(/one Wolf action per active cycle/i)).toBeVisible();
+  const sabotage = screen.getByRole('button', { name: 'Sabotage selected supply' });
+  expect(sabotage).toBeDisabled();
+
+  await user.selectOptions(target, 'maliades|fuel');
+  expect(sabotage).toBeEnabled();
+  await user.click(sabotage);
+
+  await waitFor(() => expect(submitWolfSupplySabotage).toHaveBeenCalledWith('maliades', 'fuel'));
+  expect(await screen.findByRole('status')).toHaveTextContent(
+    /2 Strytium Fuel destroyed.*3 remain.*Suspicion \/\/ 4/i,
+  );
+  expect(useSessionStore.getState().privateLoyalty).toEqual({ kind: 'wolf-agent', suspicion: 4 });
+  expect(screen.getByRole('button', { name: 'Deploy homing beacon' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Sabotage selected supply' })).toBeDisabled();
 });
 
 it('announces a private result in a focus-contained dialog and restores its review control', async () => {
@@ -212,8 +264,8 @@ it('privately investigates one selected player and locks the action for that cyc
   useSessionStore.getState().setPrivateLoyalty({ kind: 'intelligence-agent', suspicion: 6 });
   vi.mocked(subscribeConnectedPlayers).mockImplementation((_sessionId, onPlayers) => {
     onPlayers([
-      { uid: 'u2', role: 'player', displayName: 'Agent' },
-      { uid: 'u3', role: 'player', displayName: 'Morgan' },
+      { uid: 'u2', role: 'player', displayName: 'Agent', fleetGroupId: 'fleet-1', connected: true },
+      { uid: 'u3', role: 'player', displayName: 'Morgan', fleetGroupId: 'fleet-1', connected: true },
     ] as never);
     return vi.fn();
   });
@@ -233,6 +285,74 @@ it('privately investigates one selected player and locks the action for that cyc
   expect(useSessionStore.getState().privateLoyalty).toEqual({
     kind: 'intelligence-agent', suspicion: 8,
   });
+});
+
+it('limits Intelligence Agent choices to connected, non-self players in the current fleet group', () => {
+  prepareLivePlayer();
+  useSessionStore.getState().setSession({ id: 's1', phase: 'active', currentTurn: 2 } as never);
+  useSessionStore.getState().setMe({
+    ...useSessionStore.getState().me!, fleetGroupId: 'fleet-1',
+  });
+  useSessionStore.getState().setPrivateLoyalty({ kind: 'intelligence-agent', suspicion: 6 });
+  vi.mocked(subscribeConnectedPlayers).mockImplementation((_sessionId, onPlayers) => {
+    onPlayers([
+      { uid: 'u2', role: 'player', displayName: 'Agent', fleetGroupId: 'fleet-1', connected: true },
+      { uid: 'u3', role: 'player', displayName: 'Morgan', fleetGroupId: 'fleet-1', connected: true },
+      { uid: 'u4', role: 'player', displayName: 'Riley', fleetGroupId: 'fleet-2', connected: true },
+      { uid: 'u5', role: 'player', displayName: 'Jordan', fleetGroupId: 'fleet-1', connected: false },
+      { uid: 'u6', role: 'gm', displayName: 'Facilitator', fleetGroupId: 'fleet-1', connected: true },
+    ] as never);
+    return vi.fn();
+  });
+
+  render(<PrivateLoyaltyPanel />);
+
+  const target = screen.getByRole('combobox', { name: 'Investigation target' });
+  expect(target).toHaveValue('u3');
+  expect(within(target).getAllByRole('option').map((option) => option.textContent)).toEqual(['Morgan']);
+});
+
+it('clears a selected Intelligence Agent target after reassignment or disconnect until the user chooses again', async () => {
+  const user = userEvent.setup();
+  prepareLivePlayer();
+  useSessionStore.getState().setSession({ id: 's1', phase: 'active', currentTurn: 2 } as never);
+  useSessionStore.getState().setMe({
+    ...useSessionStore.getState().me!, fleetGroupId: 'fleet-1',
+  });
+  useSessionStore.getState().setPrivateLoyalty({ kind: 'intelligence-agent', suspicion: 6 });
+  let publishPlayers: ((players: readonly import('@/types/game').Player[]) => void) | undefined;
+  vi.mocked(subscribeConnectedPlayers).mockImplementation((_sessionId, onPlayers) => {
+    publishPlayers = onPlayers;
+    onPlayers([
+      { uid: 'u3', role: 'player', displayName: 'Morgan', fleetGroupId: 'fleet-1', connected: true },
+      { uid: 'u4', role: 'player', displayName: 'Riley', fleetGroupId: 'fleet-1', connected: true },
+    ] as never);
+    return vi.fn();
+  });
+
+  render(<PrivateLoyaltyPanel />);
+  const target = screen.getByRole('combobox', { name: 'Investigation target' });
+  const investigate = screen.getByRole('button', { name: 'Run private investigation' });
+  expect(target).toHaveValue('u3');
+
+  act(() => publishPlayers?.([
+    { uid: 'u3', role: 'player', displayName: 'Morgan', fleetGroupId: 'fleet-2', connected: true },
+    { uid: 'u4', role: 'player', displayName: 'Riley', fleetGroupId: 'fleet-1', connected: true },
+  ] as never));
+  expect(target).toHaveValue('');
+  expect(investigate).toBeDisabled();
+  await user.click(investigate);
+  expect(investigatePlayer).not.toHaveBeenCalled();
+
+  await user.selectOptions(target, 'u4');
+  expect(investigate).toBeEnabled();
+  act(() => publishPlayers?.([
+    { uid: 'u4', role: 'player', displayName: 'Riley', fleetGroupId: 'fleet-1', connected: false },
+  ] as never));
+  expect(target).toHaveValue('');
+  expect(investigate).toBeDisabled();
+  await user.click(investigate);
+  expect(investigatePlayer).not.toHaveBeenCalled();
 });
 
 it('hydrates a prior private investigation without exposing a new action outside active cycles', () => {
