@@ -105,7 +105,9 @@ const authority = (change = {}) => ({ sessionId: 's1', actorUid: 'u1', groupId: 
 const discovery = (change = {}) => ({ groupId: 'fleet-1', shipId: 'shepherd', fleetGroupVesselIds: ['dione', 'shepherd', 'icebreaker'],
   currentCoordinate: '1413', knownCoordinates: ['0000', '1413'], knownSystems: {}, pursuitDistance: 1,
   navigationLogs: [], revision: 2, ...change });
-const currentSession = (witness: unknown = authority()) => ({ ...session, currentActorBerthAuthority: witness } as GameSession);
+const currentSession = (witness: unknown = authority()) => ({ ...session,
+  memberSessionScope: { groupId: 'fleet-1', vesselIds: ['dione', 'shepherd', 'icebreaker', 'quellon', 'refinery-124'], craftIds: [] },
+  currentActorBerthAuthority: witness } as GameSession);
 let unmount: (() => void) | undefined;
 
 beforeEach(() => {
@@ -278,4 +280,13 @@ it('keeps accepted own navigation across a fresh same-authority player heartbeat
   expect(useSessionStore.getState().session?.playerDiscovery?.shipId).toBe('shepherd');
   act(() => { callbacks.onPlayer({ ...member, lastSeenAt: '2026-10-05T12:02:00.000Z' }); callbacks.onPlayerFreshness?.(true); });
   expect(useSessionStore.getState().session?.playerDiscovery?.shipId).toBe('shepherd');
+});
+
+it.each([
+  { groupId: 'fleet-2', vesselIds: ['shepherd'], craftIds: [] },
+  { groupId: 'fleet-1', vesselIds: ['dione'], craftIds: [] },
+])('requires the independent current member session scope: %j', async memberSessionScope => {
+  const callbacks = await begin();
+  act(() => { callbacks.onSession({ ...currentSession(), memberSessionScope }); callbacks.onPlayerDiscovery?.(discovery()); });
+  expectWithdrawn();
 });
