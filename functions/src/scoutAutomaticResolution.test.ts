@@ -80,6 +80,28 @@ beforeEach(() => {
 });
 
 describe('automatic committed scouting', () => {
+  it('resolves an ordinary started game whose chart is locked by its confirmed configuration', async () => {
+    put('sessions/session-1', { ...mock.documents.get('sessions/session-1'),
+      chartSelectionLocked: false, configurationLocked: true });
+    await resolver.run(event());
+    expect(mock.documents.get('sessions/session-1/scoutResults/scan-1')).toMatchObject({
+      requesterUid: 'comms-1', systemFact: { coordinate: '0408', code: 'O' } });
+    const audit = mock.documents.get('sessions/session-1/scoutResolutionAudits/scan-1');
+    vi.advanceTimersByTime(10_000);
+    await resolver.run(event());
+    expect(mock.documents.get('sessions/session-1/scoutResolutionAudits/scan-1')).toEqual(audit);
+    expect(commitMap).toHaveBeenCalledTimes(1);
+    expect(mock.create).toHaveBeenCalledTimes(4);
+  });
+
+  it.each([false, undefined, 'true'])('rejects an unconfirmed configuration lock %s without any map or private-result write', async lock => {
+    put('sessions/session-1', { ...mock.documents.get('sessions/session-1'),
+      chartSelectionLocked: false, configurationLocked: lock });
+    await expect(resolver.run(event())).rejects.toThrow(/current authority/);
+    expect(commitMap).not.toHaveBeenCalled();
+    expect(mock.create).not.toHaveBeenCalled();
+  });
+
   it('resolves the current Comms player choice without any GM identity or extra input', async () => {
     expect(resolver.options).toMatchObject({ document: 'sessions/{sessionId}/scoutRequests/{requestId}', retry: true });
     await resolver.run(event());
