@@ -3,6 +3,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
 import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import { useSessionStore } from '@/store/useSessionStore';
+import type { Player } from '@/types/game';
 import { revealAndroidProof } from '@/lib/androidProofService';
 import {
   submitWolfHomingBeacon,
@@ -397,7 +398,7 @@ it('clears a selected Intelligence Agent target after reassignment or disconnect
     ...useSessionStore.getState().me!, fleetGroupId: 'fleet-1',
   });
   useSessionStore.getState().setPrivateLoyalty({ kind: 'intelligence-agent', suspicion: 6 });
-  let publishPlayers: ((players: readonly import('@/types/game').Player[]) => void) | undefined;
+  let publishPlayers: ((players: readonly Player[]) => void) | undefined;
   vi.mocked(subscribeConnectedPlayers).mockImplementation((_sessionId, onPlayers) => {
     publishPlayers = onPlayers;
     onPlayers([
@@ -435,7 +436,7 @@ it('clears a selected Intelligence Agent target after reassignment or disconnect
 it('ignores an Intelligence Agent reply and old roster callback after the actor changes fleet groups', async () => {
   const user = userEvent.setup();
   const reply = deferred<Awaited<ReturnType<typeof investigatePlayer>>>();
-  const rosterCallbacks: Array<(players: readonly import('@/types/game').Player[]) => void> = [];
+  const rosterCallbacks: Array<(players: readonly Player[]) => void> = [];
   prepareLivePlayer();
   useSessionStore.getState().setSession({ id: 's1', phase: 'active', currentTurn: 2 } as never);
   useSessionStore.getState().setMe({
