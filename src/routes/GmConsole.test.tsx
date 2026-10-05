@@ -40,6 +40,8 @@ vi.mock('@/lib/sessionService', () => ({
   setGmControlsLocked: vi.fn(),
   advanceTurn: vi.fn(),
   startGame: vi.fn(),
+  prepareFullGameDemo: vi.fn(),
+  advanceFullGameDemoPhase: vi.fn(),
   setFighterWingCount: vi.fn(),
   extendAirspaceWindow: vi.fn(),
   setWolfAttackWindow: vi.fn(),
@@ -122,6 +124,7 @@ vi.mock('@/lib/sameTableTradeService', () => ({
 
 const { kickGmInstance, kickPlayer, assignRole, releaseRole, setReplacementEligibility, assignReplacementRole, setCapybaraEnabled, setDioneEnabled, setPressEnabled, setDebriefMode, setGmControlsLocked,
   replayTurnStartAnnouncement, advanceTurn, startGame, extendAirspaceWindow, setWolfAttackWindow, getWolfAttackThreatWindowOptions, stageWolfAttackPreparation, declareWolfAttack, startWolfConsoleVisit, resolveWolfConsoleSabotage, setEmergencyTimerPaused, calculateArrestPosse,
+  prepareFullGameDemo, advanceFullGameDemoPhase,
   advanceWolfAttackToLongRange,
   confirmSetup, setFacilitatorResponsibility, setFacilitatorCensusNote, deliverWolfCultIntelligence, authorUniversalArbourVision, authorFacilitatorRuleCall, setCandidatePlanCheckpoint, transitionCrisis, setDiseaseQuarantine, admitVoyage33, recordZealotryResponse, recordCivilUnrestResolution, applyShipCounterSteps, scavengeDestroyedShipStores, triggerDradisContact,
   setFighterWingCount } =
@@ -3156,6 +3159,61 @@ it('exposes ordinary production start and retires caller-controlled Wolf assignm
   expect(start).toBeEnabled();
   await user.click(start);
   expect(screen.getByRole('button', { name: 'ARE YOU SURE? // ADVANCE TO CYCLE 1' })).toBeInTheDocument();
+});
+
+it('requires a separate deliberate preparation before fresh full-game demo actors may join', async () => {
+  const user = userEvent.setup();
+  const activeSession = useSessionStore.getState().session;
+  if (activeSession) useSessionStore.getState().setSession({
+    ...activeSession, phase: 'casting', currentTurn: 0, setupRevision: 4,
+  });
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  vi.mocked(prepareFullGameDemo).mockResolvedValue({
+    status: 'committed', sessionId: 's1', requestId: 'prepare-demo',
+    fullGameDemo: { status: 'preparing', progression: 'manual' },
+    expectedSetupRevision: 4, currentSetupRevision: 4,
+  });
+  renderConsole();
+
+  await user.click(await screen.findByRole('button', { name: /^setup$/i }));
+  await user.click(await screen.findByRole('button', { name: /prepare full-game demo/i }));
+  expect(screen.getByRole('status', { name: /training session preparation/i })).toHaveTextContent(/permanent/i);
+  await user.click(screen.getByRole('button', { name: /are you sure.*prepare full-game demo/i }));
+
+  expect(prepareFullGameDemo).toHaveBeenCalledOnce();
+  expect(screen.getByRole('button', { name: /start full-game demo/i })).toBeInTheDocument();
+});
+
+it('opens a manual Coordination phase only through the GM full-game demo action', async () => {
+  const user = userEvent.setup();
+  const activeSession = useSessionStore.getState().session;
+  if (activeSession) useSessionStore.getState().setSession({
+    ...activeSession, phase: 'active', currentTurn: 1,
+    fullGameDemo: { status: 'active', progression: 'manual' },
+    turnPhase: {
+      turn: 1, teamPhaseEndsAt: '2026-01-01T00:05:00.000Z',
+      openAirspaceEndsAt: '2026-01-01T00:20:00.000Z',
+      airspace: { state: 'restricted', tickerActive: true, pressAccess: false }, progression: 'manual',
+    },
+  } as never);
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  vi.mocked(advanceFullGameDemoPhase).mockResolvedValue({
+    status: 'committed', sessionId: 's1', requestId: 'demo-phase', currentTurn: 1,
+    fullGameDemo: { status: 'active', progression: 'manual' },
+    turnPhase: {
+      turn: 1, teamPhaseEndsAt: '2026-01-01T00:05:00.000Z',
+      openAirspaceEndsAt: '2026-01-01T00:20:00.000Z',
+      airspace: { state: 'lifted', tickerActive: true, pressAccess: false }, progression: 'manual',
+    },
+  } as never);
+  renderConsole();
+
+  expect(await screen.findByRole('region', { name: /full-game training session/i })).toHaveTextContent(/manual/i);
+  await user.click(screen.getByRole('button', { name: /open coordination manually/i }));
+  expect(advanceFullGameDemoPhase).toHaveBeenCalledOnce();
+  expect(advanceTurn).not.toHaveBeenCalled();
 });
 
 it('commits ordinary production only on the second click and renders the private receipt', async () => {
