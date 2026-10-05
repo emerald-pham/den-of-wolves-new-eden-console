@@ -53,6 +53,7 @@ const RENDERED_STATUS_CODES = new Set([
   'public-result-visible', 'private-result-visible', 'current-group-note-visible',
   'mission-choice-visible', 'post-attack-scrap-visible',
 ]);
+const PRIVATE_CHOICE_FIELDS = new Set(['targetCoordinate', 'trackId', 'missionOpportunityId', 'taskOpportunityId']);
 
 /**
  * Source map for actions that must be exercised through current, ordinary controls.
@@ -97,6 +98,10 @@ function allowlisted(source, fields) {
     if (field === 'text' && typeof value === 'string') {
       result.textLength = value.length;
       result.textHash = hash(value);
+      continue;
+    }
+    if (PRIVATE_CHOICE_FIELDS.has(field) && typeof value === 'string') {
+      result[`${field}Hash`] = hash(value);
       continue;
     }
     if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
