@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Firestore } from 'firebase-admin/firestore';
 import { createCandidateCallables } from './candidatePathsCallable';
-import { commitTerminal as commitRealTerminal, projectSessionDebrief } from './sessionDebrief';
+import { commitTerminal as commitRealTerminal, sessionDebriefProjection } from './sessionDebrief';
 import { aggregateSurvivorOutcome } from './survivorOutcome';
 import { organiserSitesForChart } from './starChartLookup';
 
@@ -204,7 +204,7 @@ it('records the actual paid Nebula path in the real terminal helper and projects
     { action: 'nebula-jump', result: 'lost', shipId: 'aegis', fuelSpent: 6, audience: 'members' },
     { action: 'nebula-jump', result: 'reached', shipId: 'shepherd', fuelSpent: 12, audience: 'members' },
   ] }] } });
-  const member = projectSessionDebrief(terminal, { groupId: 'fleet-1', vesselIds: ['shepherd'] });
+  const member = sessionDebriefProjection(terminal, { groupId: 'fleet-1', vesselIds: ['shepherd'] });
   expect(member).toMatchObject({ candidate: { groups: [{ path: [
     { action: 'nebula-jump', result: 'reached', shipId: 'shepherd', fuelSpent: 12 },
   ] }] } });
