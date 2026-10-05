@@ -1,6 +1,7 @@
 import type { AegisEnrichedWarheadView, AegisEnrichedWarheadResult } from '@/types/game';
 import { commissarPurgeAuthorityIsCurrent } from './commissarPurgeAuthority';
-import { signInAnonymously } from 'firebase/auth';
+import { ensureAnonymousAuth } from './anonymousAuth';
+import { expectedDemoActorUid } from './demoActorContext';
 import { httpsCallable } from 'firebase/functions';
 import { auth, functions } from './firebase';
 import { useSessionStore } from '@/store/useSessionStore';
@@ -1193,9 +1194,9 @@ function applySession(reply: SessionReply, expectedDisplayedSessionId: string | 
  * the rules and the callables can check.
  */
 async function ensureSignedIn(): Promise<void> {
-  const instance = auth();
-  if (instance.currentUser) return;
-  await signInAnonymously(instance);
+  const expectedUid = expectedDemoActorUid();
+  if (expectedUid === null) throw new Error('Prepare this demo actor in the crew controller before opening its stations.');
+  await ensureAnonymousAuth(auth(), expectedUid);
 }
 
 /**
