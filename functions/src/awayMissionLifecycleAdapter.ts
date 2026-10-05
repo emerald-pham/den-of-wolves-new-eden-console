@@ -16,6 +16,7 @@ import {
   type MissionOpportunityResolution,
 } from './missionLifecycle';
 import { missionCardForCode } from './missionCards';
+import { applyBoaReclamationDifficulty } from './boaMissionReclamation';
 import { missionBonusSourcesForShuttleParticipants } from './awayMissionBonuses';
 import {
   resolveMissionOpportunityRewards,
@@ -36,6 +37,8 @@ export interface CreateAwayMissionLifecycleRecordInput {
   readonly lifecycle: MissionLifecycleState;
   /** Current server-derived group/craft authority at admission. */
   readonly participantCrafts: readonly AwayMissionParticipantCrafts[];
+  /** The authenticated Boa participant's one pre-deal card-opportunity choice. */
+  readonly boaReclamation?: Readonly<{ actorUid: string; opportunityId: string }>;
 }
 
 export interface AwayMissionCustody {
@@ -72,6 +75,8 @@ export interface AwayMissionLifecycleRecord {
   readonly revision: number;
   readonly lifecycle: MissionLifecycleState;
   readonly participantCrafts: readonly AwayMissionParticipantCrafts[];
+  /** Server-private pre-deal modifier; never copied to member/public projections. */
+  readonly boaReclamation?: Readonly<{ actorUid: string; opportunityId: string }>;
   readonly status: 'active' | 'resolved' | 'complete';
   readonly overrun: boolean;
   readonly outcomes: readonly MissionOpportunityResolution[] | null;
@@ -193,6 +198,16 @@ export function createAwayMissionLifecycleRecord(
   if (participants.some((participant) => privateMissionHandForParticipant(input.lifecycle, participant.uid) === null)) {
     return null;
   }
+  if (input.boaReclamation !== undefined &&
+      (!isRecord(input.boaReclamation) || Object.keys(input.boaReclamation).length !== 2 ||
+        typeof input.boaReclamation.actorUid !== 'string' ||
+        typeof input.boaReclamation.opportunityId !== 'string' ||
+        !missionCardForCode(input.lifecycle.siteCode)?.opportunities.some(({ id }) =>
+          id === input.boaReclamation!.opportunityId) ||
+        input.lifecycle.availableCarrierCraftIds.includes('boa') !== true ||
+        participants.find(({ uid }) => uid === input.boaReclamation!.actorUid)?.roleId !== 'capybara-recycler' ||
+        !participantCrafts.find(({ participantUid }) => participantUid === input.boaReclamation!.actorUid)
+          ?.craftIds.includes('boa'))) return null;
   return {
     schemaVersion: 1,
     sessionId: input.sessionId,
@@ -201,6 +216,7 @@ export function createAwayMissionLifecycleRecord(
     revision: 0,
     lifecycle: input.lifecycle,
     participantCrafts,
+    ...(input.boaReclamation ? { boaReclamation: { ...input.boaReclamation } } : {}),
     status: 'active',
     overrun: false,
     outcomes: null,
@@ -221,6 +237,7 @@ export function createAwayMissionLifecycleBootstrap(input: Readonly<{
   revision?: number;
   lifecycle: MissionLifecycleStateInput;
   participantCrafts: readonly AwayMissionParticipantCrafts[];
+  boaReclamation?: Readonly<{ actorUid: string; opportunityId: string }>;
 }>): Readonly<{
   record: AwayMissionLifecycleRecord;
   participantStates: readonly Readonly<{
@@ -364,15 +381,20 @@ export function applyAwayMissionLifecycleCommand(
       const serverBonusSources = authority.bonusSources ?? [];
       const nonMissionShuttleSources = serverBonusSources.filter((candidate) => !isMissionShuttleSource(candidate));
       const shuttleSources = missionBonusSourcesForShuttleParticipants(record.lifecycle, record.participantCrafts);
-      const outcomes = calculateMissionOpportunityTotals(
+      const calculatedOutcomes = calculateMissionOpportunityTotals(
         record.lifecycle,
         [...nonMissionShuttleSources, ...shuttleSources],
         authority.secretD6Rolls ?? {},
       );
+      const outcomes = calculatedOutcomes && record.boaReclamation
+        ? applyBoaReclamationDifficulty(calculatedOutcomes, record.boaReclamation.opportunityId)
+        : calculatedOutcomes;
       if (!outcomes) return { status: 'denied' };
       const rewards = resolveMissionOpportunityRewards(record.lifecycle.siteCode, outcomes, {
         secretD6Rolls: authority.secretD6Rolls ?? {},
         bulkHaulageContributorUidsByOpportunity: bulkHaulageContributorsByOpportunity(record),
+        ...(record.boaReclamation
+          ? { boaReclamationOpportunityId: record.boaReclamation.opportunityId } : {}),
       });
       if (!rewards) return { status: 'denied' };
       nextLifecycle = record.lifecycle;
@@ -571,6 +593,16 @@ function isValidRecord(value: unknown): value is AwayMissionLifecycleRecord {
         !Array.isArray(binding.craftIds) || binding.craftIds.some((id) => !isNonEmptyString(id)) ||
         new Set(binding.craftIds).size !== binding.craftIds.length) return false;
     craftBindings.set(binding.participantUid, binding.craftIds as string[]);
+  }
+
+  if (value.boaReclamation !== undefined) {
+    const reclamation = value.boaReclamation;
+    if (!isRecord(reclamation) || Object.keys(reclamation).length !== 2 ||
+        !isNonEmptyString(reclamation.actorUid) || !isNonEmptyString(reclamation.opportunityId) ||
+        !definition.opportunities.some(({ id }) => id === reclamation.opportunityId) ||
+        !lifecycle.availableCarrierCraftIds.includes('boa') ||
+        lifecycle.participants.find(({ uid }) => uid === reclamation.actorUid)?.roleId !== 'capybara-recycler' ||
+        !craftBindings.get(reclamation.actorUid)?.includes('boa')) return false;
   }
 
   const receiptIds = new Set<string>();

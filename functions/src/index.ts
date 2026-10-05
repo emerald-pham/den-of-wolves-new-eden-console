@@ -74,10 +74,13 @@ import { createSameTableTradeCallables } from './sameTableTradeCallable';
 import { createGorgoneionMissionSupportCallables } from './gorgoneionMissionSupportCallable';
 import { applyAwayMissionLifecycleCommand, createAwayMissionLifecycleBootstrap, markAwayMissionOverrun, projectAwayMissionPrivateState, projectAwayMissionPublicState, type AwayMissionLifecycleRecord, type AwayMissionLifecycleCommand } from './awayMissionLifecycleAdapter';
 import { missionCraftIdsCarriedByShip, nextMissionCraftCommitments, parseMissionCraftCommitments, requireMissionCraftMovementAvailable } from './missionCraftCommitment';
-import { planMissionRewardDelivery } from './missionRewardDelivery';
+import { planBoaMissionRewardDelivery, planMissionRewardDelivery } from './missionRewardDelivery';
 import { createAwayMissionLifecycleCallables } from './awayMissionLifecycleCallable';
 import { deriveAwayMissionParticipantCraftSnapshots } from './awayMissionCraftSnapshot';
+import { requireCandidateCraftAvailable, requireCandidateVesselsAvailable } from './candidateAvailability';
 import { createPermissionedDismantlingCallables } from './permissionedDismantlingCallable';
+import { createBoaMissionReclamationCallables } from './boaMissionReclamationCallable';
+import { auditedOnCall } from './securityCallable';
 import { createBoardingSecurityTeamCallable } from './boardingSecurityTeamCallable';
 import { createVoyage33MovementCallables } from './voyage33MovementCallable';
 import {
@@ -885,6 +888,30 @@ const gorgoneionMissionSupportCallables = createGorgoneionMissionSupportCallable
   serverTimestamp: () => FieldValue.serverTimestamp(),
 });
 
+const boaMissionReclamationCallables = createBoaMissionReclamationCallables({
+  db,
+  commandMarkers: {
+    read: (transaction, sessionId, requestId) =>
+      (transaction as Transaction).get(commandReceiptRef(sessionId, requestId)),
+    create: (transaction, fingerprint, result) => {
+      const sessionId = fingerprint.sessionId;
+      if (!sessionId) throw new Error('Boa mission choices require a session ID.');
+      (transaction as Transaction).create(commandReceiptRef(sessionId, fingerprint.requestId), {
+        fingerprint,
+        result,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+    },
+  },
+  isActivePlayer: (player) => isActivePlayer(player as DocumentSnapshot),
+  serverTimestamp: () => FieldValue.serverTimestamp(),
+});
+
+export const readBoaMissionReclamationWorkspace = auditedOnCall('readBoaMissionReclamationWorkspace', request =>
+  boaMissionReclamationCallables.readBoaMissionReclamationWorkspace({ auth: request.auth, data: request.data }));
+export const chooseBoaMissionReclamationOpportunity = auditedOnCall('chooseBoaMissionReclamationOpportunity', request =>
+  boaMissionReclamationCallables.chooseBoaMissionReclamationOpportunity({ auth: request.auth, data: request.data }));
+
 const awayMissionLifecycleCallables = createAwayMissionLifecycleCallables({
   db,
   prepareCraftCommitments: async ({ transaction, sessionId, session, nextRecord }) => {
@@ -968,22 +995,50 @@ const awayMissionLifecycleCallables = createAwayMissionLifecycleCallables({
     if (storedPopulation !== undefined && !isRecord(storedPopulation)) {
       throw new HttpsError('failed-precondition', 'The destination population is malformed.');
     }
-    const delivery = planMissionRewardDelivery({
+    requireCandidateVesselsAvailable(session, [shipId]);
+    let delivery: ReturnType<typeof planMissionRewardDelivery>;
+    let boaScrapCargo: ReturnType<typeof parseBoaScrapCargo> = null;
+    let boaScrapAwarded: 0 | 1 | undefined;
+    if (nextRecord.boaReclamation !== undefined) {
+      requireCandidateCraftAvailable(session, ['boa']);
+      const cargoRoot = session.get('shuttleCargo');
+      if (cargoRoot !== undefined && !isRecord(cargoRoot)) {
+        throw new HttpsError('failed-precondition', 'The Boa Scrap cargo is malformed.');
+      }
+      boaScrapCargo = parseBoaScrapCargo(isRecord(cargoRoot) ? cargoRoot.boa : undefined);
+      if (!boaScrapCargo) throw new HttpsError('failed-precondition', 'The Boa Scrap cargo is malformed.');
+      const routed = planBoaMissionRewardDelivery({
+        shipId, inventory, population: isRecord(storedPopulation) && Object.hasOwn(storedPopulation, shipId)
+          ? storedPopulation[shipId] : INITIAL_SHIP_SURVIVORS[shipId],
+        minerals: isRecord(mineralCargo) && Object.hasOwn(mineralCargo, shipId) ? mineralCargo[shipId] : 0,
+        rewards: nextRecord.rewards ?? [], specialRewards: nextRecord.specialRewards ?? [],
+        boaReclamationOpportunityId: nextRecord.boaReclamation.opportunityId,
+        boaScrapCargo,
+      });
+      if (!routed) throw new HttpsError('failed-precondition', 'Mission rewards cannot be delivered safely.');
+      delivery = routed;
+      boaScrapCargo = routed.boaScrapCargo;
+      boaScrapAwarded = routed.boaScrapAwarded;
+    } else {
+      delivery = planMissionRewardDelivery({
       shipId, inventory, population: isRecord(storedPopulation) && Object.hasOwn(storedPopulation, shipId)
         ? storedPopulation[shipId] : INITIAL_SHIP_SURVIVORS[shipId],
       minerals: isRecord(mineralCargo) && Object.hasOwn(mineralCargo, shipId) ? mineralCargo[shipId] : 0,
       rewards: nextRecord.rewards ?? [], specialRewards: nextRecord.specialRewards ?? [],
-    });
+      });
+    }
     if (!delivery) throw new HttpsError('failed-precondition', 'Mission rewards cannot be delivered safely.');
     return () => {
       tx.update(db.doc(`sessions/${sessionId}`), {
         [`shipResources.${shipId}`]: delivery.inventory,
         [`shipSurvivors.${shipId}`]: delivery.population,
         [`shipMissionMinerals.${shipId}`]: delivery.minerals,
+        ...(boaScrapCargo ? { 'shuttleCargo.boa': boaScrapCargo } : {}),
         updatedAt: FieldValue.serverTimestamp(),
       });
       tx.create(receiptRef, {
         missionId, shipId, revision: nextRecord.revision, deltas: delivery.deltas,
+        ...(boaScrapAwarded === undefined ? {} : { boaScrapAwarded, boaScrapCargo }),
         createdAt: FieldValue.serverTimestamp(),
       });
     };
@@ -10550,6 +10605,9 @@ export const dealPrivateInitialCards = auditedOnCall<{
   const markerRef = commandReceiptRef(command.sessionId, command.requestId);
   const eventRef = db.doc(`sessions/${command.sessionId}/events/mission-cards-dealt-${command.requestId}`);
   const opportunityRef = db.doc(missionOpportunityDocumentPath(command.sessionId, command.opportunityId));
+  const boaChoiceRef = db.doc(
+    `sessions/${command.sessionId}/boaMissionReclamationChoices/${command.opportunityId}`,
+  );
   const startSnapshotRef = db.doc(`sessions/${command.sessionId}/missionStartSnapshots/${command.opportunityId}`);
   const playersRef = db.collection(`sessions/${command.sessionId}/players`);
   const fleetGroupsRef = db.collection(`sessions/${command.sessionId}/fleetGroups`);
@@ -10585,8 +10643,8 @@ export const dealPrivateInitialCards = auditedOnCall<{
 
   return db.runTransaction(async (tx) => {
     const [marker, authority, players, fleetGroups, craftOwnershipManifest,
-      missionDeckSnapshot, gorgoneionMissionSupportViewsSnapshot, navigationSnapshot, opportunitySnapshot, startSnapshotSnapshot,
-      missionSnapshot, eventSnapshot] =
+      missionDeckSnapshot, gorgoneionMissionSupportViewsSnapshot, navigationSnapshot, opportunitySnapshot,
+      boaChoiceSnapshot, startSnapshotSnapshot, missionSnapshot, eventSnapshot] =
       await Promise.all([
         tx.get(markerRef),
         requireFacilitatorInstance(tx, command.sessionId, uid, command.instanceId),
@@ -10597,6 +10655,7 @@ export const dealPrivateInitialCards = auditedOnCall<{
         tx.get(gorgoneionMissionSupportViewsRef),
         tx.get(navigationRef),
         tx.get(opportunityRef),
+        tx.get(boaChoiceRef),
         tx.get(startSnapshotRef),
         tx.get(missionRef),
         tx.get(eventRef),
@@ -10723,6 +10782,32 @@ export const dealPrivateInitialCards = auditedOnCall<{
         'conflict',
       );
     }
+    const rawBoaChoice = boaChoiceSnapshot.exists ? boaChoiceSnapshot.data() : undefined;
+    let boaReclamationSelection: Readonly<{
+      actorUid: string; taskOpportunityId: string; controlRevision: number; revision: number;
+    }> | undefined;
+    if (rawBoaChoice !== undefined) {
+      if (!isRecord(rawBoaChoice) || rawBoaChoice.type !== 'boa-mission-reclamation-choice' ||
+          rawBoaChoice.schemaVersion !== 1 || rawBoaChoice.status !== 'selected' ||
+          rawBoaChoice.sessionId !== command.sessionId || rawBoaChoice.opportunityId !== opportunity.id ||
+          rawBoaChoice.groupId !== opportunity.groupId || rawBoaChoice.chart !== opportunity.chart ||
+          rawBoaChoice.coordinate !== opportunity.coordinate || rawBoaChoice.siteCode !== opportunity.siteCode ||
+          rawBoaChoice.sourceCycle !== opportunity.sourceCycle ||
+          typeof rawBoaChoice.actorUid !== 'string' || rawBoaChoice.actorRoleId !== 'capybara-recycler' ||
+          typeof rawBoaChoice.opportunityTaskId !== 'string' ||
+          !missionDefinition.opportunities.some(({ id }) => id === rawBoaChoice.opportunityTaskId) ||
+          !Number.isSafeInteger(rawBoaChoice.controlRevision) || (rawBoaChoice.controlRevision as number) < 0 ||
+          !Number.isSafeInteger(rawBoaChoice.revision) || (rawBoaChoice.revision as number) < 1 ||
+          typeof rawBoaChoice.requestId !== 'string') {
+        throw commandError('failed-precondition', 'The Boa mission selection is malformed; refresh before dealing.', 'conflict');
+      }
+      boaReclamationSelection = {
+        actorUid: rawBoaChoice.actorUid,
+        taskOpportunityId: rawBoaChoice.opportunityTaskId,
+        controlRevision: rawBoaChoice.controlRevision as number,
+        revision: rawBoaChoice.revision as number,
+      };
+    }
     if (missionDefinition.siteRules.repeatability === 'everyTurn' &&
         opportunity.sourceCycle < currentCycle) {
       const laterCycleOpportunitySnapshots = await Promise.all(
@@ -10800,6 +10885,7 @@ export const dealPrivateInitialCards = auditedOnCall<{
         'conflict',
       );
     }
+    requireCandidateVesselsAvailable(authority.session, opportunityGroup.vesselIds);
     if (!craftOwnershipManifest.exists ||
         !roleOwnedCraftManifestMatches(craftOwnershipManifest.data(), expectedCraftManifest)) {
       throw commandError(
@@ -10964,6 +11050,45 @@ export const dealPrivateInitialCards = auditedOnCall<{
         'conflict',
       );
     }
+    let boaReclamation: Readonly<{
+      actorUid: string; opportunityId: string; locationOpportunityId: string; choiceRevision: number;
+      printedDifficulty: number | null; effectiveDifficulty: number | null;
+      criticalThreshold: number | null; difficultyRule: unknown; rounding: 'floor';
+    }> | undefined;
+    if (boaReclamationSelection) {
+      const boaControl = shuttleControls?.boa;
+      const actorPlayer = playerDocumentsByUid.get(boaReclamationSelection.actorUid);
+      const participant = participants.find(({ uid }) => uid === boaReclamationSelection.actorUid);
+      const participantCraftBinding = participantCrafts.find(({ participantUid }) =>
+        participantUid === boaReclamationSelection!.actorUid);
+      if (!actorPlayer || !isActivePlayer(actorPlayer) || actorPlayer.get('role') !== 'player' ||
+          actorPlayer.get('assignedRoleId') !== 'capybara-recycler' ||
+          actorPlayer.get('replacementStatus') != null ||
+          participant?.roleId !== 'capybara-recycler' ||
+          !participantCraftBinding?.craftIds.includes('boa') || !carrierCraftIds.includes('boa') ||
+          !boaControl || boaControl.holderUid !== boaReclamationSelection.actorUid ||
+          boaControl.ownerRoleId !== 'capybara-recycler' ||
+          boaControl.revision !== boaReclamationSelection.controlRevision) {
+        throw commandError('failed-precondition',
+          'The Boa Recycler who selected this task must remain a mission participant and current Boa holder.', 'conflict');
+      }
+      const selectedTask = missionDefinition.opportunities.find(({ id }) =>
+        id === boaReclamationSelection!.taskOpportunityId)!;
+      const printedDifficulty = Number.isSafeInteger(selectedTask.difficulty) ? selectedTask.difficulty! : null;
+      const effectiveDifficulty = printedDifficulty === null ? null : Math.floor(printedDifficulty / 2);
+      boaReclamation = {
+        actorUid: boaReclamationSelection.actorUid,
+        opportunityId: selectedTask.id,
+        locationOpportunityId: opportunity.id,
+        choiceRevision: boaReclamationSelection.revision,
+        printedDifficulty,
+        effectiveDifficulty,
+        criticalThreshold: Number.isSafeInteger(selectedTask.criticalThreshold)
+          ? selectedTask.criticalThreshold! : null,
+        difficultyRule: selectedTask.difficultyRule ?? null,
+        rounding: 'floor',
+      };
+    }
     const pressureSnapshot = await tx.get(
       wolfArrivalPressureStateRef(command.sessionId, missionGroupId),
     );
@@ -11010,6 +11135,9 @@ export const dealPrivateInitialCards = auditedOnCall<{
       groupId: missionGroupId,
       sourceCycle: opportunity.sourceCycle,
       participantCrafts,
+      ...(boaReclamation
+        ? { boaReclamation: { actorUid: boaReclamation.actorUid, opportunityId: boaReclamation.opportunityId } }
+        : {}),
       lifecycle: {
         missionId,
         siteCode: missionDefinition.code,
@@ -11066,7 +11194,21 @@ export const dealPrivateInitialCards = auditedOnCall<{
         participantCrafts,
         missionLeaderUid: missionLeader.uid,
       },
-      modifiers: [], outcome: 'started',
+      modifiers: boaReclamation ? [
+        `Boa reclamation ${boaReclamation.opportunityId} // printed difficulty ${boaReclamation.printedDifficulty ?? 'server-calculated'} // effective difficulty ${boaReclamation.effectiveDifficulty ?? 'floor of server-calculated difficulty'} (floor assumption) // reward replaced by 1 Scrap on success; no ordinary or critical bonus`,
+      ] : [],
+      ...(boaReclamation ? { boaReclamation: {
+        actorUid: boaReclamation.actorUid,
+        missionCardOpportunityId: boaReclamation.opportunityId,
+        locationOpportunityId: boaReclamation.locationOpportunityId,
+        choiceRevision: boaReclamation.choiceRevision,
+        printedDifficulty: boaReclamation.printedDifficulty,
+        effectiveDifficulty: boaReclamation.effectiveDifficulty,
+        criticalThreshold: boaReclamation.criticalThreshold,
+        difficultyRule: boaReclamation.difficultyRule,
+        rounding: boaReclamation.rounding,
+      } } : {}),
+      outcome: 'started',
       stateDelta: {
         missionSnapshotCreated: true,
         participantHandCount: participants.length,
@@ -11092,6 +11234,12 @@ export const dealPrivateInitialCards = auditedOnCall<{
       createdAt: FieldValue.serverTimestamp(),
     };
     tx.update(db.doc(`sessions/${command.sessionId}`), { missionCraftCommitments: commitments, updatedAt: FieldValue.serverTimestamp() });
+    if (boaReclamationSelection) {
+      tx.update(boaChoiceRef, {
+        status: 'consumed', missionId, consumedByRequestId: command.requestId,
+        consumedAt: FieldValue.serverTimestamp(),
+      });
+    }
     tx.set(missionRef, {
       schemaVersion: 1,
       lifecycleRecord: lifecycleBootstrap.record,

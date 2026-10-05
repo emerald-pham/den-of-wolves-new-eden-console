@@ -19,6 +19,8 @@ export interface MissionRewardOptions {
   readonly secretD6Rolls?: Readonly<Record<string, number>>;
   /** Server-derived contributors whose base Capybara was admitted to this mission. */
   readonly bulkHaulageContributorUidsByOpportunity?: Readonly<Record<string, readonly string[]>>;
+  /** The one card opportunity whose normal reward is replaced by Boa Scrap. */
+  readonly boaReclamationOpportunityId?: string;
 }
 
 const CARD_IDS = new Set<string>(missionDeck().map(({ id }) => id));
@@ -38,6 +40,9 @@ export function resolveMissionOpportunityRewards(
 ): readonly MissionOpportunityRewardResult[] | null {
   const definition = missionCardForCode(siteCode);
   if (!definition || !Array.isArray(outcomes) || outcomes.length !== definition.opportunities.length) return null;
+  const boaReclamationOpportunityId = options.boaReclamationOpportunityId;
+  if (boaReclamationOpportunityId !== undefined &&
+      !definition.opportunities.some(({ id }) => id === boaReclamationOpportunityId)) return null;
   const outcomeById = new Map<string, MissionOpportunityResolution>();
   for (const candidate of outcomes as readonly unknown[]) {
     if (!isRecord(candidate) || !isNonEmptyString(candidate.opportunityId) ||
@@ -70,15 +75,17 @@ export function resolveMissionOpportunityRewards(
   for (const opportunity of definition.opportunities) {
     const outcome = outcomeById.get(opportunity.id)!;
     const branch = outcome.rewardBranch;
-    if (opportunity.reward.successRule && branch !== 'none' &&
+    const boaReclamation = opportunity.id === boaReclamationOpportunityId;
+    if (!boaReclamation && opportunity.reward.successRule && branch !== 'none' &&
         !isD6(rolls[opportunity.id])) return null;
 
     const resources: Partial<Record<MissionRewardResourceId, number>> = {};
     const effects: MissionRewardEffect[] = [];
     if (branch !== 'none') {
-      mergeResources(resources, opportunity.reward.success);
-      effects.push(...opportunity.reward.successEffects);
-      if (opportunity.reward.successRule) {
+      if (boaReclamation) resources.scrap = 1;
+      else mergeResources(resources, opportunity.reward.success);
+      if (!boaReclamation) effects.push(...opportunity.reward.successEffects);
+      if (!boaReclamation && opportunity.reward.successRule) {
         const roll = rolls[opportunity.id];
         if (!isD6(roll)) return null;
         for (const [resource, multiplier] of Object.entries(opportunity.reward.successRule.multipliers)) {
@@ -87,12 +94,14 @@ export function resolveMissionOpportunityRewards(
         }
       }
       if (branch === 'critical') {
-        if (opportunity.reward.criticalBonus) mergeResources(resources, opportunity.reward.criticalBonus);
-        effects.push(...(opportunity.reward.criticalEffects ?? []));
+        if (!boaReclamation && opportunity.reward.criticalBonus) {
+          mergeResources(resources, opportunity.reward.criticalBonus);
+        }
+        if (!boaReclamation) effects.push(...(opportunity.reward.criticalEffects ?? []));
       }
     }
 
-    const hasBulkHaulageContributor = branch !== 'none' &&
+    const hasBulkHaulageContributor = !boaReclamation && branch !== 'none' &&
       (contributorsByOpportunity.get(opportunity.id)?.length ?? 0) > 0;
     if (hasBulkHaulageContributor) {
       for (const resource of RESOURCE_IDS) {
