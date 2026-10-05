@@ -207,6 +207,12 @@ it('keeps known read-only authority projections explicitly classified', () => {
   expect(terminalFreezeExemptions.has('readCandidateWorkspace')).toBe(true);
 });
 
+it('exports the debrief lifecycle and GM reader through the audited callable boundary', () => {
+  for (const name of ['beginSessionDebrief', 'closeSession', 'getSessionDebrief']) {
+    expect(source).toContain(`export const ${name} = auditedOnCall('${name}'`);
+  }
+});
+
 it('keeps every delegated callable backed by a transaction-level terminal guard', () => {
   expect(permissionedDismantlingSource.match(/requireActiveSession\(session\);/g)).toHaveLength(5);
   expect(sameTableTradeSource.match(
