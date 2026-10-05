@@ -100,6 +100,13 @@ describe('authenticated explicit loyalty adapter', () => {
     expect(JSON.stringify(result)).not.toContain('assignedUids');
   });
 
+  it('rejects a receipt revision that is not exactly one beyond the captured revision', async () => {
+    mocks.call.mockResolvedValue({ data: {
+      sessionId: 's1', setupRevision: 8, assignedUids: ['u1'],
+    } });
+    await expect(submitExplicitGmLoyaltyAssignment(request)).rejects.toThrow(/receipt|authority|revision/i);
+  });
+
   it('rejects non-GM or non-live authority before invoking the callable', async () => {
     useSessionStore.getState().setMe({
       uid: 'u1', sessionId: 's1', role: 'player', seatId: 'aegis-engineer',
