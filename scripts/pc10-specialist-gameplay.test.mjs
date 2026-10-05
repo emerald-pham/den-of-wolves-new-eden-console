@@ -49,6 +49,23 @@ test('specialist driver never commits a projection from another session or chang
       renderedStatusCode: 'public-result-visible' }) }), /fresh-session|same normally authenticated actor/i);
 });
 
+test('specialist driver waits until GM and current crew view show the same cycle', async () => {
+  const gm = { label: 'gm' }, crew = { label: 'crew' };
+  let crewCycle = 0, polls = 0;
+  const actor = { uidHash: 'same-actor-hash', sessionId: 'fresh-session', sameActor: true,
+    profileRoleId: 'capybara-recycler', activeConsoleRoleId: 'capybara-recycler',
+    connection: 'live', freshness: 'server' };
+  crew.observe = async () => actor;
+  const game = { context: { gm, initial: { sessionId: 'fresh-session' } }, select: async () => crew,
+    state: async surface => ({ live: true, sessionId: 'fresh-session', cycle: surface === gm ? 1 : crewCycle }) };
+  const driver = createSpecialistGameplayDriver(game, { wait: async () => { polls += 1; crewCycle = 1; } });
+  const proof = await driver.waitForCommit({ surface: crew, actor,
+    inspect: async () => ({ ready: true, gmRevision: 4, crewRevision: 4,
+      renderedStatusCode: 'public-result-visible' }) });
+  assert.equal(polls, 1, 'Wait for the originating crew projection to catch up before the next action.');
+  assert.equal(proof.gm.cycle, proof.crew.cycle);
+});
+
 test('specialist evidence keeps only bounded action, actor, revision, cost, and result fields', () => {
   const evidence = projectSpecialistActionEvidence({
     roleId: 'capybara-recycler',
