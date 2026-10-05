@@ -251,3 +251,14 @@ Preserve cloud mode/data and required credential/security/network approvals.
 Record this future authorization here; the parent revises the canonical future
 roadmap after PC09. Frozen PC09 IDs, total, status allocation and deployment
 scope remain unchanged. No next checkpoint is launched here.
+
+The first exact candidate CI fails only two stale AppHeader release-progress
+expectations; `8f6227da` repairs those assertions and adds explicit retained
+PC08 snapshot coverage, without product changes. All 45 focused checks/lint
+pass, and the original run/log remain preserved before a new candidate push.
+Parent adds future primary-app Settings join-code QR and clarifies PC12 as a
+same-repository offline backup, with Firebase primary, built-in local Wi-Fi and
+server URL QR generation, matching design, private locally entered Wi-Fi details
+and no assumed cloud-state sync. Read-only license inventory returns reserved
+current rights, dependency terms and unconfirmed asset provenance to the parent;
+no licensing or attribution changes are part of this release.

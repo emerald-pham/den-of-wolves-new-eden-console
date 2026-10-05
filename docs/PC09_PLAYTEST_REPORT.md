@@ -184,3 +184,29 @@ security/network permission changes retain their required approval boundaries.
 The parent owns the later canonical roadmap revision and separate Sol 6.1 Max
 dispatch, one checkpoint at a time. No PC12 implementation, launch or new prompt
 credit is part of this frozen 49-item PC09 release.
+
+The first exact candidate CI (`37254007624`, `c8173d91`) fails two stale
+AppHeader progress/history expectations after 3,290 other unit checks pass.
+Test-only `8f6227da` checks current 703/751 and explicitly preserves the earlier
+0.5.67/654 release snapshot; all 45 AppHeader checks and lint pass. The original
+failure remains preserved. This changes no product code or release scope;
+the corrected exact candidate still requires CI and production verification.
+
+Future QR authorization is recorded separately: the normal Firebase app must
+show a session-code join URL QR in Settings after joining, with equivalent
+accessible link/code and existing Auth/admission/consent/role privacy intact;
+no GM credentials or elevated access are encoded. PC12 remains a same-repository
+mirrored offline backup; Firebase stays primary/default. The Mac LAN website
+must match the original browser UX/game behavior and use the current app's
+colors, fonts, tokens, spacing and components. Built-in local generation serves
+two distinct, reliably scannable QR codes: Wi-Fi joining and the local server
+URL. Wi-Fi credentials are user-entered locally, never committed or copied into
+reports. Cloud/offline game-state synchronization is not assumed authorized or
+required. Required network/security approvals remain. These are parent-owned
+future roadmap items; no QR or offline implementation is added to PC09.
+
+The requested licensing inventory is read-only and external at
+`/tmp/dow-pc09-resumed-evidence/LICENSING_INVENTORY.json`. Current LICENSE,
+README rights language, package-license fields and attributions remain intact.
+The parent resolves any later recognized first-party license and third-party
+carve-outs; this inventory grants no new rights.

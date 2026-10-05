@@ -7,6 +7,14 @@ ordinary gameplay driver against the settled PC08 audit baseline `b36119e9`.
 
 Existing tests remain enabled. No test file is deleted and no test is deliberately skipped.
 
+Exact candidate CI `37254007624` at `c8173d91` passed 3,290 unit checks and
+failed two AppHeader assertions that still expected PC08 progress for the
+current release. Test-only repair `8f6227da` expects current 703/751 progress
+and adds an explicit retained 0.5.67/654 snapshot assertion. Existing bounded
+scroll, keyboard, display-copy and all older history checks remain enabled.
+All 45 AppHeader tests and changed-file lint pass locally. The original CI
+failure log is preserved; a new exact candidate run follows this correction.
+
 The final render gate reproduced an oversized landing import graph under the
 existing byte budgets. Route-only ship/governance modules and the joined-session
 crisis report now load at their actual entry points. The same reviewer then
@@ -123,7 +131,7 @@ runtime identities; an unfinished run remains unfinished.
 | `src/components/TurnPhaseCoordinator.test.tsx` | Changed | Add the existing public audience transport mock; preserve the original Team-deadline and emergency-pause assertions. |
 | `scripts/test-pc08-composed-attack-http.mjs` | Changed | Preserve the historical attack checks; add actual P605a entitled committed-row/local-contact comparisons, private preparation denial, all three real waiver acknowledgements, keyboard, responsive and recovery checks. Historical failures stay labelled. |
 | `scripts/pc09-ordinary-return-rebuild-positive-proof.mjs` | Added | Reconstruct the lost finite positive fixture with explicit full-runtime verification, disclosed current-GM +1 supplies, source-backed budgets for both possible Storage losses, a normal Blacksmith fuel/flight/paid-console-repair contingency, two real durable losses, surviving Station return, paid drone repair, exact HTTP receipt retry, a separate Wing UI build and actual entitled DRADIS result rows; preserve all cost/capacity/error assertions. |
-| `src/components/AppHeader.test.tsx` | Changed | Explain Cycle 0 CIC authentication in Settings and remove the note after real start state; preserve existing header navigation and connection states. |
+| `src/components/AppHeader.test.tsx` | Changed | Explain Cycle 0 CIC authentication in Settings and remove the note after real start state; preserve existing header navigation and connection states. Also preserve the two original CI failures while updating current PC09 progress and explicitly retaining the 0.5.67/654 historical release assertion; all 45 focused checks pass.  |
 | `src/components/ConnectionIndicator.test.tsx` | Changed | Match the authorized Cycle 0 visible and accessible wording while retaining all other statuses. |
 | `src/components/PresidentialElectionWorkspace.test.tsx` | Added | Show the approved VP fallback/vacancy explanation and preserve the keyboard-accessible election return route. |
 | `src/lib/firebase.emulatorIsolation.test.ts` | Added | Prove explicit local mode does not initialize remote attestation; production still initializes and requires its key. |
