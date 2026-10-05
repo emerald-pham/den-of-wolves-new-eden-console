@@ -14,6 +14,8 @@ export const SAME_TABLE_TRADE_UI_RESOURCES = Object.freeze([
 ]);
 
 const MAX_WAIT_MS = 60_000;
+const MAX_COUNTERPARTY_SELECTOR_WAIT_MS = 35_000;
+const COUNTERPARTY_SELECTOR_POLL_MS = 250;
 const BASELINE_FORM = 'Physical tabletop baseline';
 const BASELINE_CONTROL = 'Record tabletop counts';
 const SAME_TABLE_PANEL = 'Same-table trade';
@@ -166,6 +168,9 @@ async function browserActorContext(surface) {
     ...local,
     uidHash: observed.uidHash,
     profileRoleId: observed.profileRoleId,
+    sameActor: observed.sameActor,
+    connection: observed.connection,
+    freshness: observed.freshness,
     live: local.live && observed.sameActor === true && observed.connection === 'live' &&
       observed.freshness === 'server' && observed.sessionId === local.sessionId,
   };
@@ -253,6 +258,141 @@ async function waitForTradePanel(surface) {
   const holdings = panel.getByRole('region', { name: 'Your held tokens', exact: true });
   await waitForLocator(holdings, 'Private held-token projection');
   return panel;
+}
+
+function rawUidFingerprint(value) {
+  return typeof value === 'string'
+    ? createHash('sha256').update(new TextEncoder().encode(value)).digest('hex').slice(0, 16)
+    : null;
+}
+
+function currentCounterpartyAuthority(current, expected) {
+  const actor = record(current) ? current : {};
+  return {
+    sameOriginalAuthenticatedActor: actor.sameActor === true && actor.uid === expected.uid &&
+      actor.uidHash === expected.uidHash && actor.role === 'player',
+    sameSession: actor.sessionId === expected.sessionId,
+    sameProfileRole: actor.profileRoleId === expected.profileRoleId,
+    sameAssignedRole: actor.assignedRoleId === expected.assignedRoleId,
+    sameActiveConsoleRole: actor.activeConsoleRoleId === expected.activeConsoleRoleId,
+    sameCurrentTable: actor.tableId === expected.tableId,
+    sameCurrentFleetGroup: actor.fleetGroupId === expected.fleetGroupId,
+    liveConnection: actor.connection === 'live',
+    serverFreshness: actor.freshness === 'server',
+    liveServerFresh: actor.live === true && actor.connection === 'live' && actor.freshness === 'server',
+  };
+}
+
+function counterpartySelectorDiagnostics({ status, startedAt, now, observations, options, actor, expectedActor, expectedRecipient }) {
+  const authority = currentCounterpartyAuthority(actor, expectedActor);
+  const labelMatch = Array.isArray(options) && options.some(option =>
+    record(option) && option.label === expectedRecipient.displayName);
+  const valueHashMatch = Array.isArray(options) && options.some(option =>
+    record(option) && rawUidFingerprint(option.value) === expectedRecipient.uidHash);
+  const exactLabelAndUidMatch = Array.isArray(options) && options.some(option =>
+    record(option) && option.label === expectedRecipient.displayName &&
+    selectionMatchesOriginalIdentity(option.value, expectedRecipient));
+  return {
+    outcome: status,
+    elapsedMs: Math.max(0, Math.min(MAX_COUNTERPARTY_SELECTOR_WAIT_MS, now() - startedAt)),
+    observationCount: observations,
+    optionCount: Array.isArray(options) ? options.length : 0,
+    labelMatch,
+    valueHashMatch,
+    exactLabelAndUidMatch,
+    authority,
+    loaded: {
+      currentSelectorSnapshotRead: Array.isArray(options),
+      currentActorProjectionRead: record(actor),
+      currentActorProjectionLiveAndServerFresh: authority.liveServerFresh,
+    },
+  };
+}
+
+/**
+ * Wait only for the ordinary rendered options and current local actor
+ * projection. This performs no reads outside the existing UI/store sources,
+ * never chooses an option, and returns a UID only for the exact expected label
+ * and original actor identity.
+ */
+export async function waitForCounterpartySelector({
+  readCurrent,
+  expectedActor,
+  expectedRecipient,
+  maxWaitMs = MAX_COUNTERPARTY_SELECTOR_WAIT_MS,
+  pollIntervalMs = COUNTERPARTY_SELECTOR_POLL_MS,
+  now = Date.now,
+  sleep = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds)),
+}) {
+  if (typeof readCurrent !== 'function' || !record(expectedActor) || !record(expectedRecipient) ||
+      !identity(expectedActor.uid) || !identity(expectedActor.uidHash) ||
+      !identity(expectedActor.sessionId) || !identity(expectedActor.profileRoleId) ||
+      !identity(expectedActor.assignedRoleId) || !identity(expectedActor.activeConsoleRoleId) ||
+      !identity(expectedActor.tableId) || !identity(expectedActor.fleetGroupId) ||
+      expectedActor.role !== 'player' || !identity(expectedRecipient.uid) ||
+      !/^[a-f0-9]{16}$/i.test(expectedRecipient.uidHash ?? '') ||
+      typeof expectedRecipient.displayName !== 'string' || !expectedRecipient.displayName.trim() ||
+      expectedRecipient.displayName.length > 40 || typeof now !== 'function' || typeof sleep !== 'function' ||
+      !Number.isSafeInteger(maxWaitMs) || maxWaitMs < 1 ||
+      !Number.isSafeInteger(pollIntervalMs) || pollIntervalMs < 1) {
+    throw new TypeError('Current counterparty readiness requires bounded original actor and recipient identities.');
+  }
+
+  const waitLimit = Math.min(maxWaitMs, MAX_COUNTERPARTY_SELECTOR_WAIT_MS);
+  const startedAt = now();
+  const deadlineAt = startedAt + waitLimit;
+  let observations = 0;
+  let last = { options: [], actor: null };
+  const elapsed = () => Math.max(0, now() - startedAt);
+  const authorityMatches = authority => Object.values(currentCounterpartyAuthority(authority, expectedActor))
+    .every(value => value === true);
+  const finish = status => ({
+    status,
+    option: status === 'ready'
+      ? last.options.find(option => option.label === expectedRecipient.displayName &&
+        selectionMatchesOriginalIdentity(option.value, expectedRecipient)) ?? null
+      : null,
+    options: last.options,
+    diagnostics: counterpartySelectorDiagnostics({ status, startedAt, now, observations,
+      options: last.options, actor: last.actor, expectedActor, expectedRecipient }),
+  });
+
+  while (elapsed() < waitLimit) {
+    const remaining = Math.max(1, deadlineAt - now());
+    let timer;
+    const snapshot = await Promise.race([
+      Promise.resolve().then(readCurrent).then(value => ({ kind: 'read', value })),
+      new Promise(resolve => { timer = setTimeout(() => resolve({ kind: 'deadline' }), remaining); }),
+    ]).finally(() => clearTimeout(timer));
+    if (snapshot.kind === 'deadline') return finish('timeout');
+
+    observations += 1;
+    const value = snapshot.value;
+    if (!record(value) || !Array.isArray(value.options) ||
+        value.options.some(option => !record(option) || typeof option.label !== 'string' || typeof option.value !== 'string')) {
+      last = { options: [], actor: record(value) ? value.actor ?? null : null };
+      return finish('source-unavailable');
+    }
+    last = { options: value.options, actor: value.actor };
+    if (!authorityMatches(last.actor)) return finish('authority-changed');
+
+    const exactMatches = last.options.filter(option => option.label === expectedRecipient.displayName &&
+      selectionMatchesOriginalIdentity(option.value, expectedRecipient));
+    if (exactMatches.length === 1) return finish('ready');
+    if (exactMatches.length > 1) return finish('ambiguous-option');
+    if (last.options.some(option => selectionMatchesOriginalIdentity(option.value, expectedRecipient))) {
+      return finish('label-mismatch');
+    }
+    if (last.options.some(option => option.label === expectedRecipient.displayName)) {
+      return finish('identity-mismatch');
+    }
+
+    const delay = Math.min(pollIntervalMs, Math.max(0, deadlineAt - now()));
+    if (delay <= 0) return finish('timeout');
+    await sleep(delay);
+  }
+
+  return finish('timeout');
 }
 
 async function expectPrivateReadDenied(game, roleId, suffix, label) {
@@ -348,13 +488,55 @@ async function createOffer({
   assertBalances(await currentUiBalances(panel), scenario.baselines[scenario.senderRoleId],
     'Sender UI held-token projection before the offer');
   const recipient = panel.getByLabel('Recipient', { exact: true });
-  const recipientOptions = await recipient.locator('option').evaluateAll((options) =>
-    options.map((option) => ({ label: option.textContent?.trim() ?? '', value: option.value })));
+  const readCurrentSelector = async () => ({
+    options: await recipient.locator('option').evaluateAll((options) =>
+      options.map((option) => ({ label: option.textContent?.trim() ?? '', value: option.value }))),
+    actor: await browserActorContext(surface),
+  });
+  const readiness = await waitForCounterpartySelector({
+    readCurrent: readCurrentSelector,
+    expectedActor: actor,
+    expectedRecipient: {
+      uid: recipientIdentity.uid,
+      uidHash: recipientIdentity.uidHash,
+      displayName: recipientRosterEntry.displayName,
+    },
+  });
+  evidence.counterpartySelectorReadiness = {
+    ...readiness.diagnostics,
+    panelRenderedWithCurrentBalances: true,
+    recipientSelectorMounted: true,
+  };
+  if (readiness.status === 'authority-changed' || readiness.status === 'ambiguous-option') {
+    throw new Error('The original sender authority or recipient selector changed before offer submission.');
+  }
+  const recipientOptions = readiness.options;
   const option = recipientOptions.find((entry) => entry.label === recipientRosterEntry.displayName);
   assert.ok(option, 'The visible same-table counterparty must appear in the ordinary recipient selector.');
   assert.equal(selectionMatchesOriginalIdentity(option.value, recipientIdentity), true,
     'The visible recipient option must map to the original normal player identity.');
-  await recipient.selectOption(option.value, { timeout: MAX_WAIT_MS });
+  const beforeSelection = await readCurrentSelector();
+  const beforeSelectionAuthority = currentCounterpartyAuthority(beforeSelection.actor, actor);
+  const beforeSelectionOptions = beforeSelection.options;
+  const currentExactOption = Array.isArray(beforeSelectionOptions)
+    ? beforeSelectionOptions.find((entry) => entry.label === recipientRosterEntry.displayName &&
+      selectionMatchesOriginalIdentity(entry.value, recipientIdentity))
+    : undefined;
+  evidence.counterpartySelectorReadiness.beforeSelection = {
+    optionCount: Array.isArray(beforeSelectionOptions) ? beforeSelectionOptions.length : 0,
+    labelMatch: Array.isArray(beforeSelectionOptions) &&
+      beforeSelectionOptions.some((entry) => entry.label === recipientRosterEntry.displayName),
+    valueHashMatch: Array.isArray(beforeSelectionOptions) &&
+      beforeSelectionOptions.some((entry) => rawUidFingerprint(entry.value) === recipientIdentity.uidHash),
+    exactLabelAndUidMatch: Boolean(currentExactOption),
+    authority: beforeSelectionAuthority,
+  };
+  if (!currentExactOption || !Object.values(beforeSelectionAuthority).every((value) => value === true)) {
+    throw new Error('The current same-table recipient or original sender authority changed before selection.');
+  }
+  await recipient.selectOption(currentExactOption.value, {
+    timeout: Math.min(MAX_WAIT_MS, MAX_COUNTERPARTY_SELECTOR_WAIT_MS),
+  });
   const amount = panel.getByLabel(`${scenario.transfer.resource === 'securityTeams' ? 'Security Teams' : scenario.transfer.resource[0].toUpperCase() + scenario.transfer.resource.slice(1)} amount`, { exact: true });
   await amount.fill(String(scenario.transfer.amount));
   const send = panel.getByRole('button', { name: 'Send exact offer', exact: true });
