@@ -557,3 +557,197 @@ export function createCrisisVoyageCallbacks(choices = {}) {
       ? proveVoyage33Maintenance(context, choices.voyageMaintenance, choices)
       : Promise.resolve(missing(requiredMissingMaintenanceBranch(choices), choices)) });
 }
+
+const BASE_C4_TRAINING_CRISIS_STATES = Object.freeze([
+  'draft', 'delivered', 'debated', 'resolved', 'announced', 'closed',
+]);
+const BASE_C4_TRAINING_CRISIS_CHOICE = Object.freeze({
+  crisisKind: 'custom',
+  title: 'Training supply debate',
+  details: 'The virtual fleet considers its actual post-mission supply result.',
+  deliveryPressure: 'hold',
+});
+function validateBaseC4TrainingCrisisChoice(choice) {
+  assert.ok(choice && typeof choice === 'object' && !Array.isArray(choice),
+    'An explicit root GM custom-crisis choice is required.');
+  const allowed = new Set(['crisisId', 'crisisKind', 'title', 'details', 'deliveryPressure']);
+  assert.ok(Object.keys(choice).every(key => allowed.has(key)), 'Unknown Base C4 training-crisis choice.');
+  assert.ok(typeof choice.crisisId === 'string' && choice.crisisId === choice.crisisId.trim() &&
+    /^[A-Za-z0-9_-]{1,80}$/.test(choice.crisisId), 'Supply a new, explicit source-valid crisis identifier.');
+  for (const key of ['crisisKind', 'title', 'details', 'deliveryPressure']) {
+    assert.equal(choice[key], BASE_C4_TRAINING_CRISIS_CHOICE[key], `Use the explicitly approved ${key} choice.`);
+  }
+  return true;
+}
+
+function baseC4CrisisPending(blockerCodes, completedStates = [], nextActor =
+  'The original authenticated GM at the current Crisis state machine control.') {
+  return Object.freeze({ family: 'base-c4-custom-crisis', status: 'pending', accepted: false,
+    blockerCodes: [...new Set(blockerCodes)], completedStates: [...completedStates], nextActor,
+    physicalAttendanceProof: false, gameplayAcceptance: false });
+}
+
+async function readMountedGmCrisis(surface) {
+  assert.ok(typeof surface?.storeModuleUrl === 'function', 'The ordinary GM store projection is required.');
+  return surface.page.evaluate(async moduleUrl => {
+    const { useSessionStore } = await import(moduleUrl);
+    const store = useSessionStore.getState();
+    const crisis = store.gmCrisisState;
+    return {
+      sessionId: store.session?.id ?? null,
+      live: store.connection === 'live' && store.sessionSnapshotFreshness === 'server',
+      crisis: crisis ? {
+        crisisId: crisis.crisisId,
+        state: crisis.state,
+        revision: crisis.revision,
+        title: crisis.title,
+        details: crisis.details,
+        crisisKind: crisis.crisisKind,
+        deliveryPressure: crisis.deliveryPressure,
+      } : null,
+    };
+  }, surface.storeModuleUrl());
+}
+
+function baseC4GmBlockers(identity, context) {
+  const blockers = [];
+  if (!context.initial?.sessionId || identity?.sessionId !== context.initial.sessionId) blockers.push('not-original-session');
+  if (identity?.cycle !== 4) blockers.push('not-actual-cycle-four');
+  if (identity?.phase !== 'active') blockers.push('gameplay-not-active');
+  if (identity?.turnStatePhase !== 'coordination') blockers.push('not-actual-coordination-phase');
+  if (identity?.playerRole !== 'gm' || identity?.sameActor !== true) blockers.push('not-original-authenticated-gm');
+  if (identity?.connection !== 'live' || identity?.freshness !== 'server') blockers.push('gm-snapshot-not-live-server-backed');
+  if (identity?.gmInstanceOwned !== true) blockers.push('original-gm-instance-not-owned');
+  if (!context.started?.uidHash || identity?.uidHash !== context.started.uidHash) blockers.push('original-gm-account-changed');
+  if (!context.started?.instanceId || identity?.instanceId !== context.started.instanceId) blockers.push('original-gm-instance-changed');
+  return blockers;
+}
+
+async function fillBaseC4TrainingDraft(region, choice) {
+  const controls = [
+    [region.getByRole('combobox', { name: 'Crisis kind', exact: true }), choice.crisisKind, 'crisis-kind'],
+    [region.getByRole('combobox', { name: /Crisis delivery pressure/ }), choice.deliveryPressure, 'delivery-pressure'],
+    [region.getByLabel('Crisis identifier', { exact: true }), choice.crisisId, 'crisis-identifier'],
+    [region.getByLabel('Crisis title', { exact: true }), choice.title, 'crisis-title'],
+    [region.getByLabel('Crisis facilitator notes', { exact: true }), choice.details, 'crisis-facilitator-notes'],
+  ];
+  for (const [control, value, field] of controls) {
+    if (!(await control.isVisible().catch(() => false)) || !(await control.isEnabled().catch(() => false))) {
+      return `current-crisis-${field}-control-not-visible-and-enabled`;
+    }
+    if (field === 'crisis-kind' || field === 'delivery-pressure') await control.selectOption(value);
+    else await control.fill(value);
+  }
+  return null;
+}
+
+/**
+ * Commit the approved C4 training debate only through the normal GM crisis UI.
+ * The caller must provide the actual C4 Coordination context and all explicit
+ * choice fields. Every transition must be source-projected and offered; a
+ * missing transition leaves the remainder pending without synthesizing it.
+ */
+export async function runBaseC4CustomCrisisLifecycle(context, choice = undefined) {
+  if (choice === undefined) return baseC4CrisisPending(['explicit-root-gm-crisis-choice-not-supplied']);
+  validateBaseC4TrainingCrisisChoice(choice);
+  if (!context?.gm || !context?.started || !context?.initial?.sessionId) {
+    return baseC4CrisisPending(['original-gm-session-context-unavailable'], [],
+      'The Base gameplay caller must supply its original started GM and session context.');
+  }
+  const initialIdentity = await context.gm.observe();
+  const initialBlockers = baseC4GmBlockers(initialIdentity, context);
+  if (initialBlockers.length) return baseC4CrisisPending(initialBlockers, [],
+    'The root-owned normal turn driver must reach the original live GM at actual Cycle 4 Coordination.');
+  const initialExpectedActor = { actorKind: 'gm', sessionId: context.initial.sessionId,
+    uidHash: context.started.uidHash, instanceId: context.started.instanceId,
+    cycle: 4, phase: 'active', turnStatePhase: 'coordination' };
+  assertGmInstanceFence(initialIdentity, initialExpectedActor);
+
+  const initialProjection = await readMountedGmCrisis(context.gm);
+  if (!initialProjection?.live || initialProjection.sessionId !== context.initial.sessionId) {
+    return baseC4CrisisPending(['current-gm-crisis-projection-not-live-for-original-session']);
+  }
+  const currentCrisis = initialProjection.crisis;
+  if (currentCrisis && currentCrisis.state !== 'closed') {
+    return baseC4CrisisPending(['another-crisis-is-still-open', `current-crisis-state-${currentCrisis.state}`], [],
+      'The original GM must close the existing source crisis through its offered lifecycle before starting a new one.');
+  }
+  if (currentCrisis && (!Number.isSafeInteger(currentCrisis.revision) || currentCrisis.revision < 1)) {
+    return baseC4CrisisPending(['closed-crisis-source-revision-is-malformed']);
+  }
+  if (currentCrisis?.crisisId === choice.crisisId) {
+    return baseC4CrisisPending(['new-crisis-identifier-must-differ-from-closed-record'], [],
+      'The original GM must choose a fresh crisis identifier before creating a new lifecycle.');
+  }
+
+  const completedStates = [];
+  const safeReceipts = [];
+  for (const state of BASE_C4_TRAINING_CRISIS_STATES) {
+    const currentProjection = await readMountedGmCrisis(context.gm);
+    if (!currentProjection?.live || currentProjection.sessionId !== context.initial.sessionId) {
+      return baseC4CrisisPending(['current-gm-crisis-projection-became-stale'], completedStates);
+    }
+    const current = currentProjection.crisis;
+    if (state === 'draft') {
+      if (current && (current.state !== 'closed' || current.crisisId === choice.crisisId)) {
+        return baseC4CrisisPending(['source-no-longer-offers-a-new-crisis-draft'], completedStates);
+      }
+    } else {
+      const previousState = BASE_C4_TRAINING_CRISIS_STATES[BASE_C4_TRAINING_CRISIS_STATES.indexOf(state) - 1];
+      if (!current || current.crisisId !== choice.crisisId || current.state !== previousState ||
+          !Number.isSafeInteger(current.revision) || current.revision < 1 ||
+          current.title !== choice.title || current.details !== choice.details ||
+          current.crisisKind !== choice.crisisKind || current.deliveryPressure !== choice.deliveryPressure) {
+        return baseC4CrisisPending(['current-source-crisis-state-or-revision-does-not-match-expected-next-step'], completedStates);
+      }
+    }
+
+    const observed = await context.gm.observe();
+    const blockers = baseC4GmBlockers(observed, context);
+    if (blockers.length) return baseC4CrisisPending(blockers, completedStates,
+      'The original GM must remain live in Cycle 4 Coordination for each offered transition.');
+    assertGmInstanceFence(observed, initialExpectedActor);
+    const region = context.gm.page.getByRole('region', { name: 'Crisis state machine', exact: true });
+    const button = region.getByRole('button', { name: `Mark ${state}`, exact: true });
+    const visible = await button.isVisible().catch(() => false);
+    const enabled = visible && await button.isEnabled().catch(() => false);
+    if (!enabled) return baseC4CrisisPending([visible
+      ? `source-disabled-mark-${state}-transition` : `source-does-not-offer-mark-${state}-transition`], completedStates);
+
+    const preparationBlocker = state === 'draft' ? await fillBaseC4TrainingDraft(region, choice) : null;
+    if (preparationBlocker) return baseC4CrisisPending([preparationBlocker], completedStates);
+    const expectedRevision = current?.revision ?? 0;
+    const { request, result, replay } = await captureMountedUiAction({
+      surface: context.gm,
+      endpoint: 'transitionCrisis',
+      expectedActor: initialExpectedActor,
+      executeUi: () => button.click(),
+    });
+    assert.equal(result.sessionId, context.initial.sessionId);
+    assert.equal(result.crisisId, choice.crisisId);
+    assert.equal(result.state, state);
+    assert.equal(result.revision, expectedRevision + 1);
+    assert.equal(result.title, choice.title);
+    assert.equal(result.deliveryPressure, choice.deliveryPressure);
+    const projectedText = `${choice.crisisId} // ${state} // revision ${result.revision}`;
+    await context.gm.page.getByText(projectedText, { exact: true }).waitFor({ state: 'visible' });
+    const afterProjection = await readMountedGmCrisis(context.gm);
+    if (!afterProjection?.live || afterProjection.sessionId !== context.initial.sessionId ||
+        afterProjection.crisis?.crisisId !== choice.crisisId || afterProjection.crisis?.state !== state ||
+        afterProjection.crisis?.revision !== result.revision || afterProjection.crisis?.title !== choice.title ||
+        afterProjection.crisis?.details !== choice.details || afterProjection.crisis?.crisisKind !== choice.crisisKind ||
+        afterProjection.crisis?.deliveryPressure !== choice.deliveryPressure) {
+      return baseC4CrisisPending(['committed-transition-not-yet-confirmed-in-current-gm-projection'], completedStates,
+        'The original GM must wait for the live crisis projection before the next state transition.');
+    }
+    const identity = await context.gm.observe();
+    assertGmInstanceFence(identity, initialExpectedActor);
+    safeReceipts.push(privateSafeActionReceipt({ family: 'base-c4-custom-crisis', branch: `transition-${state}`,
+      endpoint: 'transitionCrisis', actor: { uidHash: identity.uidHash, roleId: 'gm' },
+      sessionId: context.initial.sessionId, cycle: 4, phase: 'active', request, result, replay }));
+    completedStates.push(state);
+  }
+  return Object.freeze({ family: 'base-c4-custom-crisis', status: 'source-actions-committed', accepted: true,
+    completedStates: Object.freeze(completedStates), receipts: Object.freeze(safeReceipts),
+    physicalAttendanceProof: false, gameplayAcceptance: false });
+}
