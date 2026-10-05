@@ -5,6 +5,22 @@ import {createRequire} from 'node:module';
 import {localGmAccessConfiguration,grantLocalGmAccess} from './local-gm-access.mjs';
 import {buildPc07ExplicitLoyaltyAssignments} from './pc07-explicit-loyalty-setup.mjs';
 
+/** A native proof request must fail observably instead of waiting indefinitely.
+ * There is no transport retry; production callable limits are unchanged. */
+export async function performFixtureCallable({origin,project,actor,name,data,timeoutMs=60_000}) {
+ const signal=AbortSignal.timeout(timeoutMs);
+ try{
+  const response=await fetch(`${origin}/${project}/us-central1/${name}`,{
+   method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${actor.idToken}`},
+   body:JSON.stringify({data}),signal,
+  });
+  return{status:response.status,...await response.json()};
+ }catch(error){
+  if(signal.aborted)throw new Error(`Local fixture callable ${name} exceeded ${timeoutMs}ms without a reply.`);
+  throw error;
+ }
+}
+
 /** Actual browser clients must control their own presence in disconnect proof.
  * A synthetic keep-alive must not silently keep an offline browser connected. */
 export function shouldMaintainFixturePresence({ browserControlled, browserOwnsPresence = false,
@@ -59,8 +75,8 @@ export async function createPc07AuthenticatedSession(name,playerCount=8,{clearBr
  async function actor(){const r=await fetch(`http://127.0.0.1:${config.authPort}/identitytoolkit.googleapis.com/v1/accounts:signUp?key=${project}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({returnSecureToken:true})});assert.equal(r.status,200);return r.json();}
  const disconnected=new Set();
  let pendingFixtureCall=Promise.resolve();
- async function performCall(actor,name,data){const r=await fetch(`http://127.0.0.1:${functionsPort}/${project}/us-central1/${name}`,{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${actor.idToken}`},body:JSON.stringify({data})});const reply={status:r.status,...await r.json()};
-  if(r.status===200){if(name==='disconnectFromSession')disconnected.add(actor.localId);if(name==='resumeSession')disconnected.delete(actor.localId);}
+ async function performCall(actor,name,data){const reply=await performFixtureCallable({origin:`http://127.0.0.1:${functionsPort}`,project,actor,name,data});
+  if(reply.status===200){if(name==='disconnectFromSession')disconnected.add(actor.localId);if(name==='resumeSession')disconnected.delete(actor.localId);}
   return reply;}
  function call(actor,name,data){
   if(!serializeFixtureCalls)return performCall(actor,name,data);
