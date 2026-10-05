@@ -9,6 +9,13 @@ vi.mock('@/lib/smallShipJumpService', () => ({
   jumpSmallShip: vi.fn(),
   chargeSmallShipJumpDrive: vi.fn(),
 }));
+vi.mock('@/components/BaseCapybaraCargoTransferPanel', () => ({
+  default: () => <section aria-label="Capybara cargo controller" />,
+  SmallShipCargoTransferPanel: ({ smallShipId }: { smallShipId: string }) => <section aria-label={`${smallShipId} cargo controller`} />,
+}));
+vi.mock('@/components/WolfRangeSupportActionPanel', () => ({
+  default: ({ sourceId, range }: { sourceId: string; range: string }) => <section aria-label={`${sourceId} ${range} controller`} />,
+}));
 vi.mock('@/components/WolfAttackAftermathActionPanel', () => ({
   default: ({ operator }: { operator: string }) => <section aria-label={`${operator} aftermath controls`} />,
 }));
@@ -104,4 +111,16 @@ describe('extra-ship Captain Jump Drive integration', () => {
     expect(screen.queryByRole('region', { name: 'Small-craft Jump Drive workspace' })).not.toBeInTheDocument();
     expect(movementService.getSmallShipJumpWorkspace).not.toHaveBeenCalled();
   });
+});
+
+it('mounts Warrior cargo and only the two printed Vulcan range choices', () => {
+  installCaptain('warrior-captain');
+  const view = render(<ExtraShipCaptainWorkspace roleId="warrior-captain" />);
+  expect(screen.getByRole('region', { name: 'warrior cargo controller' })).toBeInTheDocument();
+  view.unmount();
+  installCaptain('vulcan-captain');
+  render(<ExtraShipCaptainWorkspace roleId="vulcan-captain" />);
+  expect(screen.getByRole('region', { name: 'vulcan-laser-cannon medium-range controller' })).toBeInTheDocument();
+  expect(screen.getByRole('region', { name: 'vulcan-laser-cannon short-range controller' })).toBeInTheDocument();
+  expect(screen.queryByRole('region', { name: 'vulcan-laser-cannon long-range controller' })).not.toBeInTheDocument();
 });

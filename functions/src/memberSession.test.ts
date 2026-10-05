@@ -204,3 +204,14 @@ describe('current member session privacy', () => {
 });
 
 function recordScope(value: Record<string, unknown>) { return value.memberSessionScope as { vesselIds: string[] }; }
+
+it('keeps strict Warrior cargo with its entitled current host and withdraws foreign/Press ledgers', () => {
+  const warriorCargo = {revision: 2, inventory: {securityTeams: 1, ore: 2, fuel: 3, food: 4, water: 5, materials: 6}};
+  const source = {...root, expansion: 'none', capybaraEnabled: false,
+    warriorCargo, smallShipStates: {warrior: {...emptySmallShipState('warrior', 'shepherd'), dockingRevision: 1}}};
+  const scope = memberSessionScope(player, groups);
+  expect(memberSessionProjection(source, scope).warriorCargo).toEqual(warriorCargo);
+  expect(memberSessionProjection({...source, smallShipStates: {warrior: {...emptySmallShipState('warrior', 'aegis'), dockingRevision: 1}}}, scope)).not.toHaveProperty('warriorCargo');
+  expect(memberSessionProjection(source, memberSessionScope({...player, activeConsoleRoleId: 'press-officer'}, groups))).not.toHaveProperty('warriorCargo');
+  expect(parsedMemberSessionDetails({...source, warriorCargo: {...warriorCargo, hidden: 'private'}}, [])).not.toHaveProperty('warriorCargo');
+});
