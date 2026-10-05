@@ -75,3 +75,18 @@ test('source-mounted role paths are selected before inventory or an action is cl
   assert.equal(driver.extraRoleActionRoute('wolf-commander'), '/brief');
   assert.equal(driver.extraRoleActionRoute('vulcan-captain'), '/brief');
 });
+
+test('an individual procedure selects its actual paid step instead of restarting an entire lifecycle', () => {
+  assert.equal(typeof driver.extraRoleProcedureStep, 'function');
+  const joint = createExtraRoleMatrix('joint'), replacements = createExtraRoleMatrix('replacements');
+  assert.deepEqual(driver.extraRoleProcedureStep('joint', joint.find(row => row.id === 'joint-engineering-quellon-refinery:quellon-end')),
+    { kind: 'joint-maintenance', roleId: 'joint-engineering-quellon-refinery', shipId: 'quellon', craftId: 'wobbly', action: 'end' });
+  assert.deepEqual(driver.extraRoleProcedureStep('joint', joint.find(row => row.id === 'joint-engineering-quellon-refinery:wobbly-fuel')),
+    { kind: 'joint-maintenance', roleId: 'joint-engineering-quellon-refinery', shipId: 'quellon', craftId: 'wobbly', action: 'bays' });
+  assert.deepEqual(driver.extraRoleProcedureStep('replacements', replacements.find(row => row.id === 'vulcan-captain:eligibility')),
+    { kind: 'replacement-transition', roleId: 'vulcan-captain', action: 'eligibility' });
+  assert.deepEqual(driver.extraRoleProcedureStep('replacements', replacements.find(row => row.id === 'vulcan-captain:assignment')),
+    { kind: 'replacement-transition', roleId: 'vulcan-captain', action: 'assignment' });
+  assert.deepEqual(driver.extraRoleProcedureStep('replacements', replacements.find(row => row.id === 'vulcan-captain:maintenance-end')),
+    { kind: 'small-maintenance', shipId: 'vulcan', action: 'end' });
+});
