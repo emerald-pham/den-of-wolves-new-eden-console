@@ -44,7 +44,7 @@ function nativeAttack({ requiredRole, step = 'boarding', sourceLabel }) {
       return { status: 'committed', result: selectedRole === requiredRole ? {
         type: 'wolf-boarding-defence-choice-view', sessionId: 'native-session', turn: 2, revision,
         targetShipId, choiceStatus: 'pending' } : {
-        type: 'wolf-boarding-defence-choice-unavailable', sessionId: 'native-session', reason: 'not-your-ship' } };
+        type: 'wolf-boarding-defence-choice-unavailable', sessionId: 'native-session', reason: 'not-your-choice' } };
     } };
   const roster = [
     'admiral', 'executive-officer', 'wing-commander', 'dione-captain', 'dione-engineer', 'dione-president',
