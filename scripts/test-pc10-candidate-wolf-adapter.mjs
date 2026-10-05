@@ -5,6 +5,7 @@ import { resolveLiveWolfAttack } from './pc10-live-wolf-attack-ui-proof.mjs';
 /** Native adapter counterexamples only. These surfaces are not gameplay/Auth evidence. */
 function nativeAttack({ requiredRole, step = 'boarding', sourceLabel }) {
   const calls = [];
+  const targetShipId = requiredRole.startsWith('capybara-') ? 'capybara' : 'dione';
   let selectedRole, revision = 1, status = 'declared';
   const current = () => ({ status, revision, currentStep: step, turn: 2,
     attackId: 'native-adapter-counterexample', preparation: { shipIds: ['native-enemy'] } });
@@ -14,7 +15,7 @@ function nativeAttack({ requiredRole, step = 'boarding', sourceLabel }) {
     isVisible: async () => kind === 'button' && name === 'Commit defence' && selectedRole === requiredRole ||
       kind === 'region' && name === `${sourceLabel} Long Range choice` && selectedRole === requiredRole ||
       kind === 'button' && name === 'Pass this range' && selectedRole === requiredRole ||
-      kind === 'region' && (name === 'Boarding defence' || name === 'DIONE boarding defence'),
+      kind === 'region' && (name === 'Boarding defence' || name === `${targetShipId.toUpperCase()} boarding defence`),
     isEnabled: async () => true,
     innerText: async () => selectedRole === requiredRole ? 'Cycle 2 // boarding Crew choice required'
       : 'This ship’s defence choice is not open yet. It will remain pending for the current assigned crew when its stage begins.',
@@ -42,7 +43,7 @@ function nativeAttack({ requiredRole, step = 'boarding', sourceLabel }) {
       assert.equal(endpoint, 'getWolfBoardingDefenceChoice');
       return { status: 'committed', result: selectedRole === requiredRole ? {
         type: 'wolf-boarding-defence-choice-view', sessionId: 'native-session', turn: 2, revision,
-        targetShipId: 'dione', choiceStatus: 'pending' } : {
+        targetShipId, choiceStatus: 'pending' } : {
         type: 'wolf-boarding-defence-choice-unavailable', sessionId: 'native-session', reason: 'not-your-ship' } };
     } };
   const roster = [
