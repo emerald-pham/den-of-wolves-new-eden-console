@@ -115,6 +115,9 @@ function allowlisted(source, fields) {
         if (typeof nested === 'string') choice[key] = nested.slice(0, 80);
         else if (Array.isArray(nested) && nested.length <= 12 && nested.every(item => typeof item === 'string')) choice[key] = [...nested];
       }
+      if (Number.isSafeInteger(value.securityTeams) && value.securityTeams >= 0 && value.securityTeams <= 99) {
+        choice.securityTeams = value.securityTeams;
+      }
       result.choice = choice;
     } else if (field === 'targets' && Array.isArray(value) && value.length <= 8) {
       result.targets = value.flatMap(target => isRecord(target) && typeof target.shipId === 'string' && typeof target.systemId === 'string'
