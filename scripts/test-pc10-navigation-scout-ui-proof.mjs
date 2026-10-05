@@ -11,6 +11,7 @@ import {
   captureNavigationScoutUiReceipt,
 } from './pc10-navigation-scout-proof-contracts.mjs';
 import { createNavigationScoutProof } from './pc10-navigation-scout-ui-proof.mjs';
+import * as contracts from './pc10-navigation-scout-proof-contracts.mjs';
 
 const digest = value => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const actor = () => ({ sessionId: 'session-one', uid: 'actual-owner', uidHash: 'a'.repeat(16),
@@ -422,4 +423,31 @@ test('a later failed required source procedure cannot reuse earlier branch credi
   assert.throws(() => summarizeNavigationScoutBranches([
     { branch: 'scout-report', status: 'observed' }, { branch: 'scout-report', status: 'failed' },
   ], ['scout-report']), /Required scout-report/);
+});
+
+test('courier delivery matches the real server prefix, request identity and original actor in the actual target group', () => {
+  assert.equal(typeof contracts.validateScoutTaxiDelivery, 'function');
+  const request = { requestId: 'actual-courier', shuttleId: 'starlight', text: 'Original source note' };
+  const expected = { request, actor: actor(), targetGroupId: 'fleet-2' };
+  const note = { id: request.requestId, actorUid: 'actual-owner', text: 'Scout taxi from aegis: Original source note', sentAt: '2026-10-05T00:02:00.000Z' };
+  contracts.validateScoutTaxiDelivery({ groupId: 'fleet-2', messages: [note] }, expected);
+  for (const patch of [{ id: 'old-request' }, { actorUid: 'foreign-owner' }, { text: request.text }]) {
+    assert.throws(() => contracts.validateScoutTaxiDelivery({ groupId: 'fleet-2', messages: [{ ...note, ...patch }] }, expected), /source|courier|note/);
+  }
+  assert.throws(() => contracts.validateScoutTaxiDelivery({ groupId: 'fleet-1', messages: [note] }, expected), /group/);
+});
+
+test('a GM recovery control that races automatic resolution does not receive GM recovery credit', () => {
+  assert.equal(typeof contracts.classifyScoutRecovery, 'function');
+  const result = scoutBundle().result;
+  const expected = { requesterUid: result.requesterUid, requestId: result.requestId, sessionId: result.sessionId,
+    sourceId: result.sourceId, cycle: result.cycle, targetCoordinate: result.targetCoordinate };
+  const log = { requestId: result.requestId, cycle: result.cycle, sourceId: result.sourceId,
+    originShipId: 'aegis', receivingShipId: 'aegis', targetCoordinate: result.targetCoordinate,
+    systemFact: result.systemFact, recordedAt: '2026-10-05T00:02:00.000Z', resolutionMode: 'gm-recovery' };
+  assert.equal(contracts.classifyScoutRecovery(log, { status: 'resolved', result }, expected).state, 'observed');
+  assert.equal(contracts.classifyScoutRecovery({ ...log, resolutionMode: 'automatic' }, { status: 'replayed', result }, expected).state, 'pending');
+  assert.equal(contracts.classifyScoutRecovery(log, { status: 'replayed', result }, expected).state, 'pending');
+  assert.throws(() => contracts.classifyScoutRecovery(log,
+    { status: 'resolved', result: { ...result, requesterUid: 'foreign-owner' } }, expected), /source|requester/);
 });
