@@ -67,6 +67,18 @@ function CandidateChoices({ path, revision, groupId, busy, submit, gm, grantedSh
 }
 
 export default function CandidatePreparationPanel() {
+  const sessionId = useSessionStore(state => state.session?.id);
+  const me = useSessionStore(state => state.me);
+  const gmInstance = useSessionStore(state => state.gmInstance);
+  const freshness = useSessionStore(state => state.sessionSnapshotFreshness);
+  const connection = useSessionStore(state => state.connection);
+  const audience = JSON.stringify([sessionId, me?.sessionId, me?.uid, me?.role, me?.fleetGroupId,
+    me?.assignedRoleId, me?.activeConsoleRoleId, gmInstance?.id, gmInstance?.uid, gmInstance?.sessionId,
+    gmInstance?.claimedAt, freshness, connection]);
+  return <CandidatePreparationWorkspace key={audience} />;
+}
+
+function CandidatePreparationWorkspace() {
   const session = useSessionStore(state => state.session); const me = useSessionStore(state => state.me);
   const freshness = useSessionStore(state => state.sessionSnapshotFreshness); const connection = useSessionStore(state => state.connection);
   const gmInstance = useSessionStore(state => state.gmInstance);
@@ -78,7 +90,8 @@ export default function CandidatePreparationPanel() {
   const groupIds = [...new Set(Object.values(session?.shipFleetGroupIds ?? {}))];
   const groupId = isGm ? selectedGroup || me?.fleetGroupId || groupIds[0] || 'fleet-1' : me?.fleetGroupId;
   const ready = !!session && !!me && me.sessionId === session.id && !!groupId &&
-    freshness === 'server' && connection === 'live' && (!isGm || !!gmInstance);
+    freshness === 'server' && connection === 'live' && (!isGm ||
+      (!!gmInstance && gmInstance.uid === me.uid && gmInstance.sessionId === session.id));
   useEffect(() => {
     let cancelled = false; setWorkspace(undefined);
     if (!ready || !groupId) return;
@@ -86,7 +99,8 @@ export default function CandidatePreparationPanel() {
     void readCandidateWorkspace(groupId).then(value => { if (!cancelled) setWorkspace(value); })
       .catch(cause => { if (!cancelled) setMessage(cause instanceof Error ? cause.message : 'Candidate operations unavailable.'); });
     return () => { cancelled = true; };
-  }, [ready, groupId, session?.id, session?.currentTurn, session?.phase, session?.updatedAt, me?.uid, refresh]);
+  }, [ready, groupId, session?.id, session?.currentTurn, session?.phase, session?.updatedAt,
+    me?.uid, me?.role, gmInstance?.id, gmInstance?.uid, gmInstance?.sessionId, gmInstance?.claimedAt, refresh]);
   if (!session || !me || (me.role !== 'gm' && me.role !== 'player')) return null;
   async function execute(attempt: CandidateAttempt) {
     if (busy) return; setBusy(true); setPending(attempt); setMessage('Transmitting candidate choice…');

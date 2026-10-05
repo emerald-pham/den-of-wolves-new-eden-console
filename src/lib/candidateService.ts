@@ -1,6 +1,6 @@
 import { httpsCallable } from 'firebase/functions';
 import { functions } from './firebase';
-import { requireFreshSessionAuthority } from './sessionMutationAuthority';
+import { captureSessionAuthority, isCurrentSessionAuthority, requireFreshSessionAuthority } from './sessionMutationAuthority';
 import { useSessionStore } from '@/store/useSessionStore';
 
 export type CandidateCode = 'N' | 'O' | 'P';
@@ -41,7 +41,22 @@ function context(expectedGroupId: string) {
   if (me.role === 'gm' && (!gmInstance || gmInstance.uid !== me.uid || gmInstance.sessionId !== session.id)) {
     throw new Error('A current GM connection is required.');
   }
-  return { sessionId: session.id, uid: me.uid, ...(me.role === 'gm' ? { instanceId: gmInstance!.id } : {}) };
+  return { sessionId: session.id, uid: me.uid, role: me.role, fleetGroupId: me.fleetGroupId,
+    assignedRoleId: me.assignedRoleId, activeConsoleRoleId: me.activeConsoleRoleId,
+    ...(me.role === 'gm' ? { instanceId: gmInstance!.id, instanceClaimedAt: gmInstance!.claimedAt } : {}) };
+}
+function requireCurrentContext(original: ReturnType<typeof context>, expectedGroupId: string, bindConsole = true): void {
+  requireFreshSessionAuthority('Reconnect until live candidate authority returns.');
+  let current: ReturnType<typeof context>;
+  try { current = context(expectedGroupId); }
+  catch { throw new Error('Candidate audience or authority changed. Return to Roles and reselect.'); }
+  if (current.sessionId !== original.sessionId || current.uid !== original.uid || current.role !== original.role ||
+      current.fleetGroupId !== original.fleetGroupId ||
+      (bindConsole && (current.assignedRoleId !== original.assignedRoleId || current.activeConsoleRoleId !== original.activeConsoleRoleId)) ||
+      current.instanceId !== original.instanceId ||
+      current.instanceClaimedAt !== original.instanceClaimedAt) {
+    throw new Error('Candidate audience or authority changed before the reply returned.');
+  }
 }
 function pendingKey(sessionId: string, uid: string) { return `dow:candidate-request:${sessionId}:${uid}`; }
 function attemptIdentity(value: CandidateAttempt): string {
@@ -70,21 +85,64 @@ export function createCandidateAttempt(choice: Omit<CandidateAttempt, 'sessionId
   if (savedCandidateAttempt(c)) throw new Error('Recover the original candidate request in its fleet group and GM connection before making a new choice.');
   return { ...choice, sessionId: c.sessionId, requestId: crypto.randomUUID(), ...(c.instanceId ? { instanceId: c.instanceId } : {}) };
 }
+const counter = (value: unknown): value is number => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+const code = (value: unknown): value is CandidateCode => value === 'N' || value === 'O' || value === 'P';
+const texts = (value: unknown): value is string[] => Array.isArray(value) && value.every(item => typeof item === 'string');
+function fields(value: Record<string, unknown>, keys: readonly string[]): Record<string, unknown> {
+  return Object.fromEntries(keys.filter(key => value[key] !== undefined).map(key => [key, value[key]]));
+}
+function operationalPath(value: unknown, gm: boolean): CandidatePathView | undefined {
+  const textFields = ['coordinate', 'title', 'nextActor'];
+  const counters = ['materials', 'materialsRequired', 'researchCount', 'researchRequired', 'chargeCapacity', 'requiredCapacity'];
+  const booleans = ['shuttleCommitted', 'repaired', 'liberated', 'activated', 'sabotaged', 'completed', 'canSabotage'];
+  if (!record(value) || !code(value.code) || textFields.some(key => typeof value[key] !== 'string') ||
+      counters.some(key => !counter(value[key])) || booleans.some(key => typeof value[key] !== 'boolean') ||
+      !texts(value.blockers) || !texts(value.reactorShipIds) || !Array.isArray(value.researchChoices) ||
+      !Array.isArray(value.engineeringShuttles) || !Array.isArray(value.ships)) return undefined;
+  const researchChoices = value.researchChoices.map(choice => record(choice) &&
+    typeof choice.id === 'string' && typeof choice.name === 'string' ? { id: choice.id, name: choice.name } : undefined);
+  const engineeringShuttles = value.engineeringShuttles.map(craft => record(craft) &&
+    typeof craft.id === 'string' && typeof craft.available === 'boolean' ? { id: craft.id, available: craft.available } : undefined);
+  const ships = value.ships.map(ship => {
+    if (!record(ship) || ['shipId', 'result', 'blocker'].some(key => typeof ship[key] !== 'string') ||
+        !counter(ship.fuelCost) || !counter(ship.reactorCapacity) || typeof ship.canAct !== 'boolean' ||
+        (ship.summary !== undefined && typeof ship.summary !== 'string') ||
+        (ship.fuelSpent !== undefined && !counter(ship.fuelSpent))) return undefined;
+    return fields(ship, ['shipId', 'result', 'blocker', 'fuelCost', 'reactorCapacity', 'canAct', 'summary', 'fuelSpent']);
+  });
+  if (researchChoices.some(choice => !choice) || engineeringShuttles.some(craft => !craft) || ships.some(ship => !ship)) return undefined;
+  return { ...fields(value, ['code', ...textFields, ...counters, ...booleans]),
+    blockers: [...value.blockers], reactorShipIds: [...value.reactorShipIds], researchChoices, engineeringShuttles, ships,
+    canSabotage: gm && value.canSabotage } as CandidatePathView;
+}
+function workspaceProjection(value: unknown, c: ReturnType<typeof context>, expectedGroupId: string): CandidateWorkspace {
+  const invalid = () => new Error('The candidate operation report could not be verified. Refresh the live session.');
+  if (!record(value) || value.type !== 'candidate-workspace' || value.sessionId !== c.sessionId ||
+      value.groupId !== expectedGroupId || !counter(value.cycle) || !counter(value.revision) || !Array.isArray(value.paths)) throw invalid();
+  const paths = value.paths.map(path => operationalPath(path, c.role === 'gm'));
+  if (paths.some(path => !path)) throw invalid();
+  const projected: CandidateWorkspace = { type: 'candidate-workspace', sessionId: c.sessionId, groupId: expectedGroupId,
+    cycle: value.cycle, revision: value.revision, paths: paths as CandidatePathView[] };
+  if (c.role === 'gm' && value.privateCalculations !== undefined) {
+    if (!Array.isArray(value.privateCalculations)) throw invalid();
+    projected.privateCalculations = value.privateCalculations.map(audit => {
+      if (!record(audit) || typeof audit.requestId !== 'string' || !code(audit.code) ||
+          typeof audit.result !== 'string' || !record(audit.calculation)) throw invalid();
+      return { requestId: audit.requestId, code: audit.code, result: audit.result,
+        calculation: structuredClone(audit.calculation) };
+    });
+  }
+  return projected;
+}
 export async function readCandidateWorkspace(expectedGroupId: string): Promise<CandidateWorkspace> {
   requireFreshSessionAuthority('Reconnect to receive the current candidate operations.');
   const c = context(expectedGroupId);
+  const authority = captureSessionAuthority(c.sessionId, c.uid);
   const payload = { sessionId: c.sessionId, expectedGroupId, ...(c.instanceId ? { instanceId: c.instanceId } : {}) };
   const reply = (await httpsCallable<typeof payload, unknown>(functions(), 'readCandidateWorkspace')(payload)).data;
-  if (!record(reply) || reply.type !== 'candidate-workspace' || reply.sessionId !== c.sessionId ||
-      reply.groupId !== expectedGroupId || !Number.isSafeInteger(reply.revision) || !Array.isArray(reply.paths) ||
-      reply.paths.some(path => !record(path) || !['N', 'O', 'P'].includes(String(path.code)) ||
-        typeof path.coordinate !== 'string' || !Array.isArray(path.ships) || !Array.isArray(path.blockers))) {
-    throw new Error('The candidate operation report could not be verified. Refresh the live session.');
-  }
-  const current = useSessionStore.getState();
-  if (current.session?.id !== c.sessionId || current.me?.uid !== c.uid ||
-      (current.me.role === 'player' && current.me.fleetGroupId !== expectedGroupId)) throw new Error('Candidate audience changed. Return to Roles and reselect.');
-  return reply as unknown as CandidateWorkspace;
+  requireCurrentContext(c, expectedGroupId);
+  if (!isCurrentSessionAuthority(authority)) throw new Error('Candidate session authority changed. Refresh the live report.');
+  return workspaceProjection(reply, c, expectedGroupId);
 }
 export async function executeCandidateAttempt(attempt: CandidateAttempt): Promise<CandidateResult> {
   requireFreshSessionAuthority('Reconnect to retry the original candidate request.');
@@ -105,12 +163,9 @@ export async function executeCandidateAttempt(attempt: CandidateAttempt): Promis
       typeof reply.requestId !== 'string' || !Number.isSafeInteger(reply.revision) || typeof reply.summary !== 'string') {
     throw new Error('The original candidate result needs recovery. Retry this same request.');
   }
-  const current = useSessionStore.getState();
-  if (current.session?.id !== c.sessionId || current.me?.uid !== c.uid ||
-      (current.me?.role === 'player' && current.me.fleetGroupId !== attempt.expectedGroupId) ||
-      (current.me?.role === 'gm' && current.gmInstance?.id !== c.instanceId)) {
-    throw new Error('The candidate audience or session identity changed before the receipt returned.');
-  }
+  // A committed vessel disposition may release its console while this original
+  // receipt is in flight. Actor, role, group and GM claim remain mandatory.
+  requireCurrentContext(c, attempt.expectedGroupId, false);
   localStorage.removeItem(key);
   return reply as unknown as CandidateResult;
 }
