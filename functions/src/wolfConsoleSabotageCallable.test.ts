@@ -404,3 +404,30 @@ it('fails closed when a pending alert no longer matches its immutable clue histo
     state: 'pending', revision: 1,
   });
 });
+
+
+it('denies fresh GM console visits against settled vessels but recovers the entitled original visit', async () => {
+  const data = { sessionId: 's1', instanceId: 'gm-1', requestId: 'visit-settlement', expectedCycle: 2,
+    targetUid: 'wolf-uid', targetShipId: 'dione' };
+  const original = await startWolfConsoleVisit.run(request(data));
+  mock.documents.get('sessions/s1')!.candidateVesselOutcomes = { dione: { code: 'N', groupId: 'fleet-1',
+    shipId: 'dione', sourceId: 'ring-cutoff', cycle: 2, outcome: 'left-behind' } };
+  await expect(startWolfConsoleVisit.run(request(data))).resolves.toEqual(original);
+  const writes = mock.set.mock.calls.length;
+  await expect(startWolfConsoleVisit.run(request({ ...data, requestId: 'fresh-settled-visit' })))
+    .rejects.toMatchObject({ code: 'failed-precondition', message: expect.stringContaining('candidate disposition') });
+  expect(mock.set.mock.calls.length).toBe(writes);
+});
+it('denies a fresh sabotage consequence after target settlement without another server roll', async () => {
+  vi.spyOn(Date, 'now').mockReturnValue(1_000_000);
+  await startWolfConsoleVisit.run(request({ sessionId: 's1', instanceId: 'gm-1', requestId: 'visit-1',
+    expectedCycle: 2, targetUid: 'wolf-uid', targetShipId: 'dione' }));
+  vi.spyOn(Date, 'now').mockReturnValue(1_015_000);
+  mock.documents.get('sessions/s1')!.candidateVesselOutcomes = { dione: { code: 'P', groupId: 'fleet-1',
+    shipId: 'dione', sourceId: 'station-reactor', cycle: 2, outcome: 'cannibalised' } };
+  const rolls = cryptoMock.randomInt.mock.calls.length;
+  await expect(resolveWolfConsoleSabotage.run(request({ sessionId: 's1', instanceId: 'gm-1', requestId: 'new-sabotage',
+    expectedCycle: 2, visitId: 'visit-1', mode: 'random' }))).rejects.toMatchObject({ code: 'failed-precondition',
+    message: expect.stringContaining('candidate disposition') });
+  expect(cryptoMock.randomInt.mock.calls.length).toBe(rolls);
+});

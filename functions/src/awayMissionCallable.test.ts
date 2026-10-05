@@ -181,6 +181,8 @@ beforeEach(() => {
     const handId = ref.path.split('/').at(-1)!;
     mock.pointerDocuments[handId] = { ...(mock.pointerDocuments[handId] ?? {}), ...patch };
   });
+  delete (sessionFields as Record<string, unknown>).candidateVesselOutcomes;
+  delete (sessionFields as Record<string, unknown>).candidateCraftReservations;
   sessionFields.currentTurn = 2;
   delete (sessionFields as Record<string, unknown>).fleetPartitionRevision;
   (sessionFields.turnPhase as Record<string, unknown>).turn = 2;
@@ -418,6 +420,27 @@ describe('discardPrivateMissionCard', () => {
       missionId: 'mission-1', handId: 'm9_mission-1u5_alice', phase: 'discarding',
       revision: 1, discarded: false,
     };
+  });
+
+  it('denies a fresh legacy discard for a settled vessel while retaining the original receipt', async () => {
+    const original = await discardPrivateMissionCard.run(request(command, 'alice'));
+    mock.discardMarker = mock.set.mock.calls.find(([ref]) => ref.path === 'sessions/s1/commandReceipts/discard-1')?.[1];
+    (sessionFields as Record<string, unknown>).candidateVesselOutcomes = { aegis: { code: 'O', groupId: 'fleet-1',
+      shipId: 'aegis', sourceId: 'nebula-final', cycle: 2, outcome: 'reached' } };
+    await expect(discardPrivateMissionCard.run(request(command, 'alice'))).resolves.toMatchObject({ ...original, status: 'replayed' });
+    mock.discardMarker = undefined;
+    mock.set.mockClear(); mock.update.mockClear();
+    await expect(discardPrivateMissionCard.run(request({ ...command, requestId: 'new-discard' }, 'alice')))
+      .rejects.toMatchObject({ code: 'failed-precondition', message: expect.stringContaining('candidate disposition') });
+    expect(mock.update).not.toHaveBeenCalled();
+  });
+  it('denies a fresh legacy discard carried by an Engineering Shuttle permanently consumed for Ring repair', async () => {
+    (sessionFields as Record<string, unknown>).candidateCraftReservations = { philia: { code: 'N', groupId: 'fleet-1',
+      coordinate: '3232', sourceId: 'ring-craft', cycle: 2 } };
+    mock.discardMission = { ...mock.discardMission, participantCrafts: [{ participantUid: 'alice', craftIds: ['philia'] }] };
+    await expect(discardPrivateMissionCard.run(request(command, 'alice'))).rejects.toMatchObject({ code: 'failed-precondition',
+      message: expect.stringContaining('permanently consumed') });
+    expect(mock.update).not.toHaveBeenCalled();
   });
 
   it('rejects a malformed lifecycle record at the legacy discard endpoint without desynchronizing projections', async () => {

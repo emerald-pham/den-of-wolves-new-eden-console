@@ -2798,3 +2798,16 @@ it.each((['pdf-escort-fighter-wing', 'maliades'] as const).flatMap(sourceId =>
     expect([...mock.documents]).toEqual(saved);
     expect(mock.update).not.toHaveBeenCalled(); expect(mock.set).not.toHaveBeenCalled();
   });
+
+
+it('declares against remaining ships after genuine Ring craft consumption without recreating its parking or battle action', async () => {
+  const root = mock.documents.get('sessions/s1')!;
+  root.candidateCraftReservations = { philia: { code: 'N', groupId: 'fleet-1', coordinate: '3232',
+    sourceId: 'ring-craft', cycle: 1 } };
+  root.shuttleDockings = initialShuttleDockingsForRoles(root.activeRoleIds as string[]).filter(docking => docking.shuttleId !== 'philia');
+  await expect(declareWolfAttack.run(request())).resolves.toMatchObject({ status: 'declared' });
+  const attack = mock.documents.get('sessions/s1/wolfAttackState/current')!;
+  expect(attack.parkedCraftIds).not.toContain('philia');
+  expect((mock.documents.get('sessions/s1')!.shuttleDockings as { shuttleId: string }[])
+    .some(docking => docking.shuttleId === 'philia')).toBe(false);
+});
