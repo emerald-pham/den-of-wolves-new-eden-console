@@ -4,7 +4,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { createTwoBrowserGameplay } from './pc10-two-browser-gameplay.mjs';
 import { resolveLiveWolfAttack } from './pc10-live-wolf-attack-ui-proof.mjs';
 import { assertBaseCombatPrerequisites, assertOriginalBaseActor, assertRequiredBaseBranches, baseMemberRowsMatch, baseWolfActionExpectation,
-  BASE_COMBAT_CONTROL_LABELS, captureBaseUiReceipt, chooseBaseRangeAssignments,
+  BASE_COMBAT_CONTROL_LABELS, baseResearchPaintMatches, captureBaseUiReceipt, chooseBaseRangeAssignments,
   openingWolfCounts, openBaseEndeavourResearchRoute, originalRoleForUid, proofHash, uidHash, validatePrivateDeductionReply,
   waitForBaseMemberAftermath, waitForBaseResearchReceipt, waitForOriginalBaseActor,
 } from './pc10-base-combat-deduction-contracts.mjs';
@@ -437,24 +437,13 @@ export async function runBaseCombatAndDeduction(context, options = {}) {
     const research = surface.page.getByRole('region', { name: 'Endeavour research controls', exact: true });
     await research.waitFor(); await guidance(role, research, 'research-readiness');
     async function renderedResearch(workspace, receipt) {
-      if (await research.getAttribute('aria-busy') !== 'false') return false;
+      const busy = await research.getAttribute('aria-busy');
+      if (busy !== 'false') return false;
       const progress = research.getByRole('list', { name: 'Research progress', exact: true });
       if (!(await progress.isVisible())) return false;
       const rows = await progress.getByRole('listitem').allTextContents();
-      const track = workspace.tracks.find(value => value.trackId === 'wolf-agent-detector');
-      if (!track) return false;
-      const row = rows.find(text => text.startsWith('Wolf Agent Detector:'));
-      const chosen = workspace.cadence.choices.some(value => value.trackId === 'wolf-agent-detector');
-      if (!row?.includes(`Wolf Agent Detector: ${track.crossedBoxes} of ${track.totalBoxes} boxes crossed;`) ||
-          !row.includes(track.complete ? 'Research complete.' : chosen ? 'Chosen this cycle.' : 'Available for a research choice.')) return false;
-      const text = (await research.innerText()).replace(/\s+/g, ' ');
-      const standard = workspace.cadence.choices.filter(value => value.funding === 'standard').length;
-      const ore = workspace.cadence.choices.filter(value => value.funding === 'shepherd-ore').length;
-      if (!text.includes(`Cycle choices: ${standard} of 3 standard; ${ore} of 2 additional.`) ||
-          !text.includes(`Shepherd // ${workspace.shepherdOre} ore available`)) return false;
-      if (receipt && !text.includes('Wolf Agent Detector advanced one research box.') &&
-          !text.includes('Wolf Agent Detector research request was confirmed.')) return false;
-      return !track.complete || await surface.page.getByRole('region', { name: 'Wolf Agent Detector', exact: true }).isVisible();
+      return baseResearchPaintMatches({ busy, progressVisible: true, rows, text: await research.innerText(),
+        detectorVisible: await surface.page.getByRole('region', { name: 'Wolf Agent Detector', exact: true }).isVisible() }, workspace, receipt);
     }
     if (options.researchDetector) {
       const original = await surface.observe();
