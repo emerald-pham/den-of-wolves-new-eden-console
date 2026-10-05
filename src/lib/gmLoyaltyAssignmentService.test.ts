@@ -100,6 +100,21 @@ describe('authenticated explicit loyalty adapter', () => {
     await expect(pending).rejects.toThrow(/authority|changed|refresh/i);
   });
 
+  it('rejects a late result after Firebase authentication switches to another UID', async () => {
+    let resolveCall!: (value: unknown) => void;
+    const authenticatedClient = {
+      currentUser: { uid: 'gm-1' },
+      authStateReady: vi.fn().mockResolvedValue(undefined),
+    };
+    mocks.auth.mockReturnValue(authenticatedClient);
+    mocks.call.mockImplementation(() => new Promise((resolve) => { resolveCall = resolve; }));
+    const pending = submitExplicitGmLoyaltyAssignment(request);
+    await vi.waitFor(() => expect(mocks.call).toHaveBeenCalledTimes(1));
+    authenticatedClient.currentUser = { uid: 'another-gm' };
+    resolveCall({ data: { sessionId: 's1', setupRevision: 7, assignedUids: ['u1'] } });
+    await expect(pending).rejects.toThrow(/authenticated GM identity changed/i);
+  });
+
   it('does not accept malformed or private assignment projections as a receipt', async () => {
     mocks.call.mockResolvedValue({ data: {
       sessionId: 's1', setupRevision: 7, assignedUids: ['u1'], privateLoyalty: { kind: 'wolf-agent' },
