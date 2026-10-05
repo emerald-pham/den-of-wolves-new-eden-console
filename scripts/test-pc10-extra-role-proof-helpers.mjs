@@ -125,7 +125,7 @@ test('the action-level matrix never promotes a surface visit, conditional absenc
   assert.equal(proof.extraRoleCoverage(matrix).committed, 1);
 });
 
-test('every replacement has explicit eligibility, assignment and procedure rows, including source-unavailable paths', () => {
+test('every replacement has explicit eligibility, assignment and current-source procedure rows', () => {
   assert.equal(typeof proof.extraRoleScenario, 'function');
   assert.equal(typeof proof.createExtraRoleMatrix, 'function');
   const matrix = proof.createExtraRoleMatrix('replacements');
@@ -136,8 +136,26 @@ test('every replacement has explicit eligibility, assignment and procedure rows,
     assert.ok(rows.some(row => row.id !== `${actor.roleId}:eligibility` && row.id !== `${actor.roleId}:assignment`));
     assert.ok(rows.every(row => row.source && row.prerequisite && row.nextActor));
   }
-  assert.ok(matrix.find(row => row.id === 'warrior-captain:jump-drive').unavailableReason);
-  assert.ok(matrix.find(row => row.id === 'vulcan-captain:laser-cannon').unavailableReason);
+  const warriorJump = matrix.find(row => row.id === 'warrior-captain:jump-drive');
+  assert.equal(warriorJump.endpoint, 'jumpSmallShip');
+  assert.equal(warriorJump.unavailableReason, undefined);
+  assert.match(warriorJump.prerequisite, /Coordination.*1\/1\/2.*no reactor charge/i);
+  const warriorCargo = matrix.find(row => row.id === 'warrior-captain:cargo-transfer');
+  assert.equal(warriorCargo.endpoint, 'transferWarriorCargo');
+  assert.equal(warriorCargo.unavailableReason, undefined);
+  assert.match(warriorCargo.prerequisite, /positive whole.*Coordination.*host/i);
+  const vulcanJump = matrix.find(row => row.id === 'vulcan-captain:jump-drive');
+  assert.equal(vulcanJump.endpoint, 'jumpSmallShip');
+  assert.equal(vulcanJump.unavailableReason, undefined);
+  assert.match(vulcanJump.prerequisite, /Coordination.*1\/1\/2.*no reactor charge/i);
+  for (const range of ['medium', 'short']) {
+    const laser = matrix.find(row => row.id === `vulcan-captain:laser-cannon-${range}`);
+    assert.equal(laser.endpoint, 'commitWolfRangeSupportActionChoice');
+    assert.equal(laser.requiredRequestFields.sourceId, 'vulcan-laser-cannon');
+    assert.equal(laser.requiredRequestFields.range, `${range}-range`);
+    assert.equal(laser.unavailableReason, undefined);
+    assert.match(laser.prerequisite, /current Vulcan Captain.*current-cycle Laser Cannon charge/i);
+  }
 });
 
 test('small-ship ration selection uses the mounted single-cost format without inventing stores', () => {

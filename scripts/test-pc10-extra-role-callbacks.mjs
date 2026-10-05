@@ -90,3 +90,27 @@ test('an individual procedure selects its actual paid step instead of restarting
   assert.deepEqual(driver.extraRoleProcedureStep('replacements', replacements.find(row => row.id === 'vulcan-captain:maintenance-end')),
     { kind: 'small-maintenance', shipId: 'vulcan', action: 'end' });
 });
+
+test('the existing two-browser callbacks compose current Warrior cargo/jump and Vulcan jump/range paths', () => {
+  const replacements = createExtraRoleMatrix('replacements');
+  const callbacks = driver.createExtraRoleCallbacks({ scenario: 'replacements', variant: 'wolf', jumpLength: 'medium' });
+  const procedure = id => callbacks.procedures.find(entry => entry.id === id);
+  for (const id of ['warrior-captain:cargo-transfer', 'warrior-captain:jump-drive', 'vulcan-captain:jump-drive',
+    'vulcan-captain:laser-cannon-medium', 'vulcan-captain:laser-cannon-short']) {
+    const action = procedure(id);
+    assert.ok(action, `${id} remains in the ordinary replacement callback table.`);
+    assert.equal(action.executable, true, `${id} has a current mounted source path.`);
+    assert.equal(typeof action.execute, 'function');
+    assert.equal(replacements.find(row => row.id === id).unavailableReason, undefined);
+  }
+  assert.deepEqual(driver.extraRoleProcedureStep('replacements', replacements.find(row => row.id === 'warrior-captain:cargo-transfer')),
+    { kind: 'warrior-cargo-transfer', roleId: 'warrior-captain', craftId: 'warrior' });
+  assert.deepEqual(driver.extraRoleProcedureStep('replacements', replacements.find(row => row.id === 'warrior-captain:jump-drive'), { jumpLength: 'medium' }),
+    { kind: 'small-craft-jump', roleId: 'warrior-captain', craftId: 'warrior', range: 'medium' });
+  assert.deepEqual(driver.extraRoleProcedureStep('replacements', replacements.find(row => row.id === 'vulcan-captain:jump-drive'), { jumpLength: 'short' }),
+    { kind: 'small-craft-jump', roleId: 'vulcan-captain', craftId: 'vulcan', range: 'short' });
+  assert.deepEqual(driver.extraRoleProcedureStep('replacements', replacements.find(row => row.id === 'vulcan-captain:laser-cannon-medium')),
+    { kind: 'vulcan-laser-range', roleId: 'vulcan-captain', range: 'medium-range' });
+  assert.deepEqual(driver.extraRoleProcedureStep('replacements', replacements.find(row => row.id === 'vulcan-captain:laser-cannon-short')),
+    { kind: 'vulcan-laser-range', roleId: 'vulcan-captain', range: 'short-range' });
+});
