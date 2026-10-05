@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import * as proof from './pc10-live-settings-qr-proof.mjs';
 import {
   assertNormalSettingsJoin, settingsActorRecord, assertOriginalSettingsActor,
   settingsGeometryFailures, settingsTokenFailures, assertStableSettingsBinding,
@@ -25,6 +26,134 @@ const mono = '"SFMono-Regular", Consolas, "Liberation Mono", monospace';
 const tokens = () => ({ mono, radius:'0px', void:'#04070a', ink:'#e4ecee', amber:'#e8892b', cyan:'#46c8de',
   samples:[{name:'Settings title',fontFamily:mono,color:'rgb(232, 137, 43)',expectedColor:'amber',fontSize:16},
     {name:'Join link',fontFamily:mono,color:'rgb(70, 200, 222)',expectedColor:'cyan',fontSize:10.88}] });
+
+function normalNavigationPage(initialRoute='#/ships/icarus') {
+  let route=initialRoute,focused=null;
+  const events=[],hidden=new Set();
+  const present=name=>!hidden.has(name) && (name==='Demo crew' || name==='Current actor' || name==='Settings' ||
+    (name==='Back to stations' && route==='#/demo-actors') || (name==='Open private brief' && route==='#/console'));
+  const page={url:()=>`http://127.0.0.1:5174/?demoActor=fresh~admiral&demoJoin=012345${route}`,
+    getByRole:(_role,{name})=>locator(name),getByLabel:name=>locator(name),
+    waitForURL:async predicate=>{
+      events.push({action:'waitForURL',route});
+      assert.ok(predicate(new URL(page.url())),'Keyboard navigation must reach the actual normal route.');
+    },
+    goto:async()=>{throw new Error('Direct route bypass is forbidden.');},
+  };
+  function locator(name) {
+    return {isVisible:async()=>present(name),
+      focus:async()=>{
+        events.push({action:'focus',name});
+        if(!present(name))throw new Error(`Normal control unavailable: ${name}`);
+        focused=name;
+      },
+      press:async key=>{
+        events.push({action:'press',name,key});
+        assert.equal(key,'Enter');assert.equal(focused,name);assert.ok(present(name));
+        if(name==='Demo crew')route='#/demo-actors';
+        else if(name==='Back to stations')route='#/console';
+        else if(name==='Open private brief')route='#/brief';
+      }};
+  }
+  return {page,events,hidden,route:()=>route};
+}
+
+test('a real ship-route control topology uses keyboard Demo crew and manager Back before the private brief',async()=>{
+  const {page,events,route}=normalNavigationPage();
+  const stages=[];
+  const brief=await proof.navigateLiveSettingsToConsole({page,
+    checkpoint:async()=>assertOriginalSettingsActor(actor(),expected),onStage:value=>stages.push(value)});
+  assert.equal(route(),'#/console');
+  assert.deepEqual(events.filter(e=>e.action==='press').map(e=>e.name),['Demo crew','Back to stations']);
+  assert.deepEqual(events.filter(e=>e.action==='focus').map(e=>e.name),['Demo crew','Back to stations','Open private brief']);
+  assert.ok(stages.includes('normalize-demo-crew') && stages.includes('normalize-manager-stations'));
+  await brief.press('Enter');assert.equal(route(),'#/brief');
+});
+
+test('an already-console actor focuses the ordinary private brief without changing route',async()=>{
+  const {page,events,route}=normalNavigationPage('#/console');
+  await proof.navigateLiveSettingsToConsole({page,checkpoint:async()=>assertOriginalSettingsActor(actor(),expected)});
+  assert.equal(route(),'#/console');
+  assert.deepEqual(events,[{action:'focus',name:'Open private brief'}]);
+});
+
+test('an already-manager actor uses only its existing keyboard Back to stations',async()=>{
+  const {page,events,route}=normalNavigationPage('#/demo-actors');
+  await proof.navigateLiveSettingsToConsole({page,checkpoint:async()=>assertOriginalSettingsActor(actor(),expected)});
+  assert.equal(route(),'#/console');
+  assert.deepEqual(events.filter(e=>e.action==='press').map(e=>e.name),['Back to stations']);
+});
+
+test('changed private audience after normal navigation is rejected before the next control is activated',async()=>{
+  const {page,events,route}=normalNavigationPage();
+  await assert.rejects(proof.navigateLiveSettingsToConsole({page,checkpoint:async()=>
+    assertOriginalSettingsActor(route()==='#/demo-actors'?{...actor(),briefRoleId:'doctor'}:actor(),expected)}),/private brief/);
+  assert.equal(route(),'#/demo-actors');
+  assert.deepEqual(events.filter(e=>e.action==='press').map(e=>e.name),['Demo crew']);
+  assert.equal(events.some(e=>e.name==='Back to stations'),false);
+});
+
+test('a missing normal ship-route control fails instead of using Back, goto or forced state',async()=>{
+  const {page,events,hidden,route}=normalNavigationPage();
+  hidden.add('Demo crew');
+  await assert.rejects(proof.navigateLiveSettingsToConsole({page,checkpoint:async()=>assertOriginalSettingsActor(actor(),expected)}),/Normal control unavailable: Demo crew/);
+  assert.equal(route(),'#/ships/icarus');
+  assert.deepEqual(events,[{action:'focus',name:'Demo crew'}]);
+});
+
+test('a missing console private-brief control fails without route or actor bypass',async()=>{
+  const {page,events,hidden,route}=normalNavigationPage('#/console');
+  hidden.add('Open private brief');
+  await assert.rejects(proof.navigateLiveSettingsToConsole({page,checkpoint:async()=>assertOriginalSettingsActor(actor(),expected)}),/Normal control unavailable: Open private brief/);
+  assert.equal(route(),'#/console');
+  assert.deepEqual(events,[{action:'focus',name:'Open private brief'}]);
+});
+
+test('pre-restoration failure evidence records route and control booleans without private URL or error values',async()=>{
+  const {page}=normalNavigationPage();
+  const error=Object.assign(new Error('raw-uid private-loyalty token-value'),{name:'TimeoutError',code:'private-token'});
+  const diagnostic=await proof.captureLiveSettingsFailure({page,stage:'normalize-demo-crew',error});
+  assert.equal(diagnostic.route,'ship-console');assert.equal(diagnostic.stage,'normalize-demo-crew');
+  assert.equal(diagnostic.category,'timeout');
+  assert.equal(diagnostic.controls.demoCrew,true);assert.equal(diagnostic.controls.managerBack,false);
+  assert.equal(diagnostic.controls.openPrivateBrief,false);
+  for(const privateValue of ['raw-uid','private-loyalty','token-value','private-token','fresh~admiral','012345','http://']){
+    assert.equal(JSON.stringify(diagnostic).includes(privateValue),false);
+  }
+});
+
+test('failed diagnostic probes are explicit unavailable values rather than successful control observations',async()=>{
+  const page={url:()=>{throw new Error('private URL state');},
+    getByRole:()=>({isVisible:async()=>{throw new Error('private control text');}}),
+    getByLabel:()=>({isVisible:async()=>{throw new Error('private actor metadata');}})};
+  const diagnostic=await proof.captureLiveSettingsFailure({page,stage:{private:'state'},error:{code:'secret'}});
+  assert.equal(diagnostic.route,'unknown');assert.equal(diagnostic.stage,'unknown');
+  assert.ok(Object.values(diagnostic.controls).every(value=>value===null));
+  assert.equal(diagnostic.probeStatus,'unavailable');
+  assert.equal(JSON.stringify(diagnostic).includes('secret'),false);
+});
+
+test('restoration errors are classified and fail the original restoration gate without exposing cause text',async()=>{
+  const evidence={status:'pixels-captured-awaiting-decode'};
+  const failure=Object.assign(new Error('private original UID token'),{name:'TimeoutError'});
+  const complete=await proof.recordLiveSettingsRestoration({evidence,
+    restore:async()=>{throw failure;},stage:()=> 'restore-entry-route'});
+  assert.equal(complete,false);assert.equal(evidence.status,'failed');
+  assert.equal(evidence.restorationFailure.stage,'restore-entry-route');
+  assert.equal(evidence.restorationFailure.category,'timeout');
+  assert.equal(evidence.restorationFailure.code,'PC10_SETTINGS_PROOF_FAILED');
+  assert.equal(JSON.stringify(evidence).includes('private original UID token'),false);
+});
+
+test('successful restoration retains its source and original actor verification without manufacturing failure',async()=>{
+  const evidence={status:'pixels-captured-awaiting-decode'};
+  const complete=await proof.recordLiveSettingsRestoration({evidence,stage:()=> 'restore-source-binding',restore:async()=>{
+    evidence.restoration={sameEntryActor:true,sameEntryRoute:true};
+  }});
+  assert.equal(complete,true);assert.equal(evidence.status,'pixels-captured-awaiting-decode');
+  assert.equal(evidence.restorationFailure,undefined);
+  assert.deepEqual(evidence.restoration,{sameEntryActor:true,sameEntryRoute:true});
+});
 
 test('normal join payload drops persona context and preserves accessible identical code', () => {
   assert.equal(assertNormalSettingsJoin(join()), href);
