@@ -490,7 +490,8 @@ async function moveBlacksmithToCarrier(cycle) {
   }
   assert.ok(route?.status === 'in-transit' && Date.now() >= Date.parse(route.arrivesAt),
     'The actual Blacksmith flight must reach its authoritative arrival time.');
-  const arrivalRequest = { requestId: randomUUID(), shuttleId: 'blacksmith',
+  // Arrival derives its receipt identity from the existing transit request.
+  const arrivalRequest = { shuttleId: 'blacksmith',
     transitRequestId: route.transitRequestId, expectedControlRevision };
   const arrival = await command(actor, 'completeShuttleArrival', arrivalRequest);
   const replay = await command(actor, 'completeShuttleArrival', arrivalRequest);

@@ -290,3 +290,11 @@ pregame material target becomes 25 to cover those paid costs and both storage
 losses; food/water remain 88/66. No assertion, damage, charge, dice result or
 post-battle inventory is patched. This adds an ordinary repair contingency,
 not product behavior or future-checkpoint scope.
+
+The `cbb5d4a8` attempt completed normal funding, Icebreaker maintenance and the
+real Blacksmith transit time, then stopped before combat because the added
+arrival request included an unsupported `requestId`. The existing arrival API
+derives its receipt ID from `transitRequestId`; its exact-key parser correctly
+rejected the extra field. The corrected driver uses that existing wire contract
+and preserves the exact replay/docking assertions. The early failure remains in
+`positive-rebuild-paid-readiness/`; it earns no battle or repair acceptance.

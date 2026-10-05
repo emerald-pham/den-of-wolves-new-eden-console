@@ -45,7 +45,7 @@ files verified with tree SHA-256
 The hash encoding is sorted relative path, NUL, file bytes, NUL. The crisis
 runtime is separately bound and is not claimed to equal the final root runtime.
 
-The strict two-attack ordinary return/rebuild proof remains pending. Its seven
+The strict two-attack ordinary return/rebuild proof remains pending. Its eight
 failed attempts are preserved under `/tmp/dow-pc09-resumed-evidence/positive-rebuild*`.
 The distinct corrections preserve full rations, actual fighter losses, complete
 receipts, material costs, exact retries and all browser-error assertions. The
