@@ -116,6 +116,9 @@ async function cdpCallableObservationActor({ durableConfigurationError, captureM
       if (streamConfigurationError) throw streamConfigurationError;
       if (deferStreamStart) return new Promise((resolve, reject) =>
         streamStartHandles.set(parameters.requestId, { resolve, reject }));
+      // A CDP command records dispatch immediately; its renderer-side buffer
+      // snapshot arrives asynchronously rather than inline with the event hook.
+      await Promise.resolve();
       return { bufferedData: streamBuffers.get(parameters.requestId) ?? '' };
     }
     throw new Error(`Unexpected CDP command: ${method}`);
@@ -1540,4 +1543,23 @@ test('a repeated protocol request ID remains a lifecycle failure and cannot issu
   assert.equal(fixture.actor.callableObservationFailures.some(failure =>
     failure.category === 'unknown-callable-lifecycle'), true);
   assert.equal(fixture.commands.filter(command => command.method === 'Network.streamResourceContent').length, 1);
+});
+
+test('stream dispatch is not deferred behind response headers emitted in the same observation turn', async () => {
+  const fixture = await cdpCallableObservationActor({ captureMode: 'stream' });
+  const originalSend = fixture.events.send;
+  fixture.events.send = async (method, parameters) => {
+    if (method === 'Network.streamResourceContent' && fixture.actor.observedCalls[0].headersReceivedAt !== null) {
+      throw new Error('Request with the provided ID has already finished loading');
+    }
+    return originalSend(method, parameters);
+  };
+  const requestId = fixture.start('same-turn-fast-response');
+  fixture.receiveHeaders(requestId);
+  fixture.receiveStreamChunk(requestId, streamReplyBytes(75).toString('base64'));
+  fixture.finish(requestId);
+  await fixture.actor.drainObservedCalls();
+  assert.equal(fixture.actor.observedCalls[0].revision, 75);
+  assert.equal(fixture.actor.observedCalls[0].bodyCompletedAt !== null, true);
+  assert.deepEqual(fixture.actor.callableObservationFailures, []);
 });
