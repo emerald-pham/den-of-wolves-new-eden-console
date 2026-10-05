@@ -196,6 +196,23 @@ test('boarding proof retains the actually selected bounded Security Teams count'
   });
 });
 
+test('shuttle route evidence hashes destination and transit identifiers', () => {
+  const evidence = projectSpecialistActionEvidence({
+    roleId: 'quellon-explorer', endpoint: 'requestShuttleDeparture',
+    actor: { uidHash: 'sha256-explorer', sessionId: 'session' },
+    request: { sessionId: 'session', requestId: 'departure-1', shuttleId: 'hummingbird',
+      destinationShipId: 'refinery-124', expectedControlRevision: 3, expectedCycle: 2 },
+    response: { httpStatus: 200, result: { status: 'committed', revision: 4,
+      shuttleId: 'hummingbird', destinationShipId: 'refinery-124' } },
+    replay: { status: 'committed', result: { status: 'replayed', revision: 4,
+      shuttleId: 'hummingbird', destinationShipId: 'refinery-124' } },
+    cost: null, projection: {},
+  });
+  assert.equal(evidence.request.destinationShipId, undefined);
+  assert.equal(evidence.request.destinationShipIdHash.length, 64);
+  assert.equal(JSON.stringify(evidence).includes('refinery-124'), false);
+});
+
 test('callback records failures without calling a partial gameplay run complete', async () => {
   let saved;
   const game = { context: { gm: {}, initial: { sessionId: 'fresh-session' } },
