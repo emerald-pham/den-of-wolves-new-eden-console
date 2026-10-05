@@ -288,3 +288,16 @@ test('new explicit capture mode is registered for actor/table while original def
   assert.match(source, /captureMode === 'native-durable' \? createPc10NativeDurableBrowserCapture : createPc10OriginBrowserCapture/);
   assert.equal((source.match(/captureMode = 'durable'/g) ?? []).length, 2);
 });
+
+test('queued body callbacks cannot turn elapsed time beyond10s into success before a timer is dispatched', async () => {
+  const body = deferred(); const f = fixture({ readBody: () => body.promise }); f.witness(); f.request(); f.headers(); f.finish();
+  const drain = f.ledger.drain(); f.tick(10_001); body.resolve(reply());
+  await assert.rejects(drain, /Native durable/); assert.equal(f.calls[0].bodyCompletedAt, null);
+  assert.ok(f.failures.some(value => value.bodyFailureStage === 'native-body-timeout'));
+});
+
+test('finite drain cannot accept a late terminal after its10s elapsed budget merely because timer dispatch is delayed', async () => {
+  const f = fixture(); f.witness(); f.request(); const drain = f.ledger.drain(); f.tick(10_001); f.headers(); f.finish();
+  await assert.rejects(drain, /Native durable/); assert.equal(f.ledger.boundaries.at(-1).outcome, 'failed');
+  assert.ok(f.failures.some(value => value.category === 'observation-drain-timeout'));
+});
