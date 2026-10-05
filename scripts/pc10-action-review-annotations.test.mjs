@@ -176,12 +176,110 @@ test('current Wolf supply review follows the adapter, mounted panel, and guidanc
     assert.equal(row.guidance.status, 'current-member-action-guidance');
     assert.match(row.guidance.summary, /cargo target|selected supply/i);
     assert.ok(anchors.get('supply.appMount').path === 'src/App.tsx');
+    assert.equal(anchors.get('supply.appMount').symbol, 'AppRoutes');
     assert.ok(anchors.get('supply.otherWolfControls').path === 'src/components/PrivateLoyaltyPanel.tsx');
     assert.ok(anchors.get('supply.clientAdapter').path === 'src/lib/wolfActionService.ts');
     assert.ok(classification.clientTrace.importChainsToApp.some((chain) =>
       chain[0] === 'src/components/PrivateLoyaltyPanel.tsx' && chain.at(-1) === 'src/App.tsx'));
     assert.deepEqual(artifact.coverageAccounting.explicitPc11GuidanceGaps, []);
     assert.equal(classification.conditionalGapReferences, undefined);
+    assert.equal(artifact.coverageAccounting.callableRoleCellsReviewed, 0);
+    assert.equal(artifact.coverageAccounting.gameplayAcceptanceCredit, 0);
+    assert.equal(artifact.sourceBinding.runtimeChecks, 'not run');
+  } finally {
+    rmSync(temporaryDirectory, { recursive: true, force: true });
+  }
+});
+
+test('current away-mission deal review follows the mounted GM start panel and callable adapter', () => {
+  const temporaryDirectory = mkdtempSync(join(tmpdir(), 'pc10-away-mission-review-'));
+  try {
+    const outputPath = join(temporaryDirectory, 'annotations.json');
+    const generated = spawnSync(process.execPath, [
+      join(repositoryDirectory, 'scripts/pc10-action-review-annotations.mjs'), outputPath,
+    ], { cwd: repositoryDirectory, encoding: 'utf8' });
+    assert.equal(generated.status, 0, generated.stderr || generated.stdout);
+
+    const artifact = JSON.parse(readFileSync(outputPath, 'utf8'));
+    const row = artifact.actionSourceReviews.find((review) => review.exportName === 'dealPrivateInitialCards');
+    const classification = artifact.exportClassification.rows.find((entry) =>
+      entry.exportName === 'dealPrivateInitialCards');
+    const anchors = new Map(artifact.sourceAnchors.map((anchor) => [anchor.id, anchor]));
+    const references = row.clientCallTrace.sourceReferences.identifierOccurrences;
+
+    assert.equal(row.classification, 'served-ui-path');
+    assert.equal(row.productPath.status, 'served-ui-path');
+    assert.equal(row.productPath.surface,
+      'GmConsole → AwayMissionStartPanel → startAwayMission → dealPrivateInitialCards callable');
+    assert.match(row.actor.family, /facilitator.*live.*GM instance/i);
+    assert.match(row.requirements.summary, /locked organiser chart.*current phase\/cycle.*live GM lease/i);
+    assert.match(row.costs.summary, /no separate resource fee.*private initial mission cards atomically/i);
+    assert.match(row.consequences.summary, /source-bound mission.*private participant snapshots/i);
+    assert.match(row.blockers.summary, /stale GM.*chart|chart.*stale GM/i);
+    assert.match(row.nextActor.summary, /participants and GM.*separate lifecycle controls/i);
+    assert.match(row.guidance.summary, /Start mission.*opportunity.*participants.*leader/i);
+    assert.equal(row.clientReferenceAliases[0], 'startAwayMission');
+    assert.equal(row.clientCallTrace.status, 'source-service-and-component-route-references');
+    assert.ok(references.some((reference) => reference.path === 'src/components/AwayMissionStartPanel.tsx' &&
+      reference.matchedSymbol === 'startAwayMission'));
+    assert.ok(row.clientCallTrace.sourceReferences.quotedOccurrences.some((reference) =>
+      reference.path === 'src/lib/sessionService.ts'));
+    assert.equal(anchors.get('mission.startPanel').symbol, 'AwayMissionStartPanel');
+    assert.equal(anchors.get('mission.startService').symbol, 'startAwayMission');
+    assert.equal(anchors.get('mission.gmConsole').symbol, 'GmConsole');
+    assert.equal(anchors.get('mission.appRoutes').symbol, 'AppRoutes');
+    assert.ok(classification.clientTrace.importChainsToApp.some((chain) =>
+      chain[0] === 'src/components/AwayMissionStartPanel.tsx' && chain.at(-1) === 'src/App.tsx'));
+    assert.equal(classification.sourceClassification, 'served-ui-path');
+    assert.equal(classification.acceptanceCredit, 0);
+    assert.equal(artifact.coverageAccounting.callableRoleCellsReviewed, 0);
+    assert.equal(artifact.coverageAccounting.gameplayAcceptanceCredit, 0);
+    assert.equal(artifact.sourceBinding.runtimeChecks, 'not run');
+  } finally {
+    rmSync(temporaryDirectory, { recursive: true, force: true });
+  }
+});
+
+test('current Intelligence Agent investigation review follows the mounted panel and callable adapter', () => {
+  const temporaryDirectory = mkdtempSync(join(tmpdir(), 'pc10-intelligence-review-'));
+  try {
+    const outputPath = join(temporaryDirectory, 'annotations.json');
+    const generated = spawnSync(process.execPath, [
+      join(repositoryDirectory, 'scripts/pc10-action-review-annotations.mjs'), outputPath,
+    ], { cwd: repositoryDirectory, encoding: 'utf8' });
+    assert.equal(generated.status, 0, generated.stderr || generated.stdout);
+
+    const artifact = JSON.parse(readFileSync(outputPath, 'utf8'));
+    const row = artifact.actionSourceReviews.find((review) =>
+      review.exportName === 'investigateAsIntelligenceAgent');
+    const classification = artifact.exportClassification.rows.find((entry) =>
+      entry.exportName === 'investigateAsIntelligenceAgent');
+    const anchors = new Map(artifact.sourceAnchors.map((anchor) => [anchor.id, anchor]));
+    const references = row.clientCallTrace.sourceReferences.identifierOccurrences;
+
+    assert.equal(row.classification, 'served-ui-path');
+    assert.equal(row.productPath.surface, 'PrivateLoyaltyPanel');
+    assert.match(row.productPath.invocation, /investigatePlayer service.*investigateAsIntelligenceAgent callable/);
+    assert.match(row.actor.family, /active.*unreplaced.*Intelligence Agent/i);
+    assert.match(row.requirements.summary, /canonical census.*suspicion of at least 6/i);
+    assert.match(row.costs.summary, /one investigation per cycle.*adds 2 suspicion/i);
+    assert.match(row.consequences.summary, /private report.*1–4.*5/i);
+    assert.match(row.consequences.summary, /target.*true loyalty remains private/i);
+    assert.match(row.blockers.summary, /wrong role\/group.*stale cycle/i);
+    assert.match(row.nextActor.summary, /investigator.*private result/i);
+    assert.match(row.guidance.summary, /mounted.*Investigate a player.*connected player.*fleet group/i);
+    assert.equal(row.clientReferenceAliases[0], 'investigatePlayer');
+    assert.equal(row.clientCallTrace.status, 'source-service-and-component-route-references');
+    assert.ok(references.some((reference) => reference.path === 'src/components/PrivateLoyaltyPanel.tsx' &&
+      reference.matchedSymbol === 'investigatePlayer'));
+    assert.ok(row.clientCallTrace.sourceReferences.quotedOccurrences.some((reference) =>
+      reference.path === 'src/lib/intelligenceInvestigationService.ts'));
+    assert.equal(anchors.get('ending.investigateAsIntelligenceAgent.ui').symbol, 'PrivateLoyaltyPanel');
+    assert.equal(anchors.get('ending.investigateAsIntelligenceAgent.rule1').symbol, 'AppRoutes');
+    assert.ok(classification.clientTrace.importChainsToApp.some((chain) =>
+      chain[0] === 'src/components/PrivateLoyaltyPanel.tsx' && chain.at(-1) === 'src/App.tsx'));
+    assert.equal(classification.sourceClassification, 'served-ui-path');
+    assert.equal(classification.acceptanceCredit, 0);
     assert.equal(artifact.coverageAccounting.callableRoleCellsReviewed, 0);
     assert.equal(artifact.coverageAccounting.gameplayAcceptanceCredit, 0);
     assert.equal(artifact.sourceBinding.runtimeChecks, 'not run');
