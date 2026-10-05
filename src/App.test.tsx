@@ -843,6 +843,7 @@ describe('App', () => {
 
     expect(subscribeSessionState).not.toHaveBeenCalled();
     expect(refreshPresence).not.toHaveBeenCalled();
+    expect(readClosedSessionHistory).not.toHaveBeenCalled();
     expect(useSessionStore.getState().session).toMatchObject({ phase: 'closed', debriefSnapshot: { result: 'completed' } });
     expect(useSessionStore.getState().privateLoyalty).toBeNull();
     expect(useSessionStore.getState().roleBrief).toBeNull();
