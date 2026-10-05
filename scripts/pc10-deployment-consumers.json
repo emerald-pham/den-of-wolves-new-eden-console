@@ -1,0 +1,6 @@
+{
+  "schemaVersion": 1,
+  "baseline": "248ba5fe7460dd2708baf4dc152190001ffbdb20",
+  "auditBoundary": "Pending reconciled PC10 source and SDK endpoint inventory; empty planning scaffold grants no deployment coverage or review approval.",
+  "modules": {}
+}

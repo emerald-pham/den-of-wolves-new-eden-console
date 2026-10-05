@@ -4,6 +4,7 @@ import pc06DeploymentConsumers from './pc06-deployment-consumers.json' with { ty
 import pc07DeploymentConsumers from './pc07-deployment-consumers.json' with { type: 'json' };
 import pc08DeploymentConsumers from './pc08-deployment-consumers.json' with { type: 'json' };
 import pc09DeploymentConsumers from './pc09-deployment-consumers.json' with { type: 'json' };
+import pc10DeploymentConsumers from './pc10-deployment-consumers.json' with { type: 'json' };
 import {
   classifyRiskGates,
   formatRiskGateOutputs,
@@ -118,6 +119,25 @@ function pc07TransitionConsumers(file, previous, current) {
 
 // PC09 audits new exports, re-exports and transitive runtime consumers without
 // altering the historical release mappings.
+/** Exact PC10 source transitions retain named SDK endpoint coverage. The
+ * final checkpoint inventory supplies the reviewed transitive consumer set;
+ * unknown source drift never inherits that coverage. */
+export function pc10TransitionConsumers(file, previous, current, manifest = pc10DeploymentConsumers) {
+  const audit = manifest.modules[file];
+  if (!audit) return null;
+  const digest = source => createHash('sha256').update(source).digest('hex');
+  if (digest(previous) !== audit.before) return null;
+  if (digest(current) !== audit.after) {
+    throw new Error(`Cannot safely map PC10 ${file} outside its exact source consumer audit.`);
+  }
+  if (!Array.isArray(audit.consumers) || audit.consumers.length === 0 ||
+      new Set(audit.consumers).size !== audit.consumers.length ||
+      audit.consumers.some(name => typeof name !== 'string' || name === 'functions' || !/^[A-Za-z][A-Za-z0-9_]*$/.test(name))) {
+    throw new Error(`Invalid PC10 named deployment consumer audit for ${file}.`);
+  }
+  return [...audit.consumers];
+}
+
 function pc09TransitionConsumers(file, previous, current) {
   const audit = file === 'functions/src/index.ts'
     ? pc09DeploymentConsumers.index : pc09DeploymentConsumers.modules[file];
@@ -1404,6 +1424,24 @@ function callablesChangedInRange({ before, after, files, cwd, sourceAtRevision }
     file.startsWith('functions/src/') && !isTestFile(file) && /\.(?:ts|js|mjs|cjs)$/.test(file));
   const selected = new Set();
   for (const file of runtimeFiles) {
+    if (pc10DeploymentConsumers.modules[file]) {
+      const readAt = revision => {
+        if (sourceAtRevision) return sourceAtRevision(revision, file);
+        try {
+          return execFileSync('git', ['show', `${revision}:${file}`], {
+            encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], cwd, maxBuffer: 32 * 1024 * 1024,
+          });
+        } catch {
+          if (revision === before) return '';
+          throw new Error(`Cannot safely determine PC10 module source ${file}.`);
+        }
+      };
+      const consumers = pc10TransitionConsumers(file, readAt(before), readAt(after));
+      if (consumers) {
+        for (const name of consumers) selected.add(name);
+        continue;
+      }
+    }
     if (file !== 'functions/src/index.ts' && pc09DeploymentConsumers.modules[file]) {
       const readAt = revision => {
         if (sourceAtRevision) return sourceAtRevision(revision, file);
