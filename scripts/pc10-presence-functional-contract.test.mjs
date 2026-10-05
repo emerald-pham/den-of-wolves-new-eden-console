@@ -34,10 +34,16 @@ function fixture() {
     startedAt: 1200, completedAt: 1400, status: 200, originalSdkSessionMatches: true,
     originalSdkSchemaValid: true, stationSelectionRequired: false, generationBefore: 2, nativeDocumentHash: candidate.nativeDocumentHash };
   const invocation = { kind: 'explicit-sdk-invocation', roleId, name: 'refreshPresence', startedAt: 1200, completedAt: 1400 };
-  const input = { option, observations: [candidate], failures: [failure], renewals: [renewal], authoritySnapshots: [authority],
+  const priorMember = { ...candidate, name: 'getCurrentMemberSession', protocolRequestHash: '9'.repeat(64),
+    nativeRequestObservedAt: 600, issuedAt: 600, headersReceivedAt: 625, requestFinishedAt: 650, bodyCompletedAt: 660,
+    httpOutcome: 'result', bodyHash: '8'.repeat(64), byteLength: 200, resultActorHash: actorHash,
+    resultSessionHash: sessionHash, resultRequestHash: null, connectionGeneration: 2,
+    failureCategory: null, bodyFailureStage: null, bodyReadFailureReason: null, denialCode: null };
+  const input = { option, observations: [priorMember, candidate], failures: [failure], renewals: [renewal], authoritySnapshots: [authority],
     explicitSdkInvocations: [invocation], actions: [{ kind: 'proof-command', name: 'refreshPresence', roleId,
       status: 200, commandIssuedAt: 1200, commandCompletedAt: 1400, commandFailedAt: null, failureCategory: null }] };
-  return { candidate, failure, authority, renewal, invocation, input, evaluate: () => api('evaluatePc10PresenceInstrumentationContract')(input) };
+  return { candidate, failure, authority, renewal, invocation, priorMember, input,
+    evaluate: () => api('evaluatePc10PresenceInstrumentationContract')(input) };
 }
 const privateAbsent = value => { const serialized = JSON.stringify(value); for (const key of [uid, sessionId, 'private-malicious-error', 'Bearer private-token']) assert.equal(serialized.includes(key), false, key); };
 
@@ -53,6 +59,58 @@ test('explicit future contract reports only proven background instrumentation lo
   assert.equal(value.instrumentationLimitations.length, 1); assert.equal(value.hardFailures.length, 0);
   assert.equal(value.instrumentationLimitations[0].originalReplyReconstructed, false); assert.equal(f.candidate.bodyCompletedAt, null);
   assert.equal(JSON.stringify(f.input), before); privateAbsent(value);
+});
+
+test('the limitation reports a preceding completed native member generation without copying its private body', () => {
+  const f = fixture(); f.priorMember.privateBody = 'private-malicious-error'; const value = f.evaluate();
+  assert.equal(value.functionalStatus, 'passed'); const prior = value.instrumentationLimitations[0].priorGenerationWitness;
+  assert.equal(prior?.kind, 'completed-native-member-generation'); assert.equal(prior?.generation, 2);
+  assert.equal(prior?.protocolRequestHash, f.priorMember.protocolRequestHash);
+  assert.equal(prior?.bodyHash, f.priorMember.bodyHash); assert.equal(prior?.bodyCompletedAt, 660);
+  privateAbsent(value);
+});
+
+for (const [name, change] of [
+  ['absent preceding member result', f => { f.input.observations = [f.candidate]; }],
+  ['member body completed at the background issue boundary', f => { f.priorMember.bodyCompletedAt = 900; }],
+  ['member body completed after the background issue', f => { f.priorMember.bodyCompletedAt = 1100; }],
+  ['member body still unavailable', f => { f.priorMember.bodyCompletedAt = null; }],
+  ['member native terminal missing', f => { f.priorMember.requestFinishedAt = null; }],
+  ['member result from another document', f => { f.priorMember.nativeDocumentHash = 'f'.repeat(64); }],
+  ['member result from another native context', f => { f.priorMember.nativeContextHash = 'f'.repeat(64); }],
+  ['member result from another frame', f => { f.priorMember.nativeFrameHash = 'f'.repeat(64); }],
+  ['member result from another loader', f => { f.priorMember.nativeLoaderHash = 'f'.repeat(64); }],
+  ['member result UID mismatch', f => { f.priorMember.resultActorHash = 'f'.repeat(64); }],
+  ['member result session mismatch', f => { f.priorMember.resultSessionHash = 'f'.repeat(64); }],
+  ['member result without complete body hash', f => { delete f.priorMember.bodyHash; }],
+  ['member result without actual byte count', f => { f.priorMember.byteLength = 0; }],
+  ['member result has an actual identity failure', f => { f.priorMember.failureCategory = 'native-identity-mismatch'; }],
+  ['member result has no positive connection generation', f => { delete f.priorMember.connectionGeneration; }],
+]) {
+  test(`${name} cannot establish an earlier background generation`, () => {
+    const f = fixture(); change(f); const value = f.evaluate();
+    assert.equal(value.functionalStatus, 'failed'); assert.equal(value.instrumentationLimitations.length, 0);
+    assert.equal(value.strictTransportStatus, 'failed'); assert.equal(f.candidate.bodyCompletedAt, null); privateAbsent(value);
+  });
+}
+
+test('a later same-document SDK and readonly generation cannot backfill an earlier different-generation background request', () => {
+  const f = fixture(); f.renewal.generationBefore = 3; f.authority.generation = 3;
+  const value = f.evaluate(); assert.equal(value.functionalStatus, 'failed'); assert.equal(value.instrumentationLimitations.length, 0);
+  assert.equal(f.priorMember.connectionGeneration, 2); assert.equal(f.candidate.bodyCompletedAt, null);
+});
+
+test('a newer preceding same-document member generation overrides a stale matching-generation witness', () => {
+  const f = fixture(); f.input.observations.push({ ...f.priorMember, protocolRequestHash: '7'.repeat(64),
+    issuedAt: 700, nativeRequestObservedAt: 700, headersReceivedAt: 725, requestFinishedAt: 750, bodyCompletedAt: 760, connectionGeneration: 3 });
+  assert.equal(f.evaluate().functionalStatus, 'failed'); assert.equal(f.evaluate().instrumentationLimitations.length, 0);
+});
+
+test('an older-generation member response completing later cannot hide the already-observed newer native generation', () => {
+  const f = fixture(); f.priorMember.bodyCompletedAt = 800;
+  f.input.observations.push({ ...f.priorMember, protocolRequestHash: '7'.repeat(64), issuedAt: 700,
+    nativeRequestObservedAt: 700, headersReceivedAt: 725, requestFinishedAt: 750, bodyCompletedAt: 760, connectionGeneration: 3 });
+  assert.equal(f.evaluate().functionalStatus, 'failed'); assert.equal(f.evaluate().instrumentationLimitations.length, 0);
 });
 
 for (const field of ['actorHash', 'sessionHash', 'projectHash', 'protocolRequestHash', 'nativeDocumentHash', 'nativeContextHash', 'nativeFrameHash', 'nativeLoaderHash', 'presenceRequestClassification']) {
