@@ -29,6 +29,7 @@ const mock = vi.hoisted(() => ({
   shuttleMovements: {} as Record<string, Record<string, unknown>>,
   pdfEscortWingState: undefined as Record<string, unknown> | undefined,
   capybaraAdmitted: false,
+  expansionCapybara: false,
   navigationState: {} as Record<string, unknown>,
   fleetGroups: [] as Array<{ id: string; fields: Record<string, unknown> }>,
 }));
@@ -74,6 +75,9 @@ import { applyAwayMissionLifecycleCommand, createAwayMissionLifecycleBootstrap, 
 
 const activeRoleIds = [...recommendedRoleIds(8)];
 const activeVesselIds = [...activeVesselIdsForRoles(activeRoleIds)];
+const expansionCapybaraRoleIds = [...recommendedRoleIds(19)];
+const expansionCapybaraVesselIds = [...activeVesselIdsForRoles(expansionCapybaraRoleIds)];
+const expansionCapybaraManifest = roleOwnedCraftManifestForSetup(expansionCapybaraRoleIds, 'expansion-capybara');
 const teamPhaseEndsAt = '2099-09-28T12:00:00.000Z';
 const openAirspaceEndsAt = '2099-09-28T12:15:00.000Z';
 const sessionFields = {
@@ -213,6 +217,7 @@ beforeEach(() => {
   mock.shuttleMovements = {};
   mock.pdfEscortWingState = undefined;
   mock.capybaraAdmitted = false;
+  mock.expansionCapybara = false;
   mock.navigationState = {
     revision: 4,
     shipGalacticCoordinates: Object.fromEntries(activeVesselIds.map((vesselId) => [vesselId, '5143'])),
@@ -237,6 +242,10 @@ beforeEach(() => {
     if (mock.documents[ref.path]) return snapshot(mock.documents[ref.path]!, ref.path);
     if (ref.path === 'sessions/s1') return snapshot({
       ...sessionFields,
+      ...(mock.expansionCapybara ? {
+        expansion: 'capybara', capybaraEnabled: true, playerCount: 19,
+        activeRoleIds: expansionCapybaraRoleIds, activeVesselIds: expansionCapybaraVesselIds,
+      } : {}),
       ...(mock.gorgoneionCaptain ? {
         smallShipStates: {
           gorgoneion: { ...emptySmallShipState('gorgoneion', 'aegis'), dockingRevision: 1 },
@@ -258,6 +267,10 @@ beforeEach(() => {
           shuttleId: 'highwall', ownerRoleId: 'icebreaker-miner',
           ownerUid: 'bob', holderUid: 'bob', revision: 0,
         },
+        ...(mock.expansionCapybara ? {
+          boa: { shuttleId: 'boa', ownerRoleId: 'capybara-recycler',
+            ownerUid: 'capybara', holderUid: 'capybara', revision: 1 },
+        } : {}),
       },
       retainedShuttles: {},
     }, ref.path);
@@ -292,7 +305,8 @@ beforeEach(() => {
       return snapshot({ uid: 'gm1', connected: true, claimedAt: Timestamp.fromDate(now), lastSeenAt: Timestamp.fromDate(now) }, ref.path);
     }
     if (ref.path === 'sessions/s1/craftOwnership/manifest') return snapshot(
-      mock.capybaraAdmitted ? { ...manifest, vesselMode: 'base-capybara' } : manifest,
+      mock.expansionCapybara ? expansionCapybaraManifest :
+        mock.capybaraAdmitted ? { ...manifest, vesselMode: 'base-capybara' } : manifest,
       ref.path,
     );
     if (ref.path === 'sessions/s1/serverState/missionDeck') return snapshot(deck, ref.path);
@@ -787,6 +801,93 @@ describe('dealPrivateInitialCards', () => {
         { participantUid: 'capybara', craftIds: ['capybara-small'] },
       ],
     });
+  });
+
+  it('binds a pre-deal Boa mission-card choice to its active recycler and records the floor-modified rule privately', async () => {
+    mock.expansionCapybara = true;
+    const boaPlayer = players.find(({ id }) => id === 'capybara')!;
+    Object.assign(boaPlayer.fields, {
+      assignedRoleId: 'capybara-recycler', replacementRoleId: null, replacementStatus: null,
+      activeConsoleRoleId: 'capybara-recycler', seatId: 'capybara-recycler',
+    });
+    mock.fleetGroups[0]!.fields.vesselIds = expansionCapybaraVesselIds;
+    mock.navigationState = {
+      revision: 5,
+      shipGalacticCoordinates: Object.fromEntries(expansionCapybaraVesselIds.map((vesselId) => [vesselId, '5143'])),
+    };
+    mock.shuttleDockings.push({ shuttleId: 'boa', shipId: 'capybara', dockedAt: 'now' });
+    mock.documents[`sessions/s1/boaMissionReclamationChoices/${defaultOpportunity.id}`] = {
+      type: 'boa-mission-reclamation-choice', status: 'selected', sessionId: 's1',
+      opportunityId: defaultOpportunity.id, groupId: 'fleet-1', sourceCycle: 2,
+      actorUid: 'capybara', opportunityTaskId: 'L-1', controlRevision: 1,
+      requestId: 'boa-choice-1', revision: 1,
+    };
+    const capybaraCommand = {
+      sessionId: 's1', instanceId: 'bridge', requestId: 'deal-boa',
+      expectedSetupRevision: 1, expectedPhaseRevision: 3, expectedCycle: 2,
+      opportunityId: defaultOpportunity.id, groupId: 'fleet-1', chart: 'A',
+      coordinate: '5143', sourceCycle: 2, missionLeaderUid: 'alice',
+      participantUids: ['alice', 'bob', 'capybara'],
+    };
+
+    await expect(dealPrivateInitialCards.run(request(capybaraCommand))).resolves.toMatchObject({
+      status: 'committed', participantCount: 3, missionLeaderUid: 'alice',
+    });
+    const missionWrite = mock.set.mock.calls.find(([ref]) =>
+      ref.path === `sessions/s1/serverState/awayMissions/instances/mission-${defaultOpportunity.id}`);
+    const startWrite = mock.create.mock.calls.find(([ref]) =>
+      ref.path === `sessions/s1/missionStartSnapshots/${defaultOpportunity.id}`);
+    expect(missionWrite?.[1]).toMatchObject({
+      participantCrafts: expect.arrayContaining([{ participantUid: 'capybara', craftIds: ['boa'] }]),
+      lifecycleRecord: { boaReclamation: { actorUid: 'capybara', opportunityId: 'L-1' } },
+    });
+    expect(startWrite?.[1]).toMatchObject({
+      modifiers: [expect.stringContaining('Boa reclamation L-1')],
+      boaReclamation: expect.objectContaining({
+        actorUid: 'capybara', missionCardOpportunityId: 'L-1',
+        rounding: 'floor', printedDifficulty: 15, effectiveDifficulty: 7,
+      }),
+    });
+    expect(mock.update).toHaveBeenCalledWith(
+      expect.objectContaining({ path: `sessions/s1/boaMissionReclamationChoices/${defaultOpportunity.id}` }),
+      expect.objectContaining({ status: 'consumed', missionId: `mission-${defaultOpportunity.id}` }),
+    );
+  });
+
+  it('refuses to consume a Boa choice when its selecting player is absent from the mission roster', async () => {
+    mock.expansionCapybara = true;
+    const boaPlayer = players.find(({ id }) => id === 'capybara')!;
+    Object.assign(boaPlayer.fields, {
+      assignedRoleId: 'capybara-recycler', replacementRoleId: null, replacementStatus: null,
+      activeConsoleRoleId: 'capybara-recycler', seatId: 'capybara-recycler',
+    });
+    mock.fleetGroups[0]!.fields.vesselIds = expansionCapybaraVesselIds;
+    mock.navigationState = {
+      revision: 5,
+      shipGalacticCoordinates: Object.fromEntries(expansionCapybaraVesselIds.map((vesselId) => [vesselId, '5143'])),
+    };
+    mock.shuttleDockings.push({ shuttleId: 'boa', shipId: 'capybara', dockedAt: 'now' });
+    mock.documents[`sessions/s1/boaMissionReclamationChoices/${defaultOpportunity.id}`] = {
+      type: 'boa-mission-reclamation-choice', status: 'selected', sessionId: 's1',
+      opportunityId: defaultOpportunity.id, groupId: 'fleet-1', sourceCycle: 2,
+      actorUid: 'capybara', opportunityTaskId: 'L-1', controlRevision: 1,
+      requestId: 'boa-choice-1', revision: 1,
+    };
+
+    await expect(dealPrivateInitialCards.run(request({
+      sessionId: 's1', instanceId: 'bridge', requestId: 'deal-boa-without-recycler',
+      expectedSetupRevision: 1, expectedPhaseRevision: 3, expectedCycle: 2,
+      opportunityId: defaultOpportunity.id, groupId: 'fleet-1', chart: 'A',
+      coordinate: '5143', sourceCycle: 2, missionLeaderUid: 'alice', participantUids: ['alice', 'bob'],
+    }))).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(mock.set).not.toHaveBeenCalledWith(
+      expect.objectContaining({ path: `sessions/s1/serverState/awayMissions/instances/mission-${defaultOpportunity.id}` }),
+      expect.anything(),
+    );
+    expect(mock.update).not.toHaveBeenCalledWith(
+      expect.objectContaining({ path: `sessions/s1/boaMissionReclamationChoices/${defaultOpportunity.id}` }),
+      expect.anything(),
+    );
   });
 
   it('clears private Gorgoneion projections in the same committed card-deal transaction', async () => {
