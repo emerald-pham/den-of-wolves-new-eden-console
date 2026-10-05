@@ -18959,7 +18959,9 @@ export const resumeSession = auditedOnCall<{ sessionId?: string }>('resumeSessio
         Object.values(history).every(entry => entry.candidateDiscovery === undefined));
       if (noCandidateArrivals) {
         const discovery = await tx.get(playerDiscoveryProjectionRef(sessionId, uid));
-        const { createdAt: _createdAt, updatedAt: _updatedAt, ...view } = discovery.data() ?? {};
+        const view = { ...(discovery.data() ?? {}) };
+        delete view.createdAt;
+        delete view.updatedAt;
         const emptyCandidates = view.candidateReveals === undefined ||
           Array.isArray(view.candidateReveals) && view.candidateReveals.length === 0;
         const expectedView = playerDiscoveryProjection(currentPlayer, navigation,
