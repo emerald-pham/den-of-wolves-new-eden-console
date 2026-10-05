@@ -3,6 +3,8 @@ import test from 'node:test';
 import { validateElectionPlan } from './pc10-politics-press-proof.mjs';
 import { validateCrisisChoice } from './pc10-crisis-voyage-proof.mjs';
 import { validatePosseChoice, validateArrestDispositionChoice } from './pc10-arrest-posse-proof.mjs';
+import { assertRequiredCrisisChoices } from './pc10-crisis-voyage-proof.mjs';
+import { privateSafeActionReceipt } from './pc10-political-crisis-arrest-proof-contracts.mjs';
 
 test('election callbacks require explicit source policy and an independent secret choice for every ballot', () => {
   const valid = {
@@ -46,6 +48,18 @@ test('crisis choices accept only source-defined private GM actions and linked in
   assert.throws(() => validateCrisisChoice({ civilUnrest: { presidentResponse: '', consequence: 'x' } }), /explicit.*response/i);
 });
 
+test('a named crisis branch must have its exact current-source choice before it can run', () => {
+  assert.doesNotThrow(() => assertRequiredCrisisChoices({
+    requiredBranches: ['voyage-host-docking'], voyageMovement: { action: 'dock', hostName: 'Current host' },
+  }));
+  assert.throws(() => assertRequiredCrisisChoices({ requiredBranches: ['voyage-host-docking'] }), /required.*voyage-host-docking/i);
+  assert.throws(() => assertRequiredCrisisChoices({
+    requiredBranches: ['voyage-admission'],
+    approachingVessel: { vesselReality: 'real', admitVoyage: false },
+  }), /required.*voyage-admission/i);
+  assert.throws(() => assertRequiredCrisisChoices({ requiredBranches: ['future-crisis'] }), /unknown.*branch/i);
+});
+
 test('posse inputs bind distinct current roster roles and preserve the virtual-attendance label', () => {
   const roster = ['dione-captain', 'dione-engineer', 'admiral', 'dione-president'];
   const choice = {
@@ -67,4 +81,17 @@ test('case disposition requires an explicit source choice and a reason for late 
   assert.throws(() => validateArrestDispositionChoice(undefined), /explicit.*choice/i);
   assert.throws(() => validateArrestDispositionChoice({ disposition: 'facilitator-resolution' }), /reasoned.*ruling/i);
   assert.throws(() => validateArrestDispositionChoice({ disposition: 'escape' }), /source-offered/i);
+});
+
+test('private safe receipts allow only declared source result labels on exact retry', () => {
+  const receipt = privateSafeActionReceipt({
+    family: 'pending-crisis-voyage', branch: 'voyage-jump', endpoint: 'jumpVoyage33',
+    actor: { uidHash: 'b'.repeat(16), roleId: 'gm' }, sessionId: 'session-1', cycle: 2, phase: 'active',
+    request: { requestId: 'private-request', destination: 'private-destination' },
+    result: { status: 'jumped', revision: 2, fuelSpent: 1 },
+    replay: { status: 'replayed', revision: 2, fuelSpent: 1 },
+    statusPairs: [['jumped', 'replayed']],
+  });
+  assert.equal(receipt.accepted, true);
+  assert.equal(JSON.stringify(receipt).includes('private-destination'), false);
 });
