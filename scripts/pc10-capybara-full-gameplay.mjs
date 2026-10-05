@@ -5,7 +5,7 @@ import { observeUiReceipt } from './pc10-browser-ui-receipt.mjs';
 import { createTwoBrowserGameplay } from './pc10-two-browser-gameplay.mjs';
 import { candidateGameplayTools } from './pc10-candidate-manual-ui-proof.mjs';
 import { advanceBaseDetectorResearch, runBaseCombatAndDeduction } from './pc10-base-combat-deduction-ui-proof.mjs';
-import { completeOfferedTurnAdvance, isObservedGameEnding } from './pc10-full-game-demo-proof-helpers.mjs';
+import { completeOfferedTurnAdvance } from './pc10-full-game-demo-proof-helpers.mjs';
 import { PC10_SPECIALIST_ACTIONS, runPc10SpecialistAction } from './pc10-specialist-phases.mjs';
 import { createSpecialistGameplayDriver, sameActionReceipt } from './pc10-specialist-gameplay.mjs';
 import { runPursuitLimitEnding } from './pc10-full-game-cycle-ending.mjs';
@@ -274,7 +274,7 @@ export async function runFreshCapybaraFullGameUi(options = {}) {
 
 /** Cycle 1 is still the normal Team phase in the generic runner's onStarted hook. */
 async function runCapybaraMaintenanceWithExactReplay(context, cycle, { refuelBoa = false, gmRepair } = {}) {
-  const game = createTwoBrowserGameplay(context), { gm, directory, initial } = context;
+  const game = createTwoBrowserGameplay(context), { gm, initial } = context;
   const before = await game.state(gm);
   assert.equal(before.sessionId, initial.sessionId);
   assert.equal(before.live, true); assert.equal(before.phase, 'active');
@@ -361,7 +361,7 @@ async function runCapybaraMaintenanceWithExactReplay(context, cycle, { refuelBoa
   await execute(panel.getByRole('button', { name: 'Run riot check', exact: true }), 'Run riot check');
   await gmRepair?.('capybara');
   for (const consoleName of ['Jump Drive', 'Shuttle Bay', 'Scrap Refinery'])
-    await panel.getByRole('checkbox', { name: new RegExp(`^${consoleName}(?: \/\/ Charged)?$`, 'i') }).check();
+    await panel.getByRole('checkbox', { name: new RegExp(`^${consoleName}(?: // Charged)?$`, 'i') }).check();
   await panel.getByRole('button', { name: 'Power up reactor', exact: true }).click();
   await execute(panel.getByRole('button', { name: 'ARE YOU SURE?', exact: true }), 'Confirm actual reactor power');
   const production = panel.getByRole('group', { name: / production consoles$/i });
@@ -468,7 +468,7 @@ async function prepareCycleOneCapybaraFleet(context, options = {}) {
 
 /** Derivation of the frozen ordinary base loop with a real expansion Capybara host. */
 export async function runCapybaraFullGameGameplay(context, options = {}) {
-  const admission = assertCapybaraRunContext(context);
+  assertCapybaraRunContext(context);
   const finalEnding = options.runFinalEnding ?? context.runFinalEnding;
   assert.equal(typeof finalEnding, 'function', 'Compose a genuine server-owned ending callback.');
   const cycleOnePreparation = options.cycleOnePreparation;
@@ -478,7 +478,7 @@ export async function runCapybaraFullGameGameplay(context, options = {}) {
   const a = createTwoBrowserGameplay(context);
   const specialistDriver = createSpecialistGameplayDriver(a);
   const sourceTools = candidateGameplayTools(context);
-  const { gm, crew, initial, roster, directory } = context;
+  const { gm, initial, roster, directory } = context;
   const stages = [], checks = {}, costs = [];
   const capybaraStages = Object.fromEntries(CAPYBARA_REQUIRED_STAGES.map(id =>
     [id, { status: 'pending', reason: 'not-yet-observed-at-source-checkpoint' }]));
@@ -846,7 +846,7 @@ export async function runCapybaraFullGameGameplay(context, options = {}) {
       await updateCapybaraStage('macaw-dismantle-consent', outcome);
       if (outcome.status === 'completed') await attemptMacawRepair();
       return outcome;
-    } catch (error) {
+    } catch {
       return { status: 'pending', reason: 'Ordinary Macaw consent, exact replay, or live projection was not confirmed.' };
     }
   }
@@ -904,14 +904,6 @@ export async function runCapybaraFullGameGameplay(context, options = {}) {
         expectedPausedAt: after.turnPhase.timerPause.pausedAt,
       });
     }
-  }
-  async function scout(role, label, coordinate) {
-    return uiRpc(role, 'requestScout', async page => {
-      await page.getByRole('link', { name: `Open ${label} shuttle console`, exact: true }).click();
-      const panel = page.getByRole('region', { name: `${label} scouting request`, exact: true });
-      await panel.getByRole('textbox', { name: 'Printed system coordinate', exact: true }).fill(coordinate);
-      await panel.getByRole('button', { name: 'Record request', exact: true }).click();
-    });
   }
   async function jump(ship, role, name, destination) {
     const before = (await a.state()).shipResources[ship].fuel;
@@ -1106,7 +1098,7 @@ export async function runCapybaraFullGameGameplay(context, options = {}) {
     checks.cycleOneSevenHostMaintenance = true;
     await mark('seven actual host Cycle 1 maintenance sessions; Capy production and Boa refuel replayed by Recycler');
     const combatConsoles = ['Fighter Bay Alpha', 'Fighter Bay Bravo', 'Command and Control', 'Missile Launchers', 'Point Defence Lasers'];
-    async function paidMaintenance(cycle, combat = false) {
+    const paidMaintenance = async (cycle, combat = false) => {
       for (const [ship, role, , consoles, refuels] of ships) {
         const live = await a.state(gm), previous = live.maintenanceCycles?.[ship];
         if (previous?.turn === cycle && previous.step === 0 && previous.completedAt) {
@@ -1124,7 +1116,7 @@ export async function runCapybaraFullGameGameplay(context, options = {}) {
           afterBegin: () => sourceTools.gmRepair(ship), afterRiot: () => sourceTools.gmRepair(ship) });
         checks[`${ship}MaintenanceCycle${cycle}`] = true;
       }
-    }
+    };
     const research1 = await advanceBaseDetectorResearch(context, { expectedCycle: 1, evidenceName: 'base-research-cycle-1.json' });
     await updateBestCapybaraStage('scientist-research', sourceActionStageOutcome({
       branch: research1.branches?.['detector-research-cross'], requests: research1.requests,

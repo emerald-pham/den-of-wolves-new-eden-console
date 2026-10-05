@@ -6,7 +6,6 @@ import {
   assessCapybaraGameplay,
   assertCapybaraRunContext,
   capybaraStageOutcome,
-  macawDismantlingStageOutcome,
   projectCapybaraEvidence,
   sourceActionStageOutcome,
 } from './pc10-capybara-full-gameplay.mjs';
