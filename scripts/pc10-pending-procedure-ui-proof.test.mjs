@@ -5,6 +5,7 @@ import {
   GM_RULING_COUNTER_PROCEDURES,
   captureMountedProcedureAction,
   evaluateProcedureCapture,
+  resolveCurrentHolderActor,
 } from './pc10-pending-procedure-ui-proof.mjs';
 
 // Reason: keep source-owned pending procedure rows finite and executable without
@@ -98,6 +99,32 @@ test('damage draw is classified as mounted only through the actual GM Assign dam
   assert.equal(damage.actorRoleId, 'gm');
   assert.equal(damage.randomOutcome, true);
   assert.equal(damage.replayPolicy, 'exact-request-id');
+});
+
+test('dynamic shuttle actions resolve only the unique admitted account matching current server custody', () => {
+  const roster = [
+    { roleId: 'icebreaker-miner', uidHash: 'd90d3c6f7f1f4d40' },
+    { roleId: 'dione-engineer', uidHash: 'd90d3c6f7f1f4d40' },
+    { roleId: 'capybara-captain', uidHash: 'f00dbabe00000000' },
+  ];
+  const holderUid = 'real-auth-uid';
+  const holderHash = 'd90d3c6f7f1f4d40';
+  const control = { shuttleId: 'ally', holderUid, ownerUid: 'owner-uid', ownerRoleId: 'dione-engineer', revision: 4 };
+  assert.equal(resolveCurrentHolderActor({ shuttleId: 'ally', control, roster }), null,
+    'ambiguous duplicate matches must not select an identity');
+
+  const uniqueRoster = [roster[0], roster[2]];
+  assert.deepEqual(resolveCurrentHolderActor({ shuttleId: 'ally', control, roster: uniqueRoster }), {
+    roleId: 'icebreaker-miner', uidHash: holderHash, shuttleId: 'ally',
+  });
+  assert.equal(resolveCurrentHolderActor({ shuttleId: 'ally', control, roster: uniqueRoster,
+    expectedRoleId: 'capybara-captain' }), null, 'caller role hints cannot override server custody');
+  assert.equal(resolveCurrentHolderActor({ shuttleId: 'maliades', control, roster: uniqueRoster }), null,
+    'a control for another craft is not authority');
+  assert.equal(resolveCurrentHolderActor({ shuttleId: 'ally', control: { ...control, holderUid: 'unadmitted-uid' },
+    roster: uniqueRoster }), null, 'a non-roster holder stays pending');
+  assert.equal(JSON.stringify(resolveCurrentHolderActor({ shuttleId: 'ally', control, roster: uniqueRoster }))
+    .includes(holderUid), false, 'raw Firebase UIDs never leave the resolver');
 });
 
 test('printed costs, real distinct consent, and replay-safe receipts are mandatory', () => {
