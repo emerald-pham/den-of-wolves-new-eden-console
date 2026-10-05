@@ -120,6 +120,8 @@ test('case disposition requires an explicit source choice and a reason for late 
   assert.equal(validateArrestDispositionChoice({ disposition: 'facilitator-resolution', ruling: 'Review the recorded deadline and release.' }), true);
   assert.throws(() => validateArrestDispositionChoice(undefined), /explicit.*choice/i);
   assert.throws(() => validateArrestDispositionChoice({ disposition: 'facilitator-resolution' }), /reasoned.*ruling/i);
+  assert.throws(() => validateArrestDispositionChoice({ disposition: 'facilitator-resolution',
+    ruling: `${' '.repeat(240)}reason` }), /240 characters/i);
   assert.throws(() => validateArrestDispositionChoice({ disposition: 'escape' }), /source-offered/i);
 });
 
