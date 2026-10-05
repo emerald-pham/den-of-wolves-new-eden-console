@@ -4,6 +4,33 @@ import { runInNewContext } from 'node:vm';
 import { createRequire } from 'node:module';
 import * as proof from './pc10-browser-session-proof.mjs';
 
+test('observation barrier awaits response bodies and requests added while draining', async () => {
+  assert.equal(typeof proof.drainPc10CallableObservations, 'function');
+  const pending = new Set(); let revision = 0, releaseFirst, releaseSecond, finished = false;
+  const first = new Promise(resolve => { releaseFirst = resolve; }); pending.add(first);
+  const drain = proof.drainPc10CallableObservations({ pending, revision: () => revision,
+    quietMs: 1, wait: async () => undefined }).then(() => { finished = true; });
+  const second = new Promise(resolve => { releaseSecond = resolve; });
+  pending.add(second); revision++; pending.delete(first); releaseFirst();
+  await Promise.resolve(); await Promise.resolve(); assert.equal(finished, false);
+  pending.delete(second); releaseSecond(); await drain; assert.equal(finished, true);
+});
+
+test('observation barrier rejects a drain failure instead of crediting navigation', async () => {
+  assert.equal(typeof proof.drainPc10CallableObservations, 'function');
+  const failure = new Error('response body cannot be observed');
+  await assert.rejects(proof.drainPc10CallableObservations({ pending: new Set([Promise.reject(failure)]),
+    revision: () => 1, wait: async () => undefined }), error => error === failure);
+});
+
+test('observation barrier restarts quiet interval when a complete late request arrives', async () => {
+  assert.equal(typeof proof.drainPc10CallableObservations, 'function');
+  const pending = new Set(); let revision = 0, waits = 0;
+  await proof.drainPc10CallableObservations({ pending, revision: () => revision, quietMs: 1,
+    wait: async () => { if (++waits === 1) revision++; } });
+  assert.equal(waits, 2, 'A request that starts and finishes in the quiet window still requires a new quiet interval.');
+});
+
 function tableFixture(overrides = {}) {
   const events = [];
   const table = {
