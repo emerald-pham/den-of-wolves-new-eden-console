@@ -110,9 +110,10 @@ export default function ArrestPosseCalculator({
     latest.targetUid === targetUid && latest.defenders === defenderCount &&
     latest.adjustment === adjustment,
   );
-  const visibleOutcome = resolvedOutcome?.targetUid === targetUid
-    ? resolvedOutcome
-    : caseOutcome?.targetUid === targetUid ? caseOutcome : null;
+  const localOutcome = resolvedOutcome?.targetUid === targetUid ? resolvedOutcome : null;
+  const authoritativeOutcome = caseOutcome?.targetUid === targetUid ? caseOutcome : null;
+  const visibleOutcome = authoritativeOutcome && (!localOutcome || authoritativeOutcome.revision >= localOutcome.revision)
+    ? authoritativeOutcome : localOutcome;
   const selectedPresent = [...new Set(selectedPresentUids)].filter((uid) =>
     uid !== targetUid && presentPlayerOptions.some((player) => player.uid === uid));
   const canResolve = Boolean(onResolve && expectedCycle !== undefined && Number.isSafeInteger(expectedCycle) &&

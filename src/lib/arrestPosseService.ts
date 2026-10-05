@@ -64,7 +64,9 @@ export async function resolveArrestPosse(
       'requiredPlayers', 'presentPlayers', 'outcome', 'deadlineCycle', 'attendanceEvidence',
     ].includes(key)) || result.status !== 'committed' || result.type !== 'arrest-posse-outcome' ||
       result.sessionId !== sessionId || result.requestId !== requestId || result.turn !== expectedCycle ||
-      !Number.isSafeInteger(result.revision) || result.revision !== expectedRevision + 1 ||
+      // The private calculation and durable prisoner case have independent
+      // counters. A first case is revision 1, even after many recalculations.
+      !Number.isSafeInteger(result.revision) || (result.revision as number) < 1 ||
       result.targetUid !== targetUid || !Number.isSafeInteger(result.requiredPlayers) ||
       (result.requiredPlayers as number) < 0 || result.presentPlayers !== presentPlayerUids.length ||
       result.attendanceEvidence !== attendanceEvidence ||
