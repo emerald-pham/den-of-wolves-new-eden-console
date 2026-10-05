@@ -17,8 +17,11 @@ import {
 import { advanceMaintenance, chargeableConsoleIds, MAINTENANCE_RULES, emptyMaintenanceCycle, parseMaintenanceCycle, rerollMaintenanceUnrest, type MaintenanceCycle } from './maintenance';
 import { environmentalMaintenanceHazard } from './environmentalMaintenanceHazard';
 import { recordSystemHazard } from './systemHistory';
-import { candidateDiscoveryFromArrival } from './candidateDiscovery';
+import { candidateDiscoveryFromArrival, candidateDiscoveryFromScout } from './candidateDiscovery';
 import { recordCandidatePlanCheckpoint } from './candidatePlanCheckpoint';
+import { createCandidateCallables } from './candidatePathsCallable';
+import { candidateStationLiberationFromFinalization } from './candidateStationLiberation';
+import { commitTerminal } from './sessionDebrief';
 import {
   candidateRevealProjectionForCurrentFleetMember,
   type CandidateReveal,
@@ -1233,6 +1236,17 @@ export const jumpSmallShip = auditedOnCall('jumpSmallShip', (request) =>
 
 export const getBoardingSecurityTeamLocations = auditedOnCall('getBoardingSecurityTeamLocations', (request) =>
   getBoardingSecurityTeamLocationsCallable(request));
+
+const candidateCallables = createCandidateCallables({
+  db, serverTimestamp: () => FieldValue.serverTimestamp(),
+  requireShipAuthority: (tx, sessionId, uid, shipId, instanceId) =>
+    requireShipCounterAuthority(tx, sessionId, uid, shipId, instanceId, false, true),
+  commitTerminal,
+  survivorOutcome: (session, cycle, occurredAt) => survivorOutcomeForSession(session.id, session,
+    shipDamage(session.get('shipDamage')), cycle, occurredAt),
+});
+export const readCandidateWorkspace = auditedOnCall('readCandidateWorkspace', CALLABLE_RUNTIME_OPTIONS, request => candidateCallables.read(request));
+export const executeCandidateAction = auditedOnCall('executeCandidateAction', CALLABLE_RUNTIME_OPTIONS, request => candidateCallables.execute(request));
 
 /** Persist server-authoritative source events to the Press-only intake. */
 function writePressLogEvent(tx: Transaction, sessionId: string, event: PressLogEvent): void {
@@ -3097,9 +3111,14 @@ const commitScoutMapKnowledge: ScoutMapCommit = async ({
     throw commandError('failed-precondition', 'Current fleet-group members are mismatched for scouting.', 'malformed-input');
   }
   const navigation = navigationStateForSession(storedNavigation, session, activeVesselIds);
-  const nextNavigation = recordScoutedCoordinateForShip(
+  const scoutedNavigation = recordScoutedCoordinateForShip(
     navigation, plan.receivingShipId, plan.result.targetCoordinate,
   );
+  const candidateHistory = candidateDiscoveryFromScout(
+    scoutedNavigation.systemHistory, plan.receivingShipId, plan.result, plan.note.recordedAt,
+  );
+  const nextNavigation = candidateHistory === scoutedNavigation.systemHistory ? scoutedNavigation :
+    { ...scoutedNavigation, systemHistory: candidateHistory };
   if (nextNavigation === navigation) return;
   const nextRevision = (revision as number) + 1;
   const chartId = session.get('chartId');
@@ -3111,6 +3130,7 @@ const commitScoutMapKnowledge: ScoutMapCommit = async ({
   }
   tx.set(navigationRef, {
     scoutedCoordinatesByShip: nextNavigation.scoutedCoordinatesByShip,
+    ...(nextNavigation.systemHistory ? { systemHistory: nextNavigation.systemHistory } : {}),
     revision: nextRevision,
     updatedAt: FieldValue.serverTimestamp(),
   }, { merge: true });
@@ -3789,6 +3809,9 @@ function playerEscapeState(player: Pick<DocumentSnapshot, 'get'>): PlayerEscapeS
 /** Player ship actions are revoked by the authoritative escape transition. */
 function requirePlayerShipActionAuthority(player: DocumentSnapshot): void {
   if (player.get('role') !== 'player') return;
+  if (player.get('candidateDisposition') != null) {
+    throw commandError('failed-precondition', 'This vessel has reached its candidate disposition. Original results remain available.', 'conflict');
+  }
   if (player.get('replacementStatus') != null) {
     throw commandError(
       'failed-precondition',
@@ -26009,6 +26032,11 @@ async function reconcileWolfAttackBoarding(
     return;
   }
   if (pStationRepeat) resolvedState.pStationRepeat = pStationRepeat;
+  const stationLiberation = candidateStationLiberationFromFinalization(
+    sessionId, resolvedState, receipt, pStationRepeat, committedAt,
+  );
+  const stationLiberationsRef = db.doc(`sessions/${sessionId}/serverState/candidateStationLiberations`);
+  const priorStationLiberations = stationLiberation ? await tx.get(stationLiberationsRef) : undefined;
   const reopenedPhase: ActiveTurnPhase = {
     ...phase, airspace: { ...phase.airspace, state: 'lifted', tickerActive: true },
   };
@@ -26120,6 +26148,11 @@ async function reconcileWolfAttackBoarding(
   }
 
   tx.update(db.doc(`sessions/${sessionId}`), sessionPatch);
+  if (stationLiberation && !priorStationLiberations?.get(`${stationLiberation.groupId}:${stationLiberation.coordinate}`)) {
+    tx.set(stationLiberationsRef, {
+      [`${stationLiberation.groupId}:${stationLiberation.coordinate}`]: stationLiberation,
+    }, { merge: true });
+  }
   if (pStationRepeat?.status === 'repeat') {
     const windowRef = db.doc(`sessions/${sessionId}/wolfAttackWindow/current`);
     const preparationRef = db.doc(`sessions/${sessionId}/wolfAttackPreparation/current`);

@@ -1,4 +1,5 @@
 import type { GameSession, Player } from '@/types/game';
+import CandidatePreparationPanel from './CandidatePreparationPanel';
 
 export default function CandidateRevealPanel({
   session,
@@ -12,8 +13,10 @@ export default function CandidateRevealPanel({
   readonly observer?: boolean;
 }) {
   const candidateReveals = session?.currentGroupCandidateReveals;
-  if (observer || sessionSnapshotFreshness !== 'server' || session?.phase !== 'active' ||
-      player?.role !== 'player' || !player.fleetGroupId ||
+  if (observer || sessionSnapshotFreshness !== 'server' ||
+      player?.role !== 'player' || !player.fleetGroupId) return null;
+  if (session?.phase === 'debrief' || session?.phase === 'closed') return <CandidatePreparationPanel />;
+  if (session?.phase !== 'active' ||
       candidateReveals?.groupId !== player.fleetGroupId) return null;
 
   if (candidateReveals.candidateReveals.length === 0) return null;
@@ -26,6 +29,7 @@ export default function CandidateRevealPanel({
           <li key={code}><strong>{code}</strong><span>{title}</span></li>
         ))}
       </ul>
+      <CandidatePreparationPanel />
     </section>
   );
 }

@@ -1,4 +1,5 @@
 import WolfBoardingSpecialChoicePanel from '@/components/WolfBoardingSpecialChoicePanel';
+import CandidatePreparationPanel from '@/components/CandidatePreparationPanel';
 import DiseaseOutbreakFields from '../components/DiseaseOutbreakFields';
 import { populationForShip, populationTrackForShip } from '@/data/shipPopulation';
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
@@ -5295,6 +5296,8 @@ export default function GmConsole() {
           )}
 
           {isGm && (
+            <>
+            <CandidatePreparationPanel />
             <section className="gm-console__module cic-frame gm-arbour-vision" aria-label="Cycle 6 candidate plan checkpoint">
               <h2 className="gm-console__section-title">Cycle 6 candidate plan checkpoint</h2>
               <p className="gm-player-roster__hint">
@@ -5326,6 +5329,7 @@ export default function GmConsole() {
                     : 'No Cycle 6 candidate plan status recorded yet.')}
               </p>
             </section>
+            </>
           )}
 
           {isGm && wolfAssignment && (

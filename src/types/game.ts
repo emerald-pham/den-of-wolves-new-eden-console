@@ -1335,7 +1335,15 @@ export interface TotalFleetLossOutcome {
   readonly occurredAt: Timestamp;
 }
 
-export type GameOutcome = PursuitFailureOutcome | TotalFleetLossOutcome;
+export interface CandidateSuccessOutcome {
+  readonly type: 'game-outcome';
+  readonly result: 'success';
+  readonly cause: 'candidate-complete';
+  readonly candidateCode: NewEdenCandidateCode;
+  readonly cycle: number;
+  readonly occurredAt: Timestamp;
+}
+export type GameOutcome = PursuitFailureOutcome | TotalFleetLossOutcome | CandidateSuccessOutcome;
 
 /** Public server-owned custody of a printed shuttle. */
 export interface ShuttleControlEntry {
@@ -2388,6 +2396,8 @@ export interface Player {
   readonly activeConsoleRoleId?: RoleId | null;
   /** Server-owned group identity used to scope the current operational roster; group documents remain private. */
   readonly fleetGroupId?: GroupId | null;
+  /** Member-safe physical availability; detailed authority remains server-only. */
+  readonly candidateDisposition?: { readonly code: NewEdenCandidateCode; readonly outcome: string; readonly cycle: number };
   readonly escapeState?: PlayerEscapeState;
   readonly joinedAt: Timestamp;
 }
