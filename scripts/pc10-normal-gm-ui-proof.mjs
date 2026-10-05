@@ -109,6 +109,36 @@ try {
   await gm.page.getByRole('button', { name: 'Settings', exact: true }).click();
   const settings = gm.page.getByRole('dialog', { name: 'Session settings', exact: true });
   assert.ok((await settings.innerText()).includes('Awaiting CIC authentication means waiting for the GM to start the game.'));
+  // Verify the ordinary joined QR before starting a timed briefing. The old
+  // post-start full-page capture could be occluded by the normal transmission.
+  const joinLink = settings.getByRole('link', { name: `Open join screen for session ${initial.joinCode}`, exact: true });
+  const joinUrl = await joinLink.getAttribute('href');
+  const parsedJoin = new URL(joinUrl);
+  assert.equal(parsedJoin.search, '', 'No local GM or persona data is forwarded.');
+  assert.equal(parsedJoin.hash, `#/?joinCode=${initial.joinCode}`);
+  const qr = settings.getByRole('img', { name: `QR code for session ${initial.joinCode}`, exact: true });
+  const qrGeometry = [];
+  for (const [name, viewport] of [['phone320', { width: 320, height: 844 }],
+    ['phone390', { width: 390, height: 844 }], ['desktop', { width: 1440, height: 900 }],
+    ['landscape', { width: 844, height: 390 }]]) {
+    await gm.page.setViewportSize(viewport);
+    await qr.scrollIntoViewIfNeeded();
+    const geometry = await qr.evaluate(element => {
+      const rect = element.getBoundingClientRect();
+      const center = document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2);
+      return { left: rect.left, right: rect.right, width: rect.width, height: rect.height,
+        viewport: innerWidth, visibleAtCenter: center === element || element.contains(center),
+        documentWidth: document.documentElement.scrollWidth, bodyWidth: document.body.scrollWidth };
+    });
+    assert.equal(geometry.visibleAtCenter, true, 'The actual rendered QR must be unobscured.');
+    assert.ok(geometry.left >= 0 && geometry.right <= viewport.width + 1);
+    assert.ok(geometry.documentWidth <= viewport.width + 1 && geometry.bodyWidth <= viewport.width + 1);
+    qrGeometry.push({ name, viewport, ...geometry });
+    await qr.screenshot({ path: `${directory}/ordinary-qr-${name}.png` });
+    await gm.page.screenshot({ path: `${directory}/ordinary-settings-${name}.png` });
+  }
+  await gm.page.setViewportSize({ width: 1440, height: 900 });
+  await writeFile(`${directory}/ordinary-qr-payload.json`, `${JSON.stringify({ payload: joinUrl }, null, 2)}\n`);
   await settings.getByRole('button', { name: 'Authorize local emulator GM', exact: true }).click();
   await settings.getByRole('button', { name: 'Revoke GM access', exact: true }).waitFor();
   await settings.getByRole('button', { name: 'Close settings', exact: true }).click();
@@ -134,15 +164,6 @@ try {
   const started = await gm.until('Committed ordinary Cycle 1', state => state.cycle === 1 && state.phase === 'active' &&
     state.playerRole === 'gm' && state.gmInstanceOwned);
   await gm.page.screenshot({ path: `${directory}/cycle-one-gm.png` });
-  stage = 'Settings normal QR equivalent link';
-  await gm.page.getByRole('button', { name: 'Settings', exact: true }).click();
-  const joinLink = gm.page.getByRole('link', { name: `Open join screen for session ${initial.joinCode}`, exact: true });
-  const joinUrl = await joinLink.getAttribute('href');
-  const parsedJoin = new URL(joinUrl);
-  assert.equal(parsedJoin.search, '', 'No local GM or persona data is forwarded.');
-  assert.equal(parsedJoin.hash, `#/?joinCode=${initial.joinCode}`);
-  await gm.page.getByRole('img', { name: `QR code for session ${initial.joinCode}`, exact: true }).waitFor();
-  await gm.page.screenshot({ path: `${directory}/normal-settings-qr.png` });
   stage = 'Browser B ordinary link admission and consent';
   await crew.page.goto(joinUrl);
   await crew.page.getByRole('button', { name: /^REDUCED MOTION/i }).click();
@@ -168,7 +189,8 @@ try {
     normalStartOccupiedCoreActors: 0, sourceSupportedSparseStart: true,
     manualFullGameDressRehearsal: false, wholeGameProof: false, humanDevicePlaytest: false,
     adminGameplayWrites: false, localOnlyGmAuthorization: 'Existing explicitly opted-in loopback demo grant UI',
-    initial, confirmed, started, ordinary, authorityDenialCode: denial.code, calls, errors }, null, 2)}\n`);
+    initial, confirmed, started, ordinary, qrGeometry, qrCapturedBeforeGmGrant: true,
+    authorityDenialCode: denial.code, calls, errors }, null, 2)}\n`);
   console.log(JSON.stringify({ status: 'passed', sourceCommit, directory, checks }));
 } catch (error) {
   const states = await Promise.all(surfaces.map(async item => ({ surface: item.label,
