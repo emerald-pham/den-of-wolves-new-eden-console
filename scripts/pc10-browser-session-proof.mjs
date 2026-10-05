@@ -180,6 +180,22 @@ export async function completePc10BrowserProof(table, { afterOverlappingProof, d
   return evidence;
 }
 
+/** Finish real request/body observations before caller-owned document teardown.
+ * The quiet interval records late events; it changes no transport or game clock. */
+export async function drainPc10CallableObservations({ pending, revision, quietMs = 300, wait = delay }) {
+  assert.ok(pending instanceof Set && typeof revision === 'function');
+  assert.ok(Number.isFinite(quietMs) && quietMs > 0);
+  for (;;) {
+    if (pending.size) {
+      await Promise.all([...pending]);
+      continue;
+    }
+    const before = revision();
+    await wait(quietMs);
+    if (!pending.size && revision() === before) return;
+  }
+}
+
 /** An isolated browser context has its own Firebase Auth identity/storage.
  * Tokens remain in memory. Evidence records role/action/state categories only.
  * These are automated browser clients, never a human/device playtest claim. */
@@ -192,6 +208,18 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
   const observedCalls = [];
   const callableObservationFailures = [];
   const pendingObservations = new Set();
+  const requestCompletions = new WeakMap();
+  let observationRevision = 0;
+  function trackObservation(promise) {
+    pendingObservations.add(promise);
+    observationRevision++;
+    const settled = () => pendingObservations.delete(promise);
+    void promise.then(settled, settled);
+  }
+  function completeRequest(request) {
+    requestCompletions.get(request)?.();
+    requestCompletions.delete(request);
+  }
   const observedRequests = new WeakMap();
   const identityObservations = [];
   const identityRecords = new Map();
@@ -233,15 +261,18 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
       trace.actorHash = actorHash ?? null;
       observedRequests.set(request, trace);
       observedCalls.push(trace);
+      trackObservation(new Promise(resolve => { requestCompletions.set(request, resolve); }));
     }
   });
   page.on('requestfinished', request => {
     const trace = observedRequests.get(request);
     if (trace) observePc10CallableTrace(trace, { stage: 'finished', at: Date.now() });
+    completeRequest(request);
   });
   page.on('requestfailed', request => {
     const trace = observedRequests.get(request);
     if (trace) observePc10CallableTrace(trace, { stage: 'failed', at: Date.now() });
+    completeRequest(request);
   });
   page.on('response', response => {
     const request = observedRequests.get(response.request());
@@ -260,8 +291,7 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
       callableObservationFailures.push({ roleId: label, name: request.name, requestHash: request.requestHash,
         status: response.status(), category: 'response-observation-unavailable' });
     });
-    pendingObservations.add(capture);
-    void capture.finally(() => pendingObservations.delete(capture));
+    trackObservation(capture);
   });
   async function observe() {
     const record = { roleId: label, observationId: ++observationId, issuedAt: Date.now(), pageEvents: [] };
@@ -401,7 +431,8 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
   }
   return { context, page, errors, label, observe, until, join, callable, privateRead, geometry,
     observedCalls, callableObservationFailures, identityObservations,
-    drainObservedCalls: () => bounded(Promise.all([...pendingObservations]), 10_000, 'callable observations'),
+    drainObservedCalls: () => bounded(drainPc10CallableObservations({ pending: pendingObservations,
+      revision: () => observationRevision }), 10_000, 'callable observations'),
     close: () => context.close() };
 }
 
@@ -518,12 +549,12 @@ export async function createPc10BrowserTable({ baseUrl, directory, expansion = '
         throw error;
       }
     };
-    async function command(roleId, name, payload = {}) {
+    const command = async (roleId, name, payload = {}) => {
       const actor = roleId === 'gm' ? fixture.gm : roleId === 'press-officer' ? fixture.press : fixture.byRole(roleId);
       assert.ok(actor, `${roleId} must have an independently authenticated actor.`);
       return fixture.call(actor, name, { sessionId: fixture.sessionId, ...payload });
-    }
-    async function diagnoseIdentityFailure(error) {
+    };
+    const diagnoseIdentityFailure = async error => {
       const roleId = error.pc10IdentityRole;
       if (!clients.has(roleId)) return;
       const actor = roleId === 'press-officer' ? fixture.press : fixture.byRole(roleId);
@@ -536,8 +567,8 @@ export async function createPc10BrowserTable({ baseUrl, directory, expansion = '
         serverIdentityDiagnostics.push({ roleId, startedAt, completedAt: Date.now(),
           category: 'normal-authenticated-member-read-unavailable', serverReady: false });
       }
-    }
-    async function writeEvidence(filename, details = {}) {
+    };
+    const writeEvidence = async (filename, details = {}) => {
       await Promise.all([...clients.values()].map(client => client.drainObservedCalls().catch(() => {
         client.callableObservationFailures.push({ roleId: client.label, category: 'observation-drain-timeout' });
       })));
@@ -564,7 +595,7 @@ export async function createPc10BrowserTable({ baseUrl, directory, expansion = '
         humanDevicePlaytest: false, tokensOrCredentialsRecorded: false, actions, errors, ...details };
       await writeFile(`${directory}/${filename}`, `${JSON.stringify(evidence, null, 2)}\n`);
       return evidence;
-    }
+    };
     return { fixture, clients, actions, command, writeEvidence, diagnoseIdentityFailure, diagnoseAuthoritativeFailure,
       diagnoseRateFailure: () => diagnoseRateFailure(fixture), cleanup: async () => {
       // Stop real client rereads before deleting their fixture. Otherwise a
@@ -673,10 +704,16 @@ export async function runPc10OverlappingRecoveryProof(options) {
     assert.notEqual(outsider.status, 200, 'Ordinary authenticated browsers cannot become GM/start the game.');
     completedStages.push('ordinary-gm-start-denied');
     const recoveryRoles = [...fixture.roles, 'press-officer'];
+    await Promise.all(recoveryRoles.map(role => clients.get(role).drainObservedCalls()));
     await Promise.all(recoveryRoles.map(role => clients.get(role).context.setOffline(true)));
     const disconnectedObservations = await Promise.all(recoveryRoles.map(role => clients.get(role).observe()));
     await Promise.all(recoveryRoles.map(role => clients.get(role).context.setOffline(false)));
-    await Promise.all(recoveryRoles.map(role => clients.get(role).page.reload()));
+    await Promise.all(recoveryRoles.map(async role => {
+      const client = clients.get(role);
+      await client.observe();
+      await client.drainObservedCalls();
+      await client.page.reload();
+    }));
     const recovered = await Promise.all(recoveryRoles.map(role => clients.get(role).until('reload/reconnect same authoritative role', state =>
       isFreshPc10BrowserRole(state, role))));
     const after = await fixture.session.get();
