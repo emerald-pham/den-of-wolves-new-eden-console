@@ -112,6 +112,25 @@ it('sends a short private Wolf handler message and applies the server suspicion 
   });
 });
 
+it('explains rounded-down cargo loss and the two-suspicion cost before a supply sabotage is submitted', () => {
+  useSessionStore.getState().setSession({
+    id: 's1', phase: 'active', currentTurn: 2,
+    activeRoleIds: ['dione-engineer'], shuttleCargo: { maliades: { fuel: 5 } },
+  } as never);
+  useSessionStore.getState().setMe({
+    ...useSessionStore.getState().me!,
+    assignedRoleId: 'dione-engineer', activeConsoleRoleId: 'dione-engineer',
+  });
+  useSessionStore.getState().setPrivateLoyalty({ kind: 'wolf-agent', suspicion: 0 });
+
+  render(<PrivateLoyaltyPanel />);
+
+  expect(screen.getByText(/half the selected cargo, rounded down/i)).toBeVisible();
+  expect(screen.getByText(/adds 2 suspicion/i)).toBeVisible();
+  expect(screen.getByText(/one Wolf action for this active cycle/i)).toBeVisible();
+  expect(submitWolfSupplySabotage).not.toHaveBeenCalled();
+});
+
 it('offers only positive cargo on the active cover-role shuttle and commits a private one-action result', async () => {
   const user = userEvent.setup();
   prepareLivePlayer();

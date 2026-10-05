@@ -596,6 +596,19 @@ it.each(['aegis', 'capybara'])('lets only a GM assign damage beneath %s maintena
   view.unmount();
 });
 
+it.each(['aegis', 'dione', 'capybara'])('explains %s damage as one printed survivor-track step before a GM draw', shipId => {
+  act(() => useSessionStore.setState({
+    me: { ...me, role: 'gm' },
+    gmInstance: { id: 'gm1', uid: 'u1', sessionId: 's1', name: 'GM', deviceLabel: '', claimedAt: '' },
+  }));
+  render(<MaintenanceSystems name={shipId} shipId={shipId} systems={[]} renderSystem={() => null} rations={null} />);
+
+  const button = screen.getByRole('button', { name: 'Assign damage' });
+  expect(button).toHaveAccessibleDescription(/moves Survivors down 1 step on the printed track/i);
+  expect(button).not.toHaveAccessibleDescription(/removes 1 survivor/i);
+  expect(assign).not.toHaveBeenCalled();
+});
+
 it.each([
   ['aegis', 'AEGIS', /Armoured Hull.*without survivor loss.*cycles back.*other card remains/i, /empty deck.*required draw.*destroys the ship/i],
   ['dione', 'Dione', /non-armoured hit removes 1 survivor/i, /card is required.*deck is empty.*Dione is destroyed/i],
