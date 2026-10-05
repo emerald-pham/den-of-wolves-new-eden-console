@@ -68,6 +68,66 @@ test('a missing normal Endeavour link fails within its existing locator deadline
   assert.deepEqual(fixture.calls, ['original-actor', 'wait-link']);
 });
 
+const researchWorkspace = () => ({ tracks: [{ trackId: 'wolf-agent-detector', name: 'Wolf Agent Detector',
+  crossedBoxes: 0, totalBoxes: 5, complete: false, currentMaterialCost: 5 }],
+  cadence: { choices: [] }, shepherdOre: 8 });
+const researchPaint = () => ({ busy: 'false', progressVisible: true, detectorVisible: false,
+  rows: ['Wolf Agent Detector: 0 of 5 boxes crossed; next field-upgrade cost is 5 materials. Available for a research choice.'],
+  text: 'CYCLE CHOICES: 0 OF 3 STANDARD; 0 OF 2 ADDITIONAL. SHEPHERD // 8 ORE AVAILABLE' });
+
+test('actual CIC uppercase research paint matches the same authoritative numeric state', async () => {
+  const { baseResearchPaintMatches } = await contracts();
+  assert.equal(typeof baseResearchPaintMatches, 'function');
+  assert.equal(baseResearchPaintMatches(researchPaint(), researchWorkspace()), true);
+  assert.equal(baseResearchPaintMatches({ ...researchPaint(), text: researchPaint().text.toLowerCase() }, researchWorkspace()), true);
+});
+
+test('research paint cannot credit stale boxes, current field cost, cadence or Shepherd ore', async () => {
+  const { baseResearchPaintMatches } = await contracts();
+  assert.equal(typeof baseResearchPaintMatches, 'function');
+  for (const changed of [
+    { rows: [researchPaint().rows[0].replace('0 of 5', '1 of 5')] },
+    { rows: [researchPaint().rows[0].replace('5 materials', '4 materials')] },
+    { text: researchPaint().text.replace('0 OF 3', '1 OF 3') },
+    { text: researchPaint().text.replace('0 OF 2', '1 OF 2') },
+    { text: researchPaint().text.replace('8 ORE', '7 ORE') },
+  ]) assert.equal(baseResearchPaintMatches({ ...researchPaint(), ...changed }, researchWorkspace()), false);
+});
+
+test('loading, unpainted progress or absent source detector track cannot count as research readiness', async () => {
+  const { baseResearchPaintMatches } = await contracts();
+  assert.equal(typeof baseResearchPaintMatches, 'function');
+  for (const changed of [{ busy: 'true' }, { busy: null }, { progressVisible: false }, { rows: [] }])
+    assert.equal(baseResearchPaintMatches({ ...researchPaint(), ...changed }, researchWorkspace()), false);
+  assert.equal(baseResearchPaintMatches(researchPaint(), { ...researchWorkspace(), tracks: [] }), false);
+});
+
+test('a paid research receipt requires its matching visible consequence in the same research paint', async () => {
+  const { baseResearchPaintMatches } = await contracts();
+  assert.equal(typeof baseResearchPaintMatches, 'function');
+  assert.equal(baseResearchPaintMatches(researchPaint(), researchWorkspace(), { status: 'committed' }), false);
+  for (const notice of ['WOLF AGENT DETECTOR ADVANCED ONE RESEARCH BOX.', 'Wolf Agent Detector research request was confirmed.'])
+    assert.equal(baseResearchPaintMatches({ ...researchPaint(), text: researchPaint().text + ' ' + notice }, researchWorkspace(), { status: 'committed' }), true);
+});
+
+test('completed Detector research also requires the actual eligible Detector panel to be mounted', async () => {
+  const { baseResearchPaintMatches } = await contracts();
+  assert.equal(typeof baseResearchPaintMatches, 'function');
+  const workspace = researchWorkspace(); workspace.tracks[0] = { ...workspace.tracks[0], crossedBoxes: 5, complete: true };
+  const paint = { ...researchPaint(), rows: ['Wolf Agent Detector: 5 of 5 boxes crossed; no further field-upgrade cost. Research complete.'] };
+  assert.equal(baseResearchPaintMatches(paint, workspace), false);
+  assert.equal(baseResearchPaintMatches({ ...paint, detectorVisible: true }, workspace), true);
+});
+
+test('source research cadence requires the chosen status rather than an old available-choice row', async () => {
+  const { baseResearchPaintMatches } = await contracts();
+  assert.equal(typeof baseResearchPaintMatches, 'function');
+  const workspace = researchWorkspace(); workspace.cadence.choices = [{ trackId: 'wolf-agent-detector', funding: 'standard' }];
+  const paint = { ...researchPaint(), text: researchPaint().text.replace('0 OF 3', '1 OF 3') };
+  assert.equal(baseResearchPaintMatches(paint, workspace), false);
+  assert.equal(baseResearchPaintMatches({ ...paint, rows: [paint.rows[0].replace('Available for a research choice.', 'Chosen this cycle.')] }, workspace), true);
+});
+
 test('a confirmed loyalty UI receipt needs no recovery click before the next private assignment', async()=>{
  const {waitForBaseLoyaltyUiReceipt}=await contracts();
  assert.equal(typeof waitForBaseLoyaltyUiReceipt,'function');
