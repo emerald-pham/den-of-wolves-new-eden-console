@@ -35,6 +35,133 @@ async function callableObservationActor() {
 }
 const nextObservationTurn = () => new Promise(resolve => setImmediate(resolve));
 
+async function cdpCallableObservationActor({ durableConfigurationError } = {}) {
+  const page = new EventEmitter();
+  page.setDefaultTimeout = () => undefined;
+  page.setDefaultNavigationTimeout = () => undefined;
+  page.reload = async () => undefined;
+  const events = new EventEmitter();
+  const commands = [];
+  const responseBodies = new Map();
+  const finished = new Set();
+  let nextRequest = 0;
+  let navigationComplete = false;
+  events.send = async (method, parameters = {}) => {
+    commands.push({ method, parameters });
+    if (method === 'Network.configureDurableMessages') {
+      if (durableConfigurationError) throw durableConfigurationError;
+      return {};
+    }
+    if (method === 'Network.enable') return {};
+    if (method === 'Network.getResponseBody') {
+      if (!finished.has(parameters.requestId)) throw new Error('Response body is not complete yet.');
+      if (responseBodies.has(parameters.requestId)) {
+        if (parameters.requestId === 'during-reload' && !navigationComplete) {
+          await new Promise(resolve => { events.once('test-navigation-complete', resolve); });
+        }
+        return responseBodies.get(parameters.requestId);
+      }
+      throw new Error('Response body is missing.');
+    }
+    throw new Error(`Unexpected CDP command: ${method}`);
+  };
+  events.detach = async () => undefined;
+  const context = { newPage: async () => page, newCDPSession: async target => {
+    assert.equal(target, page);
+    return events;
+  }, setOffline: async () => undefined, close: async () => undefined };
+  const actor = await proof.createPc10BrowserActor({ newContext: async () => context }, 'http://localhost', 'admiral');
+  const start = (requestId = `protocol-${++nextRequest}`, name = 'getCurrentMemberSession') => {
+    events.emit('Network.requestWillBeSent', { requestId, timestamp: 1, wallTime: 1,
+      request: { url: `http://localhost/demo/us-central1/${name}`, method: 'POST',
+        postData: JSON.stringify({ data: { requestId: 'private-request', sessionId: 'own-session' } }) } });
+    return requestId;
+  };
+  const respond = (requestId, reply = { result: { status: 'committed', revision: 7 } }, status = 200) => {
+    responseBodies.set(requestId, typeof reply === 'string' ? { body: reply, isBase64Encoded: false }
+      : { body: JSON.stringify(reply), isBase64Encoded: false });
+    events.emit('Network.responseReceived', { requestId, timestamp: 2,
+      response: { url: 'http://localhost/demo/us-central1/getCurrentMemberSession', status } });
+  };
+  const finish = requestId => {
+    finished.add(requestId);
+    events.emit('Network.loadingFinished', { requestId, timestamp: 3, encodedDataLength: 1 });
+  };
+  const fail = (requestId, errorText = 'net::ERR_ABORTED') => {
+    events.emit('Network.loadingFailed', { requestId, timestamp: 3, errorText, canceled: true });
+  };
+  return { actor, page, context, events, commands, responseBodies, start, respond, finish, fail,
+    completeNavigation() { navigationComplete = true; events.emit('test-navigation-complete'); } };
+}
+
+test('the observer uses the protocol session and rejects unavailable durable body support', async () => {
+  assert.equal(typeof proof.createPc10BrowserActor, 'function');
+  const failure = new Error('Network.configureDurableMessages is unsupported');
+  const page = new EventEmitter();
+  page.setDefaultTimeout = () => undefined;
+  page.setDefaultNavigationTimeout = () => undefined;
+  const cdp = new EventEmitter();
+  const methods = [];
+  cdp.send = async method => { methods.push(method); if (method === 'Network.configureDurableMessages') throw failure; return {}; };
+  cdp.detach = async () => undefined;
+  const context = { newPage: async () => page, newCDPSession: async () => cdp, close: async () => undefined };
+  await assert.rejects(proof.createPc10BrowserActor({ newContext: async () => context }, 'http://localhost', 'admiral'),
+    error => error === failure);
+  assert.deepEqual(methods, ['Network.configureDurableMessages']);
+});
+
+test('a same original callable completed across reload retains its durable HTTP200 body', async () => {
+  const { actor, page, events, commands, start, respond, finish, completeNavigation } = await cdpCallableObservationActor();
+  const requestId = start('during-reload');
+  respond(requestId);
+  let releaseReload;
+  const reloadGate = new Promise(resolve => { releaseReload = resolve; });
+  page.reload = async () => {
+    await reloadGate;
+    finish(requestId);
+    completeNavigation();
+  };
+  const reload = actor.reload();
+  await nextObservationTurn();
+  releaseReload();
+  await reload;
+  await actor.drainObservedCalls();
+  assert.ok(commands.some(({ method, parameters }) => method === 'Network.configureDurableMessages' &&
+    Number.isSafeInteger(parameters.maxTotalBufferSize) && parameters.maxTotalBufferSize > 0));
+  assert.equal(actor.observedCalls.length, 1);
+  assert.equal(actor.observedCalls[0].requestFinishedAt !== null, true);
+  assert.equal(actor.observedCalls[0].bodyCompletedAt !== null, true);
+  assert.equal(actor.observedCalls[0].resultStatus, 'committed');
+  assert.deepEqual(actor.callableObservationFailures, []);
+});
+
+test('identical callable requests retain distinct CDP protocol lifecycles', async () => {
+  const { actor, start, respond, finish } = await cdpCallableObservationActor();
+  const first = start('protocol-one'), second = start('protocol-two');
+  respond(first, { result: { status: 'committed', revision: 4 } }); finish(first);
+  respond(second, { result: { status: 'replayed', revision: 5 } }); finish(second);
+  await actor.drainObservedCalls();
+  assert.equal(actor.observedCalls.length, 2);
+  assert.equal(actor.observedCalls[0].requestHash, actor.observedCalls[1].requestHash);
+  assert.equal(actor.observedCalls[0].revision, 4);
+  assert.equal(actor.observedCalls[1].revision, 5);
+  assert.equal(JSON.stringify(actor.observedCalls).includes('protocol-one'), false);
+  assert.equal(JSON.stringify(actor.observedCalls).includes('protocol-two'), false);
+});
+
+test('an HTTP200 with missing or malformed protocol body remains an observation failure', async () => {
+  for (const body of ['', '{not-json']) {
+    const { actor, start, respond, finish } = await cdpCallableObservationActor();
+    const requestId = start(); respond(requestId, body); finish(requestId);
+    await actor.drainObservedCalls();
+    assert.equal(actor.observedCalls[0].status, 200);
+    assert.equal(actor.observedCalls[0].requestFinishedAt !== null, true);
+    assert.equal(actor.observedCalls[0].bodyCompletedAt, null);
+    assert.equal(actor.callableObservationFailures.length, 1);
+    assert.equal(actor.callableObservationFailures[0].category, 'response-observation-unavailable');
+  }
+});
+
 test('live body drain finishes its completed response without chasing future polling', async () => {
   const { actor, start, respond, finish, fail } = await callableObservationActor();
   const first = start(), firstBody = respond(first);
