@@ -644,8 +644,8 @@ function makeAnchorIds(definition, name) {
 export const ANCHORS = definitions.flatMap((definition) => makeAnchorIds(definition, definition[0]));
 
 export const REVIEWS = definitions.map((definition) => {
-  const [name, classification, servicePath, serviceSymbol, uiPath, uiSymbol, family, identities,
-    requirements, costs, consequences, blockers, nextActor, guidance, ...helpers] = definition;
+  const [name, classification, , serviceSymbol, uiPath, uiSymbol, family, identities,
+    requirements, costs, consequences, blockers, nextActor, guidance] = definition;
   const sources = [serverAnchor(name), serviceAnchor(name), ...(uiPath ? [uiAnchor(name)] : []),
     ...helperAnchors(definition, name).map(([id]) => id)];
   const evidence = (summary) => ({ summary, sourceAnchorIds: sources });
