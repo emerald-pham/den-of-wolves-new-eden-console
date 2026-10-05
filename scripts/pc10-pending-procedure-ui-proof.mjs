@@ -45,7 +45,7 @@ add(C, 'chooseBoaMissionReclamationOpportunity', 'capybara-recycler', 'before-mi
 add(C, 'rechargeHostConsoleFromShuttle', 'current-shuttle-holder', 'coordination', { mountedPath: 'Shuttle console service-recharge panel',
   requirement: 'current shuttle holder, exact active/docked shuttle and eligible host console; server-listed source inputs remain available',
   costPolicy: 'debit only the actual selected printed source inputs; Scrap conversion must be explicit in the rendered choice' });
-add(C, 'recycleWithBoa', 'capybara-recycler', 'team', { mountedPath: 'Boa recycling panel',
+add(C, 'recycleWithBoa', 'capybara-recycler', 'coordination', { mountedPath: 'Boa recycling panel',
   requirement: 'Capybara mode, live Coordination, current docked Boa and one affordable printed recipe',
   costPolicy: 'one Scrap for six Food/Water/Ore/Fuel or three Materials; one actual selected recipe' });
 add(C, 'repairConsolesFromAlly', 'current-ally-holder', 'coordination', { mountedPath: 'Ally console-repair panel',
