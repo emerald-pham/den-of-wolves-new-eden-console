@@ -153,6 +153,21 @@ describe('ordinary authenticated demo cohort preparation', () => {
     expect(api.claim).not.toHaveBeenCalled();
   });
 
+  it('retains the established identity when a seat commits but its acknowledgement is lost', async () => {
+    const api = gateway();
+    api.claim.mockRejectedValueOnce(new Error('Lost seat acknowledgement.'));
+    await expect(prepareDemoActors(session, { gateway: api })).rejects.toThrow('Lost seat acknowledgement.');
+    expect(readDemoActorAccountUid('admiral')).toBe('auth-admiral');
+    expect(readDemoActorRoster(session.id)).toEqual([]);
+    api.identity.mockImplementationOnce(async (_profile, expectedUid) => {
+      expect(expectedUid).toBe('auth-admiral');
+      throw new Error('SDK account unavailable.');
+    });
+    await expect(prepareDemoActors(session, { gateway: api })).rejects.toThrow(/unavailable/i);
+    expect(api.join).toHaveBeenCalledTimes(1);
+    expect(api.claim).toHaveBeenCalledTimes(1);
+  });
+
   it('reuses the authenticated role pool for a fresh session without carrying old session state', async () => {
     const api = gateway();
     await prepareDemoActors(session, { gateway: api });
