@@ -33,6 +33,107 @@ test('bounded fixture transport returns the actual callable JSON and HTTP status
   { status: 409, error: { status: 'ABORTED' } });
 });
 
+test('callable observations retain only hashed identity and bounded authority metadata', () => {
+  assert.equal(typeof fixture.buildFixtureCallableObservation, 'function');
+  const observation = fixture.buildFixtureCallableObservation({ name: 'resumeSession',
+    transport: 'authenticated-emulator-HTTP', actorUid: 'private-actor', sessionId: 'private-session',
+    startedAt: 10, completedAt: 25, status: 200, reply: { result: {
+      player: { uid: 'private-actor', fleetGroupId: 'fleet-2', connectionGeneration: 7,
+        assignedRoleId: 'admiral', activeConsoleRoleId: 'admiral', idToken: 'credential-do-not-copy' },
+      session: { id: 'private-session', loyalty: 'hidden-loyalty', chartCoordinates: 'hidden-chart' },
+      freeformNote: 'private-freeform-note', dice: [1, 2, 3],
+    } } });
+  assert.match(observation.actorHash, /^[a-f0-9]{64}$/);
+  assert.match(observation.sessionHash, /^[a-f0-9]{64}$/);
+  assert.match(observation.groupHash, /^[a-f0-9]{64}$/);
+  assert.equal(observation.connectionGeneration, 7);
+  assert.equal(observation.durationMs, 15);
+  const serialized = JSON.stringify(observation);
+  for (const privateValue of ['private-actor', 'private-session', 'fleet-2', 'credential-do-not-copy',
+    'hidden-loyalty', 'hidden-chart', 'private-freeform-note', 'dice', 'admiral']) {
+    assert.equal(serialized.includes(privateValue), false);
+  }
+});
+
+test('denial observations omit freeform errors and unvalidated authority values', () => {
+  assert.equal(typeof fixture.buildFixtureCallableObservation, 'function');
+  const observation = fixture.buildFixtureCallableObservation({ name: 'getCurrentMemberSession',
+    transport: 'independent-browser-SDK', startedAt: 10, completedAt: 20, status: 429,
+    reply: { error: { status: 'RESOURCE_EXHAUSTED', message: 'sensitive error prose', details: { token: 'secret' } },
+      result: { actorUid: {}, sessionId: '../private', groupId: '../hidden', connectionGeneration: -1,
+        assignedRoleId: 'unvalidated-private-role', activeConsoleRoleId: 'unvalidated-private-console' } } });
+  assert.equal(observation.denialCode, 'RESOURCE_EXHAUSTED');
+  assert.equal(observation.actorHash, null);
+  assert.equal(observation.sessionHash, null);
+  assert.equal(observation.groupHash, null);
+  assert.equal(observation.connectionGeneration, null);
+  assert.equal(JSON.stringify(observation).includes('sensitive'), false);
+  assert.equal(JSON.stringify(observation).includes('secret'), false);
+  assert.equal(JSON.stringify(observation).includes('private'), false);
+});
+
+test('rate denial observations distinguish only the approved counter categories', () => {
+  const input = { name: 'resumeSession', transport: 'authenticated-emulator-HTTP',
+    startedAt: 10, completedAt: 20, status: 429 };
+  for (const commandError of ['rate-limit-state-invalid', 'rate-limited']) {
+    const value = fixture.buildFixtureCallableObservation({ ...input,
+      reply: { error: { status: 'RESOURCE_EXHAUSTED', details: { commandError, notes: 'secret-notes' } } } });
+    assert.equal(value.denialCategory, commandError);
+    assert.equal(JSON.stringify(value).includes('secret-notes'), false);
+  }
+  assert.equal(fixture.buildFixtureCallableObservation({ ...input,
+    reply: { error: { details: { commandError: 'private-unvalidated-text' } } } }).denialCategory, null);
+});
+
+test('fixture failure diagnostics finish before cleanup and cannot replace the original failure', async () => {
+  assert.equal(typeof fixture.finishFailedPc07Fixture, 'function');
+  const events = [];
+  const error = new Error('actual callable 429');
+  let release;
+  const held = new Promise(resolve => { release = resolve; });
+  const result = fixture.finishFailedPc07Fixture(error, {
+    observeFailure: async () => { events.push('observe'); await held; events.push('observed'); },
+    cleanup: async () => { events.push('cleanup'); },
+  });
+  const failure = result.catch(value => value);
+  await Promise.resolve();
+  assert.deepEqual(events, ['observe']);
+  release();
+  assert.equal(await failure, error);
+  assert.deepEqual(events, ['observe', 'observed', 'cleanup']);
+});
+
+test('an unavailable fixture failure observation remains marked and preserves the real failure and cleanup', async () => {
+  assert.equal(typeof fixture.finishFailedPc07Fixture, 'function');
+  const error = new Error('actual identity failure');
+  let cleaned = false;
+  await assert.rejects(fixture.finishFailedPc07Fixture(error, {
+    observeFailure: async () => { throw new Error('observer unavailable'); },
+    cleanup: async () => { cleaned = true; },
+  }), value => value === error);
+  assert.equal(error.pc07FailureObservationUnavailable, true);
+  assert.equal(cleaned, true);
+});
+
+test('the optional fixture observer sees the real failed response once without altering its status', async t => {
+  const seen = [];
+  const origin = await localCallableServer(t, (_request, response) => {
+    response.writeHead(429, { 'Content-Type': 'application/json' });
+    response.end(JSON.stringify({ error: { status: 'RESOURCE_EXHAUSTED', message: 'original error' } }));
+  });
+  const reply = await fixture.performFixtureCallable({ origin, project: 'demo-test',
+    actor: { localId: 'native-actor', idToken: 'never-in-observation' }, name: 'resumeSession',
+    data: { sessionId: 'native-session' }, timeoutMs: 1_000,
+    onCallableObservation: value => seen.push(value) });
+  assert.equal(reply.status, 429);
+  assert.equal(reply.error.message, 'original error');
+  assert.equal(seen.length, 1);
+  assert.equal(seen[0].status, 429);
+  assert.equal(seen[0].name, 'resumeSession');
+  assert.match(seen[0].actorHash, /^[a-f0-9]{64}$/);
+  assert.equal(JSON.stringify(seen).includes('never-in-observation'), false);
+});
+
 test('browser-owned presence can expire without an API heartbeat keeping core or Press connected', () => {
   assert.equal(shouldMaintainFixturePresence({ browserControlled: true, browserOwnsPresence: true }), false);
   assert.equal(shouldMaintainFixturePresence({ browserControlled: true, browserOwnsPresence: true,

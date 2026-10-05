@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { createRequire } from 'node:module';
 import { setTimeout as delay } from 'node:timers/promises';
 import { chromium } from 'playwright';
-import { createPc07AuthenticatedSession } from './pc07-authenticated-session.mjs';
+import { createPc07AuthenticatedSession, buildFixtureCallableObservation } from './pc07-authenticated-session.mjs';
 import { runPc10NaturalDisconnectAcceptance } from './pc10-natural-disconnect.mjs';
 
 async function compiledFunctionsHash() {
@@ -45,16 +45,117 @@ export function createPc10LiveObserver(auth, useSessionStore) {
   };
 }
 
+/** Runs inside the actual page. Console markers contain scheduling metadata only. */
+export async function observePc10PageIdentity({ observationId, moduleUrl, observerSource }) {
+  const key = Symbol.for('pc10-proof-live-observer');
+  const started = performance.now();
+  const bootstrapRequired = !window[key];
+  const documentState = () => ({ visibility: document.visibilityState,
+    focused: document.hasFocus(), online: navigator.onLine });
+  const report = (stage, details = {}) => console.debug(`PC10_IDENTITY_OBSERVATION:${JSON.stringify({
+    observationId, stage, browserAt: Date.now(), bootstrapRequired,
+    bootstrapCount: window[key]?.bootstrapCount ?? 0, ...documentState(), ...details,
+  })}`);
+  report('entry');
+  let bootstrapDurationMs = 0;
+  if (bootstrapRequired) {
+    const [{ auth }, { useSessionStore }] = await Promise.all([
+      import('/src/lib/firebase.ts'), import(moduleUrl),
+    ]);
+    const createObserver = new Function(`return (${observerSource});`)();
+    window[key] = { read: createObserver(auth, useSessionStore), bootstrapCount: 1 };
+    bootstrapDurationMs = performance.now() - started;
+  }
+  const getterStarted = performance.now();
+  const state = window[key].read();
+  const getterDurationMs = performance.now() - getterStarted;
+  report('read', { bootstrapDurationMs, getterDurationMs, totalDurationMs: performance.now() - started });
+  return state;
+}
+
+/** Never copy arbitrary browser console content into evidence. */
+export function parsePc10IdentityObservationEvent(value) {
+  const prefix = 'PC10_IDENTITY_OBSERVATION:';
+  if (typeof value !== 'string' || !value.startsWith(prefix)) return null;
+  let event;
+  try { event = JSON.parse(value.slice(prefix.length)); } catch { return null; }
+  if (!Number.isSafeInteger(event?.observationId) || event.observationId < 1 ||
+      !['entry', 'read'].includes(event.stage) || !Number.isFinite(event.browserAt) || event.browserAt < 0 ||
+      typeof event.bootstrapRequired !== 'boolean' || !Number.isSafeInteger(event.bootstrapCount) || event.bootstrapCount < 0 ||
+      !['visible', 'hidden', 'prerender'].includes(event.visibility) ||
+      typeof event.focused !== 'boolean' || typeof event.online !== 'boolean') return null;
+  const safe = { observationId: event.observationId, stage: event.stage, browserAt: event.browserAt,
+    bootstrapRequired: event.bootstrapRequired, bootstrapCount: event.bootstrapCount,
+    visibility: event.visibility, focused: event.focused, online: event.online };
+  for (const field of ['bootstrapDurationMs', 'getterDurationMs', 'totalDurationMs']) {
+    if (Number.isFinite(event[field]) && event[field] >= 0) safe[field] = event[field];
+  }
+  return safe;
+}
+
+/** The real same-UID normal member read is evidence of server readiness only. */
+export function buildPc10ServerIdentityDiagnostic({ roleId, actor, sessionId, reply, startedAt, completedAt }) {
+  const timing = buildFixtureCallableObservation({ name: 'getCurrentMemberSession',
+    transport: 'authenticated-emulator-HTTP', actorUid: actor.localId, sessionId,
+    reply, startedAt, completedAt, status: reply.status });
+  const projection = reply.status === 200 ? reply.result : null;
+  const sameActor = Boolean(projection && projection.actorUid === actor.localId);
+  const sameSession = Boolean(projection && projection.sessionId === sessionId);
+  const roleMatches = Boolean(projection && (roleId === 'press-officer' || projection.assignedRoleId === roleId));
+  const consoleMatches = Boolean(projection && projection.activeConsoleRoleId === roleId);
+  const phase = ['lobby', 'setup', 'active', 'debrief', 'closed'].includes(projection?.session?.phase)
+    ? projection.session.phase : null;
+  const cycle = Number.isSafeInteger(projection?.session?.currentTurn) ? projection.session.currentTurn : null;
+  return { ...timing, roleId, projectionAvailable: Boolean(projection), sameActor, sameSession,
+    roleMatches, consoleMatches, phase, cycle,
+    serverReady: sameActor && sameSession && roleMatches && consoleMatches && phase === 'active' && cycle === 1 };
+}
+
+/** Evaluate only the own private marker's validated metadata against the real current clock. */
+export function buildPc10RateLimitStateDiagnostic({ identity, stored, observedAt, requestObservation }) {
+  const require = createRequire(new URL('../functions/package.json', import.meta.url));
+  const { CALLABLE_RATE_LIMIT_POLICIES, evaluateCallableRateLimit } = require('../functions/lib/callableRateLimit.js');
+  const policy = CALLABLE_RATE_LIMIT_POLICIES[identity.callableName];
+  const value = stored && typeof stored === 'object' && !Array.isArray(stored) ? stored : {};
+  const decision = evaluateCallableRateLimit(stored, identity, policy, observedAt);
+  const hashes = buildFixtureCallableObservation({ name: identity.callableName,
+    transport: 'authenticated-emulator-HTTP', actorUid: identity.uid, sessionId: identity.sessionId,
+    startedAt: 0, completedAt: 0, status: 429 });
+  const windowStartedAtMs = Number.isSafeInteger(value.windowStartedAtMs) && value.windowStartedAtMs >= 0
+    ? value.windowStartedAtMs : null;
+  const requestCount = Number.isSafeInteger(value.requestCount) && value.requestCount >= 1 ? value.requestCount : null;
+  const clientRequestStartedAt = Number.isSafeInteger(requestObservation.startedAt) && requestObservation.startedAt >= 0
+    ? requestObservation.startedAt : null;
+  return { callableName: identity.callableName, actorHash: hashes.actorHash, sessionHash: hashes.sessionHash,
+    observedAt, clientRequestStartedAt, maxRequests: policy.maxRequests, windowMs: policy.windowMs,
+    markerExists: stored !== undefined,
+    markerHasExactKeys: Object.keys(value).sort().join('|') ===
+      'callableName|identityHash|requestCount|type|version|windowStartedAtMs',
+    markerTypeMatches: value.type === 'callable-rate-limit', markerVersionMatches: value.version === 1,
+    markerCallableMatches: value.callableName === identity.callableName,
+    markerIdentityMatches: value.identityHash === createHash('sha256').update(`${identity.sessionId}\0${identity.uid}`).digest('hex'),
+    windowStartedAtMs, requestCount,
+    markerWindowAfterClientRequestStarted: windowStartedAtMs !== null && clientRequestStartedAt !== null &&
+      windowStartedAtMs > clientRequestStartedAt,
+    markerWindowAfterFreshTime: windowStartedAtMs !== null && windowStartedAtMs > observedAt,
+    freshClockDecision: decision.allowed ? 'allowed' : decision.reason,
+    denialCategory: ['rate-limit-state-invalid', 'rate-limited'].includes(requestObservation.denialCategory)
+      ? requestObservation.denialCategory : null };
+}
+
 /** Compose the actual acceptance on this live table before caller-owned cleanup.
  * A failed follow-up, browser error, source change or rebuilt runtime remains a failure. */
 export async function completePc10BrowserProof(table, { afterOverlappingProof, details = {} } = {}) {
   const errors = [...table.clients.values()].flatMap(client => client.errors);
   assert.equal(errors.length, 0, 'No browser runtime errors may be ignored.');
+  assert.equal([...table.clients.values()].flatMap(client => client.callableObservationFailures ?? []).length, 0,
+    'No missing callable observations may be ignored.');
   if (afterOverlappingProof) await afterOverlappingProof(table);
   const evidence = await table.writeEvidence('overlapping-recovery.json', {
     ...details, completedAfterOverlappingProof: Boolean(afterOverlappingProof),
   });
   assert.equal(evidence.errors.length, 0, 'No browser runtime errors may be ignored.');
+  assert.equal(evidence.callableObservationFailures?.length ?? 0, 0, 'No missing callable observations may be ignored.');
   assert.equal(evidence.sourceCommit, evidence.sourceCommitAtStart, 'The source must stay unchanged throughout the proof.');
   assert.equal(evidence.runtimeIndexSha256AtEnd, evidence.runtimeIndexSha256AtStart,
     'The Functions runtime index must stay unchanged throughout the proof.');
@@ -72,6 +173,14 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
   page.setDefaultTimeout(20_000);
   page.setDefaultNavigationTimeout(20_000);
   const errors = [];
+  const observedCalls = [];
+  const callableObservationFailures = [];
+  const pendingObservations = new Set();
+  const observedRequests = new WeakMap();
+  const identityObservations = [];
+  const identityRecords = new Map();
+  let observationId = 0;
+  let actorHash;
   let joinStage = 'not started';
   async function bounded(operation, timeoutMs, name) {
     let timer;
@@ -85,26 +194,59 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
   let functionsSdkModule = '/node_modules/.vite/deps/firebase_functions.js';
   let firestoreSdkModule = '/node_modules/.vite/deps/firebase_firestore.js';
   page.on('pageerror', error => errors.push(error.message));
+  page.on('console', message => {
+    const event = parsePc10IdentityObservationEvent(message.text());
+    if (!event) return;
+    const record = identityRecords.get(event.observationId);
+    if (record) record.pageEvents.push({ ...event, observedAt: Date.now() });
+  });
   page.on('request', request => {
     const url = new URL(request.url());
     if (url.pathname === '/src/store/useSessionStore.ts') storeModule = url.href;
     if (url.pathname.endsWith('/firebase_functions.js')) functionsSdkModule = url.href;
     if (url.pathname.endsWith('/firebase_firestore.js')) firestoreSdkModule = url.href;
+    if (url.pathname.includes('/us-central1/') && request.method() === 'POST') {
+      observedRequests.set(request, { name: url.pathname.split('/').at(-1), startedAt: Date.now() });
+    }
+  });
+  page.on('response', response => {
+    const request = observedRequests.get(response.request());
+    if (!request) return;
+    const completedAt = Date.now();
+    const capture = response.json().then(reply => {
+      const value = buildFixtureCallableObservation({ ...request, completedAt, status: response.status(),
+        transport: 'independent-browser-SDK', reply });
+      observedCalls.push({ ...value, roleId: label, actorHash: value.actorHash ?? actorHash ?? null });
+    }).catch(() => { callableObservationFailures.push({ roleId: label, name: request.name,
+      status: response.status(), category: 'response-observation-unavailable' }); });
+    pendingObservations.add(capture);
+    void capture.finally(() => pendingObservations.delete(capture));
   });
   async function observe() {
-    return bounded(page.evaluate(async ({ moduleUrl, observerSource }) => {
-      const key = Symbol.for('pc10-proof-live-observer');
-      if (!window[key]) {
-        const [{ auth }, { useSessionStore }] = await Promise.all([
-          import('/src/lib/firebase.ts'), import(moduleUrl),
-        ]);
-        const createObserver = new Function(`return (${observerSource});`)();
-        window[key] = createObserver(auth, useSessionStore);
-      }
-      return window[key]();
-    }, { moduleUrl: storeModule, observerSource: createPc10LiveObserver.toString() }), 10_000, 'identity observation');
+    const record = { roleId: label, observationId: ++observationId, issuedAt: Date.now(), pageEvents: [] };
+    identityObservations.push(record);
+    identityRecords.set(record.observationId, record);
+    const operation = page.evaluate(observePc10PageIdentity, { observationId: record.observationId,
+      moduleUrl: storeModule, observerSource: createPc10LiveObserver.toString() });
+    // A late completion is recorded, never substituted for the deadline failure.
+    void operation.then(state => {
+      record.completedAt = Date.now();
+      record.roundTripMs = record.completedAt - record.issuedAt;
+      record.completedAfterTimeout = record.deadlineExceeded === true;
+      record.readiness = { hasAuth: state.hasAuth, sameActor: state.sameActor, hasSession: state.hasSession,
+        roleMatches: label === 'press-officer' || state.roleId === label,
+        consoleMatches: state.activeConsoleRoleId === label, connection: state.connection,
+        freshness: state.freshness, phase: state.phase, cycle: state.cycle };
+    }, () => { record.operationFailureAt = Date.now(); });
+    try { return await bounded(operation, 10_000, 'identity observation'); }
+    catch (error) {
+      record.rejectedAt = Date.now();
+      record.deadlineExceeded = error.message === `${label}: identity observation exceeded 10000ms`;
+      error.pc10IdentityRole = label;
+      throw error;
+    }
   }
-  async function until(label, ready, timeoutMs = 30_000) {
+  async function until(description, ready, timeoutMs = 30_000) {
     const deadline = Date.now() + timeoutMs;
     let state;
     while (Date.now() < deadline) {
@@ -112,7 +254,9 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
       if (ready(state)) return state;
       await delay(250);
     }
-    throw new Error(`${label}: ${JSON.stringify(state)}`);
+    const error = new Error(`${description}: ${JSON.stringify(state)}`);
+    error.pc10IdentityRole = label;
+    throw error;
   }
   async function enter(joinCode) {
     console.log(`${label}: ordinary UI join started`);
@@ -169,7 +313,12 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
     });
   }
   async function join(joinCode) {
-    try { return await bounded(enter(joinCode), 60_000, `ordinary join at ${joinStage}`); }
+    try {
+      const actor = await bounded(enter(joinCode), 60_000, `ordinary join at ${joinStage}`);
+      actorHash = buildFixtureCallableObservation({ name: 'joinSession', transport: 'independent-browser-SDK',
+        actorUid: actor.localId, startedAt: 0, completedAt: 0, status: 200 }).actorHash;
+      return actor;
+    }
     catch (error) {
       const directory = process.env.PC10_EVIDENCE_DIRECTORY;
       if (directory) {
@@ -210,6 +359,8 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
     }, { moduleUrl: firestoreSdkModule, sessionId, suffix }), 15_000, 'private SDK read');
   }
   return { context, page, errors, label, observe, until, join, callable, privateRead, geometry,
+    observedCalls, callableObservationFailures, identityObservations,
+    drainObservedCalls: () => bounded(Promise.all([...pendingObservations]), 10_000, 'callable observations'),
     close: () => context.close() };
 }
 
@@ -231,7 +382,31 @@ export async function createPc10BrowserTable({ baseUrl, directory, expansion = '
   const browser = await chromium.launch({ channel: 'chrome', headless: true });
   const clients = new Map();
   const actions = [];
+  const fixtureCallableObservations = [];
+  const serverIdentityDiagnostics = [];
+  const rateLimitStateDiagnostics = [];
   let fixture;
+  async function diagnoseRateFailure({ db, sessionId, gm, players, press, roles }) {
+    const actorRoles = new Map(players.map((actor, index) => [actor.localId, roles[index]]));
+    actorRoles.set(gm.localId, 'gm');
+    if (press) actorRoles.set(press.localId, 'press-officer');
+    const actors = new Map([gm, ...players, ...(press ? [press] : [])].map(actor => [buildFixtureCallableObservation({
+      name: 'resumeSession', transport: 'authenticated-emulator-HTTP', actorUid: actor.localId,
+      startedAt: 0, completedAt: 0, status: 200 }).actorHash, actor]));
+    const require = createRequire(new URL('../functions/package.json', import.meta.url));
+    const { CALLABLE_RATE_LIMIT_POLICIES, callableRateLimitDocumentId } = require('../functions/lib/callableRateLimit.js');
+    const denials = [...fixtureCallableObservations, ...[...clients.values()].flatMap(client => client.observedCalls)]
+      .filter(value => value.status === 429 && CALLABLE_RATE_LIMIT_POLICIES[value.name] && actors.has(value.actorHash));
+    const unique = new Map(denials.map(value => [`${value.name}/${value.actorHash}`, value]));
+    for (const denial of unique.values()) {
+      const actor = actors.get(denial.actorHash);
+      const identity = { callableName: denial.name, sessionId, uid: actor.localId };
+      const marker = await db.doc(`sessions/${sessionId}/serverState/callableRateLimit-${callableRateLimitDocumentId(identity)}`).get();
+      rateLimitStateDiagnostics.push({ roleId: actorRoles.get(actor.localId), ...buildPc10RateLimitStateDiagnostic({
+        identity, stored: marker.data(), observedAt: Date.now(), requestObservation: denial,
+      }) });
+    }
+  }
   try {
     const joins = {};
     for (const roleId of roles) {
@@ -244,6 +419,8 @@ export async function createPc10BrowserTable({ baseUrl, directory, expansion = '
     fixture = await createPc07AuthenticatedSession('PC10 fresh overlapping browser rehearsal', coreCount, {
       clearBriefing: true, keepAlive: true, serializeFixtureCalls: false, browserOwnsPresence: true, expansion,
       capybaraEnabled: true, joinBrowserPlayers: joins, joinPressPlayer: press.join,
+      onCallableObservation: observation => fixtureCallableObservations.push(observation),
+      beforeFailureCleanup: diagnoseRateFailure,
     });
     const actorRoles = new Map(fixture.players.map((actor, index) => [actor.localId, roles[index]]));
     actorRoles.set(fixture.press.localId, 'press-officer');
@@ -265,7 +442,24 @@ export async function createPc10BrowserTable({ baseUrl, directory, expansion = '
       assert.ok(actor, `${roleId} must have an independently authenticated actor.`);
       return fixture.call(actor, name, { sessionId: fixture.sessionId, ...payload });
     }
+    async function diagnoseIdentityFailure(error) {
+      const roleId = error.pc10IdentityRole;
+      if (!clients.has(roleId)) return;
+      const actor = roleId === 'press-officer' ? fixture.press : fixture.byRole(roleId);
+      const startedAt = Date.now();
+      try {
+        const reply = await originalCall(actor, 'getCurrentMemberSession', { sessionId: fixture.sessionId });
+        serverIdentityDiagnostics.push(buildPc10ServerIdentityDiagnostic({ roleId, actor,
+          sessionId: fixture.sessionId, reply, startedAt, completedAt: Date.now() }));
+      } catch {
+        serverIdentityDiagnostics.push({ roleId, startedAt, completedAt: Date.now(),
+          category: 'normal-authenticated-member-read-unavailable', serverReady: false });
+      }
+    }
     async function writeEvidence(filename, details = {}) {
+      await Promise.all([...clients.values()].map(client => client.drainObservedCalls().catch(() => {
+        client.callableObservationFailures.push({ roleId: client.label, category: 'observation-drain-timeout' });
+      })));
       const sourceCommit = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
       const errors = [...clients.values()].flatMap(client => client.errors.map(message => ({ roleId: client.label, message })));
       const evidence = { schemaVersion: 1, sourceCommit, recordedAt: new Date().toISOString(), expansion,
@@ -273,6 +467,12 @@ export async function createPc10BrowserTable({ baseUrl, directory, expansion = '
         runtimeCompiledTreeSha256AtStart, runtimeCompiledTreeSha256AtEnd: await compiledFunctionsHash(),
         runtimeIndexSha256AtEnd: createHash('sha256').update(await readFile('functions/lib/index.js')).digest('hex'),
         freshCreatedSession: true, adminGameplayWrites: false,
+        fixtureCallableObservations,
+        identityObservations: [...clients.values()].flatMap(client => client.identityObservations),
+        serverIdentityDiagnostics,
+        rateLimitStateDiagnostics,
+        observedBrowserCalls: [...clients.values()].flatMap(client => client.observedCalls),
+        callableObservationFailures: [...clients.values()].flatMap(client => client.callableObservationFailures),
         independentCorePlayerAuthSessions: fixture.players.length,
         additionalIndependentPressAuthSessions: 1, gmAuthSessions: 1,
         actualIndependentBrowserContexts: clients.size, browserProcesses: 1,
@@ -281,14 +481,29 @@ export async function createPc10BrowserTable({ baseUrl, directory, expansion = '
       await writeFile(`${directory}/${filename}`, `${JSON.stringify(evidence, null, 2)}\n`);
       return evidence;
     }
-    return { fixture, clients, actions, command, writeEvidence, cleanup: async () => {
+    return { fixture, clients, actions, command, writeEvidence, diagnoseIdentityFailure,
+      diagnoseRateFailure: () => diagnoseRateFailure(fixture), cleanup: async () => {
       // Stop real client rereads before deleting their fixture. Otherwise a
       // failed run can keep retrying a partially deleted session during cleanup.
       try { await browser.close(); } finally { await fixture.cleanup(); }
     } };
   } catch (error) {
+    await Promise.all([...clients.values()].map(client => client.drainObservedCalls().catch(() => {
+      client.callableObservationFailures.push({ roleId: client.label, category: 'observation-drain-timeout' });
+    })));
     await writeFile(`${directory}/startup-failure.json`, `${JSON.stringify({ status: 'failed',
-      stage: 'fresh normal Auth/UI setup', message: error.message, contextsOpened: clients.size }, null, 2)}\n`);
+      sourceCommitAtStart, runtimeIndexSha256AtStart, runtimeCompiledTreeSha256AtStart,
+      sourceCommitAtEnd: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
+      runtimeIndexSha256AtEnd: createHash('sha256').update(await readFile('functions/lib/index.js')).digest('hex'),
+      runtimeCompiledTreeSha256AtEnd: await compiledFunctionsHash(),
+      stage: 'fresh normal Auth/UI setup', message: error.message, contextsOpened: clients.size,
+      fixtureCallableObservations, observedBrowserCalls: [...clients.values()].flatMap(client => client.observedCalls),
+      identityObservations: [...clients.values()].flatMap(client => client.identityObservations),
+      serverIdentityDiagnostics,
+      rateLimitStateDiagnostics, failureObservationUnavailable: error.pc07FailureObservationUnavailable === true,
+      callableObservationFailures: [...clients.values()].flatMap(client => client.callableObservationFailures),
+      browserErrors: [...clients.values()].flatMap(client => client.errors.map(message => ({ roleId: client.label, message }))),
+    }, null, 2)}\n`);
     if (fixture) await fixture.cleanup();
     await browser.close();
     throw error;
@@ -380,6 +595,8 @@ export async function runPc10OverlappingRecoveryProof(options) {
     } });
     return evidence;
   } catch (error) {
+    await table.diagnoseIdentityFailure(error);
+    await table.diagnoseRateFailure();
     await table.writeEvidence('overlapping-recovery-failure.json', { status: 'failed', message: error.message });
     throw error;
   } finally {
