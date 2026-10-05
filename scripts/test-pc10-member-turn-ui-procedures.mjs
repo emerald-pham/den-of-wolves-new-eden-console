@@ -9,10 +9,11 @@ const actor = { sessionId: 's', uidHash: '0123456789abcdef', hasAuth: true, same
   instanceId: 'i', claimedAt: 'lease', gmInstanceOwned: true,
   privateAudienceMatches: true, foreignPendingCount: 0, activeConsoleRoleId: null };
 const data = { sessionId: 's', instanceId: 'i', targetUid: 'not-public', requestId: 'actual-ui-id' };
-function surface({ state = actor, body = { result: { sessionId: 's', setupRevision: 3 } } } = {}) {
+function surface({ state = actor, body = { result: { sessionId: 's', setupRevision: 3 } },
+  endpoint = 'releaseRole', requestData = data } = {}) {
   let choices = 0, replays = 0, armed = false;
-  const response = { request: () => ({ postDataJSON: () => ({ data }), method: () => 'POST' }),
-    url: () => 'http://127.0.0.1:5011/demo-pc10-owner/us-central1/releaseRole',
+  const response = { request: () => ({ postDataJSON: () => ({ data: requestData }), method: () => 'POST' }),
+    url: () => `http://127.0.0.1:5011/demo-pc10-owner/us-central1/${endpoint}`,
     status: () => 200, json: async () => body };
   return { page: { evaluate: async () => state,
     waitForResponse: async predicate => { armed = true; assert.ok(predicate(response)); return response; } },
@@ -49,6 +50,28 @@ test('a forged receipt object cannot turn an initial SDK mutation into UI recove
   await assert.rejects(recoverLifecycleUiAction(s, { endpoint: 'releaseRole', before: actor,
     data, result: { sessionId: 's', setupRevision: 3 } }));
   assert.equal(s.counts().replays, 0);
+});
+test('stable GM claim repeat never reclaims a different current lease', async () => {
+  const member = { ...actor, playerRole: 'player', gmInstanceOwned: false, instanceId: null, claimedAt: null };
+  const s = surface({ state: member, endpoint: 'claimGmInstance',
+    requestData: { sessionId: 's', instanceId: 'i', name: 'Actual UI name', deviceLabel: 'Actual UI device' },
+    body: { result: { instance: { id: 'i', claimedAt: 'lease' } } } });
+  const capture = await captureLifecycleUiAction(s, 'claimGmInstance', s.choose);
+  s.page.evaluate = async () => ({ ...actor, instanceId: 'foreign-lease' });
+  await assert.rejects(recoverLifecycleUiAction(s, capture, { stateRepeat: true }));
+  assert.equal(s.counts().replays, 0);
+  s.page.evaluate = async () => actor;
+  const recovered = await recoverLifecycleUiAction(s, capture, { stateRepeat: true });
+  assert.equal(recovered.protocol, 'stable-instance-repeat'); assert.equal(recovered.sourceReceiptRecovered, false);
+});
+test('captured old disconnect tests a newer genuine generation without invented receipt credit', async () => {
+  const member = { ...actor, playerRole: 'player', gmInstanceOwned: false, instanceId: null, claimedAt: null };
+  const s = surface({ state: member, endpoint: 'disconnectFromSession',
+    requestData: { sessionId: 's', connectionGeneration: 1 }, body: { result: null } });
+  const capture = await captureLifecycleUiAction(s, 'disconnectFromSession', s.choose);
+  s.page.evaluate = async () => ({ ...member, generation: 2 });
+  const recovered = await recoverLifecycleUiAction(s, capture, { rejoined: true });
+  assert.equal(recovered.protocol, 'generation-bound-cleanup'); assert.equal(recovered.sourceReceiptRecovered, false);
 });
 test('bounded freshness wait never acts on cache and resumes only the same original live authority', async () => {
   const states = [{ ...actor, connection: 'connecting', freshness: 'cache' }, actor];
