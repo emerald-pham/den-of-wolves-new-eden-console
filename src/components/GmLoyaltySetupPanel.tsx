@@ -57,6 +57,7 @@ export default function GmLoyaltySetupPanel({ players }: GmLoyaltySetupPanelProp
   const connection = useSessionStore((state) => state.connection);
   const freshness = useSessionStore((state) => state.sessionSnapshotFreshness);
   const census = useSessionStore((state) => state.gmLoyaltyCensus);
+  const censusStatus = useSessionStore((state) => state.gmLoyaltyCensusStatus);
   const isGm = useSessionStore(selectIsGm);
   const [targetUid, setTargetUid] = useState('');
   const [kind, setKind] = useState<'fleet-loyalist' | 'wolf-agent' | 'intelligence-agent' | 'universal-arbour' | 'wolf-cult' | 'android' | 'friend'>('fleet-loyalist');
@@ -100,12 +101,16 @@ export default function GmLoyaltySetupPanel({ players }: GmLoyaltySetupPanelProp
   const pressProjectionPresent = pressEnabled && players.some((player) =>
     player.activeConsoleRoleId === 'press-officer' || player.assignedRoleId === 'press-officer');
   const pressAuthorityUnresolved = pressEnabled && (pressClaimed || pressProjectionPresent) && !pressHolder;
-  const configuredHolderUids = census?.entries.map((entry) => entry.uid) ?? [];
+  const censusReady = censusStatus === 'empty' || (censusStatus === 'present' && census !== null);
+  const censusReadFailed = censusStatus === 'error' || (censusStatus === 'present' && census === null);
+  const configuredHolderUids = censusStatus === 'present' && census
+    ? census.entries.map((entry) => entry.uid) : [];
   const coverage = explicitLoyaltyCoverage(holders, configuredHolderUids);
   const coreCoverage = explicitLoyaltyCoverage(coreHolders, configuredHolderUids);
   const pressConfigured = pressHolder !== undefined && configuredHolderUids.includes(pressHolder.uid);
   const currentHolderUids = new Set(holders.map((holder) => holder.uid));
-  const currentEntries = census?.entries.filter((entry) => currentHolderUids.has(entry.uid)) ?? [];
+  const currentEntries = censusStatus === 'present' && census
+    ? census.entries.filter((entry) => currentHolderUids.has(entry.uid)) : [];
   const configuredWolfHolderUids = currentEntries
     .filter((entry) => entry.kind === 'wolf-agent' || entry.kind === 'wolf-cult')
     .map((entry) => entry.uid);
@@ -168,8 +173,9 @@ export default function GmLoyaltySetupPanel({ players }: GmLoyaltySetupPanelProp
   const intelligenceCount = currentKindCounts.get('intelligence-agent') ?? 0;
   const arbourCount = currentKindCounts.get('universal-arbour') ?? 0;
   const startBlockers = [
-    !census ? 'Wait for the live GM private-record projection before checking readiness.' : null,
-    census && !coverage.complete
+    censusStatus === 'loading' ? 'Wait for the live GM private-record projection before checking readiness.' : null,
+    censusReadFailed ? 'The live GM private-record projection could not be verified. Reconnect before checking readiness.' : null,
+    censusReady && !coverage.complete
       ? `Assign ${coverage.total - coverage.configured} more private record${coverage.total - coverage.configured === 1 ? '' : 's'} to current core holders and the claimed Press Officer before start.`
       : null,
     expectedWolfCount === null ? 'Refresh a valid printed player-count setup before checking Wolf coverage.' : null,
@@ -187,7 +193,8 @@ export default function GmLoyaltySetupPanel({ players }: GmLoyaltySetupPanelProp
     !confirmed ? 'Confirm the optional choice before entering private records.' : null,
     !liveGmAuthority ? 'Live GM session authority is required before changing private loyalty.' : null,
     !castingOpen ? 'Private loyalty is locked outside the unlocked lobby or casting phase.' : null,
-    optionalEnabled && !census ? 'Wait for the live GM private-record projection before assigning loyalty.' : null,
+    optionalEnabled && censusStatus === 'loading' ? 'Wait for the live GM private-record projection before assigning loyalty.' : null,
+    optionalEnabled && censusReadFailed ? 'The live GM private-record projection could not be verified. Reconnect before assigning loyalty.' : null,
     optionalEnabled && !validOptionalChoice
       ? 'Choose exactly one explicit printed loyalty scenario. Ordinary Wolf designation stays automatic.' : null,
     wolfCultEnabled && playerCount < 14
@@ -199,7 +206,7 @@ export default function GmLoyaltySetupPanel({ players }: GmLoyaltySetupPanelProp
       ? 'Refresh or reconcile the claimed Press holder before configuring private loyalty. The live holder must be connected, hold only the Press station, and have no replacement or escape state.' : null,
   ].filter((blocker): blocker is string => blocker !== null);
   const editorReady = liveGmAuthority && castingOpen && confirmed && optionalEnabled && validOptionalChoice && allowedKinds.length > 0 &&
-    census !== null && holders.length > 0 && holders.some((holder) => holder.connected === true) && setupBlockers.length === 0;
+    censusReady && holders.length > 0 && holders.some((holder) => holder.connected === true) && setupBlockers.length === 0;
   const requestBlocked = !editorReady || !allowedKinds.includes(kind) || !targetConnected || !validSuspicion || uniqueKindAlreadyElsewhere ||
     intelligenceConflict || intelligenceWolfMissing || friendPartnerMissing || wolfCountWouldExceedSource || busy || pendingRequest !== null;
 

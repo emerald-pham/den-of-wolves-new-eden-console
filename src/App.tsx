@@ -565,14 +565,14 @@ function AppRoutes() {
     });
     let subscribeLoyaltyCensusFn: (
       sessionId: string,
-      onCensus: (census: LoyaltyCensus | null) => void,
+      onCensus: (census: LoyaltyCensus | null, status: 'loading' | 'present' | 'empty' | 'error') => void,
     ) => () => void = () => () => undefined;
     const clearLoyaltyCensus = () => {
       censusGeneration += 1;
       censusSubscribed = false;
       unsubscribeLoyaltyCensus();
       unsubscribeLoyaltyCensus = () => undefined;
-      useSessionStore.getState().setGmLoyaltyCensus(null);
+      useSessionStore.getState().setGmLoyaltyCensus(null, 'loading');
     };
     const clearWolfCultIntelligence = () => {
       wolfCultAuthorityGeneration += 1;
@@ -618,9 +618,9 @@ function AppRoutes() {
       if (censusSubscribed) return;
       const generation = ++censusGeneration;
       censusSubscribed = true;
-      unsubscribeLoyaltyCensus = subscribeLoyaltyCensusFn(sessionId, (next) => {
+      unsubscribeLoyaltyCensus = subscribeLoyaltyCensusFn(sessionId, (next, status) => {
         if (generation !== censusGeneration || !currentPlayerMayReadCensus()) return;
-        useSessionStore.getState().setGmLoyaltyCensus(next);
+        useSessionStore.getState().setGmLoyaltyCensus(next, status);
       });
     };
     const reconcileStationRelease = () => {

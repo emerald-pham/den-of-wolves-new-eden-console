@@ -466,6 +466,7 @@ interface SessionState {
   awayMissionHands: readonly AwayMissionHand[];
   gmAwayMissionHandPointers: readonly AwayMissionHandPointer[];
   gmLoyaltyCensus: LoyaltyCensus | null;
+  gmLoyaltyCensusStatus: 'loading' | 'present' | 'empty' | 'error';
   wolfCultIntelligence: WolfCultIntelligence | null;
   gmWolfCultIntelligence: WolfCultIntelligence | null;
   arbourVision: ArbourVision | null;
@@ -505,7 +506,10 @@ interface SessionState {
   setAwayMissionHandPointers: (pointers: readonly AwayMissionHandPointer[]) => void;
   setAwayMissionHands: (hands: readonly AwayMissionHand[]) => void;
   setGmAwayMissionHandPointers: (pointers: readonly AwayMissionHandPointer[]) => void;
-  setGmLoyaltyCensus: (census: LoyaltyCensus | null) => void;
+  setGmLoyaltyCensus: (
+    census: LoyaltyCensus | null,
+    status?: 'loading' | 'present' | 'empty' | 'error',
+  ) => void;
   setWolfCultIntelligence: (intelligence: WolfCultIntelligence | null) => void;
   setGmWolfCultIntelligence: (intelligence: WolfCultIntelligence | null) => void;
   setArbourVision: (vision: ArbourVision | null) => void;
@@ -546,6 +550,7 @@ const initial = {
   awayMissionHands: [] as readonly AwayMissionHand[],
   gmAwayMissionHandPointers: [] as readonly AwayMissionHandPointer[],
   gmLoyaltyCensus: null,
+  gmLoyaltyCensusStatus: 'loading' as const,
   wolfCultIntelligence: null,
   gmWolfCultIntelligence: null,
   arbourVision: null,
@@ -569,7 +574,7 @@ const initial = {
 } satisfies Pick<
   SessionState,
   'session' | 'seats' | 'me' | 'gmInstance' | 'gmAccessAuthenticatedAt' | 'turnStartReplay' | 'pendingCommands' |
-  'privateLoyalty' | 'roleBrief' | 'roleBriefLoading' | 'awayMissionHandPointer' | 'awayMissionHand' | 'awayMissionHandPointers' | 'awayMissionHands' | 'gmAwayMissionHandPointers' | 'gmLoyaltyCensus' | 'wolfCultIntelligence' | 'gmWolfCultIntelligence' | 'arbourVision' | 'gmArbourVision' | 'facilitatorRuleCall' | 'gmFacilitatorRuleCall' | 'gmCrisisState' | 'gmZealotryResponse' | 'gmCivilUnrestResolution' | 'gmSetupReceipt' | 'commissarPurgeAuthority' | 'communicationError' | 'mode' | 'lastRoute' | 'connection' |
+  'privateLoyalty' | 'roleBrief' | 'roleBriefLoading' | 'awayMissionHandPointer' | 'awayMissionHand' | 'awayMissionHandPointers' | 'awayMissionHands' | 'gmAwayMissionHandPointers' | 'gmLoyaltyCensus' | 'gmLoyaltyCensusStatus' | 'wolfCultIntelligence' | 'gmWolfCultIntelligence' | 'arbourVision' | 'gmArbourVision' | 'facilitatorRuleCall' | 'gmFacilitatorRuleCall' | 'gmCrisisState' | 'gmZealotryResponse' | 'gmCivilUnrestResolution' | 'gmSetupReceipt' | 'commissarPurgeAuthority' | 'communicationError' | 'mode' | 'lastRoute' | 'connection' |
   'sessionSnapshotFreshness' | 'voyage33MovementProjectionFresh' |
   'persistedSessionSnapshot' | 'identityHydrationRevision'
 >;
@@ -631,6 +636,7 @@ export const useSessionStore = create<SessionState>()(
       setIdentity: (session, me) => set((state) => ({
         session: clearVoyageMovement(session), me, roleBrief: null, awayMissionHandPointer: null, awayMissionHand: null,
         roleBriefLoading: me.role === 'player',
+        gmLoyaltyCensus: null, gmLoyaltyCensusStatus: 'loading',
         privateLoyalty: samePrivateAssignment(state.me, me) ? state.privateLoyalty : null,
         awayMissionHandPointers: [], awayMissionHands: [],
         gmAwayMissionHandPointers: [], wolfCultIntelligence: null, gmWolfCultIntelligence: null,
@@ -687,7 +693,8 @@ export const useSessionStore = create<SessionState>()(
         awayMissionHand: awayMissionHands[0] ?? null,
       }),
       setGmAwayMissionHandPointers: (gmAwayMissionHandPointers) => set({ gmAwayMissionHandPointers }),
-      setGmLoyaltyCensus: (gmLoyaltyCensus) => set({ gmLoyaltyCensus }),
+      setGmLoyaltyCensus: (gmLoyaltyCensus, gmLoyaltyCensusStatus = gmLoyaltyCensus ? 'present' : 'loading') =>
+        set({ gmLoyaltyCensus, gmLoyaltyCensusStatus }),
       setWolfCultIntelligence: (wolfCultIntelligence) => set({ wolfCultIntelligence }),
       setGmWolfCultIntelligence: (gmWolfCultIntelligence) => set({ gmWolfCultIntelligence }),
       setArbourVision: (arbourVision) => set({ arbourVision }),
@@ -766,6 +773,7 @@ export const useSessionStore = create<SessionState>()(
           awayMissionHands: [],
           gmAwayMissionHandPointers: [],
           gmLoyaltyCensus: null,
+          gmLoyaltyCensusStatus: 'loading',
           wolfCultIntelligence: null,
           gmWolfCultIntelligence: null,
           arbourVision: null,

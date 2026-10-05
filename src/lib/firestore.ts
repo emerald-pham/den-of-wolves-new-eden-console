@@ -4872,7 +4872,7 @@ export function subscribeHummingbirdHarvest(
  */
 export function subscribeLoyaltyCensus(
   sessionId: string,
-  onCensus: (census: LoyaltyCensus | null) => void,
+  onCensus: (census: LoyaltyCensus | null, status: 'loading' | 'present' | 'empty' | 'error') => void,
 ): Unsubscribe {
   let subscribed = true;
   const acceptsRevision = createMonotonicRevisionGate();
@@ -4881,19 +4881,27 @@ export function subscribeLoyaltyCensus(
     { includeMetadataChanges: true },
     (snapshot) => {
       if (!subscribed || snapshot.metadata?.fromCache === true) return;
+      if (!snapshot.exists()) {
+        onCensus(null, 'empty');
+        return;
+      }
       const census = snapshot.exists() ? loyaltyCensus(snapshot.data()) : null;
-      if (census && !acceptsRevision(census.revision)) return;
-      onCensus(census);
+      if (!census) {
+        onCensus(null, 'error');
+        return;
+      }
+      if (!acceptsRevision(census.revision)) return;
+      onCensus(census, 'present');
     },
     () => {
       if (!subscribed) return;
-      onCensus(null);
+      onCensus(null, 'error');
     },
   );
   return () => {
     subscribed = false;
     unsubscribe();
-    onCensus(null);
+    onCensus(null, 'loading');
   };
 }
 
