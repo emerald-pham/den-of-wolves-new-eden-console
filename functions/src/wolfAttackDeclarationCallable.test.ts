@@ -389,6 +389,23 @@ function resetFixture(): void {
 beforeEach(resetFixture);
 afterEach(() => vi.useRealTimers());
 
+it('uses the explicit manual marker instead of its compatibility timestamp for the attack window', async () => {
+  const currentPhase = mock.documents.get('sessions/s1')!.turnPhase as Fields;
+  patchSession({
+    fullGameDemo: { status: 'active', progression: 'manual' },
+    turnPhase: {
+      ...currentPhase,
+      teamPhaseEndsAt: '1999-12-31T23:50:00.000Z',
+      progression: 'manual',
+      openAirspaceEndsAt: '2000-01-01T00:00:00.000Z',
+    },
+  });
+
+  await expect(declareWolfAttack.run(request())).resolves.toMatchObject({
+    status: 'committed', type: 'wolf-attack-declaration', turn: 1,
+  });
+});
+
 it('atomically locks airspace, snapshots parked craft, records a hidden stage receipt, and emits one safe announcement', async () => {
   const result = await declareWolfAttack.run(request());
   expect(result).toEqual(expect.objectContaining({
