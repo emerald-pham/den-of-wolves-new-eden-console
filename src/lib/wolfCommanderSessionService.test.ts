@@ -199,6 +199,51 @@ it('returns only ship identities from the Executive Officer view and rejects lea
   await expect(getAegisCommandAndControl()).rejects.toThrow(/invalid AEGIS Command and Control view/i);
 });
 
+it('rejects a pending C&C reply after a newer same-original-officer snapshot and permits only a fresh privacy-safe read', async () => {
+  const { session, player } = fixture();
+  const officer: Player = { ...player, replacementRoleId: null,
+    assignedRoleId: 'executive-officer', activeConsoleRoleId: 'executive-officer',
+    fleetGroupId: 'fleet-1', connected: true, connectionGeneration: 1,
+  };
+  const initial: GameSession = { ...session, updatedAt: '2026-10-05T17:00:00.000Z',
+    shipResources: { aegis: { ore: 5, fuel: 0, food: 0, water: 0, materials: 0, securityTeams: 0 } },
+  };
+  useSessionStore.getState().setIdentity(initial, officer);
+  useSessionStore.setState({ connection: 'live', sessionSnapshotFreshness: 'server' });
+  expect(acceptCallableSessionAuthority(initial, officer.uid)).toBe(true);
+  let finish!: (value: { data: unknown }) => void;
+  const view = {
+    type: 'aegis-command-and-control-view', sessionId: initial.id, turn: 1, revision: 4,
+    eligible: true, commanderAssigned: false, rerollsFinalized: false,
+    targets: [{ rosterIndex: 0, shipId: 'wolf-fighter-wing' }],
+  };
+  const call = Object.assign(vi.fn().mockImplementationOnce(() => new Promise<{ data: unknown }>((resolve) => {
+    finish = resolve;
+  })).mockResolvedValue({ data: view }), { stream: vi.fn() });
+  vi.mocked(httpsCallable).mockReturnValue(call as never);
+  const reading = getAegisCommandAndControl();
+  const rejected = expect(reading).rejects.toThrow('The AEGIS Executive Officer session or authority changed before this response arrived.');
+  await vi.waitFor(() => expect(call).toHaveBeenCalledTimes(1));
+
+  const newer: GameSession = { ...initial, updatedAt: '2026-10-05T17:00:05.000Z',
+    shipResources: { aegis: { ...initial.shipResources!.aegis!, ore: 0 } },
+  };
+  expect(acceptCallableSessionAuthority(newer, officer.uid)).toBe(true);
+  useSessionStore.getState().setSession(newer);
+  finish({ data: view });
+  await rejected;
+  expect(useSessionStore.getState().me).toEqual(officer);
+  expect(useSessionStore.getState().session).toEqual(newer);
+
+  await expect(getAegisCommandAndControl()).resolves.toEqual(view);
+  call.mockResolvedValueOnce({ data: { ...view,
+    targets: [{ rosterIndex: 0, shipId: 'wolf-fighter-wing', die: 4, target: 'dione' }],
+  } });
+  await expect(getAegisCommandAndControl()).rejects.toThrow(/invalid AEGIS Command and Control view/i);
+  expect(call).toHaveBeenCalledTimes(3);
+  expect(vi.mocked(httpsCallable).mock.calls.every(([, name]) => name === 'getAegisCommandAndControl')).toBe(true);
+});
+
 it('accepts only a privacy-safe committed redirect bound to current Executive Officer authority', async () => {
   const values = fixture();
   const officer: Player = {

@@ -6,6 +6,8 @@ import type { AegisCommandAndControlView } from '@/types/game';
 import type { WolfAttackMemberView } from '@/types/game';
 import type { AegisCommandAndControlResult } from '@/types/game';
 import AegisCommandAndControlPanel from './AegisCommandAndControlPanel';
+import { captureSessionAuthority, isCurrentSessionAuthority } from '@/lib/sessionMutationAuthority';
+import { acceptServerSessionAuthority, sessionSnapshotAuthorityFor } from '@/lib/sessionSnapshotAuthority';
 
 const mocks = vi.hoisted(() => ({ get: vi.fn(), redirect: vi.fn(), pass: vi.fn(), subscribe: vi.fn() }));
 vi.mock('@/lib/sessionService', () => ({
@@ -73,6 +75,145 @@ beforeEach(() => {
   );
   useSessionStore.getState().setConnection('live');
   useSessionStore.getState().setSessionSnapshotFreshness('server');
+});
+
+let recoveryFixture = 0;
+
+function connectRecoveryOfficer(): AegisCommandAndControlView {
+  recoveryFixture += 1;
+  const sessionId = `cnc-recovery-${recoveryFixture}`;
+  const store = useSessionStore.getState();
+  store.setIdentity({ ...store.session!, id: sessionId, currentTurn: 2,
+    shipResources: { aegis: { ore: 5, fuel: 0, food: 0, water: 0, materials: 0, securityTeams: 0 } },
+  }, { ...store.me!, uid: `xo-recovery-${recoveryFixture}`, sessionId, connected: true, connectionGeneration: 1 });
+  advanceRecoverySnapshot(5);
+  return { ...ready, sessionId, commanderAssigned: false, rerollsFinalized: false };
+}
+
+function advanceRecoverySnapshot(ore: number): void {
+  const { session, me } = useSessionStore.getState();
+  const next = { ...session!, shipResources: { ...session!.shipResources,
+    aegis: { ...session!.shipResources!.aegis!, ore },
+  } };
+  expect(acceptServerSessionAuthority(sessionSnapshotAuthorityFor(next.id, me!.uid), next, undefined, false, true)).toBe(true);
+  useSessionStore.getState().setSession(next);
+}
+
+function delayedAuthorityRead() {
+  let finish!: (view: AegisCommandAndControlView) => void;
+  const reply = new Promise<AegisCommandAndControlView>((resolve) => { finish = resolve; });
+  return {
+    finish,
+    read: async () => {
+      const { session, me } = useSessionStore.getState();
+      const checkpoint = captureSessionAuthority(session!.id, me!.uid);
+      const value = await reply;
+      if (!isCurrentSessionAuthority(checkpoint)) {
+        throw new Error('The AEGIS Executive Officer session or authority changed before this response arrived.');
+      }
+      return value;
+    },
+  };
+}
+
+it('discards a same-officer read invalidated by a newer snapshot and recovers the fresh no-Commander choice without reload', async () => {
+  const stale = connectRecoveryOfficer();
+  const original = useSessionStore.getState().me!;
+  const delayed = delayedAuthorityRead();
+  const fresh = { ...stale, targets: [{ rosterIndex: 4, shipId: 'wolf-destroyer' }] };
+  mocks.get.mockReset().mockImplementationOnce(delayed.read).mockResolvedValueOnce(fresh);
+  render(<AegisCommandAndControlPanel />);
+  await waitFor(() => expect(mocks.get).toHaveBeenCalledTimes(1));
+
+  act(() => advanceRecoverySnapshot(0));
+  await act(async () => delayed.finish(stale));
+
+  await screen.findByRole('radio', { name: 'Wolf Destroyer' });
+  expect(mocks.get).toHaveBeenCalledTimes(2);
+  expect(screen.queryByRole('radio', { name: 'Wolf Cruiser' })).not.toBeInTheDocument();
+  expect(screen.getByText(/no wolf commander is assigned/i)).toBeVisible();
+  expect(screen.getByRole('button', { name: /pass command and control/i })).toBeEnabled();
+  expect(useSessionStore.getState().me).toEqual(original);
+  expect(mocks.redirect).not.toHaveBeenCalled();
+  expect(mocks.pass).not.toHaveBeenCalled();
+});
+
+it('withdraws previously displayed targets during bounded fresh-read recovery instead of reusing the rejected reply', async () => {
+  const stale = connectRecoveryOfficer();
+  const delayed = delayedAuthorityRead();
+  let finishFresh!: (view: AegisCommandAndControlView) => void;
+  const freshRead = new Promise<AegisCommandAndControlView>((resolve) => { finishFresh = resolve; });
+  mocks.get.mockReset().mockResolvedValueOnce(stale).mockImplementationOnce(delayed.read).mockReturnValueOnce(freshRead);
+  render(<AegisCommandAndControlPanel />);
+  await screen.findByRole('radio', { name: 'Wolf Cruiser' });
+  await userEvent.setup().click(screen.getByRole('button', { name: /refresh command and control/i }));
+  await waitFor(() => expect(mocks.get).toHaveBeenCalledTimes(2));
+
+  act(() => advanceRecoverySnapshot(0));
+  await act(async () => delayed.finish(stale));
+  await waitFor(() => expect(mocks.get).toHaveBeenCalledTimes(3));
+  expect(screen.queryByRole('radio', { name: 'Wolf Cruiser' })).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /redirect selected ship/i })).toBeDisabled();
+  expect(screen.queryByRole('button', { name: /pass command and control/i })).not.toBeInTheDocument();
+
+  await act(async () => finishFresh({ ...stale, targets: [{ rosterIndex: 4, shipId: 'wolf-destroyer' }] }));
+  await screen.findByRole('radio', { name: 'Wolf Destroyer' });
+  expect(mocks.redirect).not.toHaveBeenCalled();
+  expect(mocks.pass).not.toHaveBeenCalled();
+});
+
+it('allows only one automatic snapshot recovery per attack checkpoint and keeps ordinary Refresh available after more churn', async () => {
+  const view = connectRecoveryOfficer();
+  const first = delayedAuthorityRead();
+  const second = delayedAuthorityRead();
+  mocks.get.mockReset().mockImplementationOnce(first.read).mockImplementationOnce(second.read).mockResolvedValue(view);
+  render(<AegisCommandAndControlPanel />);
+  await waitFor(() => expect(mocks.get).toHaveBeenCalledTimes(1));
+  act(() => advanceRecoverySnapshot(0));
+  await act(async () => first.finish(view));
+  await waitFor(() => expect(mocks.get).toHaveBeenCalledTimes(2));
+
+  act(() => { for (let n = 0; n < 20; n += 1) advanceRecoverySnapshot(n); });
+  await act(async () => second.finish(view));
+  expect(mocks.get).toHaveBeenCalledTimes(2);
+  expect(screen.queryByRole('radio', { name: 'Wolf Cruiser' })).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /refresh command and control/i })).toBeEnabled();
+  act(() => { for (let n = 20; n < 40; n += 1) advanceRecoverySnapshot(n); });
+  expect(mocks.get).toHaveBeenCalledTimes(2);
+
+  await userEvent.setup().click(screen.getByRole('button', { name: /refresh command and control/i }));
+  await screen.findByRole('radio', { name: 'Wolf Cruiser' });
+  expect(mocks.get).toHaveBeenCalledTimes(3);
+  act(() => advanceRecoverySnapshot(41));
+  expect(mocks.get).toHaveBeenCalledTimes(3);
+  expect(mocks.pass).not.toHaveBeenCalled();
+});
+
+it('keeps targets withdrawn when the recovery read belongs to another audience revision', async () => {
+  const stale = connectRecoveryOfficer();
+  const delayed = delayedAuthorityRead();
+  mocks.get.mockReset().mockImplementationOnce(delayed.read).mockResolvedValueOnce({
+    ...stale, revision: stale.revision - 1, targets: [{ rosterIndex: 4, shipId: 'wolf-destroyer' }],
+  });
+  render(<AegisCommandAndControlPanel />);
+  await waitFor(() => expect(mocks.get).toHaveBeenCalledTimes(1));
+  act(() => advanceRecoverySnapshot(0));
+  await act(async () => delayed.finish(stale));
+  await screen.findByText(/server attack step changed/i);
+  expect(mocks.get).toHaveBeenCalledTimes(2);
+  expect(screen.queryByRole('radio')).not.toBeInTheDocument();
+  expect(mocks.redirect).not.toHaveBeenCalled();
+  expect(mocks.pass).not.toHaveBeenCalled();
+});
+
+it('does not automatically retry an ordinary read denial when no newer snapshot was accepted', async () => {
+  connectRecoveryOfficer();
+  mocks.get.mockReset().mockRejectedValueOnce(new Error('The current actor may not read this choice.'));
+  render(<AegisCommandAndControlPanel />);
+  await screen.findByText('The current actor may not read this choice.');
+  expect(mocks.get).toHaveBeenCalledTimes(1);
+  expect(screen.queryByRole('radio')).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /refresh command and control/i })).toBeEnabled();
 });
 
 it('offers one ship after targeting is finalized and sends only the selected roster index', async () => {
