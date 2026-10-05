@@ -76,7 +76,7 @@ test('current cycle, revision, and fleet group must remain the source-owned valu
   ]) assert.equal(evaluateProcedureCapture(capture(changes)).status, 'pending');
 });
 
-test('unoffered, source-ineligible, and historically unmounted operations remain pending without a click', async () => {
+test('unoffered operations remain pending without a click', async () => {
   let clicks = 0;
   const unoffered = await captureMountedProcedureAction({
     context: { initial: { sessionId: 'session-1' }, gm: {}, crew: {} },
@@ -87,16 +87,14 @@ test('unoffered, source-ineligible, and historically unmounted operations remain
   });
   assert.equal(unoffered.status, 'pending');
   assert.equal(clicks, 0);
+});
 
-  const unmounted = await captureMountedProcedureAction({
-    context: { initial: { sessionId: 'session-1' }, gm: {}, crew: {} },
-    game: { select: async () => ({ observe: async () => ({ ...actor, playerRole: 'gm', gmInstanceOwned: true }) }) },
-    caseId: 'gm:addShipDamage', sourceBoundUnavailable: true,
-    prepare: async () => { clicks++; return { offered: true, click: async () => { clicks++; } }; },
-    inspect: async () => ({}),
-  });
-  assert.equal(unmounted.status, 'pending');
-  assert.equal(clicks, 0);
+test('damage draw is classified as mounted only through the actual GM Assign damage control', () => {
+  const damage = GM_RULING_COUNTER_PROCEDURES.find(row => row.endpoint === 'addShipDamage');
+  assert.equal(damage.mountedPath, 'MaintenanceSystems GM Assign damage');
+  assert.equal(damage.actorRoleId, 'gm');
+  assert.equal(damage.randomOutcome, true);
+  assert.equal(damage.replayPolicy, 'exact-request-id');
 });
 
 test('printed costs, real distinct consent, and replay-safe receipts are mandatory', () => {
