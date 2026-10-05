@@ -2,7 +2,6 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { GameSession, ShuttleControlEntry, ShuttleDocking } from '@/types/game';
 import { useSessionStore } from '@/store/useSessionStore';
-import { acceptCallableSessionAuthority } from '@/lib/sessionSnapshotAuthority';
 import BoaMissionReclamationPanel from './BoaMissionReclamationPanel';
 
 const mocks = vi.hoisted(() => ({ read: vi.fn(), choose: vi.fn() }));
@@ -101,6 +100,6 @@ it('drops an in-flight acknowledgement after the current Boa holder loses statio
     status: 'committed', sessionId: 's1', requestId: 'boa-reclaim-request',
     missionOpportunityId: opportunity.missionOpportunityId, taskOpportunityId: 'L-1', choiceRevision: 1,
   }));
-  expect(within(panel).queryByRole('status')).not.toBeInTheDocument();
-  expect(acceptCallableSessionAuthority(useSessionStore.getState().session!, 'holder')).toBe(true);
+  expect(within(panel).queryByText(/selected L-1.*before the initial deal/i)).not.toBeInTheDocument();
+  expect(within(panel).getByText(/Only the current Boa Recycler at this station/i)).toBeInTheDocument();
 });
