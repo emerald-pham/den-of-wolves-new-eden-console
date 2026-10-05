@@ -29,6 +29,9 @@ const db = { doc: ref, collection: (path: string) => ({ path, collection: true }
             !p.slice(target.path.length + 1).includes('/')).map(snapshot) } : snapshot(target.path);
         },
         set: (target: { path: string }, fields: Fields) => { written = true; documents.set(target.path, structuredClone(fields)); },
+        create: (target: { path: string }, fields: Fields) => { written = true;
+          if (documents.has(target.path)) throw new Error('Existing immutable audit');
+          documents.set(target.path, structuredClone(fields)); },
         update: (target: { path: string }, fields: Fields) => { written = true; update(target, fields); },
       });
     } catch (error) { documents.clear(); for (const [key, value] of before) documents.set(key, value); throw error; }
@@ -118,5 +121,17 @@ describe('ordinary candidate callable authority and durable replay', () => {
     expect(commitTerminal.mock.calls[0]?.[3].candidate.groups[0].losses).toEqual([
       { shipId: 'aegis', reason: 'lost-in-nebula', audience: 'members' },
     ]);
+  });
+  it('writes standard private procedure evidence once and does not replace it on original-result recovery', async () => {
+    await handlers.execute(request(command));
+    expect(documents.get('sessions/s1/actionAudits/n1')).toMatchObject({
+      action: 'candidate-nebula-jump', resolutionSource: 'server-random', outcome: 'committed',
+    });
+    expect(documents.get('sessions/s1/procedureAudits/n1')).toMatchObject({
+      calculation: { die: 6, scouts: 2, total: 8 }, consequences: { aegis: { destroyed: true } },
+    });
+    const originalAudit = structuredClone(documents.get('sessions/s1/procedureAudits/n1'));
+    await handlers.execute(request(command));
+    expect(documents.get('sessions/s1/procedureAudits/n1')).toEqual(originalAudit);
   });
 });
