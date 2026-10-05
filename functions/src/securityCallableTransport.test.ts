@@ -6,10 +6,17 @@ import { auditedOnCall } from './securityCallable';
 const require = createRequire(import.meta.url);
 const express = require('express');
 let server: Server | undefined;
-afterEach(async () => { if (server) await new Promise<void>((resolve, reject) => server!.close(error => error ? reject(error) : resolve())); });
+afterEach(async () => {
+  const activeServer = server;
+  server = undefined;
+  if (activeServer?.listening) await new Promise<void>((resolve, reject) => activeServer.close(error => error ? reject(error) : resolve()));
+});
 async function serve(callable: ReturnType<typeof auditedOnCall>) {
   const app = express(); app.use(express.json()); app.post('/', callable);
-  server = await new Promise<Server>(resolve => { const started = app.listen(0, '127.0.0.1', () => resolve(started)); });
+  server = await new Promise<Server>((resolve, reject) => {
+    const started = app.listen(0, '127.0.0.1', (error?: Error) => error ? reject(error) : resolve(started));
+    started.once('error', reject);
+  });
   const address = server.address();
   if (!address || typeof address === 'string') throw new Error('Missing local transport port.');
   return fetch(`http://127.0.0.1:${address.port}/`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ data: {} }) });
