@@ -1536,6 +1536,24 @@ function fleetTickerFiniteFallback(
   return publishFleetTicker(sessionId, state, fallback, now);
 }
 
+/** Calculate the existing ticker reconciliation before deciding whether to write it. */
+function fleetTickerBaselineDecision(
+  sessionId: string,
+  session: DocumentSnapshot,
+  now: string,
+): { state: FleetTickerState; changed: boolean } {
+  const stored = session.get('fleetTicker');
+  const state = fleetTickerForMutation(sessionId, session, now);
+  const next = fleetTickerFiniteFallback(
+    sessionId,
+    session,
+    fleetTickerBaseline(sessionId, session, state, now),
+    now,
+  );
+  const previous = stored === undefined ? emptyFleetTickerState() : fleetTickerState(stored);
+  return { state: next, changed: JSON.stringify(previous) !== JSON.stringify(next) };
+}
+
 /** Seed an authoritative ATC baseline without disturbing an active stream. */
 function ensureFleetTickerBaseline(
   tx: Transaction,
@@ -1543,19 +1561,11 @@ function ensureFleetTickerBaseline(
   session: DocumentSnapshot,
   now: string,
 ): FleetTickerState {
-  const stored = session.get('fleetTicker');
-  const state = fleetTickerForMutation(sessionRef.id, session, now);
-  const next = fleetTickerFiniteFallback(
-    sessionRef.id,
-    session,
-    fleetTickerBaseline(sessionRef.id, session, state, now),
-    now,
-  );
-  const previous = stored === undefined ? emptyFleetTickerState() : fleetTickerState(stored);
-  if (JSON.stringify(previous) !== JSON.stringify(next)) {
-    tx.update(sessionRef, { fleetTicker: next, updatedAt: FieldValue.serverTimestamp() });
+  const { state, changed } = fleetTickerBaselineDecision(sessionRef.id, session, now);
+  if (changed) {
+    tx.update(sessionRef, { fleetTicker: state, updatedAt: FieldValue.serverTimestamp() });
   }
-  return next;
+  return state;
 }
 
 function publishSessionFleetTicker(
@@ -3994,6 +4004,29 @@ function hasStablePressAuthority(session: DocumentSnapshot, player: DocumentSnap
 
 function isSolePressHolder(holders: readonly DocumentSnapshot[], uid: string): boolean {
   return holders.length === 1 && holders[0]!.id === uid && isAuthoritativePressHolder(holders[0]!);
+}
+
+/** A renewal never grants a role, repairs legacy authority, or admits another device. */
+function hasStableCorePresenceAuthority(
+  session: DocumentSnapshot,
+  player: DocumentSnapshot,
+  seat: DocumentSnapshot,
+  membership: DocumentSnapshot,
+  sessionId: string,
+  uid: string,
+  roleId: string,
+): boolean {
+  const roleIds = configuredRoleIds(session);
+  const generation = player.get('connectionGeneration');
+  return session.exists && isActivePlayer(player) && player.get('lastSeenAt') instanceof Timestamp &&
+    player.get('role') === 'player' && player.get('assignedRoleId') === roleId &&
+    player.get('seatId') === roleId && player.get('activeConsoleRoleId') === roleId &&
+    player.get('replacementStatus') == null && typeof player.get('replacementRoleId') !== 'string' &&
+    player.get('escapeState') == null && Number.isSafeInteger(generation) && (generation as number) >= 1 &&
+    roleIds.includes(roleId) &&
+    (!isJointEngineeringRoleId(roleId) || isJointEngineeringRoleAvailable(roleIds, roleId)) &&
+    seat.exists && seat.get('roleId') === roleId && seat.get('status') === 'claimed' &&
+    seat.get('holderUid') === uid && membership.exists && membership.get('sessionId') === sessionId;
 }
 
 function hasPressState(player: DocumentSnapshot): boolean {
@@ -35956,6 +35989,58 @@ export const refreshPresence = auditedOnCall<{
   const wolfSecretRef = db.doc(`sessions/${sessionId}/secrets/wolf-assignment`);
   const censusRef = db.doc(`sessions/${sessionId}/loyaltyCensus/current`);
   const reconciliationRef = presenceReconciliationRef(sessionId, uid);
+
+  if (typeof activeConsoleRoleId === 'string' && activeConsoleRoleId !== 'press-officer' && !instanceId) {
+    const seatRef = db.doc(`sessions/${sessionId}/seats/${activeConsoleRoleId}`);
+    const holdersRef = playersRef.where('activeConsoleRoleId', '==', activeConsoleRoleId);
+    const configurationFence = (session: DocumentSnapshot) => ({
+      setupRevision: session.get('setupRevision'), setup: session.get('setup'),
+      phase: session.get('phase'), configurationLocked: session.get('configurationLocked'),
+      roleIds: configuredRoleIds(session),
+    });
+    // Query exclusivity without retaining query locks while renewing a lease.
+    // Even inactive legacy markers keep the original reconciliation below:
+    // reconnect can revive those markers without creating a new seat claim.
+    const preflight = await db.runTransaction(async tx => {
+      const [player, session, seat, membership] = await Promise.all([
+        tx.get(playerRef), tx.get(sessionRef), tx.get(seatRef), tx.get(membershipRef),
+      ]);
+      if (!hasStableCorePresenceAuthority(session, player, seat, membership, sessionId, uid, activeConsoleRoleId) ||
+          fleetTickerBaselineDecision(sessionId, session, new Date().toISOString()).changed) return null;
+      const holders = await tx.get(holdersRef);
+      if (holders.docs.length !== 1 || holders.docs[0]!.id !== uid) return null;
+      return { generation: player.get('connectionGeneration'), configuration: configurationFence(session) };
+    }, { readOnly: true });
+    if (preflight !== null) {
+      const renewed = await db.runTransaction(async tx => {
+        const [player, session, seat, membership] = await Promise.all([
+          tx.get(playerRef), tx.get(sessionRef), tx.get(seatRef), tx.get(membershipRef),
+        ]);
+        if (!isActivePlayer(player)) throw new HttpsError('permission-denied', 'Reconnect to the session first.');
+        if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+        if (!hasStableCorePresenceAuthority(session, player, seat, membership, sessionId, uid, activeConsoleRoleId) ||
+            player.get('connectionGeneration') !== preflight.generation ||
+            !isDeepStrictEqual(configurationFence(session), preflight.configuration)) {
+          throw commandError(
+            'permission-denied',
+            'That station is no longer available to this browser. Return to station select and reselect your role.',
+            'station-selection-required',
+          );
+        }
+        // Expiry or a concurrent ticker producer can make a root write necessary.
+        // That calculation remains on the full authoritative transaction.
+        if (fleetTickerBaselineDecision(sessionId, session, new Date().toISOString()).changed) return false;
+        tx.update(playerRef, { lastSeenAt: FieldValue.serverTimestamp() });
+        tx.set(membershipRef, { sessionId, connectedAt: FieldValue.serverTimestamp() });
+        tx.set(reconciliationRef, {
+          lastFullReconciliationAt: presenceReconciliationTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+        return true;
+      });
+      if (renewed) return { sessionId };
+    }
+  }
   const stationSelectionRequired = await db.runTransaction(async (tx) => {
     const requestedRoleId = activeConsoleRoleId ?? null;
     const roleHolders = requestedRoleId
