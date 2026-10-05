@@ -892,6 +892,61 @@ describe('App', () => {
     expect(refreshPresence).not.toHaveBeenCalled();
   });
 
+  it('retries a transient closed-history read with bounded delay and then keeps accepted history read-only', async () => {
+    vi.useFakeTimers();
+    const closedWithoutCachedDebrief: GameSession = { ...session, joinCode: '', phase: 'closed', currentTurn: 4 };
+    const returningMember = { ...player, role: 'player' as const, fleetGroupId: 'fleet-1', connected: false };
+    const committed = { type: 'session-debrief', version: 1, source: 'final-cycle', result: 'completed',
+      cause: 'final-cycle', cycle: 4, occurredAt: '2026-10-05T12:00:00.000Z',
+      committedAt: '2026-10-05T12:01:00.000Z' } as const;
+    useSessionStore.getState().setIdentity(closedWithoutCachedDebrief, returningMember);
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+    vi.mocked(readClosedSessionHistory).mockRejectedValueOnce(new Error('temporarily unavailable'))
+      .mockImplementationOnce(async () => {
+        const current = useSessionStore.getState().session!;
+        useSessionStore.getState().setSession({ ...current, debriefSnapshot: committed });
+        return true;
+      });
+    render(<App />);
+    await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+    expect(readClosedSessionHistory).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      window.dispatchEvent(new Event('online'));
+      await vi.advanceTimersByTimeAsync(4_000);
+    });
+    expect(readClosedSessionHistory).toHaveBeenCalledTimes(1);
+    await act(async () => { await vi.advanceTimersByTimeAsync(6_000); });
+    expect(readClosedSessionHistory).toHaveBeenCalledTimes(2);
+    expect(useSessionStore.getState().session?.debriefSnapshot).toEqual(committed);
+    await act(async () => { await vi.advanceTimersByTimeAsync(20_000); });
+    expect(readClosedSessionHistory).toHaveBeenCalledTimes(2);
+    expect(subscribeSessionState).not.toHaveBeenCalled();
+    expect(refreshPresence).not.toHaveBeenCalled();
+  });
+
+  it('keeps one pending closed-history request across online signals and cancels retries after unmount', async () => {
+    vi.useFakeTimers();
+    const closed: GameSession = { ...session, joinCode: '', phase: 'closed', currentTurn: 4 };
+    useSessionStore.getState().setIdentity(closed, { ...player, role: 'player', connected: false, fleetGroupId: 'fleet-1' });
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+    let finish: (result: boolean) => void = () => undefined;
+    vi.mocked(readClosedSessionHistory).mockImplementationOnce(() => new Promise<boolean>(resolve => { finish = resolve; }));
+    const view = render(<App />);
+    await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+    await act(async () => {
+      for (let index = 0; index < 3; index += 1) window.dispatchEvent(new Event('online'));
+      await vi.advanceTimersByTimeAsync(10_000);
+    });
+    expect(readClosedSessionHistory).toHaveBeenCalledTimes(1);
+    view.unmount();
+    await act(async () => { finish(false); await Promise.resolve(); await vi.advanceTimersByTimeAsync(10_000); });
+    expect(readClosedSessionHistory).toHaveBeenCalledTimes(1);
+    expect(subscribeSessionState).not.toHaveBeenCalled();
+    expect(refreshPresence).not.toHaveBeenCalled();
+  });
+
   it('does not open crisis or player hacking listeners for closed history', () => {
     const closedSession: GameSession = { ...session, joinCode: '', phase: 'closed',
       debriefSnapshot: { type: 'session-debrief', version: 1, source: 'final-cycle', result: 'completed',
