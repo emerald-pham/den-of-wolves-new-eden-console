@@ -597,6 +597,7 @@ it.each(['aegis', 'capybara'])('lets only a GM assign damage beneath %s maintena
 });
 
 it.each(['aegis', 'dione', 'capybara'])('explains %s damage as one printed survivor-track step before a GM draw', shipId => {
+  assign.mockClear();
   act(() => useSessionStore.setState({
     me: { ...me, role: 'gm' },
     gmInstance: { id: 'gm1', uid: 'u1', sessionId: 's1', name: 'GM', deviceLabel: '', claimedAt: '' },
