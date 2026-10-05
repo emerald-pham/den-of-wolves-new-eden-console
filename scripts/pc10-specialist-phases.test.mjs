@@ -17,6 +17,8 @@ test('Capybara maintenance uses the normal Recyclotron and leaves the cycle to t
   ] };
   const state = { live: true, sessionId: 'fresh-session', cycle: 2, phase: 'active',
     turnPhase: { airspace: { state: 'restricted' } }, activeVesselIds: ['capybara'],
+    shuttleDockings: [{ shuttleId: 'macaw', shipId: 'capybara' }], shuttleFuelled: { macaw: false },
+    shipResources: { capybara: { fuel: 2 } }, shipDamage: { capybara: { destroyed: false, damagedSystemIds: [] } },
     maintenanceCycles: {} };
   const calls = [];
   const game = { context: { ...context, gm: {}, initial }, state: async () => state,
@@ -43,6 +45,21 @@ test('Capybara maintenance rejects a mismatched or already completed cycle witho
     maintenanceUi: async () => { calls += 1; } };
   const wrongCycle = await runCapybaraMaintenanceCycle({ game, context, cycle: 2, refuelCraft: 'boa' });
   assert.deepEqual(wrongCycle, { status: 'uncredited', reason: 'expected-cycle-not-live', cycle: 2 });
+  assert.equal(calls, 0);
+});
+
+test('Capybara maintenance leaves unavailable shuttle refuelling uncredited without completing a cycle', async () => {
+  const context = { initial: { sessionId: 'fresh-session' }, roster: [{ roleId: 'capybara-recycler' }] };
+  const state = { live: true, sessionId: 'fresh-session', cycle: 1, phase: 'active',
+    turnPhase: { airspace: { state: 'restricted' } }, activeVesselIds: ['capybara'],
+    shuttleDockings: [{ shuttleId: 'macaw', shipId: 'capybara' }], shuttleFuelled: { macaw: true },
+    shipResources: { capybara: { fuel: 2 } }, shipDamage: { capybara: { destroyed: false, damagedSystemIds: [] } },
+    maintenanceCycles: {} };
+  let calls = 0;
+  const game = { context: { ...context, gm: {} }, state: async () => state,
+    maintenanceUi: async () => { calls += 1; } };
+  const result = await runCapybaraMaintenanceCycle({ game, context, cycle: 1, refuelCraft: 'macaw' });
+  assert.deepEqual(result, { status: 'uncredited', reason: 'craft-already-fuelled', cycle: 1 });
   assert.equal(calls, 0);
 });
 
@@ -201,7 +218,10 @@ test('phase plan compiles Capybara cycles and normal UI actions into runnable or
 
   const context = { initial: { sessionId: 'fresh-session' }, roster: [{ roleId: 'capybara-recycler' }] };
   const state = { live: true, sessionId: 'fresh-session', cycle: 1, phase: 'active',
-    turnPhase: { airspace: { state: 'restricted' } }, activeVesselIds: ['capybara'], maintenanceCycles: {} };
+    turnPhase: { airspace: { state: 'restricted' } }, activeVesselIds: ['capybara'],
+    shuttleDockings: [{ shuttleId: 'boa', shipId: 'capybara' }], shuttleFuelled: { boa: false },
+    shipResources: { capybara: { fuel: 2 } }, shipDamage: { capybara: { destroyed: false, damagedSystemIds: [] } },
+    maintenanceCycles: {} };
   const game = { context: { ...context, initial: context.initial, gm: {} }, state: async () => state,
     maintenanceUi: async (shipId, roleId, options) => {
       calls.push(`${shipId}/${roleId}/${Object.values(options.refuels)[0]}`);
