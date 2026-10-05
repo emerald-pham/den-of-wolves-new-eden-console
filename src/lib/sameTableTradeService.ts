@@ -100,9 +100,11 @@ function parseInventoryReply(value: unknown, uid: string): SameTableTradeInvento
 }
 
 function parseReceipt(value: unknown, offerId: string): SameTableTradeReceiptView | null {
+  // The receipt records its offer's creation revision; accepting the first
+  // offer advances inventory/state but the immutable receipt remains revision zero.
   if (!isRecord(value) || value.receiptId !== offerId || value.offerId !== offerId ||
       !isIdentity(value.fromUid) || !isIdentity(value.toUid) || value.fromUid === value.toUid ||
-      !isIdentity(value.tableId) || !safeInteger(value.revision, 1)) return null;
+      !isIdentity(value.tableId) || !safeInteger(value.revision)) return null;
   const quantities = parseBalances(value.quantities);
   return quantities ? {
     receiptId: offerId,
