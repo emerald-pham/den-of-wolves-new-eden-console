@@ -77,6 +77,7 @@ it.each([
 });
 it('projects only operational player fields even when a response accidentally contains private extras', async () => {
   mutateMe({ role: 'player' }); useSessionStore.setState({ gmInstance: null });
+  const cacheBefore = { ...localStorage };
   transport.call.mockResolvedValue({ data: { ...privateReply, privateSourceId: 'private-source',
     paths: [{ ...publicPath, canSabotage: true, privateScoutBonus: 3,
       researchChoices: [{ id: 'reactor', name: 'Reactor', privateNotes: 'private-track' }],
@@ -88,7 +89,7 @@ it('projects only operational player fields even when a response accidentally co
   expect(actual.paths[0]?.canSabotage).toBe(false);
   expect(actual.paths[0]?.ships).toEqual(publicPath.ships);
   expect(transport.call).toHaveBeenCalledWith({ sessionId: 's1', expectedGroupId: 'fleet-1' });
-  expect(localStorage.length).toBe(0);
+  expect({ ...localStorage }).toEqual(cacheBefore);
 });
 it('preserves the private workspace only for the same live GM claim', async () => {
   transport.call.mockResolvedValue({ data: privateReply });
