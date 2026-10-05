@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { createHash } from 'node:crypto';
 import { CORE_CRAFT_PROCEDURES, GM_RULING_COUNTER_PROCEDURES } from './pc10-pending-procedure-ui-proof.mjs';
 import { evaluateProcedureCapture } from './pc10-pending-procedure-ui-proof.mjs';
 import { chooseOfferedAffordableOption, createPendingProcedureDefaultSteps } from './pc10-pending-procedure-ui-recipes.mjs';
@@ -8,6 +9,40 @@ import { chooseOfferedAffordableOption, createPendingProcedureDefaultSteps } fro
 // choose actions from source-rendered, enabled options within their displayed
 // live budget. Missing or malformed choices remain pending; no gameplay input
 // is invented to make a recipe appear available.
+
+function makeReadyShuttleRecipeHarness({ shuttleId, roleId, state, optionsByLabel }) {
+  const uid = `uid-${roleId}`;
+  const uidHash = createHash('sha256').update(uid).digest('hex').slice(0, 16);
+  let currentState = structuredClone(state);
+  const makeLocator = options => ({
+    count: async () => 1, isVisible: async () => true, isEnabled: async () => true,
+    locator: () => ({ evaluateAll: async callback => callback(options ?? []) }),
+    selectOption: async value => { makeLocator.selected = value; },
+    inputValue: async () => makeLocator.selected ?? '',
+    click: async () => {},
+  });
+  const panel = {
+    getByLabel: label => makeLocator(optionsByLabel[label] ?? []),
+    getByRole: () => makeLocator(),
+  };
+  const player = {
+    page: { url: () => `http://localhost:5174/#/shuttles/${shuttleId}`,
+      evaluate: async () => currentState, getByRole: () => panel },
+    storeModuleUrl: () => '/src/store/useSessionStore.ts',
+    observe: async () => ({ sameActor: true, sessionId: 'recipe-session', uidHash,
+      playerRole: 'player', profileRoleId: roleId, activeConsoleRoleId: roleId,
+      connection: 'live', freshness: 'server' }),
+  };
+  const gm = {
+    page: { url: () => 'http://localhost:5174/#/gm', evaluate: async () => currentState },
+    storeModuleUrl: () => '/src/store/useSessionStore.ts',
+    observe: async () => ({ sameActor: true, sessionId: 'recipe-session', uidHash: 'gm-hash',
+      playerRole: 'gm', gmInstanceOwned: true, instanceId: 'gm-instance', connection: 'live', freshness: 'server' }),
+  };
+  const game = { select: async role => role === 'gm' ? gm : player };
+  const context = { initial: { sessionId: 'recipe-session' }, roster: [{ roleId, uidHash }] };
+  return { context, game, player, setState: value => { currentState = structuredClone(value); }, baseState: structuredClone(state) };
+}
 
 test('default source-mounted recipes cover the existing finite procedure rows exactly', () => {
   const steps = createPendingProcedureDefaultSteps();
@@ -324,4 +359,64 @@ test('retarget requires the exact current transit, legal offered destination, an
     request: { ...input.request, transitRequestId: 'foreign-transit' } }).status, 'pending');
   assert.equal(evaluateProcedureCapture({ ...input,
     transitionAfter: { ...input.transitionAfter, revision: 4 } }).status, 'pending');
+});
+
+// Reason: invoke an actually-ready shuttle-holder leaf from the default factory;
+// this catches free-variable regressions that pure receipt fixtures cannot see.
+test('ready evacuation factory resolves its source holder, host, cycle, and ledger without free variables', async () => {
+  const roleId = 'icebreaker-engineer';
+  const harness = makeReadyShuttleRecipeHarness({ shuttleId: 'blacksmith', roleId,
+    state: { live: true, sessionId: 'recipe-session', cycle: 2, phase: 'active', activeVesselIds: ['icebreaker', 'quellon'],
+      shipFleetGroupIds: { icebreaker: 'fleet-a', quellon: 'fleet-a' },
+      shipSurvivors: { icebreaker: 40_000, quellon: 30_000 },
+      shuttleControl: { blacksmith: { holderUid: `uid-${roleId}`, revision: 7 } },
+      shuttleDockings: [{ shuttleId: 'blacksmith', shipId: 'icebreaker' }],
+      shuttleEvacuations: { blacksmith: { cycle: 1, moved: 500, revision: 4 } } },
+    optionsByLabel: {
+      'Receiving ship': [{ value: 'quellon', textContent: 'Quellon', disabled: false }],
+      Survivors: [{ value: '1000', textContent: '1,000', disabled: false }],
+    } });
+  const recipe = await createPendingProcedureDefaultSteps()['core:evacuateShuttleSurvivorsCommand'](harness);
+  const initialPlan = await recipe.prepare({ surface: harness.player, actor: await harness.player.observe(),
+    source: { cycle: 2, phase: 'active' } });
+  assert.equal(initialPlan.offered, true, initialPlan.reason);
+  assert.deepEqual({ source: recipe.expected.sourceShipId, destination: recipe.expected.destinationShipId,
+    amount: recipe.expected.amount, host: recipe.expected.hostShipId, custody: recipe.expected.controlRevision,
+    cycle: recipe.expected.cycle, ledger: recipe.expected.sourceRevision },
+  { source: 'icebreaker', destination: 'quellon', amount: 1000, host: 'icebreaker', custody: 7, cycle: 2, ledger: 4 });
+});
+
+// Reason: assert the real default factory carries its source-derived recharge
+// tuple forward and refuses an action after custody, maintenance, or docking
+// changes, while an unchanged current projection remains actionable.
+test('ready service-shuttle factory captures host/custody/maintenance and rejects stale source variants', async () => {
+  const roleId = 'icebreaker-engineer';
+  const harness = makeReadyShuttleRecipeHarness({ shuttleId: 'blacksmith', roleId,
+    state: { live: true, sessionId: 'recipe-session', cycle: 2, phase: 'active', activeVesselIds: ['icebreaker'],
+      shipFleetGroupIds: { icebreaker: 'fleet-a' },
+      shuttleControl: { blacksmith: { holderUid: `uid-${roleId}`, revision: 7 } },
+      shuttleDockings: [{ shuttleId: 'blacksmith', shipId: 'icebreaker' }],
+      maintenanceCycles: { icebreaker: { revision: 9 } },
+      serviceShuttleRecharges: { blacksmith: { revision: 3 } } },
+    optionsByLabel: { 'Host console': [{ value: 'hydroponics', textContent: 'Hydroponics', disabled: false }] } });
+  const recipe = await createPendingProcedureDefaultSteps()['core:rechargeHostConsoleFromShuttle'](harness);
+  assert.deepEqual({ host: recipe.expected.expectedHostShipId, custody: recipe.expected.controlRevision,
+    maintenance: recipe.expected.maintenanceRevision, source: recipe.expected.sourceRevision },
+  { host: 'icebreaker', custody: 7, maintenance: 9, source: 3 });
+  const prepare = async () => recipe.prepare({ surface: harness.player, actor: await harness.player.observe(),
+    source: { cycle: 2, phase: 'active' } });
+  assert.equal((await prepare()).offered, true);
+  const base = harness.baseState;
+  const changedControl = structuredClone(base);
+  changedControl.shuttleControl.blacksmith.revision += 1;
+  harness.setState(changedControl);
+  assert.equal((await prepare()).offered, false, 'a new custody revision invalidates the prepared action');
+  const changedMaintenance = structuredClone(base);
+  changedMaintenance.maintenanceCycles.icebreaker.revision += 1;
+  harness.setState(changedMaintenance);
+  assert.equal((await prepare()).offered, false, 'a new host maintenance revision invalidates the prepared action');
+  const movedHost = structuredClone(base);
+  movedHost.shuttleDockings[0].shipId = 'dione';
+  harness.setState(movedHost);
+  assert.equal((await prepare()).offered, false, 'a changed docked host invalidates the prepared target');
 });
