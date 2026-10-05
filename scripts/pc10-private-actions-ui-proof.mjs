@@ -8,7 +8,6 @@ import {
   assertExactCallableReplay,
   assertLiveWolfActorFence,
   assertSameWolfActorFence,
-  assertWolfCycleActionReply,
   assertWolfCycleActionRequest,
   assertWolfSupplyRequest,
   assertWolfSupplySabotageResult,

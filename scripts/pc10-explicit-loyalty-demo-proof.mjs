@@ -194,7 +194,6 @@ async function assignRecords({ gm, plan, directory, mode, projectId, authority }
   assert.equal(summary.requestCount, 20);
   assert.equal(summary.printedWolfCount, 2);
   const editor = await measureEditor(gm, panel, directory);
-  const coverage = panel.locator('[aria-label="Explicit loyalty coverage"]');
   const startBlockers = panel.getByRole('list', { name: 'Before-start readiness blockers', exact: true });
   const holderSelect = panel.getByLabel('Loyalty holder', { exact: true });
   const kindSelect = panel.getByLabel('Private loyalty type', { exact: true });
@@ -328,7 +327,7 @@ async function exerciseAndroidLateReply({ crew, sessionId, androidRoleId, fleetR
     });
     await crew.page.getByLabel('Current actor', { exact: true }).selectOption(fleetRoleId);
     await crew.page.waitForURL(url => url.searchParams.get('demoActor') === `${sessionId}~${fleetRoleId}` && url.hash === '#/demo-actors');
-    const fleet = await crew.until('Different real actor restored while the Android response is pending', state =>
+    await crew.until('Different real actor restored while the Android response is pending', state =>
       state.sameActor && state.profileRoleId === fleetRoleId && state.connection === 'live' && state.freshness === 'server');
     const fleetPrivate = await actorState(crew, 'fleet-loyalist');
     assert.equal(fleetPrivate.sameAuthenticatedReader, true);
