@@ -2,7 +2,7 @@ import { beforeEach, expect, it, vi } from 'vitest';
 import type { CallableRequest } from 'firebase-functions/v2/https';
 
 const mock = vi.hoisted(() => ({
-  get: vi.fn(), update: vi.fn(), set: vi.fn(), role: 'player', activeRole: 'wing-commander' as string | undefined,
+  get: vi.fn(), update: vi.fn(), set: vi.fn(), create: vi.fn(), role: 'player', activeRole: 'wing-commander' as string | undefined,
   owner: 'u1', connected: true,
   players: [] as Array<Record<string, unknown>>,
   session: {} as Record<string, unknown>,
@@ -15,7 +15,7 @@ vi.mock('firebase-admin/firestore', () => ({
     doc: (path: string) => path,
     collection: (path: string) => path,
     runTransaction: async (callback: (tx: unknown) => unknown) => callback({
-      get: mock.get, update: mock.update, set: mock.set,
+      get: mock.get, update: mock.update, set: mock.set, create: mock.create,
     }),
   }),
   FieldValue: { serverTimestamp: () => 'server-time' },
@@ -58,6 +58,7 @@ beforeEach(() => {
   mock.get.mockReset();
   mock.update.mockReset();
   mock.set.mockReset();
+  mock.create.mockReset();
   mock.get.mockImplementation(async (path: string) => {
     if (path.includes('/commandReceipts/')) {
       const fields = mock.receipts[path];
@@ -167,4 +168,10 @@ it('returns a stale result without mutation and replays a committed request', as
   });
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('creates standardized fighter construction metadata and private calculations atomically', async () => {
+  await buildFighter.run(request(base));
+  expect(mock.create).toHaveBeenCalledWith('sessions/s1/actionAudits/build-1', expect.objectContaining({ action: 'fighter-build', revision: 1, resolutionSource: 'server-calculated', actorUid: 'u1' }));
+  expect(mock.create).toHaveBeenCalledWith('sessions/s1/procedureAudits/build-1', expect.objectContaining({ calculation: { materialsSpent: 1, fighterDelta: 1 }, consequences: expect.objectContaining({ fighters: 4, materialsRemaining: 1 }) }));
 });

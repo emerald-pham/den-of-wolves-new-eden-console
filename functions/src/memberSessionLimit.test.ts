@@ -6,10 +6,15 @@ import { CALLABLE_RATE_LIMIT_POLICIES } from './callableRateLimit';
 const limiter = vi.hoisted(() => ({ enforce: vi.fn() }));
 vi.mock('./callableRateLimitFirestore', () => ({ enforceExpensiveCallableRateLimit: limiter.enforce }));
 let actor: Record<string, unknown> | undefined;
+let phase = 'active';
 const read = vi.fn(async () => ({ session: { id: 's1' } }));
-const db = { doc: () => ({ get: async () => ({ exists: !!actor, get: (key: string) => actor?.[key] }) }) } as unknown as Firestore;
+const db = { doc: (path: string) => ({ path }), runTransaction: async (handler: (tx: unknown) => unknown) => handler({
+  get: async ({ path }: { path: string }) => path === 'sessions/s1'
+    ? { exists: true, get: () => phase }
+    : { exists: !!actor, get: (key: string) => actor?.[key] },
+}) } as unknown as Firestore;
 const bounded = limitCurrentMemberSessionReader({ db, read });
-beforeEach(() => { actor = { connected: true, role: 'player' }; read.mockClear(); limiter.enforce.mockReset(); });
+beforeEach(() => { phase = 'active'; actor = { connected: true, role: 'player' }; read.mockClear(); limiter.enforce.mockReset(); });
 
 it('allows projection polling from multiple legitimate devices under a session/UID budget', async () => {
   expect(CALLABLE_RATE_LIMIT_POLICIES.getCurrentMemberSession).toEqual({ windowMs: 60_000, maxRequests: 120 });
@@ -35,4 +40,14 @@ it('contains exhausted requests without entering the collection-reading transact
   await expect(bounded({ auth: { uid: 'u1' }, data: { sessionId: 's1' } })).rejects.toBe(denied);
   expect(read).not.toHaveBeenCalled();
   await expect(bounded({ auth: { uid: 'u2' }, data: { sessionId: 's1' } })).resolves.toHaveProperty('session');
+});
+
+it('preserves a disconnected existing player history read only after authoritative closure', async () => {
+  phase = 'closed'; actor = { connected: false, role: 'player', fleetGroupId: 'fleet-1' };
+  await expect(bounded({ auth: { uid: 'u1' }, data: { sessionId: 's1' } })).resolves.toHaveProperty('session');
+  expect(limiter.enforce).toHaveBeenCalledOnce();
+  for (const denied of [{ ...actor, role: 'gm' }, { ...actor, kickedAt: 'now' }, { ...actor, fleetGroupId: '' }]) {
+    actor = denied;
+    await expect(bounded({ auth: { uid: 'u1' }, data: { sessionId: 's1' } })).rejects.toMatchObject({ code: 'permission-denied' });
+  }
 });
