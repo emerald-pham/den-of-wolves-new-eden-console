@@ -312,7 +312,7 @@ async function nativeFactoryContext(read) {
   const current = () => ({ ...gmActor(), ...(changedUid ? { uidHash: 'c'.repeat(16) } : {}), cursor: { version } });
   const gm = { storeModuleUrl: () => '/src/store/useSessionStore.ts', observe: async () => current(),
     until: async (_description, predicate) => { const value = current(); assert.ok(predicate(value)); return value; },
-    page: { evaluate: async (_fn, arg) => {
+    page: { getByRole: () => ({}), evaluate: async (_fn, arg) => {
       if (typeof arg === 'string') return current();
       readCount++;
       return read({ readCount, advance: () => { version++; }, changeUid: () => { changedUid = true; } });
