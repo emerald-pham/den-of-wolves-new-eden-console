@@ -84,6 +84,9 @@ test('a fresh evidence directory records a plan only and never manufactures curr
     const plan = JSON.parse(await readFile(join(directory, 'candidate-harness-plan.json'), 'utf8'));
     assert.equal(plan.schemaVersion, 2); assert.equal(plan.status, 'planned');
     assert.equal(plan.wholeGameProof, false); assert.equal(plan.candidateEndingObserved, false);
+    assert.equal(plan.actualBrowserProcesses, 0); assert.equal(plan.actualBrowserContexts, 0);
+    assert.equal(plan.actualAuthenticatedActors, 0);
+    assert.equal(plan.expectedBrowserProcesses, 2); assert.equal(plan.expectedBrowserContexts, 2);
     await assert.rejects(prepareCandidateEvidenceDirectory(directory, {}), /empty|reuse|existing/);
   } finally { await rm(parent, { recursive: true }); }
 });
