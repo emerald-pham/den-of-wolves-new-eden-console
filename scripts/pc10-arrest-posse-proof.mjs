@@ -93,14 +93,242 @@ export function assertRequiredArrestChoices(choices = {}) {
   return true;
 }
 
+function validatePreparedAttendanceActor(actor, player, sessionId, label) {
+  assert.ok(actor && player, `${label} must match an original prepared actor in the current census.`);
+  assert.equal(actor.sessionId, sessionId, `${label} came from another session's prepared roster.`);
+  assert.equal(player.sessionId, sessionId, `${label} came from another session's current census.`);
+  assert.equal(player.uid, actor.uid, `${label} no longer matches its original prepared actor UID.`);
+  assert.equal(player.role, 'player', `${label} must be an ordinary player account.`);
+  assert.equal(player.connected, true, `${label} must be in the current connected census.`);
+  assert.equal(player.displayName, actor.displayName, `${label} no longer has its original prepared display name.`);
+  assert.equal(player.replacementStatus ?? null, null, `${label} is awaiting a replacement role.`);
+  assert.equal(player.replacementRoleId ?? null, null, `${label} is a replacement actor.`);
+  if (actor.roleId === 'press-officer') {
+    assert.ok(player.assignedRoleId == null || player.assignedRoleId === 'press-officer',
+      `${label} no longer matches the original Press actor.`);
+  } else {
+    assert.equal(player.assignedRoleId, actor.roleId,
+      `${label} no longer holds its original prepared role.`);
+  }
+}
+
+function validateCurrentDemoController(controller, player, sessionId) {
+  assert.ok(controller, 'A current controller checkbox needs its original controller identity.');
+  assert.equal(controller.sessionId, sessionId, 'The original controller belongs to another session.');
+  assert.equal(controller.memberSessionId ?? controller.sessionId, sessionId,
+    'The original controller membership belongs to another session.');
+  assert.equal(controller.profileRoleId, 'controller', 'The current ordinary actor is not the original controller profile.');
+  assert.equal(controller.sameActor, true, 'The current controller SDK identity no longer matches its session member.');
+  assert.equal(controller.uid, controller.accountUid, 'The saved original controller account is unavailable.');
+  assert.equal(controller.uid, controller.currentUid, 'The current controller SDK account changed.');
+  assert.equal(controller.role, 'player', 'Only the ordinary controller may be mapped outside the prepared crew.');
+  assert.equal(controller.connected, true, 'The original controller is not currently connected.');
+  assert.equal(controller.connection, 'live', 'The original controller is not live.');
+  assert.equal(controller.freshness, 'server', 'The original controller is not server-backed.');
+  assert.equal(controller.seatId ?? null, null, 'The ordinary controller must remain unseated.');
+  assert.equal(controller.assignedRoleId ?? null, null, 'The ordinary controller must remain unassigned.');
+  assert.equal(controller.activeConsoleRoleId ?? null, null, 'The ordinary controller must not hold a console.');
+  assert.equal(controller.replacementRoleId ?? null, null, 'A replacement actor cannot stand in for the controller.');
+  assert.equal(controller.replacementStatus ?? null, null, 'A replacement-pending actor cannot stand in for the controller.');
+  assert.ok(player, 'The original controller must appear in the current connected census.');
+  assert.equal(player.sessionId, sessionId, 'The current controller census row belongs to another session.');
+  assert.equal(player.uid, controller.uid, 'The current controller census UID changed.');
+  assert.equal(player.displayName, controller.displayName, 'The current controller display name changed.');
+  assert.equal(player.role, 'player', 'Only the ordinary controller may be mapped outside the prepared crew.');
+  assert.equal(player.connected, true, 'The original controller is not in the current connected census.');
+  assert.equal(player.seatId ?? null, null, 'The current controller census row is no longer unseated.');
+  assert.equal(player.assignedRoleId ?? null, null, 'The current controller census row is no longer unassigned.');
+  assert.equal(player.activeConsoleRoleId ?? null, null, 'The current controller census row holds a console.');
+  assert.equal(player.replacementRoleId ?? null, null, 'The current controller census row is a replacement actor.');
+  assert.equal(player.replacementStatus ?? null, null, 'The current controller census row is replacement-pending.');
+}
+
+/**
+ * Reconcile actual connected-player source rows and mounted attendance labels
+ * before mapping any simulated checkbox to an original prepared identity.
+ */
+export function resolveSimulatedAttendanceActors({ sessionId, roster, currentPlayers, visibleLabels,
+  controller, choice, targetUid }) {
+  assert.ok(typeof sessionId === 'string' && sessionId.length > 0, 'Use the current demo session.');
+  assert.ok(Array.isArray(roster) && roster.length > 0, 'Use the original prepared demo roster.');
+  const roleIds = roster.map(actor => actor?.roleId);
+  validatePosseChoice(choice, roleIds);
+  assert.ok(Array.isArray(currentPlayers) && currentPlayers.length > 0,
+    'Use the server-backed current connected-player census.');
+  assert.ok(Array.isArray(visibleLabels), 'Read the current mounted attendance options.');
+  assert.ok(typeof targetUid === 'string' && targetUid.length > 0, 'Choose the original target account.');
+
+  for (const actor of roster) {
+    assert.equal(actor.sessionId, sessionId, 'Prepared actors must belong to the current demo session.');
+    assert.ok(typeof actor.uid === 'string' && actor.uid.length > 0);
+    assert.ok(typeof actor.displayName === 'string' && actor.displayName.trim().length > 0);
+  }
+  assert.equal(new Set(roleIds).size, roleIds.length, 'The prepared demo roles must be unique.');
+  assert.equal(new Set(roster.map(actor => actor.uid)).size, roster.length,
+    'The prepared demo accounts must be unique.');
+  assert.equal(new Set(roster.map(actor => actor.displayName)).size, roster.length,
+    'The original prepared actor names must be unique.');
+
+  const rosterByUid = new Map(roster.map(actor => [actor.uid, actor]));
+  const rosterByRoleId = new Map(roster.map(actor => [actor.roleId, actor]));
+  const playersByUid = new Map();
+  for (const player of currentPlayers) {
+    assert.ok(player && typeof player === 'object' && typeof player.uid === 'string' && player.uid.length > 0,
+      'The current connected-player census contains an invalid identity.');
+    assert.equal(player.sessionId, sessionId, 'The current connected-player census includes another session.');
+    assert.equal(player.connected, true, 'The current connected-player census is stale or disconnected.');
+    assert.ok(player.role === 'player' || player.role === 'gm', 'The current player census contains an unknown actor role.');
+    assert.equal(playersByUid.has(player.uid), false, 'The current connected-player census contains a duplicate UID.');
+    playersByUid.set(player.uid, player);
+  }
+  assert.ok(playersByUid.has(targetUid), 'The target must remain in the current connected-player census.');
+  const targetActor = rosterByRoleId.get(choice.targetRoleId);
+  assert.ok(targetActor && targetActor.uid === targetUid,
+    'The live target must match the original prepared role and UID.');
+  validatePreparedAttendanceActor(targetActor, playersByUid.get(targetUid), sessionId, 'The arrest target');
+
+  const controllerPlayer = controller?.uid ? playersByUid.get(controller.uid) : undefined;
+  if (controllerPlayer) validateCurrentDemoController(controller, controllerPlayer, sessionId);
+
+  const currentPlayerUids = currentPlayers.filter(player => player.role === 'player').map(player => player.uid);
+  assert.equal(new Set(currentPlayerUids).size, currentPlayerUids.length,
+    'The current ordinary-player census must be unique.');
+
+  const expectedOptions = currentPlayers.filter(player => player.role === 'player' &&
+    player.replacementStatus == null && player.uid !== targetUid);
+  const expectedNames = expectedOptions.map(player => player.displayName);
+  assert.ok(expectedNames.every(name => typeof name === 'string' && name.trim().length > 0),
+    'Every current attendance option needs a source display name.');
+  assert.equal(new Set(expectedNames).size, expectedNames.length,
+    'Current attendance options must have unique display names.');
+  assert.ok(visibleLabels.every(name => typeof name === 'string' && name.trim().length > 0),
+    'Every mounted attendance option needs its exact visible display name.');
+  assert.equal(new Set(visibleLabels).size, visibleLabels.length,
+    'Mounted attendance option names must be unique.');
+  assert.equal(visibleLabels.length, expectedNames.length,
+    'Mounted attendance options do not match the current connected-player census.');
+  const visibleNameSet = new Set(visibleLabels);
+  assert.ok(expectedNames.every(name => visibleNameSet.has(name)),
+    'Mounted attendance labels do not match the current connected-player census.');
+
+  const currentPlayerByName = new Map(expectedOptions.map(player => [player.displayName, player]));
+  const options = visibleLabels.map(label => {
+    const player = currentPlayerByName.get(label);
+    assert.ok(player, 'An unknown current checkbox option cannot be ignored.');
+    const actor = rosterByUid.get(player.uid);
+    if (actor) {
+      validatePreparedAttendanceActor(actor, player, sessionId, 'The current attendance option');
+      return { label, roleId: actor.roleId, uid: actor.uid, kind: 'prepared-actor' };
+    }
+    if (controller && player.uid === controller.uid) {
+      validateCurrentDemoController(controller, player, sessionId);
+      return { label, roleId: 'controller', uid: player.uid, kind: 'original-controller' };
+    }
+    assert.fail('A current attendance option must match an original prepared actor or the verified ordinary controller.');
+  });
+  const optionByRoleId = new Map(options.map(option => [option.roleId, option]));
+  assert.equal(optionByRoleId.size, options.length, 'Current attendance actors must have unique roles.');
+  const presentPlayerUids = choice.presentRoleIds.map(roleId => {
+    const actor = rosterByRoleId.get(roleId);
+    const option = optionByRoleId.get(roleId);
+    assert.ok(actor && option && option.kind === 'prepared-actor' && option.uid === actor.uid,
+      'Every selected simulated actor must match its original prepared role/UID and current checkbox option.');
+    assert.notEqual(actor.uid, targetUid, 'The target cannot be included in the simulated posse.');
+    return actor.uid;
+  });
+  const offeredRoleIds = new Set(options.filter(option => option.kind === 'prepared-actor')
+    .map(option => option.roleId));
+  return {
+    options,
+    currentPlayerUids,
+    presentPlayerUids,
+    pendingRoleIds: roster.filter(actor => actor.roleId !== choice.targetRoleId && !offeredRoleIds.has(actor.roleId))
+      .map(actor => actor.roleId),
+  };
+}
+
 async function readDemoRoster(surface, sessionId) {
   return surface.page.evaluate(async sid => {
     const [{ readDemoActorRoster }, { demoActorDisplayName }] = await Promise.all([
       import('/src/lib/demoActorProfiles.ts'), import('/src/lib/demoActorDisplayName.ts'),
     ]);
     return readDemoActorRoster(sid).map(actor => ({
-      roleId: actor.roleId, uid: actor.uid, displayName: demoActorDisplayName(actor.roleId),
+      sessionId: actor.sessionId, roleId: actor.roleId, uid: actor.uid,
+      displayName: demoActorDisplayName(actor.roleId),
     }));
+  }, sessionId);
+}
+
+async function readCurrentConnectedPlayerCensus(surface, sessionId, targetUid) {
+  assert.ok(surface?.page, 'The live GM page is required for a current attendance census.');
+  return surface.page.evaluate(async ({ currentSessionId, expectedTargetUid }) => new Promise((resolve, reject) => {
+    let stop = () => undefined;
+    let finished = false;
+    const finish = (settle, value) => {
+      if (finished) return;
+      finished = true;
+      window.clearTimeout(timeout);
+      stop();
+      settle(value);
+    };
+    const timeout = window.setTimeout(() => finish(reject,
+      new Error('The server-backed connected-player census did not include the current target.')), 15_000);
+    void import('/src/lib/firestore.ts').then(({ subscribeConnectedPlayers }) => {
+      stop = subscribeConnectedPlayers(currentSessionId, players => {
+        if (!Array.isArray(players) || !players.some(player => player.uid === expectedTargetUid)) return;
+        finish(resolve, players.map(player => ({
+          sessionId: player.sessionId,
+          uid: player.uid,
+          displayName: player.displayName,
+          role: player.role,
+          connected: player.connected,
+          seatId: player.seatId,
+          assignedRoleId: player.assignedRoleId,
+          activeConsoleRoleId: player.activeConsoleRoleId,
+          replacementRoleId: player.replacementRoleId,
+          replacementStatus: player.replacementStatus,
+        })));
+      }, () => finish(reject, new Error('The current connected-player census could not be refreshed.')));
+      if (finished) stop();
+    }).catch(error => finish(reject,
+      new Error(`The current connected-player census could not be read: ${error instanceof Error ? error.message : 'source import failed'}`)));
+  }), { currentSessionId: sessionId, expectedTargetUid: targetUid });
+}
+
+async function readCurrentDemoController(surface, sessionId) {
+  if (!surface?.page) return null;
+  return surface.page.evaluate(async currentSessionId => {
+    const [{ auth }, { activeDemoActorProfile, readDemoActorAccountUid }, { useSessionStore }] = await Promise.all([
+      import('/src/lib/firebase.ts'), import('/src/lib/demoActorContext.ts'),
+      import('/src/store/useSessionStore.ts'),
+    ]);
+    const user = auth().currentUser;
+    const state = useSessionStore.getState();
+    const member = state.me;
+    const session = state.session;
+    const accountUid = readDemoActorAccountUid('controller');
+    const profile = activeDemoActorProfile;
+    if (!profile || profile.roleId !== 'controller' || profile.sessionId !== currentSessionId ||
+        !user || !member || !session) return null;
+    return {
+      sessionId: session.id,
+      memberSessionId: member.sessionId,
+      profileRoleId: profile.roleId,
+      uid: accountUid ?? null,
+      accountUid: accountUid ?? null,
+      currentUid: user.uid,
+      displayName: member.displayName,
+      role: member.role,
+      sameActor: member.uid === user.uid,
+      connection: state.connection,
+      freshness: state.sessionSnapshotFreshness,
+      connected: member.connected === true,
+      seatId: member.seatId ?? null,
+      assignedRoleId: member.assignedRoleId ?? null,
+      activeConsoleRoleId: member.activeConsoleRoleId ?? null,
+      replacementRoleId: member.replacementRoleId ?? null,
+      replacementStatus: member.replacementStatus ?? null,
+    };
   }, sessionId);
 }
 
@@ -195,34 +423,23 @@ async function runSimulatedAttendance(context, choice, options, roster, targetUi
   if (await panel.getByText('Demo result based on simulated attendance.', { exact: true }).isVisible().catch(() => false)) {
     return blocked(branch, ['simulated-posse-result-already-exists-no-new-attendance-created'], options);
   }
-  const roleByDisplayName = new Map();
-  for (const actor of roster) {
-    assert.equal(roleByDisplayName.has(actor.displayName), false,
-      'The actual demo display names must uniquely identify visible simulated actors.');
-    roleByDisplayName.set(actor.displayName, actor);
-  }
   const labels = await group.locator('label').all();
-  const offeredUids = [];
-  const offeredRoleIds = [];
+  const visibleLabels = await Promise.all(labels.map(async label => (await label.innerText()).trim()));
+  const currentPlayers = await readCurrentConnectedPlayerCensus(context.gm, context.initial.sessionId, targetUid);
+  const controller = await readCurrentDemoController(context.crew, context.initial.sessionId);
+  const mapped = resolveSimulatedAttendanceActors({ sessionId: context.initial.sessionId,
+    roster, currentPlayers, visibleLabels, controller, choice, targetUid });
   const controlsByRole = new Map();
-  for (const label of labels) {
-    const shownName = (await label.innerText()).trim();
-    const actor = roleByDisplayName.get(shownName);
-    assert.ok(actor, 'Every virtual attendance option must match the current demo actor roster.');
-    const checkbox = label.locator('input[type="checkbox"]');
+  for (let index = 0; index < labels.length; index += 1) {
+    const actor = mapped.options[index];
+    assert.equal(actor.label, visibleLabels[index]);
+    const checkbox = labels[index].locator('input[type="checkbox"]');
     assert.equal(await checkbox.count(), 1);
     controlsByRole.set(actor.roleId, checkbox);
-    offeredUids.push(actor.uid);
-    offeredRoleIds.push(actor.roleId);
   }
-  const currentPlayerUids = [...new Set([targetUid, ...offeredUids])];
-  assertSimulatedAttendanceRoster({ demo: state.fullGameDemo, currentPlayerUids, targetUid,
-    presentPlayerUids: choice.presentRoleIds.map(roleId => {
-      const actor = roster.find(entry => entry.roleId === roleId);
-      assert.ok(actor && offeredRoleIds.includes(roleId),
-        'Every simulated posse actor must be a currently offered source checkbox.');
-      return actor.uid;
-    }), attendanceEvidence: 'simulated-demo', physicalAttendance: false });
+  assertSimulatedAttendanceRoster({ demo: state.fullGameDemo, currentPlayerUids: mapped.currentPlayerUids,
+    targetUid, presentPlayerUids: mapped.presentPlayerUids,
+    attendanceEvidence: 'simulated-demo', physicalAttendance: false });
   const selectedRoles = new Set(choice.presentRoleIds);
   for (const [roleId, checkbox] of controlsByRole) {
     if (selectedRoles.has(roleId)) await checkbox.check();
