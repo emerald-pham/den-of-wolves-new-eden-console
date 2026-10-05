@@ -123,6 +123,27 @@ export function assertFreshCandidateStart({ current, started, roster }) {
   }
 }
 
+/** Await the ordinary post-action server projection without reissuing start. */
+export async function waitForFreshCandidateStart({ started, roster, inspect,
+  timeoutMs = 60_000, now = Date.now, wait = () => delay(250) }) {
+  const deadline = now() + timeoutMs;
+  while (now() < deadline) {
+    const current = await inspect();
+    assert.ok(current?.hasAuth && current.sameActor, 'Retain the original GM authentication.');
+    assert.equal(current.sessionId, started.sessionId, 'Retain the original GM session.');
+    assert.equal(current.uidHash, started.uidHash, 'Retain the original GM identity.');
+    assert.equal(current.instanceId, started.instanceId, 'Retain the original GM instance.');
+    assert.equal(current.playerRole, 'gm', 'Retain the original GM role.');
+    assert.equal(current.gmInstanceOwned, true, 'Retain the original GM instance ownership.');
+    if (current.connection === 'live' && current.freshness === 'server') {
+      assertFreshCandidateStart({ current, started, roster });
+      return current;
+    }
+    await wait();
+  }
+  throw new Error('The live original GM candidate start did not return before its existing deadline.');
+}
+
 /** A captured receipt cannot enable another paid step from just the faster observer. */
 export async function waitForMaintenanceReceipt({ shipId, cycle, revision, expectedActor,
   expectedMaintenance, inspectGm, inspectCrew, inspectActor, inspectRendered,

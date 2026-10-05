@@ -11,7 +11,7 @@ import { createTwoBrowserGameplay } from './pc10-two-browser-gameplay.mjs';
 import { completeOfferedTurnAdvance } from './pc10-full-game-demo-proof-helpers.mjs';
 import { runStationEnding } from './pc10-candidate-station-ui-proof.mjs';
 import { CANDIDATE_PROOF_SHIPS as SHIPS, candidateShipRole, candidateProofOptions,
-  assertCandidateAdmission, assertFreshCandidateStart, prepareCandidateEvidenceDirectory,
+  assertCandidateAdmission, assertFreshCandidateStart, waitForFreshCandidateStart, prepareCandidateEvidenceDirectory,
   candidateEvidenceEnvelope } from './pc10-candidate-proof-helpers.mjs';
 
 const TRACKS = ['reactor', 'jump-drive', 'hydroponics', 'water-reclamation', 'advanced-hydroponics'];
@@ -22,8 +22,8 @@ export function candidateGameplayTools(context) {
   const { gm, crew, directory } = context;
   const receipts = [], choices = [];
   async function begin(code) {
-    const current = await gm.observe();
-    assertFreshCandidateStart({ current, started: context.started, roster: context.roster });
+    const current = await waitForFreshCandidateStart({ started: context.started,
+      roster: context.roster, inspect: () => gm.observe() });
     await record('genuine original manual Team1 candidate callback', {
       candidateCode: code, sessionId: current.sessionId, cycle: current.cycle,
       coreRoleAccounts: current.activeRoleIds.length, namedRoleAccounts: context.roster.length,
@@ -367,7 +367,7 @@ export async function runRingEnding(context) {
   }
   const finalPanel = await tools.candidateGroup('aegis');
   await tools.receipt(gm, 'executeCandidateAction', () => finalPanel.getByRole('button', { name: 'Sabotage Ring from the far side', exact: true }).click());
-  await tools.record('actual human GM far-side sabotage');
+  await tools.record('normal GM far-side sabotage choice');
   await tools.complete('N');
   assert.equal((await crew.observe()).cycle, 4);
 }
@@ -474,7 +474,8 @@ export function candidateDriverOptions(input) {
       }), null, 2)}\n`, { flag: 'wx' });
     },
     onStarted: async context => {
-      assertFreshCandidateStart({ current: await context.gm.observe(), started: context.started, roster: context.roster });
+      await waitForFreshCandidateStart({ started: context.started, roster: context.roster,
+        inspect: () => context.gm.observe() });
       await configuration.onStarted?.({ ...context, confirmed, admission });
     },
     runEnding: context => candidateEndingFor(configuration.candidateCode)({ ...context, confirmed, admission }),
