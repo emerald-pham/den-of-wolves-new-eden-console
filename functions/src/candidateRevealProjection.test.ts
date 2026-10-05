@@ -223,7 +223,7 @@ describe('current-group candidate reveal projection', () => {
     })).toBeUndefined();
   });
 
-  it('does not reveal scout-derived discoveries, ordinary systems, or forged chart titles', () => {
+  it('reveals entitled scout discoveries while withholding ordinary systems and forged chart titles', () => {
     const projection = candidateRevealProjectionForCurrentFleetMember({
       ...baseAuthority(),
       navigationSnapshot: snapshot('navigation', `${sessionPath}/serverState/navigation`, {
@@ -237,7 +237,7 @@ describe('current-group candidate reveal projection', () => {
       }),
     });
 
-    expect(projection?.candidateReveals).toEqual([]);
+    expect(projection?.candidateReveals).toEqual([{ code: 'O', title: 'Deep Nebula' }]);
   });
 
   it('returns a fresh allowlisted projection without organiser maps or candidate bonuses', () => {
