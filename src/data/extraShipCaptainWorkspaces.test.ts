@@ -94,4 +94,15 @@ describe('extra-ship Captain workspace catalog', () => {
     expect(extraShipCaptainWorkspaceFor('doctor')).toBeUndefined();
     expect(extraShipCaptainWorkspaceFor(null)).toBeUndefined();
   });
+
+  it.each([
+    ['gorgoneion-captain', 'mission-support'],
+    ['warrior-captain', 'reclamator'],
+    ['warrior-captain', 'salvage-drones'],
+    ['capybara-small-captain', 'bulk-haulage'],
+  ] as const)('identifies the already mounted or automatic %s %s procedure as live', (roleId, actionId) => {
+    const action = extraShipCaptainWorkspaceFor(roleId)?.actions.find(({ id }) => id === actionId);
+    expect(action).toMatchObject({ control: 'live-below' });
+    expect(action?.availability).not.toMatch(/awaiting|not available yet|unavailable/i);
+  });
 });
