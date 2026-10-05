@@ -5,7 +5,6 @@ import { createCandidateAttempt, executeCandidateAttempt, recoverCandidateAttemp
 const transport = vi.hoisted(() => ({ call: vi.fn() }));
 vi.mock('firebase/functions', () => ({ httpsCallable: () => transport.call }));
 vi.mock('./firebase', () => ({ functions: () => ({}) }));
-vi.mock('./sessionMutationAuthority', () => ({ requireFreshSessionAuthority: () => undefined }));
 const choice = { expectedRevision: 0, expectedGroupId: 'fleet-1', code: 'N' as const,
   coordinate: '6798', action: 'contribute-materials' as const, shipId: 'aegis', amount: 1 };
 const result = (attempt: ReturnType<typeof createCandidateAttempt>) => ({ type: 'candidate-action-result', status: 'committed',
@@ -13,7 +12,8 @@ const result = (attempt: ReturnType<typeof createCandidateAttempt>) => ({ type: 
 beforeEach(() => {
   localStorage.clear(); vi.clearAllMocks();
   useSessionStore.setState({ session: { id: 's1' } as never,
-    me: { uid: 'u1', role: 'player', sessionId: 's1', fleetGroupId: 'fleet-1' } as never });
+    me: { uid: 'u1', role: 'player', sessionId: 's1', fleetGroupId: 'fleet-1' } as never,
+    connection: 'live', sessionSnapshotFreshness: 'server', gmInstance: null });
 });
 it('persists the exact interrupted attempt and recovers it across component reload without another identity', async () => {
   const attempt = createCandidateAttempt(choice);
