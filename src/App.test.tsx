@@ -1720,7 +1720,10 @@ describe('App', () => {
 
   it('starts and tears down the census at authoritative GM promotion and demotion', async () => {
     let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
-    const censusCallbacks: Array<(next: LoyaltyCensus | null) => void> = [];
+    const censusCallbacks: Array<(
+      next: LoyaltyCensus | null,
+      status: 'present' | 'empty' | 'error',
+    ) => void> = [];
     const censusUnsubscribe = vi.fn();
     vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, nextHandlers) => {
       handlers = nextHandlers;
@@ -1766,8 +1769,11 @@ describe('App', () => {
     act(() => censusCallbacks.at(-1)?.({
       revision: 4,
       entries: [{ uid: 'u2', kind: 'wolf-agent', suspicion: 7 }],
-    }));
+    }, 'present'));
     expect(useSessionStore.getState().gmLoyaltyCensus).toMatchObject({ revision: 4 });
+    expect(useSessionStore.getState().gmLoyaltyCensusStatus).toBe('present');
+    act(() => censusCallbacks.at(-1)?.(null, 'empty'));
+    expect(useSessionStore.getState().gmLoyaltyCensusStatus).toBe('empty');
     const ownDiscovery = {
       groupId: 'fleet-1', shipId: 'aegis', currentCoordinate: '5143',
       knownCoordinates: ['0000', '5143'], knownSystems: { 'system-01': '0000', 'system-02': '5143' },
@@ -1802,11 +1808,12 @@ describe('App', () => {
     expect(useSessionStore.getState().session?.shipGalacticCoordinates).toEqual({ aegis: '5143' });
     expect(useSessionStore.getState().session?.organiserSystems).toBeUndefined();
     expect(useSessionStore.getState().gmLoyaltyCensus).toBeNull();
+    expect(useSessionStore.getState().gmLoyaltyCensusStatus).toBe('loading');
     expect(useSessionStore.getState().gmSetupReceipt).toBeNull();
     act(() => censusCallbacks.at(-1)?.({
       revision: 5,
       entries: [{ uid: 'u2', kind: 'wolf-agent', suspicion: 99 }],
-    }));
+    }, 'present'));
     expect(useSessionStore.getState().gmLoyaltyCensus).toBeNull();
     act(() => handlers?.onSetupReceipt?.(receipt));
     expect(useSessionStore.getState().gmSetupReceipt).toBeNull();
@@ -1816,7 +1823,7 @@ describe('App', () => {
     act(() => censusCallbacks.at(-1)?.({
       revision: 6,
       entries: [{ uid: 'u2', kind: 'wolf-agent', suspicion: 100 }],
-    }));
+    }, 'present'));
     expect(useSessionStore.getState().gmLoyaltyCensus).toBeNull();
   });
 

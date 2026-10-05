@@ -2467,14 +2467,32 @@ it('hydrates the known facilitator census only from server authority and allowli
   expect(onLoyaltyCensus).toHaveBeenCalledWith({
     revision: 7,
     entries: [{ uid: 'u2', kind: 'wolf-agent', suspicion: 10 }],
-  });
+  }, 'present');
 
   callbacks[0]?.({
     metadata: { fromCache: false },
     exists: () => true,
     data: () => ({ type: 'loyalty-census', revision: 8, entries: [{ uid: 'players/u2', kind: 'wolf-agent', suspicion: 10 }] }),
   });
-  expect(onLoyaltyCensus).toHaveBeenLastCalledWith(null);
+  expect(onLoyaltyCensus).toHaveBeenLastCalledWith(null, 'error');
+});
+
+it('distinguishes an authorized server-confirmed empty loyalty census from malformed and failed reads', () => {
+  const { callbacks, errors } = captureSessionListener();
+  const onCensus = vi.fn((_census: unknown, _status?: string) => undefined);
+  subscribeLoyaltyCensus('s1', onCensus);
+
+  callbacks[0]?.({ metadata: { fromCache: true }, exists: () => false, data: () => undefined });
+  expect(onCensus).not.toHaveBeenCalled();
+
+  callbacks[0]?.({ metadata: { fromCache: false }, exists: () => false, data: () => undefined });
+  expect(onCensus).toHaveBeenLastCalledWith(null, 'empty');
+
+  callbacks[0]?.({ metadata: { fromCache: false }, exists: () => true, data: () => ({ forged: true }) });
+  expect(onCensus).toHaveBeenLastCalledWith(null, 'error');
+
+  errors[0]?.({ code: 'permission-denied' });
+  expect(onCensus).toHaveBeenLastCalledWith(null, 'error');
 });
 
 it('subscribes to the server-only arrest calculation, rejects cached or malformed state, and stays monotonic', () => {
@@ -3676,7 +3694,7 @@ it('clears a revisioned projection on listener errors without reopening an older
     data: () => ({ type: 'loyalty-census', revision: 3, entries: [] }),
   });
 
-  expect(onCensus.mock.calls).toEqual([[{ revision: 4, entries: [] }], [null]]);
+  expect(onCensus.mock.calls).toEqual([[{ revision: 4, entries: [] }, 'present'], [null, 'error']]);
 });
 
 it('hydrates only the typed facilitator Wolf assignment and clears after teardown', () => {
