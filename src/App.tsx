@@ -624,7 +624,14 @@ function AppRoutes() {
       const generation = ++censusGeneration;
       censusSubscribed = true;
       unsubscribeLoyaltyCensus = subscribeLoyaltyCensusFn(sessionId, (next, status) => {
-        if (generation !== censusGeneration || !currentPlayerMayReadCensus()) return;
+        if (generation !== censusGeneration) return;
+        if (!currentPlayerMayReadCensus()) {
+          // A one-shot empty/unchanged projection rejected during player
+          // renewal cannot be replayed by Firestore. Retire this generation
+          // so fresh own-player authority binds a new private listener.
+          clearLoyaltyCensus();
+          return;
+        }
         useSessionStore.getState().setGmLoyaltyCensus(next, status);
       });
     };
