@@ -1971,11 +1971,10 @@ body {
   white-space: nowrap;
 }
 
-.gm-casting-board__assign select,
-
-
 .gm-casting-board__assign select {
-  min-width: 12rem;
+  min-width: min(12rem, 100%);
+  max-width: 100%;
+  min-height: 44px;
   padding: 0.45rem 0.55rem;
 }
 
