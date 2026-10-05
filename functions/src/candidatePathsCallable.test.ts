@@ -211,6 +211,31 @@ it('records the actual paid Nebula path in the real terminal helper and projects
   const encoded = JSON.stringify(member);
   expect(encoded).not.toMatch(/0408|sourceId|groupId|priorLosses|scouts|total|audience/);
 });
+it('keeps an earlier group’s committed Ring call cycle when the last group finishes later', async () => {
+  const coordinate = Object.entries(organiserSitesForChart('A')).find(([, site]) => site.code === 'N')![0];
+  // Prepared prior-group result; the last group’s paid attempt and real helper are executed here.
+  put('sessions/s1/fleetGroups/fleet-1', { id: 'fleet-1', vesselIds: ['aegis'], memberUids: ['admiral', 'gm'] });
+  put('sessions/s1/fleetGroups/fleet-2', { id: 'fleet-2', vesselIds: ['shepherd'], memberUids: ['captain'] });
+  documents.get('sessions/s1/players/captain')!.fleetGroupId = 'fleet-2';
+  documents.get('sessions/s1')!.candidateVesselOutcomes = { shepherd: { code: 'N', groupId: 'fleet-2',
+    shipId: 'shepherd', sourceId: 'earlier-cutoff-private', cycle: 3, outcome: 'crossed' } };
+  put('sessions/s1/serverState/candidates', { revision: 0, sites: { [coordinate]: {
+    code: 'N', groupId: 'fleet-2', coordinate, materials: 10,
+    researchIds: ['reactor', 'jump-drive', 'hydroponics', 'water-reclamation', 'water-production'],
+    shuttleId: 'philia', repairedAt: '2026-10-05T09:00:00.000Z', sabotagedAt: '2026-10-05T09:01:00.000Z', reactors: {},
+    ships: { shepherd: { type: 'candidate-action-result', status: 'committed', sessionId: 's1', requestId: 'earlier-crossing',
+      revision: 1, code: 'N', action: 'ring-passage', summary: 'Ring passage committed.', outcome: 'crossed', fuelSpent: 5 } },
+    completed: { type: 'candidate-group-outcome', result: 'success', candidateCode: 'N', groupId: 'fleet-2', cycle: 3,
+      occurredAt: '2026-10-05T09:01:00.000Z', sourceId: 'earlier-cutoff-private', successfulShipIds: ['shepherd'], leftBehindShipIds: [] },
+  } } });
+  await realPathHandlers().execute(request(command));
+  const oldGroup = sessionDebriefProjection(documents.get('sessions/s1')!.debriefSnapshot,
+    { groupId: 'fleet-2', vesselIds: ['shepherd'] });
+  expect(oldGroup).toMatchObject({ candidate: { groups: [{ humanCalls: [{ id: 'ring-far-side-sabotage', cycle: 3 }],
+    path: [{ action: 'ring-repair' }, { action: 'ring-passage', fuelSpent: 5 }, { action: 'sabotage-ring' }] }] } });
+  expect(JSON.stringify(oldGroup)).not.toContain('earlier-cutoff-private');
+  expect(documents.get('sessions/s1')!.debriefSnapshot).toMatchObject({ cycle: 6 });
+});
 it('explains Ring repair paid passage and explicit cutoff through the real helper in a labeled prepared prerequisite counterexample', async () => {
   const coordinate = Object.entries(organiserSitesForChart('A')).find(([, site]) => site.code === 'N')![0];
   put('sessions/s1/serverState/navigation', { revision: 2, shipGalacticCoordinates: { aegis: coordinate, shepherd: coordinate },
