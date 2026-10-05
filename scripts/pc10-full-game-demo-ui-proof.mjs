@@ -1,3 +1,4 @@
+import { observeUiReceipt } from './pc10-browser-ui-receipt.mjs';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
@@ -405,11 +406,14 @@ export async function runFreshFullGameDemoUi(options = {}) {
     await options.onBeforeStart?.({ gm, crew, initial, confirmed, prepared, roster, directory });
     await mark('GM UI actual manual Cycle 0 to 1');
     const startIdentity = await gm.observe();
-    const startResponsePromise = gm.page.waitForResponse(response =>
-      new URL(response.url()).pathname.endsWith('/us-central1/startGame') && response.request().method() === 'POST');
-    await setup.getByRole('button', { name: 'Start full-game demo // Advance to Cycle 1', exact: true }).click();
-    await setup.getByRole('button', { name: 'ARE YOU SURE? // START FULL-GAME DEMO // CYCLE 1', exact: true }).click();
-    const startResponse = await startResponsePromise;
+    const startResponse = await observeUiReceipt({
+      waitForResponse: () => gm.page.waitForResponse(response =>
+        new URL(response.url()).pathname.endsWith('/us-central1/startGame') && response.request().method() === 'POST'),
+      choose: async () => {
+        await setup.getByRole('button', { name: 'Start full-game demo // Advance to Cycle 1', exact: true }).click();
+        await setup.getByRole('button', { name: 'ARE YOU SURE? // START FULL-GAME DEMO // CYCLE 1', exact: true }).click();
+      },
+    });
     assert.equal(startResponse.ok(), true, 'The ordinary full-game UI start must actually commit.');
     const startPayload = startResponse.request().postDataJSON()?.data;
     const originalStart = (await startResponse.json()).result;

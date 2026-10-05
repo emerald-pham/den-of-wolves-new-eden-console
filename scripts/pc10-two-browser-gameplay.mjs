@@ -1,3 +1,4 @@
+import { observeUiReceipt } from './pc10-browser-ui-receipt.mjs';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { writeFile } from 'node:fs/promises';
@@ -125,10 +126,12 @@ export function createTwoBrowserGameplay(context) {
     const originalActor = await surface.observe();
     assert.equal(before.turnPhase.airspace.state, 'restricted');
     async function execute(button) {
-      const result = surface.page.waitForResponse(response => response.request().method() === 'POST' &&
-        new URL(response.url()).pathname.endsWith('/us-central1/runMaintenance'));
-      await button.click();
-      const response = await result, body = await response.json();
+      const response = await observeUiReceipt({
+        waitForResponse: () => surface.page.waitForResponse(response => response.request().method() === 'POST' &&
+          new URL(response.url()).pathname.endsWith('/us-central1/runMaintenance')),
+        choose: () => button.click(),
+      });
+      const body = await response.json();
       const request = response.request().postDataJSON()?.data;
       const entry = { roleId, shipId, endpoint: 'runMaintenance', cycle: before.cycle,
         action: request?.action, expectedRevision: request?.expectedRevision,

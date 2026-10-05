@@ -1,3 +1,4 @@
+import { observeUiReceipt } from './pc10-browser-ui-receipt.mjs';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -15,10 +16,12 @@ export async function resolveLiveWolfAttack(context, { tools = candidateGameplay
   const { gm, roster } = context;
   const replays = [];
   async function uiReceipt(surface, endpoint, decision) {
-    const pending = surface.page.waitForResponse(response => response.request().method() === 'POST' &&
-      new URL(response.url()).pathname.endsWith(`/us-central1/${endpoint}`));
-    const result = await tools.receipt(surface, endpoint, decision);
-    const response = await pending;
+    let result;
+    const response = await observeUiReceipt({
+      waitForResponse: () => surface.page.waitForResponse(response => response.request().method() === 'POST' &&
+        new URL(response.url()).pathname.endsWith(`/us-central1/${endpoint}`)),
+      choose: async () => { result = await tools.receipt(surface, endpoint, decision); },
+    });
     const request = response.request().postDataJSON()?.data;
     if (verifyReplay && typeof request?.requestId === 'string') {
       const replay = await surface.callable(endpoint, request);

@@ -1,3 +1,4 @@
+import { observeUiReceipt } from './pc10-browser-ui-receipt.mjs';
 import assert from 'node:assert/strict';
 import { setTimeout as delay } from 'node:timers/promises';
 import { pathToFileURL, fileURLToPath } from 'node:url';
@@ -46,10 +47,12 @@ export function candidateGameplayTools(context) {
     console.log(JSON.stringify({ candidateStage: stage, ...details }));
   }
   async function receipt(surface, endpoint, decision) {
-    const response = surface.page.waitForResponse(value => value.request().method() === 'POST' &&
-      new URL(value.url()).pathname.endsWith(`/us-central1/${endpoint}`));
-    await decision();
-    const actual = await response, body = await actual.json();
+    const actual = await observeUiReceipt({
+      waitForResponse: () => surface.page.waitForResponse(value => value.request().method() === 'POST' &&
+        new URL(value.url()).pathname.endsWith(`/us-central1/${endpoint}`)),
+      choose: decision,
+    });
+    const body = await actual.json();
     const request = actual.request().postDataJSON()?.data;
     assert.equal(actual.status(), 200, `${endpoint}: ${JSON.stringify(body)}`);
     assert.ok(body.result, `Real ${endpoint} response has a result.`);
