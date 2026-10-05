@@ -920,7 +920,9 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
 /** Fresh, normal authenticated full roster. All ordinary players join and
  * acknowledge consent through UI; setup/start stay on existing GM authority.
  * No admin gameplay seeding or result injection is performed. */
-export async function createPc10BrowserTable({ baseUrl, directory, expansion = 'capybara', coreCount = 20 } = {}) {
+export async function createPc10BrowserTable({ baseUrl, directory, expansion = 'capybara', coreCount = 20,
+  captureMode = 'durable' } = {}) {
+  if (!['durable', 'stream'].includes(captureMode)) throw new TypeError('Unsupported callable body capture mode.');
   assert.ok(baseUrl && directory, 'An isolated UI URL and evidence directory are required.');
   assert.ok(['localhost', '127.0.0.1'].includes(new URL(baseUrl).hostname), 'Local browser proof only.');
   assert.match(process.env.VITE_FIREBASE_PROJECT_ID ?? '', /^demo-[a-z0-9-]+$/, 'Local demo project only.');
@@ -980,11 +982,11 @@ export async function createPc10BrowserTable({ baseUrl, directory, expansion = '
   try {
     const joins = {};
     for (const roleId of roles) {
-      const client = await createPc10BrowserActor(browser, baseUrl, roleId);
+      const client = await createPc10BrowserActor(browser, baseUrl, roleId, undefined, { captureMode });
       clients.set(roleId, client);
       joins[roleId] = client.join;
     }
-    const press = await createPc10BrowserActor(browser, baseUrl, 'press-officer');
+    const press = await createPc10BrowserActor(browser, baseUrl, 'press-officer', undefined, { captureMode });
     clients.set('press-officer', press);
     fixture = await createPc07AuthenticatedSession('PC10 fresh overlapping browser rehearsal', coreCount, {
       clearBriefing: true, keepAlive: true, serializeFixtureCalls: false, browserOwnsPresence: true, expansion,
@@ -1056,7 +1058,7 @@ export async function createPc10BrowserTable({ baseUrl, directory, expansion = '
       const sourceCommit = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
       const runtimeCompiledBindingAtEnd = await compiledFunctionsBinding();
       const errors = [...clients.values()].flatMap(client => client.errors.map(message => ({ roleId: client.label, message })));
-      const evidence = { schemaVersion: 1, sourceCommit, recordedAt: new Date().toISOString(), expansion,
+      const evidence = { schemaVersion: 1, sourceCommit, recordedAt: new Date().toISOString(), expansion, captureMode,
         sourceCommitAtStart, runtimeIndexSha256AtStart,
         runtimeCompiledTreeSha256AtStart, runtimeCompiledTreeSha256AtEnd: runtimeCompiledBindingAtEnd.sha256,
         runtimeCompiledBindingAtStart, runtimeCompiledBindingAtEnd,
@@ -1090,7 +1092,7 @@ export async function createPc10BrowserTable({ baseUrl, directory, expansion = '
       client.callableObservationFailures.push({ roleId: client.label, category: 'observation-drain-timeout' });
     })));
     const runtimeCompiledBindingAtEnd = await compiledFunctionsBinding();
-    await writeFile(`${directory}/startup-failure.json`, `${JSON.stringify({ status: 'failed',
+    await writeFile(`${directory}/startup-failure.json`, `${JSON.stringify({ status: 'failed', captureMode,
       sourceCommitAtStart, runtimeIndexSha256AtStart, runtimeCompiledTreeSha256AtStart,
       sourceCommitAtEnd: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
       runtimeIndexSha256AtEnd: createHash('sha256').update(await readFile('functions/lib/index.js')).digest('hex'),
