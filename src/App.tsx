@@ -37,7 +37,6 @@ import { dockingForShuttle } from '@/data/shuttles';
 import { findShip } from '@/data/ships';
 import { findConsoleRole } from '@/data/roles';
 import { replacementRoleFor } from '@/data/replacementRoles';
-import CrisisReportPanel from '@/components/CrisisReportPanel';
 import PrivateLoyaltyPanel from '@/components/PrivateLoyaltyPanel';
 import EndgameDialog from '@/components/EndgameDialog';
 import EscapeState from '@/routes/EscapeState';
@@ -69,6 +68,7 @@ const AwayMissionDiscardPanel = lazy(() => import('@/components/AwayMissionDisca
 const FleetGroupWorkspace = lazy(() => import('@/components/FleetGroupWorkspace'));
 const PresidentOffice = lazy(() => import('@/routes/PresidentOffice'));
 const ElectionWorkspace = lazy(() => import('@/routes/ElectionWorkspace'));
+const CrisisReportPanel = lazy(() => import('@/components/CrisisReportPanel'));
 const hasConsoleDradis = (path: string): boolean =>
   path === '/press' || path.startsWith('/ships/') || path.startsWith('/union/') ||
   path.startsWith('/shuttles/') || path.startsWith('/replacement/');
@@ -1100,7 +1100,9 @@ function AppRoutes() {
         {(screen) => (
           <>
             <PrivateLoyaltyPanel />
-            <CrisisReportPanel />
+            {session && me && (
+              <Suspense fallback={null}><CrisisReportPanel /></Suspense>
+            )}
             <Suspense fallback={null}><FleetGroupWorkspace /></Suspense>
             {showAwayMissionDiscardPanel && (
               <Suspense fallback={null}>
