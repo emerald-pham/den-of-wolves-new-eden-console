@@ -7,9 +7,11 @@ import {
   prepareDemoActors,
   readDemoActorRoster,
   switchDemoActor,
+  waitForDemoPreparationReady,
   type DemoActorRecord,
 } from '@/lib/demoActorProfiles';
 import { joinSession } from '@/lib/sessionService';
+import { auth } from '@/lib/firebase';
 import { isSessionWaiverAcknowledged } from '@/lib/sessionWaiver';
 import { useSessionStore } from '@/store/useSessionStore';
 import '@/components/DemoActorControls.css';
@@ -62,15 +64,28 @@ export default function DemoActorManager() {
   }, []);
 
   async function prepare(): Promise<void> {
-    if (!session || !live || busy || !isSessionWaiverAcknowledged()) return;
+    if (!profile || profile.roleId !== 'controller' || !me || !session || !live || busy || !isSessionWaiverAcknowledged()) return;
+    const controllerUid = me.uid;
     setBusy(true); setError(null);
     try {
       const roster = await prepareDemoActors(session, {
         onProgress: next => { if (mounted.current) setActors(next); },
+        waitForReady: () => waitForDemoPreparationReady({
+          profile, expectedUid: controllerUid,
+          read: () => {
+            const state = useSessionStore.getState();
+            return { session: state.session, me: state.me, mounted: mounted.current,
+              authenticatedUid: auth().currentUser?.uid ?? null,
+              connection: state.connection, freshness: state.sessionSnapshotFreshness };
+          },
+        }),
         shouldContinue: () => {
           const state = useSessionStore.getState();
           return mounted.current && state.connection === 'live' && state.sessionSnapshotFreshness === 'server' &&
-            state.session?.id === profile?.sessionId && demoSessionStatus(state.session) === 'preparing';
+            auth().currentUser?.uid === controllerUid && state.me?.uid === controllerUid &&
+            state.me.role === 'player' && state.me.sessionId === profile.sessionId &&
+            state.session?.id === profile.sessionId && state.session.currentTurn === 0 &&
+            ['lobby', 'casting'].includes(state.session.phase) && demoSessionStatus(state.session) === 'preparing';
         },
       });
       if (mounted.current) setActors(roster);
