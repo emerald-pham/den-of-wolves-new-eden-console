@@ -14,6 +14,20 @@ import { PC10_PROOF_CALLABLE_ACTIONS, createPc10CallableTrace, observePc10Callab
 export { createPc10CallableTrace, observePc10CallableTrace, pc10MessageCohortSize,
   capturePc10AuthoritativeFailureSnapshot, observePc10FailureBeforeCleanup } from './pc10-proof-diagnostics.mjs';
 
+const PC10_MAX_RESPONSE_BYTES = 512 * 1024;
+const PC10_MAX_BASE64_RESPONSE_CHARS = Math.ceil(PC10_MAX_RESPONSE_BYTES / 3) * 4;
+const PC10_BASE64_PATTERN = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
+
+function decodePc10CdpBinary(value) {
+  if (typeof value !== 'string') return { failure: 'stream-bytes-missing' };
+  if (value.length > PC10_MAX_BASE64_RESPONSE_CHARS) return { failure: 'stream-body-too-large' };
+  if (!PC10_BASE64_PATTERN.test(value)) return { failure: 'stream-bytes-malformed' };
+  const bytes = Buffer.from(value, 'base64');
+  if (bytes.toString('base64') !== value) return { failure: 'stream-bytes-malformed' };
+  if (bytes.length > PC10_MAX_RESPONSE_BYTES) return { failure: 'stream-body-too-large' };
+  return { bytes };
+}
+
 async function compiledFunctionsBinding() {
   const base = 'functions/lib';
   const files = [];
@@ -329,7 +343,9 @@ export async function completePc10OrdinaryUiAdmission({ join, consent, inspect }
 /** An isolated browser context has its own Firebase Auth identity/storage.
  * Tokens remain in memory. Evidence records role/action/state categories only.
  * These are automated browser clients, never a human/device playtest claim. */
-export async function createPc10BrowserActor(browser, baseUrl, label, viewport = { width: 390, height: 844 }) {
+export async function createPc10BrowserActor(browser, baseUrl, label, viewport = { width: 390, height: 844 },
+  { captureMode = 'durable' } = {}) {
+  if (!['durable', 'stream'].includes(captureMode)) throw new TypeError('Unsupported callable body capture mode.');
   const context = await browser.newContext({ viewport, reducedMotion: 'reduce' });
   const page = await context.newPage();
   page.setDefaultTimeout(20_000);
@@ -431,6 +447,98 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
     const unboundFailure = (name, requestId) => recordDetachedCallableFailure(name, requestId,
       'unknown-callable-lifecycle');
     const eventTime = trace => Math.max(Date.now(), trace.issuedAt);
+    const recordCallableReply = (state, reply) => {
+      if (!state.headersSeen) recordCallableObservationFailure(state, 'unknown-callable-lifecycle');
+      const completedAt = eventTime(state.trace);
+      observePc10CallableTrace(state.trace, { stage: 'body', at: completedAt, reply });
+      const value = buildFixtureCallableObservation({ ...state.trace, completedAt, status: state.trace.status,
+        transport: 'independent-browser-SDK', reply });
+      Object.assign(state.trace, { actorHash: state.trace.actorHash ?? value.actorHash ?? actorHash ?? null,
+        sessionHash: state.trace.sessionHash ?? value.sessionHash, groupHash: state.trace.groupHash ?? value.groupHash,
+        connectionGeneration: value.connectionGeneration, denialCategory: value.denialCategory });
+    };
+    const releaseStreamBytes = stream => {
+      stream.bufferedData = null;
+      stream.chunks.length = 0;
+      stream.chunkByteLength = 0;
+      stream.byteLength = 0;
+    };
+    const failStreamCapture = (stream, stage) => {
+      if (stream.failureStage) return;
+      stream.failureStage = stage;
+      releaseStreamBytes(stream);
+    };
+    const settleStreamCapture = state => {
+      const stream = state.streamCapture;
+      if (!stream || stream.settled || !stream.startCompleted || !stream.terminal) return;
+      if (stream.terminal === 'failed') {
+        stream.settled = true;
+        releaseStreamBytes(stream);
+        stream.resolve(null);
+        return;
+      }
+      if (stream.failureStage) {
+        state.bodyFailureStage = stream.failureStage;
+        stream.settled = true;
+        releaseStreamBytes(stream);
+        stream.reject(new Error('Callable streamed response body unavailable.'));
+        return;
+      }
+      const bytes = Buffer.concat([stream.bufferedData, ...stream.chunks], stream.byteLength);
+      stream.settled = true;
+      releaseStreamBytes(stream);
+      stream.resolve(bytes);
+    };
+    const startStreamCapture = state => {
+      let resolveBytes, rejectBytes;
+      const stream = { bufferedData: null, chunks: [], chunkByteLength: 0, byteLength: 0,
+        startCompleted: false, terminal: null, failureStage: state.streamLifecycleInvalid ? 'stream-lifecycle' : null,
+        settled: false,
+        resolve: null, reject: null };
+      const bytesPromise = new Promise((resolve, reject) => { resolveBytes = resolve; rejectBytes = reject; });
+      stream.resolve = resolveBytes;
+      stream.reject = rejectBytes;
+      state.streamCapture = stream;
+      const capture = bytesPromise.then(bytes => {
+        if (bytes === null) return;
+        if (bytes.length === 0) {
+          state.bodyFailureStage = 'stream-body-empty';
+          throw new Error('Callable streamed response body was empty.');
+        }
+        let reply;
+        try { reply = JSON.parse(bytes.toString('utf8')); }
+        catch {
+          state.bodyFailureStage = 'json-parse';
+          throw new Error('Callable streamed response JSON was malformed.');
+        }
+        if (!reply || typeof reply !== 'object' || Array.isArray(reply)) {
+          state.bodyFailureStage = 'reply-shape';
+          throw new Error('Callable streamed response reply shape was malformed.');
+        }
+        recordCallableReply(state, reply);
+      });
+      observationBoundary.capture(state, capture);
+      Promise.resolve().then(() => cdpSession.send('Network.streamResourceContent', {
+        requestId: state.protocolRequestId,
+      })).then(response => {
+        if (!response || typeof response.bufferedData !== 'string') {
+          failStreamCapture(stream, 'stream-buffer-missing');
+          return;
+        }
+        const decoded = decodePc10CdpBinary(response.bufferedData);
+        if (decoded.failure) {
+          failStreamCapture(stream, decoded.failure === 'stream-body-too-large'
+            ? decoded.failure : 'stream-buffer-malformed');
+          return;
+        }
+        stream.bufferedData = decoded.bytes;
+        stream.byteLength = decoded.bytes.length + stream.chunkByteLength;
+        if (stream.byteLength > PC10_MAX_RESPONSE_BYTES) failStreamCapture(stream, 'stream-body-too-large');
+      }, () => failStreamCapture(stream, 'stream-start')).finally(() => {
+        stream.startCompleted = true;
+        settleStreamCapture(state);
+      });
+    };
     cdpSession.on('Network.requestWillBeSent', event => {
       const name = callableNameFor(event?.request?.url);
       if (!name) return;
@@ -498,6 +606,33 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
         recordCallableObservationFailure(state, 'unknown-callable-lifecycle');
       }
       observePc10CallableTrace(state.trace, { stage: 'headers', at: eventTime(state.trace), status: event.response?.status });
+      if (captureMode === 'stream') startStreamCapture(state);
+    });
+    if (captureMode === 'stream') cdpSession.on('Network.dataReceived', event => {
+      if (ignoredNonPostRequests.has(event?.requestId)) return;
+      const state = observedRequests.get(event?.requestId);
+      if (!state) return;
+      const stream = state.streamCapture;
+      if (!stream || stream.terminal || state.trace.requestFinishedAt !== null || state.trace.requestFailedAt !== null) {
+        state.streamLifecycleInvalid = true;
+        if (stream && !stream.terminal) failStreamCapture(stream, 'stream-lifecycle');
+        recordCallableObservationFailure(state, 'unknown-callable-lifecycle');
+        return;
+      }
+      if (stream.failureStage) return;
+      const decoded = decodePc10CdpBinary(event?.data);
+      if (decoded.failure) {
+        const stage = decoded.failure === 'stream-bytes-missing' ? 'stream-chunk-missing'
+          : decoded.failure === 'stream-body-too-large' ? 'stream-body-too-large' : 'stream-chunk-malformed';
+        failStreamCapture(stream, stage);
+        return;
+      }
+      stream.chunks.push(decoded.bytes);
+      stream.chunkByteLength += decoded.bytes.length;
+      if (stream.chunkByteLength > PC10_MAX_RESPONSE_BYTES ||
+          (stream.bufferedData && stream.bufferedData.length + stream.chunkByteLength > PC10_MAX_RESPONSE_BYTES)) {
+        failStreamCapture(stream, 'stream-body-too-large');
+      }
     });
     cdpSession.on('Network.loadingFinished', event => {
       if (ignoredNonPostRequests.delete(event?.requestId)) return;
@@ -508,6 +643,17 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
         return;
       }
       observePc10CallableTrace(state.trace, { stage: 'finished', at: eventTime(state.trace) });
+      if (captureMode === 'stream') {
+        if (!state.streamCapture) {
+          state.bodyFailureStage = 'stream-not-started';
+          recordCallableObservationFailure(state, 'unknown-callable-lifecycle');
+        } else {
+          state.streamCapture.terminal = 'finished';
+          settleStreamCapture(state);
+        }
+        observationBoundary.finish(state);
+        return;
+      }
       const capture = Promise.resolve().then(async () => {
         let response;
         try {
@@ -538,14 +684,7 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
           state.bodyFailureStage = 'reply-shape';
           throw new Error('Callable response body reply shape was malformed.');
         }
-        if (!state.headersSeen) recordCallableObservationFailure(state, 'unknown-callable-lifecycle');
-        const completedAt = eventTime(state.trace);
-        observePc10CallableTrace(state.trace, { stage: 'body', at: completedAt, reply });
-        const value = buildFixtureCallableObservation({ ...state.trace, completedAt, status: state.trace.status,
-          transport: 'independent-browser-SDK', reply });
-        Object.assign(state.trace, { actorHash: state.trace.actorHash ?? value.actorHash ?? actorHash ?? null,
-          sessionHash: state.trace.sessionHash ?? value.sessionHash, groupHash: state.trace.groupHash ?? value.groupHash,
-          connectionGeneration: value.connectionGeneration, denialCategory: value.denialCategory });
+        recordCallableReply(state, reply);
       });
       observationBoundary.capture(state, capture);
       observationBoundary.finish(state);
@@ -563,10 +702,14 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
         error: safeTransportError(event?.errorText),
         canceled: typeof event?.canceled === 'boolean' ? event.canceled : null,
       };
+      if (captureMode === 'stream' && state.streamCapture) {
+        state.streamCapture.terminal = 'failed';
+        settleStreamCapture(state);
+      }
       observationBoundary.fail(state, event.errorText);
     });
     await cdpSession.send('Network.enable', durableBuffer);
-    await cdpSession.send('Network.configureDurableMessages', durableBuffer);
+    if (captureMode === 'durable') await cdpSession.send('Network.configureDurableMessages', durableBuffer);
   } catch (error) {
     await cdpSession?.detach().catch(() => undefined);
     await context.close().catch(() => undefined);
