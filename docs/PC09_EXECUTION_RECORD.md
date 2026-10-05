@@ -1,5 +1,11 @@
 # PC09 execution record
 
+**Current outcome:** PC09 0.5.68 is released and verified at 703/751 overall and
+245/293 campaign closures. All 49 assigned items and ten original audit repairs
+are complete. [Exact-main release 37261134992](https://github.com/emerald-pham/den-of-wolves-new-eden-console/actions/runs/37261134992) succeeded from
+`feec918910896ec0dca9ca9316d337b721e35764`. The chronological entries below retain intermediate
+pending states and failures; the final verified record supersedes those states.
+
 Checkpoint, integration and release owner: orchestrator `/root`.
 
 Authorized October 4, 2026 by the separate PC09 dispatch. Starting remote main
@@ -307,3 +313,15 @@ full-deployment selector. The workflow preserves that original pinned CLI path
 only for a workflow_dispatch containing the broad Functions selector; automatic
 releases require the audited named-target batches. The eighth regression covers
 this event boundary. No broad automatic fallback is introduced.
+
+## Terminal PC09 outcome — October 5
+
+The independently reviewed recovery `be309778` and review `feec9189` landed on
+remote main. [Exact-main release 37261134992](https://github.com/emerald-pham/den-of-wolves-new-eden-console/actions/runs/37261134992) completed all CI,
+22 Function batches, Hosting/Firestore publication, required invoker repair
+and strict deployed-surface verification. Its 7,952 native/164 Rules passes,
+compiled runtime binding, unchanged render/ticker artifact continuity and
+259-file read-only public Hosting binding are recorded in the
+[verified checkpoint report](PC09_PLAYTEST_REPORT.md#verified-pc09-release--october-5-2026).
+All 49 closures and ten audit repairs are final; no PC10 or later work was run.
+The parent owns the next checkpoint revision/dispatch and final proof inspection.

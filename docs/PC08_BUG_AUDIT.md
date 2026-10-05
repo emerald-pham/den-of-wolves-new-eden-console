@@ -1,8 +1,14 @@
 # PC08 post-completion bug audit — October 4, 2026
 
-This is a finite audit of released PC08, followed by audit/roadmap documentation
-only. Gameplay fixes and future checkpoint implementation are outside this
-delivery. Open findings below have no fix or closure credit.
+**Current disposition:** all ten historical findings below were repaired in
+verified PC09 0.5.68. Their original OPEN labels, definitions and reproductions
+are preserved as the PC08 audit baseline; current closure evidence is in the
+[subsequent repair record](#subsequent-pc09-branch-repair-record).
+
+This finite audit of released PC08 originally delivered audit/roadmap
+documentation only. Gameplay fixes and future checkpoint implementation were
+outside that audit delivery. The findings below had no fix or closure credit
+at audit completion; the subsequent PC09 record supplies their current closure.
 
 ## Verified baseline
 
@@ -349,12 +355,14 @@ those documentation commits.
 
 The historical audit above remains the record of the released 0.5.67 baseline.
 The separate authorized PC09 task has now integrated test-first repairs for all
-ten findings in its non-main owner branch. All exact permanent regressions and
-qualified fresh ordinary acceptances are reconciled, and the single independent
-reviewer approved the bounded final verification at `ef0cb942`. The fixed
-checkpoint allocation remains 49 IDs, closing a 703/751 candidate snapshot.
-The 0.5.68 candidate's exact-SHA CI and production deployment remain pending;
-this record does not claim that production already contains these repairs.
+ten findings through its isolated owner branch. All exact permanent regressions
+and qualified fresh ordinary acceptances are reconciled; the independent review
+and bounded loading/deployment follow-ups pass. The fixed checkpoint allocation
+remains 49 IDs, closing the verified 703/751 snapshot. **All ten original findings
+are fixed; none remains open.** PC09 0.5.68 is published from `feec9189` with
+[exact-main CI and production surface verification](https://github.com/emerald-pham/den-of-wolves-new-eden-console/actions/runs/37261134992). This is
+publication evidence; exact native-only and authenticated/physical evidence
+limits in the table below remain unchanged.
 
 | Original finding | PC09 repair and permanent regression | Current ordinary evidence and limits |
 |---|---|---|

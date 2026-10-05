@@ -144,9 +144,9 @@ Later UI themes can span multiple owner tours. PC05–PC08 are released, reachin
 654/751 overall and 196/293 campaign closures at the PC08 release snapshot.
 PC08 shipped as 0.5.67; the [PC08 report](PC08_PLAYTEST_REPORT.md) records its
 verified release and the [post-completion audit](PC08_BUG_AUDIT.md) records
-subsequent findings. PC09 is the current authorized fixed 49 tranche, targeting
-703/751; PC10 retains its 48 IDs and 751/751 target. A documented
-same-count substitution may move an unstarted ID only
+subsequent findings. PC09 is now released and verified at its fixed 49 closures
+and 703/751; PC10 retains its 48 IDs and 751/751 target for a separate dispatch.
+A documented same-count substitution may move an unstarted ID only
 with its dependencies satisfied and another baseline ID replacing it; it
 cannot change any cumulative target or lose any baseline ID. The owner explicitly
 activated P605a on October 4 for PC09, preserving its existing P433a contract and
@@ -157,12 +157,12 @@ then the parent revises PC10 and dispatches its separate orchestrator before
 existing post-PC10 work. One checkpoint at a time; no future execution here.
 
 The historical post-release audit recorded ten open runtime findings (one P1,
-seven P2, two P3). The reviewed PC09 **0.5.68 candidate** repairs all ten,
+seven P2, two P3). The verified PC09 **0.5.68 release** repairs all ten,
 including the shared progression/carryover blockers, durable losses before
 P483 rebuilding, result/projection seams before P474/P484, and P621's
-mixed-source, holder-removal and attack-bound recovery. All 49 candidate
-acceptances are reconciled at **703/751** and **245/293 campaign closures**;
-exact-SHA CI and production deployment verification remain pending. P645
+mixed-source, holder-removal and attack-bound recovery. All 49 acceptances are
+complete at **703/751** and **245/293 campaign closures**; [exact-main CI and
+production surface verification](https://github.com/emerald-pham/den-of-wolves-new-eden-console/actions/runs/37261134992) pass at `feec9189`. P645
 follows the accepted aftermath and recovery dependencies.
 P492/P493 retain their separate trigger acceptances and are related proof,
 not hard prerequisites of the ordinary P645 playthrough. See
@@ -172,7 +172,7 @@ the 0.5.67 released snapshot; affected rows now link the separate PC09 repair
 evidence without receiving duplicate completion credit. The original audit
 reproductions and their evidence limits remain intact. The dependency CLI reads
 statuses, not production deployment health. No future checkpoint is started by
-this candidate record.
+this verified PC09 record.
 
 ### PC05 — 49 assigned closures; 49/293 cumulative
 

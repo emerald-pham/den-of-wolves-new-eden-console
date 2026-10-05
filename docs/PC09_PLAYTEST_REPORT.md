@@ -1,11 +1,11 @@
 # PC09 playtest and release report
 
-The reviewed PC09 0.5.68 candidate closes the fixed 49 assigned items, including
-all ten repairs from the PC08 audit, in one isolated owner branch. Candidate CI
-and production deployment verification are still pending. The opening catalog
-was 654/751 overall and 196/293 campaign items; the closing candidate snapshot is
-703/751 (93.61%) and 245/293 (83.62%). No PC10 or later implementation is part
-of this release.
+PC09 **0.5.68 is released and verified** at exactly **703/751 (93.61%)** overall
+and **245/293 (83.62%)** campaign closures. All 49 assigned items and all ten
+original PC08 audit repairs passed the required local acceptance and independent
+review. [Exact-main release 37261134992](https://github.com/emerald-pham/den-of-wolves-new-eden-console/actions/runs/37261134992) succeeded from
+`feec918910896ec0dca9ca9316d337b721e35764`, including production surface verification. The opening
+snapshot was 654/751 and 196/293. No PC10 or later implementation is included.
 
 ## Assigned items
 
@@ -141,10 +141,10 @@ Voyage metadata renders and four viewport sizes in normal/reduced motion.
 The complete ticker gate passes 24 Press/Cycle 0 viewport/font/motion cases and
 both normal/reduced lifecycle captures, including the live Press→Red Alert
 handoff. Artifacts remain in `/tmp/dow-pc09-resumed-evidence/ticker-contained-final/`.
-Candidate CI, exact-main deployment and verified closeout are pending. The actual runtime inventory
-contains 232 endpoints and 216 named
-affected consumers; Hosting, Firestore Rules and those named Functions are the
-prepared deployment surfaces. The WIF path remains unchanged.
+The separately verified exact-main release below completes CI and production
+surface verification. The SDK runtime inventory contains 232 endpoints and
+216 named affected consumers; Hosting, Firestore Rules and those named Functions
+are the deployed surfaces. The WIF path remains unchanged.
 
 The metadata check's two stale PC07/PC08 live-catalog assertions remain in the
 failure log; the correction preserves historical release boundaries and adds
@@ -190,7 +190,8 @@ AppHeader progress/history expectations after 3,290 other unit checks pass.
 Test-only `8f6227da` checks current 703/751 and explicitly preserves the earlier
 0.5.67/654 release snapshot; all 45 AppHeader checks and lint pass. The original
 failure remains preserved. This changes no product code or release scope;
-the corrected exact candidate still requires CI and production verification.
+at that intermediate point the corrected candidate still required CI and
+production verification. The verified release below supersedes that status.
 
 Future QR authorization is recorded separately: the normal Firebase app must
 show a session-code join URL QR in Settings after joining, with equivalent
@@ -244,4 +245,44 @@ Rules release succeeds; Hosting upload alone, skipped IAM repair and skipped
 final verification do not establish a completed deployment. The failure is
 preserved in main-release-37257836445-failed.log. A bounded sequential
 at-most-ten deployment helper retains the full selector and existing strict
-revision/surface checks; independent review and the recovered release follow.
+revision/surface checks. The same independent reviewer approved the release-only
+delta; the successful recovered release is recorded below.
+
+## Verified PC09 release — October 5, 2026
+
+Runtime commit [feec9189](https://github.com/emerald-pham/den-of-wolves-new-eden-console/commit/feec918910896ec0dca9ca9316d337b721e35764)
+was fast-forwarded to `origin/main`; another checkout's local `main` and the
+original dirty checkout were preserved. [Release 37261134992](https://github.com/emerald-pham/den-of-wolves-new-eden-console/actions/runs/37261134992)
+completed successfully after the independently reviewed quota recovery
+`be309778` and review record `feec9189`.
+
+| Verification | Exact result |
+|---|---|
+| Main native and Rules | 3,292 client tests in 319 files; 4,660 Functions tests in 280 files; 164 Rules tests in four files, all passing. |
+| Build and contracts | Web/Functions builds, lint, generated views, documentation, threat model, 62 font checks, eight deployment-batch contract checks and mandatory computed-style typography pass. |
+| Render and ticker continuity | The original main verification at `feb71f2d` passed all unchanged render/bundle budgets and three ticker shards. The recovered run correctly skips those unchanged-path gates; all 259 recovered web-artifact files are byte-for-byte identical to that verified artifact. |
+| Gameplay runtime binding | All 207 compiled Functions files match the frozen current ordinary-proof tree from `296dd59b`, SHA-256 `54d4c79e639a4ddd59e4882b7be6d3f4735f38ec97717cbf2b68f9cd4db7a260`. |
+| Firebase deployment | All 22 sequential named-Function batches and the final Hosting/Firestore batch succeed. The selector remains exactly 216 named Functions. |
+| Production surface checks | Required browser invoker repairs and the unchanged verifier pass: exact Hosting version, active regional Function inventory, a new ready revision for every selected Function, applicable public/private invoker checks, and the default Firestore Native database. |
+| Public artifact binding | Read-only public HTTP GETs match all 259 files (13,366,898 bytes) against the exact run's downloaded web artifact, including entry code, deferred chunks and review pages. Served build metadata is 0.5.68; its version field alone is not used as commit proof. |
+
+The first quota-limited deployment `37257836445` remains a failed attempt, with
+its original log and 200-success/16-failure summary preserved. No retry loop,
+quota/CPU adjustment, permission expansion, service-account key, gameplay source
+change or production game-data mutation was used to recover it.
+
+The first public-file probe retained 258 exact matches and one `index.html`
+clean-URL redirect error. Its unchanged result is preserved. Correcting the
+probe to the canonical `/` app entrypoint passes the remaining file comparison;
+the 258 already-verified hashes are retained, with one additional read-only GET.
+
+The public probe and CI deployment verify publication and infrastructure. They
+do not establish authenticated production-GM gameplay, physical attendance or
+21 simultaneous browser/device clients. Native-only exact audit comparisons,
+the composed recovered EO HTTP 500, setup inputs and post-run crisis binding
+retain their earlier evidence limits. All ten original audit defects are fixed;
+none remains open. Parent-owned PC10 revision and separate dispatch are next.
+
+The read-only catalog dependency report identifies `NEXT=181`, 18 remaining
+ready prompts, 30 waiting only on other PC10 prompts and no confirmation gates.
+This reports planning readiness, not runtime health, and starts no future phase.

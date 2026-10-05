@@ -566,9 +566,10 @@ See [PC08 Bug Audit](PC08_BUG_AUDIT.md) for baseline verification, reproducible
 findings, independent review and follow-on ordering. This preserves the 0.5.67
 release evidence and does not start another checkpoint.
 
-Ten runtime findings remain open: one P1 progression blocker, seven P2 defects
-and two P3 stale acknowledgements. The catalog's existing PC09 criteria and
-dependency links place the shared progression/carryover repairs first, durable
+The October 4 baseline audit recorded ten open runtime findings: one P1
+progression blocker, seven P2 defects and two P3 stale acknowledgements.
+All ten are repaired in the verified PC09 release recorded below. The catalog's
+existing PC09 criteria and dependency links place the shared progression/carryover repairs first, durable
 losses before P483 rebuild, result/projection fixes before P474/P484, and recovery/
 receipt disposition in P621 before P645. Affected PC08 rows explicitly qualify
 their historical `done` status; the audit is not new passing gameplay evidence.
@@ -589,8 +590,8 @@ credit and no P605a or 0.9.x/1.0.0 authorization.
 
 ## PC09 shape — Battle aftermath, deduction and crises
 
-Authorized October 4 by the separate PC09 execution dispatch. Current main
-opens at 654/751 and 196/293 campaign closures; the fixed 49-ID target is
+Authorized October 4 by the separate PC09 execution dispatch. Its opening main
+snapshot was 654/751 and 196/293 campaign closures; the fixed 49-ID target is
 703/751 and 245/293. The [execution record](PC09_EXECUTION_RECORD.md) fixes
 six complete implementation groups, isolated checkouts, shared-file boundaries,
 integration ownership and five optional owner-playable UI checks. Root retains
@@ -620,10 +621,10 @@ presentation only. Required independent Sol review, final focused/responsive/rel
 exact-candidate CI and production deployment remain separate from gameplay proof.
 PC10 revision and later work remain outside this delivery.
 
-The reviewed October 5 PC09 candidate is **0.5.68**, closing exactly 49 IDs at
+The verified October 5 PC09 release is **0.5.68**, closing exactly 49 IDs at
 **703/751 (93.61%)** overall and **245/293 (83.62%)** campaign. All ten PC08
-audit repairs are integrated, normal authenticated local/emulator acceptances
-pass and the same independent Sol 6.1 reviewer found no remaining material
-defect in the bounded follow-up. See [the checkpoint report](PC09_PLAYTEST_REPORT.md)
-for evidence classes and remaining exact-SHA CI/deployment verification. This
-candidate record grants no PC10 or later completion credit.
+audit defects are fixed, all qualified local/emulator acceptances and independent
+reviews pass, and [exact-main release 37261134992](https://github.com/emerald-pham/den-of-wolves-new-eden-console/actions/runs/37261134992) succeeds from
+`feec9189` with production surface and public artifact verification. See
+[the checkpoint report](PC09_PLAYTEST_REPORT.md) for exact gates and evidence
+limits. This release grants no PC10 or later completion credit.
