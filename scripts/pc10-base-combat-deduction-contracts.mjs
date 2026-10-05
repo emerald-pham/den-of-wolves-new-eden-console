@@ -326,7 +326,7 @@ export async function captureBaseUiReceipt({ surface, endpoint, expectedActor,
   assert.equal(response.status(), 200, `${endpoint} normal request denied: ${body.error?.message ?? response.status()}`);
   assert.ok(body.result); assert.notEqual(body.result.status, 'stale');
   assert.equal(request?.sessionId, expectedActor.sessionId);
-  for (const [key, value] of Object.entries(expectedRequest)) assert.equal(request?.[key], value, `Current source ${key} changed before the click.`);
+  for (const [key, value] of Object.entries(expectedRequest)) assert.deepEqual(request?.[key], value, `Current source ${key} changed before the click.`);
   if (expectedActor.playerRole === 'gm') assert.equal(request.instanceId, expectedActor.instanceId);
   if (verifyReplay && request?.requestId) {
     const replay = await surface.callable(endpoint, request);
