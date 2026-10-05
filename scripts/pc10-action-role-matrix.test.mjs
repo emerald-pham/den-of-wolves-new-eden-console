@@ -26,7 +26,7 @@ test('action and role matrix enumerates current exports with explicit unresolved
     assert.equal(matrix.nonInteractiveExports.filter(row => row.kind === 'background').length, 6);
     assert.equal(matrix.nonInteractiveExports.filter(row => row.kind === 'schedule').length, 3);
     assert.equal(matrix.acceptanceAccounting.fixedPromptClosures, 48);
-    assert.equal(matrix.acceptanceAccounting.a01Credit, 0);
+    assert.equal(matrix.acceptanceAccounting.a01QrCredit, 0);
     assert.equal(matrix.acceptanceAccounting.a02Credit, 0);
     assert.equal(matrix.acceptanceAccounting.pc11Executed, false);
     assert.equal(matrix.acceptanceAccounting.pc12Executed, false);
