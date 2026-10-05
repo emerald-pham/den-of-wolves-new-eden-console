@@ -33,6 +33,47 @@ test('bounded fixture transport returns the actual callable JSON and HTTP status
   { status: 409, error: { status: 'ABORTED' } });
 });
 
+test('native proof records issued and actual body-completion times rather than treating headers as completion', async t => {
+  const origin = await localCallableServer(t, (_request, response) => {
+    response.writeHead(200, { 'Content-Type': 'application/json' });
+    response.flushHeaders();
+    setTimeout(() => response.end(JSON.stringify({ result: { status: 'committed', privateNote: 'never-copy' } })), 75);
+  });
+  const issued = [], completed = [];
+  const reply = await fixture.performFixtureCallable({ origin, project: 'demo-test',
+    actor: { localId: 'private-actor', idToken: 'private-token' }, name: 'sendFleetGroupMessage',
+    data: { sessionId: 'private-session', requestId: 'private-request', text: 'private-text' },
+    timeoutMs: 1_000, onCallableIssued: value => issued.push(value),
+    onCallableObservation: value => completed.push(value) });
+  assert.equal(reply.status, 200);
+  assert.equal(issued.length, 1);
+  assert.equal(completed.length, 1);
+  assert.equal(issued[0].bodyCompletedAt, null);
+  assert.ok(completed[0].bodyCompletedAt - completed[0].headersReceivedAt >= 50);
+  assert.equal(completed[0].completedAt, completed[0].bodyCompletedAt);
+  assert.equal(completed[0].requestHash, issued[0].requestHash);
+  assert.equal(completed[0].action, 'send-fleet-group-message');
+  for (const secret of ['private-actor', 'private-token', 'private-text', 'private-request', 'never-copy']) {
+    assert.equal(JSON.stringify([...issued, ...completed]).includes(secret), false);
+  }
+});
+
+test('native no-response failure still reports its issued request and terminal failure once without retry', async t => {
+  const requests = [], issued = [], completed = [];
+  const origin = await localCallableServer(t, request => requests.push(request.url));
+  await assert.rejects(() => fixture.performFixtureCallable({ origin, project: 'demo-test',
+    actor: { localId: 'private-actor', idToken: 'private-token' }, name: 'claimSeat',
+    data: { sessionId: 'private-session', requestId: 'private-request' }, timeoutMs: 100,
+    onCallableIssued: value => issued.push(value), onCallableObservation: value => completed.push(value) }),
+  error => error.message === 'Local fixture callable claimSeat exceeded 100ms without a reply.');
+  assert.equal(requests.length, 1);
+  assert.equal(issued.length, 1);
+  assert.equal(completed.length, 1);
+  assert.equal(completed[0].bodyCompletedAt, null);
+  assert.ok(completed[0].requestFailedAt >= issued[0].issuedAt);
+  assert.equal(completed[0].requestHash, issued[0].requestHash);
+});
+
 test('callable observations retain only hashed identity and bounded authority metadata', () => {
   assert.equal(typeof fixture.buildFixtureCallableObservation, 'function');
   const observation = fixture.buildFixtureCallableObservation({ name: 'resumeSession',
