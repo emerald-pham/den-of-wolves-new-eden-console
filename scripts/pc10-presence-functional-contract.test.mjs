@@ -28,7 +28,7 @@ function fixture() {
   const authority = { schemaVersion: 1, kind: 'pc10-presence-authority-readonly', roleId, actorHash, sessionHash, projectHash,
     checkedAt: 1500, sessionExists: true, phase: 'active', cycle: 1, playerExists: true, originalUidMatches: true,
     connected: true, nonKicked: true, ordinaryPlayer: true, sameSessionMembership: true,
-    assignedRoleMatches: true, activeConsoleMatches: true, ownStationAuthority: true, noReplacementOrEscape: true,
+    assignedRoleMatches: true, activeConsoleMatches: true, ownStationAuthority: true, noReplacementOrEscape: true, configuredRoleMatches: true,
     generation: 2, lastSeenAtMs: 1440, membershipConnectedAtMs: 1440, leaseMs: 45000 };
   const renewal = { schemaVersion: 1, kind: 'original-explicit-sdk-presence-renewal', roleId, actorHash, sessionHash, projectHash,
     startedAt: 1200, completedAt: 1400, status: 200, originalSdkSessionMatches: true,
@@ -74,6 +74,7 @@ for (const [name, change] of [
   ['malformed original SDK result', f => { f.renewal.originalSdkSchemaValid = false; }],
   ['missing authoritative state', f => { f.input.authoritySnapshots = []; }],
   ['revoked authoritative member', f => { f.authority.connected = false; }],
+  ['removed configured role', f => { f.authority.configuredRoleMatches = false; }],
   ['foreign canonical seat', f => { f.authority.ownStationAuthority = false; }],
   ['changed connection generation', f => { f.authority.generation = 3; }],
   ['expired45s lease', f => { f.authority.checkedAt = f.authority.lastSeenAtMs + 45000; }],
@@ -127,7 +128,7 @@ test('original SDK renewal records exact same-session schema and preserves resel
 
 function dbFixture({ press = false } = {}) {
   const values = new Map([
-    [`sessions/${sessionId}`, { phase: 'active', currentTurn: 1, pressEnabled: true, pressHolderUid: uid }],
+    [`sessions/${sessionId}`, { phase: 'active', currentTurn: 1, activeRoleIds: [roleId], pressEnabled: true, pressHolderUid: uid }],
     [`sessions/${sessionId}/players/${uid}`, { connected: true, role: 'player', assignedRoleId: press ? null : roleId,
       activeConsoleRoleId: press ? 'press-officer' : roleId, seatId: press ? null : roleId, connectionGeneration: 2,
       lastSeenAt: { toMillis: () => 1400 }, privateHand: ['private-malicious-error'] }],
@@ -205,7 +206,7 @@ test('invalid table contract option is rejected before any browser or fixture re
 
 test('the original strict cohort helper retains SDK/document and readonly authority evidence without enabling a limitation', async () => {
   const roles = [roleId, 'refinery-124-pdf-colonel'], events = [], actorIds = ['original-core-one', 'original-core-two'];
-  const values = new Map([[`sessions/${sessionId}`, { phase: 'active', currentTurn: 1 }]]);
+  const values = new Map([[`sessions/${sessionId}`, { phase: 'active', currentTurn: 1, activeRoleIds: roles }]]);
   for (const [index, role] of roles.entries()) {
     values.set(`sessions/${sessionId}/players/${actorIds[index]}`, { connected: true, role: 'player', assignedRoleId: role,
       seatId: role, activeConsoleRoleId: role, connectionGeneration: 2, lastSeenAt: { toMillis: () => Date.now() - 1 } });
@@ -246,7 +247,11 @@ test('the original strict cohort helper retains SDK/document and readonly author
           assert.equal(name, 'refreshPresence'); assert.equal(data.sessionId, sessionId);
           assert.equal(witnessOptions?.retainPresenceAuthority, true, 'Strict cohort requests evidence without enabling an exception');
           const startedAt = Date.now(); events.push(`original-sdk-${label}`); issued++; if (issued === roles.length) release();
-          await parallelGate; const reply = { status: 200, result: { sessionId } };
+          await parallelGate; const committedAt = Date.now();
+          const actorId = actorIds[roles.indexOf(label)];
+          values.get(`sessions/${sessionId}/players/${actorId}`).lastSeenAt = { toMillis: () => committedAt };
+          values.get(`activeMemberships/${actorId}`).connectedAt = { toMillis: () => committedAt };
+          const reply = { status: 200, result: { sessionId } };
           const invocation = { kind: 'explicit-sdk-invocation', name, roleId: label, startedAt, completedAt: Date.now(), nativeDocumentHash: 'b'.repeat(64) };
           invocations.push(invocation); invocationByReply.set(reply, invocation); return reply;
         }, sdkInvocationForReply: reply => invocationByReply.get(reply), drainObservedCalls: async () => undefined,
@@ -312,4 +317,29 @@ test('readonly authority capture keeps the existing10s budget and cannot publish
   await nextTurn(); assert.equal(typeof timer, 'function'); clock += 10001; timer();
   await assert.rejects(operation, /Presence authority observation budget/);
   resolved(new Map()); await nextTurn();
+});
+
+
+test('the cohort itself rejects malformed original SDK results and missing current authority even without any body failure', () => {
+  const verify = api('assertPc10PresenceCohortWitnesses'), f = fixture();
+  const before = { ...f.authority, checkedAt: 1100, lastSeenAtMs: 1000, membershipConnectedAtMs: 1000 };
+  const input = { roleIds: [roleId], before: [before], renewals: [f.renewal], after: [f.authority] };
+  assert.doesNotThrow(() => verify(input));
+  for (const [collection, key, value] of [
+    ['renewals', 'originalSdkSessionMatches', false], ['renewals', 'stationSelectionRequired', true],
+    ['renewals', 'originalSdkSchemaValid', false], ['renewals', 'nativeDocumentHash', null],
+    ['before', 'connected', false], ['after', 'sameSessionMembership', false],
+    ['after', 'ownStationAuthority', false], ['after', 'configuredRoleMatches', false],
+    ['after', 'generation', 3], ['after', 'lastSeenAtMs', 1100], ['after', 'membershipConnectedAtMs', 1100],
+  ]) {
+    const counterexample = structuredClone(input); counterexample[collection][0][key] = value;
+    assert.throws(() => verify(counterexample), /Original SDK cohort renewal and live own authority/);
+  }
+});
+
+test('readonly witness detects canonical roster removal while the stale player and own seat still exist', async () => {
+  const f = dbFixture(); f.values.get(`sessions/${sessionId}`).activeRoleIds = [];
+  const [value] = await api('capturePc10PresenceAuthority')({ db: f.db, project, emulatorHost: '127.0.0.1:8180', sessionId,
+    actors: [{ roleId, actorUid: uid }], now: () => 1500 });
+  assert.equal(value.ownStationAuthority, true); assert.equal(value.configuredRoleMatches, false); privateAbsent(value);
 });
