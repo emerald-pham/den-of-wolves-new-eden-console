@@ -30,6 +30,10 @@ test('optional-loyalty driver routes beacon and intelligence to distinct origina
     'The owned live GM instance must recover the exact acknowledgement receipt.');
   assert.match(privateUiProof, /Original Wolf actor reconnected from server state/,
     'The exact supply receipt must be recovered after an ordinary page reload under the same actor.');
+  assert.match(privateUiProof, /assert\.equal\(await control\.count\(\), 1/,
+    'The proof must require every current Wolf action control to be mounted after the action.');
+  assert.match(privateUiProof, /oneActionControlsDisabled: actionControlStates\.every\(state => state\.disabled\)/,
+    'The reported one-action UI state must come from observed disabled controls, not a default claim.');
   assert.match(privateUiProof, /same-UID Wolf action in the same cycle/,
     'A fresh same-UID action attempt must be rejected after reconnect instead of spending a second action.');
   assert.match(privateUiProof, /blockedPhysicalConsoleBranch\(\)/,
