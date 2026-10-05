@@ -106,10 +106,12 @@ try {
   assert.ok(coordinate, 'Use the current entitled GM chart projection.');
   for (const shipId of ships) {
     for (const resourceId of ['fuel', 'food', 'water']) {
-      const current = await f.session.get();
-      await command(f.gm, 'applyShipCounterSteps', { instanceId: f.instanceId, shipId, counter: 'resource', resourceId,
-        steps: Array(30).fill(1), expectedRevision: current.get('vesselActionRevisions')?.[shipId] ?? 0,
-        requestId: randomUUID() });
+      for (const count of [12, 12, 6]) {
+        const current = await f.session.get();
+        await command(f.gm, 'applyShipCounterSteps', { instanceId: f.instanceId, shipId, counter: 'resource', resourceId,
+          steps: Array(count).fill(1), expectedRevision: current.get('vesselActionRevisions')?.[shipId] ?? 0,
+          requestId: randomUUID() });
+      }
     }
     await repair(shipId); await maintenance(shipId);
   }
