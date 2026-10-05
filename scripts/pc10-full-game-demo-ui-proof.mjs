@@ -7,7 +7,25 @@ import { resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { pathToFileURL } from 'node:url';
 import { chromium } from 'playwright';
-import { proofRuntimeFromViteSource, validateProofRuntime, assertSelectedActor, completePreparedCrew, confirmPreparedSetup, isObservedGameEnding, assertExactFullGameStartRecovery } from './pc10-full-game-demo-proof-helpers.mjs';
+import { proofRuntimeFromViteSource, validateProofRuntime, assertSelectedActor, completePreparedCrew, confirmPreparedSetup, isObservedGameEnding, assertExactFullGameStartRecovery, waitForFullGamePresentationReady } from './pc10-full-game-demo-proof-helpers.mjs';
+
+const PRESENTATION_READINESS_SOURCE_FILES = Object.freeze([
+  'scripts/pc10-full-game-demo-proof-helpers.mjs',
+  'scripts/pc10-full-game-demo-ui-proof.mjs',
+  'src/components/TurnStartAnnouncement.tsx',
+  'src/components/Intrusion.tsx',
+  'src/components/CycleBriefingClearanceView.tsx',
+  'src/styles/intrusion.css',
+  'src/lib/turnInterstitialService.ts',
+  'functions/src/turnInterstitial.ts',
+]);
+
+async function presentationReadinessSourceHashes(root) {
+  const entries = await Promise.all(PRESENTATION_READINESS_SOURCE_FILES.map(async path => [
+    path, createHash('sha256').update(await readFile(resolve(root, path))).digest('hex'),
+  ]));
+  return Object.fromEntries(entries);
+}
 
 /** Real UI/SDK driver. Callbacks may compose later genuine game decisions. */
 export async function runFreshFullGameDemoUi(options = {}) {
@@ -25,12 +43,14 @@ export async function runFreshFullGameDemoUi(options = {}) {
   const ports = options.ports ?? { auth: 9109, functions: 5011, firestore: 8090 };
   const runtime = validateProofRuntime(proofRuntimeFromViteSource(await (await fetch(`${baseUrl}/src/lib/firebaseConfig.ts`)).text()),
     { baseUrl, projectId, ports });
+  const presentationSourceHashes = await presentationReadinessSourceHashes(root);
   const sourceCommit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
   const driverCommit = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
   const builtRuntimeIndexSha256 = createHash('sha256').update(await readFile(`${root}/functions/lib/index.js`)).digest('hex');
   await mkdir(directory, { recursive: true });
   const browsers = [], surfaces = [], errors = [], calls = [], requests = [], remoteRequests = [], transitions = [], roleSurfaces = [];
   const evidence = { schemaVersion: 1, sourceCommit, driverCommit, builtRuntimeIndexSha256, runtime,
+    presentationReadinessSourceSha256: presentationSourceHashes,
     actualBrowserProcesses: 2, actualBrowserContexts: 2, actualHumans: 0, physicalAttendanceProof: false,
     callableFixtures: false, adminGameplayWrites: false, acceleratedClock: false, wholeGameProof: false,
     playerCount, includePress, chartId, gameplayOnly,
@@ -84,6 +104,12 @@ export async function runFreshFullGameDemoUi(options = {}) {
         return { hasAuth: !!user, sameActor: !!user && state.me?.uid === user.uid, uidHash: await hash(user?.uid),
           sessionId: state.session?.id ?? null, joinCode: state.session?.joinCode ?? null,
           cycle: state.session?.currentTurn ?? null, phase: state.session?.phase ?? null,
+          announcementTurn: state.session?.turnStartAnnouncement?.turn ?? null,
+          announcementRevision: state.session?.turnStartAnnouncement
+            ? state.session.turnStartAnnouncement.revision ?? 0 : null,
+          naturalTransmissionMounted: document.querySelector('.intrusion--fleet .turn-start-announcement__console')?.isConnected === true,
+          ordinaryBriefingMounted: document.querySelector('[aria-label="Cycle briefing clearance"]')?.isConnected === true,
+          ordinaryBriefingHeld: state.session?.turnPhase?.timerPause?.reason === 'turn-interstitial',
           playerRole: state.me?.role ?? null, profileRoleId: activeDemoActorProfile?.roleId ?? null,
           assignedRoleId: state.me?.assignedRoleId ?? null, activeConsoleRoleId: state.me?.activeConsoleRoleId ?? null,
           connection: state.connection, freshness: state.sessionSnapshotFreshness,
@@ -150,7 +176,13 @@ export async function runFreshFullGameDemoUi(options = {}) {
       const button = page.getByRole('button', { name: /^REDUCED MOTION/i });
       if (await button.isVisible().catch(() => false)) await button.click();
     }
-    const result = { label, page, context, observe, until, consent, callable, reducedMotion, storeModuleUrl: () => storeUrl };
+    async function paintTwoFrames() {
+      await page.evaluate(() => new Promise(resolveFrame => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolveFrame(true)));
+      }));
+    }
+    const result = { label, page, context, observe, until, consent, callable, reducedMotion, paintTwoFrames,
+      storeModuleUrl: () => storeUrl };
     surfaces.push(result); return result;
   }
 
@@ -429,6 +461,13 @@ export async function runFreshFullGameDemoUi(options = {}) {
     evidence.exactUiStartRecovery = { committedViaUi: true, replayedViaOriginalGmSdk: true,
       requestFingerprint: createHash('sha256').update(JSON.stringify(startPayload)).digest('hex'),
       sameOriginalActor: true, sameOwnedInstance: true };
+    evidence.presentationReadiness = await waitForFullGamePresentationReady({
+      expectedAnnouncement: { turn: started.announcementTurn, revision: started.announcementRevision },
+      actors: [
+        { name: 'original GM browser', expected: startIdentity, inspect: gm.observe, paintTwoFrames: gm.paintTwoFrames },
+        { name: 'original crew browser', expected: controller, inspect: crew.observe, paintTwoFrames: crew.paintTwoFrames },
+      ],
+    });
     await gm.page.getByText('MANUAL', { exact: true }).first().waitFor();
     await gm.page.screenshot({ path: `${directory}/cycle-one-manual-team.png` });
     await options.onStarted?.({ gm, crew, initial, started, roster, directory });
@@ -580,7 +619,10 @@ export async function runFreshFullGameDemoUi(options = {}) {
         'Actual fresh full-demo admission, normal casting/start, confirmed role surfaces, interrupted seat recovery and manual phase control. Every game-function branch and ending remain separately owned.' });
     evidence.sourceCommitAtCompletion = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
     evidence.builtRuntimeIndexSha256AtCompletion = createHash('sha256').update(await readFile(`${root}/functions/lib/index.js`)).digest('hex');
-    evidence.sourceChangedDuringProof = evidence.sourceCommitAtCompletion !== sourceCommit || evidence.builtRuntimeIndexSha256AtCompletion !== builtRuntimeIndexSha256;
+    evidence.presentationReadinessSourceSha256AtCompletion = await presentationReadinessSourceHashes(root);
+    evidence.presentationReadinessSourceChangedDuringProof = JSON.stringify(evidence.presentationReadinessSourceSha256AtCompletion) !== JSON.stringify(presentationSourceHashes);
+    evidence.sourceChangedDuringProof = evidence.sourceCommitAtCompletion !== sourceCommit ||
+      evidence.builtRuntimeIndexSha256AtCompletion !== builtRuntimeIndexSha256 || evidence.presentationReadinessSourceChangedDuringProof;
     await writeFile(`${directory}/evidence.json`, `${JSON.stringify(evidence, null, 2)}\n`);
     console.log(JSON.stringify({ status: 'passed', sourceCommit, directory, roleSurfaceCount: roleSurfaces.length }));
     return evidence;
@@ -589,7 +631,10 @@ export async function runFreshFullGameDemoUi(options = {}) {
     for (const item of surfaces) await item.page.screenshot({ path: `${directory}/${item.label}-failure.png` }).catch(() => undefined);
     evidence.sourceCommitAtCompletion = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
     evidence.builtRuntimeIndexSha256AtCompletion = createHash('sha256').update(await readFile(`${root}/functions/lib/index.js`)).digest('hex');
-    evidence.sourceChangedDuringProof = evidence.sourceCommitAtCompletion !== sourceCommit || evidence.builtRuntimeIndexSha256AtCompletion !== builtRuntimeIndexSha256;
+    evidence.presentationReadinessSourceSha256AtCompletion = await presentationReadinessSourceHashes(root);
+    evidence.presentationReadinessSourceChangedDuringProof = JSON.stringify(evidence.presentationReadinessSourceSha256AtCompletion) !== JSON.stringify(presentationSourceHashes);
+    evidence.sourceChangedDuringProof = evidence.sourceCommitAtCompletion !== sourceCommit ||
+      evidence.builtRuntimeIndexSha256AtCompletion !== builtRuntimeIndexSha256 || evidence.presentationReadinessSourceChangedDuringProof;
     await writeFile(`${directory}/failure.json`, `${JSON.stringify({ ...evidence, status: 'failed', stage, message: error.message, rolesVisited: roleSurfaces, roleSurfaceCount: roleSurfaces.length, states, transitions, calls, requests, errors, remoteRequests }, null, 2)}\n`);
     console.error(JSON.stringify({ status: 'failed', stage, message: error.message, directory }));
     throw error;

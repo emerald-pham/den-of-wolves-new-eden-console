@@ -150,3 +150,111 @@ export async function completeOfferedTurnAdvance(options) {
   }
   throw new Error(`Offered normal turn advance did not commit: ${JSON.stringify(current)}`);
 }
+
+const FULL_GAME_PRESENTATION_BUDGET_MS = 60_000;
+const PRESENTATION_ACTOR_FIELDS = [
+  'sessionId', 'uidHash', 'playerRole', 'profileRoleId', 'assignedRoleId',
+  'activeConsoleRoleId', 'instanceId', 'gmInstanceOwned',
+];
+
+function assertPresentationActor(current, expected, name) {
+  assert.ok(current && typeof current === 'object', `${name}: the current authenticated actor snapshot is required.`);
+  for (const field of PRESENTATION_ACTOR_FIELDS) {
+    assert.ok(Object.hasOwn(expected, field), `${name}: the original ${field} must be captured before start.`);
+    assert.equal(current[field] ?? null, expected[field] ?? null, `${name}: original ${field} must remain unchanged.`);
+  }
+  assert.equal(current.hasAuth, true, `${name}: the original account must remain authenticated.`);
+  assert.equal(current.sameActor, true, `${name}: the SDK account must remain the current session actor.`);
+  assert.equal(current.connection, 'live', `${name}: a live actor projection is required.`);
+  assert.equal(current.freshness, 'server', `${name}: a server-fresh actor projection is required.`);
+}
+
+/**
+ * Waits for the real Cycle 1 transmission and any real held briefing to leave
+ * both original browser surfaces. The helper has no mutation/clearance path.
+ */
+export async function waitForFullGamePresentationReady(options) {
+  const { actors, expectedAnnouncement } = options ?? {};
+  assert.ok(Array.isArray(actors) && actors.length === 2,
+    'Readiness must cover the original GM and one original crew browser.');
+  assert.ok(expectedAnnouncement && Number.isSafeInteger(expectedAnnouncement.turn) && expectedAnnouncement.turn >= 1);
+  assert.ok(Number.isSafeInteger(expectedAnnouncement.revision) && expectedAnnouncement.revision >= 0);
+  assert.equal(actors.filter(actor => actor?.expected?.playerRole === 'gm').length, 1);
+  assert.equal(actors.filter(actor => actor?.expected?.playerRole === 'player').length, 1);
+  assert.equal(new Set(actors.map(actor => actor?.expected?.uidHash)).size, 2,
+    'The original GM and crew must remain separate authenticated accounts.');
+  for (const actor of actors) {
+    assert.ok(typeof actor?.name === 'string' && actor.name.length > 0);
+    assert.ok(typeof actor?.inspect === 'function');
+    assert.ok(typeof actor?.paintTwoFrames === 'function', 'Each real page must provide two browser paint frames.');
+  }
+
+  const now = options.now ?? Date.now;
+  const wait = options.wait ?? (() => delay(100));
+  const startedAt = now();
+  const deadline = startedAt + FULL_GAME_PRESENTATION_BUDGET_MS;
+  const announcementSeen = new Set();
+  const transmissionSeen = new Set();
+  let current = [];
+
+  async function inspectAll() {
+    const snapshots = await Promise.all(actors.map(async actor => {
+      const snapshot = await actor.inspect();
+      assertPresentationActor(snapshot, actor.expected, actor.name);
+      assert.equal(snapshot.cycle, expectedAnnouncement.turn,
+        `${actor.name}: the original current-cycle presentation must be inspected.`);
+      assert.ok(snapshot.announcementTurn === null || Number.isSafeInteger(snapshot.announcementTurn),
+        `${actor.name}: the server transmission turn must be explicit.`);
+      assert.ok(snapshot.announcementRevision === null || Number.isSafeInteger(snapshot.announcementRevision),
+        `${actor.name}: the server transmission revision must be explicit.`);
+      for (const field of ['naturalTransmissionMounted', 'ordinaryBriefingMounted', 'ordinaryBriefingHeld'])
+        assert.equal(typeof snapshot[field], 'boolean', `${actor.name}: ${field} must be observed from the actual page/server state.`);
+      if (snapshot.announcementTurn !== null && snapshot.announcementTurn !== undefined) {
+        assert.equal(snapshot.announcementTurn, expectedAnnouncement.turn,
+          `${actor.name}: a different server transmission appeared during readiness.`);
+        assert.equal(snapshot.announcementRevision, expectedAnnouncement.revision,
+          `${actor.name}: the original server transmission revision must remain unchanged.`);
+        announcementSeen.add(actor);
+      } else {
+        assert.equal(announcementSeen.has(actor), false,
+          `${actor.name}: the server transmission marker disappeared before readiness.`);
+      }
+      if (snapshot.naturalTransmissionMounted === true) transmissionSeen.add(actor);
+      return snapshot;
+    }));
+    return snapshots;
+  }
+
+  const stillPresented = snapshot => snapshot.naturalTransmissionMounted === true ||
+    snapshot.ordinaryBriefingMounted === true || snapshot.ordinaryBriefingHeld === true;
+
+  while (now() < deadline) {
+    current = await inspectAll();
+    if (now() >= deadline) break;
+    const markerReady = actors.every(actor => announcementSeen.has(actor));
+    if (!markerReady || current.some(stillPresented) ||
+        !actors.every(actor => transmissionSeen.has(actor))) {
+      await wait();
+      continue;
+    }
+
+    await Promise.all(actors.map(actor => actor.paintTwoFrames()));
+    if (now() >= deadline) break;
+    current = await inspectAll();
+    if (now() >= deadline) break;
+    if (current.every(snapshot => !stillPresented(snapshot)) &&
+        actors.every(actor => announcementSeen.has(actor) && transmissionSeen.has(actor))) {
+      return { status: 'ready', actorCount: actors.length, originalActorsConfirmed: true,
+        naturalTransmissionObservedAndDetached: true, heldBriefingDetached: true,
+        paintFramesPerActor: 2, elapsedMs: now() - startedAt };
+    }
+    await wait();
+  }
+
+  throw new Error(`The original GM and crew presentation did not detach within the fixed 60-second readiness budget: ${JSON.stringify(current.map(snapshot => ({
+    cycle: snapshot.cycle, announcementTurn: snapshot.announcementTurn,
+    naturalTransmissionMounted: snapshot.naturalTransmissionMounted,
+    ordinaryBriefingMounted: snapshot.ordinaryBriefingMounted,
+    ordinaryBriefingHeld: snapshot.ordinaryBriefingHeld,
+  })))}`);
+}
