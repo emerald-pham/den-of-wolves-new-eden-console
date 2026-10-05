@@ -223,8 +223,8 @@ test('the observer uses the protocol session and rejects unavailable durable bod
 });
 
 test('a same original callable completed across reload retains its durable HTTP200 body', async () => {
-  const { actor, page, commands, start, respond, finish, completeNavigation, durableBodyReadCount,
-    durableBodyReadAfterNavigationCount } = await cdpCallableObservationActor();
+  const fixture = await cdpCallableObservationActor();
+  const { actor, page, commands, start, respond, finish, completeNavigation } = fixture;
   const requestId = start('during-reload');
   respond(requestId);
   let releaseReload;
@@ -245,8 +245,8 @@ test('a same original callable completed across reload retains its durable HTTP2
     'Configure durable messages after Network.enable so its default reset cannot disable them.');
   assert.ok(Number.isSafeInteger(commands[durableIndex].parameters.maxTotalBufferSize) &&
     commands[durableIndex].parameters.maxTotalBufferSize > 0);
-  assert.equal(durableBodyReadCount, 1);
-  assert.equal(durableBodyReadAfterNavigationCount, 1);
+  assert.equal(fixture.durableBodyReadCount, 1);
+  assert.equal(fixture.durableBodyReadAfterNavigationCount, 1);
   assert.equal(actor.observedCalls.length, 1);
   assert.equal(actor.observedCalls[0].requestFinishedAt !== null, true);
   assert.equal(actor.observedCalls[0].bodyCompletedAt !== null, true);
@@ -393,7 +393,7 @@ test('a completed HTTP200 with missing or malformed protocol body remains an obs
     assert.equal(actor.callableObservationFailures.length, 1);
     assert.equal(actor.callableObservationFailures[0].category, 'response-observation-unavailable');
     assert.equal(actor.callableObservationFailures[0].bodyFailureStage, 'json-parse');
-    assert.equal(JSON.stringify(actor.callableObservationFailures).includes(body), false);
+    if (body) assert.equal(JSON.stringify(actor.callableObservationFailures).includes(body), false);
   }
 });
 
