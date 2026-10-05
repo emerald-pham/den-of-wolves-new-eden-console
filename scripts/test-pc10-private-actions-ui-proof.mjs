@@ -36,6 +36,10 @@ test('optional-loyalty driver routes beacon and intelligence to distinct origina
     'The reported one-action UI state must come from observed disabled controls, not a default claim.');
   assert.match(privateUiProof, /same-UID Wolf action in the same cycle/,
     'A fresh same-UID action attempt must be rejected after reconnect instead of spending a second action.');
+  assert.match(privateUiProof, /assert\.equal\(await beaconAfterReload\.isEnabled\(\), true/,
+    'A fresh mount must attempt a new action so the server-side one-action fence is actually exercised.');
+  assert.doesNotMatch(privateUiProof, /if \(await beaconAfterReload\.isEnabled\(\)\)/,
+    'An optional skipped denial would not prove the authenticated server fence after reconnect.');
   assert.match(privateUiProof, /blockedPhysicalConsoleBranch\(\)/,
     'The proof must preserve the real physical-attendance blocker for console visits.');
   assert.doesNotMatch(privateUiProof, /admin\.firestore|setDoc\(|updateDoc\(|writeBatch\(|runTransaction\(/,
