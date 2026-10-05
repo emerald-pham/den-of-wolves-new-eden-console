@@ -262,3 +262,9 @@ server URL QR generation, matching design, private locally entered Wi-Fi details
 and no assumed cloud-state sync. Read-only license inventory returns reserved
 current rights, dependency terms and unconfirmed asset provenance to the parent;
 no licensing or attribution changes are part of this release.
+
+Corrected `f86c0006` passes exact candidate CI `37256681113`; the initial
+`c8173d91` failure remains preserved. The retry selects the changed unit range.
+Exact-main CI still owns all deploy-range Functions, Rules, typography, ticker,
+render and build gates. Final range whitespace cleanup changes only two handoff
+paragraph breaks; no product or test content changes after the verified repair.

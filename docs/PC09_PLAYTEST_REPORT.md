@@ -210,3 +210,10 @@ The requested licensing inventory is read-only and external at
 README rights language, package-license fields and attributions remain intact.
 The parent resolves any later recognized first-party license and third-party
 carve-outs; this inventory grants no new rights.
+
+Corrected candidate `f86c000624f7f6e204601104e23681b5382f480f` passes
+[CI 37256681113](https://github.com/emerald-pham/den-of-wolves-new-eden-console/actions/runs/37256681113).
+This retry verifies the changed unit-test range; it does not substitute for the
+required exact-main Functions/Rules/rendered gates before production deployment.
+The final full-range whitespace check also replaces two historical handoff
+hard-break spaces with ordinary Markdown paragraphs, preserving their content.
