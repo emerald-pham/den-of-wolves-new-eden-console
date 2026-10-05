@@ -6,6 +6,7 @@ import { resolve } from 'node:path';
 import { readFile, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
+import { projectCandidateWorkspaceReadiness, summarizeCandidateKeyboardTraversal } from './pc10-candidate-manual-ui-geometry.mjs';
 import { runFreshFullGameDemoUi } from './pc10-full-game-demo-ui-proof.mjs';
 import { createTwoBrowserGameplay } from './pc10-two-browser-gameplay.mjs';
 import { completeOfferedTurnAdvance } from './pc10-full-game-demo-proof-helpers.mjs';
@@ -16,6 +17,80 @@ import { CANDIDATE_PROOF_SHIPS as SHIPS, candidateShipRole, candidateProofOption
   candidateEvidenceEnvelope, chooseOfferedRingEngineeringShuttle, waitForCandidateChoice } from './pc10-candidate-proof-helpers.mjs';
 
 const TRACKS = ['reactor', 'jump-drive', 'hydroponics', 'water-reclamation', 'advanced-hydroponics'];
+
+function candidateGeometrySnapshot(element) {
+  const visible = node => !!node.getClientRects().length && getComputedStyle(node).visibility !== 'hidden' &&
+    !node.closest('[aria-hidden="true"], [inert]');
+  const enabled = node => !node.matches(':disabled') && !node.closest('fieldset:disabled');
+  const focusable = root => [...root.querySelectorAll(
+    'a[href],button,input,select,textarea,summary,[tabindex],[contenteditable="true"]')]
+    .filter(node => visible(node) && enabled(node) && node.tabIndex >= 0);
+  const targetKey = (node, index) => {
+    const label = node.labels ? [...node.labels].map(value => value.innerText.trim()).join(' // ') : '';
+    const name = node.getAttribute('aria-label') || label || node.innerText?.trim() || node.textContent?.trim() || '';
+    return `${node.tagName.toLowerCase()}|${node.type || ''}|${name}|${index}`;
+  };
+  const panelTargets = focusable(element);
+  const documentTabStops = focusable(document);
+  const researchGroups = [...element.querySelectorAll('fieldset')].filter(fieldset =>
+    fieldset.querySelector('legend')?.innerText.trim() === 'Choose distinct four-cross research tracks');
+  const researchInputs = researchGroups.flatMap(fieldset => [...fieldset.querySelectorAll('input[type="checkbox"]')]);
+  const researchNames = researchInputs.map(input => input.closest('label')?.innerText.trim() ?? '');
+  const fleetGroupSelectors = [...element.querySelectorAll('select')].filter(select =>
+    [...(select.labels ?? [])].some(label => label.innerText.trim().startsWith('Fleet group')));
+  const visibleWithin = node => visible(node) && element.contains(node);
+  const measure = node => {
+    const rect = node.getBoundingClientRect();
+    return { name: node.getAttribute('aria-label') || node.innerText?.trim() || node.textContent.trim(),
+      x: rect.x, width: rect.width, height: rect.height,
+      disabled: node.disabled === true || node.matches(':disabled'), font: getComputedStyle(node).fontFamily };
+  };
+  const text = element.innerText;
+  const headers = [...text.matchAll(/(?:^|\n)Cycle (\d+) \/\/ candidate revision (\d+)(?=\n|$)/g)];
+  const activeIndex = panelTargets.indexOf(document.activeElement);
+  return {
+    noHorizontalOverflow: document.documentElement.scrollWidth <= innerWidth,
+    controls: [...element.querySelectorAll('button,select,input[type="number"],summary')].filter(visibleWithin).map(measure),
+    checkboxTargets: [...element.querySelectorAll('input[type="checkbox"]')].filter(visibleWithin)
+      .map(node => measure(node.closest('label') ?? node)),
+    text, reducedMotion: matchMedia('(prefers-reduced-motion: reduce)').matches,
+    receiving: text.includes('Receiving current candidate operations…'),
+    headerCount: headers.length, cycle: headers.length === 1 ? Number(headers[0][1]) : null,
+    revision: headers.length === 1 ? Number(headers[0][2]) : null,
+    pathHeadings: [...element.querySelectorAll('article h3')].filter(visible).map(node => node.innerText.trim()),
+    researchGroupVisible: researchGroups.length === 1 && visible(researchGroups[0]),
+    researchTrackNames: researchNames,
+    researchTrackEnabledCount: researchInputs.filter(input => enabled(input)).length,
+    commitResearchButtonCount: researchGroups.length === 1 &&
+      [...researchGroups[0].querySelectorAll('button')].filter(visible).filter(button =>
+        button.innerText.trim() === 'Commit chosen research').length,
+    ringButtons: [...element.querySelectorAll('button')].filter(visible).map(button => ({
+      name: button.innerText.trim(), enabled: enabled(button) && !button.disabled,
+    })).filter(button => button.name.startsWith('Cross Ring // ')),
+    nebulaJumpButtons: [...element.querySelectorAll('button')].filter(visible).map(button => ({
+      name: button.innerText.trim(), enabled: enabled(button) && !button.disabled,
+    })).filter(button => button.name.startsWith('Long jump into Nebula // ')),
+    fleetGroupSelectorCount: fleetGroupSelectors.length,
+    selectedFleetGroup: fleetGroupSelectors.length === 1 ? fleetGroupSelectors[0].value : null,
+    tabStopKeys: panelTargets.map(targetKey), documentTabStopCount: documentTabStops.length,
+    activeTargetKey: activeIndex < 0 ? null : targetKey(panelTargets[activeIndex], activeIndex),
+  };
+}
+
+async function readCandidateSourceState(surface) {
+  return surface.page.evaluate(async moduleUrl => {
+    const { useSessionStore } = await import(moduleUrl);
+    const current = useSessionStore.getState();
+    const session = current.session, me = current.me, instance = current.gmInstance;
+    return { sourceKind: 'candidate-workspace-current-source', sessionId: session?.id ?? null,
+      cycle: session?.currentTurn ?? null, phase: session?.phase ?? null,
+      groupId: me?.fleetGroupId ?? null, shipFleetGroupIds: session?.shipFleetGroupIds ?? {},
+      playerRole: me?.role ?? null, instanceId: instance?.id ?? null,
+      instanceClaimedAt: instance?.claimedAt ?? null,
+      gmInstanceOwned: !!instance && instance.uid === me?.uid && instance.sessionId === session?.id,
+      live: current.connection === 'live' && current.sessionSnapshotFreshness === 'server' };
+  }, surface.storeModuleUrl());
+}
 
 /** All choices below use the current named browser actor and connected controls. */
 export function candidateGameplayTools(context) {
@@ -297,41 +372,137 @@ export function candidateGameplayTools(context) {
     if (await grant.isVisible()) await receipt(gm, 'setGmShipConsoleWriteGrant', () => grant.click());
     return panel;
   }
-  async function candidateGeometry(surface, code, stage) {
+  async function candidateGeometry(surface, code, stage, { readinessTimeoutMs = 30_000 } = {}) {
+    assert.ok(Number.isSafeInteger(readinessTimeoutMs) && readinessTimeoutMs > 0);
     const panel = surface.page.getByRole('region', { name: 'Candidate preparation and actions', exact: true });
     await panel.waitFor();
+    const observedActor = await surface.observe();
+    const originalSource = await readCandidateSourceState(surface);
+    const expectedActor = { ...observedActor, instanceClaimedAt: originalSource.instanceClaimedAt };
+    assert.equal(expectedActor.hasAuth, true, 'Candidate geometry requires the current authenticated browser actor.');
+    assert.equal(expectedActor.sameActor, true, 'Candidate geometry must retain the actor in its live session store.');
+    assert.equal(expectedActor.sessionId, context.initial.sessionId, 'Candidate geometry stays in the originally admitted session.');
+    assert.equal(originalSource.sessionId, context.initial.sessionId);
+    assert.equal(originalSource.live, true);
+    assert.equal(expectedActor.connection, 'live');
+    assert.equal(expectedActor.freshness, 'server');
+    if (expectedActor.playerRole === 'player') {
+      const originalAccount = context.roster.find(actor => actor.roleId === expectedActor.profileRoleId);
+      assert.ok(originalAccount, 'The mounted member must be one of the original named, admitted accounts.');
+      assert.equal(expectedActor.uidHash, originalAccount.uidHash, 'Use the original named member account.');
+    }
+    const groupSelector = panel.getByRole('combobox', { name: 'Fleet group', exact: true });
+    const groupSelectorCount = await groupSelector.count();
+    const expectedGroupId = groupSelectorCount === 1
+      ? await groupSelector.inputValue()
+      : expectedActor.playerRole === 'player'
+        ? originalSource.groupId
+        : originalSource.groupId || [...new Set(Object.values(originalSource.shipFleetGroupIds ?? {}))][0] || 'fleet-1';
+    assert.equal(typeof expectedGroupId, 'string');
+    assert.ok(expectedGroupId.length > 0, 'The current mounted candidate group must be explicit.');
+    const refresh = panel.getByRole('button', { name: 'Refresh candidate operations', exact: true });
+    assert.equal(await refresh.count(), 1, 'One mounted current-report refresh control is required.');
+    assert.equal(await refresh.isVisible(), true);
+    assert.equal(await refresh.isEnabled(), true, 'The live actor must be able to request the current report.');
+    const endpoint = '/us-central1/readCandidateWorkspace';
+    const responsePromise = surface.page.waitForResponse(response => {
+      const request = response.request();
+      if (request.method() !== 'POST' || new URL(response.url()).pathname !== endpoint) return false;
+      let payload;
+      try { payload = request.postDataJSON()?.data; } catch { return false; }
+      return payload?.sessionId === expectedActor.sessionId && payload.expectedGroupId === expectedGroupId &&
+        (expectedActor.playerRole === 'gm'
+          ? payload.instanceId === expectedActor.instanceId
+          : !Object.hasOwn(payload ?? {}, 'instanceId'));
+    }, { timeout: readinessTimeoutMs });
+    await refresh.click({ timeout: readinessTimeoutMs });
+    const response = await responsePromise;
+    assert.equal(response.status(), 200, 'The mounted current-workspace read must return a successful native response.');
+    const envelope = await response.json();
+    const report = envelope?.result;
+    const request = response.request().postDataJSON()?.data;
+    const expectedRequestKeys = expectedActor.playerRole === 'gm'
+      ? ['expectedGroupId', 'instanceId', 'sessionId'] : ['expectedGroupId', 'sessionId'];
+    assert.deepEqual(Object.keys(request ?? {}).sort(), expectedRequestKeys,
+      'The native current-workspace request must retain the actual UI session, group, and owned instance scope.');
+    assert.equal(report?.type, 'candidate-workspace', 'A missing or error native response cannot satisfy readiness.');
+
+    const projectSourceState = source => ({ live: source.live, sessionId: source.sessionId, cycle: source.cycle,
+      phase: source.phase, playerRole: source.playerRole, groupId: source.groupId,
+      instanceId: source.instanceId, instanceClaimedAt: source.instanceClaimedAt,
+      gmInstanceOwned: source.gmInstanceOwned });
+    async function observeReadiness() {
+      const currentActor = await surface.observe();
+      const currentSource = await readCandidateSourceState(surface);
+      const snapshot = await panel.evaluate(candidateGeometrySnapshot);
+      const currentGroupId = snapshot.fleetGroupSelectorCount === 1
+        ? snapshot.selectedFleetGroup
+        : currentSource.groupId || [...new Set(Object.values(currentSource.shipFleetGroupIds ?? {}))][0] || 'fleet-1';
+      const rendered = { ...snapshot, currentGroupId };
+      const decision = projectCandidateWorkspaceReadiness({ expectedActor,
+        currentActor: { ...currentActor, instanceClaimedAt: currentSource.instanceClaimedAt },
+        sourceState: projectSourceState(currentSource), request, report, expectedGroupId, code, stage, rendered });
+      return { decision, rendered, currentSource };
+    }
+    async function waitForReadySource() {
+      const deadline = Date.now() + readinessTimeoutMs;
+      let last;
+      do {
+        last = await observeReadiness();
+        if (last.decision.state === 'ready') return last;
+        if (last.decision.state === 'blocked') {
+          throw new Error(`Candidate workspace source readiness blocked: ${last.decision.reason}`);
+        }
+        if (Date.now() < deadline) await delay(Math.min(100, deadline - Date.now()));
+      } while (Date.now() < deadline);
+      throw new Error(`Candidate workspace source report did not finish rendering: ${last?.decision.reason ?? 'timeout'}`);
+    }
+    const initialReadiness = await waitForReadySource();
     const previous = surface.page.viewportSize();
     const viewports = [];
-    for (const size of [{ width: 320, height: 844 }, { width: 844, height: 390 }, { width: 1440, height: 900 }]) {
-      await surface.page.setViewportSize(size);
-      await panel.scrollIntoViewIfNeeded();
-      const geometry = await panel.evaluate(element => {
-        const visible = node => node.getClientRects().length && getComputedStyle(node).visibility !== 'hidden';
-        const measure = node => { const rect = node.getBoundingClientRect(); return {
-          name: node.getAttribute('aria-label') || node.textContent.trim(), x: rect.x, width: rect.width, height: rect.height,
-          disabled: node.disabled === true, font: getComputedStyle(node).fontFamily,
-        }; };
-        return { noHorizontalOverflow: document.documentElement.scrollWidth <= innerWidth,
-          controls: [...element.querySelectorAll('button,select,input[type="number"],summary')].filter(visible).map(measure),
-          checkboxTargets: [...element.querySelectorAll('input[type="checkbox"]')].filter(visible).map(node => measure(node.closest('label'))),
-          text: element.innerText, reducedMotion: matchMedia('(prefers-reduced-motion: reduce)').matches };
-      });
-      const controls = panel.getByRole('button').and(surface.page.locator(':enabled'));
-      const first = controls.first();
-      let keyboardFocusReached = false;
-      for (let count = 0; count < 50 && !keyboardFocusReached; count++) {
-        await surface.page.keyboard.press('Tab');
-        keyboardFocusReached = await panel.evaluate(element => element.contains(document.activeElement));
+    try {
+      for (const size of [{ width: 320, height: 844 }, { width: 844, height: 390 }, { width: 1440, height: 900 }]) {
+        await surface.page.setViewportSize(size);
+        await panel.scrollIntoViewIfNeeded();
+        const beforeTraversal = await waitForReadySource();
+        const geometry = beforeTraversal.rendered;
+        const intendedTargets = [...geometry.tabStopKeys];
+        const tabPressLimit = geometry.documentTabStopCount + 1;
+        const visitedTargets = new Set();
+        let tabPresses = 0;
+        while (visitedTargets.size < intendedTargets.length && tabPresses < tabPressLimit) {
+          await surface.page.keyboard.press('Tab');
+          tabPresses++;
+          const snapshot = await panel.evaluate(candidateGeometrySnapshot);
+          assert.deepEqual(snapshot.tabStopKeys, intendedTargets,
+            'The current enabled panel tab stops must stay stable during native keyboard traversal.');
+          if (snapshot.activeTargetKey) visitedTargets.add(snapshot.activeTargetKey);
+        }
+        const keyboardTraversal = summarizeCandidateKeyboardTraversal({
+          documentTabStopCount: geometry.documentTabStopCount, intendedTargets,
+          visitedTargets: [...visitedTargets], tabPresses, programmaticFocusUsed: false,
+        });
+        const afterTraversal = await waitForReadySource();
+        assert.deepEqual(afterTraversal.decision, initialReadiness.decision,
+          'The same original actor, current cycle, source revision, and native path must remain mounted through Tab traversal.');
+        viewports.push({ ...size,
+          noHorizontalOverflow: geometry.noHorizontalOverflow, controls: geometry.controls,
+          checkboxTargets: geometry.checkboxTargets, text: geometry.text, reducedMotion: geometry.reducedMotion,
+          readiness: afterTraversal.decision, keyboardFocusReached: keyboardTraversal.allEnabledTargetsReached,
+          keyboardTraversal });
+        await surface.page.screenshot({ path: `${directory}/${code}-${stage}-${size.width}x${size.height}.png` });
+        const afterScreenshot = await waitForReadySource();
+        assert.deepEqual(afterScreenshot.decision, initialReadiness.decision,
+          'Source actor, cycle, report revision, and candidate path must still match after capture.');
       }
-      if (await first.isVisible()) await first.scrollIntoViewIfNeeded();
-      viewports.push({ ...size, ...geometry, keyboardFocusReached });
-      await surface.page.screenshot({ path: `${directory}/${code}-${stage}-${size.width}x${size.height}.png` });
+      assert.ok(viewports.every(value => value.noHorizontalOverflow && value.keyboardFocusReached), 'Actual candidate choices must fit and be keyboard reachable.');
+      assert.ok(viewports.every(value => [...value.controls, ...value.checkboxTargets].every(control => control.height >= 43.99)), 'Actual candidate controls and research activation targets must retain their mandatory 44px targets.');
+      await writeFile(`${directory}/${code}-${stage}-geometry.json`, `${JSON.stringify(viewports, null, 2)}\n`);
+    } finally {
+      if (previous) await surface.page.setViewportSize(previous);
     }
-    if (previous) await surface.page.setViewportSize(previous);
-    await writeFile(`${directory}/${code}-${stage}-geometry.json`, `${JSON.stringify(viewports, null, 2)}\n`);
-    assert.ok(viewports.every(value => value.noHorizontalOverflow && value.keyboardFocusReached), 'Actual candidate choices must fit and be keyboard reachable.');
-    assert.ok(viewports.every(value => [...value.controls, ...value.checkboxTargets].every(control => control.height >= 43.99)), 'Actual candidate controls and research activation targets must retain their mandatory 44px targets.');
     await record('actual candidate controls/costs/blockers/next actor at three viewports', { candidateCode: code, stage,
+      sourceReadiness: initialReadiness.decision,
       checkboxTargetShortfalls: viewports.flatMap(value => value.checkboxTargets.filter(target => target.height < 43.99).map(target => ({ width: value.width, name: target.name, height: target.height }))) });
   }
   async function complete(code) {
