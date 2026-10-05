@@ -2952,7 +2952,7 @@ it.each([
   streamInstances([local]);
   const rendered = renderConsole();
   await user.click(await screen.findByRole('button', { name: /^setup$/i }));
-  const trigger = screen.getByRole('button', { name: triggerName, exact: true });
+  const trigger = screen.getByRole('button', { name: triggerName });
   await user.click(trigger);
   const dialog = screen.getByRole('alertdialog', { name: dialogName });
   expect(document.body).toContainElement(dialog);

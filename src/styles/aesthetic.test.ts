@@ -828,7 +828,7 @@ it('keeps ordinary and replacement GM casting choices at the shared touch target
   const css = readFileSync('src/index.css', 'utf8');
   const style = document.createElement('style');
   style.textContent = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
-    .filter((match) => match[1].split(',').some((selector) => selector.trim() === '.gm-casting-board__assign select'))
+    .filter((match) => (match[1] ?? '').split(',').some((selector) => selector.trim() === '.gm-casting-board__assign select'))
     .map((match) => `${match[1]}{${match[2]}}`).join('\n');
   const board = document.createElement('section');
   board.innerHTML = '<div class="gm-casting-board__assign"><select aria-label="Role for demo actor"><option>Admiral</option></select></div>';
