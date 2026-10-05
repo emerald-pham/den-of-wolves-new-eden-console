@@ -657,6 +657,28 @@ async function clearComposedBriefing(composition: Awaited<ReturnType<typeof comp
 describe('Prompt 020 production lobby-to-Team-Phase composition', () => {
   beforeEach(() => mock.reset());
 
+  it('advances ordinary Team phases after a Ring-consumed Engineering Shuttle is permanently removed', async () => {
+    const composition = await composeProductionSession(19);
+    await clearComposedBriefing(composition);
+    const sessionPath = `sessions/${composition.sessionId}`;
+    const session = read(sessionPath) as StoredDocument;
+    // Native counterexample: only the committed consumption authority is prepared;
+    // the complete lobby/start and subsequent turn mutation are real handlers.
+    expect(session.shuttleDockings).toEqual(expect.arrayContaining([expect.objectContaining({ shuttleId: 'blacksmith' })]));
+    session.candidateCraftReservations = { blacksmith: { code: 'N', groupId: 'fleet-1', coordinate: '3232',
+      sourceId: 'ring-engineering-contribution', cycle: 1 } };
+    session.shuttleDockings = (session.shuttleDockings as StoredDocument[])
+      .filter(docking => docking.shuttleId !== 'blacksmith');
+    const retainedDockings = structuredClone(session.shuttleDockings);
+    const command = { sessionId: composition.sessionId, instanceId: composition.startRequest.instanceId,
+      requestId: 'advance-after-ring-consumption', expectedTurn: 1, overridePhaseTimer: true,
+      skipTurnStartAnnouncement: true };
+    const result = await advanceTurn.run(request(command, composition.ownerUid));
+    expect(result).toMatchObject({ currentTurn: 2 });
+    expect(read(sessionPath)?.shuttleDockings).toEqual(retainedDockings);
+    expect(read(sessionPath)?.candidateCraftReservations).toEqual(session.candidateCraftReservations);
+  });
+
   it('parks a travelling shuttle atomically when the ordinary airspace deadline catches up at advanceTurn', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-09-23T16:00:00.000Z'));
