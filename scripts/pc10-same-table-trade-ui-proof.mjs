@@ -277,10 +277,8 @@ async function block(context, evidence, reason) {
 }
 
 async function recordBaseline({
-  game,
   gm,
   gmIdentity,
-  targetRoleId,
   targetRosterEntry,
   targetIdentity,
   balances,
@@ -335,7 +333,6 @@ async function createOffer({
   surface,
   actor,
   scenario,
-  recipientRoleId,
   recipientRosterEntry,
   recipientIdentity,
   initial,
