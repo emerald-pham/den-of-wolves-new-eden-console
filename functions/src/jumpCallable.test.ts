@@ -22,6 +22,7 @@ const mock = vi.hoisted(() => ({
   connected: true,
   currentTurn: 1,
   phase: 'active',
+  candidateVesselOutcomes: {} as Record<string, unknown>,
   gameOutcome: undefined as Record<string, unknown> | undefined,
   chartId: 'A',
   chartLocked: true,
@@ -211,6 +212,7 @@ beforeEach(() => {
   mock.connected = true;
   mock.currentTurn = 1;
   mock.phase = 'active';
+  mock.candidateVesselOutcomes = {};
   mock.gameOutcome = undefined;
   mock.chartId = 'A';
   mock.chartLocked = true;
@@ -444,6 +446,7 @@ beforeEach(() => {
           },
           shipSurvivors: mock.survivors,
           shipDamage: mock.damage,
+          candidateVesselOutcomes: mock.candidateVesselOutcomes,
           shipUpgrades: mock.upgrades,
           shipJumpStates: mock.jumpStates,
           systemHistory: mock.systemHistory,
@@ -1535,6 +1538,7 @@ it('rejects Coordination jumps while the server phase is Team', async () => {
           shipGalacticCoordinates: { aegis: mock.coordinate },
           shipResources: { aegis: { ore: 0, fuel: mock.fuel, food: 8, water: 6, materials: 1, securityTeams: 9 } },
           shipDamage: mock.damage,
+          candidateVesselOutcomes: mock.candidateVesselOutcomes,
           shipUpgrades: mock.upgrades,
           shipJumpStates: mock.jumpStates,
           maintenanceCycles: { aegis: { turn: mock.currentTurn, charges: mock.charges, results: {} } },
@@ -3050,4 +3054,15 @@ it('publishes remaining pursuit-emergency authority after a host jump and clears
   await jumpShip.run(request({ ...data, requestId: 'resolved-window-projection', destination: '5143' }));
   const resolved = mock.set.mock.calls.find(([path]) => path === 'sessions/s1/gmDiscovery/current')?.[1];
   expect(resolved).toHaveProperty('pursuitEmergencyWindow', 'delete-field');
+});
+
+
+it.each(['jump', 'move'])('denies a fresh ordinary GM %s for a settled vessel while another group remains active', async kind => {
+  mock.candidateVesselOutcomes = { aegis: { code: 'N', groupId: 'fleet-1', shipId: 'aegis',
+    sourceId: 'candidate-n-3232', cycle: 1, outcome: 'left-behind' } };
+  const handler = kind === 'jump' ? jumpShip : moveShipToLocation;
+  await expect(handler.run(request({ ...data, destination: '5143' }))).rejects.toMatchObject({
+    code: 'failed-precondition', message: expect.stringContaining('candidate disposition'),
+  });
+  expect(mock.update).not.toHaveBeenCalled(); expect(mock.set).not.toHaveBeenCalled();
 });

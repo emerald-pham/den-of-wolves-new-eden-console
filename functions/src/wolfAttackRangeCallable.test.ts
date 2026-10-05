@@ -2968,3 +2968,14 @@ it('acknowledges the same committed fatal Ace action without rolling or applying
   expect([...testState.documents]).toEqual(saved);
   expect(entropy.randomInt).toHaveBeenCalledTimes(3);
 });
+
+
+it('denies a fresh combat action from a settled AEGIS while another group is active', async () => {
+  testState.documents.get('sessions/s1')!.candidateVesselOutcomes = { aegis: { code: 'O', groupId: 'fleet-1', shipId: 'aegis',
+    sourceId: 'candidate-o-3131', cycle: 1, outcome: 'reached' } };
+  await expect(commitWolfRangeActionChoice.run(request({ sessionId: 's1', requestId: 'settled-combat',
+    expectedTurn: 1, expectedRevision: 4, range: 'long-range', actionIds: [] }))).rejects.toMatchObject({
+    code: 'failed-precondition', message: expect.stringContaining('candidate disposition'),
+  });
+  expect(testState.update).not.toHaveBeenCalled(); expect(testState.set).not.toHaveBeenCalled();
+});

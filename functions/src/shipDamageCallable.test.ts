@@ -5,6 +5,7 @@ const mock = vi.hoisted(() => ({
   get: vi.fn(), update: vi.fn(), set: vi.fn(), delete: vi.fn(), role: 'gm', owner: 'u1', connected: true,
   grantShip: 'aegis',
   phase: 'active',
+  candidateVesselOutcomes: {} as Record<string, unknown>,
   activeVesselIds: ['aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124', 'capybara'] as string[],
   vesselActionRevisions: {} as Record<string, number>,
   currentTurn: 1,
@@ -47,6 +48,7 @@ beforeEach(() => {
   mock.owner = 'u1';
   mock.grantShip = 'aegis';
   mock.phase = 'active';
+  mock.candidateVesselOutcomes = {};
   mock.activeVesselIds = ['aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124', 'capybara'];
   mock.vesselActionRevisions = {};
   mock.currentTurn = 1;
@@ -93,6 +95,7 @@ beforeEach(() => {
           phase: mock.phase,
           vesselActionRevisions: mock.vesselActionRevisions,
           shipDamage: mock.damage,
+          candidateVesselOutcomes: mock.candidateVesselOutcomes,
           shipSurvivors: mock.survivors,
           shuttleDockings: mock.shuttleDockings,
           shuttleControl: mock.shuttleControl,
@@ -598,6 +601,7 @@ it('does not advance or emit another catastrophe when a destroyed ship is drawn 
         : {
           activeVesselIds: ['aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124', 'capybara'],
           shipDamage: mock.damage,
+          candidateVesselOutcomes: mock.candidateVesselOutcomes,
         };
     return { exists: true, get: (key: string) => fields[key] };
   });
@@ -904,4 +908,19 @@ it('rejects damage and repair mutations after pursuit failure without writing', 
     .rejects.toMatchObject({ code: 'failed-precondition', message: expect.stringMatching(/endgame evaluation/i) });
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();
+});
+
+
+it('denies new ordinary GM damage and repairs for a settled vessel while the fleet remains active', async () => {
+  const { repairAllShipDamage } = await import('./index');
+  mock.candidateVesselOutcomes = { aegis: { code: 'O', groupId: 'fleet-1', shipId: 'aegis',
+    sourceId: 'candidate-o-3131', cycle: 1, outcome: 'reached' } };
+  await expect(addShipDamage.run(request(data))).rejects.toMatchObject({
+    code: 'failed-precondition', message: expect.stringContaining('candidate disposition'),
+  });
+  await expect(repairAllShipDamage.run(request(data))).rejects.toMatchObject({
+    code: 'failed-precondition', message: expect.stringContaining('candidate disposition'),
+  });
+  expect(mock.update).not.toHaveBeenCalled(); expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.randomInt).not.toHaveBeenCalled();
 });
