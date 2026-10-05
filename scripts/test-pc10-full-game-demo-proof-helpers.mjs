@@ -6,6 +6,36 @@ const expected = { baseUrl: 'http://127.0.0.1:5174', projectId: 'demo-pc10-owner
   ports: { auth: 9109, functions: 5011, firestore: 8090 } };
 const runtime = { projectId: expected.projectId, useEmulators: true, ports: expected.ports };
 
+test('full-game start recovery accepts only the exact original committed receipt', async () => {
+  const { assertExactFullGameStartRecovery } = await import('./pc10-full-game-demo-proof-helpers.mjs');
+  const payload = { sessionId: 'fresh-session', instanceId: 'live-gm-instance', requestId: 'actual-ui-request',
+    expectedSetupRevision: 2, fullGameDemo: true };
+  const original = { status: 'committed', sessionId: payload.sessionId, requestId: payload.requestId,
+    currentTurn: 1, setupRevision: 2, serverTime: '2026-10-05T12:00:00.000Z' };
+  assert.doesNotThrow(() => assertExactFullGameStartRecovery({ payload, original,
+    replay: { ...original, status: 'replayed' }, expected: payload }));
+});
+
+test('a denied, replaced or different full-game start never earns recovery credit', async () => {
+  const { assertExactFullGameStartRecovery } = await import('./pc10-full-game-demo-proof-helpers.mjs');
+  assert.equal(typeof assertExactFullGameStartRecovery, 'function');
+  const payload = { sessionId: 'fresh-session', instanceId: 'live-gm-instance', requestId: 'actual-ui-request',
+    expectedSetupRevision: 2, fullGameDemo: true };
+  const original = { status: 'committed', sessionId: payload.sessionId, requestId: payload.requestId,
+    currentTurn: 1, setupRevision: 2 };
+  const replay = { ...original, status: 'replayed' };
+  for (const invalid of [
+    { payload: { ...payload, fullGameDemo: false } },
+    { payload: { ...payload, expectedSetupRevision: -1 } },
+    { payload: { ...payload, instanceId: 'foreign-instance' } },
+    { original: { ...original, status: 'replayed' } },
+    { replay: { ...replay, requestId: 'another-request' } },
+    { replay: { ...replay, currentTurn: 2 } },
+    { replay: { ...replay, setupRevision: 3 } },
+    { replay: { ...replay, status: 'committed' } },
+  ]) assert.throws(() => assertExactFullGameStartRecovery({ payload, original, replay, expected: payload, ...invalid }));
+});
+
 test('validates only the explicitly owned isolated runtime', () => {
   assert.deepEqual(validateProofRuntime(runtime, expected), runtime);
   for (const changed of [{ ...runtime, projectId: 'dow-new-eden-console' },
