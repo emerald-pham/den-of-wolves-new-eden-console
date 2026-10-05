@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {mkdir, readFile, readdir, writeFile} from 'node:fs/promises';
+import {mkdir, readdir, writeFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {preview} from 'vite';
 import {chromium} from 'playwright';
@@ -16,9 +16,11 @@ const address = server.httpServer.address();
 assert.ok(address && typeof address !== 'string');
 const origin = `http://127.0.0.1:${address.port}`;
 const browser = await chromium.launch({headless: true});
+let currentProofPage;
 const stamp = '2026-01-01T00:00:00.000Z';
-const fixture = {session: {id: 'pc09-prepared-lazy', name: 'Prepared loading check', phase: 'lobby',
-  currentTurn: 0, ownerUid: 'pc09-prepared-lazy-player', createdAt: stamp, updatedAt: stamp},
+const fixture = {session: {id: 'pc09-prepared-lazy', name: 'Prepared loading check', phase: 'active',
+  currentTurn: 3, ownerUid: 'pc09-prepared-lazy-player', createdAt: stamp, updatedAt: stamp,
+  activeRoleIds: ['admiral'], activeVesselIds: ['aegis']},
   me: {uid: 'pc09-prepared-lazy-player', sessionId: 'pc09-prepared-lazy', displayName: 'Prepared player',
     role: 'player', seatId: 'admiral', assignedRoleId: 'admiral', activeConsoleRoleId: 'admiral', joinedAt: stamp},
   seats: [], gmInstance: null, gmAccessAuthenticatedAt: null, pendingCommands: [], mode: 'console',
@@ -39,7 +41,7 @@ async function contextFor(viewport, prepared = false) {
     const url = new URL(route.request().url());
     if (url.origin !== origin) {
       result.blockedRemoteRequests.push({origin: url.origin, reason: 'prepared proof network boundary'});
-      return route.abort();
+      return route.abort('internetdisconnected');
     }
     if (url.pathname === `/assets/${shipEntry}`) {
       if (!prepared) result.landingShipRequests += 1;
@@ -62,11 +64,13 @@ try {
   for (const viewport of [{width: 390, height: 844}, {width: 1440, height: 900}, {width: 844, height: 390}]) {
     const context = await contextFor(viewport, true);
     const current = await context.newPage();
+    currentProofPage = current;
     current.on('pageerror', error => result.pageErrors.push(error.message));
     await current.goto(`${origin}/#/ships/aegis/roles/admiral`, {waitUntil: 'domcontentloaded'});
     const loading = current.locator('main').filter({hasText: 'Opening ship console…'});
     await loading.waitFor({state: 'visible'});
-    const back = loading.getByRole('link', {name: 'Back to stations', exact: true});
+    // Existing CSS uppercases the label and adds a decorative return arrow.
+    const back = loading.getByRole('link', {name: /^(?:←\s*)?Back to stations$/i});
     const geometry = await back.evaluate(node => {
       const rect = node.getBoundingClientRect();
       return {width: rect.width, height: rect.height, font: getComputedStyle(node).fontFamily,
@@ -90,6 +94,15 @@ try {
   result.completedAt = new Date().toISOString();
   await writeFile(`${evidence}/result.json`, JSON.stringify(result, null, 2)+'\n');
   console.log(`PASS deferred ship route: landing isolation and ${result.cases.length} prepared loading/keyboard Back viewports. Remote requests are blocked; this is not authenticated gameplay.`);
+} catch (error) {
+  if (currentProofPage && !currentProofPage.isClosed()) {
+    result.failure = {message: error.message, url: currentProofPage.url(),
+      visibleText: await currentProofPage.locator('body').innerText(),
+      fixtureState: await currentProofPage.evaluate(() => localStorage.getItem('dow-new-eden-session'))};
+    await currentProofPage.screenshot({path: `${evidence}/failure.png`});
+  }
+  await writeFile(`${evidence}/failure.json`, JSON.stringify(result, null, 2)+'\n');
+  throw error;
 } finally {
   await browser.close();
   await new Promise(done => server.httpServer.close(done));
