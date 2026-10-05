@@ -204,7 +204,7 @@ test('invalid table contract option is rejected before any browser or fixture re
 });
 
 
-test('the original strict cohort helper retains SDK/document and readonly authority evidence without enabling a limitation', async () => {
+async function presenceTableNativeFixture({ functional = false } = {}) {
   const roles = [roleId, 'refinery-124-pdf-colonel'], events = [], actorIds = ['original-core-one', 'original-core-two'];
   const values = new Map([[`sessions/${sessionId}`, { phase: 'active', currentTurn: 1, activeRoleIds: roles }]]);
   for (const [index, role] of roles.entries()) {
@@ -240,15 +240,15 @@ test('the original strict cohort helper retains SDK/document and readonly author
     assertPc10PresenceCohortWitnesses: implementation.assertPc10PresenceCohortWitnesses,
     evaluatePc10PresenceInstrumentationContract: implementation.evaluatePc10PresenceInstrumentationContract,
     createPc10BrowserActor: async (_browser, _url, label, _viewport, options) => {
-      assert.equal(options.presenceFunctionalContract, undefined);
+      assert.equal(options.presenceFunctionalContract, functional ? option : undefined);
       const invocationByReply = new WeakMap(), invocations = [];
       return { label, errors: [], observedCalls: [], callableObservationFailures: [], callableObservationBoundaries: [],
         identityObservations: [], explicitSdkInvocations: invocations, join: async () => undefined, bindOriginIdentity: () => undefined,
         callable: async (name, data, witnessOptions) => {
           assert.equal(name, 'refreshPresence'); assert.equal(data.sessionId, sessionId);
-          assert.equal(witnessOptions?.retainPresenceAuthority, true, 'Strict cohort requests evidence without enabling an exception');
+          if (!functional) assert.equal(witnessOptions?.retainPresenceAuthority, true, 'Strict cohort requests evidence without enabling an exception');
           const startedAt = Date.now(); events.push(`original-sdk-${label}`); issued++; if (issued === roles.length) release();
-          await parallelGate; const committedAt = Date.now();
+          if (issued <= roles.length) await parallelGate; const committedAt = Date.now();
           const actorId = actorIds[roles.indexOf(label)];
           values.get(`sessions/${sessionId}/players/${actorId}`).lastSeenAt = { toMillis: () => committedAt };
           values.get(`activeMemberships/${actorId}`).connectedAt = { toMillis: () => committedAt };
@@ -259,8 +259,14 @@ test('the original strict cohort helper retains SDK/document and readonly author
       };
     },
   });
-  const table = await create({ baseUrl: 'http://localhost:5173', directory: '/native-fixture-no-writes', coreCount: 2, captureMode: 'native-durable' });
-  const replies = await table.renewPresenceCohort(roles); assert.equal(replies.length, 2); assert.equal(issued, 2);
+  const table = await create({ baseUrl: 'http://localhost:5173', directory: '/native-fixture-no-writes', coreCount: 2, captureMode: 'native-durable',
+    ...(functional ? { presenceFunctionalContract: option } : {}) });
+  return { table, roles, events, values, actorIds, issued: () => issued };
+}
+
+test('the original strict cohort helper retains SDK/document and readonly authority evidence without enabling a limitation', async () => {
+  const { table, roles, events, actorIds, issued: issuedCalls } = await presenceTableNativeFixture();
+  const replies = await table.renewPresenceCohort(roles); assert.equal(replies.length, 2); assert.equal(issuedCalls(), 2);
   assert.deepEqual(events, ['authority-read', `original-sdk-${roles[0]}`, `original-sdk-${roles[1]}`, 'authority-read']);
   const evidence = await table.writeEvidence('native-cohort-no-writes.json');
   assert.equal(evidence.presenceSdkRenewals.length, 2); assert.equal(evidence.presenceAuthoritySnapshots.length, 4);
@@ -343,4 +349,20 @@ test('readonly witness detects canonical roster removal while the stale player a
   const [value] = await api('capturePc10PresenceAuthority')({ db: f.db, project, emulatorHost: '127.0.0.1:8180', sessionId,
     actors: [{ roleId, actorUid: uid }], now: () => 1500 });
   assert.equal(value.ownStationAuthority, true); assert.equal(value.configuredRoleMatches, false); privateAbsent(value);
+});
+
+
+test('functional renewals use fresh scoped points across source-legitimate reload generation changes without adding commands', async () => {
+  const { table, roles, values, actorIds } = await presenceTableNativeFixture({ functional: true });
+  await table.renewPresenceCohort(roles);
+  for (const id of actorIds) values.get(`sessions/${sessionId}/players/${id}`).connectionGeneration = 3;
+  const originals = await Promise.all(roles.map(role => table.command(role, 'refreshPresence', { activeConsoleRoleId: role })));
+  assert.ok(originals.every(value => value.status === 200));
+  const evidence = await table.writeEvidence('native-generation-no-writes.json');
+  assert.equal(evidence.actions.length, 4, 'Only the four original commanded SDK renewals were issued');
+  assert.deepEqual(Array.from(evidence.presenceSdkRenewals, value => value.generationBefore), [2, 2, 3, 3]);
+  assert.ok(evidence.presenceAuthoritySnapshots.some(value => value.generation === 2));
+  assert.ok(evidence.presenceAuthoritySnapshots.some(value => value.generation === 3));
+  assert.equal(evidence.presenceFunctionalAssessment.hardFailures.length, 0);
+  await table.cleanup();
 });
