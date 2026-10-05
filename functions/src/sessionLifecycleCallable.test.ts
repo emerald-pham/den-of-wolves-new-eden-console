@@ -473,6 +473,22 @@ describe('presence lease', () => {
     });
   });
 
+  it('reconciles a passive non-Press lease without locking every other player or private census', async () => {
+    session();
+    player();
+    const prior = mock.Timestamp.fromMillis(NOW.getTime() - PRESENCE_RECONCILIATION_INTERVAL_MS - 1);
+    put('sessions/s1/presenceReconciliations/u1', { lastFullReconciliationAt: prior });
+
+    await expect(refreshPresence.run(request({ sessionId: 's1' }))).resolves.toEqual({ sessionId: 's1' });
+
+    expect(readPaths()).not.toContain('sessions/s1/players');
+    expect(readPaths()).not.toContain('sessions/s1/secrets');
+    expect(readPaths()).not.toContain('sessions/s1/loyaltyCensus/current');
+    expect(read('sessions/s1/presenceReconciliations/u1')?.lastFullReconciliationAt).not.toBe(prior);
+    expect(read('sessions/s1/players/u1')).toMatchObject({ connected: true, lastSeenAt: 'server-time' });
+    expect(read('activeMemberships/u1')).toMatchObject({ sessionId: 's1' });
+  });
+
   it('performs full reconciliation once the marker interval elapses', async () => {
     session();
     player();

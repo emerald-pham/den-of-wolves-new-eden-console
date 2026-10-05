@@ -38,6 +38,13 @@ it('reads live membership and state atomically with no caller-selected audience'
   await expect(read(request({ sessionId: 's1', groupId: 'fleet-1' }))).rejects.toMatchObject({ code: 'invalid-argument' });
   await expect(read(request({ sessionId: 's1', viewerShipId: 'aegis' }))).rejects.toMatchObject({ code: 'invalid-argument' });
 });
+it('uses a lock-free consistent transaction for the member projection', async () => {
+  const transaction = vi.spyOn(db, 'runTransaction');
+  try {
+    await read(request());
+    expect(transaction).toHaveBeenCalledWith(expect.any(Function), { readOnly: true });
+  } finally { transaction.mockRestore(); }
+});
 it('denies wrong actor, disconnected actor, kicked actor and malformed membership', async () => {
   await expect(read(request(undefined, 'stranger'))).rejects.toMatchObject({ code: 'permission-denied' });
   for (const patch of [{ connected: false }, { kickedAt: 'now' }, { fleetGroupId: 'fleet-1' }]) {

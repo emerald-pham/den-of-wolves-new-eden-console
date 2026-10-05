@@ -122,6 +122,8 @@ vi.mock('firebase-admin/firestore', () => ({
 import { resumeSession } from './index';
 import { recommendedRoleIds } from './roleConfiguration';
 import { callableRateLimitDocumentId } from './callableRateLimit';
+import { canonicalSessionSetup, normalizeSessionConfiguration, stableSeatsForRoles } from './gameSetup';
+import { navigationState, playerDiscoveryProjection } from './navigationProjection';
 
 function request(sessionId: string) {
   return {
@@ -241,6 +243,47 @@ beforeEach(() => {
       mock.rateLimitMarkers.set(ref.path, value);
     }
   });
+});
+
+function prepareCurrentResume() {
+  const setup = canonicalSessionSetup(normalizeSessionConfiguration({
+    playerCount: 8, chartId: 'A', expansion: 'base', turnLimit: 6,
+    dioneEnabled: false, capybaraEnabled: false, universalArbourEnabled: false, wolfCultEnabled: false,
+  }), recommendedRoleIds(8));
+  const navigation = navigationState({
+    shipGalacticCoordinates: Object.fromEntries(setup.activeVesselIds.map(shipId => [shipId, '0000'])),
+    shipNavigationLogs: Object.fromEntries(setup.activeVesselIds.map(shipId => [shipId, []])),
+    pursuitGroups: { 'fleet-1': 2 },
+  }, setup.activeVesselIds);
+  const current = prepareResume(
+    { ...stableSeatsForRoles(setup.activeRoleIds).find(seat => seat.id === 'admiral')!, status: 'claimed', holderUid: 'u1' },
+    { connected: true, lastSeenAt: mock.Timestamp.fromDate(new Date()), connectionGeneration: 3,
+      seatId: 'admiral', assignedRoleId: 'admiral', activeConsoleRoleId: 'admiral', fleetGroupId: 'fleet-1' },
+    { ...setup, setup, deleteAfter: null }, { ...navigation, revision: 5 }, true,
+  );
+  const group = { id: 'fleet-1', vesselIds: [...setup.activeVesselIds], memberUids: ['u1'], memberShipIds: { u1: 'aegis' } };
+  const discovery = playerDiscoveryProjection(snapshot(current.playerData), navigation, 5, group.vesselIds, undefined, 'u1', 'aegis');
+  const underlying = mock.get.getMockImplementation()!;
+  mock.get.mockImplementation((ref: { path: string }) => {
+    if (ref.path === 'sessions/s1/fleetGroups/fleet-1') return snapshot(group);
+    if (ref.path === 'sessions/s1/fleetGroups') return { docs: [{ ...snapshot(group), id: 'fleet-1' }] };
+    if (ref.path === 'sessions/s1/playerDiscoveries/u1') return snapshot({ ...discovery, updatedAt: 'prior-server-time' });
+    if (ref.path === 'activeMemberships/u1') return snapshot({ sessionId: 's1' });
+    return underlying(ref);
+  });
+  return current;
+}
+
+it('renews a current live member without scanning every player or rewriting shared discovery', async () => {
+  prepareCurrentResume();
+  mock.enforceReadOrder = true;
+
+  const reply = await resumeSession.run(request('s1'));
+
+  expect(reply.player).toMatchObject({ connectionGeneration: 4, assignedRoleId: 'admiral', seatId: 'admiral', activeConsoleRoleId: 'admiral' });
+  expect(mock.get.mock.calls.map(([ref]) => ref.path)).not.toContain('sessions/s1/players');
+  expect(nonRateLimitSetCalls().map(([ref]) => ref.path)).toEqual(['activeMemberships/u1']);
+  expect(mock.update.mock.calls.map(([ref]) => ref.path)).not.toContain('sessions/s1/serverState/navigation');
 });
 
 it('allows normal resume retries by the authenticated member and ignores spoofed rate-limit fields', async () => {

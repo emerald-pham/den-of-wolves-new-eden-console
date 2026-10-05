@@ -22,6 +22,13 @@ it('allows projection polling from multiple legitimate devices under a session/U
   expect(limiter.enforce).toHaveBeenCalledWith(db, { callableName: 'getCurrentMemberSession', sessionId: 's1', uid: 'u1' });
   expect(read).toHaveBeenCalledOnce();
 });
+it('uses a lock-free entitlement preflight before the separate private limiter write', async () => {
+  const transaction = vi.spyOn(db, 'runTransaction');
+  try {
+    await bounded({ auth: { uid: 'u1' }, data: { sessionId: 's1' } });
+    expect(transaction).toHaveBeenCalledWith(expect.any(Function), { readOnly: true });
+  } finally { transaction.mockRestore(); }
+});
 
 it('rejects malformed, foreign, kicked and disconnected requests before scans or limiter writes', async () => {
   for (const invalid of [{ data: { sessionId: 's1' } }, { auth: { uid: 'u1' }, data: { sessionId: 's1', groupId: 'forged' } }])
