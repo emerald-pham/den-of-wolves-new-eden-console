@@ -100,6 +100,14 @@ describe('authenticated explicit loyalty adapter', () => {
     expect(JSON.stringify(result)).not.toContain('assignedUids');
   });
 
+  it('accepts the authorized exact replay at the already-current revision', async () => {
+    configureGm({ setupRevision: 7 });
+    mocks.call.mockResolvedValue({ data: {
+      sessionId: 's1', setupRevision: 7, assignedUids: ['u1'],
+    } });
+    await expect(submitExplicitGmLoyaltyAssignment(request)).resolves.toEqual({ setupRevision: 7 });
+  });
+
   it('rejects a receipt revision that is not exactly one beyond the captured revision', async () => {
     mocks.call.mockResolvedValue({ data: {
       sessionId: 's1', setupRevision: 8, assignedUids: ['u1'],
