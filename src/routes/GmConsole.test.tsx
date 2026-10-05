@@ -3368,6 +3368,85 @@ it('opens a manual Coordination phase only through the GM full-game demo action'
   expect(advanceTurn).not.toHaveBeenCalled();
 });
 
+function prepareManualEmergencyFixture(status: 'awaiting-gm-decision' | 'offered') {
+  const current = useSessionStore.getState().session;
+  if (!current) throw new Error('Expected the manual demo session.');
+  const window = {
+    type: 'pursuit-emergency-window' as const, status, cycle: 5,
+    openedAt: '2026-01-01T00:00:00.000Z',
+  };
+  useSessionStore.getState().setSession({
+    ...current, phase: 'active', currentTurn: 5,
+    fullGameDemo: { status: 'active', progression: 'manual' },
+    turnPhase: {
+      turn: 5, progression: 'manual', teamPhaseEndsAt: '9999-12-31T23:59:59.999Z',
+      openAirspaceEndsAt: '9999-12-31T23:59:59.999Z',
+      airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+    },
+    pursuitEmergencyWindow: window,
+    pursuitEmergencyWindowAuthority: { ...window, navigationRevision: 9, groupIds: ['fleet-1'] },
+  });
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+}
+
+it.each(['awaiting-gm-decision', 'offered'] as const)(
+  'blocks manual Coordination during the actual %s pursuit emergency and names the next actor',
+  async (status) => {
+    const user = userEvent.setup();
+    prepareManualEmergencyFixture(status);
+    renderConsole();
+    const controls = await screen.findByRole('region', { name: 'Cycle controls' });
+    const open = within(controls).getByRole('button', { name: 'Open Coordination manually' });
+    expect(open).toBeDisabled();
+    expect(open).toHaveAccessibleDescription(/pursuit emergency/i);
+    if (status === 'awaiting-gm-decision') {
+      expect(open).toHaveAccessibleDescription(/GM.*Offer emergency jump.*End pursuit-limit run/i);
+    } else {
+      expect(open).toHaveAccessibleDescription(/entitled ship crews.*offered emergency jump/i);
+    }
+    expect(await screen.findByRole('region', { name: 'Pursuit emergency decision' })).toBeVisible();
+    await user.click(open);
+    expect(advanceFullGameDemoPhase).not.toHaveBeenCalled();
+    expect(advanceTurn).not.toHaveBeenCalled();
+  },
+);
+
+it.each(['public', 'private'] as const)(
+  'keeps manual Coordination blocked while only the %s emergency marker is available',
+  async (marker) => {
+    prepareManualEmergencyFixture('awaiting-gm-decision');
+    const current = { ...useSessionStore.getState().session! };
+    if (marker === 'public') delete current.pursuitEmergencyWindowAuthority;
+    else delete current.pursuitEmergencyWindow;
+    useSessionStore.getState().setSession(current);
+    renderConsole();
+    const controls = await screen.findByRole('region', { name: 'Cycle controls' });
+    const open = within(controls).getByRole('button', { name: 'Open Coordination manually' });
+    expect(open).toBeDisabled();
+    expect(open).toHaveAccessibleDescription(/pursuit emergency.*GM/i);
+    expect(advanceFullGameDemoPhase).not.toHaveBeenCalled();
+  },
+);
+
+it('returns the same live GM manual control only after the authoritative emergency window clears', async () => {
+  const user = userEvent.setup();
+  prepareManualEmergencyFixture('awaiting-gm-decision');
+  renderConsole();
+  const controls = await screen.findByRole('region', { name: 'Cycle controls' });
+  const open = within(controls).getByRole('button', { name: 'Open Coordination manually' });
+  expect(open).toBeDisabled();
+  const current = { ...useSessionStore.getState().session! };
+  delete current.pursuitEmergencyWindow;
+  delete current.pursuitEmergencyWindowAuthority;
+  act(() => useSessionStore.getState().setSession(current));
+  expect(open).toBeEnabled();
+  expect(open).not.toHaveAccessibleDescription(/pursuit emergency/i);
+  await user.click(open);
+  expect(advanceFullGameDemoPhase).toHaveBeenCalledOnce();
+  expect(advanceTurn).not.toHaveBeenCalled();
+});
+
 it('commits ordinary production only on the second click and renders the private receipt', async () => {
   const user = userEvent.setup();
   const activeSession = useSessionStore.getState().session;
