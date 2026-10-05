@@ -71,10 +71,10 @@ it('recovers the same request after an interrupted reply but suppresses revoked 
   panel();
   fireEvent.click(screen.getByRole('button', {name:'Transfer cargo'}));
   await screen.findByRole('alert');
-  const command = mocks.transfer.mock.calls[0][0];
+  const command = mocks.transfer.mock.calls[0]![0];
   fireEvent.click(screen.getByRole('button', {name:'Retry exact cargo request'}));
   await screen.findByText(/already recorded/i);
-  expect(mocks.transfer.mock.calls[1][0]).toEqual(command);
+  expect(mocks.transfer.mock.calls[1]![0]).toEqual(command);
   act(() => useSessionStore.getState().setMe({...useSessionStore.getState().me!, uid:'another'}));
   expect(screen.queryByText(/already recorded/i)).not.toBeInTheDocument();
 });
