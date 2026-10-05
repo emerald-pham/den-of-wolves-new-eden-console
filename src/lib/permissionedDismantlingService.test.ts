@@ -88,6 +88,66 @@ it('proposes against the live dock and control but leaves the private target rev
   });
 });
 
+it('routes a Macaw consent request to one distinct current host and validates its Scrap receipt', async () => {
+  mocks.current = {
+    session: {
+      id: 's1', phase: 'active',
+      shuttleControl: { macaw: { holderUid: 'captain', revision: 9 } },
+      shuttleDockings: [{ shuttleId: 'macaw', shipId: 'dione', dockedAt: 'SESSION START' }],
+    },
+    me: {
+      uid: 'captain', sessionId: 's1', role: 'player', assignedRoleId: 'capybara-captain',
+      activeConsoleRoleId: 'capybara-captain', replacementRoleId: null, replacementStatus: null,
+    },
+  };
+  const proposalCall = vi.fn().mockResolvedValue({ data: {
+    status: 'proposed', sessionId: 's1', proposalId: 'macaw-proposal', craftId: 'macaw',
+    targetShipId: 'dione', targetConsoleId: 'reactor', targetRevision: 3,
+    controlRevision: 9, scrapGain: 1,
+  } });
+  mocks.callable.mockReturnValue(proposalCall);
+  await expect(proposePermissionedDismantling({
+    proposalId: 'macaw-proposal', craftId: 'macaw', targetShipId: 'dione', targetConsoleId: 'reactor',
+  })).resolves.toMatchObject({ status: 'proposed', scrapGain: 1 });
+  expect(proposalCall).toHaveBeenCalledWith({
+    sessionId: 's1', proposalId: 'macaw-proposal', craftId: 'macaw',
+    targetShipId: 'dione', targetConsoleId: 'reactor', expectedControlRevision: 9,
+  });
+
+  const macawInbox = {
+    type: 'permissioned-dismantling-inbox', sessionId: 's1', targetShipId: 'dione',
+    proposalId: 'macaw-proposal', proposerUid: 'captain', craftId: 'macaw',
+    targetConsoleId: 'reactor', targetRevision: 3, scrapGain: 1, status: 'consented',
+    consentId: 'macaw-consent', materialsAfter: null, scrapAfter: null,
+    updatedAt: new Date('2026-09-30T17:00:00.000Z'),
+  } as const;
+  const applyCall = vi.fn().mockResolvedValue({ data: {
+    status: 'applied', sessionId: 's1', requestId: 'macaw-apply', proposalId: 'macaw-proposal',
+    consentId: 'macaw-consent', targetShipId: 'dione', targetConsoleId: 'reactor',
+    targetRevision: 4, scrapGain: 1, scrapAfter: 4,
+  } });
+  mocks.callable.mockReturnValue(applyCall);
+  await expect(applyPermissionedDismantling({ inbox: macawInbox, requestId: 'macaw-apply' }))
+    .resolves.toMatchObject({ status: 'applied', scrapGain: 1, scrapAfter: 4 });
+  expect(applyCall).toHaveBeenCalledWith({
+    sessionId: 's1', requestId: 'macaw-apply', proposalId: 'macaw-proposal',
+    consentId: 'macaw-consent', expectedTargetRevision: 3,
+  });
+});
+
+it('blocks the Macaw-to-Capybara self-target before calling the server', async () => {
+  mocks.current.session.shuttleControl = { macaw: { holderUid: 'captain', revision: 9 } };
+  mocks.current.session.shuttleDockings = [{ shuttleId: 'macaw', shipId: 'capybara', dockedAt: 'SESSION START' }];
+  mocks.current.me = {
+    uid: 'captain', sessionId: 's1', role: 'player', assignedRoleId: 'capybara-captain',
+    activeConsoleRoleId: 'capybara-captain', replacementRoleId: null, replacementStatus: null,
+  };
+  await expect(proposePermissionedDismantling({
+    proposalId: 'macaw-self', craftId: 'macaw', targetShipId: 'capybara', targetConsoleId: 'advanced-hydroponics',
+  })).rejects.toThrow(/facilitator ruling/i);
+  expect(mocks.callable).not.toHaveBeenCalled();
+});
+
 it('sends consent bound to the exact target revision and exposes the completed inbox result to the proposer', async () => {
   mocks.current.me = {
     uid: 'target', sessionId: 's1', role: 'player', assignedRoleId: 'dione-captain',
