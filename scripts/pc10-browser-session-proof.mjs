@@ -247,8 +247,11 @@ export async function runPc10OverlappingRecoveryProof(options) {
       (role === 'press-officer' || state.roleId === role))));
     assert.equal(states.length, 21);
     const before = await fixture.session.get();
-    const requests = new Map(fixture.roles.map(roleId => [roleId, { requestId: randomUUID(),
-      seatId: roleId, expectedSetupRevision: before.get('setupRevision') }]));
+    const requests = new Map(fixture.roles.map(roleId => {
+      const originalClaim = fixture.seatClaimRequests[roleId];
+      assert.ok(originalClaim?.requestId, 'Retry the actual ordinary Cycle 0 claim, preserving casting authority.');
+      return [roleId, originalClaim];
+    }));
     const resumes = await Promise.all(roles.map(role => command(role, 'resumeSession')));
     for (const reply of resumes) assert.equal(reply.status, 200, 'Every independent browser resumes its own current projection.');
     const privateAudience = await Promise.all(roles.map(async role => {

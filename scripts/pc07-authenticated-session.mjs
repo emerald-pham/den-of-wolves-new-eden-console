@@ -171,11 +171,14 @@ export async function createPc07AuthenticatedSession(name,playerCount=8,{clearBr
   }
   const browserIndexes=await joinConfiguredBrowserPlayers({roles,players,joinCode:created.session.joinCode,
    browserRoleId,joinBrowserPlayer,joinBrowserPlayers});
+  const seatClaimRequests={};
   for(const [i,player]of players.entries()){
    if(!browserIndexes.has(i))ok(await call(player,'joinSession',{joinCode:created.session.joinCode,displayName:`Local actor ${i+1}`}), 'join');
    ok(await call(gm,'assignRole',{sessionId,instanceId,requestId:randomUUID(),targetUid:player.localId,roleId:roles[i]}),'cast');
    const current=ok(await call(player,'resumeSession',{sessionId}),'resume');
-   ok(await call(player,'claimSeat',{sessionId,seatId:roles[i],requestId:randomUUID(),expectedSetupRevision:current.session.setupRevision}),'seat');
+   const seatClaimRequest={sessionId,seatId:roles[i],requestId:randomUUID(),expectedSetupRevision:current.session.setupRevision};
+   ok(await call(player,'claimSeat',seatClaimRequest),'seat');
+   seatClaimRequests[roles[i]]=Object.freeze(seatClaimRequest);
    ok(await call(player,'refreshPresence',{sessionId,activeConsoleRoleId:roles[i]}),'console');
    if(shouldMaintainFixturePresence({browserControlled:browserIndexes.has(i),browserOwnsPresence,serializeFixtureCalls})){
     heartbeatPlayers.set(player.localId,{actor:player,label:`player-${i+1}`});
@@ -213,7 +216,7 @@ export async function createPc07AuthenticatedSession(name,playerCount=8,{clearBr
    wolfCult:players[roles.indexOf(explicitLoyaltySetup.wolfCultRoleId)],
    intelligenceAgent:players[roles.indexOf(explicitLoyaltySetup.intelligenceAgentRoleId)],
   }:undefined;
-  return{db,config,project,gm,players,press,roles,unionCraftSetupProof,explicitLoyaltySetupProof,
+  return{db,config,project,gm,players,press,roles,seatClaimRequests:Object.freeze(seatClaimRequests),unionCraftSetupProof,explicitLoyaltySetupProof,
    loyaltyActors,heartbeatFailures,sessionId,session,instanceId,call,ok,
    byRole:role=>players[roles.indexOf(role)],byLoyalty:kind=>loyaltyActors?.[kind],
    stopHeartbeats:()=>heartbeats.stop(),restartHeartbeats:startHeartbeat,cleanup:async()=>{
