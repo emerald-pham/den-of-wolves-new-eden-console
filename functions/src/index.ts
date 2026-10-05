@@ -6767,7 +6767,6 @@ export const startGame = auditedOnCall<{
   if (!isLiveGmInstance(preflightInstance, preflightPlayer, uid)) {
     throw new HttpsError('permission-denied', 'An active facilitator instance is required.');
   }
-  requireFullGameDemoStartMode(preflightSession, start.fullGameDemo === true);
   await rejectForeignLegacyM1CommandBeforeReplay(
     start.sessionId, start.requestId, 'start', [startRequestRef.path, eventRef.path],
   );
@@ -6791,6 +6790,7 @@ export const startGame = auditedOnCall<{
     return { ...(result as Record<string, unknown>), status: 'replayed' };
   })();
   if (preflightReply) return preflightReply;
+  requireFullGameDemoStartMode(preflightSession, start.fullGameDemo === true);
   await enforceExpensiveCallableRateLimit(db, {
     callableName: 'startGame', sessionId: start.sessionId, uid,
   });
@@ -6833,6 +6833,7 @@ export const startGame = auditedOnCall<{
       }
       throw commandError('failed-precondition', 'This start request has no replayable result.', 'conflict');
     }
+    requireFullGameDemoStartMode(authority.session, start.fullGameDemo === true);
     if (setupRevision(authority.session) !== start.expectedSetupRevision) {
       const reply = {
         status: 'stale' as const,
@@ -6854,7 +6855,6 @@ export const startGame = auditedOnCall<{
       tx.set(markerRef, { fingerprint: markerFingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
       return reply;
     }
-    requireFullGameDemoStartMode(authority.session, start.fullGameDemo === true);
     const persistedMissionDeck = missionDeckSnapshot.exists
       ? parseMissionDeckState(missionDeckSnapshot.data())
       : null;
