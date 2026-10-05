@@ -1,9 +1,10 @@
+import type { CandidateDebriefPathStep } from './sessionDebrief';
 import type { DocumentReference, DocumentSnapshot, Firestore, Transaction } from 'firebase-admin/firestore';
 import { randomInt } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import { HttpsError } from 'firebase-functions/v2/https';
 import { candidateWorkspace, parseCandidateAction, parseCandidateState, resolveCandidateAction,
-  type CandidateAction, type CandidateActionReply, type CandidateAuthority, type CandidateCode } from './candidatePaths';
+  type CandidateAction, type CandidateActionReply, type CandidateAuthority, type CandidateCode, type CandidateSiteState } from './candidatePaths';
 import { commandReceiptDisposition, type CommandFingerprint } from './commandIdempotency';
 import { fleetGroupRecord } from './fleetGroups';
 import { shipForRole } from './crewAccess';
@@ -32,8 +33,29 @@ export interface CandidateTerminalInput {
     rolls: { id: string; result: 'success' | 'failure'; audience: 'members' | 'gm' }[];
     losses: { shipId: string; reason: string; audience: 'members' | 'gm' }[];
     humanCalls: { id: string; cycle: number; audience: 'members' | 'gm' }[];
+    path: CandidateDebriefPathStep[];
   }[] };
 }
+/** Public-safe explanation copied only from the candidate transaction's committed site facts. */
+export function candidateDebriefPath(site: CandidateSiteState): CandidateDebriefPathStep[] {
+  const path: CandidateDebriefPathStep[] = [];
+  if (site.code === 'N' && site.repairedAt) path.push({ action: 'ring-repair', result: 'completed', audience: 'members' });
+  if (site.code === 'P' && site.liberatedSourceId) path.push({ action: 'station-liberation', result: 'completed', audience: 'members' });
+  for (const [shipId, receipt] of Object.entries(site.ships)) {
+    if (site.code === 'N' && receipt.outcome === 'crossed') path.push({ action: 'ring-passage', result: 'crossed',
+      shipId, ...(receipt.fuelSpent === undefined ? {} : { fuelSpent: receipt.fuelSpent }), audience: 'members' });
+    if (site.code === 'O' && (receipt.outcome === 'reached' || receipt.outcome === 'lost')) path.push({ action: 'nebula-jump',
+      result: receipt.outcome, shipId, ...(receipt.fuelSpent === undefined ? {} : { fuelSpent: receipt.fuelSpent }), audience: 'members' });
+  }
+  if (site.code === 'N' && site.sabotagedAt) path.push({ action: 'sabotage-ring', result: 'completed', audience: 'members' });
+  if (site.code === 'P') for (const [shipId, capacity] of Object.entries(site.reactors)) {
+    path.push({ action: 'contribute-reactor', result: 'completed', shipId, capacity, audience: 'members' });
+  }
+  if (site.code === 'P' && site.activatedAt) path.push({ action: 'station-activation', result: 'activated',
+    capacity: Object.values(site.reactors).reduce((total, capacity) => total + capacity, 0), audience: 'members' });
+  return path;
+}
+
 interface Dependencies {
   db: Firestore; now?: () => Date; die?: () => number; serverTimestamp: () => unknown;
   requireShipAuthority: (tx: Transaction, sessionId: string, uid: string, shipId: string,
@@ -300,7 +322,7 @@ export function createCandidateCallables(d: Dependencies) {
           ...(d.survivorOutcome ? { survivorOutcome: d.survivorOutcome(committedSession, a.cycle, a.now) } : {}),
           sessionPatch: { candidateVesselOutcomes: outcomes }, candidate: { code: command.code,
             groups: Object.values(plan.state.sites).filter(site => site.completed).map(site => ({
-              groupId: site.groupId, requirements: [{ id: `${site.code}-requirements`, status: 'met' as const }],
+              groupId: site.groupId, path: candidateDebriefPath(site), requirements: [{ id: `${site.code}-requirements`, status: 'met' as const }],
               rolls: Object.entries(site.ships).map(([ship, result]) => ({ id: ship,
                 result: result.outcome === 'lost' ? 'failure' as const : 'success' as const, audience: 'members' as const })),
               losses: site.completed!.leftBehindShipIds.map(shipId => ({ shipId,
