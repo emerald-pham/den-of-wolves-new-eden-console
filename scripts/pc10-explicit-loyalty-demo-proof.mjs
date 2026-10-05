@@ -12,6 +12,16 @@ import {
   mergeOptionalLoyaltyCallbacks,
   summarizeExplicitLoyaltyScenarioPlan,
 } from './pc10-explicit-loyalty-proof-plan.mjs';
+import {
+  assertExactCallableReplay,
+  assertLiveWolfActorFence,
+  assertSameWolfActorFence,
+  assertWolfCycleActionReply,
+  assertWolfCycleActionRequest,
+  buildWolfCycleActionPlan,
+} from './pc10-private-actions-proof-contracts.mjs';
+import { captureCallableResponse, currentConsoleVisitProofStatus, readWolfActor,
+  runWolfSupplySabotageUiFlow } from './pc10-private-actions-ui-proof.mjs';
 
 const MODES = ['wolf-cult', 'universal-arbour'];
 const VIEWPORTS = [
@@ -426,7 +436,132 @@ async function deliverFacilitatorScenarioCall({ mode, gm, directory }) {
   return { privateFacilitatorDelivery: true };
 }
 
-async function exerciseCurrentScenarioActors({ mode, gm, crew, initial, started, roster, plan, directory, projectId }) {
+async function performWolfCycleAction({ crew, actor, sessionId, expectedKind, action }) {
+  const actorProjection = await enterActorStation({ crew, actor, sessionId, expectedKind });
+  assertSelectedActor(await crew.observe(), { ...actor, sessionId });
+  const before = await readWolfActor(crew);
+  const fence = assertLiveWolfActorFence(before, { sessionId, roleId: actor.roleId, uidHash: actor.uidHash, cycle: 1 });
+  assert.equal(before.profileRoleId, actor.roleId);
+  const receiptEvidence = async (endpoint, reply) => {
+    const sdkReplay = await crew.callable(endpoint, reply.requestData);
+    assert.equal(sdkReplay.status, 'committed');
+    assertExactCallableReplay(reply.result, sdkReplay.result);
+    assertSameWolfActorFence(fence, await readWolfActor(crew));
+    return {
+      uiRequestAndReplyCaptured: true,
+      exactSdkReplay: true,
+      actorFenceStayedStable: true,
+    };
+  };
+  if (action === 'homing-beacon') {
+    const beacon = crew.page.getByRole('button', { name: 'Deploy homing beacon', exact: true });
+    await beacon.waitFor({ state: 'visible', timeout: 60_000 });
+    assert.equal(await beacon.isEnabled(), true,
+      'A different original Wolf holder gets its own one-action Cycle 1 choice.');
+    const response = await captureCallableResponse(crew.page, 'submitWolfHomingBeacon', () => beacon.click());
+    assertWolfCycleActionRequest(response.requestData, before);
+    assertWolfCycleActionReply({ action, result: response.result, requestData: response.requestData, actor: before });
+    const receipt = await receiptEvidence('submitWolfHomingBeacon', response);
+    await crew.page.locator('.private-loyalty-flow').getByRole('status')
+      .filter({ hasText: /Homing beacon scheduled/ }).waitFor({ state: 'visible', timeout: 60_000 });
+    return { actorProjection, action, completed: true, receipt };
+  }
+  assert.equal(action, 'provide-intel');
+  const message = crew.page.getByLabel('Short handler message', { exact: true });
+  await message.waitFor({ state: 'visible', timeout: 60_000 });
+  await message.fill('Training proof // private handler action.');
+  const send = crew.page.getByRole('button', { name: 'Send private intelligence', exact: true });
+  assert.equal(await send.isEnabled(), true,
+    'The second original Wolf holder receives its separate one-action Cycle 1 choice.');
+  const response = await captureCallableResponse(crew.page, 'submitWolfIntelligence', () => send.click());
+  assertWolfCycleActionRequest(response.requestData, before);
+  assertWolfCycleActionReply({ action, result: response.result, requestData: response.requestData,
+    actor: before, expectedMessage: 'Training proof // private handler action.' });
+  const receipt = await receiptEvidence('submitWolfIntelligence', response);
+  await crew.page.locator('.private-loyalty-flow').getByRole('status')
+    .filter({ hasText: 'Handler message sent privately.' }).waitFor({ state: 'visible', timeout: 60_000 });
+  return { actorProjection, action, completed: true, receipt };
+}
+
+async function exerciseWolfCycleActions({ mode, crew, gm, initial, roster, byRole, directory, privateActionRecipe }) {
+  const actors = roster.filter(actor => ['wolf-agent', 'wolf-cult'].includes(byRole.get(actor.roleId)?.kind))
+    .map(actor => ({ ...actor, kind: byRole.get(actor.roleId).kind }));
+  const plan = buildWolfCycleActionPlan(mode, actors);
+  const outcomes = [];
+  let supplyActorRoleId = null;
+  let supplyOutcome = { status: 'not-run', credited: false,
+    reason: 'The opt-in supply-sabotage recipe was not requested for this fresh game.' };
+  if (privateActionRecipe !== undefined) {
+    assert.equal(privateActionRecipe, 'supply-sabotage', 'Only the explicit normal-UI supply recipe is supported.');
+    for (const planned of plan) {
+      const actor = roster.find(candidate => candidate.roleId === planned.roleId);
+      assert.ok(actor);
+      await enterActorStation({ crew, actor, sessionId: initial.sessionId, expectedKind: planned.kind });
+      const attempt = await runWolfSupplySabotageUiFlow({ crew, gm, actor: planned,
+        sessionId: initial.sessionId });
+      if (attempt.status === 'committed') {
+        supplyActorRoleId = planned.roleId;
+        supplyOutcome = attempt;
+        break;
+      }
+      supplyOutcome = attempt;
+    }
+  }
+  for (const planned of plan) {
+    if (supplyActorRoleId === planned.roleId) continue;
+    const actor = roster.find(candidate => candidate.roleId === planned.roleId);
+    assert.ok(actor);
+    outcomes.push(await performWolfCycleAction({ crew, actor, sessionId: initial.sessionId,
+      expectedKind: planned.kind, action: planned.action }));
+  }
+  if (privateActionRecipe === 'supply-sabotage' && supplyOutcome.status !== 'committed') {
+    // No resource or hidden state is added. Retain one honest regular action for each holder.
+    for (const planned of plan) {
+      if (outcomes.some(item => item.actorProjection && item.action === planned.action)) continue;
+      const actor = roster.find(candidate => candidate.roleId === planned.roleId);
+      assert.ok(actor);
+      outcomes.push(await performWolfCycleAction({ crew, actor, sessionId: initial.sessionId,
+        expectedKind: planned.kind, action: planned.action }));
+    }
+  }
+  const actionKinds = new Set(outcomes.map(item => item.action));
+  const result = {
+    wolfBeaconAction: actionKinds.has('homing-beacon'),
+    wolfIntelligenceAction: actionKinds.has('provide-intel'),
+    wolfSupplySabotage: { status: supplyOutcome.status, credited: supplyOutcome.credited === true,
+      positiveCurrentCoverCargoObserved: supplyOutcome.positiveCurrentCoverCargoObserved === true,
+      uiRequestAndReplyCaptured: supplyOutcome.normalUiRequestCaptured === true && supplyOutcome.exactUiReplyValidated === true,
+      exactSdkReplay: supplyOutcome.sameAuthenticatedSdkReplay === true,
+      actorAndGroupAuthorityStayedStable: supplyOutcome.actorAndGroupAuthorityStayedStable === true,
+      connectionGenerationStayedStable: supplyOutcome.connectionGenerationStayedStable === true,
+      suspicionIncreaseValidated: supplyOutcome.suspicionIncreaseValidated === 2,
+      floorHalfLossValidated: supplyOutcome.floorHalfLossValidated === true,
+      gmAcknowledgementUiAndExactReplay: supplyOutcome.gmAcknowledgementUiAndExactReplay === true,
+      playerPrivateAlertReadDenied: supplyOutcome.playerPrivateAlertReadDenied === true,
+      actorFreePlayerNoticeRead: supplyOutcome.actorFreePlayerNoticeRead === true,
+      reason: supplyOutcome.reason ?? null },
+    wolfActionActorCount: actors.length,
+    distinctOriginalWolfUids: new Set(actors.map(item => item.uidHash)).size === 2,
+    actionsCompletedByDistinctOriginalActors: outcomes.length + Number(supplyOutcome.status === 'committed') === 2,
+    physicalConsoleVisit: currentConsoleVisitProofStatus(),
+  };
+  if (privateActionRecipe === 'supply-sabotage') {
+    await writeFile(`${directory}/private-wolf-actions.json`, `${JSON.stringify({
+      mode, recipe: privateActionRecipe, status: supplyOutcome.status,
+      safeResult: result.wolfSupplySabotage,
+      otherWolfActions: outcomes.map(({ action, receipt }) => ({ action, ...receipt })),
+      distinctOriginalWolfUids: result.distinctOriginalWolfUids,
+      actionsCompletedByDistinctOriginalActors: result.actionsCompletedByDistinctOriginalActors,
+      physicalConsoleVisit: result.physicalConsoleVisit,
+      privateMappingsOrTextPersisted: false,
+      source: 'normal mounted Wolf loyalty controls and authenticated SDK retries; no resource or clock override',
+    }, null, 2)}\n`);
+  }
+  return result;
+}
+
+async function exerciseCurrentScenarioActors({ mode, gm, crew, initial, started, roster, plan, directory,
+  projectId, privateActionRecipe }) {
   assert.equal(started.cycle, 1);
   assert.equal(started.phase, 'active');
   assert.equal(started.fullGameDemo?.status, 'active');
@@ -442,6 +577,8 @@ async function exerciseCurrentScenarioActors({ mode, gm, crew, initial, started,
     reciprocalFriendPairReadByBothHolders: false,
     wolfBeaconAction: false,
     wolfIntelligenceAction: false,
+    wolfSupplySabotage: { status: 'not-run', credited: false },
+    physicalConsoleVisit: currentConsoleVisitProofStatus(),
     intelligenceInvestigation: false,
     androidLateReplyRecovery: null,
     facilitatorDelivery: true,
@@ -459,26 +596,9 @@ async function exerciseCurrentScenarioActors({ mode, gm, crew, initial, started,
     if (expected.kind === 'friend') friendHoldersRead += 1;
 
     if (expected.kind === 'wolf-agent' || expected.kind === 'wolf-cult') {
-      const beacon = crew.page.getByRole('button', { name: 'Deploy homing beacon', exact: true });
-      await beacon.waitFor({ state: 'visible' });
-      assert.equal(await beacon.isEnabled(), true, 'The real Cycle 1 Wolf actor must have its normal action available.');
-      await beacon.click();
-      await crew.page.locator('.private-loyalty-flow').getByRole('status').filter({ hasText: /Homing beacon scheduled/ }).waitFor();
-      const message = crew.page.getByLabel('Short handler message', { exact: true });
-      await message.fill('Training proof // private handler action.');
-      const send = crew.page.getByRole('button', { name: 'Send private intelligence', exact: true });
-      assert.equal(await send.isEnabled(), true);
-      await send.click();
-      await crew.page.locator('.private-loyalty-flow').getByRole('status').filter({ hasText: 'Handler message sent privately.' }).waitFor();
-      privateFunctions.wolfBeaconAction = true;
-      privateFunctions.wolfIntelligenceAction = true;
-      if (expected.kind === 'wolf-cult' && mode === 'wolf-cult') {
-        await waitForPrivateProjection(crew, async () => (await actorState(crew, 'wolf-cult')).privateCultDeliveryPresent,
-          'Facilitator intelligence');
-        const delivered = await actorState(crew, 'wolf-cult');
-        assert.equal(delivered.expectedPrivateKind, true);
-        privateFunctions.cultDeliveryReachedEntitledHolder = true;
-      }
+      // Each original holder gets exactly one role-station action in Cycle 1.
+      // The two actions are dispatched after the card-read loop so no actor is
+      // accidentally asked to spend both one-action choices in the same cycle.
     } else if (expected.kind === 'intelligence-agent') {
       const target = crew.page.getByLabel('Investigation target', { exact: true });
       await target.waitFor({ state: 'visible' });
@@ -503,11 +623,30 @@ async function exerciseCurrentScenarioActors({ mode, gm, crew, initial, started,
     assert.equal(projection.noAndroidProofOnOtherCard, true);
   }
   privateFunctions.reciprocalFriendPairReadByBothHolders = friendHoldersRead === 2;
+  Object.assign(privateFunctions, await exerciseWolfCycleActions({ mode, gm, crew, initial, roster, byRole,
+    directory, privateActionRecipe }));
+  if (mode === 'wolf-cult') {
+    const cultActor = roster.find(actor => byRole.get(actor.roleId)?.kind === 'wolf-cult');
+    assert.ok(cultActor);
+    await enterActorStation({ crew, actor: cultActor, sessionId: initial.sessionId, expectedKind: 'wolf-cult' });
+    await waitForPrivateProjection(crew, async () => (await actorState(crew, 'wolf-cult')).privateCultDeliveryPresent,
+      'Facilitator intelligence');
+    const delivered = await actorState(crew, 'wolf-cult');
+    assert.equal(delivered.expectedPrivateKind, true);
+    privateFunctions.cultDeliveryReachedEntitledHolder = true;
+  }
   assert.equal(privateFunctions.privateCardsReadByTheirAuthenticatedHolders, 21);
   assert.ok(Object.values(privateFunctions.allowedKindsRead).every(Boolean));
   assert.equal(privateFunctions.reciprocalFriendPairReadByBothHolders, true);
-  assert.equal(privateFunctions.wolfBeaconAction, true);
-  assert.equal(privateFunctions.wolfIntelligenceAction, true);
+  if (privateFunctions.wolfSupplySabotage.status !== 'committed') {
+    assert.equal(privateFunctions.wolfBeaconAction, true);
+    assert.equal(privateFunctions.wolfIntelligenceAction, true);
+  } else {
+    assert.equal(privateFunctions.wolfSupplySabotage.credited, true);
+    assert.equal(privateFunctions.actionsCompletedByDistinctOriginalActors, true);
+    assert.ok(privateFunctions.wolfBeaconAction || privateFunctions.wolfIntelligenceAction,
+      'The non-sabotage Wolf actor must spend its separate Cycle 1 action through its own UI.');
+  }
   assert.equal(privateFunctions.intelligenceInvestigation, true);
   assert.ok(privateFunctions.androidLateReplyRecovery);
   if (mode === 'wolf-cult') assert.equal(privateFunctions.cultDeliveryReachedEntitledHolder, true);
@@ -570,7 +709,7 @@ async function runScenario(mode, options = {}) {
       assert.equal(current.phaseProgression, 'manual');
       const facilitator = await deliverFacilitatorScenarioCall({ mode, gm, directory });
       const actions = await exerciseCurrentScenarioActors({ mode, gm, crew, initial, started, roster,
-        plan, directory, projectId });
+        plan, directory, projectId, privateActionRecipe: options.privateActionRecipe });
       privateFunctions = { ...facilitator, ...actions };
     },
   };
@@ -580,7 +719,8 @@ async function runScenario(mode, options = {}) {
   const result = await runFreshFullGameDemoUi(merged);
   assert.equal(result.genuineEndingSupplied, true, 'The genuine manual ending callback must complete the session.');
   const privateEndpoints = ['assignLoyalty', 'submitWolfHomingBeacon', 'submitWolfIntelligence',
-    'investigateAsIntelligenceAgent', 'revealAndroidProof', 'deliverWolfCultIntelligence', 'authorArbourVision'];
+    'submitWolfSupplySabotage', 'acknowledgeWolfHackingAlert', 'investigateAsIntelligenceAgent',
+    'revealAndroidProof', 'deliverWolfCultIntelligence', 'authorArbourVision'];
   const callableReceipts = Object.fromEntries(privateEndpoints.map(endpoint => {
     const observed = result.calls.filter(call => call.endpoint === endpoint);
     return [endpoint, { responsesObserved: observed.length,
