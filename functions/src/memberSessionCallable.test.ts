@@ -100,3 +100,53 @@ it('uses the required public parser on the same transaction snapshot instead of 
   expect(response.session).not.toHaveProperty('fleetTicker');
   expect(response.session).not.toHaveProperty('missionCraftCommitments');
 });
+
+it('returns only entitled immutable history for an existing disconnected member after closure', async () => {
+  records['sessions/s1'] = {
+    ...records['sessions/s1'], phase: 'closed', chartId: 'C',
+    setup: { chartId: 'C', hiddenChartRoute: 'secret' }, loyalty: { hidden: true }, hand: ['private-card'],
+    fullGameDemo: { status: 'complete', progression: 'manual' },
+    gameOutcome: { type: 'game-outcome', result: 'success', cause: 'candidate-complete', candidateCode: 'N',
+      cycle: 4, occurredAt: '2026-10-05T12:00:00.000Z', groupId: 'foreign', sourceId: 'secret', leftBehindShipIds: ['aegis'] },
+    debriefSnapshot: {
+      type: 'session-debrief', version: 1, source: 'candidate', result: 'success', cause: 'candidate-complete',
+      cycle: 4, occurredAt: '2026-10-05T12:00:00.000Z', committedAt: '2026-10-05T12:01:00.000Z',
+      outcome: { type: 'game-outcome', result: 'success', cause: 'candidate-complete', candidateCode: 'N',
+        cycle: 4, occurredAt: '2026-10-05T12:00:00.000Z' },
+      candidate: { code: 'N', groups: [
+        { groupId: 'fleet-2', requirements: [{ id: 'paid-crossing', status: 'met' }],
+          rolls: [{ id: 'passage', face: 4, result: 'success', audience: 'members' },
+            { id: 'nebula-bonus', face: 2, result: 'success', audience: 'gm' }],
+          losses: [{ shipId: 'shepherd', reason: 'candidate-loss', audience: 'members' },
+            { shipId: 'aegis', reason: 'foreign-loss', audience: 'members' }],
+          humanCalls: [{ id: 'opposite-side-sabotage', cycle: 4, audience: 'members' }] },
+        { groupId: 'fleet-1', requirements: [{ id: 'foreign-route', status: 'met' }], rolls: [], losses: [], humanCalls: [] },
+      ] },
+    },
+  };
+  records['sessions/s1/players/u1'] = { ...records['sessions/s1/players/u1'], connected: false };
+
+  const response = await read(request());
+  expect(response.session).toMatchObject({ phase: 'closed', fullGameDemo: { status: 'complete', progression: 'manual' },
+    gameOutcome: { result: 'success', cause: 'candidate-complete', candidateCode: 'N' },
+    debriefSnapshot: { result: 'success', candidate: { groups: [{
+      requirements: [{ id: 'paid-crossing', status: 'met' }], rolls: [{ id: 'passage', face: 4, result: 'success' }],
+      losses: [{ shipId: 'shepherd', reason: 'candidate-loss' }],
+      humanCalls: [{ id: 'opposite-side-sabotage', cycle: 4 }],
+    }] } } });
+  for (const key of ['chartId', 'setup', 'loyalty', 'hand', 'shipResources', 'shipDamage']) {
+    expect(response.session).not.toHaveProperty(key);
+  }
+  expect(JSON.stringify(response.session)).not.toMatch(/foreign|sourceId|nebula-bonus|aegis|fleet-1|hiddenChartRoute/);
+});
+
+it('denies closed history to disconnected outsiders, stale-group readers, and kicked members', async () => {
+  records['sessions/s1']!.phase = 'closed';
+  records['sessions/s1/players/u1']!.connected = false;
+  await expect(read(request(undefined, 'stranger'))).rejects.toMatchObject({ code: 'permission-denied' });
+  records['sessions/s1/players/u1']!.fleetGroupId = 'fleet-1';
+  await expect(read(request())).rejects.toMatchObject({ code: 'permission-denied' });
+  records['sessions/s1/players/u1']!.fleetGroupId = 'fleet-2';
+  records['sessions/s1/players/u1']!.kickedAt = '2026-10-05T12:00:00.000Z';
+  await expect(read(request())).rejects.toMatchObject({ code: 'permission-denied' });
+});
