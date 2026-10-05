@@ -4017,7 +4017,7 @@ export interface SessionStateHandlers {
 let currentSessionSubscriptionToken: symbol | undefined;
 
 /** Closed member reads carry immutable history, with no operational session scope. */
-function closedMemberSessionFrom(sessionId: string, response: RecordValue, data: RecordValue): GameSession {
+export function closedMemberSessionFrom(sessionId: string, response: RecordValue, data: RecordValue): GameSession {
   const allowed = new Set([
     'id', 'name', 'joinCode', 'phase', 'currentTurn', 'playerCount', 'turnLimit',
     'createdAt', 'updatedAt', 'gameOutcome', 'survivorOutcome', 'debriefSnapshot', 'fullGameDemo',

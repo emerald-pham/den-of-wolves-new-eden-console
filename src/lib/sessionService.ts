@@ -70,7 +70,7 @@ import type { CounterStep } from './counterPreview';
 import type { DiseaseOutbreakDetails, CrisisDeliveryPressure, CrisisKind, CrisisStateName, ZealotryResponseAction, CivilUnrestResolution } from '@/types/crisis';
 import { normalizeShuttleManifest } from '@/data/shuttles';
 import { normalizePressDispatch } from './pressDispatchState';
-import { parseArrestPosseCalculation, parseSessionDebriefProjection, sessionFrom } from './firestore';
+import { closedMemberSessionFrom, parseArrestPosseCalculation, parseSessionDebriefProjection } from './firestore';
 import {
   acceptCallableSessionAuthority,
   sessionSnapshotAuthorityFor,
@@ -2061,7 +2061,12 @@ export async function readClosedSessionHistory(sessionId: string): Promise<boole
       !isPlainRecord(response.session) || response.session.id !== sessionId || response.session.phase !== 'closed') {
     return false;
   }
-  const session = sessionFrom(sessionId, response.session);
+  let session: GameSession;
+  try {
+    session = closedMemberSessionFrom(sessionId, response, response.session);
+  } catch {
+    return false;
+  }
   if (session.phase !== 'closed' || !session.debriefSnapshot) return false;
 
   const latest = useSessionStore.getState();
