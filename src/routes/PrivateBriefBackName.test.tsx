@@ -1,13 +1,20 @@
 import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import * as React from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { computeAccessibleName } from 'dom-accessibility-api';
 import { beforeEach, expect, it } from 'vitest';
 import { Link, MemoryRouter, Route, Routes } from 'react-router-dom';
 import * as ts from 'typescript';
 import { useSessionStore } from '@/store/useSessionStore';
 import RoleBrief from './RoleBrief';
+
+// The installed algorithm publishes declarations for its CommonJS entry, but
+// its ESM export omits that types mapping. Keep the native import typed here.
+const { computeAccessibleName }: { computeAccessibleName: (element: Element, options: {
+  computedStyleSupportsPseudoElements: boolean;
+  getComputedStyle: typeof window.getComputedStyle;
+}) => string } = createRequire(import.meta.url)('dom-accessibility-api');
 
 /** JSDOM does not paint pseudo-elements. Read the issued CSS content and pass
  * only that computed-style gap to the accessible-name algorithm. This native
@@ -98,7 +105,7 @@ it.each(['loaded', 'waiting for the private brief', 'App Suspense fallback'] as 
       <Route path="/brief" element={state === 'App Suspense fallback' ? privateBriefFallback() : <RoleBrief />} />
       <Route path="/console" element={<p>Station catalog</p>} />
     </Routes></MemoryRouter>);
-    const back = screen.getByRole('link', { name: 'Back to stations', exact: true });
+    const back = screen.getByRole('link', { name: 'Back to stations' });
     expect(arrowAwareName(back)).toBe('Back to stations');
     expect(back).toHaveAttribute('aria-label', 'Back to stations');
     expect(back).toHaveClass('session-mode__back', 'cic-text-button');
