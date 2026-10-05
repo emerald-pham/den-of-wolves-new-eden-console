@@ -88,3 +88,10 @@ it('lets the GM explicitly enable the ordinary scoped ship grant before vessel c
   expect(service.grant).toHaveBeenCalledWith('aegis', true, {
     shipId: 'aegis', sessionId: 's1', uid: 'gm', instanceId: 'instance1', claimedAt: '2026-10-05T12:00:00.000Z' });
 });
+
+
+it('explains the permanent Engineering Shuttle cost and why it cannot operate after Ring contribution', async () => {
+  render(<CandidatePreparationPanel />);
+  await screen.findByRole('heading', { name: 'Ancient Jump Ring' });
+  expect(screen.getByText(/permanently consumes.*Engineering Shuttle.*cannot.*launch.*mission/i)).toBeInTheDocument();
+});

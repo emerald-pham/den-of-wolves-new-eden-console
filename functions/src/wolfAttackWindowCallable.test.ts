@@ -614,3 +614,18 @@ it('denies non-GM, stale instances, malformed, closed, and out-of-window command
     .rejects.toMatchObject({ code: 'unauthenticated' });
   expect(mock.update).not.toHaveBeenCalled();
 });
+
+
+it('rejects a fresh GM attack window for a wholly settled group but preserves its original receipt', async () => {
+  session({ activeVesselIds: ['aegis', 'dione'] });
+  put('sessions/s1/fleetGroups/fleet-1', { id: 'fleet-1', vesselIds: ['aegis'], memberUids: ['u1'] });
+  const command = { ...baseData, targetGroupId: 'fleet-1' };
+  await setWolfAttackWindow.run(request(command));
+  mock.documents.get('sessions/s1')!.candidateVesselOutcomes = { aegis: { code: 'N', groupId: 'fleet-1', shipId: 'aegis',
+    sourceId: 'candidate-n-3232', cycle: 1, outcome: 'left-behind' } };
+  const writes = mock.set.mock.calls.length;
+  await expect(setWolfAttackWindow.run(request(command))).resolves.toMatchObject({ status: 'replayed' });
+  await expect(setWolfAttackWindow.run(request({ ...command, requestId: 'new-settled-target', expectedRevision: 1 })))
+    .rejects.toMatchObject({ code: 'failed-precondition', message: expect.stringContaining('candidate disposition') });
+  expect(mock.set.mock.calls.length).toBe(writes);
+});
