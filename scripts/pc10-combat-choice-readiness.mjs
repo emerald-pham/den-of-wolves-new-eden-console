@@ -1,10 +1,15 @@
 import assert from 'node:assert/strict';
 import { setTimeout as delay } from 'node:timers/promises';
 
+const identityKeys = ['sessionId', 'uidHash', 'profileRoleId', 'assignedRoleId', 'activeConsoleRoleId', 'playerRole', 'phase', 'cycle',
+  'fleetGroupId', 'connectionGeneration', 'identityHydrationRevision', 'replacementRoleId', 'replacementStatus', 'seatId',
+  'airspace', 'turnStatePhase', 'phaseProgression'];
+// Only this module's factory can register a returned SDK denial, for that exact
+// read function. Caller-owned errors and reused tags never acquire recovery.
+const closedBoardingReadDenials = new WeakMap();
+
 function originalIdentity(current, original) {
-  for (const key of ['sessionId', 'uidHash', 'profileRoleId', 'assignedRoleId', 'activeConsoleRoleId', 'playerRole', 'phase', 'cycle',
-    'fleetGroupId', 'connectionGeneration', 'identityHydrationRevision', 'replacementRoleId', 'replacementStatus', 'seatId',
-    'airspace', 'turnStatePhase', 'phaseProgression'])
+  for (const key of identityKeys)
     assert.equal(current[key], original[key], `Original combat ${key} changed.`);
   assert.equal(current.hasAuth, true); assert.equal(current.sameActor, true);
   if (original.playerRole === 'gm') {
@@ -24,6 +29,31 @@ const sameAttack = (value, expected) => value && attackKeys.every(key => value[k
 export function assertWolfChoiceActor(current, original) {
   originalIdentity(current, original);
   assert.equal(live(current), true, 'The original combat actor must remain a live server projection.');
+}
+
+function assertClosedReadAuthority(current, original, expected) {
+  for (const key of [...identityKeys, 'discoveryAuthority', 'entitledShipId'])
+    assert.ok(Object.hasOwn(original, key) && original[key] !== undefined,
+      `Closed boarding recovery requires original ${key} evidence.`);
+  assert.equal(original.hasAuth, true); assert.equal(original.sameActor, true);
+  assert.equal(live(original), true); assert.ok(original.uidHash);
+  assert.equal(original.sessionId, expected.sessionId); assert.equal(original.phase, 'active');
+  assert.equal(original.phaseProgression, 'manual'); assert.equal(original.cycle, expected.turn);
+  assert.equal(original.airspace, 'restricted');
+  assert.ok(['team', 'coordination'].includes(original.turnStatePhase));
+  for (const key of ['connectionGeneration', 'identityHydrationRevision'])
+    assert.ok(Number.isSafeInteger(original[key]) && original[key] >= 0, `Original ${key} evidence is required.`);
+  if (original.discoveryAuthority !== null) {
+    const discovery = original.discoveryAuthority, vessels = discovery.fleetGroupVesselIds;
+    assert.equal(discovery.groupId, original.fleetGroupId);
+    assert.ok(Number.isSafeInteger(discovery.revision) && discovery.revision >= 0);
+    assert.ok(Array.isArray(vessels) && vessels.every(id => typeof id === 'string' && id) &&
+      new Set(vessels).size === vessels.length);
+  }
+  if (original.playerRole === 'gm') assert.equal(original.gmInstanceOwned, true);
+  assertWolfChoiceActor(current, original);
+  assert.equal(current.entitledShipId, original.entitledShipId);
+  assert.deepEqual(current.discoveryAuthority, original.discoveryAuthority, 'Original combat discovery authority changed.');
 }
 
 /** Extra read-only fields bind the mounted controller's current audience/lease, without changing the generic driver. */
@@ -72,6 +102,46 @@ export async function waitForWolfChoiceReadiness({ original, expected, inspectAc
   const budget = () => { if (now() >= deadline) throw new Error('Current combat choice readiness deadline expired; no actor reload, mutation or credit.'); };
   let view, sourceRead = false, lastAttackReadAt, boardingActor, resolvedSource;
   const sourceChanged = () => ({ status: 'source-changed', expected, gameplayCredit: false });
+  async function closedReadSourceChange(error) {
+    const denial = closedBoardingReadDenials.get(error);
+    if (!denial || denial.readChoice !== readChoice) throw error;
+    closedBoardingReadDenials.delete(error);
+    try {
+      budget();
+      assert.ok(typeof expected.sessionId === 'string' && expected.sessionId);
+      assert.ok(Number.isSafeInteger(expected.turn) && expected.turn >= 1);
+      assert.equal(expected.status, 'declared'); assert.equal(expected.currentStep, 'boarding');
+      assert.equal(expected.airspaceLocked, true);
+      assert.ok(originalGm && inspectGm && denial.originalGm && denial.inspectGm,
+        'Original GM read authority is required for closed boarding recovery.');
+      async function strictAuthority() {
+        budget();
+        const actor = await inspectActor(); budget();
+        assertClosedReadAuthority(actor, original, expected);
+        const gm = await inspectGm(); budget();
+        assertWolfChoiceActor(gm, originalGm);
+        const readGm = await denial.inspectGm(); budget();
+        assert.equal(denial.originalGm.playerRole, 'gm');
+        for (const key of identityKeys) if (Object.hasOwn(originalGm, key))
+          assert.equal(denial.originalGm[key], originalGm[key], `Original GM read ${key} changed.`);
+        assert.equal(denial.originalGm.instanceId, originalGm.instanceId);
+        assertClosedReadAuthority(readGm, denial.originalGm, expected);
+      }
+      await strictAuthority();
+      // Exactly one GM read of the original session path, inside this same
+      // deadline. There is no SDK retry, polling, paint or mutation here.
+      const current = await inspectAttack(); budget();
+      assert.ok(current && (!Object.hasOwn(current, 'sessionId') || current.sessionId === expected.sessionId) &&
+        current.attackId === expected.attackId && current.turn === expected.turn &&
+        Number.isSafeInteger(current.revision) && current.revision > expected.revision &&
+        current.status === 'resolved' && current.currentStep === 'resolved' && current.airspaceLocked === false,
+      'The denied boarding read requires the same newer resolved, unlocked attack.');
+      await strictAuthority(); budget();
+      return { ...sourceChanged(), readDenial: denial.readDenial, actionCredit: false, acceptanceCredit: false };
+    } catch (failure) {
+      throw new Error(`Closed boarding source reinspection failed: ${failure.message}`, { cause: error });
+    }
+  }
   async function authority() {
     budget();
     const actor = await inspectActor(); budget();
@@ -136,7 +206,9 @@ export async function waitForWolfChoiceReadiness({ original, expected, inspectAc
       const current = await inspectAttack(); budget(); lastAttackReadAt = now();
       if (!sameAttack(current, expected)) return { status: 'source-changed', expected, gameplayCredit: false };
       if (!(await authority())) { if (resolvedSource) return sourceChanged(); await wait(); continue; }
-      view = await readChoice(); budget(); sourceRead = true;
+      try { view = await readChoice(); }
+      catch (error) { return closedReadSourceChange(error); }
+      budget(); sourceRead = true;
       assert.ok(view && typeof view === 'object', 'The current actor source reply is required.');
       assert.equal(view.sessionId, expected.sessionId, 'Current source sessionId must match.');
       if (!view.type?.endsWith('-unavailable')) {
@@ -343,23 +415,52 @@ export function createWolfChoiceWaiter(context, { tools, originalGm, deadlineAt 
     const endpoint = endpoints[spec.kind]; assert.ok(endpoint, 'Only a known read-only current actor source is allowed.');
     const fields = spec.kind === 'aegis-launch' ? { wingId: spec.sourceId }
       : ['fighter-range', 'escort-range', 'range-support'].includes(spec.kind) ? { range: spec.range, sourceId: spec.sourceId } : {};
+    const readChoice = async () => {
+      // The generic driver omits these GM lease/audience fields. Capture them
+      // with the existing read-only proof observer before this actual read.
+      // A surface without that evidence can still read, but cannot recover a denial.
+      const inspectReadGm = endpoint === 'getWolfBoardingSpecialChoice' && typeof gm.storeModuleUrl === 'function'
+        ? () => observeWolfChoiceActor(gm) : null;
+      const readGm = inspectReadGm ? await inspectReadGm() : null;
+      assert.ok(Date.now() < choiceDeadline, 'Current combat choice readiness deadline expired before its SDK read.');
+      const reply = await surface.callable(endpoint, { sessionId: initial.sessionId, ...fields,
+        ...(surface === gm && spec.kind === 'boarding-special' ? { instanceId: expectedGm.instanceId } : {}) });
+      if (reply?.status !== 'committed') {
+        const error = new Error(typeof reply?.message === 'string' ? reply.message
+          : `Read-only ${endpoint} did not return a successful SDK reply.`, { cause: reply });
+        error.code = reply?.code;
+        const readDenial = { endpoint, reply };
+        try {
+          await record?.('current combat choice read denial', { cycle: current.turn, kind: spec.kind,
+            roleId: original.profileRoleId, uidHash: original.uidHash, revision: current.revision,
+            currentStep: current.currentStep, status: 'denied', readDenial,
+            gameplayCredit: false, actionCredit: false, acceptanceCredit: false });
+        } catch (failure) {
+          throw new Error(`Combat SDK denial evidence could not be recorded: ${failure.message}`, { cause: error });
+        }
+        if (endpoint === 'getWolfBoardingSpecialChoice' && reply?.status === 'denied' &&
+            reply.code === 'functions/failed-precondition' && typeof reply.message === 'string' && reply.message.trim())
+          closedBoardingReadDenials.set(error, { readChoice, readDenial, originalGm: readGm, inspectGm: inspectReadGm });
+        throw error;
+      }
+      return reply.result;
+    };
     const result = await waitForWolfChoiceReadiness({ original, expected,
       originalGm: expectedGm, inspectGm: () => gm.observe(), inspectActor: () => observeWolfChoiceActor(surface),
       deadlineAt: choiceDeadline, requireBoardingDiscovery: spec.kind === 'boarding-defence',
       inspectAttack: () => tools.read('gm', 'wolfAttackState/current'),
-      readChoice: async () => {
-        const reply = await surface.callable(endpoint, { sessionId: initial.sessionId, ...fields,
-          ...(surface === gm && spec.kind === 'boarding-special' ? { instanceId: expectedGm.instanceId } : {}) });
-        assert.equal(reply.status, 'committed', `Read-only ${endpoint} must succeed before assessing this actor's control.`);
-        return reply.result;
-      }, inspectPaint: view => inspectWolfChoicePaint(surface.page, spec, view) });
+      readChoice, inspectPaint: view => inspectWolfChoicePaint(surface.page, spec, view) });
     await record?.('current combat choice readiness', { cycle: current.turn, kind: spec.kind,
       roleId: original.profileRoleId, uidHash: original.uidHash, revision: current.revision,
       currentStep: current.currentStep, status: result.status, reason: result.reason,
       ...(result.originalActor?.boardingDiscoveryAuthority
         ? { discoveryAuthority: result.originalActor.boardingDiscoveryAuthority } : {}),
-      gameplayCredit: false, transport: 'one labeled original-browser SDK current actor read plus actual control paint; mutations remain UI',
-      limits: 'Panels without a printed revision use source-matched cycle/status/control paint; the captured UI CAS request is the final revision fence.' });
+      ...(result.readDenial ? { readDenial: result.readDenial, actionCredit: false, acceptanceCredit: false } : {}),
+      gameplayCredit: false, transport: result.readDenial
+        ? 'one denied original-browser SDK boarding read plus one original GM source reinspection; no choice paint or mutation'
+        : 'one labeled original-browser SDK current actor read plus actual control paint; mutations remain UI',
+      limits: result.readDenial ? 'Source progress only; the caller must independently verify the final attack. No action or acceptance credit.'
+        : 'Panels without a printed revision use source-matched cycle/status/control paint; the captured UI CAS request is the final revision fence.' });
     return { ...result, originalActor: result.originalActor ?? original };
   };
 }
