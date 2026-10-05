@@ -293,18 +293,18 @@ test('Bravo cannot proceed while the same actor still paints the pre-Alpha launc
 });
 
 function routeFixture({ route = '#/brief', changed = {}, entering = true } = {}) {
-  const calls = []; let path = route;
+  const calls = [], navigationTimeouts = []; let path = route;
   const original = actor(changed);
   const widget = (name, target, visible = () => true) => ({
     isVisible: async () => visible(),
-    waitFor: async () => { calls.push(`wait:${name}`); assert.ok(visible(), 'Normal visible navigation exists.'); },
+    waitFor: async options => { calls.push(`wait:${name}`); navigationTimeouts.push(options?.timeout); assert.ok(visible(), 'Normal visible navigation exists.'); },
     click: async () => { calls.push(`click:${name}`); path = target; },
     first() { return this; },
   });
   const page = {
     url: () => `http://127.0.0.1:5174/${path}`,
     goto: async url => { calls.push(`reload:${new URL(url).hash}`); path = new URL(url).hash; },
-    waitForURL: async predicate => { assert.equal(predicate(new URL(page.url())), true); },
+    waitForURL: async (predicate, options) => { navigationTimeouts.push(options?.timeout); assert.equal(predicate(new URL(page.url())), true); },
     getByRole: (_kind, { name }) => {
       if (name === "Enter this actor's stations") return widget(name, '#/console', () => path === '#/demo-actors');
       if (name === 'Back to stations') return widget(name, '#/console', () => path === '#/brief');
@@ -324,7 +324,7 @@ function routeFixture({ route = '#/brief', changed = {}, entering = true } = {})
   const gm = { observe: async () => ({ ...original, playerRole: 'gm' }) };
   const tools = createTwoBrowserGameplay({ gm, crew, initial: { sessionId: 'native-session', joinCode: 'NATIVE' },
     roster: [{ roleId: 'executive-officer', uidHash: 'native-executive' }], directory: '/tmp/native-unused' });
-  return { select: () => tools.select('executive-officer', { enter: entering }), calls, path: () => path };
+  return { select: () => tools.select('executive-officer', { enter: entering }), calls, navigationTimeouts, path: () => path };
 }
 
 test('same original role on private brief enters its actual console through Back and the current chooser', async () => {
@@ -339,6 +339,12 @@ test('same original role on a shuttle follows its actual assigned-console Back l
   assert.equal(f.path(), '#/ships/aegis/roles/executive-officer');
   assert.deepEqual(f.calls.filter(value => value.startsWith('click:')), ['click:Back to assigned console']);
   assert.equal(f.calls.some(value => value.startsWith('reload:')), false);
+});
+
+test('normal Back and chooser navigation keeps the canonical35s UI timeout inside the shared60s decision budget', async () => {
+  const f = routeFixture(); await f.select();
+  assert.ok(f.navigationTimeouts.length);
+  assert.ok(f.navigationTimeouts.every(timeout => Number.isFinite(timeout) && timeout > 0 && timeout <= 35_000));
 });
 
 test('enter:false deliberately preserves the original private route, and an already correct console does not navigate', async () => {
