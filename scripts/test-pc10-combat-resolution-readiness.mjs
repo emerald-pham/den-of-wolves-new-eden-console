@@ -139,3 +139,41 @@ test('a private attack without a session field still cannot cross the original a
     assert.equal(f.counts.sources, 0); assert.equal(f.counts.choices, 0);
   }
 });
+
+test('normal attack finalization restores Team/restricted to Coordination/lifted only for the same resolved source', async () => {
+  const current = resolved(); delete current.sessionId;
+  const f = fixture({ current, actorAt: () => actor({ airspace: 'lifted', turnStatePhase: 'coordination' }),
+    gmAt: () => gm({ airspace: 'lifted', turnStatePhase: 'coordination' }) });
+  f.options.original.turnStatePhase = 'team'; f.options.originalGm.turnStatePhase = 'team';
+  const result = await waitForWolfChoiceReadiness(f.options);
+  assert.equal(result.status, 'source-changed'); assert.equal(result.gameplayCredit, false);
+  assert.equal(f.counts.sources, 1); assert.equal(f.counts.choices, 0); assert.equal(f.counts.paints, 0); assert.equal(f.counts.waits, 0);
+});
+
+test('a Team-to-Coordination phase change while airspace remains restricted is not normal terminal progress', async () => {
+  const f = fixture({ actorAt: () => actor({ airspace: 'restricted', turnStatePhase: 'coordination' }),
+    gmAt: () => gm({ airspace: 'restricted', turnStatePhase: 'coordination' }) });
+  f.options.original.turnStatePhase = 'team'; f.options.originalGm.turnStatePhase = 'team';
+  await assert.rejects(waitForWolfChoiceReadiness(f.options), /turnStatePhase/);
+  assert.equal(f.counts.sources, 0); assert.equal(f.counts.choices, 0);
+});
+
+test('Team/restricted to Coordination/lifted still requires a newer same-attack resolved unlocked document', async () => {
+  for (const change of [{ status: 'declared' }, { attackId: 'foreign' }, { turn: 2 }, { revision: 24 },
+    { currentStep: 'boarding' }, { airspaceLocked: true }]) {
+    const f = fixture({ current: resolved(change) });
+    f.options.original.turnStatePhase = 'team'; f.options.originalGm.turnStatePhase = 'team';
+    await assert.rejects(waitForWolfChoiceReadiness(f.options), /airspace|turnStatePhase/);
+    assert.equal(f.counts.choices, 0); assert.equal(f.counts.paints, 0);
+  }
+});
+
+test('a restored combat window cannot mask an in-flight original GM instance or actor lease change', async () => {
+  for (const which of ['actor', 'gm']) {
+    const f = fixture({ actorAt: n => actor({ airspace: 'lifted', ...(which === 'actor' && n > 1 ? { connectionGeneration: 4 } : {}) }),
+      gmAt: n => gm({ airspace: 'lifted', ...(which === 'gm' && n > 1 ? { instanceId: 'foreign' } : {}) }) });
+    f.options.original.turnStatePhase = 'team'; f.options.originalGm.turnStatePhase = 'team';
+    await assert.rejects(waitForWolfChoiceReadiness(f.options));
+    assert.equal(f.counts.sources, 1); assert.equal(f.counts.choices, 0); assert.equal(f.counts.paints, 0);
+  }
+});
