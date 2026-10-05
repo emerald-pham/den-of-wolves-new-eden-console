@@ -53,3 +53,30 @@ test('the global scheduler is blocked whenever another table has a connected act
  assert.throws(()=>assertSchedulerSessionScope('owned',[own,foreign],[ownGm]),/another session/i);
  assert.throws(()=>assertSchedulerSessionScope('owned',[own],[{ref:{path:'sessions/foreign/gmInstances/device'},get:()=>true}]),/another session/i);
 });
+
+test('active recovery verifies the seat reclaimed by resume rather than sending a new casting command',async()=>{
+ const {assertReturnedCoreStation}=await proof();
+ assert.equal(typeof assertReturnedCoreStation,'function','Verify the actual returning seat without bypassing the casting lock.');
+ const reply={player:{connected:true,assignedRoleId:'admiral',seatId:'admiral'}};
+ const seat={exists:true,get:field=>({roleId:'admiral',status:'claimed',holderUid:'same-actor'})[field]};
+ assert.doesNotThrow(()=>assertReturnedCoreStation({roleId:'admiral',uid:'same-actor',reply,seat}));
+ assert.throws(()=>assertReturnedCoreStation({roleId:'admiral',uid:'different-actor',reply,seat}),/identity|UID|actor/i);
+ assert.throws(()=>assertReturnedCoreStation({roleId:'admiral',uid:'same-actor',reply,
+  seat:{...seat,get:field=>field==='status'?'open':seat.get(field)}}),/claimed|seat/i);
+});
+
+test('a failed overlapping proof batch still drains every actual in-flight request before cleanup',async()=>{
+ const {awaitProofBatch}=await proof();
+ assert.equal(typeof awaitProofBatch,'function','An assertion failure cannot leave unobserved SDK transports running.');
+ let complete;
+ const unfinished=new Promise(resolve=>{complete=resolve;});
+ let drained=false;
+ const result=awaitProofBatch([Promise.reject(new Error('Actual local SDK denial.')),unfinished]);
+ const observation=result.then(()=>{drained=true;},()=>{drained=true;});
+ await Promise.resolve();await Promise.resolve();
+ assert.equal(drained,false);
+ complete('observed successful operation');
+ await assert.rejects(result,/Actual local SDK denial/);
+ await observation;
+ assert.equal(drained,true);
+});
