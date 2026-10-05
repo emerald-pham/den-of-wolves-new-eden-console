@@ -71,7 +71,7 @@ vi.mock('node:crypto', async (importOriginal) => ({
   randomUUID: vi.fn(() => 'start-test-uuid'),
 }));
 
-import { setFacilitatorResponsibility, startGame } from './index';
+import { prepareFullGameDemo, setFacilitatorResponsibility, startGame } from './index';
 import { activeVesselIdsForRoles, stableSeatsForRoles } from './gameSetup';
 import { missionDeck, missionDeckStateFromCards } from './missionDeck';
 import { recommendedRoleIds } from './roleConfiguration';
@@ -395,6 +395,27 @@ it('requires an explicit fresh-cycle preparation before using the full-game demo
   await expect(startGame.run(request({
     sessionId: 's1', instanceId: 'bridge', requestId: 'start-demo-unprepared',
     expectedSetupRevision: 0, fullGameDemo: true,
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalledWith(expect.objectContaining({ path: 'sessions/s1' }), expect.anything());
+});
+
+it('prepares a training session only before any ordinary player has joined', async () => {
+  mock.playerDocs = [{
+    id: 'u1', fields: { connected: true, role: 'gm', assignedRoleId: null, seatId: null },
+  }];
+  await expect(prepareFullGameDemo.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'prepare-demo', expectedSetupRevision: 0,
+  }))).resolves.toMatchObject({
+    status: 'committed', fullGameDemo: { status: 'preparing', progression: 'manual' },
+  });
+  expect(mock.update).toHaveBeenCalledWith(expect.objectContaining({ path: 'sessions/s1' }), expect.objectContaining({
+    fullGameDemo: { status: 'preparing', progression: 'manual' },
+  }));
+});
+
+it('refuses full-game demo preparation after ordinary membership exists', async () => {
+  await expect(prepareFullGameDemo.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'prepare-demo-too-late', expectedSetupRevision: 0,
   }))).rejects.toMatchObject({ code: 'failed-precondition' });
   expect(mock.update).not.toHaveBeenCalledWith(expect.objectContaining({ path: 'sessions/s1' }), expect.anything());
 });
