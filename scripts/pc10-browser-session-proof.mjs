@@ -462,6 +462,7 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
       stream.chunks.length = 0;
       stream.chunkByteLength = 0;
       stream.byteLength = 0;
+      stream.preActivationByteLength = 0;
     };
     const failStreamCapture = (stream, stage) => {
       if (stream.failureStage) return;
@@ -492,6 +493,7 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
     const startStreamCapture = state => {
       let resolveBytes, rejectBytes;
       const stream = { bufferedData: null, chunks: [], chunkByteLength: 0, byteLength: 0,
+        preActivationByteLength: 0, activationObserved: false,
         startCompleted: false, terminal: null, failureStage: state.streamLifecycleInvalid ? 'stream-lifecycle' : null,
         settled: false,
         resolve: null, reject: null };
@@ -521,6 +523,8 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
       Promise.resolve().then(() => cdpSession.send('Network.streamResourceContent', {
         requestId: state.protocolRequestId,
       })).then(response => {
+        if (stream.failureStage || stream.settled) return;
+        stream.activationObserved = true;
         if (!response || typeof response.bufferedData !== 'string') {
           failStreamCapture(stream, 'stream-buffer-missing');
           return;
@@ -529,6 +533,12 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
         if (decoded.failure) {
           failStreamCapture(stream, decoded.failure === 'stream-body-too-large'
             ? decoded.failure : 'stream-buffer-malformed');
+          return;
+        }
+        // Metadata received before activation describes bytes that must exist
+        // in this request's actual returned buffer; later chunks cannot fill it.
+        if (decoded.bytes.length < stream.preActivationByteLength) {
+          failStreamCapture(stream, 'stream-buffer-incomplete');
           return;
         }
         stream.bufferedData = decoded.bytes;
@@ -620,6 +630,25 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
         return;
       }
       if (stream.failureStage) return;
+      if (!Number.isSafeInteger(event.dataLength) || event.dataLength < 0 ||
+          !Number.isSafeInteger(event.encodedDataLength) || event.encodedDataLength < 0) {
+        failStreamCapture(stream, 'stream-metadata-malformed');
+        return;
+      }
+      if (!Object.hasOwn(event, 'data')) {
+        // Chromium also flushes pending encoded lengths with dataLength=0 at
+        // loadingFinished. This event carries no body bytes, even while active.
+        if (event.dataLength === 0) return;
+        if (stream.activationObserved) {
+          failStreamCapture(stream, 'stream-chunk-missing');
+          return;
+        }
+        stream.preActivationByteLength += event.dataLength;
+        if (stream.preActivationByteLength + stream.chunkByteLength > PC10_MAX_RESPONSE_BYTES) {
+          failStreamCapture(stream, 'stream-body-too-large');
+        }
+        return;
+      }
       const decoded = decodePc10CdpBinary(event?.data);
       if (decoded.failure) {
         const stage = decoded.failure === 'stream-bytes-missing' ? 'stream-chunk-missing'
@@ -627,10 +656,18 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
         failStreamCapture(stream, stage);
         return;
       }
+      if (decoded.bytes.length !== event.dataLength) {
+        failStreamCapture(stream, 'stream-chunk-length');
+        return;
+      }
+      // A data-bearing event proves Chromium already enabled streaming, even
+      // when the command's reply is still pending on this client.
+      stream.activationObserved = true;
       stream.chunks.push(decoded.bytes);
       stream.chunkByteLength += decoded.bytes.length;
+      stream.byteLength = (stream.bufferedData?.length ?? 0) + stream.chunkByteLength;
       if (stream.chunkByteLength > PC10_MAX_RESPONSE_BYTES ||
-          (stream.bufferedData && stream.bufferedData.length + stream.chunkByteLength > PC10_MAX_RESPONSE_BYTES)) {
+          stream.chunkByteLength + (stream.bufferedData?.length ?? stream.preActivationByteLength) > PC10_MAX_RESPONSE_BYTES) {
         failStreamCapture(stream, 'stream-body-too-large');
       }
     });
