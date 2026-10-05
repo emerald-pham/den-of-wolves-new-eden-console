@@ -19,6 +19,8 @@ export const ACTION_AUDIT_RESOLUTION_SOURCE_BY_ACTION = {
   'blacksmith-repair': 'server-calculated',
   'philia-repair': 'server-calculated',
   'macaw-repair': 'server-calculated',
+  'macaw-consented-dismantling': 'server-calculated',
+  'boa-mission-reclamation-choice': 'server-calculated',
   'chacau-repair': 'server-calculated',
   'ally-repair': 'server-calculated',
   'boa-recycling': 'server-calculated',
