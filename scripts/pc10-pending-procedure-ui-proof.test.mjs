@@ -80,7 +80,8 @@ test('unoffered operations remain pending without a click', async () => {
   let clicks = 0;
   const unoffered = await captureMountedProcedureAction({
     context: { initial: { sessionId: 'session-1' }, gm: {}, crew: {} },
-    game: { select: async () => ({ observe: async () => actor }) },
+    game: { select: async () => ({ observe: async () => actor }),
+      state: async () => ({ live: true, sessionId: 'session-1', phase: 'active', cycle: 2 }) },
     caseId: 'core:runHighwallMining',
     prepare: async () => ({ offered: false }),
     inspect: async () => { throw new Error('not called'); },
