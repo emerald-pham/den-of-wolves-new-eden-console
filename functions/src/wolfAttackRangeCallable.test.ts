@@ -323,6 +323,40 @@ function admitRangeSupportChoices(): void {
     ], rangeReceipts: [emptyLong, emptyMedium] });
 }
 
+function admitVulcanRange(): void {
+  admitRangeSupportChoices();
+  const session = testState.documents.get('sessions/s1')!;
+  put('sessions/s1', { ...session, smallShipStates: { ...(session.smallShipStates as Fields),
+    vulcan: { id:'vulcan',hostShipId:'aegis',dockingRevision:1,population:15000,unrest:0,
+      cycle:{step:0,revision:5,results:{'4':'Charged.'},charges:['laser-cannon'],turn:1} } } });
+  put('sessions/s1/players/vulcan-captain-1', {uid:'vulcan-captain-1',role:'player',connected:true,
+    assignedRoleId:'wing-commander',replacementRoleId:'vulcan-captain',replacementStatus:null,
+    seatId:null,activeConsoleRoleId:null,fleetGroupId:'fleet-1'});
+  const group = testState.documents.get('sessions/s1/fleetGroups/fleet-1')!;
+  put('sessions/s1/fleetGroups/fleet-1',{...group,memberUids:[...(group.memberUids as string[]),'vulcan-captain-1'],
+    memberShipIds:{...(group.memberShipIds as Fields),'vulcan-captain-1':'aegis'}});
+}
+
+it('offers only the entitled Vulcan safe range view and records/replays a source choice without early dice', async () => {
+  admitVulcanRange();
+  const read = {sessionId:'s1',sourceId:'vulcan-laser-cannon',range:'short-range'};
+  const view = await getWolfRangeSupportActionChoice.run(request(read,'vulcan-captain-1'));
+  expect(view).toMatchObject({sourceId:'vulcan-laser-cannon',actorRoleId:'vulcan-captain',eligible:true,actionAvailable:true});
+  expect(JSON.stringify(view)).not.toMatch(/combatRoster|targetInstanceIds|privateNotes|dice/);
+  await expect(getWolfRangeSupportActionChoice.run(request(read,'gorg-captain-1')))
+    .rejects.toMatchObject({code:'permission-denied'});
+  const command={...read,requestId:'actual-vulcan-use',expectedTurn:1,expectedRevision:view.revision,use:true};
+  await expect(commitWolfRangeSupportActionChoice.run(request(command,'vulcan-captain-1')))
+    .resolves.toMatchObject({status:'committed',choiceStatus:'used',actionCount:1});
+  await expect(commitWolfRangeSupportActionChoice.run(request(command,'vulcan-captain-1')))
+    .resolves.toMatchObject({status:'replayed'});
+  expect(entropy.randomInt).not.toHaveBeenCalled();
+  const captain=testState.documents.get('sessions/s1/players/vulcan-captain-1')!;
+  put('sessions/s1/players/vulcan-captain-1',{...captain,replacementRoleId:'doctor'});
+  await expect(commitWolfRangeSupportActionChoice.run(request(command,'vulcan-captain-1')))
+    .rejects.toMatchObject({code:'permission-denied'});
+});
+
 it('returns only safe escort contacts and operational durability to the assigned current role', async () => {
   admitEscortRange();
   const pdf = await getWolfEscortRangeActionChoice.run(request({ sessionId: 's1', sourceId: 'pdf-escort-fighter-wing', range: 'medium-range' }, 'colonel-1'));
