@@ -558,6 +558,8 @@ it('commits and recovers ordinary closure for remaining craft after Ring consump
   const current = mock.documents.get(sessionPath)!;
   const currentRoles = [...roles, 'dione-engineer'];
   current.activeRoleIds = currentRoles;
+  current.activeVesselIds = [...activeVesselIdsForRoles(currentRoles)];
+  mock.documents.set(`${sessionPath}/fleetGroups/fleet-1`, { ...group, vesselIds: current.activeVesselIds });
   current.candidateCraftReservations = { philia: { code: 'N', groupId: 'fleet-1', coordinate: '3232',
     sourceId: 'ring-craft', cycle: 2 } };
   current.shuttleDockings = initialShuttleDockingsForRoles(currentRoles)
