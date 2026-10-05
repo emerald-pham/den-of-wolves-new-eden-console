@@ -237,6 +237,7 @@ test('the original strict cohort helper retains SDK/document and readonly author
     validatePc10PresenceFunctionalContract: implementation.validatePc10PresenceFunctionalContract,
     buildPc10PresenceSdkRenewal: implementation.buildPc10PresenceSdkRenewal,
     capturePc10PresenceAuthority: implementation.capturePc10PresenceAuthority,
+    assertPc10PresenceCohortWitnesses: implementation.assertPc10PresenceCohortWitnesses,
     evaluatePc10PresenceInstrumentationContract: implementation.evaluatePc10PresenceInstrumentationContract,
     createPc10BrowserActor: async (_browser, _url, label, _viewport, options) => {
       assert.equal(options.presenceFunctionalContract, undefined);
