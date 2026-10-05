@@ -1,21 +1,18 @@
 import assert from 'node:assert/strict';
 import { setTimeout as delay } from 'node:timers/promises';
-import { pathToFileURL } from 'node:url';
+import { pathToFileURL, fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
-import { writeFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import { runFreshFullGameDemoUi } from './pc10-full-game-demo-ui-proof.mjs';
 import { createTwoBrowserGameplay } from './pc10-two-browser-gameplay.mjs';
 import { completeOfferedTurnAdvance } from './pc10-full-game-demo-proof-helpers.mjs';
 import { runStationEnding } from './pc10-candidate-station-ui-proof.mjs';
+import { CANDIDATE_PROOF_SHIPS as SHIPS, candidateShipRole, candidateProofOptions,
+  assertCandidateAdmission, assertFreshCandidateStart, prepareCandidateEvidenceDirectory,
+  candidateEvidenceEnvelope } from './pc10-candidate-proof-helpers.mjs';
 
-const SHIPS = {
-  aegis: { name: 'AEGIS', engineer: 'executive-officer', captain: 'admiral' },
-  dione: { name: 'Dione', engineer: 'dione-engineer', captain: 'dione-captain' },
-  icebreaker: { name: 'Icebreaker', engineer: 'icebreaker-engineer', captain: 'icebreaker-captain' },
-  shepherd: { name: 'Shepherd', engineer: 'shepherd-engineer', captain: 'shepherd-captain' },
-  quellon: { name: 'Quellon', engineer: 'quellon-engineer', captain: 'quellon-captain' },
-  'refinery-124': { name: 'Refinery 124', engineer: 'refinery-124-engineer', captain: 'refinery-124-captain' },
-};
 const TRACKS = ['reactor', 'jump-drive', 'hydroponics', 'water-reclamation', 'advanced-hydroponics'];
 
 /** All choices below use the current named browser actor and connected controls. */
@@ -23,6 +20,17 @@ export function candidateGameplayTools(context) {
   const tools = createTwoBrowserGameplay(context);
   const { gm, crew, directory } = context;
   const receipts = [], choices = [];
+  async function begin(code) {
+    const current = await gm.observe();
+    assertFreshCandidateStart({ current, started: context.started, roster: context.roster });
+    await record('genuine original manual Team1 candidate callback', {
+      candidateCode: code, sessionId: current.sessionId, cycle: current.cycle,
+      coreRoleAccounts: current.activeRoleIds.length, namedRoleAccounts: context.roster.length,
+      ...(context.admission ? { actualAuthenticatedActors: context.admission.actualAuthenticatedActors } : {}),
+      authority: 'same ordinary live GM and originally started owned instance; source roster unchanged',
+    });
+    return tools.state();
+  }
   async function waitState(description, predicate) {
     const end = Date.now() + 60_000; let current;
     while (Date.now() < end) {
@@ -170,7 +178,7 @@ export function candidateGameplayTools(context) {
   }
   async function jump(shipId, coordinate) {
     const entry = SHIPS[shipId];
-    const roleId = context.roster.some(actor => actor.roleId === entry.captain) ? entry.captain : entry.engineer;
+    const roleId = candidateShipRole(context.roster, shipId, 'captain');
     const surface = await tools.select(roleId);
     const panel = surface.page.getByRole('region', { name: `${entry.name} Jump Drive control`, exact: true });
     await panel.waitFor();
@@ -286,21 +294,25 @@ export function candidateGameplayTools(context) {
     assert.equal(state.debriefSnapshot.result, 'success');
     assert.equal(state.debriefSnapshot.candidate.code, code);
     await gm.page.screenshot({ path: `${directory}/${code}-GM-ending.png` });
+    const originalCrew = await crew.observe();
     await crew.page.reload();
     await crew.until(`Entitled ${code} crew ending after real reload`, value => value.phase === 'debrief' && value.sameActor);
+    const reloadedCrew = await crew.observe();
+    for (const key of ['sessionId', 'uidHash', 'profileRoleId']) assert.equal(reloadedCrew[key], originalCrew[key]);
     await crew.page.getByRole('dialog', { name: 'Endgame evaluation', exact: true }).waitFor();
     await crew.page.screenshot({ path: `${directory}/${code}-crew-ending.png` });
-    await tools.save('candidate-gameplay.json', { status: 'passed', candidateCode: code, choices, receipts,
+    await tools.save('candidate-gameplay.json', { status: 'passed', candidateCode: code, candidateEndingObserved: true,
+      ...(context.admission ? { admission: context.admission } : {}), choices, receipts,
       ending: state.debriefSnapshot, scope: 'Genuine fresh ordinary admission and manually progressed candidate path via two browser contexts. Explicit GM demo counter choices are listed.' });
   }
-  return { ...tools, context, record, waitState, receipt, cycle, coordination, gmSupplies, printedRationBudget, gmRepair, research, jump, scout, confirmPhysicalGroups,
+  return { ...tools, context, begin, record, waitState, receipt, cycle, coordination, gmSupplies, printedRationBudget, gmRepair, research, jump, scout, confirmPhysicalGroups,
     candidateGroup, gmCandidateShip, candidateGeometry, complete };
 }
 
 export async function runRingEnding(context) {
   const tools = candidateGameplayTools(context);
   const { gm, crew, directory } = context;
-  const start = await tools.state();
+  const start = await tools.begin('N');
   const coordinate = Object.entries(start.organiserSites).find(([, site]) => site.code === 'N')?.[0];
   assert.match(coordinate, /^\d{4}$/, 'The real GM-only chart must supply the candidate destination.');
   await tools.record('entitled live GM source chart selected N', { candidateCode: 'N', cycle: 1 });
@@ -314,7 +326,7 @@ export async function runRingEnding(context) {
   }
   for (let cycle = 1; cycle <= 4; cycle++) {
     await tools.research(cycle);
-    for (const shipId of start.activeVesselIds) await tools.maintenanceUi(shipId, SHIPS[shipId].engineer, {
+    for (const shipId of start.activeVesselIds) await tools.maintenanceUi(shipId, candidateShipRole(context.roster, shipId), {
       afterBegin: () => tools.gmRepair(shipId), afterRiot: () => tools.gmRepair(shipId),
     });
     await tools.coordination();
@@ -343,7 +355,7 @@ export async function runRingEnding(context) {
   await gm.page.screenshot({ path: `${directory}/N-repaired-costs-blockers.png` });
   await tools.candidateGeometry(gm, 'N', 'repaired');
   for (const shipId of start.activeVesselIds) {
-    const surface = await tools.select(SHIPS[shipId].captain);
+    const surface = await tools.select(candidateShipRole(context.roster, shipId, 'captain'));
     const panel = surface.page.getByRole('region', { name: 'Candidate preparation and actions', exact: true });
     const result = await tools.receipt(surface, 'executeCandidateAction', () =>
       panel.getByRole('button', { name: `Cross Ring // ${shipId} // five fuel`, exact: true }).click());
@@ -361,7 +373,7 @@ export async function runRingEnding(context) {
 export async function runNebulaEnding(context) {
   const tools = candidateGameplayTools(context);
   const { crew, directory } = context;
-  const start = await tools.state();
+  const start = await tools.begin('O');
   const coordinate = Object.entries(start.organiserSites).find(([, site]) => site.code === 'O')?.[0];
   assert.match(coordinate, /^\d{4}$/);
   await tools.record('entitled live GM source chart selected O', { candidateCode: 'O' });
@@ -370,7 +382,7 @@ export async function runNebulaEnding(context) {
     await tools.gmSupplies(shipId, 'food', budget[shipId].food);
     await tools.gmSupplies(shipId, 'water', budget[shipId].water);
     await tools.gmSupplies(shipId, 'fuel', 40);
-    await tools.maintenanceUi(shipId, SHIPS[shipId].engineer, {
+    await tools.maintenanceUi(shipId, candidateShipRole(context.roster, shipId), {
       afterBegin: () => tools.gmRepair(shipId), afterRiot: () => tools.gmRepair(shipId),
     });
   }
@@ -380,7 +392,7 @@ export async function runNebulaEnding(context) {
   assert.notEqual((await tools.state()).shipFleetGroupIds.aegis, (await tools.state()).shipFleetGroupIds.icebreaker,
     'Only committed physical partitions establish the separate audience.');
   await tools.cycle(2);
-  for (const shipId of start.activeVesselIds) await tools.maintenanceUi(shipId, SHIPS[shipId].engineer, {
+  for (const shipId of start.activeVesselIds) await tools.maintenanceUi(shipId, candidateShipRole(context.roster, shipId), {
     afterBegin: () => tools.gmRepair(shipId), afterRiot: () => tools.gmRepair(shipId),
   });
   await tools.coordination();
@@ -407,7 +419,7 @@ export async function runNebulaEnding(context) {
   for (let cycle = 2; cycle <= 5; cycle++) {
     if (cycle > 2) {
       await tools.cycle(cycle);
-      for (const shipId of survivors) await tools.maintenanceUi(shipId, SHIPS[shipId].engineer, {
+      for (const shipId of survivors) await tools.maintenanceUi(shipId, candidateShipRole(context.roster, shipId), {
         afterBegin: () => tools.gmRepair(shipId), afterRiot: () => tools.gmRepair(shipId),
       });
       await tools.coordination();
@@ -420,7 +432,7 @@ export async function runNebulaEnding(context) {
   await tools.record('private GM scan verification', { count: 8,
     mechanism: 'entitled read-only browser Firestore SDK; no scan or die write' });
   for (const shipId of survivors) {
-    const surface = await tools.select(SHIPS[shipId].captain);
+    const surface = await tools.select(candidateShipRole(context.roster, shipId, 'captain'));
     const candidate = surface.page.getByRole('region', { name: 'Candidate preparation and actions', exact: true });
     assert.equal(await candidate.locator('details').count(), 0, 'A normal member has no private GM calculation disclosure.');
     const result = await tools.receipt(surface, 'executeCandidateAction', () =>
@@ -431,13 +443,82 @@ export async function runNebulaEnding(context) {
   await tools.complete('O');
 }
 
+export function candidateEndingFor(code) {
+  assert.ok(['N', 'O', 'P'].includes(code));
+  return code === 'P' ? runStationEnding : code === 'O' ? runNebulaEnding : runRingEnding;
+}
+
+/** Optional direct callback for the root generic driver's PC10_DEMO_ENDING_DRIVER API. */
+export async function runEnding(context) {
+  assert.ok(process.env.PC10_CANDIDATE_PATH, 'Set the explicit candidate code before composing the root ending callback.');
+  return candidateEndingFor(process.env.PC10_CANDIDATE_PATH)(context);
+}
+
+/** Additive hooks only; the root runner retains setup, ordinary Auth, casting and start ownership. */
+export function candidateDriverOptions(input) {
+  const configuration = candidateProofOptions(input);
+  let confirmed, admission;
+  return { ...configuration,
+    onSetup: async context => { await configuration.onSetup?.(context); },
+    onBeforeStart: async context => {
+      await configuration.onBeforeStart?.(context);
+      confirmed = context.confirmed;
+      admission = assertCandidateAdmission({ confirmed, roster: context.roster,
+        gm: await context.gm.observe(), controller: await context.crew.observe() }, configuration);
+      await writeFile(`${context.directory}/candidate-admission.json`, `${JSON.stringify(candidateEvidenceEnvelope({
+        status: 'in-progress', candidateCode: configuration.candidateCode, ...admission,
+        activeRoleIds: confirmed.activeRoleIds, activeVesselIds: confirmed.activeVesselIds,
+      }), null, 2)}\n`, { flag: 'wx' });
+    },
+    onStarted: async context => {
+      assertFreshCandidateStart({ current: await context.gm.observe(), started: context.started, roster: context.roster });
+      await configuration.onStarted?.({ ...context, confirmed, admission });
+    },
+    runEnding: context => candidateEndingFor(configuration.candidateCode)({ ...context, confirmed, admission }),
+  };
+}
+
+/** Invoke only after root returns the sequential runtime window; importing this module is side-effect free. */
+export async function runFreshCandidateManualProof(input = {}) {
+  const configuration = candidateProofOptions(input);
+  const driverRoot = resolve(fileURLToPath(new URL('..', import.meta.url)));
+  const sourceCommit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: configuration.sourceRoot, encoding: 'utf8' }).trim();
+  const driverCommit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: driverRoot, encoding: 'utf8' }).trim();
+  const builtRuntimeIndexSha256 = createHash('sha256').update(await readFile(`${configuration.sourceRoot}/functions/lib/index.js`)).digest('hex');
+  if (configuration.expectedSourceCommit) assert.equal(sourceCommit, configuration.expectedSourceCommit);
+  if (configuration.expectedRuntimeIndexSha256) assert.equal(builtRuntimeIndexSha256, configuration.expectedRuntimeIndexSha256);
+  const driverModules = ['pc10-candidate-manual-ui-proof', 'pc10-candidate-station-ui-proof',
+    'pc10-live-wolf-attack-ui-proof', 'pc10-two-browser-gameplay', 'pc10-candidate-proof-helpers',
+    'pc10-full-game-demo-ui-proof', 'pc10-full-game-demo-proof-helpers'];
+  const moduleSha256 = Object.fromEntries(await Promise.all(driverModules.map(async name => [name,
+    createHash('sha256').update(await readFile(new URL(`./${name}.mjs`, import.meta.url))).digest('hex')])));
+  await prepareCandidateEvidenceDirectory(configuration.directory, { sourceCommit, driverCommit,
+    builtRuntimeIndexSha256, moduleSha256, candidateCode: configuration.candidateCode,
+    playerCount: configuration.playerCount, includePress: configuration.includePress,
+    capybaraEnabled: configuration.capybaraEnabled, chartId: configuration.chartId,
+    projectId: configuration.projectId, ports: configuration.ports,
+    expectedOrdinaryAuthAccounts: configuration.playerCount + Number(configuration.includePress) + 2,
+    dependencies: { genericDriver: 'root 9681f7aa API', admission: 'confirmed.activeRoleIds + optional Press + controller + GM',
+      gameplay: 'normal audited requests, actual manual GM controls and server randomness; explicit GM demo counters disclosed' },
+  });
+  return runFreshFullGameDemoUi(candidateDriverOptions(configuration));
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  const code = process.env.PC10_CANDIDATE_PATH ?? 'N';
-  assert.ok(['N', 'O', 'P'].includes(code), 'Every source path needs its explicit genuine gameplay callback.');
-  await runFreshFullGameDemoUi({ sourceRoot: process.cwd(), baseUrl: 'http://127.0.0.1:5175',
-    projectId: 'demo-pc10-candidate-manual', ports: { auth: 9119, functions: 5021, firestore: 8100 },
-    directory: process.env.PC10_EVIDENCE_DIRECTORY ?? '/tmp/dow-pc10-evidence/candidates/manual-206389/N4-attempt1',
-    playerCount: code === 'P' ? 11 : 18, chartId: code === 'P' ? 'B' : 'A',
-    includePress: true, capybaraEnabled: false, gameplayOnly: true,
-    runEnding: code === 'P' ? runStationEnding : code === 'O' ? runNebulaEnding : runRingEnding });
+  assert.equal(process.env.PC10_PROOF_DIR, undefined, 'Use PC10_EVIDENCE_DIRECTORY; the old variable never selected candidate evidence.');
+  const booleanEnv = name => {
+    const value = process.env[name];
+    if (value === undefined) return undefined;
+    assert.ok(['true', 'false'].includes(value), `${name} must be true or false.`);
+    return value === 'true';
+  };
+  await runFreshCandidateManualProof({
+    candidateCode: process.env.PC10_CANDIDATE_PATH ?? 'N',
+    playerCount: process.env.PC10_PLAYER_COUNT === undefined ? 18 : Number(process.env.PC10_PLAYER_COUNT),
+    includePress: booleanEnv('PC10_INCLUDE_PRESS'), capybaraEnabled: booleanEnv('PC10_CAPYBARA_ENABLED'),
+    chartId: process.env.PC10_CHART_ID, directory: process.env.PC10_EVIDENCE_DIRECTORY,
+    sourceRoot: process.env.PC10_SOURCE_ROOT ?? process.cwd(), baseUrl: process.env.PC10_UI_URL,
+    projectId: process.env.PC10_DEMO_PROJECT, expectedSourceCommit: process.env.PC10_EXPECTED_SOURCE_SHA,
+    expectedRuntimeIndexSha256: process.env.PC10_EXPECTED_INDEX_SHA256,
+  });
 }

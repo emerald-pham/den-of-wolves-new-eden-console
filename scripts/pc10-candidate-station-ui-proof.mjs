@@ -2,34 +2,29 @@ import assert from 'node:assert/strict';
 import { setTimeout as delay } from 'node:timers/promises';
 import { candidateGameplayTools } from './pc10-candidate-manual-ui-proof.mjs';
 import { resolveLiveWolfAttack } from './pc10-live-wolf-attack-ui-proof.mjs';
-
-const SHIPS = {
-  aegis: { engineer: 'executive-officer', name: 'AEGIS' },
-  icebreaker: { engineer: 'icebreaker-engineer', name: 'Icebreaker' },
-  shepherd: { engineer: 'shepherd-engineer', name: 'Shepherd' },
-  quellon: { engineer: 'quellon-engineer', name: 'Quellon' },
-  'refinery-124': { engineer: 'refinery-124-engineer', name: 'Refinery 124' },
-};
+import { candidateShipRole, contributeStationReactors } from './pc10-candidate-proof-helpers.mjs';
 
 /** Fresh source arrival, current audited combat choices, then unique physical Reactors. */
 export async function runStationEnding(context) {
   const tools = candidateGameplayTools(context);
   const { gm, crew, directory } = context;
-  const start = await tools.state();
+  const start = await tools.begin('P');
   const coordinate = Object.entries(start.organiserSites).find(([, site]) => site.code === 'P')?.[0];
   assert.match(coordinate, /^\d{4}$/);
-  assert.deepEqual([...start.activeVesselIds].sort(), Object.keys(SHIPS).sort(), 'The actual eleven-role roster supplies five vessels.');
-  await tools.record('entitled live GM chart selected P with eleven core roles', { candidateCode: 'P', vesselCount: 5 });
+  await tools.record('entitled live GM chart selected P with the confirmed source roster', {
+    candidateCode: 'P', vesselCount: start.activeVesselIds.length, namedRoleCount: context.roster.length });
+  const budget = await tools.printedRationBudget(Object.fromEntries(start.activeVesselIds.map(shipId => [shipId, 2])));
   for (const shipId of start.activeVesselIds) {
-    for (const [resource, minimum] of [['food', 30], ['water', 30], ['fuel', 20]]) await tools.gmSupplies(shipId, resource, minimum);
-    await tools.maintenanceUi(shipId, SHIPS[shipId].engineer, {
+    for (const [resource, minimum] of [['food', budget[shipId].food], ['water', budget[shipId].water], ['fuel', 20]])
+      await tools.gmSupplies(shipId, resource, minimum);
+    await tools.maintenanceUi(shipId, candidateShipRole(context.roster, shipId), {
       afterBegin: () => tools.gmRepair(shipId), afterRiot: () => tools.gmRepair(shipId),
     });
   }
   await tools.coordination();
   for (const shipId of start.activeVesselIds) await tools.jump(shipId, coordinate);
   await tools.cycle(2);
-  for (const shipId of start.activeVesselIds) await tools.maintenanceUi(shipId, SHIPS[shipId].engineer, {
+  for (const shipId of start.activeVesselIds) await tools.maintenanceUi(shipId, candidateShipRole(context.roster, shipId), {
     consoles: shipId === 'aegis' ? ['Fighter Bay Alpha', 'Fighter Bay Bravo', 'Command and Control', 'Missile Launchers', 'Point Defence Lasers'] : [],
     refuels: shipId === 'icebreaker' ? { 'Shuttle Bay': 'highwall' } : {},
     afterBegin: () => tools.gmRepair(shipId), afterRiot: () => tools.gmRepair(shipId),
@@ -70,15 +65,18 @@ export async function runStationEnding(context) {
   }
   assert.ok(liberated, 'Only zero authoritative Station Wolves permits Reactor contribution.');
   for (const shipId of start.activeVesselIds) await tools.gmRepair(shipId);
-  for (const shipId of start.activeVesselIds) {
-    const actor = await tools.select(SHIPS[shipId].engineer);
+  await contributeStationReactors({ shipIds: start.activeVesselIds, contribute: async shipId => {
+    const actor = await tools.select(candidateShipRole(context.roster, shipId));
     const panel = actor.page.getByRole('region', { name: 'Candidate preparation and actions', exact: true });
     if (shipId === 'aegis') await tools.candidateGeometry(actor, 'P', 'reactor-choice');
     const button = panel.getByRole('button', { name: new RegExp(`^Cannibalise Reactor \\/\\/ ${shipId} \\/\\/ \\d+ capacity$`) });
+    const capacity = Number((await button.textContent()).match(/\/\/ (\d+) capacity$/)?.[1]);
+    assert.ok(Number.isSafeInteger(capacity) && capacity > 0, 'Record the actual displayed available Reactor capacity.');
     const result = await tools.receipt(actor, 'executeCandidateAction', () => button.click());
-    await tools.record('actual unique Reactor contribution', { shipId, capacity: result.capacity,
+    await tools.record('actual unique Reactor contribution', { shipId, capacity, activated: result.outcome === 'activated',
       mechanism: 'current available physical Reactor; source permanently consumed' });
-  }
+    return result;
+  } });
   await tools.complete('P');
   assert.equal((await crew.observe()).cycle, 2);
 }

@@ -2,14 +2,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 import { candidateGameplayTools } from './pc10-candidate-manual-ui-proof.mjs';
-
-const SHIPS = {
-  aegis: { engineer: 'executive-officer' },
-  icebreaker: { engineer: 'icebreaker-engineer' },
-  shepherd: { engineer: 'shepherd-engineer' },
-  quellon: { engineer: 'quellon-engineer' },
-  'refinery-124': { engineer: 'refinery-124-engineer' },
-};
+import { CANDIDATE_PROOF_SHIPS } from './pc10-candidate-proof-helpers.mjs';
 const attackSummary = value => value && ({
   status: value.status, revision: value.revision, currentStep: value.currentStep,
   turn: value.turn, enemyCount: value.preparation?.shipIds?.length,
@@ -161,8 +154,10 @@ export async function resolveLiveWolfAttack(context, { tools = candidateGameplay
     await afterChoice(current);
   }
   async function boarding(current) {
-    const actors = ['executive-officer', 'refinery-124-pdf-colonel', ...Object.values(SHIPS).map(ship => ship.engineer)];
-    for (const roleId of [...new Set(actors)]) {
+    const actors = ['executive-officer', 'refinery-124-pdf-colonel',
+      ...Object.values(CANDIDATE_PROOF_SHIPS).map(ship => ship.engineer),
+      ...roster.map(actor => actor.roleId).filter(roleId => roleId !== 'press-officer')];
+    for (const roleId of [...new Set(actors)].filter(roleId => roster.some(actor => actor.roleId === roleId))) {
       const actor = await tools.select(roleId);
       const special = actor.page.getByRole('region', { name: 'Current boarding special choice', exact: true });
       if (await special.isVisible()) {
@@ -197,7 +192,7 @@ export async function resolveLiveWolfAttack(context, { tools = candidateGameplay
     activeVesselIds: setup.activeVesselIds,
     charges: Object.fromEntries(Object.entries(setup.maintenanceCycles ?? {}).map(([id, cycle]) => [id, cycle.charges])),
     attack: attackSummary(current),
-    limits: ['P11 core EO/Wing/Highwall/boarding actor set only; Dione/Maliades, Boa/replacement, PDF Escort and facilitator rulings are not yet validated.'],
+    limits: ['P11/P18/P20 confirmed core boarding actors are visited. Live Dione/Maliades, Boa, PDF Escort, replacement and facilitator rulings still require the actual source run; no native test establishes gameplay.'],
   });
   if (current.status === 'planned') {
     assert.ok(declareIfPlanned, 'Planned attack requires the explicit normal GM declaration option.');

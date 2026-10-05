@@ -2,13 +2,14 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { writeFile } from 'node:fs/promises';
 import { setTimeout as delay } from 'node:timers/promises';
+import { candidateEvidenceEnvelope, waitForMaintenanceReceipt } from './pc10-candidate-proof-helpers.mjs';
 
 /** Compose genuine UI-selected crew accounts; no token, Admin write or store setter. */
 export function createTwoBrowserGameplay(context) {
   const { gm, crew, initial, roster, directory } = context;
   assert.ok(initial.sessionId && initial.joinCode && roster.length);
   const actions = [], snapshots = [];
-  const hash = value => createHash('sha256').update(JSON.stringify(value)).digest('hex');
+  const hash = value => createHash('sha256').update(JSON.stringify(value ?? null)).digest('hex');
   async function live(surface) {
     return surface.until('The current normally admitted actor is live', state =>
       state.sameActor && state.sessionId === initial.sessionId && state.connection === 'live' &&
@@ -26,7 +27,8 @@ export function createTwoBrowserGameplay(context) {
         activeVesselIds: session?.activeVesselIds, maintenanceCycles: session?.maintenanceCycles,
         shuttleDockings: session?.shuttleDockings, shuttleFuelled: session?.shuttleFuelled,
         shuttleControl: session?.shuttleControl, shipGalacticCoordinates: session?.shipGalacticCoordinates,
-        organiserSites: session?.organiserSites,
+        organiserSites: session?.organiserSites, setupRevision: session?.setupRevision,
+        chartId: session?.chartId, turnState: session?.turnState,
         shipFleetGroupIds: session?.shipFleetGroupIds,
         vesselActionRevisions: session?.vesselActionRevisions, gameOutcome: session?.gameOutcome,
         debriefSnapshot: session?.debriefSnapshot,
@@ -34,6 +36,16 @@ export function createTwoBrowserGameplay(context) {
           activeConsoleRoleId: s.me?.activeConsoleRoleId, replacementRoleId: s.me?.replacementRoleId },
         live: s.connection === 'live' && s.sessionSnapshotFreshness === 'server' };
     }, surface.storeModuleUrl());
+  }
+  async function shipState(shipId, surface = gm) {
+    return surface.page.evaluate(async ({ moduleUrl, shipId }) => {
+      const { useSessionStore } = await import(moduleUrl);
+      const { projectShipState } = await import('/src/lib/shipStateProjection.ts');
+      const snapshot = useSessionStore.getState();
+      return { sessionId: snapshot.session?.id,
+        live: snapshot.connection === 'live' && snapshot.sessionSnapshotFreshness === 'server',
+        shipProjection: snapshot.session ? projectShipState(snapshot.session, shipId) : null };
+    }, { moduleUrl: surface.storeModuleUrl(), shipId });
   }
   async function select(roleId, { enter = true } = {}) {
     if (roleId === 'gm') { await live(gm); return gm; }
@@ -110,27 +122,38 @@ export function createTwoBrowserGameplay(context) {
     if (!(await panel.isVisible()) && await maintenancePage.isVisible()) await maintenancePage.click();
     await panel.waitFor();
     const before = await state();
+    const originalActor = await surface.observe();
     assert.equal(before.turnPhase.airspace.state, 'restricted');
     async function execute(button) {
       const result = surface.page.waitForResponse(response => response.request().method() === 'POST' &&
         new URL(response.url()).pathname.endsWith('/us-central1/runMaintenance'));
       await button.click();
       const response = await result, body = await response.json();
+      const request = response.request().postDataJSON()?.data;
+      const entry = { roleId, shipId, endpoint: 'runMaintenance', cycle: before.cycle,
+        action: request?.action, expectedRevision: request?.expectedRevision,
+        requestFingerprint: hash(request), resultFingerprint: hash(body.result),
+        httpStatus: response.status(), status: body.result?.status,
+        revision: body.result?.cycle?.revision, returnedStep: body.result?.cycle?.step,
+        uidHash: originalActor.uidHash, synchronization: 'pending',
+        transport: 'captured actual connected UI request and unmodified server reply' };
+      actions.push(entry);
+      await save('maintenance-ui-progress.json');
       assert.equal(response.status(), 200, `Real ${shipId} maintenance: ${JSON.stringify(body)}`);
       assert.equal(body.result?.status, 'committed');
       const revision = body.result.cycle.revision;
-      const request = response.request().postDataJSON()?.data;
-      const deadline = Date.now() + 60_000;
-      while ((await state()).maintenanceCycles?.[shipId]?.revision !== revision ||
-          (await state(surface)).maintenanceCycles?.[shipId]?.revision !== revision) {
-        assert.ok(Date.now() < deadline, `${shipId} GM and original crew maintenance must observe revision ${revision}`);
-        await delay(200);
-      }
-      const actual = await surface.observe();
-      actions.push({ roleId, endpoint: 'runMaintenance', cycle: before.cycle, action: request?.action,
-        requestFingerprint: hash(request), resultFingerprint: hash(body.result), revision,
-        uidHash: actual.uidHash, status: 'committed',
-        transport: 'captured normal connected UI request and unmodified server reply; original crew and GM revision synchronized' });
+      await waitForMaintenanceReceipt({ shipId, cycle: before.cycle, revision, expectedActor: originalActor,
+        expectedMaintenance: body.result.cycle,
+        inspectGm: () => shipState(shipId), inspectCrew: () => shipState(shipId, surface), inspectActor: () => surface.observe(),
+        inspectRendered: () => panel.evaluate(element => {
+          const current = [...element.querySelectorAll('ol[aria-label$=" maintenance sequence"] li[aria-current="step"]')];
+          return { currentStep: current.length === 0 ? null : current.length === 1
+            ? Number(current[0].querySelector('.maintenance-systems__step > span')?.textContent) : 'ambiguous',
+          endEnabled: [...element.querySelectorAll('button')].some(button =>
+            button.textContent?.trim() === 'End maintenance cycle' && !button.disabled),
+          results: [...element.querySelectorAll('[role="status"]')].map(status => status.textContent ?? '') };
+        }) });
+      entry.synchronization = 'original crew and GM ship projections plus rendered step/results matched';
       await save('maintenance-ui-progress.json');
       console.log(JSON.stringify({ maintenanceStage: 'actual normal UI committed', roleId, shipId,
         cycle: before.cycle, action: request?.action, revision }));
@@ -187,12 +210,10 @@ export function createTwoBrowserGameplay(context) {
     return after.maintenanceCycles[shipId];
   }
   async function save(name = 'two-browser-gameplay-actions.json', details = {}) {
-    await writeFile(`${directory}/${name}`, `${JSON.stringify({ schemaVersion: 1,
-      actualBrowserProcesses: 2, actualBrowserContexts: 2, actualHumans: 0,
-      adminGameplayWrites: false, acceleratedClock: false, callableFixtures: false,
+    await writeFile(`${directory}/${name}`, `${JSON.stringify(candidateEvidenceEnvelope({
       limitations: ['Explicit SDK actions are separately labeled from connected UI actions.',
         'No function or full-game acceptance follows from the adapter itself.'],
-      actions, snapshots, ...details }, null, 2)}\n`);
+      actions, snapshots, ...details }), null, 2)}\n`);
   }
-  return { context, actions, state, select, command, read, ui, maintenanceUi, save };
+  return { context, actions, state, shipState, select, command, read, ui, maintenanceUi, save };
 }
