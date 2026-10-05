@@ -93,7 +93,7 @@ const definitions = [
    ['functions/src/index.ts','dioneMaliadesLaunchView']],
   ['getPdfEscortWingLaunch','served-ui-path',sessionService,'getPdfEscortWingLaunch','src/components/PdfEscortWingReference.tsx','PdfEscortWingReference',
    'the current Refinery 124 P.D.F. Colonel', ['refinery-124-pdf-colonel'],
-   'Requires active gameplay, usable Refinery 124 and a current Wolf attack; the server checks fighters, current-turn Fighter Bay charge and damage.',
+   'Requires active gameplay at Cycle 1 or later, a current Wolf attack, and the current connected player selecting the P.D.F. Colonel console with a live server-fresh session snapshot. The server checks usable Refinery 124, fighters, current-turn Fighter Bay charge and damage.',
    'Read-only; does not spend fighters or bay charge.',
    'Returns eligibility plus bounded reasons such as no fighters, uncharged/damaged bay, already launched, or waiting.',
    'No Colonel, inactive/destroyed Refinery, missing Fighter Bay charge, damage, exhausted wing, or stale attack blocks launch eligibility.',
@@ -102,7 +102,7 @@ const definitions = [
    ['functions/src/index.ts','pdfEscortWingLaunchView']],
   ['launchPdfEscortWing','served-ui-path',sessionService,'launchPdfEscortWing','src/components/PdfEscortWingReference.tsx','PdfEscortWingReference',
    'the current Refinery 124 P.D.F. Colonel', ['refinery-124-pdf-colonel'],
-   'Requires an eligible attack view and exact attack/wing revisions; Fighter Bay must be charged this cycle, undamaged, and have fighters remaining.',
+   'Requires active gameplay, the current P.D.F. Colonel authority and a fresh eligible targeting view with exact attack turn/revision and wing revision; Fighter Bay must be charged this cycle, undamaged, and have fighters remaining.',
    'No additional resource is spent when recording the launch; remaining fighter count is governed by the server wing state and combat result.',
    'Records launched craft in both attack and authoritative wing state and commits a retry-bound receipt.',
    'Stale attack/wing revision, no fighters, inactive/destroyed Refinery, uncharged/damaged Fighter Bay, or an existing launch blocks it.',
@@ -111,13 +111,14 @@ const definitions = [
    ['functions/src/index.ts','pdfEscortWingLaunchView']],
   ['passWolfFighterLaunchChoice','served-ui-path',sessionService,'passWolfFighterLaunchChoice','src/components/AegisFighterWingLaunchPanel.tsx','AegisFighterWingLaunchPanel',
    'the current source holder: AEGIS Wing Commander for AEGIS wings, Dione Engineer for Maliades, or P.D.F. Colonel for the Escort Wing', ['wing-commander','dione-engineer','refinery-124-pdf-colonel'],
-   'Must own the named source’s current role and berth, and its launch view must be eligible at the expected attack revision; PDF also binds wing revision.',
+   'Must own the named source’s current role and berth during active gameplay, and its fresh launch view must be eligible at the expected attack turn/revision; the PDF path also requires the connected Colonel’s live server-fresh Cycle 1+ snapshot and binds wing revision.',
    'No game resource is spent by passing.',
    'Stores one immutable pass for the source and reconciles the launch step after required sources decide.',
    'Already launched/passed, stale revision, missing source holder/berth, or an ineligible current choice rejects the pass.',
    'Another required source holder decides, then the attack proceeds automatically.',
-   'Each mounted wing/escort panel includes an explicit pass control beside launch status.',
-   ['functions/src/index.ts','wolfFighterLaunchChoiceMap']],
+   'AEGIS and P.D.F. escort panels include an explicit pass control beside current launch status; the PDF pass is enabled only from its eligible fresh launch view.',
+   ['functions/src/index.ts','wolfFighterLaunchChoiceMap'],
+   { id: 'ending.passWolfFighterLaunchChoice.pdfUi', path: 'src/components/PdfEscortWingReference.tsx', symbol: 'PdfEscortWingReference' }],
   ['startWolfConsoleVisit','served-ui-path',sessionService,'startWolfConsoleVisit','src/routes/GmConsole.tsx','GmConsole',
    'a facilitator with the current owned live GM instance', ['gm role with owned live instance'],
    'The active GM selects a live active Wolf in assigned cover and an active target ship with an implemented damage deck; a visit cannot be duplicated while one is pending.',
@@ -624,14 +625,19 @@ const definitions = [
    ['functions/src/index.ts','requireCastingWindow']],
 ];
 
+function helperAnchors(definition, name) {
+  return definition.slice(14).map((helper, helperIndex) => Array.isArray(helper)
+    ? [`ending.${name}.rule${helperIndex + 1}`, helper[0], helper[1]]
+    : [helper.id, helper.path, helper.symbol]);
+}
+
 function makeAnchorIds(definition, name) {
   const [, , servicePath, serviceSymbol, uiPath, uiSymbol] = definition;
-  const helpers = definition.slice(14);
   return [
     [serverAnchor(name), index, name],
     [serviceAnchor(name), servicePath, serviceSymbol],
     ...(uiPath ? [[uiAnchor(name), uiPath, uiSymbol]] : []),
-    ...helpers.map(([path, symbol], helperIndex) => [`ending.${name}.rule${helperIndex + 1}`, path, symbol]),
+    ...helperAnchors(definition, name),
   ];
 }
 
@@ -641,14 +647,16 @@ export const REVIEWS = definitions.map((definition) => {
   const [name, classification, servicePath, serviceSymbol, uiPath, uiSymbol, family, identities,
     requirements, costs, consequences, blockers, nextActor, guidance, ...helpers] = definition;
   const sources = [serverAnchor(name), serviceAnchor(name), ...(uiPath ? [uiAnchor(name)] : []),
-    ...helpers.map((_, helperIndex) => `ending.${name}.rule${helperIndex + 1}`)];
+    ...helperAnchors(definition, name).map(([id]) => id)];
   const evidence = (summary) => ({ summary, sourceAnchorIds: sources });
   return {
     exportName: name,
     classification,
     productPath: {
       status: uiPath ? 'source-reviewed-ui-path; runtime visibility pending' : 'source-reviewed-no-current-mounted-action-path',
-      ...(uiPath ? { surface: uiSymbol, invocation: `${serviceSymbol} service → ${name} callable` } :
+      ...(uiPath ? { surface: name === 'passWolfFighterLaunchChoice'
+        ? 'AEGIS Fighter Wing Launch and P.D.F. Escort panels' : uiSymbol,
+        invocation: `${serviceSymbol} service → ${name} callable` } :
         { note: 'Client helper or endpoint exists, but no mounted action component/route call site is identified.' }),
       sourceAnchorIds: sources,
     },
