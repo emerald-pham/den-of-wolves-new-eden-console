@@ -202,6 +202,11 @@ it('classifies every callable and requires terminal guards on normal gameplay pa
   expect(unguarded, 'Normal gameplay callables must reject terminal phases').toEqual([]);
 });
 
+it('keeps known read-only authority projections explicitly classified', () => {
+  expect(terminalFreezeExemptions.has('getBoardingSecurityTeamLocations')).toBe(true);
+  expect(terminalFreezeExemptions.has('readCandidateWorkspace')).toBe(true);
+});
+
 it('keeps every delegated callable backed by a transaction-level terminal guard', () => {
   expect(permissionedDismantlingSource.match(/requireActiveSession\(session\);/g)).toHaveLength(5);
   expect(sameTableTradeSource.match(
