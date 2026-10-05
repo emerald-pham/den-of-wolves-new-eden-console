@@ -338,16 +338,17 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
   const observedCalls = [];
   const callableObservationFailures = [];
   const failuresByRequest = new WeakMap();
+  function recordCallableObservationFailure(state, category) {
+    const byCategory = failuresByRequest.get(state) ?? new Map();
+    if (byCategory.has(category)) return;
+    const failure = { roleId: label, name: state.trace.name, requestHash: state.trace.requestHash,
+      status: state.trace.status, category };
+    byCategory.set(category, failure);
+    failuresByRequest.set(state, byCategory);
+    callableObservationFailures.push(failure);
+  }
   const observationBoundary = createPc10CallableObservationBoundary({
-    onFailure: (state, category) => {
-      const byCategory = failuresByRequest.get(state) ?? new Map();
-      if (byCategory.has(category)) return;
-      const failure = { roleId: label, name: state.trace.name, requestHash: state.trace.requestHash,
-        status: state.trace.status, category };
-      byCategory.set(category, failure);
-      failuresByRequest.set(state, byCategory);
-      callableObservationFailures.push(failure);
-    },
+    onFailure: recordCallableObservationFailure,
     onCancellation: state => {
       // An observed cancellation keeps its raw trace. No unrelated request,
       // completed HTTP200 body loss, metadata error or drain timeout is removed.
@@ -359,7 +360,7 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
     },
     onBodyUnavailable: ({ trace }) => observePc10CallableTrace(trace, { stage: 'body-unavailable', at: Date.now() }),
   });
-  const observedRequests = new WeakMap();
+  const observedRequests = new Map();
   const identityObservations = [];
   const identityRecords = new Map();
   let observationId = 0;
@@ -376,6 +377,118 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
   let storeModule = '/src/store/useSessionStore.ts';
   let functionsSdkModule = '/node_modules/.vite/deps/firebase_functions.js';
   let firestoreSdkModule = '/node_modules/.vite/deps/firebase_firestore.js';
+  const durableBuffer = { maxTotalBufferSize: 8 * 1024 * 1024, maxResourceBufferSize: 512 * 1024 };
+  let cdpSession;
+  try {
+    cdpSession = await context.newCDPSession(page);
+    const callableNameFor = (urlValue, method = 'POST') => {
+      if (method !== 'POST' || typeof urlValue !== 'string') return null;
+      try {
+        const url = new URL(urlValue);
+        const name = url.pathname.split('/').at(-1);
+        return url.pathname.includes('/us-central1/') && Object.hasOwn(PC10_PROOF_CALLABLE_ACTIONS, name)
+          ? name : null;
+      } catch { return null; }
+    };
+    const unboundFailure = name => callableObservationFailures.push({ roleId: label, name,
+      category: 'unknown-callable-lifecycle' });
+    const eventTime = trace => Math.max(Date.now(), trace.issuedAt);
+    cdpSession.on('Network.requestWillBeSent', event => {
+      const name = callableNameFor(event?.request?.url, event?.request?.method);
+      if (!name) return;
+      if (typeof event.requestId !== 'string' || event.requestId.length === 0) {
+        callableObservationFailures.push({ roleId: label, name, category: 'request-metadata-unavailable' });
+        return;
+      }
+      const prior = observedRequests.get(event.requestId);
+      if (prior) {
+        recordCallableObservationFailure(prior, 'unknown-callable-lifecycle');
+        return;
+      }
+      let data;
+      try {
+        if (typeof event.request.postData !== 'string') throw new Error('Callable post data is unavailable.');
+        const envelope = JSON.parse(event.request.postData);
+        if (!envelope || typeof envelope !== 'object' || Array.isArray(envelope) ||
+            !envelope.data || typeof envelope.data !== 'object' || Array.isArray(envelope.data)) {
+          throw new Error('Callable post data is malformed.');
+        }
+        data = envelope.data;
+      } catch {
+        callableObservationFailures.push({ roleId: label, name, category: 'request-metadata-unavailable' });
+      }
+      const trace = createPc10CallableTrace({ name, data, actorUid: undefined,
+        transport: 'independent-browser-SDK', startedAt: Date.now() });
+      trace.roleId = label;
+      trace.actorHash = actorHash ?? null;
+      const state = observationBoundary.start(trace);
+      state.protocolRequestId = event.requestId;
+      state.headersSeen = false;
+      observedRequests.set(event.requestId, state);
+      observedCalls.push(trace);
+    });
+    cdpSession.on('Network.responseReceived', event => {
+      const state = observedRequests.get(event?.requestId);
+      if (!state) {
+        const name = callableNameFor(event?.response?.url);
+        if (name) unboundFailure(name);
+        return;
+      }
+      if (state.headersSeen || state.trace.requestFinishedAt !== null || state.trace.requestFailedAt !== null) {
+        recordCallableObservationFailure(state, 'unknown-callable-lifecycle');
+        return;
+      }
+      state.headersSeen = true;
+      if (!Number.isSafeInteger(event.response?.status) || event.response.status < 100 || event.response.status > 599) {
+        recordCallableObservationFailure(state, 'unknown-callable-lifecycle');
+      }
+      observePc10CallableTrace(state.trace, { stage: 'headers', at: eventTime(state.trace), status: event.response?.status });
+    });
+    cdpSession.on('Network.loadingFinished', event => {
+      const state = observedRequests.get(event?.requestId);
+      if (!state) return;
+      if (state.trace.requestFinishedAt !== null || state.trace.requestFailedAt !== null) {
+        recordCallableObservationFailure(state, 'unknown-callable-lifecycle');
+        return;
+      }
+      observePc10CallableTrace(state.trace, { stage: 'finished', at: eventTime(state.trace) });
+      const capture = Promise.resolve().then(async () => {
+        const response = await cdpSession.send('Network.getResponseBody', { requestId: state.protocolRequestId });
+        if (!response || typeof response.body !== 'string' || typeof response.isBase64Encoded !== 'boolean') {
+          throw new Error('Callable response body is unavailable.');
+        }
+        const bytes = response.isBase64Encoded ? Buffer.from(response.body, 'base64') : Buffer.from(response.body, 'utf8');
+        const reply = JSON.parse(bytes.toString('utf8'));
+        if (!reply || typeof reply !== 'object' || Array.isArray(reply)) throw new Error('Callable response body is malformed.');
+        if (!state.headersSeen) recordCallableObservationFailure(state, 'unknown-callable-lifecycle');
+        const completedAt = eventTime(state.trace);
+        observePc10CallableTrace(state.trace, { stage: 'body', at: completedAt, reply });
+        const value = buildFixtureCallableObservation({ ...state.trace, completedAt, status: state.trace.status,
+          transport: 'independent-browser-SDK', reply });
+        Object.assign(state.trace, { actorHash: state.trace.actorHash ?? value.actorHash ?? actorHash ?? null,
+          sessionHash: state.trace.sessionHash ?? value.sessionHash, groupHash: state.trace.groupHash ?? value.groupHash,
+          connectionGeneration: value.connectionGeneration, denialCategory: value.denialCategory });
+      });
+      observationBoundary.capture(state, capture);
+      observationBoundary.finish(state);
+    });
+    cdpSession.on('Network.loadingFailed', event => {
+      const state = observedRequests.get(event?.requestId);
+      if (!state) return;
+      if (state.trace.requestFinishedAt !== null || state.trace.requestFailedAt !== null) {
+        recordCallableObservationFailure(state, 'unknown-callable-lifecycle');
+        return;
+      }
+      observePc10CallableTrace(state.trace, { stage: 'failed', at: eventTime(state.trace) });
+      observationBoundary.fail(state, event.errorText);
+    });
+    await cdpSession.send('Network.configureDurableMessages', durableBuffer);
+    await cdpSession.send('Network.enable', durableBuffer);
+  } catch (error) {
+    await cdpSession?.detach().catch(() => undefined);
+    await context.close().catch(() => undefined);
+    throw error;
+  }
   page.on('pageerror', error => errors.push(error.message));
   page.on('console', message => {
     const event = parsePc10IdentityObservationEvent(message.text());
@@ -388,49 +501,6 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
     if (url.pathname === '/src/store/useSessionStore.ts') storeModule = url.href;
     if (url.pathname.endsWith('/firebase_functions.js')) functionsSdkModule = url.href;
     if (url.pathname.endsWith('/firebase_firestore.js')) firestoreSdkModule = url.href;
-    if (url.pathname.includes('/us-central1/') && request.method() === 'POST') {
-      const name = url.pathname.split('/').at(-1);
-      if (!Object.hasOwn(PC10_PROOF_CALLABLE_ACTIONS, name)) return;
-      let data;
-      try { data = request.postDataJSON()?.data; }
-      catch { callableObservationFailures.push({ roleId: label, name, category: 'request-metadata-unavailable' }); }
-      const trace = createPc10CallableTrace({ name, data, actorUid: undefined,
-        transport: 'independent-browser-SDK', startedAt: Date.now() });
-      trace.roleId = label;
-      trace.actorHash = actorHash ?? null;
-      observedRequests.set(request, observationBoundary.start(trace));
-      observedCalls.push(trace);
-    }
-  });
-  page.on('requestfinished', request => {
-    const state = observedRequests.get(request);
-    if (state) {
-      observePc10CallableTrace(state.trace, { stage: 'finished', at: Date.now() });
-      observationBoundary.finish(state);
-    }
-  });
-  page.on('requestfailed', request => {
-    const state = observedRequests.get(request);
-    if (state) {
-      observePc10CallableTrace(state.trace, { stage: 'failed', at: Date.now() });
-      observationBoundary.fail(state, request.failure?.()?.errorText);
-    }
-  });
-  page.on('response', response => {
-    const state = observedRequests.get(response.request());
-    if (!state) return;
-    const request = state.trace;
-    observePc10CallableTrace(request, { stage: 'headers', at: Date.now(), status: response.status() });
-    const capture = response.json().then(reply => {
-      const completedAt = Date.now();
-      observePc10CallableTrace(request, { stage: 'body', at: completedAt, reply });
-      const value = buildFixtureCallableObservation({ ...request, completedAt, status: response.status(),
-        transport: 'independent-browser-SDK', reply });
-      Object.assign(request, { actorHash: request.actorHash ?? value.actorHash ?? actorHash ?? null,
-        sessionHash: request.sessionHash ?? value.sessionHash, groupHash: request.groupHash ?? value.groupHash,
-        connectionGeneration: value.connectionGeneration, denialCategory: value.denialCategory });
-    });
-    observationBoundary.capture(state, capture);
   });
   async function observe() {
     const record = { roleId: label, observationId: ++observationId, issuedAt: Date.now(), pageEvents: [] };
@@ -581,7 +651,7 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
     drainObservedCalls: () => bounded(observationBoundary.drain(), 10_000, 'callable observations'),
     setOffline: value => observationBoundary.transition(value ? 'offline' : 'online', () => context.setOffline(value)),
     reload: () => observationBoundary.transition('reload', () => page.reload()),
-    close: () => context.close() };
+    close: async () => { try { await cdpSession.detach(); } finally { await context.close(); } } };
 }
 
 /** Fresh, normal authenticated full roster. All ordinary players join and
