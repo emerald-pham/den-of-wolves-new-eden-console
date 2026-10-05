@@ -12681,17 +12681,39 @@ function isPersistedCanonicalLoyaltyHolder(
     candidate.exists && candidate.get('assignedRoleId') === assignedRoleId);
 }
 
-function requireCanonicalLoyaltyHolder(
+/** Explicit setup may include the separately claimed Press, but never a Press-like core alias. */
+function loyaltySetupHolderRoleId(
+  session: DocumentSnapshot,
+  player: DocumentSnapshot | undefined,
+  uid: string,
+  players: readonly DocumentSnapshot[],
+  activeRoleIds: readonly string[],
+): string | undefined {
+  if (!player || !player.exists || player.id !== uid) return undefined;
+  if (hasPressState(player) || hasPressSeat(player)) {
+    const pressHolders = players.filter((candidate) => isAuthoritativePressHolder(candidate));
+    return hasStablePressAuthority(session, player, uid) && isSolePressHolder(pressHolders, uid)
+      ? 'press-officer'
+      : undefined;
+  }
+  return isCanonicalLoyaltyHolder(player, uid, players, activeRoleIds)
+    ? player.get('assignedRoleId') as string
+    : undefined;
+}
+
+function requireLoyaltySetupHolder(
+  session: DocumentSnapshot,
   player: DocumentSnapshot | undefined,
   uid: string,
   players: readonly DocumentSnapshot[],
   activeRoleIds: readonly string[],
   label: string,
-): void {
-  if (isCanonicalLoyaltyHolder(player, uid, players, activeRoleIds)) return;
+): string {
+  const roleId = loyaltySetupHolderRoleId(session, player, uid, players, activeRoleIds);
+  if (roleId) return roleId;
   throw commandError(
     'failed-precondition',
-    `${label} must be an active non-GM holder of one unique role in the configured roster.`,
+    `${label} must be an active non-GM holder of one unique configured role or the sole claimed Press Officer.`,
     'conflict',
   );
 }
@@ -16995,6 +17017,27 @@ function canonicalLoyaltySecret(
   return { uid, kind: decision.kind };
 }
 
+/** The IA census may count a private Press loyalty only for the currently stable sole Press holder. */
+function canonicalSetupLoyaltySecret(
+  secret: DocumentSnapshot,
+  players: readonly DocumentSnapshot[],
+  activeRoleIds: readonly string[],
+  session: DocumentSnapshot,
+): CanonicalLoyaltySecret | null {
+  const coreSecret = canonicalLoyaltySecret(secret, players, activeRoleIds);
+  if (coreSecret) {
+    const holder = players.find((candidate) => candidate.id === coreSecret.uid);
+    return holder && loyaltySetupHolderRoleId(
+      session, holder, coreSecret.uid, players, activeRoleIds,
+    ) === holder.get('assignedRoleId') ? coreSecret : null;
+  }
+  const entry = loyaltyCensusEntryFromSecret(secret, players, activeRoleIds);
+  if (!entry) return null;
+  const holder = players.find((candidate) => candidate.id === entry.uid);
+  if (loyaltySetupHolderRoleId(session, holder, entry.uid, players, activeRoleIds) !== 'press-officer') return null;
+  return { uid: entry.uid, kind: entry.kind };
+}
+
 /**
  * Return a Friend's former partner only for a complete private reciprocal
  * record. Reassignment may replace a holder's secret, but it must not erase a
@@ -17019,9 +17062,9 @@ function privateFriendPartnerUid(secret: DocumentSnapshot | undefined, uid: stri
 }
 
 function isKnownFriendRoleId(value: unknown): value is string {
-  return typeof value === 'string' && (
+  return value === 'press-officer' || (typeof value === 'string' && (
     (ROLE_IDS as readonly string[]).includes(value) || replacementRoleFor(value) !== undefined
-  );
+  ));
 }
 
 function isCompleteReciprocalFriendPair(
@@ -17156,17 +17199,17 @@ export const assignLoyalty = auditedOnCall<{
     requireCastingWindow(authority.session);
     const activeRoleIds = configuredRoleIds(authority.session);
     const playerDocuments = players.docs;
-    requireCanonicalLoyaltyHolder(
-      target, assignment.targetUid, playerDocuments, activeRoleIds, 'That player',
+    const targetRoleId = requireLoyaltySetupHolder(
+      authority.session, target, assignment.targetUid, playerDocuments, activeRoleIds, 'That player',
     );
     if (assignment.partnerUid && assignment.partnerUid === assignment.targetUid) {
       throw new HttpsError('invalid-argument', 'A Friend partner must be another player.');
     }
-    if (assignment.partnerUid) {
-      requireCanonicalLoyaltyHolder(
-        partner, assignment.partnerUid, playerDocuments, activeRoleIds, 'The Friend partner',
-      );
-    }
+    const partnerRoleId = assignment.partnerUid
+      ? requireLoyaltySetupHolder(
+        authority.session, partner, assignment.partnerUid, playerDocuments, activeRoleIds, 'The Friend partner',
+      )
+      : undefined;
     const kind = assignment.kind as LoyaltyKind;
     const decision = loyaltyAssignmentDecision(kind, assignment.suspicion);
     if (!decision.allowed) {
@@ -17245,7 +17288,9 @@ export const assignLoyalty = auditedOnCall<{
         ...(assignment.partnerUid ? [assignment.partnerUid] : []),
       ]);
       const validSecrets = secrets.docs
-        .map((secret) => canonicalLoyaltySecret(secret, playerDocuments, activeRoleIds))
+        .map((secret) => canonicalSetupLoyaltySecret(
+          secret, playerDocuments, activeRoleIds, authority.session,
+        ))
         .filter((record): record is CanonicalLoyaltySecret => record !== null)
         .filter((record) => !replacedUids.has(record.uid));
       const wolfCount = validSecrets.filter((record) =>
@@ -17277,9 +17322,7 @@ export const assignLoyalty = auditedOnCall<{
         kind,
         suspicion: validSuspicion,
         ...(assignment.partnerUid ? { partnerUid: assignment.partnerUid } : {}),
-        ...(kind === 'friend' && partner && typeof partner.get('assignedRoleId') === 'string'
-          ? { partnerRoleId: partner.get('assignedRoleId') }
-          : {}),
+        ...(kind === 'friend' && partnerRoleId ? { partnerRoleId } : {}),
       },
       createdAt: FieldValue.serverTimestamp(),
     });
@@ -17288,9 +17331,7 @@ export const assignLoyalty = auditedOnCall<{
         visibleToUids: [assignment.partnerUid],
         payload: {
           type: 'loyalty', kind: 'friend', suspicion: 0, partnerUid: assignment.targetUid,
-          ...(typeof target.get('assignedRoleId') === 'string'
-            ? { partnerRoleId: target.get('assignedRoleId') }
-            : {}),
+          partnerRoleId: targetRoleId,
         },
         createdAt: FieldValue.serverTimestamp(),
       });
