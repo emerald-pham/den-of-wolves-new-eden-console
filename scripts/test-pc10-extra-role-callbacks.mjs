@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import * as driver from './pc10-extra-role-proof.mjs';
+import * as actionHelpers from './pc10-extra-role-actions.mjs';
 import { createExtraRoleMatrix, extraRoleScenario } from './pc10-extra-role-proof-helpers.mjs';
 
 test('additive callbacks expose every sourced procedure or an explicit non-executable source gap', () => {
@@ -57,6 +58,19 @@ test('actual command guard refuses post-response actor drift or logical denial a
     perform: async () => ({ httpStatus: 200, logicalStatus: 'committed', requestId: 'actual' }),
   });
   assert.equal(receipt.identityVerified, true);
+});
+
+test('UI action evidence keeps bounded revision/cost fields and redacts private route data', () => {
+  assert.equal(typeof actionHelpers.redactedProcedureFields, 'function');
+  assert.deepEqual(actionHelpers.redactedProcedureFields({ sessionId: 's1', uid: 'private',
+    smallShipId: 'warrior', hostShipId: 'shepherd', expectedHostShipId: 'shepherd',
+    expectedCycle: 3, expectedRevision: 4, expectedDockingRevision: 2,
+    resourceId: 'fuel', direction: 'load', amount: 1, destination: '7319',
+    sourceId: 'vulcan-laser-cannon', range: 'medium-range', use: true }), {
+    smallShipId: 'warrior', expectedHostShipId: 'shepherd', expectedCycle: 3,
+    expectedRevision: 4, expectedDockingRevision: 2, resourceId: 'fuel', direction: 'load',
+    amount: 1, sourceId: 'vulcan-laser-cannon', range: 'medium-range', use: true,
+  });
 });
 
 test('unsupported ranges and non-local origins are rejected before any browser can be started', () => {
