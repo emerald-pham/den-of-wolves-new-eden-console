@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createHash } from 'node:crypto';
+import { mkdtemp } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import {
   assertNavigationScoutActor, assertNavigationScoutConsequenceActor, assertNavigationScoutCensus, waitForNavigationScoutPaint,
   assertNavigationScoutRequest, assertNavigationScoutReplay, assertNavigationScoutCost,
@@ -284,4 +287,81 @@ test('factory is additive, lazy and explicit about required branches; constructi
   for (const key of ['onSetup', 'onStarted', 'runNavigation', 'runScoutReaders', 'save', 'summary']) assert.equal(typeof proof[key], 'function');
   assert.throws(() => createNavigationScoutProof(undefined, { requiredBranches: ['invented'] }), /Unknown/);
   assert.throws(() => createNavigationScoutProof(undefined, { requiredBranches: ['known-jump', 'known-jump'] }), /duplicate/i);
+});
+
+test('a source-valid zero-fuel upgraded jump still consumes its real charge', () => {
+  assertNavigationScoutCost('jumpShip', { status: 'jumped', fuelCost: 0, remainingFuel: 5 },
+    { beforeFuel: 5, afterFuel: 5, chargedBefore: true, chargedAfter: false });
+  assert.throws(() => assertNavigationScoutCost('jumpShip', { status: 'jumped', fuelCost: 0, remainingFuel: 5 },
+    { beforeFuel: 5, afterFuel: 5, chargedBefore: true, chargedAfter: true }), /charge/);
+});
+
+test('the current Comms replacement holder may retain a historical core role, without granting that role the scan', () => {
+  const current = { ...actor(), replacementRoleId: 'comms-officer', activeConsoleRoleId: null };
+  const request = { sessionId: 'session-one', requestId: 'actual-comms', entitlementId: 'comms-officer', targetCoordinate: '1100' };
+  const intent = { entitlementId: 'comms-officer', coordinate: '1100', printedCoordinates: ['1100'] };
+  assertNavigationScoutRequest('requestScout', request, current, intent);
+  assert.throws(() => assertNavigationScoutRequest('requestScout', request, actor(), intent), /holder|replacement|source/);
+  assert.throws(() => assertNavigationScoutRequest('requestScout', request, { ...current, activeConsoleRoleId: 'wing-commander' }, intent), /holder|replacement|source/);
+});
+
+// Mock transport only: these fixtures prove helper control flow, never gameplay.
+async function nativeFactoryContext(read) {
+  const directory = await mkdtemp(join(tmpdir(), 'pc10-navigation-scout-native-'));
+  let version = 0, changedUid = false, readCount = 0;
+  const current = () => ({ ...gmActor(), ...(changedUid ? { uidHash: 'c'.repeat(16) } : {}), cursor: { version } });
+  const gm = { storeModuleUrl: () => '/src/store/useSessionStore.ts', observe: async () => current(),
+    until: async (_description, predicate) => { const value = current(); assert.ok(predicate(value)); return value; },
+    page: { evaluate: async (_fn, arg) => {
+      if (typeof arg === 'string') return current();
+      readCount++;
+      return read({ readCount, advance: () => { version++; }, changeUid: () => { changedUid = true; } });
+    } } };
+  const roster = [{ roleId: 'admiral', uidHash: 'a'.repeat(16) }, { roleId: 'wing-commander', uidHash: 'd'.repeat(16) }];
+  const context = { gm, crew: {}, directory, roster, initial: { sessionId: 'session-one', joinCode: 'ordinary-join' },
+    started: { ...gmActor(), activeRoleIds: roster.map(actor => actor.roleId), fullGameDemo: { status: 'active', progression: 'manual' } } };
+  return { context, count: () => readCount };
+}
+
+test('canonical onStarted activeRoleIds census binds without requiring invented callback fields', async () => {
+  const { context } = await nativeFactoryContext(async () => ({ failures: [] }));
+  const proof = createNavigationScoutProof(context);
+  await proof.onStarted(context);
+  assert.equal(proof.summary().actualAcceptance, false);
+});
+
+test('a rejected source read permits one newer same-original-cursor reread and leaves no-natural-failure uncredited', async () => {
+  const native = await nativeFactoryContext(async ({ readCount, advance }) => {
+    if (readCount === 1) { advance(); throw new Error('Scouting authority changed. Refresh the station.'); }
+    return { failures: [] };
+  });
+  const proof = createNavigationScoutProof(native.context);
+  await proof.onStarted(native.context);
+  await proof.runNavigation([{ branch: 'natural-failure', roleId: 'gm', shipId: 'aegis' }]);
+  assert.equal(native.count(), 2);
+  assert.deepEqual(proof.summary().pending, ['natural-failure']);
+  assert.equal(proof.summary().actualAcceptance, false);
+});
+
+test('private source replies are withdrawn after actual actor change rather than rerun or saved', async () => {
+  const native = await nativeFactoryContext(async ({ changeUid, advance }) => {
+    advance(); changeUid(); return { failures: [], hiddenFact: 'never-save-this' };
+  });
+  const proof = createNavigationScoutProof(native.context);
+  await proof.onStarted(native.context);
+  await assert.rejects(proof.runNavigation([{ branch: 'natural-failure', roleId: 'gm', shipId: 'aegis' }]), /Original/);
+  assert.equal(native.count(), 1);
+  assert.ok(!JSON.stringify(await proof.save()).includes('never-save-this'));
+});
+
+test('a source read cannot loop through perpetual snapshot changes, and required natural failure cannot be inferred', async () => {
+  const native = await nativeFactoryContext(async ({ advance }) => { advance(); throw new Error('Scouting authority changed.'); });
+  const proof = createNavigationScoutProof(native.context);
+  await proof.onStarted(native.context);
+  await assert.rejects(proof.runNavigation([{ branch: 'natural-failure', roleId: 'gm', shipId: 'aegis' }]), /authority changed/);
+  assert.equal(native.count(), 2);
+  const unavailable = await nativeFactoryContext(async () => ({ failures: [] }));
+  const required = createNavigationScoutProof(unavailable.context, { requiredBranches: ['natural-failure'] });
+  await required.onStarted(unavailable.context);
+  await assert.rejects(required.runNavigation([{ branch: 'natural-failure', roleId: 'gm', shipId: 'aegis' }]), /Required natural-failure/);
 });
