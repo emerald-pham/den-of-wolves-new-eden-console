@@ -28,6 +28,9 @@
 .demo-actor-controls__row .cic-text-button { min-height: 44px; display: inline-flex; align-items: center; }
 .demo-actor-controls__error { color: var(--cic-danger); }
 .demo-actor-manager { position: relative; z-index: 1; width: min(72rem, 100%); margin: 0 auto; padding: 1rem 1rem 4rem; }
+html:not(:has(.demo-actor-controls)) .demo-actor-manager {
+  margin-block-start: calc(var(--app-header-height, 4.25rem) + max(1rem, env(safe-area-inset-top)));
+}
 .demo-actor-manager__panel { padding: clamp(1rem, 3vw, 2rem); overflow-wrap: anywhere; }
 .demo-actor-manager__panel h1 { margin: 1rem 0; font-family: var(--cic-mono); font-size: clamp(1.25rem, 4vw, 1.75rem); }
 .demo-actor-manager__actions { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; margin: 1rem 0; }
