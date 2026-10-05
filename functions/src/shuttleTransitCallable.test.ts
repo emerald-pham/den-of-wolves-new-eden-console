@@ -534,3 +534,13 @@ it('rejects retargeting a transit if current mission authority commits that craf
   expect([...mock.documents]).toEqual(before);
   expect(mock.update).not.toHaveBeenCalled(); expect(mock.set).not.toHaveBeenCalled(); expect(mock.create).not.toHaveBeenCalled();
 });
+
+
+it.each(['aegis', 'icebreaker'])('denies a new transit involving settled ship %s', async shipId => {
+  mock.documents.get('sessions/s1')!.candidateVesselOutcomes = { [shipId]: { code: 'O', groupId: 'fleet-1', shipId,
+    sourceId: 'candidate-o-3131', cycle: 2, outcome: 'reached' } };
+  await expect(beginShuttleTransit.run(request(command))).rejects.toMatchObject({
+    code: 'failed-precondition', message: expect.stringContaining('candidate disposition'),
+  });
+  expect(mock.update).not.toHaveBeenCalled(); expect(mock.set).not.toHaveBeenCalled();
+});

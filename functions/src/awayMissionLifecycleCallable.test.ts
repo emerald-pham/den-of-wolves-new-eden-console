@@ -665,3 +665,29 @@ it('binds exploration to the successful mission, current GM lease and one atomic
   expect(applications).toBe(1);
   expect(store.committedWrites).toHaveLength(writes);
 });
+
+
+it.each(['aegis', 'capybara-small'])('denies a fresh mission choice involving settled participant vessel %s', async shipId => {
+  const store = seededStore();
+  store.records.get(paths().session)!.candidateVesselOutcomes = { [shipId]: { code: 'O', groupId: 'fleet-1', shipId,
+    sourceId: 'candidate-o-3131', cycle: 3, outcome: 'reached' } };
+  const { commitAwayMissionLifecycleCommand } = dependencies(store);
+  await expect(commitAwayMissionLifecycleCommand(commandRequest('bob', {
+    type: 'requestExtraCards', requestId: 'new-after-settlement', expectedRevision: 0, count: 1,
+  }))).rejects.toMatchObject({ code: 'failed-precondition', message: expect.stringContaining('candidate disposition') });
+  expect(store.committedWrites).toHaveLength(0);
+});
+
+it('recovers the original private mission choice after settlement and denies a new command', async () => {
+  const store = seededStore();
+  const { commitAwayMissionLifecycleCommand: commit } = dependencies(store);
+  const request = commandRequest('bob', { type: 'requestExtraCards', requestId: 'before-settlement', expectedRevision: 0, count: 1 });
+  await commit(request);
+  store.records.get(paths().session)!.candidateVesselOutcomes = { aegis: { code: 'N', groupId: 'fleet-1', shipId: 'aegis',
+    sourceId: 'candidate-n-3232', cycle: 3, outcome: 'left-behind' } };
+  const writes = store.committedWrites.length;
+  await expect(commit(request)).resolves.toMatchObject({ status: 'replayed' });
+  await expect(commit(commandRequest('bob', { type: 'requestExtraCards', requestId: 'after-settlement',
+    expectedRevision: 1, count: 1 }))).rejects.toMatchObject({ code: 'failed-precondition', message: expect.stringContaining('candidate disposition') });
+  expect(store.committedWrites).toHaveLength(writes);
+});

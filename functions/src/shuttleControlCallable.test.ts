@@ -431,3 +431,24 @@ it('lets a live facilitator hand off for a disconnected owner and reclaim after 
     status: 'committed', ownerUid: 'wing', holderUid: 'wing', revision: 2,
   });
 });
+
+
+it.each(['aegis', 'icebreaker'])('denies a new Shuttle handoff involving settled ship %s', async shipId => {
+  mock.documents.get('sessions/s1')!.candidateVesselOutcomes = { [shipId]: { code: 'O', groupId: 'fleet-1', shipId,
+    sourceId: 'candidate-o-3131', cycle: 2, outcome: 'reached' } };
+  await expect(transferShuttleControlCommand.run(request(command))).rejects.toMatchObject({
+    code: 'failed-precondition', message: expect.stringContaining('candidate disposition'),
+  });
+  expect(mock.update).not.toHaveBeenCalled(); expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('recovers an entitled handoff after candidate settlement without bypassing ordinary ownership', async () => {
+  await transferShuttleControlCommand.run(request(command));
+  mock.documents.get('sessions/s1/players/wing')!.candidateDisposition = { code: 'O', cycle: 2, outcome: 'reached' };
+  const writes = mock.update.mock.calls.length + mock.set.mock.calls.length;
+  await expect(transferShuttleControlCommand.run(request(command))).resolves.toMatchObject({ status: 'replayed' });
+  await expect(transferShuttleControlCommand.run(request({ ...command, requestId: 'new-after-settlement' })))
+    .rejects.toMatchObject({ code: 'failed-precondition', message: expect.stringContaining('candidate disposition') });
+  await expect(transferShuttleControlCommand.run(request(command, 'crew'))).rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.update.mock.calls.length + mock.set.mock.calls.length).toBe(writes);
+});

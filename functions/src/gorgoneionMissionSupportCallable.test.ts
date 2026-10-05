@@ -472,3 +472,19 @@ describe('Gorgoneion mission-support callable', () => {
     expect(db.writesByTransaction.flat()).toHaveLength(priorWriteCount);
   });
 });
+
+
+it('denies fresh Gorgoneion mission support at a settled host but recovers the original top-five choice', async () => {
+  const db = seededDatabase();
+  const projection = await availableProjection(db);
+  const command = applyCommand(projection);
+  await apply(db, CAPTAIN_UID, command);
+  db.records.get(`sessions/${SESSION_ID}`)!.candidateVesselOutcomes = { aegis: { code: 'N', groupId: 'fleet-1',
+    shipId: 'aegis', sourceId: 'candidate-n-3232', cycle: 3, outcome: 'left-behind' } };
+  const writes = db.writesByTransaction.length;
+  await expect(apply(db, CAPTAIN_UID, command)).resolves.toMatchObject({ status: 'replayed' });
+  await expect(apply(db, CAPTAIN_UID, { ...command, requestId: 'fresh-support' })).rejects.toMatchObject({
+    code: 'failed-precondition', message: expect.stringContaining('candidate disposition'),
+  });
+  expect(db.writesByTransaction.slice(writes).flat()).toHaveLength(0);
+});

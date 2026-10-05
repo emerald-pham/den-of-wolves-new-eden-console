@@ -352,3 +352,21 @@ it('records one private standardized shuttle-recharge audit and preserves it on 
   expect(mock.documents.get('sessions/s1/actionAudits/' + command.requestId)).toEqual(metadata);
   expect(mock.documents.get('sessions/s1/procedureAudits/' + command.requestId)).toEqual(procedure);
 });
+
+it('denies a source-consumed Engineering Shuttle even if its old docking remains valid', async () => {
+  mock.documents.get('sessions/s1')!.candidateCraftReservations = { 'condor': { code: 'N', groupId: 'fleet-1',
+    coordinate: '3232', sourceId: 'candidate-n-3232', cycle: 3 } };
+  await expect(rechargeHostConsoleFromShuttle.run(request(command))).rejects.toMatchObject({
+    code: 'failed-precondition', message: expect.stringContaining('permanently consumed'),
+  });
+  expect(mock.update).not.toHaveBeenCalled(); expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('denies a fresh craft action on a settled host while other groups remain active', async () => {
+  mock.documents.get('sessions/s1')!.candidateVesselOutcomes = { 'quellon': { code: 'O', groupId: 'fleet-1',
+    shipId: 'quellon', sourceId: 'candidate-o-3131', cycle: 3, outcome: 'reached' } };
+  await expect(rechargeHostConsoleFromShuttle.run(request(command))).rejects.toMatchObject({
+    code: 'failed-precondition', message: expect.stringContaining('candidate disposition'),
+  });
+  expect(mock.update).not.toHaveBeenCalled(); expect(mock.set).not.toHaveBeenCalled();
+});

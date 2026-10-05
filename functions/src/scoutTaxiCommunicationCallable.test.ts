@@ -405,3 +405,13 @@ it.each([{ expectedCycle: 4 }, { expectedNavigationRevision: 3 }, { expectedCont
       .rejects.toMatchObject({ code: 'failed-precondition' });
     expect(mock.writes).not.toHaveBeenCalled();
   });
+
+
+it.each(['quellon', 'aegis'])('denies a fresh Scout Taxi courier involving settled ship %s', async shipId => {
+  mock.documents.get('sessions/s1')!.candidateVesselOutcomes = { [shipId]: { code: 'N', groupId: 'fleet-1', shipId,
+    sourceId: 'candidate-n-3232', cycle: 3, outcome: 'left-behind' } };
+  await expect(calls.sendScoutTaxiCourier.run(request())).rejects.toMatchObject({
+    code: 'failed-precondition', message: expect.stringContaining('candidate disposition'),
+  });
+  expect(mock.writes).not.toHaveBeenCalled();
+});

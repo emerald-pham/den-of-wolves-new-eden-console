@@ -476,3 +476,28 @@ describe('Voyage 33-0 movement callable adapter', () => {
     expect(db.documents.get(movementPath)).toMatchObject({ movementState: { revision: 1 } });
   });
 });
+
+
+it.each(['aegis', VOYAGE_33_ID])('denies Voyage movement using settled vessel %s', async shipId => {
+  const { db, callables } = seed();
+  db.documents.get(sessionPath)!.candidateVesselOutcomes = { [shipId]: { code: 'O', groupId: 'fleet-1', shipId,
+    sourceId: 'candidate-o-3131', cycle: 2, outcome: 'reached' } };
+  await expect(callables.jumpVoyage33(request(jumpRequest))).rejects.toMatchObject({
+    code: 'failed-precondition', message: expect.stringContaining('candidate disposition'),
+  });
+  expect(db.writes).toHaveLength(0);
+});
+
+it('denies fresh Voyage docking to a settled host and recovers its original result', async () => {
+  const { db, callables } = seed({ turnPhase: phase('restricted'), voyage33Movement: undefined,
+    voyage33Maintenance: emptyVoyage33MaintenanceState() });
+  await callables.dockVoyage33(request(dockRequest));
+  db.documents.get(sessionPath)!.candidateVesselOutcomes = { aegis: { code: 'N', groupId: 'fleet-1', shipId: 'aegis',
+    sourceId: 'candidate-n-3232', cycle: 2, outcome: 'left-behind' } };
+  const writes = db.writes.length;
+  await expect(callables.dockVoyage33(request(dockRequest))).resolves.toMatchObject({ status: 'replayed' });
+  await expect(callables.dockVoyage33(request({ ...dockRequest, requestId: 'new-dock' }))).rejects.toMatchObject({
+    code: 'failed-precondition', message: expect.stringContaining('candidate disposition'),
+  });
+  expect(db.writes).toHaveLength(writes);
+});

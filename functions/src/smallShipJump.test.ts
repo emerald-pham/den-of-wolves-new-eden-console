@@ -363,3 +363,24 @@ for (const uid of ['__proto__', 'constructor', 'toString', 'captain.with.period'
     }, uid))).resolves.toMatchObject({ arrivalCoordinates: ['0000', '5143'] });
   });
 }
+
+
+it.each(['aegis', 'gorgoneion'])('denies a fresh small-craft jump using settled vessel %s and retains exact recovery', async shipId => {
+  const { db, callables } = seed();
+  db.documents.get(sessionPath)!.candidateVesselOutcomes = { [shipId]: { code: 'O', groupId: 'fleet-1', shipId,
+    sourceId: 'candidate-o-3131', cycle: 3, outcome: 'reached' } };
+  await expect(callables.jumpSmallShip(request(jump))).rejects.toMatchObject({
+    code: 'failed-precondition', message: expect.stringContaining('candidate disposition'),
+  });
+  expect(db.writes).toHaveLength(0);
+});
+
+it('recovers an original small-craft jump after its original host settles', async () => {
+  const { db, callables } = seed();
+  await callables.jumpSmallShip(request(jump));
+  db.documents.get(sessionPath)!.candidateVesselOutcomes = { aegis: { code: 'N', groupId: 'fleet-1', shipId: 'aegis',
+    sourceId: 'candidate-n-3232', cycle: 3, outcome: 'left-behind' } };
+  const writes = db.writes.length;
+  await expect(callables.jumpSmallShip(request(jump))).resolves.toMatchObject({ status: 'replayed' });
+  expect(db.writes).toHaveLength(writes);
+});
