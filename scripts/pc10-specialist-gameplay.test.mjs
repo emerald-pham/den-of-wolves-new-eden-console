@@ -231,6 +231,22 @@ test('away-mission evidence hashes private assignment and opportunity identifier
   assert.equal(JSON.stringify(evidence).includes('secret-opportunity-2'), false);
 });
 
+test('arrival proof accepts the source-specific replayable arrival receipt shape', () => {
+  const evidence = projectSpecialistActionEvidence({
+    roleId: 'quellon-explorer', endpoint: 'completeShuttleArrival',
+    actor: { uidHash: 'sha256-explorer', sessionId: 'session' },
+    request: { shuttleId: 'hummingbird', transitRequestId: 'private-transit-2', expectedControlRevision: 7 },
+    response: { httpStatus: 200, result: { hostShipId: 'refinery-124', arrivedAt: '2026-10-05T08:00:00Z' } },
+    replay: { status: 'committed', result: { hostShipId: 'refinery-124', arrivedAt: '2026-10-05T08:00:00Z' } },
+    cost: null, projection: { gm: { source: 'server', cycle: 3, revision: 8 },
+      crew: { source: 'server', cycle: 3, revision: 8 }, renderedStatus: 'public-result-visible' },
+  });
+  assert.equal(evidence.response.resultStatus, 'arrived');
+  assert.equal(evidence.response.exactReplay, true);
+  assert.equal(evidence.response.projectionRevision, 8);
+  assert.equal(evidence.response.hostShipId, undefined);
+});
+
 test('callback records failures without calling a partial gameplay run complete', async () => {
   let saved;
   const game = { context: { gm: {}, initial: { sessionId: 'fresh-session' } },
@@ -245,6 +261,21 @@ test('callback records failures without calling a partial gameplay run complete'
   assert.equal(saved.details.acceptance, 'not-claimed');
   assert.equal(saved.details.failedActions, 1);
   assert.equal(saved.details.committedActions, 0);
+});
+
+test('callback credits the exact source-specific arrival receipt after live projections converge', async () => {
+  let saved;
+  const game = { context: { gm: {}, initial: { sessionId: 'fresh-session' } },
+    select: async () => ({}), state: async () => ({}), actions: [], save: async (_name, details) => { saved = details; } };
+  const callback = createSpecialistGameplayCallback({ createTwoBrowserGameplay: () => game,
+    steps: [async () => ({ evidence: { endpoint: 'completeShuttleArrival', response: {
+      resultStatus: 'arrived', exactReplay: true, projectionRevision: 8,
+    } } })] });
+  const result = await callback({ initial: { sessionId: 'fresh-session' } });
+  assert.equal(result.outcomes.length, 1);
+  assert.equal(result.outcomes[0].evidence.endpoint, 'completeShuttleArrival');
+  assert.equal(saved.committedActions, 1);
+  assert.equal(saved.uncreditedActions, 0);
 });
 
 test('unknown callable names fail closed instead of receiving generic proof credit', () => {
