@@ -65,7 +65,8 @@ const nextObservationTurn = () => new Promise(resolve => setImmediate(resolve));
 const expectedProtocolRequestHash = requestId => createHash('sha256')
   .update(`pc10-cdp-request\0${requestId}`).digest('hex');
 
-async function cdpCallableObservationActor({ durableConfigurationError } = {}) {
+async function cdpCallableObservationActor({ durableConfigurationError, captureMode = 'durable',
+  deferStreamStart = false, streamConfigurationError } = {}) {
   const page = new EventEmitter();
   page.setDefaultTimeout = () => undefined;
   page.setDefaultNavigationTimeout = () => undefined;
@@ -74,6 +75,8 @@ async function cdpCallableObservationActor({ durableConfigurationError } = {}) {
   const commands = [];
   const responseBodies = new Map();
   const responseBodyErrors = new Map();
+  const streamBuffers = new Map();
+  const streamStartHandles = new Map();
   const finished = new Set();
   let nextRequest = 0;
   let navigationComplete = false;
@@ -109,6 +112,12 @@ async function cdpCallableObservationActor({ durableConfigurationError } = {}) {
       }
       throw new Error('Response body is missing.');
     }
+    if (method === 'Network.streamResourceContent') {
+      if (streamConfigurationError) throw streamConfigurationError;
+      if (deferStreamStart) return new Promise((resolve, reject) =>
+        streamStartHandles.set(parameters.requestId, { resolve, reject }));
+      return { bufferedData: streamBuffers.get(parameters.requestId) ?? '' };
+    }
     throw new Error(`Unexpected CDP command: ${method}`);
   };
   events.detach = async () => undefined;
@@ -116,7 +125,8 @@ async function cdpCallableObservationActor({ durableConfigurationError } = {}) {
     assert.equal(target, page);
     return events;
   }, setOffline: async () => undefined, close: async () => undefined };
-  const actor = await proof.createPc10BrowserActor({ newContext: async () => context }, 'http://localhost', 'admiral');
+  const actor = await proof.createPc10BrowserActor({ newContext: async () => context },
+    'http://localhost', 'admiral', undefined, { captureMode });
   const startRequest = ({ requestId = `protocol-${++nextRequest}`, name = 'getCurrentMemberSession',
     method = 'POST', omitMethod = false,
     postData = JSON.stringify({ data: { requestId: 'private-request', sessionId: 'own-session' } }) } = {}) => {
@@ -138,6 +148,23 @@ async function cdpCallableObservationActor({ durableConfigurationError } = {}) {
     setResponseBody(requestId, { body: typeof reply === 'string' ? reply : JSON.stringify(reply), base64Encoded: false }, status);
   };
   const failBodyRead = (requestId, error) => responseBodyErrors.set(requestId, error);
+  const setStreamBuffer = (requestId, bufferedData) => streamBuffers.set(requestId, bufferedData);
+  const resolveStreamStart = (requestId, bufferedData = streamBuffers.get(requestId) ?? '') => {
+    const handle = streamStartHandles.get(requestId);
+    assert.ok(handle, `No deferred stream start exists for the requested protocol ID.`);
+    handle.resolve({ bufferedData });
+    streamStartHandles.delete(requestId);
+  };
+  const rejectStreamStart = (requestId, error) => {
+    const handle = streamStartHandles.get(requestId);
+    assert.ok(handle, `No deferred stream start exists for the requested protocol ID.`);
+    handle.reject(error);
+    streamStartHandles.delete(requestId);
+  };
+  const receiveStreamChunk = (requestId, data) => events.emit('Network.dataReceived', {
+    requestId, timestamp: 2.5, dataLength: Buffer.from(data, 'base64').length,
+    encodedDataLength: Buffer.from(data, 'base64').length, data,
+  });
   const finish = requestId => {
     finished.add(requestId);
     events.emit('Network.loadingFinished', { requestId, timestamp: 3, encodedDataLength: 1 });
@@ -147,6 +174,7 @@ async function cdpCallableObservationActor({ durableConfigurationError } = {}) {
   };
   return { actor, page, context, events, commands, responseBodies, start, startRequest, respond, setResponseBody, finish, fail,
     failBodyRead,
+    setStreamBuffer, resolveStreamStart, rejectStreamStart, receiveStreamChunk,
     receiveHeaders, get durableBodyReadCount() { return durableBodyReadCount; },
     get durableBodyReadAfterNavigationCount() { return durableBodyReadAfterNavigationCount; },
     completeNavigation() { navigationComplete = true; events.emit('test-navigation-complete'); } };
@@ -320,6 +348,156 @@ test('completed HTTP200 body read errors expose only exact Chromium reason enums
     assert.equal(serialized.includes('private payload'), false);
     assert.equal(serialized.includes(requestId), false);
   }
+});
+
+test('explicit stream mode waits for both stream start and loadingFinished before decoding ordered bytes', async () => {
+  const fixture = await cdpCallableObservationActor({ captureMode: 'stream', deferStreamStart: true });
+  const { actor, commands, start, receiveHeaders, receiveStreamChunk, finish, resolveStreamStart } = fixture;
+  const requestId = start('stream-race');
+  receiveHeaders(requestId, 200);
+  await nextObservationTurn();
+  const buffered = Buffer.from('{"result":{"status":', 'utf8').toString('base64');
+  const chunkOne = Buffer.from('"committed","revision":', 'utf8').toString('base64');
+  const chunkTwo = Buffer.from('41}}', 'utf8').toString('base64');
+  receiveStreamChunk(requestId, chunkOne);
+  receiveStreamChunk(requestId, chunkTwo);
+  finish(requestId);
+  let drained = false;
+  const drain = actor.drainObservedCalls().then(() => { drained = true; });
+  await nextObservationTurn();
+  assert.equal(drained, false, 'A finished response is not decoded until the stream-start command completes.');
+  assert.equal(actor.observedCalls[0].bodyCompletedAt, null);
+  assert.equal(actor.observedCalls[0].revision, null);
+  resolveStreamStart(requestId, buffered);
+  await drain;
+  assert.equal(actor.observedCalls.length, 1);
+  assert.equal(actor.observedCalls[0].name, 'getCurrentMemberSession');
+  assert.equal(actor.observedCalls[0].status, 200);
+  assert.equal(actor.observedCalls[0].revision, 41);
+  assert.equal(actor.observedCalls[0].resultStatus, 'committed');
+  assert.equal(actor.observedCalls[0].bodyCompletedAt !== null, true);
+  assert.deepEqual(actor.callableObservationFailures, []);
+  assert.deepEqual(commands.filter(({ method }) => method === 'Network.streamResourceContent')
+    .map(({ parameters }) => parameters.requestId), [requestId]);
+  assert.equal(commands.some(({ method }) => method === 'Network.getResponseBody'), false);
+  assert.equal(commands.some(({ method }) => method === 'Network.configureDurableMessages'), false);
+});
+
+test('stream chunks remain bound to distinct protocol IDs for identical callable payloads', async () => {
+  const fixture = await cdpCallableObservationActor({ captureMode: 'stream', deferStreamStart: true });
+  const { actor, commands, start, receiveHeaders, receiveStreamChunk, finish, resolveStreamStart } = fixture;
+  const first = start('stream-id-one'), second = start('stream-id-two');
+  receiveHeaders(first, 200);
+  receiveHeaders(second, 200);
+  await nextObservationTurn();
+  const prefix = Buffer.from('{"result":{"status":"committed","revision":', 'utf8').toString('base64');
+  receiveStreamChunk(second, Buffer.from('22}}', 'utf8').toString('base64'));
+  receiveStreamChunk(first, Buffer.from('11}}', 'utf8').toString('base64'));
+  finish(second);
+  finish(first);
+  resolveStreamStart(first, prefix);
+  resolveStreamStart(second, prefix);
+  await actor.drainObservedCalls();
+  assert.equal(actor.observedCalls.length, 2);
+  assert.equal(actor.observedCalls[0].requestHash, actor.observedCalls[1].requestHash);
+  assert.deepEqual(actor.observedCalls.map(call => call.revision), [11, 22]);
+  assert.deepEqual(commands.filter(({ method }) => method === 'Network.streamResourceContent')
+    .map(({ parameters }) => parameters.requestId).sort(), [first, second].sort());
+  assert.equal(commands.some(({ method }) => method === 'Network.getResponseBody'), false);
+  assert.deepEqual(actor.callableObservationFailures, []);
+});
+
+test('stream capture retains buffered bytes when the actual reload finishes the callable', async () => {
+  const fixture = await cdpCallableObservationActor({ captureMode: 'stream' });
+  const { actor, page, commands, start, receiveHeaders, setStreamBuffer, finish, completeNavigation } = fixture;
+  const requestId = start('stream-during-reload');
+  setStreamBuffer(requestId, Buffer.from('{"result":{"status":"committed","revision":27}}', 'utf8').toString('base64'));
+  receiveHeaders(requestId, 200);
+  await nextObservationTurn();
+  page.reload = async () => {
+    finish(requestId);
+    completeNavigation();
+  };
+  await actor.reload();
+  await actor.drainObservedCalls();
+  assert.equal(actor.observedCalls.length, 1);
+  assert.equal(actor.observedCalls[0].requestFinishedAt !== null, true);
+  assert.equal(actor.observedCalls[0].bodyCompletedAt !== null, true);
+  assert.equal(actor.observedCalls[0].revision, 27);
+  assert.deepEqual(actor.callableObservationFailures, []);
+  assert.equal(commands.some(({ method }) => method === 'Network.getResponseBody'), false);
+});
+
+test('unsupported, malformed, empty, oversized, wrong-lifecycle, and incomplete streams remain strict failures', async () => {
+  const streamCases = [
+    { label: 'unsupported', fixture: () => cdpCallableObservationActor({ captureMode: 'stream',
+      streamConfigurationError: new Error('private CDP stream error') }),
+      configure: async ({ requestId, finish }) => finish(requestId), stage: 'stream-start' },
+    { label: 'malformed buffered bytes', fixture: () => cdpCallableObservationActor({ captureMode: 'stream' }),
+      configure: async ({ requestId, setStreamBuffer, finish }) => { setStreamBuffer(requestId, '%%%'); finish(requestId); },
+      stage: 'stream-buffer-malformed' },
+    { label: 'missing body bytes', fixture: () => cdpCallableObservationActor({ captureMode: 'stream' }),
+      configure: async ({ requestId, finish }) => finish(requestId), stage: 'stream-body-empty' },
+    { label: 'body over 512 KiB', fixture: () => cdpCallableObservationActor({ captureMode: 'stream' }),
+      configure: async ({ requestId, setStreamBuffer, finish }) => {
+        setStreamBuffer(requestId, Buffer.alloc(512 * 1024 + 1, 0x61).toString('base64'));
+        finish(requestId);
+      }, stage: 'stream-body-too-large' },
+  ];
+  for (const { label, fixture: createFixture, configure, stage } of streamCases) {
+    const fixture = await createFixture();
+    const { actor, start, receiveHeaders, finish, setStreamBuffer } = fixture;
+    const requestId = start(`strict-stream-${label.replaceAll(' ', '-')}`);
+    receiveHeaders(requestId, 200);
+    await nextObservationTurn();
+    await configure({ requestId, setStreamBuffer, finish });
+    await actor.drainObservedCalls();
+    assert.equal(actor.observedCalls[0].status, 200, label);
+    assert.equal(actor.observedCalls[0].bodyCompletedAt, null, label);
+    assert.equal(actor.observedCalls[0].revision, null, label);
+    assert.equal(actor.callableObservationFailures.length, 1, label);
+    assert.equal(actor.callableObservationFailures[0].category, 'response-observation-unavailable', label);
+    assert.equal(actor.callableObservationFailures[0].bodyFailureStage, stage, label);
+    assert.equal(JSON.stringify(actor.callableObservationFailures).includes('private CDP stream error'), false);
+    assert.equal(JSON.stringify(actor.callableObservationFailures).includes(requestId), false);
+  }
+
+  const malformedChunk = await cdpCallableObservationActor({ captureMode: 'stream' });
+  const chunkRequest = malformedChunk.start('malformed-stream-chunk');
+  malformedChunk.receiveHeaders(chunkRequest, 200);
+  await nextObservationTurn();
+  malformedChunk.receiveStreamChunk(chunkRequest, '%%%');
+  malformedChunk.finish(chunkRequest);
+  await malformedChunk.actor.drainObservedCalls();
+  assert.equal(malformedChunk.actor.callableObservationFailures[0].bodyFailureStage, 'stream-chunk-malformed');
+
+  const wrongLifecycle = await cdpCallableObservationActor({ captureMode: 'stream' });
+  const lifecycleRequest = wrongLifecycle.start('stream-wrong-order');
+  wrongLifecycle.receiveStreamChunk(lifecycleRequest, Buffer.from('{}').toString('base64'));
+  wrongLifecycle.setStreamBuffer(lifecycleRequest, Buffer.from('{"result":{"status":"committed","revision":1}}').toString('base64'));
+  wrongLifecycle.receiveHeaders(lifecycleRequest, 200);
+  await nextObservationTurn();
+  wrongLifecycle.finish(lifecycleRequest);
+  await wrongLifecycle.actor.drainObservedCalls();
+  assert.equal(wrongLifecycle.actor.callableObservationFailures.some(failure =>
+    failure.category === 'unknown-callable-lifecycle'), true);
+  assert.equal(wrongLifecycle.actor.observedCalls[0].bodyCompletedAt, null);
+
+  const incomplete = await cdpCallableObservationActor({ captureMode: 'stream' });
+  const incompleteRequest = incomplete.start('incomplete-stream-200');
+  incomplete.setStreamBuffer(incompleteRequest, Buffer.from('{"result":{"status":"committed","revision":2}}').toString('base64'));
+  incomplete.receiveHeaders(incompleteRequest, 200);
+  await nextObservationTurn();
+  await incomplete.actor.drainObservedCalls();
+  assert.equal(incomplete.actor.observedCalls[0].requestFinishedAt, null);
+  assert.equal(incomplete.actor.observedCalls[0].bodyCompletedAt, null);
+  assert.equal(incomplete.actor.observedCalls[0].revision, null);
+  incomplete.fail(incompleteRequest, 'net::ERR_TIMED_OUT', false);
+  await nextObservationTurn();
+  assert.equal(incomplete.actor.callableObservationFailures.length, 1);
+  assert.equal(incomplete.actor.callableObservationFailures[0].category, 'unexpected-request-failure');
+  assert.equal(incomplete.actor.callableObservationFailures[0].transportError, 'timed-out');
+  assert.equal(incomplete.actor.observedCalls[0].bodyCompletedAt, null);
 });
 
 test('an isBase64Encoded-only legacy body is malformed CDP observation data', async () => {
