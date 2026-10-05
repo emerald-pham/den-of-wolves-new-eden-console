@@ -814,6 +814,38 @@ describe('App', () => {
     expect(refreshPresence).toHaveBeenCalled();
   });
 
+  it('keeps a hard-reloaded closed-history view read-only and clears transient private projections', async () => {
+    vi.useFakeTimers();
+    const closedSession: GameSession = { ...session, joinCode: '', phase: 'closed', currentTurn: 4,
+      debriefSnapshot: { type: 'session-debrief', version: 1, source: 'final-cycle', result: 'completed',
+        cause: 'final-cycle', cycle: 4, occurredAt: '2026-10-05T12:00:00.000Z',
+        committedAt: '2026-10-05T12:01:00.000Z' } };
+    const returningMember = { ...player, role: 'player' as const, fleetGroupId: 'fleet-1', connected: false };
+    const store = useSessionStore.getState();
+    store.setIdentity(closedSession, returningMember);
+    store.setPrivateLoyalty({ kind: 'wolf-cult' } as never);
+    store.setRoleBrief({ assignmentUid: 'u1', roleId: 'admiral', roleName: 'Admiral', vesselName: 'AEGIS',
+      text: 'private brief', commonRules: 'private rules', setupRevision: 1 });
+    store.setAwayMissionHands([{ handId: 'private-hand' }] as never);
+    store.setAwayMissionHandPointers([{ handId: 'private-pointer' }] as never);
+    store.setConnection('live');
+    store.setSessionSnapshotFreshness('server');
+    vi.mocked(subscribeSessionState).mockClear();
+    vi.mocked(refreshPresence).mockClear();
+
+    const { unmount } = render(<App />);
+    await act(async () => { await vi.advanceTimersByTimeAsync(10_000); });
+
+    expect(subscribeSessionState).not.toHaveBeenCalled();
+    expect(refreshPresence).not.toHaveBeenCalled();
+    expect(useSessionStore.getState().session).toMatchObject({ phase: 'closed', debriefSnapshot: { result: 'completed' } });
+    expect(useSessionStore.getState().privateLoyalty).toBeNull();
+    expect(useSessionStore.getState().roleBrief).toBeNull();
+    expect(useSessionStore.getState().awayMissionHands).toEqual([]);
+    expect(useSessionStore.getState().awayMissionHandPointers).toEqual([]);
+    unmount();
+  });
+
   it.each(['connect', 'heartbeat', 'reconcile'] as const)(
     'keeps slow %s checks to one pending request and resumes after settlement', async (kind) => {
       vi.useFakeTimers();

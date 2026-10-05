@@ -70,7 +70,7 @@ const {
   subscribeSessionEvents,
   subscribeSessionState,
 } = await import('./firestore');
-const { doc, getDocFromServer, onSnapshot, Timestamp: FirestoreTimestamp, where } =
+const { collection, doc, getDocFromServer, onSnapshot, Timestamp: FirestoreTimestamp, where } =
   await import('firebase/firestore');
 const { httpsCallable } = await import('firebase/functions');
 
@@ -199,6 +199,46 @@ it('uses the current member read feed without subscribing to a raw session root'
   expect(call).toHaveBeenCalledWith({ sessionId: 'member-feed' });
   expect(paths).not.toContain('sessions/member-feed');
   stop();
+});
+
+it('stops member feed polling and private listeners after receiving immutable closed history', async () => {
+  vi.useFakeTimers();
+  vi.mocked(doc).mockImplementation(((_db: unknown, path: string) => ({ path })) as never);
+  vi.mocked(collection).mockImplementation(((_db: unknown, path: string) => ({ path })) as never);
+  const listenerPaths: string[] = [];
+  const listenerStops: ReturnType<typeof vi.fn>[] = [];
+  vi.mocked(onSnapshot).mockImplementation(((reference: { path?: string }) => {
+    if (reference.path) listenerPaths.push(reference.path);
+    const stop = vi.fn(); listenerStops.push(stop); return stop;
+  }) as never);
+  const read = vi.fn().mockResolvedValue({ data: {
+    type: 'current-member-session', sessionId: 'closed-feed', actorUid: 'u1', groupId: 'fleet-1',
+    connectionGeneration: 3, assignedRoleId: 'admiral', activeConsoleRoleId: null,
+    session: { ...sessionData(8), phase: 'closed', currentTurn: 4,
+      memberSessionScope: { groupId: 'fleet-1', vesselIds: ['aegis'], craftIds: [] }, shuttleDockings: [], shuttleVisitLog: [],
+      debriefSnapshot: { type: 'session-debrief', version: 1, source: 'final-cycle', result: 'completed',
+        cause: 'final-cycle', cycle: 4, occurredAt: '2026-10-05T12:00:00.000Z', committedAt: '2026-10-05T12:01:00.000Z' } },
+  } });
+  vi.mocked(httpsCallable).mockReturnValue(read as never);
+  const onSession = vi.fn();
+  const stop = subscribeSessionState('closed-feed', 'u1', {
+    sessionReadAudience: 'member', onSession, onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(), onError: vi.fn(),
+    onPrivateLoyalty: vi.fn(), onRoleBrief: vi.fn(),
+  });
+
+  try {
+    await vi.waitFor(() => expect(onSession).toHaveBeenCalledWith(expect.objectContaining({ phase: 'closed' })));
+    expect(listenerPaths).toContain('sessions/closed-feed/secrets/loyalty-u1');
+    expect(listenerPaths).toContain('sessions/closed-feed/roleBriefs/u1');
+    expect(listenerStops.every(unsubscribe => unsubscribe.mock.calls.length === 1)).toBe(true);
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(15_000); });
+    expect(read).toHaveBeenCalledTimes(1);
+    expect(onSession).toHaveBeenCalledTimes(1);
+  } finally {
+    stop();
+    vi.useRealTimers();
+  }
 });
 
 it('hydrates the bounded Philia repair receipt through the member wire parser', () => {
