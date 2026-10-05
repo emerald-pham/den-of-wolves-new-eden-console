@@ -242,3 +242,52 @@ test('malicious document-notification getters cannot escape through the supporte
   assert.equal(JSON.stringify(failures).includes('private-token'), false);
   await capture.close();
 });
+
+test('reuse of a numeric native context identity cannot assign an unknown old script to a replacement document', () => {
+  const f = fixture(); f.witness(docA, 1, 'script-a');
+  f.ledger.nativeContextDestroyed({ executionContextId: 1 });
+  f.ledger.nativeContext({ context: { id: 1, uniqueId: 'replacement-context-unique-id',
+    auxData: { isDefault: true, frameId: 'main-frame' } } });
+  f.ledger.announceDocument(docB);
+  f.ledger.nativeDocument({ name: '__pc10OriginDocumentWitness', executionContextId: 1,
+    payload: JSON.stringify({ schemaVersion: 1, documentId: docB }) });
+  f.ledger.nativeScript({ scriptId: 'previously-unknown-old-script', executionContextId: 1 });
+  const fresh = f.issue(docB); f.metadata(fresh); f.request('old-wire-late', 'previously-unknown-old-script', 'loader-old');
+  assert.equal(f.calls[0].protocolRequestHash, undefined, 'A reused numeric ID cannot prove the old script belongs to this new unique context.');
+  assert.ok(f.failures.some(x => x.category === 'origin-document-witness-conflict'));
+});
+
+test('malformed document witness schema is recorded as failure without invoking the native witness', async () => {
+  const events = new EventEmitter(), operations = []; let nodeBinding;
+  events.send = async name => { operations.push(name); return {}; }; events.detach = async () => undefined;
+  const frame = {}, page = { mainFrame: () => frame }, failures = [];
+  const capture = await createPc10OriginBrowserCapture({ context: { exposeBinding: async (_name, fn) => { nodeBinding = fn; },
+    addInitScript: async () => undefined, newCDPSession: async () => events },
+  page, label: 'admiral', projectId, functionsOrigin, observedCalls: [], failures, boundaryFactory: createPc10CallableObservationBoundary });
+  assert.deepEqual(await nodeBinding({ page, frame }, { schemaVersion: 1, stage: 'document', documentId: docA,
+    raw: 'private-url-private-uid-private-token' }), { ok: false });
+  assert.ok(failures.some(x => x.category === 'origin-binding-schema'));
+  assert.deepEqual(operations, ['Network.enable']);
+  assert.equal(JSON.stringify(failures).includes('private-url'), false);
+  await capture.close();
+});
+
+test('an actual incomplete offline cancellation remains classified without waiving a separately observed body fault', async () => {
+  for (const separateFault of [false, true]) {
+    const f = fixture(); f.witness(docA, 1, 'script-a'); const id = f.issue(docA); f.metadata(id); f.request('wire-a', 'script-a');
+    await f.ledger.transition('offline', async () => {
+      f.tick(1); f.ledger.network('failed', { requestId: 'wire-a', errorText: 'net::ERR_INTERNET_DISCONNECTED', canceled: false });
+      f.packet(id, 'failure', { failureStage: separateFault ? 'origin-body-read-failed' : 'origin-fetch-failed' });
+      await nextTurn();
+    });
+    assert.equal(f.calls[0].observationDisposition, 'cancelled-during-planned-offline');
+    assert.equal(f.calls[0].bodyCompletedAt, null);
+    if (separateFault) {
+      await assert.rejects(f.ledger.drainBeforeNavigation(), /Origin callable/);
+      assert.ok(f.failures.some(x => x.category === 'response-observation-unavailable'));
+    } else {
+      await f.ledger.drainBeforeNavigation();
+      assert.deepEqual(f.failures, []);
+    }
+  }
+});
