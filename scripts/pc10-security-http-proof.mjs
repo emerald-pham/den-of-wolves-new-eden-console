@@ -176,9 +176,9 @@ try {
       current.sessionSnapshotFreshness === 'server';
   }, { url: sessionStoreUrl, uid: wing.localId }, { timeout: 30000 });
   const ui = await page.evaluate(async url => {
-    const { useSessionStore } = await import(url);
+    const { useSessionStore, SESSION_STORAGE_KEY } = await import(url);
     const current = useSessionStore.getState();
-    const envelope = JSON.parse(localStorage.getItem('new-eden-console-session') ?? '{}');
+    const envelope = JSON.parse(localStorage.getItem(SESSION_STORAGE_KEY) ?? '{}');
     return { route: location.hash, role: current.me.activeConsoleRoleId, cycle: current.session.currentTurn,
       persistedKeys: Object.keys(envelope.state ?? {}).sort(),
       overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
@@ -186,6 +186,7 @@ try {
   }, sessionStoreUrl);
   assert.equal(ui.overflow, false);
   assert.deepEqual(ui.forbiddenSnapshotFields, []);
+  assert.deepEqual(ui.persistedKeys, ['gmAccessAuthenticatedAt', 'gmInstance', 'lastRoute', 'me', 'mode', 'pendingCommands']);
   await mkdir(uiDirectory, { recursive: true });
   await page.screenshot({ path: `${uiDirectory}/ordinary-player-390.png`, fullPage: true });
   await page.setViewportSize({ width: 844, height: 390 });
