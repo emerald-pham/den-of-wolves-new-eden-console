@@ -218,7 +218,11 @@ describe('session debrief lifecycle services', () => {
 });
 
 describe('closed member debrief rehydration', () => {
+  let historySession: typeof session;
+  let historyPlayer: typeof player;
   beforeEach(() => {
+    historySession = { ...session, id: 'closed-history-service' };
+    historyPlayer = { ...player, sessionId: historySession.id };
     vi.mocked(httpsCallable).mockReset();
     useSessionStore.getState().reset();
   });
@@ -234,15 +238,15 @@ describe('closed member debrief rehydration', () => {
         path: [{ action: 'ring-passage', result: 'crossed', shipId: 'aegis', fuelSpent: 5 }],
       }] },
     };
-    const closed = { id: 's1', name: 'Table one', joinCode: '', phase: 'closed', currentTurn: 4,
+    const closed = { id: 'closed-history-service', name: 'Table one', joinCode: '', phase: 'closed', currentTurn: 4,
       playerCount: 8, turnLimit: 6, createdAt: '2026-10-05T10:00:00.000Z',
       updatedAt: '2099-10-05T12:01:00.000Z', gameOutcome: outcome, debriefSnapshot: snapshot };
-    const returningMember = { ...player, role: 'player' as const, fleetGroupId: 'fleet-1',
+    const returningMember = { ...historyPlayer, role: 'player' as const, fleetGroupId: 'fleet-1',
       connectionGeneration: 4, connected: false };
-    useSessionStore.getState().setIdentity({ ...session, joinCode: '', phase: 'closed' } as never, returningMember);
+    useSessionStore.getState().setIdentity({ ...historySession, joinCode: '', phase: 'closed' } as never, returningMember);
     useSessionStore.getState().setConnection('live');
     useSessionStore.getState().setSessionSnapshotFreshness('server');
-    const reader = callableReturning({ data: { type: 'current-member-session', sessionId: 's1', actorUid: 'u1',
+    const reader = callableReturning({ data: { type: 'current-member-session', sessionId: 'closed-history-service', actorUid: 'u1',
       groupId: 'fleet-1', connectionGeneration: 4, assignedRoleId: null, activeConsoleRoleId: null,
       session: closed } });
     vi.mocked(httpsCallable).mockReturnValue(reader as never);
@@ -250,10 +254,10 @@ describe('closed member debrief rehydration', () => {
       readClosedSessionHistory: (sessionId: string) => Promise<boolean>;
     };
 
-    await expect(readClosedSessionHistory('s1')).resolves.toBe(true);
+    await expect(readClosedSessionHistory('closed-history-service')).resolves.toBe(true);
 
     expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'getCurrentMemberSession');
-    expect(reader).toHaveBeenCalledWith({ sessionId: 's1' });
+    expect(reader).toHaveBeenCalledWith({ sessionId: 'closed-history-service' });
     expect(useSessionStore.getState().session).toMatchObject({ phase: 'closed',
       debriefSnapshot: { source: 'candidate', outcome, candidate: { groups: [{
         requirements: [{ id: 'paid-crossing', status: 'met' }],
@@ -265,28 +269,28 @@ describe('closed member debrief rehydration', () => {
   });
 
   it('does not accept a closed read for a different actor or group', async () => {
-    const returningMember = { ...player, role: 'player' as const, fleetGroupId: 'fleet-1',
+    const returningMember = { ...historyPlayer, role: 'player' as const, fleetGroupId: 'fleet-1',
       connectionGeneration: 4, connected: false };
-    const before = { ...session, joinCode: '', phase: 'closed' as const };
+    const before = { ...historySession, joinCode: '', phase: 'closed' as const };
     useSessionStore.getState().setIdentity(before as never, returningMember);
     useSessionStore.getState().setConnection('live');
     useSessionStore.getState().setSessionSnapshotFreshness('server');
-    const reader = callableReturning({ data: { type: 'current-member-session', sessionId: 's1', actorUid: 'other',
+    const reader = callableReturning({ data: { type: 'current-member-session', sessionId: 'closed-history-service', actorUid: 'other',
       groupId: 'fleet-2', connectionGeneration: 4, assignedRoleId: null, activeConsoleRoleId: null,
-      session: { id: 's1', name: 'Foreign', joinCode: '', phase: 'closed', currentTurn: 4 } } });
+      session: { id: 'closed-history-service', name: 'Foreign', joinCode: '', phase: 'closed', currentTurn: 4 } } });
     vi.mocked(httpsCallable).mockReturnValue(reader as never);
     const { readClosedSessionHistory } = await import('./sessionService') as unknown as {
       readClosedSessionHistory: (sessionId: string) => Promise<boolean>;
     };
 
-    await expect(readClosedSessionHistory('s1')).resolves.toBe(false);
+    await expect(readClosedSessionHistory('closed-history-service')).resolves.toBe(false);
     expect(useSessionStore.getState().session).toEqual(before);
   });
 
   it.each(['actor', 'group'] as const)(
     'drops a late closed-history reply after the current %s changes', async changedIdentity => {
-      const before = { ...session, joinCode: '', phase: 'closed' as const };
-      const returningMember = { ...player, role: 'player' as const, fleetGroupId: 'fleet-1',
+      const before = { ...historySession, joinCode: '', phase: 'closed' as const };
+      const returningMember = { ...historyPlayer, role: 'player' as const, fleetGroupId: 'fleet-1',
         connectionGeneration: 4, connected: false };
       useSessionStore.getState().setIdentity(before as never, returningMember);
       useSessionStore.getState().setConnection('live');
@@ -306,12 +310,12 @@ describe('closed member debrief rehydration', () => {
         readClosedSessionHistory: (sessionId: string) => Promise<boolean>;
       };
 
-      const pending = readClosedSessionHistory('s1');
+      const pending = readClosedSessionHistory('closed-history-service');
       await Promise.resolve();
       useSessionStore.getState().setIdentity(before as never, changedIdentity === 'actor'
         ? { ...returningMember, uid: 'u2' }
         : { ...returningMember, fleetGroupId: 'fleet-2' });
-      resolveRead({ data: { type: 'current-member-session', sessionId: 's1', actorUid: 'u1',
+      resolveRead({ data: { type: 'current-member-session', sessionId: 'closed-history-service', actorUid: 'u1',
         groupId: 'fleet-1', connectionGeneration: 4, assignedRoleId: null, activeConsoleRoleId: null,
         session: responseSession } });
 
