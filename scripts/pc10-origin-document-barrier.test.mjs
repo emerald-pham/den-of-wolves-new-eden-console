@@ -211,3 +211,34 @@ test('browser witness bootstrap uses supported actual contexts before pairing, w
   assert.equal(operations.some(x => /Fetch\.|setBreakpoint|\.pause|\.resume|setExtraHTTPHeaders|replay/.test(x.name)), false);
   await capture.close();
 });
+
+test('an already-settled completed transport with rejected body is still incomplete at the finite barrier', async () => {
+  const f = fixture(); f.witness(docA, 1, 'script-a'); const id = f.issue(docA); f.metadata(id); f.request('wire-a', 'script-a'); f.finish('wire-a');
+  f.packet(id, 'failure', { failureStage: 'origin-body-read-failed' }); await nextTurn();
+  await assert.rejects(f.ledger.drainBeforeNavigation(), /Origin callable/);
+  assert.ok(f.failures.some(x => x.category === 'response-observation-unavailable'));
+  assert.equal(f.calls[0].bodyCompletedAt, null);
+});
+
+test('a contradictory native script/context witness cannot become eligible through later script backfill', () => {
+  const f = fixture(); f.witness(docA, 1, 'script-a'); f.witness(docB, 2, 'script-b');
+  f.ledger.nativeScript({ scriptId: 'script-a', executionContextId: 2 });
+  f.ledger.nativeScript({ scriptId: 'script-a', executionContextId: 1 });
+  const id = f.issue(docA); f.metadata(id); f.request('wire-a', 'script-a');
+  assert.equal(f.calls[0].protocolRequestHash, undefined);
+  assert.ok(f.failures.some(x => x.category === 'origin-document-witness-conflict'));
+});
+
+test('malicious document-notification getters cannot escape through the supported binding as private errors', async () => {
+  const events = new EventEmitter(); let nodeBinding;
+  events.send = async () => ({}); events.detach = async () => undefined;
+  const frame = {}, page = { mainFrame: () => frame }, failures = [];
+  const capture = await createPc10OriginBrowserCapture({ context: { exposeBinding: async (_name, fn) => { nodeBinding = fn; },
+    addInitScript: async () => undefined, newCDPSession: async () => events },
+  page, label: 'admiral', projectId, functionsOrigin, observedCalls: [], failures, boundaryFactory: createPc10CallableObservationBoundary });
+  const malicious = { get stage() { throw new Error('private-token-private-url-private-arbitrary-error'); } };
+  assert.deepEqual(await nodeBinding({ page, frame }, malicious), { ok: false });
+  assert.ok(failures.some(x => x.category === 'origin-binding-schema'));
+  assert.equal(JSON.stringify(failures).includes('private-token'), false);
+  await capture.close();
+});
