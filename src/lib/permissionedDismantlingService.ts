@@ -14,13 +14,15 @@ export interface PermissionedDismantlingInbox {
   readonly targetShipId: string;
   readonly proposalId: string;
   readonly proposerUid: string;
-  readonly craftId: 'philia' | 'blacksmith' | 'chacau' | 'ally';
+  readonly craftId: 'philia' | 'blacksmith' | 'chacau' | 'ally' | 'macaw';
   readonly targetConsoleId: string;
   readonly targetRevision: number;
-  readonly materialGain: 3;
+  readonly materialGain?: 3;
+  readonly scrapGain?: 1;
   readonly status: PermissionedDismantlingStatus;
   readonly consentId: string | null;
   readonly materialsAfter: number | null;
+  readonly scrapAfter?: number | null;
   readonly updatedAt: unknown;
 }
 
@@ -40,7 +42,8 @@ export interface DismantlingProposalReply {
   readonly targetConsoleId: string;
   readonly targetRevision: number;
   readonly controlRevision: number;
-  readonly materialGain: 3;
+  readonly materialGain?: 3;
+  readonly scrapGain?: 1;
 }
 
 export interface DismantlingStaleProposalReply {
@@ -86,17 +89,27 @@ export interface DismantlingApplyReply {
   readonly targetShipId: string;
   readonly targetConsoleId: string;
   readonly targetRevision: number;
-  readonly materialGain: 3;
-  readonly materialsAfter: number;
+  readonly materialGain?: 3;
+  readonly materialsAfter?: number;
+  readonly scrapGain?: 1;
+  readonly scrapAfter?: number;
 }
 
-const INBOX_KEYS = [
+const INBOX_CORE_KEYS = [
   'type', 'sessionId', 'targetShipId', 'proposalId', 'proposerUid', 'craftId',
-  'targetConsoleId', 'targetRevision', 'materialGain', 'status', 'consentId',
+  'targetConsoleId', 'targetRevision', 'status', 'consentId',
   'materialsAfter', 'updatedAt',
 ] as const;
 const ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
-const CRAFT_IDS = ['philia', 'blacksmith', 'chacau', 'ally'] as const;
+const CRAFT_IDS = ['philia', 'blacksmith', 'chacau', 'ally', 'macaw'] as const;
+
+function isMacaw(craftId: string): boolean {
+  return craftId === 'macaw';
+}
+
+function inboxKeys(craftId: string): readonly string[] {
+  return [...INBOX_CORE_KEYS, ...(isMacaw(craftId) ? ['scrapGain', 'scrapAfter'] : ['materialGain'])];
+}
 
 type RecordValue = Record<string, unknown>;
 interface ActorBinding {
@@ -136,6 +149,9 @@ function currentProposalBinding(command: DismantlingProposalCommand): ProposalBi
       !ID_PATTERN.test(command.proposalId) || !CRAFT_IDS.includes(command.craftId) ||
       !ID_PATTERN.test(command.targetShipId) || !ID_PATTERN.test(command.targetConsoleId)) {
     throw new Error('The dismantling request is invalid or gameplay is not active.');
+  }
+  if (command.craftId === 'macaw' && command.targetShipId === 'capybara') {
+    throw new Error('The Macaw-to-Capybara self-target requires a facilitator ruling before it can be enabled.');
   }
   const control = session.shuttleControl?.[command.craftId];
   if (!control || control.holderUid !== me.uid || !isCounter(control.revision)) {
@@ -184,18 +200,24 @@ function requireSameActor(binding: ActorBinding & { readonly uid: string }): voi
 }
 
 function parseInbox(value: unknown, sessionId: string, targetShipId: string): PermissionedDismantlingInbox {
-  if (!isRecord(value) || Object.keys(value).length !== INBOX_KEYS.length ||
-      Object.keys(value).some((key) => !INBOX_KEYS.includes(key as typeof INBOX_KEYS[number])) ||
+  if (!isRecord(value) || typeof value.craftId !== 'string' ||
+      !CRAFT_IDS.includes(value.craftId as typeof CRAFT_IDS[number]) ||
+      Object.keys(value).length !== inboxKeys(value.craftId).length ||
+      Object.keys(value).some((key) => !inboxKeys(value.craftId as string).includes(key)) ||
       value.type !== 'permissioned-dismantling-inbox' || value.sessionId !== sessionId ||
       value.targetShipId !== targetShipId || typeof value.proposalId !== 'string' ||
       !ID_PATTERN.test(value.proposalId) || typeof value.proposerUid !== 'string' ||
       !value.proposerUid || value.proposerUid.length > 128 ||
-      !CRAFT_IDS.includes(value.craftId as typeof CRAFT_IDS[number]) ||
       typeof value.targetConsoleId !== 'string' || !ID_PATTERN.test(value.targetConsoleId) ||
-      !isCounter(value.targetRevision) || value.materialGain !== 3 ||
+      !isCounter(value.targetRevision) ||
+      (isMacaw(value.craftId)
+        ? value.scrapGain !== 1 || Object.hasOwn(value, 'materialGain') || targetShipId === 'capybara'
+        : value.materialGain !== 3 || Object.hasOwn(value, 'scrapGain')) ||
       !(['pending', 'consented', 'declined', 'revoked', 'applied'] as const).includes(value.status as PermissionedDismantlingStatus) ||
       (value.consentId !== null && (typeof value.consentId !== 'string' || !ID_PATTERN.test(value.consentId))) ||
       (value.materialsAfter !== null && !isCounter(value.materialsAfter)) ||
+      (isMacaw(value.craftId) && (value.materialsAfter !== null ||
+        (value.scrapAfter !== null && !isCounter(value.scrapAfter)))) ||
       value.updatedAt === undefined || value.updatedAt === null) {
     throw new Error('The target-ship dismantling inbox projection is malformed.');
   }
@@ -220,7 +242,10 @@ function requireProposalReply(value: unknown, binding: ProposalBinding, command:
   if ((value.status !== 'proposed' && value.status !== 'replayed') ||
       value.craftId !== command.craftId || value.targetShipId !== command.targetShipId ||
       value.targetConsoleId !== command.targetConsoleId || !isCounter(value.targetRevision) ||
-      value.controlRevision !== binding.controlRevision || value.materialGain !== 3) {
+      value.controlRevision !== binding.controlRevision ||
+      (command.craftId === 'macaw'
+        ? value.scrapGain !== 1 || Object.hasOwn(value, 'materialGain')
+        : value.materialGain !== 3 || Object.hasOwn(value, 'scrapGain'))) {
     throw new Error('The permissioned-dismantling proposal reply was malformed.');
   }
   return value as unknown as DismantlingProposalReply;
@@ -330,7 +355,10 @@ export async function applyPermissionedDismantling(input: Readonly<{
       data.sessionId !== session.id || data.requestId !== input.requestId ||
       data.proposalId !== input.inbox.proposalId || data.consentId !== consentId ||
       data.targetShipId !== input.inbox.targetShipId || data.targetConsoleId !== input.inbox.targetConsoleId ||
-      !isCounter(data.targetRevision) || data.materialGain !== 3 || !isCounter(data.materialsAfter)) {
+      !isCounter(data.targetRevision) ||
+      (isMacaw(input.inbox.craftId)
+        ? data.scrapGain !== 1 || !isCounter(data.scrapAfter) || Object.hasOwn(data, 'materialGain')
+        : data.materialGain !== 3 || !isCounter(data.materialsAfter) || Object.hasOwn(data, 'scrapGain'))) {
     throw new Error('The permissioned-dismantling apply reply was malformed.');
   }
   requireSameProposalAuthority(proposalBinding);
