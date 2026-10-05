@@ -34,6 +34,45 @@ describe('permissioned dismantling', () => {
     });
   });
 
+  it('lets a target-approved Macaw dismantle one undamaged console for exactly one Scrap', () => {
+    const macawProposal = {
+      craftId: 'macaw',
+      targetShipId: 'capybara',
+      targetConsoleId: 'advanced-hydroponics',
+      targetRevision: 7,
+      scrapGain: 1,
+    } as const;
+    const macawBase = {
+      proposal: macawProposal,
+      consent: { id: 'consent-macaw', status: 'granted', actorUid: 'target-player', ...macawProposal },
+      activeTargetShipPlayerUids: ['target-player'],
+      currentTargetRevision: 7,
+      targetDamage: { damagedSystemIds: ['bulk-haulage'], destroyed: false },
+      targetResources: { ore: 0, fuel: 3, food: 9, water: 4, materials: 0, securityTeams: 2, scrap: 3 },
+    } as const;
+
+    expect(resolvePermissionedDismantling(macawBase)).toEqual({
+      targetDamage: { damagedSystemIds: ['bulk-haulage', 'advanced-hydroponics'], destroyed: false },
+      targetResources: { ...macawBase.targetResources, scrap: 4 },
+      consumedConsent: { ...macawBase.consent, status: 'consumed' },
+    });
+  });
+
+  it('rejects a Macaw proposal without a currently assigned target-player consent', () => {
+    const macawProposal = {
+      craftId: 'macaw', targetShipId: 'capybara', targetConsoleId: 'advanced-hydroponics',
+      targetRevision: 7, scrapGain: 1,
+    } as const;
+    expect(() => resolvePermissionedDismantling({
+      proposal: macawProposal,
+      consent: { id: 'consent-self', status: 'granted', actorUid: 'proposer', ...macawProposal },
+      activeTargetShipPlayerUids: ['target-player'],
+      currentTargetRevision: 7,
+      targetDamage: { damagedSystemIds: [], destroyed: false },
+      targetResources: { ore: 0, fuel: 3, food: 9, water: 4, materials: 0, securityTeams: 2, scrap: 3 },
+    })).toThrow(/active player assigned to the target ship/i);
+  });
+
   it.each([
     ['missing consent', { consent: undefined }],
     ['revoked consent', { consent: { ...consent, status: 'revoked' } }],
