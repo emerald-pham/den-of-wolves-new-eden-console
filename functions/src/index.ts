@@ -3983,6 +3983,19 @@ function isAuthoritativePressHolder(player: DocumentSnapshot): boolean {
     player.get('activeConsoleRoleId') === 'press-officer' && !hasCoreStation(player);
 }
 
+/** A renewal may keep an already reconciled Press holder without a table-wide write. */
+function hasStablePressAuthority(session: DocumentSnapshot, player: DocumentSnapshot, uid: string): boolean {
+  return isAuthoritativePressHolder(player) &&
+    player.get('assignedRoleId') == null && player.get('seatId') == null &&
+    player.get('replacementStatus') == null && typeof player.get('replacementRoleId') !== 'string' &&
+    !playerEscapeState(player) && session.get('pressEnabled') !== false &&
+    session.get('pressHolderUid') === uid;
+}
+
+function isSolePressHolder(holders: readonly DocumentSnapshot[], uid: string): boolean {
+  return holders.length === 1 && holders[0]!.id === uid && isAuthoritativePressHolder(holders[0]!);
+}
+
 function hasPressState(player: DocumentSnapshot): boolean {
   return player.get('activeConsoleRoleId') === 'press-officer' ||
     player.get('assignedRoleId') === 'press-officer';
@@ -18843,11 +18856,12 @@ export const resumeSession = auditedOnCall<{ sessionId?: string }>('resumeSessio
     const currentGroup = storedGroup.exists ? fleetGroupRecord(storedGroup.data()) : undefined;
     // A live actor whose server-owned setup, berth, seat and protected view are
     // already current needs a new connection generation, not fleet migration.
-    // Legacy, disconnected, partitioned, Press and candidate recovery retain
+    // Legacy, disconnected, partitioned and candidate recovery retain
     // the full reconciliation below.
+    const stablePress = hasStablePressAuthority(currentSession, currentPlayer, uid);
     const stableMember = isActivePlayer(currentPlayer) && membershipActive &&
       membership.get('sessionId') === sessionId &&
-      !partitioned && !hasPressState(currentPlayer) && !playerEscapeState(currentPlayer) &&
+      !partitioned && (!hasPressState(currentPlayer) || stablePress) && !playerEscapeState(currentPlayer) &&
       currentPlayer.get('replacementStatus') == null &&
       typeof currentPlayer.get('replacementRoleId') !== 'string' &&
       !returningSeat.claimSeat && !returningSeat.clearPointer &&
@@ -18876,7 +18890,10 @@ export const resumeSession = auditedOnCall<{ sessionId?: string }>('resumeSessio
         const expectedView = playerDiscoveryProjection(currentPlayer, navigation,
           storedNavigation.get('revision') as number, currentGroup.vesselIds,
           view.candidateReveals === undefined ? undefined : [], uid, currentGroup.memberShipIds?.[uid]);
-        if (discovery.exists && emptyCandidates && isDeepStrictEqual(view, expectedView)) {
+        const pressHolders = stablePress
+          ? await tx.get(playersRef.where('activeConsoleRoleId', '==', 'press-officer')) : undefined;
+        if (discovery.exists && emptyCandidates && isDeepStrictEqual(view, expectedView) &&
+            (!pressHolders || isSolePressHolder(pressHolders.docs, uid))) {
           ensureFleetTickerBaseline(tx, sessionRef, currentSession, new Date().toISOString());
           reconcilePresenceTimer(tx, sessionRef, currentSession, attackState, true);
           tx.update(playerRef, {
@@ -35954,6 +35971,7 @@ export const refreshPresence = auditedOnCall<{
       reconciliation.get('lastFullReconciliationAt'),
     );
     const cheapHeartbeat = activeConsoleRoleId === undefined &&
+      !hasPressState(player) &&
       !invalidCurrentCoreAuthority &&
       lastFullReconciliationAt !== undefined &&
       Date.now() - lastFullReconciliationAt < PRESENCE_RECONCILIATION_INTERVAL_MS;
@@ -35968,6 +35986,23 @@ export const refreshPresence = auditedOnCall<{
       }
       tx.set(membershipRef, { sessionId, connectedAt: FieldValue.serverTimestamp() });
       return false;
+    }
+    // A current Press holder still validates exclusivity on every renewal,
+    // but needs neither other core players' locks nor private cleanup inputs.
+    // A claim, release, legacy duplicate, or invalid authority continues below.
+    if ((activeConsoleRoleId === undefined || activeConsoleRoleId === 'press-officer') &&
+        hasStablePressAuthority(session, player, uid)) {
+      const currentPressHolders = await tx.get(pressHoldersRef);
+      if (isSolePressHolder(currentPressHolders.docs, uid)) {
+        ensureFleetTickerBaseline(tx, sessionRef, session, new Date().toISOString());
+        tx.update(playerRef, { lastSeenAt: FieldValue.serverTimestamp() });
+        tx.set(membershipRef, { sessionId, connectedAt: FieldValue.serverTimestamp() });
+        tx.set(reconciliationRef, {
+          lastFullReconciliationAt: presenceReconciliationTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+        return false;
+      }
     }
     // Only Press reconciliation can remove private loyalty state or change
     // the shared Press holder. Ordinary console leases still validate their
