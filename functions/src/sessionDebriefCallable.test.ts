@@ -90,6 +90,7 @@ it('rejects unsigned, malformed, stale-GM, non-GM, and premature close requests 
 
   database.documents.set('sessions/s1/players/u1', { uid: 'u1', role: 'player', connected: true });
   await expect(call.begin(request())).rejects.toMatchObject({ code: 'permission-denied' });
+  database.documents.set('sessions/s1/players/u1', { uid: 'u1', role: 'gm', connected: true });
   await expect(call.close(request())).rejects.toMatchObject({ code: 'failed-precondition' });
   expect(database.updates).toHaveLength(0);
 });
