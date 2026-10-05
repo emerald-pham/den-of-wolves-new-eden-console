@@ -4,6 +4,8 @@ import {readFile} from 'node:fs/promises';
 import {createRequire} from 'node:module';
 import {localGmAccessConfiguration,grantLocalGmAccess} from './local-gm-access.mjs';
 import {buildPc07ExplicitLoyaltyAssignments} from './pc07-explicit-loyalty-setup.mjs';
+import {createFixtureHeartbeatController} from './fixture-heartbeats.mjs';
+export {createFixtureHeartbeatController} from './fixture-heartbeats.mjs';
 
 /** A native proof request must fail observably instead of waiting indefinitely.
  * There is no transport retry; production callable limits are unchanged. */
@@ -92,24 +94,26 @@ export async function createPc07AuthenticatedSession(name,playerCount=8,{clearBr
  const created=ok(await call(gm,'createSession',{requestId:randomUUID(),joinCodeVersion:2,name}),'create');
  const sessionId=created.session.id,session=db.doc(`sessions/${sessionId}`),instanceId='pc07-local-proof';
  const heartbeatPlayers=new Map(),heartbeatFailures=[];
- let gmHeartbeat,playerHeartbeat,gmHeartbeatPending=Promise.resolve(),playerHeartbeatPending=Promise.resolve();
- function queueGmHeartbeat(){
+ let gmHeartbeatPending=Promise.resolve(),playerHeartbeatPending=Promise.resolve();
+ function queueGmHeartbeat(running){
   gmHeartbeatPending=gmHeartbeatPending.catch(error=>{
    heartbeatFailures.push({actor:'gm-heartbeat-loop',message:String(error?.message??error)});
   }).then(async()=>{
-   if(disconnected.has(gm.localId))return;
+   if(!running()||disconnected.has(gm.localId))return;
    try{
     const reply=await call(gm,'refreshPresence',{sessionId,instanceId});
     if(reply.status!==200)heartbeatFailures.push({actor:'gm',status:reply.status,
      message:String(reply.error?.message??'presence refresh failed')});
    }catch(error){heartbeatFailures.push({actor:'gm',message:String(error?.message??error)});}
   });
+  return gmHeartbeatPending;
  }
- function queuePlayerHeartbeats(){
+ function queuePlayerHeartbeats(running){
   playerHeartbeatPending=playerHeartbeatPending.catch(error=>{
    heartbeatFailures.push({actor:'player-heartbeat-loop',message:String(error?.message??error)});
   }).then(async()=>{
    for(const {actor:player,label} of heartbeatPlayers.values()){
+    if(!running())return;
     if(disconnected.has(player.localId))continue;
     try{
      const reply=await call(player,'refreshPresence',{sessionId});
@@ -118,11 +122,10 @@ export async function createPc07AuthenticatedSession(name,playerCount=8,{clearBr
     }catch(error){heartbeatFailures.push({actor:label,message:String(error?.message??error)});}
    }
   });
+  return playerHeartbeatPending;
  }
- function startHeartbeat(){if(!keepAlive||gmHeartbeat)return;
-  gmHeartbeat=setInterval(queueGmHeartbeat,10000);
-  playerHeartbeat=setInterval(queuePlayerHeartbeats,10000);
- }
+ const heartbeats=createFixtureHeartbeatController({gmTick:queueGmHeartbeat,playerTick:queuePlayerHeartbeats});
+ function startHeartbeat(){if(keepAlive)heartbeats.start();}
  try{
   const appOrigin=process.env.PC07_LOCAL_GM_ORIGIN??'http://127.0.0.1:5174';
   await grantLocalGmAccess(config,{method:'POST',host:new URL(appOrigin).host,origin:appOrigin,remoteAddress:'127.0.0.1',token:gm.idToken});
@@ -202,14 +205,13 @@ export async function createPc07AuthenticatedSession(name,playerCount=8,{clearBr
   }:undefined;
   return{db,config,project,gm,players,press,roles,unionCraftSetupProof,explicitLoyaltySetupProof,
    loyaltyActors,heartbeatFailures,sessionId,session,instanceId,call,ok,
-   byRole:role=>players[roles.indexOf(role)],byLoyalty:kind=>loyaltyActors?.[kind],cleanup:async()=>{
-    clearInterval(gmHeartbeat);clearInterval(playerHeartbeat);
-    await Promise.all([gmHeartbeatPending,playerHeartbeatPending]);
+   byRole:role=>players[roles.indexOf(role)],byLoyalty:kind=>loyaltyActors?.[kind],
+   stopHeartbeats:()=>heartbeats.stop(),restartHeartbeats:startHeartbeat,cleanup:async()=>{
+    await heartbeats.stop();
     await db.recursiveDelete(session);
    }};
  }catch(error){
-  clearInterval(gmHeartbeat);clearInterval(playerHeartbeat);
-  await Promise.all([gmHeartbeatPending,playerHeartbeatPending]);
+  await heartbeats.stop();
   await db.recursiveDelete(session);throw error;
  }
 }
