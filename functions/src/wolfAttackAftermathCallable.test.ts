@@ -339,4 +339,56 @@ describe('Wolf attack aftermath command contract', () => {
       .resolves.toMatchObject({ status: 'committed', action: 'collect-scrap', shuttleId: 'boa', scrapGained: 1 });
     expect(mock.documents.get('sessions/s-1')?.shuttleCargo).toEqual({ boa: { scrap: 1 } });
   });
+
+  it('lets the retained Capybara shuttle collect the Scrap earned by a ship destroyed at the 3-damage threshold', async () => {
+    const session = mock.documents.get('sessions/s-1')!;
+    session.activeVesselIds = ['aegis', 'capybara'];
+    session.capybaraEnabled = true;
+    session.shuttleDockings = [];
+    session.retainedShuttles = { macaw: { status: 'retained', shuttleId: 'macaw',
+      ownerRoleId: 'capybara-captain', holderUid: 'macaw-uid', destroyedHostShipId: 'aegis',
+      controlRevision: 0, retainedAt: '2026-10-04T09:59:00.000Z' } };
+    session.shuttleControl = { macaw: { shuttleId: 'macaw', ownerRoleId: 'capybara-captain',
+      ownerUid: 'macaw-uid', holderUid: 'macaw-uid', revision: 0 } };
+    session.shuttleCargo = {};
+    const state = mock.documents.get('sessions/s-1/wolfAttackState/current')!;
+    (state.calculationReceipt as Fields).fleetDamage = [{ target: 'aegis', amount: 3, populationBefore: 2_500,
+      population: 2_000, state: { damagedSystemIds: ['reactor'], destroyed: true },
+      draws: [{ casualty: false }, { casualty: true }, { casualty: false }] }];
+    put('sessions/s-1/players/macaw-uid', { role: 'player', connected: true, assignedRoleId: 'capybara-captain',
+      activeConsoleRoleId: 'capybara-captain', replacementRoleId: null, replacementStatus: null,
+      escapeState: null, fleetGroupId: 'fleet-1' });
+    put('sessions/s-1/fleetGroups/fleet-1', { id: 'fleet-1', vesselIds: ['aegis', 'capybara'], memberUids: ['macaw-uid'] });
+
+    await expect(resolveWolfAttackAftermath.run(request({ sessionId: 's-1', attackId: 'attack-7',
+      requestId: 'destroyed-scrap-7', action: 'collect-scrap', shuttleId: 'macaw', targetShipId: 'aegis' }, 'macaw-uid')))
+      .resolves.toMatchObject({ status: 'committed', action: 'collect-scrap', scrapGained: 1 });
+    expect(mock.documents.get('sessions/s-1')?.shuttleCargo).toEqual({ macaw: { scrap: 1 } });
+  });
+
+  it('does not let a retained shuttle claim another destroyed ship’s Scrap', async () => {
+    const session = mock.documents.get('sessions/s-1')!;
+    session.activeVesselIds = ['aegis', 'dione', 'capybara'];
+    session.capybaraEnabled = true;
+    session.shuttleDockings = [];
+    session.retainedShuttles = { macaw: { status: 'retained', shuttleId: 'macaw',
+      ownerRoleId: 'capybara-captain', holderUid: 'macaw-uid', destroyedHostShipId: 'dione',
+      controlRevision: 0, retainedAt: '2026-10-04T09:59:00.000Z' } };
+    session.shuttleControl = { macaw: { shuttleId: 'macaw', ownerRoleId: 'capybara-captain',
+      ownerUid: 'macaw-uid', holderUid: 'macaw-uid', revision: 0 } };
+    session.shuttleCargo = {};
+    const state = mock.documents.get('sessions/s-1/wolfAttackState/current')!;
+    (state.calculationReceipt as Fields).fleetDamage = [{ target: 'aegis', amount: 3, populationBefore: 2_500,
+      population: 2_000, state: { damagedSystemIds: ['reactor'], destroyed: true },
+      draws: [{ casualty: false }, { casualty: true }, { casualty: false }] }];
+    put('sessions/s-1/players/macaw-uid', { role: 'player', connected: true, assignedRoleId: 'capybara-captain',
+      activeConsoleRoleId: 'capybara-captain', replacementRoleId: null, replacementStatus: null,
+      escapeState: null, fleetGroupId: 'fleet-1' });
+    put('sessions/s-1/fleetGroups/fleet-1', { id: 'fleet-1', vesselIds: ['aegis', 'dione', 'capybara'], memberUids: ['macaw-uid'] });
+
+    await expect(resolveWolfAttackAftermath.run(request({ sessionId: 's-1', attackId: 'attack-7',
+      requestId: 'unbound-destroyed-scrap-7', action: 'collect-scrap', shuttleId: 'macaw', targetShipId: 'aegis' }, 'macaw-uid')))
+      .rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(mock.documents.get('sessions/s-1')?.shuttleCargo).toEqual({});
+  });
 });

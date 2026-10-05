@@ -80,3 +80,26 @@ it('lets the current Macaw operator collect one threshold Scrap opportunity', as
     action: 'collect-scrap', shuttleId: 'macaw', targetShipId: 'aegis',
   }, expect.any(String)));
 });
+
+it('offers the Scrap from a destroyed threshold ship to the Macaw retained there by attack resolution', async () => {
+  installIdentity(null, 'capybara-captain', 'capybara-captain');
+  const session = useSessionStore.getState().session!;
+  useSessionStore.getState().setSession({ ...session,
+    shuttleControl: { macaw: { shuttleId: 'macaw', ownerRoleId: 'capybara-captain',
+      ownerUid: 'actor-1', holderUid: 'actor-1', revision: 1 } },
+    retainedShuttles: { macaw: { status: 'retained', shuttleId: 'macaw',
+      ownerRoleId: 'capybara-captain', holderUid: 'actor-1', destroyedHostShipId: 'aegis',
+      controlRevision: 1, retainedAt: '2026-10-04T09:59:00.000Z' } },
+  } as never);
+  const destroyed = { ...member, results: member.results.map((result) => ({ ...result,
+    outcome: { ...result.outcome, destroyed: true } })) };
+  render(<WolfAttackAftermathActionPanel operator={{ shuttleId: 'macaw' }} />);
+  act(() => publish?.(destroyed));
+
+  const collect = screen.getByRole('button', { name: 'Collect Scrap from AEGIS' });
+  expect(collect).toBeEnabled();
+  fireEvent.click(collect);
+  await waitFor(() => expect(mocks.commit).toHaveBeenCalledWith('attack-7', {
+    action: 'collect-scrap', shuttleId: 'macaw', targetShipId: 'aegis',
+  }, expect.any(String)));
+});
