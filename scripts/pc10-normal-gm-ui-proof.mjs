@@ -119,7 +119,7 @@ try {
   const ownedGm = await gm.until('Live owned GM instance', state => state.playerRole === 'gm' &&
     state.gmInstanceOwned && state.connection === 'live' && state.freshness === 'server');
   if (!(await gm.page.getByRole('region', { name: 'Setup', exact: true }).isVisible())) {
-    await gm.page.getByRole('button', { name: 'Open station catalog', exact: true }).click();
+    await gm.page.getByRole('button', { name: /^Open station catalog/ }).click();
     await gm.page.getByRole('link', { name: 'GM Console', exact: true }).click();
   }
   stage = 'normal setup confirmation';
