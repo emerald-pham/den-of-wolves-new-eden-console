@@ -471,10 +471,10 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
       observePc10CallableTrace(state.trace, { stage: 'finished', at: eventTime(state.trace) });
       const capture = Promise.resolve().then(async () => {
         const response = await cdpSession.send('Network.getResponseBody', { requestId: state.protocolRequestId });
-        if (!response || typeof response.body !== 'string' || typeof response.isBase64Encoded !== 'boolean') {
+        if (!response || typeof response.body !== 'string' || typeof response.base64Encoded !== 'boolean') {
           throw new Error('Callable response body is unavailable.');
         }
-        const bytes = response.isBase64Encoded ? Buffer.from(response.body, 'base64') : Buffer.from(response.body, 'utf8');
+        const bytes = response.base64Encoded ? Buffer.from(response.body, 'base64') : Buffer.from(response.body, 'utf8');
         const reply = JSON.parse(bytes.toString('utf8'));
         if (!reply || typeof reply !== 'object' || Array.isArray(reply)) throw new Error('Callable response body is malformed.');
         if (!state.headersSeen) recordCallableObservationFailure(state, 'unknown-callable-lifecycle');
