@@ -51,6 +51,8 @@ const {
   beginOpenAirspacePhase,
   extendAirspaceWindow,
   setEmergencyTimerPaused,
+  prepareFullGameDemo,
+  advanceFullGameDemoPhase,
   setWolfAttackWindow,
   advanceWolfAttackToLongRange,
   getDioneMaliadesLaunch,
@@ -1601,6 +1603,77 @@ it('starts production through one server receipt and hydrates the GM-private set
   });
   expect(useSessionStore.getState().gmSetupReceipt).toMatchObject({
     source: 'routine-start', committedSetupRevision: 5,
+  });
+});
+
+describe('authenticated full-game demo controls', () => {
+  beforeEach(() => {
+    useSessionStore.getState().reset();
+    useSessionStore.getState().setIdentity(
+      { ...session, phase: 'casting', currentTurn: 0, setupRevision: 4 }, { ...player, role: 'gm' },
+    );
+    useSessionStore.getState().setGmInstance({
+      id: 'instance-1', sessionId: 's1', uid: 'u1', name: 'Bridge laptop',
+      deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
+    });
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+  });
+
+  it('prepares only the fresh Cycle 0 session through the active GM callable', async () => {
+    const callable = callableReturning({ data: {
+      status: 'committed', sessionId: 's1', requestId: 'demo-prepare-1',
+      fullGameDemo: { status: 'preparing', progression: 'manual' },
+      expectedSetupRevision: 4, currentSetupRevision: 4,
+    } });
+    vi.mocked(httpsCallable).mockReturnValue(callable as never);
+
+    await expect(prepareFullGameDemo()).resolves.toMatchObject({
+      status: 'committed', fullGameDemo: { status: 'preparing', progression: 'manual' },
+    });
+
+    expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'prepareFullGameDemo');
+    expect(callable).toHaveBeenCalledWith(expect.objectContaining({
+      sessionId: 's1', instanceId: 'instance-1', expectedSetupRevision: 4,
+      requestId: expect.any(String),
+    }));
+    expect(useSessionStore.getState().session).toMatchObject({
+      fullGameDemo: { status: 'preparing', progression: 'manual' },
+    });
+  });
+
+  it('opens Coordination only by the authenticated manual phase action and hydrates the marker', async () => {
+    const teamPhase = {
+      turn: 1, teamPhaseEndsAt: '2026-01-01T00:05:00.000Z',
+      openAirspaceEndsAt: '2026-01-01T00:20:00.000Z',
+      airspace: { state: 'restricted' as const, tickerActive: true, pressAccess: false },
+      progression: 'manual' as const,
+    };
+    useSessionStore.getState().setSession({
+      ...useSessionStore.getState().session!, phase: 'active', currentTurn: 1,
+      fullGameDemo: { status: 'active', progression: 'manual' }, turnPhase: teamPhase,
+    } as never);
+    const openPhase = { ...teamPhase, airspace: { ...teamPhase.airspace, state: 'lifted' as const } };
+    const callable = callableReturning({ data: {
+      status: 'committed', sessionId: 's1', requestId: 'demo-phase-1', currentTurn: 1,
+      fullGameDemo: { status: 'active', progression: 'manual' }, turnPhase: openPhase,
+      turnState: { currentTurn: 1, maxTurn: 6, phase: 'coordination', phaseRevision: 2,
+        startedAt: teamPhase.teamPhaseEndsAt, endsAt: teamPhase.openAirspaceEndsAt },
+    } });
+    vi.mocked(httpsCallable).mockReturnValue(callable as never);
+
+    await expect(advanceFullGameDemoPhase()).resolves.toMatchObject({
+      currentTurn: 1, turnPhase: { progression: 'manual', airspace: { state: 'lifted' } },
+    });
+
+    expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'advanceFullGameDemoPhase');
+    expect(callable).toHaveBeenCalledWith(expect.objectContaining({
+      sessionId: 's1', instanceId: 'instance-1', expectedTurn: 1, requestId: expect.any(String),
+    }));
+    expect(useSessionStore.getState().session).toMatchObject({
+      currentTurn: 1, fullGameDemo: { status: 'active', progression: 'manual' },
+      turnPhase: { progression: 'manual', airspace: { state: 'lifted' } },
+    });
   });
 });
 
