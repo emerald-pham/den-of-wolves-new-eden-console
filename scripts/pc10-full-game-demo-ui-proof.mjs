@@ -7,7 +7,7 @@ import { resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { pathToFileURL } from 'node:url';
 import { chromium } from 'playwright';
-import { proofRuntimeFromViteSource, validateProofRuntime, assertSelectedActor, completePreparedCrew, confirmPreparedSetup, isObservedGameEnding, assertExactFullGameStartRecovery, waitForFullGamePresentationReady } from './pc10-full-game-demo-proof-helpers.mjs';
+import { proofRuntimeFromViteSource, validateProofRuntime, assertSelectedActor, captureFullGameDemoPresentationActor, completePreparedCrew, confirmPreparedSetup, isObservedGameEnding, assertExactFullGameStartRecovery, waitForFullGamePresentationReady } from './pc10-full-game-demo-proof-helpers.mjs';
 
 const PRESENTATION_READINESS_SOURCE_FILES = Object.freeze([
   'scripts/pc10-full-game-demo-proof-helpers.mjs',
@@ -436,6 +436,19 @@ export async function runFreshFullGameDemoUi(options = {}) {
       await casting.getByRole('button', { name: `Release role from ${name}`, exact: true }).waitFor();
     }
     await options.onBeforeStart?.({ gm, crew, initial, confirmed, prepared, roster, directory });
+    const presentationCrew = captureFullGameDemoPresentationActor(await crew.observe(), {
+      sessionId: initial.sessionId,
+      controller,
+      roster,
+      confirmedRoleIds: confirmed.activeRoleIds,
+      pressIncluded: includePress,
+    });
+    evidence.presentationStartCrewIdentity = {
+      profileRoleId: presentationCrew.profileRoleId,
+      uidHash: presentationCrew.uidHash,
+      assignedRoleId: presentationCrew.assignedRoleId,
+      activeConsoleRoleId: presentationCrew.activeConsoleRoleId,
+    };
     await mark('GM UI actual manual Cycle 0 to 1');
     const startIdentity = await gm.observe();
     const startResponse = await observeUiReceipt({
@@ -465,7 +478,7 @@ export async function runFreshFullGameDemoUi(options = {}) {
       expectedAnnouncement: { turn: started.announcementTurn, revision: started.announcementRevision },
       actors: [
         { name: 'original GM browser', expected: startIdentity, inspect: gm.observe, paintTwoFrames: gm.paintTwoFrames },
-        { name: 'original crew browser', expected: controller, inspect: crew.observe, paintTwoFrames: crew.paintTwoFrames },
+        { name: 'original crew browser', expected: presentationCrew, inspect: crew.observe, paintTwoFrames: crew.paintTwoFrames },
       ],
     });
     await gm.page.getByText('MANUAL', { exact: true }).first().waitFor();

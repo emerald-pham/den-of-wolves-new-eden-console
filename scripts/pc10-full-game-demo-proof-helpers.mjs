@@ -54,6 +54,75 @@ export function assertSelectedActor(current, expected) {
   assert.equal(current.freshness, 'server');
 }
 
+/**
+ * Freeze the Browser B actor that actually remains selected after optional,
+ * ordinary setup callbacks. The callback may legitimately move the browser
+ * from its original controller persona to one of the admitted personas.
+ */
+export function captureFullGameDemoPresentationActor(current, options) {
+  const { sessionId, controller, roster, confirmedRoleIds, pressIncluded = false } = options ?? {};
+  assert.ok(typeof sessionId === 'string' && sessionId.length > 0);
+  assert.ok(controller && controller.sessionId === sessionId && typeof controller.uidHash === 'string');
+  assert.ok(Array.isArray(roster));
+  assert.ok(Array.isArray(confirmedRoleIds));
+  assert.equal(typeof pressIncluded, 'boolean');
+  assert.ok(current && typeof current === 'object');
+  assert.equal(current.hasAuth, true, 'The original Browser B account must remain authenticated before start.');
+  assert.equal(current.sameActor, true, 'The current SDK identity must match its authorized session member.');
+  assert.equal(current.sessionId, sessionId, 'The selected original actor must belong to this confirmed session.');
+  assert.equal(current.playerRole, 'player');
+  assert.equal(current.connection, 'live');
+  assert.equal(current.freshness, 'server');
+  assert.equal(current.cycle, 0, 'Capture must happen before the real Cycle 0 to 1 start.');
+  assert.ok(['lobby', 'casting'].includes(current.phase));
+  assert.equal(current.setupConfirmed, true);
+  assert.deepEqual(current.fullGameDemo, { status: 'preparing', progression: 'manual' });
+  assert.equal(current.gmInstanceOwned, false);
+  assert.equal(current.instanceId ?? null, null);
+
+  const identities = [
+    { roleId: 'controller', uidHash: controller.uidHash, kind: 'controller' },
+    ...roster.map(actor => ({ roleId: actor?.roleId, uidHash: actor?.uidHash, kind: 'roster' })),
+  ];
+  assert.ok(identities.every(actor => typeof actor.roleId === 'string' && actor.roleId.length > 0 &&
+    typeof actor.uidHash === 'string' && actor.uidHash.length > 0), 'Known demo actors must have bounded role and identity hashes.');
+  assert.equal(new Set(identities.map(actor => actor.roleId)).size, identities.length,
+    'The admitted roster and controller must have unique profile roles.');
+  assert.equal(new Set(identities.map(actor => actor.uidHash)).size, identities.length,
+    'The admitted roster and controller must retain separate Auth identities.');
+  const matches = identities.filter(actor => actor.roleId === current.profileRoleId && actor.uidHash === current.uidHash);
+  assert.equal(matches.length, 1, 'The selected persona must be the controller or an exact original admitted roster identity.');
+
+  const selected = matches[0];
+  if (selected.kind === 'controller') {
+    assert.equal(current.profileRoleId, 'controller');
+    assert.equal(current.assignedRoleId ?? null, null, 'The ordinary controller must not inherit a crew assignment.');
+    assert.equal(current.activeConsoleRoleId ?? null, null, 'The ordinary controller must not claim a crew console.');
+  } else if (selected.roleId === 'press-officer') {
+    assert.equal(pressIncluded, true, 'Press must have been included in the explicitly prepared roster.');
+    assert.equal(current.pressEnabled, true, 'The server-confirmed session must still enable its Press actor.');
+    assert.equal(current.assignedRoleId ?? null, null, 'Press has no core-seat assignment pointer.');
+    assert.equal(current.activeConsoleRoleId, 'press-officer', 'The original Press persona must hold its ordinary current console.');
+  } else {
+    assert.ok(confirmedRoleIds.includes(selected.roleId), 'The persona must be among the setup-confirmed core roles.');
+    assert.equal(current.assignedRoleId, selected.roleId, 'The original persona must still hold its normal GM assignment.');
+    assert.equal(current.activeConsoleRoleId, selected.roleId, 'The original persona must retain its selected authorized console.');
+  }
+
+  return Object.freeze({
+    hasAuth: true,
+    sameActor: true,
+    sessionId,
+    uidHash: current.uidHash,
+    playerRole: current.playerRole,
+    profileRoleId: current.profileRoleId,
+    assignedRoleId: current.assignedRoleId ?? null,
+    activeConsoleRoleId: current.activeConsoleRoleId ?? null,
+    instanceId: current.instanceId ?? null,
+    gmInstanceOwned: false,
+  });
+}
+
 /** Drives only the manager's disclosed ordinary retry, never replacing an identity. */
 export async function completePreparedCrew(options) {
   const expectedActorCount = options.expectedActorCount ?? 21;
@@ -159,14 +228,22 @@ const PRESENTATION_ACTOR_FIELDS = [
 
 function assertPresentationActor(current, expected, name) {
   assert.ok(current && typeof current === 'object', `${name}: the current authenticated actor snapshot is required.`);
-  for (const field of PRESENTATION_ACTOR_FIELDS) {
+  for (const field of PRESENTATION_ACTOR_FIELDS)
     assert.ok(Object.hasOwn(expected, field), `${name}: the original ${field} must be captured before start.`);
-    assert.equal(current[field] ?? null, expected[field] ?? null, `${name}: original ${field} must remain unchanged.`);
-  }
   assert.equal(current.hasAuth, true, `${name}: the original account must remain authenticated.`);
+  assert.equal(current.uidHash, expected.uidHash, `${name}: the original uidHash must remain unchanged.`);
+  assert.equal(current.profileRoleId ?? null, expected.profileRoleId ?? null,
+    `${name}: the original browser persona must remain selected.`);
+  if (current.sessionId != null) assert.equal(current.sessionId, expected.sessionId,
+    `${name}: a different session must never replace the original session.`);
+
+  const serverCurrent = current.sameActor === true && current.connection === 'live' && current.freshness === 'server';
+  if (!serverCurrent) return false;
+
+  for (const field of PRESENTATION_ACTOR_FIELDS)
+    assert.equal(current[field] ?? null, expected[field] ?? null, `${name}: original ${field} must remain unchanged.`);
   assert.equal(current.sameActor, true, `${name}: the SDK account must remain the current session actor.`);
-  assert.equal(current.connection, 'live', `${name}: a live actor projection is required.`);
-  assert.equal(current.freshness, 'server', `${name}: a server-fresh actor projection is required.`);
+  return true;
 }
 
 /**
@@ -200,7 +277,8 @@ export async function waitForFullGamePresentationReady(options) {
   async function inspectAll() {
     const snapshots = await Promise.all(actors.map(async actor => {
       const snapshot = await actor.inspect();
-      assertPresentationActor(snapshot, actor.expected, actor.name);
+      const serverCurrent = assertPresentationActor(snapshot, actor.expected, actor.name);
+      if (!serverCurrent) return { snapshot, serverCurrent };
       assert.equal(snapshot.cycle, expectedAnnouncement.turn,
         `${actor.name}: the original current-cycle presentation must be inspected.`);
       assert.ok(snapshot.announcementTurn === null || Number.isSafeInteger(snapshot.announcementTurn),
@@ -220,7 +298,7 @@ export async function waitForFullGamePresentationReady(options) {
           `${actor.name}: the server transmission marker disappeared before readiness.`);
       }
       if (snapshot.naturalTransmissionMounted === true) transmissionSeen.add(actor);
-      return snapshot;
+      return { snapshot, serverCurrent };
     }));
     return snapshots;
   }
@@ -231,8 +309,12 @@ export async function waitForFullGamePresentationReady(options) {
   while (now() < deadline) {
     current = await inspectAll();
     if (now() >= deadline) break;
+    if (!current.every(item => item.serverCurrent)) {
+      await wait();
+      continue;
+    }
     const markerReady = actors.every(actor => announcementSeen.has(actor));
-    if (!markerReady || current.some(stillPresented) ||
+    if (!markerReady || current.some(item => stillPresented(item.snapshot)) ||
         !actors.every(actor => transmissionSeen.has(actor))) {
       await wait();
       continue;
@@ -242,7 +324,7 @@ export async function waitForFullGamePresentationReady(options) {
     if (now() >= deadline) break;
     current = await inspectAll();
     if (now() >= deadline) break;
-    if (current.every(snapshot => !stillPresented(snapshot)) &&
+    if (current.every(item => item.serverCurrent && !stillPresented(item.snapshot)) &&
         actors.every(actor => announcementSeen.has(actor) && transmissionSeen.has(actor))) {
       return { status: 'ready', actorCount: actors.length, originalActorsConfirmed: true,
         naturalTransmissionObservedAndDetached: true, heldBriefingDetached: true,
@@ -251,7 +333,7 @@ export async function waitForFullGamePresentationReady(options) {
     await wait();
   }
 
-  throw new Error(`The original GM and crew presentation did not detach within the fixed 60-second readiness budget: ${JSON.stringify(current.map(snapshot => ({
+  throw new Error(`The original GM and crew presentation did not detach within the fixed 60-second readiness budget: ${JSON.stringify(current.map(({ snapshot }) => ({
     cycle: snapshot.cycle, announcementTurn: snapshot.announcementTurn,
     naturalTransmissionMounted: snapshot.naturalTransmissionMounted,
     ordinaryBriefingMounted: snapshot.ordinaryBriefingMounted,
