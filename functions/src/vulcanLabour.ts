@@ -69,7 +69,13 @@ export function applyVulcanAdditionalLabour(input: VulcanLabourInput): VulcanLab
   if (!VULCAN_ADDITIONAL_LABOUR_CONSOLES.includes(input.sourceConsoleId)) {
     throw new Error('Unknown Additional Labour console.');
   }
-  if (input.sourceCycle.step !== 5 || input.sourceCycle.turn !== input.currentTurn) {
+  const completedTeamCycle = input.sourceCycle.step === 0 &&
+    input.sourceCycle.chargingSkipped === false &&
+    typeof input.sourceCycle.startedAt === 'string' && Number.isFinite(Date.parse(input.sourceCycle.startedAt)) &&
+    typeof input.sourceCycle.completedAt === 'string' && Number.isFinite(Date.parse(input.sourceCycle.completedAt)) &&
+    Object.keys(input.sourceCycle.results).sort().join(',') === '1,2,3,4' &&
+    Object.values(input.sourceCycle.results).every(result => typeof result === 'string' && result.length > 0);
+  if ((input.sourceCycle.step !== 5 && !completedTeamCycle) || input.sourceCycle.turn !== input.currentTurn) {
     throw new Error('Additional Labour is available after Vulcan maintenance in the current cycle.');
   }
   if (!input.sourceCycle.charges.includes(input.sourceConsoleId)) {
