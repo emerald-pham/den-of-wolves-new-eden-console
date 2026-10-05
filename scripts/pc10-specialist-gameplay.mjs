@@ -184,6 +184,9 @@ export function projectSpecialistActionEvidence({
   const requested = allowlisted(request, requestFields);
   const summarized = allowlisted(actualResult, resultFields);
   const summarizedReplay = allowlisted(replayResult, resultFields);
+  const resultStatus = typeof summarized.status === 'string' ? summarized.status
+    : endpoint === 'completeShuttleArrival' && typeof actualResult?.hostShipId === 'string' &&
+      Number.isFinite(Date.parse(actualResult.arrivedAt)) ? 'arrived' : null;
   const resultSummary = Object.fromEntries(Object.entries(summarized).filter(([key]) => key !== 'status'));
   const replaySummary = Object.fromEntries(Object.entries(summarizedReplay).filter(([key]) => key !== 'status'));
   const projectionRevision = sourceProjection.gm?.revision ?? sourceProjection.crew?.revision ?? null;
@@ -203,7 +206,7 @@ export function projectSpecialistActionEvidence({
     response: {
       httpStatus: Number.isSafeInteger(response?.httpStatus) ? response.httpStatus : null,
       ...(typeof response?.errorCategory === 'string' ? { errorCategory: response.errorCategory.slice(0, 80) } : {}),
-      resultStatus: typeof summarized.status === 'string' ? summarized.status : null,
+      resultStatus,
       revision: actionRevision(actualResult),
       ...resultSummary,
       replayStatus: typeof replayResult?.status === 'string' ? replayResult.status
@@ -374,7 +377,8 @@ export function createSpecialistGameplayCallback({ createTwoBrowserGameplay, ste
     const outcomes = [];
     for (const step of steps) outcomes.push(await step({ context, game, driver }));
     const committedActions = outcomes.filter(outcome => outcome?.failed !== true &&
-      outcome?.evidence?.response?.resultStatus === 'committed' &&
+      (outcome?.evidence?.response?.resultStatus === 'committed' ||
+        outcome?.evidence?.endpoint === 'completeShuttleArrival' && outcome?.evidence?.response?.resultStatus === 'arrived') &&
       outcome?.evidence?.response?.exactReplay === true &&
       Number.isSafeInteger(outcome?.evidence?.response?.projectionRevision)).length;
     const failedActions = outcomes.filter(outcome => outcome?.failed === true).length;
