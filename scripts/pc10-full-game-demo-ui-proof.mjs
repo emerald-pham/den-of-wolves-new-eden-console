@@ -276,6 +276,20 @@ export async function runFreshFullGameDemoUi(options = {}) {
     evidence.interruptedAdmissionSameRealUid = !gameplayOnly;
     evidence.actualAuthenticatedActors = new Set([gmIdentity.uidHash, controller.uidHash, ...roster.map(actor => actor.uidHash)]).size;
 
+    await mark('authenticated manager keyboard Back and browser Back');
+    const managerBack = crewPanel.getByRole('link', { name: 'Back to stations', exact: true });
+    await managerBack.focus();
+    await managerBack.press('Enter');
+    await crew.page.waitForURL(url => url.hash === '#/console');
+    const returnedController = await crew.until('Manager Back preserves actual controller membership', state =>
+      state.sameActor && state.uidHash === controller.uidHash && state.sessionId === initial.sessionId);
+    assert.equal(returnedController.profileRoleId, 'controller');
+    await crew.page.goBack();
+    await crew.page.waitForURL(url => url.hash === '#/demo-actors');
+    await crewPanel.getByRole('link', { name: 'Back to stations', exact: true }).waitFor();
+    evidence.authenticatedManagerReturn = { keyboardBackToStations: true, browserBackRestoredManager: true,
+      sameRealUidAndSession: true };
+
     await mark('GM sequential normal role assignment');
     const casting = gm.page.getByRole('region', { name: 'Facilitator casting', exact: true });
     const firstRoleId = confirmed.activeRoleIds[0];
@@ -377,9 +391,35 @@ export async function runFreshFullGameDemoUi(options = {}) {
         }
         member = await crew.until(`Current ${actor.roleId} station entered`, state => state.activeConsoleRoleId === actor.roleId && state.sameActor && state.connection === 'live');
         assertSelectedActor(member, { ...actor, sessionId: initial.sessionId });
+        const affordances = await crew.page.evaluate(() => {
+          const privatePanels = '.private-loyalty-flow, .private-loyalty-panel, .role-brief, [data-private-loyalty-flow], [aria-label="Private loyalty card"]';
+          const visible = element => !element.closest(privatePanels) &&
+            !element.closest('[hidden], [aria-hidden="true"], [inert]') && element.getClientRects().length > 0 &&
+            getComputedStyle(element).visibility !== 'hidden' && getComputedStyle(element).display !== 'none';
+          const text = element => (element?.innerText ?? element?.textContent ?? '').trim();
+          const describedBy = element => (element.getAttribute('aria-describedby') ?? '').split(/\s+/).filter(Boolean)
+            .map(id => document.getElementById(id)).filter(element => element && visible(element)).map(text);
+          return {
+            privateBriefAndLoyaltyRedacted: true,
+            headings: [...document.querySelectorAll('h1,h2,h3,h4,[role="heading"]')].filter(visible).map(text),
+            regions: [...document.querySelectorAll('section[aria-label],section[aria-labelledby],[role="region"]')].filter(visible)
+              .map(element => element.getAttribute('aria-label') ?? (element.getAttribute('aria-labelledby') ?? '')
+                .split(/\s+/).map(id => document.getElementById(id)).filter(Boolean).map(text).join(' ')),
+            buttons: [...document.querySelectorAll('button,[role="button"]')].filter(visible).map(element => ({
+              text: element.getAttribute('aria-label') ?? text(element),
+              enabled: !element.disabled && element.getAttribute('aria-disabled') !== 'true',
+              title: element.getAttribute('title'), describedBlockers: describedBy(element),
+            })),
+            pageText: [...new Set([...document.querySelectorAll('h1,h2,h3,h4,p,label,legend,summary')]
+              .filter(visible).map(text).filter(Boolean))].join('\n'),
+          };
+        });
         roleSurfaces.push({ roleId: actor.roleId, uidHash: actor.uidHash, path: new URL(crew.page.url()).hash,
           briefMatchesActor: member.briefMatchesActor, briefRoleId: member.briefRoleId,
-          privateLoyaltyPresent: member.privateLoyaltyPresent, pendingCommandCount: member.pendingCommandCount });
+          privateLoyaltyPresent: member.privateLoyaltyPresent, pendingCommandCount: member.pendingCommandCount,
+          affordances });
+        await writeFile(`${directory}/role-affordances.json`, `${JSON.stringify({ status: 'in-progress',
+          sourceCommit, builtRuntimeIndexSha256, decisionsExecuted: false, roles: roleSurfaces }, null, 2)}\n`);
         if (actor.roleId === 'admiral') {
           cacheProbe = await crew.page.evaluate(async sid => {
             const { demoActorSessionStorageKey } = await import('/src/lib/demoActorContext.ts');
