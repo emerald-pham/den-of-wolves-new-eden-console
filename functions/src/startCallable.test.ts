@@ -436,6 +436,110 @@ it('starts a prepared full-game demo through the normal authoritative roster sta
   expect(sessionUpdate?.fullGameDemo).toEqual({ status: 'active', progression: 'manual' });
 });
 
+function committedFullGameDemoStart() {
+  const data = {
+    sessionId: 's1', instanceId: 'bridge', requestId: 'start-1',
+    expectedSetupRevision: 0, fullGameDemo: true,
+  };
+  mock.session = {
+    ...mock.session, phase: 'active', currentTurn: 1, setupRevision: 1,
+    fullGameDemo: { status: 'active', progression: 'manual' },
+  };
+  mock.priorReply = {
+    status: 'committed', sessionId: 's1', currentTurn: 1, setupRevision: 1,
+    fullGameDemo: { status: 'active', progression: 'manual' },
+  };
+  mock.priorFingerprint = { ...data, actorUid: 'u1' };
+  return data;
+}
+
+it('replays a committed full-game demo start after the actual start changes its mode and cycle', async () => {
+  mock.session.fullGameDemo = { status: 'preparing', progression: 'manual' };
+  const data = {
+    sessionId: 's1', instanceId: 'bridge', requestId: 'start-1',
+    expectedSetupRevision: 0, fullGameDemo: true,
+  };
+  const first = await startGame.run(request(data));
+  const receipt = mock.set.mock.calls.find(([ref]) => ref.path === 'sessionStartRequests/s1_start-1')?.[1];
+  expect(receipt).toBeDefined();
+  mock.priorReply = receipt.reply;
+  mock.priorFingerprint = receipt.fingerprint;
+  const sessionUpdate = mock.update.mock.calls.find(([ref]) => ref.path === 'sessions/s1')?.[1];
+  Object.assign(mock.session, sessionUpdate);
+  mock.update.mockClear();
+  mock.set.mockClear();
+  mock.rateLimitSet.mockClear();
+  mock.randomInt.mockClear();
+
+  await expect(startGame.run(request(data))).resolves.toEqual({ ...first, status: 'replayed' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.rateLimitSet).not.toHaveBeenCalled();
+  expect(mock.randomInt).not.toHaveBeenCalled();
+});
+
+it.each([
+  { instanceId: 'desk' },
+  { expectedSetupRevision: 1 },
+  { fullGameDemo: false },
+])('rejects a changed committed full-game start fingerprint %j', async (change) => {
+  const data = committedFullGameDemoStart();
+  await expect(startGame.run(request({ ...data, ...change }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/different start payload or actor/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('does not expose a committed full-game start receipt to a different live facilitator', async () => {
+  const data = committedFullGameDemoStart();
+  mock.playerDocs.push({ id: 'other-gm', fields: { connected: true, role: 'gm' } });
+  mock.instanceDocs[0] = { id: 'bridge', fields: liveGmInstanceFields({ uid: 'other-gm' }) };
+  await expect(startGame.run(request(data, 'other-gm'))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/different start payload or actor/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('requires current live GM authority even for an exact full-game start receipt', async () => {
+  const data = committedFullGameDemoStart();
+  mock.instanceDocs[0].fields.connected = false;
+  await expect(startGame.run(request(data))).rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('rejects a new full-game start request in an already active full-game demo', async () => {
+  const data = committedFullGameDemoStart();
+  await expect(startGame.run(request({ ...data, requestId: 'new-active-start' }))).rejects.toMatchObject({
+    code: 'failed-precondition', message: expect.stringMatching(/prepared fresh Cycle 0/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.rateLimitSet).not.toHaveBeenCalled();
+});
+
+it('rechecks fresh full-game mode transactionally before recording a racing stale start', async () => {
+  mock.session.fullGameDemo = { status: 'preparing', progression: 'manual' };
+  mock.rateLimitSet.mockImplementationOnce(() => {
+    Object.assign(mock.session, {
+      phase: 'active', currentTurn: 1, setupRevision: 1,
+      fullGameDemo: { status: 'active', progression: 'manual' },
+    });
+  });
+  await expect(startGame.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'new-racing-start',
+    expectedSetupRevision: 0, fullGameDemo: true,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition', message: expect.stringMatching(/prepared fresh Cycle 0/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
 it('does not let an ordinary start consume the full-game demo preparation', async () => {
   mock.session.fullGameDemo = { status: 'preparing', progression: 'manual' };
   await expect(startGame.run(request({
