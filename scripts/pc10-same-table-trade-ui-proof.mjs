@@ -25,7 +25,8 @@ function digest(value) {
 
 /** Keep the UI's original-player identity check in one native-testable seam. */
 export function selectionMatchesOriginalIdentity(selectedUid, actorIdentity) {
-  return digest(selectedUid).slice(0, 16) === actorIdentity.uidHash;
+  return typeof selectedUid === 'string' && typeof actorIdentity?.uid === 'string' &&
+    selectedUid === actorIdentity.uid;
 }
 
 function identity(value) {
