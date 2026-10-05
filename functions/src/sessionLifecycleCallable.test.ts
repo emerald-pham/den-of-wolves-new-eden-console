@@ -540,6 +540,22 @@ describe('presence lease', () => {
     expect(read('activeMemberships/u1')).toMatchObject({ sessionId: 's1' });
   });
 
+  it.each(['disabled', 'duplicate'])('rechecks canonical Press %s authority even inside the prior cheap-heartbeat interval', async condition => {
+    session({ pressEnabled: condition !== 'disabled', pressHolderUid: 'u1' });
+    player({ assignedRoleId: null, activeConsoleRoleId: 'press-officer' });
+    put('sessions/s1/presenceReconciliations/u1', { lastFullReconciliationAt: mock.Timestamp.fromDate(NOW) });
+    put('sessions/s1/secrets/loyalty-u1', { payload: { type: 'private-marker' } });
+    if (condition === 'duplicate') livePlayer('u2', { activeConsoleRoleId: 'press-officer' });
+    mock.setRejectReadsAfterWrite(true);
+
+    await expect(refreshPresence.run(request({ sessionId: 's1' }))).resolves.toEqual({ sessionId: 's1', stationSelectionRequired: true });
+
+    expect(read('sessions/s1/players/u1')?.activeConsoleRoleId).toBeNull();
+    expect(read('sessions/s1/secrets/loyalty-u1')).toBeUndefined();
+    expect(read('sessions/s1')?.pressHolderUid).toBe(condition === 'duplicate' ? 'u2' : null);
+    expect(mock.get.mock.calls.some(([target]) => 'path' in target && target.path === 'sessions/s1/players' && !('filters' in target))).toBe(true);
+  });
+
   it('keeps the full marker isolated by session and player identity', async () => {
     session();
     player();

@@ -328,6 +328,27 @@ it('renews an unchanged current Press member without locking all core players or
   expect(mock.update.mock.calls.map(([ref]) => ref.path)).toEqual(['sessions/s1/players/u1']);
 });
 
+it.each(['disabled', 'foreign-holder', 'legacy-assignment', 'stale-view'])('keeps noncanonical Press %s on full protected recovery', async condition => {
+  const current = prepareCurrentPressResume();
+  if (condition === 'disabled') current.sessionData.pressEnabled = false;
+  if (condition === 'foreign-holder') current.sessionData.pressHolderUid = 'u2';
+  if (condition === 'legacy-assignment') current.playerData.assignedRoleId = 'press-officer';
+  if (condition === 'stale-view') overrideResumeRead('sessions/s1/playerDiscoveries/u1', { revision: 4, loyalty: 'private-marker' });
+  mock.enforceReadOrder = true;
+
+  const reply = await resumeSession.run(request('s1'));
+
+  const fullPlayerReads = mock.get.mock.calls.map(([ref]) => ref as { path: string; filters?: unknown[] })
+    .filter(ref => ref.path === 'sessions/s1/players' && !ref.filters);
+  expect(fullPlayerReads).toHaveLength(1);
+  if (condition === 'disabled' || condition === 'foreign-holder') {
+    expect(reply).toMatchObject({ stationSelectionRequired: true, player: { activeConsoleRoleId: null } });
+  }
+  if (condition === 'foreign-holder') expect(current.sessionData.pressHolderUid).toBe('u2');
+  if (condition === 'legacy-assignment') expect(reply.player.assignedRoleId).toBeNull();
+  if (condition === 'stale-view') expect(mock.committedWrites.get('sessions/s1/playerDiscoveries/u1')?.fields).not.toHaveProperty('loyalty');
+});
+
 it('uses full recovery when a live member has lost the active membership marker', async () => {
   prepareCurrentResume();
   overrideResumeRead('activeMemberships/u1', {}, false);
