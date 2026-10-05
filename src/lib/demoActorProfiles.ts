@@ -1,6 +1,7 @@
 import { httpsCallable } from 'firebase/functions';
 import { demoActorServices } from './firebase';
 import { ensureAnonymousAuth } from './anonymousAuth';
+import { demoActorDisplayName } from './demoActorDisplayName';
 import {
   demoActorRosterStorageKey,
   demoActorUrl,
@@ -51,7 +52,7 @@ const gateway: DemoActorGateway = {
   join: async (profile, joinCode) => (await httpsCallable<
     { joinCode: string; displayName: string }, ActorReply
   >(demoActorServices(profile).functions, 'joinSession')({
-    joinCode, displayName: `DEMO // ${profile.roleId}`,
+    joinCode, displayName: demoActorDisplayName(profile.roleId),
   })).data,
   resume: async (profile, sessionId) => (await httpsCallable<
     { sessionId: string }, ActorReply

@@ -331,7 +331,9 @@ export async function runFreshFullGameDemoUi(options = {}) {
     if (includePress) await crewPanel.getByRole('button', { name: /Open.*Press Officer$/ }).waitFor();
     const roster = await crew.page.evaluate(async sid => {
       const { readDemoActorRoster } = await import('/src/lib/demoActorProfiles.ts');
+      const { demoActorDisplayName } = await import('/src/lib/demoActorDisplayName.ts');
       return Promise.all(readDemoActorRoster(sid).map(async actor => ({ roleId: actor.roleId,
+        displayName: demoActorDisplayName(actor.roleId),
         uidHash: Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(actor.uid))))
           .map(byte => byte.toString(16).padStart(2, '0')).join('').slice(0, 16) })));
     }, initial.sessionId);
@@ -394,7 +396,7 @@ export async function runFreshFullGameDemoUi(options = {}) {
       await gm.page.screenshot({ path: `${directory}/casting-${viewport.width}x${viewport.height}.png` });
     }
     for (const roleId of confirmed.activeRoleIds) {
-      const name = `DEMO // ${roleId}`;
+      const name = roster.find(actor => actor.roleId === roleId).displayName;
       await casting.getByLabel(`Role for ${name}`, { exact: true }).selectOption(roleId);
       await casting.getByRole('button', { name: `Assign role to ${name}`, exact: true }).click();
       await casting.getByRole('button', { name: `Release role from ${name}`, exact: true }).waitFor();
