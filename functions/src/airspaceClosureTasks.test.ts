@@ -230,6 +230,19 @@ it('parks when the task is late, using the authoritative phase due time', () => 
   });
 });
 
+it('does not schedule, reconcile, or close airspace for an explicitly manual phase', () => {
+  const manual = phase({ progression: 'manual' });
+  const now = deadlineMs + 24 * 60 * 60_000;
+
+  expect(airspaceClosureTaskPlan('session-a', cycle, manual, 'active', now)).toBeUndefined();
+  expect(airspaceClosurePauseWatchPlan('session-a', cycle, manual, 'active', now)).toBeUndefined();
+  expect(airspaceClosureReconcileTaskPlan('session-a', cycle, manual, 'active', now)).toBeUndefined();
+  expect(airspaceClosureTaskDecision(
+    { sessionId: 'session-a', cycle, deadlineAt, wakeIndex: 0, taskId: 'old-task', scheduledAtMs: deadlineMs },
+    'old-task', manual, cycle, 'active', now,
+  )).toEqual({ action: 'stale' });
+});
+
 it('retries a task that appears before its own scheduled wake rather than losing the deadline', () => {
   const task = airspaceClosureTaskPlan('session-a', cycle, phase(), 'active', deadlineMs - 60_000)!;
 
