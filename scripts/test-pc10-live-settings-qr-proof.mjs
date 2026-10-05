@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   assertNormalSettingsJoin, settingsActorRecord, assertOriginalSettingsActor,
   settingsGeometryFailures, settingsTokenFailures, assertStableSettingsBinding,
+  assertSettingsReturnUrl,
 } from './pc10-live-settings-qr-contracts.mjs';
 
 const joinCode = '012345';
@@ -59,6 +60,16 @@ test('actor evidence allowlists metadata and never copies UID, credentials, hand
     assert.ok(!Object.hasOwn(safe,forbidden));
   }
 });
+test('malformed nested actor metadata cannot smuggle private values into an allowlisted field', () => {
+  assert.throws(() => settingsActorRecord({...actor(),cycle:{token:'secret'}}), /metadata/);
+});
+test('restoration uses only the same normal persona URL and never an elevated or foreign route', () => {
+  assert.equal(assertSettingsReturnUrl(baseHref,expected,joinCode),baseHref);
+  for (const url of [baseHref+'&gmToken=secret',baseHref.replace('fresh~admiral','fresh~doctor'),
+    baseHref.replace('#/console','#/gm'),baseHref.replace('127.0.0.1','example.test')]) {
+    assert.throws(() => assertSettingsReturnUrl(url,expected,joinCode), /normal|original|local/);
+  }
+});
 test('real scrolled Settings may be tall, while QR and current controls fit unobscured', () => {
   const valid = geometry(); valid.dialog = rectangle(16,-300,288,1300);
   assert.deepEqual(settingsGeometryFailures(valid), []);
@@ -95,4 +106,10 @@ test('exact source and full compiled tree must remain stable around the live cal
   for (const patch of [{sourceCommit:'c'.repeat(40)}, {compiledTreeSha256:'d'.repeat(64)}, {trackedDirty:true}]) {
     assert.throws(() => assertStableSettingsBinding(binding,{...binding,...patch}), /source|compiled|dirty/);
   }
+});
+test('same HEAD cannot hide changed mounted-source or callback bytes', () => {
+  const binding={sourceCommit:'a'.repeat(40),compiledTreeSha256:'b'.repeat(64),trackedDirty:false,
+    sourceFiles:[{path:'src/index.css',sha256:'c'.repeat(64)}],callbackFiles:[{name:'proof.mjs',sha256:'d'.repeat(64)}]};
+  assert.throws(() => assertStableSettingsBinding(binding,{...binding,sourceFiles:[]}), /source/);
+  assert.throws(() => assertStableSettingsBinding(binding,{...binding,callbackFiles:[]}), /callback/);
 });
