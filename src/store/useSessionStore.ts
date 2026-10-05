@@ -815,7 +815,15 @@ export const useSessionStore = create<SessionState>()(
           : current.session;
         return {
           ...current,
-          ...restored,
+          // Older clients could have persisted runtime projections. Only the
+          // durable envelope may hydrate before current Firebase entitlement.
+          ...(Object.hasOwn(restored, 'me') ? { me: restored.me } : {}),
+          ...(Object.hasOwn(restored, 'gmInstance') ? { gmInstance: restored.gmInstance } : {}),
+          ...(Object.hasOwn(restored, 'gmAccessAuthenticatedAt')
+            ? { gmAccessAuthenticatedAt: restored.gmAccessAuthenticatedAt } : {}),
+          ...(Object.hasOwn(restored, 'pendingCommands') ? { pendingCommands: restored.pendingCommands } : {}),
+          ...(Object.hasOwn(restored, 'mode') ? { mode: restored.mode } : {}),
+          ...(Object.hasOwn(restored, 'lastRoute') ? { lastRoute: restored.lastRoute } : {}),
           // Connection and freshness are runtime authority, never persisted
           // input. A restored session is renderable only as a cache snapshot.
           connection: current.connection,
