@@ -28,6 +28,7 @@ import type {
   CandidateReveal,
   CandidateDebriefPathStep,
   CandidatePlanCheckpoint,
+  CurrentActorBerthAuthority,
   DamageDraw,
   FacilitatorRuleCall,
   GameSession,
@@ -2635,6 +2636,38 @@ function recordValue(value: unknown): RecordValue | undefined {
     : undefined;
 }
 
+/** Only the existing authenticated transaction envelope can supply this
+ * witness; sessionFrom deliberately never parses it from session documents. */
+function currentActorBerthAuthorityFrom(
+  value: unknown, response: RecordValue, scope: RecordValue, player: Player | undefined,
+): CurrentActorBerthAuthority | null {
+  if (value === null) return null;
+  const raw = recordValue(value);
+  const keys = ['sessionId', 'actorUid', 'groupId', 'role', 'connectionGeneration',
+    'assignedRoleId', 'activeConsoleRoleId', 'replacementRoleId', 'replacementStatus', 'shipId'];
+  const nullableRole = (id: unknown) => id === null || parseEntityId('role', id) !== undefined;
+  if (!raw || Object.keys(raw).length !== keys.length || Object.keys(raw).some(key => !keys.includes(key)) ||
+      !parseEntityId('session', raw.sessionId) || !parseEntityId('player', raw.actorUid) ||
+      typeof raw.groupId !== 'string' || !/^fleet-[1-9][0-9]*$/.test(raw.groupId) || raw.role !== 'player' ||
+      !Number.isSafeInteger(raw.connectionGeneration) || (raw.connectionGeneration as number) < 1 ||
+      !nullableRole(raw.assignedRoleId) || !nullableRole(raw.activeConsoleRoleId) || !nullableRole(raw.replacementRoleId) ||
+      raw.replacementStatus !== null || !parseEntityId('vessel', raw.shipId) ||
+      raw.sessionId !== response.sessionId || raw.actorUid !== response.actorUid ||
+      raw.groupId !== response.groupId || raw.groupId !== scope.groupId ||
+      !Array.isArray(scope.vesselIds) || !scope.vesselIds.includes(raw.shipId) ||
+      raw.connectionGeneration !== response.connectionGeneration || raw.assignedRoleId !== response.assignedRoleId ||
+      raw.activeConsoleRoleId !== response.activeConsoleRoleId ||
+      player && (player.sessionId !== raw.sessionId || player.uid !== raw.actorUid || player.role !== 'player' ||
+        player.connected !== true || player.fleetGroupId !== raw.groupId ||
+        (player.connectionGeneration ?? 1) !== raw.connectionGeneration ||
+        (player.assignedRoleId ?? null) !== raw.assignedRoleId ||
+        (player.activeConsoleRoleId ?? null) !== raw.activeConsoleRoleId ||
+        (player.replacementRoleId ?? null) !== raw.replacementRoleId || player.replacementStatus != null)) {
+    throw new Error('The current member berth authority is malformed or no longer current.');
+  }
+  return raw as unknown as CurrentActorBerthAuthority;
+}
+
 function nonNegativeInteger(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : undefined;
 }
@@ -4299,7 +4332,11 @@ export function subscribeSessionState(
               handlers.onSessionFreshness?.(false);
               break;
             }
-            const session = closedHistory ? closedMemberSessionFrom(sessionId, response, data) : sessionFrom(sessionId, data);
+            const projectedSession = closedHistory ? closedMemberSessionFrom(sessionId, response, data) : sessionFrom(sessionId, data);
+            const session = !closedHistory && Object.hasOwn(response, 'currentActorBerthAuthority')
+              ? { ...projectedSession, currentActorBerthAuthority:
+                currentActorBerthAuthorityFrom(response.currentActorBerthAuthority, response, scope!, memberPlayer) }
+              : projectedSession;
             // This serialized transaction read confirms current content even if a legacy
             // writer did not advance its timestamp. A changed callable cursor fences it.
             if (acceptServerSessionAuthority(sessionSnapshotAuthority, session, undefined, false, true)) {

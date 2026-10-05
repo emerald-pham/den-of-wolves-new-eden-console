@@ -1,6 +1,7 @@
 import type { DocumentSnapshot, Firestore } from 'firebase-admin/firestore';
 import { HttpsError } from 'firebase-functions/v2/https';
 import { memberSessionProjection, memberSessionScope } from './memberSession';
+import { fleetGroupMemberShipId, fleetGroupRecord } from './fleetGroups';
 
 function wire(value: unknown): unknown {
   if (value && typeof value === 'object' && 'toDate' in value && typeof value.toDate === 'function') {
@@ -11,7 +12,8 @@ function wire(value: unknown): unknown {
   return value;
 }
 
-/** A read-only transaction keeps the actor, group and craft entitlement on one current snapshot. */
+/** A read-only transaction binds the actor, its own berth and craft audience.
+ * The server-only member berth map and other actors' berths never leave it. */
 export function createCurrentMemberSessionReader({ db, projectSession }: {
   readonly db: Firestore;
   readonly projectSession: (source: DocumentSnapshot, sessionId: string) => Record<string, unknown>;
@@ -91,11 +93,32 @@ export function createCurrentMemberSessionReader({ db, projectSession }: {
         ...(memberSession.debriefSnapshot ? { debriefSnapshot: memberSession.debriefSnapshot } : {}),
         ...(memberSession.fullGameDemo ? { fullGameDemo: memberSession.fullGameDemo } : {}),
       } : undefined;
+      const currentGroup = groups.docs.find(group => group.get('id') === scope.groupId);
+      // Absence alone preserves the legacy static-ship path. A present map
+      // without a usable current berth must explicitly withdraw that path.
+      const hasCurrentBerthMap = !closedHistory && actor.get('role') === 'player' &&
+        Object.hasOwn(currentGroup?.data() ?? {}, 'memberShipIds');
+      const group = currentGroup ? fleetGroupRecord(currentGroup.data()) : undefined;
+      const shipId = group ? fleetGroupMemberShipId([group], actorUid, scope.groupId) : undefined;
+      const connectionGeneration = actor.get('connectionGeneration') ?? 1;
+      const assignedRoleId = actor.get('assignedRoleId') ?? null;
+      const activeConsoleRoleId = actor.get('activeConsoleRoleId') ?? null;
+      const replacementRoleId = actor.get('replacementRoleId') ?? null;
+      const nullableRoleId = (id: unknown) => id === null ||
+        typeof id === 'string' && id.length > 0 && id.length <= 1_500 && !id.includes('/');
+      const currentActorBerthAuthority = hasCurrentBerthMap && shipId && scope.vesselIds.includes(shipId) &&
+        Number.isSafeInteger(connectionGeneration) && connectionGeneration >= 1 &&
+        nullableRoleId(assignedRoleId) && nullableRoleId(activeConsoleRoleId) && nullableRoleId(replacementRoleId) &&
+        actor.get('replacementStatus') == null
+        ? { sessionId, actorUid, groupId: scope.groupId, role: 'player' as const, connectionGeneration,
+          assignedRoleId, activeConsoleRoleId, replacementRoleId, replacementStatus: null, shipId }
+        : null;
       return {
         type: 'current-member-session' as const, sessionId, actorUid, groupId: scope.groupId,
         connectionGeneration: actor.get('connectionGeneration') ?? 1,
         assignedRoleId: actor.get('assignedRoleId') ?? null,
         activeConsoleRoleId: actor.get('activeConsoleRoleId') ?? null,
+        ...(hasCurrentBerthMap ? { currentActorBerthAuthority } : {}),
         session: closedSession ?? memberSession,
       };
     }, { readOnly: true });

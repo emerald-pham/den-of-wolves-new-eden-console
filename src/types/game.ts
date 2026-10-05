@@ -1626,7 +1626,24 @@ export interface PdfEscortWingMemberView {
   readonly losses: number;
 }
 
+/** Ephemeral own-actor witness from the existing atomic member read only. */
+export interface CurrentActorBerthAuthority {
+  readonly sessionId: SessionId;
+  readonly actorUid: PlayerId;
+  readonly groupId: GroupId;
+  readonly role: 'player';
+  readonly connectionGeneration: number;
+  readonly assignedRoleId: RoleId | null;
+  readonly activeConsoleRoleId: RoleId | null;
+  readonly replacementRoleId: RoleId | null;
+  readonly replacementStatus: null;
+  readonly shipId: VesselId;
+}
+
 export interface GameSession {
+  /** Private live-read authority; never sourced from a session document or cache.
+   * Present null withdraws current-berth navigation without legacy fallback. */
+  readonly currentActorBerthAuthority?: CurrentActorBerthAuthority | null;
   /** Server-filtered current read; legacy defaults must not widen this operational subset. */
   readonly memberSessionScope?: { readonly groupId: string; readonly vesselIds: readonly string[]; readonly craftIds: readonly string[] };
   readonly fleetPartitionRevision?: number;

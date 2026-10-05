@@ -54,6 +54,7 @@ import type {
 } from '@/types/game';
 import { isSessionRoute, restoreSessionRoute } from '@/lib/sessionRoute';
 import { stripGmNavigationProjection, stripPersistedNavigationProjection } from '@/lib/navigationPrivacy';
+import { isWireSafeEntityId } from '@/types/identifiers';
 import { shouldLoadAwayMissionDiscardPanel } from '@/lib/awayMissionVisibility';
 import type { GmDiscoveryProjection } from '@/lib/firestore';
 import { parseVoyage33MovementState } from '../functions/src/voyage33Movement';
@@ -168,16 +169,53 @@ function pursuitEmergencyAuthorityMatches(session: GameSession): boolean {
     marker.openedAt === authority.openedAt);
 }
 
-function stripNavigationProjection(session: GameSession): GameSession {
+function stripOwnPlayerNavigation(session: GameSession): GameSession {
   const next = { ...session };
   delete next.playerDiscovery;
-  delete next.currentGroupCandidateReveals;
   delete next.shipGalacticCoordinates;
   delete next.shipNavigationLogs;
+  return next;
+}
+
+function stripNavigationProjection(session: GameSession): GameSession {
+  const next = { ...stripOwnPlayerNavigation(session) };
+  delete next.currentGroupCandidateReveals;
   delete next.voyage33Movement;
   return next;
 }
 
+/** Join the private transaction witness to independently current actor and
+ * session snapshots. A present invalid witness never takes the legacy path. */
+function currentActorBerthMatches(session: GameSession, player: Player | null | undefined): boolean {
+  const berth = session.currentActorBerthAuthority;
+  const keys = ['sessionId', 'actorUid', 'groupId', 'role', 'connectionGeneration',
+    'assignedRoleId', 'activeConsoleRoleId', 'replacementRoleId', 'replacementStatus', 'shipId'];
+  const nullableRole = (id: unknown) => id === null || isWireSafeEntityId(id);
+  return Boolean(berth && typeof berth === 'object' && !Array.isArray(berth) &&
+    Object.keys(berth).length === keys.length && Object.keys(berth).every(key => keys.includes(key)) &&
+    isWireSafeEntityId(berth.sessionId) && isWireSafeEntityId(berth.actorUid) && isWireSafeEntityId(berth.shipId) &&
+    typeof berth.groupId === 'string' && /^fleet-[1-9][0-9]*$/.test(berth.groupId) && berth.role === 'player' &&
+    Number.isSafeInteger(berth.connectionGeneration) && berth.connectionGeneration >= 1 &&
+    nullableRole(berth.assignedRoleId) && nullableRole(berth.activeConsoleRoleId) && nullableRole(berth.replacementRoleId) &&
+    berth.replacementStatus === null && session.phase !== 'closed' &&
+    player?.role === 'player' && player.connected === true && player.replacementStatus == null &&
+    berth.sessionId === session.id && player.sessionId === session.id && berth.actorUid === player.uid &&
+    berth.groupId === player.fleetGroupId && berth.groupId === session.memberSessionScope?.groupId &&
+    Array.isArray(session.memberSessionScope?.vesselIds) &&
+    session.memberSessionScope.vesselIds.includes(berth.shipId) &&
+    berth.connectionGeneration === (player.connectionGeneration ?? 1) &&
+    berth.assignedRoleId === (player.assignedRoleId ?? null) && berth.activeConsoleRoleId === (player.activeConsoleRoleId ?? null) &&
+    berth.replacementRoleId === (player.replacementRoleId ?? null));
+}
+
+function currentActorBerthDiscoveryMatches(
+  session: GameSession, player: Player | null | undefined, projection: PlayerDiscoveryProjection,
+): boolean {
+  const berth = session.currentActorBerthAuthority;
+  return Boolean(berth && currentActorBerthMatches(session, player) &&
+    projection.groupId === berth.groupId && projection.shipId === berth.shipId &&
+    projection.fleetGroupVesselIds?.includes(berth.shipId) === true);
+}
 
 function effectivePlayerShip(player: Player | null | undefined): Player['shipPreferenceId'] {
   if (!player) return undefined;
@@ -365,6 +403,15 @@ function AppRoutes() {
     let playerProjectionFresh = false;
     let pendingPlayerDiscovery: PlayerDiscoveryProjection | null | undefined;
     let retainedGroupCandidateProjection: CurrentGroupCandidateRevealProjection | undefined;
+    const withdrawCurrentActorBerth = () => {
+      const store = useSessionStore.getState();
+      const current = store.session;
+      if (!current || current.id !== sessionId || !Object.hasOwn(current, 'currentActorBerthAuthority')) return;
+      pendingPlayerDiscovery = undefined;
+      if (current.currentActorBerthAuthority === null && !current.playerDiscovery &&
+          !current.shipGalacticCoordinates && !current.shipNavigationLogs) return;
+      store.setSession({ ...stripOwnPlayerNavigation(current), currentActorBerthAuthority: null });
+    };
     const invalidatePendingStationReleaseFreshness = () => {
       const pending = pendingStationRelease.current;
       if (pending?.sessionId === sessionId && pending.playerUid === playerUid) {
@@ -490,10 +537,11 @@ function AppRoutes() {
       }
       const projection = pendingPlayerDiscovery;
       const requiresCandidateAuthority = projection.candidateReveals !== undefined;
+      const hasCurrentBerthAuthority = Object.hasOwn(current, 'currentActorBerthAuthority');
       // Navigation remains an own-ship projection. Group candidate names need
       // both independent server snapshots because either can change the read
       // audience while this protected document is arriving.
-      if (requiresCandidateAuthority &&
+      if ((requiresCandidateAuthority || hasCurrentBerthAuthority) &&
           (!playerProjectionFresh || store.connection !== 'live' || store.sessionSnapshotFreshness !== 'server')) return;
       const me = store.me;
       if (me?.uid !== playerUid || me.role !== 'player' ||
@@ -518,7 +566,9 @@ function AppRoutes() {
       const withGroupCandidates = candidateProjection
         ? { ...withoutPreviousDiscovery, currentGroupCandidateReveals: candidateProjection }
         : withoutPreviousDiscovery;
-      const entitledShipId = effectivePlayerShip(me);
+      const entitledShipId = hasCurrentBerthAuthority
+        ? currentActorBerthDiscoveryMatches(current, me, projection) ? current.currentActorBerthAuthority?.shipId : undefined
+        : effectivePlayerShip(me);
       if (!entitledShipId || projection.shipId !== entitledShipId) {
         pendingPlayerDiscovery = undefined;
         store.setSession(withGroupCandidates);
@@ -540,6 +590,7 @@ function AppRoutes() {
         previousState.sessionSnapshotFreshness === 'server';
       const isFresh = state.connection === 'live' && state.sessionSnapshotFreshness === 'server';
       if (wasFresh && !isFresh) {
+        withdrawCurrentActorBerth();
         pendingGmDiscovery = undefined;
         state.setVoyage33MovementProjection(undefined, false);
         playerProjectionFresh = false;
@@ -661,9 +712,12 @@ function AppRoutes() {
       unsubscribe = subscribeSessionState(sessionId, playerUid, {
         sessionReadAudience: playerRole === 'gm' ? 'gm' : 'member',
         sessionSnapshotAuthority: sessionSnapshotAuthorityFor(sessionId, playerUid),
-        onSession: (next) => {
+        onSession: (incoming) => {
           if (!callbackCurrent()) return;
           const store = useSessionStore.getState();
+          const next = Object.hasOwn(incoming, 'currentActorBerthAuthority') &&
+            !currentActorBerthMatches(incoming, store.me)
+            ? { ...stripOwnPlayerNavigation(incoming), currentActorBerthAuthority: null } : incoming;
           if (next.phase === 'closed') {
             retainedGroupCandidateProjection = undefined;
             pendingPlayerDiscovery = undefined;
@@ -706,11 +760,16 @@ function AppRoutes() {
           }
           const emergencyAuthority = pendingGmDiscovery?.pursuitEmergencyWindowAuthority ??
             current.pursuitEmergencyWindowAuthority;
+          const keepOwnNavigation = Object.hasOwn(next, 'currentActorBerthAuthority')
+            ? playerProjectionFresh && store.connection === 'live' && store.sessionSnapshotFreshness === 'server' &&
+              current.playerDiscovery && currentActorBerthDiscoveryMatches(next, store.me, current.playerDiscovery)
+            : !Object.hasOwn(current, 'currentActorBerthAuthority');
+          const ownNavigation = keepOwnNavigation ? current : stripOwnPlayerNavigation(current);
           const composed = {
             ...next,
-            ...(current.playerDiscovery ? { playerDiscovery: current.playerDiscovery } : {}),
-            ...(current.shipGalacticCoordinates ? { shipGalacticCoordinates: current.shipGalacticCoordinates } : {}),
-            ...(current.shipNavigationLogs ? { shipNavigationLogs: current.shipNavigationLogs } : {}),
+            ...(ownNavigation.playerDiscovery ? { playerDiscovery: ownNavigation.playerDiscovery } : {}),
+            ...(ownNavigation.shipGalacticCoordinates ? { shipGalacticCoordinates: ownNavigation.shipGalacticCoordinates } : {}),
+            ...(ownNavigation.shipNavigationLogs ? { shipNavigationLogs: ownNavigation.shipNavigationLogs } : {}),
             ...(current.organiserSystems ? { organiserSystems: current.organiserSystems } : {}),
             ...(current.organiserSites ? { organiserSites: current.organiserSites } : {}),
             ...(current.organiserSystemHistory ? { organiserSystemHistory: current.organiserSystemHistory } : {}),
@@ -820,6 +879,7 @@ function AppRoutes() {
             ? currentCandidateProjection : undefined;
           hideCurrentGroupCandidateReveals();
           store.setMe(next);
+          if (store.session && !currentActorBerthMatches(store.session, next)) withdrawCurrentActorBerth();
           if (previousWolfCultIdentity !== nextWolfCultIdentity || next.role !== 'player') {
             clearWolfCultIntelligence();
           }
@@ -837,9 +897,11 @@ function AppRoutes() {
               // The old group was entitled when painted. Its operations are no
               // longer current once the actor moves; retain only the shared clock
               // and header until the server supplies the new group transaction.
-              useSessionStore.getState().setSession(memberSessionProjection(current, {
+              const projected = memberSessionProjection(current, {
                 groupId: next.fleetGroupId ?? 'fleet-1', vesselIds: [], craftIds: [],
-              }) as unknown as GameSession);
+              }) as unknown as GameSession;
+              useSessionStore.getState().setSession({ ...projected,
+                ...(Object.hasOwn(current, 'currentActorBerthAuthority') ? { currentActorBerthAuthority: null } : {}) });
             }
           }
           const authority = store.commissarPurgeAuthority;
@@ -913,6 +975,7 @@ function AppRoutes() {
             pending && pending.sessionId === sessionId && pending.playerUid === playerUid
           ) pendingStationRelease.current = { ...pending, playerProjectionFresh: fresh };
           if (!fresh) {
+            withdrawCurrentActorBerth();
             clearCurrentGroupCandidateReveals();
           }
           else {
