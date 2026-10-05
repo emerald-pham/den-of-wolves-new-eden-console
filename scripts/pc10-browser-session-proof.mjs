@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { setTimeout as delay } from 'node:timers/promises';
 import { chromium } from 'playwright';
@@ -162,7 +162,11 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
  * No admin gameplay seeding or result injection is performed. */
 export async function createPc10BrowserTable({ baseUrl, directory, expansion = 'capybara', coreCount = 20 } = {}) {
   assert.ok(baseUrl && directory, 'An isolated UI URL and evidence directory are required.');
+  assert.ok(['localhost', '127.0.0.1'].includes(new URL(baseUrl).hostname), 'Local browser proof only.');
+  assert.match(process.env.VITE_FIREBASE_PROJECT_ID ?? '', /^demo-[a-z0-9-]+$/, 'Local demo project only.');
   await mkdir(directory, { recursive: true });
+  const sourceCommitAtStart = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+  const runtimeIndexSha256AtStart = createHash('sha256').update(await readFile('functions/lib/index.js')).digest('hex');
   const require = createRequire(new URL('../functions/package.json', import.meta.url));
   const { recommendedRoleIds } = require('../functions/lib/roleConfiguration.js');
   const roles = recommendedRoleIds(coreCount);
@@ -208,6 +212,8 @@ export async function createPc10BrowserTable({ baseUrl, directory, expansion = '
       const sourceCommit = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
       const errors = [...clients.values()].flatMap(client => client.errors.map(message => ({ roleId: client.label, message })));
       const evidence = { schemaVersion: 1, sourceCommit, recordedAt: new Date().toISOString(), expansion,
+        sourceCommitAtStart, runtimeIndexSha256AtStart,
+        runtimeIndexSha256AtEnd: createHash('sha256').update(await readFile('functions/lib/index.js')).digest('hex'),
         freshCreatedSession: true, adminGameplayWrites: false,
         independentCorePlayerAuthSessions: fixture.players.length,
         additionalIndependentPressAuthSessions: 1, gmAuthSessions: 1,
@@ -218,7 +224,9 @@ export async function createPc10BrowserTable({ baseUrl, directory, expansion = '
       return evidence;
     }
     return { fixture, clients, actions, command, writeEvidence, cleanup: async () => {
-      try { await fixture.cleanup(); } finally { await browser.close(); }
+      // Stop real client rereads before deleting their fixture. Otherwise a
+      // failed run can keep retrying a partially deleted session during cleanup.
+      try { await browser.close(); } finally { await fixture.cleanup(); }
     } };
   } catch (error) {
     await writeFile(`${directory}/startup-failure.json`, `${JSON.stringify({ status: 'failed',
@@ -251,7 +259,8 @@ export async function runPc10OverlappingRecoveryProof(options) {
       ]);
       for (const reply of deniedCalls) {
         assert.equal(reply.status, 'denied', `${role} must not obtain organiser-only scout or candidate information.`);
-        assert.equal(reply.code ?? reply.error?.code, 'permission-denied', 'Private reads deny actual authenticated audiences.');
+        assert.match(reply.code ?? reply.error?.code ?? '', /^(functions\/)?permission-denied$/,
+          'Private reads deny actual authenticated audiences.');
       }
       return { roleId: role, deniedPrivateSdkReads: 2, deniedGmCallableReads: 1 };
     }));
