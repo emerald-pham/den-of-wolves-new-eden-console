@@ -1,11 +1,53 @@
 import assert from 'node:assert/strict';
 import { randomUUID, createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { createRequire } from 'node:module';
 import { setTimeout as delay } from 'node:timers/promises';
 import { chromium } from 'playwright';
 import { createPc07AuthenticatedSession } from './pc07-authenticated-session.mjs';
+import { runPc10NaturalDisconnectAcceptance } from './pc10-natural-disconnect.mjs';
+
+async function compiledFunctionsHash() {
+  const base = 'functions/lib';
+  const files = [];
+  async function visit(directory) {
+    for (const item of await readdir(directory, { withFileTypes: true })) {
+      const path = join(directory, item.name);
+      if (item.isDirectory()) await visit(path);
+      else files.push(path);
+    }
+  }
+  await visit(base);
+  const hash = createHash('sha256');
+  for (const path of files.sort()) hash.update(path.slice(base.length + 1) + '\0').update(await readFile(path));
+  return hash.digest('hex');
+}
+
+export function isFreshPc10BrowserRole(state, role) {
+  return state.hasAuth && state.sameActor && state.hasSession && state.cycle === 1 &&
+    state.connection === 'live' && state.freshness === 'server' &&
+    state.activeConsoleRoleId === role && (role === 'press-officer' || state.roleId === role);
+}
+
+/** Compose the actual acceptance on this live table before caller-owned cleanup.
+ * A failed follow-up, browser error, source change or rebuilt runtime remains a failure. */
+export async function completePc10BrowserProof(table, { afterOverlappingProof, details = {} } = {}) {
+  const errors = [...table.clients.values()].flatMap(client => client.errors);
+  assert.equal(errors.length, 0, 'No browser runtime errors may be ignored.');
+  if (afterOverlappingProof) await afterOverlappingProof(table);
+  const evidence = await table.writeEvidence('overlapping-recovery.json', {
+    ...details, completedAfterOverlappingProof: Boolean(afterOverlappingProof),
+  });
+  assert.equal(evidence.errors.length, 0, 'No browser runtime errors may be ignored.');
+  assert.equal(evidence.sourceCommit, evidence.sourceCommitAtStart, 'The source must stay unchanged throughout the proof.');
+  assert.equal(evidence.runtimeIndexSha256AtEnd, evidence.runtimeIndexSha256AtStart,
+    'The Functions runtime index must stay unchanged throughout the proof.');
+  assert.equal(evidence.runtimeCompiledTreeSha256AtEnd, evidence.runtimeCompiledTreeSha256AtStart,
+    'Every compiled Functions runtime byte must stay unchanged throughout the proof.');
+  return evidence;
+}
 
 /** An isolated browser context has its own Firebase Auth identity/storage.
  * Tokens remain in memory. Evidence records role/action/state categories only.
@@ -167,6 +209,7 @@ export async function createPc10BrowserTable({ baseUrl, directory, expansion = '
   await mkdir(directory, { recursive: true });
   const sourceCommitAtStart = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
   const runtimeIndexSha256AtStart = createHash('sha256').update(await readFile('functions/lib/index.js')).digest('hex');
+  const runtimeCompiledTreeSha256AtStart = await compiledFunctionsHash();
   const require = createRequire(new URL('../functions/package.json', import.meta.url));
   const { recommendedRoleIds } = require('../functions/lib/roleConfiguration.js');
   const roles = recommendedRoleIds(coreCount);
@@ -213,6 +256,7 @@ export async function createPc10BrowserTable({ baseUrl, directory, expansion = '
       const errors = [...clients.values()].flatMap(client => client.errors.map(message => ({ roleId: client.label, message })));
       const evidence = { schemaVersion: 1, sourceCommit, recordedAt: new Date().toISOString(), expansion,
         sourceCommitAtStart, runtimeIndexSha256AtStart,
+        runtimeCompiledTreeSha256AtStart, runtimeCompiledTreeSha256AtEnd: await compiledFunctionsHash(),
         runtimeIndexSha256AtEnd: createHash('sha256').update(await readFile('functions/lib/index.js')).digest('hex'),
         freshCreatedSession: true, adminGameplayWrites: false,
         independentCorePlayerAuthSessions: fixture.players.length,
@@ -243,8 +287,7 @@ export async function runPc10OverlappingRecoveryProof(options) {
   const roles = [...clients.keys()];
   try {
     const states = await Promise.all(roles.map(role => clients.get(role).until('Fresh active held role', state =>
-      state.hasAuth && state.sameActor && state.cycle === 1 &&
-      (role === 'press-officer' || state.roleId === role))));
+      isFreshPc10BrowserRole(state, role))));
     assert.equal(states.length, 21);
     const before = await fixture.session.get();
     const requests = new Map(fixture.roles.map(roleId => {
@@ -304,13 +347,12 @@ export async function runPc10OverlappingRecoveryProof(options) {
     await Promise.all(recoveryRoles.map(role => clients.get(role).context.setOffline(false)));
     await Promise.all(recoveryRoles.map(role => clients.get(role).page.reload()));
     const recovered = await Promise.all(recoveryRoles.map(role => clients.get(role).until('reload/reconnect same authoritative role', state =>
-      state.hasAuth && state.sameActor && state.hasSession && state.cycle === 1 &&
-      (role === 'press-officer' || state.roleId === role))));
+      isFreshPc10BrowserRole(state, role))));
     const after = await fixture.session.get();
     assert.equal(after.get('currentTurn'), before.get('currentTurn'), 'Reconnect must not advance the authoritative cycle.');
     const geometry = await Promise.all(roles.map(role => clients.get(role).geometry()));
     for (const metrics of geometry) assert.ok(metrics.document <= metrics.viewport && metrics.body <= metrics.viewport);
-    const evidence = await table.writeEvidence('overlapping-recovery.json', {
+    const evidence = await completePc10BrowserProof(table, { afterOverlappingProof: options.afterOverlappingProof, details: {
       checks: { freshFullRosterViaOrdinaryUiConsent: true, independentBrowserContexts: 21,
         overlappingResumePresenceAndSeatRetries: true, exactSeatReplayStable: true,
         ordinaryActorGmMutationDenied: true, everyNonGmRoleOfflineReloadRecovery: true,
@@ -321,8 +363,7 @@ export async function runPc10OverlappingRecoveryProof(options) {
       limitations: ['This focused concurrency proof alone is not a complete game-through-ending proof.',
         'Actor/browser automation does not establish human-device attendance.',
         'Timer all-player disconnect/remaining-time pause requires its distinct controlled presence-expiry check.'],
-    });
-    assert.equal(evidence.errors.length, 0, 'No browser runtime errors may be ignored.');
+    } });
     return evidence;
   } catch (error) {
     await table.writeEvidence('overlapping-recovery-failure.json', { status: 'failed', message: error.message });
@@ -334,7 +375,12 @@ export async function runPc10OverlappingRecoveryProof(options) {
 
 if (process.argv[1] && new URL(import.meta.url).pathname === process.argv[1]) {
   const evidence = await runPc10OverlappingRecoveryProof({ baseUrl: process.env.PC10_UI_URL,
-    directory: process.env.PC10_EVIDENCE_DIRECTORY, expansion: process.env.PC10_EXPANSION ?? 'capybara' });
+    directory: process.env.PC10_EVIDENCE_DIRECTORY, expansion: process.env.PC10_EXPANSION ?? 'capybara',
+    ...(process.env.PC10_NATURAL_DISCONNECT === '1' ? { afterOverlappingProof: table =>
+      runPc10NaturalDisconnectAcceptance(table, {
+        directory: join(process.env.PC10_EVIDENCE_DIRECTORY, 'natural-disconnect'), expectBrowserContexts: 21,
+      }) } : {}),
+  });
   console.log(JSON.stringify({ checks: evidence.checks, browserContexts: evidence.actualIndependentBrowserContexts,
     actions: evidence.actions.length, humanDevicePlaytest: false }));
 }
