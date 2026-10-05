@@ -211,6 +211,23 @@ function prepareResume(
   return { playerData, sessionData };
 }
 
+function enableClosedHistoryReads(groupId = 'fleet-1') {
+  const previousGet = mock.get.getMockImplementation();
+  mock.get.mockImplementation((reference: { path: string }) => {
+    if (reference.path === 'sessions/s1/fleetGroups') {
+      const groups = [{ id: groupId, data: () => ({ id: groupId, vesselIds: ['aegis'], memberUids: ['u1'] }),
+        get: (field: string) => ({ id: groupId, vesselIds: ['aegis'], memberUids: ['u1'] })[field] }];
+      return { docs: groups };
+    }
+    if (reference.path === 'sessions/s1/shuttleDepartures') return { docs: [] };
+    if (reference.path === 'sessions/s1/presidentialElections/current' ||
+        reference.path === 'sessions/s1/presidentialElections/current/ballots/u1') {
+      return snapshot({}, false);
+    }
+    return previousGet?.(reference);
+  });
+}
+
 beforeEach(() => {
   mock.rateLimitMarkers.clear();
   mock.get.mockReset();
@@ -608,6 +625,83 @@ it('rejects a kicked browser before restoring its session', async () => {
   });
   expect(mock.rateLimitMarkers.size).toBe(0);
   expect(mock.update).not.toHaveBeenCalled();
+  expect(nonRateLimitSetCalls()).toEqual([]);
+});
+
+it('resumes an existing disconnected member into a privacy-scoped immutable closed history without restoring presence', async () => {
+  const { sessionData, playerData } = prepareResume(
+    { status: 'open', holderUid: null },
+    { role: 'player', connected: false, fleetGroupId: 'fleet-1' },
+    {
+      phase: 'closed', currentTurn: 5, playerCount: 2, turnLimit: 7, activeVesselIds: ['aegis', 'shepherd'],
+      chartId: 'C', setup: { secret: 'chart-route' }, loyalty: { u1: 'wolf' },
+      fullGameDemo: { status: 'complete', progression: 'manual' },
+      gameOutcome: { type: 'game-outcome', result: 'success', cause: 'candidate-complete', candidateCode: 'N',
+        cycle: 4, occurredAt: '2026-10-05T12:00:00.000Z', sourceId: 'private-source', groupId: 'foreign-group' },
+      survivorOutcome: { type: 'survivor-outcome', cycle: 4, occurredAt: '2026-10-05T12:00:00.000Z',
+        fleetShipPopulation: 100, survivingShipPopulation: 50, evacuatedPopulation: 0, escapePodCapacity: 0,
+        lostPopulation: 50, smallVesselPopulation: 0, admittedVesselPopulation: 0, finalSurvivors: 50,
+        survivingShipIds: ['aegis', 'shepherd'], lostOrDestroyedShipIds: [] },
+      debriefSnapshot: { type: 'session-debrief', version: 1, source: 'candidate', result: 'success',
+        cause: 'candidate-complete', cycle: 4, occurredAt: '2026-10-05T12:00:00.000Z',
+        committedAt: '2026-10-05T12:01:00.000Z',
+        outcome: { type: 'game-outcome', result: 'success', cause: 'candidate-complete', candidateCode: 'N',
+          cycle: 4, occurredAt: '2026-10-05T12:00:00.000Z' },
+        survivorOutcome: { type: 'survivor-outcome', cycle: 4, occurredAt: '2026-10-05T12:00:00.000Z',
+          fleetShipPopulation: 100, survivingShipPopulation: 50, evacuatedPopulation: 0, escapePodCapacity: 0,
+          lostPopulation: 50, smallVesselPopulation: 0, admittedVesselPopulation: 0, finalSurvivors: 50,
+          survivingShipIds: ['aegis'], lostOrDestroyedShipIds: [] },
+        candidate: { code: 'N', groups: [
+          { groupId: 'fleet-1', requirements: [{ id: 'paid-crossing', status: 'met' }],
+            rolls: [{ id: 'passage', face: 4, result: 'success', audience: 'members' },
+              { id: 'nebula-bonus', face: 2, result: 'success', audience: 'gm' }],
+            losses: [{ shipId: 'aegis', reason: 'candidate-loss', audience: 'members' },
+              { shipId: 'shepherd', reason: 'foreign-loss', audience: 'members' }],
+            humanCalls: [{ id: 'opposite-side-sabotage', cycle: 4, audience: 'members' }] },
+          { groupId: 'fleet-2', requirements: [{ id: 'foreign-route', status: 'met' }], rolls: [], losses: [], humanCalls: [] },
+        ] },
+      },
+    },
+  );
+  enableClosedHistoryReads();
+
+  const response = await resumeSession.run(request('s1')) as {
+    session: Record<string, unknown>;
+    player: Record<string, unknown>;
+  };
+
+  expect(response.session).toMatchObject({ phase: 'closed', fullGameDemo: { status: 'complete', progression: 'manual' },
+    gameOutcome: { result: 'success', cause: 'candidate-complete', candidateCode: 'N' },
+    debriefSnapshot: { candidate: { groups: [{
+      requirements: [{ id: 'paid-crossing', status: 'met' }],
+      rolls: [{ id: 'passage', face: 4, result: 'success' }],
+      losses: [{ shipId: 'aegis', reason: 'candidate-loss' }],
+      humanCalls: [{ id: 'opposite-side-sabotage', cycle: 4 }],
+    }] } } });
+  expect(response.session).not.toHaveProperty('chartId');
+  expect(response.session).not.toHaveProperty('setup');
+  expect(response.session).not.toHaveProperty('loyalty');
+  expect(JSON.stringify(response.session)).not.toMatch(/foreign-group|foreign-route|nebula-bonus|private-source|shepherd/);
+  expect(response.player).toMatchObject({ uid: 'u1', role: 'player', fleetGroupId: 'fleet-1' });
+  expect(sessionData.phase).toBe('closed');
+  expect(playerData.connected).toBe(false);
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.delete).not.toHaveBeenCalled();
+  expect(nonRateLimitSetCalls()).toEqual([]);
+});
+
+it.each([
+  ['outsider', { role: 'player', connected: false, fleetGroupId: 'fleet-1', kickedAt: undefined }],
+  ['kicked member', { role: 'player', connected: false, fleetGroupId: 'fleet-1', kickedAt: 'removed' }],
+  ['observer', { role: 'observer', connected: false, fleetGroupId: 'fleet-1' }],
+])('does not restore %s into closed history', async (_label, actorFields) => {
+  prepareResume({ status: 'open', holderUid: null }, actorFields,
+    { phase: 'closed', activeVesselIds: ['aegis'] });
+  enableClosedHistoryReads();
+
+  await expect(resumeSession.run(request('s1'))).rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.delete).not.toHaveBeenCalled();
   expect(nonRateLimitSetCalls()).toEqual([]);
 });
 
