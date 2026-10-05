@@ -2937,12 +2937,12 @@ it.each([false, true])('replays a committed ordinary cycle advance after acknowl
   expect(mock.set).not.toHaveBeenCalled();
 });
 
-it('freezes the configured final full-game demo turn and its terminal receipt', async () => {
+async function verifyConfiguredFinalCycleFreeze(manualDemo: boolean) {
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2026-09-06T12:20:00.000Z'));
   mock.currentTurn = 6;
   mock.turnLimit = 6;
-  mock.fullGameDemo = { status: 'active', progression: 'manual' };
+  if (manualDemo) mock.fullGameDemo = { status: 'active', progression: 'manual' };
   mock.turnStartAnnouncement = { turn: 6, survivorPopulation: 242_500 };
   mock.fleetSurvivorPopulationAdjustment = 999_999;
   mock.turnState = {
@@ -3021,12 +3021,16 @@ it('freezes the configured final full-game demo turn and its terminal receipt', 
       survivingShipIds: ['aegis'],
       lostOrDestroyedShipIds: [],
     }),
-    fullGameDemo: { status: 'complete', progression: 'manual' },
+    ...(manualDemo ? { fullGameDemo: { status: 'complete', progression: 'manual' } } : {}),
     debriefSnapshot: expect.objectContaining({
       type: 'session-debrief', source: 'final-cycle', result: 'completed', cycle: 6,
       survivorOutcome: expect.objectContaining({ type: 'survivor-outcome', cycle: 6 }),
     }),
   }));
+  if (!manualDemo) {
+    const sessionPatch = mock.update.mock.calls.find(([path]) => path === 'sessions/s1')?.[1];
+    expect(sessionPatch).not.toHaveProperty('fullGameDemo');
+  }
   expect(mock.set).toHaveBeenCalledWith(
     'sessions/s1/commandReceipts/advance-test-final',
     expect.objectContaining({
@@ -3066,6 +3070,14 @@ it('freezes the configured final full-game demo turn and its terminal receipt', 
   });
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();
+}
+
+it('freezes the configured final turn in debrief and replays the terminal receipt', async () => {
+  await verifyConfiguredFinalCycleFreeze(false);
+});
+
+it('freezes the configured final full-game demo turn and its terminal receipt', async () => {
+  await verifyConfiguredFinalCycleFreeze(true);
 });
 
 it('rejects normal gameplay mutations after final-turn debrief begins', async () => {
