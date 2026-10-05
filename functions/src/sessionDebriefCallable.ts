@@ -85,6 +85,32 @@ function actionResult(phase: 'debrief' | 'closed', committed: boolean, snapshot:
   return { phase, committed, cycle: snapshot.cycle, result: snapshot.result };
 }
 
+function storedActionResult(value: unknown, phase: ActionResult['phase']): ActionResult | undefined {
+  const raw = value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown> : undefined;
+  const fields = ['phase', 'committed', 'cycle', 'result'];
+  if (!raw || Object.keys(raw).length !== fields.length || Object.keys(raw).some(key => !fields.includes(key)) ||
+      raw.phase !== phase || typeof raw.committed !== 'boolean' || !Number.isSafeInteger(raw.cycle) ||
+      Number(raw.cycle) < 0 || !['success', 'failure', 'completed'].includes(String(raw.result))) return undefined;
+  return { phase, committed: raw.committed, cycle: Number(raw.cycle),
+    result: raw.result as SessionDebriefSnapshot['result'] };
+}
+
+function storedReceiptResult(
+  value: unknown,
+  uid: string,
+  command: DebriefCommand,
+  action: 'begin' | 'close',
+): ActionResult | undefined {
+  const raw = value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown> : undefined;
+  const fields = ['actorUid', 'instanceId', 'action', 'requestId', 'result', 'createdAt'];
+  if (!raw || Object.keys(raw).length !== fields.length || Object.keys(raw).some(key => !fields.includes(key)) ||
+      raw.actorUid !== uid || raw.instanceId !== command.instanceId || raw.action !== action ||
+      raw.requestId !== command.requestId || !Object.hasOwn(raw, 'createdAt')) return undefined;
+  return storedActionResult(raw.result, action === 'begin' ? 'debrief' : 'closed');
+}
+
 /** Authenticated GM lifecycle commands and live-instance-only detailed history. */
 export function createSessionDebriefCommands({ db, isLiveGmInstance }: {
   readonly db: Firestore;
@@ -103,12 +129,11 @@ export function createSessionDebriefCommands({ db, isLiveGmInstance }: {
       ]);
       if (!session.exists) throw new HttpsError('not-found', 'No such session.');
       if (receipt.exists) {
-        const stored = receipt.data() as Record<string, unknown> | undefined;
-        if (stored?.actorUid !== uid || stored.instanceId !== command.instanceId || stored.action !== action ||
-            stored.requestId !== command.requestId || !stored.result || typeof stored.result !== 'object') {
+        const result = storedReceiptResult(receipt.data(), uid, command, action);
+        if (!result) {
           throw new HttpsError('failed-precondition', 'This request ID belongs to a different debrief action.');
         }
-        return stored.result as ActionResult;
+        return result;
       }
       if (!liveGm(instance, player, uid, isLiveGmInstance)) {
         throw new HttpsError('permission-denied', 'A live GM instance is required for debrief controls.');
