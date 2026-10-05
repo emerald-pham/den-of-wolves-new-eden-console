@@ -263,7 +263,7 @@ describe('closed member debrief rehydration', () => {
         requirements: [{ id: 'paid-crossing', status: 'met' }],
         path: [{ action: 'ring-passage', result: 'crossed', shipId: 'aegis', fuelSpent: 5 }],
       }] } } });
-    expect(useSessionStore.getState().session?.gameOutcome).toBeUndefined();
+    expect(useSessionStore.getState().session?.gameOutcome).toEqual(outcome);
     expect(useSessionStore.getState().me).toMatchObject({ uid: 'u1', fleetGroupId: 'fleet-1', connected: false });
     expect(useSessionStore.getState().gmInstance).toBeNull();
   });
