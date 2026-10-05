@@ -41,7 +41,7 @@ async function callableObservationActor() {
   const respond = request => {
     let resolve, reject;
     // This mock is a CDP Network.getResponseBody result; CDP names the flag
-    // `base64Encoded` (unlike Playwright's Response API).
+    // `base64Encoded`; the previous mock used an unsupported field name.
     const body = new Promise((yes, no) => { resolve = yes; reject = no; }).then(reply => ({
       body: JSON.stringify(reply), base64Encoded: false,
     }));
