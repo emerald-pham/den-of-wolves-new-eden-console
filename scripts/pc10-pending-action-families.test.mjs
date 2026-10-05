@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createPoliticsPressCallbacks, validateElectionActionCycle, validateElectionPlan,
-  validateElectionTieDecision } from './pc10-politics-press-proof.mjs';
+  validateElectionTieDecision, allowlistedElectionResultState } from './pc10-politics-press-proof.mjs';
 import { validateCrisisChoice } from './pc10-crisis-voyage-proof.mjs';
 import { validatePosseChoice, validateArrestDispositionChoice } from './pc10-arrest-posse-proof.mjs';
 import { assertRequiredCrisisChoices } from './pc10-crisis-voyage-proof.mjs';
@@ -46,10 +46,19 @@ test('election ballot and close callbacks are offered only in the configured sou
   assert.equal(validateElectionActionCycle(policy, 2, 'ballot'), true);
   assert.equal(validateElectionActionCycle(policy, 4, 'ballot'), true);
   assert.equal(validateElectionActionCycle(policy, 4, 'resolve'), true);
+  assert.equal(validateElectionActionCycle(policy, 4, 'resolve', 'coordination'), true);
   assert.throws(() => validateElectionActionCycle(policy, 1, 'ballot'), /outside.*ballot window/i);
   assert.throws(() => validateElectionActionCycle(policy, 5, 'ballot'), /outside.*ballot window/i);
   assert.throws(() => validateElectionActionCycle(policy, 3, 'resolve'), /before.*close cycle/i);
+  assert.throws(() => validateElectionActionCycle(policy, 4, 'resolve', 'team'), /team window/i);
   assert.throws(() => validateElectionActionCycle(policy, 2, 'invented'), /unknown.*election action/i);
+});
+
+test('election outcomes expose only the source-approved state from the private callable reply', () => {
+  assert.equal(allowlistedElectionResultState({ state: 'tie-pending', tally: { voterUid: 'private' } }), 'tie-pending');
+  assert.equal(allowlistedElectionResultState({ state: 'resolved', ballot: { candidateUid: 'private' } }), 'resolved');
+  assert.throws(() => allowlistedElectionResultState({ state: 'private-vote-detail', voterUid: 'private' }), /unknown.*outcome/i);
+  assert.equal(JSON.stringify(allowlistedElectionResultState({ state: 'resolved', candidateUid: 'private' })).includes('private'), false);
 });
 
 test('politics callbacks separate Cycle 1 policy setup from later election ballot and close stages', () => {
