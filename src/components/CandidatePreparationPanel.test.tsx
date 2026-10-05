@@ -4,7 +4,8 @@ import userEvent from '@testing-library/user-event';
 import CandidatePreparationPanel from './CandidatePreparationPanel';
 import { useSessionStore } from '@/store/useSessionStore';
 
-const service = vi.hoisted(() => ({ read: vi.fn(), execute: vi.fn(), create: vi.fn(), recover: vi.fn() }));
+const service = vi.hoisted(() => ({ read: vi.fn(), execute: vi.fn(), create: vi.fn(), recover: vi.fn(), grant: vi.fn() }));
+vi.mock('@/lib/sessionService', () => ({ setGmShipConsoleWriteGrant: service.grant }));
 vi.mock('@/lib/candidateService', () => ({ readCandidateWorkspace: service.read, executeCandidateAttempt: service.execute,
   createCandidateAttempt: service.create, recoverCandidateAttempt: service.recover }));
 const path = (code: 'N' | 'O' | 'P') => ({ code, coordinate: code === 'N' ? '6798' : code === 'O' ? '0408' : '4888',
@@ -75,4 +76,15 @@ it('refreshes current blockers when another actor commits a server session updat
     revision: 4, paths: [updated] });
   act(() => useSessionStore.setState(state => ({ session: { ...state.session!, updatedAt: '2026-10-05T13:00:00.000Z' } })));
   expect(await screen.findByText(/17\/18 charge capacity/)).toBeInTheDocument();
+});
+it('lets the GM explicitly enable the ordinary scoped ship grant before vessel candidate actions', async () => {
+  useSessionStore.setState({ session: { id: 's1', phase: 'active', currentTurn: 6, shipFleetGroupIds: { aegis: 'fleet-1' } } as never,
+    me: { uid: 'gm', sessionId: 's1', role: 'gm', fleetGroupId: 'fleet-1' } as never,
+    gmInstance: { id: 'instance1', uid: 'gm', sessionId: 's1', claimedAt: '2026-10-05T12:00:00.000Z' } as never });
+  const user = userEvent.setup(); render(<CandidatePreparationPanel />);
+  await screen.findByRole('heading', { name: 'Deep Nebula' });
+  expect(screen.getByRole('button', { name: /Long jump into Nebula/ })).toBeDisabled();
+  await user.click(screen.getByRole('button', { name: 'Enable GM candidate ship control' }));
+  expect(service.grant).toHaveBeenCalledWith('aegis', true, {
+    shipId: 'aegis', sessionId: 's1', uid: 'gm', instanceId: 'instance1', claimedAt: '2026-10-05T12:00:00.000Z' });
 });
