@@ -604,7 +604,7 @@ it.each([
   const props = { name, shipId, systems: [], renderSystem: () => null, rations: null };
   render(<MaintenanceSystems {...props} />);
   expect(screen.queryByRole('button', { name: 'Assign damage' })).not.toBeInTheDocument();
-  expect(screen.queryByText(/The server draws randomly from .* remaining damage deck/i)).not.toBeInTheDocument();
+  expect(screen.queryByText(/The server draws 1 card at random from .* remaining .* damage deck/i)).not.toBeInTheDocument();
 
   act(() => useSessionStore.setState({
     me: { ...me, role: 'gm' },
@@ -612,7 +612,7 @@ it.each([
   }));
 
   const button = screen.getByRole('button', { name: 'Assign damage' });
-  const help = screen.getByText(/The server draws randomly from .* remaining damage deck/i);
+  const help = screen.getByText(/The server draws 1 card at random from .* remaining .* damage deck/i);
   expect(button).toHaveAccessibleDescription(help.textContent ?? '');
   expect(help).toHaveTextContent(exception);
   expect(help).toHaveTextContent(exhaustion);
