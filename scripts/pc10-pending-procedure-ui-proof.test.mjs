@@ -145,7 +145,7 @@ test('mounted damage accepts only the server-owned statusless vessel receipt for
     request: damageRequest, response: { httpStatus: 200, result: damageReceipt, exactReplay: true },
     replay: { status: 'committed', result: { ...damageReceipt } },
     rendered: { visible: true, resultStatus: 'committed' },
-    trainingChoice: 'gm-training:assign-damage' });
+    trainingChoice: 'gm-training:deliberate-choice' });
   const accepted = evaluateProcedureCapture(damageCapture);
   assert.equal(accepted.status, 'completed');
   assert.doesNotMatch(JSON.stringify(accepted), /gm-auth-uid|hidden-card|Hidden Console|hidden-system/);
@@ -231,16 +231,19 @@ test('evidence projection never persists raw requests, notes, UIDs, or random da
   }));
   assert.equal(gmDamage.status, 'pending', 'free-form facilitator wording must not enter evidence');
   assert.doesNotMatch(JSON.stringify(gmDamage), /GM training:/);
-  const disclosedChoice = evaluateProcedureCapture(capture({ caseId: 'gm:addShipDamage',
+  const disclosedInput = capture({ caseId: 'gm:addShipDamage',
     expected: { sessionId: 'session-1', uidHash: 'gm-hash', instanceId: 'gm-instance', roleId: 'gm',
       cycle: 2, sourceRevision: 7 }, actorBefore: gmActor, actorAfter: gmActor,
     sourceBefore: { live: true, sessionId: 'session-1', cycle: 2, revision: 7 },
     sourceAfter: { live: true, sessionId: 'session-1', cycle: 2, revision: 8 },
     request: { sessionId: 'session-1', instanceId: 'gm-instance', requestId: 'damage-1',
       expectedCycle: 2, expectedRevision: 7, shipId: 'shepherd' },
-    trainingChoice: 'gm-training:assign-damage',
-  }));
+    trainingChoice: 'gm-training:deliberate-choice',
+  });
+  const disclosedChoice = evaluateProcedureCapture(disclosedInput);
   assert.equal(disclosedChoice.status, 'completed');
-  assert.equal(disclosedChoice.trainingChoice, 'gm-training:assign-damage');
+  assert.equal(disclosedChoice.trainingChoice, 'gm-training:deliberate-choice');
+  assert.equal(evaluateProcedureCapture({ ...disclosedInput, trainingChoice: 'gm-training:private-target' }).status,
+    'pending', 'only the one fixed non-content training marker may be persisted');
   assert.equal(disclosedChoice.randomOutcomeRecorded, false);
 });
