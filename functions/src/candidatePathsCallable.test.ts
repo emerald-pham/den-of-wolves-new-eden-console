@@ -113,7 +113,7 @@ describe('ordinary candidate callable authority and durable replay', () => {
     await expect(handlers.execute(request({ ...command, requestId: 'n2', expectedRevision: 1, shipId: 'shepherd' }, 'captain')))
       .resolves.toMatchObject({ outcome: 'reached' });
     expect(commitTerminal).toHaveBeenCalledTimes(1);
-    expect(commitTerminal.mock.calls[0]?.[3]).toMatchObject({ source: 'candidate', gameOutcome: {
+    expect(commitTerminal.mock.calls[0]?.[3]).toMatchObject({ source: 'candidate', outcome: {
       result: 'success', candidateCode: 'O', successfulShipIds: ['shepherd'], leftBehindShipIds: ['aegis'] } });
   });
 });
