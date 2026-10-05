@@ -391,6 +391,38 @@ it('starts a fully staffed roster in one transaction with locked setup, Turn 1, 
   expect(privateSnapshotKeys(sessionUpdate)).toEqual([]);
 });
 
+it('requires an explicit fresh-cycle preparation before using the full-game demo start option', async () => {
+  await expect(startGame.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'start-demo-unprepared',
+    expectedSetupRevision: 0, fullGameDemo: true,
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalledWith(expect.objectContaining({ path: 'sessions/s1' }), expect.anything());
+});
+
+it('starts a prepared full-game demo through the normal authoritative roster start with manual time', async () => {
+  mock.session.fullGameDemo = { status: 'preparing', progression: 'manual' };
+  const reply = await startGame.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'start-demo-prepared',
+    expectedSetupRevision: 0, fullGameDemo: true,
+  }));
+
+  expect(reply).toMatchObject({
+    currentTurn: 1,
+    fullGameDemo: { status: 'active', progression: 'manual' },
+    turnPhase: { progression: 'manual', airspace: { state: 'restricted' } },
+  });
+  const sessionUpdate = mock.update.mock.calls.find(([ref]) => ref.path === 'sessions/s1')?.[1];
+  expect(sessionUpdate?.fullGameDemo).toEqual({ status: 'active', progression: 'manual' });
+});
+
+it('does not let an ordinary start consume the full-game demo preparation', async () => {
+  mock.session.fullGameDemo = { status: 'preparing', progression: 'manual' };
+  await expect(startGame.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'start-demo-as-ordinary', expectedSetupRevision: 0,
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalledWith(expect.objectContaining({ path: 'sessions/s1' }), expect.anything());
+});
+
 it('preserves valid state and normalizes malformed maintenance entries while filling absent vessels', async () => {
   const existingDamage = { aegis: { damagedSystemIds: ['reactor'], destroyed: false } };
   const existingMaintenance: Record<string, unknown> = {
