@@ -3961,6 +3961,36 @@ export interface SessionStateHandlers {
 // has already hydrated.
 let currentSessionSubscriptionToken: symbol | undefined;
 
+/** Closed member reads carry immutable history, with no operational session scope. */
+function closedMemberSessionFrom(sessionId: string, response: RecordValue, data: RecordValue): GameSession {
+  const allowed = new Set([
+    'id', 'name', 'joinCode', 'phase', 'currentTurn', 'playerCount', 'turnLimit',
+    'createdAt', 'updatedAt', 'gameOutcome', 'survivorOutcome', 'debriefSnapshot', 'fullGameDemo',
+  ]);
+  if (Object.keys(data).some(key => !allowed.has(key)) || data.id !== sessionId ||
+      data.phase !== 'closed' || typeof data.name !== 'string' || data.joinCode !== '' ||
+      !Number.isSafeInteger(data.currentTurn) || Number(data.currentTurn) < 0 ||
+      typeof response.groupId !== 'string' || !/^(fleet-[1-9][0-9]*|gm)$/.test(response.groupId) ||
+      !Number.isSafeInteger(response.connectionGeneration) || Number(response.connectionGeneration) < 1 ||
+      [response.assignedRoleId, response.activeConsoleRoleId].some(role => role !== null && !parseEntityId('role', role)) ||
+      data.playerCount !== undefined && (!Number.isSafeInteger(data.playerCount) || Number(data.playerCount) < 8 || Number(data.playerCount) > 20) ||
+      data.turnLimit !== undefined && (!Number.isSafeInteger(data.turnLimit) || Number(data.turnLimit) < 0) ||
+      [data.createdAt, data.updatedAt].some(value => value !== undefined && optionalIso(value) !== value)) {
+    throw new Error('The closed member history is malformed.');
+  }
+  // An internal empty projection prevents legacy roster defaults from becoming
+  // operational state. It adds no retained vessel or craft information to history.
+  const session = sessionFrom(sessionId, { ...data,
+    memberSessionScope: { groupId: response.groupId, vesselIds: [], craftIds: [] } });
+  if (data.gameOutcome !== undefined && !session.gameOutcome ||
+      data.survivorOutcome !== undefined && !session.survivorOutcome ||
+      data.debriefSnapshot !== undefined && !session.debriefSnapshot ||
+      data.fullGameDemo !== undefined && session.fullGameDemo?.status !== 'complete') {
+    throw new Error('The closed member history is malformed.');
+  }
+  return session;
+}
+
 /** Keep the local snapshot current while Firestore handles reconnect/cache replay. */
 export function subscribeSessionState(
   sessionId: string,
@@ -4224,8 +4254,10 @@ export function subscribeSessionState(
             }
             const data = recordValue(response?.session);
             const scope = recordValue(data?.memberSessionScope);
+            const closedHistory = data?.phase === 'closed';
             if (response?.type !== 'current-member-session' || response.sessionId !== sessionId ||
-                response.actorUid !== uid || !data || !scope || response.groupId !== scope.groupId) {
+                response.actorUid !== uid || !data ||
+                !closedHistory && (!scope || response.groupId !== scope.groupId)) {
               throw new Error('The current member read is malformed.');
             }
             const fingerprint = actorFingerprint({ fleetGroupId: response.groupId as string,
@@ -4236,7 +4268,7 @@ export function subscribeSessionState(
               handlers.onSessionFreshness?.(false);
               break;
             }
-            const session = sessionFrom(sessionId, data);
+            const session = closedHistory ? closedMemberSessionFrom(sessionId, response, data) : sessionFrom(sessionId, data);
             // This serialized transaction read confirms current content even if a legacy
             // writer did not advance its timestamp. A changed callable cursor fences it.
             if (acceptServerSessionAuthority(sessionSnapshotAuthority, session, undefined, false, true)) {
@@ -4424,7 +4456,8 @@ export function subscribeSessionState(
         .map((seat) => seatFrom(sessionId, seat.id, seat.data()))
         .filter((seat) => seat.roleId !== 'press-officer'));
     }, onError),
-    ...(handlers.onPrivateLoyalty ? [unsubscribePrivateLoyalty = onSnapshot(
+    ...(handlers.onPrivateLoyalty ? [(() => {
+      unsubscribePrivateLoyalty = onSnapshot(
       doc(database, `sessions/${sessionId}/secrets/loyalty-${uid}`),
       { includeMetadataChanges: true },
       (snapshot) => {
@@ -4467,7 +4500,9 @@ export function subscribeSessionState(
         }
         onError();
       },
-    )] : []),
+      );
+      return () => unsubscribePrivateLoyalty();
+    })()] : []),
     ...(handlers.onRoleBrief ? [onSnapshot(
       doc(database, `sessions/${sessionId}/roleBriefs/${uid}`),
       { includeMetadataChanges: true },
