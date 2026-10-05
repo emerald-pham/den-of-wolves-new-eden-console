@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { warn } from 'firebase-functions/logger';
 import { HttpsError, onCall, type CallableOptions, type CallableRequest, type CallableResponse } from 'firebase-functions/v2/https';
+import { CALLABLE_RUNTIME_OPTIONS } from './runtimeOptions';
 
 const DENIAL_CATEGORIES = {
   unauthenticated: 'auth', 'permission-denied': 'authorization',
@@ -66,7 +67,9 @@ export function rejectClientRandomOutcome(callableName: string, data: unknown): 
 }
 
 /**
- * Keep Firebase's callable transport, Auth/App Check verification and global runtime options.
+ * Keep Firebase's callable transport and Auth/App Check verification. Supply canonical
+ * defaults explicitly because re-exported modules may construct handlers before index
+ * initialization applies global options; each callable's explicit overrides still win.
  * Platform verification denials occur before this handler and retain Firebase's private,
  * category-only callable-request-verification logs. Application denials add this safe record.
  */
@@ -105,7 +108,8 @@ export function auditedOnCall<T = any, R = any>(
       throw error;
     }
   };
-  return typeof optionsOrHandler === 'function'
-    ? onCall<T, Promise<R>>(boundary)
-    : onCall<T, Promise<R>>(optionsOrHandler, boundary);
+  return onCall<T, Promise<R>>({
+    ...CALLABLE_RUNTIME_OPTIONS,
+    ...(typeof optionsOrHandler === 'function' ? {} : optionsOrHandler),
+  }, boundary);
 }
