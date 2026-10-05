@@ -376,6 +376,21 @@ function sessionData(playerCount: number) {
   };
 }
 
+it.each(['preparing', 'active', 'complete'] as const)(
+  'hydrates only the bounded %s full-game demo marker across session refreshes', (status) => {
+    const marker = { status, progression: 'manual' } as const;
+    expect(sessionFrom(`demo-${status}`, {
+      ...sessionData(8), fullGameDemo: marker,
+    }).fullGameDemo).toEqual(marker);
+    expect(sessionFrom(`demo-${status}-with-extra`, {
+      ...sessionData(8), fullGameDemo: { ...marker, gmPassword: 'must not hydrate' },
+    }).fullGameDemo).toBeUndefined();
+    expect(sessionFrom(`demo-${status}-wrong-mode`, {
+      ...sessionData(8), fullGameDemo: { status, progression: 'automatic' },
+    }).fullGameDemo).toBeUndefined();
+  },
+);
+
 it('hydrates only canonical shuttle-control entries from the member session projection', () => {
   const session = sessionFrom('s1', {
     ...sessionData(8),
