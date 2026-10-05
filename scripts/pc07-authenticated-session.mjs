@@ -5,6 +5,13 @@ import {createRequire} from 'node:module';
 import {localGmAccessConfiguration,grantLocalGmAccess} from './local-gm-access.mjs';
 import {buildPc07ExplicitLoyaltyAssignments} from './pc07-explicit-loyalty-setup.mjs';
 
+/** Actual browser clients must control their own presence in disconnect proof.
+ * A synthetic keep-alive must not silently keep an offline browser connected. */
+export function shouldMaintainFixturePresence({ browserControlled, browserOwnsPresence = false,
+ serializeFixtureCalls = false } = {}) {
+ return !browserControlled || (!browserOwnsPresence && !serializeFixtureCalls);
+}
+
 /** Join actual browser clients into selected printed core seats before assigning the other actors. */
 export async function joinConfiguredBrowserPlayers({roles,players,joinCode,browserRoleId,joinBrowserPlayer,joinBrowserPlayers}={}) {
  const configured=new Map();
@@ -37,7 +44,7 @@ export async function joinConfiguredBrowserPlayers({roles,players,joinCode,brows
 }
 
 /** Normal local Auth/HTTP setup. Tokens stay in memory and never enter evidence. */
-export async function createPc07AuthenticatedSession(name,playerCount=8,{clearBriefing=true,keepAlive=false,serializeFixtureCalls=false,expansion='base',capybaraEnabled=expansion==='capybara',browserRoleId,joinBrowserPlayer,joinBrowserPlayers,joinPressPlayer,activeRoleIdsOverride,unionCraftStartingHosts={},explicitLoyaltySetup}={}) {
+export async function createPc07AuthenticatedSession(name,playerCount=8,{clearBriefing=true,keepAlive=false,serializeFixtureCalls=false,browserOwnsPresence=false,expansion='base',capybaraEnabled=expansion==='capybara',browserRoleId,joinBrowserPlayer,joinBrowserPlayers,joinPressPlayer,activeRoleIdsOverride,unionCraftStartingHosts={},explicitLoyaltySetup}={}) {
  const env=Object.fromEntries((await readFile('.env.emulators.local','utf8')).trim().split('\n').map(line=>line.split('=')));
  const project=process.env.VITE_FIREBASE_PROJECT_ID;
  const config=localGmAccessConfiguration('serve',{...env,VITE_LOCAL_GM_ACCESS:'1',VITE_FIREBASE_PROJECT_ID:project});
@@ -144,7 +151,7 @@ export async function createPc07AuthenticatedSession(name,playerCount=8,{clearBr
    const current=ok(await call(player,'resumeSession',{sessionId}),'resume');
    ok(await call(player,'claimSeat',{sessionId,seatId:roles[i],requestId:randomUUID(),expectedSetupRevision:current.session.setupRevision}),'seat');
    ok(await call(player,'refreshPresence',{sessionId,activeConsoleRoleId:roles[i]}),'console');
-   if(!serializeFixtureCalls||!browserIndexes.has(i)){
+   if(shouldMaintainFixturePresence({browserControlled:browserIndexes.has(i),browserOwnsPresence,serializeFixtureCalls})){
     heartbeatPlayers.set(player.localId,{actor:player,label:`player-${i+1}`});
    }
   }
@@ -166,7 +173,8 @@ export async function createPc07AuthenticatedSession(name,playerCount=8,{clearBr
   }
   const press=joinPressPlayer?await joinPressPlayer(created.session.joinCode):undefined;
   if(press){ok(await call(press,'refreshPresence',{sessionId,activeConsoleRoleId:'press-officer'}),'Press claim');
-   heartbeatPlayers.set(press.localId,{actor:press,label:'press'});}
+   if(shouldMaintainFixturePresence({browserControlled:true,browserOwnsPresence,serializeFixtureCalls})){
+    heartbeatPlayers.set(press.localId,{actor:press,label:'press'});}}
   const current=ok(await call(gm,'resumeSession',{sessionId,instanceId}),'GM resume');
   ok(await call(gm,'startGame',{sessionId,instanceId,requestId:randomUUID(),expectedSetupRevision:current.session.setupRevision}),'start');
   const hold=(await session.get()).get('turnPhase').timerPause;
