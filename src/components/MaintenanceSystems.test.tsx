@@ -596,6 +596,28 @@ it.each(['aegis', 'capybara'])('lets only a GM assign damage beneath %s maintena
   view.unmount();
 });
 
+it.each([
+  ['aegis', 'AEGIS', /Armoured Hull.*returns to the deck while other cards remain/i, /required draw.*empty.*destroyed/i],
+  ['dione', 'Dione', /non-armoured card.*one survivor/i, /required draw.*empty.*destroyed/i],
+  ['capybara', 'Capybara', /non-armoured card.*one survivor/i, /empty-deck result.*facilitator/i],
+] as const)('explains %s damage outcomes only beside the GM Assign damage control', (shipId, name, exception, exhaustion) => {
+  const props = { name, shipId, systems: [], renderSystem: () => null, rations: null };
+  render(<MaintenanceSystems {...props} />);
+  expect(screen.queryByRole('button', { name: 'Assign damage' })).not.toBeInTheDocument();
+  expect(screen.queryByText(/The server draws randomly from .* remaining damage deck/i)).not.toBeInTheDocument();
+
+  act(() => useSessionStore.setState({
+    me: { ...me, role: 'gm' },
+    gmInstance: { id: 'gm1', uid: 'u1', sessionId: 's1', name: 'GM', deviceLabel: '', claimedAt: '' },
+  }));
+
+  const button = screen.getByRole('button', { name: 'Assign damage' });
+  const help = screen.getByText(/The server draws randomly from .* remaining damage deck/i);
+  expect(button).toHaveAccessibleDescription(help.textContent ?? '');
+  expect(help).toHaveTextContent(exception);
+  expect(help).toHaveTextContent(exhaustion);
+});
+
 it('notes the drawn card beside the GM control that applied damage', async () => {
   assign.mockResolvedValue({
     destroyed: false,
