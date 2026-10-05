@@ -80,3 +80,24 @@ test('a failed overlapping proof batch still drains every actual in-flight reque
  await observation;
  assert.equal(drained,true);
 });
+
+test('native setup maintains ordinary uncast identities and drains that presence before the real lease wait',async()=>{
+ const {createNativeSetupPresence}=await proof();
+ assert.equal(typeof createNativeSetupPresence,'function','Native setup must supply the normal presence real browsers already send.');
+ const timers=new Map(),calls=[];
+ let next=0,release;
+ const presence=createNativeSetupPresence({setInterval:callback=>{const id=++next;timers.set(id,callback);return id;},
+  clearInterval:id=>timers.delete(id)});
+ presence.add({roleId:'admiral',sessionId:'own-session',callable:async(name,data)=>{
+  calls.push({name,data});await new Promise(resolve=>{release=resolve;});return {status:200};
+ }});
+ [...timers.values()][1]();
+ await Promise.resolve();
+ assert.deepEqual(calls,[{name:'refreshPresence',data:{sessionId:'own-session'}}],
+  'An uncast SDK actor may renew membership without claiming any console or injecting a timestamp.');
+ let drained=false;
+ const stopped=presence.stop().then(()=>{drained=true;});
+ await Promise.resolve();assert.equal(drained,false);
+ release();await stopped;
+ assert.equal(timers.size,0);assert.equal(drained,true);
+});
