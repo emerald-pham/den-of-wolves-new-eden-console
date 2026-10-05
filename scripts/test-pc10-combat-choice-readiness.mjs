@@ -201,6 +201,25 @@ test('an older rendered EO revision remains pending although its pass is visibly
   assert.equal((await inspectWolfChoicePaint(current, { kind: 'command-and-control' }, choice())).status, 'eligible');
 });
 
+test('a printed old EO blocker cannot qualify the same blocker for the current source revision', async () => {
+  const { inspectWolfChoicePaint } = await moduleUnderTest();
+  const view = choice({ eligible: false, reason: 'uncharged' });
+  const stale = paintFixture({ text: 'Command and Control Cycle 1 // Rev 3 Unavailable // charge Command and Control for this cycle.' });
+  assert.equal((await inspectWolfChoicePaint(stale, { kind: 'command-and-control' }, view)).status, 'pending');
+  const current = paintFixture({ text: 'Command and Control Cycle 1 // Rev 4 Unavailable // charge Command and Control for this cycle.' });
+  assert.equal((await inspectWolfChoicePaint(current, { kind: 'command-and-control' }, view)).status, 'blocked');
+});
+
+test('the current manual phase and airspace cannot change while an original actor choice waits', async () => {
+  const { waitForWolfChoiceReadiness } = await moduleUnderTest();
+  for (const changed of [{ airspace: 'lifted' }, { turnStatePhase: 'team' }, { phaseProgression: 'automatic' }]) {
+    const original = actor({ airspace: 'restricted', turnStatePhase: 'coordination', phaseProgression: 'manual' });
+    const f = waitFixture({ actorRead: () => ({ ...original, ...changed }) });
+    await assert.rejects(waitForWolfChoiceReadiness({ ...f.options, original }));
+    assert.equal(f.counters().choiceReads, 0);
+  }
+});
+
 test('target-assignment readiness uses the actual assignments region and enabled selectors before an intended choice', async () => {
   const { inspectWolfChoicePaint } = await moduleUnderTest();
   const names = [];
@@ -315,4 +334,16 @@ test('the fallback resolver waits for a delayed mounted Wing choice without cycl
   const result = await resolveLiveWolfAttack(context, { tools, verifyReplay: false, timeoutMs: 5_000 });
   assert.equal(result.status, 'resolved'); assert.deepEqual(clicks, ['Launch Fighter Wing Alpha']);
   assert.deepEqual(selections, ['wing-commander'], 'Missing lazy paint must not visit EO or reload the same Wing account.');
+});
+
+test('explicit current UI blockers wait once for automatic source progress instead of starting a duplicate actor scan', async () => {
+  let reads = 0, scans = 0;
+  const current = () => attack(++reads >= 3 ? { status: 'resolved', currentStep: 'resolved', revision: 5 } : {});
+  const originalGm = actor({ uidHash: 'native-gm', profileRoleId: 'gm', activeConsoleRoleId: null,
+    playerRole: 'gm', instanceId: 'native-instance', gmInstanceOwned: true });
+  const tools = { read: async () => current(), state: async () => ({ phase: 'active', cycle: 1 }), record: async () => {} };
+  const result = await resolveLiveWolfAttack({ gm: { observe: async () => originalGm }, roster: [],
+    initial: { sessionId: 'native-session' } }, { tools, timeoutMs: 1_000, verifyReplay: false,
+    chooseNext: async () => { scans++; return { status: 'current-ui-blocked', reason: 'Current sources explicitly blocked.' }; } });
+  assert.equal(result.status, 'resolved'); assert.equal(scans, 1);
 });
