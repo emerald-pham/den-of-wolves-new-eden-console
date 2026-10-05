@@ -77,10 +77,8 @@ import { missionCraftIdsCarriedByShip, nextMissionCraftCommitments, parseMission
 import { planBoaMissionRewardDelivery, planMissionRewardDelivery } from './missionRewardDelivery';
 import { createAwayMissionLifecycleCallables } from './awayMissionLifecycleCallable';
 import { deriveAwayMissionParticipantCraftSnapshots } from './awayMissionCraftSnapshot';
-import { requireCandidateCraftAvailable, requireCandidateVesselsAvailable } from './candidateAvailability';
 import { createPermissionedDismantlingCallables } from './permissionedDismantlingCallable';
 import { createBoaMissionReclamationCallables } from './boaMissionReclamationCallable';
-import { auditedOnCall } from './securityCallable';
 import { createBoardingSecurityTeamCallable } from './boardingSecurityTeamCallable';
 import { createVoyage33MovementCallables } from './voyage33MovementCallable';
 import {
