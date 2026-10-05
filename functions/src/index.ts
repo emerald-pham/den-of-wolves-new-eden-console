@@ -18255,15 +18255,37 @@ export const resumeSession = auditedOnCall<{ sessionId?: string }>('resumeSessio
   if (!playerSnap.exists) {
     throw new HttpsError('permission-denied', 'You are no longer in that session.');
   }
+  if (sessionSnap.get('phase') === 'closed') {
+    // Closed history is a read-only reconnect for a player who still belongs
+    // to this session. The current-member reader rechecks identity, group and
+    // kick status in its own read transaction before any rate-limit marker is
+    // written; this branch never restores presence, a seat, or membership.
+    const historical = await currentMemberSessionReader({ auth: { uid }, data: { sessionId } });
+    await enforceExpensiveCallableRateLimit(db, { callableName: 'resumeSession', sessionId, uid });
+    const role = playerSnap.get('role') === 'gm' ? 'gm' : 'player';
+    const connectionGeneration = playerSnap.get('connectionGeneration');
+    return {
+      player: {
+        uid,
+        sessionId,
+        displayName: cleanName(playerSnap.get('displayName'), 'Player', 40),
+        role,
+        seatId: null,
+        ...(role === 'player' ? { fleetGroupId: historical.groupId } : {}),
+        activeConsoleRoleId: null,
+        connectionGeneration: Number.isSafeInteger(connectionGeneration) && Number(connectionGeneration) >= 1
+          ? Number(connectionGeneration) : 1,
+        joinedAt: isoOf(playerSnap.get('joinedAt')),
+      },
+      session: historical.session,
+    };
+  }
   if (isKickedPlayer(playerSnap)) {
     throw commandError(
       'failed-precondition',
       'This browser was kicked from that session and cannot rejoin.',
       'unauthorized',
     );
-  }
-  if (sessionSnap.get('phase') === 'closed') {
-    throw commandError('failed-precondition', 'That session has closed.', 'terminal-session');
   }
 
   await enforceExpensiveCallableRateLimit(db, { callableName: 'resumeSession', sessionId, uid });

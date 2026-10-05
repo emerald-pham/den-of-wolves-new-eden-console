@@ -44,7 +44,8 @@ export function createCurrentMemberSessionReader({ db, projectSession }: {
       let scope;
       try {
         scope = actor.get('role') === 'gm'
-          ? { groupId: 'gm', vesselIds: session.get('activeVesselIds') as readonly string[] }
+          ? { groupId: 'gm', vesselIds: Array.isArray(session.get('activeVesselIds'))
+            ? (session.get('activeVesselIds') as unknown[]).filter((id): id is string => typeof id === 'string') : [] }
           : memberSessionScope({ ...actor.data(), uid: actorUid,
             ...(closedHistory ? { connected: true } : {}) }, groups.docs.map(group => group.data()));
       } catch {
@@ -55,8 +56,18 @@ export function createCurrentMemberSessionReader({ db, projectSession }: {
         departure.get('fleetGroupId') === scope.groupId &&
         ['requested', 'in-transit'].includes(String(departure.get('status')))
           ? [departure.id] : []);
+      const source = closedHistory ? {
+        id: sessionId,
+        name: typeof session.get('name') === 'string' ? session.get('name') : '',
+        phase: 'closed',
+        currentTurn: session.get('currentTurn'),
+        playerCount: session.get('playerCount'),
+        turnLimit: session.get('turnLimit'),
+        createdAt: wire(session.get('createdAt')),
+        updatedAt: wire(session.get('updatedAt')),
+      } : projectSession(session, sessionId);
       const raw: Record<string, unknown> = {
-        ...projectSession(session, sessionId),
+        ...source,
         gameOutcome: session.get('gameOutcome'),
         survivorOutcome: session.get('survivorOutcome'),
         debriefSnapshot: session.get('debriefSnapshot'),
