@@ -516,3 +516,54 @@ budgets 1,850,458 / 491,219 / 512,000. Ship and governance entries remain outsid
 the landing graph. Evidence: `/tmp/pc09-risk-loading-repair-static-graph.json`.
 Server authority, Rules and deployment consumers are unchanged. Root retains
 the final typography, ticker, performance, metadata, CI and release gates.
+
+## Deployment-quota recovery delta — October 5, 2026
+
+The same reviewer inspected only the directly blocking release failure and its
+bounded helper/workflow repair, based on exact main
+`feb71f2d168f7301fc457a0dfdb06d46f6e02371`, at recovery candidate
+`be3097789552fc69efd7b510f0d62ab1eee187e5`. No remaining material defect was found
+in the reviewed delta. Earlier product findings and evidence limits remain
+preserved; actual recovered deployment is still pending.
+
+Run `37257836445` contains 200 unique successful Function operations and 16
+failed Functions, with mutation-rate 429 and regional CPU startup failures.
+Rules released; Hosting uploaded without publication, and subsequent IAM repair
+and final verification did not run. The original complete failure remains in
+`/tmp/dow-pc09-resumed-evidence/main-release-37257836445-failed.log`; the independent
+200/16 disposition is `/tmp/pc09-risk-partial-deploy-summary.json`. These results
+do not establish a completed release.
+
+The helper preserves all 216 audited names exactly once in 22 sequential
+Function batches (21 groups of ten and one of six), then Hosting/Firestore once.
+Malformed, duplicate and broad Function selectors fail before invocation; a
+failed batch prevents all later batches and surface publication. Pinned CLI
+15.29.0, verified artifacts, current-main protection and strict ready-revision,
+ACTIVE and existing IAM checks remain unchanged. The original explicit manual
+`workflow_dispatch` path is preserved separately; automatic releases have no
+broad fallback. No runtime CPU, quota, permission, source selector or version
+change is part of this repair. Batching follows
+[Firebase's deployment guidance](https://firebase.google.com/docs/functions/manage-functions?gen=2nd#deploy_functions).
+
+WIF lifetime was checked against the
+[auth v3 credential writer](https://github.com/google-github-actions/auth/blob/v3/src/client/workload_identity_federation.ts)
+and [pinned CLI authentication](https://github.com/firebase/firebase-tools/blob/v15.29.0/src/requireAuth.ts).
+The inherited ADC file obtains GitHub subject tokens through its URL and uses
+service-account impersonation; each CLI process requests credentials through
+GoogleAuth. This source-supported refresh path needs no token lifetime or IAM
+extension for the 90-minute job. Actual long-running provider success remains
+an execution result, not a claim from local tests. Explicitly named deployments
+also bypass unchanged-hash skipping in the
+[pinned planner](https://github.com/firebase/firebase-tools/blob/v15.29.0/src/deploy/functions/release/planner.ts),
+so recapturing all 216 revisions before the retry retains the existing strict
+requirement for every selected ready revision to advance.
+
+Independent checks pass all eight new contract tests, actual 216-name coverage,
+and five executions of the workflow shell using stub commands, including
+failure-stop and the manual-only boundary. No provider calls or services were
+started. Evidence is `/tmp/pc09-risk-deployment-batching-native-final.log`,
+`/tmp/pc09-risk-deployment-batching-coverage.json` and
+`/tmp/pc09-risk-deployment-manual-boundary.json`. Committed helper, test, both
+workflows and verifier content at `be3097789` independently match the recorded
+source hashes. Root owns exact-candidate CI, the bounded deployment and final
+Hosting/Rules/all-216 readiness and IAM verification before release closeout.
