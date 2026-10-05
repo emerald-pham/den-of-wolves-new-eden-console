@@ -14,12 +14,13 @@ function makeReadyShuttleRecipeHarness({ shuttleId, roleId, state, optionsByLabe
   const uid = `uid-${roleId}`;
   const uidHash = createHash('sha256').update(uid).digest('hex').slice(0, 16);
   let currentState = structuredClone(state);
+  let clickCount = 0;
   const makeLocator = options => ({
     count: async () => 1, isVisible: async () => true, isEnabled: async () => true,
     locator: () => ({ evaluateAll: async callback => callback(options ?? []) }),
     selectOption: async value => { makeLocator.selected = value; },
     inputValue: async () => makeLocator.selected ?? '',
-    click: async () => {},
+    click: async () => { clickCount += 1; },
   });
   const panel = {
     getByLabel: label => makeLocator(optionsByLabel[label] ?? []),
@@ -41,7 +42,8 @@ function makeReadyShuttleRecipeHarness({ shuttleId, roleId, state, optionsByLabe
   };
   const game = { select: async role => role === 'gm' ? gm : player };
   const context = { initial: { sessionId: 'recipe-session' }, roster: [{ roleId, uidHash }] };
-  return { context, game, player, setState: value => { currentState = structuredClone(value); }, baseState: structuredClone(state) };
+  return { context, game, player, setState: value => { currentState = structuredClone(value); },
+    baseState: structuredClone(state), clickCount: () => clickCount };
 }
 
 test('default source-mounted recipes cover the existing finite procedure rows exactly', () => {
@@ -396,8 +398,10 @@ test('ready service-shuttle factory captures host/custody/maintenance and reject
       shipFleetGroupIds: { icebreaker: 'fleet-a' },
       shuttleControl: { blacksmith: { holderUid: `uid-${roleId}`, revision: 7 } },
       shuttleDockings: [{ shuttleId: 'blacksmith', shipId: 'icebreaker' }],
-      maintenanceCycles: { icebreaker: { revision: 9 } },
-      serviceShuttleRecharges: { blacksmith: { revision: 3 } } },
+      shuttleFuelled: { blacksmith: true }, shipDamage: { icebreaker: { destroyed: false } },
+      turnPhase: { turn: 2, airspace: { state: 'lifted' } },
+      maintenanceCycles: { icebreaker: { turn: 2, completedAt: '2026-10-05T12:00:00.000Z', revision: 9 } },
+      serviceShuttleRecharges: { blacksmith: { cycle: 1, revision: 3 } } },
     optionsByLabel: { 'Host console': [{ value: 'hydroponics', textContent: 'Hydroponics', disabled: false }] } });
   const recipe = await createPendingProcedureDefaultSteps()['core:rechargeHostConsoleFromShuttle'](harness);
   assert.deepEqual({ host: recipe.expected.expectedHostShipId, custody: recipe.expected.controlRevision,
@@ -405,18 +409,25 @@ test('ready service-shuttle factory captures host/custody/maintenance and reject
   { host: 'icebreaker', custody: 7, maintenance: 9, source: 3 });
   const prepare = async () => recipe.prepare({ surface: harness.player, actor: await harness.player.observe(),
     source: { cycle: 2, phase: 'active' } });
-  assert.equal((await prepare()).offered, true);
+  const readyPlan = await prepare();
+  assert.equal(readyPlan.offered, true);
   const base = harness.baseState;
   const changedControl = structuredClone(base);
   changedControl.shuttleControl.blacksmith.revision += 1;
   harness.setState(changedControl);
   assert.equal((await prepare()).offered, false, 'a new custody revision invalidates the prepared action');
+  await assert.rejects(readyPlan.click(), /changed before the mounted action/);
+  assert.equal(harness.clickCount(), 0, 'stale custody is rejected before clicking');
   const changedMaintenance = structuredClone(base);
   changedMaintenance.maintenanceCycles.icebreaker.revision += 1;
   harness.setState(changedMaintenance);
   assert.equal((await prepare()).offered, false, 'a new host maintenance revision invalidates the prepared action');
+  await assert.rejects(readyPlan.click(), /changed before the mounted action/);
+  assert.equal(harness.clickCount(), 0, 'stale maintenance is rejected before clicking');
   const movedHost = structuredClone(base);
   movedHost.shuttleDockings[0].shipId = 'dione';
   harness.setState(movedHost);
   assert.equal((await prepare()).offered, false, 'a changed docked host invalidates the prepared target');
+  await assert.rejects(readyPlan.click(), /changed before the mounted action/);
+  assert.equal(harness.clickCount(), 0, 'a changed host is rejected before clicking');
 });
