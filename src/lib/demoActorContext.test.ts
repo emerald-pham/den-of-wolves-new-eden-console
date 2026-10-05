@@ -7,7 +7,9 @@ import {
   demoActorUrl,
   readDemoActorAccountUid,
   rememberDemoActorAccount,
+  demoActorPresenceAllowed,
 } from './demoActorContext';
+import type { GameSession } from '@/types/game';
 beforeEach(() => { localStorage.clear(); });
 
 describe('fixed-document demo actor context', () => {
@@ -55,5 +57,16 @@ describe('fixed-document demo actor context', () => {
     expect(readDemoActorAccountUid('admiral')).toBe('real-admiral');
     expect(() => rememberDemoActorAccount({ sessionId: 'session-b', roleId: 'admiral' }, 'replacement-uid')).toThrow(/identity/i);
     expect(JSON.stringify([...Array.from({ length: localStorage.length }, (_, i) => localStorage.getItem(localStorage.key(i)!))])).not.toMatch(/session-a|token|credential|password|secret/);
+  });
+
+  it('stops only terminal demo foreground leases while preserving normal presence', () => {
+    const profile = { sessionId: 'session-a', roleId: 'admiral' };
+    const active = { id: 'session-a', phase: 'active', fullGameDemo: { status: 'active', progression: 'manual' } } as unknown as GameSession;
+    expect(demoActorPresenceAllowed(active, profile)).toBe(true);
+    for (const ended of [{ ...active, phase: 'debrief' }, { ...active, phase: 'closed' },
+      { ...active, fullGameDemo: { status: 'complete', progression: 'manual' } }]) {
+      expect(demoActorPresenceAllowed(ended as GameSession, profile)).toBe(false);
+      expect(demoActorPresenceAllowed(ended as GameSession, null)).toBe(true);
+    }
   });
 });
