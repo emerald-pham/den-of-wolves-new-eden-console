@@ -286,7 +286,8 @@ it('preserves the actual member-safe candidate history without reapplying an emp
         rolls: [{ id: 'passage', face: 4, result: 'success', audience: 'members' }],
         losses: [{ shipId: 'aegis', reason: 'candidate-loss', audience: 'members' }],
         humanCalls: [{ id: 'facilitator-recovery', cycle: 4, audience: 'members' }],
-      }, { groupId: 'fleet-2', requirements: [{ id: 'foreign-requirement', status: 'blocked' }] }] } },
+      }, { groupId: 'fleet-2', requirements: [{ id: 'foreign-requirement', status: 'unmet' }],
+        rolls: [], losses: [], humanCalls: [] }] } },
   });
   expect(envelope.session.debriefSnapshot).toMatchObject({ candidate: { groups: [{
     losses: [{ shipId: 'aegis', reason: 'candidate-loss' }],
