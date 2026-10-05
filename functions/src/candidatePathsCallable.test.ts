@@ -40,15 +40,16 @@ const db = { doc: ref, collection: (path: string) => ({ path, collection: true }
 const die = vi.fn(() => 6);
 const requireShipAuthority = vi.fn(async () => undefined);
 const commitTerminal = vi.fn(async (_tx, _ref, _session, input) => input);
+const survivorOutcome = vi.fn((session) => ({ type: 'survivor-outcome', finalSurvivors: session.get('shipSurvivors.shepherd') }));
 const handlers = createCandidateCallables({ db, die, now: () => new Date('2026-10-05T12:00:00Z'),
-  requireShipAuthority, commitTerminal, serverTimestamp: () => 'server-time' });
+  requireShipAuthority, commitTerminal, survivorOutcome, serverTimestamp: () => 'server-time' });
 const request = (data: Fields, uid = 'admiral') => ({ data, auth: { uid } });
 const command = { sessionId: 's1', requestId: 'n1', expectedRevision: 0,
   expectedGroupId: 'fleet-1', code: 'O', coordinate: '0408', action: 'nebula-jump', shipId: 'aegis' };
 const put = (path: string, value: Fields) => documents.set(path, value);
 
 beforeEach(() => {
-  documents.clear(); die.mockClear(); requireShipAuthority.mockClear(); commitTerminal.mockClear();
+  documents.clear(); die.mockClear(); requireShipAuthority.mockClear(); commitTerminal.mockClear(); survivorOutcome.mockClear();
   put('sessions/s1', { phase: 'active', currentTurn: 6, chartId: 'A', configurationLocked: true,
     activeVesselIds: ['aegis', 'shepherd'], activeRoleIds: ['admiral', 'shepherd-captain'],
     fullGameDemo: { status: 'active', progression: 'manual' },
@@ -121,6 +122,9 @@ describe('ordinary candidate callable authority and durable replay', () => {
     expect(commitTerminal.mock.calls[0]?.[3].candidate.groups[0].losses).toEqual([
       { shipId: 'aegis', reason: 'lost-in-nebula', audience: 'members' },
     ]);
+    expect(survivorOutcome).toHaveBeenCalledTimes(1);
+    expect(survivorOutcome.mock.calls[0]?.[0].get('shipSurvivors.aegis')).toBe(0);
+    expect(commitTerminal.mock.calls[0]?.[3].survivorOutcome).toMatchObject({ type: 'survivor-outcome', finalSurvivors: 5000 });
   });
   it('writes standard private procedure evidence once and does not replace it on original-result recovery', async () => {
     await handlers.execute(request(command));
