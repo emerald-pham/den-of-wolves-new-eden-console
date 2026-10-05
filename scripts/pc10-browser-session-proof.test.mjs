@@ -1340,3 +1340,79 @@ test('accounted metadata does not waive JSON validity or leak request IDs and pr
     assert.equal(JSON.stringify(fixture.actor.observedCalls).includes(privateValue), false);
   }
 });
+
+async function tableCaptureOptionFixture() {
+  const calls = { mkdir: 0, sourceRead: 0, launches: 0, actors: [], fixture: 0, writes: [] };
+  const roles = Array.from({ length: 20 }, (_, index) => `native-role-${index}`);
+  const browser = { close: async () => undefined };
+  const fixture = { roles, players: roles.map((_, index) => ({ localId: `native-actor-${index}` })),
+    press: { localId: 'native-press' }, gm: { localId: 'native-gm' },
+    call: async () => undefined, cleanup: async () => undefined };
+  // Execute the actual table function with native ports. Only import.meta's
+  // lexical URL needs substitution to evaluate the function in a VM context.
+  // No filesystem, SDK, browser, subprocess or network port performs real I/O.
+  const createTable = runInNewContext(`(${proof.createPc10BrowserTable.toString()
+    .replaceAll('import.meta.url', 'pc10ModuleUrl')})`, {
+    assert, URL, createHash, process: { env: { VITE_FIREBASE_PROJECT_ID: 'demo-native-table' } },
+    pc10ModuleUrl: new URL('./pc10-browser-session-proof.mjs', import.meta.url).href,
+    mkdir: async () => { calls.mkdir++; },
+    execFileSync: () => { calls.sourceRead++; return 'native-source-binding'; },
+    readFile: async () => Buffer.from('native-compiled-binding'),
+    compiledFunctionsBinding: async () => ({ sha256: 'native-compiled-tree-binding' }),
+    createRequire: () => () => ({ recommendedRoleIds: count => { assert.equal(count, 20); return roles; } }),
+    chromium: { launch: async () => { calls.launches++; return browser; } },
+    PC10_PROOF_CALLABLE_ACTIONS: (await import('./pc10-proof-diagnostics.mjs')).PC10_PROOF_CALLABLE_ACTIONS,
+    createPc10BrowserActor: async (actualBrowser, baseUrl, label, viewport, options) => {
+      assert.equal(actualBrowser, browser);
+      calls.actors.push({ baseUrl, label, viewport, captureMode: options?.captureMode });
+      return { label, join: async () => undefined, errors: [], observedCalls: [],
+        callableObservationFailures: [], callableObservationBoundaries: [], identityObservations: [],
+        drainObservedCalls: async () => undefined };
+    },
+    createPc07AuthenticatedSession: async () => { calls.fixture++; return fixture; },
+    writeFile: async (path, content) => { calls.writes.push({ path, evidence: JSON.parse(content) }); },
+  });
+  return { calls, create: options => createTable({ baseUrl: 'http://localhost:5173',
+    directory: '/native-evidence-no-write', ...options }) };
+}
+
+test('the table opt-in forwards stream capture to all twenty core actors and the independent Press actor', async () => {
+  const fixture = await tableCaptureOptionFixture();
+  const table = await fixture.create({ captureMode: 'stream' });
+  assert.equal(fixture.calls.actors.length, 21);
+  assert.equal(new Set(fixture.calls.actors.map(actor => actor.label)).size, 21);
+  assert.equal(fixture.calls.actors.at(-1).label, 'press-officer');
+  for (const actor of fixture.calls.actors) {
+    assert.equal(actor.captureMode, 'stream');
+    assert.equal(actor.viewport, undefined, 'Retain the existing actor viewport default.');
+  }
+  const evidence = await table.writeEvidence('native-mode.json');
+  assert.equal(evidence.captureMode, 'stream');
+  assert.equal(evidence.actualIndependentBrowserContexts, 21);
+  assert.equal(fixture.calls.writes[0].evidence.captureMode, 'stream');
+  await table.cleanup();
+});
+
+test('omitted and explicit durable table options retain durable capture for every actor and the evidence', async () => {
+  for (const options of [{}, { captureMode: 'durable' }]) {
+    const fixture = await tableCaptureOptionFixture();
+    const table = await fixture.create(options);
+    assert.equal(fixture.calls.actors.length, 21);
+    for (const actor of fixture.calls.actors) assert.equal(actor.captureMode, 'durable');
+    assert.equal((await table.writeEvidence('native-mode.json')).captureMode, 'durable');
+    await table.cleanup();
+  }
+});
+
+test('invalid table capture modes fail before any directory, compiled read, browser or admission port runs', async () => {
+  for (const captureMode of [null, '', false, 'buffer', 'STREAM', {}]) {
+    const fixture = await tableCaptureOptionFixture();
+    await assert.rejects(fixture.create({ captureMode }), /Unsupported callable body capture mode/);
+    assert.equal(fixture.calls.mkdir, 0);
+    assert.equal(fixture.calls.sourceRead, 0);
+    assert.equal(fixture.calls.launches, 0);
+    assert.equal(fixture.calls.actors.length, 0);
+    assert.equal(fixture.calls.fixture, 0);
+    assert.equal(fixture.calls.writes.length, 0);
+  }
+});
