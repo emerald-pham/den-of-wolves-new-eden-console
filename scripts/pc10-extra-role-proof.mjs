@@ -222,7 +222,7 @@ export async function runExtraRoleProof() {
   evidence.bindingAtStart = await binding(); await save();
   try {
     await runFreshFullGameDemoUi({ sourceRoot: root, baseUrl: 'http://127.0.0.1:5182', projectId: 'demo-pc10-extra-roles',
-      ports: { auth: 9189, functions: 5091, firestore: 8170 }, directory, playerCount: 8, includePress: false,
+      ports: { auth: 9189, functions: 5091, firestore: 8170 }, directory, playerCount: 8, includePress: true,
       capybaraEnabled: true, chartId: 'B', gameplayOnly: true, onStage: stage,
       onBeforeStart: chooseUnionHosts, runEnding: runJoint });
     evidence.status = 'passed scoped actions';
