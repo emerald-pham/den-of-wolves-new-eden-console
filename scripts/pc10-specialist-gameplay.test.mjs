@@ -1,10 +1,49 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  createSpecialistGameplayDriver,
   SPECIALIST_ACTION_MAP,
   projectSpecialistActionEvidence,
   sameActionReceipt,
 } from './pc10-specialist-gameplay.mjs';
+
+test('specialist driver waits for matching live GM and ordinary crew projections and a visible result', async () => {
+  const gm = { label: 'gm' }, crew = { label: 'crew' };
+  const live = { live: true, sessionId: 'fresh-session', cycle: 1 };
+  const actor = { uidHash: 'same-actor-hash', sessionId: 'fresh-session', sameActor: true,
+    profileRoleId: 'capybara-recycler', activeConsoleRoleId: 'capybara-recycler',
+    connection: 'live', freshness: 'server' };
+  let polls = 0;
+  const game = {
+    context: { gm, initial: { sessionId: 'fresh-session' } },
+    state: async surface => surface === gm
+      ? polls === 0 ? { ...live, live: false } : live
+      : live,
+  };
+  const driver = createSpecialistGameplayDriver(game, { wait: async () => { polls += 1; } });
+  const proof = await driver.waitForCommit({ surface: crew, actor,
+    inspect: async ({ gmState, crewState, actor: currentActor }) => ({
+      ready: gmState.live && crewState.live && currentActor.activeConsoleRoleId === 'capybara-recycler',
+      gmRevision: 9, crewRevision: 9, renderedStatusCode: 'public-result-visible',
+    }) });
+  assert.equal(polls, 1, 'Do not accept an optimistic result before the GM projection is current.');
+  assert.deepEqual(proof.gm, { source: 'server', cycle: 1, revision: 9, status: 'committed' });
+  assert.deepEqual(proof.crew, { source: 'server', cycle: 1, revision: 9, status: 'committed' });
+  assert.equal(proof.renderedStatus, 'public-result-visible');
+});
+
+test('specialist driver never commits a projection from another session or changed actor', async () => {
+  const gm = { label: 'gm' }, crew = { label: 'crew' };
+  const game = { context: { gm, initial: { sessionId: 'fresh-session' } },
+    state: async () => ({ live: true, sessionId: 'other-session', cycle: 1 }) };
+  const driver = createSpecialistGameplayDriver(game, { now: () => 1, timeoutMs: 0 });
+  const actor = { uidHash: 'same-actor-hash', sessionId: 'fresh-session', sameActor: true,
+    profileRoleId: 'capybara-recycler', activeConsoleRoleId: 'capybara-recycler',
+    connection: 'live', freshness: 'server' };
+  await assert.rejects(driver.waitForCommit({ surface: crew, actor,
+    inspect: async () => ({ ready: true, gmRevision: 9, crewRevision: 9,
+      renderedStatusCode: 'public-result-visible' }) }), /fresh-session|same normally authenticated actor/i);
+});
 
 test('specialist evidence keeps only bounded action, actor, revision, cost, and result fields', () => {
   const evidence = projectSpecialistActionEvidence({
