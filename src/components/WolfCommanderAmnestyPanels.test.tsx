@@ -157,7 +157,7 @@ it('keeps a target captain response available after the recorded deadline in man
   const user = userEvent.setup();
   render(<WolfAmnestyCaptainPanel shipId="dione" />);
 
-  expect(await screen.findByText(/no wall-clock expiry/i)).toBeVisible();
+  expect(await screen.findByRole('region', { name: 'Wolf amnesty offer' })).toHaveTextContent(/no wall-clock expiry/i);
   expect(screen.queryByText(/response deadline passed/i)).not.toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Accept offer' })).toBeEnabled();
   await user.click(screen.getByRole('button', { name: 'Accept offer' }));
@@ -173,9 +173,10 @@ it('allows a current GM to make an explicit manual demo amnesty ruling without a
   render(<GmWolfAmnestyPanel />);
 
   expect(await screen.findByText(/manual full-game demo.*no response countdown/i)).toBeVisible();
-  expect(screen.getByRole('button', { name: 'Record facilitator consequence' })).toBeEnabled();
+  expect(screen.getByRole('button', { name: 'Record facilitator consequence' })).toBeDisabled();
   const consequence = 'A deliberate training consequence after a captain review.';
   await user.type(screen.getByRole('textbox', { name: 'Facilitator consequence' }), consequence);
+  expect(screen.getByRole('button', { name: 'Record facilitator consequence' })).toBeEnabled();
   await user.click(screen.getByRole('button', { name: 'Record facilitator consequence' }));
   await waitFor(() => expect(mocks.consequence).toHaveBeenCalledWith(1, consequence));
 });
@@ -188,6 +189,6 @@ it('removes the unused response deadline control from a manual full-game demo of
   render(<WolfCommanderAddressAmnestyPanel />);
 
   expect(await screen.findByRole('heading', { name: 'Commander address and amnesty' })).toBeVisible();
-  expect(screen.getByText(/manual full-game demo.*no wall-clock expiry/i)).toBeVisible();
+  expect(screen.getByText(/no wall-clock expiry in this manual full-game demo/i)).toBeVisible();
   expect(screen.queryByRole('combobox', { name: 'Response deadline' })).not.toBeInTheDocument();
 });
