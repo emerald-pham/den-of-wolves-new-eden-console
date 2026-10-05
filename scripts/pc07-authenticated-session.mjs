@@ -62,7 +62,7 @@ export async function joinConfiguredBrowserPlayers({roles,players,joinCode,brows
 }
 
 /** Normal local Auth/HTTP setup. Tokens stay in memory and never enter evidence. */
-export async function createPc07AuthenticatedSession(name,playerCount=8,{clearBriefing=true,keepAlive=false,serializeFixtureCalls=false,browserOwnsPresence=false,expansion='base',capybaraEnabled=expansion==='capybara',browserRoleId,joinBrowserPlayer,joinBrowserPlayers,joinPressPlayer,activeRoleIdsOverride,unionCraftStartingHosts={},explicitLoyaltySetup}={}) {
+export async function createPc07AuthenticatedSession(name,playerCount=8,{clearBriefing=true,keepAlive=false,serializeFixtureCalls=false,browserOwnsPresence=false,expansion='base',capybaraEnabled=expansion==='capybara',fullGameManual=false,chartId='A',turnLimit=6,browserRoleId,joinBrowserPlayer,joinBrowserPlayers,joinPressPlayer,activeRoleIdsOverride,unionCraftStartingHosts={},explicitLoyaltySetup}={}) {
  const env=Object.fromEntries((await readFile('.env.emulators.local','utf8')).trim().split('\n').map(line=>line.split('=')));
  const project=process.env.VITE_FIREBASE_PROJECT_ID;
  const config=localGmAccessConfiguration('serve',{...env,VITE_LOCAL_GM_ACCESS:'1',VITE_FIREBASE_PROJECT_ID:project});
@@ -134,8 +134,15 @@ export async function createPc07AuthenticatedSession(name,playerCount=8,{clearBr
   const roles=activeRoleIdsOverride??recommendedRoleIds(playerCount);
   const explicitAssignments=explicitLoyaltySetup
    ?buildPc07ExplicitLoyaltyAssignments(roles,explicitLoyaltySetup):null;
-  const confirmed=ok(await call(gm,'confirmSetup',{sessionId,instanceId,requestId:randomUUID(),expectedSetupRevision:created.session.setupRevision??0,playerCount,chartId:'A',lockChart:true,expansion,turnLimit:6,dioneEnabled:playerCount>=12,capybaraEnabled,universalArbourEnabled:false,wolfCultEnabled:explicitLoyaltySetup!==undefined,activeRoleIds:roles}),'confirm');
+  const confirmed=ok(await call(gm,'confirmSetup',{sessionId,instanceId,requestId:randomUUID(),expectedSetupRevision:created.session.setupRevision??0,playerCount,chartId,lockChart:true,expansion,turnLimit,dioneEnabled:playerCount>=12,capybaraEnabled,universalArbourEnabled:false,wolfCultEnabled:explicitLoyaltySetup!==undefined,activeRoleIds:roles}),'confirm');
   let setupRevision=(await session.get()).get('setupRevision')??confirmed.setupRevision??created.session.setupRevision??0;
+  if(fullGameManual){
+   // The actual live GM permanently prepares the fresh training session
+   // before any ordinary player joins. No chart or timer state is seeded.
+   const prepared=ok(await call(gm,'prepareFullGameDemo',{sessionId,instanceId,requestId:randomUUID(),expectedSetupRevision:setupRevision}),'prepare full-game demo');
+   assert.equal(prepared.status,'committed');
+   assert.deepEqual(prepared.fullGameDemo,{status:'preparing',progression:'manual'});
+  }
   const unionCraftSetupProof=[];
   for(const [craftId,hostShipId]of Object.entries(unionCraftStartingHosts)){
    const expectedSetupRevision=setupRevision;
@@ -195,7 +202,8 @@ export async function createPc07AuthenticatedSession(name,playerCount=8,{clearBr
    if(shouldMaintainFixturePresence({browserControlled:true,browserOwnsPresence,serializeFixtureCalls})){
     heartbeatPlayers.set(press.localId,{actor:press,label:'press'});}}
   const current=ok(await call(gm,'resumeSession',{sessionId,instanceId}),'GM resume');
-  ok(await call(gm,'startGame',{sessionId,instanceId,requestId:randomUUID(),expectedSetupRevision:current.session.setupRevision}),'start');
+  ok(await call(gm,'startGame',{sessionId,instanceId,requestId:randomUUID(),expectedSetupRevision:current.session.setupRevision,
+   ...(fullGameManual?{fullGameDemo:true}:{})}),'start');
   const hold=(await session.get()).get('turnPhase').timerPause;
   if(clearBriefing)ok(await call(players[0],'clearTurnAdvanceInterstitial',{sessionId,expectedCycle:1,expectedPausedAt:hold.pausedAt,requestId:randomUUID()}),'briefing clear');
   const loyaltyActors=explicitLoyaltySetup?{
