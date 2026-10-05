@@ -85,7 +85,9 @@ test('specialist action steps use the offered rendered control and caller-select
 
 test('specialist actions leave missing live opportunities and private choices explicitly uncredited', async () => {
   let selects = 0, captures = 0;
-  const surface = { page: { getByRole: () => ({ isVisible: async () => false }) },
+  const unavailableRegion = { getByRole: () => ({ isVisible: async () => false }),
+    getByLabel: () => ({ selectOption: async () => undefined }) };
+  const surface = { page: { getByRole: () => unavailableRegion },
     observe: async () => ({ sameActor: true, sessionId: 'fresh-session', uidHash: 'recycler-hash',
       profileRoleId: 'capybara-recycler', activeConsoleRoleId: 'capybara-recycler',
       connection: 'live', freshness: 'server' }) };
