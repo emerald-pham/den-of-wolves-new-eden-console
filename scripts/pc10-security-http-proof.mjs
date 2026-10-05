@@ -35,6 +35,9 @@ async function compiledTreeSha256() {
   return hash.digest('hex');
 }
 const functionsCompiledTreeSha256 = await compiledTreeSha256();
+const functionsSourceCommit = process.env.PC10_FUNCTIONS_SOURCE_COMMIT
+  ? execFileSync('git', ['rev-parse', '--verify', process.env.PC10_FUNCTIONS_SOURCE_COMMIT], { encoding: 'utf8' }).trim()
+  : null;
 
 async function joinBrowserPlayer(joinCode) {
   browser = await chromium.launch({ channel: 'chrome', headless: true });
@@ -200,6 +203,13 @@ try {
   await page.getByRole('heading', { name: 'AEGIS', exact: true }).waitFor();
   await page.getByRole('heading', { name: 'Stations and consoles', exact: true }).waitFor({ state: 'hidden' });
   await page.getByRole('button', { name: 'Build 1 fighter // 1 material', exact: true }).first().waitFor();
+  await page.waitForFunction(async url => {
+    const { useSessionStore } = await import(url);
+    const current = useSessionStore.getState();
+    return current.session?.playerDiscovery?.shipId === 'aegis' &&
+      current.session.playerDiscovery.groupId === current.me?.fleetGroupId &&
+      Object.hasOwn(current.session.shipGalacticCoordinates ?? {}, 'aegis');
+  }, sessionStoreUrl, { timeout: 30000 });
   const ui = await page.evaluate(async url => {
     const { useSessionStore, SESSION_STORAGE_KEY } = await import(url);
     const current = useSessionStore.getState();
@@ -256,7 +266,7 @@ try {
   checks.sessionIdentityBudgetPreservesSharedNetworkActors = { successfulReads, separatePlayerAccepted: true, gmAccepted: true };
   assert.deepEqual(browserErrors, []);
   const report = { type: 'pc10-security-native-proof', sourceCommit: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
-    functionsSourceCommit: process.env.PC10_FUNCTIONS_SOURCE_COMMIT ?? null,
+    functionsSourceCommit,
     functionsCompiledTreeSha256,
     sessionHash: sha(sessionId), actorClients: 9, browserContexts: 1,
     overlappingActionClients: 2, actualHumanDevices: 0,
