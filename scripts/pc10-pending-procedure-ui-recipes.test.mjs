@@ -144,3 +144,100 @@ test('Boa mission choice receipt binds its choice revision to the current render
     request: { ...input.request, expectedChoiceRevision: 6 } });
   assert.equal(staleChoice.status, 'pending', 'A receipt cannot certify a choice made from another source revision.');
 });
+
+// Reason: these callable contracts have authoritative typed before/after state
+// and exact receipts but do not expose a new monotonic action revision. The
+// recipe must validate their exact request/receipt/state tuple rather than
+// treating the unchanged shuttle-control revision as an artificial blocker.
+test('departure request can complete from its exact typed server movement receipt', () => {
+  const actor = { uidHash: 'holder-hash', sessionId: 'session-1', profileRoleId: 'quellon-explorer',
+    activeConsoleRoleId: 'quellon-explorer', sameActor: true, connection: 'live', freshness: 'server' };
+  const result = { status: 'requested', sessionId: 'session-1', requestId: 'depart-1', shuttleId: 'starlight',
+    holderUid: 'private-holder-uid', fleetGroupId: 'fleet-1', originShipId: 'quellon', destinationShipId: 'icebreaker',
+    cycle: 2, controlRevision: 4, requestedAt: '2026-10-05T12:00:00.000Z' };
+  const input = { caseId: 'core:requestShuttleDeparture', expected: { sessionId: 'session-1', uidHash: 'holder-hash',
+    roleId: 'quellon-explorer', cycle: 2, sourceRevision: 4, controlRevision: 4, groupId: 'fleet-1',
+    shuttleId: 'starlight', destinationShipId: 'icebreaker' }, offered: true, mountedUi: true,
+    actorBefore: actor, actorAfter: actor,
+    sourceBefore: { live: true, sessionId: 'session-1', cycle: 2, revision: 4, groupId: 'fleet-1' },
+    sourceAfter: { live: true, sessionId: 'session-1', cycle: 2, revision: 4, groupId: 'fleet-1' },
+    transitionBefore: { kind: 'shuttle-movement', exists: false, sessionId: 'session-1', shuttleId: 'starlight',
+      holderUidHash: 'holder-hash', groupId: 'fleet-1', controlRevision: 4, cycle: 2 },
+    transitionAfter: { kind: 'shuttle-movement', exists: true, status: 'requested', sessionId: 'session-1',
+      requestId: 'depart-1', shuttleId: 'starlight', holderUidHash: 'holder-hash', groupId: 'fleet-1',
+      destinationShipId: 'icebreaker', controlRevision: 4, cycle: 2 },
+    request: { sessionId: 'session-1', requestId: 'depart-1', shuttleId: 'starlight', destinationShipId: 'icebreaker',
+      expectedControlRevision: 4, expectedCycle: 2 },
+    response: { httpStatus: 200, result, exactReplay: true },
+    replay: { result: { ...result, status: 'replayed' } },
+    rendered: { visible: true, resultStatus: 'requested' } };
+  assert.equal(evaluateProcedureCapture(input).status, 'completed');
+  assert.equal(evaluateProcedureCapture({ ...input,
+    transitionAfter: { ...input.transitionAfter, holderUidHash: 'foreign-holder' } }).status, 'pending');
+  assert.equal(evaluateProcedureCapture({ ...input,
+    transitionAfter: { ...input.transitionAfter, destinationShipId: 'dione' } }).status, 'pending');
+  assert.equal(evaluateProcedureCapture({ ...input,
+    transitionAfter: { ...input.transitionAfter, unreviewed: true } }).status, 'pending');
+});
+
+test('cargo transfer can complete only from the exact two-sided source ledger delta', () => {
+  const actor = { uidHash: 'holder-hash', sessionId: 'session-1', profileRoleId: 'quellon-explorer',
+    activeConsoleRoleId: 'quellon-explorer', sameActor: true, connection: 'live', freshness: 'server' };
+  const result = { status: 'committed', sessionId: 'session-1', requestId: 'cargo-1', shuttleId: 'starlight',
+    hostShipId: 'quellon', resourceId: 'food', direction: 'load', amount: 1, shipAmount: 4, shuttleAmount: 3 };
+  const input = { caseId: 'core:transferShuttleCargoCommand', expected: { sessionId: 'session-1', uidHash: 'holder-hash',
+    roleId: 'quellon-explorer', cycle: 2, sourceRevision: 4, controlRevision: 4, groupId: 'fleet-1',
+    shuttleId: 'starlight', hostShipId: 'quellon', resourceId: 'food', direction: 'load', amount: 1 },
+    offered: true, mountedUi: true, actorBefore: actor, actorAfter: actor,
+    sourceBefore: { live: true, sessionId: 'session-1', cycle: 2, revision: 4, groupId: 'fleet-1' },
+    sourceAfter: { live: true, sessionId: 'session-1', cycle: 2, revision: 4, groupId: 'fleet-1' },
+    transitionBefore: { kind: 'shuttle-cargo', sessionId: 'session-1', cycle: 2, shuttleId: 'starlight',
+      holderUidHash: 'holder-hash', groupId: 'fleet-1', controlRevision: 4, hostShipId: 'quellon',
+      resourceId: 'food', direction: 'load', amount: 1, shipAmount: 5, shuttleAmount: 2 },
+    transitionAfter: { kind: 'shuttle-cargo', sessionId: 'session-1', cycle: 2, shuttleId: 'starlight',
+      holderUidHash: 'holder-hash', groupId: 'fleet-1', controlRevision: 4, hostShipId: 'quellon',
+      resourceId: 'food', direction: 'load', amount: 1, shipAmount: 4, shuttleAmount: 3 },
+    request: { sessionId: 'session-1', requestId: 'cargo-1', shuttleId: 'starlight', resourceId: 'food',
+      direction: 'load', amount: 1, expectedControlRevision: 4 },
+    response: { httpStatus: 200, result, exactReplay: true },
+    replay: { result: { ...result, status: 'replayed' } },
+    rendered: { visible: true, resultStatus: 'committed' } };
+  assert.equal(evaluateProcedureCapture(input).status, 'completed');
+  assert.equal(evaluateProcedureCapture({ ...input,
+    transitionAfter: { ...input.transitionAfter, shuttleAmount: 4 } }).status, 'pending');
+  assert.equal(evaluateProcedureCapture({ ...input,
+    request: { ...input.request, amount: 2 } }).status, 'pending');
+  assert.equal(evaluateProcedureCapture({ ...input,
+    response: { ...input.response, result: { ...result, privateUid: 'must-not-be-accepted' } } }).status, 'pending');
+});
+
+test('begin transit binds the prior departure and current public transit projection', () => {
+  const actor = { uidHash: 'holder-hash', sessionId: 'session-1', profileRoleId: 'quellon-explorer',
+    activeConsoleRoleId: 'quellon-explorer', sameActor: true, connection: 'live', freshness: 'server' };
+  const result = { status: 'in-transit', sessionId: 'session-1', requestId: 'depart-1', transitRequestId: 'transit-1',
+    shuttleId: 'starlight', holderUid: 'private-holder-uid', fleetGroupId: 'fleet-1', destinationShipId: 'icebreaker',
+    cycle: 2, controlRevision: 4, revision: 1, requestedAt: '2026-10-05T12:00:00.000Z',
+    currentPosition: { x: 0, y: 0, z: 0 }, destinationPosition: { x: 1, y: 1, z: 1 }, velocity: { x: 1, y: 1, z: 1 },
+    departedAt: '2026-10-05T12:00:01.000Z', arrivesAt: '2026-10-05T12:01:01.000Z' };
+  const input = { caseId: 'core:beginShuttleTransit', expected: { sessionId: 'session-1', uidHash: 'holder-hash',
+    roleId: 'quellon-explorer', cycle: 2, sourceRevision: 4, controlRevision: 4, groupId: 'fleet-1',
+    shuttleId: 'starlight' }, offered: true, mountedUi: true, actorBefore: actor, actorAfter: actor,
+    sourceBefore: { live: true, sessionId: 'session-1', cycle: 2, revision: 4, groupId: 'fleet-1' },
+    sourceAfter: { live: true, sessionId: 'session-1', cycle: 2, revision: 1, groupId: 'fleet-1' },
+    transitionBefore: { kind: 'shuttle-movement', exists: true, status: 'requested', sessionId: 'session-1',
+      requestId: 'depart-1', shuttleId: 'starlight', holderUidHash: 'holder-hash', groupId: 'fleet-1',
+      destinationShipId: 'icebreaker', controlRevision: 4, cycle: 2 },
+    transitionAfter: { kind: 'shuttle-movement', exists: true, status: 'in-transit', sessionId: 'session-1',
+      requestId: 'depart-1', transitRequestId: 'transit-1', shuttleId: 'starlight', holderUidHash: 'holder-hash',
+      groupId: 'fleet-1', destinationShipId: 'icebreaker', controlRevision: 4, cycle: 2, revision: 1 },
+    request: { sessionId: 'session-1', requestId: 'transit-1', shuttleId: 'starlight',
+      expectedDepartureRequestId: 'depart-1', expectedControlRevision: 4, expectedCycle: 2 },
+    response: { httpStatus: 200, result, exactReplay: true },
+    replay: { result: { ...result, status: 'replayed' } },
+    rendered: { visible: true, resultStatus: 'in-transit' } };
+  assert.equal(evaluateProcedureCapture(input).status, 'completed');
+  assert.equal(evaluateProcedureCapture({ ...input,
+    request: { ...input.request, expectedDepartureRequestId: 'foreign-departure' } }).status, 'pending');
+  assert.equal(evaluateProcedureCapture({ ...input,
+    transitionAfter: { ...input.transitionAfter, revision: 2 } }).status, 'pending');
+});
