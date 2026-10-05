@@ -470,3 +470,49 @@ This completes the bounded independent product verification. Physical
 attendance, physical-device play, production gameplay and actual release are
 outside the captured evidence. The owner's final whole-suite/release gates,
 0.5.68/703 catalog metadata, exact-candidate CI and deployment remain next steps.
+
+## Startup-loading delta — October 5, 2026
+
+The same reviewer examined only the release-blocking startup changes
+`5ae27714`, `caa739d5` and `9f2afeb3`, then their bounded rejection repair at
+`779c30813f758509f83cad55cc5fbcb864abc226`. The existing review and its evidence
+limits remain preserved. No remaining material loading-delta defect was found.
+
+**P2, closed — rejected deferred modules removed the application.** At
+`9f2afeb3`, `src/App.tsx:76`, `:1119`, `:1179` and `:1193` used Suspense without
+error containment for the newly deferred Ship, Crisis, President and Election
+modules. Rejecting the actual lazy import after its pending Back control
+appeared let the error escape App, removing the routed UI and return control.
+The independent native failure is preserved in
+`/tmp/pc09-risk-loading-rejection.log` and its external probe. Permanent red
+`6348e8e4` reproduces all four cases; test-only `d15f21f8` adds the required
+typed join code without changing assertions. Product `779c3081` contains these
+four failures, retains route Back/reload notices and isolates crisis failure
+with a session/UID key. The single CSS rule positions that notice below the
+header; existing action-button tokens supply its touch target and typography.
+
+The initial focused checks passed 240 tests in nine App/ship-navigation/crisis/
+governance files. On the repaired source, only the four changed rejection
+regressions were rerun; all pass, as does strict app typecheck. Logs:
+`/tmp/pc09-risk-loading-repair-native.log` and
+`/tmp/pc09-risk-loading-repair-typecheck.log`. Local review source
+`e5bf14eb9b78c764dd660858137d450363265466` has matching App, CSS and regression
+hashes to root `779c3081`. No earlier server suite or SDK inventory was repeated.
+
+Prepared browser script `40b5fe9d` and
+`/tmp/dow-pc09-resumed-evidence/deferred-route-recovery-controls/result.json`
+were inspected without starting services or browsers. Three pending-load and
+twelve actual rejected-download cases pass across phone, desktop and landscape:
+keyboard Back, retained fixture identity, 44-pixel Back/reload controls,
+monospace/loaded fonts, no horizontal overflow and readable header clearance.
+Representative screenshots were inspected. Page exceptions are zero; the
+twelve deliberate module failures and blocked remote requests remain labelled.
+This is prepared local presentation, with no Auth or gameplay claim. Earlier
+fixture/locator and undersized-reload failures remain failed evidence.
+
+Independent read-only measurement of the final static graph yields 1,705,355
+raw bytes, 453,409 gzip bytes and a 497,246-byte largest chunk, below unchanged
+budgets 1,850,458 / 491,219 / 512,000. Ship and governance entries remain outside
+the landing graph. Evidence: `/tmp/pc09-risk-loading-repair-static-graph.json`.
+Server authority, Rules and deployment consumers are unchanged. Root retains
+the final typography, ticker, performance, metadata, CI and release gates.
