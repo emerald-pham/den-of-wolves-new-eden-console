@@ -25,6 +25,7 @@ const mock = vi.hoisted(() => ({
   turnStartAnnouncement: undefined as unknown,
   pendingTeamAnnouncements: undefined as unknown,
   turnPhase: undefined as unknown, turnState: undefined as unknown, phase: 'active' as string,
+  fullGameDemo: undefined as unknown,
   smallShipStates: {} as Record<string, unknown>,
   turnLimit: 6 as 6 | 7 | 8, pressDispatch: undefined as unknown,
   fleetTicker: undefined as unknown,
@@ -523,6 +524,7 @@ beforeEach(() => {
   };
   mock.turnState = undefined;
   mock.turnLimit = 6;
+  mock.fullGameDemo = undefined;
   mock.race = undefined;
   mock.pressDispatch = undefined;
   mock.pressEnabled = true;
@@ -667,6 +669,7 @@ beforeEach(() => {
           shuttleControl: mock.shuttleControl,
           retainedShuttles: mock.retainedShuttles,
           pursuitGroups: mock.legacyPursuitGroups,
+          fullGameDemo: mock.fullGameDemo,
         };
     return { exists: true, get: (key: string) => fields[key] };
   });
@@ -2888,11 +2891,12 @@ it('keeps Wolf attack parking separate by rejecting cycle advancement during res
   );
 });
 
-it('freezes the configured final turn in debrief and replays the terminal receipt', async () => {
+it('freezes the configured final full-game demo turn and its terminal receipt', async () => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2026-09-06T12:20:00.000Z'));
   mock.currentTurn = 6;
   mock.turnLimit = 6;
+  mock.fullGameDemo = { status: 'active', progression: 'manual' };
   mock.turnStartAnnouncement = { turn: 6, survivorPopulation: 242_500 };
   mock.fleetSurvivorPopulationAdjustment = 999_999;
   mock.turnState = {
@@ -2970,6 +2974,11 @@ it('freezes the configured final turn in debrief and replays the terminal receip
       finalSurvivors: 2_500,
       survivingShipIds: ['aegis'],
       lostOrDestroyedShipIds: [],
+    }),
+    fullGameDemo: { status: 'complete', progression: 'manual' },
+    debriefSnapshot: expect.objectContaining({
+      type: 'session-debrief', source: 'final-cycle', result: 'completed', cycle: 6,
+      survivorOutcome: expect.objectContaining({ type: 'survivor-outcome', cycle: 6 }),
     }),
   }));
   expect(mock.set).toHaveBeenCalledWith(
