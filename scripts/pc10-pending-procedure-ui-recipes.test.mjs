@@ -46,6 +46,32 @@ test('Highwall mining checkpoint matches the mounted Coordination-only procedure
   assert.equal(mining?.checkpoint, 'coordination');
 });
 
+test('Boa recycling receipt binds its recycling ledger revision and printed cost', () => {
+  const actor = { uidHash: 'recycler-hash', sessionId: 'session-1', profileRoleId: 'capybara-recycler',
+    activeConsoleRoleId: 'capybara-recycler', sameActor: true, connection: 'live', freshness: 'server' };
+  const result = { status: 'committed', sessionId: 'session-1', requestId: 'recycle-1', shuttleId: 'boa',
+    hostShipId: 'capybara', recipeId: 'materials', resourceId: 'materials', resourceCost: 3,
+    hostResourceRemaining: 3, scrapRemaining: 1, cycle: 2, recyclingRevision: 5, exchangesThisCycle: 1 };
+  const input = { caseId: 'core:recycleWithBoa', expected: { sessionId: 'session-1', uidHash: 'recycler-hash',
+    roleId: 'capybara-recycler', cycle: 2, sourceRevision: 4,
+    cost: { resource: 'materials', amount: 3, direction: 'debit' } }, offered: true, mountedUi: true,
+    actorBefore: actor, actorAfter: actor,
+    sourceBefore: { live: true, sessionId: 'session-1', cycle: 2, revision: 4 },
+    sourceAfter: { live: true, sessionId: 'session-1', cycle: 2, revision: 5 },
+    request: { sessionId: 'session-1', requestId: 'recycle-1', recipeId: 'materials', expectedCycle: 2,
+      expectedRecyclingRevision: 4 }, response: { httpStatus: 200, result, exactReplay: true },
+    replay: { result: { ...result, status: 'replayed' } },
+    rendered: { visible: true, resultStatus: 'committed' },
+    cost: { resource: 'materials', amount: 3, direction: 'debit', before: 6, after: 3 } };
+  const accepted = evaluateProcedureCapture(input);
+  assert.equal(accepted.status, 'completed');
+  assert.equal(accepted.revision, 5);
+  assert.equal(evaluateProcedureCapture({ ...input,
+    request: { ...input.request, expectedRecyclingRevision: 3 } }).status, 'pending');
+  assert.equal(evaluateProcedureCapture({ ...input,
+    cost: { ...input.cost, after: 2 } }).status, 'pending');
+});
+
 test('Boa mission choice receipt binds its choice revision to the current rendered workspace', () => {
   const actor = { uidHash: 'recycler-hash', sessionId: 'session-1', profileRoleId: 'capybara-recycler',
     activeConsoleRoleId: 'capybara-recycler', sameActor: true, connection: 'live', freshness: 'server' };
