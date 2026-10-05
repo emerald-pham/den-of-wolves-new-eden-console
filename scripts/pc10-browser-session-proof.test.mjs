@@ -6,32 +6,57 @@ import { EventEmitter } from 'node:events';
 import * as proof from './pc10-browser-session-proof.mjs';
 
 async function callableObservationActor() {
+  // This adapter now emits the CDP Network lifecycle used by the live collector;
+  // the existing boundary cases and their assertions remain unchanged.
   const page = new EventEmitter();
   page.setDefaultTimeout = () => undefined;
   page.setDefaultNavigationTimeout = () => undefined;
   page.reload = async () => undefined;
+  const cdp = new EventEmitter();
+  const responseBodies = new Map();
+  const finished = new Set();
+  let nextRequest = 0;
+  cdp.send = async (method, parameters = {}) => {
+    if (method === 'Network.configureDurableMessages' || method === 'Network.enable') return {};
+    if (method === 'Network.getResponseBody') {
+      if (!finished.has(parameters.requestId)) throw new Error('Response body is not complete yet.');
+      const body = responseBodies.get(parameters.requestId);
+      if (!body) throw new Error('Response body is missing.');
+      return body;
+    }
+    throw new Error(`Unexpected CDP command: ${method}`);
+  };
+  cdp.detach = async () => undefined;
   const context = { newPage: async () => page, setOffline: async () => undefined,
+    newCDPSession: async target => { assert.equal(target, page); return cdp; },
     close: async () => undefined };
   const actor = await proof.createPc10BrowserActor({ newContext: async () => context }, 'http://localhost', 'admiral');
   const start = () => {
-    const request = { url: () => 'http://localhost/demo/us-central1/getCurrentMemberSession',
-      method: () => 'POST', postDataJSON: () => ({ data: { sessionId: 'own-session' } }),
-      failure: () => ({ errorText: request.failureText }) };
-    page.emit('request', request);
-    return request;
+    const requestId = `legacy-${++nextRequest}`;
+    cdp.emit('Network.requestWillBeSent', { requestId, timestamp: 1, wallTime: 1,
+      request: { url: 'http://localhost/demo/us-central1/getCurrentMemberSession', method: 'POST',
+        postData: JSON.stringify({ data: { sessionId: 'own-session' } }) } });
+    return requestId;
   };
   const respond = request => {
     let resolve, reject;
-    const body = new Promise((yes, no) => { resolve = yes; reject = no; });
-    page.emit('response', { request: () => request, status: () => 200, json: () => body });
+    const body = new Promise((yes, no) => { resolve = yes; reject = no; }).then(reply => ({
+      body: JSON.stringify(reply), isBase64Encoded: false,
+    }));
+    void body.catch(() => undefined);
+    responseBodies.set(request, body);
+    cdp.emit('Network.responseReceived', { requestId: request, timestamp: 2,
+      response: { url: 'http://localhost/demo/us-central1/getCurrentMemberSession', status: 200 } });
     return { resolve: () => resolve({ result: { actorUid: 'own-actor', sessionId: 'own-session' } }), reject };
   };
-  const finish = request => page.emit('requestfinished', request);
-  const fail = (request, code) => {
-    request.failureText = code;
-    page.emit('requestfailed', request);
+  const finish = request => {
+    finished.add(request);
+    cdp.emit('Network.loadingFinished', { requestId: request, timestamp: 3, encodedDataLength: 1 });
   };
-  return { actor, page, context, start, respond, finish, fail };
+  const fail = (request, code) => {
+    cdp.emit('Network.loadingFailed', { requestId: request, timestamp: 3, errorText: code, canceled: true });
+  };
+  return { actor, page, context, cdp, start, respond, finish, fail };
 }
 const nextObservationTurn = () => new Promise(resolve => setImmediate(resolve));
 
