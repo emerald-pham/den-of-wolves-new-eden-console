@@ -6,7 +6,7 @@ import {initializeApp,deleteApp} from 'firebase/app';
 import {getAuth,connectAuthEmulator,signInAnonymously} from 'firebase/auth';
 import {getFunctions,connectFunctionsEmulator,httpsCallable} from 'firebase/functions';
 import {createPc07AuthenticatedSession} from './pc07-authenticated-session.mjs';
-import {runPc10NaturalDisconnectAcceptance} from './pc10-natural-disconnect.mjs';
+import {createNativeSetupPresence,runPc10NaturalDisconnectAcceptance} from './pc10-natural-disconnect.mjs';
 
 const directory=process.env.PC10_NATURAL_DISCONNECT_EVIDENCE_DIRECTORY;
 assert.ok(directory,'Use an external evidence directory for the focused native proof.');
@@ -17,6 +17,7 @@ const require=createRequire(new URL('../functions/package.json',import.meta.url)
 const {recommendedRoleIds}=require('../functions/lib/roleConfiguration.js');
 const roles=recommendedRoleIds(8);
 const nativeActors=new Map(),actions=[];
+const setupPresence=createNativeSetupPresence();
 let fixture,stage='normal anonymous SDK authentication';
 async function createNativeActor(roleId) {
  const app=initializeApp({projectId:project,apiKey:project,authDomain:`${project}.firebaseapp.com`},
@@ -39,6 +40,7 @@ async function createNativeActor(roleId) {
  async function join(joinCode) {
   const reply=await callable('joinSession',{joinCode,displayName:'Focused native disconnect actor'});
   assert.equal(reply.status,200,'Ordinary SDK join must succeed.');
+  setupPresence.add({roleId,sessionId:reply.result.session.id,callable});
   return {localId:originalUid,idToken:await auth.currentUser.getIdToken()};
  }
  return {app,auth,originalUid,join,callable};
@@ -50,6 +52,10 @@ try {
   keepAlive:true,serializeFixtureCalls:false,clearBriefing:true,
   joinBrowserPlayers:Object.fromEntries([...nativeActors].map(([roleId,actor])=>[roleId,actor.join])),
  });
+ // This adapter supplies normal SDK heartbeats only while waiting for casting.
+ // After setup, the fixture's registered actor/GM timers are the sole renewals
+ // and the acceptance driver stops/drains all of them before actual expiry.
+ await setupPresence.stop();
  const originalCall=fixture.call;
  const actorRoles=new Map(fixture.players.map((actor,index)=>[actor.localId,roles[index]]));
  actorRoles.set(fixture.gm.localId,'gm');
@@ -75,6 +81,8 @@ try {
   actualIndependentBrowserContexts:0,actualHumanDevices:0,tokensOrCredentialsRecorded:false,actions},null,2)+'\n');
  throw error;
 } finally {
- try {await fixture?.cleanup();}
- finally {await Promise.all([...nativeActors.values()].map(actor=>deleteApp(actor.app)));}
+ try {await setupPresence.stop();}
+ finally {try {await fixture?.cleanup();}
+  finally {await Promise.all([...nativeActors.values()].map(actor=>deleteApp(actor.app)));}
+ }
 }

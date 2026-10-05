@@ -7,6 +7,7 @@ import {dirname,join,resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {setTimeout as delay} from 'node:timers/promises';
 import {promisify} from 'node:util';
+import {createFixtureHeartbeatController} from './fixture-heartbeats.mjs';
 
 const sourceRoot=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 const execute=promisify(execFile);
@@ -27,6 +28,25 @@ export async function awaitProofBatch(operations) {
  const failures=results.filter(result=>result.status==='rejected');
  if(failures.length)throw failures[0].reason;
  return results.map(result=>result.value);
+}
+
+/** Native adapters need the ordinary presence the real App sends before casting. */
+export function createNativeSetupPresence({setInterval,clearInterval}={}) {
+ const actors=new Map();
+ const heartbeats=createFixtureHeartbeatController({setInterval,clearInterval,gmTick:async()=>{},
+  playerTick:running=>awaitProofBatch([...actors.values()].map(async({roleId,sessionId,callable})=>{
+   if(!running())return;
+   const reply=await callable('refreshPresence',{sessionId});
+   assert.equal(reply.status,200,`${roleId} ordinary SDK setup heartbeat must succeed.`);
+  })),
+ });
+ return {
+  add(actor) {
+   assert.ok(actor.sessionId&&typeof actor.callable==='function','Register only an already joined SDK actor.');
+   actors.set(actor.roleId,actor);heartbeats.start();
+  },
+  stop:heartbeats.stop,
+ };
 }
 
 export function assertReturnedCoreStation({roleId,uid,reply,seat}) {
