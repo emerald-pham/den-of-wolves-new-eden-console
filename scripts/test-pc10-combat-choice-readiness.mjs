@@ -192,6 +192,54 @@ function paintFixture({ text = '', visible = true, controls = {}, articleText = 
   return { getByRole: (_kind, options) => node(options.name), locator: () => node('panel') };
 }
 
+test('the actual no-target boarding envelope waits for its printed current-ship blocker without inventing source fields', async () => {
+  const { inspectWolfChoicePaint, waitForWolfChoiceReadiness } = await moduleUnderTest();
+  const reply = { type: 'wolf-boarding-defence-choice-unavailable', sessionId: 'native-session', reason: 'not-your-choice' };
+  const current = attack({ currentStep: 'boarding' });
+  const f = waitFixture({ attackRead: () => current, choiceRead: () => reply, deadlineAt: 600 });
+  const names = []; let paintReads = 0;
+  const originalGm = actor({ uidHash: 'native-gm', profileRoleId: 'gm', assignedRoleId: null,
+    activeConsoleRoleId: null, playerRole: 'gm', instanceId: 'original-instance', gmInstanceOwned: true });
+  const result = await waitForWolfChoiceReadiness({ ...f.options, expected: current, originalGm,
+    inspectGm: async () => originalGm, inspectPaint: async view => {
+      assert.deepEqual(view, reply);
+      const page = paintFixture({ text: ++paintReads === 1 ? 'Checking the current server boarding choice…'
+        : 'Cycle // boarding Waiting for this ship’s choice This ship’s defence choice is not open yet. It will remain pending for the current assigned crew when its stage begins.' });
+      const get = page.getByRole;
+      page.getByRole = (kind, options) => {
+        assert.equal(kind, 'region'); assert.equal(options.name, 'Boarding defence'); assert.equal(options.exact, true);
+        names.push(options.name); return get(kind, options);
+      };
+      return inspectWolfChoicePaint(page, { kind: 'boarding-defence' }, view);
+    } });
+  assert.equal(result.status, 'blocked'); assert.equal(result.reason, 'not-your-choice');
+  assert.equal(result.explicit, true); assert.equal(result.gameplayCredit, false);
+  assert.deepEqual(result.choice, reply);
+  assert.deepEqual(Object.keys(result.choice).sort(), ['reason', 'sessionId', 'type']);
+  assert.deepEqual(names, ['Boarding defence', 'Boarding defence']);
+  assert.equal(paintReads, 2); assert.equal(f.counters().time, 200);
+  assert.equal(f.counters().choiceReads, 1); assert.equal(f.counters().attackReads, 2);
+});
+
+test('an unknown boarding reason, missing generic panel or foreign ship panel cannot satisfy the actual waiting blocker', async () => {
+  const { inspectWolfChoicePaint, waitForWolfChoiceReadiness } = await moduleUnderTest();
+  const reply = { type: 'wolf-boarding-defence-choice-unavailable', sessionId: 'native-session', reason: 'not-your-choice' };
+  const waiting = 'This ship’s defence choice is not open yet. It will remain pending for the current assigned crew when its stage begins.';
+  for (const reason of ['not-your-ship', 'unknown-source-reason']) {
+    assert.equal((await inspectWolfChoicePaint(paintFixture({ text: waiting }), { kind: 'boarding-defence' }, { ...reply, reason })).status, 'pending');
+  }
+  const normalShipOnly = { getByRole: (kind, options) => {
+    assert.equal(kind, 'region');
+    return { isVisible: async () => options.name === 'AEGIS boarding defence', innerText: async () => waiting };
+  } };
+  for (const page of [paintFixture({ text: waiting, visible: false }), normalShipOnly]) {
+    const f = waitFixture({ attackRead: () => attack({ currentStep: 'boarding' }), choiceRead: () => reply, deadlineAt: 400 });
+    await assert.rejects(waitForWolfChoiceReadiness({ ...f.options, expected: attack({ currentStep: 'boarding' }),
+      inspectPaint: view => inspectWolfChoicePaint(page, { kind: 'boarding-defence' }, view) }), /deadline/);
+    assert.equal(f.counters().time, 400); assert.equal(f.counters().choiceReads, 1);
+  }
+});
+
 test('the actual launch checking paint cannot establish an unavailable wing, even with a disabled launch button', async () => {
   const { inspectWolfChoicePaint } = await moduleUnderTest();
   assert.equal(typeof inspectWolfChoicePaint, 'function');
