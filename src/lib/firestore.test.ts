@@ -12,7 +12,6 @@ import { firstTurnWolfAttackComposition } from '../../functions/src/wolfAttackCo
 import { resolveWolfTargeting } from '../../functions/src/wolfCombatMath';
 import { sessionDebriefProjection } from '../../functions/src/sessionDebrief';
 import { createCurrentMemberSessionReader } from '../../functions/src/memberSessionCallable';
-import type { Firestore as AdminFirestore } from 'firebase-admin/firestore';
 
 vi.mock('firebase/firestore', () => ({
   collection: vi.fn(),
@@ -228,7 +227,7 @@ async function productionClosedMemberEnvelope(sessionId = 'closed-feed') {
         ? { docs: Object.keys(records).filter(key => key.startsWith(path + '/') && !key.slice(path.length + 1).includes('/')).map(snapshot) }
         : snapshot(path),
     }),
-  } as unknown as AdminFirestore;
+  } as unknown as Parameters<typeof createCurrentMemberSessionReader>[0]['db'];
   const read = createCurrentMemberSessionReader({ db: database, projectSession: () => {
     throw new Error('Closed history must not project retained operational state.');
   } });
