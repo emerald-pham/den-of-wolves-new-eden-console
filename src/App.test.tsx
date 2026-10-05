@@ -893,6 +893,7 @@ describe('App', () => {
   });
 
   it('retries a transient closed-history read with bounded delay and then keeps accepted history read-only', async () => {
+    vi.mocked(readClosedSessionHistory).mockReset().mockResolvedValue(false);
     vi.useFakeTimers();
     const closedWithoutCachedDebrief: GameSession = { ...session, joinCode: '', phase: 'closed', currentTurn: 4 };
     const returningMember = { ...player, role: 'player' as const, fleetGroupId: 'fleet-1', connected: false };
@@ -926,6 +927,7 @@ describe('App', () => {
   });
 
   it('keeps one pending closed-history request across online signals and cancels retries after unmount', async () => {
+    vi.mocked(readClosedSessionHistory).mockReset().mockResolvedValue(false);
     vi.useFakeTimers();
     const closed: GameSession = { ...session, joinCode: '', phase: 'closed', currentTurn: 4 };
     useSessionStore.getState().setIdentity(closed, { ...player, role: 'player', connected: false, fleetGroupId: 'fleet-1' });
