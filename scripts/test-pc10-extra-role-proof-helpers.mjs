@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFile } from 'node:fs/promises';
 import * as proof from './pc10-extra-role-proof-helpers.mjs';
 
 test('the pre-start scenario callback is awaited on the original authenticated table', async () => {
@@ -147,4 +148,13 @@ test('small-ship ration selection uses the mounted single-cost format without in
   assert.equal(proof.choosePrintedRation(choices, 8), '3');
   assert.throws(() => proof.choosePrintedRation(choices, undefined), /stores/i);
   assert.throws(() => proof.choosePrintedRation([{ value: '0', text: 'None' }], 0), /cost/i);
+});
+
+test('receipt endpoints refer to actual exported callable names rather than similar client helper names', async () => {
+  assert.equal(typeof proof.createExtraRoleMatrix, 'function');
+  const source = await readFile(new URL('../functions/src/index.ts', import.meta.url), 'utf8');
+  const endpoints = new Set(['joint', 'replacements'].flatMap(name => proof.createExtraRoleMatrix(name))
+    .map(row => row.endpoint).filter(Boolean));
+  for (const endpoint of endpoints)
+    assert.match(source, new RegExp(`export\\s+const\\s+${endpoint}\\s*=`), `Real callable ${endpoint} is required.`);
 });
