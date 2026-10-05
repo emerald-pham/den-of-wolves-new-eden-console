@@ -1416,3 +1416,128 @@ test('invalid table capture modes fail before any directory, compiled read, brow
     assert.equal(fixture.calls.writes.length, 0);
   }
 });
+
+test('stream activation starts once for the exact validated POST request before any response headers', async () => {
+  const fixture = await cdpCallableObservationActor({ captureMode: 'stream' });
+  const requestId = fixture.start('early-protocol-id');
+  await nextObservationTurn();
+  assert.deepEqual(fixture.commands.filter(command => command.method === 'Network.streamResourceContent')
+    .map(command => command.parameters.requestId), [requestId]);
+  assert.equal(fixture.actor.observedCalls[0].headersReceivedAt, null);
+  assert.equal(fixture.actor.observedCalls[0].bodyCompletedAt, null);
+  fixture.receiveHeaders(requestId);
+  fixture.receiveStreamChunk(requestId, streamReplyBytes(71).toString('base64'));
+  fixture.finish(requestId);
+  await fixture.actor.drainObservedCalls();
+  assert.equal(fixture.actor.observedCalls[0].revision, 71);
+  assert.deepEqual(fixture.actor.callableObservationFailures, []);
+  assert.equal(fixture.commands.filter(command => command.method === 'Network.streamResourceContent').length, 1);
+});
+
+test('a small response completing at headers retains its body when activation preceded those headers', async () => {
+  const fixture = await cdpCallableObservationActor({ captureMode: 'stream' });
+  const originalSend = fixture.events.send;
+  fixture.events.send = async (method, parameters) => {
+    if (method === 'Network.streamResourceContent' && fixture.actor.observedCalls[0].headersReceivedAt !== null) {
+      throw new Error('Request with the provided ID has already finished loading');
+    }
+    return originalSend(method, parameters);
+  };
+  const requestId = fixture.start('small-completed-response');
+  await nextObservationTurn();
+  fixture.receiveHeaders(requestId);
+  fixture.receiveStreamChunk(requestId, streamReplyBytes(72).toString('base64'));
+  fixture.finish(requestId);
+  await fixture.actor.drainObservedCalls();
+  assert.equal(fixture.actor.observedCalls[0].status, 200);
+  assert.equal(fixture.actor.observedCalls[0].requestFinishedAt !== null, true);
+  assert.equal(fixture.actor.observedCalls[0].bodyCompletedAt !== null, true);
+  assert.equal(fixture.actor.observedCalls[0].revision, 72);
+  assert.deepEqual(fixture.actor.callableObservationFailures, []);
+});
+
+test('stream-start denials classify only exact primary messages and never serialize arbitrary errors', async () => {
+  const prefix = 'Protocol error (Network.streamResourceContent): ';
+  const messages = [
+    ['Request with the provided ID does not exists', 'resource-not-found'],
+    ['Request with the provided ID has already finished loading', 'already-finished'],
+    [`${prefix}Request with the provided ID does not exists`, 'resource-not-found'],
+    [`${prefix}Request with the provided ID has already finished loading`, 'already-finished'],
+    ['private-token private-actor https://private.invalid/?query=private-notes', 'unknown'],
+    ['Request with the provided ID has already finished loading private-notes', 'unknown'],
+    [`${prefix}Request with the provided ID does not exists private-token`, 'unknown'],
+  ];
+  for (const [message, reason] of messages) {
+    const fixture = await cdpCallableObservationActor({ captureMode: 'stream',
+      streamConfigurationError: new Error(message) });
+    const requestId = fixture.start('private-stream-error-protocol-id');
+    fixture.receiveHeaders(requestId);
+    await nextObservationTurn();
+    fixture.finish(requestId);
+    await fixture.actor.drainObservedCalls();
+    const failure = fixture.actor.callableObservationFailures[0];
+    assert.equal(fixture.actor.observedCalls[0].bodyCompletedAt, null);
+    assert.equal(failure.bodyFailureStage, 'stream-start');
+    assert.equal(failure.bodyFailureReason, reason);
+    for (const privateValue of [message, requestId, 'private-token', 'private-actor', 'private-notes',
+      'https://private.invalid']) assert.equal(JSON.stringify(failure).includes(privateValue), false);
+  }
+});
+
+test('early stream activation excludes non-POST, unknown endpoints and malformed POST metadata', async () => {
+  const requests = [
+    { requestId: 'known-get', method: 'GET' },
+    { requestId: 'known-options', method: 'OPTIONS' },
+    { requestId: 'unknown-endpoint', name: 'notAnApprovedCallable' },
+    { requestId: 'malformed-envelope', postData: 'private invalid JSON' },
+    { requestId: 'malformed-data', postData: '{"data":[]}' },
+  ];
+  for (const request of requests) {
+    const fixture = await cdpCallableObservationActor({ captureMode: 'stream' });
+    const requestId = fixture.startRequest(request);
+    await nextObservationTurn();
+    fixture.receiveHeaders(requestId, 200, request.name);
+    fixture.finish(requestId);
+    await fixture.actor.drainObservedCalls();
+    assert.equal(fixture.commands.some(command => command.method === 'Network.streamResourceContent'), false);
+    if (request.postData) {
+      assert.equal(fixture.actor.observedCalls[0].bodyCompletedAt, null);
+      assert.equal(fixture.actor.callableObservationFailures.some(failure =>
+        failure.category === 'request-metadata-unavailable'), true);
+    }
+  }
+});
+
+test('request-start streaming cannot decode a completed buffer without the actual response-header lifecycle', async () => {
+  for (const chunkBeforeHeaders of [false, true]) {
+    const fixture = await cdpCallableObservationActor({ captureMode: 'stream' });
+    const requestId = fixture.start('missing-response-headers');
+    fixture.setStreamBuffer(requestId, streamReplyBytes(73).toString('base64'));
+    await nextObservationTurn();
+    if (chunkBeforeHeaders) fixture.receiveStreamChunk(requestId, Buffer.from(' ').toString('base64'));
+    fixture.finish(requestId);
+    await fixture.actor.drainObservedCalls();
+    assert.equal(fixture.actor.observedCalls[0].headersReceivedAt, null);
+    assert.equal(fixture.actor.observedCalls[0].bodyCompletedAt, null);
+    assert.equal(fixture.actor.observedCalls[0].revision, null);
+    assert.equal(fixture.actor.callableObservationFailures.some(failure =>
+      failure.category === 'unknown-callable-lifecycle'), true);
+  }
+});
+
+test('a repeated protocol request ID remains a lifecycle failure and cannot issue a second stream activation', async () => {
+  const fixture = await cdpCallableObservationActor({ captureMode: 'stream' });
+  const requestId = fixture.start('repeated-stream-protocol-id');
+  fixture.start(requestId);
+  await nextObservationTurn();
+  assert.deepEqual(fixture.commands.filter(command => command.method === 'Network.streamResourceContent')
+    .map(command => command.parameters.requestId), [requestId]);
+  fixture.receiveHeaders(requestId);
+  fixture.receiveStreamChunk(requestId, streamReplyBytes(74).toString('base64'));
+  fixture.finish(requestId);
+  await fixture.actor.drainObservedCalls();
+  assert.equal(fixture.actor.observedCalls.length, 1);
+  assert.equal(fixture.actor.callableObservationFailures.some(failure =>
+    failure.category === 'unknown-callable-lifecycle'), true);
+  assert.equal(fixture.commands.filter(command => command.method === 'Network.streamResourceContent').length, 1);
+});
