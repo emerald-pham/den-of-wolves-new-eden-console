@@ -7,7 +7,7 @@ const mock = vi.hoisted(() => {
   const snapshot = (path: string) => ({ ...ref(path), ref: ref(path), exists: documents.has(path),
     data: () => documents.get(path), get: (field: string) => documents.get(path)?.[field] });
   const writes = vi.fn();
-  const runTransaction = async (callback: (tx: unknown) => Promise<unknown>) => {
+  const runTransaction = vi.fn(async (callback: (tx: unknown) => Promise<unknown>, _options?: { readOnly?: boolean }) => {
     const queued: Array<[string, Fields]> = [];
     const result = await callback({ get: async (target: { path: string; collection?: boolean }) => {
       if (queued.length) throw new Error('Native Firestore forbids reads after writes');
@@ -24,7 +24,7 @@ const mock = vi.hoisted(() => {
     } });
     queued.forEach(([path, value]) => { writes(path, value); documents.set(path, value); });
     return result;
-  };
+  });
   return { documents, writes, db: { doc: ref, collection: (path: string) => ({ path, collection: true }), runTransaction } };
 });
 vi.mock('firebase-admin/app', () => ({ initializeApp: vi.fn() }));
@@ -50,7 +50,7 @@ const request = (value: Fields = data, uid = 'explorer') => ({ data: value, auth
 const put = (path: string, value: Fields) => mock.documents.set(path, value);
 
 beforeEach(() => {
-  mock.documents.clear(); mock.writes.mockClear();
+  mock.documents.clear(); mock.writes.mockClear(); mock.db.runTransaction.mockClear();
   put('sessions/s1', { phase: 'active', currentTurn: 3, chartId: 'A', chartSelectionLocked: true,
     activeRoleIds: ['wing-commander', 'quellon-explorer', 'shepherd-scientist'], activeVesselIds: ['aegis', 'quellon', 'shepherd'],
     fighterWingCounts: { 'fighter-wing-alpha': { count: 4, revision: 0 }, 'fighter-wing-bravo': { count: 0, revision: 0 } },
@@ -67,6 +67,20 @@ beforeEach(() => {
   put('sessions/s1/fleetGroups/fleet-2', { id: 'fleet-2', vesselIds: ['quellon'], memberUids: ['explorer'] });
   put('sessions/s1/serverState/navigation', { revision: 2,
     shipGalacticCoordinates: { aegis: '0000', shepherd: '0000', quellon: '1413' }, pursuitGroups: { 'fleet-1': 2, 'fleet-2': 4 } });
+});
+
+it.each(['messages', 'navigation'] as const)('uses an atomic nonlocking %s read and immediately revokes its audience', async kind => {
+  seedSplitNavigation();
+  const read = () => kind === 'messages'
+    ? calls.readFleetGroupMessages.run(request({ sessionId: 's1', expectedGroupId: 'fleet-2' }))
+    : calls.readFleetGroupNavigation.run(request({ sessionId: 's1', requestId: 'current-nav',
+      expectedNavigationRevision: 2, expectedFleetPartitionRevision: 1, expectedGroupId: 'fleet-2' }));
+  await expect(read()).resolves.toMatchObject({ groupId: 'fleet-2' });
+  expect(mock.db.runTransaction).toHaveBeenLastCalledWith(expect.any(Function), { readOnly: true });
+  expect(mock.writes).not.toHaveBeenCalled();
+  Object.assign(mock.documents.get('sessions/s1/players/explorer')!, { connected: false });
+  await expect(read()).rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.writes).not.toHaveBeenCalled();
 });
 
 const transferData = { sessionId: 's1', requestId: 'transfer-1', shuttleId: 'hummingbird', targetShipId: 'shepherd',
