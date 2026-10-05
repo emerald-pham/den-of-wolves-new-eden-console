@@ -175,7 +175,7 @@ test('phase plan compiles Capybara cycles and normal UI actions into runnable or
     candidateEnding: async () => calls.push('candidate-ending'),
     terminalEnding: async () => calls.push('terminal-ending'),
   });
-  assert.equal(planSteps.length, 6);
+  assert.equal(planSteps.length, 7);
   assert.ok(planSteps.every(step => typeof step === 'function'));
 
   const context = { initial: { sessionId: 'fresh-session' }, roster: [{ roleId: 'capybara-recycler' }] };
