@@ -9,6 +9,7 @@ import { chromium } from 'playwright';
 import { createPc07AuthenticatedSession, buildFixtureCallableObservation } from './pc07-authenticated-session.mjs';
 import { runPc10NaturalDisconnectAcceptance } from './pc10-natural-disconnect.mjs';
 import { createPc10OriginBrowserCapture } from './pc10-origin-callable-observer.mjs';
+import { createPc10NativeDurableBrowserCapture } from './pc10-native-durable-observer.mjs';
 import { PC10_PROOF_CALLABLE_ACTIONS, createPc10CallableTrace, observePc10CallableTrace,
   pc10SafeCallableOutcome, pc10MessageCohortSize, capturePc10AuthoritativeFailureSnapshot,
   observePc10FailureBeforeCleanup } from './pc10-proof-diagnostics.mjs';
@@ -346,7 +347,7 @@ export async function completePc10OrdinaryUiAdmission({ join, consent, inspect }
  * These are automated browser clients, never a human/device playtest claim. */
 export async function createPc10BrowserActor(browser, baseUrl, label, viewport = { width: 390, height: 844 },
   { captureMode = 'durable', originProjectId = process.env.VITE_FIREBASE_PROJECT_ID, originFunctionsOrigin } = {}) {
-  if (!['durable', 'stream', 'origin'].includes(captureMode)) throw new TypeError('Unsupported callable body capture mode.');
+  if (!['durable', 'stream', 'origin', 'native-durable'].includes(captureMode)) throw new TypeError('Unsupported callable body capture mode.');
   const context = await browser.newContext({ viewport, reducedMotion: 'reduce' });
   const page = await context.newPage();
   page.setDefaultTimeout(20_000);
@@ -450,12 +451,13 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
   const durableBuffer = { maxTotalBufferSize: 8 * 1024 * 1024, maxResourceBufferSize: 512 * 1024 };
   let cdpSession, originCapture;
   try {
-    if (captureMode === 'origin') {
+    if (captureMode === 'origin' || captureMode === 'native-durable') {
       const port = process.env.VITE_FIREBASE_FUNCTIONS_EMULATOR_PORT ?? '5001';
       if (!originFunctionsOrigin && (!/^[0-9]+$/.test(port) || Number(port) < 1 || Number(port) > 65_535)) {
         throw new TypeError('Origin collector requires a valid local Functions port.');
       }
-      originCapture = await createPc10OriginBrowserCapture({ context, page, label, projectId: originProjectId,
+      const createCapture = captureMode === 'native-durable' ? createPc10NativeDurableBrowserCapture : createPc10OriginBrowserCapture;
+      originCapture = await createCapture({ context, page, label, projectId: originProjectId,
         functionsOrigin: originFunctionsOrigin ?? `http://127.0.0.1:${port}`, observedCalls,
         failures: callableObservationFailures, boundaryFactory: createPc10CallableObservationBoundary });
     } else {
@@ -964,7 +966,7 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
  * No admin gameplay seeding or result injection is performed. */
 export async function createPc10BrowserTable({ baseUrl, directory, expansion = 'capybara', coreCount = 20,
   captureMode = 'durable' } = {}) {
-  if (!['durable', 'stream', 'origin'].includes(captureMode)) throw new TypeError('Unsupported callable body capture mode.');
+  if (!['durable', 'stream', 'origin', 'native-durable'].includes(captureMode)) throw new TypeError('Unsupported callable body capture mode.');
   assert.ok(baseUrl && directory, 'An isolated UI URL and evidence directory are required.');
   assert.ok(['localhost', '127.0.0.1'].includes(new URL(baseUrl).hostname), 'Local browser proof only.');
   assert.match(process.env.VITE_FIREBASE_PROJECT_ID ?? '', /^demo-[a-z0-9-]+$/, 'Local demo project only.');
