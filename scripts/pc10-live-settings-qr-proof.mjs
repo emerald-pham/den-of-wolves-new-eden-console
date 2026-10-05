@@ -76,6 +76,33 @@ export async function navigateLiveSettingsToConsole({page,checkpoint,onStage=()=
   return brief;
 }
 
+/** Current actor and Crew controller replace the whole authenticated document.
+ * Await that normal navigation before evaluating its SDK/store. Loading time
+ * consumes the same sixty-second readiness window used by the caller's until. */
+export async function restoreLiveSettingsActor({page,crew,entry,selected,sessionId,joinCode,onStage=()=>{}}) {
+  const current=await crew.observe();
+  assert.ok(current.sameActor && current.uidHash===selected.uidHash && current.sessionId===sessionId,
+    'Restoration requires the original selected actor identity.');
+  const previousUrl=new URL(page.url());
+  if (entry.profileRoleId==='controller') {
+    onStage('restore-controller');
+    await page.getByRole('link',{name:'Crew controller',exact:true}).click();
+  } else {
+    onStage('restore-roster-actor');
+    await page.getByLabel('Current actor',{exact:true}).selectOption(entry.profileRoleId);
+  }
+  const deadline=Date.now()+60_000;
+  await page.waitForURL(url=>{
+    if (url.origin!==previousUrl.origin || url.pathname!==previousUrl.pathname || url.hash!=='#/demo-actors') return false;
+    try { assertSettingsReturnUrl(url.href,{sessionId,roleId:entry.profileRoleId},joinCode); return true; }
+    catch { return false; }
+  });
+  const remaining=deadline-Date.now();
+  if (remaining<=0) throw namedError('PC10_SETTINGS_RESTORATION','Original actor navigation exhausted its existing readiness window.');
+  return crew.until('Restore original actor after Settings',state=>state.sameActor && state.uidHash===entry.uidHash &&
+    state.sessionId===sessionId && state.profileRoleId===entry.profileRoleId && state.connection==='live' && state.freshness==='server',remaining);
+}
+
 /** Failure-only metadata captured before restoration can change the document.
  * Its one-second read-only probe cap does not extend any action/SDK deadline. */
 export async function captureLiveSettingsFailure({page,stage,error,probeBudgetMs=1000}) {
@@ -92,6 +119,10 @@ export async function captureLiveSettingsFailure({page,stage,error,probeBudgetMs
     ['closeSettings','button','Close settings'],['currentActor','label','Current actor'],
     ['crewController','link','Crew controller']];
   const controls=Object.fromEntries(definitions.map(([key])=>[key,null]));
+  const renderingKeys=['briefMounted','briefBackMounted','stationsMounted','crewManagerMounted','escapeMounted',
+    'deferredFailureLayoutMounted','screenFadeMounted','screenFadeCrossing','screenFadeExiting'];
+  const rendering=Object.fromEntries(renderingKeys.map(key=>[key,null]));
+  let renderingProbeStatus='pending';
   const probes=definitions.map(async([key,role,name])=>{
     try {
       const locator=role==='label' ? page.getByLabel(name,{exact:true}) : page.getByRole(role,{name,exact:true});
@@ -99,12 +130,37 @@ export async function captureLiveSettingsFailure({page,stage,error,probeBudgetMs
       controls[key]=typeof visible==='boolean'?visible:null;
     } catch { /* Unavailable probes stay null, never guessed false or true. */ }
   });
+  probes.push((async()=>{
+    try {
+      const value=await page.evaluate(()=>{
+        const fade=document.querySelector('.screen-fade');
+        const crossing=fade?.getAttribute('data-crossing'),phase=fade?.getAttribute('data-phase');
+        return {
+          briefMounted:!!document.querySelector('.role-brief-screen'),
+          briefBackMounted:!!document.querySelector('.role-brief-screen a[href="#/console"]'),
+          stationsMounted:!!document.querySelector('main.fleet-roster'),
+          crewManagerMounted:!!document.querySelector('main.demo-actor-manager'),
+          escapeMounted:!!document.querySelector('main.escape-state'),
+          // This matches the existing deferred route failure layout; no notice
+          // text is read and its presence alone does not establish a cause.
+          deferredFailureLayoutMounted:!!document.querySelector('.screen-fade main.session-mode > .session-mode__panel > p[role="alert"] + button'),
+          screenFadeMounted:!!fade,
+          screenFadeCrossing:crossing==='true'?true:crossing==='false'?false:null,
+          screenFadeExiting:phase==='out'?true:phase==='in'?false:null,
+        };
+      });
+      for (const key of renderingKeys) rendering[key]=typeof value?.[key]==='boolean'?value[key]:null;
+      renderingProbeStatus=Object.values(rendering).some(value=>value===null)?'unavailable':'complete';
+    } catch { renderingProbeStatus='unavailable'; }
+  })());
   const budget=Number.isSafeInteger(probeBudgetMs) && probeBudgetMs>0 && probeBudgetMs<=1000 ? probeBudgetMs : 1000;
   let timer;
   try {
     const observed=await Promise.race([
-      Promise.all(probes).then(()=>({controls:{...controls},probeStatus:Object.values(controls).some(value=>value===null)?'unavailable':'complete'})),
-      new Promise(resolve=>{timer=setTimeout(()=>resolve({controls:{...controls},probeStatus:'timed-out'}),budget);}),
+      Promise.all(probes).then(()=>({controls:{...controls},probeStatus:Object.values(controls).some(value=>value===null)?'unavailable':'complete',
+        rendering:{...rendering},renderingProbeStatus})),
+      new Promise(resolve=>{timer=setTimeout(()=>resolve({controls:{...controls},probeStatus:'timed-out',
+        rendering:{...rendering},renderingProbeStatus:renderingProbeStatus==='pending'?'timed-out':renderingProbeStatus}),budget);}),
     ]);
     return {...classifySettingsFailure(error,stage),capturePhase:'before-restoration',route,
       startedAt,capturedAt:Date.now(),...observed};
@@ -277,17 +333,8 @@ export function createLiveSettingsQrProof({sourceRoot=process.cwd(),actorRoleId,
             const close=page.getByRole('button',{name:'Close settings',exact:true});
             restorationStage='restore-dialog';
             if (await close.isVisible().catch(()=>false)) await close.press('Escape');
-            if (entry.profileRoleId==='controller' && entry.uidHash!==selected.uidHash) {
-              restorationStage='restore-controller';
-              await page.getByRole('link',{name:'Crew controller',exact:true}).click();
-              await crew.until('Restore original controller after Settings',state=>state.sameActor && state.uidHash===entry.uidHash &&
-                state.sessionId===initial.sessionId && state.profileRoleId==='controller' && state.connection==='live' && state.freshness==='server');
-            } else if (entry.uidHash!==selected.uidHash) {
-              restorationStage='restore-roster-actor';
-              await page.getByLabel('Current actor',{exact:true}).selectOption(entry.profileRoleId);
-              await crew.until('Restore original roster actor after Settings',state=>state.sameActor && state.uidHash===entry.uidHash &&
-                state.sessionId===initial.sessionId && state.profileRoleId===entry.profileRoleId && state.connection==='live' && state.freshness==='server');
-            }
+            if (entry.uidHash!==selected.uidHash) await restoreLiveSettingsActor({page,crew,entry,selected,
+              sessionId:initial.sessionId,joinCode:initial.joinCode,onStage:value=>{restorationStage=value;}});
             const restored=await crew.observe();
             assert.ok(restored.sameActor && restored.uidHash===entry.uidHash && restored.sessionId===initial.sessionId);
             if (page.url()!==entryHref) {
