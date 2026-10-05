@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { memberSessionProjection, memberSessionScope, parsedMemberSessionDetails } from './memberSession';
+import { memberSessionProjection, memberSessionScope, parsedMemberSessionDetails, publicFullGameDemoState } from './memberSession';
 import { emptySmallShipState } from './smallShip';
 import { emptyVoyage33MaintenanceState } from './voyage33Maintenance';
 import { VOYAGE_33_COMMITMENTS } from './voyageAdmission';
@@ -29,6 +29,9 @@ const root = {
 };
 
 describe('current member session privacy', () => {
+  it('rejects a JSON array status masquerading as a public demo enum', () => {
+    expect(publicFullGameDemoState({ status: ['active'], progression: 'manual' })).toBeUndefined();
+  });
   it.each(['preparing', 'active', 'complete'])('retains only the safe %s manual demo marker', status => {
     const fullGameDemo = { status, progression: 'manual' };
     expect(parsedMemberSessionDetails({ fullGameDemo }, []).fullGameDemo).toEqual(fullGameDemo);
