@@ -12,7 +12,7 @@ import { completeOfferedTurnAdvance } from './pc10-full-game-demo-proof-helpers.
 import { runStationEnding } from './pc10-candidate-station-ui-proof.mjs';
 import { CANDIDATE_PROOF_SHIPS as SHIPS, candidateShipRole, candidateProofOptions,
   assertCandidateAdmission, assertFreshCandidateStart, waitForFreshCandidateStart, prepareCandidateEvidenceDirectory,
-  candidateEvidenceEnvelope } from './pc10-candidate-proof-helpers.mjs';
+  candidateEvidenceEnvelope, chooseOfferedRingEngineeringShuttle } from './pc10-candidate-proof-helpers.mjs';
 
 const TRACKS = ['reactor', 'jump-drive', 'hydroponics', 'water-reclamation', 'advanced-hydroponics'];
 
@@ -349,12 +349,10 @@ export async function runRingEnding(context) {
   await tools.receipt(scientist, 'executeCandidateAction', () => researchPanel.getByRole('button', { name: 'Commit chosen research', exact: true }).click());
   await tools.record('actual Scientist commits five distinct four-cross tracks');
   const repairPanel = await tools.gmCandidateShip('aegis');
-  const availableCrafts = await repairPanel.getByRole('combobox', { name: 'Engineering Shuttle', exact: true }).locator('option').evaluateAll(options =>
-    options.filter(option => !option.disabled && option.value).map(option => option.value));
-  assert.ok(availableCrafts.length, 'A genuine available Engineering Shuttle must be shown.');
-  await repairPanel.getByRole('combobox', { name: 'Engineering Shuttle', exact: true }).selectOption(availableCrafts[0]);
+  const offeredCraft = await chooseOfferedRingEngineeringShuttle(
+    repairPanel.getByRole('combobox', { name: 'Engineering Shuttle', exact: true }));
   await tools.receipt(gm, 'executeCandidateAction', () => repairPanel.getByRole('button', { name: 'Commit Engineering Shuttle', exact: true }).click());
-  await tools.record('actual Engineering Shuttle permanently consumed', { shuttleId: availableCrafts[0] });
+  await tools.record('actual Engineering Shuttle permanently consumed', { shuttleId: offeredCraft });
   await gm.page.screenshot({ path: `${directory}/N-repaired-costs-blockers.png` });
   await tools.candidateGeometry(gm, 'N', 'repaired');
   for (const shipId of start.activeVesselIds) {

@@ -13,6 +13,16 @@ export const CANDIDATE_PROOF_SHIPS = Object.freeze({
   capybara: { name: 'Capybara', engineer: 'capybara-recycler', captain: 'capybara-captain' },
 });
 
+/** Refreshing the real panel can remove its selector until the current read returns. */
+export async function chooseOfferedRingEngineeringShuttle(select) {
+  await select.waitFor({ state: 'visible', timeout: 60_000 });
+  const available = await select.locator('option').evaluateAll(options => options
+    .filter(option => !option.disabled && option.value).map(option => option.value));
+  assert.ok(available.length, 'A genuine available Engineering Shuttle must be shown.');
+  await select.selectOption(available[0]);
+  return available[0];
+}
+
 /** Configure the ordinary root runner; no runtime or actor is created here. */
 export function candidateProofOptions(input = {}) {
   const candidateCode = input.candidateCode ?? 'N';
