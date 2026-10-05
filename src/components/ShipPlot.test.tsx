@@ -2,12 +2,13 @@ import { readFileSync } from 'node:fs';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import type * as FirestoreModule from '@/lib/firestore';
 import { useSessionStore } from '@/store/useSessionStore';
 import ShipPlot from './ShipPlot';
 
 vi.mock('@/lib/sessionService', () => ({ triggerDradisContact: vi.fn() }));
 vi.mock('@/lib/firestore', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/lib/firestore')>();
+  const actual = await importOriginal<FirestoreModule>();
   return { ...actual, subscribeWolfAttackMemberView: vi.fn(() => vi.fn()) };
 });
 
