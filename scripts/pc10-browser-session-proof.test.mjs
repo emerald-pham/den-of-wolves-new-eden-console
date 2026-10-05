@@ -87,3 +87,24 @@ test('active browser readiness requires fresh same-actor role and console author
   assert.equal(proof.isFreshPc10BrowserRole({ ...core, roleId: null,
     activeConsoleRoleId: 'press-officer' }, 'press-officer'), true);
 });
+
+test('one document observer reads current SDK and store getters without caching identity or projection', () => {
+  assert.equal(typeof proof.createPc10LiveObserver, 'function');
+  let currentUser = { uid: 'original-browser' };
+  let state = { me: { uid: 'original-browser', assignedRoleId: 'core-role', activeConsoleRoleId: 'core-role', seatId: 'core-role' },
+    session: { id: 'own-session', phase: 'active', currentTurn: 1 }, connection: 'live', sessionSnapshotFreshness: 'server' };
+  let authReads = 0;
+  let stateReads = 0;
+  const observe = proof.createPc10LiveObserver(() => { authReads++; return { currentUser }; },
+    { getState() { stateReads++; return state; } });
+  assert.equal(observe().sameActor, true);
+  state = { ...state, me: { ...state.me, activeConsoleRoleId: 'press-officer', assignedRoleId: null, seatId: null },
+    connection: 'offline', sessionSnapshotFreshness: 'cache' };
+  assert.deepEqual(observe(), { hasAuth: true, sameActor: true, hasSession: true,
+    roleId: null, activeConsoleRoleId: 'press-officer', seatId: null,
+    connection: 'offline', freshness: 'cache', phase: 'active', cycle: 1 });
+  currentUser = { uid: 'foreign-browser' };
+  assert.equal(observe().sameActor, false);
+  assert.equal(authReads, 3);
+  assert.equal(stateReads, 3);
+});
