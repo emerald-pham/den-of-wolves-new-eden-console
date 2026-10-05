@@ -23,6 +23,11 @@ function digest(value) {
   return createHash('sha256').update(JSON.stringify(value ?? null)).digest('hex');
 }
 
+/** Keep the UI's original-player identity check in one native-testable seam. */
+export function selectionMatchesOriginalIdentity(selectedUid, actorIdentity) {
+  return digest(selectedUid).slice(0, 16) === actorIdentity.uidHash;
+}
+
 function identity(value) {
   return typeof value === 'string' && value.trim().length > 0 && value.length <= 128;
 }
@@ -290,7 +295,7 @@ async function recordBaseline({
   const target = form.getByLabel('Player to attest', { exact: true });
   await target.selectOption({ label: targetRosterEntry.displayName }, { timeout: MAX_WAIT_MS });
   const selectedUid = await target.inputValue();
-  assert.equal(digest(selectedUid).slice(0, 16), targetIdentity.uidHash,
+  assert.equal(selectionMatchesOriginalIdentity(selectedUid, targetIdentity), true,
     'The ordinary GM baseline selector must name the exact current original player account.');
   for (const { id, label } of SAME_TABLE_TRADE_UI_RESOURCES) {
     await form.getByLabel(label, { exact: true }).fill(String(balances[id]));
@@ -346,7 +351,7 @@ async function createOffer({
     options.map((option) => ({ label: option.textContent?.trim() ?? '', value: option.value })));
   const option = recipientOptions.find((entry) => entry.label === recipientRosterEntry.displayName);
   assert.ok(option, 'The visible same-table counterparty must appear in the ordinary recipient selector.');
-  assert.equal(digest(option.value).slice(0, 16), recipientIdentity.uidHash,
+  assert.equal(selectionMatchesOriginalIdentity(option.value, recipientIdentity), true,
     'The visible recipient option must map to the original normal player identity.');
   await recipient.selectOption(option.value, { timeout: MAX_WAIT_MS });
   const amount = panel.getByLabel(`${scenario.transfer.resource === 'securityTeams' ? 'Security Teams' : scenario.transfer.resource[0].toUpperCase() + scenario.transfer.resource.slice(1)} amount`, { exact: true });
