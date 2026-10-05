@@ -8,20 +8,43 @@ function nativeAttack({ requiredRole, step = 'boarding', sourceLabel }) {
   let selectedRole, revision = 1, status = 'declared';
   const current = () => ({ status, revision, currentStep: step, turn: 2,
     attackId: 'native-adapter-counterexample', preparation: { shipIds: ['native-enemy'] } });
-  const response = { request: () => ({ postDataJSON: () => ({ data: {} }) }) };
+  const response = { request: () => ({ postDataJSON: () => ({ data: { sessionId: 'native-session',
+    requestId: 'native-request', expectedTurn: 2, expectedRevision: 1 } }) }) };
   const widget = (kind, name) => ({
     isVisible: async () => kind === 'button' && name === 'Commit defence' && selectedRole === requiredRole ||
       kind === 'region' && name === `${sourceLabel} Long Range choice` && selectedRole === requiredRole ||
-      kind === 'button' && name === 'Pass this range' && selectedRole === requiredRole,
+      kind === 'button' && name === 'Pass this range' && selectedRole === requiredRole ||
+      kind === 'region' && (name === 'Boarding defence' || name === 'DIONE boarding defence'),
     isEnabled: async () => true,
+    innerText: async () => selectedRole === requiredRole ? 'Cycle 2 // boarding Crew choice required'
+      : 'This ship’s defence choice is not open yet. It will remain pending for the current assigned crew when its stage begins.',
+    count: async () => 1,
+    first() { return this; },
     click: async () => { calls.push({ selectedRole, name }); revision += 1; status = 'resolved'; },
     getByRole: (nextKind, options = {}) => widget(nextKind, options.name),
     filter: () => widget('region', 'native-defence-panel'),
     locator: () => ({ evaluateAll: async () => ['0', '1'] }),
     selectOption: async () => {},
   });
-  const page = { waitForResponse: async () => response, getByRole: (kind, options = {}) => widget(kind, options.name) };
-  const gm = { page }, crew = { page };
+  const authority = { sessionId: 'native-session', fleetGroupId: 'native-group', connectionGeneration: 1,
+    identityHydrationRevision: 1, replacementRoleId: null, replacementStatus: null, seatId: null, connected: true };
+  const page = { waitForResponse: async () => response, getByRole: (kind, options = {}) => widget(kind, options.name),
+    evaluate: async () => ({ ...authority }) };
+  const observation = roleId => ({ hasAuth: true, sameActor: true, sessionId: 'native-session', phase: 'active', cycle: 2,
+    uidHash: `native-${roleId}`, profileRoleId: roleId, assignedRoleId: roleId,
+    activeConsoleRoleId: roleId, playerRole: 'player', connection: 'live', freshness: 'server' });
+  const gm = { page, observe: async () => ({ ...observation('gm'), playerRole: 'gm', activeConsoleRoleId: null,
+    instanceId: 'native-instance', gmInstanceOwned: true }) };
+  const crew = { page, storeModuleUrl: () => '/native-observer', observe: async () => observation(selectedRole),
+    callable: async endpoint => {
+      if (endpoint === 'getWolfBoardingSpecialChoice') return { status: 'committed', result: {
+        type: 'wolf-boarding-special-choice-unavailable', sessionId: 'native-session', reason: 'not-your-choice' } };
+      assert.equal(endpoint, 'getWolfBoardingDefenceChoice');
+      return { status: 'committed', result: selectedRole === requiredRole ? {
+        type: 'wolf-boarding-defence-choice-view', sessionId: 'native-session', turn: 2, revision,
+        targetShipId: 'dione', choiceStatus: 'pending' } : {
+        type: 'wolf-boarding-defence-choice-unavailable', sessionId: 'native-session', reason: 'not-your-ship' } };
+    } };
   const roster = [
     'admiral', 'executive-officer', 'wing-commander', 'dione-captain', 'dione-engineer', 'dione-president',
     'icebreaker-captain', 'icebreaker-engineer', 'icebreaker-miner',
@@ -37,7 +60,8 @@ function nativeAttack({ requiredRole, step = 'boarding', sourceLabel }) {
     select: async roleId => { selectedRole = roleId; return roleId === 'gm' ? gm : crew; },
     receipt: async (_surface, _endpoint, decision) => { await decision(); return { status: 'committed' }; },
   };
-  return { context: { gm, crew, roster }, tools, calls };
+  return { context: { gm, crew, roster, initial: { sessionId: 'native-session' },
+    started: { uidHash: 'native-gm', instanceId: 'native-instance' } }, tools, calls };
 }
 
 test('the source P18/20 adapter visits the actually admitted Dione boarding actor instead of remaining in its old P11 loop', async () => {

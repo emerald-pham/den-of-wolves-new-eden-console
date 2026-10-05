@@ -294,12 +294,15 @@ test('the fallback resolver waits for a delayed mounted Wing choice without cycl
     click: async () => { clicks.push(name); resolved = true; },
     getByRole: (_kind, options) => widget(options.name),
   });
-  const page = { getByRole: (_kind, options) => widget(options.name), waitForResponse: async () => ({
+  const page = { getByRole: (_kind, options) => widget(options.name),
+    evaluate: async () => ({ sessionId: 'native-session', fleetGroupId: 'native-group', connectionGeneration: 1,
+      identityHydrationRevision: 1, replacementRoleId: null, replacementStatus: null, seatId: null, connected: true }),
+    waitForResponse: async () => ({
     request: () => ({ postDataJSON: () => ({ data: { sessionId: 'native-session', requestId: 'native-request',
       expectedTurn: 1, expectedRevision: 4 } }) }),
   }) };
   const gm = { page, observe: async () => originalGm };
-  const crew = { page, observe: async () => crewActor(), callable: async endpoint => {
+  const crew = { page, storeModuleUrl: () => '/native-observer', observe: async () => crewActor(), callable: async endpoint => {
     assert.equal(endpoint, 'getAegisFighterWingLaunch');
     return { status: 'committed', result: choice({ wingId: 'fighter-wing-alpha', launched: false }) };
   } };

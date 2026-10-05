@@ -288,7 +288,8 @@ test('the existing real attack resolver accepts an explicit source-control suppl
   let status = 'declared', supplements = 0;
   const current = () => ({ attackId: 'native-only', status, revision: 1, currentStep: 'native-choice', turn: 1 });
   const tools = { read: async () => current(), state: async () => ({ phase: 'active', cycle: 1 }), record: async () => {} };
-  const result = await resolveLiveWolfAttack({ gm: {}, roster: [] }, { tools, timeoutMs: 10, verifyReplay: false,
+  const result = await resolveLiveWolfAttack({ gm: { observe: async () => gm() }, roster: [],
+    initial: { sessionId: 'native-session' } }, { tools, timeoutMs: 10, verifyReplay: false,
     chooseNext: async value => { assert.equal(value.attackId, 'native-only'); supplements++; status = 'resolved'; return true; } });
   assert.equal(result.status, 'resolved'); assert.equal(supplements, 1);
 });
