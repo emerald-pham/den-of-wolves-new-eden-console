@@ -186,7 +186,7 @@ try {
   }, sessionStoreUrl);
   assert.equal(ui.overflow, false);
   assert.deepEqual(ui.forbiddenSnapshotFields, []);
-  assert.deepEqual(ui.persistedKeys, ['gmAccessAuthenticatedAt', 'gmInstance', 'lastRoute', 'me', 'mode', 'pendingCommands']);
+  assert.deepEqual(ui.persistedKeys, ['gmAccessAuthenticatedAt', 'gmInstance', 'lastRoute', 'me', 'mode', 'pendingCommands', 'session']);
   await mkdir(uiDirectory, { recursive: true });
   await page.screenshot({ path: `${uiDirectory}/ordinary-player-390.png`, fullPage: true });
   await page.setViewportSize({ width: 844, height: 390 });
