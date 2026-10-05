@@ -5,6 +5,7 @@ import {createRequire} from 'node:module';
 import {localGmAccessConfiguration,grantLocalGmAccess} from './local-gm-access.mjs';
 import {buildPc07ExplicitLoyaltyAssignments} from './pc07-explicit-loyalty-setup.mjs';
 import {createFixtureHeartbeatController} from './fixture-heartbeats.mjs';
+import {createPc10CallableTrace,observePc10CallableTrace} from './pc10-proof-diagnostics.mjs';
 export {createFixtureHeartbeatController} from './fixture-heartbeats.mjs';
 
 /** Proof metadata has no credentials, freeform values, or operational/private projections. */
@@ -37,23 +38,36 @@ export async function finishFailedPc07Fixture(error,{observeFailure,cleanup}) {
 
 /** A native proof request must fail observably instead of waiting indefinitely.
  * There is no transport retry; production callable limits are unchanged. */
-export async function performFixtureCallable({origin,project,actor,name,data,timeoutMs=60_000,onCallableObservation}) {
+export async function performFixtureCallable({origin,project,actor,name,data,timeoutMs=60_000,onCallableIssued,onCallableObservation}) {
  const signal=AbortSignal.timeout(timeoutMs);
  const startedAt=Date.now();
+ const trace=createPc10CallableTrace({name,transport:'authenticated-emulator-HTTP',data,
+  actorUid:actor.localId,startedAt});
+ let terminalObservationSent=false;
+ if(trace&&onCallableIssued)onCallableIssued({...trace});
  try{
   const response=await fetch(`${origin}/${project}/us-central1/${name}`,{
    method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${actor.idToken}`},
    body:JSON.stringify({data}),signal,
   });
-  const completedAt=Date.now();
+  if(trace)observePc10CallableTrace(trace,{stage:'headers',at:Date.now(),status:response.status});
   const reply={status:response.status,...await response.json()};
-  if(onCallableObservation)onCallableObservation(buildFixtureCallableObservation({name,
+  const completedAt=Date.now();
+  if(trace)observePc10CallableTrace(trace,{stage:'body',at:completedAt,reply});
+  terminalObservationSent=true;
+  if(onCallableObservation)onCallableObservation({...trace,...buildFixtureCallableObservation({name,
    transport:'authenticated-emulator-HTTP',actorUid:actor.localId,sessionId:data?.sessionId,
-   startedAt,completedAt,status:reply.status,reply}));
+   startedAt,completedAt,status:reply.status,reply})});
   return reply;
  }catch(error){
-  if(signal.aborted)throw new Error(`Local fixture callable ${name} exceeded ${timeoutMs}ms without a reply.`);
-  throw error;
+  const failure=signal.aborted
+   ?new Error(`Local fixture callable ${name} exceeded ${timeoutMs}ms without a reply.`):error;
+  if(trace&&!terminalObservationSent){
+   observePc10CallableTrace(trace,{stage:trace.headersReceivedAt!==null&&!signal.aborted?'body-unavailable':'failed',at:Date.now()});
+   try{if(onCallableObservation)onCallableObservation({...trace});}
+   catch{failure.pc07CallableObservationUnavailable=true;}
+  }
+  throw failure;
  }
 }
 
@@ -96,7 +110,7 @@ export async function joinConfiguredBrowserPlayers({roles,players,joinCode,brows
 }
 
 /** Normal local Auth/HTTP setup. Tokens stay in memory and never enter evidence. */
-export async function createPc07AuthenticatedSession(name,playerCount=8,{clearBriefing=true,keepAlive=false,serializeFixtureCalls=false,browserOwnsPresence=false,expansion='base',capybaraEnabled=expansion==='capybara',fullGameManual=false,chartId='A',turnLimit=6,browserRoleId,joinBrowserPlayer,joinBrowserPlayers,joinPressPlayer,activeRoleIdsOverride,unionCraftStartingHosts={},explicitLoyaltySetup,onCallableObservation,beforeFailureCleanup}={}) {
+export async function createPc07AuthenticatedSession(name,playerCount=8,{clearBriefing=true,keepAlive=false,serializeFixtureCalls=false,browserOwnsPresence=false,expansion='base',capybaraEnabled=expansion==='capybara',fullGameManual=false,chartId='A',turnLimit=6,browserRoleId,joinBrowserPlayer,joinBrowserPlayers,joinPressPlayer,activeRoleIdsOverride,unionCraftStartingHosts={},explicitLoyaltySetup,onCallableIssued,onCallableObservation,beforeFailureCleanup}={}) {
  const env=Object.fromEntries((await readFile('.env.emulators.local','utf8')).trim().split('\n').map(line=>line.split('=')));
  const project=process.env.VITE_FIREBASE_PROJECT_ID;
  const config=localGmAccessConfiguration('serve',{...env,VITE_LOCAL_GM_ACCESS:'1',VITE_FIREBASE_PROJECT_ID:project});
@@ -111,7 +125,7 @@ export async function createPc07AuthenticatedSession(name,playerCount=8,{clearBr
  async function actor(){const r=await fetch(`http://127.0.0.1:${config.authPort}/identitytoolkit.googleapis.com/v1/accounts:signUp?key=${project}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({returnSecureToken:true})});assert.equal(r.status,200);return r.json();}
  const disconnected=new Set();
  let pendingFixtureCall=Promise.resolve();
- async function performCall(actor,name,data){const reply=await performFixtureCallable({origin:`http://127.0.0.1:${functionsPort}`,project,actor,name,data,onCallableObservation});
+ async function performCall(actor,name,data){const reply=await performFixtureCallable({origin:`http://127.0.0.1:${functionsPort}`,project,actor,name,data,onCallableIssued,onCallableObservation});
   if(reply.status===200){if(name==='disconnectFromSession')disconnected.add(actor.localId);if(name==='resumeSession')disconnected.delete(actor.localId);}
   return reply;}
  function call(actor,name,data){
@@ -167,7 +181,8 @@ export async function createPc07AuthenticatedSession(name,playerCount=8,{clearBr
   ok(await call(gm,'claimGmInstance',{sessionId,instanceId,name:'Local facilitator',deviceLabel:'PC07 HTTP proof'}),'GM claim');
   startHeartbeat();
   const roles=activeRoleIdsOverride??recommendedRoleIds(playerCount);
-  failureContext={db,sessionId,gm,players,roles};
+  const seatClaimRequests={};
+  failureContext={db,project,sessionId,instanceId,gm,players,roles,seatClaimRequests};
   const explicitAssignments=explicitLoyaltySetup
    ?buildPc07ExplicitLoyaltyAssignments(roles,explicitLoyaltySetup):null;
   const confirmed=ok(await call(gm,'confirmSetup',{sessionId,instanceId,requestId:randomUUID(),expectedSetupRevision:created.session.setupRevision??0,playerCount,chartId,lockChart:true,expansion,turnLimit,dioneEnabled:playerCount>=12,capybaraEnabled,universalArbourEnabled:false,wolfCultEnabled:explicitLoyaltySetup!==undefined,activeRoleIds:roles}),'confirm');
@@ -207,7 +222,6 @@ export async function createPc07AuthenticatedSession(name,playerCount=8,{clearBr
   }
   const browserIndexes=await joinConfiguredBrowserPlayers({roles,players,joinCode:created.session.joinCode,
    browserRoleId,joinBrowserPlayer,joinBrowserPlayers});
-  const seatClaimRequests={};
   for(const [i,player]of players.entries()){
    if(!browserIndexes.has(i))ok(await call(player,'joinSession',{joinCode:created.session.joinCode,displayName:`Local actor ${i+1}`}), 'join');
    ok(await call(gm,'assignRole',{sessionId,instanceId,requestId:randomUUID(),targetUid:player.localId,roleId:roles[i]}),'cast');
@@ -262,7 +276,7 @@ export async function createPc07AuthenticatedSession(name,playerCount=8,{clearBr
    }};
  }catch(error){
   return finishFailedPc07Fixture(error,{
-   observeFailure:beforeFailureCleanup&&failureContext?()=>beforeFailureCleanup(failureContext):undefined,
+   observeFailure:beforeFailureCleanup&&failureContext?()=>beforeFailureCleanup(failureContext,error):undefined,
    cleanup:async()=>{await heartbeats.stop();await db.recursiveDelete(session);},
   });
  }

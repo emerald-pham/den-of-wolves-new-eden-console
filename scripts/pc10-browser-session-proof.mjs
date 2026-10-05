@@ -8,8 +8,13 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { chromium } from 'playwright';
 import { createPc07AuthenticatedSession, buildFixtureCallableObservation } from './pc07-authenticated-session.mjs';
 import { runPc10NaturalDisconnectAcceptance } from './pc10-natural-disconnect.mjs';
+import { PC10_PROOF_CALLABLE_ACTIONS, createPc10CallableTrace, observePc10CallableTrace,
+  pc10SafeCallableOutcome, pc10MessageCohortSize, capturePc10AuthoritativeFailureSnapshot,
+  observePc10FailureBeforeCleanup } from './pc10-proof-diagnostics.mjs';
+export { createPc10CallableTrace, observePc10CallableTrace, pc10MessageCohortSize,
+  capturePc10AuthoritativeFailureSnapshot, observePc10FailureBeforeCleanup } from './pc10-proof-diagnostics.mjs';
 
-async function compiledFunctionsHash() {
+async function compiledFunctionsBinding() {
   const base = 'functions/lib';
   const files = [];
   async function visit(directory) {
@@ -21,8 +26,19 @@ async function compiledFunctionsHash() {
   }
   await visit(base);
   const hash = createHash('sha256');
-  for (const path of files.sort()) hash.update(path.slice(base.length + 1) + '\0').update(await readFile(path));
-  return hash.digest('hex');
+  const javascriptHash = createHash('sha256');
+  let javascriptFileCount = 0;
+  for (const path of files.sort()) {
+    const relativePath = path.slice(base.length + 1);
+    const bytes = await readFile(path);
+    hash.update(relativePath + '\0').update(bytes);
+    if (path.endsWith('.js')) {
+      javascriptFileCount++;
+      javascriptHash.update(relativePath + '\0').update(bytes);
+    }
+  }
+  return { sha256: hash.digest('hex'), compiledFileCount: files.length,
+    javascriptFileCount, javascriptSha256: javascriptHash.digest('hex') };
 }
 
 export function isFreshPc10BrowserRole(state, role) {
@@ -206,19 +222,44 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
     if (url.pathname.endsWith('/firebase_functions.js')) functionsSdkModule = url.href;
     if (url.pathname.endsWith('/firebase_firestore.js')) firestoreSdkModule = url.href;
     if (url.pathname.includes('/us-central1/') && request.method() === 'POST') {
-      observedRequests.set(request, { name: url.pathname.split('/').at(-1), startedAt: Date.now() });
+      const name = url.pathname.split('/').at(-1);
+      if (!Object.hasOwn(PC10_PROOF_CALLABLE_ACTIONS, name)) return;
+      let data;
+      try { data = request.postDataJSON()?.data; }
+      catch { callableObservationFailures.push({ roleId: label, name, category: 'request-metadata-unavailable' }); }
+      const trace = createPc10CallableTrace({ name, data, actorUid: undefined,
+        transport: 'independent-browser-SDK', startedAt: Date.now() });
+      trace.roleId = label;
+      trace.actorHash = actorHash ?? null;
+      observedRequests.set(request, trace);
+      observedCalls.push(trace);
     }
+  });
+  page.on('requestfinished', request => {
+    const trace = observedRequests.get(request);
+    if (trace) observePc10CallableTrace(trace, { stage: 'finished', at: Date.now() });
+  });
+  page.on('requestfailed', request => {
+    const trace = observedRequests.get(request);
+    if (trace) observePc10CallableTrace(trace, { stage: 'failed', at: Date.now() });
   });
   page.on('response', response => {
     const request = observedRequests.get(response.request());
     if (!request) return;
-    const completedAt = Date.now();
+    observePc10CallableTrace(request, { stage: 'headers', at: Date.now(), status: response.status() });
     const capture = response.json().then(reply => {
+      const completedAt = Date.now();
+      observePc10CallableTrace(request, { stage: 'body', at: completedAt, reply });
       const value = buildFixtureCallableObservation({ ...request, completedAt, status: response.status(),
         transport: 'independent-browser-SDK', reply });
-      observedCalls.push({ ...value, roleId: label, actorHash: value.actorHash ?? actorHash ?? null });
-    }).catch(() => { callableObservationFailures.push({ roleId: label, name: request.name,
-      status: response.status(), category: 'response-observation-unavailable' }); });
+      Object.assign(request, { actorHash: request.actorHash ?? value.actorHash ?? actorHash ?? null,
+        sessionHash: request.sessionHash ?? value.sessionHash, groupHash: request.groupHash ?? value.groupHash,
+        connectionGeneration: value.connectionGeneration, denialCategory: value.denialCategory });
+    }).catch(() => {
+      observePc10CallableTrace(request, { stage: 'body-unavailable', at: Date.now() });
+      callableObservationFailures.push({ roleId: label, name: request.name, requestHash: request.requestHash,
+        status: response.status(), category: 'response-observation-unavailable' });
+    });
     pendingObservations.add(capture);
     void capture.finally(() => pendingObservations.delete(capture));
   });
@@ -374,7 +415,8 @@ export async function createPc10BrowserTable({ baseUrl, directory, expansion = '
   await mkdir(directory, { recursive: true });
   const sourceCommitAtStart = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
   const runtimeIndexSha256AtStart = createHash('sha256').update(await readFile('functions/lib/index.js')).digest('hex');
-  const runtimeCompiledTreeSha256AtStart = await compiledFunctionsHash();
+  const runtimeCompiledBindingAtStart = await compiledFunctionsBinding();
+  const runtimeCompiledTreeSha256AtStart = runtimeCompiledBindingAtStart.sha256;
   const require = createRequire(new URL('../functions/package.json', import.meta.url));
   const { recommendedRoleIds } = require('../functions/lib/roleConfiguration.js');
   const roles = recommendedRoleIds(coreCount);
@@ -382,10 +424,26 @@ export async function createPc10BrowserTable({ baseUrl, directory, expansion = '
   const browser = await chromium.launch({ channel: 'chrome', headless: true });
   const clients = new Map();
   const actions = [];
+  const receiptWitnesses = [];
+  const fixtureCallableIssued = [];
   const fixtureCallableObservations = [];
   const serverIdentityDiagnostics = [];
   const rateLimitStateDiagnostics = [];
+  const authoritativeFailureSnapshots = [];
+  const failureDiagnosticFailures = [];
   let fixture;
+  async function diagnoseAuthoritativeFailure(context = fixture) {
+    const setupRequests = Object.entries(context.seatClaimRequests ?? {}).map(([roleId, data]) => ({
+      name: 'claimSeat', actorUid: context.players[context.roles.indexOf(roleId)].localId, data,
+    }));
+    const snapshot = await capturePc10AuthoritativeFailureSnapshot({ ...context,
+      project: context.project ?? process.env.VITE_FIREBASE_PROJECT_ID,
+      requests: [...setupRequests, ...receiptWitnesses],
+    });
+    authoritativeFailureSnapshots.push(snapshot);
+    await writeFile(`${directory}/authoritative-failure-snapshots.json`,
+      `${JSON.stringify(authoritativeFailureSnapshots, null, 2)}\n`);
+  }
   async function diagnoseRateFailure({ db, sessionId, gm, players, press, roles }) {
     const actorRoles = new Map(players.map((actor, index) => [actor.localId, roles[index]]));
     actorRoles.set(gm.localId, 'gm');
@@ -419,8 +477,16 @@ export async function createPc10BrowserTable({ baseUrl, directory, expansion = '
     fixture = await createPc07AuthenticatedSession('PC10 fresh overlapping browser rehearsal', coreCount, {
       clearBriefing: true, keepAlive: true, serializeFixtureCalls: false, browserOwnsPresence: true, expansion,
       capybaraEnabled: true, joinBrowserPlayers: joins, joinPressPlayer: press.join,
+      onCallableIssued: observation => fixtureCallableIssued.push(observation),
       onCallableObservation: observation => fixtureCallableObservations.push(observation),
-      beforeFailureCleanup: diagnoseRateFailure,
+      beforeFailureCleanup: (context, error) => observePc10FailureBeforeCleanup(error, {
+        snapshot: () => diagnoseAuthoritativeFailure(context), rate: () => diagnoseRateFailure(context),
+        writeEvidence: async ({ diagnosticFailures }) => {
+          failureDiagnosticFailures.push(...diagnosticFailures);
+          await writeFile(`${directory}/startup-pre-cleanup-diagnostics.json`,
+            `${JSON.stringify({ authoritativeFailureSnapshots, diagnosticFailures }, null, 2)}\n`);
+        },
+      }),
     });
     const actorRoles = new Map(fixture.players.map((actor, index) => [actor.localId, roles[index]]));
     actorRoles.set(fixture.press.localId, 'press-officer');
@@ -430,12 +496,27 @@ export async function createPc10BrowserTable({ baseUrl, directory, expansion = '
       const roleId = actorRoles.get(actor.localId) ?? 'unassigned';
       const client = clients.get(roleId);
       const startedAt = Date.now();
-      const reply = client ? await client.callable(name, data) : await originalCall(actor, name, data);
-      actions.push({ roleId, name, transport: client ? 'independent-browser-SDK' : 'authenticated-emulator-HTTP',
-        startedAt, completedAt: Date.now(), requestId: data.requestId ?? null,
-        status: reply.status, resultStatus: reply.result?.status ?? null,
-        revision: reply.result?.revision ?? null, denialCode: reply.error?.code ?? reply.error?.status ?? null });
-      return reply;
+      const trace = createPc10CallableTrace({ name, data, actorUid: actor.localId, startedAt,
+        transport: client ? 'independent-browser-SDK' : 'authenticated-emulator-HTTP' });
+      const entry = { ...trace, roleId, kind: 'proof-command', commandIssuedAt: startedAt,
+        commandCompletedAt: null, commandFailedAt: null };
+      actions.push(entry); // Retain even a command that never produces HTTP/SDK completion.
+      const witness = ['claimSeat', 'sendFleetGroupMessage', 'publishPressDispatch'].includes(name)
+        ? { name, actorUid: actor.localId, data: { ...data } } : null;
+      if (witness) receiptWitnesses.push(witness); // Private comparison material stays in memory.
+      try {
+        const reply = client ? await client.callable(name, data) : await originalCall(actor, name, data);
+        entry.commandCompletedAt = Date.now();
+        entry.completedAt = entry.commandCompletedAt;
+        entry.durationMs = entry.completedAt - startedAt;
+        Object.assign(entry, pc10SafeCallableOutcome(reply));
+        if (witness) witness.reply = reply;
+        return reply;
+      } catch (error) {
+        entry.commandFailedAt = Date.now();
+        entry.failureCategory = 'proof-command-unavailable';
+        throw error;
+      }
     };
     async function command(roleId, name, payload = {}) {
       const actor = roleId === 'gm' ? fixture.gm : roleId === 'press-officer' ? fixture.press : fixture.byRole(roleId);
@@ -461,16 +542,19 @@ export async function createPc10BrowserTable({ baseUrl, directory, expansion = '
         client.callableObservationFailures.push({ roleId: client.label, category: 'observation-drain-timeout' });
       })));
       const sourceCommit = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+      const runtimeCompiledBindingAtEnd = await compiledFunctionsBinding();
       const errors = [...clients.values()].flatMap(client => client.errors.map(message => ({ roleId: client.label, message })));
       const evidence = { schemaVersion: 1, sourceCommit, recordedAt: new Date().toISOString(), expansion,
         sourceCommitAtStart, runtimeIndexSha256AtStart,
-        runtimeCompiledTreeSha256AtStart, runtimeCompiledTreeSha256AtEnd: await compiledFunctionsHash(),
+        runtimeCompiledTreeSha256AtStart, runtimeCompiledTreeSha256AtEnd: runtimeCompiledBindingAtEnd.sha256,
+        runtimeCompiledBindingAtStart, runtimeCompiledBindingAtEnd,
         runtimeIndexSha256AtEnd: createHash('sha256').update(await readFile('functions/lib/index.js')).digest('hex'),
         freshCreatedSession: true, adminGameplayWrites: false,
-        fixtureCallableObservations,
+        callableTraceAllowlist: Object.keys(PC10_PROOF_CALLABLE_ACTIONS), fixtureCallableIssued, fixtureCallableObservations,
         identityObservations: [...clients.values()].flatMap(client => client.identityObservations),
         serverIdentityDiagnostics,
         rateLimitStateDiagnostics,
+        authoritativeFailureSnapshots,
         observedBrowserCalls: [...clients.values()].flatMap(client => client.observedCalls),
         callableObservationFailures: [...clients.values()].flatMap(client => client.callableObservationFailures),
         independentCorePlayerAuthSessions: fixture.players.length,
@@ -481,7 +565,7 @@ export async function createPc10BrowserTable({ baseUrl, directory, expansion = '
       await writeFile(`${directory}/${filename}`, `${JSON.stringify(evidence, null, 2)}\n`);
       return evidence;
     }
-    return { fixture, clients, actions, command, writeEvidence, diagnoseIdentityFailure,
+    return { fixture, clients, actions, command, writeEvidence, diagnoseIdentityFailure, diagnoseAuthoritativeFailure,
       diagnoseRateFailure: () => diagnoseRateFailure(fixture), cleanup: async () => {
       // Stop real client rereads before deleting their fixture. Otherwise a
       // failed run can keep retrying a partially deleted session during cleanup.
@@ -491,16 +575,20 @@ export async function createPc10BrowserTable({ baseUrl, directory, expansion = '
     await Promise.all([...clients.values()].map(client => client.drainObservedCalls().catch(() => {
       client.callableObservationFailures.push({ roleId: client.label, category: 'observation-drain-timeout' });
     })));
+    const runtimeCompiledBindingAtEnd = await compiledFunctionsBinding();
     await writeFile(`${directory}/startup-failure.json`, `${JSON.stringify({ status: 'failed',
       sourceCommitAtStart, runtimeIndexSha256AtStart, runtimeCompiledTreeSha256AtStart,
       sourceCommitAtEnd: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
       runtimeIndexSha256AtEnd: createHash('sha256').update(await readFile('functions/lib/index.js')).digest('hex'),
-      runtimeCompiledTreeSha256AtEnd: await compiledFunctionsHash(),
+      runtimeCompiledTreeSha256AtEnd: runtimeCompiledBindingAtEnd.sha256,
+      runtimeCompiledBindingAtStart, runtimeCompiledBindingAtEnd,
       stage: 'fresh normal Auth/UI setup', message: error.message, contextsOpened: clients.size,
+      callableTraceAllowlist: Object.keys(PC10_PROOF_CALLABLE_ACTIONS), fixtureCallableIssued,
       fixtureCallableObservations, observedBrowserCalls: [...clients.values()].flatMap(client => client.observedCalls),
       identityObservations: [...clients.values()].flatMap(client => client.identityObservations),
       serverIdentityDiagnostics,
       rateLimitStateDiagnostics, failureObservationUnavailable: error.pc07FailureObservationUnavailable === true,
+      authoritativeFailureSnapshots, diagnosticFailures: failureDiagnosticFailures,
       callableObservationFailures: [...clients.values()].flatMap(client => client.callableObservationFailures),
       browserErrors: [...clients.values()].flatMap(client => client.errors.map(message => ({ roleId: client.label, message }))),
     }, null, 2)}\n`);
@@ -511,6 +599,9 @@ export async function createPc10BrowserTable({ baseUrl, directory, expansion = '
 }
 
 export async function runPc10OverlappingRecoveryProof(options) {
+  const messageCohortSize = pc10MessageCohortSize(options.messageCohortSize);
+  const messageCohortSizes = [];
+  const completedStages = [];
   const table = await createPc10BrowserTable(options);
   const { fixture, clients, command } = table;
   const roles = [...clients.keys()];
@@ -518,6 +609,7 @@ export async function runPc10OverlappingRecoveryProof(options) {
     const states = await Promise.all(roles.map(role => clients.get(role).until('Fresh active held role', state =>
       isFreshPc10BrowserRole(state, role))));
     assert.equal(states.length, 21);
+    completedStages.push('21-fresh-active-browser-identities');
     const before = await fixture.session.get();
     const requests = new Map(fixture.roles.map(roleId => {
       const originalClaim = fixture.seatClaimRequests[roleId];
@@ -526,6 +618,7 @@ export async function runPc10OverlappingRecoveryProof(options) {
     }));
     const resumes = await Promise.all(roles.map(role => command(role, 'resumeSession')));
     for (const reply of resumes) assert.equal(reply.status, 200, 'Every independent browser resumes its own current projection.');
+    completedStages.push('21-simultaneous-sdk-resumes');
     const privateAudience = await Promise.all(roles.map(async role => {
       const deniedCalls = await Promise.all([
         clients.get(role).privateRead(fixture.sessionId, 'secrets/wolf-assignment'),
@@ -539,12 +632,14 @@ export async function runPc10OverlappingRecoveryProof(options) {
       }
       return { roleId: role, deniedPrivateSdkReads: 2, deniedGmCallableReads: 1 };
     }));
+    completedStages.push('42-private-sdk-and-21-gm-read-denials');
     const messages = [];
-    // Seven simultaneous legitimate writes to the same group are repeated
+    // The default seven simultaneous legitimate group writes are repeated
     // across the full core roster. This is explicit overlapping scheduling,
     // not a hidden transport retry or a limit change.
-    for (let offset = 0; offset < fixture.roles.length; offset += 7) {
-      const batch = fixture.roles.slice(offset, offset + 7);
+    for (let offset = 0; offset < fixture.roles.length; offset += messageCohortSize) {
+      const batch = fixture.roles.slice(offset, offset + messageCohortSize);
+      messageCohortSizes.push(batch.length);
       const choices = batch.map(role => ({ role,
         payload: { requestId: randomUUID(), expectedGroupId: resumes[roles.indexOf(role)].result.player.fleetGroupId,
           text: `PC10 automated browser overlap // ${role}` } }));
@@ -554,22 +649,29 @@ export async function runPc10OverlappingRecoveryProof(options) {
       }
       const replays = await Promise.all(choices.map(({ role, payload }) => command(role, 'sendFleetGroupMessage', payload)));
       assert.deepEqual(replays, committed, 'Exact group-note retries preserve the committed results.');
-      messages.push(...choices.map(({ role, payload }) => ({ roleId: role, requestId: payload.requestId })));
+      messages.push(...choices.map(({ role, payload }) => ({ roleId: role,
+        requestHash: createPc10CallableTrace({ name: 'sendFleetGroupMessage', data: payload,
+          transport: 'independent-browser-SDK', startedAt: 0 }).requestHash })));
     }
+    completedStages.push('20-cohorted-group-notes-and-exact-replays');
     const pressPayload = { requestId: randomUUID(), text: 'PC10 automated overlapping-session rehearsal',
       expectedRevision: (await fixture.session.get()).get('pressDispatch')?.revision ?? 0 };
     const pressDispatch = await command('press-officer', 'publishPressDispatch', pressPayload);
     assert.equal(pressDispatch.status, 200, 'The independent Press audience can publish its own ordinary dispatch.');
     assert.deepEqual(await command('press-officer', 'publishPressDispatch', pressPayload), pressDispatch);
+    completedStages.push('press-dispatch-and-exact-replay');
     const claims = await Promise.all(fixture.roles.map(role => command(role, 'claimSeat', requests.get(role))));
     for (const reply of claims) assert.equal(reply.status, 200, 'Distinct held seats support legitimate simultaneous exact retries.');
     const replayClaims = await Promise.all(fixture.roles.map(role => command(role, 'claimSeat', requests.get(role))));
     for (let index = 0; index < claims.length; index++) assert.deepEqual(replayClaims[index], claims[index]);
+    completedStages.push('20-simultaneous-original-seat-retries-and-replays');
     const allPresence = await Promise.all(roles.map(role => command(role, 'refreshPresence', { activeConsoleRoleId: role })));
     for (const reply of allPresence) assert.equal(reply.status, 200);
+    completedStages.push('21-simultaneous-presence');
     const outsider = await clients.get(fixture.roles[1]).callable('startGame', { sessionId: fixture.sessionId,
       instanceId: fixture.instanceId, requestId: randomUUID(), expectedSetupRevision: before.get('setupRevision') });
     assert.notEqual(outsider.status, 200, 'Ordinary authenticated browsers cannot become GM/start the game.');
+    completedStages.push('ordinary-gm-start-denied');
     const recoveryRoles = [...fixture.roles, 'press-officer'];
     await Promise.all(recoveryRoles.map(role => clients.get(role).context.setOffline(true)));
     const disconnectedObservations = await Promise.all(recoveryRoles.map(role => clients.get(role).observe()));
@@ -579,6 +681,7 @@ export async function runPc10OverlappingRecoveryProof(options) {
       isFreshPc10BrowserRole(state, role))));
     const after = await fixture.session.get();
     assert.equal(after.get('currentTurn'), before.get('currentTurn'), 'Reconnect must not advance the authoritative cycle.');
+    completedStages.push('21-simultaneous-offline-reload-same-uid-recoveries');
     const geometry = await Promise.all(roles.map(role => clients.get(role).geometry()));
     for (const metrics of geometry) assert.ok(metrics.document <= metrics.viewport && metrics.body <= metrics.viewport);
     const evidence = await completePc10BrowserProof(table, { afterOverlappingProof: options.afterOverlappingProof, details: {
@@ -588,6 +691,7 @@ export async function runPc10OverlappingRecoveryProof(options) {
         overlappingOrdinaryGameplayNotesAndPress: true, exactGameplayReplayStable: true,
         everyBrowserPrivateRulesAndGmReadDenied: true,
         cyclePreserved: true, browserGeometryContained: true },
+      messageCohortSize, messageCohortSizes, completedStages,
       privateAudience, messages, disconnectedObservations, recovered,
       limitations: ['This focused concurrency proof alone is not a complete game-through-ending proof.',
         'Actor/browser automation does not establish human-device attendance.',
@@ -595,9 +699,13 @@ export async function runPc10OverlappingRecoveryProof(options) {
     } });
     return evidence;
   } catch (error) {
-    await table.diagnoseIdentityFailure(error);
-    await table.diagnoseRateFailure();
-    await table.writeEvidence('overlapping-recovery-failure.json', { status: 'failed', message: error.message });
+    await observePc10FailureBeforeCleanup(error, {
+      snapshot: table.diagnoseAuthoritativeFailure,
+      identity: () => table.diagnoseIdentityFailure(error), rate: table.diagnoseRateFailure,
+      writeEvidence: details => table.writeEvidence('overlapping-recovery-failure.json', {
+        status: 'failed', message: error.message, messageCohortSize, messageCohortSizes, completedStages, ...details,
+      }),
+    });
     throw error;
   } finally {
     await table.cleanup();
@@ -607,6 +715,7 @@ export async function runPc10OverlappingRecoveryProof(options) {
 if (process.argv[1] && new URL(import.meta.url).pathname === process.argv[1]) {
   const evidence = await runPc10OverlappingRecoveryProof({ baseUrl: process.env.PC10_UI_URL,
     directory: process.env.PC10_EVIDENCE_DIRECTORY, expansion: process.env.PC10_EXPANSION ?? 'capybara',
+    messageCohortSize: process.env.PC10_MESSAGE_COHORT_SIZE,
     ...(process.env.PC10_NATURAL_DISCONNECT === '1' ? { afterOverlappingProof: table =>
       runPc10NaturalDisconnectAcceptance(table, {
         directory: join(process.env.PC10_EVIDENCE_DIRECTORY, 'natural-disconnect'), expectBrowserContexts: 21,
