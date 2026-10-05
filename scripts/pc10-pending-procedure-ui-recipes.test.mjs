@@ -44,7 +44,7 @@ test('Boa recycling checkpoint matches the mounted Coordination-only procedure',
 test('Boa mission choice receipt binds its choice revision to the current rendered workspace', () => {
   const actor = { uidHash: 'recycler-hash', sessionId: 'session-1', profileRoleId: 'capybara-recycler',
     activeConsoleRoleId: 'capybara-recycler', sameActor: true, connection: 'live', freshness: 'server' };
-  const result = evaluateProcedureCapture({ caseId: 'core:chooseBoaMissionReclamationOpportunity',
+  const input = { caseId: 'core:chooseBoaMissionReclamationOpportunity',
     expected: { sessionId: 'session-1', uidHash: 'recycler-hash', roleId: 'capybara-recycler', cycle: 2,
       sourceRevision: 7, groupId: 'fleet-1' }, offered: true, mountedUi: true,
     actorBefore: actor, actorAfter: actor,
@@ -54,7 +54,11 @@ test('Boa mission choice receipt binds its choice revision to the current render
       expectedChoiceRevision: 7, missionOpportunityId: 'mission-1', taskOpportunityId: 'A-1' },
     response: { httpStatus: 200, result: { status: 'committed', choiceRevision: 8 }, exactReplay: true },
     replay: { result: { status: 'replayed', choiceRevision: 8 } },
-    rendered: { visible: true, resultStatus: 'committed' }, cost: null, consent: null });
+    rendered: { visible: true, resultStatus: 'committed' }, cost: null, consent: null };
+  const result = evaluateProcedureCapture(input);
   assert.equal(result.status, 'completed');
   assert.equal(result.revision, 8);
+  const staleChoice = evaluateProcedureCapture({ ...input,
+    request: { ...input.request, expectedChoiceRevision: 6 } });
+  assert.equal(staleChoice.status, 'pending', 'A receipt cannot certify a choice made from another source revision.');
 });
