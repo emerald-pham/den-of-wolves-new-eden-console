@@ -35,14 +35,18 @@ export function createCurrentMemberSessionReader({ db, projectSession }: {
         tx.get(db.doc(`sessions/${sessionId}/presidentialElections/current/ballots/${actorUid}`)),
       ]);
       if (!session.exists) throw new HttpsError('not-found', 'No such session.');
-      if (!actor.exists || actor.get('connected') !== true || actor.get('kickedAt')) {
+      const closedHistory = session.get('phase') === 'closed';
+      const historicalRole = actor.get('role') === 'player' || actor.get('role') === 'gm';
+      if (!actor.exists || actor.get('kickedAt') ||
+          actor.get('connected') !== true && !(closedHistory && historicalRole)) {
         throw new HttpsError('permission-denied', 'Current session membership is required.');
       }
       let scope;
       try {
         scope = actor.get('role') === 'gm'
           ? { groupId: 'gm', vesselIds: session.get('activeVesselIds') as readonly string[] }
-          : memberSessionScope({ ...actor.data(), uid: actorUid }, groups.docs.map(group => group.data()));
+          : memberSessionScope({ ...actor.data(), uid: actorUid,
+            ...(closedHistory ? { connected: true } : {}) }, groups.docs.map(group => group.data()));
       } catch {
         throw new HttpsError('permission-denied', 'Current fleet membership is unavailable.');
       }
@@ -51,14 +55,37 @@ export function createCurrentMemberSessionReader({ db, projectSession }: {
         departure.get('fleetGroupId') === scope.groupId &&
         ['requested', 'in-transit'].includes(String(departure.get('status')))
           ? [departure.id] : []);
-      const raw = { ...projectSession(session, sessionId), pressHolderUid: session.get('pressHolderUid') };
+      const raw: Record<string, unknown> = {
+        ...projectSession(session, sessionId),
+        gameOutcome: session.get('gameOutcome'),
+        survivorOutcome: session.get('survivorOutcome'),
+        debriefSnapshot: session.get('debriefSnapshot'),
+        fullGameDemo: session.get('fullGameDemo'),
+        pressHolderUid: session.get('pressHolderUid'),
+      };
+      const memberSession = wire(memberSessionProjection(raw, { ...scope, actorUid, craftIds,
+        presidentialBallotSubmitted: election.exists && ballot.exists && ballot.get('voterUid') === actorUid })) as Record<string, unknown>;
+      const closedSession = closedHistory ? {
+        id: sessionId,
+        name: typeof raw.name === 'string' ? raw.name : '',
+        joinCode: '',
+        phase: 'closed',
+        currentTurn: Number.isSafeInteger(raw.currentTurn) ? raw.currentTurn : 0,
+        ...(Number.isSafeInteger(raw.playerCount) ? { playerCount: raw.playerCount } : {}),
+        ...(Number.isSafeInteger(raw.turnLimit) ? { turnLimit: raw.turnLimit } : {}),
+        ...(typeof raw.createdAt === 'string' ? { createdAt: raw.createdAt } : {}),
+        ...(typeof raw.updatedAt === 'string' ? { updatedAt: raw.updatedAt } : {}),
+        ...(memberSession.gameOutcome ? { gameOutcome: memberSession.gameOutcome } : {}),
+        ...(memberSession.survivorOutcome ? { survivorOutcome: memberSession.survivorOutcome } : {}),
+        ...(memberSession.debriefSnapshot ? { debriefSnapshot: memberSession.debriefSnapshot } : {}),
+        ...(memberSession.fullGameDemo ? { fullGameDemo: memberSession.fullGameDemo } : {}),
+      } : undefined;
       return {
         type: 'current-member-session' as const, sessionId, actorUid, groupId: scope.groupId,
         connectionGeneration: actor.get('connectionGeneration') ?? 1,
         assignedRoleId: actor.get('assignedRoleId') ?? null,
         activeConsoleRoleId: actor.get('activeConsoleRoleId') ?? null,
-        session: wire(memberSessionProjection(raw, { ...scope, actorUid, craftIds,
-          presidentialBallotSubmitted: election.exists && ballot.exists && ballot.get('voterUid') === actorUid })) as Record<string, unknown>,
+        session: closedSession ?? memberSession,
       };
     });
   };

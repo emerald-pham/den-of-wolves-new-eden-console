@@ -1558,6 +1558,37 @@ export interface SurvivorOutcome {
   readonly lostOrDestroyedShipIds: readonly VesselId[];
 }
 
+/** Entitled, immutable explanation shown after the shared terminal freeze. */
+export interface SessionDebriefSnapshot {
+  readonly type: 'session-debrief';
+  readonly version: 1;
+  readonly source: 'candidate' | 'final-cycle' | 'failure-review';
+  readonly result: 'success' | 'failure' | 'completed';
+  readonly cause: 'candidate-complete' | 'pursuit-limit' | 'total-fleet-loss' | 'final-cycle';
+  readonly cycle: number;
+  readonly occurredAt: Timestamp;
+  readonly committedAt: Timestamp;
+  readonly outcome?: {
+    readonly type: 'game-outcome';
+    readonly result: 'success' | 'failure';
+    readonly cause: 'candidate-complete' | 'pursuit-limit' | 'total-fleet-loss';
+    readonly candidateCode?: 'N' | 'O' | 'P';
+    readonly navigationRevision?: number;
+    readonly cycle: number;
+    readonly occurredAt: Timestamp;
+  };
+  readonly survivorOutcome?: SurvivorOutcome;
+  readonly candidate?: {
+    readonly code: 'N' | 'O' | 'P';
+    readonly groups: readonly {
+      readonly requirements: readonly { readonly id: string; readonly status: 'met' | 'unmet' }[];
+      readonly rolls: readonly { readonly id: string; readonly face?: number; readonly result: 'success' | 'failure' }[];
+      readonly losses: readonly { readonly shipId: VesselId; readonly reason: string }[];
+      readonly humanCalls: readonly { readonly id: string; readonly cycle: number }[];
+    }[];
+  };
+}
+
 /** Server-authored member view of the PDF Escort Wing's current state. */
 export interface PdfEscortWingMemberView {
   readonly type: 'pdf-escort-fighter-wing-view';
@@ -1581,6 +1612,11 @@ export interface GameSession {
   readonly singlePlayerDemo?: {
     readonly status: 'active' | 'complete';
     readonly finalCycle: 1;
+  };
+  /** Server-controlled preparation/progression marker for the full-game Demo. */
+  readonly fullGameDemo?: {
+    readonly status: 'preparing' | 'active' | 'complete';
+    readonly progression: 'manual';
   };
   /** Shared game turn advanced by an active GM; new sessions begin at Turn 0. */
   readonly currentTurn?: number;
@@ -1620,6 +1656,7 @@ export interface GameSession {
   };
   readonly gameOutcome?: GameOutcome;
   readonly survivorOutcome?: SurvivorOutcome;
+  readonly debriefSnapshot?: SessionDebriefSnapshot;
   readonly pressDispatch?: PressDispatchState;
   readonly fleetTicker?: FleetTickerState;
   readonly maintenanceCycles?: Readonly<Record<string, MaintenanceCycle>>;

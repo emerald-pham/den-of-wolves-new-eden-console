@@ -1520,6 +1520,128 @@ function debriefMode(value: unknown): NonNullable<GameSession['debriefMode']> {
   return { active: state.active, revision: state.revision };
 }
 
+function sessionDebriefOutcome(value: unknown): NonNullable<NonNullable<GameSession['debriefSnapshot']>['outcome']> | undefined {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
+  const raw = value as Record<string, unknown>;
+  const allowed = ['type', 'result', 'cause', 'candidateCode', 'navigationRevision', 'cycle', 'occurredAt'];
+  if (Object.keys(raw).some(key => !allowed.includes(key)) || raw.type !== 'game-outcome' ||
+      !Number.isSafeInteger(raw.cycle) || Number(raw.cycle) < 0 || typeof raw.occurredAt !== 'string' ||
+      !Number.isFinite(Date.parse(raw.occurredAt))) return undefined;
+  if (raw.result === 'success' && raw.cause === 'candidate-complete' &&
+      ['N', 'O', 'P'].includes(String(raw.candidateCode)) &&
+      Object.keys(raw).length === 6 && raw.navigationRevision === undefined) {
+    return { type: 'game-outcome', result: 'success', cause: 'candidate-complete',
+      candidateCode: raw.candidateCode as 'N' | 'O' | 'P', cycle: Number(raw.cycle), occurredAt: raw.occurredAt };
+  }
+  if (raw.result === 'failure' && raw.cause === 'pursuit-limit' &&
+      Number.isSafeInteger(raw.navigationRevision) && Number(raw.navigationRevision) >= 1 &&
+      Object.keys(raw).length === 7 && raw.candidateCode === undefined) {
+    return { type: 'game-outcome', result: 'failure', cause: 'pursuit-limit', cycle: Number(raw.cycle),
+      navigationRevision: Number(raw.navigationRevision), occurredAt: raw.occurredAt };
+  }
+  if (raw.result === 'failure' && raw.cause === 'total-fleet-loss' &&
+      Object.keys(raw).length === 5 && raw.candidateCode === undefined && raw.navigationRevision === undefined) {
+    return { type: 'game-outcome', result: 'failure', cause: 'total-fleet-loss', cycle: Number(raw.cycle), occurredAt: raw.occurredAt };
+  }
+  return undefined;
+}
+
+function sessionDebriefFrom(
+  value: unknown,
+  currentSurvivorOutcome: GameSession['survivorOutcome'],
+): GameSession['debriefSnapshot'] {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
+  const raw = value as Record<string, unknown>;
+  const allowed = ['type', 'version', 'source', 'result', 'cause', 'cycle', 'occurredAt', 'committedAt',
+    'outcome', 'survivorOutcome', 'candidate'];
+  if (Object.keys(raw).some(key => !allowed.includes(key)) || raw.type !== 'session-debrief' || raw.version !== 1 ||
+      !['candidate', 'final-cycle', 'failure-review'].includes(String(raw.source)) ||
+      !['success', 'failure', 'completed'].includes(String(raw.result)) ||
+      !['candidate-complete', 'pursuit-limit', 'total-fleet-loss', 'final-cycle'].includes(String(raw.cause)) ||
+      !Number.isSafeInteger(raw.cycle) || Number(raw.cycle) < 0 ||
+      typeof raw.occurredAt !== 'string' || !Number.isFinite(Date.parse(raw.occurredAt)) ||
+      typeof raw.committedAt !== 'string' || !Number.isFinite(Date.parse(raw.committedAt))) return undefined;
+  const outcome = raw.outcome === undefined ? undefined : sessionDebriefOutcome(raw.outcome);
+  if (raw.outcome !== undefined && !outcome) return undefined;
+  let candidate: NonNullable<GameSession['debriefSnapshot']>['candidate'];
+  if (raw.candidate !== undefined) {
+    if (typeof raw.candidate !== 'object' || raw.candidate === null || Array.isArray(raw.candidate)) return undefined;
+    const source = raw.candidate as Record<string, unknown>;
+    if (Object.keys(source).length !== 2 || Object.keys(source).some(key => !['code', 'groups'].includes(key)) ||
+        !['N', 'O', 'P'].includes(String(source.code)) || !Array.isArray(source.groups) ||
+        source.groups.length < 1 || source.groups.length > 100) return undefined;
+    const parsedGroups: {
+      requirements: { id: string; status: 'met' | 'unmet' }[];
+      rolls: { id: string; face?: number; result: 'success' | 'failure' }[];
+      losses: { shipId: string; reason: string }[];
+      humanCalls: { id: string; cycle: number }[];
+    }[] = [];
+    for (const entry of source.groups) {
+      if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) return undefined;
+      const group = entry as Record<string, unknown>;
+      if (Object.keys(group).length !== 4 || Object.keys(group).some(key =>
+        !['requirements', 'rolls', 'losses', 'humanCalls'].includes(key)) ||
+          !Array.isArray(group.requirements) || group.requirements.length > 50 ||
+          !Array.isArray(group.rolls) || group.rolls.length > 50 ||
+          !Array.isArray(group.losses) || group.losses.length > 100 ||
+          !Array.isArray(group.humanCalls) || group.humanCalls.length > 50) return undefined;
+      const requirements = group.requirements.flatMap(item => {
+        if (typeof item !== 'object' || item === null || Array.isArray(item)) return [];
+        const requirement = item as Record<string, unknown>;
+        if (Object.keys(requirement).length !== 2 || Object.keys(requirement).some(key => !['id', 'status'].includes(key)) ||
+            typeof requirement.id !== 'string' || !/^[\w-]{1,80}$/.test(requirement.id) ||
+            requirement.status !== 'met' && requirement.status !== 'unmet') return [];
+        return [{ id: requirement.id, status: requirement.status as 'met' | 'unmet' }];
+      });
+      const rolls = group.rolls.flatMap(item => {
+        if (typeof item !== 'object' || item === null || Array.isArray(item)) return [];
+        const roll = item as Record<string, unknown>;
+        if (Object.keys(roll).some(key => !['id', 'face', 'result'].includes(key)) ||
+            ![2, 3].includes(Object.keys(roll).length) || typeof roll.id !== 'string' ||
+            !/^[\w-]{1,80}$/.test(roll.id) || roll.result !== 'success' && roll.result !== 'failure' ||
+            roll.face !== undefined && (!Number.isSafeInteger(roll.face) || Number(roll.face) < 1 || Number(roll.face) > 12)) return [];
+        return [{ id: roll.id, ...(roll.face === undefined ? {} : { face: Number(roll.face) }), result: roll.result as 'success' | 'failure' }];
+      });
+      const losses = group.losses.flatMap(item => {
+        if (typeof item !== 'object' || item === null || Array.isArray(item)) return [];
+        const loss = item as Record<string, unknown>;
+        const shipId = parseEntityId('vessel', loss.shipId);
+        if (Object.keys(loss).length !== 2 || Object.keys(loss).some(key => !['shipId', 'reason'].includes(key)) ||
+            !shipId || typeof loss.reason !== 'string' || !/^[\w-]{1,64}$/.test(loss.reason)) return [];
+        return [{ shipId, reason: loss.reason }];
+      });
+      const humanCalls = group.humanCalls.flatMap(item => {
+        if (typeof item !== 'object' || item === null || Array.isArray(item)) return [];
+        const call = item as Record<string, unknown>;
+        if (Object.keys(call).length !== 2 || Object.keys(call).some(key => !['id', 'cycle'].includes(key)) ||
+            typeof call.id !== 'string' || !/^[\w-]{1,80}$/.test(call.id) ||
+            !Number.isSafeInteger(call.cycle) || Number(call.cycle) < 0) return [];
+        return [{ id: call.id, cycle: Number(call.cycle) }];
+      });
+      if (requirements.length !== group.requirements.length || rolls.length !== group.rolls.length ||
+          losses.length !== group.losses.length || humanCalls.length !== group.humanCalls.length) return undefined;
+      parsedGroups.push({ requirements, rolls, losses, humanCalls });
+    }
+    candidate = { code: source.code as 'N' | 'O' | 'P', groups: parsedGroups };
+  }
+  const survivorOutcome = raw.survivorOutcome === undefined ? undefined :
+    currentSurvivorOutcome && JSON.stringify(raw.survivorOutcome) === JSON.stringify(currentSurvivorOutcome)
+      ? currentSurvivorOutcome : undefined;
+  if (raw.survivorOutcome !== undefined && !survivorOutcome) return undefined;
+  if (raw.source === 'candidate' && (!outcome || outcome.result !== 'success' || !candidate || candidate.code !== outcome.candidateCode ||
+      raw.result !== 'success' || raw.cause !== 'candidate-complete') ||
+      raw.source === 'final-cycle' && (outcome || raw.result !== 'completed' || raw.cause !== 'final-cycle') ||
+      raw.source === 'failure-review' && (!outcome || outcome.result !== 'failure' || raw.result !== 'failure' || raw.cause !== outcome.cause)) return undefined;
+  return {
+    type: 'session-debrief', version: 1,
+    source: raw.source as NonNullable<GameSession['debriefSnapshot']>['source'],
+    result: raw.result as NonNullable<GameSession['debriefSnapshot']>['result'],
+    cause: raw.cause as NonNullable<GameSession['debriefSnapshot']>['cause'],
+    cycle: Number(raw.cycle), occurredAt: raw.occurredAt, committedAt: raw.committedAt,
+    ...(outcome ? { outcome } : {}), ...(survivorOutcome ? { survivorOutcome } : {}), ...(candidate ? { candidate } : {}),
+  };
+}
+
 function wolfAttackWindow(value: unknown): WolfAttackWindow | null {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
   const state = value as Readonly<Record<string, unknown>>;
@@ -3326,6 +3448,13 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     (rawDemo.status === 'active' || rawDemo.status === 'complete') && rawDemo.finalCycle === 1
     ? { status: rawDemo.status as 'active' | 'complete', finalCycle: 1 as const }
     : undefined;
+  const rawFullGameDemo = data.fullGameDemo;
+  const fullGameDemo = typeof rawFullGameDemo === 'object' && rawFullGameDemo !== null && !Array.isArray(rawFullGameDemo) &&
+    Object.keys(rawFullGameDemo).length === 2 &&
+    (rawFullGameDemo.status === 'preparing' || rawFullGameDemo.status === 'active' || rawFullGameDemo.status === 'complete') &&
+    rawFullGameDemo.progression === 'manual'
+    ? { status: rawFullGameDemo.status as 'preparing' | 'active' | 'complete', progression: 'manual' as const }
+    : undefined;
   const dradisContactTriggeredAt = data.dradisContactTriggeredAt;
   const announcement = turnStartAnnouncement(data.turnStartAnnouncement);
   const phaseClock = turnPhaseState(data.turnPhase);
@@ -3421,6 +3550,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
       lostOrDestroyedShipIds,
     }
     : undefined;
+  const debriefSnapshot = sessionDebriefFrom(data.debriefSnapshot, survivorOutcome);
   const storedRoleIds = parseEntityIdArray('role', data.activeRoleIds);
   const storedVesselIds = parseEntityIdArray('vessel', data.activeVesselIds);
   const hasStoredRoleIds = Array.isArray(data.activeRoleIds);
@@ -3523,6 +3653,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     ...(emergencyWindow ? { pursuitEmergencyWindow: emergencyWindow } : {}),
     ...(gameOutcome ? { gameOutcome } : {}),
     ...(survivorOutcome ? { survivorOutcome } : {}),
+    ...(debriefSnapshot ? { debriefSnapshot } : {}),
     capybaraEnabled: data.capybaraEnabled !== false,
     dioneEnabled: data.dioneEnabled !== false,
     universalArbourEnabled: data.universalArbourEnabled === true,
@@ -3554,6 +3685,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     pressDispatch: normalizePressDispatch(data.pressDispatch),
     fleetTicker: fleetTickerState(data.fleetTicker),
     ...(demo ? { singlePlayerDemo: demo } : {}),
+    ...(fullGameDemo ? { fullGameDemo } : {}),
     maintenanceCycles: maintenanceCycles(data.maintenanceCycles),
     smallShipStates: currentSmallShipStates,
     ...(currentBaseCapybaraCargo ? { baseCapybaraCargo: currentBaseCapybaraCargo } : {}),

@@ -12,6 +12,7 @@ import { parseBaseCapybaraCargoState } from './baseCapybaraCargoTransfer';
 import { parseBoaRecyclingLedger } from './boaRecycling';
 import { parseMaliadesState } from './maliadesState';
 import { maliadesOperationalView } from './maliadesOperationalView';
+import { safeGameOutcome, safeSurvivorOutcome, sessionDebriefProjection } from './sessionDebrief';
 
 export interface MemberSessionScope {
   readonly groupId: string;
@@ -51,6 +52,7 @@ const PUBLIC_FIELDS = [
   'wolfCultEnabled', 'pressEnabled', 'pressClaimed', 'pressAvailabilityRevision', 'gmControlsLocked',
   'turnPhase', 'turnState', 'turnStartAnnouncement', 'pursuitEmergencyWindow', 'gameOutcome',
   'survivorOutcome', 'fleetRedAlert', 'fleetTicker', 'pressDispatch', 'debriefMode', 'singlePlayerDemo',
+  'fullGameDemo',
   'presidentialElection', 'presidentialOffices', 'currentMemberBallotSubmitted',
   'createdAt', 'updatedAt', 'ownerUid', 'dradisContactTriggeredAt',
 ] as const;
@@ -146,6 +148,26 @@ export function memberSessionProjection(value: unknown, scope: MemberSessionScop
   }
   const result: Record<string, unknown> = Object.fromEntries(PUBLIC_FIELDS
     .filter(key => root[key] !== undefined).map(key => [key, root[key]]));
+  const outcome = safeGameOutcome(root.gameOutcome);
+  if (outcome) result.gameOutcome = outcome;
+  else delete result.gameOutcome;
+  const survivorOutcome = safeSurvivorOutcome(root.survivorOutcome);
+  if (survivorOutcome) result.survivorOutcome = {
+    ...survivorOutcome,
+    survivingShipIds: (survivorOutcome.survivingShipIds as string[]).filter(id => ships.has(id)),
+    lostOrDestroyedShipIds: (survivorOutcome.lostOrDestroyedShipIds as string[]).filter(id => ships.has(id)),
+  };
+  else delete result.survivorOutcome;
+  const debriefSnapshot = sessionDebriefProjection(root.debriefSnapshot, {
+    groupId: scope.groupId, vesselIds: [...ships],
+  });
+  if (debriefSnapshot) result.debriefSnapshot = debriefSnapshot;
+  else delete result.debriefSnapshot;
+  const demo = record(root.fullGameDemo);
+  if (demo && Object.keys(demo).length === 2 &&
+      (demo.status === 'active' || demo.status === 'complete') && demo.progression === 'manual') {
+    result.fullGameDemo = { status: demo.status, progression: 'manual' };
+  } else delete result.fullGameDemo;
   if (typeof scope.presidentialBallotSubmitted === 'boolean') {
     result.currentMemberBallotSubmitted = scope.presidentialBallotSubmitted;
   } else if (typeof root.currentMemberBallotSubmitted === 'boolean') {

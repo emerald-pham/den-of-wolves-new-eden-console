@@ -1,4 +1,4 @@
-import { FieldValue, type DocumentReference, type DocumentSnapshot, type Transaction } from 'firebase-admin/firestore';
+import type { DocumentReference, DocumentSnapshot, Transaction } from 'firebase-admin/firestore';
 import { assertLifecycleTransition, type LifecyclePhase } from './lifecycle';
 
 export type SessionDebriefSource = 'candidate' | 'final-cycle' | 'failure-review';
@@ -202,7 +202,7 @@ export function safeGameOutcome(value: unknown): Record<string, unknown> | undef
   return undefined;
 }
 
-function safeSurvivorOutcome(value: unknown): Record<string, unknown> | undefined {
+export function safeSurvivorOutcome(value: unknown): Record<string, unknown> | undefined {
   const raw = record(value);
   const expected = [
     'type', 'cycle', 'occurredAt', 'fleetShipPopulation', 'survivingShipPopulation',
@@ -344,7 +344,7 @@ export function commitTerminal(
     ...(next.survivorOutcome ? { survivorOutcome: next.survivorOutcome } : {}),
     debriefSnapshot: next,
     ...(fullGameDemo ? { fullGameDemo } : {}),
-    updatedAt: FieldValue.serverTimestamp(),
+    updatedAt: new Date(),
   });
   return { committed: true, snapshot: next };
 }
@@ -362,7 +362,7 @@ export function closeSessionInTransaction(
   if (phase === 'closed') return { closed: false, snapshot };
   assertLifecycleTransition(phase, 'closed');
   if (phase !== 'debrief') throw new Error('Only a debrief can be closed.');
-  tx.update(sessionRef, { phase: 'closed', updatedAt: FieldValue.serverTimestamp() });
+  tx.update(sessionRef, { phase: 'closed', updatedAt: new Date() });
   return { closed: true, snapshot };
 }
 
