@@ -361,6 +361,7 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
     onBodyUnavailable: ({ trace }) => observePc10CallableTrace(trace, { stage: 'body-unavailable', at: Date.now() }),
   });
   const observedRequests = new Map();
+  const ignoredNonPostRequests = new Map();
   const identityObservations = [];
   const identityRecords = new Map();
   let observationId = 0;
@@ -381,8 +382,8 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
   let cdpSession;
   try {
     cdpSession = await context.newCDPSession(page);
-    const callableNameFor = (urlValue, method = 'POST') => {
-      if (method !== 'POST' || typeof urlValue !== 'string') return null;
+    const callableNameFor = urlValue => {
+      if (typeof urlValue !== 'string') return null;
       try {
         const url = new URL(urlValue);
         const name = url.pathname.split('/').at(-1);
@@ -394,15 +395,28 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
       category: 'unknown-callable-lifecycle' });
     const eventTime = trace => Math.max(Date.now(), trace.issuedAt);
     cdpSession.on('Network.requestWillBeSent', event => {
-      const name = callableNameFor(event?.request?.url, event?.request?.method);
+      const name = callableNameFor(event?.request?.url);
       if (!name) return;
-      if (typeof event.requestId !== 'string' || event.requestId.length === 0) {
+      const method = event?.request?.method;
+      if (typeof method !== 'string' || method.length === 0 ||
+          typeof event.requestId !== 'string' || event.requestId.length === 0) {
         callableObservationFailures.push({ roleId: label, name, category: 'request-metadata-unavailable' });
+        return;
+      }
+      const ignoredPrior = ignoredNonPostRequests.get(event.requestId);
+      if (ignoredPrior) {
+        unboundFailure(name);
         return;
       }
       const prior = observedRequests.get(event.requestId);
       if (prior) {
         recordCallableObservationFailure(prior, 'unknown-callable-lifecycle');
+        return;
+      }
+      if (method !== 'POST') {
+        // Correlate known GET/preflight IDs explicitly; response URLs alone
+        // cannot distinguish those from an unbound callable POST response.
+        ignoredNonPostRequests.set(event.requestId, { method });
         return;
       }
       let data;
@@ -428,6 +442,8 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
       observedCalls.push(trace);
     });
     cdpSession.on('Network.responseReceived', event => {
+      const ignoredNonPost = ignoredNonPostRequests.get(event?.requestId);
+      if (ignoredNonPost?.method && ignoredNonPost.method !== 'POST') return;
       const state = observedRequests.get(event?.requestId);
       if (!state) {
         const name = callableNameFor(event?.response?.url);
@@ -445,6 +461,7 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
       observePc10CallableTrace(state.trace, { stage: 'headers', at: eventTime(state.trace), status: event.response?.status });
     });
     cdpSession.on('Network.loadingFinished', event => {
+      if (ignoredNonPostRequests.delete(event?.requestId)) return;
       const state = observedRequests.get(event?.requestId);
       if (!state) return;
       if (state.trace.requestFinishedAt !== null || state.trace.requestFailedAt !== null) {
@@ -473,6 +490,7 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
       observationBoundary.finish(state);
     });
     cdpSession.on('Network.loadingFailed', event => {
+      if (ignoredNonPostRequests.delete(event?.requestId)) return;
       const state = observedRequests.get(event?.requestId);
       if (!state) return;
       if (state.trace.requestFinishedAt !== null || state.trace.requestFailedAt !== null) {
