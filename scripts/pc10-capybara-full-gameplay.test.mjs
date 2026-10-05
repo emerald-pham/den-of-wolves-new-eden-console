@@ -6,6 +6,7 @@ import {
   assessCapybaraGameplay,
   assertCapybaraRunContext,
   capybaraStageOutcome,
+  macawDismantlingStageOutcome,
   projectCapybaraEvidence,
   sourceActionStageOutcome,
 } from './pc10-capybara-full-gameplay.mjs';
@@ -159,4 +160,75 @@ test('evidence projection omits private choices, raw actor/session identifiers, 
     assert.equal(serialized.includes(secret), false);
   }
   assert.equal(report.stages['boa-mission-reclamation'].status, 'completed');
+});
+
+
+test('Macaw consent stage requires the real holder, distinct target player, three exact UI retries, and applied state', async () => {
+  const proof = (roleId, uidHash, renderedStatus, revision) => ({ httpStatus: 200, exactReplay: true,
+    actor: { roleId, uidHash, activeConsoleRoleId: roleId, connection: 'live', freshness: 'server' },
+    projection: { gm: { sessionId: 'fresh-session', live: true, cycle: 2, revision },
+      crew: { sessionId: 'fresh-session', live: true, cycle: 2, revision: revision - 1 }, renderedStatus } });
+  const receiptSet = () => ({
+    sessionId: 'fresh-session', cycle: 2,
+    proposer: { roleId: 'capybara-captain', uidHash: 'captain-hash' },
+    target: { roleId: 'dione-engineer', uidHash: 'dione-hash' },
+    proposal: { status: 'proposed', sessionId: 'fresh-session', proposalId: 'proposal-secret', craftId: 'macaw',
+      targetShipId: 'dione', targetConsoleId: 'engine-console-secret', targetRevision: 3, scrapGain: 1 },
+    proposalProof: proof('capybara-captain', 'captain-hash', 'proposal-visible', 7),
+    consent: { status: 'consented', consentStatus: 'granted', sessionId: 'fresh-session',
+      proposalId: 'proposal-secret', consentId: 'consent-secret', targetRevision: 3 },
+    consentProof: proof('dione-engineer', 'dione-hash', 'consent-visible', 8),
+    consentInbox: { sessionId: 'fresh-session', targetShipId: 'dione', proposalId: 'proposal-secret',
+      craftId: 'macaw', status: 'consented', consentId: 'consent-secret', targetRevision: 3, scrapGain: 1 },
+    applied: { status: 'applied', sessionId: 'fresh-session', proposalId: 'proposal-secret',
+      consentId: 'consent-secret', targetShipId: 'dione', targetConsoleId: 'engine-console-secret',
+      targetRevision: 4, scrapGain: 1, scrapAfter: 2 },
+    applyProof: proof('capybara-captain', 'captain-hash', 'applied-visible', 9),
+    finalInbox: { sessionId: 'fresh-session', targetShipId: 'dione', proposalId: 'proposal-secret',
+      craftId: 'macaw', status: 'applied', consentId: 'consent-secret', targetRevision: 3, scrapGain: 1, scrapAfter: 2 },
+    before: { shipDamage: { dione: { damagedSystemIds: [] } }, shipResources: { capybara: { scrap: 1 } } },
+    after: { shipDamage: { dione: { damagedSystemIds: ['engine-console-secret'] } }, shipResources: { capybara: { scrap: 2 } } },
+  });
+  const { macawDismantlingStageOutcome } = await import('./pc10-capybara-full-gameplay.mjs');
+  const result = macawDismantlingStageOutcome(receiptSet());
+  assert.deepEqual(result, { status: 'completed', roleId: 'capybara-captain',
+    endpoint: 'permissioned Macaw proposal, consent, and apply', cycle: 2, sourceRevision: 9,
+    cost: { resource: 'undamaged target console', amount: 1, result: '+1 Capybara Scrap after target approval' } });
+  assert.equal(JSON.stringify(result).includes('proposal-secret'), false);
+  assert.equal(JSON.stringify(result).includes('consent-secret'), false);
+  assert.equal(JSON.stringify(result).includes('engine-console-secret'), false);
+});
+
+test('Macaw consent stage stays pending for absent replay, self-consent, stale projection, or missing server effect', async () => {
+  const proof = (roleId, uidHash, renderedStatus, revision) => ({ httpStatus: 200, exactReplay: true,
+    actor: { roleId, uidHash, activeConsoleRoleId: roleId, connection: 'live', freshness: 'server' },
+    projection: { gm: { sessionId: 'fresh-session', live: true, cycle: 2, revision },
+      crew: { sessionId: 'fresh-session', live: true, cycle: 2, revision: revision - 1 }, renderedStatus } });
+  const valid = {
+    sessionId: 'fresh-session', cycle: 2,
+    proposer: { roleId: 'capybara-captain', uidHash: 'captain-hash' },
+    target: { roleId: 'dione-engineer', uidHash: 'dione-hash' },
+    proposal: { status: 'proposed', sessionId: 'fresh-session', proposalId: 'p', craftId: 'macaw', targetShipId: 'dione', targetConsoleId: 'reactor', targetRevision: 3, scrapGain: 1 },
+    proposalProof: proof('capybara-captain', 'captain-hash', 'proposal-visible', 7),
+    consent: { status: 'consented', consentStatus: 'granted', sessionId: 'fresh-session', proposalId: 'p', consentId: 'c', targetRevision: 3 },
+    consentProof: proof('dione-engineer', 'dione-hash', 'consent-visible', 8),
+    consentInbox: { sessionId: 'fresh-session', targetShipId: 'dione', proposalId: 'p', craftId: 'macaw', status: 'consented', consentId: 'c', targetRevision: 3, scrapGain: 1 },
+    applied: { status: 'applied', sessionId: 'fresh-session', proposalId: 'p', consentId: 'c', targetShipId: 'dione', targetConsoleId: 'reactor', targetRevision: 4, scrapGain: 1, scrapAfter: 2 },
+    applyProof: proof('capybara-captain', 'captain-hash', 'applied-visible', 9),
+    finalInbox: { sessionId: 'fresh-session', targetShipId: 'dione', proposalId: 'p', craftId: 'macaw', status: 'applied', consentId: 'c', targetRevision: 3, scrapGain: 1, scrapAfter: 2 },
+    before: { shipDamage: { dione: { damagedSystemIds: [] } }, shipResources: { capybara: { scrap: 1 } } },
+    after: { shipDamage: { dione: { damagedSystemIds: ['reactor'] } }, shipResources: { capybara: { scrap: 2 } } },
+  };
+  const { macawDismantlingStageOutcome } = await import('./pc10-capybara-full-gameplay.mjs');
+  const variants = [
+    { proposalProof: { ...valid.proposalProof, exactReplay: false } },
+    { consentProof: { ...valid.consentProof, actor: { ...valid.consentProof.actor, uidHash: 'captain-hash' } } },
+    { target: { ...valid.target, uidHash: 'captain-hash' } },
+    { applyProof: { ...valid.applyProof, projection: { ...valid.applyProof.projection, crew: { ...valid.applyProof.projection.crew, cycle: 1 } } } },
+    { finalInbox: { ...valid.finalInbox, status: 'consented' } },
+    { after: { ...valid.after, shipResources: { capybara: { scrap: 1 } } } },
+    { after: { ...valid.after, shipDamage: { dione: { damagedSystemIds: [] } } } },
+    { applied: { ...valid.applied, scrapGain: 2 } },
+  ];
+  for (const patch of variants) assert.equal(macawDismantlingStageOutcome({ ...valid, ...patch }).status, 'pending');
 });
