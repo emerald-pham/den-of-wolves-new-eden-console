@@ -101,9 +101,11 @@ describe('PDF Escort Wing reference', () => {
 
     await waitFor(() => expect(mocks.launch).toHaveBeenCalledWith(2, 5, 3));
     expect(await screen.findByRole('button', { name: 'PDF Escort Wing launched' })).toBeDisabled();
-    expect(screen.getByText('Medium and Short combat resolution is not available in the console yet.'))
+    expect(screen.queryByText('Medium and Short combat resolution is not available in the console yet.'))
+      .not.toBeInTheDocument();
+    expect(screen.queryByText(/result integration pending/)).not.toBeInTheDocument();
+    expect(screen.getByText(/server applies these bonuses only to opportunities this participant contributes to/i))
       .toBeVisible();
-    expect(screen.getByText(/result integration pending/)).toBeVisible();
   });
 
   it('shows the server denial when no wing fighters remain', async () => {
