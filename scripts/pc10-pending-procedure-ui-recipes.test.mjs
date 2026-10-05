@@ -41,6 +41,11 @@ test('Boa recycling checkpoint matches the mounted Coordination-only procedure',
   assert.equal(recycle?.checkpoint, 'coordination');
 });
 
+test('Highwall mining checkpoint matches the mounted Coordination-only procedure', () => {
+  const mining = CORE_CRAFT_PROCEDURES.find(row => row.endpoint === 'runHighwallMining');
+  assert.equal(mining?.checkpoint, 'coordination');
+});
+
 test('Boa mission choice receipt binds its choice revision to the current rendered workspace', () => {
   const actor = { uidHash: 'recycler-hash', sessionId: 'session-1', profileRoleId: 'capybara-recycler',
     activeConsoleRoleId: 'capybara-recycler', sameActor: true, connection: 'live', freshness: 'server' };
