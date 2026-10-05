@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { planMissionRewardDelivery } from './missionRewardDelivery';
+import { planBoaMissionRewardDelivery, planMissionRewardDelivery } from './missionRewardDelivery';
 
 const inventory = { ore: 2, fuel: 4, food: 5, water: 6, materials: 7, securityTeams: 8 };
 const rewards = [{ opportunityId: 'A-1', branch: 'success' as const,
@@ -23,4 +23,35 @@ it('rejects malformed balances, unknown or negative rewards, and overflow instea
     { ...valid, rewards: [{ ...rewards[0], resources: { food: -1 } }] },
     { ...valid, rewards: [{ ...rewards[0], resources: { invented: 1 } }] },
   ]) expect(planMissionRewardDelivery(invalid)).toBeNull();
+});
+
+it('routes exactly the selected Boa Scrap to Boa cargo and keeps it out of the mission drop-off ship', () => {
+  expect(planBoaMissionRewardDelivery({
+    shipId: 'aegis', inventory, population: 1000, minerals: 4,
+    rewards: [
+      { opportunityId: 'G-3', branch: 'critical', resources: { scrap: 1 }, effects: [], bulkHaulageApplied: false },
+      { opportunityId: 'G-2', branch: 'success', resources: { water: 2 }, effects: [], bulkHaulageApplied: false },
+    ],
+    specialRewards: [], boaReclamationOpportunityId: 'G-3', boaScrapCargo: { scrap: 2 },
+  })).toEqual({
+    inventory: { ...inventory, water: 8 }, population: 1000, minerals: 4,
+    deltas: { water: 2 }, boaScrapAwarded: 1, boaScrapCargo: { scrap: 3 },
+  });
+});
+
+it('does not mint Boa Scrap on failure and rejects any malformed replacement reward or cargo', () => {
+  const valid = {
+    shipId: 'aegis', inventory, population: 1000, minerals: 0, specialRewards: [],
+    boaReclamationOpportunityId: 'G-3', boaScrapCargo: {},
+  };
+  expect(planBoaMissionRewardDelivery({ ...valid,
+    rewards: [{ opportunityId: 'G-3', branch: 'none', resources: {}, effects: [], bulkHaulageApplied: false }],
+  })).toMatchObject({ boaScrapAwarded: 0, boaScrapCargo: {} });
+  expect(planBoaMissionRewardDelivery({ ...valid,
+    rewards: [{ opportunityId: 'G-3', branch: 'critical', resources: { scrap: 2 }, effects: [], bulkHaulageApplied: false }],
+  })).toBeNull();
+  expect(planBoaMissionRewardDelivery({ ...valid,
+    boaScrapCargo: { scrap: -1 },
+    rewards: [{ opportunityId: 'G-3', branch: 'none', resources: {}, effects: [], bulkHaulageApplied: false }],
+  })).toBeNull();
 });
