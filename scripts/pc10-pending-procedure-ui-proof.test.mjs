@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import test from 'node:test';
 import {
   CORE_CRAFT_PROCEDURES,
@@ -279,4 +280,141 @@ test('evidence projection never persists raw requests, notes, UIDs, or random da
   assert.equal(evaluateProcedureCapture({ ...disclosedInput, trainingChoice: 'gm-training:private-target' }).status,
     'pending', 'only the one fixed non-content training marker may be persisted');
   assert.equal(disclosedChoice.randomOutcomeRecorded, false);
+});
+
+const pc10ProofHash = value => createHash('sha256').update(JSON.stringify(value ?? null)).digest('hex').slice(0, 20);
+const pc10UidHash = value => createHash('sha256').update(value).digest('hex').slice(0, 16);
+
+test('mounted AEGIS console lock requires its original vessel receipt, exact replay, and reloaded projection', () => {
+  const uidHash = pc10UidHash('gm-auth-uid');
+  const gmActor = { uidHash, sessionId: 'session-1', playerRole: 'gm', instanceId: 'gm-instance',
+    gmInstanceOwned: true, sameActor: true, connection: 'live', freshness: 'server' };
+  const request = { sessionId: 'session-1', instanceId: 'gm-instance', shipId: 'aegis', locked: false,
+    requestId: 'console-lock-1', expectedRevision: 7 };
+  const receipt = { shipId: 'aegis', locked: false, actorUid: 'gm-auth-uid', actorRoleId: null,
+    vesselId: 'aegis', turn: 2, phase: 'active', revision: 8, idempotencyKey: 'console-lock-1',
+    auditId: 'console-lock-console-lock-1' };
+  const proof = capture({ caseId: 'gm:setShipConsoleLock',
+    expected: { sessionId: 'session-1', uidHash, instanceId: 'gm-instance', roleId: 'gm', cycle: 2,
+      shipId: 'aegis', sourceRevision: 7 },
+    actorBefore: gmActor, actorAfter: gmActor,
+    sourceBefore: { live: true, sessionId: 'session-1', cycle: 2, revision: 7 },
+    sourceAfter: { live: true, sessionId: 'session-1', cycle: 2, revision: 8 },
+    request, response: { httpStatus: 200, result: receipt, exactReplay: true },
+    replay: { status: 'committed', result: { ...receipt } },
+    rendered: { visible: true, resultStatus: 'committed' },
+    afterReload: { actor: gmActor, projection: { kind: 'ship-console-lock', live: true,
+      sessionId: 'session-1', cycle: 2, uidHash, instanceId: 'gm-instance', shipId: 'aegis',
+      locked: false, revision: 8 } },
+    trainingChoice: 'gm-training:deliberate-choice' });
+  assert.equal(evaluateProcedureCapture(proof).status, 'completed');
+  for (const changes of [
+    { response: { ...proof.response, result: { ...receipt, locked: true } } },
+    { response: { ...proof.response, exactReplay: false } },
+    { request: { ...request, expectedRevision: 6 } },
+    { afterReload: { ...proof.afterReload, projection: { ...proof.afterReload.projection, revision: 9 } } },
+    { afterReload: { ...proof.afterReload, actor: { ...gmActor, instanceId: 'other-instance' } } },
+  ]) assert.equal(evaluateProcedureCapture({ ...proof, ...changes }).status, 'pending');
+});
+
+test('mounted census note requires the exact private receipt, replay, and matching reloaded census entry', () => {
+  const uidHash = pc10UidHash('gm-auth-uid'), targetUid = 'original-census-uid';
+  const gmActor = { uidHash, sessionId: 'session-1', playerRole: 'gm', instanceId: 'gm-instance',
+    gmInstanceOwned: true, sameActor: true, connection: 'live', freshness: 'server' };
+  const note = 'Automated virtual personas only; 0 physical humans.';
+  const request = { sessionId: 'session-1', instanceId: 'gm-instance', requestId: 'census-note-1',
+    expectedRevision: 4, targetUid, note };
+  const receipt = { sessionId: 'session-1', targetUid, revision: 5, note };
+  const proof = capture({ caseId: 'gm:setFacilitatorCensusNote',
+    expected: { sessionId: 'session-1', uidHash, instanceId: 'gm-instance', roleId: 'gm', cycle: 2,
+      sourceRevision: 4 }, actorBefore: gmActor, actorAfter: gmActor,
+    sourceBefore: { live: true, sessionId: 'session-1', cycle: 2, revision: 4 },
+    sourceAfter: { live: true, sessionId: 'session-1', cycle: 2, revision: 5 },
+    request, response: { httpStatus: 200, result: receipt, exactReplay: true },
+    replay: { status: 'committed', result: { ...receipt } },
+    rendered: { visible: true, resultStatus: 'committed' },
+    afterReload: { actor: gmActor, projection: { kind: 'facilitator-census', live: true,
+      sessionId: 'session-1', cycle: 2, uidHash, instanceId: 'gm-instance', revision: 5,
+      targetUidHash: pc10UidHash(targetUid), noteHash: pc10ProofHash(note) } },
+    trainingChoice: 'gm-training:deliberate-choice' });
+  const accepted = evaluateProcedureCapture(proof);
+  assert.equal(accepted.status, 'completed');
+  assert.doesNotMatch(JSON.stringify(accepted), /original-census-uid|Automated virtual personas|gm-auth-uid/);
+  assert.equal(evaluateProcedureCapture({ ...proof,
+    afterReload: { ...proof.afterReload, projection: { ...proof.afterReload.projection, noteHash: 'foreign-note' } } }).status,
+  'pending');
+  assert.equal(evaluateProcedureCapture({ ...proof, response: { ...proof.response, exactReplay: false } }).status,
+    'pending');
+  assert.equal(evaluateProcedureCapture({ ...proof, response: { ...proof.response,
+    result: { ...receipt, targetUid: 'foreign-census-uid' } } }).status, 'pending');
+});
+
+test('mounted write grant is verified as a single-shot enable, same-instance reload, and UI revoke', () => {
+  const uidHash = pc10UidHash('gm-auth-uid');
+  const gmActor = { uidHash, sessionId: 'session-1', playerRole: 'gm', instanceId: 'gm-instance',
+    gmInstanceOwned: true, sameActor: true, connection: 'live', freshness: 'server' };
+  const request = { sessionId: 'session-1', instanceId: 'gm-instance', shipId: 'aegis', enabled: true,
+    claimedAt: '2026-10-05T12:00:00.000Z' };
+  const grantProjection = enabled => ({ kind: 'gm-ship-console-write-grant', live: true,
+    sessionId: 'session-1', cycle: 2, uidHash, instanceId: 'gm-instance', shipId: 'aegis', enabled });
+  const proof = capture({ caseId: 'gm:setGmShipConsoleWriteGrant',
+    expected: { sessionId: 'session-1', uidHash, instanceId: 'gm-instance', roleId: 'gm', cycle: 2,
+      shipId: 'aegis' }, actorBefore: gmActor, actorAfter: gmActor,
+    sourceBefore: { live: true, sessionId: 'session-1', cycle: 2 },
+    sourceAfter: { live: true, sessionId: 'session-1', cycle: 2 },
+    request, response: { httpStatus: 200, result: { enabled: true, shipId: 'aegis' } },
+    replay: null, rendered: { visible: true, resultStatus: 'committed' },
+    beforeProjection: grantProjection(false),
+    afterReload: { actor: gmActor, projection: grantProjection(true) },
+    restore: { request: { ...request, enabled: false }, response: { httpStatus: 200, result: { enabled: false } },
+      rendered: { visible: true, resultStatus: 'committed' },
+      afterReload: { actor: gmActor, projection: grantProjection(false) } },
+    trainingChoice: 'gm-training:deliberate-choice' });
+  const accepted = evaluateProcedureCapture(proof);
+  assert.equal(accepted.status, 'completed');
+  assert.equal(accepted.exactSdkRetry, 'not-claimed');
+  assert.equal(Object.hasOwn(accepted, 'revision'), false);
+  for (const changes of [
+    { request: { ...request, requestId: 'invented-replay-key' } },
+    { response: { ...proof.response, result: { enabled: true, shipId: 'dione' } } },
+    { afterReload: { ...proof.afterReload, projection: grantProjection(false) } },
+    { restore: { ...proof.restore, response: { httpStatus: 200, result: { enabled: true, shipId: 'aegis' } } } },
+    { restore: undefined },
+    { response: { ...proof.response, exactReplay: true } },
+  ]) assert.equal(evaluateProcedureCapture({ ...proof, ...changes }).status, 'pending');
+});
+
+test('mounted facilitator rule call binds its exact durable projection and authored training decision', () => {
+  const uidHash = pc10UidHash('gm-auth-uid');
+  const gmActor = { uidHash, sessionId: 'session-1', playerRole: 'gm', instanceId: 'gm-instance',
+    gmInstanceOwned: true, sameActor: true, connection: 'live', freshness: 'server' };
+  const request = { sessionId: 'session-1', instanceId: 'gm-instance', requestId: 'rule-call-1', expectedRevision: 0,
+    ambiguity: 'How is attendance represented in this virtual rehearsal?',
+    source: 'The mounted full-game training disclosure and simulated-demo attendance mode',
+    decision: 'Only named automated Auth personas are represented; no physical humans or device attendance is proved.',
+    audience: 'gm-only' };
+  const receipt = { status: 'committed', sessionId: 'session-1', callId: 'rule-call-1', revision: 1,
+    ambiguity: request.ambiguity, source: request.source, decision: request.decision, audience: 'gm-only',
+    actorUid: 'gm-auth-uid', createdAt: '2026-10-05T12:00:00.000Z', label: 'FACILITATOR RULE CALL' };
+  const proof = capture({ caseId: 'gm:authorFacilitatorRuleCall',
+    expected: { sessionId: 'session-1', uidHash, instanceId: 'gm-instance', roleId: 'gm', cycle: 2,
+      sourceRevision: 0 }, actorBefore: gmActor, actorAfter: gmActor,
+    sourceBefore: { live: true, sessionId: 'session-1', cycle: 2, revision: 0 },
+    sourceAfter: { live: true, sessionId: 'session-1', cycle: 2, revision: 1 },
+    request, response: { httpStatus: 200, result: receipt, exactReplay: true },
+    replay: { status: 'committed', result: { ...receipt } },
+    rendered: { visible: true, resultStatus: 'committed' },
+    afterReload: { actor: gmActor, projection: { kind: 'facilitator-rule-call', live: true,
+      sessionId: 'session-1', cycle: 2, uidHash, instanceId: 'gm-instance', revision: 1,
+      callId: 'rule-call-1', actorUidHash: uidHash, label: 'FACILITATOR RULE CALL', audience: 'gm-only',
+      ambiguityHash: pc10ProofHash(request.ambiguity), sourceHash: pc10ProofHash(request.source),
+      decisionHash: pc10ProofHash(request.decision) } },
+    trainingChoice: 'gm-training:deliberate-choice' });
+  assert.equal(evaluateProcedureCapture(proof).status, 'completed');
+  assert.doesNotMatch(JSON.stringify(evaluateProcedureCapture(proof)), /gm-auth-uid|How is attendance|automated Auth personas/);
+  assert.equal(evaluateProcedureCapture({ ...proof, response: { ...proof.response,
+    result: { ...receipt, callId: 'foreign-call-id' } } }).status, 'pending');
+  assert.equal(evaluateProcedureCapture({ ...proof,
+    afterReload: { ...proof.afterReload, projection: { ...proof.afterReload.projection, revision: 2 } } }).status,
+  'pending');
 });

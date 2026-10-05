@@ -56,6 +56,17 @@ test('default source-mounted recipes cover the existing finite procedure rows ex
   }
 });
 
+test('facilitator rule call recognizes the mounted positive result label', async () => {
+  const recipes = await import('./pc10-pending-procedure-ui-recipes.mjs');
+  assert.equal(typeof recipes.positiveRenderedStatus, 'function');
+  const surface = { page: { getByRole: () => ({ allTextContents: async () => ['RULE CALL APPLIED'] }) } };
+  assert.deepEqual(await recipes.positiveRenderedStatus(surface, 'authorFacilitatorRuleCall', { status: 'committed' }),
+    { visible: true, resultStatus: 'committed' });
+  const queued = { page: { getByRole: () => ({ allTextContents: async () => ['RULE CALL QUEUED'] }) } };
+  assert.deepEqual(await recipes.positiveRenderedStatus(queued, 'authorFacilitatorRuleCall', { status: 'committed' }),
+    { visible: false, resultStatus: 'committed' });
+});
+
 test('affordable option selection uses only current enabled source choices and the lowest real cost', () => {
   const option = chooseOfferedAffordableOption([
     { value: 'food', cost: 6, enabled: true, offered: true },
