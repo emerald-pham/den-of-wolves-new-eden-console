@@ -417,3 +417,27 @@ it('records one private standardized base-capybara-cargo audit and preserves it 
   expect(mock.documents.get('sessions/s1/actionAudits/' + command.requestId)).toEqual(metadata);
   expect(mock.documents.get('sessions/s1/procedureAudits/' + command.requestId)).toEqual(procedure);
 });
+
+it.each(['aegis', 'capybara-small'])('rejects a fresh action when candidate vessel %s is settled while another group is active', async shipId => {
+  const current = mock.documents.get('sessions/s1')!;
+  current.candidateVesselOutcomes = { [shipId]: { code: 'O', groupId: 'fleet-1', shipId,
+    sourceId: 'candidate-o-3131', cycle: 3, outcome: 'reached' } };
+  await expect(transferBaseCapybaraCargo.run(request(command))).rejects.toMatchObject({
+    code: 'failed-precondition', message: expect.stringContaining('candidate disposition'),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('recovers the exact entitled result after its host settles without accepting another action', async () => {
+  await expect(transferBaseCapybaraCargo.run(request(command))).resolves.toMatchObject({ status: 'committed' });
+  const current = mock.documents.get('sessions/s1')!;
+  current.candidateVesselOutcomes = { 'aegis': { code: 'N', groupId: 'fleet-1', shipId: 'aegis',
+    sourceId: 'candidate-n-3232', cycle: 3, outcome: 'left-behind' } };
+  const writes = mock.update.mock.calls.length + mock.set.mock.calls.length;
+  await expect(transferBaseCapybaraCargo.run(request(command))).resolves.toMatchObject({ status: 'replayed' });
+  await expect(transferBaseCapybaraCargo.run(request({ ...command, requestId: 'candidate-unavailable-new' }))).rejects.toMatchObject({
+    code: 'failed-precondition', message: expect.stringContaining('candidate disposition'),
+  });
+  expect(mock.update.mock.calls.length + mock.set.mock.calls.length).toBe(writes);
+});
