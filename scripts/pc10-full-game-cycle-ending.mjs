@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { writeFile } from 'node:fs/promises';
 import { setTimeout as delay } from 'node:timers/promises';
-import { completeOfferedTurnAdvance } from './pc10-full-game-demo-proof-helpers.mjs';
+import { completeOfferedTurnAdvance, isObservedGameEnding } from './pc10-full-game-demo-proof-helpers.mjs';
 
 /** Acceptance must match the actual server branch, including early failures. */
 export function assertFreshEndingBranch(snapshot, { branch, cycle, limit }) {
@@ -105,6 +105,10 @@ export async function runEnding({ gm, crew, initial, directory }, { branch = 'fi
       advances.push({ fromCycle: current.cycle, toCycle: after.cycle, phase: after.phase,
         requestId: lastAdvance.requestId, uiCommitted: true, confirmationActuallyOffered: uiAdvance.confirmationClicked, exactSdkReplayAccepted: true });
     }
+    // The action receipt updates phase before the live projection arrives.
+    // Accept the complete server-backed debrief, not that optimistic phase.
+    await gm.until('Complete server-produced fresh training debrief', value =>
+      value.fullGameDemo?.status === 'complete' && isObservedGameEnding(value));
     const terminal = await state();
     assert.equal(terminal.phase, 'debrief');
     assert.equal(terminal.trainingStatus, 'complete');
