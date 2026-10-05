@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   createSpecialistGameplayDriver,
+  createSpecialistGameplayCallback,
   SPECIALIST_ACTION_MAP,
   projectSpecialistActionEvidence,
   sameActionReceipt,
@@ -145,6 +146,22 @@ test('rendered private and group text is represented only by a bounded status co
   assert.equal(evidence.projection.privateActorStatus, undefined);
   assert.equal(JSON.stringify(evidence).includes('die result'), false);
   assert.equal(JSON.stringify(evidence).includes('6 and 5'), false);
+});
+
+test('callback records failures without calling a partial gameplay run complete', async () => {
+  let saved;
+  const game = { context: { gm: {}, initial: { sessionId: 'fresh-session' } },
+    select: async () => ({}), state: async () => ({}),
+    save: async (name, details) => { saved = { name, details }; } };
+  const callback = createSpecialistGameplayCallback({ createTwoBrowserGameplay: () => game,
+    name: 'Capybara proof', steps: [async () => ({ failed: true, reason: 'real-http-error' })] });
+  const result = await callback({ initial: { sessionId: 'fresh-session' } });
+  assert.equal(result.outcomes.length, 1);
+  assert.equal(saved.name, 'specialist-gameplay-progress.json');
+  assert.equal(saved.details.status, 'recorded');
+  assert.equal(saved.details.acceptance, 'not-claimed');
+  assert.equal(saved.details.failedActions, 1);
+  assert.equal(saved.details.committedActions, 0);
 });
 
 test('unknown callable names fail closed instead of receiving generic proof credit', () => {
