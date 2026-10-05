@@ -108,3 +108,68 @@ it('explains the permanent Engineering Shuttle cost and why it cannot operate af
   await screen.findByRole('heading', { name: 'Ancient Jump Ring' });
   expect(screen.getByText(/permanently consumes.*Engineering Shuttle.*cannot.*launch.*mission/i)).toBeInTheDocument();
 });
+
+it.each(['lobby', 'casting', 'briefing'] as const)(
+  'waits for a started candidate cycle during normal %s instead of querying on setup snapshots', async phase => {
+    useSessionStore.setState(state => ({ session: { ...state.session!, phase, currentTurn: 0 },
+      me: { ...state.me!, uid: 'gm', role: 'gm' },
+      gmInstance: { id: 'instance1', uid: 'gm', sessionId: 's1', claimedAt: '2026-10-05T12:00:00.000Z' } }));
+    render(<CandidatePreparationPanel />);
+    for (let update = 1; update <= 6; update += 1) {
+      await act(async () => useSessionStore.setState(state => ({ session: { ...state.session!, updatedAt: String(update) } })));
+    }
+    expect(service.read).not.toHaveBeenCalled();
+    expect(service.recover).not.toHaveBeenCalled();
+    expect(screen.getByText(/Awaiting GM start.*candidate operations.*Cycle 1/)).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Refresh candidate operations' })).toBeDisabled();
+  },
+);
+
+it('begins candidate reads after the same original GM receives the real positive-cycle state', async () => {
+  useSessionStore.setState(state => ({ session: { ...state.session!, phase: 'casting', currentTurn: 0 },
+    me: { ...state.me!, uid: 'gm', role: 'gm' },
+    gmInstance: { id: 'instance1', uid: 'gm', sessionId: 's1', claimedAt: '2026-10-05T12:00:00.000Z' } }));
+  render(<CandidatePreparationPanel />);
+  expect(service.read).not.toHaveBeenCalled();
+  await act(async () => useSessionStore.setState(state => ({ session: { ...state.session!, phase: 'active', currentTurn: 1 } })));
+  await screen.findByRole('heading', { name: 'Ancient Jump Ring' });
+  expect(service.read).toHaveBeenCalledTimes(1);
+  expect(useSessionStore.getState().me?.uid).toBe('gm');
+  expect(screen.queryByText(/Awaiting GM start/)).not.toBeInTheDocument();
+});
+
+it('keeps source-valid terminal candidate reads and exact receipt recovery while withholding new choices', async () => {
+  const pending = { sessionId: 's1', requestId: 'original', expectedRevision: 0, expectedGroupId: 'fleet-1',
+    code: 'O', coordinate: '0408', action: 'nebula-jump', shipId: 'aegis' };
+  service.recover.mockReturnValue(pending);
+  useSessionStore.setState(state => ({ session: { ...state.session!, phase: 'debrief' } }));
+  const user = userEvent.setup();
+  render(<CandidatePreparationPanel />);
+  await screen.findByRole('heading', { name: 'Deep Nebula' });
+  expect(service.read).toHaveBeenCalledWith('fleet-1');
+  expect(screen.getByText(/Game ended.*original candidate results remain available/)).toBeVisible();
+  expect(screen.queryByRole('button', { name: 'Commit chosen research' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /Contribute Ring materials/ })).not.toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: 'Retry original candidate request' }));
+  expect(service.execute).toHaveBeenCalledWith(pending);
+});
+
+it('cannot restore private candidate calculations from a late read after positive-cycle authority disappears', async () => {
+  let resolveRead!: (value: unknown) => void;
+  const deferred = new Promise(resolve => { resolveRead = resolve; });
+  service.read.mockReturnValue(deferred);
+  useSessionStore.setState(state => ({ me: { ...state.me!, uid: 'gm', role: 'gm' },
+    gmInstance: { id: 'instance1', uid: 'gm', sessionId: 's1', claimedAt: '2026-10-05T12:00:00.000Z' } }));
+  render(<CandidatePreparationPanel />);
+  expect(service.read).toHaveBeenCalledTimes(1);
+  await act(async () => useSessionStore.setState(state => ({ session: { ...state.session!, phase: 'casting', currentTurn: 0 } })));
+  await act(async () => {
+    resolveRead({ type: 'candidate-workspace', sessionId: 's1', groupId: 'fleet-1', cycle: 6, revision: 1,
+      paths: [path('O')], privateCalculations: [{ requestId: 'private-old', code: 'O', result: 'old-private-result', calculation: { total: 123 } }] });
+    await deferred;
+  });
+  expect(service.read).toHaveBeenCalledTimes(1);
+  expect(screen.queryByText(/old-private-result/)).not.toBeInTheDocument();
+  expect(screen.queryByRole('heading', { name: 'Deep Nebula' })).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Refresh candidate operations' })).toBeDisabled();
+});
