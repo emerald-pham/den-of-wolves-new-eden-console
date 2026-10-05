@@ -106,6 +106,48 @@ it('keeps controls unavailable when the live facilitator link or current authori
   expect(screen.getByText(/offline.*reconnect/i)).toBeInTheDocument();
 });
 
+it('shows Macaw salvage as target-approved Scrap for Capybara and blocks the unresolved self-target', async () => {
+  const user = userEvent.setup();
+  mocks.subscribe.mockImplementation((_sessionId, _shipId, handlers) => {
+    handlers.onInbox({
+      ...pendingInbox, proposalId: 'macaw-proposal', craftId: 'macaw', scrapGain: 1,
+      materialGain: undefined,
+    });
+    return vi.fn();
+  });
+  const { rerender } = render(<PermissionedDismantlingPanel mode="proposer" sessionId="s1"
+    currentPlayerUid="captain" craftId="macaw" targetShipId="dione"
+    targetSystems={[{ id: 'reactor', name: 'Reactor' }]} damagedSystemIds={[]}
+    connection="live" canAct />);
+  const proposer = screen.getByRole('region', { name: /permissioned dismantling proposal/i });
+  expect(within(proposer).getByText(/1 scrap.*capybara/i)).toBeInTheDocument();
+
+  rerender(<PermissionedDismantlingPanel mode="proposer" sessionId="s1"
+    currentPlayerUid="captain" craftId="macaw" targetShipId="capybara"
+    targetSystems={[{ id: 'advanced-hydroponics', name: 'Advanced Hydroponics' }]}
+    damagedSystemIds={[]} connection="live" canAct />);
+  expect(within(proposer).getByText(/self-target.*facilitator ruling/i)).toBeInTheDocument();
+  expect(within(proposer).getByRole('button', { name: /request target-player permission/i })).toBeDisabled();
+  await user.click(within(proposer).getByRole('button', { name: /request target-player permission/i }));
+  expect(mocks.propose).not.toHaveBeenCalled();
+});
+
+it('shows the Macaw target player the exact one-Scrap award without converting it to materials', async () => {
+  const user = userEvent.setup();
+  const macawInbox = {
+    ...pendingInbox, proposalId: 'macaw-proposal', craftId: 'macaw' as const,
+    materialGain: undefined, scrapGain: 1 as const,
+  };
+  mocks.subscribe.mockImplementation((_sessionId, _shipId, handlers) => {
+    handlers.onInbox(macawInbox);
+    return vi.fn();
+  });
+  render(<PermissionedDismantlingPanel mode="target" sessionId="s1" targetShipId="dione" />);
+  expect(screen.getByText(/macaw.*reactor.*1 scrap.*capybara/i)).toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: /grant permission/i }));
+  expect(mocks.consent).toHaveBeenCalledWith({ inbox: macawInbox, consentId: 'stable-request-id' });
+});
+
 it('does not claim that no request is pending while the target inbox is offline', () => {
   render(<PermissionedDismantlingPanel mode="target" sessionId="s1" targetShipId="dione"
     connection="offline" canAct={false} />);
