@@ -14,6 +14,62 @@ const actor = (changes = {}) => ({ hasAuth: true, sessionId: 'native-session', u
 const gm = (changes = {}) => actor({ uidHash: 'native-gm', profileRoleId: 'gm', playerRole: 'gm',
   activeConsoleRoleId: null, instanceId: 'native-instance', gmInstanceOwned: true, ...changes });
 
+test('a confirmed loyalty UI receipt needs no recovery click before the next private assignment', async()=>{
+ const {waitForBaseLoyaltyUiReceipt}=await contracts();
+ assert.equal(typeof waitForBaseLoyaltyUiReceipt,'function');
+ let retries=0;
+ const result=await waitForBaseLoyaltyUiReceipt({original:gm(),inspect:async()=>gm(),
+  inspectUi:async()=>({confirmed:true,retryReady:false}),retry:async()=>{retries++;}});
+ assert.deepEqual(result,{visibleConsequence:true,exactUiRetries:0});assert.equal(retries,0);
+});
+
+test('an uncertain loyalty panel finishes only its exact original visible retry and receipt',async()=>{
+ const {waitForBaseLoyaltyUiReceipt}=await contracts();
+ assert.equal(typeof waitForBaseLoyaltyUiReceipt,'function');
+ let retries=0;
+ const receipt={sessionId:'native-session',setupRevision:4,assignedUids:['native-target']};
+ const result=await waitForBaseLoyaltyUiReceipt({original:gm(),inspect:async()=>gm(),
+  inspectUi:async()=>({confirmed:retries===1,retryReady:retries===0}),
+  requestFingerprint:'native-original-fingerprint',receipt,
+  retry:async()=>{retries++;return {requestFingerprint:'native-original-fingerprint',receipt};},wait:async()=>{}});
+ assert.deepEqual(result,{visibleConsequence:true,exactUiRetries:1});assert.equal(retries,1);
+});
+
+test('loyalty UI recovery rejects a new request or changed committed receipt before credit',async()=>{
+ const {waitForBaseLoyaltyUiReceipt}=await contracts();
+ assert.equal(typeof waitForBaseLoyaltyUiReceipt,'function');
+ const receipt={sessionId:'native-session',setupRevision:4,assignedUids:['native-target']};
+ for(const result of [{requestFingerprint:'new-request',receipt},
+  {requestFingerprint:'original',receipt:{...receipt,setupRevision:5}}]){
+  let retries=0;
+  await assert.rejects(waitForBaseLoyaltyUiReceipt({original:gm(),inspect:async()=>gm(),
+   inspectUi:async()=>({confirmed:false,retryReady:true}),requestFingerprint:'original',receipt,
+   retry:async()=>{retries++;return result;},wait:async()=>{}}));
+  assert.equal(retries,1,'Never issue a second recovery mutation after a contradiction.');
+ }
+});
+
+test('changed original GM authority rejects loyalty UI recovery before its visible retry',async()=>{
+ const {waitForBaseLoyaltyUiReceipt}=await contracts();
+ assert.equal(typeof waitForBaseLoyaltyUiReceipt,'function');
+ let retries=0;
+ await assert.rejects(waitForBaseLoyaltyUiReceipt({original:gm(),inspect:async()=>gm({instanceId:'other'}),
+  inspectUi:async()=>({confirmed:false,retryReady:true}),retry:async()=>{retries++;}}));
+ assert.equal(retries,0);
+});
+
+test('one exact loyalty retry cannot credit an unconfirmed panel or extend its original deadline',async()=>{
+ const {waitForBaseLoyaltyUiReceipt}=await contracts();
+ assert.equal(typeof waitForBaseLoyaltyUiReceipt,'function');
+ let now=0,retries=0;
+ const receipt={sessionId:'native-session',setupRevision:4,assignedUids:['native-target']};
+ await assert.rejects(waitForBaseLoyaltyUiReceipt({original:gm(),inspect:async()=>gm(),
+  inspectUi:async()=>({confirmed:false,retryReady:true}),requestFingerprint:'original',receipt,
+  retry:async()=>{retries++;return {requestFingerprint:'original',receipt};},
+  timeoutMs:1000,now:()=>now,wait:async()=>{now+=200;}}),/deadline|unconfirmed/i);
+ assert.equal(retries,1);assert.equal(now,1000);
+});
+
 test('opening combat uses the exact printed first composition only in the actual Cycle1 or deferredCycle2 window', async () => {
   const { openingWolfCounts } = await contracts();
   const counts = openingWolfCounts({ cycle: 1, window: null, attack: null });
