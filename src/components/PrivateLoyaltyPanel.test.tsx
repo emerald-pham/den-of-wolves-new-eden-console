@@ -157,6 +157,41 @@ it('offers only positive cargo on the active cover-role shuttle and commits a pr
   expect(screen.getByRole('button', { name: 'Sabotage selected supply' })).toBeDisabled();
 });
 
+it('reuses the same sabotage request identity after an uncertain transport failure', async () => {
+  const user = userEvent.setup();
+  prepareLivePlayer();
+  useSessionStore.getState().setSession({
+    id: 's1', phase: 'active', currentTurn: 2,
+    activeRoleIds: ['dione-engineer'],
+    shuttleCargo: { maliades: { fuel: 5 } },
+  } as never);
+  useSessionStore.getState().setMe({
+    ...useSessionStore.getState().me!,
+    assignedRoleId: 'dione-engineer', activeConsoleRoleId: 'dione-engineer',
+  });
+  useSessionStore.getState().setPrivateLoyalty({ kind: 'wolf-agent', suspicion: 0 });
+  vi.mocked(submitWolfSupplySabotage)
+    .mockRejectedValueOnce(new Error('Temporary transport failure'))
+    .mockResolvedValueOnce({
+      status: 'committed', type: 'wolf-supply-sabotage', sessionId: 's1',
+      requestId: 'wolf-sabotage-retry', cycle: 2, revision: 1,
+      coverRoleId: 'dione-engineer', shuttleId: 'maliades', resourceId: 'fuel',
+      destroyedAmount: 2, remainingAmount: 3, suspicion: 4,
+    });
+
+  render(<PrivateLoyaltyPanel />);
+  const target = screen.getByRole('combobox', { name: 'Shuttle cargo target' });
+  await user.selectOptions(target, 'maliades|fuel');
+  const sabotage = screen.getByRole('button', { name: 'Sabotage selected supply' });
+  await user.click(sabotage);
+  expect(await screen.findByRole('alert')).toHaveTextContent(/temporary transport failure/i);
+  await user.click(sabotage);
+
+  await waitFor(() => expect(submitWolfSupplySabotage).toHaveBeenCalledTimes(2));
+  expect(submitWolfSupplySabotage.mock.calls[1]).toEqual(submitWolfSupplySabotage.mock.calls[0]);
+  expect(await screen.findByRole('status')).toHaveTextContent(/2 Strytium Fuel destroyed/i);
+});
+
 it('announces a private result in a focus-contained dialog and restores its review control', async () => {
   const user = userEvent.setup();
   useSessionStore.getState().setSession({ id: 's1', phase: 'active', currentTurn: 2 } as never);
