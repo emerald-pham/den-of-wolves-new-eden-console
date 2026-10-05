@@ -2805,7 +2805,7 @@ it('declares against remaining ships after genuine Ring craft consumption withou
   root.candidateCraftReservations = { philia: { code: 'N', groupId: 'fleet-1', coordinate: '3232',
     sourceId: 'ring-craft', cycle: 1 } };
   root.shuttleDockings = initialShuttleDockingsForRoles(root.activeRoleIds as string[]).filter(docking => docking.shuttleId !== 'philia');
-  await expect(declareWolfAttack.run(request())).resolves.toMatchObject({ status: 'declared' });
+  await expect(declareWolfAttack.run(request())).resolves.toMatchObject({ status: 'committed' });
   const attack = mock.documents.get('sessions/s1/wolfAttackState/current')!;
   expect(attack.parkedCraftIds).not.toContain('philia');
   expect((mock.documents.get('sessions/s1')!.shuttleDockings as { shuttleId: string }[])
