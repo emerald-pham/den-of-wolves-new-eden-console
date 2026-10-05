@@ -74,6 +74,32 @@ test('native no-response failure still reports its issued request and terminal f
   assert.equal(completed[0].requestHash, issued[0].requestHash);
 });
 
+test('an unavailable terminal observer cannot replace the real native timeout', async t => {
+  const origin = await localCallableServer(t, () => {});
+  await assert.rejects(() => fixture.performFixtureCallable({ origin, project: 'demo-test',
+    actor: { localId: 'private-actor', idToken: 'private-token' }, name: 'resumeSession',
+    data: { sessionId: 'private-session' }, timeoutMs: 100,
+    onCallableObservation: () => { throw new Error('private observer error'); } }), error =>
+    error.message === 'Local fixture callable resumeSession exceeded 100ms without a reply.' &&
+    error.pc07CallableObservationUnavailable === true);
+});
+
+test('malformed JSON after real HTTP headers is a body-observation failure rather than an invented network failure', async t => {
+  const origin = await localCallableServer(t, (_request, response) => {
+    response.writeHead(200, { 'Content-Type': 'application/json' });
+    response.end('unparseable-body');
+  });
+  const completed = [];
+  await assert.rejects(() => fixture.performFixtureCallable({ origin, project: 'demo-test',
+    actor: { localId: 'private-actor', idToken: 'private-token' }, name: 'resumeSession',
+    data: { sessionId: 'private-session' }, timeoutMs: 1000,
+    onCallableObservation: value => completed.push(value) }), SyntaxError);
+  assert.equal(completed.length, 1);
+  assert.equal(completed[0].failureCategory, 'response-observation-unavailable');
+  assert.equal(completed[0].requestFailedAt, null);
+  assert.ok(completed[0].bodyObservationFailedAt >= completed[0].headersReceivedAt);
+});
+
 test('callable observations retain only hashed identity and bounded authority metadata', () => {
   assert.equal(typeof fixture.buildFixtureCallableObservation, 'function');
   const observation = fixture.buildFixtureCallableObservation({ name: 'resumeSession',

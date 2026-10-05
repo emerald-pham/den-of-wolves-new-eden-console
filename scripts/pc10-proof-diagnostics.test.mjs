@@ -69,6 +69,44 @@ test('network failures retain correlation and each genuine retry gets a separate
   assert.equal(JSON.stringify(first).includes('private network error'), false);
 });
 
+test('browser event hooks retain a real issued-only request and complete the same trace after body observation', async () => {
+  const listeners = new Map();
+  const page = { setDefaultTimeout() {}, setDefaultNavigationTimeout() {},
+    on(name, callback) { listeners.set(name, callback); } };
+  const context = { newPage: async () => page, close: async () => {} };
+  const browser = { newContext: async () => context };
+  const client = await proof.createPc10BrowserActor(browser, 'http://localhost:5174', 'admiral');
+  const request = { url: () => 'http://127.0.0.1:5011/demo-proof/us-central1/sendFleetGroupMessage',
+    method: () => 'POST', postDataJSON: () => ({ data: { sessionId: 'private-session',
+      requestId: 'private-request', text: 'private-note', Authorization: 'private-token' } }) };
+  listeners.get('request')(request);
+  assert.equal(client.observedCalls.length, 1);
+  assert.equal(client.observedCalls[0].bodyCompletedAt, null);
+  assert.equal(client.observedCalls[0].requestHash, requestHash('private-request'));
+  let release;
+  const body = new Promise(resolve => { release = resolve; });
+  listeners.get('response')({ request: () => request, status: () => 200, json: () => body });
+  const trace = client.observedCalls[0];
+  assert.ok(trace.headersReceivedAt >= trace.issuedAt);
+  assert.equal(trace.bodyCompletedAt, null);
+  listeners.get('requestfinished')(request);
+  release({ result: { status: 'committed', groupId: 'fleet-2', messageId: 'private-request', text: 'private-note' } });
+  await client.drainObservedCalls();
+  assert.equal(client.observedCalls.length, 1);
+  assert.equal(client.observedCalls[0], trace);
+  assert.ok(trace.bodyCompletedAt >= trace.requestFinishedAt);
+  assert.equal(trace.status, 200);
+  const failed = { ...request, postDataJSON: () => ({ data: { requestId: 'other-private-request' } }) };
+  listeners.get('request')(failed);
+  listeners.get('requestfailed')(failed);
+  assert.equal(client.observedCalls.length, 2);
+  assert.ok(client.observedCalls[1].requestFailedAt >= client.observedCalls[1].issuedAt);
+  assert.equal(client.observedCalls[1].bodyCompletedAt, null);
+  for (const value of ['private-session', 'private-request', 'private-note', 'private-token', 'fleet-2']) {
+    assert.equal(JSON.stringify(client.observedCalls).includes(value), false);
+  }
+});
+
 test('message cohort is explicitly disclosed while retaining the existing default overlap', () => {
   assert.equal(typeof proof.pc10MessageCohortSize, 'function');
   assert.equal(proof.pc10MessageCohortSize(), 7);
