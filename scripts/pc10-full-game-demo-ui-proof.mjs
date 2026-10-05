@@ -6,7 +6,7 @@ import { resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { pathToFileURL } from 'node:url';
 import { chromium } from 'playwright';
-import { proofRuntimeFromViteSource, validateProofRuntime, assertSelectedActor, completePreparedCrew, confirmPreparedSetup, isObservedGameEnding } from './pc10-full-game-demo-proof-helpers.mjs';
+import { proofRuntimeFromViteSource, validateProofRuntime, assertSelectedActor, completePreparedCrew, confirmPreparedSetup, isObservedGameEnding, assertExactFullGameStartRecovery } from './pc10-full-game-demo-proof-helpers.mjs';
 
 /** Real UI/SDK driver. Callbacks may compose later genuine game decisions. */
 export async function runFreshFullGameDemoUi(options = {}) {
@@ -230,6 +230,7 @@ export async function runFreshFullGameDemoUi(options = {}) {
       await gm.page.getByRole('button', { name: 'ARE YOU SURE? // Disable Press', exact: true }).click();
       await gm.until('Ordinary Press availability choice committed', state => state.pressEnabled === false);
     }
+    await options.onSetup?.({ gm, crew, initial, directory });
     const confirmControl = setup.getByRole('button', { name: 'Confirm setup // Confirm roster', exact: true });
     evidence.setupReadiness = [];
     let lastReadiness;
@@ -401,11 +402,29 @@ export async function runFreshFullGameDemoUi(options = {}) {
       await casting.getByRole('button', { name: `Assign role to ${name}`, exact: true }).click();
       await casting.getByRole('button', { name: `Release role from ${name}`, exact: true }).waitFor();
     }
+    await options.onBeforeStart?.({ gm, crew, initial, confirmed, prepared, roster, directory });
     await mark('GM UI actual manual Cycle 0 to 1');
+    const startIdentity = await gm.observe();
+    const startResponsePromise = gm.page.waitForResponse(response =>
+      new URL(response.url()).pathname.endsWith('/us-central1/startGame') && response.request().method() === 'POST');
     await setup.getByRole('button', { name: 'Start full-game demo // Advance to Cycle 1', exact: true }).click();
     await setup.getByRole('button', { name: 'ARE YOU SURE? // START FULL-GAME DEMO // CYCLE 1', exact: true }).click();
+    const startResponse = await startResponsePromise;
+    assert.equal(startResponse.ok(), true, 'The ordinary full-game UI start must actually commit.');
+    const startPayload = startResponse.request().postDataJSON()?.data;
+    const originalStart = (await startResponse.json()).result;
     const started = await gm.until('Actual manual Cycle 1 Team', state => state.cycle === 1 && state.phase === 'active' && state.fullGameDemo?.status === 'active' && state.phaseProgression === 'manual' && state.airspace === 'restricted');
     assert.equal(started.turnStatePhase, 'team');
+    assert.equal(started.uidHash, startIdentity.uidHash);
+    assert.equal(started.instanceId, startIdentity.instanceId);
+    assert.equal(started.gmInstanceOwned, true);
+    const repeatedStart = await gm.callable('startGame', startPayload);
+    assert.equal(repeatedStart.status, 'committed', 'The current real GM must recover the exact original start.');
+    assertExactFullGameStartRecovery({ payload: startPayload, original: originalStart,
+      replay: repeatedStart.result, expected: startIdentity });
+    evidence.exactUiStartRecovery = { committedViaUi: true, replayedViaOriginalGmSdk: true,
+      requestFingerprint: createHash('sha256').update(JSON.stringify(startPayload)).digest('hex'),
+      sameOriginalActor: true, sameOwnedInstance: true };
     await gm.page.getByText('MANUAL', { exact: true }).first().waitFor();
     await gm.page.screenshot({ path: `${directory}/cycle-one-manual-team.png` });
     await options.onStarted?.({ gm, crew, initial, started, roster, directory });

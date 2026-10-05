@@ -1,6 +1,27 @@
 import assert from 'node:assert/strict';
 import { setTimeout as delay } from 'node:timers/promises';
 
+/** Compare real UI/SDK receipts; this helper neither invokes nor seeds a game. */
+export function assertExactFullGameStartRecovery({ payload, original, replay, expected }) {
+  assert.equal(payload.sessionId, expected.sessionId);
+  assert.equal(payload.instanceId, expected.instanceId);
+  assert.equal(payload.fullGameDemo, true);
+  assert.ok(typeof payload.requestId === 'string' && payload.requestId.length > 0);
+  assert.ok(Number.isSafeInteger(payload.expectedSetupRevision) && payload.expectedSetupRevision >= 0);
+  assert.equal(original.status, 'committed');
+  assert.equal(replay.status, 'replayed');
+  for (const value of [original, replay]) {
+    assert.equal(value.sessionId, payload.sessionId);
+    assert.equal(value.requestId, payload.requestId);
+    assert.equal(value.currentTurn, 1);
+  }
+  const originalResult = { ...original };
+  const replayResult = { ...replay };
+  delete originalResult.status;
+  delete replayResult.status;
+  assert.deepEqual(replayResult, originalResult);
+}
+
 export function proofRuntimeFromViteSource(source) {
   const assignment = source.match(/import\.meta\.env\s*=\s*(\{[^\n]+\});/);
   assert.ok(assignment, 'Vite must expose its actual environment before gameplay.');
