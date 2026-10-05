@@ -18,7 +18,7 @@ export async function enforceExpensiveCallableRateLimit(
     sessionId: string;
     uid: string;
   }>,
-  nowMs = Date.now(),
+  nowMs?: number,
 ): Promise<void> {
   const policy = CALLABLE_RATE_LIMIT_POLICIES[identity.callableName];
   const markerRef = firestore.doc(
@@ -32,10 +32,12 @@ export async function enforceExpensiveCallableRateLimit(
       marker.exists ? marker.data() : undefined,
       identity,
       policy,
-      nowMs,
+      // A request can wait behind a later window opener. Use the current
+      // server time after this attempt's read, including transaction retries.
+      nowMs ?? Date.now(),
     );
+    rejection = decision.allowed ? undefined : decision;
     if (!decision.allowed) {
-      rejection = decision;
       return;
     }
     transaction.set(markerRef, decision.state);
