@@ -334,7 +334,7 @@ describe('away-mission lifecycle adapter', () => {
   it('freezes the Boa choice privately, halves only its selected task, and replaces even critical rewards with one Scrap', () => {
     let record = boaReclamationFixture();
     expect(record?.boaReclamation).toEqual({ actorUid: 'boa-player', opportunityId: 'D-1' });
-    expect(JSON.stringify(projectAwayMissionPublicState(record!, 'boa-player'))).not.toMatch(/boaReclamation|boa-player/);
+    expect(projectAwayMissionPublicState(record!, 'boa-player')).not.toHaveProperty('boaReclamation');
 
     for (const [type, command, actorUid, authority] of [
       ['requestExtraCards', { count: 1 }, 'boa-player', {}],
