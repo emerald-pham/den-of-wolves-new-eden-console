@@ -288,6 +288,26 @@ it('lets the current Macaw holder request distinct-host permission and atomicall
   await callables.consentToPermissionedDismantling(consentRequest());
   const applied = await callables.applyPermissionedDismantling(applyRequest());
   expect(applied).toMatchObject({ status: 'applied', scrapGain: 1, scrapAfter: 4 });
+  expect(store.records.get(`sessions/${SESSION_ID}/actionAudits/${APPLY_ID}`)).toMatchObject({
+    sessionId: SESSION_ID,
+    actorUid: 'engineer',
+    actorRoleId: 'capybara-captain',
+    action: 'macaw-consented-dismantling',
+    phase: 'active',
+    requestId: APPLY_ID,
+    revision: 1,
+    outcome: 'committed',
+    resolutionSource: 'server-calculated',
+  });
+  expect(store.records.get(`sessions/${SESSION_ID}/procedureAudits/${APPLY_ID}`)).toMatchObject({
+    sourceId: 'macaw',
+    requiredChoices: [{ actor: 'player', kind: 'target-player-console-consent', value: {
+      targetShipId: 'dione', targetConsoleId: 'reactor',
+    } }],
+    calculation: { targetRevisionBefore: 0, targetRevisionAfter: 1, scrapGain: 1 },
+    consequences: { damagedConsoleId: 'reactor', capybaraScrapAfter: 4 },
+    audience: { operational: 'actor' },
+  });
   expect(store.records.get(paths().session)).toMatchObject({
     shipDamage: { dione: { damagedSystemIds: ['storage', 'reactor'], destroyed: false } },
     shipResources: {
@@ -298,6 +318,10 @@ it('lets the current Macaw holder request distinct-host permission and atomicall
   const writes = store.committedWrites.length;
   await expect(callables.applyPermissionedDismantling(applyRequest())).resolves.toMatchObject({ status: 'replayed' });
   expect(store.committedWrites).toHaveLength(writes);
+  expect(store.committedWrites.filter(({ path }) => path === `sessions/${SESSION_ID}/actionAudits/${APPLY_ID}`))
+    .toHaveLength(1);
+  expect(store.committedWrites.filter(({ path }) => path === `sessions/${SESSION_ID}/procedureAudits/${APPLY_ID}`))
+    .toHaveLength(1);
 });
 
 it('rejects Macaw-to-Capybara self-target proposals before creating a receipt or inbox row', async () => {
