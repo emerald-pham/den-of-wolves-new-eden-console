@@ -3,11 +3,29 @@ import { writeFile } from 'node:fs/promises';
 import { setTimeout as delay } from 'node:timers/promises';
 import { completeOfferedTurnAdvance } from './pc10-full-game-demo-proof-helpers.mjs';
 
+/** Acceptance must match the actual server branch, including early failures. */
+export function assertFreshEndingBranch(snapshot, { branch, cycle, limit }) {
+  assert.equal(snapshot.cycle, cycle);
+  if (branch === 'final-cycle') {
+    assert.equal(cycle, limit);
+    assert.equal(snapshot.source, 'final-cycle');
+    assert.equal(snapshot.result, 'completed');
+    assert.equal(snapshot.cause, 'final-cycle');
+  } else {
+    assert.equal(branch, 'pursuit-limit');
+    assert.ok(cycle <= limit);
+    assert.equal(snapshot.source, 'failure-review');
+    assert.equal(snapshot.result, 'failure');
+    assert.equal(snapshot.cause, 'pursuit-limit');
+  }
+}
+
 /** Compose a real full-demo admission/role tour with ordinary GM UI progression.
  * This proves the fresh final-cycle branch; it does not claim all game functions.
  * No gameplay document, clock, store, identity or callable response is injected.
  */
-export async function runEnding({ gm, crew, initial, directory }) {
+export async function runEnding({ gm, crew, initial, directory }, { branch = 'final-cycle' } = {}) {
+  assert.ok(['final-cycle', 'pursuit-limit'].includes(branch));
   const advances = [], phases = [];
   let lastAdvance;
   const capture = request => {
@@ -25,6 +43,7 @@ export async function runEnding({ gm, crew, initial, directory }) {
         trainingStatus: session?.fullGameDemo?.status, sessionId: session?.id,
         instanceId: gmInstance?.id, live: connection === 'live' && sessionSnapshotFreshness === 'server',
         ownsGm: me?.role === 'gm' && gmInstance?.uid === me?.uid,
+        pursuitEmergencyStatus: session?.pursuitEmergencyWindowAuthority?.status ?? session?.pursuitEmergencyWindow?.status,
         debriefSource: session?.debriefSnapshot?.source, debriefResult: session?.debriefSnapshot?.result };
     }, gm.storeModuleUrl());
   }
@@ -38,6 +57,26 @@ export async function runEnding({ gm, crew, initial, directory }) {
       assert.equal(current.phase, 'active');
       assert.equal(current.progression, 'manual');
       assert.equal(current.trainingStatus, 'active');
+      if (current.pursuitEmergencyStatus) {
+        assert.equal(branch, 'pursuit-limit', 'Final-cycle proof needs genuine pursuit-lowering gameplay before this source gate.');
+        assert.equal(current.pursuitEmergencyStatus, 'awaiting-gm-decision');
+        const decision = gm.page.getByRole('region', { name: 'Pursuit emergency decision' });
+        lastAdvance = null;
+        await decision.getByRole('button', { name: 'End pursuit-limit run', exact: true }).click();
+        await decision.getByRole('button', { name: 'Are you sure you want to end game?', exact: true }).click();
+        await gm.until('Source-normal GM pursuit failure decision', value => value.phase === 'failure');
+        assert.equal(lastAdvance?.sessionId, initial.sessionId);
+        assert.equal(lastAdvance?.expectedTurn, current.cycle);
+        assert.equal(lastAdvance?.pursuitEmergencyDecision, 'decline');
+        const replay = await gm.callable('advanceTurn', lastAdvance);
+        assert.equal(replay.status, 'committed');
+        assert.equal(replay.result.phase, 'failure');
+        phases.push({ cycle: current.cycle, mechanism: 'actual offered GM pursuit-limit decision and unchanged-request SDK replay' });
+        await gm.page.getByRole('dialog', { name: 'Endgame evaluation', exact: true }).waitFor();
+        await gm.page.getByRole('button', { name: 'Freeze failure into debrief', exact: true }).click();
+        await gm.until('Actual GM freeze of source-normal pursuit failure', value => value.phase === 'debrief');
+        break;
+      }
       if (current.airspace === 'restricted') {
         await gm.page.getByRole('button', { name: 'Open Coordination manually', exact: true }).click();
         await gm.until(`Manual Coordination ${current.cycle}`, value => value.cycle === current.cycle && value.airspace === 'lifted');
@@ -69,18 +108,15 @@ export async function runEnding({ gm, crew, initial, directory }) {
     const terminal = await state();
     assert.equal(terminal.phase, 'debrief');
     assert.equal(terminal.trainingStatus, 'complete');
-    assert.equal(terminal.cycle, terminal.limit);
     const read = { sessionId: initial.sessionId, instanceId: terminal.instanceId };
     const debrief = await gm.callable('getSessionDebrief', read);
     assert.equal(debrief.status, 'committed');
-    assert.equal(debrief.result.snapshot.source, 'final-cycle');
-    assert.equal(debrief.result.snapshot.result, 'completed');
-    assert.equal(debrief.result.snapshot.cycle, terminal.limit);
+    assertFreshEndingBranch(debrief.result.snapshot, { branch, cycle: terminal.cycle, limit: terminal.limit });
     const ordinary = await crew.callable('getSessionDebrief', read);
     assert.equal(ordinary.status, 'denied');
     assert.match(ordinary.code, /permission-denied$/);
     await gm.page.getByRole('dialog', { name: 'Endgame evaluation', exact: true }).waitFor();
-    await gm.page.screenshot({ path: `${directory}/fresh-final-cycle-debrief.png` });
+    await gm.page.screenshot({ path: `${directory}/fresh-${branch}-debrief.png` });
     await gm.page.getByRole('button', { name: 'Close session', exact: true }).click();
     await gm.until('Actual GM closure of frozen fresh-game debrief', value => value.phase === 'closed');
     const closed = await gm.callable('getSessionDebrief', read);
@@ -91,13 +127,15 @@ export async function runEnding({ gm, crew, initial, directory }) {
       value.sameActor && value.sessionId === initial.sessionId && value.phase === 'closed');
     await crew.page.getByRole('dialog', { name: 'Endgame evaluation', exact: true }).waitFor();
     await crew.page.screenshot({ path: `${directory}/fresh-closed-history-crew.png` });
-    await writeFile(`${directory}/final-cycle-ending.json`, `${JSON.stringify({
+    await writeFile(`${directory}/${branch}-ending.json`, `${JSON.stringify({
       status: 'passed', actualBrowserContexts: 2, actualHumanDevices: 0,
       freshOrdinaryAdmission: true, adminGameplayWrites: false, acceleratedClock: false,
-      scope: 'Fresh manual full-game final-cycle progression, GM UI closure, exact cycle retries and entitled crew reload; every-function and other ending branches remain separate.',
+      scope: `Fresh manual full-game ${branch} progression, GM UI closure, exact cycle retries and entitled crew reload; every-function and other ending branches remain separate.`,
       advances, phases, terminal: { cycle: terminal.cycle, result: debrief.result.snapshot.result,
-        source: debrief.result.snapshot.source }, ordinaryDetailedGmReadDenied: true,
+        source: debrief.result.snapshot.source, cause: debrief.result.snapshot.cause }, ordinaryDetailedGmReadDenied: true,
       closurePreservedSnapshot: true, recovered: { phase: recovered.phase, sameActor: recovered.sameActor },
     }, null, 2)}\n`);
   } finally { gm.page.off('request', capture); }
 }
+
+export const runPursuitLimitEnding = context => runEnding(context, { branch: 'pursuit-limit' });
