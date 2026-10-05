@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { captureLifecycleUiAction, recoverLifecycleUiAction, publicLifecycleReceipt,
   createMemberGmLifecycleUiProof } from './pc10-member-gm-lifecycle-ui-proof.mjs';
+import { createTurnCycleDemoUiProof } from './pc10-turn-cycle-demo-ui-proof.mjs';
 
 const actor = { sessionId: 's', uidHash: '0123456789abcdef', hasAuth: true, sameActor: true,
   connection: 'live', freshness: 'server', generation: 1, hydrationRevision: 2, playerRole: 'gm',
@@ -48,4 +49,18 @@ test('callback construction starts no runtime and exposes separate preparation/a
   for (const key of ['onBeforeStart', 'onStarted', 'onTerminal']) assert.equal(typeof proof[key], 'function');
   assert.equal(proof.evidence.actualRuntimeRuns, 0);
   assert.throws(() => createMemberGmLifecycleUiProof({ cases: ['invented-case'] }));
+});
+test('turn constructor rejects an invented case and never starts a runtime', () => {
+  const proof = createTurnCycleDemoUiProof({ cases: ['manual-coordination', 'genuine-terminal'] });
+  assert.equal(typeof proof.onStarted, 'function'); assert.equal(typeof proof.onTerminal, 'function');
+  assert.equal(proof.evidence.actualRuntimeRuns, 0);
+  assert.throws(() => createTurnCycleDemoUiProof({ cases: ['invented'] }));
+});
+test('authorization payload never contributes password contents to a report digest', () => {
+  const a = publicLifecycleReceipt({ endpoint: 'loginGmAccess', before: actor,
+    data: { password: 'first-credential' }, result: { authenticated: true }, httpStatus: 200 });
+  const b = publicLifecycleReceipt({ endpoint: 'loginGmAccess', before: actor,
+    data: { password: 'second-credential' }, result: { authenticated: true }, httpStatus: 200 });
+  assert.equal(a.requestFingerprint, b.requestFingerprint);
+  assert.ok(!JSON.stringify(a).includes('first-credential'));
 });

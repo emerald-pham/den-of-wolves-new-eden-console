@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  MEMBER_GM_CASES, assertOriginalActor, assertLateReplyAuthority, assertClearedPrivateState,
+  MEMBER_GM_CASES, assertOriginalActor, assertLateReplyAuthority, assertClearedPrivateState, assertCallbackContext,
   assertCapturedUiRequest, assertRecoveredResult, recoveryProtocol, lifecycleCaseAvailability,
 } from './pc10-member-gm-lifecycle-contracts.mjs';
 
@@ -17,6 +17,16 @@ test('the finite lifecycle inventory names unmounted procedures and permanent ki
 });
 test('same original live UID, session, generation and GM lease are accepted', () => {
   assert.doesNotThrow(() => assertOriginalActor(actor, { ...actor }, { gm: true }));
+});
+test('hook entry is bound to the original driver GM and roster, never self-authorized from a new snapshot', () => {
+  const context = { initial: { sessionId: actor.sessionId, uidHash: actor.uidHash },
+    started: { instanceId: actor.instanceId }, roster: [{ roleId: 'ordinary-role', uidHash: 'member-hash' }] };
+  const member = { ...actor, uidHash: 'member-hash', playerRole: 'player', gmInstanceOwned: false,
+    instanceId: null, profileRoleId: 'ordinary-role' };
+  assert.doesNotThrow(() => assertCallbackContext(context, actor, member));
+  assert.throws(() => assertCallbackContext(context, { ...actor, uidHash: 'changed-gm' }, member));
+  assert.throws(() => assertCallbackContext(context, { ...actor, instanceId: 'changed-instance' }, member));
+  assert.throws(() => assertCallbackContext(context, actor, { ...member, uidHash: 'new-role-account' }));
 });
 for (const [field, value] of Object.entries({ uidHash: 'fedcba9876543210', sessionId: 'foreign',
   sameActor: false, hasAuth: false, connection: 'connecting', freshness: 'cache', generation: 5,
