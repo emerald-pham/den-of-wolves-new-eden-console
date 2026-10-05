@@ -48,12 +48,14 @@ describe('permissioned dismantling', () => {
       activeTargetShipPlayerUids: ['target-player'],
       currentTargetRevision: 7,
       targetDamage: { damagedSystemIds: ['storage'], destroyed: false },
-      targetResources: { ore: 0, fuel: 3, food: 9, water: 4, materials: 0, securityTeams: 2, scrap: 3 },
+      targetResources: { ore: 0, fuel: 3, food: 9, water: 4, materials: 0, securityTeams: 2 },
+      macawScrap: 3,
     } as const;
 
     expect(resolvePermissionedDismantling(macawBase)).toEqual({
       targetDamage: { damagedSystemIds: ['storage', 'reactor'], destroyed: false },
-      targetResources: { ...macawBase.targetResources, scrap: 4 },
+      targetResources: macawBase.targetResources,
+      macawScrapAfter: 4,
       consumedConsent: { ...macawBase.consent, status: 'consumed' },
     });
   });
@@ -69,7 +71,8 @@ describe('permissioned dismantling', () => {
       activeTargetShipPlayerUids: ['target-player'],
       currentTargetRevision: 7,
       targetDamage: { damagedSystemIds: [], destroyed: false },
-      targetResources: { ore: 0, fuel: 3, food: 9, water: 4, materials: 0, securityTeams: 2, scrap: 3 },
+      targetResources: { ore: 0, fuel: 3, food: 9, water: 4, materials: 0, securityTeams: 2 },
+      macawScrap: 3,
     })).toThrow(/active player assigned to the target ship/i);
   });
 
@@ -84,7 +87,8 @@ describe('permissioned dismantling', () => {
       activeTargetShipPlayerUids: ['target-player'],
       currentTargetRevision: 7,
       targetDamage: { damagedSystemIds: [], destroyed: false },
-      targetResources: { ore: 0, fuel: 3, food: 9, water: 4, materials: 0, securityTeams: 2, scrap: 3 },
+      targetResources: { ore: 0, fuel: 3, food: 9, water: 4, materials: 0, securityTeams: 2 },
+      macawScrap: 3,
     })).toThrow(/Capybara self-target requires a facilitator ruling/i);
   });
 

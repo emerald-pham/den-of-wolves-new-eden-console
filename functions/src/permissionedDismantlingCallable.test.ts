@@ -121,6 +121,26 @@ function seededStore(): FakeStore {
   return store;
 }
 
+function macawSeededStore(): FakeStore {
+  const store = seededStore();
+  const p = paths();
+  const session = store.records.get(p.session)!;
+  session.activeRoleIds = ['capybara-captain', 'dione-captain', 'icebreaker-miner'];
+  session.shuttleDockings = [{ shuttleId: 'macaw', shipId: 'dione', dockedAt: 'SESSION START' }];
+  session.shuttleControl = {
+    macaw: {
+      shuttleId: 'macaw', ownerRoleId: 'capybara-captain', ownerUid: 'engineer',
+      holderUid: 'engineer', revision: 9,
+    },
+  };
+  session.shipResources = {
+    dione: { ore: 0, fuel: 3, food: 13, water: 14, materials: 5, securityTeams: 2 },
+    capybara: { ore: 0, fuel: 3, food: 9, water: 4, materials: 0, securityTeams: 2, scrap: 3 },
+  };
+  store.records.set(p.proposer, activePlayer('capybara-captain'));
+  return store;
+}
+
 function dependencies(store: FakeStore) {
   return {
     db: store,
@@ -250,6 +270,45 @@ it('proposes, grants one exact target-ship consent, and atomically applies damag
   await expect(callables.applyPermissionedDismantling(applyRequest({ requestId: 'apply-2' })))
     .rejects.toMatchObject({ code: 'failed-precondition' });
   expect(store.committedWrites).toHaveLength(applyWrites);
+});
+
+it('lets the current Macaw holder request distinct-host permission and atomically receives one Scrap', async () => {
+  const store = macawSeededStore();
+  const callables = createPermissionedDismantlingCallables(dependencies(store));
+  const proposed = await callables.proposePermissionedDismantling(proposeRequest({
+    craftId: 'macaw', targetShipId: 'dione', targetConsoleId: 'reactor', expectedControlRevision: 9,
+  }));
+  expect(proposed).toMatchObject({
+    status: 'proposed', craftId: 'macaw', targetShipId: 'dione', targetConsoleId: 'reactor', scrapGain: 1,
+  });
+  expect(store.records.get(paths().inbox)).toMatchObject({
+    craftId: 'macaw', targetShipId: 'dione', targetConsoleId: 'reactor', scrapGain: 1, status: 'pending',
+  });
+
+  await callables.consentToPermissionedDismantling(consentRequest());
+  const applied = await callables.applyPermissionedDismantling(applyRequest());
+  expect(applied).toMatchObject({ status: 'applied', scrapGain: 1, scrapAfter: 4 });
+  expect(store.records.get(paths().session)).toMatchObject({
+    shipDamage: { dione: { damagedSystemIds: ['storage', 'reactor'], destroyed: false } },
+    shipResources: {
+      dione: { ore: 0, fuel: 3, food: 13, water: 14, materials: 5, securityTeams: 2 },
+      capybara: { ore: 0, fuel: 3, food: 9, water: 4, materials: 0, securityTeams: 2, scrap: 4 },
+    },
+  });
+  const writes = store.committedWrites.length;
+  await expect(callables.applyPermissionedDismantling(applyRequest())).resolves.toMatchObject({ status: 'replayed' });
+  expect(store.committedWrites).toHaveLength(writes);
+});
+
+it('rejects Macaw-to-Capybara self-target proposals before creating a receipt or inbox row', async () => {
+  const store = macawSeededStore();
+  const callables = createPermissionedDismantlingCallables(dependencies(store));
+  const before = store.committedWrites.length;
+  await expect(callables.proposePermissionedDismantling(proposeRequest({
+    craftId: 'macaw', targetShipId: 'capybara', targetConsoleId: 'advanced-hydroponics', expectedControlRevision: 9,
+  }))).rejects.toMatchObject({ code: 'invalid-argument' });
+  expect(store.committedWrites).toHaveLength(before);
+  expect([...store.records.keys()].some((key) => key.includes('permissionedDismantlingProposals'))).toBe(false);
 });
 
 it('binds an omitted private target revision to the server-observed proposal state and replays safely', async () => {
