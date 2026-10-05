@@ -122,6 +122,11 @@ export function installPc10OriginCallableFetch(configuration, parseRequest, pars
       typeof globalThis.crypto.randomUUID !== 'function') throw new Error('Origin collector APIs are unavailable.');
   globalThis[installed] = true;
   const documentId = crypto.randomUUID();
+  if (configuration.documentWitness) {
+    Object.defineProperty(globalThis, Symbol.for('pc10-proof-origin-document'), { value: documentId });
+    // Notification and witness observation never postpone the native fetch.
+    void Promise.resolve(binding({ schemaVersion: 1, stage: 'document', documentId })).catch(() => undefined);
+  }
   let counter = 0, retainedBytes = 0;
   const digest = async bytes => Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)))
     .map(value => value.toString(16).padStart(2, '0')).join('');
@@ -282,12 +287,17 @@ function checkConfiguration(projectId, functionsOrigin) {
  * Identical wire requests are paired in dispatch order for lifecycle accounting;
  * their result bytes remain bound independently by their unique origin IDs. */
 export function createPc10OriginObservationLedger({ label, projectId, functionsOrigin, observedCalls, failures,
-  boundaryFactory, now = Date.now, timeoutPort = { setTimeout, clearTimeout } }) {
+  boundaryFactory, now = Date.now, timeoutPort = { setTimeout, clearTimeout }, requireDocumentWitness = false }) {
   checkConfiguration(projectId, functionsOrigin);
   const configuration = { projectId, functionsOrigin, callableActions: PC10_PROOF_CALLABLE_ACTIONS };
   const origins = new Map(), networks = new Map(), ignored = new Set();
   const byState = new WeakMap();
   const originForProtocol = new WeakMap();
+  const documents = new Map(), contexts = new Map(), contextIdentities = new Map(), scripts = new Map();
+  const opaque = value => typeof value === 'string' && /^[A-Za-z0-9_.:-]{1,256}$/.test(value);
+  const uuid = value => typeof value === 'string' && /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(value);
+  const witnessHash = (kind, value) => createHash('sha256').update(`pc10-origin-${kind}\0${value}`).digest('hex');
+  let navigationSnapshot = null, snapshotCounter = 0;
   let expectedActorHash = null, expectedSessionHash = null;
   const report = (state, category, extra = {}) => {
     const entries = state ? byState.get(state) ?? new Map() : null;
@@ -295,6 +305,10 @@ export function createPc10OriginObservationLedger({ label, projectId, functionsO
     if (entries?.has(entryKey)) return;
     const value = { roleId: label, name: state?.trace.name ?? null, requestHash: state?.trace.requestHash ?? null,
       originRequestHash: state?.trace.originRequestHash ?? null, status: state?.trace.status ?? null, category, ...extra };
+    for (const field of ['originDocumentHash', 'nativeDocumentHash', 'nativeContextHash', 'nativeFrameHash',
+      'nativeLoaderHash', 'originIssuedObservedAt', 'originMetadataObservedAt']) {
+      if (state?.trace[field] !== undefined) value[field] = state.trace[field];
+    }
     if (state?.bodyFailureStage) value.bodyFailureStage = state.bodyFailureStage;
     if (state) { entries.set(entryKey, value); byState.set(state, entries); }
     failures.push(value);
@@ -315,6 +329,25 @@ export function createPc10OriginObservationLedger({ label, projectId, functionsO
   });
   const key = value => JSON.stringify([value.name, value.actorHash, value.projectHash, value.sessionHash,
     value.requestHash, value.groupHash]);
+  const networkDetails = network => ({ name: network.name, requestHash: network.requestHash,
+    protocolRequestHash: network.protocolRequestHash, nativeRequestObservedAt: network.observedAt,
+    ...(network.documentId ? { nativeDocumentHash: witnessHash('document', network.documentId) } : {}),
+    ...(network.status !== undefined ? { nativeHeadersStatus: network.status } : {}) });
+  const resolveWitness = network => {
+    if (!requireDocumentWitness || network.documentId || network.witnessInvalid) return;
+    const script = scripts.get(network.wrapperScriptId);
+    const context = script?.context;
+    const document = context?.documentId ? documents.get(context.documentId) : undefined;
+    if (!document || !context) return;
+    if (script.invalid || context.frameId !== network.frameId ||
+        (document.loaderId && document.loaderId !== network.loaderId)) {
+      network.witnessInvalid = true;
+      report(null, 'origin-document-witness-conflict', networkDetails(network)); return;
+    }
+    document.loaderId ??= network.loaderId;
+    network.documentId = context.documentId;
+    network.contextHash = witnessHash('context', context.uniqueId);
+  };
   const identityCheck = state => {
     const trace = state.trace;
     const actualSession = trace.sessionHash ?? trace.resultSessionHash;
@@ -335,6 +368,7 @@ export function createPc10OriginObservationLedger({ label, projectId, functionsO
     if (!state) return;
     if (network.headersAt !== null && state.trace.networkHeadersObservedAt === undefined) {
       state.trace.networkHeadersObservedAt = network.headersAt;
+      state.trace.nativeHeadersStatus = network.status;
       state.networkHeadersStatus = network.status;
       if (state.trace.status !== null && state.trace.status !== network.status) report(state, 'origin-transport-mismatch');
     }
@@ -352,17 +386,25 @@ export function createPc10OriginObservationLedger({ label, projectId, functionsO
     checkCompleteCancellation(state);
   };
   const reconcile = () => {
+    for (const network of networks.values()) resolveWitness(network);
     for (const state of origins.values()) {
       if (!state.metadataReady || state.network || state.metadataInvalid) continue;
       // Hashing may complete out of order. Do not pair a later issued origin
       // before an earlier same-name metadata packet has arrived.
       const earlierUnknown = [...origins.values()].some(prior => prior.order < state.order &&
-        prior.trace.name === state.trace.name && !prior.metadataReady);
+        prior.documentId === state.documentId && prior.trace.name === state.trace.name && !prior.metadataReady);
       if (earlierUnknown) continue;
-      const match = [...networks.values()].find(network => !network.origin && !network.invalid && key(network) === key(state.trace));
+      const match = [...networks.values()].find(network => !network.origin && !network.invalid && !network.witnessInvalid &&
+        (!requireDocumentWitness || network.documentId === state.documentId) && key(network) === key(state.trace));
       if (!match) continue;
       match.origin = state; state.network = match;
       state.trace.protocolRequestHash = match.protocolRequestHash;
+      if (requireDocumentWitness) {
+        Object.assign(state.trace, { nativeDocumentHash: witnessHash('document', match.documentId),
+          nativeContextHash: match.contextHash, nativeFrameHash: witnessHash('frame', match.frameId),
+          nativeLoaderHash: witnessHash('loader', match.loaderId), nativeRequestObservedAt: match.observedAt,
+          originDocumentWitnessObservedAt: documents.get(match.documentId).witnessedAt });
+      }
       applyNetwork(match);
       // The boundary state was created at the actual exact-ID request event.
       // Its intent/failure observation survives a later metadata binding reply.
@@ -374,6 +416,57 @@ export function createPc10OriginObservationLedger({ label, projectId, functionsO
       state.originBody.promise.then(match.bodyCompletion.resolve, match.bodyCompletion.reject);
       state.networkReady.resolve(match); match.originReady.resolve(state);
     }
+  };
+  const genuineIncompleteCancellation = state => ['cancelled-during-planned-offline', 'cancelled-during-planned-navigation']
+    .includes(state.trace.observationDisposition) && state.network?.failedAt !== null && state.network?.failedAt !== undefined &&
+    (!state.failureReceived || ['origin-fetch-failed', 'origin-fetch-aborted'].includes(state.bodyFailureStage));
+  const snapshotPending = () => {
+    const pendingOrigins = [...origins.values()].filter(state => !state.network ||
+      !state.network.lifecycle.terminalDone || !state.network.lifecycle.bodyDone || !state.metadataReady ||
+      (!state.bodyAccepted && !genuineIncompleteCancellation(state)));
+    const pendingNetworks = [...networks.values()].filter(network => !network.origin ||
+      !network.lifecycle.terminalDone || !network.lifecycle.bodyDone);
+    const value = { kind: 'issued-origin-pre-navigation-drain', startedAt: now(), completedAt: null,
+      snapshotHash: witnessHash('navigation-snapshot', `${label}:${++snapshotCounter}:${now()}`),
+      issuedOrigins: pendingOrigins.length, nativeTransports: pendingNetworks.length, postSnapshotOrigins: 0,
+      outcome: 'pending' };
+    boundary.boundaries.push(value);
+    return { evidence: value, origins: pendingOrigins, networks: pendingNetworks };
+  };
+  const waitSnapshot = async snapshot => {
+    const waitOrigin = async state => {
+      await state.metadataDelivered.promise;
+      if (state.metadataInvalid) throw new Error('Origin callable pre-navigation metadata is invalid.');
+      const network = await state.networkReady.promise;
+      await network.terminalReady.promise; await network.lifecycle.body;
+      if ((!state.bodyAccepted && !genuineIncompleteCancellation(state)) || (state.failureReceived &&
+          !['origin-fetch-failed', 'origin-fetch-aborted'].includes(state.bodyFailureStage))) {
+        report(state, 'origin-body-incomplete');
+        throw new Error('Origin callable pre-navigation body is unavailable.');
+      }
+    };
+    let timer;
+    try {
+      await Promise.race([Promise.all([
+        ...snapshot.origins.map(waitOrigin),
+        ...snapshot.networks.map(async network => { const state = await network.originReady.promise; await waitOrigin(state); }),
+      ]), new Promise((_, reject) => {
+        timer = timeoutPort.setTimeout(() => {
+          for (const state of snapshot.origins) {
+            if (!state.metadataReady) report(state, 'origin-request-unaccounted');
+            else if (!state.bodyAccepted) report(state, 'origin-body-incomplete');
+            else if (!state.network || !state.network.lifecycle.terminalDone) report(state, 'unknown-callable-lifecycle');
+          }
+          for (const network of snapshot.networks) {
+            if (!network.origin) report(null, !network.documentId && requireDocumentWitness
+              ? 'origin-native-document-unavailable' : 'origin-request-unaccounted', networkDetails(network));
+          }
+          reject(new Error('Origin callable pre-navigation census exceeded the observation budget.'));
+        }, OBSERVATION_BUDGET_MS);
+      })]);
+      snapshot.evidence.outcome = 'completed';
+    } catch (error) { snapshot.evidence.outcome = 'failed'; throw error; }
+    finally { timeoutPort.clearTimeout(timer); snapshot.evidence.completedAt = now(); }
   };
   const validPacket = packet => {
     if (!packet || typeof packet !== 'object' || Array.isArray(packet) || packet.schemaVersion !== 1 ||
@@ -415,7 +508,14 @@ export function createPc10OriginObservationLedger({ label, projectId, functionsO
         const trace = createPc10CallableTrace({ name: packet.name, transport: 'independent-browser-SDK', startedAt: packet.at });
         Object.assign(trace, { roleId: label, captureMode: 'origin', originRequestHash: createHash('sha256')
           .update(`pc10-origin-request\0${packet.originId}`).digest('hex') });
-        const state = { trace, originBody: deferred(), order: origins.size };
+        const documentId = packet.originId.split(':')[0];
+        Object.assign(trace, { originDocumentHash: witnessHash('document', documentId), originIssuedObservedAt: now() });
+        if (navigationSnapshot) {
+          trace.originIssuedAfterNavigationSnapshot = true;
+          trace.originNavigationSnapshotHash = navigationSnapshot.evidence.snapshotHash;
+          navigationSnapshot.evidence.postSnapshotOrigins++;
+        }
+        const state = { trace, documentId, originBody: deferred(), order: origins.size, metadataDelivered: deferred() };
         state.networkReady = deferred();
         state.metadataReady = false; state.metadataInvalid = false; state.bodyAccepted = false; state.headersSeen = false;
         origins.set(packet.originId, state); observedCalls.push(trace);
@@ -428,6 +528,9 @@ export function createPc10OriginObservationLedger({ label, projectId, functionsO
       if (packet.stage === 'metadata') {
         if (state.metadataReady) { report(state, 'unknown-callable-lifecycle'); return { ok: false }; }
         state.metadataReady = true; state.metadataInvalid = packet.failureStage !== null;
+        state.trace.originMetadataObservedAt = now();
+        if (navigationSnapshot) state.trace.originMetadataNavigationSnapshotHash = navigationSnapshot.evidence.snapshotHash;
+        state.metadataDelivered.resolve();
         for (const field of ['actorHash', 'sessionHash', 'requestHash', 'groupHash', 'projectHash']) state.trace[field] = packet[field];
         if (packet.failureStage) {
           state.bodyFailureStage = packet.failureStage;
@@ -496,8 +599,17 @@ export function createPc10OriginObservationLedger({ label, projectId, functionsO
         const value = { name: parsed.name, actorHash: hash('actor', parsed.actorUid), sessionHash: hash('session', parsed.sessionId),
           requestHash: hash('request', parsed.requestId), groupHash: hash('group', parsed.groupId), projectHash: hash('project', parsed.projectId),
           protocolRequestHash: createHash('sha256').update(`pc10-cdp-request\0${protocolId}`).digest('hex'),
+          observedAt: now(), frameId: event.frameId, loaderId: event.loaderId,
           headersAt: null, finishedAt: null, failedAt: null, origin: null, invalid: Boolean(parsed.failureStage),
           originReady: deferred(), terminalReady: deferred(), bodyCompletion: deferred() };
+        if (requireDocumentWitness) {
+          const frames = event.initiator?.type === 'script' ? event.initiator?.stack?.callFrames : null;
+          const wrappers = Array.isArray(frames) ? frames.filter(frame => frame.functionName === 'pc10OriginFetch' && opaque(frame.scriptId)) : [];
+          const ids = [...new Set(wrappers.map(frame => frame.scriptId))];
+          if (!opaque(event.frameId) || !opaque(event.loaderId) || ids.length !== 1) {
+            value.witnessInvalid = true; report(null, 'origin-native-document-unavailable', networkDetails(value));
+          } else value.wrapperScriptId = ids[0];
+        }
         const protocolTrace = createPc10CallableTrace({ name: parsed.name, transport: 'independent-browser-SDK', startedAt: now() });
         Object.assign(protocolTrace, { roleId: label, actorHash: value.actorHash, sessionHash: value.sessionHash,
           requestHash: value.requestHash, groupHash: value.groupHash, protocolRequestHash: value.protocolRequestHash });
@@ -559,6 +671,68 @@ export function createPc10OriginObservationLedger({ label, projectId, functionsO
       for (const state of origins.values()) identityCheck(state);
     },
     rejectBindingSource() { report(null, 'origin-binding-source'); return { ok: false }; },
+    rejectBindingPacket() { report(null, 'origin-binding-schema'); return { ok: false }; },
+    announceDocument(documentId) {
+      if (!uuid(documentId)) { report(null, 'origin-document-witness-conflict'); return { ok: false }; }
+      if (!documents.has(documentId)) documents.set(documentId, { announcedAt: now(), witnessedAt: null, loaderId: null });
+      return { ok: true };
+    },
+    nativeContext(event) {
+      const context = event?.context;
+      if (context?.auxData?.isDefault !== true) return;
+      if (!Number.isSafeInteger(context.id) || context.id < 1 || !opaque(context.uniqueId) || !opaque(context.auxData.frameId)) {
+        report(null, 'origin-document-witness-conflict'); return;
+      }
+      // scriptParsed has only the numeric context ID. If that ID is reused
+      // across processes, an as-yet-unseen old script cannot be distinguished
+      // from a new one by that event. Never guess its system-unique context.
+      const identity = contextIdentities.get(context.id);
+      if (identity && (identity.uniqueId !== context.uniqueId || identity.frameId !== context.auxData.frameId)) {
+        report(null, 'origin-document-witness-conflict'); return;
+      }
+      contextIdentities.set(context.id, { uniqueId: context.uniqueId, frameId: context.auxData.frameId });
+      const prior = contexts.get(context.id);
+      if (prior?.uniqueId === context.uniqueId) return;
+      const value = { id: context.id, uniqueId: context.uniqueId, frameId: context.auxData.frameId, documentId: null };
+      contexts.set(context.id, value);
+      for (const script of scripts.values()) if (!script.context && script.executionContextId === context.id) script.context = value;
+      reconcile();
+    },
+    nativeScript(event) {
+      if (!opaque(event?.scriptId) || !Number.isSafeInteger(event.executionContextId)) return;
+      const context = contexts.get(event.executionContextId), prior = scripts.get(event.scriptId);
+      if (prior?.invalid) return;
+      if (prior && prior.context && context && prior.context !== context) {
+        prior.invalid = true; report(null, 'origin-document-witness-conflict'); reconcile(); return;
+      }
+      scripts.set(event.scriptId, { executionContextId: event.executionContextId, context: prior?.context ?? context ?? null });
+      reconcile();
+    },
+    nativeContextDestroyed(event) {
+      const context = contexts.get(event?.executionContextId);
+      if (context) { context.destroyedAt = now(); contexts.delete(event.executionContextId); }
+    },
+    nativeContextsCleared() {
+      for (const context of contexts.values()) context.destroyedAt = now();
+      contexts.clear();
+    },
+    nativeDocument(event) {
+      if (event?.name !== '__pc10OriginDocumentWitness') return;
+      let payload;
+      try { if (typeof event.payload !== 'string' || event.payload.length > 256) throw new Error('Invalid witness.'); payload = JSON.parse(event.payload); }
+      catch { report(null, 'origin-document-witness-conflict'); return; }
+      const context = contexts.get(event.executionContextId), document = documents.get(payload?.documentId);
+      if (!context || !document || payload.schemaVersion !== 1 || Object.keys(payload).sort().join('|') !== 'documentId|schemaVersion' ||
+          (context.documentId && context.documentId !== payload.documentId) || (document.context && document.context !== context)) {
+        report(null, 'origin-document-witness-conflict'); return;
+      }
+      context.documentId = payload.documentId; document.context = context; document.witnessedAt ??= now(); reconcile();
+    },
+    rejectDocumentWitness() { report(null, 'origin-native-document-unavailable'); },
+    async drainBeforeNavigation() {
+      const snapshot = snapshotPending(); navigationSnapshot = snapshot;
+      try { await waitSnapshot(snapshot); } finally { navigationSnapshot = null; }
+    },
     async drain() {
       // Snapshot only current terminal transport and already captured bodies.
       // Metadata may arrive after a fast response, but future polling does not
@@ -577,7 +751,8 @@ export function createPc10OriginObservationLedger({ label, projectId, functionsO
         await Promise.race([operation, new Promise((_, reject) => {
           timer = timeoutPort.setTimeout(() => {
             for (const network of targets) {
-              if (!network.origin) report(null, 'origin-request-unaccounted', { protocolRequestHash: network.protocolRequestHash });
+              if (!network.origin) report(null, requireDocumentWitness && !network.documentId
+                ? 'origin-native-document-unavailable' : 'origin-request-unaccounted', networkDetails(network));
               else if (!network.lifecycle.bodyDone) report(network.origin, 'origin-body-incomplete');
             }
             for (const state of bodies) {
@@ -600,20 +775,58 @@ export function createPc10OriginObservationLedger({ label, projectId, functionsO
         if (state.bodyAccepted && !state.network) report(state, 'origin-request-unaccounted');
       }
     },
-    transition: (kind, operation) => boundary.transition(kind, operation),
+    async transition(kind, operation) {
+      if (kind !== 'reload' || !requireDocumentWitness) return boundary.transition(kind, operation);
+      const snapshot = snapshotPending(); navigationSnapshot = snapshot;
+      try { await waitSnapshot(snapshot); return await boundary.transition(kind, operation); }
+      finally { navigationSnapshot = null; }
+    },
   };
 }
 
 export async function createPc10OriginBrowserCapture({ context, page, label, projectId, functionsOrigin,
   observedCalls, failures, boundaryFactory }) {
-  const ledger = createPc10OriginObservationLedger({ label, projectId, functionsOrigin, observedCalls, failures, boundaryFactory });
+  const ledger = createPc10OriginObservationLedger({ label, projectId, functionsOrigin, observedCalls, failures,
+    boundaryFactory, requireDocumentWitness: true });
   const bindingName = '__pc10ProofOriginCapture';
-  await context.exposeBinding(bindingName, (source, packet) => source.page === page && source.frame === page.mainFrame()
-    ? ledger.receive(packet) : ledger.rejectBindingSource());
-  const configuration = { bindingName, projectId, functionsOrigin, callableActions: PC10_PROOF_CALLABLE_ACTIONS };
+  const documentBindingName = '__pc10OriginDocumentWitness';
+  let cdp, witnessSetup;
+  await context.exposeBinding(bindingName, async (source, packet) => {
+    if (source.page !== page || source.frame !== page.mainFrame()) return ledger.rejectBindingSource();
+    try {
+      const descriptors = Object.getOwnPropertyDescriptors(packet);
+      if (Object.values(descriptors).some(value => !Object.hasOwn(value, 'value'))) throw new Error('Non-data packet.');
+      packet = Object.fromEntries(Object.entries(descriptors).map(([field, value]) => [field, value.value]));
+    } catch { return ledger.rejectBindingPacket(); }
+    if (packet?.stage !== 'document') return ledger.receive(packet);
+    if (packet.schemaVersion !== 1 || Object.keys(packet).sort().join('|') !== 'documentId|schemaVersion|stage') {
+      return ledger.rejectBindingPacket();
+    }
+    if (ledger.announceDocument(packet.documentId).ok !== true) return { ok: false };
+    try {
+      witnessSetup ??= (async () => {
+        await cdp.send('Runtime.enable'); await cdp.send('Debugger.enable');
+        await cdp.send('Runtime.addBinding', { name: documentBindingName });
+      })();
+      await witnessSetup;
+      const called = await source.frame.evaluate(({ documentId, nativeBindingName }) => {
+        const actual = globalThis[Symbol.for('pc10-proof-origin-document')];
+        if (actual !== documentId || typeof globalThis[nativeBindingName] !== 'function') return false;
+        globalThis[nativeBindingName](JSON.stringify({ schemaVersion: 1, documentId })); return true;
+      }, { documentId: packet.documentId, nativeBindingName: documentBindingName });
+      if (!called) throw new Error('Actual document witness is unavailable.');
+      return { ok: true };
+    } catch { ledger.rejectDocumentWitness(); return { ok: false }; }
+  });
+  const configuration = { bindingName, projectId, functionsOrigin, callableActions: PC10_PROOF_CALLABLE_ACTIONS, documentWitness: true };
   await context.addInitScript({ content: `(${installPc10OriginCallableFetch.toString()})(${JSON.stringify(configuration)},
     (${parsePc10OriginRequest.toString()}), (${parsePc10OriginResult.toString()}));` });
-  const cdp = await context.newCDPSession(page);
+  cdp = await context.newCDPSession(page);
+  cdp.on('Runtime.executionContextCreated', event => ledger.nativeContext(event));
+  cdp.on('Runtime.executionContextDestroyed', event => ledger.nativeContextDestroyed(event));
+  cdp.on('Runtime.executionContextsCleared', () => ledger.nativeContextsCleared());
+  cdp.on('Runtime.bindingCalled', event => ledger.nativeDocument(event));
+  cdp.on('Debugger.scriptParsed', event => ledger.nativeScript(event));
   cdp.on('Network.requestWillBeSent', event => ledger.network('request', event));
   cdp.on('Network.responseReceived', event => ledger.network('headers', event));
   cdp.on('Network.loadingFinished', event => ledger.network('finished', event));
