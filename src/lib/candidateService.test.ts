@@ -45,6 +45,17 @@ it('keeps the receipt pending if the current player changes group before it retu
   useSessionStore.setState({ me: { uid: 'u1', role: 'player', sessionId: 's1', fleetGroupId: 'fleet-1' } as never });
   expect(recoverCandidateAttempt('fleet-1')).toEqual(attempt);
 });
+it('does not overwrite an interrupted original request after the player changes fleet group', async () => {
+  const attempt = createCandidateAttempt(choice);
+  transport.call.mockRejectedValueOnce(new Error('network interrupted'));
+  await expect(executeCandidateAttempt(attempt)).rejects.toThrow();
+  useSessionStore.setState({ me: { uid: 'u1', role: 'player', sessionId: 's1', fleetGroupId: 'fleet-2' } as never });
+  expect(() => createCandidateAttempt({ ...choice, expectedGroupId: 'fleet-2' })).toThrow(/original/i);
+  await expect(executeCandidateAttempt({ ...attempt, requestId: 'new-request', expectedGroupId: 'fleet-2' })).rejects.toThrow(/original/i);
+  expect(transport.call).toHaveBeenCalledTimes(1);
+  useSessionStore.setState({ me: { uid: 'u1', role: 'player', sessionId: 's1', fleetGroupId: 'fleet-1' } as never });
+  expect(recoverCandidateAttempt('fleet-1')).toEqual(attempt);
+});
 it('rejects a mismatched committed request receipt and private derived values', async () => {
   const attempt = createCandidateAttempt(choice);
   transport.call.mockResolvedValueOnce({ data: { ...result(attempt), requestId: 'unrelated' } });

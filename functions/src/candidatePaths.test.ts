@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  candidateWorkspace, parseCandidateAction, resolveCandidateAction,
+  candidateWorkspace, parseCandidateAction, parseCandidateState, resolveCandidateAction,
   type CandidateAuthority, type CandidateAction, type CandidateState,
 } from './candidatePaths';
 
@@ -26,6 +26,13 @@ const command = (action: CandidateAction['action'], extra: Record<string, unknow
     coordinate: '6798', action, ...extra });
 
 describe('candidate source calculations and explicit choices', () => {
+  it('fails closed when a stored public ship result contains private calculation fields', () => {
+    const a = authority('O');
+    const committed = resolveCandidateAction(a, empty(), command('nebula-jump', { shipId: 'aegis' }), 1);
+    const poisoned = structuredClone(committed.state);
+    Object.assign(poisoned.sites['6798']!.ships.aegis!, { scouts: 7, total: 8 });
+    expect(() => parseCandidateState(poisoned)).toThrow(/malformed|result|private/i);
+  });
   it('reports each distinct Ring blocker without exposing other candidate locations', () => {
     const view = candidateWorkspace(authority(), empty());
     expect(view.paths[0]).toMatchObject({ code: 'N', materials: 0, materialsRequired: 10,
