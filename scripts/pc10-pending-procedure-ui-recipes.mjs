@@ -345,12 +345,14 @@ async function readCurrentWriteGrant(surface, expected) {
     const claimedAt = typeof instance.claimedAt === 'string' ? instance.claimedAt : null;
     if (uidHash !== expected.uidHash || !claimedAt || !Number.isFinite(Date.parse(claimedAt)) ||
         state.gmInstance.claimedAt !== claimedAt) return null;
+    const claimedAtDigest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(claimedAt)));
+    const claimedAtHash = [...new Uint8Array(claimedAtDigest)].map(byte => byte.toString(16).padStart(2, '0')).join('').slice(0, 20);
     return {
       projection: { kind: 'gm-ship-console-write-grant', live: true, sessionId: expected.sessionId,
         cycle: state.session.currentTurn, uidHash, instanceId: expected.instanceId,
         shipId: grantShipId === 'aegis' ? 'aegis' : null, targetShipId: 'aegis',
         enabled: grantShipId === 'aegis',
-        claimedAtHash: createHash('sha256').update(JSON.stringify(claimedAt)).digest('hex').slice(0, 20) },
+        claimedAtHash },
       claimedAt,
     };
   }, { moduleUrl: surface.storeModuleUrl(), expected });
@@ -1166,6 +1168,9 @@ async function inspectMountedGmControl({ context, surface, request, result, spec
 async function recipeFor({ context, game, spec }) {
   let roleToUse = spec.actorRoleId;
   let holderTarget = {};
+  if (spec.family === 'pending-core-craft-actions' &&
+      !['current-shuttle-holder', 'current-ally-holder'].includes(roleToUse) &&
+      !context.roster.some(candidate => candidate.roleId === roleToUse)) return null;
   if (spec.actorRoleId === 'current-shuttle-holder' || spec.actorRoleId === 'current-ally-holder') {
     const sourceSurface = await game.select('gm');
     const sourceActor = await sourceSurface.observe();
