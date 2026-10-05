@@ -1,11 +1,6 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { useSessionStore } from '@/store/useSessionStore';
-import type {
-  BaseCapybaraCargoTransferResult,
-  BaseCapybaraCargoTransferStaleResult,
-  BaseCapybaraCargoTransferServiceResult,
-} from '@/lib/baseCapybaraCargoService';
 import type { GameSession } from '@/types/game';
 
 const mocks = vi.hoisted(() => ({ transfer: vi.fn() }));

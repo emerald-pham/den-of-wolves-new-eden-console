@@ -215,6 +215,9 @@ describe('printed uncharged Warrior and Vulcan Jump Drives', () => {
   for (const id of ['warrior', 'vulcan'] as const) for (const [length, fuelCost] of [['short', 1], ['medium', 1], ['long', 2]] as const)
     it(`${id} pays ${fuelCost} host fuel for ${length} without consuming an unrelated charge, and replays exactly`, async () => {
       const { db, callables } = sourceUnchargedCraft(id);
+      const unrelatedCharge = id === 'warrior' ? 'salvage-drones' : 'laser-cannon';
+      const state = (db.documents.get(sessionPath)!.smallShipStates as Stored)[id] as Stored;
+      (state.cycle as Stored).charges = [unrelatedCharge];
       const destination = STAR_CHART_COORDINATES.find(value => jumpLengthBetween('0000', value) === length)!;
       expect(destination).toBeDefined();
       const command = { ...jump, smallShipId: id, destination, requestId: `${id}-${length}` };
@@ -224,7 +227,7 @@ describe('printed uncharged Warrior and Vulcan Jump Drives', () => {
       const count = db.writes.length;
       await expect(callables.jumpSmallShip(request(command))).resolves.toMatchObject({ status: 'replayed', fuelCost });
       expect(db.writes).toHaveLength(count);
-      expect(db.documents.get(sessionPath)?.smallShipStates).toMatchObject({ [id]: { hostShipId: null, cycle: { charges: [] } } });
+      expect(db.documents.get(sessionPath)?.smallShipStates).toMatchObject({ [id]: { hostShipId: null, cycle: { charges: [unrelatedCharge] } } });
       await expect(callables.jumpSmallShip(request({ ...command, destination: command.destination === '1413' ? '0100' : '1413' })))
         .rejects.toMatchObject({ code: 'failed-precondition' });
     });
@@ -442,4 +445,14 @@ it('recovers an original small-craft jump after its original host settles', asyn
   const writes = db.writes.length;
   await expect(callables.jumpSmallShip(request(jump))).resolves.toMatchObject({ status: 'replayed' });
   expect(db.writes).toHaveLength(writes);
+});
+
+it('retains the ordinary base Capybara charge requirement despite the two printed exceptions', async () => {
+  const state = emptySmallShipState('capybara-small', 'aegis');
+  state.dockingRevision = 1;
+  state.cycle = {...state.cycle, step:0, turn:3, revision:8, charges:[]};
+  const {db,callables} = seed({smallShipStates: {'capybara-small':state}});
+  db.documents.set('sessions/s1/players/u1', {role:'player', replacementRoleId:'capybara-small-captain', replacementStatus:null, activeConsoleRoleId:null});
+  await expect(callables.jumpSmallShip(request({...jump,smallShipId:'capybara-small'}))).rejects.toMatchObject({code:'failed-precondition'});
+  expect(db.writes).toHaveLength(0);
 });

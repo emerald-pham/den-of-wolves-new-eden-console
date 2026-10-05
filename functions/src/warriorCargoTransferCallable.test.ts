@@ -193,3 +193,22 @@ it('accepts manual Coordination without an expired wall-clock bypass in ordinary
   phase.progression = 'manual';
   await expect(transfer().run(request(command))).resolves.toMatchObject({ status: 'committed' });
 });
+
+it('accepts ordinary source-authorized resolved mutiny state and preserves its recovery history', async () => {
+  expect(transfer()).toBeDefined();
+  const s=mock.documents.get('sessions/s1')!;
+  const state=(s.smallShipStates as Fields).warrior as Fields;
+  state.unrest=5;
+  state.mutiny={status:'resolved',revision:1,triggerUnrest:8,triggeredAt:'earlier',reduction:3,recoveryRequestId:'r1',recoveredAt:'now'};
+  const before=structuredClone(s.smallShipStates);
+  await expect(transfer().run(request(command))).resolves.toMatchObject({status:'committed'});
+  expect(mock.documents.get('sessions/s1')!.smallShipStates).toEqual(before);
+});
+it('rejects client-supplied outcomes and foreign craft fields before transaction writes', async () => {
+  expect(transfer()).toBeDefined();
+  for(const patch of [{smallShipId:'capybara-small'},{rolls:[6]},{actorUid:'captain'}]) {
+    await expect(transfer().run(request({...command,...patch}))).rejects.toMatchObject({code:'invalid-argument'});
+  }
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});

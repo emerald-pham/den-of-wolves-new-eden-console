@@ -3013,3 +3013,39 @@ it('denies a fresh combat action from a settled AEGIS while another group is act
   });
   expect(testState.update).not.toHaveBeenCalled(); expect(testState.set).not.toHaveBeenCalled();
 });
+
+it('holds a charged Vulcan choice until explicit use/pass and includes only its printed dice in the normal range lock', async () => {
+  admitVulcanRange();
+  const uid='vulcan-captain-1';
+  await advanceWolfAttackLifecycle.run({params:{sessionId:'s1'}});
+  expect(entropy.randomInt).not.toHaveBeenCalled();
+  for(const [sourceId,actorUid] of [['highwall','miner-1'],['gorgoneion-missile-array','gorg-captain-1'],['boa','recycler-1'],['vulcan-laser-cannon',uid]]) {
+    const view=await getWolfRangeSupportActionChoice.run(request({sessionId:'s1',sourceId,range:'short-range'},actorUid));
+    await commitWolfRangeSupportActionChoice.run(request({sessionId:'s1',requestId:`vulcan-lock-${sourceId}`,sourceId,range:'short-range',
+      expectedTurn:1,expectedRevision:view.revision,use:sourceId==='vulcan-laser-cannon'},actorUid));
+  }
+  expect(entropy.randomInt).not.toHaveBeenCalled();
+  const eo=await getWolfRangeActionChoice.run(request({sessionId:'s1'}));
+  const lock=await commitWolfRangeActionChoice.run(request({sessionId:'s1',requestId:'vulcan-only-lock',expectedTurn:1,
+    expectedRevision:eo.revision,range:'short-range',actionIds:[]}));
+  expect(lock).toMatchObject({choiceStatus:'targets-required',hitSlots:[{actionId:'vulcan-laser-cannon-short',count:2,damagePerHit:1}]});
+  expect(entropy.randomInt).toHaveBeenCalledTimes(2);
+  const current=await getWolfRangeActionChoice.run(request({sessionId:'s1'}));
+  await assignWolfRangeTargets.run(request({sessionId:'s1',requestId:'vulcan-only-targets',expectedTurn:1,expectedRevision:current.revision,
+    range:'short-range',assignments:[{actionId:'vulcan-laser-cannon-short',contactIds:['contact-1','contact-2']}]}));
+  const attack=testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  expect((attack.rangeReceipts as Fields[]).at(-1)!.dice).toEqual([expect.objectContaining({sourceId:'vulcan-laser-cannon',rolls:[6,6],successes:2,damage:2})]);
+  expect(attack.memberResults).toEqual(expect.arrayContaining([expect.objectContaining({sourceId:'vulcan-laser-cannon',outcome:expect.objectContaining({damage:1})})]));
+  expect(entropy.randomInt).toHaveBeenCalledTimes(2);
+});
+it('rejects unprinted Vulcan Long Range and unavailable charge/custody use with zero early dice', async () => {
+  admitVulcanRange();
+  await expect(getWolfRangeSupportActionChoice.run(request({sessionId:'s1',sourceId:'vulcan-laser-cannon',range:'long-range'},'vulcan-captain-1'))).rejects.toBeDefined();
+  const s=testState.documents.get('sessions/s1')!, state=(s.smallShipStates as Fields).vulcan as Fields;
+  (state.cycle as Fields).charges=[];
+  const view=await getWolfRangeSupportActionChoice.run(request({sessionId:'s1',sourceId:'vulcan-laser-cannon',range:'short-range'},'vulcan-captain-1'));
+  expect(view).toMatchObject({actionAvailable:false,eligible:true});
+  await expect(commitWolfRangeSupportActionChoice.run(request({sessionId:'s1',requestId:'vulcan-uncharged-use',sourceId:'vulcan-laser-cannon',range:'short-range',
+    expectedTurn:1,expectedRevision:view.revision,use:true},'vulcan-captain-1'))).rejects.toMatchObject({code:'failed-precondition'});
+  expect(entropy.randomInt).not.toHaveBeenCalled();
+});

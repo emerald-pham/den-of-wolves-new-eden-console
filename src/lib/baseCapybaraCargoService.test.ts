@@ -5,7 +5,7 @@ const mocks = vi.hoisted(() => ({ call: vi.fn(), callable: vi.fn() }));
 vi.mock('firebase/functions', () => ({ httpsCallable: mocks.callable }));
 vi.mock('./firebase', () => ({ functions: () => 'functions' }));
 
-import { transferBaseCapybaraCargo } from './baseCapybaraCargoService';
+import { transferBaseCapybaraCargo, transferWarriorCargo } from './baseCapybaraCargoService';
 
 const command = {
   requestId: 'capybara-cargo-1', expectedCycle: 3, expectedRevision: 0,
@@ -88,4 +88,20 @@ it('rejects nonpositive, fractional, or unsupported resources before calling the
   await expect(transferBaseCapybaraCargo({ ...command, amount: 1.5 })).rejects.toThrow(/invalid/i);
   await expect(transferBaseCapybaraCargo({ ...command, resourceId: 'scrap' as never })).rejects.toThrow(/invalid/i);
   expect(mocks.call).not.toHaveBeenCalled();
+});
+
+it('routes an ordinary Warrior command to its named endpoint and fences delayed revoked replies', async () => {
+  const captain={...useSessionStore.getState().me!,replacementRoleId:'warrior-captain' as const};
+  useSessionStore.getState().setMe(captain);
+  let finish!: (value: unknown) => void;
+  mocks.call.mockImplementation(() => new Promise(done => {finish=done;}));
+  const sending=transferWarriorCargo(command);
+  expect(mocks.callable).toHaveBeenCalledWith('functions','transferWarriorCargo');
+  useSessionStore.getState().setMe({...captain,replacementRoleId:'vulcan-captain'});
+  finish(reply());
+  await expect(sending).rejects.toThrow(/authority changed/i);
+});
+it('rejects a foreign Captain endpoint before invoking the callable', async () => {
+  await expect(transferWarriorCargo(command)).rejects.toThrow(/current.*Captain/i);
+  expect(mocks.callable).not.toHaveBeenCalled();
 });
