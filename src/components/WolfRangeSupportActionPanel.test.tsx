@@ -44,3 +44,12 @@ it('requires an available opaque contact before the Boa spends Scrap', () => {
   fireEvent.click(screen.getByRole('button', { name: /use Boa Scrap Strike/i }));
   expect(onUse).toHaveBeenCalledWith('contact-1');
 });
+
+it('names Vulcan laser use/pass with its charged two-dice4+ cost and no Scrap or private roster', () => {
+  const onUse = vi.fn();
+  render(<WolfRangeSupportActionPanelView view={{...supportView('vulcan-laser-cannon' as never), actorRoleId:'vulcan-captain'}} onUse={onUse} onPass={vi.fn()} />);
+  expect(screen.getByText(/charged.*two dice.*4\+/i)).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', {name:'Use Vulcan Laser Cannon'}));
+  expect(onUse).toHaveBeenCalledWith(undefined);
+  expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+});
