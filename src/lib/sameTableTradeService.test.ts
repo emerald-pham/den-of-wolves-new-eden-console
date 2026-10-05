@@ -214,6 +214,63 @@ it('sends baseline, offer, and acceptance commands using their stable request id
   expect(mocks.requireFresh).toHaveBeenCalledTimes(3);
 });
 
+it('accepts a revision-zero original-offer receipt for the first committed trade and its exact replay', async () => {
+  const incomingOfferId = '3f23b456-789a-4abc-8def-0123456789ab';
+  // Offers are stamped with the trade-state revision at creation. The first
+  // offer is revision zero; accepting it advances inventory/state to revision
+  // one, while the durable receipt deliberately retains that original revision.
+  const receipt = {
+    receiptId: incomingOfferId, offerId: incomingOfferId, fromUid: 'bob', toUid: 'alice',
+    tableId: 'aegis', revision: 0,
+    quantities: { ore: 1, fuel: 0, food: 0, water: 0, materials: 0, securityTeams: 0 },
+  };
+  const committed = {
+    status: 'committed', sessionId: 's1', offerId: incomingOfferId, revision: 1,
+    inventory: { playerUid: 'alice', revision: 1, balances }, receipt,
+  };
+  mocks.call.mockResolvedValueOnce({ data: committed }).mockResolvedValueOnce({
+    data: { ...committed, status: 'replayed' },
+  });
+
+  await expect(acceptSameTableTradeOffer(incomingOfferId)).resolves.toMatchObject({
+    status: 'committed', revision: 1, receipt: { receiptId: incomingOfferId, revision: 0 },
+    inventory: { revision: 1, balances },
+  });
+  await expect(acceptSameTableTradeOffer(incomingOfferId)).resolves.toMatchObject({
+    status: 'replayed', revision: 1, receipt: { receiptId: incomingOfferId, revision: 0 },
+    inventory: { revision: 1, balances },
+  });
+  expect(mocks.callable).toHaveBeenNthCalledWith(1, 'functions', 'acceptSameTableTradeOffer');
+  expect(mocks.callable).toHaveBeenNthCalledWith(2, 'functions', 'acceptSameTableTradeOffer');
+  expect(mocks.call).toHaveBeenNthCalledWith(1, { sessionId: 's1', offerId: incomingOfferId });
+  expect(mocks.call).toHaveBeenNthCalledWith(2, { sessionId: 's1', offerId: incomingOfferId });
+});
+
+it('continues to reject negative, malformed, and mismatched acceptance receipts', async () => {
+  const incomingOfferId = '3f23b456-789a-4abc-8def-0123456789ab';
+  const validReceipt = {
+    receiptId: incomingOfferId, offerId: incomingOfferId, fromUid: 'bob', toUid: 'alice',
+    tableId: 'aegis', revision: 0,
+    quantities: { ore: 1, fuel: 0, food: 0, water: 0, materials: 0, securityTeams: 0 },
+  };
+  const invalidReceipts = [
+    { ...validReceipt, revision: -1 },
+    { ...validReceipt, revision: '0' },
+    { ...validReceipt, receiptId: '4f23b456-789a-4abc-8def-0123456789ab' },
+    { ...validReceipt, offerId: '4f23b456-789a-4abc-8def-0123456789ab' },
+    { ...validReceipt, toUid: 'carol' },
+    { ...validReceipt, quantities: { ...validReceipt.quantities, unknown: 1 } },
+  ];
+
+  for (const receipt of invalidReceipts) {
+    mocks.call.mockResolvedValueOnce({ data: {
+      status: 'committed', sessionId: 's1', offerId: incomingOfferId, revision: 1,
+      inventory: { playerUid: 'alice', revision: 1, balances }, receipt,
+    } });
+    await expect(acceptSameTableTradeOffer(incomingOfferId)).rejects.toThrow(/mismatched same-table acceptance/i);
+  }
+});
+
 it('rejects a malformed or bilateral balance reply from trade acceptance', async () => {
   const incomingOfferId = '3f23b456-789a-4abc-8def-0123456789ab';
   mocks.call.mockResolvedValue({ data: {
