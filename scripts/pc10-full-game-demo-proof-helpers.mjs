@@ -55,3 +55,13 @@ export async function completePreparedCrew(options) {
   }
   throw new Error(`Ordinary crew preparation did not finish: ${JSON.stringify(current)}`);
 }
+
+export function isObservedGameEnding(current) {
+  if (!['debrief', 'closed'].includes(current.phase) || current.debriefType !== 'session-debrief' ||
+      current.debriefVersion !== 1 || !Number.isSafeInteger(current.debriefCycle) || current.debriefCycle < 1 ||
+      current.debriefCycle !== current.cycle) return false;
+  return current.debriefSource === 'final-cycle' && current.debriefResult === 'completed' && current.debriefCause === 'final-cycle' ||
+    current.debriefSource === 'candidate' && current.debriefResult === 'success' && current.debriefCause === 'candidate-complete' ||
+    current.debriefSource === 'failure-review' && current.debriefResult === 'failure' &&
+      ['pursuit-limit', 'total-fleet-loss'].includes(current.debriefCause);
+}

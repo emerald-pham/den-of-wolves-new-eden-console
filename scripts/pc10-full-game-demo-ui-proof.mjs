@@ -6,7 +6,7 @@ import { resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { pathToFileURL } from 'node:url';
 import { chromium } from 'playwright';
-import { proofRuntimeFromViteSource, validateProofRuntime, assertSelectedActor, completePreparedCrew } from './pc10-full-game-demo-proof-helpers.mjs';
+import { proofRuntimeFromViteSource, validateProofRuntime, assertSelectedActor, completePreparedCrew, isObservedGameEnding } from './pc10-full-game-demo-proof-helpers.mjs';
 
 /** Real UI/SDK driver. Callbacks may compose later genuine game decisions. */
 export async function runFreshFullGameDemoUi(options = {}) {
@@ -80,6 +80,12 @@ export async function runFreshFullGameDemoUi(options = {}) {
           fullGameDemo: state.session?.fullGameDemo ?? null, phaseProgression: state.session?.turnPhase?.progression ?? null,
           airspace: state.session?.turnPhase?.airspace.state ?? null, turnStatePhase: state.session?.turnState?.phase ?? null,
           gameOutcomeCause: state.session?.gameOutcome?.cause ?? null,
+          debriefType: state.session?.debriefSnapshot?.type ?? null,
+          debriefVersion: state.session?.debriefSnapshot?.version ?? null,
+          debriefSource: state.session?.debriefSnapshot?.source ?? null,
+          debriefResult: state.session?.debriefSnapshot?.result ?? null,
+          debriefCause: state.session?.debriefSnapshot?.cause ?? null,
+          debriefCycle: state.session?.debriefSnapshot?.cycle ?? null,
           privateLoyaltyPresent: !!state.privateLoyalty, briefRoleId: state.roleBrief?.roleId ?? null,
           briefMatchesActor: !!state.roleBrief && state.roleBrief.assignmentUid === user?.uid,
           pendingCommandCount: state.pendingCommands.length };
@@ -336,7 +342,7 @@ export async function runFreshFullGameDemoUi(options = {}) {
     if (options.runEnding) {
       await mark('supplied genuine gameplay ending');
       await options.runEnding({ gm, crew, initial, started, roster, directory });
-      const ended = await gm.until('Server-produced ending', state => ['success', 'failure', 'debrief', 'closed'].includes(state.phase) && state.gameOutcomeCause);
+      const ended = await gm.until('Server-produced immutable debrief ending', isObservedGameEnding);
       evidence.ending = ended; evidence.genuineEndingSupplied = true;
     } else evidence.genuineEndingSupplied = false;
     assert.equal((await gm.observe()).uidHash, gmIdentity.uidHash);
