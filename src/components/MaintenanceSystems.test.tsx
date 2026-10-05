@@ -611,8 +611,8 @@ it.each(['aegis', 'dione', 'capybara'])('explains %s damage as one printed survi
 
 it.each([
   ['aegis', 'AEGIS', /Armoured Hull.*without survivor loss.*cycles back.*other card remains/i, /empty deck.*required draw.*destroys the ship/i],
-  ['dione', 'Dione', /non-armoured hit removes 1 survivor/i, /card is required.*deck is empty.*Dione is destroyed/i],
-  ['capybara', 'Capybara', /non-armoured hit removes 1 survivor/i, /expansion rules.*empty-deck draw.*facilitator/i],
+  ['dione', 'Dione', /non-armoured hit moves Survivors down 1 step on the printed track/i, /card is required.*deck is empty.*Dione is destroyed/i],
+  ['capybara', 'Capybara', /non-armoured hit moves Survivors down 1 step on the printed track/i, /expansion rules.*empty-deck draw.*facilitator/i],
 ] as const)('explains %s damage outcomes only beside the GM Assign damage control', (shipId, name, exception, exhaustion) => {
   const props = { name, shipId, systems: [], renderSystem: () => null, rations: null };
   render(<MaintenanceSystems {...props} />);
