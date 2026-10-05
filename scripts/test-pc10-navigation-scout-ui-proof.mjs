@@ -252,6 +252,33 @@ test('UI failure records safe receipt evidence but cannot replay a stale reply o
   assert.equal(recorded, 1); assert.equal(sdk, 0);
 });
 
+test('a response cannot claim another original actor, cycle or request envelope before recovery', async () => {
+  for (const patch of [{ actorUid: 'foreign-actor' }, { turn: 3 }, { idempotencyKey: 'foreign-request' }]) {
+    let sdk = 0;
+    const result = { status: 'jumped', shipId: 'aegis', actorUid: 'actual-owner', turn: 2,
+      idempotencyKey: 'original-jump', revision: 9, ...patch };
+    await assert.rejects(captureNavigationScoutUiReceipt({ endpoint: 'jumpShip', original: actor(),
+      surface: { callable: async () => { sdk++; return { status: 'committed', result }; } },
+      inspect: async () => actor(), choose: async () => {}, intent: { shipId: 'aegis', coordinate: '1100' },
+      waitForResponse: async () => ({ status: () => 200, json: async () => ({ result }),
+        request: () => ({ postDataJSON: () => ({ data: jump() }) }) }) }), /actor|cycle|receipt|request|source/);
+    assert.equal(sdk, 0);
+  }
+});
+
+test('source replay status cannot disappear while all other fields are unchanged', () => {
+  const { status, ...withoutStatus } = scoutReply();
+  assert.equal(status, 'requested');
+  assert.throws(() => assertNavigationScoutReplay('requestScout', scoutReply(), withoutStatus), /status|receipt|source/);
+});
+
+test('safe evidence rejects raw identity content and unobserved private cost fields', () => {
+  assert.throws(() => safeNavigationScoutEvidence({ branch: 'scout-report', status: 'observed',
+    actor: { ...actor(), uidHash: 'actual-owner' } }), /hash|identity|evidence/i);
+  assert.throws(() => safeNavigationScoutEvidence({ branch: 'known-jump', status: 'observed',
+    costs: { fuel: 2, privateBonus: 6 } }), /Unknown/);
+});
+
 test('factory is additive, lazy and explicit about required branches; construction never launches or mutates', () => {
   const proof = createNavigationScoutProof(undefined, { requiredBranches: ['known-jump', 'scout-report'] });
   for (const key of ['onSetup', 'onStarted', 'runNavigation', 'runScoutReaders', 'save', 'summary']) assert.equal(typeof proof[key], 'function');
