@@ -417,6 +417,7 @@ import {
   serviceRechargeDamageState,
 } from './serviceShuttleRecharge';
 import {
+  BLACKSMITH_REPAIR_COST,
   parseBlacksmithRepairLedger,
   resolveBlacksmithRepair,
 } from './blacksmithRepair';
@@ -589,7 +590,7 @@ import {
   buildAuthoritativeEventEnvelope,
 } from './eventEnvelope';
 import { buildPrivacySafeEventRecord } from './eventRedaction';
-import { buildActionAuditRecord, type ActionAuditAction } from './actionAudit';
+import { buildActionAuditRecord, writeStandardActionAudit, type ActionAuditAction } from './actionAudit';
 import {
   createAirspaceClosureParkingTask,
   createAirspaceClosureTaskScheduler,
@@ -7683,6 +7684,16 @@ export const transferShuttleCargoCommand = auditedOnCall<{
       [`shuttleCargo.${data.shuttleId}`]: result.shuttleInventory,
       updatedAt: FieldValue.serverTimestamp(),
     });
+    writeStandardActionAudit(tx, db, {
+      sessionId: data.sessionId, actorUid: uid, actorRoleId: vesselActorRoleId(actor),
+      action: 'shuttle-cargo', phase: vesselActionPhase(session), requestId: data.requestId,
+      revision: data.expectedControlRevision, outcome: 'committed', resolutionSource: 'server-calculated',
+      createdAt: FieldValue.serverTimestamp(),
+    }, {
+      sourceId: 'shuttle-cargo-transfer', requiredChoices: [{ actor: 'player', kind: 'cargo', value: { shuttleId: data.shuttleId, resourceId: data.resourceId, direction: data.direction, amount: data.amount } }],
+      calculation: { amount: result.amount, direction: result.direction, resourceId: result.resourceId },
+      consequences: { hostShipId: result.hostShipId, shipAmount: result.shipAmount, shuttleAmount: result.shuttleAmount }, audience: { operational: 'group', groupId },
+    });
     tx.set(receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
     return reply;
   });
@@ -7993,6 +8004,16 @@ export const rechargeHostConsoleFromShuttle = auditedOnCall<{
       },
       createdAt: FieldValue.serverTimestamp(),
     }));
+    writeStandardActionAudit(tx, db, {
+      sessionId: data.sessionId, actorUid: uid, actorRoleId: vesselActorRoleId(actor),
+      action: 'shuttle-recharge', phase: vesselActionPhase(session), requestId: data.requestId,
+      revision: result.ledger.revision, outcome: 'committed', resolutionSource: 'server-calculated',
+      createdAt: FieldValue.serverTimestamp(),
+    }, {
+      sourceId: 'service-shuttle-recharge', requiredChoices: [{ actor: 'player', kind: 'console', value: { shuttleId: data.shuttleId, consoleId: data.consoleId, productionScrap: data.productionScrap ?? null, productionOreAmount: data.productionOreAmount ?? null } }],
+      calculation: { resourcesBefore: serviceRechargeResourceState(session.get('shipResources'), result.hostShipId), resourcesAfter: result.resources, immediate: result.immediate },
+      consequences: { hostShipId: result.hostShipId, consoleId: data.consoleId, maintenanceRevision: result.maintenanceCycle.revision, rechargeRevision: result.ledger.revision, resources: result.resources }, audience: { operational: 'group', groupId },
+    });
     tx.set(receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
     return reply;
   });
@@ -8224,6 +8245,16 @@ export const repairConsolesFromBlacksmith = auditedOnCall<{
       },
       createdAt: FieldValue.serverTimestamp(),
     }));
+    writeStandardActionAudit(tx, db, {
+      sessionId: data.sessionId, actorUid: uid, actorRoleId: vesselActorRoleId(actor),
+      action: 'blacksmith-repair', phase: vesselActionPhase(session), requestId: data.requestId,
+      revision: result.ledger.revision, outcome: 'committed', resolutionSource: 'server-calculated',
+      createdAt: FieldValue.serverTimestamp(),
+    }, {
+      sourceId: 'blacksmith-repair', requiredChoices: [{ actor: 'player', kind: 'consoles', value: data.systemIds }],
+      calculation: { materialsSpent: result.repairedSystemIds.length * BLACKSMITH_REPAIR_COST },
+      consequences: { hostShipId: result.hostShipId, systemIds: result.repairedSystemIds, materialsRemaining: result.materials, damage: result.damage }, audience: { operational: 'group', groupId },
+    });
     tx.set(receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
     return reply;
   });
@@ -8464,6 +8495,16 @@ export const repairConsolesFromPhilia = auditedOnCall<{
       },
       createdAt: FieldValue.serverTimestamp(),
     }));
+    writeStandardActionAudit(tx, db, {
+      sessionId: data.sessionId, actorUid: uid, actorRoleId: vesselActorRoleId(actor),
+      action: 'philia-repair', phase: vesselActionPhase(session), requestId: data.requestId,
+      revision: result.ledger.revision, outcome: 'committed', resolutionSource: 'server-calculated',
+      createdAt: FieldValue.serverTimestamp(),
+    }, {
+      sourceId: 'philia-repair', requiredChoices: [{ actor: 'player', kind: 'consoles', value: data.systemIds }],
+      calculation: { materialsSpent: result.repairedSystemIds.length * PHILIA_REPAIR_COST },
+      consequences: { hostShipId: result.hostShipId, systemIds: result.repairedSystemIds, materialsRemaining: result.materials, damage: result.damage }, audience: { operational: 'group', groupId },
+    });
     tx.set(receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
     return reply;
   });
@@ -8617,6 +8658,16 @@ export const repairConsolesFromMacaw = auditedOnCall<{
       },
       createdAt: FieldValue.serverTimestamp(),
     }));
+    writeStandardActionAudit(tx, db, {
+      sessionId: data.sessionId, actorUid: uid, actorRoleId: vesselActorRoleId(actor),
+      action: 'macaw-repair', phase: vesselActionPhase(session), requestId: data.requestId,
+      revision: result.ledger.revision, outcome: 'committed', resolutionSource: 'server-calculated',
+      createdAt: FieldValue.serverTimestamp(),
+    }, {
+      sourceId: 'macaw-repair', requiredChoices: [{ actor: 'player', kind: 'consoles', value: data.systemIds }],
+      calculation: { scrapSpent: result.repairedSystemIds.length * MACAW_REPAIR_COST },
+      consequences: { hostShipId: result.hostShipId, systemIds: result.repairedSystemIds, scrapRemaining: result.scrap, damage: result.damage }, audience: { operational: 'group', groupId },
+    });
     tx.set(receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
     return reply;
   });
@@ -8800,6 +8851,16 @@ export const recycleWithBoa = auditedOnCall<{
       },
       createdAt: FieldValue.serverTimestamp(),
     }));
+    writeStandardActionAudit(tx, db, {
+      sessionId: data.sessionId, actorUid: uid, actorRoleId: vesselActorRoleId(actor),
+      action: 'boa-recycling', phase: vesselActionPhase(session), requestId: data.requestId,
+      revision: result.ledger.revision, outcome: 'committed', resolutionSource: 'server-calculated',
+      createdAt: FieldValue.serverTimestamp(),
+    }, {
+      sourceId: 'boa-recycling', requiredChoices: [{ actor: 'player', kind: 'recipe', value: data.recipeId }],
+      calculation: { resourceId: result.resourceId, resourceCost: result.resourceCost, scrapAwarded: result.scrapAwarded },
+      consequences: { hostShipId: result.hostShipId, hostResourceRemaining: result.resources[result.resourceId], scrapRemaining, exchangesThisCycle: result.ledger.exchangesThisCycle }, audience: { operational: 'group', groupId },
+    });
     tx.set(receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
     return reply;
   });
@@ -8994,6 +9055,16 @@ export const repairConsolesFromChacau = auditedOnCall('repairConsolesFromChacau'
       },
       createdAt: FieldValue.serverTimestamp(),
     }));
+    writeStandardActionAudit(tx, db, {
+      sessionId: data.sessionId, actorUid: uid, actorRoleId: vesselActorRoleId(actor),
+      action: 'chacau-repair', phase: vesselActionPhase(session), requestId: data.requestId,
+      revision: result.ledger.revision, outcome: 'committed', resolutionSource: 'server-calculated',
+      createdAt: FieldValue.serverTimestamp(),
+    }, {
+      sourceId: 'chacau-repair', requiredChoices: [{ actor: 'player', kind: 'consoles', value: data.systemIds }],
+      calculation: { materialsSpent: result.repairedSystemIds.length * CHACAU_REPAIR_COST },
+      consequences: { hostShipId: result.hostShipId, systemIds: result.repairedSystemIds, materialsRemaining: result.materials, damage: result.damage }, audience: { operational: 'group', groupId },
+    });
     tx.set(receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
     return reply;
   });
@@ -38807,6 +38878,16 @@ export const buildFighter = auditedOnCall<{
       'shipResources.aegis.materials': resources.materials - 1,
       ...vesselActionRevisionPatch('aegis', revision),
       updatedAt: FieldValue.serverTimestamp(),
+    });
+    writeStandardActionAudit(tx, db, {
+      sessionId: change.sessionId, actorUid: uid, actorRoleId: vesselActorRoleId(player),
+      action: 'fighter-build', phase: vesselActionPhase(session), requestId: identity.requestId,
+      revision: revision, outcome: 'committed', resolutionSource: 'server-calculated',
+      createdAt: FieldValue.serverTimestamp(),
+    }, {
+      sourceId: 'aegis-construction-bay', requiredChoices: [{ actor: player.get('role') === 'gm' ? 'facilitator' : 'player', kind: 'wing', value: change.wingId }],
+      calculation: { materialsSpent: 1, fighterDelta: 1 },
+      consequences: { fighters: nextCount, materialsRemaining: resources.materials - 1, wingRevision: currentWing.revision + 1 }, audience: { operational: 'actor' },
     });
     txSetIfSupported(tx, receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
     return reply;

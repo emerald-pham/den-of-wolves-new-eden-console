@@ -1,3 +1,4 @@
+import { writeStandardActionAudit } from './actionAudit';
 import { auditedOnCall } from './securityCallable';
 import { FieldValue, Timestamp, getFirestore, type DocumentSnapshot } from 'firebase-admin/firestore';
 import { HttpsError, } from 'firebase-functions/v2/https';
@@ -362,6 +363,15 @@ export const repairConsolesFromAlly = auditedOnCall<{
       },
       createdAt: FieldValue.serverTimestamp(),
     }));
+    writeStandardActionAudit(tx, db, {
+      sessionId: command.sessionId, actorUid: uid, actorRoleId: actualPlayerRole(actor) ?? null, action: 'ally-repair',
+      phase: 'active', requestId: command.requestId, revision: result.ledger.revision,
+      outcome: 'committed', resolutionSource: 'server-calculated', createdAt: FieldValue.serverTimestamp(),
+    }, {
+      sourceId: 'ally-repair', requiredChoices: [{ actor: 'player', kind: 'consoles', value: command.systemIds }],
+      calculation: { materialsSpent: result.repairedSystemIds.length * ALLY_REPAIR_COST },
+      consequences: { hostShipId: result.hostShipId, systemIds: result.repairedSystemIds, materialsRemaining: result.materials, damage: result.damage }, audience: { operational: 'actor' },
+    });
     tx.set(receiptRef, {
       fingerprint,
       result: reply,

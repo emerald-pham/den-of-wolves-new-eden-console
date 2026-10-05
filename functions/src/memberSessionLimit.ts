@@ -18,11 +18,18 @@ export function limitCurrentMemberSessionReader<R>({ db, read }: {
     }
     const sessionId = data.sessionId;
     const uid = request.auth.uid;
-    const actor = await db.doc(`sessions/${sessionId}/players/${uid}`).get();
-    if (!actor.exists || actor.get('connected') !== true || actor.get('kickedAt') ||
-        !['player', 'gm'].includes(String(actor.get('role')))) {
-      throw new HttpsError('permission-denied', 'Current session membership is required.');
-    }
+    await db.runTransaction(async tx => {
+      const [session, actor] = await Promise.all([
+        tx.get(db.doc(`sessions/${sessionId}`)), tx.get(db.doc(`sessions/${sessionId}/players/${uid}`)),
+      ]);
+      const closedHistory = session.exists && session.get('phase') === 'closed' &&
+        actor.get('role') === 'player' && typeof actor.get('fleetGroupId') === 'string' &&
+        actor.get('fleetGroupId').length > 0;
+      if (!actor.exists || actor.get('kickedAt') || !['player', 'gm'].includes(String(actor.get('role'))) ||
+          actor.get('connected') !== true && !closedHistory) {
+        throw new HttpsError('permission-denied', 'Current session membership is required.');
+      }
+    });
     await enforceExpensiveCallableRateLimit(db, { callableName: 'getCurrentMemberSession', sessionId, uid });
     // The ordinary reader rechecks membership and every entitlement atomically.
     return read(request);

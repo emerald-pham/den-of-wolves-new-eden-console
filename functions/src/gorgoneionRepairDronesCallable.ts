@@ -1,3 +1,4 @@
+import { writeStandardActionAudit } from './actionAudit';
 import { auditedOnCall } from './securityCallable';
 import { FieldValue, Timestamp, getFirestore, type DocumentSnapshot } from 'firebase-admin/firestore';
 import { HttpsError, } from 'firebase-functions/v2/https';
@@ -340,6 +341,15 @@ export const repairGorgoneionWithDrones = auditedOnCall<{
       },
       createdAt: FieldValue.serverTimestamp(),
     }));
+    writeStandardActionAudit(tx, db, {
+      sessionId: command.sessionId, actorUid: uid, actorRoleId: ROLE_ID, action: 'gorgoneion-drone-repair',
+      phase: 'active', requestId: command.requestId, revision: result.state.revision,
+      outcome: 'committed', resolutionSource: 'server-calculated', createdAt: FieldValue.serverTimestamp(),
+    }, {
+      sourceId: 'gorgoneion-drone-repair', requiredChoices: [{ actor: 'player', kind: 'console', value: command.systemId }],
+      calculation: { materialsSpent: REPAIR_COST },
+      consequences: { hostShipId: result.hostShipId, systemId: result.repairedSystemId, materialsRemaining: result.hostResources.materials, damage: result.hostDamage }, audience: { operational: 'actor' },
+    });
     tx.set(receiptRef, {
       fingerprint,
       result: reply,

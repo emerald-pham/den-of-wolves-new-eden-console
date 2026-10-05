@@ -1,3 +1,4 @@
+import { writeStandardActionAudit } from './actionAudit';
 import { auditedOnCall } from './securityCallable';
 import { FieldValue, Timestamp, getFirestore, type DocumentSnapshot } from 'firebase-admin/firestore';
 import { HttpsError, } from 'firebase-functions/v2/https';
@@ -363,6 +364,15 @@ export const transferBaseCapybaraCargo = auditedOnCall<{
       baseCapybaraCargo: result.cargoState,
       [`shipResources.${result.hostShipId}`]: result.hostResources,
       updatedAt: FieldValue.serverTimestamp(),
+    });
+    writeStandardActionAudit(tx, db, {
+      sessionId: command.sessionId, actorUid: uid, actorRoleId: actor.get('replacementRoleId') ?? actor.get('assignedRoleId') ?? null, action: 'base-capybara-cargo',
+      phase: 'active', requestId: command.requestId, revision: result.cargoState.revision,
+      outcome: 'committed', resolutionSource: 'server-calculated', createdAt: FieldValue.serverTimestamp(),
+    }, {
+      sourceId: 'base-capybara-cargo', requiredChoices: [{ actor: 'player', kind: 'cargo', value: { direction: command.direction, resourceId: command.resourceId, amount: command.amount } }],
+      calculation: { direction: result.direction, resourceId: result.resourceId, amount: result.amount },
+      consequences: { hostShipId: result.hostShipId, hostResources: result.hostResources, cargoInventory: result.cargoState.inventory }, audience: { operational: 'actor' },
     });
     tx.set(receiptRef, {
       fingerprint,

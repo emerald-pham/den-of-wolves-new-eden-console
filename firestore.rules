@@ -1001,6 +1001,13 @@ service cloud.firestore {
         allow write: if false;
       }
 
+      // Required choices, calculations and consequences stay in private GM
+      // procedure history. They never enter player or Press event projections.
+      match /procedureAudits/{requestId} {
+        allow get, list: if isGm(sessionId);
+        allow write: if false;
+      }
+
       // Hummingbird's server dice and pending allocation are private to the
       // currently active Quellon Explorer. The public session may expose only
       // the completed food/water cargo projection.
