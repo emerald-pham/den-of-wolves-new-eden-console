@@ -94,7 +94,14 @@ export async function runFreshFullGameDemoUi(options = {}) {
     }
     async function consent() {
       const waiver = page.getByRole('dialog', { name: 'CODE OF CONDUCT', exact: true });
-      await waiver.waitFor();
+      const admissionDeadline = Date.now() + 35_000;
+      while (!(await waiver.isVisible()) && Date.now() < admissionDeadline) {
+        const failed = calls.find(call => call.surface === label &&
+          ['createSession', 'joinSession'].includes(call.endpoint) && call.status >= 400);
+        if (failed) throw new Error(`Real ${failed.endpoint} returned HTTP ${failed.status} before consent mounted.`);
+        await delay(100);
+      }
+      assert.equal(await waiver.isVisible(), true, 'Normal admission must mount the consent dialog.');
       const checks = waiver.getByRole('checkbox', { name: /^Acknowledge regulation/ });
       assert.equal(await checks.count(), 3);
       for (const checkbox of await checks.all()) await checkbox.check();
@@ -116,7 +123,7 @@ export async function runFreshFullGameDemoUi(options = {}) {
       const button = page.getByRole('button', { name: /^REDUCED MOTION/i });
       if (await button.isVisible().catch(() => false)) await button.click();
     }
-    const result = { label, page, context, observe, until, consent, callable, reducedMotion };
+    const result = { label, page, context, observe, until, consent, callable, reducedMotion, storeModuleUrl: () => storeUrl };
     surfaces.push(result); return result;
   }
 
@@ -159,6 +166,7 @@ export async function runFreshFullGameDemoUi(options = {}) {
     await crew.page.goto(managerUrl); await crew.reducedMotion(); await crew.consent();
     const controller = await crew.until('Real controller admitted', state => state.hasAuth && state.sameActor && state.sessionId === initial.sessionId && state.profileRoleId === 'controller' && state.connection === 'live' && state.freshness === 'server');
     assert.equal(controller.gmInstanceOwned, false);
+    assert.notEqual(controller.uidHash, gmIdentity.uidHash);
     const controllerDenial = await crew.callable('prepareFullGameDemo', { sessionId: initial.sessionId,
       instanceId: gmIdentity.instanceId, requestId: randomUUID(), expectedSetupRevision: prepared.setupRevision });
     assert.equal(controllerDenial.status, 'denied', 'An ordinary controller cannot prepare or claim GM authority.');
@@ -180,7 +188,10 @@ export async function runFreshFullGameDemoUi(options = {}) {
     });
     const prepareCrew = crew.page.getByRole('button', { name: 'Prepare demo crew', exact: true });
     await prepareCrew.waitFor(); await prepareCrew.click();
-    const interruptedReceipt = await Promise.race([firstClaim, delay(60_000).then(() => { throw new Error('No real first seat receipt.'); })]);
+    let receiptTimeout;
+    const interruptedReceipt = await Promise.race([firstClaim, new Promise((_, reject) => {
+      receiptTimeout = setTimeout(() => reject(new Error('No real first seat receipt.')), 60_000);
+    })]).finally(() => clearTimeout(receiptTimeout));
     assert.equal(interruptedReceipt.status, 'committed');
     const establishedUidHash = await crew.page.evaluate(async () => {
       const { readDemoActorAccountUid } = await import('/src/lib/demoActorContext.ts');
@@ -199,11 +210,12 @@ export async function runFreshFullGameDemoUi(options = {}) {
           .map(byte => byte.toString(16).padStart(2, '0')).join('').slice(0, 16) })));
     }, initial.sessionId);
     assert.equal(roster.length, 21); assert.equal(new Set(roster.map(actor => actor.uidHash)).size, 21);
+    assert.ok(roster.every(actor => ![gmIdentity.uidHash, controller.uidHash].includes(actor.uidHash)));
     assert.equal(roster.find(actor => actor.roleId === 'admiral').uidHash, establishedUidHash);
     assert.equal(await crew.page.getByLabel('Current actor', { exact: true }).locator('option').count(), 22);
     evidence.interruptedActualSeatReceipt = interruptedReceipt;
     evidence.interruptedAdmissionSameRealUid = true;
-    evidence.actualAuthenticatedActors = 23;
+    evidence.actualAuthenticatedActors = new Set([gmIdentity.uidHash, controller.uidHash, ...roster.map(actor => actor.uidHash)]).size;
 
     await mark('GM sequential normal role assignment');
     const casting = gm.page.getByRole('region', { name: 'Facilitator casting', exact: true });
@@ -222,12 +234,42 @@ export async function runFreshFullGameDemoUi(options = {}) {
     await gm.page.screenshot({ path: `${directory}/cycle-one-manual-team.png` });
     await options.onStarted?.({ gm, crew, initial, started, roster, directory });
     await mark('one crew browser reload-selects every confirmed role and Press');
+    let priorActorDocument;
+    let cacheProbe;
     for (const actor of roster) {
+      const priorDocument = await crew.page.evaluate(() => {
+        window.__pc10ProofDocument ??= crypto.randomUUID(); return window.__pc10ProofDocument;
+      });
       await crew.page.getByLabel('Current actor', { exact: true }).selectOption(actor.roleId);
       await crew.page.waitForURL(url => url.searchParams.get('demoActor') === `${initial.sessionId}~${actor.roleId}`);
       let member = await crew.until(`Real ${actor.roleId} document`, state => state.sameActor && state.uidHash === actor.uidHash && state.profileRoleId === actor.roleId && state.connection === 'live' && state.freshness === 'server');
       assertSelectedActor(member, { ...actor, sessionId: initial.sessionId });
       assert.equal(member.pendingCommandCount, 0);
+      const nextDocument = await crew.page.evaluate(() => {
+        window.__pc10ProofDocument ??= crypto.randomUUID(); return window.__pc10ProofDocument;
+      });
+      assert.notEqual(nextDocument, priorDocument, 'Every actor change loads a fresh document.');
+      if (priorActorDocument) assert.notEqual(nextDocument, priorActorDocument);
+      priorActorDocument = nextDocument;
+      if (cacheProbe) {
+        const isolated = await crew.page.evaluate(async ({ storeUrl, cacheProbe }) => {
+          const { useSessionStore } = await import(storeUrl);
+          const state = useSessionStore.getState();
+          const retained = JSON.parse(localStorage.getItem(cacheProbe.key));
+          const result = { otherActorPendingCount: state.pendingCommands.length,
+            otherActorPrivateProbeVisible: JSON.stringify([state.privateLoyalty, state.roleBrief]).includes('PC10 INACTIVE ACTOR CACHE PROBE'),
+            originalActorOutboxRetained: retained.state.pendingCommands.some(command => command.id === 'pc10-inactive-actor-probe') };
+          // Restore the original local envelope before any later actor revisit.
+          localStorage.setItem(cacheProbe.key, cacheProbe.original);
+          return result;
+        }, { storeUrl: crew.storeModuleUrl(), cacheProbe });
+        assert.equal(isolated.otherActorPendingCount, 0);
+        assert.equal(isolated.otherActorPrivateProbeVisible, false);
+        assert.equal(isolated.originalActorOutboxRetained, true);
+        evidence.inactiveClientCacheProbe = { ...isolated, disclosedBrowserLocalInjection: true,
+          serverCommandsFromProbe: false, restoredOriginalEnvelope: true };
+        cacheProbe = null;
+      }
       await crew.page.getByRole('link', { name: "Enter this actor's stations", exact: true }).click();
       if (actor.roleId === 'press-officer') {
         await crew.page.getByRole('link', { name: 'Press Officer', exact: true }).click();
@@ -243,6 +285,19 @@ export async function runFreshFullGameDemoUi(options = {}) {
       roleSurfaces.push({ roleId: actor.roleId, uidHash: actor.uidHash, path: new URL(crew.page.url()).hash,
         briefMatchesActor: member.briefMatchesActor, briefRoleId: member.briefRoleId,
         privateLoyaltyPresent: member.privateLoyaltyPresent, pendingCommandCount: member.pendingCommandCount });
+      if (actor.roleId === 'admiral') {
+        cacheProbe = await crew.page.evaluate(async sid => {
+          const { demoActorSessionStorageKey } = await import('/src/lib/demoActorContext.ts');
+          const key = demoActorSessionStorageKey('dow-new-eden-session', { sessionId: sid, roleId: 'admiral' });
+          const original = localStorage.getItem(key), envelope = JSON.parse(original);
+          envelope.state.pendingCommands.push({ id: 'pc10-inactive-actor-probe', kind: 'claimSeat', createdAt: new Date().toISOString(),
+            payload: { sessionId: 'historical-inactive-probe', seatId: 'admiral', requestId: 'pc10-inactive-actor-probe', expectedSetupRevision: 0 } });
+          envelope.state.privateLoyalty = { privateText: 'PC10 INACTIVE ACTOR CACHE PROBE' };
+          // Only persisted inactive data is changed; no live store or server command is injected.
+          localStorage.setItem(key, JSON.stringify(envelope));
+          return { key, original };
+        }, initial.sessionId);
+      }
       console.log(JSON.stringify({ stage: 'confirmed role surface', roleId: actor.roleId }));
     }
     await mark('manual Team to Coordination through actual GM UI');
@@ -266,6 +321,9 @@ export async function runFreshFullGameDemoUi(options = {}) {
     Object.assign(evidence, { status: 'passed', initial, confirmed, prepared, controller, started, coordination,
       rolesVisited: roleSurfaces, roleSurfaceCount: roleSurfaces.length, transitions, calls, errors, remoteRequests,
       scope: 'Actual fresh full-demo admission, normal casting/start, 20 core role surfaces + Press, interrupted seat recovery and manual phase control. Every game-function branch and ending remain separately owned.' });
+    evidence.sourceCommitAtCompletion = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
+    evidence.builtRuntimeIndexSha256AtCompletion = createHash('sha256').update(await readFile(`${root}/functions/lib/index.js`)).digest('hex');
+    evidence.sourceChangedDuringProof = evidence.sourceCommitAtCompletion !== sourceCommit || evidence.builtRuntimeIndexSha256AtCompletion !== builtRuntimeIndexSha256;
     await writeFile(`${directory}/evidence.json`, `${JSON.stringify(evidence, null, 2)}\n`);
     console.log(JSON.stringify({ status: 'passed', sourceCommit, directory, roleSurfaceCount: roleSurfaces.length }));
     return evidence;
