@@ -404,25 +404,52 @@ export function candidateGameplayTools(context) {
     assert.equal(await refresh.count(), 1, 'One mounted current-report refresh control is required.');
     assert.equal(await refresh.isVisible(), true);
     assert.equal(await refresh.isEnabled(), true, 'The live actor must be able to request the current report.');
-    const endpoint = '/us-central1/readCandidateWorkspace';
-    const responsePromise = surface.page.waitForResponse(response => {
-      const request = response.request();
-      if (request.method() !== 'POST' || new URL(response.url()).pathname !== endpoint) return false;
-      let payload;
-      try { payload = request.postDataJSON()?.data; } catch { return false; }
-      return payload?.sessionId === expectedActor.sessionId && payload.expectedGroupId === expectedGroupId &&
-        (expectedActor.playerRole === 'gm'
-          ? payload.instanceId === expectedActor.instanceId
-          : !Object.hasOwn(payload ?? {}, 'instanceId'));
-    }, { timeout: readinessTimeoutMs });
-    await refresh.click({ timeout: readinessTimeoutMs });
-    const response = await responsePromise;
+    const projectId = context.projectId;
+    const functionsPort = context.ports?.functions;
+    assert.match(projectId ?? '', /^demo-[a-z0-9-]+$/, 'Candidate refresh must use the configured local Firebase project.');
+    assert.ok(Number.isSafeInteger(functionsPort) && functionsPort > 0 && functionsPort <= 65535,
+      'Candidate refresh must use the configured local Functions emulator port.');
+    const expectedOrigin = `http://127.0.0.1:${functionsPort}`;
+    const expectedPath = `/${projectId}/us-central1/readCandidateWorkspace`;
+    const expectedRequestKeys = expectedActor.playerRole === 'gm'
+      ? ['expectedGroupId', 'instanceId', 'sessionId'] : ['expectedGroupId', 'sessionId'];
+    function isCurrentWorkspaceRequest(request) {
+      if (request.method() !== 'POST') return false;
+      let url, payload;
+      try {
+        url = new URL(request.url());
+        payload = request.postDataJSON()?.data;
+      } catch { return false; }
+      return url.origin === expectedOrigin && url.pathname === expectedPath && !url.search && !url.hash &&
+        payload !== null && typeof payload === 'object' && !Array.isArray(payload) &&
+        JSON.stringify(Object.keys(payload ?? {}).sort()) === JSON.stringify(expectedRequestKeys) &&
+        payload.sessionId === expectedActor.sessionId && payload.expectedGroupId === expectedGroupId &&
+        (expectedActor.playerRole === 'gm' ? payload.instanceId === expectedActor.instanceId : true);
+    }
+    const refreshRequests = new Set();
+    let refreshStarted = false;
+    const rememberRefreshRequest = request => {
+      if (refreshStarted && isCurrentWorkspaceRequest(request)) refreshRequests.add(request);
+    };
+    surface.page.on('request', rememberRefreshRequest);
+    let response;
+    try {
+      const responsePromise = surface.page.waitForResponse(value =>
+        refreshRequests.has(value.request()) && isCurrentWorkspaceRequest(value.request()),
+      { timeout: readinessTimeoutMs });
+      refreshStarted = true;
+      [response] = await Promise.all([responsePromise, refresh.click({ timeout: readinessTimeoutMs })]);
+    } finally {
+      refreshStarted = false;
+      surface.page.off('request', rememberRefreshRequest);
+    }
+    assert.equal(refreshRequests.size, 1, 'Exactly one current scoped workspace read must belong to the mounted refresh.');
+    assert.strictEqual(response.request(), [...refreshRequests][0],
+      'The accepted native response must belong to the unique request initiated by the mounted refresh.');
     assert.equal(response.status(), 200, 'The mounted current-workspace read must return a successful native response.');
     const envelope = await response.json();
     const report = envelope?.result;
     const request = response.request().postDataJSON()?.data;
-    const expectedRequestKeys = expectedActor.playerRole === 'gm'
-      ? ['expectedGroupId', 'instanceId', 'sessionId'] : ['expectedGroupId', 'sessionId'];
     assert.deepEqual(Object.keys(request ?? {}).sort(), expectedRequestKeys,
       'The native current-workspace request must retain the actual UI session, group, and owned instance scope.');
     assert.equal(report?.type, 'candidate-workspace', 'A missing or error native response cannot satisfy readiness.');
@@ -690,7 +717,8 @@ export function candidateDriverOptions(input) {
         inspect: () => context.gm.observe() });
       await configuration.onStarted?.({ ...context, confirmed, admission });
     },
-    runEnding: context => candidateEndingFor(configuration.candidateCode)({ ...context, confirmed, admission }),
+    runEnding: context => candidateEndingFor(configuration.candidateCode)({ ...context, confirmed, admission,
+      projectId: configuration.projectId, ports: configuration.ports }),
   };
 }
 

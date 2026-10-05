@@ -8,8 +8,21 @@ import { projectCandidateWorkspaceReadiness, summarizeCandidateKeyboardTraversal
 
 function loadingCandidateSurface({ currentReport = false } = {}) {
   let screenshotCount = 0;
+  const listeners = new Map();
+  const on = (event, listener) => {
+    const values = listeners.get(event) ?? new Set(); values.add(listener); listeners.set(event, values);
+  };
+  const off = (event, listener) => listeners.get(event)?.delete(listener);
+  const emit = (event, value) => { for (const listener of listeners.get(event) ?? []) listener(value); };
+  const request = { method: () => 'POST', url: () => 'http://127.0.0.1:5021/demo-pc10-candidate-manual/us-central1/readCandidateWorkspace',
+    postDataJSON: () => ({ data: { expectedGroupId: 'fleet-1', instanceId: 'owned-instance', sessionId: 'session-test' } }) };
+  const response = { request: () => request, url: () => request.url(), status: () => 200,
+    json: async () => ({ result: { type: 'candidate-workspace', sessionId: 'session-test',
+      groupId: 'fleet-1', cycle: 4, revision: 3,
+      paths: [{ code: 'N', title: 'New Eden', repaired: true, ships: [{ shipId: 'aegis', canAct: true }] }] } }) };
   const button = { count: async () => 1, isVisible: async () => true, isEnabled: async () => true,
-    click: async () => {}, scrollIntoViewIfNeeded: async () => {} };
+    click: async () => { if (currentReport) { emit('request', request); emit('response', response); } },
+    scrollIntoViewIfNeeded: async () => {} };
   const emptyLocator = { count: async () => 0 };
   const panel = {
     waitFor: async () => {},
@@ -22,18 +35,15 @@ function loadingCandidateSurface({ currentReport = false } = {}) {
       tabStopKeys: [], documentTabStopCount: 1, noHorizontalOverflow: true, controls: [],
       checkboxTargets: [], text: 'Receiving current candidate operations…', reducedMotion: false }),
   };
-  const request = { method: () => 'POST', postDataJSON: () => ({ data: {
-    sessionId: 'session-test', expectedGroupId: 'fleet-1', instanceId: 'owned-instance' } }) };
-  const response = { request: () => request, url: () => 'https://example.test/us-central1/readCandidateWorkspace',
-    status: () => 200, json: async () => ({ result: { type: 'candidate-workspace', sessionId: 'session-test',
-      groupId: 'fleet-1', cycle: 4, revision: 3,
-      paths: [{ code: 'N', title: 'New Eden', repaired: true, ships: [{ shipId: 'aegis', canAct: true }] }] } }) };
   const surface = { page: {
     getByRole: role => role === 'region' ? panel : emptyLocator,
-    waitForResponse: async predicate => {
-      if (currentReport && predicate(response)) return response;
-      throw new Error('candidate workspace source report timed out');
-    },
+    on, off,
+    waitForResponse: (predicate, { timeout = 25 } = {}) => new Promise((resolveResponse, rejectResponse) => {
+      const finish = () => { off('response', onResponse); clearTimeout(timer); };
+      const onResponse = value => { if (predicate(value)) { finish(); resolveResponse(value); } };
+      const timer = setTimeout(() => { finish(); rejectResponse(new Error('candidate workspace source report timed out')); }, timeout);
+      on('response', onResponse);
+    }),
     keyboard: { press: async () => {} },
     screenshot: async () => { screenshotCount++; },
     evaluate: async callback => {
@@ -54,7 +64,8 @@ test('candidate geometry does not credit a mounted loading panel without a curre
   t.after(() => rm(directory, { recursive: true, force: true }));
   const fixture = loadingCandidateSurface();
   const tools = candidateGameplayTools({ gm: fixture.surface, crew: fixture.surface, directory,
-    initial: { sessionId: 'session-test', joinCode: 'join-test' }, roster: [{ roleId: 'gm' }] });
+    initial: { sessionId: 'session-test', joinCode: 'join-test' }, roster: [{ roleId: 'gm' }],
+    projectId: 'demo-pc10-candidate-manual', ports: { functions: 5021 } });
 
   await assert.rejects(
     tools.candidateGeometry(fixture.surface, 'N', 'research-choice', { readinessTimeoutMs: 25 }),
@@ -69,7 +80,8 @@ test('candidate geometry does not credit the spinner after a current native repo
   t.after(() => rm(directory, { recursive: true, force: true }));
   const fixture = loadingCandidateSurface({ currentReport: true });
   const tools = candidateGameplayTools({ gm: fixture.surface, crew: fixture.surface, directory,
-    initial: { sessionId: 'session-test', joinCode: 'join-test' }, roster: [{ roleId: 'gm' }] });
+    initial: { sessionId: 'session-test', joinCode: 'join-test' }, roster: [{ roleId: 'gm' }],
+    projectId: 'demo-pc10-candidate-manual', ports: { functions: 5021 } });
 
   await assert.rejects(
     tools.candidateGeometry(fixture.surface, 'N', 'repaired', { readinessTimeoutMs: 25 }),
