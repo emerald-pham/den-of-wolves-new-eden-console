@@ -257,7 +257,7 @@ describe('claimSeat', () => {
     await claimSeat.run(request(command));
     mock.update.mockClear();
     mock.set.mockClear();
-    await expect(claimSeat.run(request(command, 'u2'))).rejects.toMatchObject({ code: 'failed-precondition' });
+    await expect(claimSeat.run(request(command, 'u2'))).rejects.toMatchObject({ code: 'permission-denied' });
     await expect(claimSeat.run(request({ ...command, expectedSetupRevision: 1 })))
       .rejects.toMatchObject({ code: 'failed-precondition' });
     put('sessions/s1/setupMutationRequests/bound-readonly-replay', { actorUid: 'u1' });
