@@ -843,6 +843,36 @@ it('hydrates only an internally consistent privacy-safe survivor outcome', () =>
   }).survivorOutcome).toBeUndefined();
 });
 
+it('hydrates a strict reader-scoped debrief and full-game demo marker', () => {
+  const outcome = { type: 'game-outcome', result: 'success', cause: 'candidate-complete',
+    candidateCode: 'N', cycle: 4, occurredAt: '2026-10-05T12:00:00.000Z' };
+  const debrief = {
+    type: 'session-debrief', version: 1, source: 'candidate', result: 'success',
+    cause: 'candidate-complete', cycle: 4, occurredAt: '2026-10-05T12:00:00.000Z',
+    committedAt: '2026-10-05T12:01:00.000Z', outcome,
+    candidate: { code: 'N', groups: [{
+      requirements: [{ id: 'paid-crossing', status: 'met' }],
+      rolls: [{ id: 'passage', face: 4, result: 'success' }],
+      losses: [{ shipId: 'aegis', reason: 'candidate-loss' }],
+      humanCalls: [{ id: 'opposite-side-sabotage', cycle: 4 }],
+    }] },
+  };
+  const session = sessionFrom('closed-session', {
+    ...sessionData(8), phase: 'closed', debriefSnapshot: debrief,
+    gameOutcome: outcome,
+    fullGameDemo: { status: 'complete', progression: 'manual' },
+  });
+  expect(session.debriefSnapshot).toEqual(debrief);
+  expect(session.fullGameDemo).toEqual({ status: 'complete', progression: 'manual' });
+  expect(sessionFrom('unsafe-debrief', {
+    ...sessionData(8), phase: 'closed',
+    debriefSnapshot: { ...debrief, gmNote: 'loyalty and hidden chart' },
+  }).debriefSnapshot).toBeUndefined();
+  expect(sessionFrom('unsafe-demo-marker', {
+    ...sessionData(8), fullGameDemo: { status: 'complete', progression: 'manual', hidden: true },
+  }).fullGameDemo).toBeUndefined();
+});
+
 it('keeps typed entity IDs stable at the session snapshot boundary', () => {
   const session = sessionFrom('typed-session', {
     ...sessionData(8),
