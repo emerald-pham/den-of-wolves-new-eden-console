@@ -31,6 +31,8 @@ test('action and role matrix enumerates current exports with explicit unresolved
     assert.equal(matrix.acceptanceAccounting.pc11Executed, false);
     assert.equal(matrix.acceptanceAccounting.pc12Executed, false);
     assert.match(matrix.fieldPolicy.actionRoleEligibility, /authoritative server entitlement check/);
+    assert.match(matrix.sourceBinding.buildScope, /isolated.*does not assert the root owner checkout was rebuilt/);
+    assert.match(matrix.sourceBinding.runtimeTesting, /No emulator, browser, native callable/);
 
     const names = matrix.actions.map(row => row.exportName);
     assert.equal(new Set(names).size, 232);

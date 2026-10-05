@@ -290,6 +290,7 @@ const matrix = {
     compiledTree: compiledTree,
     compiledEntrypointSha256: sha256(await readFile('functions/lib/index.js')),
     buildCommand: 'npm run build --prefix functions',
+    buildScope: 'isolated action-matrix worktree; does not assert the root owner checkout was rebuilt',
     runtimeTesting: 'No emulator, browser, native callable, or gameplay request was run for this matrix.',
   },
   accounting: {
