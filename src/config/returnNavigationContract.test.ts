@@ -10,6 +10,7 @@ const BROWSER_PROOF = readFileSync(
 
 const ROUTE_PROOF_EXAMPLES: Readonly<Record<string, string>> = {
   '/roles': '/roles',
+  '/demo-actors': '/demo-actors',
   '/brief': '/brief',
   '/escape': '/escape',
   '/gm': '/gm',
