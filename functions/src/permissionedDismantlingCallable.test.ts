@@ -141,6 +141,20 @@ function macawSeededStore(): FakeStore {
   return store;
 }
 
+function settleCandidateVessel(store: FakeStore, shipId = 'dione') {
+  const session = store.records.get(paths().session)!;
+  session.candidateVesselOutcomes = {
+    [shipId]: { code: 'N', groupId: 'fleet-1', shipId, sourceId: 'nebula-1', cycle: 2, outcome: 'reached' },
+  };
+}
+
+function consumeMacawCandidateCraft(store: FakeStore) {
+  const session = store.records.get(paths().session)!;
+  session.candidateCraftReservations = {
+    macaw: { code: 'N', groupId: 'fleet-1', coordinate: '1234', sourceId: 'repair-1', cycle: 2 },
+  };
+}
+
 function dependencies(store: FakeStore) {
   return {
     db: store,
@@ -315,6 +329,10 @@ it('lets the current Macaw holder request distinct-host permission and atomicall
       capybara: { ore: 0, fuel: 3, food: 9, water: 4, materials: 0, securityTeams: 2, scrap: 4 },
     },
   });
+  const session = store.records.get(paths().session)!;
+  session.phase = 'success';
+  settleCandidateVessel(store);
+  consumeMacawCandidateCraft(store);
   const writes = store.committedWrites.length;
   await expect(callables.applyPermissionedDismantling(applyRequest())).resolves.toMatchObject({ status: 'replayed' });
   expect(store.committedWrites).toHaveLength(writes);
@@ -322,6 +340,42 @@ it('lets the current Macaw holder request distinct-host permission and atomicall
     .toHaveLength(1);
   expect(store.committedWrites.filter(({ path }) => path === `sessions/${SESSION_ID}/procedureAudits/${APPLY_ID}`))
     .toHaveLength(1);
+});
+
+it.each([
+  ['target vessel disposition', (store: FakeStore) => settleCandidateVessel(store)],
+  ['permanent Macaw candidate-craft use', (store: FakeStore) => consumeMacawCandidateCraft(store)],
+] as const)('blocks a fresh Macaw proposal after %s', async (_label, changeAvailability) => {
+  const store = macawSeededStore();
+  changeAvailability(store);
+  const callables = createPermissionedDismantlingCallables(dependencies(store));
+  const before = store.committedWrites.length;
+  await expect(callables.proposePermissionedDismantling(proposeRequest({
+    craftId: 'macaw', targetShipId: 'dione', targetConsoleId: 'reactor', expectedControlRevision: 9,
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(store.committedWrites).toHaveLength(before);
+  expect(store.records.has(paths().proposal)).toBe(false);
+});
+
+it.each([
+  ['target vessel disposition', (store: FakeStore) => settleCandidateVessel(store)],
+  ['permanent Macaw candidate-craft use', (store: FakeStore) => consumeMacawCandidateCraft(store)],
+] as const)('blocks a fresh Macaw apply after %s without consuming the approved request', async (_label, changeAvailability) => {
+  const store = macawSeededStore();
+  const callables = createPermissionedDismantlingCallables(dependencies(store));
+  await callables.proposePermissionedDismantling(proposeRequest({
+    craftId: 'macaw', targetShipId: 'dione', targetConsoleId: 'reactor', expectedControlRevision: 9,
+  }));
+  await callables.consentToPermissionedDismantling(consentRequest());
+  changeAvailability(store);
+  const before = store.committedWrites.length;
+
+  await expect(callables.applyPermissionedDismantling(applyRequest())).rejects.toMatchObject({
+    code: 'failed-precondition',
+  });
+  expect(store.committedWrites).toHaveLength(before);
+  expect(store.records.has(paths().applyReceipt)).toBe(false);
+  expect(store.records.get(paths().consent)).toMatchObject({ status: 'granted' });
 });
 
 it('rejects Macaw-to-Capybara self-target proposals before creating a receipt or inbox row', async () => {
