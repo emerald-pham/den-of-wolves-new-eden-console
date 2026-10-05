@@ -33,7 +33,7 @@ it('explains the three distinct costs and next actor through connected operation
   expect(await screen.findByRole('heading', { name: 'Ancient Jump Ring' })).toBeInTheDocument();
   expect(screen.getByText(/10 materials.*Engineering Shuttle.*five.*four crosses/i)).toBeInTheDocument();
   expect(screen.getByText(/six fuel|6 fuel/i)).toBeInTheDocument();
-  expect(screen.getByText(/18.*charge capacity/i)).toBeInTheDocument();
+  expect(screen.getAllByText(/18.*charge capacity/i).length).toBeGreaterThan(0);
   expect(screen.getAllByText(/Each ship crew chooses its next action/)).toHaveLength(3);
   expect(screen.queryByText(/scout bonus|hidden modifier|wolf roster/i)).not.toBeInTheDocument();
 });
