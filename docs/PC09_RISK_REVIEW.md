@@ -272,3 +272,21 @@ two possible paid drone repairs and both paid builds. All actual losses,
 full-ration, complete-receipt, browser-error and two-vacancy assertions remain.
 This is a finite source-backed fixture repair; no battle outcome is selected
 and no post-combat resource write is added. A complete strict pass is pending.
+
+The `f2d18578` attempt passed the corrected ration plan and sixteen branches
+with zero captured browser errors, then retained the launch-console assertion
+and stopped on genuine first-attack Command and Control damage. Construction
+had already been repaired through the paid drone path; its once-per-cycle limit
+correctly prevented treating that repair as a second free console repair.
+The failed trace remains in `positive-rebuild-carrier-budget/`.
+The next finite fixture reuses the existing Blacksmith rules: the current
+Icebreaker Engineer fuels and flies the craft to AEGIS through ordinary
+maintenance, departure, transit and arrival, waiting its real arrival time.
+Before later carrier maintenance, Blacksmith repairs at most two required
+damaged consoles for four host materials each, with a complete exact-retry
+check. Gorgoneion can repair a third required console or Construction for
+three materials under its unchanged once-per-cycle limit. The conservative
+pregame material target becomes 25 to cover those paid costs and both storage
+losses; food/water remain 88/66. No assertion, damage, charge, dice result or
+post-battle inventory is patched. This adds an ordinary repair contingency,
+not product behavior or future-checkpoint scope.

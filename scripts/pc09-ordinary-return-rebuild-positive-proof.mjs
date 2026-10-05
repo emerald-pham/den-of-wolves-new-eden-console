@@ -133,6 +133,8 @@ const alertAcknowledgements = [];
 const pregameResourceAllocations = [];
 const pregameWriteGrantSwitches = [];
 const repairDroneReceipts = [];
+const blacksmithRepairReceipts = [];
+const normalRepairFlights = [];
 const aceLosses = [];
 const attackTurn = 2;
 async function normalBrowserCommander(joinCode) {
@@ -215,6 +217,7 @@ async function fundPregameResources() {
   const aegisRations = fullRation('aegis');
   const dioneRations = fullRation('dione');
   const refineryRations = fullRation('refinery-124');
+  const icebreakerRations = fullRation('icebreaker');
   const gorgoneionRations = SMALL_SHIP_RULES.gorgoneion;
   const printedRationPlan = {
     aegis: { cycles: 4, foodEach: aegisRations.food[3], waterEach: aegisRations.water[3],
@@ -225,6 +228,8 @@ async function fundPregameResources() {
       populationBand: refineryRations.populationBand },
     gorgoneion: { cycles: 2, foodEach: gorgoneionRations.food[3], waterEach: gorgoneionRations.water[3],
       population: gorgoneionRations.population },
+    icebreaker: { cycles: 1, foodEach: icebreakerRations.food[3], waterEach: icebreakerRations.water[3],
+      populationBand: icebreakerRations.populationBand },
   };
   // Storage loses floor(inventory / 2) at each ordinary maintenance. Neither
   // of the first two maintenance cycles follows combat; cycles 3 and 4 can
@@ -237,9 +242,10 @@ async function fundPregameResources() {
     water: 2 * printedRationPlan.aegis.waterEach + printedRationPlan.gorgoneion.waterEach +
       2 * (printedRationPlan.aegis.waterEach + printedRationPlan.gorgoneion.waterEach +
         2 * printedRationPlan.aegis.waterEach),
-    // One optional three-material drone repair after each attack, followed by
-    // two one-material builds after the second possible storage loss.
-    materials: 3 + 2 * (3 + 2 * 2),
+    // Two optional four-material Blacksmith repairs and one three-material
+    // drone repair before cycle 3, then one possible drone repair before cycle
+    // 4 and two one-material builds after the second possible storage loss.
+    materials: 2 * 4 + 3 + 2 * (3 + 2 * 2),
   };
   const targets = {
     aegis: {
@@ -255,18 +261,21 @@ async function fundPregameResources() {
       water: (printedRationPlan.dione.cycles + 1) * printedRationPlan.dione.waterEach },
     'refinery-124': { food: (printedRationPlan['refinery-124'].cycles + 1) * printedRationPlan['refinery-124'].foodEach,
       water: (printedRationPlan['refinery-124'].cycles + 1) * printedRationPlan['refinery-124'].waterEach },
+    icebreaker: { food: printedRationPlan.icebreaker.foodEach,
+      water: printedRationPlan.icebreaker.waterEach, fuel: 1 },
   };
   const paidCostPlan = {
     fighterBuilds: 2, materialPerBuild: 1,
     possibleRepairDroneRepairs: 2, materialPerDroneRepair: 3,
-    plannedMaterialSpend: 2 * 1 + 2 * 3,
-    additionalMaterialReserve: Math.max(0, targets.aegis.materials - (2 * 1 + 2 * 3)),
+    possibleBlacksmithRepairs: 2, materialPerBlacksmithRepair: 4,
+    plannedMaterialSpend: 2 * 1 + 2 * 3 + 2 * 4,
+    additionalMaterialReserve: Math.max(0, targets.aegis.materials - (2 * 1 + 2 * 3 + 2 * 4)),
     fundedMaterialTarget: targets.aegis.materials,
     fundedMaintenanceFuelTarget: targets.aegis.fuel,
   };
   const gmLease = (await db.doc(`sessions/${sessionId}/gmInstances/${instanceId}`).get()).data();
   const claimedAt = typeof gmLease.claimedAt === 'string' ? gmLease.claimedAt : gmLease.claimedAt.toDate().toISOString();
-  for (const shipId of ['aegis', 'dione', 'refinery-124']) {
+  for (const shipId of ['aegis', 'dione', 'refinery-124', 'icebreaker']) {
     const grant = await command(gm, 'setGmShipConsoleWriteGrant', { instanceId, shipId, enabled: true, claimedAt });
     pregameWriteGrantSwitches.push({ shipId, revision: grant.revision ?? null });
     const initialResources = { ...(starting.shipResources?.[shipId] ?? {}) };
@@ -423,8 +432,8 @@ async function maintenance(cycle) {
   }
   assert.equal((await session.get()).get('maintenanceCycles').aegis.turn, cycle);
 }
-async function launchHostMaintenance(cycle) {
-  for (const shipId of ['dione', 'refinery-124']) {
+async function launchHostMaintenance(cycle, shipIds = ['dione', 'refinery-124'], refuelsByShip = {}) {
+  for (const shipId of shipIds) {
     const actor = f.byRole(`${shipId}-captain`);
     let revision = (await session.get()).get('maintenanceCycles')?.[shipId]?.revision ?? 0;
     for (const action of ['begin', 'storage', 'rations', 'unrest', 'riot', 'reactor', 'bays', 'end']) {
@@ -433,7 +442,7 @@ async function launchHostMaintenance(cycle) {
       const result = await command(actor, 'runMaintenance', { shipId, action, expectedRevision: revision,
         requestId: randomUUID(), ...rationChoice,
         ...(action === 'reactor' ? { consoles: [] } : {}),
-        ...(action === 'bays' ? { refuels: {} } : {}) });
+        ...(action === 'bays' ? { refuels: refuelsByShip[shipId] ?? {} } : {}) });
       revision = result.cycle.revision;
     }
     assert.equal((await session.get()).get('maintenanceCycles')[shipId].turn, cycle);
@@ -460,11 +469,82 @@ async function gorgoneionMaintenance(captain) {
     revision = result.cycle.revision;
   }
 }
-async function repairConstructionBayIfDamaged(captain, cycle) {
+async function moveBlacksmithToCarrier(cycle) {
+  const actor = f.byRole('icebreaker-engineer');
+  const before = (await session.get()).data();
+  assert.equal(before.shuttleDockings.find(dock => dock.shuttleId === 'blacksmith')?.shipId, 'icebreaker');
+  assert.equal(before.shuttleFuelled.blacksmith, true, 'Ordinary Icebreaker maintenance must fuel the repair flight.');
+  const expectedControlRevision = before.shuttleControl.blacksmith.revision;
+  const departureRequestId = randomUUID();
+  await command(actor, 'requestShuttleDeparture', { requestId: departureRequestId, shuttleId: 'blacksmith',
+    destinationShipId: 'aegis', expectedControlRevision, expectedCycle: cycle });
+  await command(actor, 'beginShuttleTransit', { requestId: randomUUID(), shuttleId: 'blacksmith',
+    expectedDepartureRequestId: departureRequestId, expectedControlRevision, expectedCycle: cycle });
+  const routeRef = db.doc(`sessions/${sessionId}/shuttleDepartures/blacksmith`);
+  const arrivalDeadline = Date.now() + 90_000;
+  let route;
+  while (Date.now() < arrivalDeadline) {
+    route = (await routeRef.get()).data();
+    if (route?.status === 'in-transit' && Date.now() >= Date.parse(route.arrivesAt)) break;
+    await new Promise(resolve => setTimeout(resolve, 2_000));
+  }
+  assert.ok(route?.status === 'in-transit' && Date.now() >= Date.parse(route.arrivesAt),
+    'The actual Blacksmith flight must reach its authoritative arrival time.');
+  const arrivalRequest = { requestId: randomUUID(), shuttleId: 'blacksmith',
+    transitRequestId: route.transitRequestId, expectedControlRevision };
+  const arrival = await command(actor, 'completeShuttleArrival', arrivalRequest);
+  const replay = await command(actor, 'completeShuttleArrival', arrivalRequest);
+  assert.equal(replay.status, 'replayed');
+  assert.deepEqual({ ...replay, status: arrival.status }, arrival);
+  const after = (await session.get()).data();
+  assert.equal(after.shuttleDockings.find(dock => dock.shuttleId === 'blacksmith')?.shipId, 'aegis');
+  normalRepairFlights.push({ cycle, originShipId: 'icebreaker', destinationShipId: 'aegis',
+    departedAt: route.departedAt, arrivesAt: route.arrivesAt, arrival, replay });
+}
+async function repairCarrierForLaterLaunch(captain, cycle) {
+  const before = (await session.get()).data();
+  const required = ['reactor', 'command-and-control', 'fighter-bay-alpha'];
+  const damaged = required.filter(systemId => before.shipDamage.aegis.damagedSystemIds.includes(systemId));
+  const systemIds = damaged.slice(0, 2);
+  if (systemIds.length) {
+    const actor = f.byRole('icebreaker-engineer');
+    assert.equal(before.shuttleDockings.find(dock => dock.shuttleId === 'blacksmith')?.shipId, 'aegis');
+    const request = { requestId: randomUUID(), expectedCycle: cycle, expectedHostShipId: 'aegis',
+      expectedControlRevision: before.shuttleControl.blacksmith.revision,
+      expectedRepairRevision: before.blacksmithRepairs?.revision ?? 0, systemIds };
+    const committed = await command(actor, 'repairConsolesFromBlacksmith', request);
+    assert.equal(committed.status, 'committed');
+    assert.equal(committed.materialsRemaining, before.shipResources.aegis.materials - 4 * systemIds.length);
+    const receiptRef = db.doc(`sessions/${sessionId}/commandReceipts/${request.requestId}`);
+    const receipt = (await receiptRef.get()).data();
+    assert.deepEqual(receipt.result, committed);
+    const after = (await session.get()).data();
+    assert.ok(systemIds.every(systemId => !after.shipDamage.aegis.damagedSystemIds.includes(systemId)));
+    const retryState = { shipResources: after.shipResources, shipDamage: after.shipDamage,
+      ledger: after.blacksmithRepairs, revisions: after.vesselActionRevisions, updatedAt: after.updatedAt };
+    const replay = await command(actor, 'repairConsolesFromBlacksmith', request);
+    assert.equal(replay.status, 'replayed');
+    assert.deepEqual({ ...replay, status: 'committed' }, committed);
+    assert.deepEqual((await receiptRef.get()).data(), receipt);
+    const afterRetry = (await session.get()).data();
+    assert.deepEqual({ shipResources: afterRetry.shipResources, shipDamage: afterRetry.shipDamage,
+      ledger: afterRetry.blacksmithRepairs, revisions: afterRetry.vesselActionRevisions,
+      updatedAt: afterRetry.updatedAt }, retryState, 'The exact paid Blacksmith retry cannot spend or repair twice.');
+    blacksmithRepairReceipts.push({ cycle, request, committed, replay,
+      materialsBefore: before.shipResources.aegis.materials, materialsAfter: afterRetry.shipResources.aegis.materials });
+  }
+  if (damaged.length === 3) await repairConstructionBayIfDamaged(captain, cycle, damaged[2]);
+  else await repairConstructionBayIfDamaged(captain, cycle);
+  const ready = (await session.get()).data();
+  assert.ok(required.every(systemId => !ready.shipDamage.aegis.damagedSystemIds.includes(systemId)),
+    'Ordinary paid repairs must restore every required console before the later maintenance and launch.');
+  checks.ordinaryPaidReadinessRepairsBeforeLaterMaintenance = true;
+}
+async function repairConstructionBayIfDamaged(captain, cycle, systemId = 'construction-bay') {
   const before = (await session.get()).data();
   const damage = before.shipDamage?.aegis;
-  if (!damage?.damagedSystemIds?.includes('construction-bay')) {
-    repairDroneReceipts.push({ cycle, needed: false, reason: 'Construction Bay is not damaged.' });
+  if (!damage?.damagedSystemIds?.includes(systemId)) {
+    repairDroneReceipts.push({ cycle, needed: false, systemId, reason: `${systemId} is not damaged.` });
     return { needed: false };
   }
   assert.equal(damage.destroyed, false, 'Repair Drones cannot repair a destroyed AEGIS.');
@@ -483,7 +563,7 @@ async function repairConstructionBayIfDamaged(captain, cycle) {
   const request = { requestId: randomUUID(), expectedCycle: cycle,
     expectedRepairRevision: repairState.revision ?? 0,
     expectedDockingRevision: smallShip.dockingRevision, expectedHostShipId: 'aegis',
-    systemId: 'construction-bay' };
+    systemId };
   const committed = await command(captain, 'repairGorgoneionWithDrones', request);
   assert.equal(committed.status, 'committed');
   assert.equal(committed.materialsSpent, 3);
@@ -492,7 +572,7 @@ async function repairConstructionBayIfDamaged(captain, cycle) {
   assert.equal(committed.repairRevision, request.expectedRepairRevision + 1);
   const afterCommit = (await session.get()).data();
   assert.equal(afterCommit.shipResources.aegis.materials, materialsBefore - 3);
-  assert.ok(!afterCommit.shipDamage.aegis.damagedSystemIds.includes('construction-bay'));
+  assert.ok(!afterCommit.shipDamage.aegis.damagedSystemIds.includes(systemId));
   const receiptRef = db.doc(`sessions/${sessionId}/commandReceipts/${request.requestId}`);
   const originalStoredReceipt = (await receiptRef.get()).data();
   assert.deepEqual(originalStoredReceipt?.result, committed,
@@ -698,7 +778,9 @@ try {
   resourceFundingPlan = await fundPregameResources();
   checks.currentGmDisclosedPregameResourceGrants = true;
   await maintenance(1);
+  await launchHostMaintenance(1, ['icebreaker'], { icebreaker: { 'shuttle-bay': 'blacksmith' } });
   await open(1);
+  await moveBlacksmithToCarrier(1);
   await command(gm, 'setSmallShipDocking', { instanceId, requestId: randomUUID(), smallShipId: 'gorgoneion',
     hostShipId: 'aegis', docked: true, expectedRevision: 0 });
   // Replacement assignment preserves a passenger's physical berth. Use a
@@ -1010,7 +1092,7 @@ try {
     assert.equal(response.status, 403, 'Ordinary direct reads cannot disclose private authority.');
   }
   checks.currentMemberProjectionAndPrivateRootRulesDenials = true;
-  await repairConstructionBayIfDamaged(captain, 2);
+  await repairCarrierForLaterLaunch(captain, 2);
   await command(gm, 'advanceTurn', { instanceId, requestId: randomUUID(), expectedTurn: 2,
     overridePhaseTimer: true });
   const thirdCycleHold = (await session.get()).get('turnPhase').timerPause;
@@ -1353,7 +1435,7 @@ try {
     source, ordinaryRoster: 20, checks, actions, firstAttackRanges: ranges,
     secondAttack: secondAttackResult, boarding, boardingSpecials, boardingChoiceObservations, launchPasses, specialKinds, finalBoardingGate,
     maintenanceRations, pregameResourceAllocations, pregameWriteGrantSwitches,
-    resourceFundingPlan, repairDroneReceipts, aceLosses, alertAcknowledgements,
+    resourceFundingPlan, repairDroneReceipts, blacksmithRepairReceipts, normalRepairFlights, aceLosses, alertAcknowledgements,
     firstAttack: { attackNumber: priorAttackState.attackNumber, turn: priorAttackState.turn,
       returningInstanceIds, returningShips: returnedShips, survivingWingIds: returningWings,
       survivingBattlestationIds: returningBattlestations, destroyedWingIds: destroyedWings,
@@ -1382,6 +1464,7 @@ try {
       'ordinary next-cycle composition consumed every immutable parent return, including the surviving Battlestation',
       'Wing Commander permitted two attack-bound Fighter Ace Short actions against current opaque contacts',
       'Gorgoneion Repair Drones repaired the Construction Bay through the paid current-Coordination path only if combat damaged it',
+      'The current Icebreaker Engineer fuelled and flew Blacksmith normally, then paid four host materials per required damaged console, at most two before the second attack',
       'Wing Commander made the separate browser build from the Alpha card identified by its visible heading',
       ...(specialKinds.includes('commander-ruling') ? ['explicit Commander consequence ruling'] : []),
     ], preparedScene: false, productionGameplay: false, identitiesRetained: false,
@@ -1405,7 +1488,7 @@ try {
     runtimeDirectory, runtimeManifestPath, verifiedRuntimeHash, compiledFiles: runtimeFiles.length,
     checks, actions, boardingChoiceObservations, maintenanceRations, pregameResourceAllocations,
     pregameWriteGrantSwitches,
-    resourceFundingPlan, repairDroneReceipts, aceLosses, alertAcknowledgements,
+    resourceFundingPlan, repairDroneReceipts, blacksmithRepairReceipts, normalRepairFlights, aceLosses, alertAcknowledgements,
     browserErrors, browserHttpErrors, browserRequestFailures,
     message: sanitizeDiagnosticText(error.message), currentStep: state?.currentStep, status: state?.status,
     revision: state?.revision, decisionSummary: state?.decisionSummary ? {
