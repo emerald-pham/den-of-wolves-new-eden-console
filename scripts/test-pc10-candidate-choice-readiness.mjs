@@ -273,3 +273,19 @@ test('the new mounted leaf preserves original HTTP failure and stale-result asse
     assert.equal(f.clicked, 1);
   }
 });
+
+test('the entry snapshot cannot discard a pending original mutation merely because the next observation has cleared it', async () => {
+  let reads = 0;
+  const f = fixture({ observeActor: async () => actor({ pendingCommandCount: ++reads === 1 ? 1 : 0 }) });
+  await assert.rejects(run(f), /pending.*candidate|candidate.*pending/i);
+  assert.equal(f.choices, 0); assert.equal(f.refreshes, 0);
+});
+
+test('an already exhausted surrounding candidate callback deadline cannot begin a new35s leaf', async () => {
+  const f = browserFixture({ mode: 'stale' }); f.context.deadlineAt = 0;
+  const tools = candidateGameplayTools(f.context); assert.equal(typeof tools.candidateChoice, 'function');
+  let time = 0;
+  await assert.rejects(tools.candidateChoice(f.surface, 'dione', { now: () => time,
+    wait: async () => { time += 100; } }), /candidate choice.*deadline/i);
+  assert.equal(f.refreshed, 0); assert.equal(f.clicked, 0);
+});
