@@ -1563,3 +1563,31 @@ test('stream dispatch is not deferred behind response headers emitted in the sam
   assert.equal(fixture.actor.observedCalls[0].bodyCompletedAt !== null, true);
   assert.deepEqual(fixture.actor.callableObservationFailures, []);
 });
+
+test('the installed Playwright CDP API prefix preserves exact stream denial enums without accepting added text', async () => {
+  const cases = [
+    ['cdpSession.send: Protocol error (Network.streamResourceContent): Request with the provided ID does not exists',
+      'resource-not-found'],
+    ['cdpSession.send: Protocol error (Network.streamResourceContent): Request with the provided ID has already finished loading',
+      'already-finished'],
+    ['cdpSession.send: Protocol error (Network.streamResourceContent): Request with the provided ID does not exists private-token',
+      'unknown'],
+    ['cdpSession.send: Protocol error (Network.getResponseBody): Request with the provided ID does not exists',
+      'unknown'],
+  ];
+  for (const [message, reason] of cases) {
+    const fixture = await cdpCallableObservationActor({ captureMode: 'stream',
+      streamConfigurationError: new Error(message) });
+    const requestId = fixture.start('private-api-wrapper-protocol-id');
+    fixture.receiveHeaders(requestId);
+    fixture.finish(requestId);
+    await fixture.actor.drainObservedCalls();
+    const failure = fixture.actor.callableObservationFailures[0];
+    assert.equal(fixture.actor.observedCalls[0].bodyCompletedAt, null);
+    assert.equal(failure.bodyFailureStage, 'stream-start');
+    assert.equal(failure.bodyFailureReason, reason);
+    assert.equal(JSON.stringify(failure).includes(message), false);
+    assert.equal(JSON.stringify(failure).includes('private-token'), false);
+    assert.equal(JSON.stringify(failure).includes(requestId), false);
+  }
+});
