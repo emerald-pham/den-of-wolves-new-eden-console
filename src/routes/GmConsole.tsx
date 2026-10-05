@@ -3,6 +3,7 @@ import CandidatePreparationPanel from '@/components/CandidatePreparationPanel';
 import DiseaseOutbreakFields from '../components/DiseaseOutbreakFields';
 import { populationForShip, populationTrackForShip } from '@/data/shipPopulation';
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, Navigate } from 'react-router-dom';
 import ArrestPosseCalculator from '@/components/ArrestPosseCalculator';
 import GmVipHostVisitControl from '@/components/GmVipHostVisitControl';
@@ -5749,7 +5750,7 @@ export default function GmConsole() {
           )} window={session?.pursuitEmergencyWindowAuthority} />
 
       </aside>
-      {pendingCapybaraEnabled !== null && (
+      {pendingCapybaraEnabled !== null && createPortal(
         <div
           className="settings-backdrop"
           onMouseDown={() => setPendingCapybaraEnabled(null)}
@@ -5787,9 +5788,9 @@ export default function GmConsole() {
               Confirm {pendingCapybaraEnabled ? 'add' : 'remove'} Capybara
             </button>
           </section>
-        </div>
+        </div>, document.body,
       )}
-      {pendingDioneEnabled !== null && (
+      {pendingDioneEnabled !== null && createPortal(
         <div
           className="settings-backdrop"
           onMouseDown={() => setPendingDioneEnabled(null)}
@@ -5827,9 +5828,9 @@ export default function GmConsole() {
               Confirm {pendingDioneEnabled ? 'add' : 'remove'} Dione
             </button>
           </section>
-        </div>
+        </div>, document.body,
       )}
-      {pendingPressEnabled !== null && (
+      {pendingPressEnabled !== null && createPortal(
         <div
           className="settings-backdrop"
           onMouseDown={closePressDialog}
@@ -5869,7 +5870,7 @@ export default function GmConsole() {
               ARE YOU SURE? // {pendingPressEnabled ? 'Enable' : 'Disable'} Press
             </button>
           </section>
-        </div>
+        </div>, document.body,
       )}
     </main>
   );
