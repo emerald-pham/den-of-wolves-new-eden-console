@@ -348,6 +348,19 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
       default: return 'unknown';
     }
   };
+  const chromiumBodyReadReasons = new Map([
+    ['No resource with given identifier found', 'resource-not-found'],
+    ['Request content was evicted from inspector cache', 'content-evicted'],
+    ['No data found for resource with given identifier', 'body-unavailable'],
+  ]);
+  const safeBodyReadReason = error => {
+    let message;
+    try { message = error instanceof Error ? error.message : ''; }
+    catch { return 'unknown'; }
+    const playwrightPrefix = 'Protocol error (Network.getResponseBody): ';
+    if (message.startsWith(playwrightPrefix)) message = message.slice(playwrightPrefix.length);
+    return chromiumBodyReadReasons.get(message) ?? 'unknown';
+  };
   function recordDetachedCallableFailure(name, requestId, category) {
     const failure = { roleId: label, name, category };
     const protocolRequestHash = protocolRequestHashFor(requestId);
@@ -366,6 +379,7 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
       failure.transportCancelled = state.transportFailure.canceled;
     }
     if (state.bodyFailureStage) failure.bodyFailureStage = state.bodyFailureStage;
+    if (state.bodyFailureReason) failure.bodyFailureReason = state.bodyFailureReason;
     byCategory.set(category, failure);
     failuresByRequest.set(state, byCategory);
     callableObservationFailures.push(failure);
@@ -498,8 +512,9 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
         let response;
         try {
           response = await cdpSession.send('Network.getResponseBody', { requestId: state.protocolRequestId });
-        } catch {
+        } catch (error) {
           state.bodyFailureStage = 'get-response-body';
+          state.bodyFailureReason = safeBodyReadReason(error);
           throw new Error('Callable response body read failed.');
         }
         if (!response || typeof response.body !== 'string' || typeof response.base64Encoded !== 'boolean') {
