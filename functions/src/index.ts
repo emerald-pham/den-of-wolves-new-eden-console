@@ -40557,7 +40557,8 @@ function requireShuttlesDockedAtTeamBoundary(session: DocumentSnapshot): void {
           damage[entry.destroyedHostShipId]?.destroyed !== true ||
           !custody || custody.ownerRoleId !== entry.ownerRoleId ||
           custody.holderUid !== entry.holderUid || custody.revision !== entry.controlRevision;
-      }) || !shuttleDockingsMatchRoleOwnedCraft(activeRoleIds, manifestRows)) {
+      }) || !shuttleDockingsMatchRoleOwnedCraft(activeRoleIds, manifestRows,
+        Object.keys(parseCandidateCraftReservations(session.get('candidateCraftReservations'))))) {
     throw commandError('failed-precondition',
       'Every enabled shuttle must be docked or validly retained from a destroyed host before the next Team Phase.',
       'conflict');
