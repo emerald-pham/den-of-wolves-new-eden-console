@@ -220,6 +220,10 @@ beforeEach(() => {
       joinedAt: '2026-01-01T00:00:00.000Z',
     },
   );
+  // The default mocked manifest represents a live server-backed GM. Tests for
+  // cache/reconnect authority explicitly override these runtime fields.
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
   vi.mocked(subscribeSessionEvents).mockImplementation((_sessionId, onEvents) => {
     onEvents([]);
     return vi.fn();
@@ -4596,6 +4600,50 @@ it('stages a star chart locally and locks it through explicit setup confirmation
   expect(screen.getByRole('button', { name: 'Lock star chart' })).toBeDisabled();
   expect(screen.getByRole('status', { name: 'Star chart lock status' })).toHaveTextContent('Current chart C // Locked');
   expect(screen.getByRole('combobox', { name: 'Recommended player count' })).not.toBeDisabled();
+});
+
+it.each([
+  { connection: 'connecting', freshness: 'server' },
+  { connection: 'live', freshness: 'cache' },
+  { connection: 'offline', freshness: 'server' },
+] as const)('withholds setup confirmation and chart locking until current live GM authority returns: %j', async state => {
+  const user = userEvent.setup();
+  useSessionStore.getState().setGmInstance(local);
+  useSessionStore.getState().setConnection(state.connection);
+  useSessionStore.getState().setSessionSnapshotFreshness(state.freshness);
+  streamInstances([local]);
+  renderConsole();
+  await user.click(await screen.findByRole('button', { name: /^setup$/i }));
+  const confirm = screen.getByRole('button', { name: 'Confirm setup // Confirm roster' });
+  const lock = screen.getByRole('button', { name: 'Lock star chart' });
+  expect(confirm).toBeDisabled();
+  expect(lock).toBeDisabled();
+  expect(confirm).toHaveAccessibleDescription(/Reconnect.*live GM session/i);
+  expect(lock).toHaveAccessibleDescription(/Reconnect.*live GM session/i);
+  await user.selectOptions(screen.getByRole('combobox', { name: 'Recommended player count' }), '20');
+  expect(confirmSetup).not.toHaveBeenCalled();
+  await act(async () => {
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+  });
+  expect(confirm).toBeEnabled();
+  expect(lock).toBeEnabled();
+  vi.mocked(confirmSetup).mockResolvedValue('applied');
+  await user.click(confirm);
+  expect(confirmSetup).toHaveBeenCalledWith(expect.objectContaining({ playerCount: 20 }));
+});
+
+it('withholds setup and chart commands when the live GM instance belongs to another UID', async () => {
+  const user = userEvent.setup();
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  renderConsole();
+  await user.click(await screen.findByRole('button', { name: /^setup$/i }));
+  await act(async () => { useSessionStore.getState().setGmInstance({ ...local, uid: 'foreign-gm' }); });
+  expect(screen.queryByRole('button', { name: 'Confirm setup // Confirm roster' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Lock star chart' })).not.toBeInTheDocument();
+  expect(screen.getByText('Role selection route')).toBeInTheDocument();
+  expect(confirmSetup).not.toHaveBeenCalled();
 });
 
 
