@@ -9,8 +9,19 @@ await mkdir(evidence, {recursive: true});
 const assets = await readdir('dist/assets');
 const shipEntry = assets.find(name => /^ShipConsole-[^/]+\.js$/.test(name));
 assert.ok(shipEntry, 'Ship consoles require their own deferred route entry, outside the landing graph.');
+const rejectedModules = [
+  {name: 'ShipConsole', path: '/ships/aegis/roles/admiral', message: 'Could not open ship console.'},
+  {name: 'PresidentOffice', path: '/president', message: "Could not open President's office."},
+  {name: 'ElectionWorkspace', path: '/election', message: 'Could not open presidential election.'},
+  {name: 'CrisisReportPanel', path: '/president', message: 'Crisis report could not open.'},
+].map(module => {
+  const entry = assets.find(name => name.startsWith(`${module.name}-`) && name.endsWith('.js'));
+  assert.ok(entry, `${module.name} must retain its deferred module entry.`);
+  return {...module, entry};
+});
 const result = {kind: 'prepared local browser loading/navigation proof', actualAuthentication: false,
-  productionWrites: 0, landingShipRequests: 0, cases: [], blockedRemoteRequests: [], pageErrors: []};
+  productionWrites: 0, landingShipRequests: 0, cases: [], rejectedCases: [],
+  deliberateModuleRejections: [], blockedRemoteRequests: [], pageErrors: []};
 const server = await preview({preview: {host: '127.0.0.1', port: 0, strictPort: false}});
 const address = server.httpServer.address();
 assert.ok(address && typeof address !== 'string');
@@ -26,7 +37,7 @@ const fixture = {session: {id: 'pc09-prepared-lazy', name: 'Prepared loading che
   seats: [], gmInstance: null, gmAccessAuthenticatedAt: null, pendingCommands: [], mode: 'console',
   lastRoute: '/console', awayMissionHandPointers: [], awayMissionHands: []};
 
-async function contextFor(viewport, prepared = false) {
+async function contextFor(viewport, prepared = false, rejectEntry) {
   const context = await browser.newContext({viewport, serviceWorkers: 'block', reducedMotion: 'reduce'});
   await context.addInitScript(({prepared, fixture}) => {
     const now = Date.now();
@@ -43,10 +54,14 @@ async function contextFor(viewport, prepared = false) {
       result.blockedRemoteRequests.push({origin: url.origin, reason: 'prepared proof network boundary'});
       return route.abort('internetdisconnected');
     }
+    if (rejectEntry && url.pathname === `/assets/${rejectEntry}`) {
+      result.deliberateModuleRejections.push({entry: rejectEntry, viewport});
+      return route.abort('failed');
+    }
     if (url.pathname === `/assets/${shipEntry}`) {
       if (!prepared) result.landingShipRequests += 1;
       // Hold the real deferred module so the loading return control is observable.
-      return;
+      if (!rejectEntry) return;
     }
     return route.continue();
   });
@@ -90,10 +105,64 @@ try {
     result.cases.push({viewport, loadingVisible: true, keyboardBack: true, fixtureIdentityRetained: true, geometry});
     await context.close();
   }
+
+  for (const module of rejectedModules) {
+    for (const viewport of [{width: 390, height: 844}, {width: 1440, height: 900}, {width: 844, height: 390}]) {
+      const context = await contextFor(viewport, true, module.entry);
+      const current = await context.newPage();
+      currentProofPage = current;
+      current.on('pageerror', error => result.pageErrors.push(error.message));
+      await current.goto(`${origin}/#${module.path}`, {waitUntil: 'domcontentloaded'});
+      const alert = current.getByRole('alert').filter({hasText: module.message});
+      await alert.waitFor({state: 'visible'});
+      const main = current.locator('main').filter({has: current.getByRole('link', {
+        name: /^(?:←\s*)?Back to stations$/i,
+      })});
+      await main.waitFor({state: 'visible'});
+      const back = main.getByRole('link', {name: /^(?:←\s*)?Back to stations$/i});
+      const geometry = await back.evaluate(node => {
+        const rect = node.getBoundingClientRect();
+        return {width: rect.width, height: rect.height, font: getComputedStyle(node).fontFamily,
+          overflow: document.documentElement.scrollWidth > innerWidth, fonts: document.fonts.status};
+      });
+      assert.ok(geometry.width >= 44 && geometry.height >= 44);
+      assert.match(geometry.font, /monospace/i);
+      assert.equal(geometry.overflow, false);
+      assert.equal(geometry.fonts, 'loaded');
+      const notice = module.name === 'CrisisReportPanel'
+        ? current.getByRole('complementary', {name: 'Crisis report unavailable'}) : main;
+      const reloadGeometry = await notice.getByRole('button', {name: /^Reload console$/i}).evaluate(node => {
+        const rect = node.getBoundingClientRect();
+        return {width: rect.width, height: rect.height, font: getComputedStyle(node).fontFamily};
+      });
+      assert.ok(reloadGeometry.width >= 44 && reloadGeometry.height >= 44,
+        'The visible reload action must retain a 44-pixel touch target.');
+      assert.match(reloadGeometry.font, /monospace/i);
+      const alertGeometry = await alert.evaluate(node => {
+        const rect = node.getBoundingClientRect();
+        const header = document.querySelector('.app-header')?.getBoundingClientRect();
+        return {top: rect.top, headerBottom: header?.bottom ?? 0};
+      });
+      assert.ok(alertGeometry.top >= alertGeometry.headerBottom,
+        'The failure notice must remain readable below the persistent header.');
+      await current.screenshot({path: `${evidence}/${module.name}-${viewport.width}x${viewport.height}-rejected.png`});
+      await back.focus();
+      await current.keyboard.press('Enter');
+      await current.waitForURL('**/#/console');
+      const retained = await current.evaluate(() => JSON.parse(localStorage.getItem('dow-new-eden-session')).state);
+      assert.equal(retained.session?.id, fixture.session.id);
+      assert.equal(retained.me?.uid, fixture.me.uid);
+      result.rejectedCases.push({module: module.name, viewport, rejectionContained: true,
+        routedReturnRetained: true, keyboardBack: true, fixtureIdentityRetained: true,
+        geometry, reloadGeometry, alertGeometry});
+      await context.close();
+    }
+  }
+  assert.equal(result.deliberateModuleRejections.length, 12);
   assert.deepEqual(result.pageErrors, []);
   result.completedAt = new Date().toISOString();
   await writeFile(`${evidence}/result.json`, JSON.stringify(result, null, 2)+'\n');
-  console.log(`PASS deferred ship route: landing isolation and ${result.cases.length} prepared loading/keyboard Back viewports. Remote requests are blocked; this is not authenticated gameplay.`);
+  console.log(`PASS deferred modules: landing isolation, ${result.cases.length} pending and ${result.rejectedCases.length} rejection/keyboard Back cases. Remote requests are blocked; this is not authenticated gameplay.`);
 } catch (error) {
   if (currentProofPage && !currentProofPage.isClosed()) {
     result.failure = {message: error.message, url: currentProofPage.url(),
