@@ -8,6 +8,7 @@ import {
   readDemoActorAccountUid,
   rememberDemoActorAccount,
   demoActorPresenceAllowed,
+  demoSessionStatus,
 } from './demoActorContext';
 import type { GameSession } from '@/types/game';
 beforeEach(() => { localStorage.clear(); });
@@ -68,5 +69,41 @@ describe('fixed-document demo actor context', () => {
       expect(demoActorPresenceAllowed(ended as GameSession, profile)).toBe(false);
       expect(demoActorPresenceAllowed(ended as GameSession, null)).toBe(true);
     }
+  });
+});
+
+describe('bounded full-game demo marker', () => {
+  it.each(['preparing', 'active', 'complete'] as const)('accepts the exact public %s marker', status => {
+    expect(demoSessionStatus({ fullGameDemo: { status, progression: 'manual' } } as unknown as GameSession)).toBe(status);
+  });
+
+  it.each([
+    { status: ['preparing'], progression: 'manual' },
+    { status: ['active'], progression: 'manual' },
+    { status: ['complete'], progression: 'manual' },
+    { status: { status: 'active' }, progression: 'manual' },
+    { status: 1, progression: 'manual' },
+    { status: null, progression: 'manual' },
+    { status: 'unknown', progression: 'manual' },
+    { status: 'active', progression: ['manual'] },
+    { status: 'active' },
+    { progression: 'manual' },
+    null,
+    [],
+  ])('rejects malformed JSON marker %#', marker => {
+    expect(demoSessionStatus({ fullGameDemo: marker } as unknown as GameSession)).toBeNull();
+  });
+
+  it.each([
+    { status: 'active', progression: 'manual', actorCount: 20 },
+    { status: 'preparing', progression: 'manual', privateLoyalty: 'never accept' },
+    { status: 'complete', progression: 'manual', credentials: { token: 'never accept' } },
+  ])('rejects extra or private marker fields %#', marker => {
+    expect(demoSessionStatus({ fullGameDemo: marker } as unknown as GameSession)).toBeNull();
+  });
+
+  it('keeps ordinary and absent session behavior unchanged', () => {
+    expect(demoSessionStatus(null)).toBeNull();
+    expect(demoSessionStatus({} as GameSession)).toBeNull();
   });
 });
