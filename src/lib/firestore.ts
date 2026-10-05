@@ -4006,7 +4006,7 @@ function closedMemberSessionFrom(sessionId: string, response: RecordValue, data:
   // Keep only history fields; neither legacy defaults nor a second audience
   // projection may fabricate operations or erase the entitled debrief.
   return {
-    id: session.id, name: session.name, joinCode: '', phase: 'closed', currentTurn: session.currentTurn,
+    id: session.id, name: session.name, joinCode: '', phase: 'closed', currentTurn: Number(data.currentTurn),
     ...(session.playerCount !== undefined ? { playerCount: session.playerCount } : {}),
     ...(session.turnLimit !== undefined ? { turnLimit: session.turnLimit } : {}),
     ...(session.gameOutcome ? { gameOutcome: session.gameOutcome } : {}),
