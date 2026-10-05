@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Firestore } from 'firebase-admin/firestore';
 import { createCandidateCallables } from './candidatePathsCallable';
-import { commitTerminal as commitRealTerminal } from './sessionDebrief';
+import { commitTerminal as commitRealTerminal, projectSessionDebrief } from './sessionDebrief';
 import { aggregateSurvivorOutcome } from './survivorOutcome';
 import { organiserSitesForChart } from './starChartLookup';
 
@@ -182,4 +182,84 @@ describe('ordinary candidate callable authority and durable replay', () => {
     expect(stableLossDie).toHaveBeenCalledTimes(2);
     expect(documents.get('sessions/s1/serverState/candidates')?.revision).toBe(2);
   });
+});
+
+
+function realPathHandlers() {
+  return createCandidateCallables({ db, die, now: () => new Date('2026-10-05T12:00:00Z'),
+    requireShipAuthority, commitTerminal: commitRealTerminal, serverTimestamp: () => 'server-time',
+    survivorOutcome: (session, cycle, occurredAt) => aggregateSurvivorOutcome({ cycle, occurredAt,
+      activeFleetShipIds: session.get('activeVesselIds'), shipPopulations: session.get('shipSurvivors'),
+      destroyedShipIds: Object.entries(session.get('shipDamage') as Fields ?? {})
+        .filter(([, damage]) => (damage as Fields).destroyed === true).map(([id]) => id),
+      escapePodCapacities: {} }),
+  });
+}
+it('records the actual paid Nebula path in the real terminal helper and projects only scoped vessels', async () => {
+  const real = realPathHandlers();
+  await real.execute(request(command));
+  await real.execute(request({ ...command, requestId: 'second-path', expectedRevision: 1, shipId: 'shepherd' }, 'captain'));
+  const terminal = documents.get('sessions/s1')!.debriefSnapshot;
+  expect(terminal).toMatchObject({ candidate: { groups: [{ path: [
+    { action: 'nebula-jump', result: 'lost', shipId: 'aegis', fuelSpent: 6, audience: 'members' },
+    { action: 'nebula-jump', result: 'reached', shipId: 'shepherd', fuelSpent: 12, audience: 'members' },
+  ] }] } });
+  const member = projectSessionDebrief(terminal, { groupId: 'fleet-1', vesselIds: ['shepherd'] });
+  expect(member).toMatchObject({ candidate: { groups: [{ path: [
+    { action: 'nebula-jump', result: 'reached', shipId: 'shepherd', fuelSpent: 12 },
+  ] }] } });
+  const encoded = JSON.stringify(member);
+  expect(encoded).not.toMatch(/0408|sourceId|groupId|priorLosses|scouts|total|audience/);
+});
+it('explains Ring repair paid passage and explicit cutoff through the real helper in a labeled prepared prerequisite counterexample', async () => {
+  const coordinate = Object.entries(organiserSitesForChart('A')).find(([, site]) => site.code === 'N')![0];
+  put('sessions/s1/serverState/navigation', { revision: 2, shipGalacticCoordinates: { aegis: coordinate, shepherd: coordinate },
+    systemHistory: { aegis: { [coordinate]: { coordinate, candidateDiscovery: { id: 'prepared-ring-arrival',
+      occurredAt: '2026-10-05T10:00:00.000Z', code: 'N', title: 'Ancient Jump Ring', source: 'arrival' } } } } });
+  put('sessions/s1/serverState/candidates', { revision: 0, sites: { [coordinate]: { code: 'N', groupId: 'fleet-1',
+    coordinate, materials: 10, researchIds: ['reactor', 'jump-drive', 'hydroponics', 'water-reclamation', 'water-production'],
+    shuttleId: 'philia', repairedAt: '2026-10-05T11:00:00.000Z', ships: {}, reactors: {} } } });
+  const real = realPathHandlers();
+  await real.execute(request({ ...command, code: 'N', coordinate, action: 'ring-passage' }));
+  const sabotage = { sessionId: 's1', instanceId: 'instance1', requestId: 'cutoff-path', expectedRevision: 1,
+    expectedGroupId: 'fleet-1', code: 'N', coordinate, action: 'sabotage-ring' };
+  const original = await real.execute(request(sabotage, 'gm'));
+  expect(documents.get('sessions/s1')!.debriefSnapshot).toMatchObject({ candidate: { code: 'N', groups: [{ path: [
+    { action: 'ring-repair', result: 'completed', audience: 'members' },
+    { action: 'ring-passage', result: 'crossed', shipId: 'aegis', fuelSpent: 5, audience: 'members' },
+    { action: 'sabotage-ring', result: 'completed', audience: 'members' },
+  ], losses: [{ shipId: 'shepherd', reason: 'left-behind' }] }] } });
+  expect(await real.execute(request(sabotage, 'gm'))).toEqual({ ...original, status: 'replayed' });
+  expect(documents.get('sessions/s1')!.shipSurvivors).toEqual({ aegis: 5000, shepherd: 5000 });
+});
+it('explains authoritative Station liberation unique capacity and activation in a labeled prepared liberation counterexample', async () => {
+  const coordinate = Object.entries(organiserSitesForChart('A')).find(([, site]) => site.code === 'P')![0];
+  const ships = ['aegis', 'dione', 'icebreaker', 'refinery-124'];
+  const root = documents.get('sessions/s1')!;
+  put('sessions/s1', { ...root, activeVesselIds: ships, shipUpgrades: { aegis: ['reactor'] },
+    shipResources: Object.fromEntries(ships.map(id => [id, { ore: 0, fuel: 20, materials: 10, food: 10, water: 10, securityTeams: 1 }])),
+    shipSurvivors: Object.fromEntries(ships.map(id => [id, 5000])), activeRoleIds: ['admiral', 'dione-captain', 'icebreaker-captain', 'refinery-124-captain'] });
+  const members = ['admiral', ...ships.slice(1)];
+  for (const ship of ships.slice(1)) put(`sessions/s1/players/${ship}`, { role: 'player', connected: true,
+    assignedRoleId: `${ship}-captain`, seatId: `${ship}-captain`, fleetGroupId: 'fleet-1' });
+  put('sessions/s1/fleetGroups/fleet-1', { id: 'fleet-1', vesselIds: ships, memberUids: members });
+  put('sessions/s1/serverState/navigation', { revision: 2, shipGalacticCoordinates: Object.fromEntries(ships.map(id => [id, coordinate])),
+    systemHistory: { aegis: { [coordinate]: { coordinate, candidateDiscovery: { id: 'prepared-station-arrival',
+      occurredAt: '2026-10-05T10:00:00.000Z', code: 'P', title: 'Ancient Space Station', source: 'arrival' } } } } });
+  put('sessions/s1/serverState/candidateStationLiberations', { [`fleet-1:${coordinate}`]: {
+    type: 'candidate-station-liberation', sessionId: 's1', groupId: 'fleet-1', coordinate, chart: 'A',
+    sequenceId: 'wolf-p-station-prepared', sourceId: 'wolf-attack-prepared', cycle: 6,
+    liberatedAt: '2026-10-05T11:00:00.000Z' } });
+  const real = realPathHandlers();
+  for (const [revision, ship] of ships.entries()) await real.execute(request({ ...command,
+    requestId: `reactor-path-${ship}`, expectedRevision: revision, code: 'P', coordinate,
+    action: 'contribute-reactor', shipId: ship }, ship === 'aegis' ? 'admiral' : ship));
+  expect(documents.get('sessions/s1')!.debriefSnapshot).toMatchObject({ candidate: { code: 'P', groups: [{ path: [
+    { action: 'station-liberation', result: 'completed', audience: 'members' },
+    { action: 'contribute-reactor', result: 'completed', shipId: 'aegis', capacity: 6, audience: 'members' },
+    { action: 'contribute-reactor', result: 'completed', shipId: 'dione', capacity: 4, audience: 'members' },
+    { action: 'contribute-reactor', result: 'completed', shipId: 'icebreaker', capacity: 4, audience: 'members' },
+    { action: 'contribute-reactor', result: 'completed', shipId: 'refinery-124', capacity: 4, audience: 'members' },
+    { action: 'station-activation', result: 'activated', capacity: 18, audience: 'members' },
+  ] }] } });
 });
