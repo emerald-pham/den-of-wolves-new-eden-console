@@ -129,7 +129,7 @@ it('offers only positive cargo on the active cover-role shuttle and commits a pr
     assignedRoleId: 'dione-engineer', activeConsoleRoleId: 'dione-engineer',
   });
   useSessionStore.getState().setPrivateLoyalty({ kind: 'wolf-agent', suspicion: 0 });
-  vi.mocked(submitWolfSupplySabotage).mockImplementation(async (_shuttleId, _resourceId, requestId) => ({
+  vi.mocked(submitWolfSupplySabotage).mockImplementation(async (_shuttleId, _resourceId, requestId = 'sabotage-1') => ({
     status: 'committed', type: 'wolf-supply-sabotage', sessionId: 's1',
     requestId, cycle: 2, revision: 1,
     coverRoleId: 'dione-engineer', shuttleId: 'maliades', resourceId: 'fuel',
@@ -153,8 +153,8 @@ it('offers only positive cargo on the active cover-role shuttle and commits a pr
   await user.click(sabotage);
 
   await waitFor(() => expect(submitWolfSupplySabotage).toHaveBeenCalledTimes(1));
-  expect(submitWolfSupplySabotage.mock.calls[0]?.slice(0, 2)).toEqual(['maliades', 'fuel']);
-  expect(submitWolfSupplySabotage.mock.calls[0]?.[2]).toEqual(expect.any(String));
+  expect(vi.mocked(submitWolfSupplySabotage).mock.calls[0]?.slice(0, 2)).toEqual(['maliades', 'fuel']);
+  expect(vi.mocked(submitWolfSupplySabotage).mock.calls[0]?.[2]).toEqual(expect.any(String));
   expect(await screen.findByRole('status')).toHaveTextContent(
     /2 Strytium Fuel destroyed.*3 remain.*Suspicion \/\/ 4/i,
   );
@@ -178,7 +178,7 @@ it('reuses the same sabotage request identity after an uncertain transport failu
   useSessionStore.getState().setPrivateLoyalty({ kind: 'wolf-agent', suspicion: 0 });
   vi.mocked(submitWolfSupplySabotage)
     .mockRejectedValueOnce(new Error('Temporary transport failure'))
-    .mockImplementationOnce(async (_shuttleId, _resourceId, requestId) => ({
+    .mockImplementationOnce(async (_shuttleId, _resourceId, requestId = 'sabotage-1') => ({
       status: 'committed', type: 'wolf-supply-sabotage', sessionId: 's1',
       requestId, cycle: 2, revision: 1,
       coverRoleId: 'dione-engineer', shuttleId: 'maliades', resourceId: 'fuel',
@@ -197,7 +197,8 @@ it('reuses the same sabotage request identity after an uncertain transport failu
   await user.click(sabotage);
 
   await waitFor(() => expect(submitWolfSupplySabotage).toHaveBeenCalledTimes(2));
-  expect(submitWolfSupplySabotage.mock.calls[1]).toEqual(submitWolfSupplySabotage.mock.calls[0]);
+  expect(vi.mocked(submitWolfSupplySabotage).mock.calls[1])
+    .toEqual(vi.mocked(submitWolfSupplySabotage).mock.calls[0]);
   expect(await screen.findByRole('status')).toHaveTextContent(/2 Strytium Fuel destroyed/i);
 });
 
@@ -214,7 +215,7 @@ it('does not apply a supply result whose authenticated actor envelope belongs to
     assignedRoleId: 'dione-engineer', activeConsoleRoleId: 'dione-engineer',
   });
   useSessionStore.getState().setPrivateLoyalty({ kind: 'wolf-agent', suspicion: 0 });
-  vi.mocked(submitWolfSupplySabotage).mockImplementation(async (_shuttleId, _resourceId, requestId) => ({
+  vi.mocked(submitWolfSupplySabotage).mockImplementation(async (_shuttleId, _resourceId, requestId = 'sabotage-1') => ({
     status: 'committed', type: 'wolf-supply-sabotage', sessionId: 's1',
     requestId, cycle: 2, revision: 1, coverRoleId: 'dione-engineer',
     shuttleId: 'maliades', resourceId: 'fuel', destroyedAmount: 2, remainingAmount: 3,
