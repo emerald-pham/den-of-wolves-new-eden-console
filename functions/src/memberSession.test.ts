@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { memberSessionProjection, memberSessionScope } from './memberSession';
+import { memberSessionProjection, memberSessionScope, parsedMemberSessionDetails } from './memberSession';
 import { emptySmallShipState } from './smallShip';
 import { emptyVoyage33MaintenanceState } from './voyage33Maintenance';
 import { VOYAGE_33_COMMITMENTS } from './voyageAdmission';
@@ -29,6 +29,16 @@ const root = {
 };
 
 describe('current member session privacy', () => {
+  it.each(['preparing', 'active', 'complete'])('retains only the safe %s manual demo marker', status => {
+    const fullGameDemo = { status, progression: 'manual' };
+    expect(parsedMemberSessionDetails({ fullGameDemo }, []).fullGameDemo).toEqual(fullGameDemo);
+    expect(memberSessionProjection({ ...root, fullGameDemo }, memberSessionScope(player, groups)).fullGameDemo).toEqual(fullGameDemo);
+    for (const malformed of [{ ...fullGameDemo, secret: 'PRIVATE' }, { ...fullGameDemo, progression: 'automatic' },
+      { ...fullGameDemo, status: 'unknown' }, null, ['active']]) {
+      expect(parsedMemberSessionDetails({ fullGameDemo: malformed }, [])).not.toHaveProperty('fullGameDemo');
+      expect(memberSessionProjection({ ...root, fullGameDemo: malformed }, memberSessionScope(player, groups))).not.toHaveProperty('fullGameDemo');
+    }
+  });
   it('uses the live group tuple and rejects disconnected or stale membership', () => {
     expect(memberSessionScope(player, groups)).toEqual({ groupId: 'fleet-2', vesselIds: ['shepherd'] });
     expect(() => memberSessionScope({ ...player, connected: false }, groups)).toThrow();
