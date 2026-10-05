@@ -459,3 +459,153 @@ test('explicit current UI blockers wait once for automatic source progress inste
     chooseNext: async () => { scans++; return { status: 'current-ui-blocked', reason: 'Current sources explicitly blocked.' }; } });
   assert.equal(result.status, 'resolved'); assert.equal(scans, 1);
 });
+
+// Native SDK-denial/lifecycle counterexamples only. Combat12 did not retain its
+// actual denied code; these tests do not infer it or establish gameplay credit.
+function closedChoiceReadFixture({ code = 'functions/failed-precondition', message = 'Native closed boarding query',
+  kind = 'boarding-special', after = {}, actorDrift = {}, gmDrift = {}, afterSourceActor = {}, afterSourceGm = {},
+  thrown, onDenied = () => {}, onResolved = () => {} } = {}) {
+  let denied = false, sourceDone = false, sourceReads = 0, sdkReads = 0, paints = 0;
+  const records = [];
+  const current = attack({ revision: 26, currentStep: 'boarding', airspaceLocked: true });
+  const closed = { ...current, revision: 27, status: 'resolved', currentStep: 'resolved', airspaceLocked: false, ...after };
+  const discovery = { groupId: 'native-group', shipId: 'aegis', revision: 3, fleetGroupVesselIds: ['aegis', 'dione'] };
+  const member = actor({ fleetGroupId: 'native-group', connectionGeneration: 3, identityHydrationRevision: 2,
+    replacementRoleId: null, replacementStatus: null, seatId: 'original-seat', discoveryAuthority: discovery,
+    airspace: 'restricted', turnStatePhase: 'team', phaseProgression: 'manual' });
+  const facilitator = { ...member, uidHash: 'native-gm', profileRoleId: 'gm', assignedRoleId: null,
+    activeConsoleRoleId: null, playerRole: 'gm', instanceId: 'original-gm-instance', gmInstanceOwned: true,
+    fleetGroupId: null, seatId: null, discoveryAuthority: null };
+  const observed = gm => ({ ...(gm ? facilitator : member),
+    ...(denied ? gm ? gmDrift : actorDrift : {}), ...(sourceDone ? gm ? afterSourceGm : afterSourceActor : {}) });
+  const surface = gm => ({ label: gm ? 'original GM' : 'original EO', storeModuleUrl: () => '/native-store',
+    observe: async () => observed(gm), page: {
+      evaluate: async () => ({ ...observed(gm), connected: true }),
+      getByRole: () => { paints++; throw new Error('A denied closed read must never inspect or accept a UI choice.'); },
+    } });
+  const gm = surface(true), crew = surface(false);
+  const reply = { status: 'denied', code, message, details: { nativeEvidence: 'Keep the available SDK detail unchanged.' } };
+  crew.callable = async (endpoint, request) => {
+    sdkReads++; assert.equal(request.sessionId, 'native-session');
+    assert.equal(endpoint, kind === 'boarding-special' ? 'getWolfBoardingSpecialChoice' : 'getAegisEnrichedWarheadChoice');
+    if (thrown) throw thrown;
+    denied = true; onDenied(); return reply;
+  };
+  const context = { gm, crew, initial: { sessionId: 'native-session' },
+    started: { uidHash: facilitator.uidHash, instanceId: facilitator.instanceId },
+    roster: [{ roleId: member.profileRoleId, uidHash: member.uidHash }] };
+  const tools = { read: async (role, path) => {
+    assert.equal(role, 'gm'); assert.equal(path, 'wolfAttackState/current'); sourceReads++;
+    if (!denied) return current;
+    sourceDone = true; onResolved(); return closed;
+  }, record: async (stage, detail) => { records.push({ stage, ...detail }); } };
+  return { context, tools, current, reply, records,
+    counts: () => ({ sourceReads, sdkReads, paints }),
+    run: async options => (await moduleUnderTest()).createWolfChoiceWaiter(context, { tools, ...options })(crew, current, { kind }),
+  };
+}
+
+function retainedSdkError(error, reply) {
+  for (let current = error; current; current = current.cause)
+    if (current.code === reply.code && current.message === reply.message && current.cause === reply) return true;
+  return false;
+}
+
+test('a tagged actual SDK closed boarding denial reinspects one same newer resolved/unlocked attack with zero UI credit', async () => {
+  const f = closedChoiceReadFixture();
+  const result = await f.run();
+  assert.equal(result.status, 'source-changed'); assert.equal(result.gameplayCredit, false);
+  assert.deepEqual(result.expected, f.current); assert.deepEqual(result.readDenial.reply, f.reply);
+  assert.equal(result.readDenial.endpoint, 'getWolfBoardingSpecialChoice');
+  assert.deepEqual(f.counts(), { sourceReads: 2, sdkReads: 1, paints: 0 });
+  assert.ok(f.records.some(record => record.readDenial?.reply === f.reply), 'Retain the native SDK response before lifecycle recovery.');
+});
+
+for (const code of ['functions/permission-denied', 'functions/unauthenticated', 'functions/invalid-argument',
+  'functions/internal', 'functions/deadline-exceeded', 'failed-precondition', undefined])
+  test(`a ${code ?? 'missing-code'} SDK denial remains hard even after real source finalization`, async () => {
+    const f = closedChoiceReadFixture({ code });
+    if (code === undefined) delete f.reply.code;
+    await assert.rejects(f.run(), error => retainedSdkError(error, f.reply));
+    assert.deepEqual(f.counts(), { sourceReads: 1, sdkReads: 1, paints: 0 });
+    assert.ok(f.records.some(record => record.readDenial?.reply === f.reply));
+  });
+
+test('missing or empty SDK message/body does not acquire closed-read classification', async () => {
+  for (const message of ['', undefined]) {
+    const f = closedChoiceReadFixture({ message });
+    if (message === undefined) delete f.reply.message;
+    await assert.rejects(f.run()); assert.deepEqual(f.counts(), { sourceReads: 1, sdkReads: 1, paints: 0 });
+  }
+});
+
+test('a different readonly endpoint cannot turn its failed-precondition into closed boarding recovery', async () => {
+  const f = closedChoiceReadFixture({ kind: 'warheads' });
+  await assert.rejects(f.run(), error => retainedSdkError(error, f.reply));
+  assert.deepEqual(f.counts(), { sourceReads: 1, sdkReads: 1, paints: 0 });
+});
+
+for (const [reason, after] of Object.entries({ unchanged: { revision: 26, status: 'declared', currentStep: 'boarding', airspaceLocked: true },
+  'wrong attack': { attackId: 'different-attack' }, 'wrong session': { sessionId: 'different-session' },
+  'wrong cycle': { turn: 2 }, 'same revision': { revision: 26 }, 'unsafe revision': { revision: 27.5 },
+  'unresolved state': { status: 'declared' }, 'unresolved step': { currentStep: 'boarding' },
+  'locked airspace': { airspaceLocked: true }, 'missing lock evidence': { airspaceLocked: undefined } }))
+  test(`a tagged denied read with ${reason} reinspection remains an evidenced hard failure`, async () => {
+    const f = closedChoiceReadFixture({ after });
+    await assert.rejects(f.run(), error => retainedSdkError(error, f.reply));
+    assert.deepEqual(f.counts(), { sourceReads: 2, sdkReads: 1, paints: 0 });
+  });
+
+for (const [reason, actorDrift] of Object.entries({ UID: { uidHash: 'other-uid' }, group: { fleetGroupId: 'other-group' },
+  generation: { connectionGeneration: 4 }, seat: { seatId: 'new-seat' }, console: { activeConsoleRoleId: 'admiral' },
+  role: { playerRole: 'gm' }, cycle: { cycle: 2 }, phase: { phase: 'debrief' },
+  airspace: { airspace: 'lifted' }, cache: { freshness: 'cache' },
+  discovery: { discoveryAuthority: { groupId: 'other-group', shipId: 'aegis', revision: 3, fleetGroupVesselIds: ['aegis'] } } }))
+  test(`the original actor ${reason} cannot drift while the tagged read is pending`, async () => {
+    const f = closedChoiceReadFixture({ actorDrift });
+    await assert.rejects(f.run(), error => retainedSdkError(error, f.reply));
+    assert.equal(f.counts().paints, 0); assert.equal(f.counts().sdkReads, 1);
+  });
+
+for (const [reason, gmDrift] of Object.entries({ UID: { uidHash: 'other-gm' }, instance: { instanceId: 'other-instance' },
+  ownership: { gmInstanceOwned: false }, role: { playerRole: 'player' }, group: { fleetGroupId: 'other-group' },
+  generation: { connectionGeneration: 4 }, seat: { seatId: 'other-seat' }, cycle: { cycle: 2 },
+  discovery: { discoveryAuthority: { groupId: 'foreign', revision: 1, shipId: 'dione', fleetGroupVesselIds: ['dione'] } } }))
+  test(`the original GM ${reason} stays fenced throughout closed-read recovery`, async () => {
+    const f = closedChoiceReadFixture({ gmDrift });
+    await assert.rejects(f.run(), error => retainedSdkError(error, f.reply));
+    assert.equal(f.counts().paints, 0); assert.equal(f.counts().sdkReads, 1);
+  });
+
+test('actor or GM authority changing during final source reinspection remains withdrawn', async () => {
+  for (const change of [{ afterSourceActor: { connectionGeneration: 4 } }, { afterSourceGm: { instanceId: 'other-instance' } }]) {
+    const f = closedChoiceReadFixture(change);
+    await assert.rejects(f.run(), error => retainedSdkError(error, f.reply));
+    assert.deepEqual(f.counts(), { sourceReads: 2, sdkReads: 1, paints: 0 });
+  }
+});
+
+test('a caller-owned coded error or thrown SDK timeout is not an independently tagged native denied response', async () => {
+  const { waitForWolfChoiceReadiness } = await moduleUnderTest();
+  const coded = Object.assign(new Error('Forged failed-precondition'), { code: 'functions/failed-precondition',
+    endpoint: 'getWolfBoardingSpecialChoice', transport: 'actual-browser-sdk' });
+  const direct = waitFixture({ choiceRead: () => { throw coded; } });
+  await assert.rejects(waitForWolfChoiceReadiness(direct.options), error => error === coded);
+  assert.equal(direct.counters().attackReads, 1); assert.equal(direct.counters().paintReads, 0);
+  const timeout = new Error('Native browser read timed out.');
+  const f = closedChoiceReadFixture({ thrown: timeout });
+  await assert.rejects(f.run(), error => error === timeout);
+  assert.deepEqual(f.counts(), { sourceReads: 1, sdkReads: 1, paints: 0 });
+});
+
+test('SDK denial and source reinspection consume the unchanged stage deadline without a new poll/read budget', async t => {
+  let time = 0; t.mock.method(Date, 'now', () => time);
+  for (const when of ['reply', 'source']) {
+    time = 0;
+    const f = closedChoiceReadFixture(when === 'reply' ? { onDenied: () => { time = 600; } }
+      : { onResolved: () => { time = 600; } });
+    await assert.rejects(f.run({ deadlineAt: 600 }), error => /deadline/i.test(error.message) && retainedSdkError(error, f.reply));
+    assert.equal(f.counts().sdkReads, 1); assert.equal(f.counts().paints, 0);
+    assert.equal(f.counts().sourceReads, when === 'reply' ? 1 : 2);
+  }
+});
