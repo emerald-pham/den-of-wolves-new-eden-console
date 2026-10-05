@@ -266,3 +266,50 @@ test('the original strict cohort helper retains SDK/document and readonly author
   for (const id of actorIds) assert.equal(JSON.stringify(evidence).includes(id), false);
   await table.cleanup();
 });
+
+function nativeFailureFixture({ bindForeign = false, duplicateHeaders = false, reason = 'No data found for resource with given identifier' } = {}) {
+  const observedCalls = [], failures = [];
+  const ledger = createPc10NativeDurableObservationLedger({ label: roleId, projectId: project, functionsOrigin: 'http://127.0.0.1:5031',
+    observedCalls, failures, boundaryFactory: createPc10CallableObservationBoundary,
+    presenceInstrumentationLimitation: () => true, readBody: () => Promise.reject(new Error(reason)) });
+  ledger.nativeFrame({ frame: { id: 'main' } });
+  ledger.nativeContext({ context: { id: 1, uniqueId: 'actual-context', auxData: { isDefault: true, frameId: 'main' } } });
+  ledger.nativeScript({ scriptId: 'actual-script', executionContextId: 1, url: 'pc10-native-durable-init.js' });
+  ledger.nativeDocument({ name: '__pc10NativeDurableDocumentWitness', executionContextId: 1,
+    payload: JSON.stringify({ schemaVersion: 1, documentId: 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa' }) });
+  ledger.bindIdentity(bindForeign ? 'original-private-foreign' : uid, sessionId);
+  const encode = value => Buffer.from(JSON.stringify(value)).toString('base64url');
+  const token = `${encode({ alg: 'none' })}.${encode({ aud: project, iss: `https://securetoken.google.com/${project}`,
+    sub: uid, user_id: uid, exp: Math.floor(Date.now()/1000)+3600, iat: 1 })}.`;
+  const requestId = 'native-actual-with-private-id', url = `http://127.0.0.1:5031/${project}/us-central1/refreshPresence`;
+  ledger.network('request', { requestId, frameId: 'main', loaderId: 'actual-loader',
+    initiator: { type: 'script', stack: { callFrames: [{ functionName: 'pc10NativeDurableFetch', scriptId: 'actual-script' }] } },
+    request: { url, method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, postData: JSON.stringify({ data: { sessionId } }) } });
+  const headers = { requestId, response: { url, status: 200, headers: { 'Content-Type': 'application/json' } } };
+  ledger.network('headers', headers); if (duplicateHeaders) ledger.network('headers', headers);
+  ledger.network('finished', { requestId });
+  return { ledger, observedCalls, failures };
+}
+
+for (const [name, options] of [
+  ['an actual mismatched bound actor', { bindForeign: true }],
+  ['an actual duplicate native lifecycle event', { duplicateHeaders: true }],
+  ['an unknown body error carrying private text', { reason: 'private-malicious-error Bearer private-token' }],
+]) {
+  test(`even a true callback cannot rescue ${name}`, async () => {
+    const f = nativeFailureFixture(options); await nextTurn(); await assert.rejects(f.ledger.drain(), /Native durable/);
+    assert.equal(f.observedCalls[0].bodyCompletedAt, null); assert.ok(f.failures.length);
+    privateAbsent(f.failures); privateAbsent(f.observedCalls);
+  });
+}
+
+test('readonly authority capture keeps the existing10s budget and cannot publish a late snapshot', async () => {
+  let clock = 1000, timer, resolved;
+  const f = dbFixture(); f.db.runTransaction = () => new Promise(resolve => { resolved = resolve; });
+  const operation = api('capturePc10PresenceAuthority')({ db: f.db, project, emulatorHost: '127.0.0.1:8180', sessionId,
+    actors: [{ roleId, actorUid: uid }], now: () => clock,
+    timeoutPort: { setTimeout: (callback, ms) => { assert.equal(ms, 10000); timer = callback; return 1; }, clearTimeout: () => undefined } });
+  await nextTurn(); assert.equal(typeof timer, 'function'); clock += 10001; timer();
+  await assert.rejects(operation, /Presence authority observation budget/);
+  resolved(new Map()); await nextTurn();
+});
