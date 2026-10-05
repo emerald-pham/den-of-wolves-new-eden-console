@@ -409,3 +409,17 @@ test('a reader really sent before the genuine GM start remains a failed prestart
   native.emit('startGame'); native.setPhase('active');
   await assert.rejects(proof.onStarted(native.context), /Prestart/);
 });
+
+test('safe failure evidence keeps the actual public HTTP/code boundary without private error text', () => {
+  const row = safeNavigationScoutEvidence({ branch: 'taxi-fuel', status: 'failed', actor: actor(),
+    endpoint: 'sendScoutTaxiTransfer', httpStatus: 400, errorCode: 'FAILED_PRECONDITION', reason: 'source-cost-blocked' });
+  assert.equal(row.httpStatus, 400); assert.equal(row.errorCode, 'FAILED_PRECONDITION');
+  assert.throws(() => safeNavigationScoutEvidence({ branch: 'taxi-fuel', status: 'failed',
+    errorCode: 'A private scout title' }), /code|Unknown|evidence/);
+});
+
+test('a later failed required source procedure cannot reuse earlier branch credit', () => {
+  assert.throws(() => summarizeNavigationScoutBranches([
+    { branch: 'scout-report', status: 'observed' }, { branch: 'scout-report', status: 'failed' },
+  ], ['scout-report']), /Required scout-report/);
+});
