@@ -69,9 +69,14 @@ async function selectActor(context, anchorRoleId, route) {
     value.sameActor && value.uidHash === actor.uidHash && value.sessionId === initial.sessionId &&
     value.profileRoleId === anchorRoleId && value.connection === 'live' && value.freshness === 'server');
   assertSelectedActor(observed, { ...actor, sessionId: initial.sessionId });
+  await crew.page.getByRole('link', { name: "Enter this actor's stations", exact: true }).click();
+  await crew.page.waitForURL(url => url.hash === '#/console');
   if (route) {
-    const url = new URL(crew.page.url()); url.hash = route;
-    await crew.page.goto(url.href);
+    if (route.startsWith('/shuttles/')) {
+      // Follow the offered parent station first; a cold route never substitutes for entry.
+      await crew.page.locator(`a[href$="/roles/${anchorRoleId}"]`).click();
+    }
+    await crew.page.locator(`a[href$="${route}"]`).first().click();
     await crew.until(`Same actor and session after ordinary route ${route}`, value =>
       value.sameActor && value.uidHash === actor.uidHash && value.sessionId === initial.sessionId &&
       value.profileRoleId === anchorRoleId && value.connection === 'live' && value.freshness === 'server');
