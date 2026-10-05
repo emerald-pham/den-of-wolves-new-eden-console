@@ -45,9 +45,13 @@ export function buildSecurityDenialRecord(
 /** These procedures derive uncertainty on the server; their normal choice fields remain unchanged. */
 export const SERVER_RANDOM_CALLABLES = new Set([
   'startGame', 'dealPrivateInitialCards', 'rerollHostedShipMaintenance', 'commitPdfFighterAceCombat',
-  'jumpShip', 'runEmergencyJump', 'resolveEmergencyJump', 'runChacauIntegrityCheck',
-  'declareWolfAttack', 'advanceWolfAttackRange', 'applyWolfCommanderTargetRerolls',
+  'jumpShip', 'adjudicateFailedJump', 'commitAwayMissionLifecycleCommand',
+  'declareWolfAttack', 'advanceWolfAttackLifecycle', 'advanceWolfAttackToLongRange',
+  'syncWolfAttackAudienceProjection', 'applyWolfCommanderTargetRerolls',
   'commitWolfRangeActionChoice', 'commitWolfBoardingSpecialChoice',
+  'commitWolfFighterRangeActionChoice', 'commitWolfEscortRangeActionChoice',
+  'commitWolfBoardingDefenceChoice', 'commitWolfForceFieldChoice',
+  'resolveWolfAttackAftermath', 'runWolfAgentDetectorTest',
   'resolveWolfConsoleSabotage', 'submitWolfSupplySabotage', 'submitWolfHomingBeacon',
   'submitWolfIntelligence', 'investigateAsIntelligenceAgent', 'addShipDamage', 'rollDice',
   'runHighwallMining', 'rollHummingbirdHarvest', 'runSmallShipMaintenance', 'runVoyage33Maintenance',
