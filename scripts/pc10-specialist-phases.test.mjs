@@ -56,9 +56,15 @@ test('specialist action steps use the offered rendered control and caller-select
     assert.equal(name, 'Resource to recycle'); assert.equal(options.exact, true);
     return { selectOption: async value => assert.equal(value, 'food') };
   } };
-  const page = { getByRole: (role, options) => {
-    assert.equal(role, 'region'); assert.equal(options.name, 'Boa recycling'); return region;
-  } };
+  let currentUrl = 'http://demo.invalid/#/ships/capybara/roles/capybara-recycler';
+  const shuttleLink = { isVisible: async () => true, isEnabled: async () => true,
+    click: async () => { currentUrl = 'http://demo.invalid/#/shuttles/boa'; } };
+  const page = { url: () => currentUrl,
+    waitForURL: async predicate => assert.equal(predicate(new URL(currentUrl)), true),
+    getByRole: (role, options) => {
+      if (role === 'link') { assert.equal(options.name, 'Open Boa shuttle console'); return shuttleLink; }
+      assert.equal(role, 'region'); assert.equal(options.name, 'Boa recycling'); return region;
+    } };
   const surface = { page, observe: async () => ({ sameActor: true, sessionId: 'fresh-session',
     uidHash: 'recycler-hash', profileRoleId: 'capybara-recycler', activeConsoleRoleId: 'capybara-recycler',
     connection: 'live', freshness: 'server' }) };
@@ -87,7 +93,13 @@ test('specialist actions leave missing live opportunities and private choices ex
   let selects = 0, captures = 0;
   const unavailableRegion = { getByRole: () => ({ isVisible: async () => false }),
     getByLabel: () => ({ selectOption: async () => undefined }) };
-  const surface = { page: { getByRole: () => unavailableRegion },
+  let currentUrl = 'http://demo.invalid/#/ships/capybara/roles/capybara-recycler';
+  const shuttleLink = { isVisible: async () => true, isEnabled: async () => true,
+    click: async () => { currentUrl = 'http://demo.invalid/#/shuttles/boa'; } };
+  const unavailablePage = { url: () => currentUrl,
+    waitForURL: async predicate => assert.equal(predicate(new URL(currentUrl)), true),
+    getByRole: (role, options) => role === 'link' ? shuttleLink : unavailableRegion };
+  const surface = { page: unavailablePage,
     observe: async () => ({ sameActor: true, sessionId: 'fresh-session', uidHash: 'recycler-hash',
       profileRoleId: 'capybara-recycler', activeConsoleRoleId: 'capybara-recycler',
       connection: 'live', freshness: 'server' }) };
