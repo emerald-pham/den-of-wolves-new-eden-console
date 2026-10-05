@@ -86,7 +86,7 @@ describe('connected GM loyalty setup panel', () => {
     await user.selectOptions(screen.getByRole('combobox', { name: 'Loyalty holder' }), 'u1');
     expect(screen.getByRole('combobox', { name: 'Private loyalty type' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Assign private loyalty' })).toBeEnabled();
-    expect(screen.getByText(/0 of 3 configured/i)).toBeInTheDocument();
+    expect(screen.getByLabelText('Explicit loyalty coverage')).toHaveTextContent('All current holders // 0 of 3 configured');
   });
 
   it.each(['loading', 'error'] as const)('keeps the editor blocked while the live census is %s', (status) => {
