@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { dirname } from 'node:path';
+import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
 import { chromium } from 'playwright';
 import { createPc07AuthenticatedSession } from './pc07-authenticated-session.mjs';
 
@@ -21,6 +21,20 @@ const browserErrors = [];
 let browser, context, page, fixture;
 let sessionStoreUrl = '/src/store/useSessionStore.ts';
 const sha = value => createHash('sha256').update(value).digest('hex');
+async function compiledTreeSha256() {
+  const files = [];
+  const walk = async directory => {
+    for (const entry of await readdir(directory, { withFileTypes: true })) {
+      const path = join(directory, entry.name);
+      if (entry.isDirectory()) await walk(path); else files.push(path);
+    }
+  };
+  await walk('functions/lib');
+  const hash = createHash('sha256');
+  for (const path of files.sort()) hash.update(path.replace('functions/lib/', '') + '\0').update(await readFile(path));
+  return hash.digest('hex');
+}
+const functionsCompiledTreeSha256 = await compiledTreeSha256();
 
 async function joinBrowserPlayer(joinCode) {
   browser = await chromium.launch({ channel: 'chrome', headless: true });
@@ -46,7 +60,6 @@ async function joinBrowserPlayer(joinCode) {
     const { auth } = await import('/src/lib/firebase.ts');
     return { localId: auth().currentUser.uid, idToken: await auth().currentUser.getIdToken() };
   });
-  await context.setOffline(true);
   return actor;
 }
 
@@ -168,7 +181,6 @@ try {
   checks.optionalGmRaceSingleCostAndSinglePrivateAudit = true;
   checks.exactReplayPreservesAuditAndRevokedGrantDenies = true;
 
-  await context.setOffline(false);
   await page.reload();
   await page.waitForFunction(async ({ url, uid }) => {
     const { auth } = await import('/src/lib/firebase.ts');
@@ -206,7 +218,8 @@ try {
   checks.realBrowserResumePrivateProjection = ui;
 
   // Each actor has its own budget even though these clients share one loopback network.
-  await context.setOffline(true);
+  await browser.close();
+  browser = undefined;
   const limitedActor = players.find(actor => actor.localId !== wing.localId);
   let successfulReads = 0;
   let rateDenied;
@@ -224,7 +237,7 @@ try {
   assert.deepEqual(browserErrors, []);
   const report = { type: 'pc10-security-native-proof', sourceCommit: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
     functionsSourceCommit: process.env.PC10_FUNCTIONS_SOURCE_COMMIT ?? null,
-    functionsCompiledTreeSha256: process.env.PC10_FUNCTIONS_LIB_SHA256 ?? null,
+    functionsCompiledTreeSha256,
     sessionHash: sha(sessionId), actorClients: 9, browserContexts: 1,
     overlappingActionClients: 2, actualHumanDevices: 0,
     adminGameplaySeeds: [], facilitatorFixtureChoices: ['AEGIS wing deficit correction through setFighterWingCount'],
