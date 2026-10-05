@@ -203,6 +203,18 @@ it('classifies every callable and requires terminal guards on normal gameplay pa
   expect(unguarded, 'Normal gameplay callables must reject terminal phases').toEqual([]);
 });
 
+it('classifies full-game demo preparation as a live-GM Cycle 0 casting operation', () => {
+  const index = matches.findIndex(match => match[1] === 'prepareFullGameDemo');
+  expect(index).toBeGreaterThanOrEqual(0);
+  expect(terminalFreezeExemptions.has('prepareFullGameDemo')).toBe(true);
+  const body = callableBody(index);
+  expect(body).toContain('isLiveGmInstance(preflightInstance, preflightPlayer, uid)');
+  expect(body).toContain('requireFacilitatorInstance(tx, prepare.sessionId, uid, prepare.instanceId)');
+  expect(body).toContain("sessionTurn(session.get('currentTurn')) !== 0");
+  expect(body).toContain('requireCastingWindow(session)');
+  expect(body).toContain("player.get('role') === 'player'");
+});
+
 it('keeps known read-only authority projections explicitly classified', () => {
   expect(terminalFreezeExemptions.has('getBoardingSecurityTeamLocations')).toBe(true);
   expect(terminalFreezeExemptions.has('readCandidateWorkspace')).toBe(true);

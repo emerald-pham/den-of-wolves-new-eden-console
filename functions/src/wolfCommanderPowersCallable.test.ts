@@ -206,6 +206,41 @@ it('allows the GM to record an explicit ruling after the response deadline with 
   vi.useRealTimers();
 });
 
+it('keeps manual full-game amnesty response and GM ruling available after the stored deadline', async () => {
+  const session = mock.documents.get('sessions/s1')!;
+  const phase = session.turnPhase as Fields;
+  put('sessions/s1', {
+    ...session,
+    fullGameDemo: { status: 'active', progression: 'manual' },
+    turnPhase: { ...phase, progression: 'manual' },
+  });
+  put('sessions/s1/wolfCommanderAmnesty/current', {
+    type: 'wolf-amnesty-offer', sessionId: 's1', offerId: 'amnesty-3-manual', cycle: 3, revision: 1,
+    commanderUid: 'commander', targetShipId: 'dione', targetUid: 'dione-captain',
+    condition: 'surrender-by-medium-jump-to-0101', responseDeadline: '2000-01-01T00:00:00.000Z',
+    status: 'offered',
+  });
+
+  await expect(respondToWolfAmnesty.run(request({
+    sessionId: 's1', requestId: 'amnesty-manual-response', expectedRevision: 1, answer: 'accept',
+  }, 'dione-captain'))).resolves.toMatchObject({
+    status: 'accepted-pending-facilitator', response: 'accept', revision: 2,
+  });
+
+  put('sessions/s1/wolfCommanderAmnesty/current', {
+    type: 'wolf-amnesty-offer', sessionId: 's1', offerId: 'amnesty-3-manual-ruling', cycle: 3, revision: 1,
+    commanderUid: 'commander', targetShipId: 'dione', targetUid: 'dione-captain',
+    condition: 'surrender-by-medium-jump-to-0101', responseDeadline: '2000-01-01T00:00:00.000Z',
+    status: 'offered',
+  });
+  await expect(recordWolfAmnestyConsequence.run(request({
+    sessionId: 's1', instanceId: 'gm-browser', requestId: 'amnesty-manual-ruling',
+    expectedRevision: 1, text: 'Facilitator records the explicit demo consequence.',
+  }, 'gm'))).resolves.toMatchObject({
+    status: 'facilitator-ruled', ruling: 'Facilitator records the explicit demo consequence.', revision: 2,
+  });
+});
+
 it('filters the amnesty view to the Commander, target ship authority, and current GM', async () => {
   put('sessions/s1/wolfCommanderAddresses/cycle-3', {
     type: 'wolf-commander-address', status: 'committed', cycle: 3, actorUid: 'commander',
