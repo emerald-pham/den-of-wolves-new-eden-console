@@ -2,7 +2,7 @@
 
 import { createServer } from 'node:net';
 import { spawn } from 'node:child_process';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { chromium } from 'playwright';
 
@@ -31,6 +31,7 @@ const UNION_ROLES = [
 
 const ROUTES = [
   { slug: 'roles', path: '/roles', label: 'Leave session', expectedPath: '/', sessionExit: true },
+  { slug: 'demo-actors', path: '/demo-actors', label: 'Back to session entry', expectedPath: '/', noSession: true, browserBack: true },
   { slug: 'brief', path: '/brief', label: 'Back to roles', expectedPath: '/roles', brief: true, assignedRoleId: 'admiral' },
   { slug: 'escape', path: '/escape', label: 'Leave session', expectedPath: '/', sessionExit: true, escape: true },
   { slug: 'gm', path: '/gm', label: 'Back to role selection', expectedPath: '/console', gm: true },
@@ -47,6 +48,9 @@ const ROUTES = [
   { slug: 'replacement', path: '/replacement/doctor', label: 'Back to fleet', expectedPath: '/console', replacementRoleId: 'doctor' },
   { slug: 'not-found', path: '/missing-console', label: 'Back to the console', expectedPath: '/', noSession: true },
 ];
+const routeFilter = process.env.PROMPT_602_ROUTE_FILTER;
+const selectedRoutes = routeFilter ? ROUTES.filter(route => route.slug === routeFilter) : ROUTES;
+if (selectedRoutes.length === 0) throw new Error(`Unknown return proof route: ${routeFilter}`);
 
 async function freePort() {
   const server = createServer();
@@ -212,15 +216,25 @@ async function main() {
   const port = await freePort();
   const appUrl = `http://127.0.0.1:${port}`;
   const vite = spawn('npm', ['run', 'dev', '--', '--host', '127.0.0.1', '--port', String(port)], {
-    cwd: ROOT, env: { ...process.env, BROWSER: 'none' }, stdio: 'ignore',
+    cwd: ROOT, env: { ...process.env, BROWSER: 'none', VITE_USE_EMULATORS: '1',
+      VITE_FIREBASE_PROJECT_ID: 'demo-prompt-602-render' }, stdio: 'ignore',
   });
   let browser;
+  const results = [], blockedNetworkRequests = [];
   try {
     await waitForHttp(appUrl);
     browser = await chromium.launch({ channel: 'chrome', headless: true });
     for (const viewport of VIEWPORTS) {
-      for (const route of ROUTES) {
-        const context = await browser.newContext({ viewport, serviceWorkers: 'block' });
+      for (const route of selectedRoutes) {
+        const context = await browser.newContext({ viewport, serviceWorkers: 'block', reducedMotion: 'reduce' });
+        // This is a cached rendered scene, never a live admission or authority proof.
+        // Permit only this render's frontend origin; no Auth/Functions/Firestore mutation can leave it.
+        await context.route('**/*', request => {
+          const url = new URL(request.request().url());
+          if (url.origin === appUrl || ['data:', 'blob:'].includes(url.protocol)) return request.continue();
+          blockedNetworkRequests.push({ route: route.slug, origin: url.origin });
+          return request.abort();
+        });
         const timestamp = Date.now();
         const state = persistedState(route, timestamp);
         await context.addInitScript(({ persisted, now }) => {
@@ -228,7 +242,7 @@ async function main() {
           sessionStorage.clear();
           if (persisted) localStorage.setItem('dow-new-eden-session', persisted);
           localStorage.setItem('dow-new-eden-session-waiver', String(now));
-          localStorage.setItem('dow-new-eden-motion-safety', JSON.stringify({ acknowledgedAt: now, choice: 'full' }));
+          localStorage.setItem('dow-new-eden-motion-safety', JSON.stringify({ acknowledgedAt: now, choice: 'reduce' }));
         }, { persisted: state, now: timestamp });
         const page = await context.newPage();
         await activateRoute(page, appUrl, route);
@@ -238,10 +252,21 @@ async function main() {
           fullPage: false,
         });
         await activateReturn(page, route, control);
+        if (route.browserBack) {
+          await page.goBack();
+          await page.waitForFunction(path => window.location.hash === `#${path}`, route.path);
+          await inspectRoute(page, viewport, route);
+        }
+        results.push({ route: route.slug, viewport, returnControl: measurement,
+          keyboardReturnActivated: true, browserBackRestored: route.browserBack === true });
         console.log(`Prompt 602 return proof passed: ${route.slug}/${viewport.width}x${viewport.height} ${measurement.tag}`);
         await context.close();
       }
     }
+    writeFileSync(resolve(OUTPUT_DIR, 'evidence.json'), `${JSON.stringify({ status: 'passed',
+      renderedFixture: true, freshGameplayProof: false, actualAuthenticatedActors: 0, actualHumans: 0,
+      productionRequests: false, backendRequestsBlocked: true, routeFilter: routeFilter ?? null,
+      results, blockedNetworkRequests }, null, 2)}\n`);
   } finally {
     await browser?.close();
     vite.kill('SIGTERM');
