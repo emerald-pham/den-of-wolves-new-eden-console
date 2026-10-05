@@ -17336,7 +17336,7 @@ export const readFleetGroupMessages = auditedOnCall('readFleetGroupMessages', as
     const messages = [...new Map(notes.map(note => [note.id, note])).values()]
       .sort((a, b) => Date.parse(a.sentAt) - Date.parse(b.sentAt)).slice(-20);
     return { groupId: group.id, messages };
-  });
+  }, { readOnly: true });
 });
 export const sendFleetGroupMessage = auditedOnCall('sendFleetGroupMessage', async request => {
   const uid = requireUid(request.auth);
@@ -17657,7 +17657,7 @@ export const readFleetGroupNavigation = auditedOnCall('readFleetGroupNavigation'
     return { groupId: group.id, navigationRevision: data.expectedNavigationRevision,
       fleetPartitionRevision: partitionRevision as number, sampledAt, ships, transits, dockedShuttles,
       dockedFighterWings };
-  });
+  }, { readOnly: true });
 });
 
 /** One authorized courier round trip; this never opens ordinary cross-group reads. */
