@@ -308,11 +308,14 @@ test('the current Comms replacement holder may retain a historical core role, wi
 // Mock transport only: these fixtures prove helper control flow, never gameplay.
 async function nativeFactoryContext(read) {
   const directory = await mkdtemp(join(tmpdir(), 'pc10-navigation-scout-native-'));
-  let version = 0, changedUid = false, readCount = 0;
-  const current = () => ({ ...gmActor(), ...(changedUid ? { uidHash: 'c'.repeat(16) } : {}), cursor: { version } });
+  let version = 0, changedUid = false, readCount = 0, phase = 'active';
+  const handlers = new Map();
+  const current = () => ({ ...gmActor(), phase, ...(changedUid ? { uidHash: 'c'.repeat(16) } : {}), cursor: { version } });
   const gm = { storeModuleUrl: () => '/src/store/useSessionStore.ts', observe: async () => current(),
     until: async (_description, predicate) => { const value = current(); assert.ok(predicate(value)); return value; },
-    page: { getByRole: () => ({}), evaluate: async (_fn, arg) => {
+    page: { on: (event, fn) => handlers.set(event, fn), off: event => handlers.delete(event),
+      getByRole: () => ({ isVisible: async () => false }),
+      getByText: () => ({ isVisible: async () => true, waitFor: async () => {} }), evaluate: async (_fn, arg) => {
       if (typeof arg === 'string') return current();
       readCount++;
       return read({ readCount, advance: () => { version++; }, changeUid: () => { changedUid = true; } });
@@ -320,7 +323,9 @@ async function nativeFactoryContext(read) {
   const roster = [{ roleId: 'admiral', uidHash: 'a'.repeat(16) }, { roleId: 'wing-commander', uidHash: 'd'.repeat(16) }];
   const context = { gm, crew: {}, directory, roster, initial: { sessionId: 'session-one', joinCode: 'ordinary-join' },
     started: { ...gmActor(), activeRoleIds: roster.map(actor => actor.roleId), fullGameDemo: { status: 'active', progression: 'manual' } } };
-  return { context, count: () => readCount };
+  return { context, count: () => readCount, setPhase: value => { phase = value; },
+    emit: endpoint => handlers.get('request')?.({ method: () => 'POST', url: () => `http://normal-local/us-central1/${endpoint}`,
+      postDataJSON: () => ({ data: { sessionId: 'session-one', instanceId: 'original-instance' } }) }) };
 }
 
 test('canonical onStarted activeRoleIds census binds without requiring invented callback fields', async () => {
@@ -382,4 +387,25 @@ test('a late UI result remains uncredited and does not start SDK receipt recover
     waitForResponse: async () => ({ status: () => 200, json: async () => { time = 101; return { result: { status: 'jumped' } }; },
       request: () => ({ postDataJSON: () => ({ data: jump() }) }) }) }), /budget|deadline/);
   assert.equal(sdk, 0);
+});
+
+test('prestart observation ends at the genuine start request, not at the later callback after active readers mount', async () => {
+  const native = await nativeFactoryContext(async () => []);
+  native.setPhase('casting');
+  const proof = createNavigationScoutProof(undefined, { requiredBranches: ['prestart-readers'] });
+  await proof.onSetup(native.context);
+  native.emit('startGame'); native.setPhase('active');
+  native.emit('listPendingScoutRequests'); native.emit('listGmScoutResolutionLog');
+  await proof.onStarted(native.context);
+  assert.ok(proof.summary().observed.includes('prestart-readers'));
+  assert.equal(proof.summary().actualAcceptance, false);
+});
+
+test('a reader really sent before the genuine GM start remains a failed prestart contract', async () => {
+  const native = await nativeFactoryContext(async () => []);
+  native.setPhase('casting');
+  const proof = createNavigationScoutProof(undefined, { requiredBranches: ['prestart-readers'] });
+  await proof.onSetup(native.context); native.emit('listPendingScoutRequests');
+  native.emit('startGame'); native.setPhase('active');
+  await assert.rejects(proof.onStarted(native.context), /Prestart/);
 });
