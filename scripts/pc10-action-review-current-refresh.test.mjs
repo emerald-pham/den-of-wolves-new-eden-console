@@ -88,3 +88,25 @@ test('source guidance does not erase the six current UI gaps or the explicit Wol
   assert.match(annotationSource, /explicitPc11GuidanceGaps/);
   assert.match(annotationSource, /server-action-not-surfaced-to-member-ui/);
 });
+
+test('the bounded refresh contains exactly the 22 source-traced callable rows', () => {
+  const expected = [
+    'resumeSession', 'refreshPresence',
+    'shareKnownSystemDetails', 'readFleetGroupNavigation', 'sendScoutTaxiTransfer',
+    'confirmFleetPartition', 'logoutGmAccess', 'listGmInstances', 'startSinglePlayerDemo',
+    'beginOpenAirspacePhase', 'discardPrivateMissionCard',
+    'readCandidateWorkspace', 'executeCandidateAction',
+    'listPendingScoutRequests', 'listGmScoutResolutionLog', 'resolvePendingScoutRequest',
+    'getPdfEscortWingLaunch', 'launchPdfEscortWing', 'getPdfFighterAcePermissionView',
+    'grantPdfFighterAcePermission', 'passWolfFighterLaunchChoice', 'assignLoyalty',
+  ];
+  assert.equal(expected.length, 22);
+  const supplementalNames = [...endings, ...workspaces, ...demo].map(row => row.exportName)
+    .filter(name => expected.includes(name));
+  const primaryNames = ['resumeSession', 'refreshPresence', 'listPendingScoutRequests',
+    'listGmScoutResolutionLog', 'resolvePendingScoutRequest']
+    .filter(name => annotationSource.includes(`exportName: '${name}'`));
+  const actual = [...supplementalNames, ...primaryNames];
+  assert.deepEqual(actual.sort(), [...expected].sort());
+  assert.equal(actual.length, 22, 'each scoped callable has one and only one reviewed row');
+});
