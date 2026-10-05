@@ -52,6 +52,10 @@ test('finite family registry has one source-bound case for each remaining endpoi
     assert.ok(row.id && row.actorRoleId && row.checkpoint && row.requirement && row.unavailableReason);
     assert.ok(['exact-request-id', 'single-shot', 'not-mounted'].includes(row.replayPolicy));
   }
+  for (const endpoint of ['setGmControlsLocked', 'setGmShipConsoleWriteGrant', 'completeShuttleArrival']) {
+    const row = [...CORE_CRAFT_PROCEDURES, ...GM_RULING_COUNTER_PROCEDURES].find(item => item.endpoint === endpoint);
+    assert.equal(row.replayPolicy, 'single-shot', `${endpoint} has no exact request receipt to replay`);
+  }
 });
 
 test('only a same-session mounted UI receipt with the original actor and exact replay earns completion', () => {
