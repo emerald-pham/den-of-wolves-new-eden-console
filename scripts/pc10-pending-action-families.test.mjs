@@ -3,7 +3,7 @@ import test from 'node:test';
 import { createPoliticsPressCallbacks, validateElectionActionCycle, validateElectionPlan,
   validateElectionTieDecision, allowlistedElectionResultState } from './pc10-politics-press-proof.mjs';
 import { validateCrisisChoice } from './pc10-crisis-voyage-proof.mjs';
-import { validatePosseChoice, validateArrestDispositionChoice } from './pc10-arrest-posse-proof.mjs';
+import { assertRequiredArrestChoices, validatePosseChoice, validateArrestDispositionChoice } from './pc10-arrest-posse-proof.mjs';
 import { assertRequiredCrisisChoices } from './pc10-crisis-voyage-proof.mjs';
 import { privateSafeActionReceipt } from './pc10-political-crisis-arrest-proof-contracts.mjs';
 
@@ -123,6 +123,18 @@ test('case disposition requires an explicit source choice and a reason for late 
   assert.throws(() => validateArrestDispositionChoice({ disposition: 'facilitator-resolution',
     ruling: `${' '.repeat(240)}reason` }), /240 characters/i);
   assert.throws(() => validateArrestDispositionChoice({ disposition: 'escape' }), /source-offered/i);
+});
+
+test('required arrest stages fail before UI actions when their explicit choices are absent', () => {
+  assert.throws(() => assertRequiredArrestChoices({ requiredBranches: ['arrest-posse-calculation'] }), /explicit target choice/i);
+  assert.throws(() => assertRequiredArrestChoices({ requiredBranches: ['arrest-posse-simulated-attendance'],
+    posse: { targetRoleId: 'captain', defenders: 0, adjustment: 'none' } }), /explicit simulated attendance/i);
+  assert.throws(() => assertRequiredArrestChoices({ requiredBranches: ['arrest-prisoner-disposition'] }), /explicit ruling choice/i);
+  assert.throws(() => assertRequiredArrestChoices({ requiredBranches: ['unlisted-branch'] }), /unknown required arrest branch/i);
+  assert.doesNotThrow(() => assertRequiredArrestChoices({ requiredBranches: ['arrest-posse-calculation',
+    'arrest-posse-simulated-attendance', 'arrest-prisoner-disposition'],
+  posse: { targetRoleId: 'captain', defenders: 1, adjustment: 'none', presentRoleIds: [], attendanceEvidence: 'simulated-demo' },
+  disposition: { targetRoleId: 'captain', disposition: 'released' } }));
 });
 
 test('private safe receipts allow only declared source result labels on exact retry', () => {
