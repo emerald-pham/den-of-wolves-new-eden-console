@@ -418,4 +418,31 @@ describe('Wolf attack aftermath command contract', () => {
     expect(mock.set).not.toHaveBeenCalled();
     expect(mock.update).not.toHaveBeenCalled();
   });
+
+  it('does not reopen fresh Scrap collection against a target with a committed candidate disposition', async () => {
+    const session = mock.documents.get('sessions/s-1')!;
+    session.activeVesselIds = ['aegis', 'capybara'];
+    session.capybaraEnabled = true;
+    session.shuttleDockings = [{ shuttleId: 'macaw', shipId: 'aegis', dockedAt: 'fixture' }];
+    session.shuttleControl = { macaw: { shuttleId: 'macaw', ownerRoleId: 'capybara-captain',
+      ownerUid: 'macaw-uid', holderUid: 'macaw-uid', revision: 0 } };
+    session.shuttleCargo = {};
+    session.candidateVesselOutcomes = { aegis: { code: 'N', groupId: 'fleet-1', shipId: 'aegis',
+      sourceId: 'source-1', cycle: 1, outcome: 'settled' } };
+    const state = mock.documents.get('sessions/s-1/wolfAttackState/current')!;
+    (state.calculationReceipt as Fields).fleetDamage = [{ target: 'aegis', amount: 3, populationBefore: 2_500,
+      population: 2_000, state: { damagedSystemIds: [], destroyed: false },
+      draws: [{ casualty: false }, { casualty: true }, { casualty: false }] }];
+    put('sessions/s-1/players/macaw-uid', { role: 'player', connected: true, assignedRoleId: 'capybara-captain',
+      activeConsoleRoleId: 'capybara-captain', replacementRoleId: null, replacementStatus: null,
+      escapeState: null, fleetGroupId: 'fleet-1' });
+    put('sessions/s-1/fleetGroups/fleet-1', { id: 'fleet-1', vesselIds: ['aegis', 'capybara'], memberUids: ['macaw-uid'] });
+
+    await expect(resolveWolfAttackAftermath.run(request({ sessionId: 's-1', attackId: 'attack-7',
+      requestId: 'settled-target-scrap-7', action: 'collect-scrap', shuttleId: 'macaw', targetShipId: 'aegis' }, 'macaw-uid')))
+      .rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(mock.documents.get('sessions/s-1')?.shuttleCargo).toEqual({});
+    expect(mock.set).not.toHaveBeenCalled();
+    expect(mock.update).not.toHaveBeenCalled();
+  });
 });
