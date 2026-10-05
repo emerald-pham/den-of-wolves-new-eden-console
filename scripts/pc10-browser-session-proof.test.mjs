@@ -73,6 +73,7 @@ async function cdpCallableObservationActor({ durableConfigurationError } = {}) {
   const events = new EventEmitter();
   const commands = [];
   const responseBodies = new Map();
+  const responseBodyErrors = new Map();
   const finished = new Set();
   let nextRequest = 0;
   let navigationComplete = false;
@@ -93,6 +94,7 @@ async function cdpCallableObservationActor({ durableConfigurationError } = {}) {
       return {};
     }
     if (method === 'Network.getResponseBody') {
+      if (responseBodyErrors.has(parameters.requestId)) throw responseBodyErrors.get(parameters.requestId);
       if (!finished.has(parameters.requestId)) throw new Error('Response body is not complete yet.');
       if (responseBodies.has(parameters.requestId)) {
         if (parameters.requestId === 'during-reload' && !navigationComplete) {
@@ -135,6 +137,7 @@ async function cdpCallableObservationActor({ durableConfigurationError } = {}) {
   const respond = (requestId, reply = { result: { status: 'committed', revision: 7 } }, status = 200) => {
     setResponseBody(requestId, { body: typeof reply === 'string' ? reply : JSON.stringify(reply), base64Encoded: false }, status);
   };
+  const failBodyRead = (requestId, error) => responseBodyErrors.set(requestId, error);
   const finish = requestId => {
     finished.add(requestId);
     events.emit('Network.loadingFinished', { requestId, timestamp: 3, encodedDataLength: 1 });
@@ -143,6 +146,7 @@ async function cdpCallableObservationActor({ durableConfigurationError } = {}) {
     events.emit('Network.loadingFailed', { requestId, timestamp: 3, errorText, canceled });
   };
   return { actor, page, context, events, commands, responseBodies, start, startRequest, respond, setResponseBody, finish, fail,
+    failBodyRead,
     receiveHeaders, get durableBodyReadCount() { return durableBodyReadCount; },
     get durableBodyReadAfterNavigationCount() { return durableBodyReadAfterNavigationCount; },
     completeNavigation() { navigationComplete = true; events.emit('test-navigation-complete'); } };
@@ -282,6 +286,39 @@ test('actual CDP base64Encoded false and true response bodies decode to the same
     assert.equal(actor.observedCalls[0].revision, base64Encoded ? 9 : 8);
     assert.equal(actor.observedCalls[0].resultStatus, 'committed');
     assert.deepEqual(actor.callableObservationFailures, []);
+  }
+});
+
+test('completed HTTP200 body read errors expose only exact Chromium reason enums and remain failed', async () => {
+  for (const { message, expectedReason } of [
+    { message: 'No resource with given identifier found', expectedReason: 'resource-not-found' },
+    { message: 'Protocol error (Network.getResponseBody): No resource with given identifier found',
+      expectedReason: 'resource-not-found' },
+    { message: 'Protocol error (Network.getResponseBody): Request content was evicted from inspector cache',
+      expectedReason: 'content-evicted' },
+    { message: 'Protocol error (Network.getResponseBody): No data found for resource with given identifier',
+      expectedReason: 'body-unavailable' },
+    { message: 'Protocol error (Network.getResponseBody): secret-token / private payload', expectedReason: 'unknown' },
+  ]) {
+    const { actor, start, receiveHeaders, finish, failBodyRead } = await cdpCallableObservationActor();
+    const requestId = start();
+    receiveHeaders(requestId, 200);
+    failBodyRead(requestId, new Error(message));
+    finish(requestId);
+    await actor.drainObservedCalls();
+    const failure = actor.callableObservationFailures[0];
+    assert.equal(actor.observedCalls[0].status, 200);
+    assert.equal(actor.observedCalls[0].requestFinishedAt !== null, true);
+    assert.equal(actor.observedCalls[0].bodyCompletedAt, null);
+    assert.equal(actor.callableObservationFailures.length, 1);
+    assert.equal(failure.category, 'response-observation-unavailable');
+    assert.equal(failure.bodyFailureStage, 'get-response-body');
+    assert.equal(failure.bodyFailureReason, expectedReason);
+    const serialized = JSON.stringify(failure);
+    assert.equal(serialized.includes(message), false);
+    assert.equal(serialized.includes('secret-token'), false);
+    assert.equal(serialized.includes('private payload'), false);
+    assert.equal(serialized.includes(requestId), false);
   }
 });
 
