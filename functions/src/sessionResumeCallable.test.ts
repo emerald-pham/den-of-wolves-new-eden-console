@@ -286,6 +286,68 @@ it('renews a current live member without scanning every player or rewriting shar
   expect(mock.update.mock.calls.map(([ref]) => ref.path)).not.toContain('sessions/s1/serverState/navigation');
 });
 
+function overrideResumeRead(path: string, fields: Readonly<Record<string, unknown>>, exists = true) {
+  const underlying = mock.get.getMockImplementation()!;
+  mock.get.mockImplementation((ref: { path: string }) => ref.path === path ? snapshot(fields, exists) : underlying(ref));
+}
+
+it('uses full recovery when a live member has lost the active membership marker', async () => {
+  prepareCurrentResume();
+  overrideResumeRead('activeMemberships/u1', {}, false);
+  mock.enforceReadOrder = true;
+
+  const reply = await resumeSession.run(request('s1'));
+
+  expect(reply.player).toMatchObject({ connectionGeneration: 4, seatId: 'admiral', assignedRoleId: 'admiral' });
+  expect(mock.get.mock.calls.map(([ref]) => ref.path)).toContain('sessions/s1/players');
+  expect(mock.committedWrites.get('activeMemberships/u1')?.fields).toMatchObject({ sessionId: 's1' });
+});
+
+it('keeps disconnected actors on the seat and membership recovery path', async () => {
+  const current = prepareCurrentResume();
+  current.playerData.connected = false;
+  overrideResumeRead('sessions/s1/seats/admiral', { status: 'open', holderUid: null });
+  mock.enforceReadOrder = true;
+
+  const reply = await resumeSession.run(request('s1'));
+
+  expect(reply.player).toMatchObject({ connectionGeneration: 4, seatId: 'admiral', assignedRoleId: 'admiral' });
+  expect(mock.get.mock.calls.map(([ref]) => ref.path)).toContain('sessions/s1/players');
+  expect(mock.committedWrites.get('sessions/s1/seats/admiral')?.fields).toMatchObject({ status: 'claimed', holderUid: 'u1' });
+  expect(current.playerData).toMatchObject({ connected: true, lastSeenAt: 'server-time' });
+});
+
+it('does not let an otherwise current resume reclaim a foreign seat', async () => {
+  prepareCurrentResume();
+  overrideResumeRead('sessions/s1/seats/admiral', { status: 'claimed', holderUid: 'u2' });
+  mock.enforceReadOrder = true;
+
+  const reply = await resumeSession.run(request('s1'));
+
+  expect(reply).toMatchObject({ stationSelectionRequired: true, player: {
+    connectionGeneration: 4, seatId: null, activeConsoleRoleId: null, assignedRoleId: 'admiral',
+  } });
+  expect(mock.get.mock.calls.map(([ref]) => ref.path)).toContain('sessions/s1/players');
+  const foreignSeatWrite = mock.committedWrites.get('sessions/s1/seats/admiral')?.fields ?? {};
+  expect(foreignSeatWrite).not.toHaveProperty('holderUid');
+  expect(foreignSeatWrite).not.toHaveProperty('status');
+  expect(foreignSeatWrite).not.toHaveProperty('claimedAt');
+});
+
+it('rebuilds a stale or extra private discovery field instead of accepting it as current', async () => {
+  prepareCurrentResume();
+  overrideResumeRead('sessions/s1/playerDiscoveries/u1', { groupId: 'fleet-1', revision: 4, loyalty: 'private-marker' });
+  mock.enforceReadOrder = true;
+
+  await resumeSession.run(request('s1'));
+
+  expect(mock.get.mock.calls.map(([ref]) => ref.path)).toContain('sessions/s1/players');
+  const projection = mock.committedWrites.get('sessions/s1/playerDiscoveries/u1');
+  expect(projection?.replace).toBe(true);
+  expect(projection?.fields).toMatchObject({ revision: 5, groupId: 'fleet-1', shipId: 'aegis' });
+  expect(projection?.fields).not.toHaveProperty('loyalty');
+});
+
 it('allows normal resume retries by the authenticated member and ignores spoofed rate-limit fields', async () => {
   prepareResume({ status: 'open', holderUid: null });
   const identity = { callableName: 'resumeSession', sessionId: 's1', uid: 'u1' } as const;
