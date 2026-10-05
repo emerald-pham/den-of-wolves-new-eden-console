@@ -656,3 +656,13 @@ describe('Endeavour Team research writer', () => {
     }
   });
 });
+
+
+it('denies a fresh Endeavour operation after its source vessel reaches a candidate disposition', async () => {
+  mock.documents.get('sessions/s1')!.candidateVesselOutcomes = { shepherd: { code: 'N', groupId: 'fleet-1', shipId: 'shepherd',
+    sourceId: 'candidate-n-3232', cycle: 3, outcome: 'left-behind' } };
+  await expect(advanceEndeavourResearchTrack.run(request(command))).rejects.toMatchObject({
+    code: 'failed-precondition', message: expect.stringContaining('candidate disposition'),
+  });
+  expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled();
+});

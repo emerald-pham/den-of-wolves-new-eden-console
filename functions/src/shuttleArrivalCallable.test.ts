@@ -479,3 +479,13 @@ it('fails closed on replay when the committed member event is missing or unsafe'
   await expect(completeShuttleArrival.run(request()))
     .rejects.toMatchObject({ code: 'failed-precondition' });
 });
+
+
+it('denies a fresh arrival into a settled destination and preserves an earlier entitled result', async () => {
+  mock.documents.get('sessions/s1')!.candidateVesselOutcomes = { icebreaker: { code: 'O', groupId: 'fleet-1', shipId: 'icebreaker',
+    sourceId: 'candidate-o-3131', cycle: 2, outcome: 'reached' } };
+  await expect(completeShuttleArrival.run(request())).rejects.toMatchObject({
+    code: 'failed-precondition', message: expect.stringContaining('candidate disposition'),
+  });
+  expect(mock.update).not.toHaveBeenCalled(); expect(mock.set).not.toHaveBeenCalled();
+});

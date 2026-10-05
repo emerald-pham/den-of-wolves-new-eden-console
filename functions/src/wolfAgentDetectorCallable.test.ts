@@ -144,3 +144,13 @@ it('rejects a previous-cycle exact retry before returning its receipt', async ()
   expect(random.randomInt).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();
 });
+
+
+it('denies a fresh detector operation after Shepherd settlement before reading another result', async () => {
+  mock.documents.get('sessions/s1')!.candidateVesselOutcomes = { shepherd: { code: 'O', groupId: 'fleet-1', shipId: 'shepherd',
+    sourceId: 'candidate-o-3131', cycle: 1, outcome: 'reached' } };
+  await expect(runWolfAgentDetectorTest.run(request())).rejects.toMatchObject({
+    code: 'failed-precondition', message: expect.stringContaining('candidate disposition'),
+  });
+  expect(mock.set).not.toHaveBeenCalled(); expect(random.randomInt).not.toHaveBeenCalled();
+});
