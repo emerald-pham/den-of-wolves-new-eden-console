@@ -89,7 +89,9 @@ test('specialist actions leave missing live opportunities and private choices ex
     observe: async () => ({ sameActor: true, sessionId: 'fresh-session', uidHash: 'recycler-hash',
       profileRoleId: 'capybara-recycler', activeConsoleRoleId: 'capybara-recycler',
       connection: 'live', freshness: 'server' }) };
-  const game = { context: { initial: { sessionId: 'fresh-session' } }, select: async () => { selects += 1; return surface; } };
+  const game = { context: { initial: { sessionId: 'fresh-session' }, roster: [
+    { roleId: 'capybara-recycler', uidHash: 'recycler-hash' },
+  ] }, select: async () => { selects += 1; return surface; } };
   const driver = { capture: async () => { captures += 1; } };
   const noTaskChoice = makePc10SpecialistActionStep('boa-reclamation', {
     opportunityLabel: 'Printed site 1234',
