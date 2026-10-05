@@ -53,23 +53,24 @@ function api() {
   }
   return origin;
 }
-function nativeFixture({ responder, clock, timerPort, bindingPort, finish = true } = {}) {
+function nativeFixture({ responder, clock, timerPort, ledgerTimers, bindingPort, finish = true } = {}) {
   const implementation = api();
   const packets = [], nativeCalls = [], observedCalls = [], failures = [];
   const ledger = implementation.createPc10OriginObservationLedger({ label: 'admiral', projectId, functionsOrigin,
     observedCalls, failures, boundaryFactory: proof.createPc10CallableObservationBoundary,
-    now: clock ? () => clock.at : Date.now });
+    now: clock ? () => clock.at : Date.now, timeoutPort: ledgerTimers });
   let protocolCounter = 0;
   const network = (stage, id, values = {}) => ledger.network(stage, { requestId: id, ...values });
   const nativeFetch = function (...args) {
-    nativeCalls.push({ thisValue: this, args });
+    const nativeCall = { thisValue: this, args };
+    nativeCalls.push(nativeCall);
     const [url, options] = args;
     const protocolId = `native-protocol-${++protocolCounter}`;
     network('request', protocolId, { request: { url: String(url), method: options?.method ?? 'GET',
       headers: options?.headers ?? {}, postData: options?.body } });
     const operation = Promise.resolve().then(() => responder ? responder({ url, options, protocolId })
       : response(undefined, { url: String(url) }));
-    return operation.then(value => {
+    nativeCall.promise = operation.then(value => {
       network('headers', protocolId, { response: { url: String(url), status: value.status } });
       if (finish) network('finished', protocolId);
       return value;
@@ -78,6 +79,7 @@ function nativeFixture({ responder, clock, timerPort, bindingPort, finish = true
         canceled: error.name === 'AbortError' });
       throw error;
     });
+    return nativeCall.promise;
   };
   const browser = { fetch: nativeFetch, URL, Headers, Request, Response, Uint8Array, TextEncoder, TextDecoder,
     crypto: webcrypto, atob: value => Buffer.from(value, 'base64').toString('binary'),
@@ -140,7 +142,9 @@ test('network dispatch never awaits hashing or Node binding and nonmatching fetc
   for (const nonmatching of [request('notAnApprovedCallable'), { url: 'https://external.invalid/private', options: {} },
     request('getCurrentMemberSession', undefined, { method: 'GET' })]) {
     const prior = fixture.packets.length;
-    await fixture.fetch(nonmatching);
+    const untouched = fixture.fetch(nonmatching);
+    assert.equal(untouched, fixture.nativeCalls.at(-1).promise, 'Nonmatching traffic retains its exact native promise.');
+    await untouched;
     assert.equal(fixture.packets.length, prior);
   }
 });
@@ -359,13 +363,21 @@ test('HTTP200 loadingFinished plus lost originating body stays failed even acros
 });
 
 test('origin census rejects an eligible native POST without a corresponding origin closure and a duplicate protocol identity', async () => {
-  const fixture = nativeFixture();
+  const timers = new Map(); let timerId = 0;
+  const fixture = nativeFixture({ ledgerTimers: { setTimeout: (callback, duration) => {
+    timers.set(++timerId, { callback, duration }); return timerId;
+  }, clearTimeout: id => timers.delete(id) } });
   const input = request();
   fixture.network('request', 'unwrapped-native', { request: { url: input.url, method: 'POST',
     headers: input.options.headers, postData: input.options.body } });
   fixture.network('headers', 'unwrapped-native', { response: { url: input.url, status: 200 } });
   fixture.network('finished', 'unwrapped-native');
-  await settled(fixture);
+  const missing = fixture.ledger.drain();
+  await nextTurn();
+  assert.equal(timers.size, 1);
+  assert.equal([...timers.values()][0].duration, 10_000);
+  [...timers.values()][0].callback();
+  await assert.rejects(missing, /Origin callable census exceeded the observation budget/);
   assert.ok(fixture.failures.some(value => value.category === 'origin-request-unaccounted'));
   await fixture.fetch(input); await settled(fixture);
   fixture.network('request', 'native-protocol-1', { request: { url: input.url, method: 'POST',
@@ -438,4 +450,86 @@ test('captureMode origin is explicitly opt-in while durable/stream and the origi
   assert.match(source, /captureMode === 'durable'/);
   assert.match(source, /10_000, 'callable observations'/);
   assert.match(source, /maxTotalBufferSize: 8 \* 1024 \* 1024, maxResourceBufferSize: 512 \* 1024/);
+});
+
+test('finite census draining waits for already-finished request metadata without chasing future polling', async () => {
+  const gate = deferred();
+  const fixture = nativeFixture({ bindingPort: (packet, ledger) => packet.stage === 'metadata'
+    ? gate.promise.then(() => ledger.receive(packet)) : Promise.resolve(ledger.receive(packet)) });
+  const operation = fixture.fetch(request());
+  await nextTurn();
+  let completed = false;
+  const drain = fixture.ledger.drain().then(() => { completed = true; });
+  await nextTurn();
+  assert.equal(completed, false, 'Finished transport still requires its actual origin metadata and body.');
+  assert.deepEqual(fixture.failures, []);
+  gate.resolve();
+  await operation; await drain;
+  assert.deepEqual(fixture.failures, []);
+});
+
+test('the optional return-intent timestamp cannot add an unbounded acknowledgement after the existing body budget', async () => {
+  const gate = deferred();
+  const original = response();
+  const fixture = nativeFixture({ responder: () => original, bindingPort: (packet, ledger) => packet.stage === 'returned'
+    ? gate.promise.then(() => ledger.receive(packet)) : Promise.resolve(ledger.receive(packet)) });
+  const operation = fixture.fetch(request());
+  await nextTurn(); await nextTurn();
+  const finished = await Promise.race([operation, nextTurn().then(() => 'return-binding-still-pending')]);
+  assert.equal(finished, original, 'Body/metadata already persisted; only the diagnostic return-intent binding is still pending.');
+  gate.resolve(); await operation; await settled(fixture);
+  assert.deepEqual(fixture.failures, []);
+});
+
+test('a body binding acknowledgement exceeding the unchanged budget stays a deadline failure after actual bytes were captured', async () => {
+  const gate = deferred(), timers = new Map(); let timerId = 0;
+  const timerPort = { setTimeout: (callback, duration) => { timers.set(++timerId, { callback, duration }); return timerId; },
+    clearTimeout: id => timers.delete(id) };
+  const original = response();
+  const fixture = nativeFixture({ responder: () => original, timerPort, bindingPort: (packet, ledger) => {
+    const result = ledger.receive(packet);
+    return packet.stage === 'body' ? gate.promise.then(() => result) : Promise.resolve(result);
+  } });
+  const operation = fixture.fetch(request());
+  await nextTurn(); await nextTurn();
+  assert.ok(fixture.observedCalls[0].bodyCompletedAt !== null);
+  assert.equal(timers.size, 1);
+  assert.equal([...timers.values()][0].duration, 10_000);
+  [...timers.values()][0].callback();
+  assert.equal(await operation, original);
+  await nextTurn();
+  assert.equal(fixture.observedCalls[0].originFailureStage, 'origin-observation-timeout');
+  assert.ok(fixture.failures.some(value => value.category === 'origin-observation-deadline'));
+  const snapshot = structuredClone(fixture.observedCalls[0]);
+  gate.resolve(); await nextTurn();
+  assert.deepEqual(fixture.observedCalls[0], snapshot, 'A late acknowledgement cannot rewrite deadline evidence.');
+});
+
+test('unrelated protocol completions remain untouched while a known unbound callable response fails the census', () => {
+  const fixture = nativeFixture();
+  fixture.network('headers', 'unrelated-image', { response: { url: 'https://external.invalid/private-image', status: 200 } });
+  fixture.network('finished', 'unrelated-image');
+  fixture.network('failed', 'unrelated-unobserved', { errorText: 'private unrelated error', canceled: false });
+  assert.deepEqual(fixture.failures, []);
+  fixture.network('headers', 'lost-callable-request', { response: { url: request().url, status: 200 } });
+  assert.ok(fixture.failures.some(value => value.category === 'unknown-callable-lifecycle'));
+});
+
+test('the actual actor adapter opts into origin binding without enabling durable or streamed CDP bodies', async () => {
+  api();
+  const operations = [], page = new EventEmitter(), cdp = new EventEmitter();
+  page.setDefaultTimeout = () => undefined; page.setDefaultNavigationTimeout = () => undefined;
+  page.mainFrame = () => 'main';
+  cdp.send = async (name, parameters) => { operations.push({ name, parameters }); return {}; };
+  cdp.detach = async () => operations.push({ name: 'detach' });
+  const context = { newPage: async () => page, newCDPSession: async () => cdp,
+    exposeBinding: async () => operations.push({ name: 'binding' }),
+    addInitScript: async () => operations.push({ name: 'init' }),
+    close: async () => operations.push({ name: 'context-close' }) };
+  const actor = await proof.createPc10BrowserActor({ newContext: async () => context }, 'http://localhost:5174', 'admiral',
+    undefined, { captureMode: 'origin', originProjectId: projectId, originFunctionsOrigin: functionsOrigin });
+  assert.deepEqual(operations.map(value => value.name), ['binding', 'init', 'Network.enable']);
+  await actor.drainObservedCalls();
+  await actor.close();
+  assert.deepEqual(operations.map(value => value.name), ['binding', 'init', 'Network.enable', 'detach', 'context-close']);
 });
