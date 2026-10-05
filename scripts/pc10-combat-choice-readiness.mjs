@@ -11,6 +11,11 @@ function originalIdentity(current, original) {
     assert.ok(original.instanceId); assert.equal(current.instanceId, original.instanceId);
     assert.equal(current.gmInstanceOwned, true);
   }
+  if (original.boardingDiscoveryAuthority) {
+    assert.equal(current.entitledShipId, original.entitledShipId, 'Original combat discovery ship changed.');
+    assert.deepEqual(current.discoveryAuthority, original.boardingDiscoveryAuthority,
+      'Original combat discovery authority changed.');
+  }
 }
 const live = actor => actor.connection === 'live' && actor.freshness === 'server';
 const attackKeys = ['attackId', 'turn', 'revision', 'status', 'currentStep'];
@@ -26,12 +31,24 @@ export async function observeWolfChoiceActor(surface) {
   const before = await surface.observe();
   const authority = await surface.page.evaluate(async moduleUrl => {
     const { useSessionStore } = await import(moduleUrl);
+    const { findConsoleRole } = await import('/src/data/roles.ts');
+    const { replacementRoleFor } = await import('/src/data/replacementRoles.ts');
+    const { findShip } = await import('/src/data/ships.ts');
     const snapshot = useSessionStore.getState(), me = snapshot.me;
+    const shipId = me?.replacementStatus == null
+      ? me?.replacementRoleId ? replacementRoleFor(me.replacementRoleId)?.vesselId
+        : findConsoleRole(me?.assignedRoleId)?.shipId : undefined;
+    const discovery = snapshot.session?.playerDiscovery;
     return { sessionId: snapshot.session?.id ?? null, fleetGroupId: me?.fleetGroupId ?? null,
       connectionGeneration: me?.connectionGeneration ?? null,
       identityHydrationRevision: snapshot.identityHydrationRevision ?? null,
       replacementRoleId: me?.replacementRoleId ?? null, replacementStatus: me?.replacementStatus ?? null,
-      seatId: me?.seatId ?? null, connected: me?.connected !== false };
+      seatId: me?.seatId ?? null, connected: me?.connected !== false,
+      entitledShipId: shipId ? findShip(shipId)?.id ?? null : null,
+      // Only the audience tuple used by the source controller; no coordinates,
+      // systems, candidate names, navigation logs, cards or private contacts.
+      discoveryAuthority: discovery ? { groupId: discovery.groupId, shipId: discovery.shipId ?? null,
+        revision: discovery.revision, fleetGroupVesselIds: [...(discovery.fleetGroupVesselIds ?? [])] } : null };
   }, surface.storeModuleUrl());
   const after = await surface.observe(); originalIdentity(after, before);
   assert.equal(authority.sessionId, before.sessionId); assert.equal(authority.connected, true);
@@ -52,18 +69,32 @@ export function wolfChoiceSourceReason(view) {
 /** One original actor, one entitled read, and current control paint share the existing stage budget. */
 export async function waitForWolfChoiceReadiness({ original, expected, inspectActor, inspectAttack,
   originalGm, inspectGm, readChoice, inspectPaint, timeoutMs = 60_000, deadlineAt = Infinity,
-  now = Date.now, wait = () => delay(200) }) {
+  requireBoardingDiscovery = false, now = Date.now, wait = () => delay(200) }) {
   assert.ok(Number.isFinite(timeoutMs) && timeoutMs > 0 && timeoutMs <= 60_000, 'Combat readiness has at most the existing60s budget.');
   assert.ok(expected.attackId && Number.isSafeInteger(expected.revision) && expected.revision >= 1);
   const deadline = Math.min(now() + timeoutMs, deadlineAt);
   const budget = () => { if (now() >= deadline) throw new Error('Current combat choice readiness deadline expired; no actor reload, mutation or credit.'); };
-  let view, sourceRead = false, lastAttackReadAt;
+  let view, sourceRead = false, lastAttackReadAt, boardingActor;
   async function authority() {
     budget();
     const actor = await inspectActor(); originalIdentity(actor, original); budget();
     const gm = inspectGm ? await inspectGm() : null;
     if (gm) { originalIdentity(gm, originalGm); budget(); }
-    return live(actor) && (!gm || live(gm));
+    if (!live(actor) || gm && !live(gm)) return false;
+    if (requireBoardingDiscovery) {
+      if (boardingActor) originalIdentity(actor, boardingActor);
+      else {
+        const discovery = actor.discoveryAuthority, vessels = discovery?.fleetGroupVesselIds;
+        if (actor.playerRole !== 'player' || !actor.fleetGroupId || !actor.entitledShipId ||
+            discovery?.groupId !== actor.fleetGroupId || discovery.shipId !== actor.entitledShipId ||
+            !Number.isSafeInteger(discovery.revision) || discovery.revision < 0 ||
+            !Array.isArray(vessels) || vessels.some(id => typeof id !== 'string' || !id) ||
+            new Set(vessels).size !== vessels.length || !vessels.includes(actor.entitledShipId)) return false;
+        boardingActor = { ...original, entitledShipId: actor.entitledShipId,
+          boardingDiscoveryAuthority: { ...discovery, fleetGroupVesselIds: [...vessels] } };
+      }
+    }
+    return true;
   }
   while (now() < deadline) {
     if (!(await authority())) { await wait(); continue; }
@@ -77,6 +108,8 @@ export async function waitForWolfChoiceReadiness({ original, expected, inspectAc
       if (!view.type?.endsWith('-unavailable')) {
         assert.equal(view.turn, expected.turn, 'Normal current actor source turn is required.');
         assert.equal(view.revision, expected.revision, 'Normal current actor source revision is required.');
+        if (requireBoardingDiscovery) assert.equal(view.targetShipId, boardingActor.boardingDiscoveryAuthority.shipId,
+          'Current boarding source ship must match original discovery.');
       }
       for (const key of ['attackId', 'turn', 'revision']) if (Object.hasOwn(view, key))
         assert.equal(view[key], expected[key], `Current actor source ${key} must match.`);
@@ -98,7 +131,8 @@ export async function waitForWolfChoiceReadiness({ original, expected, inspectAc
       const current = await inspectAttack(); budget();
       if (!(await authority())) { await wait(); continue; }
       if (!sameAttack(current, expected)) return { status: 'source-changed', expected, gameplayCredit: false };
-      return { ...painted, expected, choice: view, gameplayCredit: false };
+      return { ...painted, expected, choice: view, gameplayCredit: false,
+        ...(boardingActor ? { originalActor: boardingActor } : {}) };
     }
     assert.equal(painted.status, 'pending', 'Unknown readiness cannot silently pass.');
     if (now() - lastAttackReadAt >= 1_000) {
@@ -248,6 +282,7 @@ const endpoints = {
 export function createWolfChoiceWaiter(context, { tools, originalGm, deadlineAt = Infinity, record = tools.record } = {}) {
   const { gm, roster, initial } = context;
   return async function waitChoice(surface, current, spec, { deadlineAt: stageDeadline = deadlineAt } = {}) {
+    const choiceDeadline = Math.min(Date.now() + 60_000, deadlineAt, stageDeadline);
     const original = await observeWolfChoiceActor(surface);
     if (surface !== gm) {
       assert.ok(roster.some(actor => actor.roleId === original.profileRoleId && actor.uidHash === original.uidHash),
@@ -276,7 +311,8 @@ export function createWolfChoiceWaiter(context, { tools, originalGm, deadlineAt 
       : ['fighter-range', 'escort-range', 'range-support'].includes(spec.kind) ? { range: spec.range, sourceId: spec.sourceId } : {};
     const result = await waitForWolfChoiceReadiness({ original, expected,
       originalGm: expectedGm, inspectGm: () => gm.observe(), inspectActor: () => observeWolfChoiceActor(surface),
-      deadlineAt: Math.min(deadlineAt, stageDeadline), inspectAttack: () => tools.read('gm', 'wolfAttackState/current'),
+      deadlineAt: choiceDeadline, requireBoardingDiscovery: spec.kind === 'boarding-defence',
+      inspectAttack: () => tools.read('gm', 'wolfAttackState/current'),
       readChoice: async () => {
         const reply = await surface.callable(endpoint, { sessionId: initial.sessionId, ...fields,
           ...(surface === gm && spec.kind === 'boarding-special' ? { instanceId: expectedGm.instanceId } : {}) });
@@ -286,8 +322,10 @@ export function createWolfChoiceWaiter(context, { tools, originalGm, deadlineAt 
     await record?.('current combat choice readiness', { cycle: current.turn, kind: spec.kind,
       roleId: original.profileRoleId, uidHash: original.uidHash, revision: current.revision,
       currentStep: current.currentStep, status: result.status, reason: result.reason,
+      ...(result.originalActor?.boardingDiscoveryAuthority
+        ? { discoveryAuthority: result.originalActor.boardingDiscoveryAuthority } : {}),
       gameplayCredit: false, transport: 'one labeled original-browser SDK current actor read plus actual control paint; mutations remain UI',
       limits: 'Panels without a printed revision use source-matched cycle/status/control paint; the captured UI CAS request is the final revision fence.' });
-    return { ...result, originalActor: original };
+    return { ...result, originalActor: result.originalActor ?? original };
   };
 }
