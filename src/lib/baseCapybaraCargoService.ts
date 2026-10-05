@@ -1,6 +1,6 @@
 import { httpsCallable } from 'firebase/functions';
 import { functions } from './firebase';
-import { requireFreshSessionAuthority } from './sessionMutationAuthority';
+import { captureSessionAuthority, isCurrentSessionAuthority, requireFreshSessionAuthority } from './sessionMutationAuthority';
 import { useSessionStore } from '@/store/useSessionStore';
 import { BASE_CAPYBARA_CARGO_TYPES } from './baseCapybaraCargoLedger';
 
@@ -75,11 +75,19 @@ function isStaleTransferReply(
     (value.currentCargoRevision as number) > command.expectedRevision;
 }
 
-export async function transferBaseCapybaraCargo(
+export async function transferSmallShipCargo(
   command: BaseCapybaraCargoTransferCommand,
+  smallShipId: 'capybara-small' | 'warrior',
 ): Promise<BaseCapybaraCargoTransferServiceResult> {
-  const { session } = useSessionStore.getState();
-  if (!session) throw new Error('Reconnect before transferring Capybara cargo.');
+  const { session, me } = useSessionStore.getState();
+  if (!session) throw new Error('Reconnect before transferring small-craft cargo.');
+  const roleId = `${smallShipId}-captain`;
+  if (!me || me.sessionId !== session.id || me.role !== 'player' ||
+      me.replacementRoleId !== roleId || me.replacementStatus != null ||
+      me.activeConsoleRoleId !== null || me.seatId !== null) {
+    throw new Error('Only the current small-craft Captain may transfer this cargo.');
+  }
+  const checkpoint = captureSessionAuthority(session.id, me.uid);
   requireFreshSessionAuthority();
   if (!/^[\w-]{1,128}$/.test(command.requestId) ||
       !Number.isSafeInteger(command.expectedCycle) || command.expectedCycle < 1 ||
@@ -94,8 +102,14 @@ export async function transferBaseCapybaraCargo(
   }
   const payload = { sessionId: session.id, ...command };
   const response = await httpsCallable<typeof payload, unknown>(
-    functions(), 'transferBaseCapybaraCargo',
+    functions(), smallShipId === 'warrior' ? 'transferWarriorCargo' : 'transferBaseCapybaraCargo',
   )(payload);
+  const current = useSessionStore.getState();
+  if (!isCurrentSessionAuthority(checkpoint) || current.me?.role !== 'player' ||
+      current.me.replacementRoleId !== roleId || current.me.replacementStatus != null ||
+      current.me.activeConsoleRoleId !== null || current.me.seatId !== null) {
+    throw new Error('Captain authority changed while the cargo reply arrived. Reconnect and refresh.');
+  }
   const value = response.data;
   if (isStaleTransferReply(value, session.id, command)) return value;
   if (isRecord(value) && value.status === 'stale') {
@@ -120,3 +134,9 @@ export async function transferBaseCapybaraCargo(
     cargoRevision: value.cargoRevision as number,
   };
 }
+
+export const transferBaseCapybaraCargo = (command: BaseCapybaraCargoTransferCommand) =>
+  transferSmallShipCargo(command, 'capybara-small');
+
+export const transferWarriorCargo = (command: BaseCapybaraCargoTransferCommand) =>
+  transferSmallShipCargo(command, 'warrior');

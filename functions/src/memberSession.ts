@@ -71,7 +71,7 @@ const REPAIR_DETAIL_FIELDS: Readonly<Record<string, string>> = {
 };
 const VESSEL_DETAIL_FIELDS: Readonly<Record<string, string>> = {
   fighterWingCounts: 'aegis', pdfEscortWing: 'aegis', admiralDirectives: 'aegis',
-  presidentWorkspace: 'dione', politicalCapital: 'dione', baseCapybaraCargo: 'capybara-small',
+  presidentWorkspace: 'dione', politicalCapital: 'dione', baseCapybaraCargo: 'capybara-small', warriorCargo: 'warrior',
   gorgoneionRepairDrones: 'gorgoneion', warriorRepairDrones: 'warrior',
   voyage33Admission: VOYAGE_33_ID, voyage33Maintenance: VOYAGE_33_ID,
   resolvedCrisisOutcome: 'dione',
@@ -408,6 +408,7 @@ export function parsedMemberSessionDetails(value: unknown, activeVesselIds: read
     ['presidentWorkspace', presidentWorkspaceState],
     ['politicalCapital', politicalCapitalState],
     ['baseCapybaraCargo', parseBaseCapybaraCargoState],
+    ['warriorCargo', parseBaseCapybaraCargoState],
     ['boaRecycling', parseBoaRecyclingLedger],
     ['maliadesState', parseMaliadesState],
     ['gorgoneionRepairDrones', parseGorgoneionRepairDronesState],

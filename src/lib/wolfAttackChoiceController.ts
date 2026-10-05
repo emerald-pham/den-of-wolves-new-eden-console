@@ -4,7 +4,7 @@ import { useSessionStore } from '@/store/useSessionStore';
 import type { GameSession, GmInstance, Player, WolfAttackMemberView } from '@/types/game';
 
 export type WolfAttackChoiceActor =
-  | 'gorgoneion-captain' | 'wolf-commander' | 'executive-officer' | 'wing-commander' | 'ship-crew' | 'facilitator';
+  | 'gorgoneion-captain' | 'vulcan-captain' | 'wolf-commander' | 'executive-officer' | 'wing-commander' | 'ship-crew' | 'facilitator';
 
 export interface WolfAttackChoiceAuthority {
   readonly sessionId?: string;
@@ -40,6 +40,8 @@ function authorityFor(
     me.role === 'gm' && me.connected !== false && gmInstance?.sessionId === sessionId && gmInstance.uid === me.uid);
   const actorReady = actor === 'facilitator' ? baseFacilitatorActor : basePlayerActor && (actor === 'gorgoneion-captain'
     ? me?.replacementRoleId === 'gorgoneion-captain'
+    : actor === 'vulcan-captain'
+      ? me?.replacementRoleId === 'vulcan-captain' && me.activeConsoleRoleId === null && me.seatId === null
     : actor === 'wolf-commander'
       ? me?.replacementRoleId === 'wolf-commander'
       : actor === 'executive-officer'
@@ -48,6 +50,7 @@ function authorityFor(
           ? me?.activeConsoleRoleId === 'wing-commander'
           : true);
   const gorgoneion = session?.smallShipStates?.gorgoneion;
+  const vulcan = session?.smallShipStates?.vulcan;
   const discovery = session?.playerDiscovery;
   const key = JSON.stringify([
     actor, sessionId ?? null, session?.id ?? null, session?.phase ?? null, session?.currentTurn ?? null,
@@ -57,6 +60,7 @@ function authorityFor(
     gmInstance?.sessionId ?? null, gmInstance?.uid ?? null, gmInstance?.id ?? null,
     discovery?.groupId ?? null, discovery?.shipId ?? null, discovery?.revision ?? null,
     discovery?.fleetGroupVesselIds ?? [], gorgoneion?.hostShipId ?? null, gorgoneion?.dockingRevision ?? null,
+    ...(actor === 'vulcan-captain' ? [vulcan?.hostShipId ?? null, vulcan?.dockingRevision ?? null] : []),
     connection, freshness, online, enabled,
   ]);
   return {

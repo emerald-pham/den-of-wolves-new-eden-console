@@ -48,7 +48,7 @@ const SAMPLE_SHORT_RANGE: WolfRangeActionChoiceView = {
 };
 const SUPPORT_SOURCES = ['highwall', 'gorgoneion-missile-array', 'boa'] as const;
 const PENDING_SUPPORT: Record<WolfRangeSupportSourceId, 'pending' | 'used' | 'passed'> = {
-  highwall: 'pending', 'gorgoneion-missile-array': 'pending', boa: 'pending',
+  highwall: 'pending', 'gorgoneion-missile-array': 'pending', 'vulcan-laser-cannon': 'pending', boa: 'pending',
 };
 const SAMPLE_BOARDING: WolfBoardingDefenceChoiceView = {
   type: 'wolf-boarding-defence-choice-view', sessionId: 'prepared-pc08', turn: 2, revision: 6,
@@ -112,7 +112,7 @@ function WeaponsReview() {
         setSupportChoices(PENDING_SUPPORT); setBoaScrap(3); setMessage('LOCAL SAMPLE RESTORED // No shared state changed.');}}>Restore weapon sample</button>
       <button type="button" className="cic-action-button" onClick={() => {setView({...SAMPLE_RANGE, revision: 5, eligibleActions: []}); setMessage('DAMAGED SAMPLE // No charged, undamaged AEGIS action is available.');}}>Damaged weapon sample</button>
       <button type="button" className="cic-action-button" onClick={() => {setView(SAMPLE_SHORT_RANGE);
-        setSupportChoices({highwall: 'used', 'gorgoneion-missile-array': 'passed', boa: 'passed'}); setBoaScrap(3);
+        setSupportChoices({highwall: 'used', 'gorgoneion-missile-array': 'passed', 'vulcan-laser-cannon': 'passed', boa: 'passed'}); setBoaScrap(3);
         setMessage('LOCAL SAMPLE // Two locked hits can cover the two remaining Fighter Wings. Cover each before choosing another ship.');}}>Short Range coverage sample</button>
     </div>
     <AegisEnrichedWarheadPanelView view={{type: 'aegis-enriched-warhead-view', sessionId: 'prepared-pc08',

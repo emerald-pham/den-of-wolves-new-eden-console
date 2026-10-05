@@ -1,7 +1,7 @@
 import proxima from '@/assets/flags/proxima.png';
 import { defineSupplementalVessel } from './templates';
 
-/** Optional base small-ship identity; its systems arrive in later prompts. */
+/** Optional base small-ship identity with printed charged laser support. */
 export default defineSupplementalVessel({
   id: 'vulcan',
   kind: 'small-ship',
@@ -28,9 +28,8 @@ export default defineSupplementalVessel({
     charge: 'reactor',
     effect: 'At each of medium and short range, roll 2 dice. Each die deals 1 damage on a 4+.',
     action: {
-      status: 'unavailable',
-      reason: 'The firing contract stays hidden from the Vulcan Captain until authoritative combat resolution is available.',
-      followOnPrompts: ['439', '440'],
+      status: 'live-below',
+      reason: 'The current Vulcan Captain chooses use or pass at Medium and Short range; the server locks and resolves its dice with that range.',
     },
   }],
 });

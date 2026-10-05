@@ -793,7 +793,7 @@ export interface WolfRangeActionChoiceResult {
   readonly hitSlots: readonly Readonly<{ actionId: string; count: number; damagePerHit?: number }>[];
 }
 
-export type WolfRangeSupportSourceId = 'highwall' | 'gorgoneion-missile-array' | 'boa';
+export type WolfRangeSupportSourceId = 'highwall' | 'gorgoneion-missile-array' | 'vulcan-laser-cannon' | 'boa';
 
 export interface WolfRangeSupportActionChoiceView {
   readonly type: 'wolf-range-support-action-choice-view';
@@ -1686,6 +1686,7 @@ export interface GameSession {
   readonly smallShipStates?: Readonly<Partial<Record<SmallShipId, SmallShipState>>>;
   /** Visible only while the canonical base Capybara has valid server admission. */
   readonly baseCapybaraCargo?: BaseCapybaraCargoState;
+  readonly warriorCargo?: BaseCapybaraCargoState;
   readonly shuttleCargo?: Readonly<Record<string, Readonly<Record<string, number>>>>;
   readonly shuttleFuelled?: Readonly<Record<string, boolean>>;
   readonly shuttleControl?: Readonly<Record<string, ShuttleControlEntry>>;

@@ -9,7 +9,7 @@ import {
 } from './sessionMutationAuthority';
 import { runSmallShipMaintenance } from './smallShipService';
 
-export type SmallCraftJumpId = Extract<SmallShipId, 'gorgoneion' | 'capybara-small'>;
+export type SmallCraftJumpId = Extract<SmallShipId, 'gorgoneion' | 'capybara-small' | 'warrior' | 'vulcan'>;
 
 export interface SmallShipJumpDestination {
   readonly coordinate: string;
@@ -32,6 +32,7 @@ export interface SmallShipJumpWorkspaceProjection {
   readonly cycleTurn?: number | null;
   readonly cycleCharges?: readonly string[];
   readonly charged?: boolean;
+  readonly requiresCharge?: boolean;
   readonly hostFuel?: number | null;
   readonly knownDestinations?: readonly SmallShipJumpDestination[];
   readonly arrivalCoordinates?: readonly string[];
@@ -57,6 +58,8 @@ export interface SmallShipJumpChargeCommand {
 const CAPTAIN_ROLE: Readonly<Record<SmallCraftJumpId, string>> = {
   gorgoneion: 'gorgoneion-captain',
   'capybara-small': 'capybara-small-captain',
+  warrior: 'warrior-captain',
+  vulcan: 'vulcan-captain',
 };
 
 function requireBaseMode(session: { readonly expansion?: string; readonly capybaraEnabled?: boolean }, id: SmallCraftJumpId): void {
@@ -185,6 +188,9 @@ export async function chargeSmallShipJumpDrive(
   retryExactRequest = false,
 ): Promise<unknown> {
   const { session, me } = requireCaptain(smallShipId);
+  if (smallShipId === 'warrior' || smallShipId === 'vulcan') {
+    throw new Error('This printed Jump Drive uses host fuel and does not require a reactor charge.');
+  }
   if (!Number.isSafeInteger(command.expectedCycleRevision) ||
       !/^[A-Za-z0-9_-]{1,128}$/.test(command.requestId) ||
       !Array.isArray(command.consoles) || command.consoles.length < 1 || command.consoles.length > 2 ||

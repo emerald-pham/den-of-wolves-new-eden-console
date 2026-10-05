@@ -578,3 +578,13 @@ broader future diegetic-rules PC11 does not enlarge this repair.
 | Printed source | Base Player Guide v1.1 arrest procedure and Facilitator Guide v1.1 arrest/prisoner guidance, routed privately to the core-rules and facilitation derivatives. All seven preserved primary binaries match the private provenance inventory. The existing threshold, defenders, private suspicion and next-Team-Phase deadline remain the source behavior. |
 | Chosen design | In an active manual training session only, the current authenticated GM explicitly chooses named virtual posse members and presses “Simulate attendance.” The exact request, result, private case and private attendance audit are labeled simulated. It uses the same current private calculation, distinct connected roster, source arithmetic, deadline and replay rules. |
 | Limits | The demo rejects unlabeled physical attestations; a normal game rejects the simulation field. Normal results retain their existing shape, and their private audit records the GM physical-attestation evidence class. This does not assert that the program verified real people or physical attendance, expose suspicion, create roster members, grant ordinary actors GM authority or bypass consent. |
+
+
+### PC10-A3 — Connected Warrior and Vulcan abilities
+
+| Field | Decision |
+|---|---|
+| ID and checkpoint | PC10-A3, PC10-A02; the owner assigned completion of four existing extra-role abilities. No catalog closure or new role is invented. |
+| Printed source | Base Alpha/Bravo v1.1 A4 duplex, physical PDF pages 27 (Warrior) and 29 (Vulcan), inspected as full-page images. Primary binary checksum matches the private source provenance inventory. |
+| Chosen reading | Both printed Jump Drives have no reactor-charge connection and use docked-host fuel at the existing short/medium/long rates. Keep current-cycle completed maintenance, Coordination, known-route, host, actor, docking and movement checks; preserve every other craft's required charge. Warrior uses the existing six-resource docked cargo contract with an independent ledger. Vulcan's one current-cycle laser charge powers its two printed close ranges through the existing explicit source-choice and shared dice-lock pipeline. |
+| Authority and limits | The normal current Captain replacement, genuine ordinary UID, server admission, current host/group audience, cost, revision, exact-replay and revocation contracts control these actions. A range use/pass is an explicit digital choice; it draws no early dice. Native fixtures prove code contracts only. Fresh browser play, rendered geometry, integration, independent review and deployment remain root-owned; physical human facts remain unproved. |

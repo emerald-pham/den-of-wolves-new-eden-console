@@ -7045,7 +7045,7 @@ function wolfRangeActionChoiceResultReply(value: unknown): WolfRangeActionChoice
 }
 
 function wolfRangeSupportSourceId(value: unknown): value is WolfRangeSupportSourceId {
-  return value === 'highwall' || value === 'gorgoneion-missile-array' || value === 'boa';
+  return value === 'highwall' || value === 'gorgoneion-missile-array' || value === 'vulcan-laser-cannon' || value === 'boa';
 }
 
 function wolfRangeSupportChoiceViewReply(value: unknown): WolfRangeSupportActionChoiceView | null {
@@ -7058,7 +7058,8 @@ function wolfRangeSupportChoiceViewReply(value: unknown): WolfRangeSupportAction
   const ranges: readonly WolfAttackRange[] = ['long-range', 'medium-range', 'short-range'];
   const expectedActorRole = reply.sourceId === 'highwall' ? 'icebreaker-miner'
     : reply.sourceId === 'gorgoneion-missile-array' ? 'gorgoneion-captain'
-      : reply.sourceId === 'boa' ? 'capybara-recycler' : null;
+      : reply.sourceId === 'vulcan-laser-cannon' ? 'vulcan-captain'
+        : reply.sourceId === 'boa' ? 'capybara-recycler' : null;
   const contacts = Array.isArray(reply.contacts) ? reply.contacts.flatMap((raw) => {
     if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return [];
     const contact = raw as Record<string, unknown>;
@@ -7073,6 +7074,7 @@ function wolfRangeSupportChoiceViewReply(value: unknown): WolfRangeSupportAction
       !Number.isSafeInteger(reply.turn) || (reply.turn as number) < 1 ||
       !Number.isSafeInteger(reply.revision) || (reply.revision as number) < 1 ||
       !ranges.includes(reply.range as WolfAttackRange) || !wolfRangeSupportSourceId(reply.sourceId) ||
+      (reply.sourceId === 'vulcan-laser-cannon' && reply.range !== 'medium-range' && reply.range !== 'short-range') ||
       reply.actorRoleId !== expectedActorRole ||
       (reply.choiceStatus !== 'pending' && reply.choiceStatus !== 'used' && reply.choiceStatus !== 'passed') ||
       typeof reply.eligible !== 'boolean' || typeof reply.actionAvailable !== 'boolean' ||
@@ -7111,6 +7113,7 @@ function wolfRangeSupportChoiceResultReply(value: unknown): WolfRangeSupportActi
       !Number.isSafeInteger(reply.turn) || (reply.turn as number) < 1 ||
       !Number.isSafeInteger(reply.revision) || (reply.revision as number) < 1 ||
       !ranges.includes(reply.range as WolfAttackRange) || !wolfRangeSupportSourceId(reply.sourceId) ||
+      (reply.sourceId === 'vulcan-laser-cannon' && reply.range !== 'medium-range' && reply.range !== 'short-range') ||
       (reply.choiceStatus !== 'used' && reply.choiceStatus !== 'passed') ||
       !Number.isSafeInteger(reply.actionCount) || reply.actionCount !== (reply.choiceStatus === 'used' ? 1 : 0)) return null;
   return {
@@ -7643,15 +7646,28 @@ export async function getWolfRangeActionChoice(): Promise<WolfRangeActionChoiceR
   }
 }
 
+function vulcanRangeActorContext(): string {
+  const { session, me } = useSessionStore.getState();
+  const ship = session?.smallShipStates?.vulcan;
+  return JSON.stringify([session?.id, me?.uid, me?.role, me?.replacementRoleId, me?.replacementStatus,
+    me?.fleetGroupId, me?.seatId, me?.activeConsoleRoleId, ship?.hostShipId, ship?.dockingRevision]);
+}
+
 function wolfRangeSupportActorAuthorityCheckpointIsCurrent(
   sessionId: string,
   sourceId: WolfRangeSupportSourceId,
   checkpoint: SessionAuthorityCheckpoint | undefined,
+  expectedContext: string,
 ): boolean {
   if (sourceId === 'gorgoneion-missile-array') {
     return gorgoneionCaptainAuthorityCheckpointIsCurrent(sessionId, checkpoint);
   }
   const store = useSessionStore.getState();
+  if (sourceId === 'vulcan-laser-cannon') {
+    return store.me?.role === 'player' && store.me.replacementRoleId === 'vulcan-captain' &&
+      store.me.replacementStatus == null && store.me.activeConsoleRoleId === null && store.me.seatId === null &&
+      vulcanRangeActorContext() === expectedContext && authorityCheckpointIsCurrent(checkpoint);
+  }
   return store.session?.id === sessionId && store.me?.sessionId === sessionId &&
     store.me.role === 'player' && store.me.replacementStatus == null && authorityCheckpointIsCurrent(checkpoint);
 }
@@ -7663,9 +7679,15 @@ export async function getWolfRangeSupportActionChoice(
 ): Promise<WolfRangeSupportActionChoiceView> {
   const store = useSessionStore.getState();
   if (!store.session || !store.me || store.me.role !== 'player' ||
-      (sourceId === 'gorgoneion-missile-array' && store.me.replacementRoleId !== 'gorgoneion-captain')) {
+      (sourceId === 'gorgoneion-missile-array' && store.me.replacementRoleId !== 'gorgoneion-captain') ||
+      (sourceId === 'vulcan-laser-cannon' && (store.me.replacementRoleId !== 'vulcan-captain' ||
+        store.me.replacementStatus != null || store.me.activeConsoleRoleId !== null || store.me.seatId !== null))) {
     throw new Error('The assigned current support actor may read this Wolf range choice.');
   }
+  if (sourceId === 'vulcan-laser-cannon' && range !== 'medium-range' && range !== 'short-range') {
+    throw new Error('Vulcan Laser Cannon fires only at Medium and Short range.');
+  }
+  const expectedContext = vulcanRangeActorContext();
   requireFreshSessionAuthority('Reconnect before reading Wolf range support choices.');
   const sessionId = store.session.id;
   const checkpoint = sessionAuthorityCheckpoint(sessionId, sessionAuthorityUid(store));
@@ -7677,7 +7699,7 @@ export async function getWolfRangeSupportActionChoice(
     if (!reply || reply.sessionId !== sessionId || reply.range !== range || reply.sourceId !== sourceId) {
       throw new Error('The server returned an invalid Wolf range support view.');
     }
-    if (!wolfRangeSupportActorAuthorityCheckpointIsCurrent(sessionId, sourceId, checkpoint)) {
+    if (!wolfRangeSupportActorAuthorityCheckpointIsCurrent(sessionId, sourceId, checkpoint, expectedContext)) {
       throw new Error('The support actor session or authority changed before this range view arrived.');
     }
     return reply;
@@ -7698,9 +7720,15 @@ export async function commitWolfRangeSupportActionChoice(
 ): Promise<WolfRangeSupportActionChoiceResult> {
   const store = useSessionStore.getState();
   if (!store.session || !store.me || store.me.role !== 'player' ||
-      (sourceId === 'gorgoneion-missile-array' && store.me.replacementRoleId !== 'gorgoneion-captain')) {
+      (sourceId === 'gorgoneion-missile-array' && store.me.replacementRoleId !== 'gorgoneion-captain') ||
+      (sourceId === 'vulcan-laser-cannon' && (store.me.replacementRoleId !== 'vulcan-captain' ||
+        store.me.replacementStatus != null || store.me.activeConsoleRoleId !== null || store.me.seatId !== null))) {
     throw new Error('The assigned current support actor may commit this Wolf range choice.');
   }
+  if (sourceId === 'vulcan-laser-cannon' && range !== 'medium-range' && range !== 'short-range') {
+    throw new Error('Vulcan Laser Cannon fires only at Medium and Short range.');
+  }
+  const expectedContext = vulcanRangeActorContext();
   requireFreshSessionAuthority('Reconnect before choosing a Wolf range support action.');
   if ((sourceId === 'boa' && use && (typeof targetContactId !== 'string' || !/^contact-[1-9]\d*$/.test(targetContactId))) ||
       ((sourceId !== 'boa' || !use) && targetContactId !== undefined)) {
@@ -7722,7 +7750,7 @@ export async function commitWolfRangeSupportActionChoice(
         reply.choiceStatus !== (use ? 'used' : 'passed') || reply.actionCount !== (use ? 1 : 0)) {
       throw new Error('The server returned an invalid Wolf range support receipt.');
     }
-    if (!wolfRangeSupportActorAuthorityCheckpointIsCurrent(sessionId, sourceId, checkpoint)) {
+    if (!wolfRangeSupportActorAuthorityCheckpointIsCurrent(sessionId, sourceId, checkpoint, expectedContext)) {
       throw new Error('The support actor session or authority changed before this range choice committed.');
     }
     return reply;

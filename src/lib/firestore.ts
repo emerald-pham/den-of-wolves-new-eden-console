@@ -3641,6 +3641,10 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     }, 'capybara-small')
     ? parseBaseCapybaraCargoState(data.baseCapybaraCargo) ?? undefined
     : undefined;
+  const currentWarriorCargo = isPresentedSmallShipStateMapValid({
+    activeVesselIds: admissionVesselIds, smallShipStates: data.smallShipStates,
+    expansion: data.expansion, capybaraEnabled: data.capybaraEnabled,
+  }, 'warrior') ? parseBaseCapybaraCargoState(data.warriorCargo) ?? undefined : undefined;
   const storedDockings = Array.isArray(data.shuttleDockings)
     ? data.shuttleDockings.map(shuttleDocking).filter((docking): docking is ShuttleDocking => docking !== undefined)
     : undefined;
@@ -3751,6 +3755,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     maintenanceCycles: maintenanceCycles(data.maintenanceCycles),
     smallShipStates: currentSmallShipStates,
     ...(currentBaseCapybaraCargo ? { baseCapybaraCargo: currentBaseCapybaraCargo } : {}),
+    ...(currentWarriorCargo ? { warriorCargo: currentWarriorCargo } : {}),
     shuttleCargo: shuttleCargo(data.shuttleCargo),
     shuttleFuelled: shuttleFuelled(data.shuttleFuelled),
     shuttleControl: shuttleControl(data.shuttleControl),

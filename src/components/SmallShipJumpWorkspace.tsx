@@ -11,6 +11,7 @@ import {
   jumpSmallShip,
 } from '@/lib/smallShipJumpService';
 import SmallShipJumpPanel from './SmallShipJumpPanel';
+import { useSessionStore } from '@/store/useSessionStore';
 
 interface SmallShipJumpWorkspaceProps {
   readonly smallShipId: SmallCraftJumpId;
@@ -26,7 +27,7 @@ function requestId(): string {
   return window.crypto.randomUUID();
 }
 
-function SmallShipJumpWorkspace({ smallShipId }: SmallShipJumpWorkspaceProps) {
+function BoundSmallShipJumpWorkspace({ smallShipId }: SmallShipJumpWorkspaceProps) {
   const [projection, setProjection] = useState<SmallShipJumpWorkspaceProjection>();
   const [selectedDestination, setSelectedDestination] = useState('');
   const [pendingJump, setPendingJump] = useState<SmallShipJumpCommand>();
@@ -162,4 +163,12 @@ function SmallShipJumpWorkspace({ smallShipId }: SmallShipJumpWorkspaceProps) {
   );
 }
 
-export default SmallShipJumpWorkspace;
+/** A private projection and its draft never migrate to another actor or session. */
+export default function SmallShipJumpWorkspace({ smallShipId }: SmallShipJumpWorkspaceProps) {
+  const identity = useSessionStore((state) => JSON.stringify([
+    smallShipId, state.session?.id, state.me?.sessionId, state.me?.uid, state.me?.role,
+    state.me?.replacementRoleId, state.me?.replacementStatus, state.me?.activeConsoleRoleId,
+    state.me?.seatId, state.me?.fleetGroupId, state.identityHydrationRevision,
+  ]));
+  return <BoundSmallShipJumpWorkspace key={identity} smallShipId={smallShipId} />;
+}

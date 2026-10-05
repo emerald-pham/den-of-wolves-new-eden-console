@@ -104,6 +104,21 @@ export function gorgoneionWolfRangeActions(input: Readonly<{
   }];
 }
 
+/** Vulcan's charged laser fires at each printed close range through the shared dice lock. */
+export function vulcanWolfRangeActions(input: Readonly<{
+  range: WolfCombatRange;
+  charged: boolean;
+  damaged: boolean;
+  destroyed: boolean;
+}>): readonly WolfRangeAction[] {
+  if (!input.charged || input.damaged || input.destroyed || input.range === 'long-range') return [];
+  return [{
+    actionId: `vulcan-laser-cannon-${input.range.replace('-range', '')}`,
+    sourceId: 'vulcan-laser-cannon', range: input.range,
+    dice: { sides: 6, count: 2, successAt: 4, damagePerSuccess: 1 }, maxTargets: 2,
+  }];
+}
+
 /** Highwall's fuelled cannon is available only at the two printed close ranges. */
 export function highwallWolfRangeActions(input: Readonly<{
   range: WolfCombatRange;

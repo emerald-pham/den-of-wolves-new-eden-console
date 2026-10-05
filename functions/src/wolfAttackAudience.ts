@@ -67,7 +67,8 @@ function canonicalRange(value: unknown): WolfAttackMemberResult['range'] | undef
 function targetlessSupportResult(value: Record<string, unknown>): boolean {
   const label = value.sourceId === 'highwall' ? 'Highwall Cannon'
     : value.sourceId === 'gorgoneion-missile-array' ? 'Gorgoneion Missile Array'
-      : value.sourceId === 'boa' ? 'Boa Scrap Strike' : undefined;
+      : value.sourceId === 'vulcan-laser-cannon' ? 'Vulcan Laser Cannon'
+        : value.sourceId === 'boa' ? 'Boa Scrap Strike' : undefined;
   const range = canonicalRange(value.range);
   return label !== undefined && range !== undefined && range !== 'boarding' &&
     value.targetId === null && value.bearing === null && value.contactReference === label &&

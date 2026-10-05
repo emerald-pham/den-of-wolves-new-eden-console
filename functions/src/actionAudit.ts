@@ -27,6 +27,7 @@ export const ACTION_AUDIT_RESOLUTION_SOURCE_BY_ACTION = {
   'gorgoneion-drone-repair': 'server-calculated',
   'warrior-drone-repair': 'server-calculated',
   'base-capybara-cargo': 'server-calculated',
+  'warrior-cargo': 'server-calculated',
   'candidate-action': 'server-calculated',
   'candidate-nebula-jump': 'server-random',
   'game-ending': 'server-calculated',

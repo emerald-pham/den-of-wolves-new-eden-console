@@ -54,10 +54,13 @@ export interface SmallShipJumpDestination {
 }
 
 const SAFE_ID = /^[A-Za-z0-9_-]{1,128}$/;
-const SMALL_CRAFT_JUMP_IDS = new Set<SmallShipId>(['gorgoneion', 'capybara-small']);
-const CAPTAIN_ROLE: Readonly<Record<'gorgoneion' | 'capybara-small', string>> = {
+const SMALL_CRAFT_JUMP_IDS = new Set<SmallShipId>(['gorgoneion', 'capybara-small', 'warrior', 'vulcan']);
+const UNCHARGED_JUMP_IDS = new Set<SmallShipId>(['warrior', 'vulcan']);
+const CAPTAIN_ROLE: Readonly<Record<SmallShipId, string>> = {
   gorgoneion: 'gorgoneion-captain',
   'capybara-small': 'capybara-small-captain',
+  warrior: 'warrior-captain',
+  vulcan: 'vulcan-captain',
 };
 const MOVEMENT_KEYS = [
   'type', 'sessionId', 'smallShipId', 'coordinate', 'revision', 'lastJumpTurn', 'captainArrivalsByUid',
@@ -162,10 +165,10 @@ function requireRevision(value: unknown, label: string): number {
 }
 
 function requireSmallCraftId(value: unknown): SmallShipId {
-  if (value !== 'gorgoneion' && value !== 'capybara-small') {
-    return invalid('Only the Gorgoneion or base small-ship Capybara may use this Jump Drive command.');
+  if (typeof value !== 'string' || !SMALL_CRAFT_JUMP_IDS.has(value as SmallShipId)) {
+    return invalid('Choose a supported small-ship Jump Drive.');
   }
-  return value;
+  return value as SmallShipId;
 }
 
 function parseWorkspaceRequest(value: unknown) {
@@ -213,8 +216,8 @@ type Actor = Awaited<ReturnType<SmallShipJumpCallableDependencies['requireSmallS
 type Viewer = 'captain' | 'gm';
 
 function viewerKind(actor: Actor, smallShipId: SmallShipId): Viewer {
-  if (smallShipId !== 'gorgoneion' && smallShipId !== 'capybara-small') {
-    return permissionDenied('Only the Gorgoneion or base small-ship Capybara has a Jump Drive authority.');
+  if (!SMALL_CRAFT_JUMP_IDS.has(smallShipId)) {
+    return permissionDenied('This small ship has no supported Jump Drive authority.');
   }
   const role = actor.player.get('role');
   if (role === 'gm') return 'gm';
@@ -440,6 +443,7 @@ function safeWorkspace(
     cycleTurn: state.cycle.turn ?? null,
     cycleCharges: [...state.cycle.charges],
     charged: state.cycle.turn === turn && state.cycle.charges.includes('jump-drive'),
+    ...(UNCHARGED_JUMP_IDS.has(smallShipId) ? { requiresCharge: false } : {}),
     hostFuel: fuel,
     knownDestinations: destinationChoices(smallShipId, currentCoordinate, knownCoordinates ?? []),
     arrivalCoordinates: [...(movement && Object.hasOwn(movement.captainArrivalsByUid, actorUid)
@@ -635,8 +639,11 @@ export function createSmallShipJumpCallables(dependencies: SmallShipJumpCallable
         if (!knownCoordinates.includes(parsed.destination)) {
           return precondition('Choose a destination currently known to this Captain.');
         }
-        if (state.cycle.step !== 0 || state.cycle.turn !== turn || !state.cycle.charges.includes('jump-drive')) {
-          return precondition('Charge the small craft Jump Drive during Team Phase before departure.');
+        const requiresCharge = !UNCHARGED_JUMP_IDS.has(parsed.smallShipId);
+        if (state.cycle.step !== 0 || state.cycle.turn !== turn ||
+            (requiresCharge && !state.cycle.charges.includes('jump-drive'))) {
+          return precondition(requiresCharge ? 'Charge the small craft Jump Drive during Team Phase before departure.'
+            : 'Complete this small craft’s current Team maintenance before departure.');
         }
         if (movement.lastJumpTurn === turn) return precondition('This small craft has already jumped this cycle.');
         const hostDamage = hostDamageFromSession(session, hostShipId);
@@ -647,7 +654,7 @@ export function createSmallShipJumpCallables(dependencies: SmallShipJumpCallable
           destination: parsed.destination,
           currentTurn: turn,
           fuel: hostFuel,
-          charged: true,
+          charged: !requiresCharge || state.cycle.charges.includes('jump-drive'),
           damaged: false,
           upgraded: false,
           now: operationTime,
@@ -683,7 +690,7 @@ export function createSmallShipJumpCallables(dependencies: SmallShipJumpCallable
           cycle: {
             ...state.cycle,
             revision: state.cycle.revision + 1,
-            charges: state.cycle.charges.filter((charge) => charge !== 'jump-drive'),
+            charges: requiresCharge ? state.cycle.charges.filter((charge) => charge !== 'jump-drive') : [...state.cycle.charges],
           },
         };
         const reply: Data = {
