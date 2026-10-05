@@ -68,7 +68,7 @@ it('shows only the current fleet’s mission tasks and binds the pre-deal choice
   fireEvent.click(within(panel).getByRole('radio', { name: /L-1.*Recover the stranded survey crew/i }));
   fireEvent.click(within(panel).getByRole('button', { name: /Apply Boa reclamation to L-1/ }));
   await waitFor(() => expect(mocks.choose).toHaveBeenCalledWith({
-    sessionId: 's1', requestId: 'boa-reclaim-request',
+    requestId: 'boa-reclaim-request',
     missionOpportunityId: opportunity.missionOpportunityId, taskOpportunityId: 'L-1',
     expectedControlRevision: 4, expectedChoiceRevision: 0, expectedCycle: 3,
   }));
