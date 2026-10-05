@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "sourceCommit": "0613c8b939b59f62488fc78545a12cf3e5fa1d7b",
+  "sourceCommit": "68d4429fd9d4c16060da85e0df9a591b0e6db76f",
   "binding": "Built SDK __endpoint exports from current Functions source; independent review and gameplay evidence remain separate.",
   "accounting": "Every callable is inventoried. Background jobs are separately traced; an inventory row alone is not acceptance.",
   "roles": [
@@ -250,6 +250,13 @@
       "usabilityProof": "pending"
     },
     {
+      "id": "fleet-loyalist",
+      "kind": "private loyalty functions",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
       "id": "wolf-agent",
       "kind": "private loyalty functions",
       "currentFreshGameProof": "pending",
@@ -264,7 +271,28 @@
       "usabilityProof": "pending"
     },
     {
+      "id": "universal-arbour",
+      "kind": "private loyalty functions",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
       "id": "wolf-cult",
+      "kind": "private loyalty functions",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "android",
+      "kind": "private loyalty functions",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "friend",
       "kind": "private loyalty functions",
       "currentFreshGameProof": "pending",
       "recoveryProof": "pending",
@@ -461,6 +489,28 @@
       "name": "resolveMaliadesShort",
       "kind": "callable",
       "clientConsumers": [],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "readBoaMissionReclamationWorkspace",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/boaMissionReclamationService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "chooseBoaMissionReclamationOpportunity",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/boaMissionReclamationService.ts"
+      ],
       "currentFreshGameProof": "pending",
       "authorityPrivacyRecoveryProof": "pending",
       "automatedBrowserProof": "pending",
@@ -1243,7 +1293,9 @@
     {
       "name": "assignLoyalty",
       "kind": "callable",
-      "clientConsumers": [],
+      "clientConsumers": [
+        "src/lib/gmLoyaltyAssignmentService.ts"
+      ],
       "currentFreshGameProof": "pending",
       "authorityPrivacyRecoveryProof": "pending",
       "automatedBrowserProof": "pending",
@@ -1341,7 +1393,8 @@
       "name": "getCurrentMemberSession",
       "kind": "callable",
       "clientConsumers": [
-        "src/lib/firestore.ts"
+        "src/lib/firestore.ts",
+        "src/lib/sessionService.ts"
       ],
       "currentFreshGameProof": "pending",
       "authorityPrivacyRecoveryProof": "pending",
