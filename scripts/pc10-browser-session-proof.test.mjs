@@ -199,7 +199,7 @@ test('the observer uses the protocol session and rejects unavailable durable bod
 });
 
 test('a same original callable completed across reload retains its durable HTTP200 body', async () => {
-  const { actor, page, events, commands, start, respond, finish, completeNavigation } = await cdpCallableObservationActor();
+  const { actor, page, commands, start, respond, finish, completeNavigation } = await cdpCallableObservationActor();
   const requestId = start('during-reload');
   respond(requestId);
   let releaseReload;
