@@ -374,3 +374,29 @@ test('a pending private research read cannot return under a replaced original Sc
     read: async () => { fetched = true; return {}; }, renderedReady: async () => true }));
   assert.equal(fetched, true);
 });
+
+test('ordinary explicit loyalty setup preserves source suspicion values and the two-five/one-ten Loyalist distribution', async () => {
+  const { baseDeductionAssignments } = await contracts();
+  for (const count of [18, 20]) {
+    const assignments = baseDeductionAssignments({ ...nativeOccupiedRoster(count), scenario: 'wolf-cult' });
+    assert.equal(assignments.find(value => value.kind === 'wolf-agent').suspicion, 0);
+    assert.equal(assignments.find(value => value.kind === 'wolf-cult').suspicion, 15);
+    assert.equal(assignments.find(value => value.kind === 'intelligence-agent').suspicion, 6);
+    const loyalists = assignments.filter(value => value.kind === 'fleet-loyalist');
+    assert.equal(loyalists.filter(value => value.suspicion === 5).length, 2);
+    assert.equal(loyalists.filter(value => value.suspicion === 10).length, 1);
+    assert.ok(loyalists.every(value => [0, 5, 10].includes(value.suspicion)));
+    assert.equal(assignments.find(value => value.roleId === 'press-officer').suspicion, 0);
+  }
+});
+
+test('source suspicion holders can be caller-selected only from three distinct actual original core Loyalists', async () => {
+  const { baseDeductionAssignments } = await contracts(), source = nativeOccupiedRoster(18);
+  const roles = ['native-role-3', 'native-role-4', 'native-role-5'];
+  const choices = baseDeductionAssignments({ ...source, scenario: 'wolf-cult', fleetSuspicionRoleIds: roles });
+  assert.deepEqual(roles.map(role => choices.find(value => value.roleId === role).suspicion), [5, 5, 10]);
+  for (const invalid of [['native-role-3', 'native-role-3', 'native-role-5'],
+    ['quellon-explorer', 'native-role-4', 'native-role-5'], ['foreign', 'native-role-4', 'native-role-5'],
+    ['press-officer', 'native-role-4', 'native-role-5'], roles.slice(0, 2)])
+    assert.throws(() => baseDeductionAssignments({ ...source, scenario: 'wolf-cult', fleetSuspicionRoleIds: invalid }));
+});
