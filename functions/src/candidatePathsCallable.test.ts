@@ -3,6 +3,7 @@ import type { Firestore } from 'firebase-admin/firestore';
 import { createCandidateCallables } from './candidatePathsCallable';
 import { commitTerminal as commitRealTerminal } from './sessionDebrief';
 import { aggregateSurvivorOutcome } from './survivorOutcome';
+import { organiserSitesForChart } from './starChartLookup';
 
 type Fields = Record<string, unknown>;
 const documents = new Map<string, Fields>();
@@ -76,6 +77,24 @@ beforeEach(() => {
 });
 
 describe('ordinary candidate callable authority and durable replay', () => {
+  it('permanently consumes an available Engineering Shuttle in the candidate transaction and retains its exact receipt', async () => {
+    const coordinate = Object.entries(organiserSitesForChart('A')).find(([, site]) => site.code === 'N')![0];
+    const current = documents.get('sessions/s1')!;
+    put('sessions/s1', { ...current, shuttleControl: { philia: { shuttleId: 'philia', ownerRoleId: 'admiral',
+      ownerUid: 'gm', holderUid: 'gm', revision: 0 } }, shuttleDockings: [{ shuttleId: 'philia', shipId: 'aegis' }] });
+    put('sessions/s1/serverState/navigation', { revision: 2, shipGalacticCoordinates: { aegis: coordinate, shepherd: coordinate },
+      systemHistory: { aegis: { [coordinate]: { coordinate, candidateDiscovery: { id: 'ring-arrival',
+        occurredAt: '2026-10-05T10:00:00.000Z', code: 'N', title: 'Ancient Jump Ring', source: 'arrival' } } } } });
+    const choice = { ...command, requestId: 'ring-craft', code: 'N', coordinate, action: 'commit-engineering-shuttle',
+      shuttleId: 'philia', instanceId: 'instance1' };
+    delete (choice as Fields).shipId;
+    const result = await handlers.execute(request(choice, 'gm'));
+    expect(documents.get('sessions/s1')?.candidateCraftReservations).toEqual({ philia: { code: 'N', groupId: 'fleet-1',
+      coordinate, sourceId: 'ring-craft', cycle: 6 } });
+    expect(documents.get('sessions/s1')?.shuttleDockings).toEqual([]);
+    expect(result.summary).toMatch(/permanently|consumed/i);
+    await expect(handlers.execute(request(choice, 'gm'))).resolves.toMatchObject({ ...result, status: 'replayed' });
+  });
   it('commits a server loss once, retains private arithmetic, revokes vessel actions and preserves demo state', async () => {
     const reply = await handlers.execute(request(command));
     expect(reply).toMatchObject({ status: 'committed', outcome: 'lost', fuelSpent: 6 });
