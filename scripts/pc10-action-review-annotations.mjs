@@ -4,8 +4,13 @@ import { createRequire } from 'node:module';
 import { readFile, readdir, writeFile } from 'node:fs/promises';
 import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { ANCHORS as ENDING_ANCHORS, REVIEWS as endingSourceReviews } from './pc10-action-review-source-endings.mjs';
+import { ANCHORS as WORKSPACE_ANCHORS, REVIEWS as workspaceSourceReviews } from './pc10-action-review-source-workspaces.mjs';
+import { ANCHORS as DEMO_ANCHORS, REVIEWS as demoSourceReviews } from './pc10-action-review-source-demo.mjs';
+import { ANCHORS as PRODUCT_DELTA_ANCHORS, REVIEWS as productDeltaReviews } from './pc10-action-review-source-product-deltas.mjs';
 
 const repositoryDirectory = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const productSourceRoot = resolve(process.env.PC10_REVIEW_SOURCE_ROOT ?? repositoryDirectory);
 const require = createRequire(new URL('../functions/package.json', import.meta.url));
 const ts = require('typescript');
 const outputPath = resolve(repositoryDirectory, process.argv[2] ?? 'docs/PC10_ACTION_REVIEW_ANNOTATIONS.json');
@@ -110,6 +115,29 @@ const ANCHORS = [
   ['group.clientActions', 'src/lib/fleetGroupService.ts', 'createFleetGroupActions'],
   ['group.currentActions', 'src/lib/fleetGroupService.ts', 'createCurrentFleetGroupActions'],
   ['group.workspace', 'src/components/FleetGroupWorkspace.tsx', 'FleetGroupWorkspace'],
+
+  ['scout.resolveFactory', 'functions/src/scoutResultCallable.ts', 'createResolvePendingScoutRequest'],
+  ['scout.resolveFlow', 'functions/src/scoutResultCallable.ts', 'resolveCommittedScoutRequest'],
+  ['scout.privateResultReader', 'functions/src/scoutResultCallable.ts', 'readPrivateScoutResult'],
+  ['scout.pendingQueueReader', 'functions/src/scoutResultCallable.ts', 'listPendingScoutRequests'],
+  ['scout.gmLogReader', 'functions/src/scoutResultCallable.ts', 'listGmScoutResolutionLog'],
+  ['scout.ownReportReader', 'functions/src/scoutResultCallable.ts', 'listMyScoutReports'],
+  ['scout.discoveryNoteReader', 'functions/src/scoutResultCallable.ts', 'readMyScoutDiscoveryNote'],
+  ['scout.resultProjection', 'functions/src/scoutResultProjection.ts', 'projectPrivateScoutResult'],
+  ['scout.resolutionPlan', 'functions/src/scoutResolutionPlan.ts', 'buildScoutResolutionPlan'],
+  ['scout.commitMapKnowledge', 'functions/src/index.ts', 'commitScoutMapKnowledge'],
+  ['scout.automaticResolver', 'functions/src/index.ts', 'automaticallyResolveScoutRequest'],
+  ['scout.serviceInvoke', 'src/lib/scoutResultService.ts', 'invoke'],
+  ['scout.servicePrivateResult', 'src/lib/scoutResultService.ts', 'readPrivateScoutResult'],
+  ['scout.servicePendingQueue', 'src/lib/scoutResultService.ts', 'listPendingScoutRequests'],
+  ['scout.serviceGmLog', 'src/lib/scoutResultService.ts', 'listGmScoutResolutionLog'],
+  ['scout.serviceOwnReports', 'src/lib/scoutResultService.ts', 'listMyScoutReports'],
+  ['scout.serviceDiscoveryNote', 'src/lib/scoutResultService.ts', 'readMyScoutDiscoveryNote'],
+  ['scout.serviceResolve', 'src/lib/scoutResultService.ts', 'resolvePendingScoutRequest'],
+  ['scout.playerReportUi', 'src/components/ScoutReportController.tsx', 'ScoutReportController'],
+  ['scout.gmRevealUi', 'src/components/GmScoutRevealController.tsx', 'GmScoutRevealController'],
+  ['scout.requestUi', 'src/components/ScoutRequestControls.tsx', 'ScoutRequestControls'],
+  ['scout.gmConsoleUi', 'src/routes/GmConsole.tsx', 'GmConsole'],
 ];
 
 const reviewed = [
@@ -355,7 +383,75 @@ const reviewed = [
   },
 ];
 
-const ALL_ANCHOR_IDS = new Set(ANCHORS.map(([id]) => id));
+const supplementalSourceReviews = [
+  {
+    exportName: 'readPrivateScoutResult', classification: 'served-ui-path',
+    productPath: { status: 'ScoutRequestControls → ScoutReportController → scoutResultService → callable', sourceAnchorIds: ['scout.requestUi', 'scout.playerReportUi', 'scout.servicePrivateResult'] },
+    actor: { family: 'connected active player who requested this result; server also supports a current live GM with the owned instance supplied', identities: ['requester UID or current live GM instance'], sourceAnchorIds: ['scout.privateResultReader', 'scout.resultProjection', 'scout.playerReportUi'] },
+    requirements: { summary: 'Requires an active session, a connected active viewer, and a valid stored result. The player view is limited to the exact requester UID; GM detail requires the current owned live instance. The app uses the player requester path.', sourceAnchorIds: ['scout.privateResultReader', 'scout.resultProjection', 'scout.servicePrivateResult'] },
+    costs: { summary: 'Read-only; no resource or turn action is spent.', sourceAnchorIds: ['scout.privateResultReader', 'scout.servicePrivateResult'] },
+    consequences: { summary: 'Returns only the requester-bound result fields and one system fact; it does not export a chart or change game state.', sourceAnchorIds: ['scout.resultProjection', 'scout.privateResultReader'] },
+    blockers: { summary: 'Wrong session or phase, inactive/disconnected viewer, non-requester player, expired/unowned GM instance, or invalid/missing result denies the read.', sourceAnchorIds: ['scout.privateResultReader', 'scout.resultProjection'] },
+    nextActor: { summary: 'The requester reviews the private result and saved note; no turn actor is advanced.', sourceAnchorIds: ['scout.playerReportUi', 'scout.servicePrivateResult'] },
+    guidance: { status: 'current-player-report-guidance', summary: 'The live report controller displays loading, reconnect, empty, and saved-result states after the request controls; the UI source does not prove runtime visibility.', sourceAnchorIds: ['scout.requestUi', 'scout.playerReportUi'] },
+  },
+  {
+    exportName: 'listPendingScoutRequests', classification: 'served-ui-path',
+    productPath: { status: 'GmConsole → GmScoutRevealController → scoutResultService → callable', sourceAnchorIds: ['scout.gmConsoleUi', 'scout.gmRevealUi', 'scout.servicePendingQueue'] },
+    actor: { family: 'active facilitator with the current owned live GM instance', identities: ['gm role with owned live instance'], sourceAnchorIds: ['scout.pendingQueueReader', 'scout.gmRevealUi'] },
+    requirements: { summary: 'Requires the active phase and a connected active GM whose supplied instance belongs to that UID and has a live lease. The response includes only validated pending request identity and coordinates without result facts.', sourceAnchorIds: ['scout.pendingQueueReader', 'scout.gmRevealUi', 'scout.servicePendingQueue'] },
+    costs: { summary: 'Read-only; no resource or facilitator action slot is spent.', sourceAnchorIds: ['scout.pendingQueueReader'] },
+    consequences: { summary: 'Returns validated pending requests that do not yet have stored results; no request is resolved by this read.', sourceAnchorIds: ['scout.pendingQueueReader'] },
+    blockers: { summary: 'Inactive session, wrong phase, disconnected or expired GM, unowned instance, and malformed pending request records block or omit the request.', sourceAnchorIds: ['scout.pendingQueueReader'] },
+    nextActor: { summary: 'The live GM may choose one displayed pending request and invoke the separate resolve action.', sourceAnchorIds: ['scout.gmRevealUi', 'scout.serviceResolve'] },
+    guidance: { status: 'current-facilitator-queue-guidance', summary: 'GmConsole mounts a queue with reveal feedback and an explicit refresh action; it is gated by the live connection and server-fresh snapshot.', sourceAnchorIds: ['scout.gmConsoleUi', 'scout.gmRevealUi'] },
+  },
+  {
+    exportName: 'listGmScoutResolutionLog', classification: 'served-ui-path',
+    productPath: { status: 'GmConsole → GmScoutRevealController → scoutResultService → callable', sourceAnchorIds: ['scout.gmConsoleUi', 'scout.gmRevealUi', 'scout.serviceGmLog'] },
+    actor: { family: 'active facilitator with the current owned live GM instance', identities: ['gm role with owned live instance'], sourceAnchorIds: ['scout.gmLogReader', 'scout.gmRevealUi'] },
+    requirements: { summary: 'Requires the active phase and a connected active GM with an owned live instance. Returned audit rows are validated and limited to the most recent 50.', sourceAnchorIds: ['scout.gmLogReader', 'scout.gmRevealUi', 'scout.serviceGmLog'] },
+    costs: { summary: 'Read-only; no resource or facilitator action slot is spent.', sourceAnchorIds: ['scout.gmLogReader'] },
+    consequences: { summary: 'Returns the facilitator log fields for committed results, including source and vessel identities; it does not return a chart or requester UID.', sourceAnchorIds: ['scout.gmLogReader'] },
+    blockers: { summary: 'Inactive session, wrong phase, disconnected or expired GM, unowned instance, or malformed audit records blocks or omits the read.', sourceAnchorIds: ['scout.gmLogReader'] },
+    nextActor: { summary: 'The GM may review the log or return to the pending queue; no next player action is imposed by reading it.', sourceAnchorIds: ['scout.gmRevealUi', 'scout.serviceGmLog'] },
+    guidance: { status: 'current-facilitator-log-guidance', summary: 'The current GM controller presents committed results with a refresh control beside the pending reveal queue.', sourceAnchorIds: ['scout.gmConsoleUi', 'scout.gmRevealUi'] },
+  },
+  {
+    exportName: 'listMyScoutReports', classification: 'served-ui-path',
+    productPath: { status: 'ScoutRequestControls → ScoutReportController → scoutResultService → callable', sourceAnchorIds: ['scout.requestUi', 'scout.playerReportUi', 'scout.serviceOwnReports'] },
+    actor: { family: 'connected active non-replacement player', identities: ['authenticated player; requester UID is used to filter the report index'], sourceAnchorIds: ['scout.ownReportReader', 'scout.playerReportUi'] },
+    requirements: { summary: 'Requires an active session, connected active player role, and no replacement state. The handler filters scout requests to the authenticated requester.', sourceAnchorIds: ['scout.ownReportReader', 'scout.playerReportUi', 'scout.serviceOwnReports'] },
+    costs: { summary: 'Read-only; no resource or turn action is spent.', sourceAnchorIds: ['scout.ownReportReader'] },
+    consequences: { summary: 'Returns the player’s request IDs, cycles, coordinates, pending/resolved state, and note identity; it does not include chart facts.', sourceAnchorIds: ['scout.ownReportReader', 'scout.serviceOwnReports'] },
+    blockers: { summary: 'Inactive or wrong-phase session, disconnected or non-player role, replacement state, and invalid result/request data prevent the report index.', sourceAnchorIds: ['scout.ownReportReader'] },
+    nextActor: { summary: 'For a resolved report, the controller reads the private result and then its note when the receipt contains a note ID.', sourceAnchorIds: ['scout.playerReportUi', 'scout.servicePrivateResult', 'scout.serviceDiscoveryNote'] },
+    guidance: { status: 'current-player-report-guidance', summary: 'The report panel explains pending, empty, reconnect, and saved-report states and offers a refresh action.', sourceAnchorIds: ['scout.requestUi', 'scout.playerReportUi'] },
+  },
+  {
+    exportName: 'readMyScoutDiscoveryNote', classification: 'served-ui-path',
+    productPath: { status: 'ScoutRequestControls → ScoutReportController → scoutResultService → callable', sourceAnchorIds: ['scout.requestUi', 'scout.playerReportUi', 'scout.serviceDiscoveryNote'] },
+    actor: { family: 'connected active player still assigned to the note’s source ship and current fleet group', identities: ['note requester UID; current source-ship authority'], sourceAnchorIds: ['scout.discoveryNoteReader', 'scout.playerReportUi'] },
+    requirements: { summary: 'Requires an active session and connected non-replacement player, a valid note ID, current role ship matching the note, an active vessel, and a current fleet group containing that ship.', sourceAnchorIds: ['scout.discoveryNoteReader', 'scout.playerReportUi', 'scout.serviceDiscoveryNote'] },
+    costs: { summary: 'Read-only; no resource or turn action is spent.', sourceAnchorIds: ['scout.discoveryNoteReader'] },
+    consequences: { summary: 'Returns the requester’s validated discovery-note fields; it does not expose the note to another player or change game state.', sourceAnchorIds: ['scout.discoveryNoteReader', 'scout.serviceDiscoveryNote'] },
+    blockers: { summary: 'Inactive or wrong-phase session, replacement or disconnected player, changed ship/group authority, wrong requester, or malformed note denies the read.', sourceAnchorIds: ['scout.discoveryNoteReader'] },
+    nextActor: { summary: 'The authorized player reviews the saved note in the private report panel; no other actor is scheduled.', sourceAnchorIds: ['scout.playerReportUi'] },
+    guidance: { status: 'current-private-note-guidance', summary: 'The report panel retrieves a saved note after its result; unavailable ship/group notes produce a bounded notice.', sourceAnchorIds: ['scout.playerReportUi', 'scout.serviceDiscoveryNote'] },
+  },
+  {
+    exportName: 'resolvePendingScoutRequest', classification: 'served-ui-path',
+    productPath: { status: 'GmConsole → GmScoutRevealController → scoutResultService → callable', sourceAnchorIds: ['scout.gmConsoleUi', 'scout.gmRevealUi', 'scout.serviceResolve', 'scout.resolveFactory'] },
+    actor: { family: 'active facilitator with the current owned live GM instance', identities: ['gm role with owned live instance'], sourceAnchorIds: ['scout.resolveFactory', 'scout.resolveFlow', 'scout.gmRevealUi'] },
+    requirements: { summary: 'Requires an active session and live owned GM authority, an immutable pending request with its matching player command receipt and cadence entry, and active ships with a unique fleet group. Current chart resolution requires chartSelectionLocked or configurationLocked to be true.', sourceAnchorIds: ['scout.resolveFactory', 'scout.resolveFlow', 'scout.resolutionPlan'] },
+    costs: { summary: 'No game resource or facilitator action slot is spent. A successful reveal writes the committed result, private discovery note and audit/map-knowledge updates; exact request retries return the committed result.', sourceAnchorIds: ['scout.resolveFlow', 'scout.resolutionPlan', 'scout.commitMapKnowledge'] },
+    consequences: { summary: 'The selected legal request resolves to one private system fact and requester-bound discovery note, with a facilitator audit; the handler does not return or write the full chart.', sourceAnchorIds: ['scout.resolveFlow', 'scout.resolutionPlan', 'scout.resultProjection', 'scout.commitMapKnowledge'] },
+    blockers: { summary: 'Wrong phase, stale/expired GM lease, missing or malformed pending request/receipt/cadence, inactive ship/group, unlocked chart/configuration, or conflicting stored result records rejects the reveal.', sourceAnchorIds: ['scout.resolveFlow', 'scout.resolveFactory', 'scout.resolutionPlan'] },
+    nextActor: { summary: 'The requester’s report controller retrieves the result and saved note; the automatic resolver may also complete the same receipt-backed request.', sourceAnchorIds: ['scout.playerReportUi', 'scout.automaticResolver', 'scout.resolveFlow'] },
+    guidance: { status: 'current-facilitator-reveal-guidance', summary: 'The live GM console presents pending requests, a reveal control, committed-result feedback, and refresh. This source pass does not claim browser availability.', sourceAnchorIds: ['scout.gmConsoleUi', 'scout.gmRevealUi'] },
+  },
+];
+
 const REQUIRED_NAMES = [
   'resolveMaliadesMedium', 'resolveMaliadesShort', 'setShipPreference', 'submitWolfSupplySabotage',
   'elevateToGm', 'rollDice', 'createSession', 'joinSession', 'resumeSession',
@@ -378,7 +474,7 @@ async function sourceFiles(root) {
           !/\.test\./.test(entry.name) && !/\.d\.ts$/.test(entry.name)) result.push(absolutePath);
     }
   }
-  await visit(resolve(repositoryDirectory, root));
+  await visit(resolve(productSourceRoot, root));
   return result.sort((a, b) => a.localeCompare(b));
 }
 
@@ -386,17 +482,17 @@ async function bindSourceTree(root) {
   const paths = await sourceFiles(root);
   const hash = createHash('sha256');
   for (const path of paths) {
-    hash.update(relative(resolve(repositoryDirectory, root), path).replaceAll('\\', '/'))
+    hash.update(relative(resolve(productSourceRoot, root), path).replaceAll('\\', '/'))
       .update('\0').update(await readFile(path));
   }
   return { fileCount: paths.length, sha256: hash.digest('hex') };
 }
 
-async function resolveAnchors() {
+async function resolveAnchors(anchorSpecifications) {
   const output = [];
-  for (const [id, relativePath, symbol] of ANCHORS) {
-    const source = await readFile(resolve(repositoryDirectory, relativePath), 'utf8');
-    const filePath = resolve(repositoryDirectory, relativePath);
+  for (const [id, relativePath, symbol] of anchorSpecifications) {
+    const source = await readFile(resolve(productSourceRoot, relativePath), 'utf8');
+    const filePath = resolve(productSourceRoot, relativePath);
     const parsed = ts.createSourceFile(filePath, source, ts.ScriptTarget.Latest, true,
       filePath.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
     const declaration = parsed.statements.find((statement) => {
@@ -406,6 +502,9 @@ async function resolveAnchors() {
       if (ts.isVariableStatement(statement)) {
         return statement.declarationList.declarations.some((candidate) =>
           ts.isIdentifier(candidate.name) && candidate.name.text === symbol);
+      }
+      if (ts.isExportDeclaration(statement) && statement.exportClause && ts.isNamedExports(statement.exportClause)) {
+        return statement.exportClause.elements.some((specifier) => specifier.name.text === symbol);
       }
       return false;
     });
@@ -430,47 +529,268 @@ function referencedAnchorIds(value, result = new Set()) {
 
 function sourceCommit() {
   return execFileSync('git', ['log', '-n', '1', '--format=%H', 'HEAD', '--', 'functions/src', 'src'],
-    { cwd: repositoryDirectory, encoding: 'utf8' }).trim();
+    { cwd: productSourceRoot, encoding: 'utf8' }).trim();
 }
 
 async function scanClientReferences(names) {
   const paths = await sourceFiles('src');
   const references = new Map(names.map(name => [name, { identifierOccurrences: [], quotedOccurrences: [] }]));
+  const alternatives = [...names].sort((left, right) => right.length - left.length)
+    .map(name => name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+  const identifier = new RegExp(`(?<![\\w$])(${alternatives})(?![\\w$])`, 'g');
+  const quoted = new RegExp(`(['"])(${alternatives})\\1`, 'g');
   for (const path of paths) {
     const text = await readFile(path, 'utf8');
     const lines = text.split(/\r?\n/);
-    for (const [name, value] of references) {
-      const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const identifier = new RegExp(`(?<![\\w$])${escaped}(?![\\w$])`, 'g');
-      const quoted = new RegExp(`(['\"])${escaped}\\1`, 'g');
-      lines.forEach((line, index) => {
-        const identifierMatches = [...line.matchAll(identifier)];
-        const quotedMatches = [...line.matchAll(quoted)];
-        for (let occurrence = 0; occurrence < identifierMatches.length; occurrence += 1) {
-          value.identifierOccurrences.push({ path: relative(repositoryDirectory, path).replaceAll('\\', '/'), line: index + 1 });
-        }
-        for (let occurrence = 0; occurrence < quotedMatches.length; occurrence += 1) {
-          value.quotedOccurrences.push({ path: relative(repositoryDirectory, path).replaceAll('\\', '/'), line: index + 1 });
-        }
-      });
-    }
+    lines.forEach((line, index) => {
+      identifier.lastIndex = 0;
+      quoted.lastIndex = 0;
+      const sourcePath = relative(productSourceRoot, path).replaceAll('\\', '/');
+      for (const match of line.matchAll(identifier)) {
+        references.get(match[1]).identifierOccurrences.push({ path: sourcePath, line: index + 1 });
+      }
+      for (const match of line.matchAll(quoted)) {
+        references.get(match[2]).quotedOccurrences.push({ path: sourcePath, line: index + 1 });
+      }
+    });
   }
   return references;
 }
 
+function indexExportEvidence(indexSource) {
+  const parsed = ts.createSourceFile('functions/src/index.ts', indexSource, ts.ScriptTarget.Latest, true,
+    ts.ScriptKind.TS);
+  const result = new Map();
+  const add = (name, node, bindingKind) => {
+    const startLine = parsed.getLineAndCharacterOfPosition(node.getStart(parsed)).line + 1;
+    const endLine = parsed.getLineAndCharacterOfPosition(node.getEnd()).line + 1;
+    result.set(name, { path: 'functions/src/index.ts', symbol: name, bindingKind, startLine, endLine,
+      sha256: sha256(indexSource) });
+  };
+  for (const statement of parsed.statements) {
+    if (ts.isVariableStatement(statement) && statement.modifiers?.some(modifier =>
+      modifier.kind === ts.SyntaxKind.ExportKeyword)) {
+      for (const declaration of statement.declarationList.declarations) {
+        if (ts.isIdentifier(declaration.name)) add(declaration.name.text, statement, 'exported-declaration');
+      }
+    } else if (ts.isFunctionDeclaration(statement) && statement.name && statement.modifiers?.some(modifier =>
+      modifier.kind === ts.SyntaxKind.ExportKeyword)) {
+      add(statement.name.text, statement, 'exported-declaration');
+    } else if (ts.isExportDeclaration(statement) && statement.exportClause && ts.isNamedExports(statement.exportClause)) {
+      for (const specifier of statement.exportClause.elements) add(specifier.name.text, statement, 'named-export-binding');
+    }
+  }
+  return result;
+}
+
+function moduleSpecifiers(sourceFile) {
+  const values = [];
+  for (const statement of sourceFile.statements) {
+    if ((ts.isImportDeclaration(statement) || ts.isExportDeclaration(statement)) &&
+        statement.moduleSpecifier && ts.isStringLiteral(statement.moduleSpecifier)) values.push(statement.moduleSpecifier.text);
+  }
+  function visit(node) {
+    if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword &&
+        node.arguments.length === 1 && ts.isStringLiteral(node.arguments[0])) values.push(node.arguments[0].text);
+    ts.forEachChild(node, visit);
+  }
+  visit(sourceFile);
+  return [...new Set(values)];
+}
+
+function resolveImportedSource(importerPath, specifier, knownFiles) {
+  let base;
+  if (specifier.startsWith('@/')) base = resolve(productSourceRoot, 'src', specifier.slice(2));
+  else if (specifier.startsWith('.')) base = resolve(dirname(importerPath), specifier);
+  else return undefined;
+  const candidates = [base, ...['.ts', '.tsx', '.mjs', '.js', '.jsx'].map(suffix => `${base}${suffix}`),
+    ...['index.ts', 'index.tsx', 'index.mjs', 'index.js'].map(name => resolve(base, name))];
+  return candidates.find(candidate => knownFiles.has(candidate));
+}
+
+async function buildAppImportGraph() {
+  const paths = await sourceFiles('src');
+  const knownFiles = new Set(paths);
+  const importersByDependency = new Map();
+  for (const path of paths) {
+    const text = await readFile(path, 'utf8');
+    const parsed = ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true,
+      path.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
+    for (const specifier of moduleSpecifiers(parsed)) {
+      const dependency = resolveImportedSource(path, specifier, knownFiles);
+      if (!dependency) continue;
+      const importers = importersByDependency.get(dependency) ?? new Set();
+      importers.add(path);
+      importersByDependency.set(dependency, importers);
+    }
+  }
+  const appPath = resolve(productSourceRoot, 'src/App.tsx');
+  return function pathToApp(seed) {
+    const queue = [[seed]];
+    const visited = new Set([seed]);
+    while (queue.length) {
+      const chain = queue.shift();
+      const current = chain.at(-1);
+      if (current === appPath) return chain.map(path => relative(productSourceRoot, path).replaceAll('\\', '/'));
+      for (const importer of [...(importersByDependency.get(current) ?? [])].sort()) {
+        if (visited.has(importer)) continue;
+        visited.add(importer);
+        queue.push([...chain, importer]);
+      }
+    }
+    return undefined;
+  };
+}
+
+function classifyExport(row, annotation, clientTrace) {
+  if (row.kind === 'schedule') return 'automatic-scheduled';
+  if (row.kind === 'background') return 'background-trigger';
+  if (annotation?.classification === 'legacy/deprecated-internal-compatibility') return 'legacy-deprecated';
+  if (annotation?.classification === 'external/manual-only') return 'external-manual-only';
+  if (annotation?.classification === 'genuinely-unserved') return 'genuinely-unserved';
+  if (annotation?.classification === 'served-ui-path' && /^Read-only(?:;|\s)/i.test(annotation.costs.summary)) {
+    return 'read-projection-support';
+  }
+  if (annotation) return 'served-ui-path';
+  if (clientTrace.identifierOccurrences.length || clientTrace.quotedOccurrences.length) {
+    return 'client-source-reference-unverified';
+  }
+  return 'no-client-reference-unclassified';
+}
+
+function exportClassificationRows(canonicalMatrix, annotations, clientReferenceScans,
+    exportEvidence, pathToApp) {
+  const annotationsByName = new Map(annotations.map(row => [row.exportName, row]));
+  const rows = [];
+  for (const action of canonicalMatrix.actions) {
+    const name = action.exportName;
+    const annotation = annotationsByName.get(name);
+    const clientTrace = clientReferenceScans.get(name);
+    const referenceFiles = [...new Set([
+      ...clientTrace.identifierOccurrences.map(item => item.path),
+      ...clientTrace.quotedOccurrences.map(item => item.path),
+    ])].sort();
+    const exampleByFile = new Map();
+    for (const item of clientTrace.quotedOccurrences) {
+      if (!exampleByFile.has(item.path)) exampleByFile.set(item.path, { ...item, evidence: 'quoted-callable-name' });
+    }
+    for (const item of clientTrace.identifierOccurrences) {
+      if (!exampleByFile.has(item.path)) exampleByFile.set(item.path, { ...item, evidence: 'identifier-reference' });
+    }
+    const chainCandidates = referenceFiles.flatMap(file => {
+      const chain = pathToApp(resolve(productSourceRoot, file));
+      return chain ? [{ file, chain }] : [];
+    });
+    const representativeChains = [];
+    const addChain = (candidate) => {
+      if (!candidate || representativeChains.some(row => row.chain.join(' -> ') === candidate.chain.join(' -> '))) return;
+      representativeChains.push(candidate);
+    };
+    addChain(chainCandidates.find(row => /\/(?:components|routes)\//.test(`/${row.file}`)));
+    addChain(chainCandidates.find(row => row.file.startsWith('src/lib/')));
+    if (!representativeChains.length) addChain(chainCandidates[0]);
+    const importChainsToApp = representativeChains.map(row => row.chain);
+    const sourceEvidence = exportEvidence.get(name);
+    if (!sourceEvidence) throw new Error(`Cannot locate current index export binding for ${name}`);
+    const hasClientReference = clientTrace.identifierOccurrences.length > 0 || clientTrace.quotedOccurrences.length > 0;
+    const compactEvidence = { path: sourceEvidence.path, symbol: sourceEvidence.symbol,
+      bindingKind: sourceEvidence.bindingKind, lines: [sourceEvidence.startLine, sourceEvidence.endLine],
+      sha256: sourceEvidence.sha256 };
+    rows.push({
+      exportName: name,
+      runtimeKind: 'callable',
+      sourceClassification: classifyExport({ kind: 'callable' }, annotation, clientTrace),
+      productPath: annotation
+        ? { status: 'source-reviewed', summary: annotation.productPath.status, reviewRow: name }
+          : { status: hasClientReference ? 'static-client-reference; control binding unverified'
+          : 'no-current-client-reference-found; product availability unresolved',
+          controlStatus: 'visibility, enabled state, eligibility, and usability are not established by static references' },
+      sourceEvidence: compactEvidence,
+      clientTrace: {
+        status: hasClientReference ? 'static-client-reference-found' : 'no-current-client-reference-found',
+        identifierOccurrenceCount: clientTrace.identifierOccurrences.length,
+        quotedOccurrenceCount: clientTrace.quotedOccurrences.length,
+        referenceFileCount: referenceFiles.length,
+        sourceReferenceExamples: [...exampleByFile.values()],
+        importChainsToApp,
+      },
+      contract: annotation
+        ? { status: 'source-reviewed', detailRef: name }
+        : { status: 'unresolved', fields: ['actor', 'requirements', 'costs', 'consequences', 'blockers', 'nextActor', 'guidance'],
+          reason: 'No action-specific source review in this pass; names and import paths do not establish authority or mechanics.' },
+      ...(name === 'submitWolfSupplySabotage' ? { conditionalGapReferences: ['submitWolfSupplySabotage'] } : {}),
+      acceptanceCredit: 0,
+      proofStatus: 'pending; no runtime or gameplay evidence claimed',
+    });
+  }
+  for (const entry of canonicalMatrix.nonInteractiveExports) {
+    const sourceEvidence = exportEvidence.get(entry.exportName);
+    if (!sourceEvidence) throw new Error(`Cannot locate current index export binding for ${entry.exportName}`);
+    const compactEvidence = { path: sourceEvidence.path, symbol: sourceEvidence.symbol,
+      bindingKind: sourceEvidence.bindingKind, lines: [sourceEvidence.startLine, sourceEvidence.endLine],
+      sha256: sourceEvidence.sha256 };
+    rows.push({
+      exportName: entry.exportName,
+      runtimeKind: entry.kind,
+      sourceClassification: classifyExport(entry, undefined, { identifierOccurrences: [], quotedOccurrences: [] }),
+      playerControl: false,
+      invocationBoundary: entry.kind === 'schedule' ? 'scheduled server task' : 'background server trigger',
+      productPath: { status: 'not a player-invoked callable' },
+      sourceEvidence: compactEvidence,
+      contract: { status: 'not-applicable-to-player-command', effects: 'not reviewed' },
+      acceptanceCredit: 0,
+      proofStatus: 'not applicable to player command; runtime not run',
+    });
+  }
+  return rows;
+}
+
+const indexSource = await readFile(resolve(productSourceRoot, 'functions/src/index.ts'), 'utf8');
+const exportEvidence = indexExportEvidence(indexSource);
+const sourceInventoryDeltaReviews = exportEvidence.has('transferWarriorCargo') ? productDeltaReviews : [];
+const allDetailedReviews = [...reviewed, ...supplementalSourceReviews, ...endingSourceReviews,
+  ...workspaceSourceReviews, ...demoSourceReviews, ...sourceInventoryDeltaReviews];
+const activeAnchorSpecifications = [...ANCHORS, ...ENDING_ANCHORS, ...WORKSPACE_ANCHORS, ...DEMO_ANCHORS,
+  ...(sourceInventoryDeltaReviews.length ? PRODUCT_DELTA_ANCHORS : [])];
+const ALL_ANCHOR_IDS = new Set(activeAnchorSpecifications.map(([id]) => id));
 const [functionsSource, clientSource, sourceAnchors, canonicalMatrixRaw] = await Promise.all([
-  bindSourceTree('functions/src'), bindSourceTree('src'), resolveAnchors(),
+  bindSourceTree('functions/src'), bindSourceTree('src'), resolveAnchors(activeAnchorSpecifications),
   readFile(resolve(repositoryDirectory, 'docs/PC10_ACTION_ROLE_MATRIX.json'), 'utf8'),
 ]);
-const clientReferenceScans = await scanClientReferences(REQUIRED_NAMES);
 const canonicalMatrix = JSON.parse(canonicalMatrixRaw);
 if (canonicalMatrix.actions.length !== 232 || canonicalMatrix.roles.length !== 42) {
   throw new Error('The canonical action/role matrix snapshot changed; this sidecar must not regenerate or replace it.');
 }
+if (canonicalMatrix.nonInteractiveExports.length !== 9) {
+  throw new Error('The canonical SDK export inventory changed; this source overlay does not regenerate the matrix.');
+}
+const allCallableNames = canonicalMatrix.actions.map(row => row.exportName);
+const allExportNames = [...allCallableNames, ...canonicalMatrix.nonInteractiveExports.map(row => row.exportName)];
+const detailedNames = allDetailedReviews.map(row => row.exportName);
+if (new Set(detailedNames).size !== detailedNames.length) {
+  throw new Error('Source review modules contain duplicate callable rows.');
+}
+const detailedNameSet = new Set(detailedNames);
+const missingCanonicalReviews = allCallableNames.filter(name => !detailedNameSet.has(name));
+if (missingCanonicalReviews.length) {
+  throw new Error(`Source review modules are missing canonical callable rows: ${missingCanonicalReviews.join(', ')}`);
+}
+for (const row of sourceInventoryDeltaReviews) {
+  if (allCallableNames.includes(row.exportName)) {
+    throw new Error(`${row.exportName} is already in the preserved canonical matrix and cannot be a source delta.`);
+  }
+}
+const [clientReferenceScans, pathToApp] = await Promise.all([
+  scanClientReferences([...allCallableNames, ...sourceInventoryDeltaReviews.map(row => row.exportName)]),
+  buildAppImportGraph(),
+]);
+for (const name of allExportNames) {
+  if (!exportEvidence.has(name)) throw new Error(`The current Functions entrypoint does not export inventory name ${name}`);
+}
 if (JSON.stringify(reviewed.map(row => row.exportName)) !== JSON.stringify(REQUIRED_NAMES)) {
   throw new Error('Reviewed annotation row set does not match the explicit bounded scope.');
 }
-for (const row of reviewed) {
+for (const row of allDetailedReviews) {
   for (const id of referencedAnchorIds(row)) {
     if (!ALL_ANCHOR_IDS.has(id)) throw new Error(`${row.exportName} references missing anchor ${id}`);
   }
@@ -482,6 +802,8 @@ for (const row of reviewed) {
       throw new Error(`${row.exportName}.${field} must have a concrete summary and source anchor`);
     }
   }
+}
+for (const row of reviewed) {
   row.clientCallTrace.sourceTreeSha256 = clientSource.sha256;
   const scan = clientReferenceScans.get(row.exportName);
   row.clientCallTrace.identifierReferenceCount = scan.identifierOccurrences.length;
@@ -492,9 +814,44 @@ for (const row of reviewed) {
     throw new Error(`${row.exportName} has a current client source reference; revisit its manual-only classification`);
   }
 }
+for (const row of [...endingSourceReviews, ...workspaceSourceReviews, ...demoSourceReviews]) {
+  const scan = clientReferenceScans.get(row.exportName);
+  const uiReferences = [...scan.identifierOccurrences, ...scan.quotedOccurrences]
+    .filter(reference => /^(?:src\/components|src\/routes)\//.test(reference.path));
+  row.clientCallTrace = {
+    status: row.classification === 'served-ui-path' && uiReferences.length ? 'source-service-and-component-route-references' :
+      row.classification === 'served-ui-path' ? 'service-path-source-reviewed; component-reference-unverified' :
+        row.classification === 'legacy/deprecated-internal-compatibility' ? 'legacy-service-compatibility-reference' :
+          uiReferences.length ? 'source-reference-found-ui-binding-unverified' : 'service-only-or-no-current-ui-reference',
+    sourceTreeSha256: clientSource.sha256,
+    identifierReferenceCount: scan.identifierOccurrences.length,
+    exactQuotedReferenceCount: scan.quotedOccurrences.length,
+    componentOrRouteReferenceCount: uiReferences.length,
+    sourceReferences: scan,
+    interpretation: row.classification === 'genuinely-unserved'
+      ? 'A client wrapper/source reference exists, but the full current component/route scan found no action control call site. This is a source classification only; it does not claim physical unavailability or runtime acceptance.'
+      : 'Current client identifiers and callable strings are recorded for source traceability; this does not prove that a control is rendered, enabled, or usable.',
+  };
+  if (row.classification === 'genuinely-unserved' && uiReferences.length > 0) {
+    throw new Error(`${row.exportName} has a component/route reference; revisit the unserved classification`);
+  }
+}
+for (const row of sourceInventoryDeltaReviews) {
+  const scan = clientReferenceScans.get(row.exportName);
+  row.clientCallTrace = {
+    status: scan.identifierOccurrences.some(reference => /^(?:src\/components|src\/routes)\//.test(reference.path))
+      ? 'source-service-and-component-route-references' : 'service-path-source-reviewed; component-reference-unverified',
+    sourceTreeSha256: clientSource.sha256,
+    identifierReferenceCount: scan.identifierOccurrences.length,
+    exactQuotedReferenceCount: scan.quotedOccurrences.length,
+    sourceReferences: scan,
+    interpretation: 'Client source references are statically recorded and the product path is source-reviewed; no claim is made that the control is rendered, enabled, or usable in a running game.',
+    sourceAnchorIds: row.productPath.sourceAnchorIds,
+  };
+}
 const maliadesStubText = ['maliades.clientMediumStub', 'maliades.clientShortStub'].map((id) => {
   const anchor = sourceAnchors.find(item => item.id === id);
-  const text = require('node:fs').readFileSync(resolve(repositoryDirectory, anchor.path), 'utf8');
+  const text = require('node:fs').readFileSync(resolve(productSourceRoot, anchor.path), 'utf8');
   return text.split(/\r?\n/).slice(anchor.startLine - 1, anchor.endLine).join('\n');
 }).join('\n');
 if (/httpsCallable\s*\(/.test(maliadesStubText) ||
@@ -503,21 +860,48 @@ if (/httpsCallable\s*\(/.test(maliadesStubText) ||
 }
 
 const baselineMatrixHash = sha256(canonicalMatrixRaw);
+const classificationRows = exportClassificationRows(canonicalMatrix, allDetailedReviews, clientReferenceScans,
+  exportEvidence, pathToApp);
+const sourceInventoryDeltaRows = sourceInventoryDeltaReviews.map(row => ({
+  ...row,
+  sourceEvidence: (() => {
+    const evidence = exportEvidence.get(row.exportName);
+    return { path: evidence.path, symbol: evidence.symbol, bindingKind: evidence.bindingKind,
+      lines: [evidence.startLine, evidence.endLine], sha256: evidence.sha256 };
+  })(),
+  acceptanceCredit: 0,
+  proofStatus: 'source-only supplemental current-export delta; no runtime or gameplay credit claimed',
+}));
+const classificationCounts = Object.fromEntries([...new Set(classificationRows.map(row => row.sourceClassification))]
+  .sort().map(classification => [classification,
+    classificationRows.filter(row => row.sourceClassification === classification).length]));
+const currentOwnerRevision = sourceCommit();
+const generatedAtRevision = execFileSync('git', ['rev-parse', 'HEAD'],
+  { cwd: repositoryDirectory, encoding: 'utf8' }).trim();
 const artifact = {
   schemaVersion: 1,
   sourceBinding: {
-    ownerRevision: '9681f7aad0451f125dad4b2296f80ebe2b3330cc',
+    ownerRevision: currentOwnerRevision,
     sourceCommit: sourceCommit(),
+    generatedAtRevision,
     functionsSource,
     clientSource,
     buildArtifactsIncluded: false,
     runtimeChecks: 'not run',
-    scope: 'Current TypeScript/JavaScript source only. No Functions rebuild, browser, native, emulator, HTTP, or gameplay request was run for this annotation snapshot.',
+    scope: 'Current source only. No Functions rebuild, browser, native, emulator, HTTP, or gameplay request was run for this annotation snapshot.',
   },
   coverageAccounting: {
     baselineCallableExports: canonicalMatrix.accounting.callableExports,
     annotatedCallables: reviewed.length,
-    remainingCallableRowsNotReviewed: canonicalMatrix.accounting.callableExports - reviewed.length,
+    supplementalSourceReviewedCallables: supplementalSourceReviews.length,
+    endingsShardSourceReviewedCallables: endingSourceReviews.length,
+    workspaceShardSourceReviewedCallables: workspaceSourceReviews.length,
+    demoShardSourceReviewedCallables: demoSourceReviews.length,
+    sourceReviewedCanonicalCallableRows: allDetailedReviews.filter(row => canonicalMatrix.actions.some(action => action.exportName === row.exportName)).length,
+    sourceInventoryDeltaCallableRows: sourceInventoryDeltaReviews.length,
+    totalDetailedActionContractReviews: allDetailedReviews.length,
+    callableRowsWithExplicitUnresolvedContractFields: Math.max(0, canonicalMatrix.accounting.callableExports - allDetailedReviews.filter(row => canonicalMatrix.actions.some(action => action.exportName === row.exportName)).length),
+    remainingCallableRowsNotReviewed: Math.max(0, canonicalMatrix.accounting.callableExports - allDetailedReviews.filter(row => canonicalMatrix.actions.some(action => action.exportName === row.exportName)).length),
     baselineRoleIdentities: canonicalMatrix.accounting.roles,
     baselineCallableRoleCells: canonicalMatrix.actions.length * canonicalMatrix.roles.length,
     callableRoleCellsReviewed: 0,
@@ -525,7 +909,7 @@ const artifact = {
     canonicalSnapshotPath: 'docs/PC10_ACTION_ROLE_MATRIX.json',
     canonicalSnapshotSha256: baselineMatrixHash,
     canonicalSnapshotModified: false,
-    clarification: 'The canonical generator snapshot is preserved. Its unresolved inConsoleGuidance sentinel is not treated here as proof that every remaining action is a PC11 guidance gap; only the reviewed rows below have an explicit source-traced guidance status. Unreviewed rows remain unreviewed.',
+    clarification: 'The canonical 232-callable and 42-role generator snapshot is preserved. The 20 primary annotations, 6 Scout reviews, and three exact source shards cover its 232 callable contracts at the source-description layer. Role cells, actual usability, browser/native gameplay acceptance, and physical-play evidence remain uncredited. One additional transferWarriorCargo source export is recorded separately when present; it is not inserted into the frozen snapshot.',
     explicitPc11GuidanceGaps: [{
       exportName: 'submitWolfSupplySabotage',
       status: 'server-action-not-surfaced-to-member-ui',
@@ -533,13 +917,34 @@ const artifact = {
       sourceAnchorIds: ['supply.handler', 'supply.otherWolfControls', 'supply.receiptUi'],
     }],
   },
+  exportClassification: {
+    counts: {
+      sdkExports: classificationRows.length,
+      callableExports: classificationRows.filter(row => row.runtimeKind === 'callable').length,
+      scheduleExports: classificationRows.filter(row => row.runtimeKind === 'schedule').length,
+      backgroundExports: classificationRows.filter(row => row.runtimeKind === 'background').length,
+    },
+    sourceClassificationCounts: classificationCounts,
+    countsBasis: 'The canonical snapshot retains its 241 SDK export / 232 callable / 3 schedule / 6 background census and the generator verifies those bindings against the selected product source. A supplemental transferWarriorCargo row is recorded separately when that named export exists; this static generation does not inspect a current Functions build or SDK endpoint metadata.',
+    meaning: 'Every callable and noninteractive export in the preserved canonical snapshot has a source classification row. The 232 baseline callable rows have explicit source contract reviews; a current transferWarriorCargo source delta is recorded outside that frozen snapshot when present. Static references do not prove rendering, enablement, runtime eligibility, or usability. No role cells or acceptance status are changed.',
+    operationBoundary: 'The 20 primary annotations, 6 Scout reviews, and 206 endings/workspace/demo shard rows trace all 232 baseline callable actors, requirements, costs, consequences, blockers, next actors, and guidance against current source. Source classifications provide zero role-cell, runtime usability, human/physical, or gameplay acceptance credit. The additional Warrior cargo endpoint is maintained as a separate current-source delta until the canonical snapshot is regenerated by its owner.',
+    physicalBoundary: 'No physical/human gameplay gap is inferred from source references. Human device and physical play evidence remain unclaimed.',
+    rows: classificationRows,
+  },
   annotationPolicy: {
-    classifications: ['served-ui-path', 'legacy/deprecated-internal-compatibility', 'external/manual-only', 'genuinely-unserved'],
+    classifications: ['served-ui-path', 'read-projection-support', 'legacy/deprecated-internal-compatibility',
+      'external/manual-only', 'genuinely-unserved', 'client-source-reference-unverified',
+      'no-client-reference-unclassified', 'legacy-deprecated', 'external-manual-only',
+      'automatic-scheduled', 'background-trigger'],
     clientTraceLimit: 'A source-tree scan and import/call-site trace do not prove a rendered control is visible or usable. No absence claim is a gameplay acceptance claim.',
-    anchorPolicy: 'Every reviewed actor, requirement, cost, consequence, blocker, next-actor and guidance summary refers to top-level source declaration line ranges and full-file SHA-256 hashes.',
+    anchorPolicy: 'Every reviewed actor, requirement, cost, consequence, blocker, next-actor and guidance summary refers to a top-level source declaration or export binding with line ranges and a full-file SHA-256 hash.',
     privacy: 'No private source text, secret player values, hidden result payloads, or credentials are copied into this artifact.',
   },
   sourceAnchors,
   annotations: reviewed,
+  supplementalSourceReviews,
+  actionSourceReviews: [...endingSourceReviews, ...workspaceSourceReviews, ...demoSourceReviews],
+  sourceReviewShards: { endings: endingSourceReviews, workspaces: workspaceSourceReviews, demo: demoSourceReviews },
+  sourceInventoryDeltas: sourceInventoryDeltaRows,
 };
 await writeFile(outputPath, `${JSON.stringify(artifact, null, 2)}\n`);

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { spawnSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 
 const repositoryDirectory = resolve(fileURLToPath(new URL('..', import.meta.url)));
+const productSourceRoot = resolve(process.env.PC10_REVIEW_SOURCE_ROOT ?? repositoryDirectory);
 const expectedNames = [
   'resolveMaliadesMedium', 'resolveMaliadesShort', 'setShipPreference',
   'submitWolfSupplySabotage', 'elevateToGm', 'rollDice',
@@ -41,12 +42,23 @@ test('review annotations preserve the canonical matrix and anchor each concrete 
     assert.equal(artifact.sourceBinding.buildArtifactsIncluded, false);
     assert.equal(artifact.sourceBinding.functionsSource.sha256.length, 64);
     assert.equal(artifact.sourceBinding.clientSource.sha256.length, 64);
+    assert.equal(artifact.sourceBinding.ownerRevision,
+      execFileSync('git', ['log', '-n', '1', '--format=%H', 'HEAD', '--', 'functions/src', 'src'],
+        { cwd: productSourceRoot, encoding: 'utf8' }).trim());
     assert.deepEqual(artifact.annotations.map(row => row.exportName), expectedNames);
+    assert.deepEqual([artifact.sourceReviewShards.endings.length, artifact.sourceReviewShards.workspaces.length,
+      artifact.sourceReviewShards.demo.length], [68, 69, 69]);
+    assert.equal(artifact.actionSourceReviews.length, 206);
+    assert.equal(artifact.coverageAccounting.sourceReviewedCanonicalCallableRows, 232);
+    assert.equal(artifact.coverageAccounting.sourceInventoryDeltaCallableRows, 1);
+    assert.equal(artifact.sourceInventoryDeltas[0].exportName, 'transferWarriorCargo');
+    assert.equal(artifact.coverageAccounting.callableRoleCellsReviewed, 0);
+    assert.equal(artifact.coverageAccounting.gameplayAcceptanceCredit, 0);
 
     const anchors = new Map(artifact.sourceAnchors.map(anchor => [anchor.id, anchor]));
     assert.equal(anchors.size, artifact.sourceAnchors.length);
     for (const anchor of anchors.values()) {
-      const source = readFileSync(join(repositoryDirectory, anchor.path), 'utf8');
+      const source = readFileSync(join(productSourceRoot, anchor.path), 'utf8');
       assert.equal(sha256(source), anchor.sha256, `${anchor.id} is bound to its actual source file`);
       const lines = source.split(/\r?\n/);
       assert.ok(anchor.startLine >= 1 && anchor.endLine >= anchor.startLine);
