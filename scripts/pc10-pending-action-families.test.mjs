@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { validateElectionPlan } from './pc10-politics-press-proof.mjs';
+import { validateElectionPlan, validateElectionTieDecision } from './pc10-politics-press-proof.mjs';
 import { validateCrisisChoice } from './pc10-crisis-voyage-proof.mjs';
 import { validatePosseChoice, validateArrestDispositionChoice } from './pc10-arrest-posse-proof.mjs';
 import { assertRequiredCrisisChoices } from './pc10-crisis-voyage-proof.mjs';
@@ -27,6 +27,17 @@ test('election callbacks require explicit source policy and an independent secre
     ...valid.ballotsByRole, 'captain-b': { presidentCandidateRoleId: 'outsider' },
   } }), /eligible candidate/i);
   assert.throws(() => validateElectionPlan({ ...valid, policy: { ...valid.policy, closeCycle: 0 } }), /cycle/i);
+});
+
+test('facilitator election tie choices must name distinct original roster roles explicitly', () => {
+  assert.equal(validateElectionTieDecision({ presidentCandidateRoleId: 'captain-a' }), true);
+  assert.equal(validateElectionTieDecision({ vicePresidentCandidateRoleId: 'engineer-a' }), true);
+  assert.equal(validateElectionTieDecision({ presidentCandidateRoleId: 'captain-a',
+    vicePresidentCandidateRoleId: 'engineer-a' }), true);
+  assert.throws(() => validateElectionTieDecision({}), /explicit.*tied candidate/i);
+  assert.throws(() => validateElectionTieDecision({ presidentCandidateRoleId: 'captain-a',
+    vicePresidentCandidateRoleId: 'captain-a' }), /distinct/i);
+  assert.throws(() => validateElectionTieDecision({ presidentCandidateUid: 'raw-uid' }), /unknown/i);
 });
 
 test('crisis choices accept only source-defined private GM actions and linked instructions', () => {
