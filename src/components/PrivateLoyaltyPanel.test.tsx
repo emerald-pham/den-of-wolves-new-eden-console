@@ -128,22 +128,22 @@ it('offers only positive cargo on the active cover-role shuttle and commits a pr
     assignedRoleId: 'dione-engineer', activeConsoleRoleId: 'dione-engineer',
   });
   useSessionStore.getState().setPrivateLoyalty({ kind: 'wolf-agent', suspicion: 0 });
-  vi.mocked(submitWolfSupplySabotage).mockResolvedValue({
+  vi.mocked(submitWolfSupplySabotage).mockImplementation(async (_shuttleId, _resourceId, requestId) => ({
     status: 'committed', type: 'wolf-supply-sabotage', sessionId: 's1',
-    requestId: 'wolf-sabotage-1', cycle: 2, revision: 1,
+    requestId, cycle: 2, revision: 1,
     coverRoleId: 'dione-engineer', shuttleId: 'maliades', resourceId: 'fuel',
     destroyedAmount: 2, remainingAmount: 3, suspicion: 4,
     actorUid: 'u2', actorRoleId: 'dione-engineer', vesselId: 'maliades', turn: 2,
-    phase: 'active', idempotencyKey: 'wolf-sabotage-1',
-    auditId: 'wolf-supply-sabotage-wolf-sabotage-1',
-  });
+    phase: 'active', idempotencyKey: requestId,
+    auditId: `wolf-supply-sabotage-${requestId}`,
+  }));
 
   render(<PrivateLoyaltyPanel />);
   const target = screen.getByRole('combobox', { name: 'Shuttle cargo target' });
   expect(within(target).getAllByRole('option').map((option) => option.textContent)).toEqual([
     'Choose a shuttle cargo resource', 'F.S.F. Maliades // Strytium Fuel (5)',
   ]);
-  expect(screen.getByText(/one Wolf action per active cycle/i)).toBeVisible();
+  expect(screen.getByText(/one Wolf action for this active cycle/i)).toBeVisible();
   const sabotage = screen.getByRole('button', { name: 'Sabotage selected supply' });
   expect(sabotage).toBeDisabled();
 
@@ -175,15 +175,15 @@ it('reuses the same sabotage request identity after an uncertain transport failu
   useSessionStore.getState().setPrivateLoyalty({ kind: 'wolf-agent', suspicion: 0 });
   vi.mocked(submitWolfSupplySabotage)
     .mockRejectedValueOnce(new Error('Temporary transport failure'))
-    .mockResolvedValueOnce({
+    .mockImplementationOnce(async (_shuttleId, _resourceId, requestId) => ({
       status: 'committed', type: 'wolf-supply-sabotage', sessionId: 's1',
-      requestId: 'wolf-sabotage-retry', cycle: 2, revision: 1,
+      requestId, cycle: 2, revision: 1,
       coverRoleId: 'dione-engineer', shuttleId: 'maliades', resourceId: 'fuel',
       destroyedAmount: 2, remainingAmount: 3, suspicion: 4,
       actorUid: 'u2', actorRoleId: 'dione-engineer', vesselId: 'maliades', turn: 2,
-      phase: 'active', idempotencyKey: 'wolf-sabotage-retry',
-      auditId: 'wolf-supply-sabotage-wolf-sabotage-retry',
-    });
+      phase: 'active', idempotencyKey: requestId,
+      auditId: `wolf-supply-sabotage-${requestId}`,
+    }));
 
   render(<PrivateLoyaltyPanel />);
   const target = screen.getByRole('combobox', { name: 'Shuttle cargo target' });
