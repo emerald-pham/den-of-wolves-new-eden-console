@@ -61,9 +61,12 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
       await checkbox.check();
       assert.equal(await checkbox.isChecked(), true, 'Every regulation must be explicitly acknowledged.');
     }
+    const acknowledge = waiver.getByRole('button', { name: 'Acknowledge regulations and continue', exact: true });
     try {
-      await waiver.getByRole('button', { name: 'Acknowledge regulations and continue', exact: true })
-        .and(page.locator(':enabled')).click();
+      const deadline = Date.now() + 30_000;
+      while (!(await acknowledge.isEnabled()) && Date.now() < deadline) await delay(100);
+      assert.equal(await acknowledge.isEnabled(), true, 'The unchanged consent timer and all regulations must enable confirmation.');
+      await acknowledge.click();
     } catch (error) {
       const captureDirectory = process.env.PC10_EVIDENCE_DIRECTORY;
       if (captureDirectory) {
@@ -72,7 +75,9 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
         await writeFile(`${captureDirectory}/${label}-consent-failure.json`, `${JSON.stringify({
           label, message: error.message, regulationChecks: await regulations.evaluateAll(inputs => inputs.map(input => input.checked)),
           consentStatus: await waiver.getByRole('status').allTextContents(),
-          buttonDisabled: await waiver.getByRole('button', { name: 'Acknowledge regulations and continue', exact: true }).isDisabled(),
+          buttonDisabled: await acknowledge.isDisabled({ timeout: 1_000 }).catch(() => null),
+          waiverVisible: await waiver.isVisible(),
+          documentUrl: page.url(),
           identity: await observe(), browserErrors: errors,
         }, null, 2)}\n`);
       }
