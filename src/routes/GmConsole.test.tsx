@@ -1894,6 +1894,70 @@ it('keeps held core seats and Press stations out of facilitator casting controls
   expect(releaseRole).not.toHaveBeenCalled();
 });
 
+function preparedCastingActor(seatChanges: Record<string, unknown> = {}, cached = false,
+  playerChanges: Record<string, unknown> = {}) {
+  const current = useSessionStore.getState().session!;
+  useSessionStore.getState().setSession({ ...current, phase: 'casting', currentTurn: 0,
+    playerCount: 20, expansion: 'capybara', activeRoleIds: recommendedRoleIds(20) });
+  useSessionStore.getState().setGmInstance(local);
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness(cached ? 'cache' : 'server');
+  useSessionStore.getState().setSeats([{ id: 'admiral', sessionId: 's1', roleId: 'admiral',
+    label: 'Admiral', factionId: 'aegis', status: 'claimed', holderUid: 'crew-admiral', claimedAt: '2026-01-01T00:00:00.000Z',
+    ...seatChanges } as never]);
+  streamInstances([local]);
+  vi.mocked(subscribeConnectedPlayers).mockImplementation((_sessionId, onPlayers) => {
+    onPlayers([{ uid: 'crew-admiral', sessionId: 's1', displayName: 'DEMO // admiral', role: 'player',
+      seatId: 'admiral', assignedRoleId: null, activeConsoleRoleId: null, joinedAt: '2026-01-01T00:00:00.000Z', ...playerChanges }]);
+    return vi.fn();
+  });
+}
+
+it('offers only the same canonical held role to an unassigned prepared actor through normal GM casting', async () => {
+  preparedCastingActor();
+  vi.mocked(assignRole).mockResolvedValue('applied');
+  renderConsole();
+  const casting = await screen.findByRole('region', { name: 'Facilitator casting' });
+  const role = within(casting).getByRole('combobox', { name: 'Role for DEMO // admiral' });
+  expect(within(role).getAllByRole('option')).toHaveLength(1);
+  expect(role).toHaveValue('admiral');
+  expect(within(role).queryByRole('option', { name: 'Wing Commander' })).not.toBeInTheDocument();
+  fireEvent.click(within(casting).getByRole('button', { name: 'Assign role to DEMO // admiral' }));
+  await waitFor(() => expect(assignRole).toHaveBeenCalledWith('crew-admiral', 'admiral'));
+});
+
+it.each([{ roleId: undefined }, { roleId: 'wing-commander' }, { holderUid: 'foreign-actor' },
+  { status: 'open' }, { sessionId: 'other-session' }, { id: 'wing-commander' }])('keeps malformed, foreign or stale held seats restricted in casting: %j', async changed => {
+  preparedCastingActor(changed);
+  renderConsole();
+  const casting = await screen.findByRole('region', { name: 'Facilitator casting' });
+  expect(within(casting).queryByRole('combobox', { name: 'Role for DEMO // admiral' })).not.toBeInTheDocument();
+  expect(within(casting).getByText(/Station held.*release it before casting/)).toBeInTheDocument();
+  expect(assignRole).not.toHaveBeenCalled();
+});
+
+it.each([{ assignedRoleId: 'wing-commander' }, { sessionId: 'other-session' }])('keeps mismatched player assignment or membership out of same-held-seat casting: %j', async changed => {
+  preparedCastingActor({}, false, changed);
+  renderConsole();
+  const casting = await screen.findByRole('region', { name: 'Facilitator casting' });
+  expect(within(casting).queryByRole('combobox', { name: 'Role for DEMO // admiral' })).not.toBeInTheDocument();
+  expect(assignRole).not.toHaveBeenCalled();
+});
+
+it('does not offer same-held-seat casting from a cached projection or an active game', async () => {
+  preparedCastingActor({}, true);
+  renderConsole();
+  const casting = await screen.findByRole('region', { name: 'Facilitator casting' });
+  expect(within(casting).queryByRole('combobox', { name: 'Role for DEMO // admiral' })).not.toBeInTheDocument();
+  await act(async () => {
+    const current = useSessionStore.getState().session!;
+    useSessionStore.getState().setSession({ ...current, phase: 'active', currentTurn: 1 });
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+  });
+  expect(screen.queryByRole('region', { name: 'Facilitator casting' })).not.toBeInTheDocument();
+  expect(assignRole).not.toHaveBeenCalled();
+});
+
 it('shows fleet DRADIS and jumps between ship perspectives', async () => {
   const user = userEvent.setup();
   useSessionStore.getState().setGmInstance(local);
