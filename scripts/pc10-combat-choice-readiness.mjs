@@ -131,7 +131,7 @@ export async function waitForWolfChoiceReadiness({ original, expected, inspectAc
       const readOriginalGm = { ...denial.originalGm,
         airspace: originalGm.airspace, turnStatePhase: originalGm.turnStatePhase };
       let priorActor = original, priorGm = originalGm, priorReadGm = denial.originalGm;
-      async function strictAuthority() {
+      const strictAuthority = async () => {
         budget();
         const actor = await inspectActor(); budget();
         assertClosedReadAuthority(actor, original, expected);
@@ -148,7 +148,7 @@ export async function waitForWolfChoiceReadiness({ original, expected, inspectAc
         assertClosedReadAuthority(readGm, readOriginalGm, expected);
         assertClosedReadWindow(readGm, priorReadGm);
         priorActor = actor; priorGm = gm; priorReadGm = readGm;
-      }
+      };
       await strictAuthority();
       // Exactly one GM read of the original session path, inside this same
       // deadline. There is no SDK retry, polling, paint or mutation here.
