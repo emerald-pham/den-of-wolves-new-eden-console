@@ -22,6 +22,7 @@ export interface WolfBoardingCraftAuthorityInput {
   readonly roleHolders: readonly Readonly<{ uid: string; roleId: string }>[];
   readonly playerUids: readonly string[];
   readonly retainedShuttles: unknown;
+  readonly consumedShuttleIds?: readonly string[];
 }
 
 export interface WolfBoardingCraftAuthority {
@@ -99,9 +100,11 @@ export function deriveWolfBoardingSupportCraft(
   const retained = parseRetainedShuttles(input.retainedShuttles);
   if (!retained) throw new Error('Retained shuttle authority is malformed.');
   const supportCraft = roleOwnedCraftForRoles(input.activeRoleIds)
-    .filter((craft) => craft.kind === 'shuttle' && craft.boardingSupport !== undefined);
+    .filter((craft) => craft.kind === 'shuttle' && craft.boardingSupport !== undefined &&
+      !input.consumedShuttleIds?.includes(craft.id));
   const supportIds = new Set(supportCraft.map(({ id }) => id));
-  validateSupportVisitHistory(supportIds, input.dockings, input.visits, input.activeVesselIds, retained);
+  validateSupportVisitHistory(supportIds, input.dockings,
+    input.visits.filter(visit => !input.consumedShuttleIds?.includes(visit.shuttleId)), input.activeVesselIds, retained);
   const dockById = new Map(input.dockings.map((docking) => [docking.shuttleId, docking.shipId]));
   const rawControl = input.control === undefined
     ? initialShuttleControl(supportCraft, input.roleHolders)

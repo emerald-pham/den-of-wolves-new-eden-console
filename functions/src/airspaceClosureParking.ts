@@ -1,3 +1,4 @@
+import { CANDIDATE_ENGINEERING_SHUTTLES } from './candidateAvailability';
 import {
   ROLE_OWNED_CRAFT_CATALOG,
   roleOwnedCraftForRoles,
@@ -43,7 +44,14 @@ export function resolveAirspaceClosureShuttleParking(input: Readonly<{
   cycle: number;
   closedAt: string;
   visitLog: unknown;
+  /** Derived only from the validated private Ring reservation ledger. */
+  consumedShuttleIds?: readonly string[];
 }>): AirspaceClosureParkingResult {
+  const consumed = new Set(input.consumedShuttleIds ?? []);
+  if (consumed.size !== (input.consumedShuttleIds?.length ?? 0) ||
+      [...consumed].some(id => !(CANDIDATE_ENGINEERING_SHUTTLES as readonly string[]).includes(id))) {
+    throw new Error('Consumed Engineering Shuttle authority is malformed.');
+  }
   const closedAtMs = Date.parse(input.closedAt);
   if (!Number.isSafeInteger(input.cycle) || input.cycle < 1 || !Number.isFinite(closedAtMs) ||
       input.activeRoleIds.length === 0 ||
@@ -86,7 +94,7 @@ export function resolveAirspaceClosureShuttleParking(input: Readonly<{
     ...transits.map((transit) => transit.shuttleId),
   ]);
   const enabledShuttles = roleOwnedCraftForRoles(input.activeRoleIds)
-    .filter((craft) => craft.kind === 'shuttle')
+    .filter((craft) => craft.kind === 'shuttle' && !consumed.has(craft.id))
     .filter((craft) => craft.enabledMode === 'standard' || currentShuttleIds.has(craft.id));
   const shuttleIds = enabledShuttles.map((craft) => craft.id);
   const activeShuttleIds = new Set(shuttleIds);
@@ -123,11 +131,12 @@ export function resolveAirspaceClosureShuttleParking(input: Readonly<{
   }
 
   if (!shuttleDockingsAreParked(parking.dockings, input.activeVesselIds) ||
-      !shuttleDockingsMatchRoleOwnedCraft(input.activeRoleIds, parking.dockings)) {
+      !shuttleDockingsMatchRoleOwnedCraft(input.activeRoleIds, parking.dockings, [...consumed])) {
     throw new Error('The resulting shuttle docking ledger is incomplete at airspace closure.');
   }
 
-  const visits = parseShuttleArrivalVisitLog(input.visitLog, dockings, input.activeVesselIds);
+  const parsedVisits = parseShuttleArrivalVisitLog(input.visitLog, dockings, input.activeVesselIds);
+  const visits = parsedVisits?.filter(visit => !consumed.has(visit.shuttleId));
   if (!visits || visits.some((visit) => !activeShuttleIds.has(visit.shuttleId))) {
     throw new Error('The shuttle visit history is malformed at airspace closure.');
   }

@@ -1,3 +1,4 @@
+import { parseCandidateCraftReservations } from './candidateAvailability';
 import { HttpsError } from 'firebase-functions/v2/https';
 import type { Transaction } from 'firebase-admin/firestore';
 import { boardingSecurityTeamAuthority } from './boardingSecurityTeams';
@@ -135,6 +136,7 @@ export function createBoardingSecurityTeamCallable(
       let authority;
       try {
         authority = boardingSecurityTeamAuthority({
+          consumedShuttleIds: Object.keys(parseCandidateCraftReservations(session.get('candidateCraftReservations'))),
           activeRoleIds: session.get('activeRoleIds'),
           activeVesselIds: session.get('activeVesselIds'),
           vesselMode: manifest.vesselMode,

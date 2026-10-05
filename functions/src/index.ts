@@ -23,7 +23,7 @@ import { recordCandidatePlanCheckpoint } from './candidatePlanCheckpoint';
 import { createCandidateCallables } from './candidatePathsCallable';
 import { candidateStationLiberationFromFinalization } from './candidateStationLiberation';
 import { commitTerminal } from './sessionDebrief';
-import { requireCandidateVesselsAvailable, requireCandidateCraftAvailable, requireCandidateCraftActionAvailable, candidateAvailableVesselIds } from './candidateAvailability';
+import { requireCandidateVesselsAvailable, requireCandidateCraftAvailable, requireCandidateCraftActionAvailable, candidateAvailableVesselIds, parseCandidateCraftReservations } from './candidateAvailability';
 import {
   candidateRevealProjectionForCurrentFleetMember,
   type CandidateReveal,
@@ -3469,7 +3469,8 @@ function requireWolfAttackParking(
   parkedAt: string,
   requestId: string,
 ): WolfAttackParkingSnapshot {
-  const initialDockings = initialShuttleDockingsForRoles(activeRoleIds);
+  const consumed = new Set(Object.keys(parseCandidateCraftReservations(session.get('candidateCraftReservations'))));
+  const initialDockings = initialShuttleDockingsForRoles(activeRoleIds).filter(docking => !consumed.has(docking.shuttleId));
   const storedDockings = session.get('shuttleDockings');
   const retained = parseRetainedShuttles(session.get('retainedShuttles'));
   if (!retained) {
@@ -3486,6 +3487,7 @@ function requireWolfAttackParking(
       : initialDockings.map((docking) => docking.shuttleId),
   );
   const ownedCraft = roleOwnedCraftForRoles(activeRoleIds)
+    .filter((craft) => !consumed.has(craft.id))
     .filter((craft) => craft.enabledMode === 'standard' || dockingIds.has(craft.id) || retainedIds.has(craft.id));
   const expectedShuttles = ownedCraft.filter((craft) => craft.kind === 'shuttle');
   // The locked vessel roster represents every shuttle initially docked with
@@ -3627,6 +3629,7 @@ function requireWolfAttackParking(
     const latestVisit = new Map<string, 'docked' | 'departed'>();
     shuttleVisitLog = [];
     for (const entry of rawVisitLog) {
+      if (isRecord(entry) && typeof entry.shuttleId === 'string' && consumed.has(entry.shuttleId)) continue;
       if (!isRecord(entry) || typeof entry.shuttleId !== 'string' ||
           !expectedShuttleIds.has(entry.shuttleId) ||
           typeof entry.id !== 'string' || typeof entry.shipId !== 'string' ||
@@ -11022,7 +11025,7 @@ export const dealPrivateInitialCards = auditedOnCall<{
       throw commandError('failed-precondition', 'The initial mission lifecycle could not be validated.', 'conflict');
     }
     requireCandidateCraftActionAvailable(authority.session, participantCrafts.flatMap(participant => participant.craftIds),
-      participants.flatMap(participant => { const shipId = shipForRole(participant.roleId); return shipId ? [shipId] : []; }));
+      participants.flatMap(participant => { const shipId = typeof participant.roleId === 'string' ? shipForRole(participant.roleId) : undefined; return shipId ? [shipId] : []; }));
     const commitments = nextMissionCraftCommitments(authority.session.get('missionCraftCommitments'), {
       missionId, sourceCycle: opportunity.sourceCycle, participantCrafts, status: 'active',
     });
@@ -11264,6 +11267,18 @@ function isAwayMissionDiscardReadyReply(value: unknown, sessionId: string): valu
       (Number.isSafeInteger(reply.currentSetupRevision) && (reply.currentSetupRevision as number) >= 0));
 }
 
+function requireCandidateMissionAvailable(session: DocumentSnapshot, mission: DocumentSnapshot,
+  participants: readonly Record<string, unknown>[]): void {
+  const rawCrafts = mission.get('participantCrafts');
+  if (rawCrafts !== undefined && !Array.isArray(rawCrafts)) {
+    throw commandError('failed-precondition', 'The mission craft authority is malformed.', 'conflict');
+  }
+  const craftIds = (Array.isArray(rawCrafts) ? rawCrafts : []).flatMap(participant =>
+    isRecord(participant) && Array.isArray(participant.craftIds) ? participant.craftIds.filter((id): id is string => typeof id === 'string') : []);
+  requireCandidateCraftActionAvailable(session, craftIds,
+    participants.flatMap(participant => { const shipId = shipForRole(participant.roleId); return shipId ? [shipId] : []; }));
+}
+
 /** Record that the facilitator has finished extra-card selection and players may discard. */
 export const openPrivateMissionDiscards = auditedOnCall<{
   sessionId?: unknown;
@@ -11349,6 +11364,7 @@ export const openPrivateMissionDiscards = auditedOnCall<{
         storedHandIds.some((handId) => typeof handId !== 'string')) {
       throw commandError('failed-precondition', 'The away-mission hand roster is malformed.', 'malformed-input');
     }
+    requireCandidateMissionAvailable(authority.session, missionSnapshot, participants);
     const pointerRefs = storedHandIds.map((handId) =>
       db.doc(`sessions/${command.sessionId}/awayMissionHandPointers/${handId as string}`));
     const pointerSnapshots = await Promise.all(pointerRefs.map((pointerRef) => tx.get(pointerRef)));
@@ -11569,6 +11585,8 @@ export const discardPrivateMissionCard = auditedOnCall<{
     if (!participant) {
       throw new HttpsError('permission-denied', 'Only a current mission participant may discard that hand.');
     }
+    requireCandidateActionAvailable(session, player);
+    requireCandidateMissionAvailable(session, missionSnapshot, participants);
     if (!pointerSnapshot.exists || pointerSnapshot.get('sessionId') !== command.sessionId ||
         pointerSnapshot.get('participantUid') !== uid || pointerSnapshot.get('missionId') !== command.missionId ||
         pointerSnapshot.get('handId') !== handId || pointerSnapshot.get('phase') !== 'discarding' ||
@@ -31583,6 +31601,7 @@ function wolfBoardingCurrentAuthority(
   try {
     supportCraft = deriveWolfBoardingSupportCraft({
       activeRoleIds, activeVesselIds, dockings,
+      consumedShuttleIds: Object.keys(parseCandidateCraftReservations(session.get('candidateCraftReservations'))),
       visits: supportVisits,
       control: session.get('shuttleControl'), fuelled: session.get('shuttleFuelled'),
       roleHolders, playerUids: players.filter(currentRolePlayer)
@@ -31593,7 +31612,7 @@ function wolfBoardingCurrentAuthority(
     throw commandError('failed-precondition',
       error instanceof Error ? error.message : 'The authoritative boarding shuttle support is malformed.', 'conflict');
   }
-  return { supportCraft, playerShipByUid };
+  return { supportCraft: supportCraft.filter(craft => candidateAvailableVesselIds(session, [craft.hostShipId]).length > 0), playerShipByUid };
 }
 
 function wolfBoardingProtocolSnapshot(
@@ -33265,6 +33284,7 @@ export const startWolfConsoleVisit = auditedOnCall<{
       'Wolf console visit',
     );
     if (replay) return replay;
+    requireCandidateActionAvailable(session, targetPlayer, [observation.targetShipId]);
     requireActiveGameplayPhase(session);
     const cycle = sessionTurn(session.get('currentTurn'));
     if (cycle < 1 || cycle !== observation.expectedCycle) {
@@ -33518,6 +33538,7 @@ export const resolveWolfConsoleSabotage = auditedOnCall<{
     const [targetPlayer, loyalty, assignment, currentAction] = await Promise.all([
       tx.get(targetPlayerRef), tx.get(loyaltyRef), tx.get(assignmentRef), tx.get(actionRef),
     ]);
+    requireCandidateActionAvailable(session, targetPlayer, [targetShipId]);
     const authorization = wolfActionAuthorization({
       actorUid,
       active: isActivePlayer(targetPlayer),
@@ -33920,6 +33941,7 @@ export const submitWolfSupplySabotage = auditedOnCall<{
         'unauthorized',
       );
     }
+    requireCandidateActionAvailable(session, player, [], [submission.shuttleId]);
     const pressHolderUid = session.get('pressHolderUid');
     if (authorization.coverRoleId === 'press-officer' && (
       session.get('pressEnabled') !== true ||
@@ -34639,6 +34661,7 @@ export const submitWolfHomingBeacon = auditedOnCall<{
         'unauthorized',
       );
     }
+    requireCandidateActionAvailable(session, player);
     const pressHolderUid = session.get('pressHolderUid');
     if (authorization.coverRoleId === 'press-officer' && (
       session.get('pressEnabled') !== true ||
@@ -34927,6 +34950,7 @@ export const submitWolfIntelligence = auditedOnCall<{
         'unauthorized',
       );
     }
+    requireCandidateActionAvailable(session, player);
     const pressHolderUid = session.get('pressHolderUid');
     if (authorization.coverRoleId === 'press-officer' && (
       session.get('pressEnabled') !== true ||
@@ -37130,7 +37154,7 @@ export const scavengeDestroyedShipStores = auditedOnCall<{
         !isLiveGmInstance(instance, player, uid)) {
       throw new HttpsError('permission-denied', 'Active GM instance required.');
     }
-    requirePlayerShipActionAuthority(player);
+    requirePlayerShipActionAuthority(player, true);
     const replay = vesselActionReceiptReply(prior, fingerprint, 'destroyed-ship store scavenge');
     if (replay) {
       ensureVesselActionAuditForReplay(
@@ -37146,6 +37170,7 @@ export const scavengeDestroyedShipStores = auditedOnCall<{
         'conflict',
       );
     }
+    requireCandidateActionAvailable(session, player, [change.sourceShipId, ...Object.keys(change.allocations)]);
     requireActiveGameplayPhase(session);
     if (priorState.exists) {
       throw commandError(

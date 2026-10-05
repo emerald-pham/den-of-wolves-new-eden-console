@@ -1,3 +1,4 @@
+import { CANDIDATE_ENGINEERING_SHUTTLES } from './candidateAvailability';
 /**
  * The server-side starting ownership catalog for craft that are represented by
  * the current console. Ownership is a printed role fact, so this catalog never
@@ -211,13 +212,17 @@ export function shuttleDockingsAreParked(
 export function shuttleDockingsMatchRoleOwnedCraft(
   activeRoleIds: readonly string[],
   shuttleDockings: readonly { shuttleId: string; shipId: string }[],
+  consumedShuttleIds: readonly string[] = [],
 ): boolean {
+  if (!Array.isArray(consumedShuttleIds) || new Set(consumedShuttleIds).size !== consumedShuttleIds.length ||
+      consumedShuttleIds.some(id => !(CANDIDATE_ENGINEERING_SHUTTLES as readonly string[]).includes(id)) ||
+      shuttleDockings.some(docking => consumedShuttleIds.includes(docking.shuttleId))) return false;
   if (!shuttleDockingsAreKnownAndUnique(shuttleDockings)) return false;
   if (shuttleDockings.some((docking) =>
     !shuttleHostIsAllowed(docking.shuttleId, docking.shipId))) return false;
   const seen = new Set(shuttleDockings.map((docking) => docking.shuttleId));
   const expected = new Set(roleOwnedCraftForRoles(activeRoleIds)
-    .filter((craft) => craft.kind === 'shuttle')
+    .filter((craft) => craft.kind === 'shuttle' && !consumedShuttleIds.includes(craft.id))
     .filter((craft) => craft.enabledMode === 'standard' || seen.has(craft.id))
     .map((craft) => craft.id));
   return seen.size === expected.size && [...expected].every((craftId) => seen.has(craftId));

@@ -78,6 +78,7 @@ export function boardingSecurityTeamAuthority(input: Readonly<{
   shipResources: unknown;
   shuttleCargo: unknown;
   shuttleDockings: unknown;
+  consumedShuttleIds?: readonly string[];
 }>): BoardingSecurityTeamAuthority {
   const knownVessels = new Set(Object.keys(INITIAL_SHIP_RESOURCES));
   const activeRoleIds = Array.isArray(input.activeRoleIds) &&
@@ -140,7 +141,7 @@ export function boardingSecurityTeamAuthority(input: Readonly<{
     throw new Error('Enabled craft do not match the canonical starting manifest.');
   }
   const enabledShuttleIds = expectedStartingCraft.entries
-    .filter((craft) => craft.kind === 'shuttle')
+    .filter((craft) => craft.kind === 'shuttle' && !input.consumedShuttleIds?.includes(craft.id))
     .map((craft) => craft.id);
   const enabledShuttles = new Map(expectedStartingCraft.entries
     .filter((craft) => craft.kind === 'shuttle').map((craft) => [craft.id, craft]));
@@ -160,7 +161,7 @@ export function boardingSecurityTeamAuthority(input: Readonly<{
   }
   if (Object.keys(input.shipResources).length !== activeVesselIds.length ||
       Object.keys(input.shipResources).some((shipId) => !activeVesselIds.includes(shipId)) ||
-      Object.keys(input.shuttleCargo).some((shuttleId) => !enabledShuttleIds.includes(shuttleId))) {
+      Object.keys(input.shuttleCargo).some((shuttleId) => !enabledShuttles.has(shuttleId))) {
     throw new Error('Security-team ledgers do not match the active fleet and shuttle manifest.');
   }
 
