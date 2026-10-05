@@ -95,6 +95,14 @@ const callCount = (name: string) => sdk.call.mock.calls.filter(call => call[0] =
 function publishActor(next: Player) {
   actor = next;
   for (const listener of activeListeners(actorPath())) listener.next(snapshot(actorPath(), { ...actor }));
+  if ((!actor.assignedRoleId && !actor.replacementRoleId) || actor.replacementStatus != null) {
+    // Rules reauthorize the brief against its live player dependency. Losing
+    // that entitlement terminates its SDK reader, even if the brief is unchanged.
+    for (const listener of activeListeners(briefPath())) {
+      listener.active = false;
+      listener.error({ code: 'permission-denied' });
+    }
+  }
 }
 
 function publishSession(change: Record<string, unknown>) {
@@ -221,9 +229,10 @@ describe('role-brief audience and presence recovery', () => {
   });
 
   it.each([
-    ['assigned', 'admiral', undefined], ['replacement', undefined, 'commissar'],
-  ])('hydrates the %s player brief and fails closed on its denied reader', async (_label, assignment, replacement) => {
-    await mount('player', assignment, replacement);
+    ['assigned', 'player', 'admiral', undefined], ['replacement', 'player', undefined, 'commissar'],
+    ['assigned', 'gm', 'admiral', undefined], ['replacement', 'gm', undefined, 'commissar'],
+  ] as const)('hydrates the %s %s brief and fails closed on its denied reader', async (_label, role, assignment, replacement) => {
+    await mount(role, assignment, replacement);
     expect(useSessionStore.getState().roleBrief).toMatchObject({ assignmentUid: actor.uid,
       roleId: replacement ?? assignment });
     const listener = activeListeners(briefPath()).at(-1)!;
@@ -234,13 +243,13 @@ describe('role-brief audience and presence recovery', () => {
     expect(callCount('setGmControlsLocked')).toBe(before);
   });
 
-  it.each(['gm', 'unassigned', 'awaiting-re-role'] as const)(
+  it.each(['unassigned', 'awaiting-re-role'] as const)(
     'clears an assigned private brief on becoming %s and rejects retired private callbacks', async (transition) => {
       await mount('player', 'admiral');
       const oldListener = activeListeners(briefPath()).at(-1)!;
       expect(useSessionStore.getState().roleBrief?.roleId).toBe('admiral');
-      const next: Player = { ...actor, role: transition === 'gm' ? 'gm' : 'player',
-        assignedRoleId: transition === 'gm' ? 'admiral' : null, replacementRoleId: null,
+      const next: Player = { ...actor, role: 'player',
+        assignedRoleId: null, replacementRoleId: null,
         replacementStatus: transition === 'awaiting-re-role' ? 'awaiting-re-role' : null,
         activeConsoleRoleId: null, seatId: null };
       briefData = null;
@@ -252,6 +261,14 @@ describe('role-brief audience and presence recovery', () => {
       expect(useSessionStore.getState().roleBrief).toBeNull();
     },
   );
+
+  it('preserves a Rules-authorized own brief when a GM retains the matching assignment', async () => {
+    await mount('player', 'admiral');
+    act(() => publishActor({ ...actor, role: 'gm' }));
+    await advance(100);
+    expect(useSessionStore.getState().roleBrief).toMatchObject({ roleId: 'admiral', assignmentUid: actor.uid });
+    expect(activeListeners(briefPath())).toHaveLength(1);
+  });
 
   it('binds a newly assigned controller brief from the current player projection', async () => {
     await mount('player');
