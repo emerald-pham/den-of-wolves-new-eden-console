@@ -1317,7 +1317,8 @@ test('pre-activation accounting cannot use a different protocol request buffer f
   assert.equal(fixture.actor.observedCalls[1].bodyCompletedAt, null);
   assert.equal(fixture.actor.observedCalls[1].revision, null);
   assert.equal(fixture.actor.callableObservationFailures.length, 1);
-  assert.equal(fixture.actor.callableObservationFailures[0].protocolRequestHash, protocolHash('metadata-protocol-two'));
+  assert.equal(fixture.actor.callableObservationFailures[0].protocolRequestHash,
+    expectedProtocolRequestHash('metadata-protocol-two'));
   assert.equal(fixture.actor.callableObservationFailures[0].bodyFailureStage, 'stream-buffer-incomplete');
 });
 
