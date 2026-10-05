@@ -952,7 +952,7 @@ export function parseArrestCase(value: unknown, expectedSessionId: string, expec
   const raw = value as Record<string, unknown>;
   const allowed = new Set([
     'type', 'sessionId', 'targetUid', 'status', 'outcome', 'turn', 'revision',
-    'requiredPlayers', 'presentPlayers', 'deadlineCycle', 'createdBy', 'requestId', 'updatedAt', 'ruling',
+    'requiredPlayers', 'presentPlayers', 'deadlineCycle', 'createdBy', 'requestId', 'updatedAt', 'ruling', 'attendanceEvidence',
   ]);
   const sessionId = parseEntityId('session', raw.sessionId);
   const targetUid = parseEntityId('player', raw.targetUid);
@@ -966,6 +966,7 @@ export function parseArrestCase(value: unknown, expectedSessionId: string, expec
       !Number.isSafeInteger(raw.revision) || (raw.revision as number) < 1 ||
       !Number.isSafeInteger(raw.requiredPlayers) || (raw.requiredPlayers as number) < 0 ||
       !Number.isSafeInteger(raw.presentPlayers) || (raw.presentPlayers as number) < 0 ||
+      (raw.attendanceEvidence !== undefined && raw.attendanceEvidence !== 'simulated-demo') ||
       (raw.outcome === 'arrested'
         ? !Number.isSafeInteger(raw.deadlineCycle) || raw.deadlineCycle !== (raw.turn as number) + 1
         : raw.deadlineCycle !== undefined) ||
@@ -977,6 +978,7 @@ export function parseArrestCase(value: unknown, expectedSessionId: string, expec
     turn: raw.turn as number, revision: raw.revision as number,
     requiredPlayers: raw.requiredPlayers as number, presentPlayers: raw.presentPlayers as number,
     ...(raw.deadlineCycle === undefined ? {} : { deadlineCycle: raw.deadlineCycle as number }),
+    ...(raw.attendanceEvidence === 'simulated-demo' ? { attendanceEvidence: 'simulated-demo' as const } : {}),
     ...(typeof raw.ruling === 'string' ? { ruling: raw.ruling } : {}),
     requestId: raw.requestId,
     ...(raw.updatedAt instanceof FirestoreTimestamp ? { updatedAt: raw.updatedAt.toDate().toISOString() } : {}),

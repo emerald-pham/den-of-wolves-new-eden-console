@@ -2652,14 +2652,16 @@ export default function GmConsole() {
     presentPlayerUids: readonly string[],
     expectedCycle: number,
     expectedRevision: number,
+    attendanceEvidence?: 'simulated-demo',
   ) {
-    const result = await resolveArrestPosse(targetUid, presentPlayerUids, expectedCycle, expectedRevision);
+    const result = await resolveArrestPosse(targetUid, presentPlayerUids, expectedCycle, expectedRevision, attendanceEvidence);
     setArrestCase((current) => current && current.revision > result.revision ? current : {
       type: 'arrest-case', sessionId: result.sessionId, targetUid: result.targetUid,
       status: result.outcome === 'arrested' ? 'pending-resolution' : 'not-arrested',
       outcome: result.outcome, turn: result.turn, revision: result.revision,
       requiredPlayers: result.requiredPlayers, presentPlayers: result.presentPlayers,
       ...(result.deadlineCycle === undefined ? {} : { deadlineCycle: result.deadlineCycle }),
+      ...(result.attendanceEvidence ? { attendanceEvidence: result.attendanceEvidence } : {}),
       requestId: result.requestId,
     });
     return result;
@@ -4783,6 +4785,9 @@ export default function GmConsole() {
               calculationGeneration={arrestPosseCalculationGeneration}
               calculation={arrestPosseCalculation}
               presentPlayerOptions={arrestPossePresentPlayerOptions}
+              {...((session as unknown as { fullGameDemo?: { status: string; progression: string } })?.fullGameDemo?.status === 'active' &&
+                (session as unknown as { fullGameDemo?: { status: string; progression: string } })?.fullGameDemo?.progression === 'manual'
+                ? { attendanceEvidence: 'simulated-demo' as const } : {})}
               caseRecord={arrestCase}
               {...(typeof session?.currentTurn === 'number' ? { currentCycle: session.currentTurn } : {})}
               deadlineTeamPhaseOpen={Boolean(currentPhase?.turn === currentTurn && phaseReadout?.kind === 'team' &&
@@ -4796,6 +4801,7 @@ export default function GmConsole() {
                 requiredPlayers: arrestCase.requiredPlayers, presentPlayers: arrestCase.presentPlayers,
                 outcome: arrestCase.outcome,
                 ...(arrestCase.deadlineCycle === undefined ? {} : { deadlineCycle: arrestCase.deadlineCycle }),
+                ...(arrestCase.attendanceEvidence ? { attendanceEvidence: arrestCase.attendanceEvidence } : {}),
               } : null}
               onCalculate={runArrestPosseCalculation}
               onResolve={resolveArrestPosseAttendance}

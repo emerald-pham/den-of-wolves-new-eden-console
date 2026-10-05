@@ -27,6 +27,7 @@ interface ArrestPosseCalculatorProps {
   readonly caseRecord?: ArrestCase | null;
   readonly currentCycle?: number;
   readonly deadlineTeamPhaseOpen?: boolean;
+  readonly attendanceEvidence?: 'simulated-demo';
   readonly onCalculate: (
     targetUid: string,
     defenders: number,
@@ -38,6 +39,7 @@ interface ArrestPosseCalculatorProps {
     presentPlayerUids: readonly string[],
     expectedCycle: number,
     expectedRevision: number,
+    attendanceEvidence?: 'simulated-demo',
   ) => Promise<ArrestPosseOutcome>;
   readonly onDisposition?: (
     targetUid: string,
@@ -60,6 +62,7 @@ export default function ArrestPosseCalculator({
   caseRecord = null,
   currentCycle,
   deadlineTeamPhaseOpen = false,
+  attendanceEvidence,
   onCalculate,
   onResolve,
   onDisposition,
@@ -144,7 +147,9 @@ export default function ArrestPosseCalculator({
     setResolving(true);
     setErrorMessage(null);
     try {
-      const result = await onResolve(targetUid, selectedPresent, expectedCycle, latest.revision);
+      const result = attendanceEvidence === 'simulated-demo'
+        ? await onResolve(targetUid, selectedPresent, expectedCycle, latest.revision, attendanceEvidence)
+        : await onResolve(targetUid, selectedPresent, expectedCycle, latest.revision);
       setResolvedOutcome(result);
     } catch (cause) {
       setErrorMessage(normalizeCommandError(cause).message);
@@ -246,9 +251,11 @@ export default function ArrestPosseCalculator({
         </p>
       )}
       {onResolve && latest && inputsMatch && censusIsCurrent && (
-        <fieldset className="gm-arrest-posse__attendance" role="group" aria-label="Posse attendance"
+        <fieldset className="gm-arrest-posse__attendance" role="group"
+          aria-label={attendanceEvidence ? 'Simulated posse attendance' : 'Posse attendance'}
           disabled={resolving || busy}>
-          <legend>Players present in the arresting posse</legend>
+          <legend>{attendanceEvidence ? 'Virtual crew in the simulated posse' : 'Players present in the arresting posse'}</legend>
+          {attendanceEvidence && <p>Virtual crew demo: this choice does not record physical attendance.</p>}
           {presentPlayerOptions.filter((player) => player.uid !== targetUid).map((player) => (
             <label key={player.uid}>
               <input type="checkbox" checked={selectedPresent.includes(player.uid)}
@@ -265,7 +272,7 @@ export default function ArrestPosseCalculator({
       {onResolve && latest && inputsMatch && censusIsCurrent && (
         <button type="button" className="cic-action-button" disabled={!canResolve}
           onClick={() => void resolveAttendance()}>
-          {resolving ? 'Resolving attendance…' : 'Resolve attendance'}
+          {resolving ? 'Resolving attendance…' : attendanceEvidence ? 'Simulate attendance' : 'Resolve attendance'}
         </button>
       )}
       {visibleOutcome?.outcome === 'arrested' && visibleOutcome.deadlineCycle !== undefined && (
@@ -278,6 +285,7 @@ export default function ArrestPosseCalculator({
           Posse did not reach the required number.
         </p>
       )}
+      {visibleOutcome?.attendanceEvidence && <p role="status">Demo result based on simulated attendance.</p>}
       {activeCase && (
         <section className="gm-arrest-posse__case" aria-label="Arrested prisoner case">
           <h3>Prisoner ruling // due by Team Phase {activeCase.deadlineCycle}</h3>

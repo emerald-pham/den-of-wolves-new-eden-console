@@ -1950,6 +1950,7 @@ export interface ArrestPosseOutcome {
   readonly presentPlayers: number;
   readonly outcome: 'arrested' | 'not-arrested';
   readonly deadlineCycle?: number;
+  readonly attendanceEvidence?: 'simulated-demo';
 }
 
 /** Investigator-only detector result; hidden loyalty and accuracy never appear here. */
@@ -1987,6 +1988,7 @@ export interface ArrestCase {
   readonly requiredPlayers: number;
   readonly presentPlayers: number;
   readonly deadlineCycle?: number;
+  readonly attendanceEvidence?: 'simulated-demo';
   readonly ruling?: string;
   readonly requestId?: string;
   readonly updatedAt?: string;

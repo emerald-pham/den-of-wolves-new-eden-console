@@ -12664,16 +12664,19 @@ type ArrestPosseOutcomeResult = Readonly<{
   presentPlayers: number;
   outcome: 'arrested' | 'not-arrested';
   deadlineCycle?: number;
+  attendanceEvidence?: 'simulated-demo';
 }>;
 
 function arrestPosseOutcomeRequest(raw: unknown): Readonly<{
   sessionId: string; instanceId: string; requestId: string; expectedCycle: number;
   expectedRevision: number; targetUid: string; presentPlayerUids: readonly string[];
+  attendanceEvidence?: 'simulated-demo';
 }> {
   const fields = ['sessionId', 'instanceId', 'requestId', 'expectedCycle', 'expectedRevision',
     'targetUid', 'presentPlayerUids'];
-  if (!isRecord(raw) || Object.keys(raw).length !== fields.length ||
-      fields.some((field) => !Object.hasOwn(raw, field)) || Object.keys(raw).some((field) => !fields.includes(field)) ||
+  if (!isRecord(raw) || fields.some((field) => !Object.hasOwn(raw, field)) ||
+      Object.keys(raw).some((field) => !fields.includes(field) && field !== 'attendanceEvidence') ||
+      (Object.hasOwn(raw, 'attendanceEvidence') && raw.attendanceEvidence !== 'simulated-demo') ||
       !isCanonicalRequestId(raw.sessionId) || !isCanonicalRequestId(raw.instanceId) ||
       !isCanonicalRequestId(raw.requestId) || !isWireSafeEntityId(raw.targetUid) ||
       !Number.isSafeInteger(raw.expectedCycle) || (raw.expectedCycle as number) < 1 ||
@@ -12689,19 +12692,21 @@ function arrestPosseOutcomeRequest(raw: unknown): Readonly<{
     requestId: raw.requestId as string, expectedCycle: raw.expectedCycle as number,
     expectedRevision: raw.expectedRevision as number, targetUid: raw.targetUid as string,
     presentPlayerUids: [...raw.presentPlayerUids as string[]].sort(),
+    ...(raw.attendanceEvidence === 'simulated-demo' ? { attendanceEvidence: 'simulated-demo' as const } : {}),
   };
 }
 
 function isArrestPosseOutcomeResult(value: unknown, sessionId: string): value is ArrestPosseOutcomeResult {
   if (!isRecord(value)) return false;
   const keys = ['status', 'type', 'sessionId', 'requestId', 'turn', 'revision', 'targetUid',
-    'requiredPlayers', 'presentPlayers', 'outcome', 'deadlineCycle'];
+    'requiredPlayers', 'presentPlayers', 'outcome', 'deadlineCycle', 'attendanceEvidence'];
   return Object.keys(value).every((key) => keys.includes(key)) &&
     value.status === 'committed' && value.type === 'arrest-posse-outcome' && value.sessionId === sessionId &&
     isCanonicalRequestId(value.requestId) && Number.isSafeInteger(value.turn) && (value.turn as number) >= 1 &&
     Number.isSafeInteger(value.revision) && (value.revision as number) >= 1 && isWireSafeEntityId(value.targetUid) &&
     Number.isSafeInteger(value.requiredPlayers) && (value.requiredPlayers as number) >= 0 &&
     Number.isSafeInteger(value.presentPlayers) && (value.presentPlayers as number) >= 0 &&
+    (value.attendanceEvidence === undefined || value.attendanceEvidence === 'simulated-demo') &&
     (value.outcome === 'arrested' || value.outcome === 'not-arrested') &&
     (value.outcome === 'arrested'
       ? Number.isSafeInteger(value.deadlineCycle) && (value.deadlineCycle as number) === (value.turn as number) + 1
@@ -12712,6 +12717,7 @@ function isArrestPosseOutcomeResult(value: unknown, sessionId: string): value is
 export const resolveArrestPosse = onCall<{
   sessionId?: unknown; instanceId?: unknown; requestId?: unknown; expectedCycle?: unknown;
   expectedRevision?: unknown; targetUid?: unknown; presentPlayerUids?: unknown;
+  attendanceEvidence?: unknown;
 }>(async (request) => {
   const uid = requireUid(request.auth);
   const command = arrestPosseOutcomeRequest(request.data ?? {});
@@ -12726,7 +12732,8 @@ export const resolveArrestPosse = onCall<{
     action: 'resolve-arrest-posse', sessionId: command.sessionId, requestId: command.requestId,
     actorUid: uid, instanceId: command.instanceId, expectedRevision: command.expectedRevision,
     payload: { expectedCycle: command.expectedCycle, targetUid: command.targetUid,
-      presentPlayerUids: [...command.presentPlayerUids] },
+      presentPlayerUids: [...command.presentPlayerUids],
+      ...(command.attendanceEvidence ? { attendanceEvidence: command.attendanceEvidence } : {}) },
   };
 
   return db.runTransaction(async (tx): Promise<ArrestPosseOutcomeResult> => {
@@ -12741,6 +12748,13 @@ export const resolveArrestPosse = onCall<{
     if (replay) return replay;
     await rejectForeignLegacyM1Command(tx, command.sessionId, command.requestId, 'arrest-posse resolution', []);
     requireActiveGameplayPhase(authority.session);
+    const demo = authority.session.get('fullGameDemo');
+    const manualDemo = isRecord(demo) && demo.status === 'active' && demo.progression === 'manual';
+    if ((command.attendanceEvidence === 'simulated-demo') !== manualDemo) {
+      throw commandError('failed-precondition', manualDemo
+        ? 'Use the explicitly labeled virtual attendance control in this demo.'
+        : 'Simulated attendance is available only in an active manual full-game demo.', 'conflict');
+    }
     const turn = sessionTurn(authority.session.get('currentTurn'));
     if (turn !== command.expectedCycle) {
       throw commandError('failed-precondition', 'The cycle changed. Refresh the current posse calculation.', 'stale-revision');
@@ -12796,6 +12810,7 @@ export const resolveArrestPosse = onCall<{
       requestId: command.requestId, turn, revision: nextRevision, targetUid: command.targetUid,
       requiredPlayers: calculation.requiredPlayers, presentPlayers: command.presentPlayerUids.length,
       outcome, ...(deadlineCycle === undefined ? {} : { deadlineCycle }),
+      ...(command.attendanceEvidence ? { attendanceEvidence: command.attendanceEvidence } : {}),
     };
     tx.set(caseRef, {
       type: 'arrest-case', sessionId: command.sessionId, targetUid: command.targetUid,
@@ -12803,12 +12818,14 @@ export const resolveArrestPosse = onCall<{
       turn, revision: nextRevision, requiredPlayers: calculation.requiredPlayers,
       presentPlayers: command.presentPlayerUids.length,
       ...(deadlineCycle === undefined ? {} : { deadlineCycle }),
+      ...(command.attendanceEvidence ? { attendanceEvidence: command.attendanceEvidence } : {}),
       createdBy: uid, requestId: command.requestId, updatedAt: FieldValue.serverTimestamp(),
     });
     tx.set(db.doc(`sessions/${command.sessionId}/arrestCases/${command.targetUid}/audit/${command.requestId}`), {
       type: 'arrest-posse-attendance-audit', targetUid: command.targetUid, actorUid: uid,
       requestId: command.requestId, turn, requiredPlayers: calculation.requiredPlayers,
       presentPlayerUids: [...command.presentPlayerUids], outcome, createdAt: FieldValue.serverTimestamp(),
+      evidenceClass: command.attendanceEvidence ?? 'gm-physical-attestation',
     });
     tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
     return result;
