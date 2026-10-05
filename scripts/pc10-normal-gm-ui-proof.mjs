@@ -98,6 +98,7 @@ try {
   const crew = await surface('browser-B-ordinary-join');
   stage = 'fresh normal create and consent';
   await gm.page.goto(baseUrl);
+  await gm.page.getByRole('button', { name: /^REDUCED MOTION/i }).click();
   await gm.page.getByRole('button', { name: 'Create a session', exact: true }).click();
   await gm.consent();
   const initial = await gm.until('Cycle 0 ordinary joined identity', state => state.hasAuth && state.sameActor &&
@@ -143,6 +144,7 @@ try {
   await gm.page.screenshot({ path: `${directory}/normal-settings-qr.png` });
   stage = 'Browser B ordinary link admission and consent';
   await crew.page.goto(joinUrl);
+  await crew.page.getByRole('button', { name: /^REDUCED MOTION/i }).click();
   assert.equal(await crew.page.getByRole('textbox', { name: 'Session code', exact: true }).inputValue(), initial.joinCode);
   await crew.page.getByRole('button', { name: 'Join a session', exact: true }).click();
   await crew.consent();
