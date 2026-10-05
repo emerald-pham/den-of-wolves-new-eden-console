@@ -86,6 +86,32 @@ export function createBaseDeductionSetupHooks(options = {}) {
         if (offered) break;
         await delay(200);
       }
+      if (!offered) {
+        const editor = await gm.page.evaluate(async moduleUrl => {
+          const { useSessionStore } = await import(moduleUrl), state = useSessionStore.getState();
+          const section = document.querySelector('[aria-label="Explicit loyalty setup"]');
+          return { censusStatus: state.gmLoyaltyCensusStatus,
+            censusPresent: state.gmLoyaltyCensus !== null,
+            connectedGm: state.me?.role === 'gm' && state.me.connected === true,
+            pressClaimed: state.session?.pressClaimed === true,
+            holderControlPresent: !!section?.querySelector('[aria-label="Loyalty holder"]'),
+            setupBlockers: section?.querySelector('[aria-label="Loyalty setup blockers"]')?.textContent ?? '',
+            readinessBlockers: section?.querySelector('[aria-label="Before-start readiness blockers"]')?.textContent ?? '',
+            coverage: section?.querySelector('[aria-label="Explicit loyalty coverage"]')?.textContent ?? '' };
+        }, gm.storeModuleUrl());
+        assertOriginalBaseActor(await gm.observe(), gmActor);
+        const sourceHolders = await readSource('players', { collection: true });
+        const sourceHolder = sourceHolders.find(holder => (holder.uid ?? holder.id) === assignment.uid);
+        report.blockedEditor = { roleId: assignment.roleId, uidHash: uidHash(assignment.uid),
+          editor, sourceHolder: sourceHolder ? { connected: sourceHolder.connected === true,
+            assignedRoleId: sourceHolder.assignedRoleId ?? null,
+            activeConsoleRoleId: sourceHolder.activeConsoleRoleId ?? null,
+            hasSeat: typeof sourceHolder.seatId === 'string',
+            replacementPresent: sourceHolder.replacementStatus != null,
+            escapePresent: sourceHolder.escapeState != null } : null,
+          observedAt: new Date().toISOString(), readOnly: true, acceptanceCredit: 0 };
+        await save(context);
+      }
       assert.equal(offered, true, 'Use only the actual connected, occupied original holder offered by the GM UI.');
       const census = await readSource('loyaltyCensus/current'), existing = census?.entries?.find(entry => entry.uid === assignment.uid);
       if (existing) {
