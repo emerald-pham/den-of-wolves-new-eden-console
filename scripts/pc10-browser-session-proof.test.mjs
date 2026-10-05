@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { runInNewContext } from 'node:vm';
 import { createRequire } from 'node:module';
+import { createHash } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import * as proof from './pc10-browser-session-proof.mjs';
 
@@ -61,6 +62,8 @@ async function callableObservationActor() {
   return { actor, page, context, cdp, start, respond, finish, fail };
 }
 const nextObservationTurn = () => new Promise(resolve => setImmediate(resolve));
+const expectedProtocolRequestHash = requestId => createHash('sha256')
+  .update(`pc10-cdp-request\0${requestId}`).digest('hex');
 
 async function cdpCallableObservationActor({ durableConfigurationError } = {}) {
   const page = new EventEmitter();
@@ -73,19 +76,32 @@ async function cdpCallableObservationActor({ durableConfigurationError } = {}) {
   const finished = new Set();
   let nextRequest = 0;
   let navigationComplete = false;
+  let durableMessagesEnabled = false;
+  let durableBodyReadCount = 0;
+  let durableBodyReadAfterNavigationCount = 0;
   // Keep mock command results aligned with CDP Network.getResponseBody's schema.
   events.send = async (method, parameters = {}) => {
     commands.push({ method, parameters });
     if (method === 'Network.configureDurableMessages') {
       if (durableConfigurationError) throw durableConfigurationError;
+      durableMessagesEnabled = true;
       return {};
     }
-    if (method === 'Network.enable') return {};
+    if (method === 'Network.enable') {
+      // Chromium Network.enable resets enable_durable_messages_ to its default.
+      durableMessagesEnabled = false;
+      return {};
+    }
     if (method === 'Network.getResponseBody') {
       if (!finished.has(parameters.requestId)) throw new Error('Response body is not complete yet.');
       if (responseBodies.has(parameters.requestId)) {
         if (parameters.requestId === 'during-reload' && !navigationComplete) {
           await new Promise(resolve => { events.once('test-navigation-complete', resolve); });
+        }
+        if (parameters.requestId === 'during-reload') {
+          durableBodyReadCount++;
+          if (navigationComplete) durableBodyReadAfterNavigationCount++;
+          if (!durableMessagesEnabled) throw new Error('Network.enable reset the durable response-body setting.');
         }
         return responseBodies.get(parameters.requestId);
       }
@@ -123,11 +139,13 @@ async function cdpCallableObservationActor({ durableConfigurationError } = {}) {
     finished.add(requestId);
     events.emit('Network.loadingFinished', { requestId, timestamp: 3, encodedDataLength: 1 });
   };
-  const fail = (requestId, errorText = 'net::ERR_ABORTED') => {
-    events.emit('Network.loadingFailed', { requestId, timestamp: 3, errorText, canceled: true });
+  const fail = (requestId, errorText = 'net::ERR_ABORTED', canceled = true) => {
+    events.emit('Network.loadingFailed', { requestId, timestamp: 3, errorText, canceled });
   };
   return { actor, page, context, events, commands, responseBodies, start, startRequest, respond, setResponseBody, finish, fail,
-    receiveHeaders, completeNavigation() { navigationComplete = true; events.emit('test-navigation-complete'); } };
+    receiveHeaders, get durableBodyReadCount() { return durableBodyReadCount; },
+    get durableBodyReadAfterNavigationCount() { return durableBodyReadAfterNavigationCount; },
+    completeNavigation() { navigationComplete = true; events.emit('test-navigation-complete'); } };
 }
 
 // These two pre-finish rejection cases remain direct boundary tests: the live
@@ -200,11 +218,13 @@ test('the observer uses the protocol session and rejects unavailable durable bod
   const context = { newPage: async () => page, newCDPSession: async () => cdp, close: async () => undefined };
   await assert.rejects(proof.createPc10BrowserActor({ newContext: async () => context }, 'http://localhost', 'admiral'),
     error => error === failure);
-  assert.deepEqual(methods, ['Network.configureDurableMessages']);
+  // Network.enable resets Chromium's durable-message flag; configure it after enable.
+  assert.deepEqual(methods, ['Network.enable', 'Network.configureDurableMessages']);
 });
 
 test('a same original callable completed across reload retains its durable HTTP200 body', async () => {
-  const { actor, page, commands, start, respond, finish, completeNavigation } = await cdpCallableObservationActor();
+  const { actor, page, commands, start, respond, finish, completeNavigation, durableBodyReadCount,
+    durableBodyReadAfterNavigationCount } = await cdpCallableObservationActor();
   const requestId = start('during-reload');
   respond(requestId);
   let releaseReload;
@@ -219,8 +239,14 @@ test('a same original callable completed across reload retains its durable HTTP2
   releaseReload();
   await reload;
   await actor.drainObservedCalls();
-  assert.ok(commands.some(({ method, parameters }) => method === 'Network.configureDurableMessages' &&
-    Number.isSafeInteger(parameters.maxTotalBufferSize) && parameters.maxTotalBufferSize > 0));
+  const enableIndex = commands.findIndex(({ method }) => method === 'Network.enable');
+  const durableIndex = commands.findIndex(({ method }) => method === 'Network.configureDurableMessages');
+  assert.ok(enableIndex >= 0 && durableIndex > enableIndex,
+    'Configure durable messages after Network.enable so its default reset cannot disable them.');
+  assert.ok(Number.isSafeInteger(commands[durableIndex].parameters.maxTotalBufferSize) &&
+    commands[durableIndex].parameters.maxTotalBufferSize > 0);
+  assert.equal(durableBodyReadCount, 1);
+  assert.equal(durableBodyReadAfterNavigationCount, 1);
   assert.equal(actor.observedCalls.length, 1);
   assert.equal(actor.observedCalls[0].requestFinishedAt !== null, true);
   assert.equal(actor.observedCalls[0].bodyCompletedAt !== null, true);
@@ -287,12 +313,14 @@ test('observed GET and OPTIONS requests to callable paths are ignored by protoco
 
 test('an allowlisted response with no observed protocol request remains unbound and fails closed', async () => {
   const { actor, events } = await cdpCallableObservationActor();
-  events.emit('Network.responseReceived', { requestId: 'truly-unbound', timestamp: 2,
+  const requestId = 'truly-unbound';
+  events.emit('Network.responseReceived', { requestId, timestamp: 2,
     response: { url: 'http://localhost/demo/us-central1/getCurrentMemberSession', status: 200 } });
   await actor.drainObservedCalls();
   assert.deepEqual(actor.observedCalls, []);
   assert.equal(actor.callableObservationFailures.length, 1);
   assert.equal(actor.callableObservationFailures[0].category, 'unknown-callable-lifecycle');
+  assert.equal(actor.callableObservationFailures[0].protocolRequestHash, expectedProtocolRequestHash(requestId));
 });
 
 test('an observed named POST with malformed request metadata remains a failure', async () => {
@@ -305,6 +333,7 @@ test('an observed named POST with malformed request metadata remains a failure',
   assert.equal(actor.observedCalls[0].name, 'getCurrentMemberSession');
   assert.equal(actor.callableObservationFailures.length, 1);
   assert.equal(actor.callableObservationFailures[0].category, 'request-metadata-unavailable');
+  assert.equal(actor.callableObservationFailures[0].protocolRequestHash, expectedProtocolRequestHash(requestId));
 });
 
 test('an allowlisted request without method metadata is not presumed to be a POST', async () => {
@@ -314,6 +343,30 @@ test('an allowlisted request without method metadata is not presumed to be a POS
   assert.deepEqual(actor.observedCalls, []);
   assert.equal(actor.callableObservationFailures.length, 1);
   assert.equal(actor.callableObservationFailures[0].category, 'request-metadata-unavailable');
+  assert.equal(actor.callableObservationFailures[0].protocolRequestHash,
+    expectedProtocolRequestHash('missing-method'));
+});
+
+test('loadingFailed exposes only a hashed request ID, allowlisted error enum, and actual canceled flag', async () => {
+  for (const { errorText, canceled, safeError } of [
+    { errorText: 'net::ERR_ABORTED', canceled: false, safeError: 'aborted' },
+    { errorText: 'net::ERR_PRIVATE_FAILURE secret-token', canceled: true, safeError: 'unknown' },
+  ]) {
+    const { actor, start, fail } = await cdpCallableObservationActor();
+    const requestId = `private-protocol-${safeError}`;
+    start(requestId);
+    fail(requestId, errorText, canceled);
+    await actor.drainObservedCalls();
+    const failure = actor.callableObservationFailures[0];
+    assert.equal(failure.category, 'unexpected-request-failure');
+    assert.equal(failure.protocolRequestHash, expectedProtocolRequestHash(requestId));
+    assert.equal(failure.transportError, safeError);
+    assert.equal(failure.transportCancelled, canceled);
+    const serialized = JSON.stringify(failure);
+    assert.equal(serialized.includes(requestId), false);
+    assert.equal(serialized.includes(errorText), false);
+    assert.equal(serialized.includes('secret-token'), false);
+  }
 });
 
 test('a completed HTTP200 with missing or malformed protocol body remains an observation failure', async () => {
@@ -327,6 +380,9 @@ test('a completed HTTP200 with missing or malformed protocol body remains an obs
   assert.equal(missing.actor.observedCalls[0].bodyCompletedAt, null);
   assert.equal(missing.actor.callableObservationFailures.length, 1);
   assert.equal(missing.actor.callableObservationFailures[0].category, 'response-observation-unavailable');
+  assert.equal(missing.actor.callableObservationFailures[0].protocolRequestHash,
+    expectedProtocolRequestHash(missingRequest));
+  assert.equal(missing.actor.callableObservationFailures[0].bodyFailureStage, 'get-response-body');
   for (const body of ['', '{not-json']) {
     const { actor, start, respond, finish } = await cdpCallableObservationActor();
     const requestId = start(); respond(requestId, body); finish(requestId);
@@ -336,6 +392,8 @@ test('a completed HTTP200 with missing or malformed protocol body remains an obs
     assert.equal(actor.observedCalls[0].bodyCompletedAt, null);
     assert.equal(actor.callableObservationFailures.length, 1);
     assert.equal(actor.callableObservationFailures[0].category, 'response-observation-unavailable');
+    assert.equal(actor.callableObservationFailures[0].bodyFailureStage, 'json-parse');
+    assert.equal(JSON.stringify(actor.callableObservationFailures).includes(body), false);
   }
 });
 
