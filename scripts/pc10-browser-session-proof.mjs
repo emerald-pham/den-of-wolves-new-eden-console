@@ -27,11 +27,13 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
   }
   let storeModule = '/src/store/useSessionStore.ts';
   let functionsSdkModule = '/node_modules/.vite/deps/firebase_functions.js';
+  let firestoreSdkModule = '/node_modules/.vite/deps/firebase_firestore.js';
   page.on('pageerror', error => errors.push(error.message));
   page.on('request', request => {
     const url = new URL(request.url());
     if (url.pathname === '/src/store/useSessionStore.ts') storeModule = url.href;
     if (url.pathname.endsWith('/firebase_functions.js')) functionsSdkModule = url.href;
+    if (url.pathname.endsWith('/firebase_firestore.js')) firestoreSdkModule = url.href;
   });
   async function observe() {
     return bounded(page.evaluate(async moduleUrl => {
@@ -141,7 +143,17 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
     return page.evaluate(() => ({ viewport: document.documentElement.clientWidth,
       document: document.documentElement.scrollWidth, body: document.body.scrollWidth }));
   }
-  return { context, page, errors, label, observe, until, join, callable, geometry,
+  async function privateRead(sessionId, suffix) {
+    return bounded(page.evaluate(async ({ moduleUrl, sessionId, suffix }) => {
+      const { db } = await import('/src/lib/firestore.ts');
+      const { doc, getDocFromServer } = await import(moduleUrl);
+      try {
+        const reply = await getDocFromServer(doc(db(), `sessions/${sessionId}/${suffix}`));
+        return { status: 'read', exists: reply.exists() };
+      } catch (error) { return { status: 'denied', code: error.code }; }
+    }, { moduleUrl: firestoreSdkModule, sessionId, suffix }), 15_000, 'private SDK read');
+  }
+  return { context, page, errors, label, observe, until, join, callable, privateRead, geometry,
     close: () => context.close() };
 }
 
@@ -231,6 +243,40 @@ export async function runPc10OverlappingRecoveryProof(options) {
       seatId: roleId, expectedSetupRevision: before.get('setupRevision') }]));
     const resumes = await Promise.all(roles.map(role => command(role, 'resumeSession')));
     for (const reply of resumes) assert.equal(reply.status, 200, 'Every independent browser resumes its own current projection.');
+    const privateAudience = await Promise.all(roles.map(async role => {
+      const deniedCalls = await Promise.all([
+        clients.get(role).privateRead(fixture.sessionId, 'secrets/wolf-assignment'),
+        clients.get(role).privateRead(fixture.sessionId, 'serverState/candidates'),
+        command(role, 'listGmScoutResolutionLog', { instanceId: fixture.instanceId }),
+      ]);
+      for (const reply of deniedCalls) {
+        assert.equal(reply.status, 'denied', `${role} must not obtain organiser-only scout or candidate information.`);
+        assert.equal(reply.code ?? reply.error?.code, 'permission-denied', 'Private reads deny actual authenticated audiences.');
+      }
+      return { roleId: role, deniedPrivateSdkReads: 2, deniedGmCallableReads: 1 };
+    }));
+    const messages = [];
+    // Seven simultaneous legitimate writes to the same group are repeated
+    // across the full core roster. This is explicit overlapping scheduling,
+    // not a hidden transport retry or a limit change.
+    for (let offset = 0; offset < fixture.roles.length; offset += 7) {
+      const batch = fixture.roles.slice(offset, offset + 7);
+      const choices = batch.map(role => ({ role,
+        payload: { requestId: randomUUID(), expectedGroupId: resumes[roles.indexOf(role)].result.player.fleetGroupId,
+          text: `PC10 automated browser overlap // ${role}` } }));
+      const committed = await Promise.all(choices.map(({ role, payload }) => command(role, 'sendFleetGroupMessage', payload)));
+      for (let index = 0; index < choices.length; index++) {
+        assert.equal(committed[index].status, 200, `${choices[index].role} legitimate group note must commit.`);
+      }
+      const replays = await Promise.all(choices.map(({ role, payload }) => command(role, 'sendFleetGroupMessage', payload)));
+      assert.deepEqual(replays, committed, 'Exact group-note retries preserve the committed results.');
+      messages.push(...choices.map(({ role, payload }) => ({ roleId: role, requestId: payload.requestId })));
+    }
+    const pressPayload = { requestId: randomUUID(), text: 'PC10 automated overlapping-session rehearsal',
+      expectedRevision: (await fixture.session.get()).get('pressDispatch')?.revision ?? 0 };
+    const pressDispatch = await command('press-officer', 'publishPressDispatch', pressPayload);
+    assert.equal(pressDispatch.status, 200, 'The independent Press audience can publish its own ordinary dispatch.');
+    assert.deepEqual(await command('press-officer', 'publishPressDispatch', pressPayload), pressDispatch);
     const claims = await Promise.all(fixture.roles.map(role => command(role, 'claimSeat', requests.get(role))));
     for (const reply of claims) assert.equal(reply.status, 200, 'Distinct held seats support legitimate simultaneous exact retries.');
     const replayClaims = await Promise.all(fixture.roles.map(role => command(role, 'claimSeat', requests.get(role))));
@@ -256,8 +302,10 @@ export async function runPc10OverlappingRecoveryProof(options) {
       checks: { freshFullRosterViaOrdinaryUiConsent: true, independentBrowserContexts: 21,
         overlappingResumePresenceAndSeatRetries: true, exactSeatReplayStable: true,
         ordinaryActorGmMutationDenied: true, everyNonGmRoleOfflineReloadRecovery: true,
+        overlappingOrdinaryGameplayNotesAndPress: true, exactGameplayReplayStable: true,
+        everyBrowserPrivateRulesAndGmReadDenied: true,
         cyclePreserved: true, browserGeometryContained: true },
-      disconnectedObservations, recovered,
+      privateAudience, messages, disconnectedObservations, recovered,
       limitations: ['This focused concurrency proof alone is not a complete game-through-ending proof.',
         'Actor/browser automation does not establish human-device attendance.',
         'Timer all-player disconnect/remaining-time pause requires its distinct controlled presence-expiry check.'],
