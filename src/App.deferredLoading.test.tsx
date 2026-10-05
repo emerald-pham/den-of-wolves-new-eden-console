@@ -129,7 +129,7 @@ class ObserveEscapedFailure extends Component<Readonly<{ children: ReactNode }>,
 }
 
 const stamp = '2026-01-01T00:00:00.000Z';
-const session: GameSession = { id: 'deferred-test', name: 'Deferred loading test', phase: 'active',
+const session: GameSession = { id: 'deferred-test', name: 'Deferred loading test', joinCode: '4821', phase: 'active',
   ownerUid: 'deferred-player', createdAt: stamp, updatedAt: stamp, currentTurn: 3,
   activeRoleIds: ['admiral'], activeVesselIds: ['aegis'] };
 const player: Player = { uid: 'deferred-player', sessionId: session.id, displayName: 'Admiral',
