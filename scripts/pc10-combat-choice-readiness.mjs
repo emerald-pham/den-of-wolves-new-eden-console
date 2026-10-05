@@ -70,13 +70,41 @@ export async function waitForWolfChoiceReadiness({ original, expected, inspectAc
   assert.ok(expected.attackId && Number.isSafeInteger(expected.revision) && expected.revision >= 1);
   const deadline = Math.min(now() + timeoutMs, deadlineAt);
   const budget = () => { if (now() >= deadline) throw new Error('Current combat choice readiness deadline expired; no actor reload, mutation or credit.'); };
-  let view, sourceRead = false, lastAttackReadAt, boardingActor;
+  let view, sourceRead = false, lastAttackReadAt, boardingActor, resolvedSource;
+  const sourceChanged = () => ({ status: 'source-changed', expected, gameplayCredit: false });
   async function authority() {
     budget();
-    const actor = await inspectActor(); originalIdentity(actor, original); budget();
+    const actor = await inspectActor(); budget();
+    // Check every identity, audience, lease and phase field before a private
+    // source read. Only airspace may be the natural resolution consequence.
+    originalIdentity({ ...actor, airspace: original.airspace }, original);
     const gm = inspectGm ? await inspectGm() : null;
-    if (gm) { originalIdentity(gm, originalGm); budget(); }
+    if (gm) { originalIdentity({ ...gm, airspace: originalGm.airspace }, originalGm); budget(); }
     if (!live(actor) || gm && !live(gm)) return false;
+    const projections = [[actor, original], ...(gm ? [[gm, originalGm]] : [])];
+    const changedAirspace = projections.filter(([current, bound]) => current.airspace !== bound.airspace);
+    if (changedAirspace.length) {
+      const current = await inspectAttack(); budget();
+      if (gm && changedAirspace.every(([value, bound]) => bound.airspace === 'restricted' && value.airspace === 'lifted') &&
+          typeof expected.sessionId === 'string' && expected.sessionId && expected.status !== 'resolved' &&
+          current?.sessionId === expected.sessionId && current.attackId === expected.attackId &&
+          current.turn === expected.turn && Number.isSafeInteger(current.revision) && current.revision > expected.revision &&
+          current.status === 'resolved' && current.currentStep === 'resolved' && current.airspaceLocked === false) {
+        const afterActor = await inspectActor(); budget();
+        originalIdentity({ ...afterActor, airspace: original.airspace }, original);
+        const afterGm = await inspectGm(); budget();
+        originalIdentity({ ...afterGm, airspace: originalGm.airspace }, originalGm);
+        if (!live(afterActor) || !live(afterGm)) return false;
+        for (const [value, bound] of [[afterActor, original], [afterGm, originalGm]])
+          if (value.airspace !== bound.airspace && !(bound.airspace === 'restricted' && value.airspace === 'lifted'))
+            originalIdentity(value, bound);
+        // This ends the obsolete choice inspection with zero gameplay credit.
+        // The caller must independently read and verify the final attack.
+        resolvedSource = current; return false;
+      }
+      // Any other airspace change retains the original hard assertion.
+      for (const [value, bound] of projections) originalIdentity(value, bound);
+    }
     if (requireBoardingDiscovery) {
       if (boardingActor) originalIdentity(actor, boardingActor);
       else {
@@ -93,11 +121,11 @@ export async function waitForWolfChoiceReadiness({ original, expected, inspectAc
     return true;
   }
   while (now() < deadline) {
-    if (!(await authority())) { await wait(); continue; }
+    if (!(await authority())) { if (resolvedSource) return sourceChanged(); await wait(); continue; }
     if (!sourceRead) {
       const current = await inspectAttack(); budget(); lastAttackReadAt = now();
       if (!sameAttack(current, expected)) return { status: 'source-changed', expected, gameplayCredit: false };
-      if (!(await authority())) { await wait(); continue; }
+      if (!(await authority())) { if (resolvedSource) return sourceChanged(); await wait(); continue; }
       view = await readChoice(); budget(); sourceRead = true;
       assert.ok(view && typeof view === 'object', 'The current actor source reply is required.');
       assert.equal(view.sessionId, expected.sessionId, 'Current source sessionId must match.');
@@ -112,9 +140,9 @@ export async function waitForWolfChoiceReadiness({ original, expected, inspectAc
       if (Object.hasOwn(view, 'currentStep')) assert.equal(view.currentStep, expected.currentStep);
       if (Object.hasOwn(view, 'range')) assert.equal(view.range, expected.currentStep);
     }
-    if (!(await authority())) { await wait(); continue; }
+    if (!(await authority())) { if (resolvedSource) return sourceChanged(); await wait(); continue; }
     const painted = await inspectPaint(view); budget();
-    if (!(await authority())) { await wait(); continue; }
+    if (!(await authority())) { if (resolvedSource) return sourceChanged(); await wait(); continue; }
     if (painted.status === 'eligible' || painted.status === 'blocked' || painted.status === 'source-excluded') {
       const sourceReason = wolfChoiceSourceReason(view);
       if (painted.status === 'eligible') assert.equal(sourceReason, undefined, 'Unavailable source cannot become an eligible painted choice.');
@@ -125,7 +153,7 @@ export async function waitForWolfChoiceReadiness({ original, expected, inspectAc
           'Only the source panel’s deliberate not-your-choice/no-special-choice omission may be excluded.');
       }
       const current = await inspectAttack(); budget();
-      if (!(await authority())) { await wait(); continue; }
+      if (!(await authority())) { if (resolvedSource) return sourceChanged(); await wait(); continue; }
       if (!sameAttack(current, expected)) return { status: 'source-changed', expected, gameplayCredit: false };
       return { ...painted, expected, choice: view, gameplayCredit: false,
         ...(boardingActor ? { originalActor: boardingActor } : {}) };
@@ -133,7 +161,7 @@ export async function waitForWolfChoiceReadiness({ original, expected, inspectAc
     assert.equal(painted.status, 'pending', 'Unknown readiness cannot silently pass.');
     if (now() - lastAttackReadAt >= 1_000) {
       const current = await inspectAttack(); budget(); lastAttackReadAt = now();
-      if (!(await authority())) { await wait(); continue; }
+      if (!(await authority())) { if (resolvedSource) return sourceChanged(); await wait(); continue; }
       if (!sameAttack(current, expected)) return { status: 'source-changed', expected, gameplayCredit: false };
     }
     await wait();
