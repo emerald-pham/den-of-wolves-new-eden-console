@@ -102,6 +102,9 @@ const {
   getWolfAmnestyView,
   respondToWolfAmnesty,
   recordWolfAmnestyConsequence,
+  beginSessionDebrief,
+  closeSession,
+  getSessionDebrief,
 } = await import('./sessionService');
 const { httpsCallable } = await import('firebase/functions');
 const { acceptCallableSessionAuthority, sessionSnapshotAuthorityFor } = await import('./firestore');
@@ -152,6 +155,62 @@ describe('Wolf range contact guidance DTO', () => {
     vi.mocked(httpsCallable).mockReturnValue(callable);
 
     await expect(getWolfRangeActionChoice()).rejects.toThrow(/invalid Wolf range choice view/i);
+  });
+});
+
+describe('session debrief lifecycle services', () => {
+  beforeEach(() => {
+    useSessionStore.getState().reset();
+    useSessionStore.getState().setIdentity({ ...session, phase: 'failure' }, { ...player, role: 'gm' });
+    useSessionStore.getState().setGmInstance({ id: 'gm-1', sessionId: 's1', uid: 'u1', name: 'GM',
+      deviceLabel: 'test', claimedAt: '2026-10-05T12:00:00.000Z' });
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+  });
+
+  it('uses audited session-bound lifecycle requests and parses the live GM route projection', async () => {
+    vi.mocked(httpsCallable).mockImplementation((_, name) => {
+      if (name === 'beginSessionDebrief') return callableReturning({ data: {
+        phase: 'debrief', committed: true, cycle: 4, result: 'failure',
+      } }) as never;
+      if (name === 'closeSession') return callableReturning({ data: {
+        phase: 'closed', committed: true, cycle: 4, result: 'failure',
+      } }) as never;
+      return callableReturning({ data: { type: 'session-debrief', sessionId: 's1', snapshot: {
+        type: 'session-debrief', version: 1, source: 'candidate', result: 'success',
+        cause: 'candidate-complete', cycle: 4, occurredAt: '2026-10-05T12:00:00.000Z',
+        committedAt: '2026-10-05T12:01:00.000Z',
+        outcome: { type: 'game-outcome', result: 'success', cause: 'candidate-complete',
+          candidateCode: 'N', cycle: 4, occurredAt: '2026-10-05T12:00:00.000Z' },
+        candidate: { code: 'N', groups: [{ groupId: 'fleet-a', requirements: [],
+          rolls: [{ id: 'passage', face: 4, result: 'success' }], losses: [], humanCalls: [],
+          path: [{ action: 'ring-passage', result: 'crossed', shipId: 'aegis', fuelSpent: 2 }],
+        }] },
+      } } }) as never;
+    });
+
+    await expect(beginSessionDebrief()).resolves.toEqual({ phase: 'debrief', committed: true, cycle: 4, result: 'failure' });
+    await expect(closeSession()).resolves.toEqual({ phase: 'closed', committed: true, cycle: 4, result: 'failure' });
+    await expect(getSessionDebrief()).resolves.toMatchObject({
+      candidate: { groups: [{ groupId: 'fleet-a', path: [{ action: 'ring-passage', result: 'crossed', shipId: 'aegis' }] }] },
+    });
+    expect(httpsCallable).toHaveBeenNthCalledWith(1, expect.anything(), 'beginSessionDebrief');
+    expect(httpsCallable).toHaveBeenNthCalledWith(2, expect.anything(), 'closeSession');
+    expect(httpsCallable).toHaveBeenNthCalledWith(3, expect.anything(), 'getSessionDebrief');
+  });
+
+  it('does not grant the GM-only reader to a player or accept malformed terminal receipts', async () => {
+    useSessionStore.getState().setIdentity({ ...session, phase: 'debrief' }, player);
+    await expect(getSessionDebrief()).rejects.toThrow(/live GM/i);
+    expect(httpsCallable).not.toHaveBeenCalled();
+
+    useSessionStore.getState().setIdentity({ ...session, phase: 'failure' }, { ...player, role: 'gm' });
+    useSessionStore.getState().setGmInstance({ id: 'gm-1', sessionId: 's1', uid: 'u1', name: 'GM',
+      deviceLabel: 'test', claimedAt: '2026-10-05T12:00:00.000Z' });
+    vi.mocked(httpsCallable).mockReturnValue(callableReturning({ data: {
+      phase: 'closed', committed: true, cycle: -1, result: 'private-note',
+    } }) as never);
+    await expect(beginSessionDebrief()).rejects.toThrow(/invalid debrief action result/i);
   });
 });
 
