@@ -84,7 +84,7 @@ async function ready(f, current) {
   // The pre-repair reader is private. Execute that exact existing function for
   // the retained RED evidence; the repaired module's normal export is used thereafter.
   const source = await readFile(new URL('./pc10-base-combat-deduction-ui-proof.mjs', import.meta.url), 'utf8');
-  const legacy = source.match(/  async function renderedMemberAftermath\(surface, view\) \{[\s\S]*?\n  \}/)?.[0];
+  const legacy = source.match(/ {2}async function renderedMemberAftermath\(surface, view\) \{[\s\S]*?\n {2}\}/)?.[0];
   assert.ok(legacy, 'The exact pre-repair private DOM reader is available.');
   const read = Function('baseMemberRowsMatch', `return (${legacy.trim()});`)(baseMemberRowsMatch);
   return read(f.surface, current);
