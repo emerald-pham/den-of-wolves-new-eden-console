@@ -45,6 +45,14 @@ test('review annotations preserve the canonical matrix and anchor each concrete 
     assert.equal(artifact.sourceBinding.ownerRevision,
       execFileSync('git', ['log', '-n', '1', '--format=%H', 'HEAD', '--', 'functions/src', 'src'],
         { cwd: productSourceRoot, encoding: 'utf8' }).trim());
+    const generatorRevision = execFileSync('git', ['rev-parse', 'HEAD'],
+      { cwd: repositoryDirectory, encoding: 'utf8' }).trim();
+    assert.equal(artifact.sourceBinding.generatedAtRevision, generatorRevision,
+      'generatedAtRevision binds the checkout containing the annotation generator');
+    if (productSourceRoot !== repositoryDirectory) {
+      assert.notEqual(artifact.sourceBinding.generatedAtRevision, artifact.sourceBinding.ownerRevision,
+        'separate documentation and product checkouts remain distinguishable');
+    }
     assert.deepEqual(artifact.annotations.map(row => row.exportName), expectedNames);
     assert.deepEqual([artifact.sourceReviewShards.endings.length, artifact.sourceReviewShards.workspaces.length,
       artifact.sourceReviewShards.demo.length], [68, 69, 69]);
