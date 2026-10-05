@@ -169,6 +169,21 @@ describe('authenticated explicit loyalty adapter', () => {
     await expect(pending).rejects.toThrow(/authority changed|refresh/i);
   });
 
+  it('rejects a newer displayed setup revision even before its cursor is accepted', async () => {
+    let resolveCall!: (value: unknown) => void;
+    mocks.call.mockImplementation(() => new Promise((resolve) => { resolveCall = resolve; }));
+    const pending = submitExplicitGmLoyaltyAssignment(request);
+    await vi.waitFor(() => expect(mocks.call).toHaveBeenCalledTimes(1));
+
+    const current = useSessionStore.getState();
+    useSessionStore.getState().setIdentity({
+      ...current.session,
+      setupRevision: 8,
+    } as never, current.me as never);
+    resolveCall({ data: { sessionId: 's1', setupRevision: 7, assignedUids: ['u1'] } });
+    await expect(pending).rejects.toThrow(/authority changed|refresh/i);
+  });
+
   it('rejects the receipt after the session advances out of the casting window', async () => {
     const identity = { sessionId: 's-phase-advance', instanceId: 'gm-phase-advance' };
     configureGm({}, identity);
