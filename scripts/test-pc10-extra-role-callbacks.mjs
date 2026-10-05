@@ -64,3 +64,14 @@ test('unsupported ranges and non-local origins are rejected before any browser c
   assert.throws(() => driver.createExtraRoleCallbacks({ scenario: 'replacements', variant: 'forced-results' }), /variant/i);
   assert.throws(() => driver.createExtraRoleCallbacks({ scenario: 'replacements', aceRange: 'invented' }), /range/i);
 });
+
+test('source-mounted role paths are selected before inventory or an action is claimed', () => {
+  assert.equal(typeof driver.extraRoleActionRoute, 'function');
+  assert.equal(driver.extraRoleActionRoute('comms-officer'), '/replacement/comms-officer');
+  assert.equal(driver.extraRoleActionRoute('doctor'), '/replacement/doctor');
+  assert.equal(driver.extraRoleActionRoute('pdf-fighter-ace'), '/replacement/pdf-fighter-ace');
+  assert.equal(driver.extraRoleActionRoute('vip-host'), '/ships/dione/roles/vip-host');
+  assert.equal(driver.extraRoleActionRoute('commissar'), '/ships/icebreaker/roles/commissar');
+  assert.equal(driver.extraRoleActionRoute('wolf-commander'), '/brief');
+  assert.equal(driver.extraRoleActionRoute('vulcan-captain'), '/brief');
+});
