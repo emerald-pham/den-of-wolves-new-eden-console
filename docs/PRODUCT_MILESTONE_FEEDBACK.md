@@ -355,7 +355,7 @@ emulator gameplay and all authority/review/render/exact-SHA gates.
 | Preserve PC09 CIC copy | Cycle 0 AWAITING CIC HANDSHAKE and Settings awaiting-GM-start explanation stay intact. |
 | Future post work, PC11, then PC12 backup | Recorded in execution/milestone/completion/alignment plans; current instruction supersedes earlier future-PC11 prohibition, and execution stops at PC10 handoff. |
 | PC12 remains a backup in the same repo | Firebase default/cloud intact; local authority, privacy, persistence/recovery, offline assets, WAN-disconnected multi-client proof and local Wi-Fi/server QR; no implicit state sync or security-setting authorization. |
-| Licensing and model boundaries | Parent retains exact licensing-scope decision; no notices/assets edits. Only Sol 6.1/Luna 6; ended PC09 Astra exception grants no later permission. Fast only if supported. |
+| Licensing and model boundaries | Subsequent owner approval applies CC0 only to her own rights/contributions, with third-party/game/dependency/contributor and unconfirmed-asset exclusions. Existing asset bytes and third-party notices remain unchanged. Only Sol 6.1/Luna 6; ended PC09 Astra exception grants no later permission. Latest speed choice is normal/default. |
 
 This alignment earns no implementation, closure, gameplay, review or release
 credit. Latest reviewed message is the October 5 separate-PC10 dispatch.
