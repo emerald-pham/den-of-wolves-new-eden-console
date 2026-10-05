@@ -60,8 +60,8 @@ beforeEach(() => {
 });
 
 describe('extra-ship Captain Jump Drive integration', () => {
-  it.each([['warrior-captain', 'warrior'], ['vulcan-captain', 'vulcan']] as const)
-    ('mounts the source-supported uncharged Jump Drive for %s', async (roleId, smallShipId) => {
+  it.each([['warrior-captain', 'warrior'], ['vulcan-captain', 'vulcan']] as const)(
+    'mounts the source-supported uncharged Jump Drive for %s', async (roleId, smallShipId) => {
       installCaptain(roleId, { ...baseSession, smallShipStates: { [smallShipId]: {
         id: smallShipId, hostShipId: 'aegis', dockingRevision: 1, population: 2000, unrest: 0,
         cycle: { step: 0, revision: 1, results: {}, charges: [], turn: 4 },

@@ -84,6 +84,18 @@ it('disables new cargo while session freshness is cached and names the reconnect
   expect(screen.getByRole('button', {name:'Transfer cargo'})).toBeDisabled();
   expect(screen.getByText(/reconnect.*live session/i)).toBeInTheDocument();
 });
+it('withholds new Warrior cargo in active mutiny and names the next facilitator action', () => {
+  const ship = useSessionStore.getState().session!.smallShipStates!.warrior!;
+  useSessionStore.getState().setSession({ ...useSessionStore.getState().session!,
+    smallShipStates: { warrior: { ...ship, unrest: 10,
+      mutiny: { status: 'active', revision: 1, triggerUnrest: 10, triggeredAt: '2026-10-05T00:00:00.000Z' },
+    } },
+  });
+  panel();
+  expect(screen.getByRole('button', {name:'Transfer cargo'})).toBeDisabled();
+  expect(screen.getByText(/facilitator.*new Captain/i)).toBeInTheDocument();
+  expect(mocks.transfer).not.toHaveBeenCalled();
+});
 it('withdraws in-flight notices and retry controls when the replacement role is revoked', async () => {
   let resolve!: (value: unknown) => void;
   mocks.transfer.mockImplementation(() => new Promise(done => {resolve = done;}));
