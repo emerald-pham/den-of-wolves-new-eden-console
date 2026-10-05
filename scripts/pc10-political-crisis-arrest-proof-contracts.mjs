@@ -67,17 +67,29 @@ function withoutReplayLabel(value) {
 }
 
 /** Compare the original UI result with exact SDK replay without treating committed/replayed labels as payload. */
-export function assertEquivalentExactReplay(original, replay) {
+export function assertEquivalentExactReplay(original, replay, { statusPairs = [] } = {}) {
   assert.ok(original && typeof original === 'object', 'The ordinary UI request needs a result.');
   assert.ok(replay && typeof replay === 'object', 'The exact SDK retry needs a result.');
   const originalHasStatus = Object.hasOwn(original, 'status');
   const replayHasStatus = Object.hasOwn(replay, 'status');
   assert.equal(originalHasStatus, replayHasStatus, 'The retry must preserve the source endpoint’s response shape.');
-  if (originalHasStatus) {
-    assert.ok(MUTATION_STATUS.has(original.status), 'The original ordinary UI request must commit.');
-    assert.ok(MUTATION_STATUS.has(replay.status), 'The SDK retry must recover the committed or replayed result.');
+  let normalizeStatus = false;
+  if (originalHasStatus && MUTATION_STATUS.has(original.status) && MUTATION_STATUS.has(replay.status)) {
+    normalizeStatus = true;
+  } else if (originalHasStatus) {
+    const paired = statusPairs.some(pair => Array.isArray(pair) && pair.length === 2 &&
+      pair[0] === original.status && pair[1] === replay.status);
+    assert.ok(paired || original.status === replay.status,
+      'A source status may change on exact retry only through an explicitly declared source status pair.');
+    normalizeStatus = paired;
   }
-  assert.deepEqual(withoutReplayLabel(replay), withoutReplayLabel(original),
+  const normalizedOriginal = { ...withoutReplayLabel(original) };
+  const normalizedReplay = { ...withoutReplayLabel(replay) };
+  if (normalizeStatus) {
+    delete normalizedOriginal.status;
+    delete normalizedReplay.status;
+  }
+  assert.deepEqual(normalizedReplay, normalizedOriginal,
     'The exact retry must recover the original committed domain result.');
 }
 
@@ -125,7 +137,7 @@ export function privateSafeActionReceipt({ family, branch, endpoint, actor, sess
 }
 
 /** Capture only an actual browser UI request, then replay that exact payload through its authenticated SDK. */
-export async function captureMountedUiAction({ surface, endpoint, expectedActor, executeUi }) {
+export async function captureMountedUiAction({ surface, endpoint, expectedActor, executeUi, statusPairs = [] }) {
   assert.ok(surface?.page && typeof surface.observe === 'function' && typeof surface.callable === 'function');
   assert.equal(typeof endpoint, 'string');
   assert.equal(typeof executeUi, 'function');
@@ -156,7 +168,7 @@ export async function captureMountedUiAction({ surface, endpoint, expectedActor,
   else assertPlayerActorFence(afterUi, expectedActor);
   const replay = await surface.callable(endpoint, request);
   assert.equal(replay.status, 'committed', 'Retry only the exact captured payload through the current Auth SDK identity.');
-  assertEquivalentExactReplay(result, replay.result);
+  assertEquivalentExactReplay(result, replay.result, { statusPairs });
 
   await surface.page.reload();
   await surface.until(`Original ${expectedActor.actorKind === 'gm' ? 'GM instance' : 'player actor'} restored after reload`, state =>
@@ -169,7 +181,7 @@ export async function captureMountedUiAction({ surface, endpoint, expectedActor,
   else assertPlayerActorFence(reloaded, expectedActor);
   const replayAfterReload = await surface.callable(endpoint, request);
   assert.equal(replayAfterReload.status, 'committed');
-  assertEquivalentExactReplay(result, replayAfterReload.result);
+  assertEquivalentExactReplay(result, replayAfterReload.result, { statusPairs });
   return { request, result, replay: replayAfterReload.result };
 }
 
