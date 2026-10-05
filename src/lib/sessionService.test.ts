@@ -254,11 +254,12 @@ describe('closed member debrief rehydration', () => {
 
     expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'getCurrentMemberSession');
     expect(reader).toHaveBeenCalledWith({ sessionId: 's1' });
-    expect(useSessionStore.getState().session).toMatchObject({ phase: 'closed', gameOutcome: outcome,
-      debriefSnapshot: { source: 'candidate', candidate: { groups: [{
+    expect(useSessionStore.getState().session).toMatchObject({ phase: 'closed',
+      debriefSnapshot: { source: 'candidate', outcome, candidate: { groups: [{
         requirements: [{ id: 'paid-crossing', status: 'met' }],
         path: [{ action: 'ring-passage', result: 'crossed', shipId: 'aegis', fuelSpent: 5 }],
       }] } } });
+    expect(useSessionStore.getState().session?.gameOutcome).toBeUndefined();
     expect(useSessionStore.getState().me).toMatchObject({ uid: 'u1', fleetGroupId: 'fleet-1', connected: false });
     expect(useSessionStore.getState().gmInstance).toBeNull();
   });
@@ -281,6 +282,43 @@ describe('closed member debrief rehydration', () => {
     await expect(readClosedSessionHistory('s1')).resolves.toBe(false);
     expect(useSessionStore.getState().session).toEqual(before);
   });
+
+  it.each(['actor', 'group'] as const)(
+    'drops a late closed-history reply after the current %s changes', async changedIdentity => {
+      const before = { ...session, joinCode: '', phase: 'closed' as const };
+      const returningMember = { ...player, role: 'player' as const, fleetGroupId: 'fleet-1',
+        connectionGeneration: 4, connected: false };
+      useSessionStore.getState().setIdentity(before as never, returningMember);
+      useSessionStore.getState().setConnection('live');
+      useSessionStore.getState().setSessionSnapshotFreshness('server');
+      const outcome = { type: 'game-outcome', result: 'success', cause: 'candidate-complete',
+        candidateCode: 'N', cycle: 4, occurredAt: '2026-10-05T12:00:00.000Z' };
+      const responseSession = { ...before, updatedAt: '2099-10-05T12:01:00.000Z', gameOutcome: outcome,
+        debriefSnapshot: { type: 'session-debrief', version: 1, source: 'candidate', result: 'success',
+          cause: 'candidate-complete', cycle: 4, occurredAt: outcome.occurredAt,
+          committedAt: '2026-10-05T12:01:00.000Z', outcome,
+          candidate: { code: 'N', groups: [{ requirements: [], rolls: [], losses: [], humanCalls: [] }] },
+        } };
+      let resolveRead: (value: { data: unknown }) => void = () => undefined;
+      const reader = vi.fn(() => new Promise<{ data: unknown }>(resolve => { resolveRead = resolve; }));
+      vi.mocked(httpsCallable).mockReturnValue(reader as never);
+      const { readClosedSessionHistory } = await import('./sessionService') as unknown as {
+        readClosedSessionHistory: (sessionId: string) => Promise<boolean>;
+      };
+
+      const pending = readClosedSessionHistory('s1');
+      await Promise.resolve();
+      useSessionStore.getState().setIdentity(before as never, changedIdentity === 'actor'
+        ? { ...returningMember, uid: 'u2' }
+        : { ...returningMember, fleetGroupId: 'fleet-2' });
+      resolveRead({ data: { type: 'current-member-session', sessionId: 's1', actorUid: 'u1',
+        groupId: 'fleet-1', connectionGeneration: 4, assignedRoleId: null, activeConsoleRoleId: null,
+        session: responseSession } });
+
+      await expect(pending).resolves.toBe(false);
+      expect(useSessionStore.getState().session).toEqual(before);
+    },
+  );
 });
 
 describe('Wolf Commander cycle and target dial services', () => {
