@@ -61,3 +61,8 @@ test('debrief visual mode is not a genuine terminal; actual snapshot must match 
   assert.doesNotThrow(() => assertObservedTerminal(ended));
   assert.throws(() => assertObservedTerminal({ ...ended, debriefSnapshot: { ...ended.debriefSnapshot, sessionId: 'foreign' } }));
 });
+test('the source debrief schema is document-bound and has no invented sessionId field', () => {
+  assert.doesNotThrow(() => assertObservedTerminal({ ...original, phase: 'debrief', cycle: 8,
+    debriefSnapshot: { type: 'session-debrief', version: 1, cycle: 8,
+      source: 'final-cycle', result: 'completed', cause: 'final-cycle' } }));
+});
