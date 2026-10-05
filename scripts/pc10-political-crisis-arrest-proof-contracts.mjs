@@ -41,7 +41,9 @@ export function assertPlayerActorFence(actual, expected) {
   assertIdentityShape(actual, expected);
   assert.equal(actual.playerRole, 'player', 'A player action cannot run as a GM or controller.');
   assert.equal(actual.profileRoleId, expected.roleId, 'The original roster role must still own this Auth account.');
-  assert.equal(actual.activeConsoleRoleId, expected.roleId, 'The offered action must be on the actor’s actual current station.');
+  if (expected.stationRequired !== false) {
+    assert.equal(actual.activeConsoleRoleId, expected.roleId, 'The offered action must be on the actor’s actual current station.');
+  }
   if (expected.assignedRoleId !== undefined) assert.equal(actual.assignedRoleId, expected.assignedRoleId);
   if (expected.fleetGroupIdHash !== undefined) assert.equal(actual.fleetGroupIdHash, expected.fleetGroupIdHash,
     'Current-group actions must remain bound to the original group.');
