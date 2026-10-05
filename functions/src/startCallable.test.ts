@@ -71,7 +71,7 @@ vi.mock('node:crypto', async (importOriginal) => ({
   randomUUID: vi.fn(() => 'start-test-uuid'),
 }));
 
-import { prepareFullGameDemo, setFacilitatorResponsibility, startGame } from './index';
+import { advanceFullGameDemoPhase, prepareFullGameDemo, setFacilitatorResponsibility, startGame } from './index';
 import { activeVesselIdsForRoles, stableSeatsForRoles } from './gameSetup';
 import { missionDeck, missionDeckStateFromCards } from './missionDeck';
 import { recommendedRoleIds } from './roleConfiguration';
@@ -442,6 +442,33 @@ it('does not let an ordinary start consume the full-game demo preparation', asyn
     sessionId: 's1', instanceId: 'bridge', requestId: 'start-demo-as-ordinary', expectedSetupRevision: 0,
   }))).rejects.toMatchObject({ code: 'failed-precondition' });
   expect(mock.update).not.toHaveBeenCalledWith(expect.objectContaining({ path: 'sessions/s1' }), expect.anything());
+});
+
+it('opens a manual demo phase only through an authenticated GM phase action', async () => {
+  mock.session = {
+    ...mock.session,
+    phase: 'active',
+    currentTurn: 1,
+    turnLimit: 6,
+    fullGameDemo: { status: 'active', progression: 'manual' },
+    turnPhase: {
+      turn: 1,
+      teamPhaseEndsAt: '9999-12-31T23:59:59.999Z',
+      openAirspaceEndsAt: '9999-12-31T23:59:59.999Z',
+      progression: 'manual',
+      airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+    },
+  };
+  const reply = await advanceFullGameDemoPhase.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'manual-open', expectedTurn: 1,
+  }));
+
+  expect(reply).toMatchObject({
+    status: 'committed',
+    turnPhase: { progression: 'manual', airspace: { state: 'lifted' } },
+  });
+  const sessionUpdate = mock.update.mock.calls.find(([ref]) => ref.path === 'sessions/s1')?.[1];
+  expect(sessionUpdate?.turnPhase).toMatchObject({ progression: 'manual', airspace: { state: 'lifted' } });
 });
 
 it('preserves valid state and normalizes malformed maintenance entries while filling absent vessels', async () => {
