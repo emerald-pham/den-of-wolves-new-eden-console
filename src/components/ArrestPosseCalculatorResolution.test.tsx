@@ -66,8 +66,8 @@ it('makes simulated demo attendance an explicit labeled choice distinct from rea
     attendanceEvidence="simulated-demo" onCalculate={vi.fn()} onResolve={onResolve}
   />);
   expect(screen.getByText(/virtual crew.*does not record physical attendance/i)).toBeVisible();
-  expect(screen.queryByRole('button', { name: 'Resolve attendance', exact: true })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /^Resolve attendance$/ })).not.toBeInTheDocument();
   await user.click(within(screen.getByRole('group', { name: 'Simulated posse attendance' })).getByLabelText('Virtual Alex'));
-  await user.click(screen.getByRole('button', { name: 'Simulate attendance', exact: true }));
+  await user.click(screen.getByRole('button', { name: /^Simulate attendance$/ }));
   await waitFor(() => expect(onResolve).toHaveBeenCalledWith('target', ['u1'], 3, 1, 'simulated-demo'));
 });
