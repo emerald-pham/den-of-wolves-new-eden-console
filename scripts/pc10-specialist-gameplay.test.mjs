@@ -66,10 +66,27 @@ test('action map names the ordinary authenticated specialist source paths', () =
   for (const endpoint of [
     'repairConsolesFromMacaw', 'applyPermissionedDismantling', 'recycleWithBoa',
     'chooseBoaMissionReclamationOpportunity', 'resolveWolfAttackAftermath',
-    'rollHummingbirdHarvest', 'allocateHummingbirdHarvest', 'setFighterWingCount',
+    'rollHummingbirdHarvest', 'allocateHummingbirdHarvest', 'buildFighter',
     'requestScout', 'advanceEndeavourResearchTrack', 'launchPdfEscortWing',
     'sendFleetGroupMessage',
   ]) assert.ok(endpoints.has(endpoint), `missing source-backed action ${endpoint}`);
+  assert.equal(endpoints.has('setFighterWingCount'), false, 'The GM correction callable is not an ordinary Wing Commander proof action.');
+});
+
+test('PDF group relay evidence hashes the message instead of storing its text', () => {
+  const message = 'PC10 current-group relay copy must remain private to the actual test run.';
+  const evidence = projectSpecialistActionEvidence({
+    roleId: 'refinery-124-pdf-colonel', endpoint: 'sendFleetGroupMessage',
+    actor: { uidHash: 'sha256-pdf', sessionId: 'session' },
+    request: { requestId: 'note-1', expectedGroupId: 'fleet-2', text: message },
+    response: { httpStatus: 200, result: { status: 'committed', groupId: 'fleet-2', messageId: 'note-1' } },
+    replay: { status: 'committed', result: { status: 'replayed', groupId: 'fleet-2', messageId: 'note-1' } },
+    cost: null, projection: {},
+  });
+  assert.equal(evidence.request.text, undefined);
+  assert.equal(evidence.request.textLength, message.length);
+  assert.equal(evidence.request.textHash.length, 64);
+  assert.equal(JSON.stringify(evidence).includes(message), false);
 });
 
 test('unknown callable names fail closed instead of receiving generic proof credit', () => {
