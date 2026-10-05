@@ -318,6 +318,36 @@ it('shows permissioned dismantling to the active Philia holder with a live targe
   }));
 });
 
+it('shows Macaw salvage permission to the current Capybara Captain at its docked host', () => {
+  const state = useSessionStore.getState();
+  state.setSession({
+    ...state.session!, phase: 'active',
+    activeRoleIds: ['capybara-captain', 'dione-captain'],
+    activeVesselIds: ['capybara', 'dione'],
+    shuttleDockings: [{ shuttleId: 'macaw', shipId: 'dione', dockedAt: 'SESSION START' }],
+    shuttleControl: {
+      macaw: { shuttleId: 'macaw', ownerRoleId: 'capybara-captain',
+        ownerUid: 'u1', holderUid: 'u1', revision: 9 },
+    },
+    shipDamage: { dione: { damagedSystemIds: ['reactor'], destroyed: false } },
+  });
+  state.setMe({
+    ...state.me!, role: 'player', assignedRoleId: 'capybara-captain',
+    activeConsoleRoleId: 'capybara-captain', replacementStatus: null,
+  });
+  state.setConnection('live');
+  state.setSessionSnapshotFreshness('server');
+
+  render(<MemoryRouter initialEntries={['/shuttles/macaw']}><Routes>
+    <Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} />
+  </Routes></MemoryRouter>);
+
+  expect(dismantlingPanelMock.render).toHaveBeenCalledWith(expect.objectContaining({
+    mode: 'proposer', sessionId: 's1', currentPlayerUid: 'u1', craftId: 'macaw',
+    targetShipId: 'dione', damagedSystemIds: ['reactor'], connection: 'live', canAct: true,
+  }));
+});
+
 it('keeps permissioned dismantling inactive for stale snapshots and out of GM consoles', () => {
   const state = useSessionStore.getState();
   state.setSession({
