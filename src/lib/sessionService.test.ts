@@ -1628,7 +1628,7 @@ describe('authenticated full-game demo controls', () => {
     } });
     vi.mocked(httpsCallable).mockReturnValue(callable as never);
 
-    await expect(prepareFullGameDemo()).resolves.toMatchObject({
+    await expect(prepareFullGameDemo('demo-prepare-1')).resolves.toMatchObject({
       status: 'committed', fullGameDemo: { status: 'preparing', progression: 'manual' },
     });
 
@@ -1662,7 +1662,7 @@ describe('authenticated full-game demo controls', () => {
     } });
     vi.mocked(httpsCallable).mockReturnValue(callable as never);
 
-    await expect(advanceFullGameDemoPhase()).resolves.toMatchObject({
+    await expect(advanceFullGameDemoPhase('demo-phase-1')).resolves.toMatchObject({
       currentTurn: 1, turnPhase: { progression: 'manual', airspace: { state: 'lifted' } },
     });
 
