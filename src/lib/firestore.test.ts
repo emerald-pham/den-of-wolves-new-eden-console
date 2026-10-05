@@ -1017,7 +1017,18 @@ it('hydrates a strict reader-scoped debrief and full-game demo marker', () => {
     fullGameDemo: { status: 'complete', progression: 'manual' },
   });
   expect(session.debriefSnapshot).toEqual(debrief);
+  expect(session.gameOutcome).toEqual(outcome);
   expect(session.fullGameDemo).toEqual({ status: 'complete', progression: 'manual' });
+  for (const invalidOutcome of [
+    { ...outcome, candidateCode: 'X' },
+    { ...outcome, cycle: -1 },
+    { ...outcome, occurredAt: 'invalid' },
+    { ...outcome, privatePlayerUids: ['secret'] },
+  ]) {
+    expect(sessionFrom('unsafe-candidate-outcome', {
+      ...sessionData(8), phase: 'closed', gameOutcome: invalidOutcome,
+    }).gameOutcome).toBeUndefined();
+  }
   expect(sessionFrom('unsafe-debrief', {
     ...sessionData(8), phase: 'closed',
     debriefSnapshot: { ...debrief, gmNote: 'loyalty and hidden chart' },
