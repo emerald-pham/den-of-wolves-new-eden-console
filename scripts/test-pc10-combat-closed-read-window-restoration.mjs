@@ -138,3 +138,14 @@ test('restored windows and source reinspection cannot renew the unchanged stage 
   await assert.rejects(f.run({ deadlineAt: 600 }), error => /deadline/i.test(error.message) && retainedSdkError(error, f.reply));
   assert.deepEqual(f.counts, { sdkReads: 1, sourceReads: 2, paints: 0 });
 });
+
+for (const [name, options, sourceReads] of [
+  ['actor after final read', { afterActor: { airspace: 'restricted', turnStatePhase: 'team' } }, 2],
+  ['GM after final read', { afterGm: { airspace: 'restricted', turnStatePhase: 'team' } }, 2],
+  ['already restored rich GM during SDK read', { restoreBeforeSdk: true,
+    gmDrift: { airspace: 'restricted', turnStatePhase: 'team' } }, 1],
+]) test(`a full window restoration cannot reverse for the ${name}`, async () => {
+  const f = fixture(options);
+  await assert.rejects(f.run(), error => retainedSdkError(error, f.reply));
+  assert.deepEqual(f.counts, { sdkReads: 1, sourceReads, paints: 0 });
+});
