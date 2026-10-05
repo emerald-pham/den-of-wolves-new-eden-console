@@ -42,7 +42,7 @@ export default function DioneVipCards({
     setCardId('');
     setRerollCardId('');
     setRerollDieIndex('');
-    if (!session?.id || !me?.uid) {
+    if (!session?.id || session.phase === 'closed' || !me?.uid) {
       return undefined;
     }
     let active = true;
@@ -62,7 +62,7 @@ export default function DioneVipCards({
       unsubscribeHand();
       unsubscribePlayers();
     };
-  }, [fleetGroupId, gmInstanceId, me?.sessionId, me?.uid, role, session?.id]);
+  }, [fleetGroupId, gmInstanceId, me?.sessionId, me?.uid, role, session?.id, session?.phase]);
 
   const currentPhase = session ? phaseForSession(session) : undefined;
   const coordination = currentPhase?.airspace.state === 'lifted';

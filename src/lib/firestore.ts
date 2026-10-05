@@ -4024,11 +4024,13 @@ export function subscribeSessionState(
         } else {
           onError();
         }
+        if (session.phase === 'closed') stopForClosedHistory();
       }
       sessionConfirmationInFlight = false;
     })();
   };
   const startAwayMissionHandListeners = (pointers: readonly AwayMissionHandPointer[]) => {
+    if (closedHistoryTerminated) return;
     unsubscribeAwayMissionHands.forEach((unsubscribe) => unsubscribe());
     unsubscribeAwayMissionHands = [];
     const generation = ++awayMissionHandListenerGeneration;
@@ -4074,6 +4076,59 @@ export function subscribeSessionState(
     });
   };
   let memberFeedRefresh: () => void = () => undefined;
+  let unsubscribes: Unsubscribe[] = [];
+  let subscriptionsReady = false;
+  let stopRequestedBeforeReady = false;
+  let listenersStopped = false;
+  let closedHistoryTerminated = false;
+  const unsubscribeSessionListeners = () => {
+    if (!subscriptionsReady) {
+      stopRequestedBeforeReady = true;
+      return;
+    }
+    if (listenersStopped) return;
+    listenersStopped = true;
+    privateLoyaltyListenerGeneration += 1;
+    unsubscribeWolfCult();
+    unsubscribeArbourVision();
+    unsubscribeAwayMissionHands.forEach((unsubscribe) => unsubscribe());
+    unsubscribeAwayMissionHands = [];
+    awayMissionHandListenerGeneration += 1;
+    wolfCultListenerGeneration += 1;
+    arbourVisionListenerGeneration += 1;
+    unsubscribes.forEach((unsubscribe) => unsubscribe());
+  };
+  const stopForClosedHistory = () => {
+    if (closedHistoryTerminated) return;
+    closedHistoryTerminated = true;
+    subscribed = false;
+    memberActorAvailable = false;
+    memberSessionConfirmed = false;
+    pendingMemberDiscovery = undefined;
+    memberFeedRefresh = () => undefined;
+    if (currentSessionSubscriptionToken === subscriptionToken) currentSessionSubscriptionToken = undefined;
+    unsubscribeSessionListeners();
+    handlers.onPlayerDiscovery?.(null);
+    handlers.onGmDiscovery?.(null);
+    handlers.onPrivateLoyalty?.(null);
+    handlers.onWolfCultIntelligence?.(null);
+    handlers.onArbourVision?.(null);
+    handlers.onRoleBrief?.(null);
+    handlers.onAwayMissionHandPointer?.(null);
+    handlers.onAwayMissionHand?.(null);
+    handlers.onAwayMissionHandPointers?.([]);
+    handlers.onAwayMissionHands?.([]);
+    handlers.onGmAwayMissionHandPointers?.([]);
+    handlers.onCommissarPurgeAuthority?.(null);
+    handlers.onFacilitatorRuleCall?.(null);
+    handlers.onSetupReceipt?.(null);
+    handlers.onSeats([]);
+    if (memberPlayer) {
+      memberPlayer = { ...memberPlayer, connected: false };
+      handlers.onPlayer(memberPlayer);
+    }
+    handlers.onPlayerFreshness?.(false);
+  };
   let memberActorFingerprint: string | undefined;
   let memberActorEpoch = 0;
   let memberActorAvailable: boolean | undefined;
@@ -4151,7 +4206,8 @@ export function subscribeSessionState(
               handlers.onSession(session);
               memberSessionConfirmed = true;
               handlers.onSessionFreshness?.(true);
-              publishPendingMemberDiscovery();
+              if (session.phase === 'closed') stopForClosedHistory();
+              else publishPendingMemberDiscovery();
             }
           } catch {
             if (current() && actorEpoch === memberActorEpoch) {
@@ -4170,7 +4226,7 @@ export function subscribeSessionState(
     refresh();
     return () => { stopped = true; if (timer) clearTimeout(timer); memberFeedRefresh = () => undefined; };
   };
-  const unsubscribes = [
+  unsubscribes = [
     sessionDocument ? onSnapshot(sessionDocument, { includeMetadataChanges: true }, (snapshot) => {
       if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
       if (snapshot.exists()) {
@@ -4217,6 +4273,7 @@ export function subscribeSessionState(
         } else {
           handlers.onSessionFreshness?.(true);
         }
+        if (session.phase === 'closed') stopForClosedHistory();
       }
       else onError();
     }, onError) : startMemberSessionFeed(),
@@ -4502,7 +4559,10 @@ export function subscribeSessionState(
       onError,
     )] : []),
   ];
+  subscriptionsReady = true;
+  if (stopRequestedBeforeReady) unsubscribeSessionListeners();
   startWolfCultListener = (resetRevision: boolean) => {
+    if (closedHistoryTerminated) return;
     unsubscribeWolfCult();
     const generation = ++wolfCultListenerGeneration;
     if (resetRevision) acceptsWolfCultRevision = createMonotonicRevisionGate();
@@ -4532,6 +4592,7 @@ export function subscribeSessionState(
     );
   };
   startArbourVisionListener = (resetRevision: boolean) => {
+    if (closedHistoryTerminated) return;
     unsubscribeArbourVision();
     const generation = ++arbourVisionListenerGeneration;
     if (resetRevision) acceptsArbourVisionRevision = createMonotonicRevisionGate();
@@ -4559,7 +4620,7 @@ export function subscribeSessionState(
     );
   };
   startPrivateLoyaltyListener = () => {
-    if (!privateLoyaltyListenerBroken || !handlers.onPrivateLoyalty) return;
+    if (closedHistoryTerminated || !privateLoyaltyListenerBroken || !handlers.onPrivateLoyalty) return;
     unsubscribePrivateLoyalty();
     const generation = ++privateLoyaltyListenerGeneration;
     privateLoyaltyListenerBroken = false;
@@ -4612,16 +4673,8 @@ export function subscribeSessionState(
   startArbourVisionListener(false);
   return () => {
     subscribed = false;
-    unsubscribePrivateLoyalty();
-    privateLoyaltyListenerGeneration += 1;
-    unsubscribeWolfCult();
-    unsubscribeArbourVision();
-    unsubscribeAwayMissionHands.forEach((unsubscribe) => unsubscribe());
-    unsubscribeAwayMissionHands = [];
-    awayMissionHandListenerGeneration += 1;
-    wolfCultListenerGeneration += 1;
-    arbourVisionListenerGeneration += 1;
-    unsubscribes.forEach((unsubscribe) => unsubscribe());
+    memberFeedRefresh = () => undefined;
+    unsubscribeSessionListeners();
     if (currentSessionSubscriptionToken === subscriptionToken) {
       currentSessionSubscriptionToken = undefined;
       // Private projections belong to this exact session/UID listener. Clear
@@ -4655,8 +4708,22 @@ export function subscribeVipCards(
 ): Unsubscribe {
   let subscribed = true;
   let hasServerSnapshot = false;
+  const initialSession = useSessionStore.getState().session;
+  if (initialSession?.id === sessionId && initialSession.phase === 'closed') {
+    onCards(null);
+    return () => { subscribed = false; };
+  }
   const authority = suppliedAuthority ?? projectionSessionAuthority(sessionId, undefined);
-  const unsubscribe = onSnapshot(
+  let unsubscribe: Unsubscribe = () => undefined;
+  let stopStoreWatch: Unsubscribe = () => undefined;
+  const stopForClosedHistory = () => {
+    if (!subscribed) return;
+    subscribed = false;
+    unsubscribe();
+    stopStoreWatch();
+    onCards(null);
+  };
+  unsubscribe = onSnapshot(
     doc(db(), `sessions/${sessionId}/vipHands/${uid}`),
     { includeMetadataChanges: true },
     (snapshot) => {
@@ -4675,10 +4742,18 @@ export function subscribeVipCards(
       onError();
     },
   );
+  stopStoreWatch = useSessionStore.subscribe((state) => {
+    if (state.session?.id === sessionId && state.session.phase === 'closed') stopForClosedHistory();
+  });
+  if (useSessionStore.getState().session?.id === sessionId &&
+      useSessionStore.getState().session?.phase === 'closed') stopForClosedHistory();
   return () => {
-    subscribed = false;
-    unsubscribe();
-    onCards(null);
+    if (subscribed) {
+      subscribed = false;
+      stopStoreWatch();
+      unsubscribe();
+      onCards(null);
+    }
   };
 }
 
@@ -5529,6 +5604,9 @@ export function subscribeConnectedPlayers(
     onPlayers([]);
   };
   onPlayers([]);
+  if (viewer.session?.id === sessionId && viewer.session.phase === 'closed') {
+    return () => { subscribed = false; };
+  }
   // A member cannot safely subscribe until the callable projection has
   // supplied its server-owned group pointer. Do not fall back to a fleetwide
   // query while that identity is still loading.
@@ -5536,8 +5614,11 @@ export function subscribeConnectedPlayers(
     return () => { subscribed = false; };
   }
   stopStoreWatch = useSessionStore.subscribe((state) => {
-    if (entitlementKey(state) !== capturedEntitlementKey) stopForEntitlementChange();
+    if (state.session?.id === sessionId && state.session.phase === 'closed' ||
+        entitlementKey(state) !== capturedEntitlementKey) stopForEntitlementChange();
   });
+  if (useSessionStore.getState().session?.id === sessionId &&
+      useSessionStore.getState().session?.phase === 'closed') stopForEntitlementChange();
   const playersQuery = facilitator
     ? query(
       collection(db(), `sessions/${sessionId}/players`),

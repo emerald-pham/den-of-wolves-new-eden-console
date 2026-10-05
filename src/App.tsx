@@ -52,13 +52,40 @@ import type {
   WolfCultIntelligence,
 } from '@/types/game';
 import { isSessionRoute, restoreSessionRoute } from '@/lib/sessionRoute';
-import { stripGmNavigationProjection } from '@/lib/navigationPrivacy';
+import { stripGmNavigationProjection, stripPersistedNavigationProjection } from '@/lib/navigationPrivacy';
 import { shouldLoadAwayMissionDiscardPanel } from '@/lib/awayMissionVisibility';
 import type { GmDiscoveryProjection } from '@/lib/firestore';
 import { parseVoyage33MovementState } from '../functions/src/voyage33Movement';
 
 const GM_RECONCILE_INTERVAL_MS = 5_000;
 const PRESENCE_HEARTBEAT_INTERVAL_MS = 10_000;
+
+function clearClosedHistoryTransientState(session?: GameSession): void {
+  const store = useSessionStore.getState();
+  store.setPrivateLoyalty(null);
+  store.setRoleBrief(null);
+  store.setAwayMissionHandPointer(null);
+  store.setAwayMissionHand(null);
+  store.setAwayMissionHandPointers([]);
+  store.setAwayMissionHands([]);
+  store.setGmAwayMissionHandPointers([]);
+  store.setGmLoyaltyCensus(null);
+  store.setWolfCultIntelligence(null);
+  store.setGmWolfCultIntelligence(null);
+  store.setArbourVision(null);
+  store.setGmArbourVision(null);
+  store.setFacilitatorRuleCall(null);
+  store.setGmFacilitatorRuleCall(null);
+  store.setGmCrisisState(null);
+  store.setGmZealotryResponse(null);
+  store.setGmCivilUnrestResolution(null);
+  store.setGmSetupReceipt(null);
+  store.setCommissarPurgeAuthority(null);
+  store.setVoyage33MovementProjection(undefined, false);
+  store.setSeats([]);
+  const current = session ?? store.session;
+  if (current) store.setSession(stripPersistedNavigationProjection(current));
+}
 const GmConsole = lazy(() => import('@/routes/GmConsole'));
 const RoleBrief = lazy(() => import('@/routes/RoleBrief'));
 const SessionMode = lazy(() => import('@/routes/SessionMode'));
@@ -211,6 +238,7 @@ function AppRoutes() {
   const localDradisNavigation = useFleetGroupNavigation(requiresLocalDradis);
   const communicationError = useSessionStore((state) => state.communicationError);
   const sessionId = session?.id;
+  const sessionPhase = session?.phase;
   const playerUid = me?.uid;
   const playerRole = me?.role;
   const gmInstanceId = useSessionStore((state) => state.gmInstance?.id);
@@ -275,6 +303,10 @@ function AppRoutes() {
   }, [communicationError?.kind, location.pathname, navigate]);
 
   useEffect(() => {
+    if (sessionPhase === 'closed') {
+      clearClosedHistoryTransientState(session ?? undefined);
+      return;
+    }
     if (!sessionId || !playerUid) return;
     let active = true;
     const identity = `${sessionId}:${playerUid}`;
@@ -596,6 +628,18 @@ function AppRoutes() {
         onSession: (next) => {
           if (!callbackCurrent()) return;
           const store = useSessionStore.getState();
+          if (next.phase === 'closed') {
+            retainedGroupCandidateProjection = undefined;
+            pendingPlayerDiscovery = undefined;
+            pendingGmDiscovery = undefined;
+            pendingRoleBrief = null;
+            clearLoyaltyCensus();
+            if (store.me?.role === 'player' && store.me.connected) {
+              store.setMe({ ...store.me, connected: false });
+            }
+            clearClosedHistoryTransientState(next);
+            return;
+          }
           const current = store.session;
           if (!current || current.id !== next.id) {
             retainedGroupCandidateProjection = undefined;
@@ -1078,7 +1122,7 @@ function AppRoutes() {
       unsubscribeAuthorityFreshness();
       unsubscribe();
     };
-  }, [gmInstanceId, identityHydrationRevision, playerAuthority, playerRole, playerUid, sessionId]);
+  }, [gmInstanceId, identityHydrationRevision, playerAuthority, playerRole, playerUid, sessionId, sessionPhase]);
 
   useEffect(() => {
     if (gmAccessAuthenticatedAt === null) return;
@@ -1274,8 +1318,13 @@ function AppRuntime() {
       store.setConnection('offline');
     };
     const renewPresence = () => refreshPresence().catch(markAuthorityOffline);
+    const reconnectIfNeeded = () => {
+      const state = useSessionStore.getState();
+      if (state.session?.phase === 'closed' && state.sessionSnapshotFreshness === 'server') return;
+      run(connectAutomatically);
+    };
     const stopVersionMonitor = startVersionUpgradeMonitor({
-      reconnect: () => run(connectAutomatically),
+      reconnect: reconnectIfNeeded,
       onUpdateAvailable: markServiceWorkerUpdateAvailable,
     });
     // Some session-service failures mark the connection offline without going
@@ -1289,27 +1338,26 @@ function AppRuntime() {
     run(connectAutomatically);
 
     const retry = window.setInterval(() => {
-      if (useSessionStore.getState().connection !== 'live') run(connectAutomatically);
+      const state = useSessionStore.getState();
+      if (state.session?.phase !== 'closed' && state.connection !== 'live') run(connectAutomatically);
     }, CONNECT_RETRY_INTERVAL_MS);
     const reconcileGm = window.setInterval(() => {
       const state = useSessionStore.getState();
-      if (state.connection === 'live' && state.gmInstance) {
+      if (state.session?.phase !== 'closed' && state.connection === 'live' && state.gmInstance) {
         run(reconcileGmAuthority);
       }
     }, GM_RECONCILE_INTERVAL_MS);
     const heartbeat = window.setInterval(() => {
       const state = useSessionStore.getState();
-      if (state.connection === 'live' && state.session && state.me) {
+      if (state.session?.phase !== 'closed' && state.connection === 'live' && state.session && state.me) {
         run(renewPresence);
       }
     }, PRESENCE_HEARTBEAT_INTERVAL_MS);
 
     const markOffline = markAuthorityOffline;
-    const reconnectNow = () => {
-      run(connectAutomatically);
-    };
+    const reconnectNow = reconnectIfNeeded;
     const reconnectWhenVisible = () => {
-      if (document.visibilityState === 'visible') run(connectAutomatically);
+      if (document.visibilityState === 'visible') reconnectIfNeeded();
     };
 
     window.addEventListener('offline', markOffline);
