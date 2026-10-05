@@ -291,6 +291,7 @@ test('mounted AEGIS console lock requires its original vessel receipt, exact rep
     gmInstanceOwned: true, sameActor: true, connection: 'live', freshness: 'server' };
   const request = { sessionId: 'session-1', instanceId: 'gm-instance', shipId: 'aegis', locked: false,
     requestId: 'console-lock-1', expectedRevision: 7 };
+  const claimedAt = '2026-10-05T12:00:00.000Z';
   const receipt = { shipId: 'aegis', locked: false, actorUid: 'gm-auth-uid', actorRoleId: null,
     vesselId: 'aegis', turn: 2, phase: 'active', revision: 8, idempotencyKey: 'console-lock-1',
     auditId: 'console-lock-console-lock-1' };
@@ -310,12 +311,12 @@ test('mounted AEGIS console lock requires its original vessel receipt, exact rep
       sessionId: 'session-1', cycle: 2, uidHash, instanceId: 'gm-instance', shipId: 'aegis',
       locked: false, revision: 8 } },
     restore: { request: { sessionId: 'session-1', instanceId: 'gm-instance', shipId: 'aegis',
-      enabled: false, claimedAt: '2026-10-05T12:00:00.000Z' },
+      enabled: false, claimedAt },
       response: { httpStatus: 200, result: { enabled: false } },
       rendered: { visible: true, enabled: false },
       afterReload: { actor: gmActor, projection: { kind: 'gm-ship-console-write-grant', live: true,
         sessionId: 'session-1', cycle: 2, uidHash, instanceId: 'gm-instance', shipId: null,
-        targetShipId: 'aegis', enabled: false } } },
+        targetShipId: 'aegis', enabled: false, claimedAtHash: pc10ProofHash(claimedAt) } } },
     trainingChoice: 'gm-training:deliberate-choice' });
   assert.equal(evaluateProcedureCapture(proof).status, 'completed');
   for (const changes of [
@@ -370,7 +371,7 @@ test('mounted write grant is verified as a single-shot enable, same-instance rel
     claimedAt: '2026-10-05T12:00:00.000Z' };
   const grantProjection = enabled => ({ kind: 'gm-ship-console-write-grant', live: true,
     sessionId: 'session-1', cycle: 2, uidHash, instanceId: 'gm-instance', shipId: enabled ? 'aegis' : null,
-    targetShipId: 'aegis', enabled });
+    targetShipId: 'aegis', enabled, claimedAtHash: pc10ProofHash(request.claimedAt) });
   const proof = capture({ caseId: 'gm:setGmShipConsoleWriteGrant',
     expected: { sessionId: 'session-1', uidHash, instanceId: 'gm-instance', roleId: 'gm', cycle: 2,
       shipId: 'aegis' }, actorBefore: gmActor, actorAfter: gmActor,
