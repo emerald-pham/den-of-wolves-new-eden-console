@@ -51,8 +51,7 @@ const PUBLIC_FIELDS = [
   'fleetPartitionRevision',
   'wolfCultEnabled', 'pressEnabled', 'pressClaimed', 'pressAvailabilityRevision', 'gmControlsLocked',
   'turnPhase', 'turnState', 'turnStartAnnouncement', 'pursuitEmergencyWindow', 'gameOutcome',
-  'survivorOutcome', 'fleetRedAlert', 'fleetTicker', 'pressDispatch', 'debriefMode', 'singlePlayerDemo',
-  'fullGameDemo',
+  'survivorOutcome', 'fleetRedAlert', 'fleetTicker', 'pressDispatch', 'debriefMode', 'singlePlayerDemo', 'fullGameDemo',
   'presidentialElection', 'presidentialOffices', 'currentMemberBallotSubmitted',
   'createdAt', 'updatedAt', 'ownerUid', 'dradisContactTriggeredAt',
 ] as const;
@@ -79,6 +78,16 @@ const VESSEL_DETAIL_FIELDS: Readonly<Record<string, string>> = {
 };
 function selectedMap(value: unknown, ids: ReadonlySet<string>): Record<string, unknown> {
   return Object.fromEntries(Object.entries(record(value)).filter(([id]) => ids.has(id)));
+}
+
+/** Manual rehearsal progress is public; credentials, actors and arbitrary state never are. */
+export function publicFullGameDemoState(value: unknown): {
+  status: 'preparing' | 'active' | 'complete'; progression: 'manual';
+} | undefined {
+  const demo = record(value);
+  if (Object.keys(demo).length !== 2 || !Object.keys(demo).every(key => ['status', 'progression'].includes(key)) ||
+      !['preparing', 'active', 'complete'].includes(String(demo.status)) || demo.progression !== 'manual') return undefined;
+  return { status: demo.status as 'preparing' | 'active' | 'complete', progression: 'manual' };
 }
 
 /** The member receipt keeps the usage count while omitting other-group host details. */
@@ -163,11 +172,9 @@ export function memberSessionProjection(value: unknown, scope: MemberSessionScop
   });
   if (debriefSnapshot) result.debriefSnapshot = debriefSnapshot;
   else delete result.debriefSnapshot;
-  const demo = record(root.fullGameDemo);
-  if (demo && Object.keys(demo).length === 2 &&
-      (demo.status === 'active' || demo.status === 'complete') && demo.progression === 'manual') {
-    result.fullGameDemo = { status: demo.status, progression: 'manual' };
-  } else delete result.fullGameDemo;
+  const fullGameDemo = publicFullGameDemoState(root.fullGameDemo);
+  if (fullGameDemo) result.fullGameDemo = fullGameDemo;
+  else delete result.fullGameDemo;
   if (typeof scope.presidentialBallotSubmitted === 'boolean') {
     result.currentMemberBallotSubmitted = scope.presidentialBallotSubmitted;
   } else if (typeof root.currentMemberBallotSubmitted === 'boolean') {
@@ -383,7 +390,9 @@ function publicElectionView(value: unknown): Record<string, unknown> | undefined
 /** Additional PC07 feed fields use the same domain parsers as their write authorities. */
 export function parsedMemberSessionDetails(value: unknown, activeVesselIds: readonly string[]): Record<string, unknown> {
   const root = record(value);
+  const fullGameDemo = publicFullGameDemoState(root.fullGameDemo);
   const result: Record<string, unknown> = {
+    ...(fullGameDemo ? { fullGameDemo } : {}),
     universalArbourEnabled: root.universalArbourEnabled === true,
     wolfCultEnabled: root.wolfCultEnabled === true,
     shuttleControl: parseShuttleControl(root.shuttleControl) ?? {},
