@@ -916,9 +916,9 @@ it('hydrates a strict reader-scoped debrief and full-game demo marker', () => {
     cycle: 6, occurredAt: '2026-10-05T12:00:00.000Z' };
   const fleetLossSurvivors = {
     type: 'survivor-outcome', cycle: 6, occurredAt: '2026-10-05T12:00:00.000Z',
-    fleetShipPopulation: 100, survivingShipPopulation: 0, evacuatedPopulation: 0,
-    escapePodCapacity: 0, lostPopulation: 100, smallVesselPopulation: 0,
-    admittedVesselPopulation: 0, finalSurvivors: 0,
+    fleetShipPopulation: 100, survivingShipPopulation: 0, evacuatedPopulation: 12,
+    escapePodCapacity: 12, lostPopulation: 88, smallVesselPopulation: 2,
+    admittedVesselPopulation: 3, finalSurvivors: 17,
     survivingShipIds: [], lostOrDestroyedShipIds: ['aegis'],
   };
   const fleetLossDebrief = {
