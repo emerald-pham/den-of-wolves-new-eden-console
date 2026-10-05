@@ -99,6 +99,41 @@ test('Shuttle evacuation binds its public ledger revision and current custody re
     request: { ...input.request, expectedControlRevision: 9 } }).status, 'pending');
 });
 
+test('evacuation receipt binds the selected shuttle, population pair, quantity, and actual ledger delta', () => {
+  const actor = { uidHash: 'holder-hash', sessionId: 'session-1', profileRoleId: 'quellon-explorer',
+    activeConsoleRoleId: 'quellon-explorer', sameActor: true, connection: 'live', freshness: 'server' };
+  const result = { status: 'committed', sessionId: 'session-1', requestId: 'evac-2', shuttleId: 'starlight',
+    sourceShipId: 'quellon', destinationShipId: 'icebreaker', amount: 100, sourcePopulation: 900,
+    destinationPopulation: 600, cycle: 2, movedThisCycle: 100, evacuationRevision: 5 };
+  const input = { caseId: 'core:evacuateShuttleSurvivorsCommand', expected: { sessionId: 'session-1',
+    uidHash: 'holder-hash', roleId: 'quellon-explorer', cycle: 2, sourceRevision: 4, controlRevision: 10,
+    shuttleId: 'starlight', groupId: 'fleet-1', sourceShipId: 'quellon', destinationShipId: 'icebreaker', amount: 100 },
+    offered: true, mountedUi: true, actorBefore: actor, actorAfter: actor,
+    sourceBefore: { live: true, sessionId: 'session-1', cycle: 2, revision: 4, groupId: 'fleet-1' },
+    sourceAfter: { live: true, sessionId: 'session-1', cycle: 2, revision: 5, groupId: 'fleet-1' },
+    transitionBefore: { kind: 'shuttle-evacuation', sessionId: 'session-1', cycle: 2, shuttleId: 'starlight',
+      holderUidHash: 'holder-hash', groupId: 'fleet-1', controlRevision: 10, sourceShipId: 'quellon',
+      destinationShipId: 'icebreaker', amount: 100, sourcePopulation: 1000, destinationPopulation: 500,
+      evacuationRevision: 4 },
+    transitionAfter: { kind: 'shuttle-evacuation', sessionId: 'session-1', cycle: 2, shuttleId: 'starlight',
+      holderUidHash: 'holder-hash', groupId: 'fleet-1', controlRevision: 10, sourceShipId: 'quellon',
+      destinationShipId: 'icebreaker', amount: 100, sourcePopulation: 900, destinationPopulation: 600,
+      evacuationRevision: 5 },
+    request: { sessionId: 'session-1', requestId: 'evac-2', shuttleId: 'starlight', destinationShipId: 'icebreaker',
+      amount: 100, expectedCycle: 2, expectedEvacuationRevision: 4, expectedControlRevision: 10 },
+    response: { httpStatus: 200, result, exactReplay: true },
+    replay: { result: { ...result, status: 'replayed' } },
+    rendered: { visible: true, resultStatus: 'committed' } };
+  const accepted = evaluateProcedureCapture(input);
+  assert.equal(accepted.status, 'completed', accepted.reason);
+  assert.equal(evaluateProcedureCapture({ ...input,
+    request: { ...input.request, amount: 200 } }).status, 'pending');
+  assert.equal(evaluateProcedureCapture({ ...input,
+    transitionAfter: { ...input.transitionAfter, sourcePopulation: 800 } }).status, 'pending');
+  assert.equal(evaluateProcedureCapture({ ...input,
+    response: { ...input.response, result: { ...result, destinationShipId: 'dione' } } }).status, 'pending');
+});
+
 test('Service shuttle recharge binds its own ledger plus custody and maintenance revisions', () => {
   const actor = { uidHash: 'engineer-hash', sessionId: 'session-1', profileRoleId: 'icebreaker-engineer',
     activeConsoleRoleId: 'icebreaker-engineer', sameActor: true, connection: 'live', freshness: 'server' };
