@@ -205,7 +205,7 @@ it('uses the current member read feed without subscribing to a raw session root'
   stop();
 });
 
-async function productionClosedMemberEnvelope(sessionId = 'closed-feed') {
+async function productionClosedMemberEnvelope(sessionId = 'closed-feed', sourcePatch: Record<string, unknown> = {}) {
   const records: Record<string, Record<string, unknown>> = {
     [`sessions/${sessionId}`]: {
       id: sessionId, name: 'Table one', joinCode: 'PRIVATE RETAINED CODE', phase: 'closed', currentTurn: 4,
@@ -213,6 +213,7 @@ async function productionClosedMemberEnvelope(sessionId = 'closed-feed') {
       shipResources: { aegis: { fuel: 90 } }, privateBrief: 'PRIVATE RETAINED BRIEF',
       debriefSnapshot: { type: 'session-debrief', version: 1, source: 'final-cycle', result: 'completed',
         cause: 'final-cycle', cycle: 4, occurredAt: '2026-10-05T12:00:00.000Z', committedAt: '2026-10-05T12:01:00.000Z' },
+      ...sourcePatch,
     },
     [`sessions/${sessionId}/players/u1`]: { role: 'player', connected: false, fleetGroupId: 'fleet-1',
       connectionGeneration: 3, assignedRoleId: 'admiral', activeConsoleRoleId: null },
@@ -270,6 +271,43 @@ it('stops member feed polling and private listeners after the actual server retu
     stop();
     vi.useRealTimers();
   }
+});
+
+it('preserves the actual member-safe candidate history without reapplying an empty operational audience', async () => {
+  const outcome = { type: 'game-outcome', result: 'success', cause: 'candidate-complete', candidateCode: 'N',
+    cycle: 4, occurredAt: '2026-10-05T12:00:00.000Z' };
+  const envelope = await productionClosedMemberEnvelope('closed-candidate', {
+    gameOutcome: outcome,
+    debriefSnapshot: { type: 'session-debrief', version: 1, source: 'candidate', result: 'success',
+      cause: 'candidate-complete', cycle: 4, occurredAt: outcome.occurredAt,
+      committedAt: '2026-10-05T12:01:00.000Z', outcome,
+      candidate: { code: 'N', groups: [{ groupId: 'fleet-1',
+        requirements: [{ id: 'paid-crossing', status: 'met' }],
+        rolls: [{ id: 'passage', face: 4, result: 'success', audience: 'members' }],
+        losses: [{ shipId: 'aegis', reason: 'candidate-loss', audience: 'members' }],
+        humanCalls: [{ id: 'facilitator-recovery', cycle: 4, audience: 'members' }],
+      }, { groupId: 'fleet-2', requirements: [{ id: 'foreign-requirement', status: 'blocked' }] }] } },
+  });
+  expect(envelope.session.debriefSnapshot).toMatchObject({ candidate: { groups: [{
+    losses: [{ shipId: 'aegis', reason: 'candidate-loss' }],
+  }] } });
+  vi.mocked(doc).mockImplementation(((_db: unknown, path: string) => ({ path })) as never);
+  vi.mocked(collection).mockImplementation(((_db: unknown, path: string) => ({ path })) as never);
+  vi.mocked(onSnapshot).mockImplementation(() => vi.fn());
+  vi.mocked(httpsCallable).mockReturnValue(vi.fn().mockResolvedValue({ data: envelope }) as never);
+  const onSession = vi.fn();
+  const onError = vi.fn();
+  const stop = subscribeSessionState('closed-candidate', 'u1', {
+    sessionReadAudience: 'member', onSession, onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(), onError,
+  });
+  try {
+    await vi.waitFor(() => expect(onSession).toHaveBeenCalled());
+    expect(onError).not.toHaveBeenCalled();
+    const accepted = onSession.mock.calls[0][0];
+    expect(accepted.debriefSnapshot).toEqual(envelope.session.debriefSnapshot);
+    expect(accepted.shipResources).toBeUndefined();
+    expect(JSON.stringify(accepted)).not.toMatch(/foreign-requirement|memberSessionScope/);
+  } finally { stop(); }
 });
 
 it.each([

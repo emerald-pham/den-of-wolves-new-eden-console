@@ -114,7 +114,8 @@ function provisionManualPhase(phase: 'team' | 'coordination', cycle = 2) {
   };
   const session = mock.documents.get('sessions/s1')!;
   session.turnPhase = turnPhase;
-  session.turnState = turnStateForPhase(turnPhase, 6, 1, new Date().toISOString());
+  session.turnState = turnStateForPhase(turnPhase, 6, 1,
+    phase === 'coordination' ? turnPhase.teamPhaseEndsAt : new Date().toISOString());
 }
 
 it('tallies at the configured close cycle after a genuine manual Coordination transition and replays its receipt', async () => {
