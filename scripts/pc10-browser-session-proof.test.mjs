@@ -4,6 +4,37 @@ import { runInNewContext } from 'node:vm';
 import { createRequire } from 'node:module';
 import * as proof from './pc10-browser-session-proof.mjs';
 
+test('ordinary admission waits for the real joined identity before requiring its consent dialog', async () => {
+  assert.equal(typeof proof.completePc10OrdinaryUiAdmission, 'function');
+  let release, consented = false;
+  const state = { hasAuth: true, sameActor: true, hasSession: true };
+  const joined = new Promise(resolve => { release = resolve; });
+  const completed = proof.completePc10OrdinaryUiAdmission({ join: () => joined,
+    consent: async () => { consented = true; }, inspect: async () => state });
+  await Promise.resolve(); assert.equal(consented, false);
+  release(state); await completed; assert.equal(consented, true);
+});
+
+test('ordinary admission rejects missing or foreign joined identity before consent', async () => {
+  assert.equal(typeof proof.completePc10OrdinaryUiAdmission, 'function');
+  for (const missing of ['hasAuth', 'sameActor', 'hasSession']) {
+    let consented = false;
+    await assert.rejects(proof.completePc10OrdinaryUiAdmission({
+      join: async () => ({ hasAuth: true, sameActor: true, hasSession: true, [missing]: false }),
+      consent: async () => { consented = true; }, inspect: async () => ({}) }), /joined identity/i);
+    assert.equal(consented, false);
+  }
+});
+
+test('ordinary admission propagates consent failure and rejects lost identity afterward', async () => {
+  assert.equal(typeof proof.completePc10OrdinaryUiAdmission, 'function');
+  const state = { hasAuth: true, sameActor: true, hasSession: true }, failure = new Error('actual consent failed');
+  await assert.rejects(proof.completePc10OrdinaryUiAdmission({ join: async () => state,
+    consent: async () => { throw failure; }, inspect: async () => state }), error => error === failure);
+  await assert.rejects(proof.completePc10OrdinaryUiAdmission({ join: async () => state,
+    consent: async () => undefined, inspect: async () => ({ ...state, sameActor: false }) }), /joined identity/i);
+});
+
 test('observation barrier awaits response bodies and requests added while draining', async () => {
   assert.equal(typeof proof.drainPc10CallableObservations, 'function');
   const pending = new Set(); let revision = 0, releaseFirst, releaseSecond, finished = false;
