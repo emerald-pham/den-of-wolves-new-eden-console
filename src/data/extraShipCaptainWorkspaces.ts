@@ -44,7 +44,12 @@ export const EXTRA_SHIP_CAPTAIN_WORKSPACES: readonly ExtraShipCaptainWorkspaceDe
         charge: 'reactor', control: 'live-below',
         availability: 'Live server-owned movement controls appear below using this Captain’s known chart nodes.',
       },
-      unavailable('mission-support', 'Mission Support', 'Away Mission', 'Before cards are dealt, inspect the top five mission cards and return each to the top or bottom.', 'none', 'Awaiting the authoritative pre-deal mission lifecycle.'),
+      {
+        id: 'mission-support', name: 'Mission Support', phase: 'Away Mission',
+        effect: 'Before cards are dealt, inspect the top five mission cards and return each to the top or bottom.',
+        charge: 'none', control: 'live-below',
+        availability: 'Live Mission Support controls appear below for an eligible pre-deal mission.',
+      },
       {
         id: 'repair-drones',
         name: 'Repair Drones',
@@ -79,7 +84,12 @@ export const EXTRA_SHIP_CAPTAIN_WORKSPACES: readonly ExtraShipCaptainWorkspaceDe
         charge: 'reactor', control: 'live-below',
         availability: 'Live server-owned movement controls appear below using this Captain’s known chart nodes.',
       },
-      unavailable('bulk-haulage', 'Bulk Haulage', 'Away Mission', 'A contributed opportunity grants one additional resource of every type won.'),
+      {
+        id: 'bulk-haulage', name: 'Bulk Haulage', phase: 'Away Mission',
+        effect: 'A contributed opportunity grants one additional resource of every type won.',
+        charge: 'none', control: 'live-below',
+        availability: 'Mission resolution applies this benefit automatically when base Capybara contributes to the opportunity.',
+      },
       {
         id: 'cargo-transfer',
         name: 'Cargo Transfer',
@@ -100,7 +110,12 @@ export const EXTRA_SHIP_CAPTAIN_WORKSPACES: readonly ExtraShipCaptainWorkspaceDe
     policy: 'Recover supplies and repair fleet consoles while protecting Warrior and Rosal survivors.',
     actions: [
       unavailable('jump-drive', 'Jump Drive', 'FTL', 'Spend 1 / 1 / 2 fuel from the docked host for a short / medium / long jump.'),
-      unavailable('reclamator', 'Reclamator', 'Away Mission', 'Discard the entire hand to salvage one opportunity for the printed per-card resource choice.', 'none', 'Awaiting the authoritative mission opportunity and reward lifecycle.'),
+      {
+        id: 'reclamator', name: 'Reclamator', phase: 'Away Mission',
+        effect: 'Discard the entire hand to salvage one opportunity for the printed per-card resource choice.',
+        charge: 'none', control: 'live-below',
+        availability: 'Live Reclamator choices appear in the mission workspace when Warrior contributes and private discards open.',
+      },
       unavailable('cargo-transfer', 'Cargo Transfer', 'Coordination', 'Move security teams, ore, fuel, food, water, or materials to and from the docked host.'),
       {
         id: 'repair-drones',
@@ -111,7 +126,12 @@ export const EXTRA_SHIP_CAPTAIN_WORKSPACES: readonly ExtraShipCaptainWorkspaceDe
         control: 'live-below',
         availability: 'Live server-owned repair control appears below when current authority permits.',
       },
-      unavailable('salvage-drones', 'Salvage Drones', 'Wolf attack', 'After an attack, when charged, roll once for each damage dealt by either side and gain 1 material for every 5+.', 'reactor', 'Attack damage tracking and salvage rolls are not available yet.'),
+      {
+        id: 'salvage-drones', name: 'Salvage Drones', phase: 'Wolf attack',
+        effect: 'After an attack, when charged, roll once for each damage dealt by either side and gain 1 material for every 5+.',
+        charge: 'reactor', control: 'live-below',
+        availability: 'Live aftermath controls appear below after a resolved attack when Warrior has a current Salvage Drones charge.',
+      },
     ],
   },
   {
