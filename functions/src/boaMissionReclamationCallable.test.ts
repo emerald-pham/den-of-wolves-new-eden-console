@@ -28,7 +28,8 @@ const mock = vi.hoisted(() => {
     documents.set(target.path, { ...fields });
   });
   const runTransaction = vi.fn(async (callback: (transaction: unknown) => unknown) => callback({ get, set, update, create }));
-  return { documents, get, set, update, create, db: { doc: ref, collection: ref, runTransaction } };
+  return { documents, get, set, update, create, runTransaction,
+    db: { doc: ref, collection: ref, runTransaction } };
 });
 
 const SESSION = 's1';
@@ -36,6 +37,7 @@ const ACTOR = 'boa-player';
 const ARRIVAL = 'arrival-fleet-1-A-5143';
 const SESSION_FIELDS = {
   phase: 'active', currentTurn: 2, expansion: 'capybara', capybaraEnabled: true,
+  turnPhase: { turn: 2 },
   activeRoleIds: ['capybara-captain', 'capybara-recycler'],
   activeVesselIds: ['capybara', 'aegis'],
   shuttleControl: { boa: { shuttleId: 'boa', ownerRoleId: 'capybara-recycler',

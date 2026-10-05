@@ -817,8 +817,9 @@ describe('dealPrivateInitialCards', () => {
     };
     mock.shuttleDockings.push({ shuttleId: 'boa', shipId: 'capybara', dockedAt: 'now' });
     mock.documents[`sessions/s1/boaMissionReclamationChoices/${defaultOpportunity.id}`] = {
-      type: 'boa-mission-reclamation-choice', status: 'selected', sessionId: 's1',
-      opportunityId: defaultOpportunity.id, groupId: 'fleet-1', sourceCycle: 2,
+      type: 'boa-mission-reclamation-choice', schemaVersion: 1, status: 'selected', sessionId: 's1',
+      opportunityId: defaultOpportunity.id, groupId: 'fleet-1', chart: 'A',
+      coordinate: '5143', siteCode: 'L', sourceCycle: 2, actorRoleId: 'capybara-recycler',
       actorUid: 'capybara', opportunityTaskId: 'L-1', controlRevision: 1,
       requestId: 'boa-choice-1', revision: 1,
     };
@@ -868,8 +869,9 @@ describe('dealPrivateInitialCards', () => {
     };
     mock.shuttleDockings.push({ shuttleId: 'boa', shipId: 'capybara', dockedAt: 'now' });
     mock.documents[`sessions/s1/boaMissionReclamationChoices/${defaultOpportunity.id}`] = {
-      type: 'boa-mission-reclamation-choice', status: 'selected', sessionId: 's1',
-      opportunityId: defaultOpportunity.id, groupId: 'fleet-1', sourceCycle: 2,
+      type: 'boa-mission-reclamation-choice', schemaVersion: 1, status: 'selected', sessionId: 's1',
+      opportunityId: defaultOpportunity.id, groupId: 'fleet-1', chart: 'A',
+      coordinate: '5143', siteCode: 'L', sourceCycle: 2, actorRoleId: 'capybara-recycler',
       actorUid: 'capybara', opportunityTaskId: 'L-1', controlRevision: 1,
       requestId: 'boa-choice-1', revision: 1,
     };
