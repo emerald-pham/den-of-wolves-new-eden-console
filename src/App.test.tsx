@@ -1884,6 +1884,59 @@ describe('App', () => {
     expect(useSessionStore.getState().gmLoyaltyCensus).toBeNull();
   });
 
+  it.each(['empty', 'present'] as const)(
+    'rebinds the GM census after a freshness interruption drops its one-shot %s projection',
+    async (status) => {
+      let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
+      const censusCallbacks: Array<Parameters<typeof subscribeLoyaltyCensus>[1]> = [];
+      const censusStops: Array<ReturnType<typeof vi.fn>> = [];
+      vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, nextHandlers) => {
+        handlers = nextHandlers;
+        return vi.fn();
+      });
+      vi.mocked(subscribeLoyaltyCensus).mockImplementation((_sessionId, onCensus) => {
+        censusCallbacks.push(onCensus);
+        const stop = vi.fn();
+        censusStops.push(stop);
+        return stop;
+      });
+      const connectedGm = { ...player, connected: true };
+      useSessionStore.getState().setIdentity({ ...session, phase: 'casting' }, connectedGm);
+      const { unmount } = render(<App />);
+      await waitFor(() => expect(handlers).toBeDefined());
+      act(() => {
+        handlers?.onSessionFreshness?.(true);
+        handlers?.onPlayer(connectedGm);
+        handlers?.onPlayerFreshness?.(true);
+      });
+      expect(censusCallbacks).toHaveLength(1);
+      const firstCallback = censusCallbacks[0]!;
+      const value = status === 'empty' ? null : {
+        revision: 1, entries: [{ uid: 'u2', kind: 'wolf-agent' as const, suspicion: 7 }],
+      };
+
+      act(() => handlers?.onSessionFreshness?.(false));
+      act(() => firstCallback(value, status));
+      expect(useSessionStore.getState().gmLoyaltyCensus).toBeNull();
+      expect(useSessionStore.getState().gmLoyaltyCensusStatus).toBe('loading');
+      act(() => handlers?.onSessionFreshness?.(true));
+      expect(useSessionStore.getState().gmLoyaltyCensusStatus).toBe('loading');
+
+      act(() => {
+        handlers?.onPlayer(connectedGm);
+        handlers?.onPlayerFreshness?.(true);
+      });
+      expect(censusStops[0]).toHaveBeenCalledTimes(1);
+      expect(censusCallbacks).toHaveLength(2);
+      act(() => firstCallback(value, status));
+      expect(useSessionStore.getState().gmLoyaltyCensusStatus).toBe('loading');
+      act(() => censusCallbacks[1]?.(value, status));
+      expect(useSessionStore.getState().gmLoyaltyCensusStatus).toBe(status);
+      expect(useSessionStore.getState().gmLoyaltyCensus).toEqual(value);
+      unmount();
+    },
+  );
+
   it('holds a new own brief until the matching player assignment arrives', async () => {
     let handlers: Parameters<typeof subscribeSessionState>[2] | undefined;
     vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, nextHandlers) => {
