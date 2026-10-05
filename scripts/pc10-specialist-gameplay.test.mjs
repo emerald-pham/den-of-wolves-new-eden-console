@@ -213,6 +213,24 @@ test('shuttle route evidence hashes destination and transit identifiers', () => 
   assert.equal(JSON.stringify(evidence).includes('refinery-124'), false);
 });
 
+test('away-mission evidence hashes private assignment and opportunity identifiers', () => {
+  const evidence = projectSpecialistActionEvidence({
+    roleId: 'shepherd-scientist', endpoint: 'commitAwayMissionLifecycleCommand',
+    actor: { uidHash: 'sha256-scientist', sessionId: 'session' },
+    request: { requestId: 'mission-1', missionId: 'private-mission-card-9',
+      expectedRevision: 4, type: 'use-opportunity', opportunityId: 'secret-opportunity-2', shipId: 'dione' },
+    response: { httpStatus: 200, result: { status: 'committed', revision: 5, expectedRevision: 4 } },
+    replay: { status: 'committed', result: { status: 'replayed', revision: 5, expectedRevision: 4 } },
+    cost: null, projection: {},
+  });
+  assert.equal(evidence.request.missionId, undefined);
+  assert.equal(evidence.request.opportunityId, undefined);
+  assert.equal(evidence.request.missionIdHash.length, 64);
+  assert.equal(evidence.request.opportunityIdHash.length, 64);
+  assert.equal(JSON.stringify(evidence).includes('private-mission-card-9'), false);
+  assert.equal(JSON.stringify(evidence).includes('secret-opportunity-2'), false);
+});
+
 test('callback records failures without calling a partial gameplay run complete', async () => {
   let saved;
   const game = { context: { gm: {}, initial: { sessionId: 'fresh-session' } },
