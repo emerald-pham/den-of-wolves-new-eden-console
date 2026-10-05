@@ -139,7 +139,9 @@ export async function submitExplicitGmLoyaltyAssignment(
   // session must still be the pre-call casting window and revision.
   const unchangedAuthoritySnapshot = isCurrentSessionAuthority(checkpoint) &&
     sessionIdentityMatches && latestSetupRevision === baselineSetupRevision &&
-    receipt.setupRevision === expectedSetupRevision &&
+    // Exact request retries are authorized server replays: their committed
+    // revision equals this already-current baseline instead of baseline + 1.
+    (receipt.setupRevision === baselineSetupRevision || receipt.setupRevision === expectedSetupRevision) &&
     latest.session?.phase === baselinePhase && latest.session.setupConfirmed === true &&
     latest.session.configurationLocked !== true;
   // The callable writes one setup revision. A listener-first reply may advance
