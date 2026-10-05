@@ -54,7 +54,7 @@ try {
     assert.deepEqual(await response.json(), { error: { message: 'Unauthenticated', status: 'UNAUTHENTICATED' } });
     results.push({ name, platform: callable.__endpoint.platform, region: callable.__endpoint.region,
       maxInstances: callable.__endpoint.maxInstances, missingAppCheckHttpStatus: response.status,
-      verifiedAuthActor: true });
+      verifiedAuthActor: true, endpoint: callable.__endpoint });
   }
   const files = [];
   const walk = async directory => {

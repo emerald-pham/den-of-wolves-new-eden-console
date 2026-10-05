@@ -244,7 +244,12 @@ try {
   await mkdir(uiDirectory, { recursive: true });
   await page.screenshot({ path: `${uiDirectory}/ordinary-player-390.png`, fullPage: true });
   await page.setViewportSize({ width: 844, height: 390 });
-  await page.screenshot({ path: `${uiDirectory}/ordinary-player-landscape.png`, fullPage: true });
+  await page.getByRole('button', { name: 'Build 1 fighter // 1 material', exact: true }).first().scrollIntoViewIfNeeded();
+  ui.landscapeOverflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1);
+  assert.equal(ui.landscapeOverflow, false);
+  // Full-page Chromium capture repeats fixed overlays while stitching short
+  // landscape pages; the native viewport is the actual visible UI evidence.
+  await page.screenshot({ path: `${uiDirectory}/ordinary-player-landscape.png` });
   checks.realBrowserResumePrivateProjection = ui;
 
   // Each actor has its own budget even though these clients share one loopback network.
