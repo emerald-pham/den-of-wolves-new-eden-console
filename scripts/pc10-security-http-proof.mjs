@@ -175,7 +175,15 @@ try {
     const { useSessionStore } = await import(url);
     const current = useSessionStore.getState();
     return auth().currentUser?.uid === uid && current.me?.uid === uid && current.connection === 'live' &&
-      current.sessionSnapshotFreshness === 'server';
+      current.sessionSnapshotFreshness === 'server' && current.session?.currentTurn === 1;
+  }, { url: sessionStoreUrl, uid: wing.localId }, { timeout: 30000 });
+  await page.getByRole('link', { name: /AEGIS.*Wing Commander.*HELD BY YOU/i }).click();
+  await page.waitForFunction(async ({ url, uid }) => {
+    const { useSessionStore } = await import(url);
+    const current = useSessionStore.getState();
+    return current.me?.uid === uid && current.me.assignedRoleId === 'wing-commander' &&
+      current.me.seatId === 'wing-commander' && current.me.activeConsoleRoleId === 'wing-commander' &&
+      current.session?.currentTurn === 1 && current.connection === 'live' && current.sessionSnapshotFreshness === 'server';
   }, { url: sessionStoreUrl, uid: wing.localId }, { timeout: 30000 });
   const ui = await page.evaluate(async url => {
     const { useSessionStore, SESSION_STORAGE_KEY } = await import(url);
@@ -187,6 +195,8 @@ try {
       forbiddenSnapshotFields: ['shipGalacticCoordinates', 'missionDeck', 'deckOrder', 'facilitatorNotes'].filter(key => Object.hasOwn(current.session, key)) };
   }, sessionStoreUrl);
   assert.equal(ui.overflow, false);
+  assert.equal(ui.cycle, 1, 'The browser must finish genuine cycle-one authenticated hydration.');
+  assert.equal(ui.role, 'wing-commander');
   assert.deepEqual(ui.forbiddenSnapshotFields, []);
   assert.deepEqual(ui.persistedKeys, ['gmAccessAuthenticatedAt', 'gmInstance', 'lastRoute', 'me', 'mode', 'pendingCommands', 'session']);
   await mkdir(uiDirectory, { recursive: true });

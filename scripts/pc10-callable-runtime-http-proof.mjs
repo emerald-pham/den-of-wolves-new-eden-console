@@ -12,6 +12,7 @@ assert.ok(/^demo-[a-z0-9-]+$/.test(project ?? ''), 'Only an explicitly local dem
 const env = Object.fromEntries((await readFile('.env.emulators.local', 'utf8')).trim().split('\n').map(line => line.split('=')));
 process.env.FIREBASE_AUTH_EMULATOR_HOST = `127.0.0.1:${Number(env.VITE_FIREBASE_AUTH_EMULATOR_PORT)}`;
 process.env.FIRESTORE_EMULATOR_HOST = `127.0.0.1:${Number(env.VITE_FIREBASE_FIRESTORE_EMULATOR_PORT)}`;
+process.env.GCLOUD_PROJECT = project;
 // This disposable process constructs the actual exported handlers using the
 // canonical production App Check setting, while all identity/database traffic
 // is explicitly bound to local emulators. No deployment setting is changed.
@@ -26,6 +27,10 @@ const identityResponse = await fetch(`http://${process.env.FIREBASE_AUTH_EMULATO
 });
 assert.equal(identityResponse.status, 200);
 const identity = await identityResponse.json();
+const { getAuth } = require('firebase-admin/auth');
+const verifiedIdentity = await getAuth().verifyIdToken(identity.idToken);
+assert.equal(verifiedIdentity.uid, identity.localId, 'The same SDK verifier must accept the real local Auth token.');
+assert.equal(verifiedIdentity.aud, project);
 const app = express();
 app.use(express.json());
 for (const [name, callable] of callables) app.post(`/${name}`, callable);
@@ -65,7 +70,8 @@ try {
     sourceCommit: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
     compiledTreeSha256: hash.digest('hex'), callableCount: callables.length,
     canonicalOptions: { region: 'us-central1', maxInstances: 10, enforceAppCheck: true },
-    verifiedLocalAuthActor: true, missingAppCheckDeniedForEveryExport: true,
+    verifiedLocalAuthActor: true, sdkAuthTokenVerifiedBeforeTransport: true,
+    verifiedActorTokenAudience: project, missingAppCheckDeniedForEveryExport: true,
     adminGameplaySeeds: [], localIdentitiesOnly: true, productionGameplay: false, results };
   await mkdir(dirname(evidencePath), { recursive: true });
   await writeFile(evidencePath, JSON.stringify(report, null, 2) + '\n');
