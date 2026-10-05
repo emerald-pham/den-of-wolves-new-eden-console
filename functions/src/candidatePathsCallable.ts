@@ -327,7 +327,7 @@ export function createCandidateCallables(d: Dependencies) {
                 result: result.outcome === 'lost' ? 'failure' as const : 'success' as const, audience: 'members' as const })),
               losses: site.completed!.leftBehindShipIds.map(shipId => ({ shipId,
                 reason: site.code === 'O' ? 'lost-in-nebula' : 'left-behind', audience: 'members' as const })),
-              humanCalls: site.sabotagedAt ? [{ id: 'ring-far-side-sabotage', cycle: a.cycle, audience: 'members' as const }] : [],
+              humanCalls: site.sabotagedAt ? [{ id: 'ring-far-side-sabotage', cycle: site.completed!.cycle, audience: 'members' as const }] : [],
             })) } });
       }
       tx.set(db.doc(`${base}/serverState/candidates`), plan.state);
