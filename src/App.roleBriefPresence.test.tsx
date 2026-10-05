@@ -270,6 +270,23 @@ describe('role-brief audience and presence recovery', () => {
     expect(activeListeners(briefPath())).toHaveLength(1);
   });
 
+  it('recovers once after a genuine assigned-to-unassigned brief denial and stays live without that reader', async () => {
+    await mount('player', 'admiral');
+    const oldListener = activeListeners(briefPath()).at(-1)!;
+    briefData = null;
+    act(() => publishActor({ ...actor, assignedRoleId: null, activeConsoleRoleId: null, seatId: null }));
+    expect(useSessionStore.getState()).toMatchObject({ roleBrief: null, connection: 'offline', sessionSnapshotFreshness: 'cache' });
+    await advance(10_000);
+
+    expect(useSessionStore.getState()).toMatchObject({ roleBrief: null, connection: 'live', sessionSnapshotFreshness: 'server',
+      me: { uid: actor.uid, assignedRoleId: null } });
+    expect(callCount('resumeSession')).toBe(2);
+    expect(callCount('refreshPresence')).toBe(1);
+    expect(activeListeners(briefPath())).toHaveLength(0);
+    act(() => oldListener.next(snapshot(oldListener.path, assignedBrief('admiral'))));
+    expect(useSessionStore.getState().roleBrief).toBeNull();
+  });
+
   it('binds a newly assigned controller brief from the current player projection', async () => {
     await mount('player');
     briefData = assignedBrief('admiral');
