@@ -598,8 +598,8 @@ it.each(['aegis', 'capybara'])('lets only a GM assign damage beneath %s maintena
 
 it.each([
   ['aegis', 'AEGIS', /Armoured Hull.*returns to the deck while other cards remain/i, /required draw.*empty.*destroyed/i],
-  ['dione', 'Dione', /non-armoured card.*one survivor/i, /required draw.*empty.*destroyed/i],
-  ['capybara', 'Capybara', /non-armoured card.*one survivor/i, /empty-deck result.*facilitator/i],
+  ['dione', 'Dione', /non-armoured damage card costs 1 survivor/i, /required draw.*empty.*destroyed/i],
+  ['capybara', 'Capybara', /non-armoured damage card costs 1 survivor/i, /empty-deck result.*facilitator/i],
 ] as const)('explains %s damage outcomes only beside the GM Assign damage control', (shipId, name, exception, exhaustion) => {
   const props = { name, shipId, systems: [], renderSystem: () => null, rations: null };
   render(<MaintenanceSystems {...props} />);
