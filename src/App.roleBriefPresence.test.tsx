@@ -166,7 +166,10 @@ beforeEach(() => {
         // The rules require an existing, matching own-UID role brief. A fresh
         // GM and a genuinely admitted unassigned controller have no such doc.
         if (briefData) next(snapshot(reference.path, briefData));
-        else error({ code: 'permission-denied' });
+        else {
+          listener.active = false;
+          error({ code: 'permission-denied' });
+        }
       }, 25);
     }
     return () => { listener.active = false; };
