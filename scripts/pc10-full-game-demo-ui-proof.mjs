@@ -516,6 +516,29 @@ export async function runFreshFullGameDemoUi(options = {}) {
       await crew.page.reload();
       const refreshed = await crew.until('Last actual role refreshed unchanged', state => state.sameActor && state.profileRoleId === roster.at(-1).roleId && state.connection === 'live' && state.freshness === 'server');
       assertSelectedActor(refreshed, { ...roster.at(-1), sessionId: initial.sessionId });
+      evidence.lastActorRefreshSameRealUid = true;
+      await mark('repeat ordinary selection of the first and last prepared identities');
+      evidence.repeatedActorSelections = [];
+      for (const actor of [roster[0], roster.at(-1)]) {
+        assert.ok(actor, 'Repeat only an already prepared real actor.');
+        const roleId = actor.roleId;
+        await crew.page.getByLabel('Current actor', { exact: true }).selectOption(roleId);
+        await crew.page.waitForURL(url => url.searchParams.get('demoActor') === `${initial.sessionId}~${roleId}`);
+        let repeated = await crew.until(`Existing ${roleId} reselected`, state => state.sameActor && state.uidHash === actor.uidHash &&
+          state.profileRoleId === roleId && state.connection === 'live' && state.freshness === 'server');
+        assertSelectedActor(repeated, { ...actor, sessionId: initial.sessionId });
+        assert.equal(repeated.pendingCommandCount, 0);
+        await crew.page.getByRole('link', { name: "Enter this actor's stations", exact: true }).click();
+        if (roleId !== 'press-officer') {
+          await crew.page.getByRole('link', { name: 'Open private brief', exact: true }).click();
+          repeated = await crew.until(`Repeated ${roleId} private assignment belongs to the same real UID`, state => state.briefMatchesActor && state.briefRoleId === roleId);
+          await crew.page.locator('.role-brief-screen').getByRole('link', { name: /^(?:←\s*)?Back to stations$/ }).click();
+          await crew.page.locator(`a[href$="/roles/${roleId}"]`).click();
+        } else await crew.page.getByRole('link', { name: 'Press Officer', exact: true }).click();
+        await crew.until(`Repeated ${roleId} station entered`, state => state.activeConsoleRoleId === roleId && state.sameActor && state.connection === 'live');
+        evidence.repeatedActorSelections.push({ roleId, uidHash: actor.uidHash, pendingCommandCount: repeated.pendingCommandCount,
+          briefMatchesActor: repeated.briefMatchesActor, briefRoleId: repeated.briefRoleId });
+      }
       await gm.page.screenshot({ path: `${directory}/manual-coordination.png` });
     }
     if (options.runEnding) {
@@ -542,7 +565,7 @@ export async function runFreshFullGameDemoUi(options = {}) {
     evidence.sourceCommitAtCompletion = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
     evidence.builtRuntimeIndexSha256AtCompletion = createHash('sha256').update(await readFile(`${root}/functions/lib/index.js`)).digest('hex');
     evidence.sourceChangedDuringProof = evidence.sourceCommitAtCompletion !== sourceCommit || evidence.builtRuntimeIndexSha256AtCompletion !== builtRuntimeIndexSha256;
-    await writeFile(`${directory}/failure.json`, `${JSON.stringify({ ...evidence, status: 'failed', stage, message: error.message, states, transitions, calls, requests, errors, remoteRequests }, null, 2)}\n`);
+    await writeFile(`${directory}/failure.json`, `${JSON.stringify({ ...evidence, status: 'failed', stage, message: error.message, rolesVisited: roleSurfaces, roleSurfaceCount: roleSurfaces.length, states, transitions, calls, requests, errors, remoteRequests }, null, 2)}\n`);
     console.error(JSON.stringify({ status: 'failed', stage, message: error.message, directory }));
     throw error;
   } finally { for (const browser of browsers) await browser.close(); }
