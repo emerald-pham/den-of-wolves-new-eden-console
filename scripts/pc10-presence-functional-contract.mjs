@@ -174,6 +174,35 @@ const safeRenewal = value => Object.fromEntries([
   'nativeDocumentHash', 'originalSdkSchemaValid', 'originalSdkSessionMatches', 'stationSelectionRequired',
 ].map(key => [key, value[key]]));
 
+/** Only bytes already captured from the original native member reader can
+ * establish the generation preceding a background request. A later SDK/state
+ * point, including recovery in the same document, cannot fill this gap. */
+function precedingNativeMemberGeneration(observations, candidate) {
+  const preceding = observations.filter(value => value.name === 'getCurrentMemberSession' &&
+    value.captureMode === 'native-durable' && sameActor(value, candidate) && hashes.every(key => hashed(value[key])) &&
+    ['nativeDocumentHash', 'nativeContextHash', 'nativeFrameHash', 'nativeLoaderHash'].every(key => value[key] === candidate[key]) &&
+    value.protocolRequestHash !== candidate.protocolRequestHash && value.status === 200 && value.httpOutcome === 'result' &&
+    value.resultActorHash === candidate.actorHash && value.resultSessionHash === candidate.sessionHash &&
+    value.requestHash === null && value.resultRequestHash === null && hashed(value.bodyHash) &&
+    Number.isSafeInteger(value.byteLength) && value.byteLength > 0 && value.byteLength <= 512 * 1024 &&
+    time(value.issuedAt) && time(value.nativeRequestObservedAt) && value.nativeRequestObservedAt >= value.issuedAt &&
+    time(value.headersReceivedAt) && value.headersReceivedAt >= value.nativeRequestObservedAt &&
+    time(value.requestFinishedAt) && value.requestFinishedAt >= value.headersReceivedAt &&
+    time(value.bodyCompletedAt) && value.bodyCompletedAt >= value.requestFinishedAt && value.bodyCompletedAt < candidate.issuedAt &&
+    value.requestFailedAt === null && value.failureCategory === null && value.bodyFailureStage == null &&
+    value.bodyReadFailureReason == null && value.denialCode === null && generation(value.connectionGeneration));
+  const latest = preceding.reduce((found, value) => !found || value.bodyCompletedAt > found.bodyCompletedAt ? value : found, null);
+  // Concurrent responses can arrive out of order. An older response finishing
+  // later cannot hide a newer generation already observed before this request.
+  if (!latest || preceding.some(value => value.connectionGeneration > latest.connectionGeneration)) return null;
+  return latest;
+}
+const safePriorGeneration = value => ({ kind: 'completed-native-member-generation', name: value.name, roleId: value.roleId,
+  ...Object.fromEntries(hashes.map(key => [key, value[key]])), issuedAt: value.issuedAt, headersReceivedAt: value.headersReceivedAt,
+  requestFinishedAt: value.requestFinishedAt, bodyCompletedAt: value.bodyCompletedAt, bodyHash: value.bodyHash,
+  byteLength: value.byteLength, generation: value.connectionGeneration, httpOutcome: value.httpOutcome,
+  resultActorHash: value.resultActorHash, resultSessionHash: value.resultSessionHash });
+
 /** Pure future-contract assessment. Raw traces/failures are never changed.
  * Strict transport remains failed for a missing body. Only this explicit
  * functional contract can separately report that instrumentation limitation. */
@@ -206,10 +235,12 @@ export function evaluatePc10PresenceInstrumentationContract({ option, observatio
         failure.bodyFailureStage === candidate.bodyFailureStage && failure.bodyReadFailureReason === candidate.bodyReadFailureReason &&
         !explicitSdkInvocations.some(value => value.roleId === candidate.roleId && overlaps(value.startedAt, value.completedAt, candidate)) &&
         !actions.some(value => value.roleId === candidate.roleId && overlaps(value.commandIssuedAt, value.commandCompletedAt, candidate))) {
+      const prior = precedingNativeMemberGeneration(observations, candidate);
       for (const renewal of renewals) {
         if (!sameActor(renewal, candidate) || renewal.schemaVersion !== 1 || renewal.kind !== 'original-explicit-sdk-presence-renewal' ||
             renewal.status !== 200 || renewal.originalSdkSchemaValid !== true || renewal.originalSdkSessionMatches !== true ||
             renewal.stationSelectionRequired !== false || !generation(renewal.generationBefore) ||
+            !prior || prior.connectionGeneration !== renewal.generationBefore ||
             renewal.nativeDocumentHash !== candidate.nativeDocumentHash || !time(renewal.startedAt) || !time(renewal.completedAt) ||
             renewal.completedAt < renewal.startedAt || !explicitSdkInvocations.some(value => value.roleId === renewal.roleId &&
               value.name === 'refreshPresence' && value.startedAt === renewal.startedAt && value.completedAt === renewal.completedAt) ||
@@ -217,7 +248,7 @@ export function evaluatePc10PresenceInstrumentationContract({ option, observatio
               value.commandIssuedAt <= renewal.startedAt && value.commandCompletedAt >= renewal.completedAt &&
               value.commandFailedAt == null && value.failureCategory == null)) continue;
         const authority = authoritySnapshots.find(value => validAuthority(value, renewal, candidate));
-        if (authority) { pair = { renewal, authority }; break; }
+        if (authority) { pair = { renewal, authority, prior }; break; }
       }
     }
     if (!pair) { hardFailures.push(safeFailure(failure)); continue; }
@@ -226,7 +257,8 @@ export function evaluatePc10PresenceInstrumentationContract({ option, observatio
       presenceRequestClassification: candidate.presenceRequestClassification, issuedAt: candidate.issuedAt,
       requestFinishedAt: candidate.requestFinishedAt, status: 200, bodyCompletedAt: null,
       bodyFailureStage: candidate.bodyFailureStage, bodyReadFailureReason: candidate.bodyReadFailureReason,
-      originalReplyReconstructed: false, sdkRenewal: safeRenewal(pair.renewal), authoritativeState: safeAuthority(pair.authority) });
+      originalReplyReconstructed: false, priorGenerationWitness: safePriorGeneration(pair.prior),
+      sdkRenewal: safeRenewal(pair.renewal), authoritativeState: safeAuthority(pair.authority) });
   }
   return { schemaVersion: 1, presenceFunctionalContract: option ?? null,
     strictTransportStatus: failures.length || hardFailures.length ? 'failed' : 'passed',
