@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { observeUiReceipt } from './pc10-browser-ui-receipt.mjs';
 import { CORE_CRAFT_PROCEDURES, GM_RULING_COUNTER_PROCEDURES } from './pc10-pending-procedure-ui-proof.mjs';
 
 const RESOURCE_COSTS = Object.freeze({ food: 6, water: 6, ore: 6, fuel: 6, materials: 3 });
@@ -16,15 +17,16 @@ const REPAIR_PANELS = Object.freeze({
   repairConsolesFromPhilia: 'Philia console repair',
 });
 const UNVERIFIABLE_GM_CHOICES = new Set([
-  'setFacilitatorResponsibility', 'setGmControlsLocked', 'setGmShipConsoleWriteGrant', 'setShipConsoleLock',
-  'setCandidatePlanCheckpoint', 'setFacilitatorCensusNote', 'authorFacilitatorRuleCall',
+  'setFacilitatorResponsibility', 'setGmControlsLocked', 'setCandidatePlanCheckpoint',
 ]);
 const UNVERIFIABLE_SHUTTLE_RECEIPTS = new Set([
   'completeShuttleArrival',
 ]);
+const GM_GRANT_LIFECYCLE = new WeakMap();
 
 function isRevision(value) { return Number.isSafeInteger(value) && value >= 0; }
 function hashUid(uid) { return typeof uid === 'string' && uid ? createHash('sha256').update(uid).digest('hex').slice(0, 16) : null; }
+function proofHash(value) { return createHash('sha256').update(JSON.stringify(value ?? null)).digest('hex').slice(0, 20); }
 
 /** Select an actual option that is both offered and enabled under its current budget. */
 export function chooseOfferedAffordableOption(options, budget) {
@@ -60,6 +62,8 @@ async function readActionState(surface) {
       chacauRepairs: session.chacauRepairs, macawRepairs: session.macawRepairs,
       philiaRepairs: session.philiaRepairs, serviceShuttleRecharges: session.serviceShuttleRecharges,
       setupRevision: session.setupRevision, gmControlsLocked: session.gmControlsLocked,
+      gmLoyaltyCensus: current.gmLoyaltyCensus, gmLoyaltyCensusStatus: current.gmLoyaltyCensusStatus,
+      gmFacilitatorRuleCall: current.gmFacilitatorRuleCall,
       shuttleVisitLog: session.shuttleVisitLog,
       gameOutcome: session.gameOutcome,
     };
@@ -197,6 +201,9 @@ function resultRevision(result) {
 }
 
 function revisionFor(endpoint, state, target, auxiliary) {
+  if (endpoint === 'setGmShipConsoleWriteGrant') return undefined;
+  if (endpoint === 'setFacilitatorCensusNote') return state?.gmLoyaltyCensus?.revision;
+  if (endpoint === 'authorFacilitatorRuleCall') return state?.gmFacilitatorRuleCall?.revision ?? 0;
   if (endpoint === 'chooseBoaMissionReclamationOpportunity') {
     const opportunity = auxiliary?.opportunities?.find(row => row.id === target.opportunityId);
     return opportunity?.choiceRevision;
@@ -223,6 +230,9 @@ function revisionFor(endpoint, state, target, auxiliary) {
 }
 
 function afterRevision(endpoint, state, target, result, auxiliary) {
+  if (endpoint === 'setGmShipConsoleWriteGrant') return undefined;
+  if (endpoint === 'setFacilitatorCensusNote') return state?.gmLoyaltyCensus?.revision;
+  if (endpoint === 'authorFacilitatorRuleCall') return state?.gmFacilitatorRuleCall?.revision;
   if (endpoint === 'chooseBoaMissionReclamationOpportunity') {
     const opportunity = auxiliary?.opportunities?.find(row => row.id === target.opportunityId);
     return opportunity?.choiceRevision ?? result?.choiceRevision;
@@ -272,7 +282,7 @@ async function selectActualOption(select, predicate = () => true) {
   return option;
 }
 
-async function positiveRenderedStatus(surface, endpoint, result) {
+export async function positiveRenderedStatus(surface, endpoint, result) {
   const texts = await surface.page.getByRole('status').allTextContents().catch(() => []);
   const joined = texts.join(' ').replace(/\s+/g, ' ').trim();
   const patterns = {
@@ -290,9 +300,144 @@ async function positiveRenderedStatus(surface, endpoint, result) {
     transferShuttleControlCommand: /handed off|reclaimed/i,
     evacuateShuttleSurvivorsCommand: /moved \d[\d,]* survivors/i,
     rechargeHostConsoleFromShuttle: /recharge|recharged|charge added/i,
+    authorFacilitatorRuleCall: /RULE CALL APPLIED/i,
   };
-  const matches = patterns[endpoint] ? patterns[endpoint].test(joined) : /committed|replayed|installed|dismiss|repair|transfer|arrival|departure|damage|resolved|saved|updated/i.test(joined);
+  const matches = patterns[endpoint]
+    ? patterns[endpoint].test(joined) && !(endpoint === 'authorFacilitatorRuleCall' && /RULE CALL QUEUED/i.test(joined))
+    : /committed|replayed|installed|dismiss|repair|transfer|arrival|departure|damage|resolved|saved|updated/i.test(joined);
   return { visible: joined.length > 0 && matches, resultStatus: result?.status ?? 'committed' };
+}
+
+async function goToShipObserver(surface, sessionId, uidHash, instanceId) {
+  const page = surface.page;
+  const routeHash = '#/ships/aegis/observer';
+  if (new URL(page.url()).hash !== routeHash) {
+    const route = new URL(page.url());
+    route.hash = routeHash;
+    await page.goto(route.href, { waitUntil: 'domcontentloaded' });
+  }
+  const actor = await surface.until('Original owned GM on the AEGIS observer route', value =>
+    value.sameActor === true && value.sessionId === sessionId && value.uidHash === uidHash &&
+    value.playerRole === 'gm' && value.instanceId === instanceId && value.gmInstanceOwned === true &&
+    value.connection === 'live' && value.freshness === 'server' &&
+    new URL(page.url()).hash === routeHash, 20_000);
+  return actor;
+}
+
+async function readCurrentWriteGrant(surface, expected) {
+  return surface.page.evaluate(async ({ moduleUrl, expected }) => {
+    const { useSessionStore } = await import(moduleUrl);
+    const state = useSessionStore.getState();
+    if (!state.session || !state.me || state.connection !== 'live' || state.sessionSnapshotFreshness !== 'server' ||
+        state.session.id !== expected.sessionId || state.me.role !== 'gm' ||
+        state.gmInstance?.sessionId !== expected.sessionId || state.gmInstance?.id !== expected.instanceId ||
+        state.gmInstance?.uid !== state.me.uid) return null;
+    const { listGmInstances, reconcileGmAuthority } = await import('/src/lib/sessionService.ts');
+    await reconcileGmAuthority();
+    const instances = await listGmInstances();
+    const matching = instances.filter(instance => instance.id === expected.instanceId &&
+      instance.sessionId === expected.sessionId && instance.uid === state.me.uid);
+    if (matching.length !== 1) return null;
+    const instance = matching[0];
+    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(state.me.uid));
+    const uidHash = [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, '0')).join('').slice(0, 16);
+    const grantShipId = instance.shipConsoleWriteGrant?.shipId ?? null;
+    const claimedAt = typeof instance.claimedAt === 'string' ? instance.claimedAt : null;
+    if (uidHash !== expected.uidHash || !claimedAt || !Number.isFinite(Date.parse(claimedAt)) ||
+        state.gmInstance.claimedAt !== claimedAt) return null;
+    return {
+      projection: { kind: 'gm-ship-console-write-grant', live: true, sessionId: expected.sessionId,
+        cycle: state.session.currentTurn, uidHash, instanceId: expected.instanceId,
+        shipId: grantShipId === 'aegis' ? 'aegis' : null, targetShipId: 'aegis',
+        enabled: grantShipId === 'aegis',
+        claimedAtHash: createHash('sha256').update(JSON.stringify(claimedAt)).digest('hex').slice(0, 20) },
+      claimedAt,
+    };
+  }, { moduleUrl: surface.storeModuleUrl(), expected });
+}
+
+async function reloadMountedGm(surface, expected) {
+  await surface.page.reload({ waitUntil: 'domcontentloaded' });
+  const actor = await surface.until('The original authenticated GM has reloaded from the live source', value =>
+    value.sameActor === true && value.sessionId === expected.sessionId && value.uidHash === expected.uidHash &&
+    value.playerRole === 'gm' && value.instanceId === expected.instanceId && value.gmInstanceOwned === true &&
+    value.connection === 'live' && value.freshness === 'server', 20_000);
+  const state = await readActionState(surface);
+  return { actor, state };
+}
+
+async function waitForActionState(surface, predicate, timeoutMs = 15_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const state = await readActionState(surface).catch(() => null);
+    if (state && predicate(state)) return state;
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+  return null;
+}
+
+function censusProjection(state, targetUid, expected) {
+  const entry = state?.gmLoyaltyCensus?.entries?.find(value => value.uid === targetUid);
+  if (!entry || !state.gmLoyaltyCensus) return null;
+  return { kind: 'facilitator-census', live: state.live === true,
+    sessionId: state.gmLoyaltyCensus.sessionId, cycle: state.cycle, uidHash: expected.uidHash,
+    instanceId: expected.instanceId, revision: state.gmLoyaltyCensus.revision,
+    targetUidHash: hashUid(targetUid), noteHash: proofHash(entry.note ?? '') };
+}
+
+function ruleCallProjection(state, expected) {
+  const call = state?.gmFacilitatorRuleCall;
+  if (!call) return null;
+  return { kind: 'facilitator-rule-call', live: state.live === true, sessionId: call.sessionId,
+    cycle: state.cycle, uidHash: expected.uidHash, instanceId: expected.instanceId,
+    revision: call.revision, callId: call.callId, actorUidHash: hashUid(call.actorUid),
+    label: call.label, audience: call.audience,
+    ambiguityHash: proofHash(call.ambiguity), sourceHash: proofHash(call.source), decisionHash: proofHash(call.decision) };
+}
+
+async function captureMountedUiCallable(surface, endpoint, click) {
+  const response = await observeUiReceipt({
+    waitForResponse: () => surface.page.waitForResponse(value => value.request().method() === 'POST' &&
+      new URL(value.url()).pathname.endsWith(`/us-central1/${endpoint}`), { timeout: 20_000 }),
+    choose: click,
+  });
+  let body = null;
+  try { body = await response.json(); } catch { body = null; }
+  return { request: response.request().postDataJSON()?.data,
+    response: { httpStatus: response.status(), result: body?.result } };
+}
+
+async function revokeMountedGmGrant(surface, expected, claimedAt) {
+  const before = await readCurrentWriteGrant(surface, expected).catch(() => null);
+  if (!before?.projection.enabled || before.claimedAt !== claimedAt) return null;
+  const access = surface.page.getByRole('button', { name: 'GM ship console read write access', exact: true });
+  const captured = await captureMountedUiCallable(surface, 'setGmShipConsoleWriteGrant', async () => {
+    if (await access.count() !== 1 || !await access.isVisible() || !await access.isEnabled() ||
+        await access.getAttribute('aria-pressed') !== 'true' ||
+        await surface.page.locator('.ship-console').getAttribute('data-observer-mode') !== 'write') {
+      throw new Error('The owned AEGIS write grant is not visible and enabled for revocation.');
+    }
+    await access.click();
+  }).catch(() => null);
+  if (!captured) return null;
+  let visible = false;
+  for (let attempt = 0; attempt < 40; attempt++) {
+    visible = await access.count() === 1 && await access.isVisible() &&
+      await access.getAttribute('aria-pressed') === 'false' &&
+      await surface.page.locator('.ship-console').getAttribute('data-observer-mode') === 'read';
+    if (visible) break;
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+  const reloaded = await reloadMountedGm(surface, expected);
+  const after = await readCurrentWriteGrant(surface, expected).catch(() => null);
+  if (!visible || after?.projection.enabled !== false || after.claimedAt !== claimedAt) return null;
+  return {
+    restore: { request: captured.request, response: captured.response,
+      rendered: { visible: true, enabled: false, controlPressed: false, observerMode: 'read' },
+      afterReload: { actor: reloaded.actor, projection: after.projection } },
+    sourceAfter: { live: reloaded.state?.live === true, sessionId: reloaded.state?.sessionId,
+      cycle: reloaded.state?.cycle, revision: reloaded.state?.vesselActionRevisions?.aegis },
+  };
 }
 
 function currentShip(state, roleId) {
@@ -317,7 +462,8 @@ function mountedTarget(spec, actor, state, expectedOverrides = {}) {
   })[spec.endpoint];
   if (!target.shipId && spec.endpoint === 'runHighwallMining') target.shipId = 'icebreaker';
   if (!target.shipId && ['addShipDamage', 'repairAllShipDamage', 'applyShipCounterSteps', 'dismissPopulationAlert',
-    'dismissUnrestAlert', 'resolveShipMutiny', 'scavengeDestroyedShipStores', 'setFighterWingCount', 'setShipConsoleLock']
+    'dismissUnrestAlert', 'resolveShipMutiny', 'scavengeDestroyedShipStores', 'setFighterWingCount',
+    'setGmShipConsoleWriteGrant', 'setShipConsoleLock']
     .includes(spec.endpoint)) target.shipId = currentShip(state, roleId);
   if (!target.shipId && REPAIR_PANELS[spec.endpoint]) target.shipId = currentShip(state, roleId);
   if (!target.shuttleId && spec.actorRoleId === 'current-ally-holder') target.shuttleId = 'ally';
@@ -345,6 +491,138 @@ async function planFor({ spec, surface, actor, state, context, target }) {
     if (afterNavigation.uidHash !== actor.uidHash || afterNavigation.sessionId !== context.initial.sessionId ||
         afterNavigation.activeConsoleRoleId !== actor.activeConsoleRoleId || afterNavigation.connection !== 'live' ||
         afterNavigation.freshness !== 'server') return block('normal craft navigation changed actor, role, session, or freshness');
+  }
+
+  if (endpoint === 'setGmShipConsoleWriteGrant' || endpoint === 'setShipConsoleLock') {
+    if (target.shipId !== 'aegis' || !state.activeVesselIds?.includes('aegis')) {
+      return block('AEGIS is not the source-projected active vessel for this current GM instance');
+    }
+    const gmExpected = { sessionId: context.initial.sessionId, uidHash: actor.uidHash,
+      instanceId: actor.instanceId, cycle: state.cycle };
+    const onRouteActor = await goToShipObserver(surface, gmExpected.sessionId, gmExpected.uidHash, gmExpected.instanceId)
+      .catch(() => null);
+    if (!onRouteActor || onRouteActor.playerRole !== 'gm') return block('the original owned GM could not reach the mounted AEGIS observer UI');
+    const grant = await readCurrentWriteGrant(surface, gmExpected).catch(() => null);
+    if (!grant || grant.projection.cycle !== state.cycle) return block('the current owned GM lease and AEGIS grant projection could not be verified');
+    target.gmGrantBefore = grant.projection;
+    target.gmClaimedAt = grant.claimedAt;
+    const lockRevision = state.vesselActionRevisions?.aegis;
+    const lockPanel = page.getByRole('region', { name: 'ICN console lock', exact: true });
+    const releaseControl = lockPanel.getByRole('button', { name: 'Release ICN console lock', exact: true });
+    const lockMounted = state.shipConsoleLocks?.aegis === true && isRevision(lockRevision) &&
+      await releaseControl.count() === 1 && await releaseControl.isVisible();
+
+    if (endpoint === 'setGmShipConsoleWriteGrant') {
+      if (grant.projection.enabled) return block('the current owned GM already has the AEGIS write grant; no toggle is attempted');
+      if (!lockMounted) return block('AEGIS is not source-locked at a current vessel action revision before grant enablement');
+      const control = await one(page.getByRole('button', { name: 'GM ship console read write access', exact: true }));
+      if (!control || await control.getAttribute('aria-pressed') !== 'false') return block('the actual AEGIS observer access control is not visibly read-only');
+      return { offered: true, beforeProjection: grant.projection, click: async () => {
+        const latestGrant = await readCurrentWriteGrant(surface, gmExpected);
+        const currentState = await readActionState(surface);
+        if (!latestGrant || latestGrant.projection.enabled || latestGrant.claimedAt !== target.gmClaimedAt ||
+            !liveState(currentState, gmExpected.sessionId) || currentState.shipConsoleLocks?.aegis !== true ||
+            currentState.vesselActionRevisions?.aegis !== lockRevision ||
+            currentState.cycle !== state.cycle || !currentState.activeVesselIds?.includes('aegis') ||
+            await control.getAttribute('aria-pressed') !== 'false') {
+          throw new Error('Current GM lease, AEGIS activity, or source write-grant control changed before the UI confirmation.');
+        }
+        await control.click();
+        const dialog = page.getByRole('alertdialog', { name: 'Are you sure?', exact: true });
+        const confirm = await one(dialog.getByRole('button', { name: 'ARE YOU SURE?', exact: true }));
+        if (!confirm) throw new Error('The visible source confirmation for AEGIS write access is unavailable.');
+        await confirm.click();
+        target.gmGrantEnableAttempted = true;
+      } };
+    }
+
+    const capturedGrant = GM_GRANT_LIFECYCLE.get(context);
+    if (grant.projection.enabled !== true || !lockMounted || !capturedGrant ||
+        capturedGrant.sessionId !== gmExpected.sessionId || capturedGrant.uidHash !== gmExpected.uidHash ||
+        capturedGrant.instanceId !== gmExpected.instanceId || capturedGrant.claimedAt !== grant.claimedAt) {
+      return block('AEGIS must be source-locked at a current vessel action revision with this GM instance grant enabled');
+    }
+    target.gmLockBefore = { kind: 'ship-console-lock', live: true, sessionId: state.sessionId,
+      cycle: state.cycle, uidHash: actor.uidHash, instanceId: actor.instanceId, shipId: 'aegis',
+      locked: true, revision: lockRevision, grantEnabled: true };
+    const release = await one(releaseControl);
+    if (!release) return block('the actual AEGIS release-lock control is absent, disabled, or ambiguous');
+    return { offered: true, click: async () => {
+      const latestGrant = await readCurrentWriteGrant(surface, gmExpected);
+      const currentState = await readActionState(surface);
+      if (!latestGrant?.projection.enabled || currentState.shipConsoleLocks?.aegis !== true ||
+          currentState.vesselActionRevisions?.aegis !== lockRevision ||
+          latestGrant.claimedAt !== target.gmClaimedAt ||
+          await release.isEnabled() !== true) {
+        throw new Error('The current AEGIS lock, write grant, or vessel revision changed before release.');
+      }
+      await release.click();
+    } };
+  }
+
+  if (endpoint === 'setFacilitatorCensusNote') {
+    const census = state.gmLoyaltyCensus;
+    if (state.gmLoyaltyCensusStatus !== 'present' || census?.sessionId !== context.initial.sessionId ||
+        !isRevision(census.revision) || !Array.isArray(census.entries)) {
+      return block('the current facilitator census and revision are not source-projected');
+    }
+    const entry = census.entries.find(value => typeof value?.uid === 'string' && value.uid.length > 0);
+    if (!entry) return block('the current source census has no eligible target entry');
+    target.censusUid = entry.uid;
+    target.censusNote = 'Automated virtual personas only; 0 physical humans.';
+    target.censusBefore = { kind: 'facilitator-census', live: true, sessionId: state.sessionId,
+      cycle: state.cycle, uidHash: actor.uidHash, instanceId: actor.instanceId, revision: census.revision,
+      targetUidHash: hashUid(entry.uid), entryPresent: true };
+    const noteField = page.getByLabel(`Facilitator note for ${entry.uid}`, { exact: true });
+    const row = noteField.locator('xpath=ancestor::tr');
+    const save = await one(row.getByRole('button', { name: 'Save note', exact: true }));
+    if (!save || !await noteField.isVisible() || !await save.isEnabled()) return block('the actual current census row note control is not offered');
+    return { offered: true, click: async () => {
+      const latest = await readActionState(surface);
+      const liveEntry = latest.gmLoyaltyCensus?.entries?.find(value => value.uid === target.censusUid);
+      if (!liveState(latest, context.initial.sessionId) || latest.cycle !== state.cycle ||
+          latest.gmLoyaltyCensus?.revision !== census.revision || !liveEntry ||
+          await noteField.isEnabled() !== true) {
+        throw new Error('The actual census target or source revision changed before saving the note.');
+      }
+      await noteField.fill(target.censusNote);
+      await save.click();
+    } };
+  }
+
+  if (endpoint === 'authorFacilitatorRuleCall') {
+    const rule = state.gmFacilitatorRuleCall;
+    if (rule && (rule.sessionId !== context.initial.sessionId || !isRevision(rule.revision))) {
+      return block('the existing facilitator rule-call source revision is malformed or foreign');
+    }
+    target.ruleCallRevision = rule?.revision ?? 0;
+    target.ruleCallInput = { ambiguity: 'How is attendance represented in this virtual rehearsal?',
+      source: 'The mounted full-game training disclosure and simulated-demo attendance mode',
+      decision: 'Only named automated Auth personas are represented; no physical humans or device attendance is proved.',
+      audience: 'gm-only' };
+    const panel = page.getByRole('region', { name: 'Facilitator rule call', exact: true });
+    const ambiguity = panel.getByLabel('Question or ambiguity', { exact: true });
+    const source = panel.getByLabel('Source or reference', { exact: true });
+    const decision = panel.getByLabel('Decision', { exact: true });
+    const audience = panel.getByLabel('Audience', { exact: true });
+    const supersedes = panel.getByLabel('Supersedes call ID (optional)', { exact: true });
+    const record = await one(panel.getByRole('button', { name: 'Record rule call', exact: true }));
+    if (!record || !await ambiguity.isVisible() || !await source.isVisible() || !await decision.isVisible() ||
+        !await audience.isVisible() || !await supersedes.isVisible()) return block('the actual source rule-call form is not mounted');
+    return { offered: true, click: async () => {
+      const latest = await readActionState(surface);
+      const latestRule = latest.gmFacilitatorRuleCall;
+      if (!liveState(latest, context.initial.sessionId) || latest.cycle !== state.cycle ||
+          (latestRule?.revision ?? 0) !== target.ruleCallRevision) {
+        throw new Error('The facilitator rule-call revision changed before recording the mounted decision.');
+      }
+      await ambiguity.fill(target.ruleCallInput.ambiguity);
+      await source.fill(target.ruleCallInput.source);
+      await decision.fill(target.ruleCallInput.decision);
+      await audience.selectOption('gm-only');
+      await supersedes.fill('');
+      await record.click();
+    } };
   }
 
   if (endpoint === 'allocateHummingbirdHarvest' || endpoint === 'rollHummingbirdHarvest') {
@@ -777,6 +1055,114 @@ async function planFor({ spec, surface, actor, state, context, target }) {
   return block('no safe mounted action recipe is available for this endpoint');
 }
 
+async function inspectMountedGmControl({ context, surface, request, result, spec, expected, target }) {
+  if (spec.endpoint === 'setGmShipConsoleWriteGrant') {
+    const access = surface.page.getByRole('button', { name: 'GM ship console read write access', exact: true });
+    const liveUi = await access.count() === 1 && await access.isVisible() &&
+      await access.getAttribute('aria-pressed') === 'true' &&
+      await surface.page.locator('.ship-console').getAttribute('data-observer-mode') === 'write';
+    const reloaded = await reloadMountedGm(surface, expected);
+    const grant = await readCurrentWriteGrant(surface, expected).catch(() => null);
+    const leaseMatches = grant?.claimedAt === request.claimedAt &&
+      request.sessionId === expected.sessionId && request.instanceId === expected.instanceId &&
+      request.shipId === 'aegis' && request.enabled === true && result?.enabled === true && result?.shipId === 'aegis';
+    if (leaseMatches && grant?.projection.enabled === true) {
+      GM_GRANT_LIFECYCLE.set(context, { sessionId: expected.sessionId, uidHash: expected.uidHash,
+        instanceId: expected.instanceId, claimedAt: request.claimedAt });
+    }
+    const cleanupGrant = async () => {
+      try { return (await revokeMountedGmGrant(surface, expected, request.claimedAt))?.restore ?? null; }
+      finally { GM_GRANT_LIFECYCLE.delete(context); }
+    };
+    return {
+      sourceAfter: { live: reloaded.state?.live === true && leaseMatches,
+        sessionId: reloaded.state?.sessionId, cycle: reloaded.state?.cycle, revision: undefined },
+      rendered: { visible: liveUi, controlPressed: true, observerMode: 'write' },
+      beforeProjection: target.gmGrantBefore,
+      afterReload: { actor: reloaded.actor, projection: grant?.projection },
+      cleanupGrant,
+    };
+  }
+
+  if (spec.endpoint === 'setShipConsoleLock') {
+    const panel = surface.page.getByRole('region', { name: 'ICN console lock', exact: true });
+    const engage = panel.getByRole('button', { name: 'Engage ICN console lock', exact: true });
+    const clearLabel = panel.getByText('ICN console lock // clear', { exact: true });
+    const releaseRendered = await engage.count() === 1 && await engage.isVisible() && await engage.isEnabled() &&
+      await clearLabel.count() === 1 && await clearLabel.isVisible();
+    const afterCommit = await waitForActionState(surface, state =>
+      state.live && state.sessionId === expected.sessionId && state.cycle === expected.cycle &&
+      state.shipConsoleLocks?.aegis === false &&
+      state.vesselActionRevisions?.aegis === expected.sourceRevision + 1);
+    const lockReload = await reloadMountedGm(surface, expected);
+    const lockRevision = lockReload.state?.vesselActionRevisions?.aegis;
+    const lockProjection = {
+      kind: 'ship-console-lock', live: lockReload.state?.live === true &&
+        lockReload.state?.shipConsoleLocks?.aegis === false && lockRevision === expected.sourceRevision + 1,
+      sessionId: lockReload.state?.sessionId, cycle: lockReload.state?.cycle,
+      uidHash: expected.uidHash, instanceId: expected.instanceId, shipId: 'aegis',
+      locked: lockReload.state?.shipConsoleLocks?.aegis, revision: lockRevision,
+    };
+    const revoked = await revokeMountedGmGrant(surface, expected, target.gmClaimedAt).catch(() => null);
+    GM_GRANT_LIFECYCLE.delete(context);
+    return {
+      sourceAfter: { live: afterCommit !== null && lockProjection.live === true &&
+        revoked?.sourceAfter?.live === true && revoked.sourceAfter.revision === lockRevision,
+        sessionId: revoked?.sourceAfter?.sessionId, cycle: revoked?.sourceAfter?.cycle, revision: lockRevision },
+      rendered: { visible: releaseRendered && afterCommit !== null, locked: false,
+        lockLabel: releaseRendered ? 'ICN console lock // clear' : null },
+      sourceSpecificBefore: target.gmLockBefore,
+      afterReload: { actor: lockReload.actor, projection: lockProjection },
+      restore: revoked?.restore,
+    };
+  }
+
+  if (spec.endpoint === 'setFacilitatorCensusNote') {
+    const before = target.censusBefore;
+    const savedState = await waitForActionState(surface, state => {
+      const entry = state.gmLoyaltyCensus?.entries?.find(value => value.uid === target.censusUid);
+      return state.live && state.sessionId === expected.sessionId && state.cycle === expected.cycle &&
+        state.gmLoyaltyCensus?.revision === before.revision + 1 && entry?.note === target.censusNote;
+    });
+    const field = surface.page.getByLabel(`Facilitator note for ${target.censusUid}`, { exact: true });
+    const fieldValue = await field.count() === 1 ? await field.inputValue() : null;
+    const visible = fieldValue === target.censusNote && await field.isVisible();
+    const reloaded = await reloadMountedGm(surface, expected);
+    const projection = censusProjection(reloaded.state, target.censusUid, expected);
+    return {
+      sourceAfter: { live: savedState !== null && reloaded.state?.live === true && projection?.live === true,
+        sessionId: reloaded.state?.sessionId, cycle: reloaded.state?.cycle,
+        revision: reloaded.state?.gmLoyaltyCensus?.revision },
+      sourceSpecificBefore: before,
+      rendered: { visible, targetUidHash: hashUid(target.censusUid),
+        noteFieldValueHash: proofHash(fieldValue) },
+      afterReload: { actor: reloaded.actor, projection },
+    };
+  }
+
+  if (spec.endpoint === 'authorFacilitatorRuleCall') {
+    let rendered = { visible: false, resultStatus: result?.status ?? 'committed' };
+    for (let attempt = 0; attempt < 40; attempt++) {
+      rendered = await positiveRenderedStatus(surface, spec.endpoint, result);
+      if (rendered.visible) break;
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    const committedState = await waitForActionState(surface, state =>
+      state.gmFacilitatorRuleCall?.callId === request.requestId &&
+      state.gmFacilitatorRuleCall?.revision === expected.sourceRevision + 1);
+    const reloaded = await reloadMountedGm(surface, expected);
+    const projection = ruleCallProjection(reloaded.state, expected);
+    return {
+      sourceAfter: { live: committedState !== null && reloaded.state?.live === true && projection?.live === true,
+        sessionId: reloaded.state?.sessionId, cycle: reloaded.state?.cycle,
+        revision: reloaded.state?.gmFacilitatorRuleCall?.revision },
+      rendered,
+      afterReload: { actor: reloaded.actor, projection },
+    };
+  }
+  return {};
+}
+
 async function recipeFor({ context, game, spec }) {
   let roleToUse = spec.actorRoleId;
   let holderTarget = {};
@@ -863,12 +1249,19 @@ async function recipeFor({ context, game, spec }) {
   return {
     expected,
     trainingChoice: spec.trainingChoice ? (preparedPlan.trainingChoice ?? 'gm-training:deliberate-choice') : null,
+    ...(spec.endpoint === 'setGmShipConsoleWriteGrant' ? { cleanupMountedGmGrant: async () => {
+      if (resolved.target.gmGrantEnableAttempted !== true) return null;
+      try { return await revokeMountedGmGrant(initialSurface, expected, resolved.target.gmClaimedAt); }
+      finally { GM_GRANT_LIFECYCLE.delete(context); }
+    } } : {}),
     prepare: async ({ surface, actor: currentActor, source }) => {
       if (currentActor.uidHash !== uidHash || currentActor.sessionId !== expected.sessionId || currentActor.profileRoleId !== roleId && currentActor.playerRole !== 'gm')
         return { offered: false, reason: 'the selected original account or current role changed before the mounted action' };
       if (source.cycle !== state.cycle || source.phase !== 'active') return { offered: false, reason: 'the active phase changed before the mounted action' };
       if (expected.shuttleId && currentActor.activeConsoleRoleId !== roleId) return { offered: false, reason: 'the original current shuttle-holder console is no longer active' };
-      if (!isRevision(expected.sourceRevision)) return { offered: false, reason: 'the exact source revision is not safely readable for this case' };
+      if (!isRevision(expected.sourceRevision) && spec.endpoint !== 'setGmShipConsoleWriteGrant') {
+        return { offered: false, reason: 'the exact source revision is not safely readable for this case' };
+      }
       const latest = await readActionState(surface);
       if (!liveState(latest, expected.sessionId)) return { offered: false, reason: 'current server projection became stale before action' };
       const latestRevision = revisionFor(spec.endpoint, latest, resolved.target, auxiliary);
@@ -904,7 +1297,11 @@ async function recipeFor({ context, game, spec }) {
       if (!preparedPlan.offered) return preparedPlan;
       return preparedPlan;
     },
-    inspect: async ({ surface, result }) => {
+    inspect: async ({ surface, result, request }) => {
+      if (['setGmShipConsoleWriteGrant', 'setShipConsoleLock', 'setFacilitatorCensusNote',
+        'authorFacilitatorRuleCall'].includes(spec.endpoint)) {
+        return inspectMountedGmControl({ context, surface, request, result, spec, expected, target: resolved.target });
+      }
       const latest = await readActionState(surface);
       let movementAfter;
       if (['requestShuttleDeparture', 'beginShuttleTransit', 'retargetShuttleTransit'].includes(spec.endpoint)) {

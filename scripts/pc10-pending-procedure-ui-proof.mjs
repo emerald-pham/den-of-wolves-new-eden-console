@@ -12,12 +12,14 @@ const STATUSLESS_VESSEL_RESULTS = Object.freeze({
   repairAllShipDamage: { valid: result => result?.repaired === true, action: 'repair-damage' },
   dismissPopulationAlert: { valid: result => result?.dismissed === true, action: 'dismiss-population' },
   dismissUnrestAlert: { valid: result => result?.dismissed === true, action: 'dismiss-unrest' },
+  setShipConsoleLock: { valid: result => typeof result?.locked === 'boolean', action: 'console-lock' },
 });
 const REVISION_FIELDS = ['revision', 'repairRevision', 'choiceRevision', 'controlRevision', 'movementRevision',
   'currentRevision', 'upgradeRevision', 'wingRevision', 'counterRevision', 'recyclingRevision', 'evacuationRevision',
   'rechargeRevision'];
 const TRAINING_CHOICE_CODE = 'gm-training:deliberate-choice';
 const CASES = [];
+const PRIVATE_CAPTURE_INPUT = Symbol('pc10-private-capture-input');
 
 function add(family, endpoint, actorRoleId, checkpoint, details = {}) {
   CASES.push(Object.freeze({
@@ -364,6 +366,206 @@ function validShuttleTransition(input, endpoint) {
   return false;
 }
 
+function exactReplayMatches(input, result) {
+  return input.response?.exactReplay === true && input.replay?.status === 'committed' &&
+    exactKeys(input.replay.result, Object.keys(result)) && sameActionReceipt(result, input.replay.result);
+}
+
+function sameReloadedActor(value, expected) {
+  return value && matchesActor(value, expected, true);
+}
+
+function validGrantProjection(projection, expected, enabled, claimedAt) {
+  return exactKeys(projection, ['kind', 'live', 'sessionId', 'cycle', 'uidHash', 'instanceId',
+    'shipId', 'targetShipId', 'enabled', 'claimedAtHash']) && projection.kind === 'gm-ship-console-write-grant' &&
+    projection.live === true && projection.sessionId === expected.sessionId && projection.cycle === expected.cycle &&
+    projection.uidHash === expected.uidHash && projection.instanceId === expected.instanceId &&
+    projection.shipId === (enabled ? 'aegis' : null) && projection.targetShipId === 'aegis' &&
+    projection.enabled === enabled && projection.claimedAtHash === hash(claimedAt);
+}
+
+function validGrantRestore(restore, expected, claimedAt) {
+  const request = restore?.request, result = restore?.response?.result;
+  const projection = restore?.afterReload?.projection;
+  return exactKeys(restore, ['request', 'response', 'rendered', 'afterReload']) &&
+    exactKeys(request, ['sessionId', 'instanceId', 'shipId', 'enabled', 'claimedAt']) &&
+    request.sessionId === expected.sessionId && request.instanceId === expected.instanceId &&
+    request.shipId === 'aegis' && request.enabled === false && request.claimedAt === claimedAt &&
+    Number.isFinite(Date.parse(request.claimedAt)) && restore.response?.httpStatus === 200 &&
+    exactKeys(restore.response, ['httpStatus', 'result']) && exactKeys(result, ['enabled']) && result.enabled === false &&
+    restore.rendered?.visible === true && restore.rendered.enabled === false &&
+    (restore.rendered.controlPressed === undefined || restore.rendered.controlPressed === false) &&
+    (restore.rendered.observerMode === undefined || restore.rendered.observerMode === 'read') &&
+    sameReloadedActor(restore.afterReload?.actor, expected) &&
+    validGrantProjection(projection, expected, false, claimedAt);
+}
+
+function evaluateMountedGmCapture(spec, input, expected) {
+  const endpoint = spec.endpoint;
+  if (input.mountedUi !== true || expected.roleId !== 'gm' ||
+      !matchesActor(input.actorBefore, expected, true) || !matchesActor(input.actorAfter, expected, true) ||
+      input.sourceBefore?.live !== true || input.sourceAfter?.live !== true ||
+      input.sourceBefore?.sessionId !== expected.sessionId || input.sourceAfter?.sessionId !== expected.sessionId ||
+      input.sourceBefore?.cycle !== expected.cycle || input.sourceAfter?.cycle !== expected.cycle ||
+      input.trainingChoice !== TRAINING_CHOICE_CODE) {
+    return pending(spec, 'original-authenticated-GM-instance-or-live-source-is-not-current');
+  }
+
+  const request = input.request, response = input.response, result = response?.result;
+  if (endpoint === 'setGmShipConsoleWriteGrant') {
+    const restore = input.restore;
+    const noReplayClaim = exactKeys(response, ['httpStatus', 'result']) ||
+      exactKeys(response, ['httpStatus', 'result', 'exactReplay']) && response.exactReplay === false;
+    if (expected.shipId !== 'aegis' || expected.sourceRevision !== undefined ||
+        input.sourceBefore.revision !== undefined || input.sourceAfter.revision !== undefined ||
+        !exactKeys(request, ['sessionId', 'instanceId', 'shipId', 'enabled', 'claimedAt']) ||
+        request.sessionId !== expected.sessionId || request.instanceId !== expected.instanceId ||
+        request.shipId !== 'aegis' || request.enabled !== true || !Number.isFinite(Date.parse(request.claimedAt)) ||
+        response?.httpStatus !== 200 || !noReplayClaim ||
+        !exactKeys(result, ['enabled', 'shipId']) || result.enabled !== true || result.shipId !== 'aegis' ||
+        input.replay !== null || response.exactReplay === true ||
+        input.rendered?.visible !== true || input.rendered.controlPressed !== true ||
+        input.rendered.observerMode !== 'write' || !validGrantProjection(input.beforeProjection, expected, false, request.claimedAt) ||
+        !sameReloadedActor(input.afterReload?.actor, expected) ||
+        !validGrantProjection(input.afterReload?.projection, expected, true, request.claimedAt) ||
+        !validGrantRestore(restore, expected, request.claimedAt)) {
+      return pending(spec, 'single-shot-write-grant-or-source-confirmed-UI-revoke-is-not-proved');
+    }
+    return {
+      status: 'completed', caseId: spec.id, family: spec.family, endpoint: spec.endpoint,
+      actorRoleId: expected.roleId, cycle: expected.cycle,
+      actorHash: hash(input.actorBefore.uidHash), requestFingerprint: hash(request),
+      exactSdkRetry: 'not-claimed', trainingChoice: TRAINING_CHOICE_CODE,
+      randomOutcomeRecorded: false, rendered: 'committed',
+    };
+  }
+
+  if (endpoint === 'setShipConsoleLock') {
+    const before = input.sourceSpecificBefore, reload = input.afterReload;
+    const projection = reload?.projection;
+    const requestKeys = ['sessionId', 'instanceId', 'shipId', 'locked', 'requestId', 'expectedRevision'];
+    const resultKeys = ['shipId', 'locked', 'actorUid', 'actorRoleId', 'vesselId', 'turn', 'phase',
+      'revision', 'idempotencyKey', 'auditId'];
+    if (expected.shipId !== 'aegis' || !Number.isSafeInteger(expected.sourceRevision) ||
+        !exactKeys(before, ['kind', 'live', 'sessionId', 'cycle', 'uidHash', 'instanceId', 'shipId',
+          'locked', 'revision', 'grantEnabled']) || before.kind !== 'ship-console-lock' ||
+        before.live !== true || before.sessionId !== expected.sessionId || before.cycle !== expected.cycle ||
+        before.uidHash !== expected.uidHash || before.instanceId !== expected.instanceId || before.shipId !== 'aegis' ||
+        before.locked !== true || before.revision !== expected.sourceRevision || before.grantEnabled !== true ||
+        input.sourceBefore.revision !== expected.sourceRevision ||
+        input.sourceAfter.revision !== expected.sourceRevision + 1 ||
+        !exactKeys(request, requestKeys) || request.sessionId !== expected.sessionId ||
+        request.instanceId !== expected.instanceId || request.shipId !== 'aegis' || request.locked !== false ||
+        typeof request.requestId !== 'string' || !request.requestId ||
+        request.expectedRevision !== expected.sourceRevision || response?.httpStatus !== 200 ||
+        !exactKeys(response, ['httpStatus', 'result', 'exactReplay']) || !exactKeys(result, resultKeys) ||
+        result.shipId !== 'aegis' || result.locked !== false || hashUid(result.actorUid) !== expected.uidHash ||
+        result.actorRoleId !== null || result.vesselId !== 'aegis' || result.turn !== expected.cycle ||
+        result.phase !== 'active' || result.revision !== expected.sourceRevision + 1 ||
+        result.idempotencyKey !== request.requestId || result.auditId !== `console-lock-${request.requestId}` ||
+        !exactReplayMatches(input, result) || !input.replay?.result ||
+        !sameReloadedActor(reload?.actor, expected) ||
+        !exactKeys(projection, ['kind', 'live', 'sessionId', 'cycle', 'uidHash', 'instanceId', 'shipId',
+          'locked', 'revision']) || projection.kind !== 'ship-console-lock' || projection.live !== true ||
+        projection.sessionId !== expected.sessionId || projection.cycle !== expected.cycle ||
+        projection.uidHash !== expected.uidHash || projection.instanceId !== expected.instanceId ||
+        projection.shipId !== 'aegis' || projection.locked !== false || projection.revision !== result.revision ||
+        input.rendered?.visible !== true || input.rendered.locked !== false ||
+        input.rendered.lockLabel !== 'ICN console lock // clear' ||
+        !validGrantRestore(input.restore, expected, input.restore?.request?.claimedAt)) {
+      return pending(spec, 'AEGIS-console-lock-request-receipt-replay-reload-or-grant-revoke-is-not-proved');
+    }
+    if (!sameActionReceipt(result, input.replay.result)) return pending(spec, 'exact-console-lock-replay-receipt-differs');
+    return {
+      status: 'completed', caseId: spec.id, family: spec.family, endpoint: spec.endpoint,
+      actorRoleId: expected.roleId, cycle: expected.cycle, revision: result.revision,
+      actorHash: hash(input.actorBefore.uidHash), requestFingerprint: hash(request),
+      exactSdkRetry: 'same-original-request-receipt-confirmed', trainingChoice: TRAINING_CHOICE_CODE,
+      randomOutcomeRecorded: false, rendered: 'committed',
+    };
+  }
+
+  if (endpoint === 'setFacilitatorCensusNote') {
+    const before = input.sourceSpecificBefore, reload = input.afterReload, projection = reload?.projection;
+    const requestKeys = ['sessionId', 'instanceId', 'requestId', 'expectedRevision', 'targetUid', 'note'];
+    const resultKeys = ['sessionId', 'targetUid', 'revision', 'note'];
+    const targetUidHash = hashUid(request?.targetUid), noteHash = hash(request?.note);
+    if (!Number.isSafeInteger(expected.sourceRevision) ||
+        !exactKeys(before, ['kind', 'live', 'sessionId', 'cycle', 'uidHash', 'instanceId', 'revision',
+          'targetUidHash', 'entryPresent']) || before.kind !== 'facilitator-census' || before.live !== true ||
+        before.sessionId !== expected.sessionId || before.cycle !== expected.cycle || before.uidHash !== expected.uidHash ||
+        before.instanceId !== expected.instanceId || before.revision !== expected.sourceRevision ||
+        !targetUidHash || before.targetUidHash !== targetUidHash || before.entryPresent !== true ||
+        input.sourceBefore.revision !== expected.sourceRevision || input.sourceAfter.revision !== expected.sourceRevision + 1 ||
+        !exactKeys(request, requestKeys) || request.sessionId !== expected.sessionId ||
+        request.instanceId !== expected.instanceId || typeof request.requestId !== 'string' || !request.requestId ||
+        request.expectedRevision !== expected.sourceRevision || typeof request.targetUid !== 'string' || !request.targetUid ||
+        typeof request.note !== 'string' || !request.note || request.note.length > 240 ||
+        response?.httpStatus !== 200 || !exactKeys(response, ['httpStatus', 'result', 'exactReplay']) ||
+        !exactKeys(result, resultKeys) || result.sessionId !== expected.sessionId || result.targetUid !== request.targetUid ||
+        result.note !== request.note || result.revision !== expected.sourceRevision + 1 ||
+        !exactReplayMatches(input, result) || !sameReloadedActor(reload?.actor, expected) ||
+        !exactKeys(projection, ['kind', 'live', 'sessionId', 'cycle', 'uidHash', 'instanceId', 'revision',
+          'targetUidHash', 'noteHash']) || projection.kind !== 'facilitator-census' || projection.live !== true ||
+        projection.sessionId !== expected.sessionId || projection.cycle !== expected.cycle ||
+        projection.uidHash !== expected.uidHash || projection.instanceId !== expected.instanceId ||
+        projection.revision !== result.revision || projection.targetUidHash !== targetUidHash ||
+        projection.noteHash !== noteHash || input.rendered?.visible !== true ||
+        input.rendered.targetUidHash !== targetUidHash || input.rendered.noteFieldValueHash !== noteHash) {
+      return pending(spec, 'census-note-request-receipt-replay-or-reloaded-entry-is-not-proved');
+    }
+    return {
+      status: 'completed', caseId: spec.id, family: spec.family, endpoint: spec.endpoint,
+      actorRoleId: expected.roleId, cycle: expected.cycle, revision: result.revision,
+      actorHash: hash(input.actorBefore.uidHash), requestFingerprint: hash(request),
+      exactSdkRetry: 'same-original-request-receipt-confirmed', trainingChoice: TRAINING_CHOICE_CODE,
+      randomOutcomeRecorded: false, rendered: 'committed',
+    };
+  }
+
+  if (endpoint === 'authorFacilitatorRuleCall') {
+    const reload = input.afterReload, projection = reload?.projection;
+    const requestKeys = ['sessionId', 'instanceId', 'requestId', 'expectedRevision', 'ambiguity', 'source', 'decision', 'audience'];
+    const resultKeys = ['status', 'sessionId', 'callId', 'revision', 'ambiguity', 'source', 'decision', 'audience',
+      'actorUid', 'createdAt', 'label'];
+    const fields = ['ambiguity', 'source', 'decision', 'audience'];
+    if (!Number.isSafeInteger(expected.sourceRevision) ||
+        input.sourceBefore.revision !== expected.sourceRevision || input.sourceAfter.revision !== expected.sourceRevision + 1 ||
+        !exactKeys(request, requestKeys) || request.sessionId !== expected.sessionId ||
+        request.instanceId !== expected.instanceId || typeof request.requestId !== 'string' || !request.requestId ||
+        request.expectedRevision !== expected.sourceRevision || request.audience !== 'gm-only' ||
+        fields.some(field => typeof request[field] !== 'string' || !request[field].trim()) ||
+        response?.httpStatus !== 200 || !exactKeys(response, ['httpStatus', 'result', 'exactReplay']) ||
+        !exactKeys(result, resultKeys) || result.status !== 'committed' || result.sessionId !== expected.sessionId ||
+        result.callId !== request.requestId || result.revision !== expected.sourceRevision + 1 ||
+        result.ambiguity !== request.ambiguity || result.source !== request.source || result.decision !== request.decision ||
+        result.audience !== 'gm-only' || hashUid(result.actorUid) !== expected.uidHash ||
+        result.label !== 'FACILITATOR RULE CALL' || typeof result.createdAt !== 'string' ||
+        !Number.isFinite(Date.parse(result.createdAt)) || !exactReplayMatches(input, result) ||
+        !sameReloadedActor(reload?.actor, expected) ||
+        !exactKeys(projection, ['kind', 'live', 'sessionId', 'cycle', 'uidHash', 'instanceId', 'revision',
+          'callId', 'actorUidHash', 'label', 'audience', 'ambiguityHash', 'sourceHash', 'decisionHash']) ||
+        projection.kind !== 'facilitator-rule-call' || projection.live !== true ||
+        projection.sessionId !== expected.sessionId || projection.cycle !== expected.cycle ||
+        projection.uidHash !== expected.uidHash || projection.instanceId !== expected.instanceId ||
+        projection.revision !== result.revision || projection.callId !== result.callId ||
+        projection.actorUidHash !== expected.uidHash || projection.label !== 'FACILITATOR RULE CALL' ||
+        projection.audience !== 'gm-only' || projection.ambiguityHash !== hash(request.ambiguity) ||
+        projection.sourceHash !== hash(request.source) || projection.decisionHash !== hash(request.decision) ||
+        input.rendered?.visible !== true || input.rendered.resultStatus !== 'committed') {
+      return pending(spec, 'facilitator-rule-call-request-receipt-replay-or-reloaded-decision-is-not-proved');
+    }
+    return {
+      status: 'completed', caseId: spec.id, family: spec.family, endpoint: spec.endpoint,
+      actorRoleId: expected.roleId, cycle: expected.cycle, revision: result.revision,
+      actorHash: hash(input.actorBefore.uidHash), requestFingerprint: hash(request),
+      exactSdkRetry: 'same-original-request-receipt-confirmed', trainingChoice: TRAINING_CHOICE_CODE,
+      randomOutcomeRecorded: false, rendered: 'committed',
+    };
+  }
+  return pending(spec, 'no-strict-mounted-GM-validator-is-registered');
+}
+
 /** Validate an actual mounted action using source state, the unmodified POST and its receipt-safe retry. */
 export function evaluateProcedureCapture(input) {
   const spec = CASE_BY_ID.get(input?.caseId);
@@ -371,6 +573,10 @@ export function evaluateProcedureCapture(input) {
   if (!input.offered) return pending(spec, input.reason ?? spec.unavailableReason);
   const expected = input.expected ?? {};
   const gm = spec.actorRoleId === 'gm';
+  if (gm && ['setGmShipConsoleWriteGrant', 'setShipConsoleLock', 'setFacilitatorCensusNote',
+    'authorFacilitatorRuleCall'].includes(spec.endpoint)) {
+    return evaluateMountedGmCapture(spec, input, expected);
+  }
   const revisionlessSourceReceipt = ['requestShuttleDeparture', 'transferShuttleCargoCommand', 'beginShuttleTransit']
     .includes(spec.endpoint) && validShuttleTransition(input, spec.endpoint);
   if (spec.endpoint === 'evacuateShuttleSurvivorsCommand' && !validShuttleTransition(input, spec.endpoint)) {
@@ -471,7 +677,7 @@ function acceptedResultStatus(spec, result, request, expected) {
 
 /** Capture one ordinary visible control action; its unmodified SDK request is retried only with its own idempotency key. */
 export async function captureMountedProcedureAction({ context, game, caseId, expected, prepare, inspect,
-  trainingChoice = null, timeoutMs = 60_000 }) {
+  trainingChoice = null, timeoutMs = 60_000, deferEvaluation = false }) {
   const spec = CASE_BY_ID.get(caseId);
   if (!spec) throw new Error(`Unknown pending procedure case: ${String(caseId)}`);
   if (spec.replayPolicy === 'not-mounted') return pending(spec, spec.unavailableReason);
@@ -524,8 +730,9 @@ export async function captureMountedProcedureAction({ context, game, caseId, exp
       return pending(spec, 'source-shuttle-holder-changed-before-action');
     }
   }
-  const sourceRevision = expected?.sourceRevision ?? (expected?.shipId
-    ? sourceBefore.vesselActionRevisions?.[expected.shipId] ?? 0 : undefined);
+  const sourceRevision = spec.endpoint === 'setGmShipConsoleWriteGrant' ? undefined
+    : expected?.sourceRevision ?? (expected?.shipId
+      ? sourceBefore.vesselActionRevisions?.[expected.shipId] ?? 0 : undefined);
   const groupId = expected?.groupId ?? (expected?.shipId
     ? sourceBefore.shipFleetGroupIds?.[expected.shipId] : undefined);
   const sourceBeforeProof = { live: sourceBefore.live, sessionId: sourceBefore.sessionId,
@@ -577,7 +784,7 @@ export async function captureMountedProcedureAction({ context, game, caseId, exp
   const observed = await inspect({ context, game, surface, actor: actorBefore, actorAfter,
     sourceBefore, request, result: actualResult, replay: replay?.result ?? null });
   const sourceAfter = observed?.sourceAfter;
-  const proof = evaluateProcedureCapture({ caseId, expected: { ...normalizedExpected, cycle: sourceBefore.cycle,
+  const proofInput = { caseId, expected: { ...normalizedExpected, cycle: sourceBefore.cycle,
     sourceRevision, groupId, cost: action.expectedCost ?? normalizedExpected.cost,
     distinctConsent: action.distinctConsent ?? normalizedExpected.distinctConsent },
   offered: true, mountedUi: true, actorBefore, actorAfter,
@@ -585,7 +792,17 @@ export async function captureMountedProcedureAction({ context, game, caseId, exp
   transitionBefore: action.transitionBefore, transitionAfter: observed?.transitionAfter,
   request, response: { httpStatus: result.status(), result: actualResult, exactReplay }, replay,
   rendered: observed?.rendered, cost: observed?.cost ?? displayedCost, consent: observed?.consent,
-  trainingChoice, randomOutcomeForced: false, randomOutcomeRecorded: false });
+  sourceSpecificBefore: observed?.sourceSpecificBefore, beforeProjection: observed?.beforeProjection,
+  afterReload: observed?.afterReload, restore: observed?.restore,
+  cleanupGrant: observed?.cleanupGrant,
+  trainingChoice, randomOutcomeForced: false, randomOutcomeRecorded: false };
+  if (deferEvaluation) {
+    const deferred = pending(spec, 'single-shot-write-grant-awaits-the-mounted-lock-and-ui-revoke');
+    Object.defineProperty(deferred, PRIVATE_CAPTURE_INPUT, { value: proofInput });
+    return deferred;
+  }
+  const proof = evaluateProcedureCapture(proofInput);
+  if (spec.endpoint === 'setShipConsoleLock') Object.defineProperty(proof, PRIVATE_CAPTURE_INPUT, { value: proofInput });
   return proof;
 }
 
@@ -596,19 +813,71 @@ async function runCasesAtCheckpoint({ family, cases, checkpoint, context, steps,
     privateTextPersisted: false, sourceRandomnessForced: false,
     cases: selected.map(spec => ({ caseId: spec.id, endpoint: spec.endpoint, status: 'pending',
       reason: 'no-current-mounted-action-has-been-observed' })) };
+  let deferredGrant = null;
+  let deferredGrantIndex = -1;
+  const finishDeferredGrant = async lockInput => {
+    if (!deferredGrant) return;
+    const restore = lockInput?.restore ?? await deferredGrant.cleanupGrant?.().catch(() => null);
+    const grantClaim = deferredGrant.request?.claimedAt;
+    const restoreClaim = restore?.request?.claimedAt;
+    const sameCapturedLease = typeof grantClaim === 'string' && grantClaim === restoreClaim &&
+      deferredGrant.expected?.sessionId === restore?.request?.sessionId &&
+      deferredGrant.expected?.instanceId === restore?.request?.instanceId &&
+      deferredGrant.afterReload?.projection?.enabled === true &&
+      deferredGrant.afterReload?.projection?.claimedAtHash === hash(grantClaim);
+    if (restore && sameCapturedLease) {
+      deferredGrant.restore = restore;
+      evidence.cases[deferredGrantIndex] = evaluateProcedureCapture(deferredGrant);
+    } else {
+      evidence.cases[deferredGrantIndex] = pending(CASE_BY_ID.get('gm:setGmShipConsoleWriteGrant'),
+        'single-shot-enable-and-ui-revoke-do-not-share-the-same-live-GM-lease');
+    }
+    deferredGrant = null;
+    deferredGrantIndex = -1;
+  };
   for (const spec of selected) {
     const step = steps[spec.id] ?? steps[spec.endpoint];
     if (typeof step !== 'function') continue;
-    const prepared = await step({ context, game, spec });
-    if (!prepared || typeof prepared.prepare !== 'function' || typeof prepared.inspect !== 'function') {
-      evidence.cases.find(row => row.caseId === spec.id).reason = 'step-did-not-return-mounted-control-and-projection-inspector';
+    let prepared;
+    try { prepared = await step({ context, game, spec }); }
+    catch {
+      const failedIndex = evidence.cases.findIndex(row => row.caseId === spec.id);
+      evidence.cases[failedIndex] = pending(spec, 'mounted-GM-source-preparation-did-not-complete');
+      if (spec.endpoint === 'setShipConsoleLock') await finishDeferredGrant(null);
       continue;
     }
-    const outcome = await captureMountedProcedureAction({ context, game, caseId: spec.id,
-      ...prepared, trainingChoice: prepared.trainingChoice ?? null });
+    if (!prepared || typeof prepared.prepare !== 'function' || typeof prepared.inspect !== 'function') {
+      evidence.cases.find(row => row.caseId === spec.id).reason = 'step-did-not-return-mounted-control-and-projection-inspector';
+      if (spec.endpoint === 'setShipConsoleLock') await finishDeferredGrant(null);
+      continue;
+    }
+    let outcome;
+    try {
+      outcome = await captureMountedProcedureAction({ context, game, caseId: spec.id,
+        ...prepared, trainingChoice: prepared.trainingChoice ?? null,
+        deferEvaluation: spec.endpoint === 'setGmShipConsoleWriteGrant' });
+    } catch {
+      const failedIndex = evidence.cases.findIndex(row => row.caseId === spec.id);
+      evidence.cases[failedIndex] = pending(spec, 'mounted-GM-control-action-did-not-return-a-verifiable-receipt');
+      if (spec.endpoint === 'setGmShipConsoleWriteGrant') await prepared.cleanupMountedGmGrant?.().catch(() => null);
+      if (spec.endpoint === 'setShipConsoleLock') await finishDeferredGrant(null);
+      continue;
+    }
     const index = evidence.cases.findIndex(row => row.caseId === spec.id);
+    if (spec.endpoint === 'setGmShipConsoleWriteGrant') {
+      deferredGrant = outcome[PRIVATE_CAPTURE_INPUT] ?? null;
+      deferredGrantIndex = index;
+      evidence.cases[index] = outcome;
+      if (!deferredGrant) await prepared.cleanupMountedGmGrant?.().catch(() => null);
+      continue;
+    }
     evidence.cases[index] = outcome;
+    if (spec.endpoint === 'setShipConsoleLock' && deferredGrant) {
+      const lockInput = outcome[PRIVATE_CAPTURE_INPUT];
+      await finishDeferredGrant(lockInput);
+    }
   }
+  await finishDeferredGrant(null);
   const summary = { status: 'pending', family, checkpoint,
     observedProcedureCount: evidence.cases.filter(row => row.status === 'completed').length,
     pendingProcedureCount: evidence.cases.filter(row => row.status !== 'completed').length,
