@@ -494,7 +494,7 @@ it('shows the ordinary join QR and accessible link in joined session Settings', 
   expect(within(settings).getByRole('img', { name: 'QR code for session 4821' })).toBeVisible();
   expect(within(settings).getByRole('link', { name: 'Open join screen for session 4821' }))
     .toHaveAttribute('href', expect.stringContaining('#/?joinCode=4821'));
-  expect(within(settings).getByText('Session code 4821')).toBeVisible();
+  expect(within(settings).getByLabelText('Session code 4821')).toBeVisible();
 });
 
 it('offers the single-player demo only to the sole Turn Zero player and closes settings when started', async () => {
