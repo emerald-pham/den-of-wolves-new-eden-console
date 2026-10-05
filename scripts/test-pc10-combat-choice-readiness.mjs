@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createTwoBrowserGameplay } from './pc10-two-browser-gameplay.mjs';
+import { resolveLiveWolfAttack } from './pc10-live-wolf-attack-ui-proof.mjs';
 
 // Native timing/authority counterexamples only; no browser, Auth or gameplay credit.
 const moduleUnderTest = async () => {
@@ -252,4 +253,42 @@ test('enter:false deliberately preserves the original private route, and an alre
 test('same-role routing cannot navigate with a substituted original Auth account', async () => {
   const f = routeFixture({ changed: { uidHash: 'new-account' } });
   await assert.rejects(f.select(), /original|identity|account/i); assert.deepEqual(f.calls, []);
+});
+
+test('the fallback resolver waits for a delayed mounted Wing choice without cycling to EO or reloading that actor', async () => {
+  const selections = [], clicks = [];
+  let selectedRole, probeCount = 0, resolved = false;
+  const current = () => attack({ status: resolved ? 'resolved' : 'declared', revision: resolved ? 5 : 4,
+    currentStep: resolved ? 'resolved' : 'targeting' });
+  const originalGm = actor({ uidHash: 'native-gm', profileRoleId: 'gm', assignedRoleId: null,
+    activeConsoleRoleId: null, playerRole: 'gm', instanceId: 'native-instance', gmInstanceOwned: true });
+  const crewActor = () => actor({ profileRoleId: selectedRole, assignedRoleId: selectedRole,
+    activeConsoleRoleId: selectedRole, uidHash: `native-${selectedRole}` });
+  const visible = name => selectedRole === 'wing-commander' &&
+    (name === 'AEGIS fighter wing launches' || name === 'Fighter Wing Alpha' ||
+      name === 'Launch Fighter Wing Alpha' || name === 'Pass Fighter Wing Alpha') && ++probeCount >= 3;
+  const widget = name => ({
+    isVisible: async () => visible(name), isEnabled: async () => true,
+    innerText: async () => 'Cycle 1 // flight control',
+    click: async () => { clicks.push(name); resolved = true; },
+    getByRole: (_kind, options) => widget(options.name),
+  });
+  const page = { getByRole: (_kind, options) => widget(options.name), waitForResponse: async () => ({
+    request: () => ({ postDataJSON: () => ({ data: { sessionId: 'native-session', requestId: 'native-request',
+      expectedTurn: 1, expectedRevision: 4 } }) }),
+  }) };
+  const gm = { page, observe: async () => originalGm };
+  const crew = { page, observe: async () => crewActor(), callable: async endpoint => {
+    assert.equal(endpoint, 'getAegisFighterWingLaunch');
+    return { status: 'committed', result: choice({ wingId: 'fighter-wing-alpha', launched: false }) };
+  } };
+  const context = { gm, crew, initial: { sessionId: 'native-session' },
+    started: { uidHash: 'native-gm', instanceId: 'native-instance' },
+    roster: ['wing-commander', 'executive-officer'].map(roleId => ({ roleId, uidHash: `native-${roleId}` })) };
+  const tools = { read: async () => current(), state: async () => ({ phase: 'active', cycle: 1 }), record: async () => {},
+    select: async role => { selectedRole = role; selections.push(role); return role === 'gm' ? gm : crew; },
+    receipt: async (_surface, _endpoint, choose) => { await choose(); return { status: 'committed' }; } };
+  const result = await resolveLiveWolfAttack(context, { tools, verifyReplay: false, timeoutMs: 5_000 });
+  assert.equal(result.status, 'resolved'); assert.deepEqual(clicks, ['Launch Fighter Wing Alpha']);
+  assert.deepEqual(selections, ['wing-commander'], 'Missing lazy paint must not visit EO or reload the same Wing account.');
 });
