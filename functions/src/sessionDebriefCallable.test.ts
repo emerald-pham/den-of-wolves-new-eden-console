@@ -95,6 +95,27 @@ it('rejects unsigned, malformed, stale-GM, non-GM, and premature close requests 
   expect(database.updates).toHaveLength(0);
 });
 
+it('requires the currently live GM for private debrief history', async () => {
+  await handlers().begin(request());
+  database.documents.set('sessions/s1', { ...database.documents.get('sessions/s1')!, phase: 'closed' });
+  const input = { sessionId, instanceId };
+
+  await expect(handlers(false).read(request(input)))
+    .rejects.toMatchObject({ code: 'permission-denied' });
+  database.documents.set('sessions/s1/players/u1', { uid: 'u1', role: 'player', connected: true });
+  await expect(handlers().read(request(input)))
+    .rejects.toMatchObject({ code: 'permission-denied' });
+  database.documents.set('sessions/s1/players/u1', { uid: 'u1', role: 'gm', connected: false });
+  await expect(handlers().read(request(input)))
+    .rejects.toMatchObject({ code: 'permission-denied' });
+
+  database.documents.set('sessions/s1/players/u1', { uid: 'u1', role: 'gm', connected: true });
+  const response = await handlers().read(request(input));
+  expect(response).toMatchObject({ type: 'session-debrief', sessionId,
+    snapshot: { type: 'session-debrief', result: 'failure', cause: 'total-fleet-loss' } });
+  expect(response.snapshot).not.toHaveProperty('source');
+});
+
 it('replays the original action receipt before rejecting a fresh terminal action', async () => {
   const call = handlers();
   const original = await call.begin(request());
