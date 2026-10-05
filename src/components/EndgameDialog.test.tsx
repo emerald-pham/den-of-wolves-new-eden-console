@@ -88,9 +88,9 @@ it('shows only the entitled candidate route, met requirements, rolls, losses, an
   expect(dialog).toHaveTextContent('Candidate N route');
   expect(dialog).toHaveTextContent('Paid crossing: met');
   expect(dialog).toHaveTextContent('Ring passage — crossed');
-  expect(dialog).toHaveTextContent('Server roll: passage');
-  expect(dialog).toHaveTextContent('Recorded GM call: opposite-side sabotage (Cycle 4)');
-  expect(dialog).toHaveTextContent('aegis — candidate loss');
+  expect(dialog).toHaveTextContent('Server roll: Passage');
+  expect(dialog).toHaveTextContent('Recorded GM call: Opposite side sabotage (Cycle 4)');
+  expect(dialog).toHaveTextContent('Aegis — Candidate loss');
   expect(dialog).not.toHaveTextContent('chart');
   expect(dialog).not.toHaveTextContent('loyalty');
   expect(debriefMocks.read).not.toHaveBeenCalled();
@@ -118,10 +118,17 @@ it('offers begin and close controls only to a GM instance and reads its private 
     cause: 'pursuit-limit', cycle: 4, occurredAt: '2026-10-05T12:00:00.000Z', committedAt: '2026-10-05T12:01:00.000Z',
     outcome: failedSession.gameOutcome,
   } } as never);
-  debriefMocks.read.mockResolvedValue({ candidate: { code: 'N', groups: [{ groupId: 'fleet-a',
-    requirements: [], rolls: [], losses: [], humanCalls: [], path: [] }] } });
+  debriefMocks.read.mockResolvedValue({
+    type: 'session-debrief', version: 1, source: 'candidate', result: 'success',
+    cause: 'candidate-complete', cycle: 4, occurredAt: '2026-10-05T12:00:00.000Z',
+    committedAt: '2026-10-05T12:01:00.000Z',
+    outcome: { type: 'game-outcome', result: 'success', cause: 'candidate-complete',
+      candidateCode: 'N', cycle: 4, occurredAt: '2026-10-05T12:00:00.000Z' },
+    candidate: { code: 'N', groups: [{ groupId: 'fleet-a',
+      requirements: [], rolls: [], losses: [], humanCalls: [], path: [] }] },
+  });
   render(<EndgameDialog />);
-  expect(await screen.findByText('Group fleet-a')).toBeVisible();
+  expect(await screen.findByText('Group Fleet A')).toBeVisible();
   await user.click(screen.getByRole('button', { name: 'Close session' }));
   expect(debriefMocks.close).toHaveBeenCalledTimes(1);
   expect(debriefMocks.read).toHaveBeenCalled();
