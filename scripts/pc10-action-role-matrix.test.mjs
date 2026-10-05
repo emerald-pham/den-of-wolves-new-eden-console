@@ -36,8 +36,11 @@ test('action and role matrix enumerates current exports with explicit unresolved
     for (const row of matrix.actions) {
       for (const field of [
         'action', 'actualServedUi', 'eligibleActor', 'source', 'requirements', 'costs',
-        'consequences', 'blockers', 'nextActor', 'inConsoleGuidance',
+        'consequences', 'blockers', 'nextActor', 'inConsoleGuidance', 'roleEligibility',
       ]) assert.ok(row[field], `${row.exportName} is missing ${field}`);
+      assert.equal(row.roleEligibility.length, 42, `${row.exportName} role coverage is incomplete`);
+      assert.deepEqual(row.roleEligibility.map(cell => cell.roleId), matrix.roles.map(role => role.id));
+      assert.ok(row.roleEligibility.every(cell => cell.status === 'unresolved'));
       assert.ok(row.source.serverReferences.length > 0, `${row.exportName} has no server source trace`);
       for (const field of ['requirements', 'costs', 'consequences', 'blockers', 'nextActor']) {
         assert.equal(row[field].status, 'unresolved');
@@ -48,7 +51,7 @@ test('action and role matrix enumerates current exports with explicit unresolved
       assert.equal(row.evidence.humanDeviceProof, 'not claimed');
     }
 
-    assert.deepEqual(matrix.roles.map(role => role.id).length, 42);
+    assert.equal(matrix.roles.map(role => role.id).length, 42);
     assert.ok(matrix.roles.every(role => role.actionEligibility.status === 'unresolved' &&
       role.currentFreshGameProof === 'pending' && role.recoveryProof === 'pending' &&
       role.usabilityProof === 'pending'));
