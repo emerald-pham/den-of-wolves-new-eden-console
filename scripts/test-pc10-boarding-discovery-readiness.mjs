@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { assertWolfChoiceActor, createWolfChoiceWaiter, waitForWolfChoiceReadiness } from './pc10-combat-choice-readiness.mjs';
+import { assertWolfChoiceActor, createWolfChoiceWaiter, observeWolfChoiceActor, waitForWolfChoiceReadiness } from './pc10-combat-choice-readiness.mjs';
 
 // Native counterexamples only. No browser, Auth, gameplay or physical proof.
 const discovery = (change = {}) => ({ groupId: 'fleet-1', shipId: 'shepherd', revision: 1,
@@ -117,3 +117,39 @@ test('the real boarding waiter requests the discovery fence rather than trusting
   await assert.rejects(waiter(crew, attack, { kind: 'boarding-defence' }, { deadlineAt: Date.now() + 40 }), /deadline|discovery/i);
   assert.equal(calls, 0);
 });
+
+// These ordinary role/current-berth fixtures exercise the observer mapping,
+// not a browser or admission. Catalog vessel identity is not boarding berth.
+for (const { name, roleId, replacementRoleId = null, catalogShipId, shipId, vesselIds } of [
+  { name: 'Shepherd / Icebreaker joint station', roleId: 'joint-engineering-shepherd-icebreaker',
+    catalogShipId: null, shipId: 'icebreaker', vesselIds: ['shepherd', 'icebreaker'] },
+  { name: 'Quellon / Refinery joint station', roleId: 'joint-engineering-quellon-refinery',
+    catalogShipId: null, shipId: 'refinery-124', vesselIds: ['quellon', 'refinery-124'] },
+  { name: 'Comms replacement at its current passenger berth', roleId: 'shepherd-engineer',
+    replacementRoleId: 'comms-officer', catalogShipId: 'aegis', shipId: 'icebreaker',
+    vesselIds: ['aegis', 'icebreaker'] },
+  { name: 'Warrior replacement at its current passenger berth', roleId: 'shepherd-engineer',
+    replacementRoleId: 'warrior-captain', catalogShipId: 'warrior', shipId: 'icebreaker',
+    vesselIds: ['warrior', 'icebreaker'] },
+]) {
+  test(`boarding observer binds protected current berth for ${name}`, async () => {
+    const current = actor({ assignedRoleId: roleId, activeConsoleRoleId: replacementRoleId ? null : roleId,
+      replacementRoleId, seatId: replacementRoleId ? null : roleId, entitledShipId: catalogShipId,
+      discoveryAuthority: discovery({ shipId, fleetGroupVesselIds: vesselIds }) });
+    const surface = { observe: async () => current, storeModuleUrl: () => '/native-store',
+      page: { evaluate: async () => ({ ...current, connected: true }) } };
+    const observed = await observeWolfChoiceActor(surface);
+    assert.equal(observed.entitledShipId, shipId, 'The protected current berth supersedes historical catalog identity.');
+    const f = fixture({ inspectActor: () => observed, readChoice: () => ({ ...choice, targetShipId: shipId }) });
+    f.options.original = current;
+    const ready = await waitForWolfChoiceReadiness(f.options);
+    assert.equal(ready.status, 'eligible'); assert.equal(ready.gameplayCredit, false);
+    assert.equal(ready.originalActor.entitledShipId, shipId);
+    assert.deepEqual(ready.originalActor.boardingDiscoveryAuthority, current.discoveryAuthority);
+    assert.deepEqual(f.counters(), { time: 0, reads: 1, paints: 1 });
+    assert.doesNotThrow(() => assertWolfChoiceActor(observed, ready.originalActor));
+    assert.throws(() => assertWolfChoiceActor({ ...observed,
+      discoveryAuthority: { ...observed.discoveryAuthority, shipId: vesselIds.find(id => id !== shipId) },
+    }, ready.originalActor), /discovery/i);
+  });
+}
