@@ -2942,6 +2942,36 @@ it('traps Press confirmation focus, cancels on Escape, and restores the trigger 
   expect(trigger).toHaveFocus();
 });
 
+it.each([
+  { trigger: 'Disable Capybara', dialog: 'Change convoy manifest', cancel: 'Cancel convoy change' },
+  { trigger: 'Disable Dione', dialog: 'Change convoy manifest', cancel: 'Cancel convoy change' },
+  { trigger: 'Disable Press', dialog: 'Change Press availability', cancel: 'Cancel Press change' },
+])('keeps $trigger confirmation outside the GM pane stacking context with keyboard focus intact', async ({ trigger: triggerName, dialog: dialogName, cancel: cancelName }) => {
+  const user = userEvent.setup();
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  const rendered = renderConsole();
+  await user.click(await screen.findByRole('button', { name: /^setup$/i }));
+  const trigger = screen.getByRole('button', { name: triggerName, exact: true });
+  await user.click(trigger);
+  const dialog = screen.getByRole('alertdialog', { name: dialogName });
+  expect(document.body).toContainElement(dialog);
+  expect(rendered.container).not.toContainElement(dialog);
+  expect(dialog.closest('.gm-console')).toBeNull();
+  const cancel = within(dialog).getByRole('button', { name: cancelName });
+  expect(cancel).toHaveFocus();
+  await user.tab();
+  expect(within(dialog).getAllByRole('button')[1]).toHaveFocus();
+  await user.tab();
+  expect(cancel).toHaveFocus();
+  await user.keyboard('{Escape}');
+  expect(screen.queryByRole('alertdialog', { name: dialogName })).not.toBeInTheDocument();
+  expect(trigger).toHaveFocus();
+  expect(setCapybaraEnabled).not.toHaveBeenCalled();
+  expect(setDioneEnabled).not.toHaveBeenCalled();
+  expect(setPressEnabled).not.toHaveBeenCalled();
+});
+
 it('keeps roster edits local until the GM confirms one complete configuration', async () => {
   const user = userEvent.setup();
   useSessionStore.getState().setGmInstance(local);
