@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { setTimeout as delay } from 'node:timers/promises';
 
 export function proofRuntimeFromViteSource(source) {
   const assignment = source.match(/import\.meta\.env\s*=\s*(\{[^\n]+\});/);
@@ -30,4 +31,27 @@ export function assertSelectedActor(current, expected) {
   assert.equal(current.playerRole, 'player');
   assert.equal(current.connection, 'live');
   assert.equal(current.freshness, 'server');
+}
+
+/** Drives only the manager's disclosed ordinary retry, never replacing an identity. */
+export async function completePreparedCrew(options) {
+  const now = options.now ?? Date.now;
+  const wait = options.wait ?? (() => delay(250));
+  const deadline = now() + (options.timeoutMs ?? 180_000);
+  const recoverable = /^Demo preparation stopped\. Reconnect and retry(?: from the crew controller)?\.$/;
+  let retries = 0, current;
+  while (now() < deadline) {
+    current = await options.inspect();
+    if (current.error && !recoverable.test(current.error)) throw new Error(current.error);
+    assert.ok(Number.isSafeInteger(current.actorCount) && current.actorCount >= 0 && current.actorCount <= 21);
+    if (current.actorCount === 21 && current.live) return retries;
+    if (current.live && current.retryEnabled && recoverable.test(current.error)) {
+      assert.ok(retries < (options.maxRetries ?? 10), 'Ordinary crew preparation retry limit reached.');
+      await options.retry();
+      retries += 1;
+      await options.onRetry?.({ retry: retries, actorCount: current.actorCount, error: current.error });
+    }
+    await wait();
+  }
+  throw new Error(`Ordinary crew preparation did not finish: ${JSON.stringify(current)}`);
 }

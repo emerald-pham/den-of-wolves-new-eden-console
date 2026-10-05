@@ -6,7 +6,7 @@ import { resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { pathToFileURL } from 'node:url';
 import { chromium } from 'playwright';
-import { proofRuntimeFromViteSource, validateProofRuntime, assertSelectedActor } from './pc10-full-game-demo-proof-helpers.mjs';
+import { proofRuntimeFromViteSource, validateProofRuntime, assertSelectedActor, completePreparedCrew } from './pc10-full-game-demo-proof-helpers.mjs';
 
 /** Real UI/SDK driver. Callbacks may compose later genuine game decisions. */
 export async function runFreshFullGameDemoUi(options = {}) {
@@ -193,6 +193,7 @@ export async function runFreshFullGameDemoUi(options = {}) {
       receiptTimeout = setTimeout(() => reject(new Error('No real first seat receipt.')), 60_000);
     })]).finally(() => clearTimeout(receiptTimeout));
     assert.equal(interruptedReceipt.status, 'committed');
+    evidence.interruptedActualSeatReceipt = interruptedReceipt;
     const establishedUidHash = await crew.page.evaluate(async () => {
       const { readDemoActorAccountUid } = await import('/src/lib/demoActorContext.ts');
       const uid = readDemoActorAccountUid('admiral');
@@ -201,8 +202,26 @@ export async function runFreshFullGameDemoUi(options = {}) {
     });
     await crew.page.reload(); release(); await crew.page.unroute(claimPattern);
     await crew.until('Interrupted controller restored', state => state.sameActor && state.uidHash === controller.uidHash && state.connection === 'live' && state.freshness === 'server');
+    await mark('lost actual seat acknowledgement; same real controller restored');
     await crew.page.getByRole('button', { name: 'Prepare demo crew', exact: true }).click();
-    await crew.page.getByRole('button', { name: /Open.*Press Officer$/ }).waitFor({ timeout: 150_000 });
+    const crewPanel = crew.page.getByRole('region', { name: 'Full-game demo crew', exact: true });
+    evidence.preparationRetryCount = await completePreparedCrew({
+      inspect: async () => {
+        const current = await crew.observe();
+        return { actorCount: await crewPanel.getByRole('list', { name: 'Prepared demo actors', exact: true }).getByRole('button').count(),
+          live: current.sameActor && current.uidHash === controller.uidHash && current.profileRoleId === 'controller' &&
+            current.sessionId === initial.sessionId && current.fullGameDemo?.status === 'preparing' &&
+            current.connection === 'live' && current.freshness === 'server',
+          retryEnabled: await crewPanel.getByRole('button', { name: 'Prepare demo crew', exact: true }).isEnabled().catch(() => false),
+          error: (await crewPanel.getByRole('alert').allTextContents()).join('') };
+      },
+      retry: () => crewPanel.getByRole('button', { name: 'Prepare demo crew', exact: true }).click(),
+      onRetry: async retry => {
+        evidence.preparationRetries ??= []; evidence.preparationRetries.push(retry);
+        await mark(`ordinary preparation retry ${retry.retry} after ${retry.actorCount} actors`);
+      },
+    });
+    await crewPanel.getByRole('button', { name: /Open.*Press Officer$/ }).waitFor();
     const roster = await crew.page.evaluate(async sid => {
       const { readDemoActorRoster } = await import('/src/lib/demoActorProfiles.ts');
       return Promise.all(readDemoActorRoster(sid).map(async actor => ({ roleId: actor.roleId,
@@ -213,7 +232,6 @@ export async function runFreshFullGameDemoUi(options = {}) {
     assert.ok(roster.every(actor => ![gmIdentity.uidHash, controller.uidHash].includes(actor.uidHash)));
     assert.equal(roster.find(actor => actor.roleId === 'admiral').uidHash, establishedUidHash);
     assert.equal(await crew.page.getByLabel('Current actor', { exact: true }).locator('option').count(), 22);
-    evidence.interruptedActualSeatReceipt = interruptedReceipt;
     evidence.interruptedAdmissionSameRealUid = true;
     evidence.actualAuthenticatedActors = new Set([gmIdentity.uidHash, controller.uidHash, ...roster.map(actor => actor.uidHash)]).size;
 
@@ -301,6 +319,11 @@ export async function runFreshFullGameDemoUi(options = {}) {
       console.log(JSON.stringify({ stage: 'confirmed role surface', roleId: actor.roleId }));
     }
     await mark('manual Team to Coordination through actual GM UI');
+    const teamBeforeManualAdvance = await gm.observe();
+    assert.equal(teamBeforeManualAdvance.cycle, 1);
+    assert.equal(teamBeforeManualAdvance.turnStatePhase, 'team');
+    assert.equal(teamBeforeManualAdvance.phaseProgression, 'manual');
+    evidence.teamHeldThroughAllRoleSelections = true;
     await gm.page.getByRole('button', { name: 'Open Coordination manually', exact: true }).click();
     const coordination = await gm.until('Real manual Coordination', state => state.airspace === 'lifted' && state.phaseProgression === 'manual' && state.turnStatePhase === 'coordination');
     await delay(2_000);
@@ -330,6 +353,9 @@ export async function runFreshFullGameDemoUi(options = {}) {
   } catch (error) {
     const states = await Promise.all(surfaces.map(async item => ({ surface: item.label, state: await item.observe().catch(() => null), path: new URL(item.page.url()).hash })));
     for (const item of surfaces) await item.page.screenshot({ path: `${directory}/${item.label}-failure.png` }).catch(() => undefined);
+    evidence.sourceCommitAtCompletion = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
+    evidence.builtRuntimeIndexSha256AtCompletion = createHash('sha256').update(await readFile(`${root}/functions/lib/index.js`)).digest('hex');
+    evidence.sourceChangedDuringProof = evidence.sourceCommitAtCompletion !== sourceCommit || evidence.builtRuntimeIndexSha256AtCompletion !== builtRuntimeIndexSha256;
     await writeFile(`${directory}/failure.json`, `${JSON.stringify({ ...evidence, status: 'failed', stage, message: error.message, states, transitions, calls, errors, remoteRequests }, null, 2)}\n`);
     console.error(JSON.stringify({ status: 'failed', stage, message: error.message, directory }));
     throw error;
