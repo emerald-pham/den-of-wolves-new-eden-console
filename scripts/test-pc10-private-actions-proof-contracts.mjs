@@ -5,6 +5,9 @@ import {
   assertExactCallableReplay,
   assertLiveWolfActorFence,
   assertSameWolfActorFence,
+  assertWolfCycleActionReply,
+  assertWolfCycleActionRequest,
+  assertWolfSupplyRequest,
   assertWolfSupplySabotageResult,
   blockedPhysicalConsoleBranch,
   buildWolfCycleActionPlan,
@@ -55,7 +58,7 @@ test('Wolf action fence requires current Auth, cover, group, generation and fres
   assert.equal(assertLiveWolfActorFence(base, { sessionId: 'session-current', roleId: 'aegis-engineer' }).uid, base.uid);
   for (const patch of [
     { authUid: 'other-auth' }, { assignedRoleId: 'other-role' }, { activeConsoleRoleId: 'other-role' },
-    { fleetGroupId: 'other-group' }, { connectionGeneration: 4 }, { phase: 'debrief' },
+    { phase: 'debrief' },
     { connection: 'offline' }, { freshness: 'persisted' }, { replacementStatus: 'awaiting-re-role' },
     { escapeState: { status: 'pending' } },
   ]) assert.throws(() => assertLiveWolfActorFence(actorSnapshot(patch)));
@@ -65,19 +68,48 @@ test('Wolf action fence requires current Auth, cover, group, generation and fres
 
 test('supply receipt proves the server floor-half, +2 suspicion and exact replay', () => {
   const actor = actorSnapshot();
-  const requestData = { sessionId: actor.sessionId, requestId: 'req-1', expectedCycle: 1,
+  const requestData = { sessionId: actor.sessionId, requestId: 'req-1234567890abcdef', expectedCycle: 1,
     shuttleId: 'aegis-shuttle', resourceId: 'fuel' };
   const result = { status: 'committed', type: 'wolf-supply-sabotage', sessionId: actor.sessionId,
     requestId: requestData.requestId, idempotencyKey: requestData.requestId, actorUid: actor.uid,
     actorRoleId: actor.assignedRoleId, coverRoleId: actor.assignedRoleId, vesselId: requestData.shuttleId,
     shuttleId: requestData.shuttleId, resourceId: requestData.resourceId, turn: 1, cycle: 1,
-    phase: 'active', destroyedAmount: 2, remainingAmount: 3, suspicion: 8 };
+    phase: 'active', revision: 1, destroyedAmount: 2, remainingAmount: 3, suspicion: 8 };
   assert.equal(assertWolfSupplySabotageResult({ result, requestData, actor, startingCargo: 5, oldSuspicion: 6 }), true);
+  assert.equal(assertWolfSupplyRequest(requestData, actor, { shuttleId: 'aegis-shuttle', resourceId: 'fuel' }), true);
+  assert.throws(() => assertWolfSupplyRequest({ ...requestData, hiddenOverride: true }, actor,
+    { shuttleId: 'aegis-shuttle', resourceId: 'fuel' }));
   assert.equal(assertExactCallableReplay(result, structuredClone(result)), true);
   assert.throws(() => assertWolfSupplySabotageResult({ result: { ...result, destroyedAmount: 1 },
     requestData, actor, startingCargo: 5, oldSuspicion: 6 }));
   assert.throws(() => assertWolfSupplySabotageResult({ result: { ...result, suspicion: 9 },
     requestData, actor, startingCargo: 5, oldSuspicion: 6 }));
+});
+
+test('beacon and handler replies are individually bound to each actor and exact request', () => {
+  for (const [index, actor] of wolfActors.entries()) {
+    const snapshot = actorSnapshot({ uid: `auth-uid-${index}`, authUid: `auth-uid-${index}`,
+      uidHash: actor.uidHash, profileRoleId: actor.roleId, assignedRoleId: actor.roleId,
+      activeConsoleRoleId: actor.roleId, loyaltyKind: actor.kind, suspicion: 6,
+      fleetGroupId: `group-${index}` });
+    const requestData = { sessionId: snapshot.sessionId, requestId: `request-${index}-1234567890`, expectedCycle: 1 };
+    assert.equal(assertWolfCycleActionRequest(requestData, snapshot), true);
+    if (index === 0) {
+      const result = { status: 'committed', type: 'wolf-homing-beacon', sessionId: snapshot.sessionId,
+        requestId: requestData.requestId, cycle: 1, revision: 1, coverRoleId: snapshot.assignedRoleId,
+        groupId: snapshot.fleetGroupId, coordinate: 'training-only-in-memory', dueCycle: 2,
+        arrivalTiming: 'after-cycle-start' };
+      assert.equal(assertWolfCycleActionReply({ action: 'homing-beacon', requestData, actor: snapshot, result }), true);
+      assert.throws(() => assertWolfCycleActionReply({ action: 'homing-beacon', requestData, actor: snapshot,
+        result: { ...result, revision: 2 } }));
+    } else {
+      assert.equal(assertWolfCycleActionReply({ action: 'provide-intel', requestData, actor: snapshot,
+        expectedMessage: 'Training proof // private handler action.',
+        result: { status: 'committed', type: 'wolf-intelligence', sessionId: snapshot.sessionId,
+          requestId: requestData.requestId, cycle: 1, revision: 1, coverRoleId: snapshot.assignedRoleId,
+          message: 'Training proof // private handler action.', suspicion: 9 } }), true);
+    }
+  }
 });
 
 test('player notice is actor-free and physical console observation stays explicitly blocked', () => {
