@@ -314,3 +314,63 @@ test('a changed GM identity or instance cannot receive deduction setup credit af
     assert.equal(fixture.counts().calls, 0);
   }
 });
+
+test('opening prerequisites accept the five-charge separate-cycle route and reject incomplete, old or damaged authority', async () => {
+  const { assertBaseCombatPrerequisites } = await contracts();
+  const charges = ['fighter-bay-alpha', 'fighter-bay-bravo', 'command-and-control', 'missile-launchers', 'point-defence-lasers'];
+  const state = { cycle: 1, phase: 'active', turnPhase: { turn: 1, airspace: { state: 'lifted' } },
+    maintenanceCycles: { aegis: { turn: 1, step: 0, completedAt: '2026-10-05T10:00:00Z', charges } },
+    shipDamage: { aegis: { damagedSystemIds: [], destroyed: false } } };
+  assert.deepEqual(assertBaseCombatPrerequisites(state, 1).requiredConsoleIds, charges);
+  assert.doesNotThrow(() => assertBaseCombatPrerequisites({ ...state, cycle: 2,
+    turnPhase: { ...state.turnPhase, turn: 2 }, maintenanceCycles: { aegis: { ...state.maintenanceCycles.aegis, turn: 2 } } }, 2));
+  for (const changed of [
+    { maintenanceCycles: { aegis: { ...state.maintenanceCycles.aegis, step: 7, completedAt: undefined } } },
+    { maintenanceCycles: { aegis: { ...state.maintenanceCycles.aegis, turn: 0 } } },
+    { maintenanceCycles: { aegis: { ...state.maintenanceCycles.aegis, charges: ['jump-drive', ...charges.slice(0, 4)] } } },
+    { shipDamage: { aegis: { damagedSystemIds: ['fighter-bay-alpha'], destroyed: false } } },
+    { shipDamage: { aegis: { damagedSystemIds: [], destroyed: true } } },
+  ]) assert.throws(() => assertBaseCombatPrerequisites({ ...state, ...changed }, 1));
+});
+
+test('painted aftermath must match actual returned outcome strings and threat counts, even when source/time metadata match', async () => {
+  const { baseMemberRowsMatch } = await contracts(), view = aftermath();
+  const row = 'Boarding wolf-attack-damage → AEGIS 1 damage // 1000 population lost Committed 2026-10-05T10:00:01Z';
+  assert.equal(baseMemberRowsMatch(view, [row], '2 remaining hostile ships // 1 returning next attack'), true);
+  assert.equal(baseMemberRowsMatch(view, [row.replace('1 damage', '0 damage')], '2 remaining hostile ships // 1 returning next attack'), false);
+  assert.equal(baseMemberRowsMatch(view, [row], '0 remaining hostile ships // 0 returning next attack'), false);
+  assert.equal(baseMemberRowsMatch(view, [row, row], '2 remaining hostile ships // 1 returning next attack'), false);
+});
+
+test('one paid research cross awaits exact original Scientist revision, cadence, resources and real research/detector paint', async () => {
+  const { waitForBaseResearchReceipt } = await contracts();
+  const original = actor({ profileRoleId: 'shepherd-scientist', activeConsoleRoleId: 'shepherd-scientist', cycle: 4 });
+  const cadence = { cycle: 4, revision: 4, choices: [{ trackId: 'wolf-agent-detector', funding: 'standard', oreCost: 0 }] };
+  const receipt = { status: 'committed', sessionId: 'native-session', cycle: 4, researchRevision: 4,
+    trackId: 'wolf-agent-detector', funding: 'standard', oreCost: 0, shepherdOre: 9,
+    progress: { 'wolf-agent-detector': 4 }, cadence };
+  const workspace = { status: 'ready', sessionId: 'native-session', cycle: 4, researchRevision: 4,
+    progress: receipt.progress, cadence, shepherdOre: 9 };
+  let reads = 0, paints = 0, time = 0;
+  const result = await waitForBaseResearchReceipt({ inspect: async () => original, original, receipt,
+    read: async () => ++reads === 1 ? { ...workspace, researchRevision: 3 } : workspace,
+    renderedReady: async () => ++paints > 1, now: () => time, wait: async () => { time++; }, timeoutMs: 5 });
+  assert.equal(result.researchRevision, 4); assert.equal(reads, 3); assert.equal(paints, 2);
+  for (const changed of [{ cycle: 3 }, { shepherdOre: 8 }, { progress: { 'wolf-agent-detector': 3 } },
+    { cadence: { ...cadence, choices: [] } }]) await assert.rejects(waitForBaseResearchReceipt({
+    inspect: async () => original, original, receipt, read: async () => ({ ...workspace, ...changed }),
+    renderedReady: async () => true, now: () => 0, wait: async () => { throw new Error('Inconsistent committed source cannot wait into credit.'); } }));
+});
+
+test('a pending private research read cannot return under a replaced original Scientist', async () => {
+  const { waitForBaseResearchReceipt } = await contracts();
+  const original = actor({ profileRoleId: 'shepherd-scientist', activeConsoleRoleId: 'shepherd-scientist' });
+  let fetched = false;
+  await assert.rejects(waitForBaseResearchReceipt({ original,
+    inspect: async () => fetched ? { ...original, uidHash: 'foreign-scientist' } : original,
+    receipt: { status: 'committed', sessionId: 'native-session', cycle: 1, researchRevision: 1,
+      trackId: 'wolf-agent-detector', funding: 'standard', oreCost: 0, progress: { 'wolf-agent-detector': 1 },
+      cadence: { cycle: 1, revision: 1, choices: [] }, shepherdOre: 9 },
+    read: async () => { fetched = true; return {}; }, renderedReady: async () => true }));
+  assert.equal(fetched, true);
+});
