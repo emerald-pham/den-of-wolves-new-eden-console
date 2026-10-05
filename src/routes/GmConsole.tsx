@@ -788,6 +788,12 @@ export default function GmConsole() {
   const demoIsPreparing = fullGameDemo?.status === 'preparing' && fullGameDemo.progression === 'manual';
   const demoIsActive = fullGameDemo?.status === 'active' && fullGameDemo.progression === 'manual';
   const demoIsManual = demoIsActive && currentPhase?.progression === 'manual';
+  const demoPursuitEmergency = session?.pursuitEmergencyWindow ?? session?.pursuitEmergencyWindowAuthority;
+  const demoPhaseBlocker = demoPursuitEmergency
+    ? demoPursuitEmergency.status === 'awaiting-gm-decision'
+      ? 'Pursuit emergency // GM: choose Offer emergency jump or End pursuit-limit run in Pursuit emergency decision. Coordination remains blocked until the emergency window clears.'
+      : 'Pursuit emergency // entitled ship crews must complete the offered emergency jump. GM: review Pursuit emergency decision. Coordination remains blocked until the emergency window clears.'
+    : null;
   const canStartFullGameDemo = currentGmVerified && demoIsPreparing && demoPreparationWindow &&
     !session?.singlePlayerDemo;
   const demoManagerHref = session?.id && session.joinCode
@@ -2597,7 +2603,7 @@ export default function GmConsole() {
   }
 
   async function openDemoCoordination(): Promise<void> {
-    if (!demoIsManual || demoPhaseMutation || attackInProgress || !session) return;
+    if (!demoIsManual || demoPhaseMutation || attackInProgress || demoPursuitEmergency || !session) return;
     setDemoPhaseMutation(true);
     setDemoPhaseMessage(null);
     try {
@@ -3149,7 +3155,8 @@ export default function GmConsole() {
                 <button
                   className="cic-action-button"
                   type="button"
-                  disabled={attackInProgress || demoPhaseMutation || changingTurn || connection !== 'live' || sessionSnapshotFreshness !== 'server'}
+                  disabled={attackInProgress || Boolean(demoPursuitEmergency) || demoPhaseMutation || changingTurn || connection !== 'live' || sessionSnapshotFreshness !== 'server'}
+                  aria-describedby={demoPhaseBlocker ? 'gm-demo-phase-blocker' : undefined}
                   onClick={() => void openDemoCoordination()}
                 >
                   {demoPhaseMutation ? 'Opening Coordination manually…' : 'Open Coordination manually'}
@@ -3218,6 +3225,9 @@ export default function GmConsole() {
                   : 'Replay last transmission // Everyone'}
               </button>
             </div>
+            {demoIsManual && demoPhaseBlocker && (
+              <p id="gm-demo-phase-blocker" className="gm-console__status" role="status">{demoPhaseBlocker}</p>
+            )}
             {demoPhaseMessage && <p className="gm-console__status" role="status">{demoPhaseMessage}</p>}
             <section className="gm-turn-control__airspace" aria-label="Airspace time controls">
               {demoIsManual ? (
