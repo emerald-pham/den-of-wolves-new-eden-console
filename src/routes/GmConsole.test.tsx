@@ -325,6 +325,50 @@ const productionReceipt = {
   serverTime: '2026-09-09T00:00:00.000Z', event: 'game-started',
 };
 
+it('makes automatic loyalty guidance reachable beside full-game preparation in normal GM setup', async () => {
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  renderConsole();
+  await userEvent.click(screen.getByRole('button', { name: 'Setup', exact: true }));
+
+  const panel = screen.getByRole('region', { name: 'Explicit loyalty setup' });
+  expect(panel).toHaveTextContent('Wolf designation and routine loyalty are assigned automatically');
+  expect(within(panel).queryByRole('button', { name: 'Assign private loyalty' })).not.toBeInTheDocument();
+  expect(screen.getByRole('group', { name: 'Full-game demo preparation' })).toBeInTheDocument();
+});
+
+it('makes the confirmed optional loyalty editor reachable for actual GM roster holders', async () => {
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!, phase: 'casting', currentTurn: 0,
+    setupConfirmed: true, configurationLocked: false, setupRevision: 4,
+    playerCount: 14, wolfCultEnabled: true,
+    activeRoleIds: ['admiral', 'president'],
+  });
+  useSessionStore.getState().setGmLoyaltyCensus({ revision: 4, entries: [] });
+  vi.mocked(subscribeSessionPlayers).mockImplementation((_sessionId, onPlayers) => {
+    onPlayers([
+      { uid: 'crew-admiral', sessionId: 's1', displayName: 'Admiral station', role: 'player',
+        assignedRoleId: 'admiral', seatId: 'admiral', connected: true, joinedAt: '2026-01-01T00:00:00.000Z' },
+      { uid: 'crew-president', sessionId: 's1', displayName: 'President station', role: 'player',
+        assignedRoleId: 'president', seatId: 'president', connected: true, joinedAt: '2026-01-01T00:00:00.000Z' },
+    ]);
+    return vi.fn();
+  });
+  renderConsole();
+  await userEvent.click(screen.getByRole('button', { name: 'Setup', exact: true }));
+
+  const panel = screen.getByRole('region', { name: 'Explicit loyalty setup' });
+  expect(within(panel).getByRole('combobox', { name: 'Loyalty holder' })).toBeEnabled();
+  expect(within(panel).getByRole('option', { name: /Admiral station/ })).toBeInTheDocument();
+  expect(within(panel).getByRole('option', { name: 'Wolf Cult' })).toBeInTheDocument();
+  expect(panel).toHaveTextContent('Current core holders // 0 of 2 configured');
+  act(() => useSessionStore.getState().setSessionSnapshotFreshness('cache'));
+  expect(within(panel).queryByRole('combobox', { name: 'Loyalty holder' })).not.toBeInTheDocument();
+  expect(panel).toHaveTextContent('Live GM session authority is required');
+});
+
 function productionReply(status: 'committed' | 'replayed' = 'committed') {
   return {
     status, sessionId: 's1', requestId: 'start-ui', currentTurn: 1, setupRevision: 1,
