@@ -3,7 +3,7 @@ import { INITIAL_SHIP_RESOURCES, isResourceShipId, type ShipResourceInventory } 
 import { replacementRoleFor } from './replacementRoles';
 import { parseSmallShipState } from './smallShip';
 import { SHIP_DAMAGE_DECKS } from './shipDamage';
-import { turnPhaseState } from './turnZero';
+import { turnPhaseDeadlinePassed, turnPhaseState } from './turnZero';
 
 const ROLE_ID = 'capybara-small-captain' as const;
 const SMALL_SHIP_ID = 'capybara-small' as const;
@@ -142,10 +142,9 @@ export function resolveBaseCapybaraCargoTransfer(input: Readonly<{
   if (phase.airspace.state !== 'lifted') {
     throw new Error('Base Capybara Cargo Transfer is available only during Coordination.');
   }
-  const openAirspaceEndsAt = Date.parse(phase.openAirspaceEndsAt);
   if (!Number.isSafeInteger(input.currentTime) || input.currentTime < 0 ||
-      phase.timerPause !== undefined || !Number.isFinite(openAirspaceEndsAt) ||
-      input.currentTime >= openAirspaceEndsAt) {
+      phase.timerPause !== undefined ||
+      turnPhaseDeadlinePassed(phase, 'open', input.currentTime)) {
     throw new Error('Base Capybara Cargo Transfer requires the current live Coordination cycle.');
   }
 

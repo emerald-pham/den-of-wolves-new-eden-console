@@ -10,7 +10,7 @@ import { CALLABLE_RUNTIME_OPTIONS } from './runtimeOptions';
 import { isPresenceStale } from './sessionLifecycle';
 import { parseShuttleControl } from './shuttleControl';
 import { shuttleDockingsAreParked } from './craftOwnership';
-import { turnPhaseState } from './turnZero';
+import { turnPhaseDeadlinePassed, turnPhaseState } from './turnZero';
 import { serviceRechargeDamageState, serviceRechargeResourceState } from './serviceShuttleRecharge';
 import { isResourceShipId } from './resources';
 import { SHIP_DAMAGE_DECKS } from './shipDamage';
@@ -271,9 +271,8 @@ export const repairConsolesFromAlly = auditedOnCall<{
     const authorization = decideActionAuthorization({
       action: 'transfer', actorScope: 'player', turnPhase: session.get('turnPhase'),
     });
-    const openAirspaceEndsAt = Date.parse(phase.openAirspaceEndsAt);
     if (!authorization.allowed || phase.airspace.state !== 'lifted' || phase.timerPause !== undefined ||
-        !Number.isFinite(openAirspaceEndsAt) || Date.now() >= openAirspaceEndsAt) {
+        turnPhaseDeadlinePassed(phase, 'open')) {
       throw new HttpsError('failed-precondition', 'Ally repair is available only during a live Coordination window.');
     }
 

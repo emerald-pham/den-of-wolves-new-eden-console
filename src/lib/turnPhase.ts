@@ -3,6 +3,7 @@ import type { GameSession, TurnPhase, TurnState } from '@/types/game';
 export type TurnPhaseReadout = {
   readonly kind: 'team' | 'open' | 'complete';
   readonly remainingMs: number;
+  readonly manual?: boolean;
 };
 
 /** Safely read the complete server-owned turn entity when present. */
@@ -103,13 +104,16 @@ export function turnPhaseState(value: unknown): TurnPhase | undefined {
   const airspace = value.airspace;
   const hasTimerPause = value.timerPause !== undefined;
   const timerPause = hasTimerPause ? timerPauseState(value.timerPause) : undefined;
+  const hasManualProgression = value.progression !== undefined;
   if (
     typeof turn !== 'number' || !Number.isSafeInteger(turn) || turn < 1 ||
     !instant(teamPhaseEndsAt) || !instant(openAirspaceEndsAt) ||
     Date.parse(openAirspaceEndsAt) < Date.parse(teamPhaseEndsAt) ||
     (airspace.state !== 'restricted' && airspace.state !== 'lifted') ||
     typeof airspace.tickerActive !== 'boolean' || typeof airspace.pressAccess !== 'boolean' ||
-    (hasTimerPause && !timerPause)
+    (hasTimerPause && !timerPause) ||
+    (hasManualProgression && value.progression !== 'manual') ||
+    (value.progression === 'manual' && hasTimerPause)
   ) return undefined;
   return {
     turn,
@@ -121,6 +125,7 @@ export function turnPhaseState(value: unknown): TurnPhase | undefined {
       pressAccess: airspace.pressAccess,
     },
     ...(timerPause ? { timerPause } : {}),
+    ...(value.progression === 'manual' ? { progression: 'manual' as const } : {}),
   };
 }
 
@@ -138,6 +143,13 @@ export function turnPhaseReadout(
   now = Date.now(),
 ): TurnPhaseReadout | undefined {
   if (!phase) return undefined;
+  if (phase.progression === 'manual') {
+    return {
+      kind: phase.airspace.state === 'lifted' ? 'open' : 'team',
+      remainingMs: 0,
+      manual: true,
+    };
+  }
   if (phase.timerPause) {
     return {
       kind: phase.timerPause.window === 'restricted' ? 'team' : 'open',
@@ -151,10 +163,23 @@ export function turnPhaseReadout(
   return { kind: 'complete', remainingMs: 0 };
 }
 
+/** Manual progression has no wall-clock deadline; malformed ordinary clocks fail closed. */
+export function turnPhaseDeadlinePassed(
+  phase: TurnPhase | undefined,
+  window: 'team' | 'open',
+  now = Date.now(),
+): boolean {
+  if (!phase) return true;
+  if (phase.progression === 'manual') return false;
+  const deadline = Date.parse(window === 'team' ? phase.teamPhaseEndsAt : phase.openAirspaceEndsAt);
+  return !Number.isFinite(deadline) || now >= deadline;
+}
+
 export function hasActiveTurnTimer(
   phase: TurnPhase | undefined,
   now = Date.now(),
 ): boolean {
+  if (phase?.progression === 'manual') return false;
   const readout = turnPhaseReadout(phase, now);
   return readout !== undefined && readout.kind !== 'complete';
 }

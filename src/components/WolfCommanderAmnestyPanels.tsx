@@ -75,6 +75,8 @@ export function WolfCommanderAddressAmnestyPanel() {
   const [notice, setNotice] = useState<string | null>(null);
 
   const currentCycle = session?.currentTurn ?? 0;
+  const manualFullGameDemo = session?.fullGameDemo?.status === 'active' &&
+    session.fullGameDemo.progression === 'manual';
   const activeShips = useMemo(() => SHIPS.filter((ship) =>
     (session?.activeVesselIds ?? []).includes(ship.id)), [session?.activeVesselIds]);
   const addressPublished = view?.commanderAddressPublished ?? false;
@@ -96,7 +98,9 @@ export function WolfCommanderAddressAmnestyPanel() {
         commanderAddressPublished: true,
       }));
       setLoadError(null);
-      setNotice(`Fleet address published for 30 seconds // expires ${formatDeadline(result.expiresAt)}.`);
+      setNotice(manualFullGameDemo
+        ? 'Fleet address published for this Team Phase // no expiry in the full-game demo.'
+        : `Fleet address published for 30 seconds // expires ${formatDeadline(result.expiresAt)}.`);
     } catch (cause) {
       setActionError(cause instanceof Error ? cause.message : 'The fleet address could not be published.');
     } finally {
@@ -135,7 +139,9 @@ export function WolfCommanderAddressAmnestyPanel() {
         <span>Cycle {currentCycle}</span>
       </header>
       <p className="wolf-amnesty__copy">
-        Address the fleet during Team Phase for up to 30 seconds. An amnesty offer states the printed surrender condition and a response deadline; it does not decide the bargain.
+        {manualFullGameDemo
+          ? 'Address the fleet during Team Phase; the address remains available until the GM advances the cycle. An amnesty offer states the printed surrender condition and a response deadline; it does not decide the bargain.'
+          : 'Address the fleet during Team Phase for up to 30 seconds. An amnesty offer states the printed surrender condition and a response deadline; it does not decide the bargain.'}
       </p>
       {loading && <p role="status">Loading current address and amnesty state…</p>}
       {!addressPublished && (
@@ -148,7 +154,9 @@ export function WolfCommanderAddressAmnestyPanel() {
           <button className="cic-action-button cic-action-button--confirm" type="button"
             disabled={busy || loading || message.trim().length === 0}
             onClick={() => void publish()}>
-            {busy ? 'Publishing fleet address…' : 'Address fleet for 30 seconds'}
+            {busy ? 'Publishing fleet address…' : manualFullGameDemo
+              ? 'Address fleet // no expiry in demo'
+              : 'Address fleet for 30 seconds'}
           </button>
         </div>
       )}

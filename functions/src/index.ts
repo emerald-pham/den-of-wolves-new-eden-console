@@ -224,6 +224,7 @@ import {
   requireAndroidDisclosureRequest,
   requireFacilitatorResponsibilityRequest,
   requireGameStartRequest,
+  requireFullGameDemoPhaseAdvanceRequest,
   requireAwayMissionCardDealRequest,
   requireAwayMissionDiscardReadyRequest,
   requireAwayMissionCardDiscardRequest,
@@ -566,6 +567,7 @@ import {
   type QuarantineDockingState,
 } from './quarantineDocking';
 import { CALLABLE_RUNTIME_OPTIONS } from './runtimeOptions';
+import { auditedOnCall } from './securityCallable';
 import {
   isJoinCode,
   joinCodeLengthForCreateRequest,
@@ -582,6 +584,7 @@ import {
   turnStateForPhase,
   turnStateState,
   turnPhaseState,
+  turnPhaseDeadlinePassed,
   updateTurnStateForPhase,
 } from './turnZero';
 import {
@@ -1595,6 +1598,10 @@ function reconcilePresenceTimer(
   }
   const phase = turnPhaseState(session.get('turnPhase'));
   if (!phase || phase.turn !== sessionTurn(session.get('currentTurn'))) {
+    persistActivePressRecovery(tx, sessionRef, session, new Date().toISOString());
+    return;
+  }
+  if (phase.progression === 'manual') {
     persistActivePressRecovery(tx, sessionRef, session, new Date().toISOString());
     return;
   }
@@ -4190,7 +4197,7 @@ function requireTurnOneForGameplay(session: DocumentSnapshot): void {
 }
 
 function requireLiveAirspaceWindow(phase: ActiveTurnPhase): void {
-  if (phase.airspace.state === 'restricted' && Date.now() >= Date.parse(phase.openAirspaceEndsAt)) {
+  if (phase.airspace.state === 'restricted' && turnPhaseDeadlinePassed(phase, 'open')) {
     throw commandError(
       'failed-precondition',
       'The airspace window has closed. Wait for the next cycle.',
@@ -4495,7 +4502,11 @@ function advanceTurnInTransaction(
     ...(skipTurnStartAnnouncement && pendingFormalAnnouncements.length > 0 ? { formalOnly: true } : {}),
   };
   const phaseStartedAt = Date.now();
-  const initialTurnPhase = startTurnPhase(nextTurn, phaseStartedAt);
+  const fullGameDemo = fullGameDemoState(additionalFields.fullGameDemo ?? session.get('fullGameDemo'));
+  const manualProgression = fullGameDemo?.status === 'active';
+  const initialTurnPhase = startTurnPhase(nextTurn, phaseStartedAt, manualProgression
+    ? { progression: 'manual' }
+    : {});
   const turnPhase = skipTurnStartAnnouncement ? initialTurnPhase
     : holdTurnAdvancePhase(initialTurnPhase, phaseStartedAt);
   const tickerTime = transition?.transitionServerTime ?? new Date().toISOString();
@@ -4521,32 +4532,37 @@ function advanceTurnInTransaction(
     if (pursuitAuthority?.legacyMigration) {
       writeTurnPursuitState(tx, sessionId, pursuitAuthority, false);
     }
-    tx.update(sessionRef, {
-      currentTurn: maxTurn,
-      phase: 'debrief',
-      turnPhase: FieldValue.delete(),
-      turnState: FieldValue.delete(),
-      turnStartAnnouncement: FieldValue.delete(),
-      pendingTeamAnnouncements: FieldValue.delete(),
-      fleetTicker,
-      survivorOutcome: survivorOutcomeForSession(
-        sessionId,
-        session,
-        shipDamage(session.get('shipDamage')),
-        maxTurn,
-        tickerTime,
-      ),
-      ...(expiredTurnResources
-        ? {
-          maintenanceCycles: expiredTurnResources.maintenanceCycles,
-          shuttleFuelled: expiredTurnResources.shuttleFuelled,
-        }
-        : {}),
-      ...additionalFields,
-      ...(pursuitAuthority?.legacyHeaderPresent
-        ? { pursuitGroups: removeLegacyNavigationField() }
-        : {}),
-      updatedAt: FieldValue.serverTimestamp(),
+    const survivorOutcome = survivorOutcomeForSession(
+      sessionId,
+      session,
+      shipDamage(session.get('shipDamage')),
+      maxTurn,
+      tickerTime,
+    );
+    commitTerminal(tx, sessionRef, session, {
+      source: 'final-cycle',
+      committedAt: tickerTime,
+      survivorOutcome,
+      sessionPatch: {
+        currentTurn: maxTurn,
+        turnPhase: FieldValue.delete(),
+        turnState: FieldValue.delete(),
+        turnStartAnnouncement: FieldValue.delete(),
+        pendingTeamAnnouncements: FieldValue.delete(),
+        fleetTicker,
+        ...(expiredTurnResources
+          ? {
+            maintenanceCycles: expiredTurnResources.maintenanceCycles,
+            shuttleFuelled: expiredTurnResources.shuttleFuelled,
+          }
+          : {}),
+        ...(Object.hasOwn(additionalFields, 'singlePlayerDemo')
+          ? { singlePlayerDemo: additionalFields.singlePlayerDemo }
+          : {}),
+        ...(pursuitAuthority?.legacyHeaderPresent
+          ? { pursuitGroups: removeLegacyNavigationField() }
+          : {}),
+      },
     });
     return {
       currentTurn: maxTurn,
@@ -6558,12 +6574,47 @@ export const setFacilitatorResponsibility = auditedOnCall<{
 });
 
 /** Start a ready casting roster exactly once through an active facilitator. */
+type FullGameDemoState = Readonly<{
+  status: 'preparing' | 'active' | 'complete';
+  progression: 'manual';
+}>;
+
+function fullGameDemoState(value: unknown): FullGameDemoState | undefined {
+  if (!isRecord(value) || Object.keys(value).length !== 2 ||
+      (value.status !== 'preparing' && value.status !== 'active' && value.status !== 'complete') ||
+      value.progression !== 'manual') return undefined;
+  return { status: value.status, progression: 'manual' };
+}
+
+function requireFullGameDemoStartMode(
+  session: DocumentSnapshot,
+  requested: boolean,
+): FullGameDemoState | undefined {
+  const stored = session.get('fullGameDemo');
+  if (stored === undefined || stored === null) {
+    if (requested) {
+      throw commandError('failed-precondition', 'Prepare a fresh Cycle 0 training session before starting the full-game demo.', 'invalid-phase');
+    }
+    return undefined;
+  }
+  const mode = fullGameDemoState(stored);
+  if (!mode) {
+    throw commandError('failed-precondition', 'The full-game demo mode marker is malformed.', 'conflict');
+  }
+  if (mode.status === 'preparing' && requested && sessionTurn(session.get('currentTurn')) === 0) return mode;
+  if (mode.status === 'preparing' && !requested) {
+    throw commandError('failed-precondition', 'This session is prepared as a full-game demo; use its labeled demo start control.', 'invalid-phase');
+  }
+  throw commandError('failed-precondition', 'The full-game demo start is available only for its prepared fresh Cycle 0 session.', 'invalid-phase');
+}
+
 type StartRequestFingerprint = {
   readonly sessionId: string;
   readonly requestId: string;
   readonly actorUid: string;
   readonly instanceId: string;
   readonly expectedSetupRevision: number;
+  readonly fullGameDemo?: true;
 };
 
 function sameStartRequestFingerprint(
@@ -6572,7 +6623,8 @@ function sameStartRequestFingerprint(
 ): boolean {
   if (typeof value !== 'object' || value === null) return false;
   const candidate = value as Record<string, unknown>;
-  return Object.entries(expected).every(([key, item]) => candidate[key] === item);
+  return Object.entries(expected).every(([key, item]) => candidate[key] === item) &&
+    candidate.fullGameDemo === expected.fullGameDemo;
 }
 
 function startLoyaltyRecord(
@@ -6604,6 +6656,7 @@ export const startGame = auditedOnCall<{
   instanceId?: unknown;
   requestId?: unknown;
   expectedSetupRevision?: unknown;
+  fullGameDemo?: unknown;
 }>('startGame', async (request) => {
   const uid = requireUid(request.auth);
   const start = requireGameStartRequest(request.data ?? {});
@@ -6613,6 +6666,7 @@ export const startGame = auditedOnCall<{
     actorUid: uid,
     instanceId: start.instanceId,
     expectedSetupRevision: start.expectedSetupRevision,
+    ...(start.fullGameDemo ? { fullGameDemo: true as const } : {}),
   };
   const sessionRef = db.doc(`sessions/${start.sessionId}`);
   const startRequestRef = db.doc(`sessionStartRequests/${start.sessionId}_${start.requestId}`);
@@ -6633,7 +6687,7 @@ export const startGame = auditedOnCall<{
     actorUid: uid,
     instanceId: start.instanceId,
     expectedRevision: start.expectedSetupRevision,
-    payload: {},
+    payload: start.fullGameDemo ? { fullGameDemo: true } : {},
   };
   const [preflightSession, preflightPlayer, preflightInstance, priorStart, markerStart, legacyStartEvent] = await Promise.all([
     sessionRef.get(),
@@ -6645,6 +6699,7 @@ export const startGame = auditedOnCall<{
   if (!isLiveGmInstance(preflightInstance, preflightPlayer, uid)) {
     throw new HttpsError('permission-denied', 'An active facilitator instance is required.');
   }
+  requireFullGameDemoStartMode(preflightSession, start.fullGameDemo === true);
   await rejectForeignLegacyM1CommandBeforeReplay(
     start.sessionId, start.requestId, 'start', [startRequestRef.path, eventRef.path],
   );
@@ -6731,6 +6786,7 @@ export const startGame = auditedOnCall<{
       tx.set(markerRef, { fingerprint: markerFingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
       return reply;
     }
+    requireFullGameDemoStartMode(authority.session, start.fullGameDemo === true);
     const persistedMissionDeck = missionDeckSnapshot.exists
       ? parseMissionDeckState(missionDeckSnapshot.data())
       : null;
@@ -7104,6 +7160,7 @@ export const startGame = auditedOnCall<{
       setupRevision: committedSetupRevision,
       pursuitGroups: removeLegacyNavigationField(),
       shuttleControl,
+      ...(start.fullGameDemo ? { fullGameDemo: { status: 'active', progression: 'manual' } } : {}),
       ...turnOneState,
     });
     const result = {
@@ -7114,6 +7171,7 @@ export const startGame = auditedOnCall<{
       setupRevision: committedSetupRevision,
       turnStartAnnouncement: transition.turnStartAnnouncement,
       turnPhase: transition.turnPhase,
+      ...(start.fullGameDemo ? { fullGameDemo: { status: 'active', progression: 'manual' } } : {}),
       ...(transition.turnState ? { turnState: transition.turnState } : {}),
       setupReceipt,
     };
@@ -7141,6 +7199,218 @@ export const startGame = auditedOnCall<{
       },
       createdAt: FieldValue.serverTimestamp(),
     }));
+    return result;
+  });
+});
+
+type FullGameDemoPreparationReply = Readonly<{
+  status: 'committed' | 'replayed' | 'stale';
+  sessionId: string;
+  requestId: string;
+  fullGameDemo?: FullGameDemoState;
+  expectedSetupRevision: number;
+  currentSetupRevision: number;
+}>;
+
+function isFullGameDemoPreparationReply(value: unknown): value is FullGameDemoPreparationReply {
+  if (!isRecord(value) ||
+      (value.status !== 'committed' && value.status !== 'replayed' && value.status !== 'stale') ||
+      typeof value.sessionId !== 'string' || typeof value.requestId !== 'string' ||
+      !Number.isSafeInteger(value.expectedSetupRevision) || !Number.isSafeInteger(value.currentSetupRevision)) {
+    return false;
+  }
+  return value.status === 'stale' || fullGameDemoState(value.fullGameDemo)?.status === 'preparing';
+}
+
+/** Permanently label a fresh Cycle 0 training session before demo actors join. */
+export const prepareFullGameDemo = auditedOnCall<{
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  expectedSetupRevision?: unknown;
+}>('prepareFullGameDemo', async request => {
+  const uid = requireUid(request.auth);
+  const prepare = requireGameStartRequest(request.data ?? {});
+  const sessionRef = db.doc(`sessions/${prepare.sessionId}`);
+  const playerRef = db.doc(`sessions/${prepare.sessionId}/players/${uid}`);
+  const instanceRef = db.doc(`sessions/${prepare.sessionId}/gmInstances/${prepare.instanceId}`);
+  const playersRef = db.collection(`sessions/${prepare.sessionId}/players`);
+  const receiptRef = commandReceiptRef(prepare.sessionId, prepare.requestId);
+  const fingerprint: CommandFingerprint = {
+    action: 'prepare-full-game-demo',
+    sessionId: prepare.sessionId,
+    requestId: prepare.requestId,
+    actorUid: uid,
+    instanceId: prepare.instanceId,
+    expectedRevision: prepare.expectedSetupRevision,
+    payload: {},
+  };
+  const [preflightSession, preflightPlayer, preflightInstance, preflightReceipt] = await Promise.all([
+    sessionRef.get(), playerRef.get(), instanceRef.get(), receiptRef.get(),
+  ]);
+  if (!preflightSession.exists) throw new HttpsError('not-found', 'No such session.');
+  if (!isLiveGmInstance(preflightInstance, preflightPlayer, uid)) {
+    throw new HttpsError('permission-denied', 'An active facilitator instance is required.');
+  }
+  const prior = replayBoundCommand(preflightReceipt, fingerprint, isFullGameDemoPreparationReply, 'full-game demo preparation');
+  if (prior) return { ...prior, status: 'replayed' as const };
+  await enforceExpensiveCallableRateLimit(db, {
+    callableName: 'prepareFullGameDemo', sessionId: prepare.sessionId, uid,
+  });
+
+  return db.runTransaction(async tx => {
+    const [authority, players, receipt] = await Promise.all([
+      requireFacilitatorInstance(tx, prepare.sessionId, uid, prepare.instanceId),
+      tx.get(playersRef), tx.get(receiptRef),
+    ]);
+    const replay = replayBoundCommand(receipt, fingerprint, isFullGameDemoPreparationReply, 'full-game demo preparation');
+    if (replay) return { ...replay, status: 'replayed' as const };
+    const session = authority.session;
+    if (sessionTurn(session.get('currentTurn')) !== 0) {
+      throw commandError('failed-precondition', 'Full-game demo preparation is available only in Cycle 0.', 'invalid-phase');
+    }
+    requireCastingWindow(session);
+    if (setupRevision(session) !== prepare.expectedSetupRevision) {
+      const stale: FullGameDemoPreparationReply = {
+        status: 'stale', sessionId: prepare.sessionId, requestId: prepare.requestId,
+        expectedSetupRevision: prepare.expectedSetupRevision,
+        currentSetupRevision: setupRevision(session),
+      };
+      tx.set(receiptRef, { fingerprint, result: stale, createdAt: FieldValue.serverTimestamp() });
+      return stale;
+    }
+    if (session.get('singlePlayerDemo') !== undefined && session.get('singlePlayerDemo') !== null) {
+      throw commandError('failed-precondition', 'A single-cycle demo cannot be converted into a full-game demo.', 'invalid-phase');
+    }
+    if (players.docs.some(player => player.exists && player.get('role') === 'player')) {
+      throw commandError('failed-precondition', 'Prepare the full-game demo before any ordinary player joins.', 'conflict');
+    }
+    const existing = session.get('fullGameDemo');
+    const existingMode = existing === undefined || existing === null ? undefined : fullGameDemoState(existing);
+    if (existing !== undefined && existing !== null && existingMode?.status !== 'preparing') {
+      throw commandError('failed-precondition', 'A training session cannot be created from an existing ordinary or completed game.', 'invalid-phase');
+    }
+    const marker: FullGameDemoState = { status: 'preparing', progression: 'manual' };
+    const result: FullGameDemoPreparationReply = {
+      status: 'committed', sessionId: prepare.sessionId, requestId: prepare.requestId,
+      fullGameDemo: marker,
+      expectedSetupRevision: prepare.expectedSetupRevision,
+      currentSetupRevision: setupRevision(session),
+    };
+    if (!existingMode) tx.update(sessionRef, { fullGameDemo: marker, updatedAt: FieldValue.serverTimestamp() });
+    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+});
+
+type FullGameDemoPhaseAdvanceReply = Readonly<{
+  status: 'committed' | 'replayed';
+  sessionId: string;
+  requestId: string;
+  currentTurn: number;
+  fullGameDemo: FullGameDemoState;
+  turnPhase: ActiveTurnPhase;
+  turnState?: ActiveTurnState;
+}>;
+
+function isFullGameDemoPhaseAdvanceReply(value: unknown, sessionId: string): value is FullGameDemoPhaseAdvanceReply {
+  if (!isRecord(value) || (value.status !== 'committed' && value.status !== 'replayed') ||
+      value.sessionId !== sessionId || typeof value.requestId !== 'string' ||
+      !Number.isSafeInteger(value.currentTurn) ||
+      fullGameDemoState(value.fullGameDemo)?.status !== 'active') return false;
+  const phase = turnPhaseState(value.turnPhase);
+  return phase?.progression === 'manual' && phase.turn === value.currentTurn && phase.airspace.state === 'lifted';
+}
+
+/** Open Coordination in an unlimited demo through the live authenticated GM instance. */
+export const advanceFullGameDemoPhase = auditedOnCall<{
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  expectedTurn?: unknown;
+}>('advanceFullGameDemoPhase', async request => {
+  const uid = requireUid(request.auth);
+  const action = requireFullGameDemoPhaseAdvanceRequest(request.data ?? {});
+  const sessionRef = db.doc(`sessions/${action.sessionId}`);
+  const playerRef = db.doc(`sessions/${action.sessionId}/players/${uid}`);
+  const instanceRef = db.doc(`sessions/${action.sessionId}/gmInstances/${action.instanceId}`);
+  const receiptRef = commandReceiptRef(action.sessionId, action.requestId);
+  const attackStateRef = db.doc(`sessions/${action.sessionId}/wolfAttackState/current`);
+  const fingerprint: CommandFingerprint = {
+    action: 'advance-full-game-demo-phase',
+    sessionId: action.sessionId,
+    requestId: action.requestId,
+    actorUid: uid,
+    instanceId: action.instanceId,
+    expectedRevision: action.expectedTurn,
+    payload: {},
+  };
+  const [preflightSession, preflightPlayer, preflightInstance, preflightReceipt] = await Promise.all([
+    sessionRef.get(), playerRef.get(), instanceRef.get(), receiptRef.get(),
+  ]);
+  if (!preflightSession.exists) throw new HttpsError('not-found', 'No such session.');
+  if (!isLiveGmInstance(preflightInstance, preflightPlayer, uid)) {
+    throw new HttpsError('permission-denied', 'An active facilitator instance is required.');
+  }
+  const prior = replayBoundCommand(
+    preflightReceipt, fingerprint, value => isFullGameDemoPhaseAdvanceReply(value, action.sessionId),
+    'full-game demo phase advance',
+  );
+  if (prior) return { ...prior, status: 'replayed' as const };
+  await enforceExpensiveCallableRateLimit(db, {
+    callableName: 'advanceFullGameDemoPhase', sessionId: action.sessionId, uid,
+  });
+
+  return db.runTransaction(async tx => {
+    const [authority, attackState, receipt] = await Promise.all([
+      requireFacilitatorInstance(tx, action.sessionId, uid, action.instanceId),
+      tx.get(attackStateRef), tx.get(receiptRef),
+    ]);
+    const replay = replayBoundCommand(
+      receipt, fingerprint, value => isFullGameDemoPhaseAdvanceReply(value, action.sessionId),
+      'full-game demo phase advance',
+    );
+    if (replay) return { ...replay, status: 'replayed' as const };
+    const session = authority.session;
+    requireActiveGameplayPhase(session);
+    if (session.get('phase') !== 'active' || sessionTurn(session.get('currentTurn')) !== action.expectedTurn ||
+        fullGameDemoState(session.get('fullGameDemo'))?.status !== 'active') {
+      throw commandError('failed-precondition', 'The full-game demo phase changed; refresh before advancing.', 'stale-revision');
+    }
+    const phase = turnPhaseState(session.get('turnPhase'));
+    if (!phase || phase.progression !== 'manual' || phase.turn !== action.expectedTurn ||
+        phase.airspace.state !== 'restricted' || phase.timerPause !== undefined) {
+      throw commandError('failed-precondition', 'Manual phase advance is available only during the current restricted demo phase.', 'invalid-phase');
+    }
+    if (attackState.exists && wolfAttackBlocksNormalMovement(attackState.data())) {
+      throw commandError('failed-precondition', 'Wait for the server-controlled Wolf attack to resolve before advancing the demo phase.', 'invalid-phase');
+    }
+    const openedPhase: ActiveTurnPhase = {
+      ...phase,
+      airspace: { ...phase.airspace, state: 'lifted', tickerActive: true },
+    };
+    const turnState = phaseTransitionTurnState(session, openedPhase);
+    const transitionServerTime = new Date().toISOString();
+    const fleetTicker = publishSessionFleetTicker(action.sessionId, session, {
+      source: 'automatic', priority: FLEET_TICKER_PRIORITIES.airspace, passCount: 1,
+      text: FLEET_TICKER_COPY.airspaceOpen, tone: 'normal', gap: 'long',
+      sourceId: `airspace:${openedPhase.turn}:lifted`,
+    }, transitionServerTime);
+    tx.update(sessionRef, {
+      turnPhase: openedPhase,
+      ...(turnState ? { turnState } : {}),
+      fleetTicker,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    writeAirspaceOpenedEvent(tx, action.sessionId, phase, transitionServerTime);
+    const result: FullGameDemoPhaseAdvanceReply = {
+      status: 'committed', sessionId: action.sessionId, requestId: action.requestId,
+      currentTurn: action.expectedTurn,
+      fullGameDemo: { status: 'active', progression: 'manual' },
+      turnPhase: openedPhase,
+      ...(turnState ? { turnState } : {}),
+    };
+    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
     return result;
   });
 });
@@ -8166,9 +8436,8 @@ export const repairConsolesFromBlacksmith = auditedOnCall<{
         !phase || phase.turn !== currentCycle) {
       throw commandError('failed-precondition', 'The authoritative Blacksmith Coordination cycle is unavailable.', 'conflict');
     }
-    const openAirspaceEndsAt = Date.parse(phase.openAirspaceEndsAt);
     if (phase.airspace.state !== 'lifted' || phase.timerPause !== undefined ||
-        !Number.isFinite(openAirspaceEndsAt) || Date.now() >= openAirspaceEndsAt) {
+        turnPhaseDeadlinePassed(phase, 'open')) {
       throw commandError(
         'failed-precondition',
         'Blacksmith repair is available only during a live Coordination window.',
@@ -8405,9 +8674,8 @@ export const repairConsolesFromPhilia = auditedOnCall<{
         !phase || phase.turn !== currentCycle) {
       throw commandError('failed-precondition', 'The authoritative Philia Coordination cycle is unavailable.', 'conflict');
     }
-    const openAirspaceEndsAt = Date.parse(phase.openAirspaceEndsAt);
     if (phase.airspace.state !== 'lifted' || phase.timerPause !== undefined ||
-        !Number.isFinite(openAirspaceEndsAt) || Date.now() >= openAirspaceEndsAt) {
+        turnPhaseDeadlinePassed(phase, 'open')) {
       throw commandError(
         'failed-precondition',
         'Philia repair is available only during a live Coordination window.',
@@ -8593,9 +8861,8 @@ export const repairConsolesFromMacaw = auditedOnCall<{
         !phase || phase.turn !== currentCycle) {
       throw commandError('failed-precondition', 'The current Coordination cycle is unavailable.', 'conflict');
     }
-    const openAirspaceEndsAt = Date.parse(phase.openAirspaceEndsAt);
     if (phase.airspace.state !== 'lifted' || phase.timerPause !== undefined ||
-        !Number.isFinite(openAirspaceEndsAt) || Date.now() >= openAirspaceEndsAt) {
+        turnPhaseDeadlinePassed(phase, 'open')) {
       throw commandError(
         'failed-precondition',
         'Macaw repair is available only during a live Coordination window.',
@@ -8756,9 +9023,8 @@ export const recycleWithBoa = auditedOnCall<{
         !phase || phase.turn !== currentCycle) {
       throw commandError('failed-precondition', 'The authoritative Coordination cycle is unavailable.', 'conflict');
     }
-    const openAirspaceEndsAt = Date.parse(phase.openAirspaceEndsAt);
     if (phase.airspace.state !== 'lifted' || phase.timerPause !== undefined ||
-        !Number.isFinite(openAirspaceEndsAt) || Date.now() >= openAirspaceEndsAt) {
+        turnPhaseDeadlinePassed(phase, 'open')) {
       throw commandError(
         'failed-precondition',
         'Boa recycling is available only during a live Coordination window.',
@@ -8972,9 +9238,8 @@ export const repairConsolesFromChacau = auditedOnCall('repairConsolesFromChacau'
     if (!Number.isSafeInteger(currentCycle) || !phase || phase.turn !== currentCycle) {
       throw commandError('failed-precondition', 'The current Coordination state is unavailable.', 'invalid-phase');
     }
-    const openAirspaceEndsAt = Date.parse(phase.openAirspaceEndsAt);
     if (phase.airspace.state !== 'lifted' || phase.timerPause !== undefined ||
-        !Number.isFinite(openAirspaceEndsAt) || Date.now() >= openAirspaceEndsAt) {
+        turnPhaseDeadlinePassed(phase, 'open')) {
       throw commandError('failed-precondition', 'Chacau repair is available only during a live Coordination window.', 'invalid-phase');
     }
     const assignedRoleId = actor.get('assignedRoleId');
@@ -9245,9 +9510,8 @@ export const upgradeEndeavourFieldTargets = auditedOnCall<{
         !phase || phase.turn !== currentCycle) {
       throw commandError('failed-precondition', 'The authoritative Endeavour cycle is unavailable.', 'conflict');
     }
-    const openAirspaceEndsAt = Date.parse(phase.openAirspaceEndsAt);
     if (phase.airspace.state !== 'lifted' || phase.timerPause !== undefined ||
-        !Number.isFinite(openAirspaceEndsAt) || Date.now() >= openAirspaceEndsAt) {
+        turnPhaseDeadlinePassed(phase, 'open')) {
       throw commandError(
         'failed-precondition',
         'Endeavour upgrades are available only during a live Coordination window.',
@@ -13083,7 +13347,7 @@ export const resolveArrestCaseDisposition = auditedOnCall<{
     const phase = turnPhaseState(authority.session.get('turnPhase'));
     const deadlineOpen = currentTurn === deadlineCycle && phase?.turn === currentTurn &&
       phase.airspace.state === 'restricted' && phase.timerPause === undefined &&
-      Date.now() < Date.parse(phase.teamPhaseEndsAt);
+      !turnPhaseDeadlinePassed(phase, 'team');
     if (!deadlineOpen && (command.disposition !== 'facilitator-resolution' || !command.ruling)) {
       throw commandError('failed-precondition',
         'After the next Team Phase deadline, record a reasoned facilitator resolution.', 'invalid-phase');
@@ -13213,7 +13477,7 @@ export const attestVipHostVisit = auditedOnCall<{
     if (session.get('phase') !== 'active' || currentTurn !== expectedCycle ||
         !phase || phase.turn !== currentTurn || phase.airspace.state !== 'restricted' ||
         phase.timerPause !== undefined || !Number.isFinite(Date.parse(phase.teamPhaseEndsAt)) ||
-        Date.now() >= Date.parse(phase.teamPhaseEndsAt)) {
+        turnPhaseDeadlinePassed(phase, 'team')) {
       throw commandError('failed-precondition', 'The VIP Host visit must be recorded during this cycle’s Team Phase.', 'invalid-phase');
     }
     const activeVessels = session.get('activeVesselIds');
@@ -21227,7 +21491,7 @@ export const advanceTurn = auditedOnCall<{
     const ordinaryAirspaceClosed = ordinaryAirspaceClosureWindow(activePhase) &&
       activePhase.timerPause === undefined &&
       (!attackState.exists || !wolfAttackBlocksNormalMovement(attackState.data())) &&
-      Date.now() >= Date.parse(activePhase.openAirspaceEndsAt);
+      turnPhaseDeadlinePassed(activePhase, 'open');
     if (ordinaryAirspaceClosed) {
       await parkAtOrdinaryAirspaceDeadline(
         tx,
@@ -21390,7 +21654,7 @@ export const beginOpenAirspacePhase = auditedOnCall<{
       );
     }
     requireLiveAirspaceWindow(phase);
-    if (Date.now() < Date.parse(phase.teamPhaseEndsAt)) {
+    if (!turnPhaseDeadlinePassed(phase, 'team')) {
       throw commandError('failed-precondition', 'The airspace-closed timer is still active.', 'invalid-phase');
     }
     if (attackState.exists && wolfAttackBlocksNormalMovement(attackState.data())) {
@@ -22347,7 +22611,7 @@ export const commitWolfCommanderAttackDial = auditedOnCall<{
     }
     const phase = turnPhaseState(session.get('turnPhase'));
     if (!phase || phase.turn !== cycle || phase.timerPause !== undefined ||
-        Date.now() >= Date.parse(phase.teamPhaseEndsAt)) {
+        turnPhaseDeadlinePassed(phase, 'team')) {
       throw commandError('failed-precondition', 'The Commander attack dial is available only during the live Team Phase.', 'invalid-phase');
     }
     if (ledger.exists) {
@@ -22485,7 +22749,7 @@ export const getWolfCommanderCycleAttackDial = auditedOnCall<{ sessionId?: unkno
     if (cycle < 1) throw commandError('failed-precondition', 'No live cycle is available for the Commander dial.', 'invalid-phase');
     const phase = turnPhaseState(session.get('turnPhase'));
     const teamPhaseLive = Boolean(phase && phase.turn === cycle && phase.timerPause === undefined &&
-      Date.now() < Date.parse(phase.teamPhaseEndsAt));
+      !turnPhaseDeadlinePassed(phase, 'team'));
     const window = windowProjection.exists ? wolfAttackWindowState(windowProjection.data()) : undefined;
     if (windowProjection.exists && !window) {
       throw commandError('failed-precondition', 'The private Wolf timing marker is malformed.', 'conflict');
@@ -22636,13 +22900,16 @@ export const publishWolfCommanderAddress = auditedOnCall<{
     }
     const phase = turnPhaseState(session.get('turnPhase'));
     const nowMs = Date.now();
-    if (!phase || phase.turn !== cycle || phase.timerPause !== undefined || nowMs >= Date.parse(phase.teamPhaseEndsAt)) {
+    if (!phase || phase.turn !== cycle || phase.timerPause !== undefined || turnPhaseDeadlinePassed(phase, 'team', nowMs)) {
       throw commandError('failed-precondition', 'The Commander address is available only during the live Team Phase.', 'invalid-phase');
     }
     if (address.exists || event.exists) {
       throw commandError('failed-precondition', 'The Commander has already addressed the fleet this cycle.', 'conflict');
     }
-    const expiresAt = new Date(nowMs + 30_000).toISOString();
+    const manualDemo = fullGameDemoState(session.get('fullGameDemo'))?.status === 'active';
+    const expiresAt = manualDemo
+      ? '9999-12-31T23:59:59.999Z'
+      : new Date(nowMs + 30_000).toISOString();
     const serverTime = new Date(nowMs);
     const result = {
       type: 'wolf-commander-address-result', status: 'committed', sessionId, requestId: raw.requestId,
@@ -22733,7 +23000,7 @@ export const createWolfAmnestyOffer = auditedOnCall<{
       throw commandError('failed-precondition', 'The cycle changed. Refresh the amnesty offer.', 'stale-revision');
     }
     const phase = turnPhaseState(session.get('turnPhase'));
-    if (!phase || phase.turn !== cycle || phase.timerPause !== undefined || Date.now() >= Date.parse(phase.openAirspaceEndsAt)) {
+    if (!phase || phase.turn !== cycle || phase.timerPause !== undefined || turnPhaseDeadlinePassed(phase, 'open')) {
       throw commandError('failed-precondition', 'Offer amnesty during the current live cycle.', 'invalid-phase');
     }
     if (!address.exists || address.get('type') !== 'wolf-commander-address' ||
@@ -23809,7 +24076,7 @@ function validateWolfAttackDeclaration(
     );
   }
   const deadlineMs = Date.parse(phase.openAirspaceEndsAt);
-  if (!Number.isFinite(deadlineMs) || Date.now() >= deadlineMs) {
+  if (!Number.isFinite(deadlineMs) || turnPhaseDeadlinePassed(phase, 'open')) {
     throw commandError('failed-precondition', 'The configured airspace deadline has passed.', 'invalid-phase');
   }
   const window = windowProjection.exists ? wolfAttackWindowState(windowProjection.data()) : undefined;
@@ -26805,7 +27072,7 @@ export const advanceWolfAttackToLongRange = auditedOnCall<{
     // targeting stage remains open. The session's current server-owned phase
     // is authoritative; do not compare it to the declaration-time deadline.
     const deadlineAt = phase.openAirspaceEndsAt;
-    if (Date.now() >= Date.parse(deadlineAt)) {
+    if (turnPhaseDeadlinePassed(phase, 'open')) {
       throw commandError(
         'failed-precondition',
         'The Coordination deadline has elapsed; recovery cannot create another attack window.',
@@ -35044,7 +35311,7 @@ export const unlockPressAirspace = auditedOnCall<{ sessionId?: unknown; instance
     // Heal the shared clock before evaluating a restriction-only exception.
     if (
       phase.airspace.state === 'restricted' &&
-      Date.now() >= Date.parse(phase.teamPhaseEndsAt) &&
+      turnPhaseDeadlinePassed(phase, 'team') &&
       (!attackState.exists || !wolfAttackBlocksNormalMovement(attackState.data()))
     ) {
       const turnPhase = {
@@ -39222,7 +39489,7 @@ function requireLiveHighwallMiningWindow(session: DocumentSnapshot): number {
     throw commandError('failed-precondition', 'The current Coordination cycle is unavailable.', 'invalid-phase');
   }
   if (phase.airspace.state !== 'lifted' || phase.timerPause ||
-      Date.now() >= Date.parse(phase.openAirspaceEndsAt)) {
+      turnPhaseDeadlinePassed(phase, 'open')) {
     throw commandError('failed-precondition', 'Highwall mining requires the live Coordination Phase.', 'invalid-phase');
   }
   return currentCycle as number;
@@ -43043,7 +43310,9 @@ export const resolvePresidentialElection = auditedOnCall<{
     if (currentCycle === election.policy.closeCycle) {
       const closePhase = turnStateForPhaseContext(session.get('turnState'), turnPhaseState(session.get('turnPhase')),
         session.get('currentTurn'), sessionTurnLimit(session));
-      if (!closePhase || (closePhase.phase === 'team' && Date.now() < Date.parse(closePhase.endsAt))) {
+      const closingPhase = turnPhaseState(session.get('turnPhase'));
+      if (!closePhase || closingPhase?.progression === 'manual' ||
+          (closePhase.phase === 'team' && Date.now() < Date.parse(closePhase.endsAt))) {
         throw commandError('failed-precondition', 'The configured close-cycle Team window is still open.', 'invalid-phase');
       }
     }

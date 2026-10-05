@@ -9,7 +9,7 @@ import { reserveWolfAgentDetectorTest } from './endeavourWolfAgentDetector';
 import { detectorReportedWolf } from './pc09SpecialistMechanics';
 import { fleetGroupRecord } from './fleetGroups';
 import { isPresenceStale } from './sessionLifecycle';
-import { turnPhaseState } from './turnZero';
+import { turnPhaseDeadlinePassed, turnPhaseState } from './turnZero';
 
 type RecordValue = Record<string, unknown>;
 
@@ -144,7 +144,7 @@ export const runWolfAgentDetectorTest = auditedOnCall<{
     }
     const phase = turnPhaseState(session.get('turnPhase'));
     if (!phase || phase.turn !== currentTurn || phase.airspace.state !== 'restricted' || phase.timerPause ||
-        Date.now() >= Date.parse(phase.teamPhaseEndsAt)) {
+        turnPhaseDeadlinePassed(phase, 'team')) {
       throw new HttpsError('failed-precondition', 'Detector tests are available only during the current Team Phase.');
     }
     const targetName = target.get('displayName');

@@ -85,6 +85,7 @@ import {
 import {
   turnLimitForSession,
   turnPhaseState,
+  turnStateState,
   turnStateForPhaseContext,
   replaceTurnStateOnPhase,
 } from './turnPhase';
@@ -358,6 +359,7 @@ interface PendingStartRequest {
   readonly sessionId: string;
   readonly instanceId: string;
   readonly expectedSetupRevision: number;
+  readonly fullGameDemo?: true;
   readonly requestId: string;
 }
 
@@ -372,12 +374,24 @@ function sameStartAttempt(
   sessionId: string,
   instanceId: string,
   expectedSetupRevision: number,
+  fullGameDemo = false,
 ): request is PendingStartRequest {
   return request !== null &&
     request.sessionId === sessionId &&
     request.instanceId === instanceId &&
-    request.expectedSetupRevision === expectedSetupRevision;
+    request.expectedSetupRevision === expectedSetupRevision &&
+    (request.fullGameDemo === true) === fullGameDemo;
 }
+
+interface PendingFullGameDemoRequest {
+  readonly sessionId: string;
+  readonly instanceId: string;
+  readonly expectedRevision: number;
+  readonly requestId: string;
+}
+
+let pendingFullGameDemoPreparation: PendingFullGameDemoRequest | null = null;
+let pendingFullGameDemoPhaseAdvance: PendingFullGameDemoRequest | null = null;
 
 function expectedSetupRevision(session: GameSession): number {
   return Number.isSafeInteger(session.setupRevision) && (session.setupRevision ?? 0) >= 0
@@ -3855,6 +3869,7 @@ interface TurnAdvanceReply {
   readonly title?: 'Demo complete';
   readonly message?: 'Demo mode ends after Cycle 1.';
   readonly singlePlayerDemo?: GameSession['singlePlayerDemo'];
+  readonly fullGameDemo?: GameSession['fullGameDemo'];
   readonly phase?: GameSession['phase'];
   readonly gameOutcome?: GameSession['gameOutcome'];
   readonly turnState?: unknown;
@@ -4128,6 +4143,46 @@ export async function discardPrivateMissionCard(
 export interface StartGameOptions {
   /** Reuse a caller-held id after an ambiguous transport failure. */
   readonly requestId?: string;
+  /** Start the fresh session prepared as a manual full-game training demo. */
+  readonly fullGameDemo?: true;
+}
+
+export interface FullGameDemoPreparationReply {
+  readonly status: 'committed' | 'replayed' | 'stale';
+  readonly sessionId: string;
+  readonly requestId: string;
+  readonly fullGameDemo?: GameSession['fullGameDemo'];
+  readonly expectedSetupRevision: number;
+  readonly currentSetupRevision: number;
+}
+
+export interface FullGameDemoPhaseAdvanceReply {
+  readonly status: 'committed' | 'replayed';
+  readonly sessionId: string;
+  readonly requestId: string;
+  readonly currentTurn: number;
+  readonly fullGameDemo: NonNullable<GameSession['fullGameDemo']>;
+  readonly turnPhase: NonNullable<GameSession['turnPhase']>;
+  readonly turnState?: GameSession['turnState'];
+}
+
+function fullGameDemoMarker(value: unknown): NonNullable<GameSession['fullGameDemo']> | undefined {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
+  const raw = value as Record<string, unknown>;
+  if (Object.keys(raw).length !== 2 ||
+      (raw.status !== 'preparing' && raw.status !== 'active' && raw.status !== 'complete') ||
+      raw.progression !== 'manual') return undefined;
+  return { status: raw.status, progression: 'manual' };
+}
+
+function pendingFullGameDemoMatches(
+  request: PendingFullGameDemoRequest | null,
+  sessionId: string,
+  instanceId: string,
+  expectedRevision: number,
+): request is PendingFullGameDemoRequest {
+  return request !== null && request.sessionId === sessionId && request.instanceId === instanceId &&
+    request.expectedRevision === expectedRevision;
 }
 
 export async function startGame(options: StartGameOptions = {}): Promise<StartGameReply> {
@@ -4139,8 +4194,9 @@ export async function startGame(options: StartGameOptions = {}): Promise<StartGa
   const instanceId = store.gmInstance.id;
   const checkpoint = sessionAuthorityCheckpoint(sessionId, sessionAuthorityUid(store));
   const revision = expectedSetupRevision(store.session);
+  const fullGameDemo = options.fullGameDemo === true;
   const requestId = options.requestId ?? (
-    sameStartAttempt(pendingStartRequest, sessionId, instanceId, revision)
+    sameStartAttempt(pendingStartRequest, sessionId, instanceId, revision, fullGameDemo)
       ? pendingStartRequest.requestId
       : commandId()
   );
@@ -4148,6 +4204,7 @@ export async function startGame(options: StartGameOptions = {}): Promise<StartGa
     sessionId,
     instanceId,
     expectedSetupRevision: revision,
+    ...(fullGameDemo ? { fullGameDemo: true as const } : {}),
     requestId,
   };
   pendingStartRequest = attempt;
@@ -4156,15 +4213,22 @@ export async function startGame(options: StartGameOptions = {}): Promise<StartGa
     instanceId,
     requestId,
     expectedSetupRevision: revision,
+    ...(fullGameDemo ? { fullGameDemo: true as const } : {}),
   };
   const call = httpsCallable<typeof payload, StartGameReply>(functions(), 'startGame');
   try {
     const reply = (await call(payload)).data;
+    if (fullGameDemo && reply.status !== 'stale' &&
+        (fullGameDemoMarker(reply.fullGameDemo)?.status !== 'active' ||
+         turnPhaseState(reply.turnPhase)?.progression !== 'manual')) {
+      throw new Error('The full-game demo start receipt did not confirm its manual session mode.');
+    }
     if (sameStartAttempt(
       pendingStartRequest,
       payload.sessionId,
       payload.instanceId,
       payload.expectedSetupRevision,
+      fullGameDemo,
     ) && pendingStartRequest.requestId === payload.requestId) {
       pendingStartRequest = null;
     }
@@ -4173,12 +4237,14 @@ export async function startGame(options: StartGameOptions = {}): Promise<StartGa
     applyTurnAdvanceReply(store.session.id, reply, false, checkpoint);
     const current = useSessionStore.getState().session;
     if (current?.id === store.session.id && authorityCheckpointIsCurrent(checkpoint)) {
+      const demoMarker = fullGameDemoMarker(reply.fullGameDemo);
       useSessionStore.getState().setSession({
         ...current,
         phase: 'active',
         configurationLocked: true,
         currentTurn: reply.currentTurn,
         setupRevision: reply.setupRevision,
+        ...(demoMarker ? { fullGameDemo: demoMarker } : {}),
         pursuitGroups: { 'fleet-1': 2 },
         shipFleetGroupIds: Object.fromEntries((current.activeVesselIds ?? []).map((shipId) => [shipId, 'fleet-1'])),
         ...(current.playerDiscovery
@@ -4195,10 +4261,157 @@ export async function startGame(options: StartGameOptions = {}): Promise<StartGa
         payload.sessionId,
         payload.instanceId,
         payload.expectedSetupRevision,
+        fullGameDemo,
       ) && pendingStartRequest.requestId === payload.requestId) {
         pendingStartRequest = null;
       }
     }
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    throw cause;
+  }
+}
+
+function fullGameDemoPreparationReply(value: unknown, sessionId: string): FullGameDemoPreparationReply | undefined {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
+  const raw = value as Record<string, unknown>;
+  const allowed = ['status', 'sessionId', 'requestId', 'fullGameDemo', 'expectedSetupRevision', 'currentSetupRevision'];
+  if (Object.keys(raw).some((key) => !allowed.includes(key)) ||
+      (raw.status !== 'committed' && raw.status !== 'replayed' && raw.status !== 'stale') ||
+      raw.sessionId !== sessionId || typeof raw.requestId !== 'string' ||
+      !/^[A-Za-z0-9_-]{1,128}$/.test(raw.requestId) ||
+      !Number.isSafeInteger(raw.expectedSetupRevision) || (raw.expectedSetupRevision as number) < 0 ||
+      !Number.isSafeInteger(raw.currentSetupRevision) || (raw.currentSetupRevision as number) < 0) return undefined;
+  const marker = fullGameDemoMarker(raw.fullGameDemo);
+  if (raw.status === 'stale') {
+    if (raw.fullGameDemo !== undefined) return undefined;
+  } else if (marker?.status !== 'preparing') return undefined;
+  return {
+    status: raw.status,
+    sessionId,
+    requestId: raw.requestId,
+    ...(marker ? { fullGameDemo: marker } : {}),
+    expectedSetupRevision: raw.expectedSetupRevision as number,
+    currentSetupRevision: raw.currentSetupRevision as number,
+  };
+}
+
+/** Prepare a fresh Cycle 0 as a permanently labeled, GM-controlled training session. */
+export async function prepareFullGameDemo(requestId?: string): Promise<FullGameDemoPreparationReply> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.me || store.me.role !== 'gm' || !store.gmInstance) {
+    throw new Error('Claim an active facilitator instance before preparing the full-game demo.');
+  }
+  requireFreshSessionAuthority('Reconnect before preparing the full-game demo.');
+  if (store.session.currentTurn !== 0 || store.session.singlePlayerDemo ||
+      !(store.session.phase === 'casting' || (store.session.phase === 'lobby' && store.session.setupConfirmed === true))) {
+    throw new Error('Prepare the full-game demo only in a fresh confirmed Cycle 0 session.');
+  }
+  await ensureSignedIn();
+  const sessionId = store.session.id;
+  const instanceId = store.gmInstance.id;
+  const revision = expectedSetupRevision(store.session);
+  const pending = pendingFullGameDemoMatches(pendingFullGameDemoPreparation, sessionId, instanceId, revision);
+  const callRequestId = requestId ?? (pending ? pendingFullGameDemoPreparation?.requestId ?? commandId() : commandId());
+  pendingFullGameDemoPreparation = { sessionId, instanceId, expectedRevision: revision, requestId: callRequestId };
+  const payload = {
+    sessionId, instanceId, requestId: callRequestId, expectedSetupRevision: revision,
+  };
+  const checkpoint = sessionAuthorityCheckpoint(sessionId, sessionAuthorityUid(store));
+  try {
+    const call = httpsCallable<typeof payload, unknown>(functions(), 'prepareFullGameDemo');
+    const reply = fullGameDemoPreparationReply((await call(payload)).data, sessionId);
+    if (!reply || reply.requestId !== callRequestId || reply.expectedSetupRevision !== revision) {
+      throw new Error('The full-game demo preparation receipt is invalid. Refresh and retry.');
+    }
+    pendingFullGameDemoPreparation = null;
+    if (reply.status !== 'stale' && authorityCheckpointIsCurrent(checkpoint)) {
+      const current = useSessionStore.getState().session;
+      if (current?.id === sessionId && current.currentTurn === 0 && reply.fullGameDemo) {
+        useSessionStore.getState().setSession({ ...current, fullGameDemo: reply.fullGameDemo });
+      }
+    }
+    if (authorityCheckpointIsCurrent(checkpoint)) useSessionStore.getState().setCommunicationError(null);
+    return reply;
+  } catch (cause) {
+    if (!isTransientCommandError(cause)) pendingFullGameDemoPreparation = null;
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    throw cause;
+  }
+}
+
+function fullGameDemoPhaseAdvanceReply(
+  value: unknown,
+  sessionId: string,
+  expectedTurn: number,
+): FullGameDemoPhaseAdvanceReply | undefined {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
+  const raw = value as Record<string, unknown>;
+  const allowed = ['status', 'sessionId', 'requestId', 'currentTurn', 'fullGameDemo', 'turnPhase', 'turnState'];
+  const marker = fullGameDemoMarker(raw.fullGameDemo);
+  const phase = turnPhaseState(raw.turnPhase);
+  if (Object.keys(raw).some((key) => !allowed.includes(key)) ||
+      (raw.status !== 'committed' && raw.status !== 'replayed') || raw.sessionId !== sessionId ||
+      typeof raw.requestId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(raw.requestId) ||
+      raw.currentTurn !== expectedTurn || marker?.status !== 'active' ||
+      phase?.progression !== 'manual' || phase.turn !== expectedTurn || phase.airspace.state !== 'lifted') return undefined;
+  const turnState = raw.turnState === undefined ? undefined : turnStateState(raw.turnState);
+  if (raw.turnState !== undefined && (!turnState || turnState.currentTurn !== expectedTurn || turnState.phase !== 'coordination')) {
+    return undefined;
+  }
+  return {
+    status: raw.status, sessionId, requestId: raw.requestId, currentTurn: expectedTurn,
+    fullGameDemo: marker, turnPhase: phase, ...(turnState ? { turnState } : {}),
+  };
+}
+
+/** Open Coordination through the live GM authority while preserving manual demo progression. */
+export async function advanceFullGameDemoPhase(requestId?: string): Promise<FullGameDemoPhaseAdvanceReply> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.me || store.me.role !== 'gm' || !store.gmInstance) {
+    throw new Error('Claim an active facilitator instance before opening the demo phase.');
+  }
+  requireFreshSessionAuthority('Reconnect before opening the demo phase.');
+  const phase = turnPhaseState(store.session.turnPhase);
+  const expectedTurn = store.session.currentTurn;
+  if (store.session.fullGameDemo?.status !== 'active' || store.session.fullGameDemo.progression !== 'manual' ||
+      !Number.isSafeInteger(expectedTurn) || (expectedTurn ?? 0) < 1 ||
+      !phase || phase.progression !== 'manual' || phase.turn !== expectedTurn ||
+      phase.airspace.state !== 'restricted' || phase.timerPause !== undefined) {
+    throw new Error('Manual phase advance is available only in the current restricted full-game demo phase.');
+  }
+  await ensureSignedIn();
+  const sessionId = store.session.id;
+  const instanceId = store.gmInstance.id;
+  const pending = pendingFullGameDemoMatches(pendingFullGameDemoPhaseAdvance, sessionId, instanceId, expectedTurn);
+  const callRequestId = requestId ?? (pending ? pendingFullGameDemoPhaseAdvance?.requestId ?? commandId() : commandId());
+  pendingFullGameDemoPhaseAdvance = { sessionId, instanceId, expectedRevision: expectedTurn, requestId: callRequestId };
+  const payload = { sessionId, instanceId, requestId: callRequestId, expectedTurn };
+  const checkpoint = sessionAuthorityCheckpoint(sessionId, sessionAuthorityUid(store));
+  try {
+    const call = httpsCallable<typeof payload, unknown>(functions(), 'advanceFullGameDemoPhase');
+    const reply = fullGameDemoPhaseAdvanceReply((await call(payload)).data, sessionId, expectedTurn);
+    if (!reply || reply.requestId !== callRequestId) {
+      throw new Error('The manual phase advance receipt is invalid. Refresh before retrying.');
+    }
+    pendingFullGameDemoPhaseAdvance = null;
+    if (authorityCheckpointIsCurrent(checkpoint)) {
+      const current = useSessionStore.getState().session;
+      if (current?.id === sessionId && current.currentTurn === expectedTurn) {
+        const projectedState = reply.turnState
+          ? turnStateForPhaseContext(reply.turnState, reply.turnPhase, expectedTurn, turnLimitForSession(current))
+          : undefined;
+        useSessionStore.getState().setSession({
+          ...current,
+          fullGameDemo: reply.fullGameDemo,
+          turnPhase: reply.turnPhase,
+          ...(projectedState ? { turnState: projectedState } : {}),
+        });
+      }
+      useSessionStore.getState().setCommunicationError(null);
+    }
+    return reply;
+  } catch (cause) {
+    if (!isTransientCommandError(cause)) pendingFullGameDemoPhaseAdvance = null;
     useSessionStore.getState().setCommunicationError(interception(cause));
     throw cause;
   }

@@ -10,6 +10,7 @@ import { useSessionStore } from '@/store/useSessionStore';
 import type { GameSession, ShuttleControlEntry, ShuttleDocking } from '@/types/game';
 import type { BoaRecyclingRecipeId } from '../../functions/src/boaRecycling';
 import type { BoaRecyclingCallableStaleReply } from '../../functions/src/boaRecyclingCallable';
+import { turnPhaseDeadlinePassed } from '@/lib/turnPhase';
 
 interface Recipe {
   readonly id: BoaRecyclingRecipeId;
@@ -95,11 +96,10 @@ export default function BoaRecyclingPanel({ control, docking, fuelled, hostName 
   const hostResources = docking ? session.shipResources?.[docking.shipId] : undefined;
   const selectedRecipe = RECIPES.find((recipe) => recipe.id === recipeId) ?? RECIPES[0]!;
   const hostBalance = hostResources?.[selectedRecipe.resourceId];
-  const deadline = Date.parse(session.turnPhase?.openAirspaceEndsAt ?? '');
   const turnPhase = session.turnPhase;
   const coordinationWindowOpen = session.phase === 'active' && currentCycle >= 1 &&
     turnPhase?.turn === currentCycle && turnPhase.airspace.state === 'lifted' &&
-    turnPhase.timerPause === undefined && Number.isFinite(deadline) && Date.now() < deadline;
+    turnPhase.timerPause === undefined && !turnPhaseDeadlinePassed(turnPhase, 'open');
   const isHolder = control.shuttleId === 'boa' && control.ownerRoleId === 'capybara-recycler' &&
     me.role === 'player' && me.uid === control.holderUid && me.assignedRoleId === 'capybara-recycler';
   const currentAuthorityBinding = {

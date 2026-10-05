@@ -10,7 +10,7 @@ import {
 } from '@/lib/highwallMiningService';
 import { normalizeCommandError } from '@/lib/commandErrors';
 import { hasFreshSessionAuthority } from '@/lib/sessionMutationAuthority';
-import { phaseForSession } from '@/lib/turnPhase';
+import { phaseForSession, turnPhaseDeadlinePassed } from '@/lib/turnPhase';
 import { useSessionStore } from '@/store/useSessionStore';
 
 interface Props {
@@ -50,7 +50,7 @@ export default function HighwallMining({ control, docking, fuelled }: Props) {
   const phase = phaseForSession(session);
   const coordinationOpen = session.phase === 'active' && (session.currentTurn ?? 0) >= 1 &&
     phase?.airspace.state === 'lifted' && !phase.timerPause &&
-    Date.now() < Date.parse(phase.openAirspaceEndsAt);
+    !turnPhaseDeadlinePassed(phase, 'open');
   const localGroupAuthority = typeof me.fleetGroupId === 'string' && me.fleetGroupId.trim().length > 0 &&
     session.playerDiscovery?.groupId === me.fleetGroupId &&
     session.playerDiscovery.fleetGroupVesselIds?.includes(currentDocking?.shipId ?? '') === true;

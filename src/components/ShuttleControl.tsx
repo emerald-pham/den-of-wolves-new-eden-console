@@ -33,6 +33,7 @@ import {
   validShuttleEvacuationAmounts,
 } from '@/lib/shuttleEvacuationService';
 import { useSessionStore } from '@/store/useSessionStore';
+import { turnPhaseDeadlinePassed } from '@/lib/turnPhase';
 import type { GameSession, Player, ShuttleControlEntry, ShuttleMovementState } from '@/types/game';
 import { findShip } from '@/data/ships';
 import { dockingForShuttle, SHUTTLECRAFT, shuttleDestinationIsAllowed } from '@/data/shuttles';
@@ -416,10 +417,11 @@ export default function ShuttleControl({ control }: Props) {
     session.pressEnabled !== false &&
     session.turnPhase?.airspace.state === 'restricted' &&
     session.turnPhase.airspace.pressAccess;
-  const airspaceDeadline = session.turnPhase?.openAirspaceEndsAt
-    ? Date.parse(session.turnPhase.openAirspaceEndsAt) : Number.NaN;
+  const activePhase = session.turnPhase;
+  const airspaceDeadline = activePhase && activePhase.progression !== 'manual'
+    ? Date.parse(activePhase.openAirspaceEndsAt) : Number.NaN;
   useEffect(() => {
-    if (!Number.isFinite(airspaceDeadline)) return;
+    if (activePhase?.progression === 'manual' || !Number.isFinite(airspaceDeadline)) return;
     let timer: number | undefined;
     const refreshAtDeadline = () => {
       const remaining = airspaceDeadline - Date.now();
@@ -433,15 +435,18 @@ export default function ShuttleControl({ control }: Props) {
     return () => {
       if (timer !== undefined) window.clearTimeout(timer);
     };
-  }, [airspaceDeadline]);
+  }, [activePhase?.progression, airspaceDeadline]);
   const currentClockTime = Math.max(deadlineClock, Date.now());
+  const airspaceWindowExpired = activePhase
+    ? turnPhaseDeadlinePassed(activePhase, 'open', currentClockTime)
+    : true;
   const movementAuthorityCurrent = connection === 'live' && snapshotFreshness === 'server' && hasFreshSessionAuthority();
   const missionCommitted = session.playerDiscovery?.missionCommittedCraftIds?.includes(control.shuttleId) === true;
   const departureWindowOpen = movementAuthorityCurrent && !missionCommitted && session.phase === 'active' &&
     session.turnPhase?.turn === session.currentTurn &&
     (session.turnPhase?.airspace.state === 'lifted' || pressMovementException) &&
     !session.turnPhase?.timerPause &&
-    currentClockTime < airspaceDeadline;
+    !airspaceWindowExpired;
   const evacuationLedger = session.shuttleEvacuations?.[control.shuttleId];
   const evacuatedThisCycle = evacuationLedger && evacuationLedger.cycle === session.currentTurn
     ? evacuationLedger.moved : 0;
@@ -478,11 +483,9 @@ export default function ShuttleControl({ control }: Props) {
     ? (hostDamage?.damagedSystemIds ?? []).filter((id) => !repairedOnHost.includes(id)) : [],
   [control.shuttleId, docking, hostDamage?.damagedSystemIds, repairedOnHost]);
   const repairMaterials = docking ? session.shipResources?.[docking.shipId]?.materials ?? 0 : 0;
-  const repairDeadline = airspaceDeadline;
   const repairWindowOpen = session.phase === 'active' &&
     session.turnPhase?.turn === session.currentTurn && session.turnPhase?.airspace.state === 'lifted' &&
-    session.turnPhase.timerPause === undefined && Number.isFinite(repairDeadline) &&
-    currentClockTime < repairDeadline;
+    session.turnPhase.timerPause === undefined && !airspaceWindowExpired;
   const repairResetKey = JSON.stringify([
     blacksmithRepairRevision, control.revision, control.shuttleId, docking?.shipId, session.currentTurn,
   ]);

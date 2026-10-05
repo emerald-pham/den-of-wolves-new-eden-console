@@ -20,7 +20,7 @@ import { boundCoreConsoleRole } from './consoleRolePolicy';
 import { CALLABLE_RUNTIME_OPTIONS } from './runtimeOptions';
 import { isPresenceStale } from './sessionLifecycle';
 import { parseShuttleControl } from './shuttleControl';
-import { turnPhaseState } from './turnZero';
+import { turnPhaseDeadlinePassed, turnPhaseState } from './turnZero';
 import { serviceRechargeResourceState } from './serviceShuttleRecharge';
 import { isResourceShipId } from './resources';
 import { ROLE_IDS } from './roleConfiguration';
@@ -419,9 +419,8 @@ export const advanceEndeavourResearchTrack = auditedOnCall<{
       if (!authorization.allowed) {
         throw new HttpsError('failed-precondition', 'Endeavour research is available only during Team Phase.');
       }
-      const teamPhaseEndsAt = Date.parse(phase.teamPhaseEndsAt);
       if (phase.airspace.state !== 'restricted' || phase.timerPause !== undefined ||
-          !Number.isFinite(teamPhaseEndsAt) || Date.now() >= teamPhaseEndsAt) {
+          turnPhaseDeadlinePassed(phase, 'team')) {
         throw new HttpsError('failed-precondition', 'Endeavour research is available only during Team Phase.');
       }
 

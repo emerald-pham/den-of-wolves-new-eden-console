@@ -3,6 +3,7 @@ import { functions } from './firebase';
 import { hasFreshSessionAuthority, requireFreshSessionAuthority } from './sessionMutationAuthority';
 import { useSessionStore } from '@/store/useSessionStore';
 import type { GameSession } from '@/types/game';
+import { turnPhaseDeadlinePassed } from './turnPhase';
 import {
   isMacawRepairCallableStaleReply,
   type MacawRepairCallableStaleReply,
@@ -65,12 +66,9 @@ function currentMacawDockings(session: GameSession): { readonly shipId: string }
 function hasLiveCoordination(session: GameSession): boolean {
   const cycle = session.currentTurn;
   const phase = session.turnPhase;
-  const deadlineValue = phase?.openAirspaceEndsAt;
-  if (typeof deadlineValue !== 'string') return false;
-  const deadline = Date.parse(deadlineValue);
   return session.phase === 'active' && Number.isSafeInteger(cycle) && (cycle as number) >= 1 &&
     phase?.turn === cycle && phase?.airspace?.state === 'lifted' && phase?.timerPause === undefined &&
-    Number.isFinite(deadline) && Date.now() < deadline;
+    !turnPhaseDeadlinePassed(phase, 'open');
 }
 
 function currentAuthorityMatches(attempt: MacawAttemptAuthority, requireCoordination: boolean): boolean {

@@ -1188,6 +1188,8 @@ export interface TurnPhase {
   };
   /** Present during a GM emergency hold or an automatic empty-session hold. */
   readonly timerPause?: TurnTimerPause;
+  /** Explicit full-game demo policy; every phase transition is facilitator-driven. */
+  readonly progression?: 'manual';
 }
 
 /** One complete server-owned turn entity, retained beside legacy clock fields. */

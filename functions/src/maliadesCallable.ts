@@ -11,7 +11,7 @@ import { CALLABLE_RUNTIME_OPTIONS } from './runtimeOptions';
 import { isPresenceStale } from './sessionLifecycle';
 import { parseShuttleControl } from './shuttleControl';
 import { shuttleDockingsAreParked } from './craftOwnership';
-import { turnPhaseState } from './turnZero';
+import { turnPhaseDeadlinePassed, turnPhaseState } from './turnZero';
 import { serviceRechargeDamageState, serviceRechargeResourceState } from './serviceShuttleRecharge';
 import { isResourceShipId } from './resources';
 import { SHIP_DAMAGE_DECKS } from './shipDamage';
@@ -228,9 +228,8 @@ export const repairMaliades = auditedOnCall('repairMaliades', CALLABLE_RUNTIME_O
       throw commandError('failed-precondition', 'The authoritative Maliades repair state is unavailable.', 'conflict');
     }
     const phase = turnPhaseState(session.get('turnPhase'));
-    const teamEnds = phase ? Date.parse(phase.teamPhaseEndsAt) : Number.NaN;
     if (!phase || phase.turn !== currentCycle || phase.airspace.state !== 'restricted' ||
-        !Number.isFinite(teamEnds) || Date.now() >= teamEnds) {
+        turnPhaseDeadlinePassed(phase, 'team')) {
       throw commandError('failed-precondition', 'Maliades repair is available only during the live Team Phase.', 'invalid-phase');
     }
     requireMaliadesControl(session, uid);

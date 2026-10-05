@@ -32,17 +32,22 @@ export function DradisAirspaceTimer({ phase }: { readonly phase: TurnPhase | und
   const readout = useTurnPhaseReadout(phase);
   const closed = readout?.kind === 'team';
   const open = readout?.kind === 'open' && phase?.airspace.state === 'lifted';
+  const manual = phase?.progression === 'manual';
   const paused = phase?.timerPause !== undefined;
   const automatic = phase?.timerPause?.reason === 'empty-session';
   if ((!closed && !open) || phase?.timerPause?.reason === 'turn-interstitial') return null;
-  const time = formatTurnPhaseCountdown(readout.remainingMs);
+  const time = manual ? 'MANUAL' : formatTurnPhaseCountdown(readout.remainingMs);
   const label = closed ? 'Airspace closed' : 'Airspace open';
+  const accessible = manual
+    ? `${label} // manual GM advance`
+    : `${label} // ${time} remaining${paused ? automatic ? ' // awaiting reconnect' : ' // emergency timer paused' : ''}`;
   return (
     <div className="turn-phase-timer" role="status" aria-live="off" data-plot-obstacle
-      aria-label={`${label} // ${time} remaining${paused ? automatic ? ' // awaiting reconnect' : ' // emergency timer paused' : ''}`}
+      aria-label={accessible}
       data-tone={paused && !automatic ? 'red' : 'blue'}>
-      <span>{label}{paused ? automatic ? ' // Session hold' : ' // Emergency hold' : ''}</span>
+      <span>{label}{manual ? ' // GM-controlled' : paused ? automatic ? ' // Session hold' : ' // Emergency hold' : ''}</span>
       <strong>{time}</strong>
+      {manual && <small>GM advances the next phase</small>}
       {paused && <small>{automatic ? 'Resumes on reconnect' : 'GM resume required'}</small>}
     </div>
   );
@@ -51,10 +56,11 @@ export function DradisAirspaceTimer({ phase }: { readonly phase: TurnPhase | und
 /** The deliberately disabled AEGIS controls make clear that both clocks are automatic. */
 export function AirspaceTimerControls({ phase }: { readonly phase: TurnPhase | undefined }) {
   const readout = useTurnPhaseReadout(phase);
-  const teamTime = readout?.kind === 'team'
+  const manual = phase?.progression === 'manual';
+  const teamTime = manual ? 'MANUAL' : readout?.kind === 'team'
     ? formatTurnPhaseCountdown(readout.remainingMs)
     : 'COMPLETE';
-  const openTime = readout?.kind === 'open'
+  const openTime = manual ? 'STANDBY' : readout?.kind === 'open'
     ? formatTurnPhaseCountdown(readout.remainingMs)
     : readout?.kind === 'complete' ? 'COMPLETE' : 'STANDBY';
   const pauseSuffix = phase?.timerPause
@@ -62,14 +68,14 @@ export function AirspaceTimerControls({ phase }: { readonly phase: TurnPhase | u
       : phase.timerPause.reason === 'empty-session' ? ' // awaiting reconnect' : ' // emergency hold'
     : '';
   return (
-    <div className="airspace-control__timers" aria-label="Automated phase timers">
+    <div className="airspace-control__timers" aria-label={manual ? 'Manual phase controls' : 'Automated phase timers'}>
       <button className="airspace-control__timer" type="button" disabled data-tone="red"
-        aria-label={`Airspace closed timer // ${teamTime}${pauseSuffix} // no manual control`}>
-        Airspace closed // {teamTime}{pauseSuffix} // no manual control
+        aria-label={manual ? 'Airspace closed timer // MANUAL // GM advances' : `Airspace closed timer // ${teamTime}${pauseSuffix} // no manual control`}>
+        Airspace closed // {teamTime}{manual ? ' // GM advances' : `${pauseSuffix} // no manual control`}
       </button>
       <button className="airspace-control__timer" type="button" disabled data-tone="blue"
-        aria-label={`Airspace open timer // ${openTime}${pauseSuffix} // no manual control`}>
-        Airspace open // {openTime}{pauseSuffix} // no manual control
+        aria-label={manual ? 'Airspace open timer // STANDBY // GM advances' : `Airspace open timer // ${openTime}${pauseSuffix} // no manual control`}>
+        Airspace open // {openTime}{manual ? ' // GM advances' : `${pauseSuffix} // no manual control`}
       </button>
     </div>
   );

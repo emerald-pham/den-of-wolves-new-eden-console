@@ -42,6 +42,7 @@ export default function TurnPhaseCoordinator() {
   useEffect(() => {
     if (
       !session || !phase || phase.airspace.state === 'lifted' || phase.timerPause ||
+      phase.progression === 'manual' ||
       connection !== 'live' || attackLocked
     ) {
       return undefined;

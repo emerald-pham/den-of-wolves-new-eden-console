@@ -23,7 +23,7 @@ import { isPresenceStale } from './sessionLifecycle';
 import { parseShuttleControl } from './shuttleControl';
 import { parseShuttleArrivalVisitLog, completeShuttleArrival as applyShuttleArrival } from './shuttleArrival';
 import { parseShuttleTransitAuthority } from './shuttleTransit';
-import { turnPhaseState } from './turnZero';
+import { turnPhaseDeadlinePassed, turnPhaseState } from './turnZero';
 import { wolfAttackBlocksNormalMovement } from './wolfAttackDeclaration';
 import { ordinaryAirspaceClosureWindow } from './airspaceClosureTasks';
 
@@ -285,7 +285,7 @@ export function createCompleteShuttleArrivalCallable() {
       throw commandError('failed-precondition', 'The authoritative shuttle arrival state is unavailable.', 'conflict');
     }
     if (ordinaryAirspaceClosureWindow(phase) && phase.timerPause === undefined &&
-        now >= Date.parse(phase.openAirspaceEndsAt)) {
+        turnPhaseDeadlinePassed(phase, 'open', now)) {
       throw commandError(
         'failed-precondition',
         'The ordinary airspace deadline has passed. Wait for the live shuttle parking update.',

@@ -14,6 +14,7 @@ import {
 import { phaseForSession } from '@/lib/turnPhase';
 import { useSessionStore } from '@/store/useSessionStore';
 import type { GameSession, Player } from '@/types/game';
+import { turnPhaseDeadlinePassed } from '@/lib/turnPhase';
 
 const LABELS: Readonly<Record<(typeof BASE_CAPYBARA_CARGO_TYPES)[number], string>> = {
   securityTeams: 'Security Teams',
@@ -78,7 +79,7 @@ function currentStaleTargetMatches(
   return smallShip?.hostShipId === reply.currentHostShipId &&
     smallShip.dockingRevision === reply.currentDockingRevision && damage?.destroyed === false &&
     phase?.turn === reply.currentCycle && phase.airspace.state === 'lifted' &&
-    phase.timerPause === undefined && Date.now() < Date.parse(phase.openAirspaceEndsAt);
+    phase.timerPause === undefined && !turnPhaseDeadlinePassed(phase, 'open');
 }
 
 export default function BaseCapybaraCargoTransferPanel() {
@@ -132,7 +133,7 @@ export default function BaseCapybaraCargoTransferPanel() {
   const phase = phaseForSession(session);
   const coordinationOpen = session?.phase === 'active' && currentCycle >= 1 &&
     phase?.airspace.state === 'lifted' && phase.timerPause === undefined &&
-    Date.now() < Date.parse(phase.openAirspaceEndsAt);
+    !turnPhaseDeadlinePassed(phase, 'open');
   const isCaptain = isBaseCapybaraCaptain(me);
   const canSubmit = isCaptain && isBaseMode && cargo !== null && hostIsActive && hostCanTransfer && coordinationOpen &&
     Number.isSafeInteger(amount) && amount >= 1 &&

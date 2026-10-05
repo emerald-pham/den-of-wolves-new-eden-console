@@ -14,6 +14,7 @@ import EndeavourFieldUpgradeChoices from './EndeavourFieldUpgradeChoices';
 import { hasFreshSessionAuthority } from '@/lib/sessionMutationAuthority';
 import type { ShuttleControlEntry } from '@/types/game';
 import { useSessionStore } from '@/store/useSessionStore';
+import { turnPhaseDeadlinePassed } from '@/lib/turnPhase';
 import './EndeavourFieldUpgradePanel.css';
 
 interface Props {
@@ -67,10 +68,9 @@ function hasLiveCoordinationWindow(
 ): boolean {
   if (!session || session.phase !== 'active' || session.currentTurn !== cycle) return false;
   const phase = session.turnPhase;
-  const endsAt = Date.parse(phase?.openAirspaceEndsAt ?? '');
   return Boolean(
     phase && phase.turn === cycle && phase.airspace?.state === 'lifted' &&
-    phase.timerPause === undefined && Number.isFinite(endsAt) && Date.now() < endsAt,
+    phase.timerPause === undefined && !turnPhaseDeadlinePassed(phase, 'open'),
   );
 }
 

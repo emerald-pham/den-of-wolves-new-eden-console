@@ -15,7 +15,7 @@ import {
   type WarriorRepairDronesState,
 } from './warriorRepairDrones';
 import { serviceRechargeDamageState, serviceRechargeResourceState } from './serviceShuttleRecharge';
-import { turnPhaseState } from './turnZero';
+import { turnPhaseDeadlinePassed, turnPhaseState } from './turnZero';
 import { isResourceShipId } from './resources';
 import { isSmallShipInMutiny, parseSmallShipState } from './smallShip';
 
@@ -240,10 +240,10 @@ export const repairWarriorWithDrones = auditedOnCall<{
     }
     const currentCycle = session.get('currentTurn');
     const phase = turnPhaseState(session.get('turnPhase'));
-    const openAirspaceEndsAt = phase ? Date.parse(phase.openAirspaceEndsAt) : Number.NaN;
     if (!Number.isSafeInteger(currentCycle) || currentCycle !== command.expectedCycle ||
         !phase || phase.turn !== currentCycle || phase.airspace.state !== 'lifted' ||
-        phase.timerPause !== undefined || !Number.isFinite(openAirspaceEndsAt) || Date.now() >= openAirspaceEndsAt) {
+        phase.timerPause !== undefined ||
+        turnPhaseDeadlinePassed(phase, 'open')) {
       throw new HttpsError('failed-precondition', 'Warrior Repair Drones are available only during the current live Coordination cycle.');
     }
 

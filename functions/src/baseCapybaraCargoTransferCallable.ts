@@ -15,7 +15,7 @@ import {
 import { isResourceShipId } from './resources';
 import { replacementRoleAvailable, replacementRoleFor } from './replacementRoles';
 import { vesselModeForConfiguration } from './gameSetup';
-import { turnPhaseState } from './turnZero';
+import { turnPhaseDeadlinePassed, turnPhaseState } from './turnZero';
 import { isSmallShipInMutiny, parseSmallShipState } from './smallShip';
 
 type RecordValue = Record<string, unknown>;
@@ -247,11 +247,10 @@ export const transferBaseCapybaraCargo = auditedOnCall<{
     const currentCycle = session.get('currentTurn');
     const turnPhase = turnPhaseState(session.get('turnPhase'));
     const currentTime = Date.now();
-    const openAirspaceEndsAt = turnPhase ? Date.parse(turnPhase.openAirspaceEndsAt) : Number.NaN;
     if (!Number.isSafeInteger(currentCycle) || currentCycle !== command.expectedCycle ||
         !turnPhase || turnPhase.turn !== currentCycle || turnPhase.airspace.state !== 'lifted' ||
-        turnPhase.timerPause !== undefined || !Number.isFinite(openAirspaceEndsAt) ||
-        currentTime >= openAirspaceEndsAt) {
+        turnPhase.timerPause !== undefined ||
+        turnPhaseDeadlinePassed(turnPhase, 'open', currentTime)) {
       failClosed('Base Capybara Cargo Transfer requires the current live Coordination cycle.');
     }
     const vesselMode = requireBaseVesselMode(session);

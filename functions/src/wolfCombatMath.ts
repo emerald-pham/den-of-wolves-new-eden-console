@@ -1555,7 +1555,7 @@ function phaseReceipt(phase: TurnPhase, now: number, allowRestricted = false): W
     throw new Error('The Wolf combat deadline is not a valid server instant.');
   }
   if (canonical.timerPause !== undefined) throw new Error('Wolf attack resolution is paused by the shared session clock.');
-  const overrun = now >= Date.parse(canonical.openAirspaceEndsAt);
+  const overrun = canonical.progression !== 'manual' && now >= Date.parse(canonical.openAirspaceEndsAt);
   if (canonical.airspace.state !== 'lifted' && !overrun && !allowRestricted) {
     throw new Error('Wolf combat resolves during the Coordination phase.');
   }

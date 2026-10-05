@@ -1,5 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useSessionStore } from '@/store/useSessionStore';
+import { turnPhaseDeadlinePassed } from '@/lib/turnPhase';
 import {
   advanceEndeavourResearchTrack,
   createEndeavourResearchAttempt,
@@ -61,10 +62,9 @@ function mayRetryExactRequest(cause: unknown): boolean {
 function hasLiveTeamPhase(session: ReturnType<typeof useSessionStore.getState>['session'], workspace: EndeavourResearchWorkspace): boolean {
   if (!session || session.phase !== 'active' || session.currentTurn !== workspace.cycle) return false;
   const phase = session.turnPhase;
-  const deadline = Date.parse(phase?.teamPhaseEndsAt ?? '');
   return Boolean(
     phase && phase.turn === workspace.cycle && phase.airspace.state === 'restricted' &&
-    phase.timerPause === undefined && Number.isFinite(deadline) && Date.now() < deadline,
+    phase.timerPause === undefined && !turnPhaseDeadlinePassed(phase, 'team'),
   );
 }
 
