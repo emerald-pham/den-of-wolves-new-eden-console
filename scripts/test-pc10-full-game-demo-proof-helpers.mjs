@@ -331,6 +331,59 @@ test('an unacknowledged held cycle briefing remains a blocker and is never clear
   assert.equal(clears, 0);
 });
 
+test('the original healthy Cycle 0 projection waits for the real Cycle 1 marker, mount, detach and paint', async () => {
+  const { waitForFullGamePresentationReady } = await import('./pc10-full-game-demo-proof-helpers.mjs');
+  const gm = presentationActor('gm'), crew = presentationActor('crew');
+  let gmReads = 0, crewReads = 0, paints = 0, time = 0;
+  gm.inspect = async () => ({ ...await presentationActor('gm').inspect(),
+    naturalTransmissionMounted: ++gmReads === 1 });
+  crew.inspect = async () => {
+    crewReads += 1;
+    const original = await presentationActor('crew').inspect();
+    if (crewReads <= 2) return { ...original, cycle: 0, phase: 'casting',
+      fullGameDemo: { status: 'preparing', progression: 'manual' },
+      announcementTurn: null, announcementRevision: null, naturalTransmissionMounted: false };
+    return { ...original, naturalTransmissionMounted: crewReads === 3 };
+  };
+  gm.paintTwoFrames = crew.paintTwoFrames = async () => { paints += 1; };
+  const result = await waitForFullGamePresentationReady({ expectedAnnouncement: { turn: 1, revision: 4 },
+    actors: [gm, crew], now: () => time, wait: async () => { time += 1; } });
+  assert.equal(result.status, 'ready');
+  assert.equal(result.originalActorsConfirmed, true);
+  assert.equal(result.naturalTransmissionObservedAndDetached, true);
+  assert.ok(crewReads >= 5, 'The prior snapshot and the new transmission cannot be accepted before actual detach and paint.');
+  assert.equal(paints, 2, 'Both original pages still provide their actual two-frame boundary.');
+});
+
+test('a healthy Cycle 0 that never receives Cycle 1 cannot extend the shared readiness deadline or earn credit', async () => {
+  const { waitForFullGamePresentationReady } = await import('./pc10-full-game-demo-proof-helpers.mjs');
+  const gm = presentationActor('gm'), crew = presentationActor('crew', { cycle: 0, phase: 'casting',
+    fullGameDemo: { status: 'preparing', progression: 'manual' }, announcementTurn: null, announcementRevision: null });
+  let time = 0, paints = 0;
+  gm.paintTwoFrames = crew.paintTwoFrames = async () => { paints += 1; };
+  await assert.rejects(waitForFullGamePresentationReady({ expectedAnnouncement: { turn: 1, revision: 4 },
+    actors: [gm, crew], now: () => time, wait: async () => { time += 20_000; } }), /60-second readiness budget/);
+  assert.equal(time, 60_000);
+  assert.equal(paints, 0);
+});
+
+test('prior-cycle waiting never accepts a future cycle, wrong marker or foreign authenticated actor', async () => {
+  const { waitForFullGamePresentationReady } = await import('./pc10-full-game-demo-proof-helpers.mjs');
+  for (const changed of [
+    { cycle: 2, announcementTurn: 2 },
+    { cycle: 0, phase: 'casting', fullGameDemo: { status: 'preparing', progression: 'manual' },
+      announcementTurn: 2, announcementRevision: 4 },
+    { cycle: 0, phase: 'casting', fullGameDemo: { status: 'preparing', progression: 'manual' },
+      announcementTurn: null, announcementRevision: null, uidHash: 'foreign-account' },
+  ]) {
+    const gm = presentationActor('gm'), crew = presentationActor('crew', changed);
+    let time = 0;
+    await assert.rejects(waitForFullGamePresentationReady({ expectedAnnouncement: { turn: 1, revision: 4 },
+      actors: [gm, crew], now: () => time, wait: async () => { time += 20_000; } }));
+    assert.equal(time, 0, 'A different source cycle, marker or account is rejected immediately.');
+  }
+});
+
 const demoStartActor = (profileRoleId, uidHash, overrides = {}) => ({
   hasAuth: true, sameActor: true, uidHash, sessionId: 'fresh-presentation-session',
   playerRole: 'player', profileRoleId, assignedRoleId: profileRoleId === 'press-officer' || profileRoleId === 'controller' ? null : profileRoleId,
