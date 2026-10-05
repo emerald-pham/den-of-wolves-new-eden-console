@@ -350,7 +350,9 @@ it('limits Intelligence Agent choices to connected, non-self players in the curr
 
   const target = screen.getByRole('combobox', { name: 'Investigation target' });
   expect(target).toHaveValue('u3');
-  expect(within(target).getAllByRole('option').map((option) => option.textContent)).toEqual(['Morgan']);
+  expect(within(target).getAllByRole('option').map((option) => option.textContent)).toEqual([
+    'Choose a connected player in your fleet group', 'Morgan',
+  ]);
 });
 
 it('clears a selected Intelligence Agent target after reassignment or disconnect until the user chooses again', async () => {
