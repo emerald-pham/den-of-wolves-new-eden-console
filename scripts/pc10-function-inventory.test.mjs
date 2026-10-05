@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
+import { extractLoyaltyKindIds } from './pc10-loyalty-kind-ids.mjs';
 
 const repositoryDirectory = resolve(fileURLToPath(new URL('..', import.meta.url)));
 
@@ -23,11 +24,14 @@ test('PC10 inventory accounts for all 42 role and private loyalty identities', (
 
     const inventory = JSON.parse(readFileSync(outputPath, 'utf8'));
     const roleIds = inventory.roles.map((role) => role.id);
+    const canonicalLoyaltyIds = extractLoyaltyKindIds(
+      readFileSync(join(repositoryDirectory, 'functions/src/gameSetup.ts'), 'utf8'),
+    );
     assert.equal(roleIds.length, 42);
     assert.equal(new Set(roleIds).size, 42);
     assert.deepEqual(
-      inventory.roles.filter((role) => role.kind === 'private loyalty functions').map((role) => role.id).sort(),
-      ['android', 'fleet-loyalist', 'friend', 'intelligence-agent', 'universal-arbour', 'wolf-agent', 'wolf-cult'],
+      inventory.roles.filter((role) => role.kind === 'private loyalty functions').map((role) => role.id),
+      canonicalLoyaltyIds,
     );
     assert.ok(inventory.roles.every((role) => role.currentFreshGameProof === 'pending' &&
       role.recoveryProof === 'pending' && role.usabilityProof === 'pending'));
