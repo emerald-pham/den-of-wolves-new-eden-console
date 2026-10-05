@@ -12,6 +12,7 @@ const ts = require('typescript');
 const sourceCommit = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
 const functionsSourceCommit = execFileSync('git', [
   'log', '-n', '1', '--format=%H', 'HEAD', '--', 'functions/src',
+  ':(exclude,glob)functions/src/**/*.test.ts', ':(exclude,glob)functions/src/**/*.spec.ts',
 ], { encoding: 'utf8' }).trim();
 process.env.GCLOUD_PROJECT = 'demo-pc10-action-role-matrix';
 const exports = Object.entries(require('../functions/lib/index.js'))
@@ -217,14 +218,15 @@ const actions = exports.filter((entry) => entry.kind === 'callable').map(({ name
         referenceKind: reference.file.startsWith('src/components/') || reference.file.startsWith('src/routes/')
           ? 'component-or-route-source-reference' : reference.file.startsWith('src/lib/')
             ? 'client-service-source-reference' : 'client-source-reference' })) },
+    sourceReviewRef: { artifact: 'docs/PC10_ACTION_REVIEW_ANNOTATIONS.json', exportName: name },
     requirements: unresolved('Prerequisites are not inferred from the callable name or consumer path.'),
     costs: unresolved('Resource, time, and die costs require action-specific source tracing.'),
     consequences: unresolved('Committed consequences require transaction/result tracing.'),
     blockers: unresolved('Visible and server-side blockers require action-specific tracing.'),
     nextActor: unresolved('The next entitled actor is not inferred from UI wiring.'),
-    inConsoleGuidance: { status: 'unmapped; explanatory coverage deferred to PC11',
-      sourceLocations: guidanceLocations, deferredTo: 'PC11',
-      note: 'No explanatory wording or private source text is copied into this matrix.' },
+    inConsoleGuidance: { status: 'source-review-overlay', sourceLocations: guidanceLocations,
+      artifact: 'docs/PC10_ACTION_REVIEW_ANNOTATIONS.json', exportName: name,
+      note: 'Read the exportName-matched source review for traced guidance; static references do not establish live visibility.' },
     evidence: { currentFreshGameProof: 'pending', authorityPrivacyRecoveryProof: 'pending',
       automatedBrowserProof: 'pending', nativeAppCheckProof: 'not run for this source revision',
       humanDeviceProof: 'not claimed', humanPhysicalPlaytest: 'not claimed' },
@@ -267,8 +269,8 @@ const roleRows = roles.map((role) => {
     consequences: unresolved('Role-specific action consequences are not yet mapped.'),
     blockers: unresolved('Role-specific blockers are not yet mapped.'),
     nextActor: unresolved('Role-specific next actor is not yet mapped.'),
-    inConsoleGuidance: { status: 'unmapped; explanatory coverage deferred to PC11',
-      sourceLocations: [], deferredTo: 'PC11' },
+    inConsoleGuidance: { status: 'unresolved', sourceLocations: [],
+      note: 'Role-specific guidance is not inferred from action source reviews.' },
     currentFreshGameProof: 'pending',
     recoveryProof: 'pending',
     usabilityProof: 'pending',
@@ -290,8 +292,8 @@ const matrix = {
     compiledTree: compiledTree,
     compiledEntrypointSha256: sha256(await readFile('functions/lib/index.js')),
     buildCommand: 'npm run build --prefix functions',
-    buildScope: 'isolated action-matrix worktree; does not assert the root owner checkout was rebuilt',
-    runtimeTesting: 'No emulator, browser, native callable, or gameplay request was run for this matrix.',
+    buildScope: 'Reads an existing compiled Functions output as static export metadata; this generator does not build it or make gameplay calls.',
+    runtimeTesting: 'No emulator, browser, native callable, or gameplay request was run; export inventory uses existing compiled SDK metadata only.',
   },
   accounting: {
     actualExports: exports.length,
@@ -307,6 +309,11 @@ const matrix = {
     unavailableStatus: 'No-static-client-reference rows are candidates for owner review, not proof of product unavailability.',
     humanPhysicalStatus: 'No human or physical-device play evidence is claimed.',
   },
+  productChangeAccounting: {
+    a02AbilityRepairCallableRows: actions.filter(row => row.exportName === 'transferWarriorCargo').length,
+    addedFixedCatalogClosures: 0,
+    acceptanceCredit: 0,
+  },
   acceptanceAccounting: {
     fixedPromptClosures: 48,
     a01QrCredit: 0,
@@ -319,7 +326,7 @@ const matrix = {
     unresolved: 'A null value with status unresolved means this pass did not verify the contract from an action-specific source path.',
     actionRoleEligibility: 'Each per-callable role cell is unresolved until the authoritative server entitlement check is mapped.',
     sourceReference: 'A file and line identify a static source occurrence only; they do not establish runtime reachability or entitlement.',
-    guidance: 'PC11 is the authorized follow-up for broader in-console, diegetic action rules guidance; no PC11 work is counted here.',
+    guidance: 'Action-specific source guidance is in the exportName-keyed review overlay; role guidance, live visibility, player-facing usability, and acceptance remain separate.',
   },
   actions,
   nonInteractiveExports,
