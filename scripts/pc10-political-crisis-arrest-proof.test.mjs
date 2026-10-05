@@ -70,6 +70,16 @@ test('exact replay compares the committed domain receipt while allowing its repl
   ));
 });
 
+test('statusless source service receipts are compared exactly instead of guessed to be committed', () => {
+  assert.doesNotThrow(() => assertEquivalentExactReplay(
+    { revision: 1, cycle: 1, entries: [{ id: 'directive-1', kind: 'fleet-policy' }] },
+    { revision: 1, cycle: 1, entries: [{ id: 'directive-1', kind: 'fleet-policy' }] },
+  ));
+  assert.throws(() => assertEquivalentExactReplay(
+    { revision: 1, cycle: 1 }, { revision: 2, cycle: 1 },
+  ));
+});
+
 test('simulated posse inputs must be explicitly manual-demo and current, distinct, non-target accounts', () => {
   const input = { demo: { status: 'active', progression: 'manual' },
     currentPlayerUids: ['target', 'a', 'b', 'c'], targetUid: 'target',
