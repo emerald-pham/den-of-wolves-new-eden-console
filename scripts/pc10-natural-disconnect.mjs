@@ -30,6 +30,11 @@ export async function awaitProofBatch(operations) {
  return results.map(result=>result.value);
 }
 
+/** Preserve each mounted collector's actual transport interval during the real lease proof. */
+export async function setProofBrowsersOffline(clients,offline) {
+ return awaitProofBatch([...clients.values()].map(client=>client.setOffline(offline)));
+}
+
 /** Native adapters need the ordinary presence the real App sends before casting. */
 export function createNativeSetupPresence({setInterval,clearInterval}={}) {
  const actors=new Map();
@@ -210,7 +215,7 @@ export async function runPc10NaturalDisconnectAcceptance(table,{
    roleId==='gm'?{instanceId:fixture.instanceId}:{activeConsoleRoleId:roleId})));
   await fixture.stopHeartbeats();
   assert.equal(fixture.heartbeatFailures.length,0,'Fixture heartbeat failures cannot be hidden by stopping the timers.');
-  await awaitProofBatch([...clients.values()].map(client=>client.context.setOffline(true)));
+  await setProofBrowsersOffline(clients,true);
   const offlineAt=Date.now();
   before=await snapshot(fixture);
   report.before=before.state;
@@ -256,7 +261,7 @@ export async function runPc10NaturalDisconnectAcceptance(table,{
   await checked('gm','claimGmInstance',{instanceId:fixture.instanceId,
    name:'Local facilitator',deviceLabel:'Natural-disconnect local proof'});
   await checked('gm','refreshPresence',{instanceId:fixture.instanceId});
-  await awaitProofBatch([...clients.values()].map(client=>client.context.setOffline(false)));
+  await setProofBrowsersOffline(clients,false);
   await awaitProofBatch(actors.filter(({roleId})=>roleId!=='gm').map(async({roleId,actor})=>{
    const result=await checked(roleId,'resumeSession');
    if(roleId!=='press-officer') {
