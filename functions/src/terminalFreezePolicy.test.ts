@@ -43,7 +43,7 @@ const terminalFreezeExemptions = new Set([
   // Read-only authority projections do not mutate gameplay state.
   'getCommissarPurgeAuthority', 'getCurrentMemberSession', 'getWolfRangeActionChoice',
   'getWolfForceFieldChoice', 'getWolfBoardingDefenceChoice',
-  'getWolfAmnestyView',
+  'getWolfAmnestyView', 'getBoardingSecurityTeamLocations', 'readCandidateWorkspace',
   // Current-GM acknowledgement only records handling of a prior committed
   // sabotage clue and emits its decorative notice; it must remain drainable
   // from the terminal/debrief view without reopening gameplay mutations.
