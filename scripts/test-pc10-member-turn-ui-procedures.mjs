@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { captureLifecycleUiAction, recoverLifecycleUiAction, publicLifecycleReceipt,
-  createMemberGmLifecycleUiProof } from './pc10-member-gm-lifecycle-ui-proof.mjs';
+  createMemberGmLifecycleUiProof, untilLifecycle } from './pc10-member-gm-lifecycle-ui-proof.mjs';
 import { createTurnCycleDemoUiProof } from './pc10-turn-cycle-demo-ui-proof.mjs';
 
 const actor = { sessionId: 's', uidHash: '0123456789abcdef', hasAuth: true, sameActor: true,
@@ -43,6 +43,19 @@ test('non-idempotent turn requests are never repeated by generic recovery', asyn
   await assert.rejects(recoverLifecycleUiAction(s, { endpoint: 'extendAirspaceWindow',
     before: actor, data: { sessionId: 's', instanceId: 'i' }, result: {} }));
   assert.equal(s.counts().replays, 0);
+});
+test('a forged receipt object cannot turn an initial SDK mutation into UI recovery', async () => {
+  const s = surface();
+  await assert.rejects(recoverLifecycleUiAction(s, { endpoint: 'releaseRole', before: actor,
+    data, result: { sessionId: 's', setupRevision: 3 } }));
+  assert.equal(s.counts().replays, 0);
+});
+test('bounded freshness wait never acts on cache and resumes only the same original live authority', async () => {
+  const states = [{ ...actor, connection: 'connecting', freshness: 'cache' }, actor];
+  const s = surface(); s.page.evaluate = async () => states.shift() ?? actor;
+  assert.deepEqual(await untilLifecycle(s, actor, () => true, 'Live original restoration', { timeout: 1_000 }), actor);
+  const foreign = surface({ state: { ...actor, uidHash: 'wrong' } });
+  await assert.rejects(untilLifecycle(foreign, actor, () => true, 'Wrong actor', { timeout: 1_000 }));
 });
 test('callback construction starts no runtime and exposes separate preparation/active/terminal hooks', () => {
   const proof = createMemberGmLifecycleUiProof({ cases: ['gm-registration-lock'] });
