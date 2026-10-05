@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   PC10_SPECIALIST_ACTIONS,
   composePc10SpecialistSteps,
+  createPc10SpecialistGameplayCallback,
   createPc10SpecialistPhaseSteps,
   makePc10SpecialistActionStep,
   runPc10SpecialistAction,
@@ -232,4 +233,26 @@ test('phase plan compiles Capybara cycles and normal UI actions into runnable or
   assert.equal(outcome.status, 'completed');
   assert.equal(outcome.refueledCraft, 'boa');
   assert.deepEqual(calls, ['capybara/capybara-recycler/boa']);
+});
+
+test('specialist callback reuses the injected browser helper and keeps terminal callbacks caller-owned', async () => {
+  const calls = [];
+  const context = { initial: { sessionId: 'fresh-session' }, gm: {}, crew: {}, roster: [], directory: '/tmp/proof' };
+  const game = { context, actions: [], state: async () => ({ sessionId: 'fresh-session', live: true, cycle: 1 }),
+    select: async () => ({}), save: async (_name, details) => { calls.push(`save:${details.status}`); } };
+  const callback = createPc10SpecialistGameplayCallback({
+    createTwoBrowserGameplay: actualContext => {
+      assert.equal(actualContext, context);
+      return game;
+    },
+    plan: { beforeSpecialists: async () => calls.push('base'),
+      cycleOne: [async () => calls.push('specialist')],
+      candidateEnding: async () => calls.push('candidate'),
+      terminalEnding: async () => calls.push('terminal') },
+  });
+  assert.equal(typeof callback, 'function');
+  const result = await callback(context);
+  assert.deepEqual(calls, ['base', 'specialist', 'candidate', 'terminal', 'save:recorded']);
+  assert.equal(result.outcomes.length, 4);
+  assert.equal(result.game, game);
 });
