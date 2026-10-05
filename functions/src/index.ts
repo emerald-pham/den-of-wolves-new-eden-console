@@ -21533,13 +21533,11 @@ export const advanceTurn = auditedOnCall<{
       pursuitAuthority,
       ordinaryAirspaceClosed,
     );
-    if (result.status === 'complete' || result.phase === 'debrief' || result.phase === 'failure' || result.pursuitEmergencyWindow) {
-      tx.set(receiptRef, {
-        fingerprint,
-        result,
-        createdAt: FieldValue.serverTimestamp(),
-      });
-    }
+    tx.set(receiptRef, {
+      fingerprint,
+      result,
+      createdAt: FieldValue.serverTimestamp(),
+    });
     return result;
   });
 });
