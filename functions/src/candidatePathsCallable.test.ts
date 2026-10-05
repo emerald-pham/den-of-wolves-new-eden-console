@@ -229,6 +229,10 @@ it('explains Ring repair paid passage and explicit cutoff through the real helpe
     { action: 'ring-passage', result: 'crossed', shipId: 'aegis', fuelSpent: 5, audience: 'members' },
     { action: 'sabotage-ring', result: 'completed', audience: 'members' },
   ], losses: [{ shipId: 'shepherd', reason: 'left-behind' }] }] } });
+  const member = sessionDebriefProjection(documents.get('sessions/s1')!.debriefSnapshot,
+    { groupId: 'fleet-1', vesselIds: ['aegis', 'shepherd'] });
+  expect(member).toMatchObject({ candidate: { groups: [{ humanCalls: [{ id: 'ring-far-side-sabotage', cycle: 6 }] }] } });
+  expect(JSON.stringify(member)).not.toContain(sabotage.requestId);
   expect(await real.execute(request(sabotage, 'gm'))).toEqual({ ...original, status: 'replayed' });
   expect(documents.get('sessions/s1')!.shipSurvivors).toEqual({ aegis: 5000, shepherd: 5000 });
 });
