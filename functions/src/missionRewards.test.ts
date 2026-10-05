@@ -125,6 +125,16 @@ describe('authoritative away-mission rewards', () => {
     });
   });
 
+  it('replaces printed resource, critical, and non-resource rewards with Scrap for the chosen opportunity', () => {
+    const reward = resolveMissionOpportunityRewards('G', [
+      result('G-1', 'failure', 'none'),
+      result('G-2', 'failure', 'none'),
+      result('G-3', 'critical-success', 'critical'),
+    ], { boaReclamationOpportunityId: 'G-3' } as never)?.find(({ opportunityId }) => opportunityId === 'G-3');
+    expect(reward).toEqual({ opportunityId: 'G-3', branch: 'critical', resources: { scrap: 1 },
+      effects: [], bulkHaulageApplied: false });
+  });
+
   it('awards one material plus the chosen food or water for every discarded Warrior card', () => {
     expect(resolveWarriorReclamatorHand({
       participantUid: 'warrior',
