@@ -10,6 +10,8 @@ import { createPc07AuthenticatedSession, buildFixtureCallableObservation } from 
 import { runPc10NaturalDisconnectAcceptance } from './pc10-natural-disconnect.mjs';
 import { createPc10OriginBrowserCapture } from './pc10-origin-callable-observer.mjs';
 import { createPc10NativeDurableBrowserCapture } from './pc10-native-durable-observer.mjs';
+import { validatePc10PresenceFunctionalContract, buildPc10PresenceSdkRenewal, capturePc10PresenceAuthority,
+  assertPc10PresenceCohortWitnesses, evaluatePc10PresenceInstrumentationContract } from './pc10-presence-functional-contract.mjs';
 import { PC10_PROOF_CALLABLE_ACTIONS, createPc10CallableTrace, observePc10CallableTrace,
   pc10SafeCallableOutcome, pc10MessageCohortSize, capturePc10AuthoritativeFailureSnapshot,
   observePc10FailureBeforeCleanup } from './pc10-proof-diagnostics.mjs';
@@ -180,14 +182,25 @@ export function buildPc10RateLimitStateDiagnostic({ identity, stored, observedAt
 export async function completePc10BrowserProof(table, { afterOverlappingProof, details = {} } = {}) {
   const errors = [...table.clients.values()].flatMap(client => client.errors);
   assert.equal(errors.length, 0, 'No browser runtime errors may be ignored.');
-  assert.equal([...table.clients.values()].flatMap(client => client.callableObservationFailures ?? []).length, 0,
-    'No missing callable observations may be ignored.');
+  if (validatePc10PresenceFunctionalContract(table.presenceFunctionalContract)) {
+    await table.capturePresenceAuthority();
+    assert.equal(table.evaluatePresenceFunctionalContract().hardFailures.length, 0,
+      'Only fully witnessed background presence instrumentation limitations may use the explicit functional contract.');
+  } else {
+    assert.equal([...table.clients.values()].flatMap(client => client.callableObservationFailures ?? []).length, 0,
+      'No missing callable observations may be ignored.');
+  }
   if (afterOverlappingProof) await afterOverlappingProof(table);
   const evidence = await table.writeEvidence('overlapping-recovery.json', {
     ...details, completedAfterOverlappingProof: Boolean(afterOverlappingProof),
   });
   assert.equal(evidence.errors.length, 0, 'No browser runtime errors may be ignored.');
-  assert.equal(evidence.callableObservationFailures?.length ?? 0, 0, 'No missing callable observations may be ignored.');
+  if (validatePc10PresenceFunctionalContract(table.presenceFunctionalContract)) {
+    assert.equal(evidence.presenceFunctionalAssessment.hardFailures.length, 0,
+      'Only fully witnessed background presence instrumentation limitations may use the explicit functional contract.');
+  } else {
+    assert.equal(evidence.callableObservationFailures?.length ?? 0, 0, 'No missing callable observations may be ignored.');
+  }
   assert.equal(evidence.sourceCommit, evidence.sourceCommitAtStart, 'The source must stay unchanged throughout the proof.');
   assert.equal(evidence.runtimeIndexSha256AtEnd, evidence.runtimeIndexSha256AtStart,
     'The Functions runtime index must stay unchanged throughout the proof.');
@@ -346,7 +359,10 @@ export async function completePc10OrdinaryUiAdmission({ join, consent, inspect }
  * Tokens remain in memory. Evidence records role/action/state categories only.
  * These are automated browser clients, never a human/device playtest claim. */
 export async function createPc10BrowserActor(browser, baseUrl, label, viewport = { width: 390, height: 844 },
-  { captureMode = 'durable', originProjectId = process.env.VITE_FIREBASE_PROJECT_ID, originFunctionsOrigin } = {}) {
+  { captureMode = 'durable', originProjectId = process.env.VITE_FIREBASE_PROJECT_ID, originFunctionsOrigin,
+    presenceFunctionalContract, presenceInstrumentationLimitation } = {}) {
+  const retainPresenceWitnesses = validatePc10PresenceFunctionalContract(presenceFunctionalContract);
+  if (retainPresenceWitnesses && captureMode !== 'native-durable') throw new TypeError('Presence functional contract requires native-durable observations.');
   if (!['durable', 'stream', 'origin', 'native-durable'].includes(captureMode)) throw new TypeError('Unsupported callable body capture mode.');
   const context = await browser.newContext({ viewport, reducedMotion: 'reduce' });
   const page = await context.newPage();
@@ -355,6 +371,8 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
   const errors = [];
   const observedCalls = [];
   const callableObservationFailures = [];
+  const explicitSdkInvocations = [];
+  const sdkInvocationsByReply = new WeakMap();
   const failuresByRequest = new WeakMap();
   const protocolRequestHashFor = requestId => typeof requestId === 'string' && requestId.length > 0
     ? createHash('sha256').update(`pc10-cdp-request\0${requestId}`).digest('hex') : null;
@@ -459,7 +477,8 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
       const createCapture = captureMode === 'native-durable' ? createPc10NativeDurableBrowserCapture : createPc10OriginBrowserCapture;
       originCapture = await createCapture({ context, page, label, projectId: originProjectId,
         functionsOrigin: originFunctionsOrigin ?? `http://127.0.0.1:${port}`, observedCalls,
-        failures: callableObservationFailures, boundaryFactory: createPc10CallableObservationBoundary });
+        failures: callableObservationFailures, boundaryFactory: createPc10CallableObservationBoundary,
+        ...(retainPresenceWitnesses ? { presenceInstrumentationLimitation } : {}) });
     } else {
     cdpSession = await context.newCDPSession(page);
     const callableNameFor = urlValue => {
@@ -924,17 +943,34 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
       throw error;
     }
   }
-  async function callable(name, data) {
-    return page.evaluate(async ({ sdkUrl, name, data }) => {
+  async function callable(name, data, { retainPresenceAuthority = false } = {}) {
+    const retainSdkWitness = retainPresenceWitnesses || (retainPresenceAuthority === true && captureMode === 'native-durable');
+    const invocation = { kind: 'explicit-sdk-invocation', roleId: label,
+      name: Object.hasOwn(PC10_PROOF_CALLABLE_ACTIONS, name) ? name : null, startedAt: Date.now(), completedAt: null,
+      nativeDocumentHash: null };
+    if (retainSdkWitness) explicitSdkInvocations.push(invocation);
+    const result = await page.evaluate(async ({ sdkUrl, name, data, retainPresenceWitnesses }) => {
       const { functions } = await import('/src/lib/firebase.ts');
       const { httpsCallable } = await import(sdkUrl);
+      // Read the existing actual document witness in this SAME SDK invocation;
+      // no new getter, request, document lookup or guessed native correlation.
+      const documentId = retainPresenceWitnesses ? globalThis[Symbol.for('pc10-proof-native-durable-document')] : null;
+      let originalReply;
       try {
         const reply = await httpsCallable(functions(), name)(data);
-        return { status: 200, result: reply.data };
+        originalReply = { status: 200, result: reply.data };
       } catch (error) {
-        return { status: 'denied', error: { code: error.code } };
+        originalReply = { status: 'denied', error: { code: error.code } };
       }
-    }, { sdkUrl: functionsSdkModule, name, data });
+      return retainPresenceWitnesses ? { originalReply, documentId } : originalReply;
+    }, { sdkUrl: functionsSdkModule, name, data, retainPresenceWitnesses: retainSdkWitness });
+    if (!retainSdkWitness) return result;
+    invocation.completedAt = Date.now();
+    if (typeof result.documentId === 'string' && /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(result.documentId)) {
+      invocation.nativeDocumentHash = createHash('sha256').update(`pc10-native-durable-document\0${result.documentId}`).digest('hex');
+    }
+    sdkInvocationsByReply.set(result.originalReply, invocation);
+    return result.originalReply;
   }
   async function geometry() {
     return page.evaluate(() => ({ viewport: document.documentElement.clientWidth,
@@ -951,7 +987,8 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
     }, { moduleUrl: firestoreSdkModule, sessionId, suffix }), 15_000, 'private SDK read');
   }
   return { context, page, errors, label, observe, until, join, callable, privateRead, geometry,
-    observedCalls, callableObservationFailures, identityObservations,
+    observedCalls, callableObservationFailures, identityObservations, explicitSdkInvocations,
+    sdkInvocationForReply: reply => sdkInvocationsByReply.get(reply),
     callableObservationBoundaries: (originCapture ?? observationBoundary).boundaries,
     drainObservedCalls: () => bounded((originCapture ?? observationBoundary).drain(), 10_000, 'callable observations'),
     setOffline: value => (originCapture ?? observationBoundary).transition(value ? 'offline' : 'online', () => context.setOffline(value)),
@@ -965,7 +1002,9 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
  * acknowledge consent through UI; setup/start stay on existing GM authority.
  * No admin gameplay seeding or result injection is performed. */
 export async function createPc10BrowserTable({ baseUrl, directory, expansion = 'capybara', coreCount = 20,
-  captureMode = 'durable' } = {}) {
+  captureMode = 'durable', presenceFunctionalContract } = {}) {
+  const functionalPresence = presenceFunctionalContract !== undefined && validatePc10PresenceFunctionalContract(presenceFunctionalContract);
+  if (functionalPresence && captureMode !== 'native-durable') throw new TypeError('Presence functional contract requires native-durable observations.');
   if (!['durable', 'stream', 'origin', 'native-durable'].includes(captureMode)) throw new TypeError('Unsupported callable body capture mode.');
   assert.ok(baseUrl && directory, 'An isolated UI URL and evidence directory are required.');
   assert.ok(['localhost', '127.0.0.1'].includes(new URL(baseUrl).hostname), 'Local browser proof only.');
@@ -989,6 +1028,22 @@ export async function createPc10BrowserTable({ baseUrl, directory, expansion = '
   const rateLimitStateDiagnostics = [];
   const authoritativeFailureSnapshots = [];
   const failureDiagnosticFailures = [];
+  const presenceSdkRenewals = [];
+  const presenceRenewalsByReply = new WeakMap();
+  const presenceAuthoritySnapshots = [];
+  const presenceGenerations = new Map();
+  const activePresenceCohortRoles = new Set();
+  let retainPresenceAuthorityWitnesses = false;
+  const evaluatePresenceFunctionalContract = () => evaluatePc10PresenceInstrumentationContract({ option: presenceFunctionalContract,
+    observations: [...clients.values()].flatMap(client => client.observedCalls),
+    failures: [...clients.values()].flatMap(client => client.callableObservationFailures),
+    renewals: presenceSdkRenewals, authoritySnapshots: presenceAuthoritySnapshots,
+    explicitSdkInvocations: [...clients.values()].flatMap(client => client.explicitSdkInvocations), actions });
+  const presenceInstrumentationLimitation = trace => {
+    const assessment = evaluatePresenceFunctionalContract();
+    return assessment.hardFailures.length === 0 && assessment.instrumentationLimitations.some(value =>
+      value.roleId === trace.roleId && value.protocolRequestHash === trace.protocolRequestHash);
+  };
   let fixture;
   async function diagnoseAuthoritativeFailure(context = fixture) {
     const setupRequests = Object.entries(context.seatClaimRequests ?? {}).map(([roleId, data]) => ({
@@ -1026,11 +1081,13 @@ export async function createPc10BrowserTable({ baseUrl, directory, expansion = '
   try {
     const joins = {};
     for (const roleId of roles) {
-      const client = await createPc10BrowserActor(browser, baseUrl, roleId, undefined, { captureMode });
+      const client = await createPc10BrowserActor(browser, baseUrl, roleId, undefined,
+        { captureMode, presenceFunctionalContract, presenceInstrumentationLimitation });
       clients.set(roleId, client);
       joins[roleId] = client.join;
     }
-    const press = await createPc10BrowserActor(browser, baseUrl, 'press-officer', undefined, { captureMode });
+    const press = await createPc10BrowserActor(browser, baseUrl, 'press-officer', undefined,
+      { captureMode, presenceFunctionalContract, presenceInstrumentationLimitation });
     clients.set('press-officer', press);
     fixture = await createPc07AuthenticatedSession('PC10 fresh overlapping browser rehearsal', coreCount, {
       clearBriefing: true, keepAlive: true, serializeFixtureCalls: false, browserOwnsPresence: true, expansion,
@@ -1065,11 +1122,30 @@ export async function createPc10BrowserTable({ baseUrl, directory, expansion = '
         ? { name, actorUid: actor.localId, data: { ...data } } : null;
       if (witness) receiptWitnesses.push(witness); // Private comparison material stays in memory.
       try {
-        const reply = client ? await client.callable(name, data) : await originalCall(actor, name, data);
+        const scopedPresence = functionalPresence && name === 'refreshPresence' && client && !activePresenceCohortRoles.has(roleId);
+        const authorityBefore = scopedPresence ? await capturePresenceAuthority([roleId]) : null;
+        // Freeze THIS invocation's baseline. Another legitimate source sequence
+        // may capture a newer generation while this original SDK call is live.
+        const generationBefore = presenceGenerations.get(roleId);
+        const reply = client ? await client.callable(name, data,
+          retainPresenceAuthorityWitnesses && name === 'refreshPresence' ? { retainPresenceAuthority: true } : undefined)
+          : await originalCall(actor, name, data);
         entry.commandCompletedAt = Date.now();
         entry.completedAt = entry.commandCompletedAt;
         entry.durationMs = entry.completedAt - startedAt;
         Object.assign(entry, pc10SafeCallableOutcome(reply));
+        if ((functionalPresence || retainPresenceAuthorityWitnesses) && name === 'refreshPresence' && client) {
+          const invocation = client.sdkInvocationForReply(reply);
+          const renewal = buildPc10PresenceSdkRenewal({ roleId, actorUid: actor.localId,
+            sessionId: fixture.sessionId, project: fixture.project, startedAt: invocation?.startedAt,
+            completedAt: invocation?.completedAt, nativeDocumentHash: invocation?.nativeDocumentHash,
+            generationBefore, reply });
+          presenceSdkRenewals.push(renewal); presenceRenewalsByReply.set(reply, renewal);
+          if (scopedPresence) {
+            const authorityAfter = await capturePresenceAuthority([roleId]);
+            assertPc10PresenceCohortWitnesses({ roleIds: [roleId], before: authorityBefore, renewals: [renewal], after: authorityAfter });
+          }
+        }
         if (witness) witness.reply = reply;
         return reply;
       } catch (error) {
@@ -1082,6 +1158,31 @@ export async function createPc10BrowserTable({ baseUrl, directory, expansion = '
       const actor = roleId === 'gm' ? fixture.gm : roleId === 'press-officer' ? fixture.press : fixture.byRole(roleId);
       assert.ok(actor, `${roleId} must have an independently authenticated actor.`);
       return fixture.call(actor, name, { sessionId: fixture.sessionId, ...payload });
+    };
+    const capturePresenceAuthority = async (roleIds = [...clients.keys()]) => {
+      assert.ok(Array.isArray(roleIds) && roleIds.length > 0 && new Set(roleIds).size === roleIds.length &&
+        roleIds.every(roleId => clients.has(roleId)), 'Presence cohort must contain original independently authenticated fixture roles.');
+      const snapshots = await capturePc10PresenceAuthority({ db: fixture.db, project: fixture.project,
+        emulatorHost: `127.0.0.1:${fixture.config.firestorePort}`, sessionId: fixture.sessionId,
+        actors: roleIds.map(roleId => ({ roleId, actorUid: (roleId === 'press-officer' ? fixture.press : fixture.byRole(roleId)).localId })) });
+      presenceAuthoritySnapshots.push(...snapshots);
+      for (const value of snapshots) presenceGenerations.set(value.roleId, value.generation);
+      return snapshots;
+    };
+    // Optional evidence around the SAME parallel original SDK calls. It does
+    // not lower the existing21-context stage or manufacture a background reply.
+    const renewPresenceCohort = async (roleIds = [...clients.keys()]) => {
+      assert.equal(captureMode, 'native-durable', 'SDK cohort document evidence requires the declared native-durable witness.');
+      retainPresenceAuthorityWitnesses = true;
+      const before = await capturePresenceAuthority(roleIds);
+      for (const roleId of roleIds) activePresenceCohortRoles.add(roleId);
+      let replies;
+      try { replies = await Promise.all(roleIds.map(roleId => command(roleId, 'refreshPresence', { activeConsoleRoleId: roleId }))); }
+      finally { for (const roleId of roleIds) activePresenceCohortRoles.delete(roleId); }
+      const after = await capturePresenceAuthority(roleIds);
+      for (const reply of replies) assert.equal(reply.status, 200, 'Every original SDK cohort renewal must succeed.');
+      assertPc10PresenceCohortWitnesses({ roleIds, before, renewals: replies.map(reply => presenceRenewalsByReply.get(reply)), after });
+      return replies;
     };
     const diagnoseIdentityFailure = async error => {
       const roleId = error.pc10IdentityRole;
@@ -1098,6 +1199,7 @@ export async function createPc10BrowserTable({ baseUrl, directory, expansion = '
       }
     };
     const writeEvidence = async (filename, details = {}) => {
+      if (functionalPresence) await capturePresenceAuthority();
       await Promise.all([...clients.values()].map(client => client.drainObservedCalls().catch(() => {
         client.callableObservationFailures.push({ roleId: client.label, category: 'observation-drain-timeout' });
       })));
@@ -1117,6 +1219,10 @@ export async function createPc10BrowserTable({ baseUrl, directory, expansion = '
         authoritativeFailureSnapshots,
         observedBrowserCalls: [...clients.values()].flatMap(client => client.observedCalls),
         callableObservationFailures: [...clients.values()].flatMap(client => client.callableObservationFailures),
+        ...(functionalPresence || retainPresenceAuthorityWitnesses ? { presenceFunctionalContract: presenceFunctionalContract ?? null,
+          strictTransportStatus: evaluatePresenceFunctionalContract().strictTransportStatus,
+          presenceFunctionalAssessment: evaluatePresenceFunctionalContract(), presenceSdkRenewals, presenceAuthoritySnapshots,
+          explicitSdkInvocations: [...clients.values()].flatMap(client => client.explicitSdkInvocations) } : {}),
         callableObservationBoundaries: [...clients.values()].flatMap(client =>
           client.callableObservationBoundaries.map(boundary => ({ roleId: client.label, ...boundary }))),
         independentCorePlayerAuthSessions: fixture.players.length,
@@ -1128,6 +1234,7 @@ export async function createPc10BrowserTable({ baseUrl, directory, expansion = '
       return evidence;
     };
     return { fixture, clients, actions, command, writeEvidence, diagnoseIdentityFailure, diagnoseAuthoritativeFailure,
+      presenceFunctionalContract, renewPresenceCohort, capturePresenceAuthority, evaluatePresenceFunctionalContract,
       diagnoseRateFailure: () => diagnoseRateFailure(fixture), cleanup: async () => {
       // Stop real client rereads before deleting their fixture. Otherwise a
       // failed run can keep retrying a partially deleted session during cleanup.
@@ -1229,7 +1336,9 @@ export async function runPc10OverlappingRecoveryProof(options) {
     const replayClaims = await Promise.all(fixture.roles.map(role => command(role, 'claimSeat', requests.get(role))));
     for (let index = 0; index < claims.length; index++) assert.deepEqual(replayClaims[index], claims[index]);
     completedStages.push('20-simultaneous-original-seat-retries-and-replays');
-    const allPresence = await Promise.all(roles.map(role => command(role, 'refreshPresence', { activeConsoleRoleId: role })));
+    const allPresence = validatePc10PresenceFunctionalContract(table.presenceFunctionalContract)
+      ? await table.renewPresenceCohort(roles)
+      : await Promise.all(roles.map(role => command(role, 'refreshPresence', { activeConsoleRoleId: role })));
     for (const reply of allPresence) assert.equal(reply.status, 200);
     completedStages.push('21-simultaneous-presence');
     const outsider = await clients.get(fixture.roles[1]).callable('startGame', { sessionId: fixture.sessionId,
@@ -1237,10 +1346,12 @@ export async function runPc10OverlappingRecoveryProof(options) {
     assert.notEqual(outsider.status, 200, 'Ordinary authenticated browsers cannot become GM/start the game.');
     completedStages.push('ordinary-gm-start-denied');
     const recoveryRoles = [...fixture.roles, 'press-officer'];
+    if (validatePc10PresenceFunctionalContract(table.presenceFunctionalContract)) await table.capturePresenceAuthority(recoveryRoles);
     await Promise.all(recoveryRoles.map(role => clients.get(role).drainObservedCalls()));
     await Promise.all(recoveryRoles.map(role => clients.get(role).setOffline(true)));
     const disconnectedObservations = await Promise.all(recoveryRoles.map(role => clients.get(role).observe()));
     await Promise.all(recoveryRoles.map(role => clients.get(role).setOffline(false)));
+    if (validatePc10PresenceFunctionalContract(table.presenceFunctionalContract)) await table.capturePresenceAuthority(recoveryRoles);
     await Promise.all(recoveryRoles.map(async role => {
       const client = clients.get(role);
       await client.observe();

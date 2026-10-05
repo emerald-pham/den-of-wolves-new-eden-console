@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { PC10_PROOF_CALLABLE_ACTIONS, createPc10CallableTrace } from './pc10-proof-diagnostics.mjs';
 import { parsePc10OriginRequest, parsePc10OriginResult } from './pc10-origin-callable-observer.mjs';
+import { classifyPc10PresenceRequest } from './pc10-presence-functional-contract.mjs';
 
 const MAX_BODY_BYTES = 512 * 1024;
 const MAX_TOTAL_BODY_BYTES = 8 * 1024 * 1024;
@@ -64,7 +65,7 @@ export function installPc10NativeDurableWitness(configuration) {
  * in Node; destroyed documents need not deliver response bytes or metadata.
  * Private IDs/bodies are temporary comparison inputs, never evidence fields. */
 export function createPc10NativeDurableObservationLedger({ label, projectId, functionsOrigin, observedCalls, failures,
-  readBody, boundaryFactory, now = Date.now, timeoutPort = { setTimeout, clearTimeout } }) {
+  readBody, boundaryFactory, presenceInstrumentationLimitation, now = Date.now, timeoutPort = { setTimeout, clearTimeout } }) {
   checkConfiguration(projectId, functionsOrigin);
   if (typeof readBody !== 'function' || typeof boundaryFactory !== 'function') throw new TypeError('Native durable collector ports are required.');
   const configuration = { projectId, functionsOrigin, callableActions: PC10_PROOF_CALLABLE_ACTIONS };
@@ -73,6 +74,7 @@ export function createPc10NativeDurableObservationLedger({ label, projectId, fun
   let expectedActorHash = null, expectedSessionHash = null, retainedBytes = 0, activeSnapshot = null, snapshotNumber = 0;
   const eventTime = state => Math.max(now(), state.trace.issuedAt);
   const report = (state, category) => {
+    if (state && category !== 'response-observation-unavailable') state.strictFailure = true;
     const entries = state ? reported.get(state) ?? new Map() : null;
     const key = `${category}\0${state?.trace.bodyFailureStage ?? ''}`;
     if (entries?.has(key)) return;
@@ -138,6 +140,15 @@ export function createPc10NativeDurableObservationLedger({ label, projectId, fun
   const incompleteCancellation = state => state.trace.bodyFailureStage === 'native-transport-failed' &&
     state.trace.requestFailedAt !== null && state.trace.requestFinishedAt === null && !state.bodyAccepted &&
     ['cancelled-during-planned-offline', 'cancelled-during-planned-navigation'].includes(state.trace.observationDisposition);
+  // An optional FUTURE functional contract can acknowledge only this exact
+  // instrumentation limitation. It never repairs/removes the original trace,
+  // failure or null body, and cannot rescue another lifecycle/budget failure.
+  const presenceLimitation = state => typeof presenceInstrumentationLimitation === 'function' &&
+    state.witnessReady && !state.witnessInvalid && !state.metadataInvalid && !state.strictFailure && !state.bodyAccepted &&
+    state.trace.name === 'refreshPresence' && state.trace.presenceRequestClassification === 'periodic-session-only' &&
+    state.trace.status === 200 && state.trace.requestFinishedAt !== null && state.trace.requestFailedAt === null &&
+    state.trace.bodyFailureStage === 'native-get-response-body' && state.trace.bodyReadFailureReason === 'body-unavailable' &&
+    presenceInstrumentationLimitation(Object.freeze({ ...state.trace })) === true;
   const pending = state => !state.lifecycle.terminalDone || !state.lifecycle.bodyDone ||
     (!state.bodyAccepted && !incompleteCancellation(state)) || !state.witnessReady;
   const timeoutFailure = state => {
@@ -151,14 +162,20 @@ export function createPc10NativeDurableObservationLedger({ label, projectId, fun
       snapshotHash: witnessHash('snapshot', `${label}:${++snapshotNumber}:${now()}`), issuedNativeTransports: targets.length,
       postSnapshotNativeTransports: 0 };
     boundary.boundaries.push(entry); activeSnapshot = entry;
-    let timer;
+    let timer, instrumentationLimitations = 0;
     try {
       await Promise.race([Promise.all(targets.map(async state => {
         await state.terminal.promise; await state.lifecycle.body;
-        if (!state.bodyAccepted && !incompleteCancellation(state)) throw new Error('Native durable actual bytes are unavailable.');
+        if (!state.bodyAccepted && !incompleteCancellation(state) && typeof presenceInstrumentationLimitation !== 'function') {
+          throw new Error('Native durable actual bytes are unavailable.');
+        }
         await state.witness.promise;
-        if (state.witnessInvalid || state.metadataInvalid || (!state.bodyAccepted && !incompleteCancellation(state))) {
+        if (state.witnessInvalid || state.metadataInvalid) {
           throw new Error('Native durable issued-set evidence is incomplete.');
+        }
+        if (!state.bodyAccepted && !incompleteCancellation(state)) {
+          if (!presenceLimitation(state)) throw new Error('Native durable actual bytes are unavailable.');
+          instrumentationLimitations++;
         }
       })), new Promise((_, reject) => {
         timer = timeoutPort.setTimeout(() => { for (const state of targets) if (pending(state)) timeoutFailure(state);
@@ -168,7 +185,8 @@ export function createPc10NativeDurableObservationLedger({ label, projectId, fun
         for (const state of targets) report(state, 'observation-drain-timeout');
         throw new Error('Native durable issued-set census exceeded the observation budget.');
       }
-      entry.outcome = 'completed';
+      entry.outcome = instrumentationLimitations ? 'completed-with-instrumentation-limitations' : 'completed';
+      if (instrumentationLimitations) entry.instrumentationLimitations = instrumentationLimitations;
     } catch { entry.outcome = 'failed'; throw new Error('Native durable issued-set evidence is unavailable.'); }
     finally { timeoutPort.clearTimeout(timer); entry.completedAt = now(); if (activeSnapshot === entry) activeSnapshot = null; }
   };
@@ -249,6 +267,7 @@ export function createPc10NativeDurableObservationLedger({ label, projectId, fun
           sessionHash: digest('session', metadata.sessionId), requestHash: digest('request', metadata.requestId),
           groupHash: digest('group', metadata.groupId), projectHash: digest('project', metadata.projectId),
           protocolRequestHash: createHash('sha256').update(`pc10-cdp-request\0${protocolId}`).digest('hex'), nativeRequestObservedAt: now() });
+        if (metadata.name === 'refreshPresence') trace.presenceRequestClassification = classifyPc10PresenceRequest(metadata, request?.postData);
         if (activeSnapshot) { trace.issuedAfterDrainSnapshot = true; trace.drainSnapshotHash = activeSnapshot.snapshotHash; activeSnapshot.postSnapshotNativeTransports++; }
         const state = { trace, metadata, protocolId, frameId: event.frameId, loaderId: event.loaderId,
           body: deferred(), witness: deferred(), terminal: deferred(), bodyAccepted: false, witnessReady: false,
@@ -352,13 +371,13 @@ export function createPc10NativeDurableObservationLedger({ label, projectId, fun
  * getResponseBody result with durability configured; Chromium may internally
  * serve local data, so this code does not claim a particular backend store. */
 export async function createPc10NativeDurableBrowserCapture({ context, page, label, projectId, functionsOrigin,
-  observedCalls, failures, boundaryFactory }) {
+  observedCalls, failures, boundaryFactory, presenceInstrumentationLimitation }) {
   checkConfiguration(projectId, functionsOrigin);
   let cdp;
   try {
     cdp = await context.newCDPSession(page);
     const ledger = createPc10NativeDurableObservationLedger({ label, projectId, functionsOrigin, observedCalls, failures,
-      boundaryFactory, readBody: requestId => cdp.send('Network.getResponseBody', { requestId }) });
+      boundaryFactory, presenceInstrumentationLimitation, readBody: requestId => cdp.send('Network.getResponseBody', { requestId }) });
     for (const [name, method] of [['Runtime.executionContextCreated', 'nativeContext'], ['Runtime.executionContextDestroyed', 'nativeContextDestroyed'],
       ['Runtime.executionContextsCleared', 'nativeContextsCleared'], ['Runtime.bindingCalled', 'nativeDocument'], ['Debugger.scriptParsed', 'nativeScript'], ['Page.frameNavigated', 'nativeFrame']]) {
       cdp.on(name, event => ledger[method](event));
