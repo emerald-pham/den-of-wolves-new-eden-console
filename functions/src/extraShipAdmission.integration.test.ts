@@ -28,6 +28,10 @@ const mock = vi.hoisted(() => {
   };
   const get = vi.fn(async (target: { path: string; id: string; collection?: boolean }) => snapshot(target));
   const set = vi.fn((target: { path: string }, fields: Fields) => documents.set(target.path, { ...fields }));
+  const create = vi.fn((target: { path: string }, fields: Fields) => {
+    if (documents.has(target.path)) throw new Error('Audit already exists.');
+    documents.set(target.path, { ...fields });
+  });
   const update = vi.fn((target: { path: string }, fields: Fields) => {
     const current = { ...(documents.get(target.path) ?? {}) };
     for (const [fieldPath, value] of Object.entries(fields)) {
@@ -44,7 +48,7 @@ const mock = vi.hoisted(() => {
   const db = {
     doc: (path: string) => ref(path),
     collection: (path: string) => ref(path, true),
-    runTransaction: (callback: (transaction: unknown) => unknown) => callback({ get, set, update }),
+    runTransaction: (callback: (transaction: unknown) => unknown) => callback({ get, set, update, create }),
   };
   return { documents, get, set, update, db };
 });

@@ -8,7 +8,7 @@ const mock = vi.hoisted(() => ({
   documents: new Map<string, Record<string, unknown>>(),
 }));
 
-vi.mock('node:crypto', () => ({ randomInt: mock.randomInt, randomUUID: vi.fn(() => 'vip-event') }));
+vi.mock('node:crypto', async (importOriginal) => ({ ...await importOriginal<typeof import('node:crypto')>(), ...(({ randomInt: mock.randomInt, randomUUID: vi.fn(() => 'vip-event') })) }));
 vi.mock('firebase-admin/app', () => ({ initializeApp: vi.fn() }));
 vi.mock('firebase-admin/firestore', () => ({
   getFirestore: () => ({

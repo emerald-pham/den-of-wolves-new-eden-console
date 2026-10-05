@@ -2,7 +2,7 @@ import { beforeEach, expect, it, vi } from 'vitest';
 import type { CallableRequest } from 'firebase-functions/v2/https';
 
 const cryptoMock = vi.hoisted(() => ({ randomInt: vi.fn(), randomUUID: vi.fn() }));
-vi.mock('node:crypto', () => cryptoMock);
+vi.mock('node:crypto', async (importOriginal) => ({ ...await importOriginal<typeof import('node:crypto')>(), ...(cryptoMock) }));
 
 type Fields = Record<string, unknown>;
 

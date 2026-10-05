@@ -34,7 +34,7 @@ const mock = vi.hoisted(() => {
 });
 
 vi.mock('firebase-admin/app', () => ({ initializeApp: vi.fn() }));
-vi.mock('node:crypto', () => cryptoMock);
+vi.mock('node:crypto', async (importOriginal) => ({ ...await importOriginal<typeof import('node:crypto')>(), ...(cryptoMock) }));
 vi.mock('firebase-admin/firestore', () => ({
   getFirestore: () => mock.db,
   FieldValue: { serverTimestamp: () => 'server-time', delete: () => 'deleted' },

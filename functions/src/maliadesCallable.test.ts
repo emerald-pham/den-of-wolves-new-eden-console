@@ -3,7 +3,7 @@ import type { CallableRequest } from 'firebase-functions/v2/https';
 
 type Fields = Record<string, unknown>;
 const cryptoMock = vi.hoisted(() => ({ randomInt: vi.fn() }));
-vi.mock('node:crypto', () => cryptoMock);
+vi.mock('node:crypto', async (importOriginal) => ({ ...await importOriginal<typeof import('node:crypto')>(), ...(cryptoMock) }));
 
 const mock = vi.hoisted(() => {
   const documents = new Map<string, Fields>();

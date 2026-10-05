@@ -23,7 +23,7 @@ const mock = vi.hoisted(() => {
   return { documents, get, set, runTransaction, db: { doc: ref, runTransaction } };
 });
 
-vi.mock('node:crypto', () => random);
+vi.mock('node:crypto', async (importOriginal) => ({ ...await importOriginal<typeof import('node:crypto')>(), ...(random) }));
 vi.mock('firebase-admin/firestore', () => ({
   getFirestore: () => mock.db,
   FieldValue: { serverTimestamp: () => 'server-time' },

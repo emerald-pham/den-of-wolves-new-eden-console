@@ -21,7 +21,7 @@ function sourceFunction(name: string): string {
 }
 const rangeStateGuard = sourceFunction('requireWolfRangeState');
 const boardingSnapshotGuard = sourceFunction('wolfBoardingProtocolSnapshot') + sourceFunction('wolfBoardingDefenceInputs');
-const callablePattern = /export const (\w+) = onCall/g;
+const callablePattern = /export const (\w+) = (?:auditedOnCall|onCall)/g;
 const matches = [...source.matchAll(callablePattern)];
 const highwallWindowGuardStart = source.indexOf('function requireLiveHighwallMiningWindow(');
 const highwallWindowGuardEnd = source.indexOf('\nfunction highwallCargo(', highwallWindowGuardStart);
@@ -172,6 +172,7 @@ function callableBody(index: number): string {
 it('classifies every callable and requires terminal guards on normal gameplay paths', () => {
   const unclassified: string[] = [];
   const unguarded: string[] = [];
+  expect(matches.length, 'The actual callable inventory must never become empty').toBeGreaterThan(200);
   const acceptedGuards = [
     'requireActiveGameplayPhase(',
     'requireActionPhase(',

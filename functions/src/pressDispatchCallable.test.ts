@@ -15,7 +15,7 @@ const mock = vi.hoisted(() => ({
   fleetRedAlertActive: true,
   randomUUID: vi.fn(() => 'dispatch-new'),
 }));
-vi.mock('node:crypto', () => ({ randomInt: vi.fn(), randomUUID: mock.randomUUID }));
+vi.mock('node:crypto', async (importOriginal) => ({ ...await importOriginal<typeof import('node:crypto')>(), ...(({ randomInt: vi.fn(), randomUUID: mock.randomUUID })) }));
 vi.mock('firebase-admin/app', () => ({ initializeApp: vi.fn() }));
 vi.mock('firebase-admin/firestore', () => ({
   getFirestore: () => ({
