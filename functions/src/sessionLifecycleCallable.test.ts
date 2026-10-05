@@ -446,7 +446,10 @@ describe('presence lease', () => {
 
     expect(read('sessions/s1/players/u1')).toMatchObject({ lastSeenAt: 'server-time' });
     expect(read('activeMemberships/u1')).toMatchObject({ sessionId: 's1' });
-    expect(readPaths()).toContain('sessions/s1/players');
+    expect(readPaths()).toEqual(expect.arrayContaining([
+      'sessions/s1/players/u1', 'sessions/s1', 'sessions/s1/presenceReconciliations/u1',
+    ]));
+    expect(readPaths()).not.toContain('sessions/s1/players');
     expect(read('sessions/s1/presenceReconciliations/u1')?.lastFullReconciliationAt)
       .toEqual(expect.any(mock.Timestamp));
   });
@@ -491,7 +494,7 @@ describe('presence lease', () => {
 
   it('performs full reconciliation once the marker interval elapses', async () => {
     session();
-    player();
+    player({ activeConsoleRoleId: 'press-officer', assignedRoleId: null });
     put('sessions/s1/presenceReconciliations/u1', {
       lastFullReconciliationAt: mock.Timestamp.fromMillis(
         NOW.getTime() - PRESENCE_RECONCILIATION_INTERVAL_MS - 1,
@@ -503,6 +506,8 @@ describe('presence lease', () => {
     });
 
     expect(readPaths()).toContain('sessions/s1/players');
+    expect(readPaths()).toContain('sessions/s1/secrets');
+    expect(readPaths()).toContain('sessions/s1/loyaltyCensus/current');
     expect(read('sessions/s1/presenceReconciliations/u1')?.lastFullReconciliationAt)
       .toEqual(expect.any(mock.Timestamp));
   });
@@ -531,22 +536,29 @@ describe('presence lease', () => {
     mock.get.mockClear();
     await expect(refreshPresence.run(request({ sessionId: 's2' })))
       .resolves.toEqual({ sessionId: 's2' });
-    expect(readPaths()).toContain('sessions/s2/players');
+    expect(readPaths()).toContain('sessions/s2/presenceReconciliations/u1');
+    expect(readPaths()).not.toContain('sessions/s1/presenceReconciliations/u1');
+    expect(readPaths()).not.toContain('sessions/s2/players');
     expect(read('sessions/s2/presenceReconciliations/u1')?.lastFullReconciliationAt)
       .toEqual(expect.any(mock.Timestamp));
   });
 
   it('never takes the cheap path for an explicit role claim or release', async () => {
     session({ pressEnabled: true, activeRoleIds: ['admiral'] });
-    player();
-    put('sessions/s1/presenceReconciliations/u1', {
-      lastFullReconciliationAt: mock.Timestamp.fromDate(NOW),
-    });
+    player({ seatId: 'admiral', assignedRoleId: 'admiral', activeConsoleRoleId: 'admiral' });
+    put('sessions/s1/seats/admiral', { status: 'claimed', holderUid: 'u1' });
+    const marker = mock.Timestamp.fromDate(NOW);
+    put('sessions/s1/presenceReconciliations/u1', { lastFullReconciliationAt: marker });
 
     await expect(refreshPresence.run(request({ sessionId: 's1', activeConsoleRoleId: null })))
       .resolves.toEqual({ sessionId: 's1' });
 
-    expect(readPaths()).toContain('sessions/s1/players');
+    expect(readPaths()).toContain('sessions/s1/seats/admiral');
+    expect(readPaths()).not.toContain('sessions/s1/players');
+    expect(read('sessions/s1/players/u1')).toMatchObject({
+      activeConsoleRoleId: null, assignedRoleId: 'admiral', seatId: 'admiral',
+    });
+    expect(read('sessions/s1/presenceReconciliations/u1')?.lastFullReconciliationAt).not.toBe(marker);
     expect(read('sessions/s1/presenceReconciliations/u1')?.lastFullReconciliationAt)
       .toEqual(expect.any(mock.Timestamp));
   });
@@ -673,7 +685,10 @@ describe('presence lease', () => {
     await expect(refreshPresence.run(request({ sessionId: 's1' })))
       .resolves.toEqual({ sessionId: 's1', stationSelectionRequired: true });
 
-    expect(readPaths()).toContain('sessions/s1/players');
+    expect(readPaths()).toEqual(expect.arrayContaining([
+      'sessions/s1/players/u1', 'sessions/s1/seats/admiral', 'sessions/s1/seats/dione-captain',
+    ]));
+    expect(readPaths()).not.toContain('sessions/s1/players');
     expect(read('sessions/s1/players/u1')).toMatchObject({ activeConsoleRoleId: null });
   });
 
@@ -991,6 +1006,9 @@ describe('presence lease', () => {
       sessionId: 's1', activeConsoleRoleId: null,
     }))).resolves.toEqual({ sessionId: 's1' });
 
+    expect(readPaths()).toEqual(expect.arrayContaining([
+      'sessions/s1/players', 'sessions/s1/secrets', 'sessions/s1/loyaltyCensus/current',
+    ]));
     expect(read('sessions/s1/players/u1')).toMatchObject({
       activeConsoleRoleId: null,
       assignedRoleId: null,

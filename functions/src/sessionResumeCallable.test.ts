@@ -250,11 +250,11 @@ function prepareCurrentResume() {
     playerCount: 8, chartId: 'A', expansion: 'base', turnLimit: 6,
     dioneEnabled: false, capybaraEnabled: false, universalArbourEnabled: false, wolfCultEnabled: false,
   }), recommendedRoleIds(8));
-  const navigation = navigationState({
+  const navigation = { ...navigationState({
     shipGalacticCoordinates: Object.fromEntries(setup.activeVesselIds.map(shipId => [shipId, '0000'])),
     shipNavigationLogs: Object.fromEntries(setup.activeVesselIds.map(shipId => [shipId, []])),
     pursuitGroups: { 'fleet-1': 2 },
-  }, setup.activeVesselIds);
+  }, setup.activeVesselIds), missionCommittedCraftIdsByHostShip: {} };
   const current = prepareResume(
     { ...stableSeatsForRoles(setup.activeRoleIds).find(seat => seat.id === 'admiral')!, status: 'claimed', holderUid: 'u1' },
     { connected: true, lastSeenAt: mock.Timestamp.fromDate(new Date()), connectionGeneration: 3,
