@@ -482,6 +482,21 @@ it('shows the last-player warning inside settings', async () => {
   expect(screen.getByText(`Build ${APP_VERSION}`)).toBeInTheDocument();
 });
 
+it('shows the ordinary join QR and accessible link in joined session Settings', async () => {
+  const user = userEvent.setup();
+  const session = useSessionStore.getState().session!;
+  useSessionStore.getState().setSession({ ...session, currentTurn: 1 });
+  useSessionStore.getState().setMe(connectedPlayer('u1'));
+  render(<MemoryRouter><AppHeader /></MemoryRouter>);
+
+  await user.click(screen.getByRole('button', { name: /^Settings$/ }));
+  const settings = screen.getByRole('dialog', { name: 'Session settings' });
+  expect(within(settings).getByRole('img', { name: 'QR code for session 4821' })).toBeVisible();
+  expect(within(settings).getByRole('link', { name: 'Open join screen for session 4821' }))
+    .toHaveAttribute('href', expect.stringContaining('#/?joinCode=4821'));
+  expect(within(settings).getByText('Session code 4821')).toBeVisible();
+});
+
 it('offers the single-player demo only to the sole Turn Zero player and closes settings when started', async () => {
   const user = userEvent.setup();
   const session = useSessionStore.getState().session!;
