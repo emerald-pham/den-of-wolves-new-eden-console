@@ -54,7 +54,10 @@ vi.mock('firebase-admin/firestore', () => ({
   }),
   FieldValue: { serverTimestamp: () => 'server-time', delete: () => 'delete-field' },
 }));
-vi.mock('node:crypto', async (importOriginal) => ({ ...await importOriginal<typeof NodeCrypto>(), ...(({ randomInt: vi.fn(() => 0), randomUUID: vi.fn(() => 'uuid') })) }));
+vi.mock('node:crypto', async (importOriginal) => ({
+  ...await importOriginal<typeof NodeCrypto>(),
+  randomInt: vi.fn(() => 0), randomUUID: vi.fn(() => 'uuid'),
+}));
 
 import {
   applyGorgoneionMissionSupport,
