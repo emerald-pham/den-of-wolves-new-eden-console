@@ -29,7 +29,7 @@ export function limitCurrentMemberSessionReader<R>({ db, read }: {
           actor.get('connected') !== true && !closedHistory) {
         throw new HttpsError('permission-denied', 'Current session membership is required.');
       }
-    });
+    }, { readOnly: true });
     await enforceExpensiveCallableRateLimit(db, { callableName: 'getCurrentMemberSession', sessionId, uid });
     // The ordinary reader rechecks membership and every entitlement atomically.
     return read(request);

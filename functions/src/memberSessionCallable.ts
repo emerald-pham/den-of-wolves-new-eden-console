@@ -98,6 +98,6 @@ export function createCurrentMemberSessionReader({ db, projectSession }: {
         activeConsoleRoleId: actor.get('activeConsoleRoleId') ?? null,
         session: closedSession ?? memberSession,
       };
-    });
+    }, { readOnly: true });
   };
 }

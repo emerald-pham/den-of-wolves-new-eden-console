@@ -18330,16 +18330,14 @@ export const resumeSession = auditedOnCall<{ sessionId?: string }>('resumeSessio
   const membershipRef = db.doc(`activeMemberships/${uid}`);
   const movementRef = voyage33MovementRef(sessionId);
   const resumeResult = await db.runTransaction(async (tx) => {
-    const [currentSession, currentPlayer, membership, storedGroup, storedNavigation, players, movementSnapshot] = await Promise.all([
+    const [currentSession, currentPlayer, membership, storedGroup, storedNavigation, movementSnapshot] = await Promise.all([
       tx.get(sessionRef),
       tx.get(playerRef),
       tx.get(membershipRef),
       tx.get(fleetGroupRef(sessionId)),
       tx.get(navigationStateRef(sessionId)),
-      tx.get(playersRef),
       tx.get(movementRef),
     ]);
-    const playerDocs = Array.isArray(players?.docs) ? players.docs : [];
     if (!currentSession.exists || currentSession.get('deletingAt')) {
       throw new HttpsError('not-found', 'That session no longer exists.');
     }
@@ -18380,7 +18378,58 @@ export const resumeSession = auditedOnCall<{ sessionId?: string }>('resumeSessio
     const returningSeat = await reconcileReturningSeat(
       tx, sessionId, uid, currentPlayer, sessionActiveRoleIds(currentSession),
     );
-    const partitions = hasFleetPartition(currentSession)
+    const partitioned = hasFleetPartition(currentSession);
+    const canonicalSetup = canonicalSetupForSession(currentSession, sessionActiveRoleIds(currentSession));
+    const currentGroup = storedGroup.exists ? fleetGroupRecord(storedGroup.data()) : undefined;
+    // A live actor whose server-owned setup, berth, seat and protected view are
+    // already current needs a new connection generation, not fleet migration.
+    // Legacy, disconnected, partitioned, Press and candidate recovery retain
+    // the full reconciliation below.
+    const stableMember = isActivePlayer(currentPlayer) && membershipActive &&
+      membership.get('sessionId') === sessionId &&
+      !partitioned && !hasPressState(currentPlayer) && !playerEscapeState(currentPlayer) &&
+      currentPlayer.get('replacementStatus') == null &&
+      typeof currentPlayer.get('replacementRoleId') !== 'string' &&
+      !returningSeat.claimSeat && !returningSeat.clearPointer &&
+      !returningSeat.clearActiveConsoleRole && !returningSeat.stationSelectionRequired &&
+      isDeepStrictEqual(currentSession.get('setup'), canonicalSetup) &&
+      isDeepStrictEqual(currentSession.get('activeVesselIds'), canonicalSetup.activeVesselIds) &&
+      currentSession.get('deleteAfter') === null &&
+      ['shipGalacticCoordinates', 'shipNavigationLogs', 'pursuitGroups', 'voyage33Movement']
+        .every(field => currentSession.get(field) === undefined) &&
+      !movementSnapshot.exists && voyageMovementStorage.movementState === undefined &&
+      currentGroup?.id === INITIAL_FLEET_GROUP_ID &&
+      currentPlayer.get('fleetGroupId') === currentGroup.id && currentGroup.memberUids.includes(uid) &&
+      isDeepStrictEqual(currentGroup.vesselIds, canonicalSetup.activeVesselIds) &&
+      (!playerShipId(currentPlayer) || currentGroup.memberShipIds?.[uid] !== undefined) &&
+      storedNavigation.exists && Number.isSafeInteger(storedNavigation.get('revision')) &&
+      (storedNavigation.get('revision') as number) >= 0;
+    if (stableMember && currentGroup) {
+      const navigation = navigationStateForSession(storedNavigation, currentSession, canonicalSetup.activeVesselIds);
+      const noCandidateArrivals = Object.values(navigation.systemHistory ?? {}).every(history =>
+        Object.values(history).every(entry => entry.candidateDiscovery === undefined));
+      if (noCandidateArrivals) {
+        const discovery = await tx.get(playerDiscoveryProjectionRef(sessionId, uid));
+        const { createdAt: _createdAt, updatedAt: _updatedAt, ...view } = discovery.data() ?? {};
+        const emptyCandidates = view.candidateReveals === undefined ||
+          Array.isArray(view.candidateReveals) && view.candidateReveals.length === 0;
+        const expectedView = playerDiscoveryProjection(currentPlayer, navigation,
+          storedNavigation.get('revision') as number, currentGroup.vesselIds,
+          view.candidateReveals === undefined ? undefined : [], uid, currentGroup.memberShipIds?.[uid]);
+        if (discovery.exists && emptyCandidates && isDeepStrictEqual(view, expectedView)) {
+          ensureFleetTickerBaseline(tx, sessionRef, currentSession, new Date().toISOString());
+          reconcilePresenceTimer(tx, sessionRef, currentSession, attackState, true);
+          tx.update(playerRef, {
+            connected: true, connectionGeneration, lastSeenAt: FieldValue.serverTimestamp(),
+          });
+          tx.set(membershipRef, { sessionId, connectedAt: FieldValue.serverTimestamp() });
+          return { seatId: returningSeat.seatId, connectionGeneration, stationSelectionRequired: false };
+        }
+      }
+    }
+    const players = await tx.get(playersRef);
+    const playerDocs = Array.isArray(players?.docs) ? players.docs : [];
+    const partitions = partitioned
       ? await tx.get(db.collection(`sessions/${sessionId}/fleetGroups`)) : undefined;
     const setup = await hydrateCanonicalSessionSetup(tx, sessionId, currentSession);
     if (clearStaleMembership) tx.delete(membershipRef);
@@ -35425,13 +35474,17 @@ export const refreshPresence = auditedOnCall<{
       tx.set(membershipRef, { sessionId, connectedAt: FieldValue.serverTimestamp() });
       return false;
     }
+    // Only Press reconciliation can remove private loyalty state or change
+    // the shared Press holder. Ordinary console leases still validate their
+    // current/requested seats and role holder, without locking the whole table.
+    const reconcilePress = hasPressState(player) || requestedRoleId === 'press-officer';
     const [holders, pressHolders, wolfSecret, players, secrets, census] = await Promise.all([
       roleHolders ? tx.get(roleHolders) : null,
-      tx.get(pressHoldersRef),
-      tx.get(wolfSecretRef),
-      tx.get(playersRef),
-      tx.get(secretsRef),
-      tx.get(censusRef),
+      reconcilePress ? tx.get(pressHoldersRef) : null,
+      reconcilePress ? tx.get(wolfSecretRef) : null,
+      reconcilePress ? tx.get(playersRef) : null,
+      reconcilePress ? tx.get(secretsRef) : null,
+      reconcilePress ? tx.get(censusRef) : null,
     ]);
     ensureFleetTickerBaseline(tx, sessionRef, session, new Date().toISOString());
     const presenceUpdate: Record<string, unknown> = {
@@ -35440,8 +35493,8 @@ export const refreshPresence = auditedOnCall<{
     };
     const removedLoyaltyUids = new Set<string>();
     let pressHolderUidUpdate: string | null | undefined;
-    const otherActivePressHolders = pressHolders.docs.filter((holder) =>
-      holder.id !== uid && isAuthoritativePressHolder(holder));
+    const otherActivePressHolders = pressHolders?.docs.filter((holder) =>
+      holder.id !== uid && isAuthoritativePressHolder(holder)) ?? [];
     const currentPressAuthority = player.get('activeConsoleRoleId') === 'press-officer';
     const invalidCurrentPressAuthority = currentPressAuthority && (
       session.get('pressEnabled') === false || player.get('role') !== 'player' ||
@@ -35460,7 +35513,7 @@ export const refreshPresence = auditedOnCall<{
           sessionId,
           player,
           wolfSecretRef,
-          wolfSecret,
+          wolfSecret!,
           otherActivePressHolders.length === 0,
         )) removedLoyaltyUids.add(player.id);
         const storedPressHolderUid = session.get('pressHolderUid');
@@ -35553,10 +35606,10 @@ export const refreshPresence = auditedOnCall<{
         );
       }
       if (isPressRequest) {
-        for (const holder of pressHolders.docs) {
+        for (const holder of pressHolders!.docs) {
           if (holder.id === uid || isAuthoritativePressHolder(holder)) continue;
           tx.update(holder.ref, releasedPressFields(holder));
-          if (clearPressPrivateState(tx, sessionId, holder, wolfSecretRef, wolfSecret, false)) {
+          if (clearPressPrivateState(tx, sessionId, holder, wolfSecretRef, wolfSecret!, false)) {
             removedLoyaltyUids.add(holder.id);
           }
         }
@@ -35578,11 +35631,11 @@ export const refreshPresence = auditedOnCall<{
         tx,
         sessionId,
         setupRevision(session),
-        secrets.docs ?? [],
-        players.docs,
+        secrets!.docs ?? [],
+        players!.docs,
         configuredRoleIds(session),
         new Map([...removedLoyaltyUids].map((removedUid) => [removedUid, null])),
-        census,
+        census!,
       );
     }
     tx.update(playerRef, presenceUpdate);
