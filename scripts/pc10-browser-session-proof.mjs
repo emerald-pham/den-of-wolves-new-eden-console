@@ -31,6 +31,20 @@ export function isFreshPc10BrowserRole(state, role) {
     state.activeConsoleRoleId === role && (role === 'press-officer' || state.roleId === role);
 }
 
+/** Cache module setup per document, never the live identity or session values. */
+export function createPc10LiveObserver(auth, useSessionStore) {
+  return () => {
+    const currentUser = auth().currentUser;
+    const state = useSessionStore.getState();
+    return { hasAuth: Boolean(currentUser), sameActor: currentUser?.uid === state.me?.uid,
+      hasSession: Boolean(state.session?.id), roleId: state.me?.assignedRoleId ?? null,
+      activeConsoleRoleId: state.me?.activeConsoleRoleId ?? null,
+      seatId: state.me?.seatId ?? null, connection: state.connection,
+      freshness: state.sessionSnapshotFreshness, phase: state.session?.phase ?? null,
+      cycle: state.session?.currentTurn ?? null };
+  };
+}
+
 /** Compose the actual acceptance on this live table before caller-owned cleanup.
  * A failed follow-up, browser error, source change or rebuilt runtime remains a failure. */
 export async function completePc10BrowserProof(table, { afterOverlappingProof, details = {} } = {}) {
@@ -78,17 +92,17 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
     if (url.pathname.endsWith('/firebase_firestore.js')) firestoreSdkModule = url.href;
   });
   async function observe() {
-    return bounded(page.evaluate(async moduleUrl => {
-      const { auth } = await import('/src/lib/firebase.ts');
-      const { useSessionStore } = await import(moduleUrl);
-      const state = useSessionStore.getState();
-      return { hasAuth: Boolean(auth().currentUser), sameActor: auth().currentUser?.uid === state.me?.uid,
-        hasSession: Boolean(state.session?.id), roleId: state.me?.assignedRoleId ?? null,
-        activeConsoleRoleId: state.me?.activeConsoleRoleId ?? null,
-        seatId: state.me?.seatId ?? null, connection: state.connection,
-        freshness: state.sessionSnapshotFreshness, phase: state.session?.phase ?? null,
-        cycle: state.session?.currentTurn ?? null };
-    }, storeModule), 10_000, 'identity observation');
+    return bounded(page.evaluate(async ({ moduleUrl, observerSource }) => {
+      const key = Symbol.for('pc10-proof-live-observer');
+      if (!window[key]) {
+        const [{ auth }, { useSessionStore }] = await Promise.all([
+          import('/src/lib/firebase.ts'), import(moduleUrl),
+        ]);
+        const createObserver = new Function(`return (${observerSource});`)();
+        window[key] = createObserver(auth, useSessionStore);
+      }
+      return window[key]();
+    }, { moduleUrl: storeModule, observerSource: createPc10LiveObserver.toString() }), 10_000, 'identity observation');
   }
   async function until(label, ready, timeoutMs = 30_000) {
     const deadline = Date.now() + timeoutMs;
