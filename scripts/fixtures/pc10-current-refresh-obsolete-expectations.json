@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "originalTest": {
+    "path": "scripts/pc10-action-review-current-refresh.test.mjs",
+    "sha256": "78c649a98797760628020ea48f0e70fbcb3fe46efa7477697136b7891d6b2815",
+    "caseName": "source guidance does not erase the six current UI gaps or the explicit Wolf supply gap",
+    "caseSha256": "775137e54a1643531984aaabff8f02580571bbc3d08fd5e8f0c9514446b8db38",
+    "caseBody": "test('source guidance does not erase the six current UI gaps or the explicit Wolf supply gap', () => {\n  const unserved = ['investigateAsIntelligenceAgent', 'getSessionPresence', 'adjustShipResource',\n    'adjustShipUnrest', 'addShipDamage', 'adjustShipPopulation'];\n  for (const name of unserved) assert.equal(requireReview(name).classification, 'genuinely-unserved', name);\n  const supply = primaryReview('submitWolfSupplySabotage');\n  assert.match(supply, /external\\/manual-only/);\n  assert.match(annotationSource, /explicitPc11GuidanceGaps/);\n  assert.match(annotationSource, /server-action-not-surfaced-to-member-ui/);\n});",
+    "interpretation": "Retained original test-contract text only. Its six-name unserved assertion is not factual product history: addShipDamage already had a served-ui-path source-shard row on the donor, and source evidence also locates current mounted paths for IA and Wolf."
+  },
+  "historicalSnapshot": {
+    "path": "docs/history/PC10_ACTION_REVIEW_ANNOTATIONS_20_reviewed_rows_212_unreviewed.json",
+    "sha256": "fc19cf4c80ba7f76bc53562d1916ceb6533ffe3239e9c9bf9875f34c099a61e9",
+    "exportName": "submitWolfSupplySabotage",
+    "classification": "external/manual-only",
+    "guidanceGapStatus": "server-action-not-surfaced-to-member-ui",
+    "explicitSnapshotOnly": true,
+    "interpretation": "The old Wolf manual-only and guidance-gap values are asserted only against this exact immutable reviewed snapshot; they are not the current source classification."
+  }
+}
