@@ -155,6 +155,35 @@ test('mounted damage accepts only the server-owned statusless vessel receipt for
     result: { ...damageReceipt, actorUid: 'foreign-auth-uid' } } }).status, 'pending');
 });
 
+test('mounted repair and current-alert rulings validate their statusless vessel envelopes', () => {
+  const uidHash = '7736a5415f3cde1a';
+  const gmActor = { uidHash, sessionId: 'session-1', playerRole: 'gm', instanceId: 'gm-instance',
+    gmInstanceOwned: true, sameActor: true, connection: 'live', freshness: 'server' };
+  for (const { endpoint, flag, auditAction } of [
+    { endpoint: 'repairAllShipDamage', flag: 'repaired', auditAction: 'repair-damage' },
+    { endpoint: 'dismissPopulationAlert', flag: 'dismissed', auditAction: 'dismiss-population' },
+    { endpoint: 'dismissUnrestAlert', flag: 'dismissed', auditAction: 'dismiss-unrest' },
+  ]) {
+    const requestId = `${endpoint}-request-1`;
+    const request = { sessionId: 'session-1', instanceId: 'gm-instance', requestId,
+      expectedCycle: 2, expectedRevision: 7, shipId: 'shepherd' };
+    const result = { [flag]: true, actorUid: 'gm-auth-uid', actorRoleId: null, vesselId: 'shepherd',
+      turn: 2, phase: 'active', revision: 8, idempotencyKey: requestId, auditId: `${auditAction}-${requestId}` };
+    const proof = capture({ caseId: `gm:${endpoint}`,
+      expected: { sessionId: 'session-1', uidHash, instanceId: 'gm-instance', roleId: 'gm', cycle: 2, sourceRevision: 7 },
+      actorBefore: gmActor, actorAfter: gmActor,
+      sourceBefore: { live: true, sessionId: 'session-1', cycle: 2, revision: 7 },
+      sourceAfter: { live: true, sessionId: 'session-1', cycle: 2, revision: 8 },
+      request, response: { httpStatus: 200, result, exactReplay: true },
+      replay: { status: 'replayed', result: { ...result, status: 'replayed' } },
+      rendered: { visible: true, resultStatus: 'committed' },
+      trainingChoice: 'gm-training:deliberate-choice' });
+    assert.equal(evaluateProcedureCapture(proof).status, 'completed', endpoint);
+    assert.equal(evaluateProcedureCapture({ ...proof, response: { ...proof.response,
+      result: { ...result, auditId: 'foreign-audit' } } }).status, 'pending', `${endpoint} rejects a foreign receipt`);
+  }
+});
+
 test('dynamic shuttle actions resolve only the unique admitted account matching current server custody', () => {
   const roster = [
     { roleId: 'icebreaker-miner', uidHash: '23315a1010be1519' },
