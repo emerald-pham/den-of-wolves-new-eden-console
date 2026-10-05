@@ -2,7 +2,190 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { runInNewContext } from 'node:vm';
 import { createRequire } from 'node:module';
+import { EventEmitter } from 'node:events';
 import * as proof from './pc10-browser-session-proof.mjs';
+
+async function callableObservationActor() {
+  const page = new EventEmitter();
+  page.setDefaultTimeout = () => undefined;
+  page.setDefaultNavigationTimeout = () => undefined;
+  page.reload = async () => undefined;
+  const context = { newPage: async () => page, setOffline: async () => undefined,
+    close: async () => undefined };
+  const actor = await proof.createPc10BrowserActor({ newContext: async () => context }, 'http://localhost', 'admiral');
+  const start = () => {
+    const request = { url: () => 'http://localhost/demo/us-central1/getCurrentMemberSession',
+      method: () => 'POST', postDataJSON: () => ({ data: { sessionId: 'own-session' } }),
+      failure: () => ({ errorText: request.failureText }) };
+    page.emit('request', request);
+    return request;
+  };
+  const respond = request => {
+    let resolve, reject;
+    const body = new Promise((yes, no) => { resolve = yes; reject = no; });
+    page.emit('response', { request: () => request, status: () => 200, json: () => body });
+    return { resolve: () => resolve({ result: { actorUid: 'own-actor', sessionId: 'own-session' } }), reject };
+  };
+  const finish = request => page.emit('requestfinished', request);
+  const fail = (request, code) => {
+    request.failureText = code;
+    page.emit('requestfailed', request);
+  };
+  return { actor, page, context, start, respond, finish, fail };
+}
+const nextObservationTurn = () => new Promise(resolve => setImmediate(resolve));
+
+test('live body drain finishes its completed response without chasing future polling', async () => {
+  const { actor, start, respond, finish, fail } = await callableObservationActor();
+  const first = start(), firstBody = respond(first);
+  finish(first);
+  let drained = false;
+  const drain = actor.drainObservedCalls().then(() => { drained = true; });
+  const future = start();
+  firstBody.resolve();
+  await nextObservationTurn();
+  try {
+    assert.equal(drained, true, 'An ongoing future poll must not starve the completed response boundary.');
+    assert.equal(actor.observedCalls[1].bodyCompletedAt, null);
+    assert.equal(actor.observedCalls[1].requestFinishedAt, null);
+  } finally {
+    fail(future, 'net::ERR_ABORTED');
+    await drain;
+  }
+});
+
+test('live drain retains unfinished transport as in-flight rather than fabricating a reply', async () => {
+  const { actor, start, fail } = await callableObservationActor();
+  const request = start();
+  let drained = false;
+  const drain = actor.drainObservedCalls().then(() => { drained = true; });
+  await nextObservationTurn();
+  try {
+    assert.equal(drained, true, 'Natural offline must not first wait for unfinished background transport.');
+    assert.equal(actor.observedCalls[0].status, null);
+    assert.equal(actor.observedCalls[0].bodyCompletedAt, null);
+    assert.equal(actor.observedCalls[0].requestFinishedAt, null);
+    assert.equal(actor.callableObservationBoundaries.at(-1).inFlightRequests, 1);
+  } finally {
+    fail(request, 'net::ERR_ABORTED');
+    await drain;
+  }
+});
+
+test('live drain still waits for every already finished HTTP200 body observation', async () => {
+  const { actor, start, respond, finish } = await callableObservationActor();
+  const request = start(), body = respond(request);
+  finish(request);
+  let drained = false;
+  const drain = actor.drainObservedCalls().then(() => { drained = true; });
+  await nextObservationTurn();
+  assert.equal(drained, false);
+  body.resolve();
+  await drain;
+  assert.equal(actor.observedCalls[0].status, 200);
+  assert.ok(actor.observedCalls[0].requestFinishedAt !== null);
+  assert.ok(actor.observedCalls[0].bodyCompletedAt !== null);
+  assert.deepEqual(actor.callableObservationFailures, []);
+});
+
+test('actual offline cancellation records an unfinished request without claiming HTTP success', async () => {
+  const { actor, context, start, fail } = await callableObservationActor();
+  const request = start();
+  context.setOffline = async value => {
+    assert.equal(value, true);
+    fail(request, 'net::ERR_INTERNET_DISCONNECTED');
+  };
+  await actor.setOffline(true);
+  const trace = actor.observedCalls[0];
+  assert.equal(trace.observationDisposition, 'cancelled-during-planned-offline');
+  assert.ok(trace.requestFailedAt !== null);
+  assert.equal(trace.status, null);
+  assert.equal(trace.bodyCompletedAt, null);
+  assert.equal(trace.resultStatus, null);
+  assert.deepEqual(actor.callableObservationFailures, []);
+});
+
+test('HTTP200 headers cancelled before network finish are recorded as partial transport', async () => {
+  const { actor, context, start, respond, fail } = await callableObservationActor();
+  const request = start(), body = respond(request);
+  context.setOffline = async () => {
+    body.reject(new Error('partial body interrupted'));
+    fail(request, 'net::ERR_INTERNET_DISCONNECTED');
+  };
+  await actor.setOffline(true);
+  await nextObservationTurn();
+  const trace = actor.observedCalls[0];
+  assert.equal(trace.status, 200, 'Retain the real headers; they are not a completed response.');
+  assert.equal(trace.requestFinishedAt, null);
+  assert.equal(trace.bodyCompletedAt, null);
+  assert.equal(trace.observationDisposition, 'cancelled-during-planned-offline');
+  assert.deepEqual(actor.callableObservationFailures, []);
+});
+
+test('a completed HTTP200 body loss remains a failure even during deliberate offline', async () => {
+  const { actor, context, start, respond, finish } = await callableObservationActor();
+  const request = start(), body = respond(request);
+  finish(request);
+  context.setOffline = async () => body.reject(new Error('real completed response was lost'));
+  await actor.setOffline(true);
+  await actor.drainObservedCalls();
+  assert.equal(actor.observedCalls[0].status, 200);
+  assert.ok(actor.observedCalls[0].requestFinishedAt !== null);
+  assert.equal(actor.observedCalls[0].bodyCompletedAt, null);
+  assert.notEqual(actor.observedCalls[0].observationDisposition, 'cancelled-during-planned-offline');
+  assert.equal(actor.callableObservationFailures.length, 1);
+  assert.equal(actor.callableObservationFailures[0].category, 'response-observation-unavailable');
+});
+
+test('body loss without an actual requestfailed cancellation is never excused by offline intent', async () => {
+  const { actor, context, start, respond, finish } = await callableObservationActor();
+  const request = start(), body = respond(request);
+  context.setOffline = async () => {
+    body.reject(new Error('real body failure'));
+    finish(request);
+  };
+  await actor.setOffline(true);
+  await actor.drainObservedCalls();
+  assert.equal(actor.callableObservationFailures.length, 1);
+  assert.equal(actor.callableObservationFailures[0].category, 'response-observation-unavailable');
+});
+
+test('reload tags only existing unfinished requests aborted during its actual operation', async () => {
+  const { actor, page, start, respond, fail } = await callableObservationActor();
+  const oldRequest = start(), body = respond(oldRequest);
+  page.reload = async () => {
+    body.reject(new Error('old document interrupted'));
+    fail(oldRequest, 'net::ERR_ABORTED');
+    const newDocumentRequest = start();
+    fail(newDocumentRequest, 'net::ERR_ABORTED');
+  };
+  await actor.reload();
+  await nextObservationTurn();
+  assert.equal(actor.observedCalls[0].observationDisposition, 'cancelled-during-planned-navigation');
+  assert.notEqual(actor.observedCalls[1].observationDisposition, 'cancelled-during-planned-navigation');
+  assert.equal(actor.callableObservationFailures.length, 1);
+  assert.equal(actor.callableObservationFailures[0].category, 'unexpected-request-failure');
+});
+
+test('unexpected timeout and offline failures after restoration remain strict and redacted', async () => {
+  const { actor, context, start, fail } = await callableObservationActor();
+  const request = start();
+  context.setOffline = async value => { if (value) fail(request, 'net::ERR_TIMED_OUT PRIVATE NOTES'); };
+  await actor.setOffline(true);
+  await actor.setOffline(false);
+  fail(start(), 'net::ERR_INTERNET_DISCONNECTED');
+  assert.equal(actor.callableObservationFailures.length, 2);
+  assert.ok(actor.callableObservationFailures.every(value => value.category === 'unexpected-request-failure'));
+  assert.equal(JSON.stringify(actor.callableObservationFailures).includes('PRIVATE NOTES'), false);
+});
+
+test('a failed actual transition propagates its original error without a success boundary', async () => {
+  const { actor, context } = await callableObservationActor();
+  const failure = new Error('actual offline operation failed');
+  context.setOffline = async () => { throw failure; };
+  await assert.rejects(actor.setOffline(true), error => error === failure);
+  assert.equal(actor.callableObservationBoundaries.at(-1).outcome, 'failed');
+});
 
 test('ordinary admission waits for the real joined identity before requiring its consent dialog', async () => {
   assert.equal(typeof proof.completePc10OrdinaryUiAdmission, 'function');
