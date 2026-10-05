@@ -49,7 +49,12 @@ test('specialist action steps use the offered rendered control and caller-select
   const button = { isVisible: async () => true, isEnabled: async () => true,
     click: async () => { clicks.push('recycle'); } };
   const region = { getByRole: (role, options) => {
-    assert.equal(role, 'button'); assert.equal(options.name, 'Recycle 6 Food for 1 Scrap'); return button;
+    assert.equal(role, 'button');
+    assert.equal(options.name.test('Recycle 6 Food for 1 Scrap'), true);
+    return button;
+  }, getByLabel: (name, options) => {
+    assert.equal(name, 'Resource to recycle'); assert.equal(options.exact, true);
+    return { selectOption: async value => assert.equal(value, 'food') };
   } };
   const page = { getByRole: (role, options) => {
     assert.equal(role, 'region'); assert.equal(options.name, 'Boa recycling'); return region;
@@ -57,7 +62,9 @@ test('specialist action steps use the offered rendered control and caller-select
   const surface = { page, observe: async () => ({ sameActor: true, sessionId: 'fresh-session',
     uidHash: 'recycler-hash', profileRoleId: 'capybara-recycler', activeConsoleRoleId: 'capybara-recycler',
     connection: 'live', freshness: 'server' }) };
-  const game = { context: { initial: { sessionId: 'fresh-session' } }, select: async roleId => {
+  const game = { context: { initial: { sessionId: 'fresh-session' }, roster: [
+    { roleId: 'capybara-recycler', uidHash: 'recycler-hash' },
+  ] }, select: async roleId => {
     assert.equal(roleId, 'capybara-recycler'); return surface;
   } };
   let captureArgs;
@@ -90,7 +97,8 @@ test('specialist actions leave missing live opportunities and private choices ex
       renderedStatusCode: 'mission-choice-visible' }),
   });
   const absent = await noTaskChoice({ game, driver, context: game.context });
-  assert.deepEqual(absent, { status: 'uncredited', actionId: 'boa-reclamation', reason: 'explicit-choice-required' });
+  assert.deepEqual(absent, { status: 'uncredited', actionId: 'boa-reclamation',
+    reason: 'explicit-choice-required', missingChoices: ['taskOpportunityId'] });
   assert.equal(selects, 0, 'Do not navigate into or silently choose a private mission task.');
 
   const noLiveButton = makePc10SpecialistActionStep('boa-recycle', {
