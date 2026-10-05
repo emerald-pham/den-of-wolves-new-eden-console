@@ -29,8 +29,17 @@ function nativeAttack({ requiredRole, step = 'boarding', sourceLabel }) {
   });
   const authority = { sessionId: 'native-session', fleetGroupId: 'native-group', connectionGeneration: 1,
     identityHydrationRevision: 1, replacementRoleId: null, replacementStatus: null, seatId: null, connected: true };
+  const nativeShipForRole = roleId => ['admiral', 'executive-officer', 'wing-commander'].includes(roleId) ? 'aegis'
+    : roleId?.startsWith('refinery-124-') ? 'refinery-124'
+      : ['dione', 'icebreaker', 'shepherd', 'quellon', 'capybara'].find(id => roleId?.startsWith(`${id}-`));
   const page = { waitForResponse: async () => response, getByRole: (kind, options = {}) => widget(kind, options.name),
-    evaluate: async () => ({ ...authority }) };
+    evaluate: async () => ({ ...authority,
+      // The current source reader requires a protected own-actor berth witness.
+      // This explicitly scoped native fixture grants no live authority or playtest credit.
+      discoveryAuthority: nativeShipForRole(selectedRole) ? { groupId: authority.fleetGroupId,
+        shipId: nativeShipForRole(selectedRole), revision: 1,
+        fleetGroupVesselIds: ['aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124', 'capybara'] } : null,
+    }) };
   const observation = roleId => ({ hasAuth: true, sameActor: true, sessionId: 'native-session', phase: 'active', cycle: 2,
     uidHash: `native-${roleId}`, profileRoleId: roleId, assignedRoleId: roleId,
     activeConsoleRoleId: roleId, playerRole: 'player', connection: 'live', freshness: 'server' });
