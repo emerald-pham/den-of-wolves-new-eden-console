@@ -196,6 +196,16 @@ export async function drainPc10CallableObservations({ pending, revision, quietMs
   }
 }
 
+/** The consent UI requires a committed session identity. Keep the original
+ * total admission budget and every explicit regulation/timer acknowledgement. */
+export async function completePc10OrdinaryUiAdmission({ join, consent, inspect }) {
+  const joined = await join();
+  assert.ok(joined?.hasAuth && joined.sameActor && joined.hasSession, 'Require the real joined identity before consent.');
+  await consent();
+  const current = await inspect();
+  assert.ok(current?.hasAuth && current.sameActor && current.hasSession, 'Retain the real joined identity after consent.');
+}
+
 /** An isolated browser context has its own Firebase Auth identity/storage.
  * Tokens remain in memory. Evidence records role/action/state categories only.
  * These are automated browser clients, never a human/device playtest claim. */
@@ -337,43 +347,50 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
     const motion = page.getByRole('button', { name: /^REDUCED MOTION/i });
     if (await motion.isVisible()) await motion.click();
     await page.getByRole('textbox', { name: 'Session code', exact: true }).fill(joinCode);
-    await page.getByRole('button', { name: 'Join a session', exact: true }).click();
-    joinStage = 'waiver admission';
-    const waiver = page.getByRole('dialog', { name: 'CODE OF CONDUCT', exact: true });
-    await waiver.waitFor();
-    console.log(`${label}: consent displayed`);
-    const regulations = waiver.getByRole('checkbox', { name: /^Acknowledge regulation/ });
-    await regulations.first().waitFor();
-    assert.equal(await regulations.count(), 3, 'All existing admission regulations must be present.');
-    for (const checkbox of await regulations.all()) {
-      await checkbox.check();
-      assert.equal(await checkbox.isChecked(), true, 'Every regulation must be explicitly acknowledged.');
-    }
-    const acknowledge = waiver.getByRole('button', { name: 'Acknowledge regulations and continue', exact: true });
-    try {
-      const deadline = Date.now() + 30_000;
-      while (!(await acknowledge.isEnabled()) && Date.now() < deadline) await delay(100);
-      assert.equal(await acknowledge.isEnabled(), true, 'The unchanged consent timer and all regulations must enable confirmation.');
-      await acknowledge.click();
-    } catch (error) {
-      const captureDirectory = process.env.PC10_EVIDENCE_DIRECTORY;
-      if (captureDirectory) {
-        await mkdir(captureDirectory, { recursive: true });
-        await bounded(page.screenshot({ path: `${captureDirectory}/${label}-consent-failure.png` }), 5_000,
-          'failure screenshot').catch(() => undefined);
-        await writeFile(`${captureDirectory}/${label}-consent-failure.json`, `${JSON.stringify({
-          label, message: error.message, regulationChecks: await regulations.evaluateAll(inputs => inputs.map(input => input.checked)),
-          consentStatus: await waiver.getByRole('status').allTextContents(),
-          buttonDisabled: await acknowledge.isDisabled({ timeout: 1_000 }).catch(() => null),
-          waiverVisible: await waiver.isVisible(),
-          documentUrl: page.url(),
-          identity: await observe().catch(error => ({ unavailable: error.message })), browserErrors: errors,
-        }, null, 2)}\n`);
-      }
-      throw error;
-    }
-    joinStage = 'authoritative joined identity';
-    await until(`${label} ordinary Auth join`, state => state.hasAuth && state.sameActor && state.hasSession);
+    await completePc10OrdinaryUiAdmission({
+      join: async () => {
+        await page.getByRole('button', { name: 'Join a session', exact: true }).click();
+        joinStage = 'authoritative joined identity';
+        return until(`${label} ordinary Auth join`, state => state.hasAuth && state.sameActor && state.hasSession);
+      },
+      inspect: observe,
+      consent: async () => {
+        joinStage = 'waiver admission';
+        const waiver = page.getByRole('dialog', { name: 'CODE OF CONDUCT', exact: true });
+        await waiver.waitFor();
+        console.log(`${label}: consent displayed`);
+        const regulations = waiver.getByRole('checkbox', { name: /^Acknowledge regulation/ });
+        await regulations.first().waitFor();
+        assert.equal(await regulations.count(), 3, 'All existing admission regulations must be present.');
+        for (const checkbox of await regulations.all()) {
+          await checkbox.check();
+          assert.equal(await checkbox.isChecked(), true, 'Every regulation must be explicitly acknowledged.');
+        }
+        const acknowledge = waiver.getByRole('button', { name: 'Acknowledge regulations and continue', exact: true });
+        try {
+          const deadline = Date.now() + 30_000;
+          while (!(await acknowledge.isEnabled()) && Date.now() < deadline) await delay(100);
+          assert.equal(await acknowledge.isEnabled(), true, 'The unchanged consent timer and all regulations must enable confirmation.');
+          await acknowledge.click();
+        } catch (error) {
+          const captureDirectory = process.env.PC10_EVIDENCE_DIRECTORY;
+          if (captureDirectory) {
+            await mkdir(captureDirectory, { recursive: true });
+            await bounded(page.screenshot({ path: `${captureDirectory}/${label}-consent-failure.png` }), 5_000,
+              'failure screenshot').catch(() => undefined);
+            await writeFile(`${captureDirectory}/${label}-consent-failure.json`, `${JSON.stringify({
+              label, message: error.message, regulationChecks: await regulations.evaluateAll(inputs => inputs.map(input => input.checked)),
+              consentStatus: await waiver.getByRole('status').allTextContents(),
+              buttonDisabled: await acknowledge.isDisabled({ timeout: 1_000 }).catch(() => null),
+              waiverVisible: await waiver.isVisible(),
+              documentUrl: page.url(),
+              identity: await observe().catch(error => ({ unavailable: error.message })), browserErrors: errors,
+            }, null, 2)}\n`);
+          }
+          throw error;
+        }
+      },
+    });
     console.log(`${label}: ordinary UI admission and consent passed`);
     return page.evaluate(async () => {
       const { auth } = await import('/src/lib/firebase.ts');
