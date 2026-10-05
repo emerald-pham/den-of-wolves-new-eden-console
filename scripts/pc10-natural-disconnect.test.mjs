@@ -106,3 +106,35 @@ test('native setup maintains ordinary uncast identities and drains that presence
  release();await stopped;
  assert.equal(timers.size,0);assert.equal(drained,true);
 });
+
+test('natural disappearance and recovery use each actual browser observation boundary exactly once',async()=>{
+ const {setProofBrowsersOffline}=await proof();
+ assert.equal(typeof setProofBrowsersOffline,'function',
+  'Natural lease proof must record the actual offline interval through each mounted browser adapter.');
+ const calls=[];
+ const clients=new Map(['admiral','press-officer'].map(role=>[role,{
+  context:{setOffline:()=>{throw new Error('Raw context call bypasses the transport evidence boundary.');}},
+  setOffline:async value=>{calls.push({role,value});},
+ }]));
+ await setProofBrowsersOffline(clients,true);
+ await setProofBrowsersOffline(clients,false);
+ assert.deepEqual(calls,[{role:'admiral',value:true},{role:'press-officer',value:true},
+  {role:'admiral',value:false},{role:'press-officer',value:false}]);
+});
+
+test('a rejected natural offline boundary drains its siblings and preserves the actual transition error',async()=>{
+ const {setProofBrowsersOffline}=await proof();
+ assert.equal(typeof setProofBrowsersOffline,'function');
+ const actualError=new Error('Actual browser offline transition failed.');
+ let release,drained=false;
+ const clients=new Map([['admiral',{setOffline:async()=>{throw actualError;}}],
+  ['press-officer',{setOffline:async()=>{await new Promise(resolve=>{release=resolve;});}}]]);
+ const result=setProofBrowsersOffline(clients,true);
+ const observation=result.then(()=>{drained=true;},()=>{drained=true;});
+ await Promise.resolve();await Promise.resolve();
+ assert.equal(drained,false,'Do not leave another actual transport transition unobserved.');
+ release();
+ await assert.rejects(result,error=>error===actualError);
+ await observation;
+ assert.equal(drained,true);
+});
