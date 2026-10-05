@@ -40,7 +40,7 @@ const setupDisclosure = {
   ballotInput: null,
 };
 
-const pregameSettingsNote = 'Awaiting CIC authentication means waiting for the GM to start the game.';
+const pregameSettingsNote = 'Awaiting CIC handshake means waiting for the GM to start the game.';
 
 async function inspectPregameSettings() {
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
@@ -297,7 +297,7 @@ try {
       const indicator = document.querySelector('.app-header .indicator');
       const notes = [...document.querySelectorAll('.settings-dialog p')]
         .map(element => element.textContent?.trim() ?? '')
-        .filter(text => text === 'Awaiting CIC authentication means waiting for the GM to start the game.');
+        .filter(text => text === 'Awaiting CIC handshake means waiting for the GM to start the game.');
       return {
         identity: {
           actorPresent: Boolean(state.me?.uid),

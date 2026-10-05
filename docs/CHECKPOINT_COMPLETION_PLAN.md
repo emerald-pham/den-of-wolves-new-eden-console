@@ -220,7 +220,7 @@ demo, fresh-game every-role/function acceptance across two browsers, about
 checks, and explicit action/cost/blocker/next-actor usability evidence.
 Prepared scenes alone are insufficient. The primary Firebase Settings join QR
 and full-game demo are explicit additions with zero fixed-catalog credit.
-Preserve Cycle 0 AWAITING CIC AUTHENTICATION and its Settings GM-start explanation.
+Preserve Cycle 0 AWAITING CIC HANDSHAKE and its Settings GM-start explanation.
 
 Record automated actors/browser concurrency separately from human device
 playtesting. PC10 completion returns to the parent before existing post-PC10

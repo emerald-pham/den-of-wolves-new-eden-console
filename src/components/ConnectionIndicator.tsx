@@ -15,14 +15,14 @@ const LABELS: Record<IndicatorStatus, string> = {
   red: 'Offline',
   yellow: 'CONNECTED',
   green: 'In session',
-  blue: 'CONNECTED // AWAITING CIC AUTHENTICATION',
+  blue: 'CONNECTED // AWAITING CIC HANDSHAKE',
 };
 
 const TITLES: Record<IndicatorStatus, string> = {
   red: 'Fleet link offline',
   yellow: 'Fleet link connected // no active session',
   green: 'Fleet link connected // session active',
-  blue: 'Fleet link connected // awaiting CIC authentication',
+  blue: 'Fleet link connected // awaiting CIC handshake',
 };
 
 export default function ConnectionIndicator({

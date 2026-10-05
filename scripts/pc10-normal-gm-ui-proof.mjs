@@ -104,11 +104,11 @@ try {
   const initial = await gm.until('Cycle 0 ordinary joined identity', state => state.hasAuth && state.sameActor &&
     state.sessionId && state.cycle === 0 && state.freshness === 'server');
   assert.equal(initial.gmInstanceOwned, false);
-  assert.ok((await gm.page.locator('body').innerText()).includes('AWAITING CIC AUTHENTICATION'));
+  assert.ok((await gm.page.locator('body').innerText()).includes('AWAITING CIC HANDSHAKE'));
   stage = 'normal Settings GM authorization';
   await gm.page.getByRole('button', { name: 'Settings', exact: true }).click();
   const settings = gm.page.getByRole('dialog', { name: 'Session settings', exact: true });
-  assert.ok((await settings.innerText()).includes('Awaiting CIC authentication means waiting for the GM to start the game.'));
+  assert.ok((await settings.innerText()).includes('Awaiting CIC handshake means waiting for the GM to start the game.'));
   // Verify the ordinary joined QR before starting a timed briefing. The old
   // post-start full-page capture could be occluded by the normal transmission.
   const joinLink = settings.getByRole('link', { name: `Open join screen for session ${initial.joinCode}`, exact: true });
