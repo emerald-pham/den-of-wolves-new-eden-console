@@ -101,6 +101,34 @@ test('damage draw is classified as mounted only through the actual GM Assign dam
   assert.equal(damage.replayPolicy, 'exact-request-id');
 });
 
+test('mounted damage accepts only the server-owned statusless vessel receipt for the original request', () => {
+  const uidHash = '7736a5415f3cde1a';
+  const gmActor = { uidHash, sessionId: 'session-1', playerRole: 'gm', instanceId: 'gm-instance',
+    gmInstanceOwned: true, sameActor: true, connection: 'live', freshness: 'server' };
+  const damageRequest = { sessionId: 'session-1', instanceId: 'gm-instance', requestId: 'damage-request-1',
+    expectedCycle: 2, expectedRevision: 7, shipId: 'shepherd' };
+  const damageReceipt = { destroyed: false, card: { card: 'hidden-card', systemId: 'hidden-system',
+    systemName: 'Hidden Console' }, recycled: false, actorUid: 'gm-auth-uid', actorRoleId: null,
+    vesselId: 'shepherd', turn: 2, phase: 'active', revision: 8,
+    idempotencyKey: 'damage-request-1', auditId: 'add-damage-damage-request-1' };
+  const damageCapture = capture({ caseId: 'gm:addShipDamage',
+    expected: { sessionId: 'session-1', uidHash, instanceId: 'gm-instance', roleId: 'gm', cycle: 2, sourceRevision: 7 },
+    actorBefore: gmActor, actorAfter: gmActor,
+    sourceBefore: { live: true, sessionId: 'session-1', cycle: 2, revision: 7 },
+    sourceAfter: { live: true, sessionId: 'session-1', cycle: 2, revision: 8 },
+    request: damageRequest, response: { httpStatus: 200, result: damageReceipt, exactReplay: true },
+    replay: { status: 'committed', result: { ...damageReceipt } },
+    rendered: { visible: true, resultStatus: 'committed' },
+    trainingChoice: 'GM training: assign damage through the normal control.' });
+  const accepted = evaluateProcedureCapture(damageCapture);
+  assert.equal(accepted.status, 'completed');
+  assert.doesNotMatch(JSON.stringify(accepted), /gm-auth-uid|hidden-card|Hidden Console|hidden-system/);
+  assert.equal(evaluateProcedureCapture({ ...damageCapture, response: { ...damageCapture.response,
+    result: { ...damageReceipt, idempotencyKey: 'another-request' } } }).status, 'pending');
+  assert.equal(evaluateProcedureCapture({ ...damageCapture, response: { ...damageCapture.response,
+    result: { ...damageReceipt, actorUid: 'foreign-auth-uid' } } }).status, 'pending');
+});
+
 test('dynamic shuttle actions resolve only the unique admitted account matching current server custody', () => {
   const roster = [
     { roleId: 'icebreaker-miner', uidHash: '23315a1010be1519' },
