@@ -93,6 +93,32 @@ test('unoffered operations remain pending without a click', async () => {
   assert.equal(clicks, 0);
 });
 
+test('a matching callable POST during preparation cannot be counted as the mounted first mutation', async () => {
+  const calls = new Set();
+  const page = {
+    on: (event, listener) => { if (event === 'request') calls.add(listener); },
+    off: (event, listener) => { if (event === 'request') calls.delete(listener); },
+    emitRequest: request => { for (const listener of calls) listener(request); },
+  };
+  const selectedActor = { ...actor, profileRoleId: 'icebreaker-miner', activeConsoleRoleId: 'icebreaker-miner' };
+  const surface = { page, observe: async () => selectedActor,
+    callable: async () => { throw new Error('preparation-time SDK mutation must not be replayed'); } };
+  const context = { initial: { sessionId: 'session-1' }, gm: {}, crew: {}, roster: [
+    { roleId: 'icebreaker-miner', uidHash: 'actor-hash' },
+  ] };
+  const game = { select: async roleId => { assert.equal(roleId, 'icebreaker-miner'); return surface; },
+    state: async () => ({ live: true, sessionId: 'session-1', phase: 'active', cycle: 2,
+      vesselActionRevisions: { icebreaker: 7 }, shipFleetGroupIds: { icebreaker: 'group-1' } }) };
+  let mountedClick = 0;
+  const earlyRequest = { method: () => 'POST', url: () => 'http://localhost/us-central1/runHighwallMining' };
+  const result = await captureMountedProcedureAction({ context, game, caseId: 'core:runHighwallMining',
+    expected: { roleId: 'icebreaker-miner', cycle: 2, shipId: 'icebreaker', sourceRevision: 7, groupId: 'group-1' },
+    prepare: async () => { page.emitRequest(earlyRequest); return { offered: true, click: async () => { mountedClick++; } }; },
+    inspect: async () => { throw new Error('no projection after a pre-click mutation'); } });
+  assert.equal(result.status, 'pending');
+  assert.equal(mountedClick, 0);
+});
+
 test('damage draw is classified as mounted only through the actual GM Assign damage control', () => {
   const damage = GM_RULING_COUNTER_PROCEDURES.find(row => row.endpoint === 'addShipDamage');
   assert.equal(damage.mountedPath, 'MaintenanceSystems GM Assign damage');
