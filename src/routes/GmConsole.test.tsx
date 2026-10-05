@@ -3637,7 +3637,7 @@ it('requires a deliberate second GM advance while either phase timer is active',
   vi.mocked(advanceTurn).mockResolvedValue(undefined);
   renderConsole();
 
-  expect(screen.getByText('Cycle 3')).toBeVisible();
+  expect(within(screen.getByRole('region', { name: 'Cycle controls' })).getByText('Cycle 3')).toBeVisible();
   await user.click(screen.getByRole('button', { name: 'Advance to Cycle 4' }));
   expect(advanceTurn).not.toHaveBeenCalled();
   expect(screen.getByRole('button', { name: 'ARE YOU SURE? // Advance to Cycle 4' })).toBeVisible();
