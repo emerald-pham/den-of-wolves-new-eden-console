@@ -244,6 +244,38 @@ test('target-assignment readiness uses the actual assignments region and enabled
   assert.equal(result.status, 'eligible'); assert.deepEqual(names, ['Wolf range assignments']);
 });
 
+test('actual terminal launch receipts paint as explicit blockers after a previous wing launched once', async () => {
+  const { inspectWolfChoicePaint, wolfChoiceSourceReason } = await moduleUnderTest();
+  for (const [kind, text] of [['aegis-launch', 'Cycle 1 // flight control Fighter Wing Alpha is launched for this attack.'],
+    ['maliades-launch', 'Maliades launched // Cycle 1'], ['pdf-launch', 'Launched // Cycle 1']]) {
+    const view = choice({ wingId: 'fighter-wing-alpha', eligible: false, launched: true,
+      choiceStatus: 'launched', reason: 'already-launched' });
+    assert.equal(wolfChoiceSourceReason(view), 'already-launched');
+    assert.equal((await inspectWolfChoicePaint(paintFixture({ text }), { kind, sourceId: view.wingId }, view)).status, 'blocked');
+  }
+});
+
+test('Maliades source nonlaunch/destruction and a committed EO range retain their actual blocker controls', async () => {
+  const { inspectWolfChoicePaint } = await moduleUnderTest();
+  const maliades = choice({ range: 'short-range', launched: false });
+  const nonlaunch = paintFixture({ text: 'Cycle 1 // Dione craft Launch Maliades before choosing range actions.' });
+  assert.equal((await inspectWolfChoicePaint(nonlaunch, { kind: 'escort-range', sourceId: 'maliades' }, maliades)).status, 'blocked');
+  const destroyed = paintFixture({ text: 'Cycle 1 // Dione craft Maliades is destroyed and cannot act.' });
+  assert.equal((await inspectWolfChoicePaint(destroyed, { kind: 'escort-range', sourceId: 'maliades' }, { ...maliades, launched: true, destroyed: true })).status, 'blocked');
+  const names = [], page = paintFixture({ text: 'Cycle 1 // weapon control This range decision is committed. The next attack step is server controlled.' });
+  const get = page.getByRole; page.getByRole = (role, options) => { names.push(options.name); return get(role, options); };
+  assert.equal((await inspectWolfChoicePaint(page, { kind: 'range-actions' }, choice({ range: 'medium-range', choiceStatus: 'committed' }))).status, 'blocked');
+  assert.deepEqual(names, ['Wolf range assignments']);
+});
+
+test('a mounted Commander presenter uses its actual Targeting dice name after the loading region disappears', async () => {
+  const { inspectWolfChoicePaint } = await moduleUnderTest();
+  const names = [], page = paintFixture({ text: 'Private Wolf action Cycle 1 // Rev 4', controls: { 'Finish rerolls': true } });
+  const get = page.getByRole; page.getByRole = (role, options) => { names.push(options.name); return get(role, options); };
+  assert.equal((await inspectWolfChoicePaint(page, { kind: 'commander-targeting' }, choice({ type: 'wolf-commander-targeting-view' }))).status, 'eligible');
+  assert.deepEqual(names, ['Targeting dice']);
+});
+
 function routeFixture({ route = '#/brief', changed = {}, entering = true } = {}) {
   const calls = []; let path = route;
   const original = actor(changed);
