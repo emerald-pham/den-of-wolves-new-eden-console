@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
-import { createPc10CallableObservationBoundary } from './pc10-browser-session-proof.mjs';
+import { createPc10CallableObservationBoundary, createPc10BrowserTable } from './pc10-browser-session-proof.mjs';
 import { createPc10NativeDurableObservationLedger } from './pc10-native-durable-observer.mjs';
 const target = new URL('./pc10-presence-functional-contract.mjs', import.meta.url);
 let implementation = {};
@@ -31,7 +31,7 @@ function fixture() {
     generation: 2, lastSeenAtMs: 1440, membershipConnectedAtMs: 1440, leaseMs: 45000 };
   const renewal = { schemaVersion: 1, kind: 'original-explicit-sdk-presence-renewal', roleId, actorHash, sessionHash, projectHash,
     startedAt: 1200, completedAt: 1400, status: 200, originalSdkSessionMatches: true,
-    originalSdkSchemaValid: true, stationSelectionRequired: false, generationBefore: 2 };
+    originalSdkSchemaValid: true, stationSelectionRequired: false, generationBefore: 2, nativeDocumentHash: candidate.nativeDocumentHash };
   const invocation = { kind: 'explicit-sdk-invocation', roleId, name: 'refreshPresence', startedAt: 1200, completedAt: 1400 };
   const input = { option, observations: [candidate], failures: [failure], renewals: [renewal], authoritySnapshots: [authority],
     explicitSdkInvocations: [invocation], actions: [{ kind: 'proof-command', name: 'refreshPresence', roleId,
@@ -64,6 +64,8 @@ for (const [name, change] of [
   ['command overlap', f => { f.invocation.startedAt = 800; f.invocation.completedAt = 950; }],
   ['another explicit callable overlap', f => { f.invocation.name = 'resumeSession'; f.invocation.startedAt = 950; f.invocation.completedAt = 1050; }],
   ['unfinished explicit invocation', f => { f.invocation.startedAt = 800; f.invocation.completedAt = null; }],
+  ['missing SDK original document', f => { delete f.renewal.nativeDocumentHash; }],
+  ['SDK from another document', f => { f.renewal.nativeDocumentHash = 'f'.repeat(64); }],
   ['missing explicit SDK success', f => { f.input.renewals = []; }],
   ['wrong explicit SDK actor', f => { f.renewal.actorHash = 'f'.repeat(64); }],
   ['wrong explicit SDK session', f => { f.renewal.originalSdkSessionMatches = false; }],
@@ -85,6 +87,8 @@ for (const [name, change] of [
   ['unknown body failure', f => { f.candidate.bodyReadFailureReason = 'unknown'; }],
   ['observation deadline failure', f => { f.input.failures.push({ category: 'observation-drain-timeout', roleId }); }],
   ['identity or privacy failure', f => { f.input.failures.push({ category: 'native-identity-mismatch', roleId }); }],
+  ['console claim payload', f => { f.candidate.presenceRequestClassification = 'console-claim'; }],
+  ['malformed presence payload', f => { f.candidate.presenceRequestClassification = 'unclassified'; }],
   ['unclassified nonpresence request', f => { f.candidate.name = 'readFleetGroupMessages'; }],
 ]) {
   test(`${name} is never caught by the optional contract`, () => {
@@ -111,7 +115,7 @@ test('actual periodic metadata requires exact same-session payload and never exp
 
 test('original SDK renewal records exact same-session schema and preserves reselection/denial as failures', () => {
   const build = api('buildPc10PresenceSdkRenewal');
-  const base = { roleId, actorUid: uid, sessionId, project, startedAt: 1200, completedAt: 1400, generationBefore: 2 };
+  const base = { roleId, actorUid: uid, sessionId, project, startedAt: 1200, completedAt: 1400, generationBefore: 2, nativeDocumentHash: 'b'.repeat(64) };
   const value = build({ ...base, reply: { status: 200, result: { sessionId } } });
   assert.equal(value.originalSdkSessionMatches, true); assert.equal(value.originalSdkSchemaValid, true); privateAbsent(value);
   for (const reply of [{ status: 200, result: { sessionId: 'private-foreign' } }, { status: 200, result: { sessionId, stationSelectionRequired: true } },
@@ -191,4 +195,8 @@ test('native callback can only acknowledge source-classified presence body loss 
   assert.equal(observedCalls[0].bodyCompletedAt, null); assert.equal(failures.length, 1); assert.equal(ledger.boundaries.at(-1).outcome, 'completed-with-instrumentation-limitations');
   await run('actual-native-2',{sessionId,activeConsoleRoleId:null}); await assert.rejects(ledger.drain(), /Native durable/);
   assert.equal(observedCalls[1].presenceRequestClassification, 'console-claim'); assert.equal(observedCalls[1].bodyCompletedAt,null);
+});
+
+test('invalid table contract option is rejected before any browser or fixture resource can start', async () => {
+  await assert.rejects(createPc10BrowserTable({ presenceFunctionalContract: 'truthy-waiver' }), /Unsupported presence functional contract/);
 });
