@@ -225,7 +225,7 @@ describe('printed uncharged Warrior and Vulcan Jump Drives', () => {
       await expect(callables.jumpSmallShip(request(command))).resolves.toMatchObject({ status: 'replayed', fuelCost });
       expect(db.writes).toHaveLength(count);
       expect(db.documents.get(sessionPath)?.smallShipStates).toMatchObject({ [id]: { hostShipId: null, cycle: { charges: [] } } });
-      await expect(callables.jumpSmallShip(request({ ...command, destination: '1413' })))
+      await expect(callables.jumpSmallShip(request({ ...command, destination: command.destination === '1413' ? '0100' : '1413' })))
         .rejects.toMatchObject({ code: 'failed-precondition' });
     });
 
