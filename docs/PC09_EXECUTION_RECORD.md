@@ -274,3 +274,36 @@ view check: the owner had regenerated that view locally but omitted it from the
 commit. The failure remains preserved. The corrected commit includes the
 catalog-generated companion; no product, status, test or budget changes are
 made for this documentation repair.
+
+## Directly blocking release quota repair — October 5
+
+Main was fast-forwarded to feb71f2d, and exact-main workflow
+[37257836445](https://github.com/emerald-pham/den-of-wolves-new-eden-console/actions/runs/37257836445)
+passed all verification jobs: 3,292 client and 4,660 Functions tests, 164 Rules
+tests, 62 font checks, typography, all three ticker shards, render/bundle and
+both builds. Its 207-file Functions artifact exactly matches the compiled
+frozen ordinary runtime. The deployment then failed: 200 selected Functions
+updated, while 16 failed under mutation-rate 429 or regional CPU startup quota.
+Rules were released; Hosting reached upload, without final publication or IAM
+repair/surface verification. The complete original failure log is retained.
+
+The bounded repair partitions the unchanged audited 216 named Functions into
+22 sequential groups of at most ten, then publishes Hosting/Firestore. It keeps
+the pinned Firebase CLI, verified artifacts, WIF, current-tip protection and
+strict before/after ready-revision verification unchanged. It adds no retry
+loop, CPU/quota/permission change or gameplay mutation. Eight permanent
+deployment-contract checks cover exact selector preservation, broad-selector
+denial, serial completion, failure-stop and workflow wiring. The same independent
+reviewer assesses this release-only delta before landing; the checkpoint remains
+pending actual deployment verification. No new player version or scope is added.
+
+The owner requested Fast service wherever supported. No service-tier setter or
+launch parameter is exposed in this session, so no active inference tier change
+is claimed and no work is restarted. The parent owns supported Fast settings for
+future orchestrators.
+
+A read-only compatibility check also exercised the existing explicit manual
+full-deployment selector. The workflow preserves that original pinned CLI path
+only for a workflow_dispatch containing the broad Functions selector; automatic
+releases require the audited named-target batches. The eighth regression covers
+this event boundary. No broad automatic fallback is introduced.

@@ -257,3 +257,21 @@ filtering, actual public Rules read, unknown bearings, no invented geometry and
 no opaque Wolf IDs. Its screenshot crops the entitled instrument. The separate
 fresh DRADIS proof supplies recovery/revocation and eight viewport/motion cases;
 this adds no gameplay feature or second prepared-state claim.
+
+## Directly blocking deployment quota regression
+
+New scripts/deploy-firebase-surfaces.test.mjs retains eight necessary deployment
+contract cases: complete 216-name scope in at-most-ten groups, rejection of broad/
+duplicate/malformed targets, exact pinned CLI controls, serial completion, stop
+before later batches/Hosting on failure, explicit project validation and WIF/
+artifact/strict-verifier workflow wiring. The production helper is
+scripts/deploy-firebase-surfaces.mjs; CI executes these tests directly with Node.
+No prior tests are removed, disabled, weakened or replaced. This release-only
+repair follows the preserved actual 200-success/16-failure provider result;
+player-facing source, 0.5.68 scope, budgets and permissions are unchanged.
+
+A read-only compatibility check also exercised the existing explicit manual
+full-deployment selector. The workflow preserves that original pinned CLI path
+only for a workflow_dispatch containing the broad Functions selector; automatic
+releases require the audited named-target batches. The eighth regression covers
+this event boundary. No broad automatic fallback is introduced.

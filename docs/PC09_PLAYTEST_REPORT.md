@@ -211,6 +211,18 @@ README rights language, package-license fields and attributions remain intact.
 The parent resolves any later recognized first-party license and third-party
 carve-outs; this inventory grants no new rights.
 
+The inventory finds no existing public license: LICENSE.md and README reserve
+original contributions to their respective holders; both private packages omit
+a license field. Game text, rules expression, setting, names, marks and artwork
+have an explicit third-party carve-out. Dependencies retain independent terms,
+mainly MIT/Apache/ISC/BSD/0BSD/BlueOak; specific entries include caniuse-lite
+(CC-BY-4.0), argparse (Python-2.0), color-helpers (MIT-0), and type-fest
+(MIT or CC0). limiter's missing lock field is supplemented by its installed MIT
+notice. Seven flag PNGs lack documented origin/author/license/permission; four
+PWA PNGs and dradis-ball.svg also lack confirmed repository provenance. No font
+binaries are tracked. This is a bounded inventory, not a full transitive
+notice audit. No license, attribution or asset is edited.
+
 Corrected candidate `f86c000624f7f6e204601104e23681b5382f480f` passes
 [CI 37256681113](https://github.com/emerald-pham/den-of-wolves-new-eden-console/actions/runs/37256681113).
 This retry verifies the changed unit-test range; it does not substitute for the
@@ -223,3 +235,13 @@ view check: the owner had regenerated that view locally but omitted it from the
 commit. The failure remains preserved. The corrected commit includes the
 catalog-generated companion; no product, status, test or budget changes are
 made for this documentation repair.
+
+The first exact-main release at feb71f2d passes all CI gates, including
+7,952 native tests and 164 Rules tests. The 207-file CI Functions artifact
+exactly matches the frozen ordinary-proof runtime. Firebase then updates 200
+of 216 named Functions and fails 16 under mutation-rate/CPU startup quotas.
+Rules release succeeds; Hosting upload alone, skipped IAM repair and skipped
+final verification do not establish a completed deployment. The failure is
+preserved in main-release-37257836445-failed.log. A bounded sequential
+at-most-ten deployment helper retains the full selector and existing strict
+revision/surface checks; independent review and the recovered release follow.

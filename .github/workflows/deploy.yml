@@ -165,7 +165,8 @@ jobs:
     if: needs.determine-targets.outputs.has_targets == 'true' && needs.determine-targets.outputs.current_tip == 'true'
     needs: [determine-targets, verify]
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # Automatic audited target sets use sequential batches of at most ten Functions.
+    timeout-minutes: 90
     permissions:
       actions: read
       contents: read
@@ -239,12 +240,17 @@ jobs:
         env:
           CI_VERIFIED_ARTIFACTS: '1'
           DEPLOY_ONLY: ${{ needs.determine-targets.outputs.deploy_only }}
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          DEPLOY_EVENT: ${{ github.event_name }}
         run: |
-          npx --yes firebase-tools@15.29.0 deploy \
-            --project "${{ vars.FIREBASE_PROJECT_ID }}" \
-            --only "$DEPLOY_ONLY" \
-            --non-interactive \
-            --force
+          if [[ "$DEPLOY_EVENT" == "workflow_dispatch" && ",$DEPLOY_ONLY," == *,functions,* ]]; then
+            # Preserve the owner's explicit full-deployment dispatch path.
+            npx --yes firebase-tools@15.29.0 deploy \
+              --project "$FIREBASE_PROJECT_ID" --only "$DEPLOY_ONLY" \
+              --non-interactive --force
+          else
+            node scripts/deploy-firebase-surfaces.mjs "$FIREBASE_PROJECT_ID" "$DEPLOY_ONLY"
+          fi
 
       # Firebase CLI creates callable services as public, but its update path
       # does not repair a missing callable invoker policy after a failed create.
