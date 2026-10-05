@@ -610,6 +610,8 @@ body {
 .settings-button {
   width: 2.5rem;
   height: 2.5rem;
+  min-width: 44px;
+  min-height: 44px;
   display: grid;
   place-items: center;
   padding: 0;
