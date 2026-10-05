@@ -470,6 +470,7 @@ export default function GmConsole() {
   const pendingCommands = useSessionStore((state) => state.pendingCommands);
   const connection = useSessionStore((state) => state.connection);
   const sessionSnapshotFreshness = useSessionStore((state) => state.sessionSnapshotFreshness);
+  const seats = useSessionStore((state) => state.seats);
   const setupReceipt = useSessionStore((state) => state.gmSetupReceipt);
   const loyaltyCensus = useSessionStore((state) => state.gmLoyaltyCensus);
   const gmWolfCultIntelligence = useSessionStore((state) => state.gmWolfCultIntelligence);
@@ -1764,6 +1765,22 @@ export default function GmConsole() {
     return CONSOLE_ROLES.find((role) => role.id === roleId)?.name ?? roleId;
   }
 
+  function hasCanonicalHeldCastingSeat(player: Player): boolean {
+    if (
+      !session || currentTurn !== 0 ||
+      (session.phase !== 'lobby' && session.phase !== 'casting') ||
+      connection !== 'live' || sessionSnapshotFreshness !== 'server' ||
+      player.sessionId !== session.id || typeof player.uid !== 'string' || player.uid.length === 0 ||
+      typeof player.seatId !== 'string' || !activeRoleIds.includes(player.seatId)
+    ) return false;
+    const matchingSeats = seats.filter((seat) => seat.id === player.seatId);
+    if (matchingSeats.length !== 1) return false;
+    const seat = matchingSeats[0];
+    if (!seat) return false;
+    return seat.sessionId === session.id && seat.roleId === player.seatId &&
+      seat.status === 'claimed' && seat.holderUid === player.uid;
+  }
+
   function castingRestriction(player: Player): string | null {
     if (
       player.activeConsoleRoleId === 'press-officer' ||
@@ -1775,7 +1792,8 @@ export default function GmConsole() {
     if (
       typeof player.seatId === 'string' &&
       player.seatId.length > 0 &&
-      player.seatId !== player.assignedRoleId
+      player.seatId !== player.assignedRoleId &&
+      !(player.assignedRoleId == null && hasCanonicalHeldCastingSeat(player))
     ) {
       return `Station held // ${castingRoleLabel(player.seatId)} // release it before casting.`;
     }
@@ -1785,10 +1803,15 @@ export default function GmConsole() {
   function availableCastingRoles(player: Player): readonly string[] {
     if (castingRestriction(player)) return [];
     return activeRoleIds.filter((roleId) =>
-      roleId === player.assignedRoleId || !assignedCastingRoleIds.has(roleId));
+      (!player.seatId || roleId === player.seatId) &&
+      (roleId === player.assignedRoleId || !assignedCastingRoleIds.has(roleId)));
   }
 
   async function changeCastingRole(player: Player, roleId: string | null): Promise<void> {
+    if (roleId !== null && !availableCastingRoles(player).includes(roleId)) {
+      setCastingMutationMessage('CASTING CHANGE REJECTED // REVIEW THE LIVE ROSTER');
+      return;
+    }
     setCastingMutationUid(player.uid);
     setCastingMutationMessage(null);
     try {
