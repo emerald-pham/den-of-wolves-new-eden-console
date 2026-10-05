@@ -170,6 +170,7 @@ export async function runPc10NaturalDisconnectAcceptance(table,{
   functionsCompiledTreeSha256:await compiledTreeHash(root),project:fixture.project,
   emulatorPorts:{auth:emulator.auth.port,functions:emulator.functions.port,firestore:emulator.firestore.port},
   actorClients:actors.length,actualIndependentBrowserContexts:clients.size,actualHumanDevices:0,
+  independentCoreAuthActors:fixture.players.length,independentPressAuthActors:fixture.press?1:0,gmAuthActors:1,
   localEmulatorOnly:true,tokensOrCredentialsRecorded:false,
   adminGameplaySeeds:[],leaseMs:PRESENCE_LEASE_MS,
   transportClass:clients.size?'independent-browser-SDK-and-authenticated-GM-HTTP':'independent-native-SDK-and-authenticated-GM-HTTP',
@@ -292,7 +293,8 @@ export async function runPc10NaturalDisconnectAcceptance(table,{
    }
   }
   checks.sameAuthenticatedIdentitiesRecovered=true;
-  checks.normalSdkCoreAndPressRecovery=true;
+  checks.normalSdkCoreRecovery=true;
+  if(fixture.press)checks.normalSdkPressRecovery=true;
   checks.newActiveCastingRequestStillDenied=true;
   checks.sameGmNormalClaim=true;
   checks.remainingTimeRestoredExactlyOnce=true;
