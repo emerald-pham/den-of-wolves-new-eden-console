@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { validateElectionPlan, validateElectionTieDecision } from './pc10-politics-press-proof.mjs';
+import { createPoliticsPressCallbacks, validateElectionActionCycle, validateElectionPlan,
+  validateElectionTieDecision } from './pc10-politics-press-proof.mjs';
 import { validateCrisisChoice } from './pc10-crisis-voyage-proof.mjs';
 import { validatePosseChoice, validateArrestDispositionChoice } from './pc10-arrest-posse-proof.mjs';
 import { assertRequiredCrisisChoices } from './pc10-crisis-voyage-proof.mjs';
@@ -38,6 +39,24 @@ test('facilitator election tie choices must name distinct original roster roles 
   assert.throws(() => validateElectionTieDecision({ presidentCandidateRoleId: 'captain-a',
     vicePresidentCandidateRoleId: 'captain-a' }), /distinct/i);
   assert.throws(() => validateElectionTieDecision({ presidentCandidateUid: 'raw-uid' }), /unknown/i);
+});
+
+test('election ballot and close callbacks are offered only in the configured source cycle window', () => {
+  const policy = { openCycle: 2, closeCycle: 4 };
+  assert.equal(validateElectionActionCycle(policy, 2, 'ballot'), true);
+  assert.equal(validateElectionActionCycle(policy, 4, 'ballot'), true);
+  assert.equal(validateElectionActionCycle(policy, 4, 'resolve'), true);
+  assert.throws(() => validateElectionActionCycle(policy, 1, 'ballot'), /outside.*ballot window/i);
+  assert.throws(() => validateElectionActionCycle(policy, 5, 'ballot'), /outside.*ballot window/i);
+  assert.throws(() => validateElectionActionCycle(policy, 3, 'resolve'), /before.*close cycle/i);
+  assert.throws(() => validateElectionActionCycle(policy, 2, 'invented'), /unknown.*election action/i);
+});
+
+test('politics callbacks separate Cycle 1 policy setup from later election ballot and close stages', () => {
+  const callbacks = createPoliticsPressCallbacks({});
+  assert.equal(typeof callbacks.onStarted, 'function');
+  assert.equal(typeof callbacks.onElectionBallot, 'function');
+  assert.equal(typeof callbacks.onElectionClose, 'function');
 });
 
 test('crisis choices accept only source-defined private GM actions and linked instructions', () => {
