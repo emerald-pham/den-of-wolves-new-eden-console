@@ -159,3 +159,24 @@ test('receipt endpoints refer to actual exported callable names rather than simi
     assert.ok(new RegExp(`export\\s+(?:const\\s+${endpoint}\\s*=|\\{[^}]*\\b${endpoint}\\b[^}]*\\})`).test(source),
       `Real declared or re-exported callable ${endpoint} is required.`);
 });
+
+test('a maintenance or independent labour receipt must match the actual procedure request fields', () => {
+  const cases = [
+    ['joint', 'joint-engineering-quellon-refinery:quellon-end',
+      { shipId: 'quellon', action: 'end' }, { shipId: 'quellon', action: 'begin' }],
+    ['replacements', 'gorgoneion-captain:maintenance-reactor',
+      { smallShipId: 'gorgoneion', action: 'reactor' }, { smallShipId: 'warrior', action: 'reactor' }],
+    ['replacements', 'vulcan-captain:labour-2',
+      { sourceConsoleId: 'additional-labour-2' }, { sourceConsoleId: 'additional-labour-1' }],
+  ];
+  for (const [scenario, id, actualFields, wrongFields] of cases) {
+    const matrix = proof.createExtraRoleMatrix(scenario), row = matrix.find(row => row.id === id);
+    const receipt = { httpStatus: 200, identityVerified: true, requestId: 'actual-request',
+      endpoint: row.endpoint, transport: 'ordinary-ui' };
+    assert.throws(() => proof.recordExtraRoleResult(matrix, id, { status: 'committed',
+      receipt: { ...receipt, requestFields: wrongFields } }), /request.*field|procedure/i);
+    assert.throws(() => proof.recordExtraRoleResult(matrix, id, { status: 'committed', receipt }), /request.*field|procedure/i);
+    proof.recordExtraRoleResult(matrix, id, { status: 'committed', receipt: { ...receipt, requestFields: actualFields } });
+    assert.equal(row.status, 'committed');
+  }
+});
