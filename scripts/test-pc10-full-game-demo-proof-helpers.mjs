@@ -35,3 +35,30 @@ test('a selected actor must be the same real SDK/member/profile identity', () =>
     assert.throws(() => assertSelectedActor(changed, target));
   }
 });
+
+test('crew preparation retries only the offered ordinary transient recovery', async () => {
+  const { completePreparedCrew } = await import('./pc10-full-game-demo-proof-helpers.mjs');
+  const snapshots = [
+    { actorCount: 4, live: false, retryEnabled: true, error: 'Demo preparation stopped. Reconnect and retry from the crew controller.' },
+    { actorCount: 4, live: true, retryEnabled: true, error: 'Demo preparation stopped. Reconnect and retry from the crew controller.' },
+    { actorCount: 11, live: true, retryEnabled: false, error: '' },
+    { actorCount: 11, live: true, retryEnabled: true, error: 'Demo preparation stopped. Reconnect and retry.' },
+    { actorCount: 21, live: true, retryEnabled: true, error: '' },
+  ];
+  let index = 0, retries = 0, time = 0;
+  assert.equal(await completePreparedCrew({ inspect: async () => snapshots[index++],
+    retry: async () => { retries += 1; }, now: () => time, wait: async () => { time += 1; } }), 2);
+  assert.equal(retries, 2);
+});
+
+test('crew retry never substitutes identity recovery or an unlimited retry loop', async () => {
+  const { completePreparedCrew } = await import('./pc10-full-game-demo-proof-helpers.mjs');
+  let retries = 0, time = 0;
+  await assert.rejects(completePreparedCrew({ inspect: async () => ({ actorCount: 0, live: true, retryEnabled: true,
+    error: 'The saved demo actor identity is unavailable. Restore this browser’s saved data.' }),
+    retry: async () => { retries += 1; } }), /identity is unavailable/);
+  await assert.rejects(completePreparedCrew({ inspect: async () => ({ actorCount: 4, live: true, retryEnabled: true,
+    error: 'Demo preparation stopped. Reconnect and retry.' }), retry: async () => { retries += 1; },
+    maxRetries: 1, now: () => time, wait: async () => { time += 1; } }), /retry limit/);
+  assert.equal(retries, 1);
+});
