@@ -379,10 +379,11 @@ test('origin census rejects an eligible native POST without a corresponding orig
   [...timers.values()][0].callback();
   await assert.rejects(missing, /Origin callable census exceeded the observation budget/);
   assert.ok(fixture.failures.some(value => value.category === 'origin-request-unaccounted'));
-  await fixture.fetch(input); await settled(fixture);
-  fixture.network('request', 'native-protocol-1', { request: { url: input.url, method: 'POST',
+  const duplicate = nativeFixture();
+  await duplicate.fetch(input); await settled(duplicate);
+  duplicate.network('request', 'native-protocol-1', { request: { url: input.url, method: 'POST',
     headers: input.options.headers, postData: input.options.body } });
-  assert.ok(fixture.failures.some(value => value.category === 'unknown-callable-lifecycle'));
+  assert.ok(duplicate.failures.some(value => value.category === 'unknown-callable-lifecycle'));
 });
 
 test('sanitized binding rejects unknown stages, duplicate completion and arbitrary raw error properties', async () => {
