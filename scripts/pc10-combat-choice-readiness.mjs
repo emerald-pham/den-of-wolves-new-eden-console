@@ -196,7 +196,14 @@ export async function inspectWolfChoicePaint(page, spec, view) {
   const pattern = blockerPattern(spec, view, reason);
   if (pattern?.test(text)) return { status: 'blocked', reason, explicit: true };
   if (reason) return pending('The current source blocker has not painted.');
-  if (/Checking|Opening|Reconnect|Waiting for (?:a |the )?(?:live|fresh)|Could not refresh/.test(text))
+  // These two ordinary range notices describe recovery after a disconnect;
+  // they do not say this currently live actor is disconnected. Keep every
+  // other checking/reconnect notice, current source tuple and enabled-control
+  // requirement intact.
+  const readinessText = spec.kind === 'range-actions' ? text
+    .replace('No automatic pass is applied at the deadline. Reconnect to make the current choice.', '')
+    .replace('Choice committed to the server. Reconnecting will restore the current step.', '') : text;
+  if (/Checking|Opening|Reconnect|Waiting for (?:a |the )?(?:live|fresh)|Could not refresh/.test(readinessText))
     return pending('The actual panel is still checking current authority.');
   const range = rangeLabel(view.range ?? spec.range);
   const buttons = {
