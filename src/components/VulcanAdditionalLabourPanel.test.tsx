@@ -12,7 +12,9 @@ const completed: SmallShipState['cycle'] = { step: 0, revision: 6, turn: 1,
   startedAt: '2026-10-05T09:00:00.000Z', completedAt: '2026-10-05T09:05:00.000Z',
   chargingSkipped: false, charges: ['additional-labour-1', 'additional-labour-2'] };
 
-function install(overrides: Partial<SmallShipState['cycle']> = {}, airspace: 'restricted' | 'lifted' = 'lifted') {
+type CycleOverrides = { [Key in keyof SmallShipState['cycle']]?: SmallShipState['cycle'][Key] | undefined };
+
+function install(overrides: CycleOverrides = {}, airspace: 'restricted' | 'lifted' = 'lifted') {
   useSessionStore.getState().reset();
   useSessionStore.getState().setIdentity({
     id: 's1', name: 'Vulcan training', joinCode: '4123', phase: 'active', currentTurn: 1,
