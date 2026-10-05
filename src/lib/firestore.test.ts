@@ -43,6 +43,7 @@ vi.mock('./firebaseConfig', () => ({
 const {
   acceptCallableSessionAuthority,
   sessionFrom,
+  parseSessionDebriefProjection,
   sessionSnapshotAuthorityFor,
   subscribeGmInstances,
   subscribeConnectedPlayers,
@@ -937,6 +938,30 @@ it('hydrates a strict reader-scoped debrief and full-game demo marker', () => {
     ...sessionData(8), phase: 'closed', gameOutcome: fleetLossOutcome,
     survivorOutcome: fleetLossSurvivors, debriefSnapshot: fleetLossDebrief,
   }).debriefSnapshot).toEqual(fleetLossDebrief);
+});
+
+it('parses GM-only group route details only when explicitly enabled for the live reader', () => {
+  const outcome = { type: 'game-outcome', result: 'success', cause: 'candidate-complete',
+    candidateCode: 'N', cycle: 4, occurredAt: '2026-10-05T12:00:00.000Z' };
+  const projection = {
+    type: 'session-debrief', version: 1, source: 'candidate', result: 'success',
+    cause: 'candidate-complete', cycle: 4, occurredAt: '2026-10-05T12:00:00.000Z',
+    committedAt: '2026-10-05T12:01:00.000Z', outcome,
+    candidate: { code: 'N', groups: [{ groupId: 'fleet-a',
+      requirements: [{ id: 'paid-crossing', status: 'met' }],
+      rolls: [{ id: 'nebula-bonus', face: 2, result: 'success' }],
+      losses: [], humanCalls: [{ id: 'opposite-side-sabotage', cycle: 4 }],
+      path: [{ action: 'ring-passage', result: 'crossed', shipId: 'aegis', fuelSpent: 2 }],
+    }] },
+  };
+  const privateView = parseSessionDebriefProjection(projection, undefined, { allowGroupIds: true });
+  expect(privateView?.candidate?.groups[0]).toMatchObject({
+    groupId: 'fleet-a', path: [{ action: 'ring-passage', result: 'crossed', shipId: 'aegis', fuelSpent: 2 }],
+  });
+  expect(parseSessionDebriefProjection(projection, undefined)).toBeUndefined();
+  expect(parseSessionDebriefProjection({ ...projection, candidate: { ...projection.candidate,
+    groups: [{ ...projection.candidate.groups[0], gmNote: 'loyalty and secret chart' }] },
+  }, undefined, { allowGroupIds: true })).toBeUndefined();
 });
 
 it('keeps typed entity IDs stable at the session snapshot boundary', () => {
