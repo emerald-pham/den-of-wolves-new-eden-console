@@ -78,9 +78,9 @@ test('evidence cannot accept source or any compiled Functions byte changes durin
 test('active browser readiness requires fresh same-actor role and console authority', () => {
   assert.equal(typeof proof.isFreshPc10BrowserRole, 'function');
   const core = { hasAuth: true, sameActor: true, hasSession: true, cycle: 1,
-    roleId: 'ship-console', activeConsoleRoleId: 'ship-console', connection: 'online', freshness: 'fresh' };
+    roleId: 'ship-console', activeConsoleRoleId: 'ship-console', connection: 'live', freshness: 'server' };
   assert.equal(proof.isFreshPc10BrowserRole(core, 'ship-console'), true);
-  for (const stale of [{ freshness: 'cached' }, { connection: 'offline' },
+  for (const stale of [{ freshness: 'cache' }, { connection: 'offline' },
     { activeConsoleRoleId: null }, { sameActor: false }, { roleId: 'foreign-role' }]) {
     assert.equal(proof.isFreshPc10BrowserRole({ ...core, ...stale }, 'ship-console'), false);
   }
