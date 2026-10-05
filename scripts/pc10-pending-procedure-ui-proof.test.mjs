@@ -145,7 +145,7 @@ test('mounted damage accepts only the server-owned statusless vessel receipt for
     request: damageRequest, response: { httpStatus: 200, result: damageReceipt, exactReplay: true },
     replay: { status: 'committed', result: { ...damageReceipt } },
     rendered: { visible: true, resultStatus: 'committed' },
-    trainingChoice: 'GM training: assign damage through the normal control.' });
+    trainingChoice: 'gm-training:assign-damage' });
   const accepted = evaluateProcedureCapture(damageCapture);
   assert.equal(accepted.status, 'completed');
   assert.doesNotMatch(JSON.stringify(accepted), /gm-auth-uid|hidden-card|Hidden Console|hidden-system/);
@@ -230,6 +230,7 @@ test('evidence projection never persists raw requests, notes, UIDs, or random da
     trainingChoice: 'GM training: assign damage through the normal control.',
   }));
   assert.equal(gmDamage.status, 'pending', 'free-form facilitator wording must not enter evidence');
+  assert.doesNotMatch(JSON.stringify(gmDamage), /GM training:/);
   const disclosedChoice = evaluateProcedureCapture(capture({ caseId: 'gm:addShipDamage',
     expected: { sessionId: 'session-1', uidHash: 'gm-hash', instanceId: 'gm-instance', roleId: 'gm',
       cycle: 2, sourceRevision: 7 }, actorBefore: gmActor, actorAfter: gmActor,
@@ -241,5 +242,5 @@ test('evidence projection never persists raw requests, notes, UIDs, or random da
   }));
   assert.equal(disclosedChoice.status, 'completed');
   assert.equal(disclosedChoice.trainingChoice, 'gm-training:assign-damage');
-  assert.equal(gmDamage.randomOutcomeRecorded, false);
+  assert.equal(disclosedChoice.randomOutcomeRecorded, false);
 });
