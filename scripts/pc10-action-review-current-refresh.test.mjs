@@ -14,7 +14,7 @@ const annotationSource = readFileSync(resolve(repositoryDirectory, 'scripts/pc10
 function primaryReview(name) {
   const start = annotationSource.indexOf(`exportName: '${name}'`);
   assert.notEqual(start, -1, `${name} remains in the primary review list`);
-  const end = annotationSource.indexOf('\n  },\n  {', start);
+  const end = annotationSource.indexOf('\n  },', start);
   assert.notEqual(end, -1, `${name} review has a bounded row`);
   return annotationSource.slice(start, end);
 }
