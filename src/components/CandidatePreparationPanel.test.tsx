@@ -25,7 +25,7 @@ it('gives each Ring research choice a 44px checkbox activation target', async ()
   document.head.append(style);
   try {
     render(<CandidatePreparationPanel />);
-    const checkbox = await screen.findByRole('checkbox', { name: 'Reactor', exact: true });
+    const checkbox = await screen.findByRole('checkbox', { name: 'Reactor' });
     const label = checkbox.closest('label');
     expect(label).not.toBeNull();
     expect(Number.parseFloat(getComputedStyle(label!).minHeight)).toBeGreaterThanOrEqual(44);
