@@ -49,3 +49,25 @@ it('shows a private not-arrested result without exposing suspicion', async () =>
   expect(await screen.findByText('Posse did not reach the required number.')).toBeVisible();
   expect(document.body.textContent).not.toMatch(/suspicion|loyalty|wolf-agent/i);
 });
+
+it('makes simulated demo attendance an explicit labeled choice distinct from real people', async () => {
+  const onResolve = vi.fn().mockResolvedValue({
+    status: 'committed', type: 'arrest-posse-outcome', sessionId: 's1', requestId: 'case-demo',
+    turn: 3, revision: 1, targetUid: 'target', requiredPlayers: 2, presentPlayers: 1,
+    outcome: 'not-arrested', attendanceEvidence: 'simulated-demo',
+  });
+  const user = userEvent.setup();
+  render(<ArrestPosseCalculator
+    targetOptions={[{ uid: 'target', label: 'Target' }]}
+    presentPlayerOptions={[{ uid: 'u1', label: 'Virtual Alex' }]}
+    censusRevision={8} expectedRevision={1} expectedCycle={3}
+    calculation={{ type: 'arrest-posse-calculation', sessionId: 's1', revision: 1,
+      requestId: 'calc-1', targetUid: 'target', defenders: 0, requiredPlayers: 2, censusRevision: 8 }}
+    attendanceEvidence="simulated-demo" onCalculate={vi.fn()} onResolve={onResolve}
+  />);
+  expect(screen.getByText(/virtual crew.*does not record physical attendance/i)).toBeVisible();
+  expect(screen.queryByRole('button', { name: 'Resolve attendance', exact: true })).not.toBeInTheDocument();
+  await user.click(within(screen.getByRole('group', { name: 'Simulated posse attendance' })).getByLabelText('Virtual Alex'));
+  await user.click(screen.getByRole('button', { name: 'Simulate attendance', exact: true }));
+  await waitFor(() => expect(onResolve).toHaveBeenCalledWith('target', ['u1'], 3, 1, 'simulated-demo'));
+});
