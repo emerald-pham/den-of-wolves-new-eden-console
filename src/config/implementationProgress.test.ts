@@ -12,9 +12,10 @@ import {
 const root = process.cwd();
 const inputs = readImplementationProgress({ cwd: root });
 const catalog = JSON.parse(inputs.catalogSource) as {
-  prompts: Array<{ id: string; status: string; changeClass: string }>;
+  prompts: Array<{ id: string; status: string; changeClass: string; releases: string[]; evidenceIds: string }>;
   evidence: Array<Record<string, string>>;
 };
+const pc09Ids = '471 472 473 580 605a 474 475 476 477 478 479 480 481 482 483 484 490 491 492 493 494 621 214 503a 506 508 513 514 516 517 519 520 521 521a 521b 524 645 523b 523c 524b 524c 524d 528 529 537 538 539 540 180'.split(' ');
 
 describe('catalog-backed implementation progress', () => {
   it('preserves the fixed PC06 closures and its historical release allocation', () => {
@@ -37,7 +38,7 @@ describe('catalog-backed implementation progress', () => {
     const pc07 = CHANGELOG.find(entry => entry.version === '0.5.65');
     expect(pc07?.implementationPrompts?.map(String)).toEqual(ids);
     expect(pc07?.implementationProgress?.completed).toBe(605);
-    expect(catalog.prompts.find(row => row.id === '605a')?.status).not.toBe('done');
+    expect(pc07?.implementationPrompts?.map(String)).not.toContain('605a');
   });
 
   it('closes exactly the fixed PC08 allocation while preserving earlier snapshots', () => {
@@ -51,10 +52,29 @@ describe('catalog-backed implementation progress', () => {
     expect(pc08?.implementationProgress).toMatchObject({
       completed: 654, total: 751, percentage: '87.08%', partial: 10, missing: 87,
     });
-    expect(catalog.prompts.filter(row => row.status === 'done')).toHaveLength(654);
+    expect(catalog.prompts.filter(row => row.status === 'done' && !pc09Ids.includes(row.id))).toHaveLength(654);
     expect(CHANGELOG.find(entry => entry.version === '0.5.65')?.implementationProgress?.completed).toBe(605);
     expect(CHANGELOG.find(entry => entry.version === '0.5.66')?.implementationProgress?.completed).toBe(605);
-    expect(catalog.prompts.find(row => row.id === '605a')?.status).not.toBe('done');
+    expect(pc08?.implementationPrompts?.map(String)).not.toContain('605a');
+  });
+
+  it('closes exactly the fixed PC09 allocation after explicit visualization activation', () => {
+    expect(pc09Ids).toHaveLength(49);
+    expect(new Set(pc09Ids).size).toBe(49);
+    const rows = pc09Ids.map(id => catalog.prompts.find(row => row.id === id));
+    expect(rows.map(row => row?.status)).toEqual(pc09Ids.map(() => 'done'));
+    expect(rows.every(row => row?.releases.includes('0.5.68'))).toBe(true);
+    const pc09 = CHANGELOG.find(entry => entry.version === '0.5.68');
+    expect(pc09?.implementationPrompts?.map(String)).toEqual(pc09Ids);
+    expect(pc09?.implementationProgress).toEqual({
+      completed: 703, total: 751, percentage: '93.61%',
+      done: 703, partial: 6, active: 0, missing: 42, blocked: 0,
+    });
+    expect(catalog.prompts.filter(row => row.status === 'done')).toHaveLength(703);
+    expect(catalog.prompts.filter(row => row.status === 'partial')).toHaveLength(6);
+    expect(catalog.prompts.filter(row => row.status === 'missing')).toHaveLength(42);
+    expect(catalog.prompts.find(row => row.id === '605a')?.evidenceIds.split(';'))
+      .toContain('E-PC09-P605A-ACTIVATION-20261004');
   });
 
   it('derives the current summary from the catalog and requires the current changelog totals to match', () => {
