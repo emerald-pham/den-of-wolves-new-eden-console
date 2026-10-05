@@ -377,6 +377,21 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
     if (message.startsWith(playwrightPrefix)) message = message.slice(playwrightPrefix.length);
     return chromiumBodyReadReasons.get(message) ?? 'unknown';
   };
+  const chromiumStreamStartReasons = new Map([
+    ['Request with the provided ID does not exists', 'resource-not-found'],
+    ['Request with the provided ID has already finished loading', 'already-finished'],
+  ]);
+  const safeStreamStartReason = error => {
+    let message;
+    try { message = error instanceof Error ? error.message : ''; }
+    catch { return 'unknown'; }
+    if (typeof message !== 'string') return 'unknown';
+    const prefixes = ['Protocol error (Network.streamResourceContent): ',
+      'cdpSession.send: Protocol error (Network.streamResourceContent): '];
+    const prefix = prefixes.find(value => message.startsWith(value));
+    if (prefix) message = message.slice(prefix.length);
+    return chromiumStreamStartReasons.get(message) ?? 'unknown';
+  };
   function recordDetachedCallableFailure(name, requestId, category) {
     const failure = { roleId: label, name, category };
     const protocolRequestHash = protocolRequestHashFor(requestId);
@@ -520,9 +535,11 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
         recordCallableReply(state, reply);
       });
       observationBoundary.capture(state, capture);
-      Promise.resolve().then(() => cdpSession.send('Network.streamResourceContent', {
+      // Dispatch at the request event, not a later microtask. The async wrapper
+      // still converts a synchronous port error into the same rejected promise.
+      (async () => cdpSession.send('Network.streamResourceContent', {
         requestId: state.protocolRequestId,
-      })).then(response => {
+      }))().then(response => {
         if (stream.failureStage || stream.settled) return;
         stream.activationObserved = true;
         if (!response || typeof response.bufferedData !== 'string') {
@@ -544,7 +561,10 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
         stream.bufferedData = decoded.bytes;
         stream.byteLength = decoded.bytes.length + stream.chunkByteLength;
         if (stream.byteLength > PC10_MAX_RESPONSE_BYTES) failStreamCapture(stream, 'stream-body-too-large');
-      }, () => failStreamCapture(stream, 'stream-start')).finally(() => {
+      }, error => {
+        if (!stream.failureStage) state.bodyFailureReason = safeStreamStartReason(error);
+        failStreamCapture(stream, 'stream-start');
+      }).finally(() => {
         stream.startCompleted = true;
         settleStreamCapture(state);
       });
@@ -597,6 +617,9 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
       observedRequests.set(event.requestId, state);
       observedCalls.push(trace);
       if (requestMetadataUnavailable) recordCallableObservationFailure(state, 'request-metadata-unavailable');
+      // Chromium creates Fetch/XHR ResourceData before requestWillBeSent, making
+      // this validated POST event the earliest supported activation point.
+      else if (captureMode === 'stream') startStreamCapture(state);
     });
     cdpSession.on('Network.responseReceived', event => {
       const ignoredNonPost = ignoredNonPostRequests.get(event?.requestId);
@@ -616,14 +639,14 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
         recordCallableObservationFailure(state, 'unknown-callable-lifecycle');
       }
       observePc10CallableTrace(state.trace, { stage: 'headers', at: eventTime(state.trace), status: event.response?.status });
-      if (captureMode === 'stream') startStreamCapture(state);
     });
     if (captureMode === 'stream') cdpSession.on('Network.dataReceived', event => {
       if (ignoredNonPostRequests.has(event?.requestId)) return;
       const state = observedRequests.get(event?.requestId);
       if (!state) return;
       const stream = state.streamCapture;
-      if (!stream || stream.terminal || state.trace.requestFinishedAt !== null || state.trace.requestFailedAt !== null) {
+      if (!stream || !state.headersSeen || stream.terminal ||
+          state.trace.requestFinishedAt !== null || state.trace.requestFailedAt !== null) {
         state.streamLifecycleInvalid = true;
         if (stream && !stream.terminal) failStreamCapture(stream, 'stream-lifecycle');
         recordCallableObservationFailure(state, 'unknown-callable-lifecycle');
@@ -681,6 +704,10 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
       }
       observePc10CallableTrace(state.trace, { stage: 'finished', at: eventTime(state.trace) });
       if (captureMode === 'stream') {
+        if (!state.headersSeen) {
+          if (state.streamCapture) failStreamCapture(state.streamCapture, 'stream-lifecycle');
+          recordCallableObservationFailure(state, 'unknown-callable-lifecycle');
+        }
         if (!state.streamCapture) {
           state.bodyFailureStage = 'stream-not-started';
           recordCallableObservationFailure(state, 'unknown-callable-lifecycle');
