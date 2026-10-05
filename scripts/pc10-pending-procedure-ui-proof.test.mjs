@@ -9,7 +9,9 @@ import {
 
 // Reason: keep source-owned pending procedure rows finite and executable without
 // treating a route visit, SDK-only call, unavailable control, or synthetic
-// outcome as gameplay evidence.
+// outcome as gameplay evidence. The source actor hash must be explicit in every
+// pure capture fixture; random/private reply fields may exist transiently but
+// must never be copied into the returned evidence.
 
 const EXPECTED_CORE = [
   'allocateHummingbirdHarvest', 'chooseBoaMissionReclamationOpportunity', 'rechargeHostConsoleFromShuttle',
@@ -32,12 +34,12 @@ const request = { sessionId: 'session-1', requestId: 'request-1', expectedCycle:
   expectedRevision: 7, shipId: 'icebreaker', action: 'ore' };
 const result = { status: 'committed', revision: 8, amount: 6 };
 const capture = overrides => ({
-  caseId: 'core:runHighwallMining', expected: { sessionId: 'session-1', roleId: 'icebreaker-miner',
+  caseId: 'core:runHighwallMining', expected: { sessionId: 'session-1', uidHash: 'actor-hash', roleId: 'icebreaker-miner',
     cycle: 2, sourceRevision: 7, groupId: 'group-1', resourceCost: null },
   offered: true, mountedUi: true, actorBefore: actor, actorAfter: actor,
   sourceBefore: { live: true, sessionId: 'session-1', cycle: 2, revision: 7, groupId: 'group-1' },
   sourceAfter: { live: true, sessionId: 'session-1', cycle: 2, revision: 8, groupId: 'group-1' },
-  request, response: { httpStatus: 200, result }, replay: { status: 'committed', result: { ...result, status: 'replayed' } },
+  request, response: { httpStatus: 200, result, exactReplay: true }, replay: { status: 'committed', result: { ...result, status: 'replayed' } },
   rendered: { visible: true, resultStatus: 'committed' }, trainingChoice: null, cost: null,
   consent: null, ...overrides,
 });
@@ -100,7 +102,7 @@ test('damage draw is classified as mounted only through the actual GM Assign dam
 
 test('printed costs, real distinct consent, and replay-safe receipts are mandatory', () => {
   const repair = capture({ caseId: 'core:repairConsolesFromBlacksmith',
-    expected: { sessionId: 'session-1', roleId: 'icebreaker-engineer', cycle: 2, sourceRevision: 7,
+    expected: { sessionId: 'session-1', uidHash: 'actor-hash', roleId: 'icebreaker-engineer', cycle: 2, sourceRevision: 7,
       groupId: 'group-1', cost: { resource: 'materials', amount: 4, direction: 'debit' } },
     actorBefore: { ...actor, profileRoleId: 'icebreaker-engineer', activeConsoleRoleId: 'icebreaker-engineer' },
     actorAfter: { ...actor, profileRoleId: 'icebreaker-engineer', activeConsoleRoleId: 'icebreaker-engineer' },
@@ -111,8 +113,11 @@ test('printed costs, real distinct consent, and replay-safe receipts are mandato
   assert.equal(evaluateProcedureCapture({ ...repair, cost: { ...repair.cost, after: 5 } }).status, 'pending');
   assert.equal(evaluateProcedureCapture({ ...repair, cost: { ...repair.cost, amount: 3 } }).status, 'pending');
 
-  const consent = capture({ caseId: 'core:transferShuttleControlCommand', consent: {
-    required: true, requestId: 'proposal-1', status: 'committed', sameSession: true,
+  const consent = capture({ caseId: 'core:transferShuttleControlCommand',
+    expected: { sessionId: 'session-1', uidHash: 'holder-hash', roleId: 'icebreaker-miner', cycle: 2,
+      sourceRevision: 7, groupId: 'group-1', distinctConsent: true },
+    actorBefore: { ...actor, uidHash: 'holder-hash' }, actorAfter: { ...actor, uidHash: 'holder-hash' }, consent: {
+    required: true, requestId: 'proposal-1', proposalId: 'proposal-1', status: 'committed', sameSession: true,
     actorUidHash: 'holder-hash', counterpartyUidHash: 'holder-hash', groupId: 'group-1',
   } });
   assert.equal(evaluateProcedureCapture(consent).status, 'pending');
@@ -122,7 +127,7 @@ test('printed costs, real distinct consent, and replay-safe receipts are mandato
 
 test('evidence projection never persists raw requests, notes, UIDs, or random damage cards', () => {
   const raw = capture({ request: { ...request, instanceId: 'private-instance', note: 'private note',
-    actorUid: 'raw-uid', card: 'hidden-card' }, response: { httpStatus: 200,
+    actorUid: 'raw-uid', card: 'hidden-card' }, response: { httpStatus: 200, exactReplay: true,
     result: { ...result, card: 'hidden-card', note: 'private note' } }, replay: { status: 'committed',
     result: { ...result, status: 'replayed', card: 'hidden-card', note: 'private note' } },
     trainingChoice: 'GM training: a deliberate example ruling' });
