@@ -130,7 +130,7 @@ export default function CandidatePreparationPanel() {
         <p>Scout or arrive at a candidate to receive its preparation and actions.</p> : workspace.paths.map(path =>
           <article key={`${path.code}-${path.coordinate}`} className="candidate-preparation__path">
             <h3>{path.title}</h3>
-            <p>{path.code === 'N' ? 'Repair: 10 materials, one Engineering Shuttle and five distinct research tracks with four crosses. Passage: five fuel from each ship.' :
+            <p>{path.code === 'N' ? 'Repair: 10 materials, one Engineering Shuttle and five distinct research tracks with four crosses. Ring repair permanently consumes the Engineering Shuttle; it cannot launch, repair, recharge or join a mission afterward. Passage: five fuel from each ship.' :
               path.code === 'O' ? 'Scout within range, then each ship chooses a long jump. The server resolves whether it reaches New Eden or is lost. Scouting totals stay private.' :
                 'Defeat all Station Wolves, then cannibalise unique Reactors for at least 18 available charge capacity. Station defences activate automatically.'}</p>
             <p>{path.code === 'N' ? `${path.materials}/10 materials // ${path.researchCount}/5 research // Engineering Shuttle ${path.shuttleCommitted ? 'committed' : 'required'} // ${path.repaired ? 'Ring repaired' : 'repair pending'}` :

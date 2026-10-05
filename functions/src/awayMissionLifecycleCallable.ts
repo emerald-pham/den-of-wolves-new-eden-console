@@ -1,3 +1,5 @@
+import { shipForRole } from './crewAccess';
+import { requireCandidateCraftActionAvailable } from './candidateAvailability';
 import { randomInt } from 'node:crypto';
 import { HttpsError } from 'firebase-functions/v2/https';
 import {
@@ -431,6 +433,10 @@ export function createAwayMissionLifecycleCallables(
         }
 
         authorizeMissionActor(record, parsed.command.type, actorUid);
+        requireCandidateCraftActionAvailable(sessionSnapshot, record.participantCrafts.flatMap(participant => participant.craftIds),
+          [...p403.participantSnapshots.flatMap(participant => {
+            const shipId = shipForRole(participant.roleId); return shipId ? [shipId] : [];
+          }), ...(parsed.command.type === 'dropOff' ? [parsed.command.shipId] : [])]);
         if (sessionData.phase !== 'active') {
           fail('failed-precondition', 'Away-mission lifecycle commands require an active game.');
         }

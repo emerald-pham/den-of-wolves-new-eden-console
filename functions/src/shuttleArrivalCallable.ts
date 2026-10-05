@@ -1,3 +1,4 @@
+import { requireCandidateCraftActionAvailable } from './candidateAvailability';
 import { randomUUID } from 'node:crypto';
 import { FieldValue, Timestamp, getFirestore, type DocumentSnapshot } from 'firebase-admin/firestore';
 import { HttpsError } from 'firebase-functions/v2/https';
@@ -226,6 +227,7 @@ export function createCompleteShuttleArrivalCallable() {
       }
       return { ...replay, status: 'replayed' as const };
     }
+    requireCandidateCraftActionAvailable(session, [data.shuttleId]);
     if (eventSnapshot.exists) {
       throw commandError('failed-precondition', 'The shuttle arrival event already exists without its receipt.', 'conflict');
     }
@@ -242,6 +244,7 @@ export function createCompleteShuttleArrivalCallable() {
       )
       : null;
     const transit = authority?.transit;
+    if (transit) requireCandidateCraftActionAvailable(session, [data.shuttleId], [transit.originShipId, transit.destinationShipId]);
     const actorGroupId = actor.get('fleetGroupId');
     if (!transit || transit.transitRequestId !== data.transitRequestId) {
       throw shuttleMovementConflictErrorForArrival({

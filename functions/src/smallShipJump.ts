@@ -1,3 +1,4 @@
+import { requireCandidateCraftActionAvailable } from './candidateAvailability';
 import { HttpsError } from 'firebase-functions/v2/https';
 import type { DocumentSnapshot, Firestore, Transaction } from 'firebase-admin/firestore';
 import { decideActionAuthorization, phaseFromTurnPhase } from './actionMetadata';
@@ -530,6 +531,7 @@ export function createSmallShipJumpCallables(dependencies: SmallShipJumpCallable
         if (!authority.session.exists) throw new HttpsError('not-found', 'No such session.');
         const viewer = viewerKind(authority, parsed.smallShipId);
         const session = authority.session;
+        requireCandidateCraftActionAvailable(session, [parsed.smallShipId]);
         dependencies.requireSmallShipMode(session, parsed.smallShipId);
         requireActiveSession(session);
         const state = smallShipState(session, parsed.smallShipId);
@@ -592,6 +594,7 @@ export function createSmallShipJumpCallables(dependencies: SmallShipJumpCallable
         const replay = receiptReply(prior, expected, uid);
         if (replay) return replay;
         const session = authority.session;
+        requireCandidateCraftActionAvailable(session, [parsed.smallShipId], [parsed.hostShipId]);
         dependencies.requireSmallShipMode(session, parsed.smallShipId);
         const turn = coordinationTurn(session);
         const state = smallShipState(session, parsed.smallShipId);

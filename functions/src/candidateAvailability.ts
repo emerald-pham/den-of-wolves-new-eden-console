@@ -75,3 +75,23 @@ export function reserveCandidateEngineeringCraft(raw: unknown, craftId: string,
   if (Object.hasOwn(existing, craftId)) return fail('This Engineering Shuttle is already consumed by Ring repair.');
   return parseCandidateCraftReservations({ ...existing, [craftId]: reservation });
 }
+
+
+/** Reject a fresh craft action when either the craft or its actual current host has settled. */
+export function requireCandidateCraftActionAvailable(session: SessionAuthority, craftIds: readonly string[],
+  extraVesselIds: readonly string[] = []): void {
+  requireCandidateCraftAvailable(session, craftIds);
+  const dockings = session.get('shuttleDockings');
+  const smallStates = session.get('smallShipStates');
+  const voyage = session.get('voyage33Maintenance');
+  const hosts = [
+    ...(Array.isArray(dockings) ? dockings.flatMap(entry => record(entry) &&
+      craftIds.includes(String(entry.shuttleId)) && typeof entry.shipId === 'string' ? [entry.shipId] : []) : []),
+    ...(record(smallStates) ? craftIds.flatMap(craftId => {
+      const state = smallStates[craftId];
+      return record(state) && typeof state.hostShipId === 'string' ? [state.hostShipId] : [];
+    }) : []),
+    ...(craftIds.includes('voyage-33-0') && record(voyage) && typeof voyage.hostShipId === 'string' ? [voyage.hostShipId] : []),
+  ];
+  requireCandidateVesselsAvailable(session, [...extraVesselIds, ...craftIds, ...hosts]);
+}

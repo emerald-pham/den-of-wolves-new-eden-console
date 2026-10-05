@@ -1,4 +1,5 @@
 import { auditedOnCall } from './securityCallable';
+import { requireCandidateCraftActionAvailable } from './candidateAvailability';
 import { FieldValue, Timestamp, getFirestore, type DocumentSnapshot, type Transaction } from 'firebase-admin/firestore';
 import { HttpsError, } from 'firebase-functions/v2/https';
 import { boundCoreConsoleRole } from './consoleRolePolicy';
@@ -433,6 +434,7 @@ export const activateEndeavourEcmDevice = auditedOnCall<{
       }
       const replay = await replayReply(tx, receipt, fingerprint);
       if (replay) return replay;
+      requireCandidateCraftActionAvailable(session, ['endeavour'], ['shepherd']);
       requirePursuitEmergencyWindowAbsent(session);
       if (session.get('phase') !== 'active') {
         throw new HttpsError('failed-precondition', 'The ECM Device is available only during active gameplay.');

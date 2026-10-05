@@ -1,4 +1,5 @@
 import { auditedOnCall } from './securityCallable';
+import { requireCandidateCraftActionAvailable } from './candidateAvailability';
 import { randomInt } from 'node:crypto';
 import { FieldValue, Timestamp, getFirestore } from 'firebase-admin/firestore';
 import { HttpsError, } from 'firebase-functions/v2/https';
@@ -132,6 +133,7 @@ export const runWolfAgentDetectorTest = auditedOnCall<{
       }
       return result;
     }
+    requireCandidateCraftActionAvailable(session, ['endeavour'], ['shepherd']);
     const researchProgress = research.exists ? research.data() : {};
     try {
       if (!endeavourResearchTrack(researchProgress, 'wolf-agent-detector').complete) {

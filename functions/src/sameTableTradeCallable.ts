@@ -1,3 +1,4 @@
+import { requireCandidateVesselsAvailable } from './candidateAvailability';
 import {
   HttpsError,
 } from 'firebase-functions/v2/https';
@@ -540,6 +541,7 @@ export function createSameTableTradeCallables(dependencies: SameTableTradeCallab
 
       const recipient = requireActivePlayer(roster, toUid, 'recipient');
       requireSameTableAndFleet(sender, recipient);
+      requireCandidateVesselsAvailable(sessionSnapshot, [sender.tableId!, recipient.tableId!]);
       const senderInventory = requireInventoryRecord(senderInventorySnapshot, sessionId, uid);
       const recipientInventory = requireInventoryRecord(recipientInventorySnapshot, sessionId, toUid);
       requireRevisionCoversInventories(state.revision, senderInventory, recipientInventory);
@@ -648,6 +650,7 @@ export function createSameTableTradeCallables(dependencies: SameTableTradeCallab
       dependencies.requireNonterminalSessionPhase(sessionSnapshot.get('phase'));
       const sender = requireActivePlayer(roster, storedOffer.fromUid, 'sender');
       requireSameTableAndFleet(sender, recipient);
+      requireCandidateVesselsAvailable(sessionSnapshot, [sender.tableId!, recipient.tableId!]);
       requireRevisionCoversInventories(state.revision, senderInventory, recipientInventory);
       if (sender.tableId !== storedOffer.tableId || recipient.tableId !== storedOffer.tableId ||
           sender.fleetGroupId !== storedOffer.fleetGroupId || recipient.fleetGroupId !== storedOffer.fleetGroupId) {

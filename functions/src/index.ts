@@ -23,7 +23,7 @@ import { recordCandidatePlanCheckpoint } from './candidatePlanCheckpoint';
 import { createCandidateCallables } from './candidatePathsCallable';
 import { candidateStationLiberationFromFinalization } from './candidateStationLiberation';
 import { commitTerminal } from './sessionDebrief';
-import { requireCandidateVesselsAvailable, requireCandidateCraftAvailable } from './candidateAvailability';
+import { requireCandidateVesselsAvailable, requireCandidateCraftAvailable, requireCandidateCraftActionAvailable, candidateAvailableVesselIds } from './candidateAvailability';
 import {
   candidateRevealProjectionForCurrentFleetMember,
   type CandidateReveal,
@@ -1954,7 +1954,8 @@ function publicShipMutinies(value: unknown, activeVesselIds: readonly string[]) 
   }));
 }
 
-function requireUsableShip(session: DocumentSnapshot, shipId: string): void {
+function requireUsableShip(session: DocumentSnapshot, shipId: string, allowCandidateReceiptRecovery = false): void {
+  if (!allowCandidateReceiptRecovery) requireCandidateVesselsAvailable(session, [shipId]);
   const unrest = shipUnrest(session.get('shipUnrest'))[shipId] ?? 0;
   if (isShipInMutiny(shipMutinyForSession(session, shipId), unrest)) {
     throw commandError('failed-precondition',
@@ -3809,9 +3810,9 @@ function playerEscapeState(player: Pick<DocumentSnapshot, 'get'>): PlayerEscapeS
 }
 
 /** Player ship actions are revoked by the authoritative escape transition. */
-function requirePlayerShipActionAuthority(player: DocumentSnapshot): void {
+function requirePlayerShipActionAuthority(player: DocumentSnapshot, allowCandidateReceiptRecovery = false): void {
   if (player.get('role') !== 'player') return;
-  if (player.get('candidateDisposition') != null) {
+  if (!allowCandidateReceiptRecovery && player.get('candidateDisposition') != null) {
     throw commandError('failed-precondition', 'This vessel has reached its candidate disposition. Original results remain available.', 'conflict');
   }
   if (player.get('replacementStatus') != null) {
@@ -3828,6 +3829,14 @@ function requirePlayerShipActionAuthority(player: DocumentSnapshot): void {
       'conflict',
     );
   }
+}
+
+/** Fresh acceptance only. Original bound receipts must return before this check. */
+function requireCandidateActionAvailable(session: DocumentSnapshot, actor: DocumentSnapshot | undefined,
+  shipIds: readonly string[] = [], craftIds: readonly string[] = []): void {
+  if (actor) requirePlayerShipActionAuthority(actor);
+  requireCandidateCraftActionAvailable(session, craftIds,
+    [...shipIds, ...(actor ? playerAuthoritativeVesselIds(actor) : [])]);
 }
 
 function isCanonicalAndroidPayload(value: unknown): value is Record<string, unknown> {
@@ -7311,7 +7320,7 @@ export const transferShuttleControlCommand = auditedOnCall<{
     if (!isActivePlayer(actor)) {
       throw new HttpsError('permission-denied', 'Join the session before transferring a shuttle.');
     }
-    requirePlayerShipActionAuthority(actor);
+    requirePlayerShipActionAuthority(actor, true);
     const actorIsFacilitator = actor.get('role') === 'gm';
     if (actorIsFacilitator) {
       if (!instance || !isLiveGmInstance(instance, actor, uid)) {
@@ -7375,6 +7384,7 @@ export const transferShuttleControlCommand = auditedOnCall<{
     // An exact retry remains available to the still-authorized printed owner
     // or facilitator after the phase or recipient presence changes. The
     // committed reply contains no hidden state and must remain transport-safe.
+    requireCandidateActionAvailable(session, actor, [], [data.shuttleId]);
     requireActionPhase(session, 'transfer', actorIsFacilitator ? 'facilitator' : 'player');
     const activeRoleIds = configuredRoleIds(session);
     const rawDockings = session.get('shuttleDockings');
@@ -7416,6 +7426,7 @@ export const transferShuttleControlCommand = auditedOnCall<{
     if (!target || target.get('role') !== 'player') {
       throw commandError('failed-precondition', 'Choose a connected player.', 'conflict');
     }
+    requireCandidateActionAvailable(session, target);
     if (typeof owner.get('fleetGroupId') !== 'string' ||
         target.get('fleetGroupId') !== owner.get('fleetGroupId')) {
       throw new HttpsError('permission-denied', 'Choose a player in your current fleet group.');
@@ -7611,13 +7622,14 @@ export const transferShuttleCargoCommand = auditedOnCall<{
     if (!isActivePlayer(actor) || actor.get('role') !== 'player') {
       throw new HttpsError('permission-denied', 'Only a connected shuttle holder may transfer cargo.');
     }
-    requirePlayerShipActionAuthority(actor);
+    requirePlayerShipActionAuthority(actor, true);
     const replay = replayBoundCommand(
       receipt, fingerprint,
       (value): value is ShuttleCargoTransferReply => isShuttleCargoTransferReply(value, data.sessionId),
       'shuttle cargo transfer',
     );
     if (replay) return { ...replay, status: 'replayed' as const };
+    requireCandidateActionAvailable(session, actor, [], [data.shuttleId]);
     requireActionPhase(session, 'transfer', 'player');
     const groupId = actor.get('fleetGroupId');
     if (typeof groupId !== 'string' || groupId.length === 0) {
@@ -7830,7 +7842,7 @@ export const rechargeHostConsoleFromShuttle = auditedOnCall<{
     if (!isActivePlayer(actor) || actor.get('role') !== 'player') {
       throw new HttpsError('permission-denied', 'Only a connected shuttle holder may recharge a console.');
     }
-    requirePlayerShipActionAuthority(actor);
+    requirePlayerShipActionAuthority(actor, true);
     const replay = replayBoundCommand(
       receipt, fingerprint,
       (value): value is ServiceShuttleRechargeReply =>
@@ -7881,6 +7893,7 @@ export const rechargeHostConsoleFromShuttle = auditedOnCall<{
       }
       return { ...replay, status: 'replayed' as const };
     }
+    requireCandidateActionAvailable(session, actor, [data.expectedHostShipId], [data.shuttleId]);
     if (event.exists) rejectLegacyEventReplay('service-shuttle recharge');
     if (session.get('phase') !== 'active') {
       throw commandError(
@@ -8131,7 +8144,7 @@ export const repairConsolesFromBlacksmith = auditedOnCall<{
     if (!isActivePlayer(actor) || actor.get('role') !== 'player') {
       throw new HttpsError('permission-denied', 'Only a connected Blacksmith holder may repair consoles.');
     }
-    requirePlayerShipActionAuthority(actor);
+    requirePlayerShipActionAuthority(actor, true);
     await rejectForeignLegacyM1Command(
       tx, data.sessionId, data.requestId, 'Blacksmith repair', [],
     );
@@ -8141,6 +8154,7 @@ export const repairConsolesFromBlacksmith = auditedOnCall<{
       'Blacksmith repair',
     );
     if (replay) return { ...replay, status: 'replayed' as const };
+    requireCandidateActionAvailable(session, actor, [data.expectedHostShipId], ['blacksmith']);
     if (event.exists) rejectLegacyEventReplay('Blacksmith repair');
     if (session.get('phase') !== 'active') {
       throw commandError('failed-precondition', 'Blacksmith repair is available only during active gameplay.', 'invalid-phase');
@@ -8379,6 +8393,7 @@ export const repairConsolesFromPhilia = auditedOnCall<{
       'Philia repair',
     );
     if (replay) return { ...replay, status: 'replayed' as const };
+    requireCandidateActionAvailable(session, actor, [data.expectedHostShipId], ['philia']);
     if (event.exists) rejectLegacyEventReplay('Philia repair');
     if (session.get('phase') !== 'active') {
       throw commandError('failed-precondition', 'Philia repair is available only during active gameplay.', 'invalid-phase');
@@ -8558,7 +8573,7 @@ export const repairConsolesFromMacaw = auditedOnCall<{
         actor.get('activeConsoleRoleId') !== 'capybara-captain') {
       throw new HttpsError('permission-denied', 'Only a connected Macaw holder may repair consoles.');
     }
-    requirePlayerShipActionAuthority(actor);
+    requirePlayerShipActionAuthority(actor, true);
     await rejectForeignLegacyM1Command(tx, data.sessionId, data.requestId, 'Macaw repair', []);
     const replay = replayBoundCommand(
       receipt, fingerprint as CommandFingerprint,
@@ -8566,6 +8581,7 @@ export const repairConsolesFromMacaw = auditedOnCall<{
       'Macaw repair',
     );
     if (replay) return { ...replay, status: 'replayed' as const };
+    requireCandidateActionAvailable(session, actor, [data.expectedHostShipId], ['macaw']);
     if (event.exists) rejectLegacyEventReplay('Macaw repair');
     if (session.get('phase') !== 'active') {
       throw commandError('failed-precondition', 'Macaw repair is available only during active gameplay.', 'invalid-phase');
@@ -8720,7 +8736,7 @@ export const recycleWithBoa = auditedOnCall<{
     if (!isActivePlayer(actor) || actor.get('role') !== 'player') {
       throw new HttpsError('permission-denied', 'Only a connected Capybara Recycler may use Boa recycling.');
     }
-    requirePlayerShipActionAuthority(actor);
+    requirePlayerShipActionAuthority(actor, true);
     await rejectForeignLegacyM1Command(tx, data.sessionId, data.requestId, 'Boa recycling', []);
     const replay = replayBoundCommand(
       receipt, fingerprint,
@@ -8728,6 +8744,7 @@ export const recycleWithBoa = auditedOnCall<{
       'Boa recycling',
     );
     if (replay) return { ...replay, status: 'replayed' as const };
+    requireCandidateActionAvailable(session, actor, [data.expectedHostShipId], ['boa']);
     if (event.exists) rejectLegacyEventReplay('Boa recycling');
     if (session.get('phase') !== 'active') {
       throw commandError('failed-precondition', 'Boa recycling is available only during active gameplay.', 'invalid-phase');
@@ -8936,7 +8953,7 @@ export const repairConsolesFromChacau = auditedOnCall('repairConsolesFromChacau'
     if (!isActivePlayer(actor) || actor.get('role') !== 'player') {
       throw new HttpsError('permission-denied', 'Only a connected Refinery 124 Engineer may repair consoles with Chacau.');
     }
-    requirePlayerShipActionAuthority(actor);
+    requirePlayerShipActionAuthority(actor, true);
     await rejectForeignLegacyM1Command(tx, data.sessionId, data.requestId, 'Chacau repair', []);
     const replay = replayBoundCommand(
       receipt, fingerprint,
@@ -8944,6 +8961,7 @@ export const repairConsolesFromChacau = auditedOnCall('repairConsolesFromChacau'
       'Chacau repair',
     );
     if (replay) return { ...replay, status: 'replayed' as const };
+    requireCandidateActionAvailable(session, actor, [data.expectedHostShipId], ['chacau']);
     if (event.exists) rejectLegacyEventReplay('Chacau repair');
     if (session.get('phase') !== 'active') {
       throw commandError('failed-precondition', 'Chacau repair is available only during active gameplay.', 'invalid-phase');
@@ -9206,7 +9224,7 @@ export const upgradeEndeavourFieldTargets = auditedOnCall<{
     if (!isActivePlayer(actor) || actor.get('role') !== 'player') {
       throw new HttpsError('permission-denied', 'Only a connected Endeavour holder may upgrade consoles.');
     }
-    requirePlayerShipActionAuthority(actor);
+    requirePlayerShipActionAuthority(actor, true);
     await rejectForeignLegacyM1Command(tx, data.sessionId, data.requestId, 'Endeavour upgrade', []);
     const replay = replayBoundCommand(
       receipt,
@@ -9215,6 +9233,7 @@ export const upgradeEndeavourFieldTargets = auditedOnCall<{
       'Endeavour upgrade',
     );
     if (replay) return { ...replay, status: 'replayed' as const };
+    requireCandidateActionAvailable(session, actor, [data.expectedHostShipId], ['endeavour']);
     if (event.exists) rejectLegacyEventReplay('Endeavour upgrade');
     if (session.get('phase') !== 'active') {
       throw commandError('failed-precondition', 'Endeavour upgrades are available only during active gameplay.', 'invalid-phase');
@@ -9450,7 +9469,7 @@ export const evacuateShuttleSurvivorsCommand = auditedOnCall<{
     if (!isActivePlayer(actor) || actor.get('role') !== 'player') {
       throw new HttpsError('permission-denied', 'Only a connected shuttle holder may evacuate survivors.');
     }
-    requirePlayerShipActionAuthority(actor);
+    requirePlayerShipActionAuthority(actor, true);
     const replay = replayBoundCommand(
       receipt, fingerprint,
       (value): value is ShuttleEvacuationReply => isShuttleEvacuationReply(value, data.sessionId),
@@ -9458,6 +9477,7 @@ export const evacuateShuttleSurvivorsCommand = auditedOnCall<{
     );
     if (replay) return { ...replay, status: 'replayed' as const };
     if (event.exists) rejectLegacyEventReplay('shuttle survivor evacuation');
+    requireCandidateActionAvailable(session, actor, [data.destinationShipId], [data.shuttleId]);
     requireActionPhase(session, 'transfer', 'player');
     const phase = turnPhaseState(session.get('turnPhase'));
     const currentCycle = session.get('currentTurn');
@@ -9660,7 +9680,7 @@ export const requestShuttleDeparture = auditedOnCall<{
     if (!isActivePlayer(actor) || actor.get('role') !== 'player') {
       throw new HttpsError('permission-denied', 'Only a connected shuttle holder may request departure.');
     }
-    requirePlayerShipActionAuthority(actor);
+    requirePlayerShipActionAuthority(actor, true);
     if (data.shuttleId === 'snn-press-shuttle' && session.get('pressEnabled') === false) {
       throw new HttpsError('permission-denied', 'The SNN Press station is disabled.');
     }
@@ -9671,6 +9691,7 @@ export const requestShuttleDeparture = auditedOnCall<{
       'shuttle departure',
     );
     if (replay) return { ...replay, status: 'replayed' as const };
+    requireCandidateActionAvailable(session, actor, [data.destinationShipId], [data.shuttleId]);
     requireMissionMovementAvailable(session, [data.shuttleId]);
     requireCandidateCraftAvailable(session, [data.shuttleId]);
     const candidateOrigin = Array.isArray(session.get('shuttleDockings'))
@@ -9847,7 +9868,7 @@ export const beginShuttleTransit = auditedOnCall<{
     if (!isActivePlayer(actor) || actor.get('role') !== 'player') {
       throw new HttpsError('permission-denied', 'Only a connected shuttle holder may begin transit.');
     }
-    requirePlayerShipActionAuthority(actor);
+    requirePlayerShipActionAuthority(actor, true);
     if (data.shuttleId === 'snn-press-shuttle' && session.get('pressEnabled') === false) {
       throw new HttpsError('permission-denied', 'The SNN Press station is disabled.');
     }
@@ -9858,6 +9879,7 @@ export const beginShuttleTransit = auditedOnCall<{
       'shuttle transit',
     );
     if (replay) return { ...replay, status: 'replayed' as const };
+    requireCandidateActionAvailable(session, actor, [], [data.shuttleId]);
     requireMissionMovementAvailable(session, [data.shuttleId]);
     requireActiveGameplayPhase(session);
     if (attackState.exists && wolfAttackBlocksNormalMovement(attackState.data())) {
@@ -9881,6 +9903,8 @@ export const beginShuttleTransit = auditedOnCall<{
       transitSnapshot.exists ? { [data.shuttleId]: transitSnapshot.data() } : undefined,
     );
     const storedMovement = transitSnapshot.exists ? transitSnapshot.data() : undefined;
+    if (isRecord(storedMovement)) requireCandidateVesselsAvailable(session,
+      [storedMovement.originShipId, storedMovement.destinationShipId].filter((id): id is string => typeof id === 'string'));
     const actorFleetGroupId = actor.get('fleetGroupId');
     if (isRecord(storedMovement) && storedMovement.status === 'in-transit') {
       throw shuttleMovementConflictErrorForCurrentState({
@@ -10052,7 +10076,7 @@ export const retargetShuttleTransit = auditedOnCall<{
     if (!isActivePlayer(actor)) {
       throw new HttpsError('permission-denied', 'Only a connected shuttle holder may retarget transit.');
     }
-    requirePlayerShipActionAuthority(actor);
+    requirePlayerShipActionAuthority(actor, true);
     if (data.shuttleId === 'snn-press-shuttle' && session.get('pressEnabled') === false) {
       throw new HttpsError('permission-denied', 'The SNN Press station is disabled.');
     }
@@ -10087,6 +10111,7 @@ export const retargetShuttleTransit = auditedOnCall<{
     if (eventSnapshot.exists) {
       throw commandError('failed-precondition', 'The shuttle retarget event already exists without its receipt.', 'conflict');
     }
+    requireCandidateActionAvailable(session, actor, [data.destinationShipId], [data.shuttleId]);
     requireActiveGameplayPhase(session);
     if (attackState.exists && wolfAttackBlocksNormalMovement(attackState.data())) {
       throw commandError(
@@ -10113,6 +10138,7 @@ export const retargetShuttleTransit = auditedOnCall<{
         transitChain: transitChainSnapshot.exists ? transitChainSnapshot.data() : undefined,
       });
     }
+    requireCandidateVesselsAvailable(session, [transit.originShipId, transit.destinationShipId]);
     const groupId = actor.get('fleetGroupId');
     if (typeof groupId !== 'string' || groupId !== transit.fleetGroupId) {
       throw new HttpsError('permission-denied', 'The shuttle holder no longer belongs to the transit fleet group.');
@@ -10732,6 +10758,8 @@ export const dealPrivateInitialCards = auditedOnCall<{
     if (!lifecycleBootstrap) {
       throw commandError('failed-precondition', 'The initial mission lifecycle could not be validated.', 'conflict');
     }
+    requireCandidateCraftActionAvailable(authority.session, participantCrafts.flatMap(participant => participant.craftIds),
+      participants.flatMap(participant => { const shipId = shipForRole(participant.roleId); return shipId ? [shipId] : []; }));
     const commitments = nextMissionCraftCommitments(authority.session.get('missionCraftCommitments'), {
       missionId, sourceCycle: opportunity.sourceCycle, participantCrafts, status: 'active',
     });
@@ -13345,6 +13373,7 @@ export const rerollHostedShipMaintenance = auditedOnCall<{
       (value): value is HostedShipMaintenanceRerollResult => isHostedShipMaintenanceRerollResult(value, sessionId),
       'hosted maintenance reroll');
     if (replay) return { replay: { ...replay, status: 'replayed' as const } };
+    requireCandidateActionAvailable(authority.snapshot, authority.player, [shipId]);
     await validate(tx, authority);
     return { replay: undefined };
   });
@@ -13357,6 +13386,7 @@ export const rerollHostedShipMaintenance = auditedOnCall<{
       (value): value is HostedShipMaintenanceRerollResult => isHostedShipMaintenanceRerollResult(value, sessionId),
       'hosted maintenance reroll');
     if (replay) return { ...replay, status: 'replayed' as const };
+    requireCandidateActionAvailable(authority.snapshot, authority.player, [shipId]);
     const current = await validate(tx, authority);
     if (!current.cycle.unrestRolls) throw commandError('failed-precondition', 'The unrest dice are unavailable.', 'conflict');
     let result: ReturnType<typeof rerollMaintenanceUnrest>;
@@ -17117,7 +17147,7 @@ export const shareKnownSystemDetails = auditedOnCall('shareKnownSystemDetails', 
     if (!session.exists || !isActivePlayer(actor) || actor.get('role') !== 'player') {
       throw new HttpsError('permission-denied', 'An active ship player is required to share scanned details.');
     }
-    requirePlayerShipActionAuthority(actor);
+    requirePlayerShipActionAuthority(actor, true);
     requireActiveGameplayPhase(session);
     const activeVesselIds = activeVesselIdsForSession(session);
     const groups = movementPursuitFleetGroups(activeVesselIds, groupSnapshots, players);
@@ -17140,6 +17170,7 @@ export const shareKnownSystemDetails = auditedOnCall('shareKnownSystemDetails', 
       }
       return replay;
     }
+    requireCandidateActionAvailable(session, actor, [senderShipId, ...data.recipientShipIds]);
     if (audit.exists) throw new HttpsError('failed-precondition', 'The share audit has no matching replay receipt.');
     const navigationRevision = storedNavigation.get('revision');
     if (!storedNavigation.exists || navigationRevision !== data.expectedNavigationRevision) {
@@ -17386,7 +17417,7 @@ export const sendScoutTaxiCourier = auditedOnCall('sendScoutTaxiCourier', async 
     if (!session.exists || !isActivePlayer(actor) || actor.get('role') !== 'player') {
       throw new HttpsError('permission-denied', 'A connected scout owner is required.');
     }
-    requirePlayerShipActionAuthority(actor);
+    requirePlayerShipActionAuthority(actor, true);
     const { activeRoleIds, activeVesselIds } = strictScoutRosters(session);
     const parsedGroups = movementPursuitFleetGroups(activeVesselIds, groups, players);
     if ((session.get('chartSelectionLocked') !== true && session.get('configurationLocked') !== true) || !navigation.exists) {
@@ -17433,6 +17464,7 @@ export const sendScoutTaxiCourier = auditedOnCall('sendScoutTaxiCourier', async 
     }
     requireActiveGameplayPhase(session);
     requireActionPhase(session, 'scouting', 'player');
+    requireCandidateActionAvailable(session, actor, [data.targetShipId], [data.shuttleId]);
     requireMissionMovementAvailable(session, [data.shuttleId]);
     if (attack.exists && wolfAttackBlocksNormalMovement(attack.data())) {
       throw new HttpsError('failed-precondition', 'Wait until the Wolf attack is resolved.');
@@ -17570,7 +17602,7 @@ export const sendScoutTaxiTransfer = auditedOnCall('sendScoutTaxiTransfer', asyn
     if (!session.exists || !isActivePlayer(actor) || actor.get('role') !== 'player') {
       throw new HttpsError('permission-denied', 'A connected shuttle owner is required for taxi transfer.');
     }
-    requirePlayerShipActionAuthority(actor);
+    requirePlayerShipActionAuthority(actor, true);
     if (!storedNavigation.exists || (session.get('chartSelectionLocked') !== true && session.get('configurationLocked') !== true)) {
       throw new HttpsError('failed-precondition', 'The locked navigation authority is unavailable.');
     }
@@ -17590,6 +17622,7 @@ export const sendScoutTaxiTransfer = auditedOnCall('sendScoutTaxiTransfer', asyn
     if (audit.exists) throw new HttpsError('failed-precondition', 'The taxi audit has no matching receipt.');
     requireActiveGameplayPhase(session);
     requireActionPhase(session, 'scouting', 'player');
+    requireCandidateActionAvailable(session, actor, [data.targetShipId], [data.shuttleId]);
     requireMissionMovementAvailable(session, [data.shuttleId]);
     if (attack.exists && wolfAttackBlocksNormalMovement(attack.data())) {
       throw new HttpsError('failed-precondition', 'Wait until the Wolf attack is resolved.');
@@ -19349,6 +19382,7 @@ export const moveShipToLocation = auditedOnCall<{
     const prior = await tx.get(receiptRef);
     const replay = vesselActionReceiptReply(prior, fingerprint, 'ship movement');
     if (replay) return replay;
+    requireCandidateActionAvailable(session, player, [change.shipId]);
     requireWolfAttackMovementReleased(attackState);
     requireActionPhase(session, 'movement', 'facilitator');
     requireHostMissionMovementAvailable(session, change.shipId);
@@ -19735,6 +19769,7 @@ export const jumpShip = auditedOnCall<{
     const prior = await tx.get(receiptRef);
     const replay = vesselActionReceiptReply(prior, fingerprint, 'ship jump');
     if (replay) return replay;
+    requireCandidateActionAvailable(session, player, [change.shipId]);
     requireWolfAttackMovementReleased(attackState);
     const emergencyWindow = pursuitEmergencyWindowState(session, storedNavigation);
     if (emergencyWindow) {
@@ -20859,6 +20894,7 @@ export const setShipConsoleLock = auditedOnCall<{
     const prior = await tx.get(receiptRef);
     const replay = vesselActionReceiptReply(prior, fingerprint, 'console lock');
     if (replay) return replay;
+    requireCandidateActionAvailable(session, player, [change.shipId]);
     requireActiveGameplayPhase(session);
 
     const currentRevision = vesselActionRevision(session, change.shipId);
@@ -22076,6 +22112,21 @@ export const setWolfAttackWindow = auditedOnCall<{
         );
       }
     }
+    let selectedGroupSnapshot: DocumentSnapshot | undefined;
+    if (change.status === 'due' && change.targetGroupId) {
+      selectedGroupSnapshot = await tx.get(
+        db.doc(`sessions/${change.sessionId}/fleetGroups/${change.targetGroupId}`),
+      );
+      const selectedGroup = selectedGroupSnapshot.exists
+        ? fleetGroupRecord(selectedGroupSnapshot.data()) : undefined;
+      if (selectedGroup && candidateAvailableVesselIds(session, selectedGroup.vesselIds).length === 0) {
+        throw commandError('failed-precondition', 'This group has a committed candidate disposition and no vessels available for a new attack.', 'conflict');
+      }
+      if (!selectedGroup || selectedGroup.id !== change.targetGroupId ||
+          selectedGroupSnapshot.id !== change.targetGroupId) {
+        throw commandError('failed-precondition', 'Select a current fleet group for this attack.', 'conflict');
+      }
+    }
     const sameState = current?.status === change.status &&
       (change.status === 'deferred' ? current.turn === 2 : current.turn === currentTurn) &&
       (change.status !== 'due' || (current?.targetGroupId === change.targetGroupId &&
@@ -22177,18 +22228,6 @@ export const setWolfAttackWindow = auditedOnCall<{
       turn = currentTurn;
     }
 
-    let selectedGroupSnapshot: DocumentSnapshot | undefined;
-    if (change.status === 'due' && change.targetGroupId) {
-      selectedGroupSnapshot = await tx.get(
-        db.doc(`sessions/${change.sessionId}/fleetGroups/${change.targetGroupId}`),
-      );
-      const selectedGroup = selectedGroupSnapshot.exists
-        ? fleetGroupRecord(selectedGroupSnapshot.data()) : undefined;
-      if (!selectedGroup || selectedGroup.id !== change.targetGroupId ||
-          selectedGroupSnapshot.id !== change.targetGroupId) {
-        throw commandError('failed-precondition', 'Select a current fleet group for this attack.', 'conflict');
-      }
-    }
     if (change.status === 'due' &&
         (change.threatSiteCode === 'L' || change.threatSiteCode === 'M' || change.threatSiteCode === 'P')) {
       const sourceId = change.threatSourceId!;
@@ -23351,9 +23390,10 @@ function wolfAttackPursuitSnapshot(
   } catch (error) {
     throw commandError('failed-precondition', error instanceof Error ? error.message : 'Target-group pursuit is unavailable.', 'conflict');
   }
-  const targetGroupVesselIds = canonicalGroups.find(({ id }) => id === resolvedTargetGroupId)?.vesselIds;
+  const groupVesselIds = canonicalGroups.find(({ id }) => id === resolvedTargetGroupId)?.vesselIds;
+  const targetGroupVesselIds = groupVesselIds ? candidateAvailableVesselIds(session, groupVesselIds) : undefined;
   if (!targetGroupVesselIds || targetGroupVesselIds.length === 0) {
-    throw commandError('failed-precondition', 'The selected fleet group has no active vessels.', 'conflict');
+    throw commandError('failed-precondition', 'The selected fleet group has no vessels available after its committed candidate disposition.', 'conflict');
   }
   return {
     navigationRevision: revision as number,
@@ -23521,7 +23561,9 @@ function configuredWolfTargetRingForSession(session: DocumentSnapshot): WolfTarg
     ? storedExpansion
     : playerCount >= 19 ? 'capybara' : 'base';
   try {
-    return configuredWolfAttackTargetRing(activeVesselIds, { playerCount, expansion });
+    const ring = candidateAvailableVesselIds(session, configuredWolfAttackTargetRing(activeVesselIds, { playerCount, expansion }));
+    if (!ring.length) throw new Error('All combat vessels have a committed candidate disposition.');
+    return ring as WolfTargetRing;
   } catch (error) {
     throw commandError(
       'failed-precondition',
@@ -27066,7 +27108,7 @@ function requireAegisExecutiveOfficerPlayer(player: DocumentSnapshot, uid: strin
       boundCoreConsoleRole(player.get('assignedRoleId'), player.get('seatId')) !== 'executive-officer') {
     throw new HttpsError('permission-denied', 'The active AEGIS Executive Officer console is required.');
   }
-  requirePlayerShipActionAuthority(player);
+  requirePlayerShipActionAuthority(player, true);
 }
 
 function requireAegisWingCommanderPlayer(player: DocumentSnapshot, uid: string): void {
@@ -27075,7 +27117,7 @@ function requireAegisWingCommanderPlayer(player: DocumentSnapshot, uid: string):
       boundCoreConsoleRole(player.get('assignedRoleId'), player.get('seatId')) !== 'wing-commander') {
     throw new HttpsError('permission-denied', 'The active AEGIS Wing Commander console is required.');
   }
-  requirePlayerShipActionAuthority(player);
+  requirePlayerShipActionAuthority(player, true);
 }
 
 function currentPlayerFleetGroupId(player: DocumentSnapshot): string {
@@ -28177,6 +28219,7 @@ export const applyAegisCommandAndControl = auditedOnCall<{
     );
     if (replay) return replay;
     requireActiveGameplayPhase(session);
+    requireCandidateActionAvailable(session, player);
     requireUsableShip(session, 'aegis');
     const inputs = wolfCommanderTargetingInputs(session, state);
     if (change.expectedTurn !== inputs.turn || change.expectedRevision !== inputs.revision) {
@@ -28345,6 +28388,7 @@ export const passAegisCommandAndControl = auditedOnCall<{
     );
     if (replay) return replay;
     requireActiveGameplayPhase(session);
+    requireCandidateActionAvailable(session, player);
     requireUsableShip(session, 'aegis');
     const inputs = wolfCommanderTargetingInputs(session, state);
     if (change.expectedTurn !== inputs.turn || change.expectedRevision !== inputs.revision) {
@@ -28589,6 +28633,7 @@ export const commitAegisEnrichedWarheadChoice = auditedOnCall<{
       requireCurrentWolfAttackReceipt(session, state, replay.turn, replay.view.attackId);
       return replay;
     }
+    requireCandidateActionAvailable(session, player);
     requireUsableShip(session, 'aegis');
     const inputs = aegisEnrichedWarheadStartInputs(session, state);
     if (change.expectedTurn !== inputs.turn || change.expectedRevision !== inputs.revision ||
@@ -28897,6 +28942,7 @@ export const launchAegisFighterWing = auditedOnCall<{
     }
     if (audit.exists) rejectLegacyEventReplay('AEGIS Fighter Wing launch');
     requireActiveGameplayPhase(session);
+    requireCandidateActionAvailable(session, player);
     requireUsableShip(session, 'aegis');
     const view = aegisFighterWingLaunchView(sessionId, session, attack, wingId);
     if (view.turn !== expectedTurn || view.revision !== expectedRevision || view.wingRevision !== expectedWingRevision) {
@@ -29456,6 +29502,7 @@ export const commitWolfRangeActionChoice = auditedOnCall<{
       requireCurrentWolfAttackReceipt(session, state, replay.turn, replay.attackId);
       return replay;
     }
+    requireCandidateActionAvailable(session, player);
     requireUsableShip(session, 'aegis');
     const inputs = requireWolfRangeState(session, state, range);
     if (raw.expectedTurn !== inputs.turn || raw.expectedRevision !== inputs.revision) {
@@ -29639,6 +29686,7 @@ export const assignWolfRangeTargets = auditedOnCall<{
       requireCurrentWolfAttackReceipt(session, state, replay.turn, replay.attackId);
       return replay;
     }
+    requireCandidateActionAvailable(session, player);
     requireUsableShip(session, 'aegis');
     const inputs = requireWolfRangeState(session, state, range);
     if (raw.expectedTurn !== inputs.turn || raw.expectedRevision !== inputs.revision) {
@@ -29985,6 +30033,7 @@ export const commitWolfFighterRangeActionChoice = auditedOnCall<{
       return { ...replay, status: 'replayed' };
     }
     if (audit.exists) rejectLegacyEventReplay('Wolf fighter range choice');
+    requireCandidateActionAvailable(session, player);
     requireUsableShip(session, 'aegis');
     const inputs = requireWolfRangeState(session, attack, range);
     if (raw.expectedTurn !== inputs.turn || raw.expectedRevision !== inputs.revision) {
@@ -30100,7 +30149,7 @@ function requireWolfEscortActor(session: DocumentSnapshot, player: DocumentSnaps
       throw new HttpsError('permission-denied', 'Current Maliades custody is required.');
     }
   }
-  requireUsableShip(session, shipId);
+  requireUsableShip(session, shipId, true);
 }
 
 function wolfEscortRangeState(session: DocumentSnapshot, attack: DocumentSnapshot,
@@ -30148,6 +30197,7 @@ export const getWolfEscortRangeActionChoice = auditedOnCall<{ sessionId?: unknow
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     const group = await tx.get(db.doc(`sessions/${sessionId}/fleetGroups/${currentPlayerFleetGroupId(player)}`));
     requireWolfEscortActor(session, player, uid, group, sourceId);
+    requireCandidateActionAvailable(session, player, [], [sourceId]);
     const inputs = requireWolfRangeState(session, attack, range);
     const state = wolfEscortRangeState(session, attack, pdfWing, sourceId, inputs.turn);
     const choice = wolfEscortChoice(attack, range, sourceId);
@@ -30239,6 +30289,7 @@ export const commitWolfEscortRangeActionChoice = auditedOnCall<{
       value.turn === raw.expectedTurn && value.revision === (raw.expectedRevision as number) + 1 &&
       value.actionCount === choices.length && value.choiceStatus === 'pending-resolution', 'Escort range choice');
     if (replay) return { ...replay, status: 'replayed' };
+    requireCandidateActionAvailable(session, player, [], [sourceId]);
     if (audit.exists) rejectLegacyEventReplay('Escort range choice');
     const inputs = requireWolfRangeState(session, attack, range);
     if (raw.expectedTurn !== inputs.turn || raw.expectedRevision !== inputs.revision) throw commandError('failed-precondition', 'The escort range choice is stale.', 'stale-revision');
@@ -30350,7 +30401,7 @@ function requireWolfRangeSupportActor(
   if (!player.exists || player.id !== uid || !isActivePlayer(player) || player.get('role') !== 'player') {
     throw new HttpsError('permission-denied', 'The connected current shuttle holder is required.');
   }
-  requirePlayerShipActionAuthority(player);
+  requirePlayerShipActionAuthority(player, true);
   const roleId = sourceId === 'highwall' ? 'icebreaker-miner' : 'capybara-recycler';
   if (player.get('activeConsoleRoleId') !== roleId || !sessionActiveRoleIds(session).includes(roleId)) {
     throw new HttpsError('permission-denied', 'Open the current source console before choosing this range action.');
@@ -30520,6 +30571,7 @@ export const commitWolfRangeSupportActionChoice = auditedOnCall<{
       throw commandError('failed-precondition', 'The saved support receipt is malformed.', 'conflict');
     }
     if (replay) return { ...replay, status: 'replayed' };
+    requireCandidateActionAvailable(session, player, [actorHostShipId], [sourceId]);
     if (audit.exists) rejectLegacyEventReplay('Wolf range support choice');
     const inputs = requireWolfRangeState(session, attack, range);
     if (raw.expectedTurn !== inputs.turn || raw.expectedRevision !== inputs.revision) {
@@ -30922,6 +30974,7 @@ export const commitWolfForceFieldChoice = auditedOnCall<{
       requireWolfForceFieldCaptainContext(session, player, uid, groupSnapshot, savedChoice, replay.turn);
       return replay;
     }
+    requireCandidateActionAvailable(session, player, requestedTarget === null ? [] : [requestedTarget], ['gorgoneion']);
     const view = wolfForceFieldChoiceViewInputs(sessionId, session, player, uid, groupSnapshot, state);
     if (view.type !== 'wolf-force-field-choice-view') {
       throw commandError('failed-precondition', 'The projector is unavailable for this attack.', 'invalid-phase');
@@ -31545,6 +31598,7 @@ export const commitWolfBoardingDefenceChoice = auditedOnCall<{
       requireCurrentWolfAttackReceipt(session, state, replay.turn, replay.attackId);
       return replay;
     }
+    requireCandidateActionAvailable(session, player, [raw.targetShipId as string]);
     const snapshot = wolfBoardingProtocolSnapshot(session, state, players.docs, groups.docs);
     const inputs = snapshot.inputs;
     if (!inputs.targetRing.includes(targetShipId) || inputs.boardingParties[targetShipId] < 1) {
@@ -31646,7 +31700,7 @@ function requireWolfBoardingSpecialPlayer(player: DocumentSnapshot, uid: string)
       player.get('replacementStatus') != null) {
     throw new HttpsError('permission-denied', 'An active player with current boarding authority is required.');
   }
-  requirePlayerShipActionAuthority(player);
+  requirePlayerShipActionAuthority(player, true);
 }
 
 /** Return only the current actor's next boarding choice and only the dice that actor may reroll. */
@@ -31878,6 +31932,8 @@ export const commitWolfBoardingSpecialChoice = auditedOnCall<{
       }
       return replay;
     }
+    requireCandidateActionAvailable(session, player, typeof choice.targetShipId === 'string' ? [choice.targetShipId] : [],
+      kind === 'relocation' ? [choice.craftId as string] : kind === 'reroll' && choice.source === 'pallas' ? ['pallas'] : []);
     if (typeof state.get('attackId') !== 'string' || !state.get('attackId')) {
       throw commandError('failed-precondition', 'The current boarding attack identity is unavailable.', 'stale-revision');
     }
@@ -32124,7 +32180,7 @@ function requireDioneEngineer(player: DocumentSnapshot): void {
       boundCoreConsoleRole(player.get('assignedRoleId'), player.get('seatId')) !== 'dione-engineer') {
     throw new HttpsError('permission-denied', 'The active Dione Engineer console is required.');
   }
-  requirePlayerShipActionAuthority(player);
+  requirePlayerShipActionAuthority(player, true);
 }
 
 function requireActiveDioneMaliadesCycle(session: DocumentSnapshot): number {
@@ -32348,6 +32404,7 @@ export const launchDioneMaliades = auditedOnCall<{
     );
     const replay = replayBoundCommand(receipt, fingerprint, isDioneMaliadesLaunchResult, 'Maliades launch');
     if (replay) return { ...replay, status: 'replayed' };
+    requireCandidateActionAvailable(session, player);
     requireUsableShip(session, 'dione');
     if (audit.exists || event.exists) rejectLegacyEventReplay('Maliades launch');
     requireActiveGameplayPhase(session);
@@ -32462,7 +32519,7 @@ function requirePdfColonel(player: DocumentSnapshot): void {
         'refinery-124-pdf-colonel') {
     throw new HttpsError('permission-denied', 'The active P.D.F. Colonel console is required.');
   }
-  requirePlayerShipActionAuthority(player);
+  requirePlayerShipActionAuthority(player, true);
 }
 
 function isPdfEscortWingLaunchResult(value: unknown): value is PdfEscortWingLaunchResult {
@@ -32651,6 +32708,7 @@ export const launchPdfEscortWing = auditedOnCall<{
     const replay = replayBoundCommand(receipt, fingerprint, isPdfEscortWingLaunchResult, 'P.D.F. Escort Wing launch');
     if (replay) return { ...replay, status: 'replayed' };
     requireMissionMovementAvailable(session, ['pdf-escort-fighter-wing']);
+    requireCandidateActionAvailable(session, player);
     requireUsableShip(session, 'refinery-124');
     if (audit.exists) rejectLegacyEventReplay('P.D.F. Escort Wing launch');
     requireActiveGameplayPhase(session);
@@ -32798,7 +32856,8 @@ export const passWolfFighterLaunchChoice = auditedOnCall<{
       const group = await tx.get(db.doc(`sessions/${sessionId}/fleetGroups/${groupId}`));
       requireAegisExecutiveOfficerCurrentBerth(player, uid, group);
       requireActiveGameplayPhase(session);
-      requireUsableShip(session, 'aegis');
+      requireCandidateActionAvailable(session, player);
+    requireUsableShip(session, 'aegis');
       view = aegisFighterWingLaunchView(sessionId, session, attack, sourceId);
     } else if (sourceId === 'pdf-escort-fighter-wing') {
       requirePdfColonel(player);
@@ -34963,6 +35022,7 @@ export const unlockPressAirspace = auditedOnCall<{ sessionId?: unknown; instance
       tx.get(sessionRef), tx.get(attackStateRef),
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    requireCandidateActionAvailable(session, player, ['aegis']);
     requireActiveGameplayPhase(session);
     if (session.get('pressEnabled') === false) {
       throw commandError('failed-precondition', 'Press is disabled.', 'unauthorized');
@@ -35093,7 +35153,7 @@ export const popShipConfetti = auditedOnCall<{
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     if (!isActivePlayer(player)) throw new HttpsError('permission-denied', 'Join the session first.');
-    requirePlayerShipActionAuthority(player);
+    requirePlayerShipActionAuthority(player, true);
     if (player.get('role') === 'gm' && (
       !activation.instanceId || !instance || !isLiveGmInstance(instance, player, uid) ||
       !grant || !hasGmShipConsoleWriteGrant(grant, activation.sessionId, activation.instanceId, uid, shipId)
@@ -35198,6 +35258,7 @@ export const popShipConfetti = auditedOnCall<{
       const replay = replayBoundCommand(prior, fingerprint,
         (value): value is 'fired' => value === 'fired', 'Press dispenser');
       if (replay) return replay;
+    requireCandidateActionAvailable(session, player, [shipId]);
     }
     if (decision.kind === 'awaiting-officer') {
       tx.set(approvalRef, { approvals: decision.approvals, updatedAt: FieldValue.serverTimestamp() });
@@ -36614,7 +36675,7 @@ async function requireShipCounterAuthority(
   ]);
   if (!session.exists) throw new HttpsError('not-found', 'No such session.');
   if (!isActivePlayer(player)) throw new HttpsError('permission-denied', 'Join the session first.');
-  requirePlayerShipActionAuthority(player);
+  requirePlayerShipActionAuthority(player, true);
   if (!activeVesselIdsForSession(session).includes(shipId)) {
     throw commandError('failed-precondition', 'That ship is not active in this session.', 'conflict');
   }
@@ -36636,7 +36697,7 @@ async function requireShipCounterAuthority(
     }
     return;
   }
-  if (!allowMutinyResolution) requireUsableShip(session, shipId);
+  if (!allowMutinyResolution) requireUsableShip(session, shipId, true);
   const ownRole = player.get('activeConsoleRoleId');
   const replacementRoleId = player.get('replacementRoleId');
   if (!replacementAuthorityAllowsRole(
@@ -36672,12 +36733,12 @@ async function requireConsoleAuthority(
   if (!session.exists) throw new HttpsError('not-found', 'No such session.');
   if (!allowMutinyResolution) {
     const targetShipId = shipForRole(targetRole);
-    if (targetShipId) requireUsableShip(session, targetShipId);
+    if (targetShipId) requireUsableShip(session, targetShipId, true);
   }
   const activeRoleIds = configuredRoleIds(session);
   const ownRole = player.get('activeConsoleRoleId');
   const replacementRoleId = player.get('replacementRoleId');
-  requirePlayerShipActionAuthority(player);
+  requirePlayerShipActionAuthority(player, true);
   if (player.get('role') !== 'gm' && !replacementAuthorityAllowsRole(
     replacementRoleId, targetRole, player.get('replacementStatus'),
   )) {
@@ -37007,6 +37068,7 @@ export const adjustShipResource = auditedOnCall<{
       throw commandError('failed-precondition',
         'This resource adjustment has a standardized audit without its bound receipt.', 'conflict');
     }
+    requireCandidateActionAvailable(session, player, [change.shipId]);
     requireActiveGameplayPhase(session);
     const currentRevision = vesselActionRevision(session, change.shipId);
     if (identity.expectedRevision !== undefined && identity.expectedRevision !== currentRevision) {
@@ -37080,6 +37142,7 @@ export const adjustShipUnrest = auditedOnCall<{
       throw commandError('failed-precondition',
         'This unrest adjustment has a standardized audit without its bound receipt.', 'conflict');
     }
+    requireCandidateActionAvailable(session, player, [change.shipId]);
     requireActiveGameplayPhase(session);
     const currentRevision = vesselActionRevision(session, change.shipId);
     if (identity.expectedRevision !== undefined && identity.expectedRevision !== currentRevision) {
@@ -37423,6 +37486,7 @@ export const dismissUnrestAlert = auditedOnCall<{
     const prior = await tx.get(receiptRef);
     const replay = vesselActionReceiptReply(prior, fingerprint, 'unrest dismissal');
     if (replay) return replay;
+    requireCandidateActionAvailable(session, player, [dismissal.shipId]);
     requireActiveGameplayPhase(session);
     const currentRevision = vesselActionRevision(session, dismissal.shipId);
     if (identity.expectedRevision !== undefined && identity.expectedRevision !== currentRevision) {
@@ -38090,6 +38154,7 @@ export const addShipDamage = auditedOnCall<{
         'conflict',
       );
     }
+    requireCandidateActionAvailable(session, player, [change.shipId]);
     requireActiveGameplayPhase(session);
     const currentRevision = vesselActionRevision(session, change.shipId);
     if (identity.expectedRevision !== undefined && identity.expectedRevision !== currentRevision) {
@@ -38340,6 +38405,7 @@ export const adjustShipPopulation = auditedOnCall<{
       throw commandError('failed-precondition',
         'This population adjustment has a standardized audit without its bound receipt.', 'conflict');
     }
+    requireCandidateActionAvailable(session, player, [change.shipId]);
     requireActiveGameplayPhase(session);
     const currentRevision = vesselActionRevision(session, change.shipId);
     if (identity.expectedRevision !== undefined && identity.expectedRevision !== currentRevision) {
@@ -38485,6 +38551,7 @@ export const applyShipCounterSteps = auditedOnCall<{
         'This counter batch has a standardized audit without its bound receipt.', 'conflict');
     }
     requireCandidateVesselsAvailable(session, [change.shipId]);
+    requireCandidateActionAvailable(session, player, [change.shipId]);
     requireActiveGameplayPhase(session);
     const currentRevision = vesselActionRevision(session, change.shipId);
     if (identity.expectedRevision !== undefined && identity.expectedRevision !== currentRevision) {
@@ -38790,6 +38857,7 @@ export const setFighterWingCount = auditedOnCall<{
       return replay;
     }
     if (actionAudit.exists) rejectLegacyEventReplay('fighter-wing count action audit');
+    requireCandidateActionAvailable(session, player, ['aegis']);
     requireActiveGameplayPhase(session);
 
     const current = fighterWingCounts(session.get('fighterWingCounts'))[change.wingId];
@@ -38914,6 +38982,7 @@ export const buildFighter = auditedOnCall<{
     const replay = vesselActionReceiptReply(prior, fingerprint, 'fighter construction');
     if (replay) return replay;
 
+    requireCandidateActionAvailable(session, player, ['aegis']);
     requireActionPhase(session, 'maintenance', player.get('role') === 'gm' ? 'facilitator' : 'player');
 
     const currentRevision = vesselActionRevision(session, 'aegis');
@@ -39037,6 +39106,7 @@ export const dismissPopulationAlert = auditedOnCall<{
     const prior = await tx.get(receiptRef);
     const replay = vesselActionReceiptReply(prior, fingerprint, 'population dismissal');
     if (replay) return replay;
+    requireCandidateActionAvailable(session, player, [dismissal.shipId]);
     requireActiveGameplayPhase(session);
     const currentRevision = vesselActionRevision(session, dismissal.shipId);
     if (identity.expectedRevision !== undefined && identity.expectedRevision !== currentRevision) {
@@ -39208,7 +39278,7 @@ async function requireHighwallMiningAuthority(
   if (!isActivePlayer(player) || player.get('role') !== 'player') {
     throw new HttpsError('permission-denied', 'Only the connected Highwall holder may mine.');
   }
-  requirePlayerShipActionAuthority(player);
+  requirePlayerShipActionAuthority(player, true);
   if (!configuredRoleIds(session).includes('icebreaker-miner') ||
       !activeVesselIdsForSession(session).includes('icebreaker')) {
     throw commandError('failed-precondition', 'Highwall is unavailable in this session.', 'conflict');
@@ -39577,7 +39647,7 @@ export const requestScout = auditedOnCall<{
     if (!isActivePlayer(actor) || actor.get('role') !== 'player') {
       throw new HttpsError('permission-denied', 'Only a connected player may request scouting.');
     }
-    requirePlayerShipActionAuthority(actor);
+    requirePlayerShipActionAuthority(actor, true);
     if (session.get('phase') !== 'active') {
       throw commandError('failed-precondition', 'Scouting requests require active gameplay.', 'invalid-phase');
     }
@@ -39646,6 +39716,7 @@ export const requestScout = auditedOnCall<{
       throw commandError('failed-precondition', 'Current ship positions are unavailable for scouting.', 'malformed-input');
     }
     const receivingShipId = scoutReceivingShipId(session, entitlementId, activeRoleIds, activeVesselIds);
+    requireCandidateActionAvailable(session, actor, [entitlement.anchorShipId, receivingShipId], entitlement.source === 'craft' ? [entitlement.id] : []);
     requireUsableShip(session, entitlement.anchorShipId);
     if (receivingShipId !== entitlement.anchorShipId) requireUsableShip(session, receivingShipId);
     let scan: AuthorizedScoutScan;
@@ -39793,7 +39864,7 @@ async function requireHummingbirdAuthority(
   if (!isActivePlayer(player) || player.get('role') !== 'player') {
     throw new HttpsError('permission-denied', 'Only the connected Quellon Explorer may operate Hummingbird harvesting.');
   }
-  requirePlayerShipActionAuthority(player);
+  requirePlayerShipActionAuthority(player, true);
   const activeRoleIds = configuredRoleIds(session);
   const activeRole = player.get('activeConsoleRoleId');
   if (activeRole !== 'quellon-explorer' || !activeRoleIds.includes('quellon-explorer') ||
@@ -40232,7 +40303,7 @@ async function requireSmallShipCaptainAuthority(
   if (!isActivePlayer(player)) {
     throw new HttpsError('permission-denied', 'An active small-craft Captain or GM is required.');
   }
-  requirePlayerShipActionAuthority(player);
+  requirePlayerShipActionAuthority(player, true);
   if (player.get('role') === 'gm') {
     if (!instanceId || !isLiveGmInstance(
       await tx.get(db.doc(`sessions/${sessionId}/gmInstances/${instanceId}`)), player, uid,
@@ -40541,11 +40612,12 @@ export const runSmallShipMaintenance = auditedOnCall<{
       const replay = smallShipReceiptReply(prior, fingerprint, uid);
       if (replay) return { player: undefined, state: undefined, replay };
     }
-    const { player, state } = await requireSmallShipHostAuthority(
+    const { player, session, state } = await requireSmallShipHostAuthority(
       tx, data.sessionId, uid, data.instanceId, id,
     );
     const replay = smallShipReceiptReply(prior, fingerprint, uid);
     if (replay) return { player: undefined, state: undefined, replay };
+    requireCandidateActionAvailable(session, player, [], [id]);
     return { player, state, replay: undefined };
   });
   if (preflight.replay) return preflight.replay;
@@ -40566,6 +40638,7 @@ export const runSmallShipMaintenance = auditedOnCall<{
         'conflict',
       );
     }
+    requireCandidateActionAvailable(session, player, [], [id]);
     requireTurnOneForGameplay(session);
     requireActionPhase(session, 'maintenance', player.get('role') === 'gm' ? 'facilitator' : 'player');
 
@@ -40767,7 +40840,7 @@ export const runVoyage33Maintenance = auditedOnCall<{
     if (!isActivePlayer(player) || player.get('role') !== 'gm' || !parsed.instanceId) {
       throw new HttpsError('permission-denied', 'An active GM instance is required to reconcile maintenance.');
     }
-    requirePlayerShipActionAuthority(player);
+    requirePlayerShipActionAuthority(player, true);
     const instance = await tx.get(db.doc(`sessions/${parsed.sessionId}/gmInstances/${parsed.instanceId}`));
     if (!isLiveGmInstance(instance, player, uid)) throw new HttpsError('permission-denied', 'Active GM instance required.');
     const replay = voyage33MaintenanceReceiptReply(prior, fingerprint, uid);
@@ -40795,6 +40868,7 @@ export const runVoyage33Maintenance = auditedOnCall<{
     const authority = await requireVoyage33MaintenanceAuthority(tx, parsed.sessionId, uid, parsed.instanceId);
     const replay = voyage33MaintenanceReceiptReply(prior, fingerprint, uid);
     if (replay) return { replay, player: undefined, state: undefined };
+    requireCandidateActionAvailable(authority.session, authority.player, [], [VOYAGE_33_ID]);
     return { replay: undefined, player: authority.player, state: authority.state };
   });
   if (preflight.replay) return preflight.replay;
@@ -40806,6 +40880,7 @@ export const runVoyage33Maintenance = auditedOnCall<{
     const prior = await tx.get(requestRef);
     const replay = voyage33MaintenanceReceiptReply(prior, fingerprint, uid);
     if (replay) return replay;
+    requireCandidateActionAvailable(authority.session, authority.player, [], [VOYAGE_33_ID]);
     if (sessionTurn(authority.session.get('currentTurn')) !== expectedCycle) {
       throw commandError('failed-precondition', 'The captured cycle changed before maintenance committed; reconcile the original request.', 'conflict');
     }
@@ -40968,7 +41043,7 @@ async function requireVulcanLabourAuthority(
   if (!isActivePlayer(player) || !['player', 'gm'].includes(String(player.get('role')))) {
     throw new HttpsError('permission-denied', 'An active Vulcan Captain or GM is required.');
   }
-  requirePlayerShipActionAuthority(player);
+  requirePlayerShipActionAuthority(player, true);
   if (player.get('role') === 'gm') {
     if (!instanceId || !isLiveGmInstance(
       await tx.get(db.doc(`sessions/${sessionId}/gmInstances/${instanceId}`)), player, uid,
@@ -41029,6 +41104,7 @@ export const runVulcanAdditionalLabour = auditedOnCall<{
     );
     const prior = await tx.get(requestRef);
     const replay = vulcanLabourReceiptReply(prior, fingerprint, uid);
+    if (!replay) requireCandidateActionAvailable(session, player, [data.targetShipId], ['vulcan']);
     return { player, session, state, replay };
   });
   if (preflight.replay) return preflight.replay;
@@ -41040,6 +41116,7 @@ export const runVulcanAdditionalLabour = auditedOnCall<{
     const prior = await tx.get(requestRef);
     const replay = vulcanLabourReceiptReply(prior, fingerprint, uid);
     if (replay) return replay;
+    requireCandidateActionAvailable(session, player, [data.targetShipId], ['vulcan']);
     if (isSmallShipInMutiny(state)) {
       throw commandError(
         'failed-precondition',
@@ -41242,7 +41319,7 @@ async function requireMaintenanceAuthority(
     throw new HttpsError('permission-denied', 'An active ship officer or GM is required.');
   }
   if (!snapshot.exists) throw new HttpsError('not-found', 'No such session.');
-  requirePlayerShipActionAuthority(player);
+  requirePlayerShipActionAuthority(player, true);
   const ownRoleId = String(player.get('activeConsoleRoleId') ?? '');
   const replacementVipHost = player.get('role') === 'player' && shipId === 'dione' &&
     player.get('replacementRoleId') === 'vip-host' && player.get('activeConsoleRoleId') === null;
@@ -41271,7 +41348,7 @@ async function requireMaintenanceAuthority(
         allowMutinyResolution);
     }
   }
-  if (!allowMutinyResolution) requireUsableShip(snapshot, shipId);
+  if (!allowMutinyResolution) requireUsableShip(snapshot, shipId, true);
   return { player, snapshot };
 }
 
@@ -41366,11 +41443,14 @@ export const runMaintenance = auditedOnCall<{
   // not consume a new clock value or random draw, even if mutable game state
   // has since moved on.
   const preflightReply = await db.runTransaction(async tx => {
-    await requireMaintenanceAuthority(
+    const { player, snapshot } = await requireMaintenanceAuthority(
       tx, data.sessionId, data.shipId, data.instanceId, data.consoleRoleId, uid, ref,
     );
     const prior = await tx.get(requestRef);
-    return maintenanceReceiptReply(prior, fingerprint, uid, data.sessionId, data.shipId) ?? null;
+    const replay = maintenanceReceiptReply(prior, fingerprint, uid, data.sessionId, data.shipId);
+    if (replay) return replay;
+    requireCandidateActionAvailable(snapshot, player, [data.shipId], Object.keys(data.refuels ?? {}));
+    return null;
   });
   if (preflightReply) return preflightReply;
   await enforceExpensiveCallableRateLimit(db, {
@@ -41393,6 +41473,7 @@ export const runMaintenance = auditedOnCall<{
     const prior = await tx.get(requestRef);
     const replay = maintenanceReceiptReply(prior, fingerprint, uid, data.sessionId, data.shipId);
     if (replay) return replay;
+    requireCandidateActionAvailable(snapshot, player, [data.shipId], Object.keys(data.refuels ?? {}));
     requireTurnOneForGameplay(snapshot);
     requireActionPhase(snapshot, 'maintenance', player.get('role') === 'gm' ? 'facilitator' : 'player');
 
@@ -41818,6 +41899,7 @@ export const drawVipCard = auditedOnCall<{
     const prior = await tx.get(receiptRef);
     const replay = replayBoundCommand(prior, fingerprint, isVesselActionResult, 'VIP card draw');
     if (replay) return replay.status === 'committed' ? { ...replay, status: 'replayed' } : replay;
+    requireCandidateActionAvailable(snapshot, player, ['dione']);
     requireTurnOneForGameplay(snapshot);
     requireActionPhase(snapshot, 'maintenance', player.get('role') === 'gm' ? 'facilitator' : 'player');
 
@@ -41868,6 +41950,7 @@ export const drawVipCard = auditedOnCall<{
     const prior = await tx.get(receiptRef);
     const replay = replayBoundCommand(prior, fingerprint, isVesselActionResult, 'VIP card draw');
     if (replay) return replay.status === 'committed' ? { ...replay, status: 'replayed' } : replay;
+    requireCandidateActionAvailable(snapshot, player, ['dione']);
     requireTurnOneForGameplay(snapshot);
     requireActionPhase(snapshot, 'maintenance', player.get('role') === 'gm' ? 'facilitator' : 'player');
 
@@ -41984,6 +42067,8 @@ export const transferVipCard = auditedOnCall<{
     }
     const replay = replayBoundCommand(prior, fingerprint, isVesselActionResult, 'VIP card transfer');
     if (replay) return replay.status === 'committed' ? { ...replay, status: 'replayed' } : replay;
+    requireCandidateActionAvailable(snapshot, player, ['dione']);
+    requireCandidateActionAvailable(snapshot, target);
     if (!isActivePlayer(target) || target.get('role') !== 'player') {
       throw commandError('failed-precondition', 'The target player is not connected.', 'conflict');
     }
@@ -42108,6 +42193,7 @@ export const rerollVipUnrest = auditedOnCall<{
     const prior = await tx.get(receiptRef);
     const replay = replayBoundCommand(prior, fingerprint, isVesselActionResult, 'VIP unrest reroll');
     if (replay) return replay.status === 'committed' ? { ...replay, status: 'replayed' } : replay;
+    requireCandidateActionAvailable(snapshot, player, ['dione']);
     const current = await validate(tx, player, snapshot);
     if (!current.stale) return null;
     const stale = {
@@ -42130,6 +42216,7 @@ export const rerollVipUnrest = auditedOnCall<{
     const prior = await tx.get(receiptRef);
     const replay = replayBoundCommand(prior, fingerprint, isVesselActionResult, 'VIP unrest reroll');
     if (replay) return replay.status === 'committed' ? { ...replay, status: 'replayed' } : replay;
+    requireCandidateActionAvailable(snapshot, player, ['dione']);
     const current = await validate(tx, player, snapshot);
     if (current.stale || current.unrest === undefined || !current.deck) {
       const stale = {
@@ -42261,6 +42348,7 @@ export const publishAdmiralDirectiveCommand = auditedOnCall<{
     if (session.get('phase') === 'closed') {
       throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
     }
+    requireCandidateActionAvailable(session, player, ['aegis']);
     requireActiveGameplayPhase(session);
     if (session.get('phase') !== 'active') {
       throw commandError(
@@ -43287,6 +43375,7 @@ export const setFleetRedAlert = auditedOnCall<{
     }
 
     if (session.get('phase') === 'closed') throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
+    requireCandidateActionAvailable(session, player, ['aegis']);
     requireActiveGameplayPhase(session);
     const current = session.get('fleetRedAlert') as
       { active: boolean; revision: number; text?: string; raisedAt?: string | Timestamp } | undefined;
@@ -43559,6 +43648,7 @@ export const repairAllShipDamage = auditedOnCall<{
         'conflict',
       );
     }
+    requireCandidateActionAvailable(session, player, [change.shipId]);
     requireActiveGameplayPhase(session);
     const currentRevision = vesselActionRevision(session, change.shipId);
     if (identity.expectedRevision !== undefined && identity.expectedRevision !== currentRevision) {
@@ -43660,6 +43750,7 @@ export const rollbackMaintenance = auditedOnCall<{
     const prior = await tx.get(requestRef);
     const replay = maintenanceRollbackReceiptReply(prior, fingerprint);
     if (replay) return replay;
+    requireCandidateActionAvailable(authority.session, authority.player, [change.shipId]);
     requireTurnOneForGameplay(authority.session);
     requireActionPhase(authority.session, 'maintenance', 'facilitator');
     const undo = await tx.get(undoRef);
@@ -43757,6 +43848,7 @@ function requireHostMissionMovementAvailable(session: DocumentSnapshot, shipId: 
 }
 
 function requireMissionMovementAvailable(session: DocumentSnapshot, craftIds: readonly string[]): void {
+  requireCandidateCraftActionAvailable(session, craftIds);
   try { requireMissionCraftMovementAvailable(session.get('missionCraftCommitments'), craftIds); }
   catch (cause) {
     throw commandError('failed-precondition', cause instanceof Error ? cause.message : 'Mission commitment is unavailable.',
