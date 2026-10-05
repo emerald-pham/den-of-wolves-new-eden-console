@@ -113,7 +113,9 @@ it('requires the currently live GM for private debrief history', async () => {
   const response = await handlers().read(request(input));
   expect(response).toMatchObject({ type: 'session-debrief', sessionId,
     snapshot: { type: 'session-debrief', result: 'failure', cause: 'total-fleet-loss' } });
-  expect(response.snapshot).not.toHaveProperty('source');
+  expect(response.snapshot).toHaveProperty('source', 'failure-review');
+  expect(response.snapshot).not.toHaveProperty('gmNote');
+  expect(response.snapshot.outcome).not.toHaveProperty('sourceId');
 });
 
 it('replays the original action receipt before rejecting a fresh terminal action', async () => {
