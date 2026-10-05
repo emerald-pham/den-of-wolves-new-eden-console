@@ -147,5 +147,8 @@ npm run deploy:hosting
 
 ## License
 
-This unofficial fan project is not currently offered under an open-source
-license. See [LICENSE.md](LICENSE.md) for rights and third-party boundaries.
+Emerald Pham's own original contributions are dedicated under CC0 1.0
+Universal, to the extent she holds the relevant rights. Third-party game
+material, dependencies, other contributors' work, and assets with unverified
+ownership remain excluded. See [LICENSE.md](LICENSE.md) for the precise scope
+and [the unmodified CC0 legal text](LICENSES/CC0-1.0.txt).

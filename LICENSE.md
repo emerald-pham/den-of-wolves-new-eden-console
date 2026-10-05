@@ -1,27 +1,47 @@
-# Copyright and licensing notice
+# Contribution licensing and third-party boundaries
 
-This repository is not currently offered under an open-source or other public
-license.
+Effective 5 October 2026, Emerald Pham applies **CC0 1.0 Universal** to the
+copyright and related rights she holds in her own original contributions to
+this repository. This includes her original software implementation and
+documentation, only to the extent that those contributions are hers to
+dedicate. She intends that covered contributions may be copied, modified,
+shared, and used commercially without attribution or a claim of ownership
+from her. The [unmodified CC0 legal text](LICENSES/CC0-1.0.txt) governs this
+dedication; Creative Commons also provides a
+[plain-language explanation](https://creativecommons.org/publicdomain/zero/1.0/).
 
-Copyright in original contributions remains with the respective copyright
-holders. All rights are reserved unless a file expressly states otherwise. No
-permission is granted to copy, modify, distribute, sublicense, or sell those
-contributions except as allowed by law or by separate written permission from
-the applicable rights holder.
+This dedication applies to Emerald's rights in those contributions, rather
+than every file or every element of a mixed-content file. It makes no
+assertion that she owns third-party material, other contributors' work, or
+every asset included in this repository.
 
-*Den of Wolves*, *Den of Wolves: New Eden*, and related game text, rules
-expression, setting material, names, marks, artwork, and other third-party
-material belong to their respective rights holders. Their presence in this
-unofficial fan project does not imply affiliation, ownership, or a public
-license from this repository's contributors. This notice grants no rights in
-third-party material.
+The following material is **excluded** from this dedication:
 
-Third-party dependencies remain subject to their own license terms. Public
-visibility on GitHub does not make this repository open source; GitHub's terms
-may separately permit users to view and fork public repositories within
-GitHub.
+- *Den of Wolves*, *Den of Wolves: New Eden*, and related third-party game
+  text, rules expression, setting material, names, marks, artwork, source
+  documents, and adaptations or reproductions of that material. Those rights
+  remain with their respective rights holders. This unofficial fan project
+  grants no permission to reuse or relicense that material and implies no
+  affiliation or endorsement.
+- Third-party dependencies and vendored material. Their existing licenses,
+  copyright notices, attribution requirements, and other terms continue to
+  apply. Package metadata referring to this notice does not replace those
+  licenses.
+- Other contributors' original work, except where its rights holder has
+  separately and expressly licensed or dedicated it. Existing file-specific
+  licenses and notices remain in effect.
+- Assets whose ownership or provenance has not been verified, including
+  `src/assets/flags/cpa.png`, `fas.png`, `gliese.png`, `icn.png`, `proxima.png`,
+  `rosal.png`, and `san.png`; and `public/icons/dradis-ball-180.png`,
+  `dradis-ball-192.png`, `dradis-ball-512.png`,
+  `dradis-ball-maskable-512.png`, and `dradis-ball.svg`. Their inclusion does
+  not establish ownership or permission. No rights in these assets are
+  granted by this notice.
 
-Before any part of this repository is offered under a public license, the
-applicable rights and provenance must be confirmed. A future license applies
-only to material that its licensor owns or is authorized to license and that is
-clearly identified as covered by that license.
+Keep applicable third-party notices when sharing material subject to them.
+CC0 does not waive or license patent or trademark rights, does not clear
+another person's rights, and supplies no ownership or infringement warranty.
+See the [official legal code](https://creativecommons.org/publicdomain/zero/1.0/legalcode.en)
+for its waiver, fallback license, limitations, and disclaimers. A separate
+rights holder's permission may be needed for excluded material; this notice
+does not provide it.
