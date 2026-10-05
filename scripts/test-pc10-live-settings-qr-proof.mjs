@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import vm from 'node:vm';
 import * as proof from './pc10-live-settings-qr-proof.mjs';
 import {
   assertNormalSettingsJoin, settingsActorRecord, assertOriginalSettingsActor,
@@ -26,6 +27,121 @@ const mono = '"SFMono-Regular", Consolas, "Liberation Mono", monospace';
 const tokens = () => ({ mono, radius:'0px', void:'#04070a', ink:'#e4ecee', amber:'#e8892b', cyan:'#46c8de',
   samples:[{name:'Settings title',fontFamily:mono,color:'rgb(232, 137, 43)',expectedColor:'amber',fontSize:16},
     {name:'Join link',fontFamily:mono,color:'rgb(70, 200, 222)',expectedColor:'cyan',fontSize:10.88}] });
+
+function restoringDocument({roleId='press-officer',changeIdentity=false,navigationFailure,navigationWait}={}) {
+  const entry={...actor(),uidHash:'fedcba0987654321',profileRoleId:roleId};
+  let href=baseHref,changing=false,loaded=false;
+  const events=[];
+  const select=async()=>{changing=true;events.push('select');};
+  const page={url:()=>href,
+    getByLabel:(name,{exact})=>{assert.equal(name,'Current actor');assert.equal(exact,true);
+      return {selectOption:async role=>{assert.equal(role,roleId);await select();}};},
+    getByRole:(_role,{name,exact})=>{assert.equal(name,'Crew controller');assert.equal(exact,true);
+      return {click:select};},
+    waitForURL:async predicate=>{
+      events.push('wait-navigation');assert.equal(changing,true);
+      if(navigationFailure)throw navigationFailure;
+      if(navigationWait)await navigationWait();
+      href=`http://127.0.0.1:5174/?demoActor=fresh~${roleId}&demoJoin=012345#/demo-actors`;
+      assert.equal(predicate(new URL(href)),true);changing=false;loaded=true;
+    },
+    goto:async()=>{throw new Error('Original document must use its normal selector/link.');},
+  };
+  const crew={observe:async()=>{
+    events.push('observe');
+    if(changing)throw new Error('Execution context was destroyed by the real document navigation.');
+    return loaded?{...entry,uidHash:changeIdentity?'9999999999999999':entry.uidHash}:actor();
+  },until:async(_description,predicate,timeout)=>{
+    events.push({action:'until',timeout});
+    const state=await crew.observe();assert.equal(predicate(state),true,'Original live UID/session/profile must survive restoration.');
+    return state;
+  }};
+  return {entry,page,crew,events};
+}
+
+test('roster restoration waits for the normal hard document navigation before reading its original SDK identity',async()=>{
+  const {entry,page,crew,events}=restoringDocument();
+  const restored=await proof.restoreLiveSettingsActor({page,crew,entry,selected:actor(),sessionId:'fresh',joinCode});
+  assert.equal(restored.uidHash,entry.uidHash);
+  assert.ok(events.indexOf('wait-navigation')>events.indexOf('select'));
+  assert.ok(events.findIndex(e=>e?.action==='until')>events.indexOf('wait-navigation'));
+  assert.equal(events.filter(e=>e==='select').length,1);
+});
+
+test('controller restoration waits for its actual ordinary link navigation without selecting a new roster UID',async()=>{
+  const {entry,page,crew,events}=restoringDocument({roleId:'controller'});
+  const stages=[];
+  await proof.restoreLiveSettingsActor({page,crew,entry,selected:actor(),sessionId:'fresh',joinCode,onStage:s=>stages.push(s)});
+  assert.deepEqual(stages,['restore-controller']);
+  assert.equal(events.filter(e=>e==='select').length,1);
+  assert.ok(events.findIndex(e=>e?.action==='until')>events.indexOf('wait-navigation'));
+});
+
+test('restoration cannot switch away from a changed selected actor or accept a foreign loaded UID',async()=>{
+  const foreign=restoringDocument();
+  foreign.crew.observe=async()=>({...actor(),uidHash:'9999999999999999'});
+  await assert.rejects(proof.restoreLiveSettingsActor({...foreign,selected:actor(),sessionId:'fresh',joinCode}),/original.*actor|identity/i);
+  assert.equal(foreign.events.some(e=>e==='select'),false);
+  const changed=restoringDocument({changeIdentity:true});
+  await assert.rejects(proof.restoreLiveSettingsActor({...changed,selected:actor(),sessionId:'fresh',joinCode}),/Original live UID/);
+});
+
+test('normal restoration navigation failures propagate once without a hidden identity retry',async()=>{
+  const failure=new Error('actual original navigation failed');
+  const fixture=restoringDocument({navigationFailure:failure});
+  await assert.rejects(proof.restoreLiveSettingsActor({...fixture,selected:actor(),sessionId:'fresh',joinCode}),e=>e===failure);
+  assert.equal(fixture.events.filter(e=>e==='select').length,1);
+  assert.equal(fixture.events.some(e=>e?.action==='until'),false);
+});
+
+test('document load time consumes the existing sixty-second restoration readiness budget',async t=>{
+  let now=1_000;
+  t.mock.method(Date,'now',()=>now);
+  const fixture=restoringDocument({navigationWait:async()=>{now+=35_000;}});
+  await proof.restoreLiveSettingsActor({...fixture,selected:actor(),sessionId:'fresh',joinCode});
+  assert.equal(fixture.events.find(e=>e?.action==='until').timeout,25_000);
+});
+
+test('failure diagnostics distinguish the mounted private brief from the address bar without reading private content',async()=>{
+  const {page}=normalNavigationPage('#/brief');
+  const fade={getAttribute:key=>({'data-crossing':'true','data-phase':'out'})[key]};
+  const present=new Set(['.role-brief-screen','.role-brief-screen a[href="#/console"]']);
+  page.evaluate=async callback=>vm.runInNewContext(`(${callback.toString()})()`,{
+    document:{querySelector:selector=>selector==='.screen-fade'?fade:present.has(selector)?{}:null},
+  });
+  const diagnostic=await proof.captureLiveSettingsFailure({page,stage:'private-brief-back',error:{name:'TimeoutError'}});
+  assert.equal(diagnostic.route,'brief');assert.equal(diagnostic.controls.managerBack,false);
+  assert.equal(diagnostic.rendering.briefMounted,true);assert.equal(diagnostic.rendering.briefBackMounted,true);
+  assert.equal(diagnostic.rendering.escapeMounted,false);assert.equal(diagnostic.rendering.deferredFailureLayoutMounted,false);
+  assert.equal(diagnostic.rendering.screenFadeCrossing,true);assert.equal(diagnostic.rendering.screenFadeExiting,true);
+  assert.equal(diagnostic.renderingProbeStatus,'complete');
+});
+
+test('mounted-route diagnostics allowlist booleans and discard arbitrary private nested values',async()=>{
+  const {page}=normalNavigationPage('#/brief');
+  page.evaluate=async()=>({briefMounted:true,escapeMounted:false,screenFadeExiting:{uid:'private-uid'},
+    deferredFailureLayoutMounted:'private brief text',url:baseHref,error:{token:'private-token'},uid:'private-uid'});
+  const diagnostic=await proof.captureLiveSettingsFailure({page,stage:'private-brief-back',error:new Error('private-error')});
+  assert.equal(diagnostic.rendering.briefMounted,true);assert.equal(diagnostic.rendering.screenFadeExiting,null);
+  assert.equal(diagnostic.renderingProbeStatus,'unavailable');
+  for(const secret of ['private-uid','private brief text','private-token','private-error','fresh~admiral','http://']){
+    assert.equal(JSON.stringify(diagnostic).includes(secret),false);
+  }
+  assert.ok(Object.values(diagnostic.rendering).every(value=>typeof value==='boolean'||value===null));
+});
+
+test('a late mounted-route probe cannot mutate the captured diagnostic or extend its existing probe cap',async()=>{
+  const {page}=normalNavigationPage('#/brief');
+  let complete;
+  page.evaluate=()=>new Promise(resolve=>{complete=resolve;});
+  const diagnostic=await proof.captureLiveSettingsFailure({page,stage:'private-brief-back',error:{name:'TimeoutError'},probeBudgetMs:3});
+  assert.equal(diagnostic.renderingProbeStatus,'timed-out');
+  assert.ok(Object.values(diagnostic.rendering).every(value=>value===null));
+  const before=JSON.stringify(diagnostic);
+  assert.equal(typeof complete,'function');complete({briefMounted:true});
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(JSON.stringify(diagnostic),before);
+});
 
 function normalNavigationPage(initialRoute='#/ships/icarus') {
   let route=initialRoute,focused=null;
