@@ -196,6 +196,126 @@ export async function drainPc10CallableObservations({ pending, revision, quietMs
   }
 }
 
+/** A live client never becomes globally quiet while normal polling continues.
+ * Drain the finite set of already network-finished bodies. Unfinished requests
+ * stay in the evidence and may be cancelled only by an observed real transition. */
+export function createPc10CallableObservationBoundary({ onFailure, onCancellation, onBodyUnavailable, now = Date.now }) {
+  const pending = new Set();
+  const boundaries = [];
+  let offline = null;
+  function release(state) {
+    if (state.terminalDone && state.bodyDone && state.intent?.outcome !== 'pending') pending.delete(state);
+  }
+  function cancelled(state) {
+    const intent = state.intent;
+    if (!intent || intent.outcome !== 'completed' || !state.failedDuringIntent || state.trace.requestFinishedAt !== null ||
+        state.trace.bodyCompletedAt !== null || state.trace.requestFailedAt === null ||
+        state.trace.requestFailedAt < intent.startedAt) return false;
+    if (intent.kind === 'offline') return state.failureCode === 'net::ERR_INTERNET_DISCONNECTED' &&
+      (intent.endedAt == null || state.trace.requestFailedAt <= intent.endedAt);
+    return intent.kind === 'reload' && state.failureCode === 'net::ERR_ABORTED' &&
+      (intent.completedAt === null || state.trace.requestFailedAt <= intent.completedAt);
+  }
+  function classify(state) {
+    if (cancelled(state)) {
+      state.trace.observationDisposition = state.intent.kind === 'offline'
+        ? 'cancelled-during-planned-offline' : 'cancelled-during-planned-navigation';
+      state.trace.transitionStartedAt = state.intent.startedAt;
+      // Both raw failure timestamps remain. Resolve only this request's
+      // provisional errors after the actual matching transition succeeds.
+      onCancellation(state);
+    } else {
+      delete state.trace.observationDisposition;
+      delete state.trace.transitionStartedAt;
+      if (state.trace.requestFailedAt !== null) onFailure(state, 'unexpected-request-failure');
+      if (state.bodyRejected) onFailure(state, 'response-observation-unavailable');
+    }
+  }
+  return {
+    boundaries,
+    start(trace) {
+      const state = { trace, terminalDone: false, bodyDone: true, bodyRejected: false,
+        body: null, intent: offline, failureCode: null, failedDuringIntent: false };
+      pending.add(state);
+      return state;
+    },
+    finish(state) {
+      state.terminalDone = true;
+      if (!state.body) {
+        state.bodyRejected = true;
+        onBodyUnavailable(state);
+      }
+      classify(state);
+      release(state);
+    },
+    fail(state, code) {
+      state.failureCode = code;
+      state.failedDuringIntent = state.intent?.kind === 'offline' ? offline === state.intent
+        : state.intent?.kind === 'reload' && state.intent.outcome === 'pending';
+      state.terminalDone = true;
+      classify(state);
+      release(state);
+    },
+    capture(state, body) {
+      pending.add(state);
+      state.bodyDone = false;
+      state.body = body.catch(() => {
+        // A missing terminal event cannot hide a rejected body indefinitely.
+        // Only a later actual requestfailed matching successful intent may
+        // reclassify this failure as incomplete cancelled transport.
+        state.bodyRejected = true;
+        onBodyUnavailable(state);
+        classify(state);
+      }).finally(() => {
+        state.bodyDone = true;
+        classify(state);
+        release(state);
+      });
+    },
+    async drain() {
+      const targets = [...pending].filter(state => state.terminalDone && state.body && !state.bodyDone);
+      const boundary = { kind: 'completed-body-drain', startedAt: now(), completedAt: null,
+        finishedBodies: targets.length, inFlightRequests: [...pending].filter(state => !state.terminalDone).length,
+        outcome: 'pending' };
+      boundaries.push(boundary);
+      try {
+        await Promise.all(targets.map(state => state.body));
+        boundary.outcome = 'completed';
+      } catch (error) {
+        boundary.outcome = 'failed';
+        throw error;
+      } finally { boundary.completedAt = now(); }
+    },
+    async transition(kind, operation) {
+      assert.ok(['offline', 'online', 'reload'].includes(kind));
+      const boundary = { kind, startedAt: now(), completedAt: null, outcome: 'pending' };
+      boundaries.push(boundary);
+      if (kind === 'offline') offline = boundary;
+      if (kind !== 'online') {
+        for (const state of pending) if (!state.terminalDone) state.intent = boundary;
+      }
+      try {
+        const result = await operation(); // The original Playwright API, exactly once.
+        boundary.outcome = 'completed';
+        return result;
+      } catch (error) {
+        boundary.outcome = 'failed';
+        throw error;
+      } finally {
+        boundary.completedAt = now();
+        if (kind === 'online' && boundary.outcome === 'completed') {
+          if (offline) offline.endedAt = boundary.completedAt;
+          offline = null;
+        }
+        for (const state of pending) {
+          classify(state);
+          release(state);
+        }
+      }
+    },
+  };
+}
+
 /** The consent UI requires a committed session identity. Keep the original
  * total admission budget and every explicit regulation/timer acknowledgement. */
 export async function completePc10OrdinaryUiAdmission({ join, consent, inspect }) {
@@ -217,19 +337,28 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
   const errors = [];
   const observedCalls = [];
   const callableObservationFailures = [];
-  const pendingObservations = new Set();
-  const requestCompletions = new WeakMap();
-  let observationRevision = 0;
-  function trackObservation(promise) {
-    pendingObservations.add(promise);
-    observationRevision++;
-    const settled = () => pendingObservations.delete(promise);
-    void promise.then(settled, settled);
-  }
-  function completeRequest(request) {
-    requestCompletions.get(request)?.();
-    requestCompletions.delete(request);
-  }
+  const failuresByRequest = new WeakMap();
+  const observationBoundary = createPc10CallableObservationBoundary({
+    onFailure: (state, category) => {
+      const byCategory = failuresByRequest.get(state) ?? new Map();
+      if (byCategory.has(category)) return;
+      const failure = { roleId: label, name: state.trace.name, requestHash: state.trace.requestHash,
+        status: state.trace.status, category };
+      byCategory.set(category, failure);
+      failuresByRequest.set(state, byCategory);
+      callableObservationFailures.push(failure);
+    },
+    onCancellation: state => {
+      // An observed cancellation keeps its raw trace. No unrelated request,
+      // completed HTTP200 body loss, metadata error or drain timeout is removed.
+      for (const failure of failuresByRequest.get(state)?.values() ?? []) {
+        const index = callableObservationFailures.indexOf(failure);
+        if (index !== -1) callableObservationFailures.splice(index, 1);
+      }
+      failuresByRequest.delete(state);
+    },
+    onBodyUnavailable: ({ trace }) => observePc10CallableTrace(trace, { stage: 'body-unavailable', at: Date.now() }),
+  });
   const observedRequests = new WeakMap();
   const identityObservations = [];
   const identityRecords = new Map();
@@ -269,24 +398,28 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
         transport: 'independent-browser-SDK', startedAt: Date.now() });
       trace.roleId = label;
       trace.actorHash = actorHash ?? null;
-      observedRequests.set(request, trace);
+      observedRequests.set(request, observationBoundary.start(trace));
       observedCalls.push(trace);
-      trackObservation(new Promise(resolve => { requestCompletions.set(request, resolve); }));
     }
   });
   page.on('requestfinished', request => {
-    const trace = observedRequests.get(request);
-    if (trace) observePc10CallableTrace(trace, { stage: 'finished', at: Date.now() });
-    completeRequest(request);
+    const state = observedRequests.get(request);
+    if (state) {
+      observePc10CallableTrace(state.trace, { stage: 'finished', at: Date.now() });
+      observationBoundary.finish(state);
+    }
   });
   page.on('requestfailed', request => {
-    const trace = observedRequests.get(request);
-    if (trace) observePc10CallableTrace(trace, { stage: 'failed', at: Date.now() });
-    completeRequest(request);
+    const state = observedRequests.get(request);
+    if (state) {
+      observePc10CallableTrace(state.trace, { stage: 'failed', at: Date.now() });
+      observationBoundary.fail(state, request.failure?.()?.errorText);
+    }
   });
   page.on('response', response => {
-    const request = observedRequests.get(response.request());
-    if (!request) return;
+    const state = observedRequests.get(response.request());
+    if (!state) return;
+    const request = state.trace;
     observePc10CallableTrace(request, { stage: 'headers', at: Date.now(), status: response.status() });
     const capture = response.json().then(reply => {
       const completedAt = Date.now();
@@ -296,12 +429,8 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
       Object.assign(request, { actorHash: request.actorHash ?? value.actorHash ?? actorHash ?? null,
         sessionHash: request.sessionHash ?? value.sessionHash, groupHash: request.groupHash ?? value.groupHash,
         connectionGeneration: value.connectionGeneration, denialCategory: value.denialCategory });
-    }).catch(() => {
-      observePc10CallableTrace(request, { stage: 'body-unavailable', at: Date.now() });
-      callableObservationFailures.push({ roleId: label, name: request.name, requestHash: request.requestHash,
-        status: response.status(), category: 'response-observation-unavailable' });
     });
-    trackObservation(capture);
+    observationBoundary.capture(state, capture);
   });
   async function observe() {
     const record = { roleId: label, observationId: ++observationId, issuedAt: Date.now(), pageEvents: [] };
@@ -448,8 +577,10 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
   }
   return { context, page, errors, label, observe, until, join, callable, privateRead, geometry,
     observedCalls, callableObservationFailures, identityObservations,
-    drainObservedCalls: () => bounded(drainPc10CallableObservations({ pending: pendingObservations,
-      revision: () => observationRevision }), 10_000, 'callable observations'),
+    callableObservationBoundaries: observationBoundary.boundaries,
+    drainObservedCalls: () => bounded(observationBoundary.drain(), 10_000, 'callable observations'),
+    setOffline: value => observationBoundary.transition(value ? 'offline' : 'online', () => context.setOffline(value)),
+    reload: () => observationBoundary.transition('reload', () => page.reload()),
     close: () => context.close() };
 }
 
@@ -605,6 +736,8 @@ export async function createPc10BrowserTable({ baseUrl, directory, expansion = '
         authoritativeFailureSnapshots,
         observedBrowserCalls: [...clients.values()].flatMap(client => client.observedCalls),
         callableObservationFailures: [...clients.values()].flatMap(client => client.callableObservationFailures),
+        callableObservationBoundaries: [...clients.values()].flatMap(client =>
+          client.callableObservationBoundaries.map(boundary => ({ roleId: client.label, ...boundary }))),
         independentCorePlayerAuthSessions: fixture.players.length,
         additionalIndependentPressAuthSessions: 1, gmAuthSessions: 1,
         actualIndependentBrowserContexts: clients.size, browserProcesses: 1,
@@ -638,6 +771,8 @@ export async function createPc10BrowserTable({ baseUrl, directory, expansion = '
       rateLimitStateDiagnostics, failureObservationUnavailable: error.pc07FailureObservationUnavailable === true,
       authoritativeFailureSnapshots, diagnosticFailures: failureDiagnosticFailures,
       callableObservationFailures: [...clients.values()].flatMap(client => client.callableObservationFailures),
+      callableObservationBoundaries: [...clients.values()].flatMap(client =>
+        client.callableObservationBoundaries.map(boundary => ({ roleId: client.label, ...boundary }))),
       browserErrors: [...clients.values()].flatMap(client => client.errors.map(message => ({ roleId: client.label, message }))),
     }, null, 2)}\n`);
     if (fixture) await fixture.cleanup();
@@ -722,14 +857,14 @@ export async function runPc10OverlappingRecoveryProof(options) {
     completedStages.push('ordinary-gm-start-denied');
     const recoveryRoles = [...fixture.roles, 'press-officer'];
     await Promise.all(recoveryRoles.map(role => clients.get(role).drainObservedCalls()));
-    await Promise.all(recoveryRoles.map(role => clients.get(role).context.setOffline(true)));
+    await Promise.all(recoveryRoles.map(role => clients.get(role).setOffline(true)));
     const disconnectedObservations = await Promise.all(recoveryRoles.map(role => clients.get(role).observe()));
-    await Promise.all(recoveryRoles.map(role => clients.get(role).context.setOffline(false)));
+    await Promise.all(recoveryRoles.map(role => clients.get(role).setOffline(false)));
     await Promise.all(recoveryRoles.map(async role => {
       const client = clients.get(role);
       await client.observe();
       await client.drainObservedCalls();
-      await client.page.reload();
+      await client.reload();
     }));
     const recovered = await Promise.all(recoveryRoles.map(role => clients.get(role).until('reload/reconnect same authoritative role', state =>
       isFreshPc10BrowserRole(state, role))));
