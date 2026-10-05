@@ -205,7 +205,9 @@ export async function createPc07AuthenticatedSession(name,playerCount=8,{clearBr
   ok(await call(gm,'startGame',{sessionId,instanceId,requestId:randomUUID(),expectedSetupRevision:current.session.setupRevision,
    ...(fullGameManual?{fullGameDemo:true}:{})}),'start');
   const hold=(await session.get()).get('turnPhase').timerPause;
-  if(clearBriefing)ok(await call(players[0],'clearTurnAdvanceInterstitial',{sessionId,expectedCycle:1,expectedPausedAt:hold.pausedAt,requestId:randomUUID()}),'briefing clear');
+  if(fullGameManual){
+   assert.equal(hold,undefined,'A fresh unlimited manual demo has no timed briefing hold.');
+  }else if(clearBriefing)ok(await call(players[0],'clearTurnAdvanceInterstitial',{sessionId,expectedCycle:1,expectedPausedAt:hold.pausedAt,requestId:randomUUID()}),'briefing clear');
   const loyaltyActors=explicitLoyaltySetup?{
    wolfAgent:players[roles.indexOf(explicitLoyaltySetup.wolfAgentRoleId)],
    wolfCult:players[roles.indexOf(explicitLoyaltySetup.wolfCultRoleId)],
