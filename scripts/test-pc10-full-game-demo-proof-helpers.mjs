@@ -92,3 +92,60 @@ test('ending observation accepts the authoritative final-cycle snapshot without 
   assert.equal(isObservedGameEnding({ ...ended, debriefSource: 'candidate', debriefResult: 'success', debriefCause: 'candidate-complete' }), true);
   assert.equal(isObservedGameEnding({ ...ended, debriefSource: 'failure-review', debriefResult: 'failure', debriefCause: 'pursuit-limit' }), true);
 });
+
+const setupActor = { sessionId: 'fresh-setup', uidHash: 'real-gm-hash', instanceId: 'live-gm-instance' };
+const liveSetup = { ...setupActor, hasAuth: true, sameActor: true, playerRole: 'gm', gmInstanceOwned: true,
+  cycle: 0, phase: 'lobby', connection: 'live', freshness: 'server', confirmEnabled: true,
+  confirmed: false, setupRequestCount: 0, rosterStatus: '' };
+const offeredSetupRetry = 'Roster confirmation rejected // review the live setup and retry.';
+
+test('setup UI waits for live authority before its single normal confirmation click', async () => {
+  const { confirmPreparedSetup } = await import('./pc10-full-game-demo-proof-helpers.mjs');
+  const states = [{ ...liveSetup, connection: 'connecting', confirmEnabled: false },
+    liveSetup, { ...liveSetup, setupRequestCount: 1, confirmed: true }];
+  let index = 0, clicks = 0, time = 0;
+  const result = await confirmPreparedSetup({ expected: setupActor, inspect: async () => states[index++],
+    click: async () => { clicks += 1; }, now: () => time, wait: async () => { time += 1; } });
+  assert.equal(result.clicks, 1); assert.equal(clicks, 1);
+});
+
+test('setup retries once only after observed freshness loss and the visible no-RPC retry offer', async () => {
+  const { confirmPreparedSetup } = await import('./pc10-full-game-demo-proof-helpers.mjs');
+  const states = [liveSetup,
+    { ...liveSetup, connection: 'connecting', confirmEnabled: false, rosterStatus: offeredSetupRetry },
+    { ...liveSetup, rosterStatus: offeredSetupRetry },
+    { ...liveSetup, setupRequestCount: 1, confirmed: true }];
+  let index = 0, clicks = 0, time = 0;
+  const result = await confirmPreparedSetup({ expected: setupActor, inspect: async () => states[index++],
+    click: async () => { clicks += 1; }, now: () => time, wait: async () => { time += 1; } });
+  assert.equal(result.clicks, 2); assert.equal(clicks, 2);
+});
+
+test('setup recovery never changes actor or retries an actual server rejection', async () => {
+  const { confirmPreparedSetup } = await import('./pc10-full-game-demo-proof-helpers.mjs');
+  for (const changed of [{ uidHash: 'wrong-gm' }, { sessionId: 'old-game' }, { instanceId: 'old-instance' },
+    { sameActor: false }, { gmInstanceOwned: false }, { playerRole: 'player' }, { cycle: 1 }, { phase: 'closed' }]) {
+    let clicks = 0;
+    await assert.rejects(confirmPreparedSetup({ expected: setupActor, inspect: async () => ({ ...liveSetup, ...changed }),
+      click: async () => { clicks += 1; } }));
+    assert.equal(clicks, 0);
+  }
+  let index = 0, clicks = 0, time = 0;
+  const states = [liveSetup, { ...liveSetup, connection: 'connecting', confirmEnabled: false },
+    { ...liveSetup, setupRequestCount: 1, rosterStatus: offeredSetupRetry }];
+  await assert.rejects(confirmPreparedSetup({ expected: setupActor, inspect: async () => states[index++],
+    click: async () => { clicks += 1; }, now: () => time, wait: async () => { time += 1; } }), /not a recoverable local freshness rejection/);
+  assert.equal(clicks, 1);
+});
+
+test('setup recovery does not retry an unexplained rejection or a second local failure', async () => {
+  const { confirmPreparedSetup } = await import('./pc10-full-game-demo-proof-helpers.mjs');
+  for (const states of [[liveSetup, { ...liveSetup, rosterStatus: offeredSetupRetry }],
+    [liveSetup, { ...liveSetup, connection: 'connecting', confirmEnabled: false, rosterStatus: offeredSetupRetry },
+      { ...liveSetup, rosterStatus: offeredSetupRetry }, { ...liveSetup, rosterStatus: offeredSetupRetry }]]) {
+    let index = 0, clicks = 0, time = 0;
+    await assert.rejects(confirmPreparedSetup({ expected: setupActor, inspect: async () => states[index++],
+      click: async () => { clicks += 1; }, now: () => time, wait: async () => { time += 1; } }), /not a recoverable local freshness rejection/);
+    assert.ok(clicks <= 2);
+  }
+});
