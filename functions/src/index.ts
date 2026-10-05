@@ -43,7 +43,8 @@ import {
   type QuerySnapshot,
 } from 'firebase-admin/firestore';
 import { setGlobalOptions } from 'firebase-functions/v2';
-import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import { HttpsError } from 'firebase-functions/v2/https';
+import { auditedOnCall } from './securityCallable';
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { commandError } from './commandErrors';
@@ -1183,52 +1184,52 @@ const getBoardingSecurityTeamLocationsCallable = createBoardingSecurityTeamCalla
   requireFacilitatorInstance,
 });
 
-export const proposePermissionedDismantling = onCall((request) =>
+export const proposePermissionedDismantling = auditedOnCall('proposePermissionedDismantling', (request) =>
   permissionedDismantlingCallables.proposePermissionedDismantling(request));
 
-export const getGorgoneionMissionSupportProjection = onCall((request) =>
+export const getGorgoneionMissionSupportProjection = auditedOnCall('getGorgoneionMissionSupportProjection', (request) =>
   gorgoneionMissionSupportCallables.getGorgoneionMissionSupportProjection(request));
 
-export const applyGorgoneionMissionSupport = onCall((request) =>
+export const applyGorgoneionMissionSupport = auditedOnCall('applyGorgoneionMissionSupport', (request) =>
   gorgoneionMissionSupportCallables.applyGorgoneionMissionSupport(request));
 
-export const commitAwayMissionLifecycleCommand = onCall((request) =>
+export const commitAwayMissionLifecycleCommand = auditedOnCall('commitAwayMissionLifecycleCommand', (request) =>
   awayMissionLifecycleCallables.commitAwayMissionLifecycleCommand(request));
 
-export const consentToPermissionedDismantling = onCall((request) =>
+export const consentToPermissionedDismantling = auditedOnCall('consentToPermissionedDismantling', (request) =>
   permissionedDismantlingCallables.consentToPermissionedDismantling(request));
 
-export const declinePermissionedDismantling = onCall((request) =>
+export const declinePermissionedDismantling = auditedOnCall('declinePermissionedDismantling', (request) =>
   permissionedDismantlingCallables.declinePermissionedDismantling(request));
 
-export const revokePermissionedDismantlingConsent = onCall((request) =>
+export const revokePermissionedDismantlingConsent = auditedOnCall('revokePermissionedDismantlingConsent', (request) =>
   permissionedDismantlingCallables.revokePermissionedDismantlingConsent(request));
 
-export const applyPermissionedDismantling = onCall((request) =>
+export const applyPermissionedDismantling = auditedOnCall('applyPermissionedDismantling', (request) =>
   permissionedDismantlingCallables.applyPermissionedDismantling(request));
 
-export const attestPlayerHeldTokenBaseline = onCall((request) =>
+export const attestPlayerHeldTokenBaseline = auditedOnCall('attestPlayerHeldTokenBaseline', (request) =>
   sameTableTradeCallables.attestPlayerHeldTokenBaseline(request));
 
-export const createSameTableTradeOffer = onCall((request) =>
+export const createSameTableTradeOffer = auditedOnCall('createSameTableTradeOffer', (request) =>
   sameTableTradeCallables.createSameTableTradeOffer(request));
 
-export const acceptSameTableTradeOffer = onCall((request) =>
+export const acceptSameTableTradeOffer = auditedOnCall('acceptSameTableTradeOffer', (request) =>
   sameTableTradeCallables.acceptSameTableTradeOffer(request));
 
-export const dockVoyage33 = onCall((request) =>
+export const dockVoyage33 = auditedOnCall('dockVoyage33', (request) =>
   voyage33MovementCallables.dockVoyage33(request));
 
-export const jumpVoyage33 = onCall((request) =>
+export const jumpVoyage33 = auditedOnCall('jumpVoyage33', (request) =>
   voyage33MovementCallables.jumpVoyage33(request));
 
-export const getSmallShipJumpWorkspace = onCall((request) =>
+export const getSmallShipJumpWorkspace = auditedOnCall('getSmallShipJumpWorkspace', (request) =>
   smallShipJumpCallables.getSmallShipJumpWorkspace(request));
 
-export const jumpSmallShip = onCall((request) =>
+export const jumpSmallShip = auditedOnCall('jumpSmallShip', (request) =>
   smallShipJumpCallables.jumpSmallShip(request));
 
-export const getBoardingSecurityTeamLocations = onCall((request) =>
+export const getBoardingSecurityTeamLocations = auditedOnCall('getBoardingSecurityTeamLocations', (request) =>
   getBoardingSecurityTeamLocationsCallable(request));
 
 /** Persist server-authoritative source events to the Press-only intake. */
@@ -5061,7 +5062,7 @@ function ensureFighterWingCountActionAuditForReplay(
   );
 }
 
-export const createSession = onCall<{
+export const createSession = auditedOnCall<{
   name?: string;
   displayName?: string;
   joinCodeVersion?: unknown;
@@ -5076,7 +5077,7 @@ export const createSession = onCall<{
   wolfCultEnabled?: unknown;
   options?: unknown;
 }>(
-  async (request) => {
+  'createSession', async (request) => {
     const uid = requireUid(request.auth);
     const creation = requireSessionCreationRequest(request.data ?? {});
     const name = cleanName(request.data?.name, 'New session', 80);
@@ -5898,7 +5899,7 @@ function rejectLegacySetupMutation(): never {
 }
 
 /** Confirm the complete setup tuple in one authoritative, replayable write. */
-export const confirmSetup = onCall<{
+export const confirmSetup = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   requestId?: unknown;
@@ -5914,7 +5915,7 @@ export const confirmSetup = onCall<{
   universalArbourEnabled?: unknown;
   wolfCultEnabled?: unknown;
   activeRoleIds?: unknown;
-}>(async (request) => {
+}>('confirmSetup', async (request) => {
   const uid = requireUid(request.auth);
   const command = requireSetupConfirmationRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${command.sessionId}`);
@@ -6324,7 +6325,7 @@ function responsibilityCoverage(instances: readonly DocumentSnapshot[]) {
   };
 }
 
-export const setFacilitatorResponsibility = onCall<{
+export const setFacilitatorResponsibility = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   requestId?: unknown;
@@ -6332,7 +6333,7 @@ export const setFacilitatorResponsibility = onCall<{
   responsibility?: unknown;
   mode?: unknown;
   targetInstanceId?: unknown;
-}>(async (request) => {
+}>('setFacilitatorResponsibility', async (request) => {
   const uid = requireUid(request.auth);
   const responsibility = requireFacilitatorResponsibilityRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${responsibility.sessionId}`);
@@ -6562,12 +6563,12 @@ function startLoyaltyRecord(
 }
 
 /** Start a ready casting roster exactly once through an active facilitator. */
-export const startGame = onCall<{
+export const startGame = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   requestId?: unknown;
   expectedSetupRevision?: unknown;
-}>(async (request) => {
+}>('startGame', async (request) => {
   const uid = requireUid(request.auth);
   const start = requireGameStartRequest(request.data ?? {});
   const fingerprint: StartRequestFingerprint = {
@@ -7206,7 +7207,7 @@ function retainedShuttleTransitionForDestruction(
 }
 
 /** Hand a shuttle to another connected player or return it to its printed owner. */
-export const transferShuttleControlCommand = onCall<{
+export const transferShuttleControlCommand = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
   instanceId?: unknown;
@@ -7214,7 +7215,7 @@ export const transferShuttleControlCommand = onCall<{
   action?: unknown;
   targetUid?: unknown;
   expectedRevision?: unknown;
-}>(async request => {
+}>('transferShuttleControlCommand', async request => {
   const uid = requireUid(request.auth);
   const occurredAt = new Date().toISOString();
   const raw = request.data;
@@ -7540,10 +7541,10 @@ function isShuttleCargoTransferReply(value: unknown, sessionId: string): value i
 }
 
 /** Move printed cargo only between a shuttle and its one authoritative docked host. */
-export const transferShuttleCargoCommand = onCall<{
+export const transferShuttleCargoCommand = auditedOnCall<{
   sessionId?: unknown; requestId?: unknown; shuttleId?: unknown; resourceId?: unknown;
   direction?: unknown; amount?: unknown; expectedControlRevision?: unknown;
-}>(async request => {
+}>('transferShuttleCargoCommand', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = new Set([
@@ -7735,12 +7736,12 @@ function isServiceShuttleRechargeReply(
 }
 
 /** Add one service-shuttle charge and resolve any immediate production effect atomically. */
-export const rechargeHostConsoleFromShuttle = onCall<{
+export const rechargeHostConsoleFromShuttle = auditedOnCall<{
   sessionId?: unknown; requestId?: unknown; shuttleId?: unknown; consoleId?: unknown;
   expectedHostShipId?: unknown;
   expectedControlRevision?: unknown; expectedMaintenanceRevision?: unknown; expectedCycle?: unknown;
   productionScrap?: unknown; productionOreAmount?: unknown;
-}>(async request => {
+}>('rechargeHostConsoleFromShuttle', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = new Set([
@@ -8032,11 +8033,11 @@ function isBlacksmithRepairReply(
 }
 
 /** Repair one or two damaged consoles on Blacksmith's authoritative docked host. */
-export const repairConsolesFromBlacksmith = onCall<{
+export const repairConsolesFromBlacksmith = auditedOnCall<{
   sessionId?: unknown; requestId?: unknown; expectedControlRevision?: unknown;
   expectedRepairRevision?: unknown; expectedCycle?: unknown; expectedHostShipId?: unknown;
   systemIds?: unknown;
-}>(async request => {
+}>('repairConsolesFromBlacksmith', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = new Set([
@@ -8263,11 +8264,11 @@ function isPhiliaRepairReply(
 }
 
 /** Repair one or two damaged consoles on Philia's authoritative docked host. */
-export const repairConsolesFromPhilia = onCall<{
+export const repairConsolesFromPhilia = auditedOnCall<{
   sessionId?: unknown; requestId?: unknown; expectedControlRevision?: unknown;
   expectedRepairRevision?: unknown; expectedCycle?: unknown; expectedHostShipId?: unknown;
   systemIds?: unknown;
-}>(async request => {
+}>('repairConsolesFromPhilia', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = new Set([
@@ -8468,11 +8469,11 @@ export const repairConsolesFromPhilia = onCall<{
 });
 
 /** Repair one or two damaged consoles on Macaw's authoritative docked host. */
-export const repairConsolesFromMacaw = onCall<{
+export const repairConsolesFromMacaw = auditedOnCall<{
   sessionId?: unknown; requestId?: unknown; expectedControlRevision?: unknown;
   expectedRepairRevision?: unknown; expectedCycle?: unknown; expectedHostShipId?: unknown;
   systemIds?: unknown;
-}>(async request => {
+}>('repairConsolesFromMacaw', async request => {
   const uid = requireUid(request.auth);
   const data = parseMacawRepairCallableCommand(request.data);
   if (!data) throw new HttpsError('invalid-argument', 'Invalid Macaw repair request.');
@@ -8621,11 +8622,11 @@ export const repairConsolesFromMacaw = onCall<{
 });
 
 /** Recycle one printed recipe from Boa's current docked host in one server transaction. */
-export const recycleWithBoa = onCall<{
+export const recycleWithBoa = auditedOnCall<{
   sessionId?: unknown; requestId?: unknown; recipeId?: unknown;
   expectedControlRevision?: unknown; expectedRecyclingRevision?: unknown;
   expectedCycle?: unknown; expectedHostShipId?: unknown;
-}>(async request => {
+}>('recycleWithBoa', async request => {
   const uid = requireUid(request.auth);
   const data = parseBoaRecyclingCallableCommand(request.data);
   if (!data) throw new HttpsError('invalid-argument', 'Invalid Boa recycling request.');
@@ -8831,7 +8832,7 @@ type ChacauRepairReply = Readonly<{
 }>;
 
 /** Repair one or two damaged consoles through Chacau's Refinery 124 authority. */
-export const repairConsolesFromChacau = onCall(async request => {
+export const repairConsolesFromChacau = auditedOnCall('repairConsolesFromChacau', async request => {
   const uid = requireUid(request.auth);
   const data = parseChacauRepairCallableCommand(request.data);
   if (!data) throw new HttpsError('invalid-argument', 'Invalid Chacau repair request.');
@@ -9032,7 +9033,7 @@ function isEndeavourFieldUpgradeReply(
 }
 
 /** Apply Endeavour console upgrades using target-ship materials and server-owned research state. */
-export const upgradeEndeavourFieldTargets = onCall<{
+export const upgradeEndeavourFieldTargets = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
   expectedHostShipId?: unknown;
@@ -9040,7 +9041,7 @@ export const upgradeEndeavourFieldTargets = onCall<{
   expectedUpgradeRevision?: unknown;
   expectedCycle?: unknown;
   targets?: unknown;
-}>(async request => {
+}>('upgradeEndeavourFieldTargets', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowedKeys = new Set([
@@ -9304,11 +9305,11 @@ function isShuttleEvacuationReply(value: unknown, sessionId: string): value is S
 }
 
 /** Move survivors once between a cargo shuttle's docked host and one fleet-group ship. */
-export const evacuateShuttleSurvivorsCommand = onCall<{
+export const evacuateShuttleSurvivorsCommand = auditedOnCall<{
   sessionId?: unknown; requestId?: unknown; shuttleId?: unknown; destinationShipId?: unknown;
   amount?: unknown; expectedControlRevision?: unknown; expectedCycle?: unknown;
   expectedEvacuationRevision?: unknown;
-}>(async request => {
+}>('evacuateShuttleSurvivorsCommand', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = new Set([
@@ -9504,14 +9505,14 @@ function isShuttleDepartureReply(value: unknown, sessionId: string): value is Sh
 }
 
 /** Validate and persist one holder departure request; P366 alone enters transit. */
-export const requestShuttleDeparture = onCall<{
+export const requestShuttleDeparture = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
   shuttleId?: unknown;
   destinationShipId?: unknown;
   expectedControlRevision?: unknown;
   expectedCycle?: unknown;
-}>(async request => {
+}>('requestShuttleDeparture', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = new Set([
@@ -9688,14 +9689,14 @@ function isShuttleTransitReply(value: unknown, sessionId: string): value is Shut
 }
 
 /** Atomically remove one authorized shuttle from its dock and enter server transit. */
-export const beginShuttleTransit = onCall<{
+export const beginShuttleTransit = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
   shuttleId?: unknown;
   expectedDepartureRequestId?: unknown;
   expectedControlRevision?: unknown;
   expectedCycle?: unknown;
-}>(async request => {
+}>('beginShuttleTransit', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = new Set([
@@ -9876,7 +9877,7 @@ export const beginShuttleTransit = onCall<{
 });
 
 /** Move one active shuttle leg to a new legal destination without exposing its route. */
-export const retargetShuttleTransit = onCall<{
+export const retargetShuttleTransit = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
   shuttleId?: unknown;
@@ -9884,7 +9885,7 @@ export const retargetShuttleTransit = onCall<{
   destinationShipId?: unknown;
   expectedControlRevision?: unknown;
   expectedCycle?: unknown;
-}>(async request => {
+}>('retargetShuttleTransit', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = new Set([
@@ -10135,7 +10136,7 @@ function isAwayMissionDealReply(value: unknown, sessionId: string): value is Awa
 }
 
 /** Start a source-bound mission and perform the existing private initial deal atomically. */
-export const dealPrivateInitialCards = onCall<{
+export const dealPrivateInitialCards = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   requestId?: unknown;
@@ -10149,7 +10150,7 @@ export const dealPrivateInitialCards = onCall<{
   sourceCycle?: unknown;
   missionLeaderUid?: unknown;
   participantUids?: unknown;
-}>(async (request) => {
+}>('dealPrivateInitialCards', async (request) => {
   const uid = requireUid(request.auth);
   const command = requireAwayMissionCardDealRequest(request.data ?? {});
   const markerRef = commandReceiptRef(command.sessionId, command.requestId);
@@ -10871,13 +10872,13 @@ function isAwayMissionDiscardReadyReply(value: unknown, sessionId: string): valu
 }
 
 /** Record that the facilitator has finished extra-card selection and players may discard. */
-export const openPrivateMissionDiscards = onCall<{
+export const openPrivateMissionDiscards = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   requestId?: unknown;
   expectedSetupRevision?: unknown;
   missionId?: unknown;
-}>(async (request) => {
+}>('openPrivateMissionDiscards', async (request) => {
   const uid = requireUid(request.auth);
   const command = requireAwayMissionDiscardReadyRequest(request.data ?? {});
   const markerRef = commandReceiptRef(command.sessionId, command.requestId);
@@ -11074,13 +11075,13 @@ function awayMissionStringLedger(value: unknown): readonly string[] | null {
 }
 
 /** Secretly consume one participant-owned card before opportunity assignment. */
-export const discardPrivateMissionCard = onCall<{
+export const discardPrivateMissionCard = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
   expectedSetupRevision?: unknown;
   missionId?: unknown;
   cardId?: unknown;
-}>(async (request) => {
+}>('discardPrivateMissionCard', async (request) => {
   const uid = requireUid(request.auth);
   const command = requireAwayMissionCardDiscardRequest(request.data ?? {});
   const markerRef = commandReceiptRef(command.sessionId, command.requestId);
@@ -11265,11 +11266,11 @@ export const discardPrivateMissionCard = onCall<{
 });
 
 /** Save a nonbinding vessel preference without implying an assignment. */
-export const setShipPreference = onCall<{
+export const setShipPreference = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
   shipId?: unknown;
-}>(async (request) => {
+}>('setShipPreference', async (request) => {
   const uid = requireUid(request.auth);
   const preference = requireCastingPreferenceRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${preference.sessionId}`);
@@ -11334,13 +11335,13 @@ export const setShipPreference = onCall<{
 });
 
 /** Assign one printed role during the unlocked casting window. */
-export const assignRole = onCall<{
+export const assignRole = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   requestId?: unknown;
   targetUid?: unknown;
   roleId?: unknown;
-}>(async (request) => {
+}>('assignRole', async (request) => {
   const uid = requireUid(request.auth);
   const assignment = requireRoleAssignmentRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${assignment.sessionId}`);
@@ -11464,12 +11465,12 @@ export const assignRole = onCall<{
 });
 
 /** Release a role before start so the facilitator can reassign it cleanly. */
-export const releaseRole = onCall<{
+export const releaseRole = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   requestId?: unknown;
   targetUid?: unknown;
-}>(async (request) => {
+}>('releaseRole', async (request) => {
   const uid = requireUid(request.auth);
   const release = requireRoleReleaseRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${release.sessionId}`);
@@ -11711,7 +11712,7 @@ function replacementRoleIsOccupied(
 }
 
 /** Record the facilitator's explicit live eligibility decision. */
-export const setReplacementEligibility = onCall<{
+export const setReplacementEligibility = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   requestId?: unknown;
@@ -11719,7 +11720,7 @@ export const setReplacementEligibility = onCall<{
   reason?: unknown;
   expectedRevision?: unknown;
   expectedSetupRevision?: unknown;
-}>(async (request) => {
+}>('setReplacementEligibility', async (request) => {
   const uid = requireUid(request.auth);
   const decision = requireReplacementEligibilityRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${decision.sessionId}`);
@@ -11793,7 +11794,7 @@ export const setReplacementEligibility = onCall<{
 });
 
 /** Assign one source-defined replacement role after an explicit eligibility decision. */
-export const assignReplacementRole = onCall<{
+export const assignReplacementRole = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   requestId?: unknown;
@@ -11801,7 +11802,7 @@ export const assignReplacementRole = onCall<{
   replacementRoleId?: unknown;
   expectedRevision?: unknown;
   expectedSetupRevision?: unknown;
-}>(async (request) => {
+}>('assignReplacementRole', async (request) => {
   const uid = requireUid(request.auth);
   const assignment = requireReplacementAssignmentRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${assignment.sessionId}`);
@@ -12382,14 +12383,14 @@ function isFacilitatorCensusNoteResult(value: unknown, sessionId: string): value
 }
 
 /** Save a facilitator-only census note without publishing private facts. */
-export const setFacilitatorCensusNote = onCall<{
+export const setFacilitatorCensusNote = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   requestId?: unknown;
   expectedRevision?: unknown;
   targetUid?: unknown;
   note?: unknown;
-}>(async (request) => {
+}>('setFacilitatorCensusNote', async (request) => {
   const uid = requireUid(request.auth);
   const change = requireFacilitatorCensusNoteRequest(request.data ?? {});
   const censusRef = db.doc(`sessions/${change.sessionId}/loyaltyCensus/current`);
@@ -12510,7 +12511,7 @@ function isArrestPosseCalculationResult(
 }
 
 /** Calculate the arrest posse privately from the server-owned loyalty card. */
-export const calculateArrestPosse = onCall<{
+export const calculateArrestPosse = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   requestId?: unknown;
@@ -12518,7 +12519,7 @@ export const calculateArrestPosse = onCall<{
   targetUid?: unknown;
   defenders?: unknown;
   adjustment?: unknown;
-}>(async (request) => {
+}>('calculateArrestPosse', async (request) => {
   const uid = requireUid(request.auth);
   const calculation = requireArrestPosseCalculationRequest(request.data ?? {});
   const currentRef = db.doc(`sessions/${calculation.sessionId}/arrestPosseCalculations/current`);
@@ -12714,11 +12715,11 @@ function isArrestPosseOutcomeResult(value: unknown, sessionId: string): value is
 }
 
 /** Resolve one current GM-attested posse using only its live private calculation. */
-export const resolveArrestPosse = onCall<{
+export const resolveArrestPosse = auditedOnCall<{
   sessionId?: unknown; instanceId?: unknown; requestId?: unknown; expectedCycle?: unknown;
   expectedRevision?: unknown; targetUid?: unknown; presentPlayerUids?: unknown;
   attendanceEvidence?: unknown;
-}>(async (request) => {
+}>('resolveArrestPosse', async (request) => {
   const uid = requireUid(request.auth);
   const command = arrestPosseOutcomeRequest(request.data ?? {});
   const currentRef = db.doc(`sessions/${command.sessionId}/arrestPosseCalculations/current`);
@@ -12899,11 +12900,11 @@ function isArrestCaseDispositionResult(value: unknown, sessionId: string): value
 }
 
 /** Record the GM's human ruling for an arrested prisoner by the next Team Phase. */
-export const resolveArrestCaseDisposition = onCall<{
+export const resolveArrestCaseDisposition = auditedOnCall<{
   sessionId?: unknown; instanceId?: unknown; requestId?: unknown; targetUid?: unknown;
   expectedCycle?: unknown; expectedRevision?: unknown; expectedSetupRevision?: unknown;
   disposition?: unknown; ruling?: unknown;
-}>(async (request) => {
+}>('resolveArrestCaseDisposition', async (request) => {
   const uid = requireUid(request.auth);
   const command = arrestCaseDispositionRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${command.sessionId}`);
@@ -13036,9 +13037,9 @@ function isVipHostVisitResult(value: unknown, sessionId: string): value is VipHo
 }
 
 /** A current GM records the physical VIP Host visit for one other ship. */
-export const attestVipHostVisit = onCall<{
+export const attestVipHostVisit = auditedOnCall<{
   sessionId?: unknown; instanceId?: unknown; requestId?: unknown; expectedCycle?: unknown; shipId?: unknown;
-}>(async (request) => {
+}>('attestVipHostVisit', async (request) => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = ['sessionId', 'instanceId', 'requestId', 'expectedCycle', 'shipId'];
@@ -13155,11 +13156,11 @@ function isHostedShipMaintenanceRerollResult(value: unknown, sessionId: string):
 }
 
 /** Consume the GM-attested grant to reroll one unrest-check die on the visited ship. */
-export const rerollHostedShipMaintenance = onCall<{
+export const rerollHostedShipMaintenance = auditedOnCall<{
   sessionId?: unknown; shipId?: unknown; requestId?: unknown; expectedCycle?: unknown;
   expectedGrantRevision?: unknown; expectedMaintenanceRevision?: unknown; dieIndex?: unknown;
   instanceId?: unknown; consoleRoleId?: unknown;
-}>(async (request) => {
+}>('rerollHostedShipMaintenance', async (request) => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = new Set(['sessionId', 'shipId', 'requestId', 'expectedCycle', 'expectedGrantRevision',
@@ -13618,7 +13619,7 @@ function isPdfFighterAceCombatView(value: unknown, sessionId: string): value is 
 }
 
 /** Return only opaque contact labels and the current range to the active Fighter Ace. */
-export const getPdfFighterAceCombatView = onCall<{ sessionId?: unknown }>(async (request) => {
+export const getPdfFighterAceCombatView = auditedOnCall<{ sessionId?: unknown }>('getPdfFighterAceCombatView', async (request) => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   if (!isRecord(raw) || Object.keys(raw).length !== 1 || !isCanonicalRequestId(raw.sessionId)) {
@@ -13699,9 +13700,9 @@ function isPdfFighterAcePermissionView(value: unknown, sessionId: string): value
 }
 
 /** Show a current source commander the active Ace's eligible launched fighter slots. */
-export const getPdfFighterAcePermissionView = onCall<{
+export const getPdfFighterAcePermissionView = auditedOnCall<{
   sessionId?: unknown; sourceId?: unknown;
-}>(async (request) => {
+}>('getPdfFighterAcePermissionView', async (request) => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   if (!isRecord(raw) || Object.keys(raw).length !== 2 || !isCanonicalRequestId(raw.sessionId) ||
@@ -13759,10 +13760,10 @@ function isPdfFighterAcePermissionResult(value: unknown, sessionId: string): val
 }
 
 /** Commit the source officer's one explicit, attack-bound Fighter Ace authorization. */
-export const grantPdfFighterAcePermission = onCall<{
+export const grantPdfFighterAcePermission = auditedOnCall<{
   sessionId?: unknown; requestId?: unknown; attackId?: unknown; expectedRevision?: unknown;
   sourceId?: unknown; fighterIndex?: unknown;
-}>(async (request) => {
+}>('grantPdfFighterAcePermission', async (request) => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = new Set(['sessionId', 'requestId', 'attackId', 'expectedRevision', 'sourceId', 'fighterIndex']);
@@ -13932,11 +13933,11 @@ function pdfFighterAceSourceLoss(
 }
 
 /** Commit one permission-bound Fighter Ace action before the selected range lock. */
-export const commitPdfFighterAceCombat = onCall<{
+export const commitPdfFighterAceCombat = auditedOnCall<{
   sessionId?: unknown; requestId?: unknown; attackId?: unknown; expectedRevision?: unknown;
   targetId?: unknown; range?: unknown; sourceId?: unknown; fighterIndex?: unknown;
   permissionRequestId?: unknown; permissionRevision?: unknown; targetShift?: unknown; extraTargetId?: unknown;
-}>(async (request) => {
+}>('commitPdfFighterAceCombat', async (request) => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = new Set(['sessionId', 'requestId', 'attackId', 'expectedRevision', 'targetId', 'range', 'sourceId',
@@ -14233,7 +14234,7 @@ function isWolfCultIntelligenceResult(
 }
 
 /** Deliver the four source-defined Wolf Cult facts to its current holder. */
-export const deliverWolfCultIntelligence = onCall<{
+export const deliverWolfCultIntelligence = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   requestId?: unknown;
@@ -14242,7 +14243,7 @@ export const deliverWolfCultIntelligence = onCall<{
   suppliesCoordinate?: unknown;
   agentUid?: unknown;
   codeWord?: unknown;
-}>(async (request) => {
+}>('deliverWolfCultIntelligence', async (request) => {
   const uid = requireUid(request.auth);
   const intelligence = requireWolfCultIntelligenceRequest(request.data ?? {});
   const currentRef = db.doc(`sessions/${intelligence.sessionId}/wolfCultIntelligence/current`);
@@ -14469,7 +14470,7 @@ function isCrisisTransitionResult(value: unknown, sessionId: string): value is C
 }
 
 /** Advance one manually authored crisis through the durable facilitator lifecycle. */
-export const transitionCrisis = onCall<{
+export const transitionCrisis = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   requestId?: unknown;
@@ -14483,7 +14484,7 @@ export const transitionCrisis = onCall<{
   diseaseOutbreak?: unknown;
   deliveryPressure?: unknown;
   formalAnnouncement?: unknown;
-}>(async (request) => {
+}>('transitionCrisis', async (request) => {
   const uid = requireUid(request.auth);
   const crisis = requireCrisisTransitionRequest(request.data ?? {});
   const currentRef = db.doc(`sessions/${crisis.sessionId}/crisisState/current`);
@@ -14872,14 +14873,14 @@ function isDiseaseQuarantineResult(
 }
 
 /** Bind or release the current Disease Outbreak docking policy by facilitator authority. */
-export const setDiseaseQuarantine = onCall<{
+export const setDiseaseQuarantine = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   requestId?: unknown;
   action?: unknown;
   expectedCrisisRevision?: unknown;
   expectedQuarantineRevision?: unknown;
-}>(async (request) => {
+}>('setDiseaseQuarantine', async (request) => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = new Set([
@@ -15096,13 +15097,13 @@ async function activateVoyage33Arrival(
 }
 
 /** Admit the printed Voyage 33-0 vessel exactly once from an active crisis. */
-export const admitVoyage33 = onCall<{
+export const admitVoyage33 = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   requestId?: unknown;
   expectedRevision?: unknown;
   crisisId?: unknown;
-}>(async (request) => {
+}>('admitVoyage33', async (request) => {
   const uid = requireUid(request.auth);
   const admissionRequest = requireVoyage33AdmissionRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${admissionRequest.sessionId}`);
@@ -15330,7 +15331,7 @@ function isApproachingVesselResponseResult(value: unknown, sessionId: string): v
 }
 
 /** Record a private reality adjudication and the bounded fleet-facing response to Approaching Vessel. */
-export const recordApproachingVesselResponse = onCall<{
+export const recordApproachingVesselResponse = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   requestId?: unknown;
@@ -15344,7 +15345,7 @@ export const recordApproachingVesselResponse = onCall<{
   quarantineInstructions?: unknown;
   contingencyObjectives?: unknown;
   rationale?: unknown;
-}>(async (request) => {
+}>('recordApproachingVesselResponse', async (request) => {
   const uid = requireUid(request.auth);
   const decision = requireApproachingVesselResponseRequest(request.data ?? {});
   const crisisRef = db.doc(`sessions/${decision.sessionId}/crisisState/current`);
@@ -15426,7 +15427,7 @@ export const recordApproachingVesselResponse = onCall<{
 });
 
 /** Record the facilitator's explicit source-approved response to Zealotry. */
-export const recordZealotryResponse = onCall<{
+export const recordZealotryResponse = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   requestId?: unknown;
@@ -15435,7 +15436,7 @@ export const recordZealotryResponse = onCall<{
   actions?: unknown;
   customResponse?: unknown;
   rationale?: unknown;
-}>(async (request) => {
+}>('recordZealotryResponse', async (request) => {
   const uid = requireUid(request.auth);
   const response = requireZealotryResponseRequest(request.data ?? {});
   const currentCrisisRef = db.doc(`sessions/${response.sessionId}/crisisState/current`);
@@ -15594,7 +15595,7 @@ function isCivilUnrestResolutionResult(value: unknown, sessionId: string): value
 }
 
 /** Record a private facilitator resolution for the current debated Civil Unrest crisis. */
-export const recordCivilUnrestResolution = onCall<{
+export const recordCivilUnrestResolution = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   requestId?: unknown;
@@ -15603,7 +15604,7 @@ export const recordCivilUnrestResolution = onCall<{
   presidentResponse?: unknown;
   consequence?: unknown;
   rationale?: unknown;
-}>(async (request) => {
+}>('recordCivilUnrestResolution', async (request) => {
   const uid = requireUid(request.auth);
   const response = requireCivilUnrestResolutionRequest(request.data ?? {});
   const currentCrisisRef = db.doc(`sessions/${response.sessionId}/crisisState/current`);
@@ -15732,7 +15733,7 @@ function civilUnrestTeamPhase(session: DocumentSnapshot): boolean {
 }
 
 /** A player may submit only for their live assigned ship, or one canonical union pair. */
-export const submitCivilUnrestGrievance = onCall<{
+export const submitCivilUnrestGrievance = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
   crisisId?: unknown;
@@ -15741,7 +15742,7 @@ export const submitCivilUnrestGrievance = onCall<{
   affectedShipId?: unknown;
   visibility?: unknown;
   text?: unknown;
-}>(async (request) => {
+}>('submitCivilUnrestGrievance', async (request) => {
   const uid = requireUid(request.auth);
   const grievance = requireCivilUnrestGrievanceRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${grievance.sessionId}`);
@@ -15886,7 +15887,7 @@ function isArbourVisionResult(value: unknown, sessionId: string): value is Arbou
 }
 
 /** Publish one facilitator-authored Universal Arbour call to its current holder. */
-export const authorArbourVision = onCall<{
+export const authorArbourVision = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   requestId?: unknown;
@@ -15894,7 +15895,7 @@ export const authorArbourVision = onCall<{
   targetUid?: unknown;
   kind?: unknown;
   text?: unknown;
-}>(async (request) => {
+}>('authorArbourVision', async (request) => {
   const uid = requireUid(request.auth);
   const vision = requireArbourVisionRequest(request.data ?? {});
   const currentRef = db.doc(`sessions/${vision.sessionId}/arbourVisions/current`);
@@ -16103,7 +16104,7 @@ function isStoredFacilitatorRuleCall(value: unknown, sessionId: string): boolean
 }
 
 /** Record one durable facilitator ruling without publishing a public event. */
-export const authorFacilitatorRuleCall = onCall<{
+export const authorFacilitatorRuleCall = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   requestId?: unknown;
@@ -16114,7 +16115,7 @@ export const authorFacilitatorRuleCall = onCall<{
   audience?: unknown;
   recipientUid?: unknown;
   supersedesCallId?: unknown;
-}>(async request => {
+}>('authorFacilitatorRuleCall', async request => {
   const uid = requireUid(request.auth);
   const call = requireFacilitatorRuleCallRequest(request.data ?? {});
   const currentRef = db.doc(`sessions/${call.sessionId}/facilitatorRuleCalls/gm-current`);
@@ -16305,12 +16306,12 @@ function isCandidatePlanCheckpointResult(
 }
 
 /** Persist the facilitator-only Cycle 6 candidate-plan presence marker. */
-export const setCandidatePlanCheckpoint = onCall<{
+export const setCandidatePlanCheckpoint = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   requestId?: unknown;
   planExists?: unknown;
-}>(async request => {
+}>('setCandidatePlanCheckpoint', async request => {
   const uid = requireUid(request.auth);
   const change = requireCandidatePlanCheckpointRequest(request.data ?? {});
   const navigationRef = navigationStateRef(change.sessionId);
@@ -16475,7 +16476,7 @@ function isCompleteReciprocalFriendPair(
 }
 
 /** Assign a private loyalty card through the facilitator boundary. */
-export const assignLoyalty = onCall<{
+export const assignLoyalty = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   requestId?: unknown;
@@ -16483,7 +16484,7 @@ export const assignLoyalty = onCall<{
   kind?: unknown;
   suspicion?: unknown;
   partnerUid?: unknown;
-}>(async (request) => {
+}>('assignLoyalty', async (request) => {
   const uid = requireUid(request.auth);
   const assignment = requireLoyaltyAssignmentRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${assignment.sessionId}`);
@@ -16785,10 +16786,10 @@ export const assignLoyalty = onCall<{
 });
 
 /** Let only the Android holder disclose its own proof to the shared table. */
-export const revealAndroidProof = onCall<{
+export const revealAndroidProof = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
-}>(async (request) => {
+}>('revealAndroidProof', async (request) => {
   const uid = requireUid(request.auth);
   const disclosure = requireAndroidDisclosureRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${disclosure.sessionId}`);
@@ -16909,7 +16910,7 @@ function storedGroupNotes(snapshot: DocumentSnapshot, groupId: string): readonly
 }
 
 /** Server-only storage; every read rechecks the live audience after a partition. */
-export const readFleetGroupMessages = onCall(async request => {
+export const readFleetGroupMessages = auditedOnCall('readFleetGroupMessages', async request => {
   const uid = requireUid(request.auth);
   const data = groupNoteRequest(request.data, false);
   return db.runTransaction(async tx => {
@@ -16924,7 +16925,7 @@ export const readFleetGroupMessages = onCall(async request => {
     return { groupId: group.id, messages };
   });
 });
-export const sendFleetGroupMessage = onCall(async request => {
+export const sendFleetGroupMessage = auditedOnCall('sendFleetGroupMessage', async request => {
   const uid = requireUid(request.auth);
   const data = groupNoteRequest(request.data, true);
   const fingerprint: CommandFingerprint = { action: 'send-fleet-group-message', sessionId: data.sessionId,
@@ -16993,7 +16994,7 @@ function isFleetKnownSystemShareReply(value: unknown): value is FleetKnownSystem
 }
 
 /** Deliver only server-known scan facts, directly into selected same-group ship projections. */
-export const shareKnownSystemDetails = onCall(async request => {
+export const shareKnownSystemDetails = auditedOnCall('shareKnownSystemDetails', async request => {
   const uid = requireUid(request.auth);
   const data = parseFleetKnownSystemShareRequest(request.data);
   const fingerprint: CommandFingerprint = { action: 'share-known-system-details', sessionId: data.sessionId,
@@ -17122,7 +17123,7 @@ function parseFleetGroupNavigationRequest(raw: unknown): FleetGroupNavigationReq
 }
 
 /** Return a current group-only map and server-time shuttle samples. */
-export const readFleetGroupNavigation = onCall(async request => {
+export const readFleetGroupNavigation = auditedOnCall('readFleetGroupNavigation', async request => {
   const uid = requireUid(request.auth);
   const data = parseFleetGroupNavigationRequest(request.data);
   const gmView = data.viewerShipId !== undefined;
@@ -17246,7 +17247,7 @@ export const readFleetGroupNavigation = onCall(async request => {
 });
 
 /** One authorized courier round trip; this never opens ordinary cross-group reads. */
-export const sendScoutTaxiCourier = onCall(async request => {
+export const sendScoutTaxiCourier = auditedOnCall('sendScoutTaxiCourier', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = ['sessionId', 'requestId', 'shuttleId', 'targetShipId', 'text',
@@ -17439,7 +17440,7 @@ function isFleetTaxiTransferReply(value: unknown): value is FleetTaxiTransferRep
 }
 
 /** Commit one printed scout-taxi round trip and its selected passenger or fuel payload atomically. */
-export const sendScoutTaxiTransfer = onCall(async request => {
+export const sendScoutTaxiTransfer = auditedOnCall('sendScoutTaxiTransfer', async request => {
   const uid = requireUid(request.auth);
   const data = parseFleetTaxiTransferRequest(request.data);
   const fingerprint: CommandFingerprint = { action: 'scout-taxi-transfer', sessionId: data.sessionId,
@@ -17633,7 +17634,7 @@ function isFleetPartitionReply(value: unknown): value is FleetPartitionReply {
 }
 
 /** Confirm physical partitions from server coordinates; the browser cannot assign groups or pursuit. */
-export const confirmFleetPartition = onCall<{ sessionId: string; instanceId: string; requestId: string; expectedNavigationRevision: number }>(async request => {
+export const confirmFleetPartition = auditedOnCall<{ sessionId: string; instanceId: string; requestId: string; expectedNavigationRevision: number }>('confirmFleetPartition', async request => {
   const uid = requireUid(request.auth);
   const data = request.data;
   if (!isRecord(data) || Object.keys(data).some(key => !['sessionId', 'instanceId', 'requestId', 'expectedNavigationRevision'].includes(key)) ||
@@ -17904,11 +17905,11 @@ function publicMemberSessionSource(sessionSnap: DocumentSnapshot, sessionId: str
 }
 
 const currentMemberSessionReader = createCurrentMemberSessionReader({ db, projectSession: publicMemberSessionSource });
-export const getCurrentMemberSession = onCall(async request => currentMemberSessionReader(request));
+export const getCurrentMemberSession = auditedOnCall('getCurrentMemberSession', async request => currentMemberSessionReader(request));
 
 /** Redeem a legacy four-digit or current six-digit code and register presence. */
-export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
-  async (request) => {
+export const joinSession = auditedOnCall<{ joinCode?: string; displayName?: string }>(
+  'joinSession', async (request) => {
     const uid = requireUid(request.auth);
     const joinCode = request.data?.joinCode ?? '';
     if (!isJoinCode(joinCode)) {
@@ -18165,7 +18166,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
 );
 
 /** Refresh a locally remembered session after a browser reload or reopen. */
-export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
+export const resumeSession = auditedOnCall<{ sessionId?: string }>('resumeSession', async (request) => {
   const uid = requireUid(request.auth);
   const { sessionId } = requireSessionRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${sessionId}`);
@@ -18440,7 +18441,7 @@ function gmInstanceClaimedAtToken(value: unknown): string | undefined {
 }
 
 /** Establish persistent GM access for this anonymous browser identity. */
-export const loginGmAccess = onCall<{ password?: string }>(async (request) => {
+export const loginGmAccess = auditedOnCall<{ password?: string }>('loginGmAccess', async (request) => {
   const uid = requireUid(request.auth);
   const { password } = requireGmAccessLoginRequest(request.data ?? {});
   if (!isGmAccessPassword(password)) {
@@ -18454,10 +18455,10 @@ export const loginGmAccess = onCall<{ password?: string }>(async (request) => {
 });
 
 /** Revoke persistent GM access and release this browser's active GM instance. */
-export const logoutGmAccess = onCall<{
+export const logoutGmAccess = auditedOnCall<{
   sessionId?: string | null;
   instanceId?: string | null;
-}>(async (request) => {
+}>('logoutGmAccess', async (request) => {
   const uid = requireUid(request.auth);
   const logout = requireGmAccessLogoutRequest(request.data ?? {});
   const logoutSessionId = logout.sessionId;
@@ -18489,12 +18490,12 @@ export const logoutGmAccess = onCall<{
 });
 
 /** Claim GM authority for one named browser/device instance. */
-export const claimGmInstance = onCall<{
+export const claimGmInstance = auditedOnCall<{
   sessionId?: string;
   instanceId?: string;
   name?: string;
   deviceLabel?: string;
-}>(async (request) => {
+}>('claimGmInstance', async (request) => {
   const uid = requireUid(request.auth);
   const claim = requireGmClaimRequest(request.data ?? {});
   const accessRef = db.doc(`gmAccess/${uid}`);
@@ -18605,13 +18606,13 @@ export const claimGmInstance = onCall<{
 });
 
 /** Grant or revoke one browser-scoped ship-console write target. */
-export const setGmShipConsoleWriteGrant = onCall<{
+export const setGmShipConsoleWriteGrant = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   shipId?: unknown;
   enabled?: unknown;
   claimedAt?: unknown;
-}>(async (request) => {
+}>('setGmShipConsoleWriteGrant', async (request) => {
   const uid = requireUid(request.auth);
   const grant = requireGmShipConsoleWriteGrantRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${grant.sessionId}`);
@@ -18660,7 +18661,7 @@ export const setGmShipConsoleWriteGrant = onCall<{
 });
 
 /** Return every active GM browser instance to a session member. */
-export const listGmInstances = onCall<{ sessionId?: string }>(async (request) => {
+export const listGmInstances = auditedOnCall<{ sessionId?: string }>('listGmInstances', async (request) => {
   const uid = requireUid(request.auth);
   const { sessionId } = requireSessionRequest(request.data ?? {});
   const player = await db.doc(`sessions/${sessionId}/players/${uid}`).get();
@@ -18770,11 +18771,11 @@ async function removeGmInstance(
 }
 
 /** Remove another active GM instance. The caller must itself be an active instance. */
-export const kickGmInstance = onCall(async (request) =>
+export const kickGmInstance = auditedOnCall('kickGmInstance', async (request) =>
   removeGmInstance(requireUid(request.auth), request.data, true));
 
 /** Release only the calling browser's own GM instance. */
-export const releaseGmInstance = onCall(async (request) =>
+export const releaseGmInstance = auditedOnCall('releaseGmInstance', async (request) =>
   removeGmInstance(requireUid(request.auth), request.data, false));
 
 async function removePlayer(
@@ -18909,14 +18910,14 @@ async function removePlayer(
 }
 
 /** Remove a player browser from this session and permanently deny its return. */
-export const kickPlayer = onCall(async (request) =>
+export const kickPlayer = auditedOnCall('kickPlayer', async (request) =>
   removePlayer(requireUid(request.auth), request.data));
 
 /** Start one shared DRADIS transit from an active, named GM browser. */
-export const triggerDradisContact = onCall<{
+export const triggerDradisContact = auditedOnCall<{
   sessionId?: string;
   instanceId?: string;
-}>(async (request) => {
+}>('triggerDradisContact', async (request) => {
   const uid = requireUid(request.auth);
   const action = requireGmInstanceRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${action.sessionId}`);
@@ -18945,23 +18946,23 @@ export const triggerDradisContact = onCall<{
 });
 
 /** Include or remove the optional Capybara expansion ship for the whole session. */
-export const setCapybaraEnabled = onCall<{
+export const setCapybaraEnabled = auditedOnCall<{
   sessionId?: string;
   instanceId?: string;
   capybaraEnabled?: boolean;
-}>(async (request) => {
+}>('setCapybaraEnabled', async (request) => {
   requireUid(request.auth);
   return rejectLegacySetupMutation();
 });
 
 /** Include or remove the optional SNN Press station independently of the core roster. */
-export const setPressEnabled = onCall<{
+export const setPressEnabled = auditedOnCall<{
   sessionId?: string;
   instanceId?: string;
   requestId?: string;
   pressEnabled?: boolean;
   expectedRevision?: number;
-}>(async (request) => {
+}>('setPressEnabled', async (request) => {
   const uid = requireUid(request.auth);
   const setting = requirePressAvailabilityRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${setting.sessionId}`);
@@ -19114,24 +19115,24 @@ export const setPressEnabled = onCall<{
 });
 
 /** Include or remove Dione for the whole session. */
-export const setDioneEnabled = onCall<{
+export const setDioneEnabled = auditedOnCall<{
   sessionId?: string;
   instanceId?: string;
   dioneEnabled?: boolean;
-}>(async (request) => {
+}>('setDioneEnabled', async (request) => {
   requireUid(request.auth);
   return rejectLegacySetupMutation();
 });
 
 /** Move one fleet ship on the organiser chart and write the bridge audit trail. */
-export const moveShipToLocation = onCall<{
+export const moveShipToLocation = auditedOnCall<{
   sessionId?: string;
   instanceId?: string;
   shipId?: string;
   destination?: string;
   requestId?: string;
   expectedRevision?: number;
-}>(async (request) => {
+}>('moveShipToLocation', async (request) => {
   const uid = requireUid(request.auth);
   const change = requireShipNavigationMoveRequest(request.data ?? {});
   const identity = requireVesselActionRequest(request.data ?? {});
@@ -19492,7 +19493,7 @@ async function jumpDamageConsequences(input: {
 }
 
 /** Resolve one shipboard, coordinate-locked FTL jump. */
-export const jumpShip = onCall<{
+export const jumpShip = auditedOnCall<{
   sessionId?: string;
   instanceId?: string;
   shipId?: string;
@@ -19502,7 +19503,7 @@ export const jumpShip = onCall<{
   expectedRevision?: number;
   emergency?: boolean;
   failureRequestId?: string;
-}>(async (request) => {
+}>('jumpShip', async (request) => {
   const uid = requireUid(request.auth);
   const change = requireShipJumpRequest(request.data ?? {});
   const requestedDestination = change.destination;
@@ -20255,10 +20256,10 @@ export const jumpShip = onCall<{
 });
 
 /** Active-GM view of only still-current, unresolved failed jumps. */
-export const listUnresolvedJumpFailures = onCall<{
+export const listUnresolvedJumpFailures = auditedOnCall<{
   sessionId?: string;
   instanceId?: string;
-}>(async (request) => {
+}>('listUnresolvedJumpFailures', async (request) => {
   const uid = requireUid(request.auth);
   const query = requireJumpFailureListRequest(request.data ?? {});
   return db.runTransaction(async (tx) => {
@@ -20317,7 +20318,7 @@ export const listUnresolvedJumpFailures = onCall<{
 });
 
 /** A facilitator may complete one exact failed jump with full d6 common damage draws. */
-export const adjudicateFailedJump = onCall<{
+export const adjudicateFailedJump = auditedOnCall<{
   sessionId?: string;
   instanceId?: string;
   requestId?: string;
@@ -20325,7 +20326,7 @@ export const adjudicateFailedJump = onCall<{
   failureRequestId?: string;
   destination?: string;
   consequence?: string;
-}>(async (request) => {
+}>('adjudicateFailedJump', async (request) => {
   const uid = requireUid(request.auth);
   const change = requireFailedJumpAdjudicationRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${change.sessionId}`);
@@ -20647,14 +20648,14 @@ export const adjudicateFailedJump = onCall<{
 });
 
 /** Lock one ship's command console while it is travelling. */
-export const setShipConsoleLock = onCall<{
+export const setShipConsoleLock = auditedOnCall<{
   sessionId?: string;
   shipId?: string;
   instanceId?: string;
   locked?: boolean;
   requestId?: string;
   expectedRevision?: number;
-}>(async (request) => {
+}>('setShipConsoleLock', async (request) => {
   const uid = requireUid(request.auth);
   const change = requireShipConsoleLockRequest(request.data ?? {});
   const identity = requireVesselActionRequest(request.data ?? {});
@@ -20708,11 +20709,11 @@ export const setShipConsoleLock = onCall<{
 });
 
 /** Lock or unlock subsequent GM registration. */
-export const setGmControlsLocked = onCall<{
+export const setGmControlsLocked = auditedOnCall<{
   sessionId?: string;
   instanceId?: string;
   locked?: boolean;
-}>(async (request) => {
+}>('setGmControlsLocked', async (request) => {
   const uid = requireUid(request.auth);
   const setting = requireGmControlsLockRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${setting.sessionId}`);
@@ -20742,11 +20743,11 @@ export const setGmControlsLocked = onCall<{
 });
 
 /** Lower or retract the shared visual finale from an active GM browser. */
-export const setDebriefMode = onCall<{
+export const setDebriefMode = auditedOnCall<{
   sessionId?: string;
   instanceId?: string;
   active?: boolean;
-}>(async (request) => {
+}>('setDebriefMode', async (request) => {
   const uid = requireUid(request.auth);
   const setting = requireDebriefModeRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${setting.sessionId}`);
@@ -20795,7 +20796,7 @@ export const setDebriefMode = onCall<{
 });
 
 /** Advance the shared game turn from the value shown on an active GM instance. */
-export const advanceTurn = onCall<{
+export const advanceTurn = auditedOnCall<{
   sessionId?: string;
   instanceId?: string;
   requestId?: string;
@@ -20804,7 +20805,7 @@ export const advanceTurn = onCall<{
   skipTurnStartAnnouncement?: boolean;
   pursuitEmergencyDecision?: 'offer' | 'decline';
   expectedPursuitNavigationRevision?: number;
-}>(async (request) => {
+}>('advanceTurn', async (request) => {
   const uid = requireUid(request.auth);
   const advance = requireTurnAdvanceRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${advance.sessionId}`);
@@ -21054,9 +21055,9 @@ export const parkShuttlesAtAirspaceClosure = createAirspaceClosureParkingTask();
 export { reconcileAirspaceClosureTasks };
 
 /** Allow the sole connected player to enter Turn 1 for a demo session. */
-export const startSinglePlayerDemo = onCall<{
+export const startSinglePlayerDemo = auditedOnCall<{
   sessionId?: string;
-}>(async (request) => {
+}>('startSinglePlayerDemo', async (request) => {
   const uid = requireUid(request.auth);
   const { sessionId } = requireSessionRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${sessionId}`);
@@ -21096,10 +21097,10 @@ export const startSinglePlayerDemo = onCall<{
 });
 
 /** Replay the latest turn transmission on every connected console. */
-export const replayTurnStartAnnouncement = onCall<{
+export const replayTurnStartAnnouncement = auditedOnCall<{
   sessionId?: string;
   instanceId?: string;
-}>(async (request) => {
+}>('replayTurnStartAnnouncement', async (request) => {
   const uid = requireUid(request.auth);
   const action = requireGmInstanceRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${action.sessionId}`);
@@ -21138,10 +21139,10 @@ export const replayTurnStartAnnouncement = onCall<{
 });
 
 /** Promote the shared real-time turn clock into its coordination/open-airspace phase. */
-export const beginOpenAirspacePhase = onCall<{
+export const beginOpenAirspacePhase = auditedOnCall<{
   sessionId?: unknown;
   expectedTurn?: unknown;
-}>(async request => {
+}>('beginOpenAirspacePhase', async request => {
   const uid = requireUid(request.auth);
   const requestData = requireOpenAirspacePhaseRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${requestData.sessionId}`);
@@ -21207,12 +21208,12 @@ export const beginOpenAirspacePhase = onCall<{
 });
 
 /** Add one confirmed five-minute increment to the live airspace window. */
-export const extendAirspaceWindow = onCall<{
+export const extendAirspaceWindow = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   expectedTurn?: unknown;
   window?: unknown;
-}>(async request => {
+}>('extendAirspaceWindow', async request => {
   const uid = requireUid(request.auth);
   const requestData = requireAirspaceWindowExtensionRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${requestData.sessionId}`);
@@ -21348,7 +21349,7 @@ function isWolfAttackTimerInterventionResult(value: unknown): value is WolfAttac
 }
 
 /** Hold or resume the live turn clock through the GM emergency interlock. */
-export const setEmergencyTimerPaused = onCall<{
+export const setEmergencyTimerPaused = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   expectedTurn?: unknown;
@@ -21357,7 +21358,7 @@ export const setEmergencyTimerPaused = onCall<{
   expectedAttackRevision?: unknown;
   reason?: unknown;
   dangerConfirmed?: unknown;
-}>(async request => {
+}>('setEmergencyTimerPaused', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data ?? {};
   const allowedRequestFields = new Set([
@@ -21724,11 +21725,11 @@ export const setEmergencyTimerPaused = onCall<{
 });
 
 /** Read server-scheduled base/Station triggers for one current fleet group. */
-export const getWolfAttackThreatWindowOptions = onCall<{
+export const getWolfAttackThreatWindowOptions = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   targetGroupId?: unknown;
-}>(async request => {
+}>('getWolfAttackThreatWindowOptions', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   if (!isRecord(raw) || Object.keys(raw).some((key) => !['sessionId', 'instanceId', 'targetGroupId'].includes(key)) ||
@@ -21793,7 +21794,7 @@ export const getWolfAttackThreatWindowOptions = onCall<{
 });
 
 /** Record the facilitator's approximate first Wolf-attack timing decision. */
-export const setWolfAttackWindow = onCall<{
+export const setWolfAttackWindow = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   requestId?: unknown;
@@ -21802,7 +21803,7 @@ export const setWolfAttackWindow = onCall<{
   targetGroupId?: unknown;
   threatSiteCode?: unknown;
   threatSourceId?: unknown;
-}>(async request => {
+}>('setWolfAttackWindow', async request => {
   const uid = requireUid(request.auth);
   const change = requireWolfAttackWindowRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${change.sessionId}`);
@@ -22057,13 +22058,13 @@ export const setWolfAttackWindow = onCall<{
 });
 
 /** Commit the assigned Commander's private once-per-cycle attack dial. */
-export const commitWolfCommanderAttackDial = onCall<{
+export const commitWolfCommanderAttackDial = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
   expectedCycle?: unknown;
   expectedNavigationRevision?: unknown;
   targetGroupId?: unknown;
-}>(async request => {
+}>('commitWolfCommanderAttackDial', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = new Set(['sessionId', 'requestId', 'expectedCycle', 'expectedNavigationRevision', 'targetGroupId']);
@@ -22233,7 +22234,7 @@ export const commitWolfCommanderAttackDial = onCall<{
 });
 
 /** Read only the live group pursuit choices and once-per-cycle dial status. */
-export const getWolfCommanderCycleAttackDial = onCall<{ sessionId?: unknown }>(async request => {
+export const getWolfCommanderCycleAttackDial = auditedOnCall<{ sessionId?: unknown }>('getWolfCommanderCycleAttackDial', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   if (isRecord(raw) && Object.keys(raw).some((key) => key !== 'sessionId')) {
@@ -22354,12 +22355,12 @@ export const getWolfCommanderCycleAttackDial = onCall<{ sessionId?: unknown }>(a
 });
 
 /** Publish the assigned Commander's single, attributed fleet message this Team Phase. */
-export const publishWolfCommanderAddress = onCall<{
+export const publishWolfCommanderAddress = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
   expectedCycle?: unknown;
   message?: unknown;
-}>(async request => {
+}>('publishWolfCommanderAddress', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = new Set(['sessionId', 'requestId', 'expectedCycle', 'message']);
@@ -22452,13 +22453,13 @@ export const publishWolfCommanderAddress = onCall<{
 });
 
 /** Offer the printed medium-jump amnesty condition to one active ship's captain. */
-export const createWolfAmnestyOffer = onCall<{
+export const createWolfAmnestyOffer = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
   expectedCycle?: unknown;
   targetShipId?: unknown;
   responseDeadlineMinutes?: unknown;
-}>(async request => {
+}>('createWolfAmnestyOffer', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = new Set(['sessionId', 'requestId', 'expectedCycle', 'targetShipId', 'responseDeadlineMinutes']);
@@ -22564,12 +22565,12 @@ export const createWolfAmnestyOffer = onCall<{
 });
 
 /** Record the target captain's explicit accept/decline without applying a bargain. */
-export const respondToWolfAmnesty = onCall<{
+export const respondToWolfAmnesty = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
   expectedRevision?: unknown;
   answer?: unknown;
-}>(async request => {
+}>('respondToWolfAmnesty', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = new Set(['sessionId', 'requestId', 'expectedRevision', 'answer']);
@@ -22655,13 +22656,13 @@ export const respondToWolfAmnesty = onCall<{
 });
 
 /** Require a current GM ruling after acceptance or after an unanswered deadline. */
-export const recordWolfAmnestyConsequence = onCall<{
+export const recordWolfAmnestyConsequence = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   requestId?: unknown;
   expectedRevision?: unknown;
   text?: unknown;
-}>(async request => {
+}>('recordWolfAmnestyConsequence', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = new Set(['sessionId', 'instanceId', 'requestId', 'expectedRevision', 'text']);
@@ -22748,7 +22749,7 @@ export const recordWolfAmnestyConsequence = onCall<{
 });
 
 /** Return only the current amnesty offer to its Commander, target captain, or facilitator. */
-export const getWolfAmnestyView = onCall<{ sessionId?: unknown }>(async request => {
+export const getWolfAmnestyView = auditedOnCall<{ sessionId?: unknown }>('getWolfAmnestyView', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   if (isRecord(raw) && Object.keys(raw).some((key) => key !== 'sessionId')) {
@@ -22806,7 +22807,7 @@ export const getWolfAmnestyView = onCall<{ sessionId?: unknown }>(async request 
 });
 
 /** Stage private Wolf cards, targets, modifiers, and notes before declaration. */
-export const stageWolfAttackPreparation = onCall<{
+export const stageWolfAttackPreparation = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   requestId?: unknown;
@@ -22817,7 +22818,7 @@ export const stageWolfAttackPreparation = onCall<{
   targetAssignments?: unknown;
   modifiers?: unknown;
   notes?: unknown;
-}>(async request => {
+}>('stageWolfAttackPreparation', async request => {
   const uid = requireUid(request.auth);
   const change = requireWolfAttackPreparationRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${change.sessionId}`);
@@ -23955,12 +23956,12 @@ function requireLiveWolfThreatSource(
 }
 
 /** Atomically begin the server-owned Wolf attack lifecycle. */
-export const declareWolfAttack = onCall<{
+export const declareWolfAttack = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   requestId?: unknown;
   expectedRevision?: unknown;
-}>(async request => {
+}>('declareWolfAttack', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   if (isRecord(raw)) {
@@ -26471,7 +26472,7 @@ function isWolfAttackStageAdvanceResult(value: unknown): value is WolfAttackStag
 }
 
 /** Close the server-owned targeting step and enter the printed Long Range step. */
-export const advanceWolfAttackToLongRange = onCall<{
+export const advanceWolfAttackToLongRange = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   requestId?: unknown;
@@ -26479,7 +26480,7 @@ export const advanceWolfAttackToLongRange = onCall<{
   expectedRevision?: unknown;
   reason?: unknown;
   dangerConfirmed?: unknown;
-}>(async request => {
+}>('advanceWolfAttackToLongRange', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = new Set([
@@ -27363,9 +27364,9 @@ function aegisCommandAndControlDamageState(session: DocumentSnapshot): 'damaged'
 }
 
 /** Return a filtered targeting view; the GM-only receipt never crosses this boundary. */
-export const getWolfCommanderTargeting = onCall<{
+export const getWolfCommanderTargeting = auditedOnCall<{
   sessionId?: unknown;
-}>(async request => {
+}>('getWolfCommanderTargeting', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   if (isRecord(raw) && Object.keys(raw).some((key) => key !== 'sessionId')) {
@@ -27398,13 +27399,13 @@ export const getWolfCommanderTargeting = onCall<{
 });
 
 /** Apply selected targeting rerolls under the replacement-role authority. */
-export const applyWolfCommanderTargetRerolls = onCall<{
+export const applyWolfCommanderTargetRerolls = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
   expectedTurn?: unknown;
   expectedRevision?: unknown;
   rosterIndexes?: unknown;
-}>(async request => {
+}>('applyWolfCommanderTargetRerolls', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   if (isRecord(raw)) {
@@ -27511,12 +27512,12 @@ export const applyWolfCommanderTargetRerolls = onCall<{
 });
 
 /** Explicitly close the optional Commander window, including after zero rerolls. */
-export const finishWolfCommanderTargetingRerolls = onCall<{
+export const finishWolfCommanderTargetingRerolls = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
   expectedTurn?: unknown;
   expectedRevision?: unknown;
-}>(async request => {
+}>('finishWolfCommanderTargetingRerolls', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   if (!isRecord(raw) || Object.keys(raw).some((key) =>
@@ -27604,7 +27605,7 @@ export const finishWolfCommanderTargetingRerolls = onCall<{
 });
 
 /** Record the Wolf Commander's one private target-dial adjustment for a live range. */
-export const applyWolfCommanderRangeTargetAdjustment = onCall<{
+export const applyWolfCommanderRangeTargetAdjustment = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
   attackId?: unknown;
@@ -27613,7 +27614,7 @@ export const applyWolfCommanderRangeTargetAdjustment = onCall<{
   range?: unknown;
   rosterIndex?: unknown;
   delta?: unknown;
-}>(async request => {
+}>('applyWolfCommanderRangeTargetAdjustment', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = new Set([
@@ -27785,7 +27786,7 @@ export const applyWolfCommanderRangeTargetAdjustment = onCall<{
 });
 
 /** Read a narrow, private view of the active attack's selected-group target dial. */
-export const getWolfCommanderRangeTargetDial = onCall<{ sessionId?: unknown }>(async request => {
+export const getWolfCommanderRangeTargetDial = auditedOnCall<{ sessionId?: unknown }>('getWolfCommanderRangeTargetDial', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   if (isRecord(raw) && Object.keys(raw).some((key) => key !== 'sessionId')) {
@@ -27835,7 +27836,7 @@ export const getWolfCommanderRangeTargetDial = onCall<{ sessionId?: unknown }>(a
 });
 
 /** Return only eligible Wolf ship identities to the bound AEGIS Executive Officer. */
-export const getAegisCommandAndControl = onCall<{ sessionId?: unknown }>(async request => {
+export const getAegisCommandAndControl = auditedOnCall<{ sessionId?: unknown }>('getAegisCommandAndControl', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   if (isRecord(raw) && Object.keys(raw).some((key) => key !== 'sessionId')) {
@@ -27940,13 +27941,13 @@ export const getAegisCommandAndControl = onCall<{ sessionId?: unknown }>(async r
 });
 
 /** Redirect one targeting receipt entry under Executive Officer authority and revision CAS. */
-export const applyAegisCommandAndControl = onCall<{
+export const applyAegisCommandAndControl = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
   expectedTurn?: unknown;
   expectedRevision?: unknown;
   rosterIndex?: unknown;
-}>(async request => {
+}>('applyAegisCommandAndControl', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   if (!isRecord(raw) || Object.keys(raw).some((key) =>
@@ -28110,12 +28111,12 @@ export const applyAegisCommandAndControl = onCall<{
 });
 
 /** Explicitly decline the optional current-cycle C&C redirect without changing any target. */
-export const passAegisCommandAndControl = onCall<{
+export const passAegisCommandAndControl = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
   expectedTurn?: unknown;
   expectedRevision?: unknown;
-}>(async request => {
+}>('passAegisCommandAndControl', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   if (!isRecord(raw) || Object.keys(raw).some((key) =>
@@ -28334,7 +28335,7 @@ function aegisEnrichedWarheadView(sessionId: string, session: DocumentSnapshot, 
 }
 
 /** Return only this EO's purchase status, without targeting or other players' decisions. */
-export const getAegisEnrichedWarheadChoice = onCall<{ sessionId?: unknown }>(async request => {
+export const getAegisEnrichedWarheadChoice = auditedOnCall<{ sessionId?: unknown }>('getAegisEnrichedWarheadChoice', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   if (!isRecord(raw) || Object.keys(raw).some(key => key !== 'sessionId')) {
@@ -28357,9 +28358,9 @@ export const getAegisEnrichedWarheadChoice = onCall<{ sessionId?: unknown }>(asy
 });
 
 /** Atomically purchase or pass, bound to one attack, actor, request and revision. */
-export const commitAegisEnrichedWarheadChoice = onCall<{
+export const commitAegisEnrichedWarheadChoice = auditedOnCall<{
   sessionId?: unknown; requestId?: unknown; expectedTurn?: unknown; expectedRevision?: unknown; choice?: unknown;
-}>(async request => {
+}>('commitAegisEnrichedWarheadChoice', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   if (!isRecord(raw) || Object.keys(raw).some(key =>
@@ -28632,7 +28633,7 @@ function aegisFighterWingId(value: unknown): FighterWingId | null {
 }
 
 /** Read the current Wing Commander's independent Alpha/Bravo launch gates. */
-export const getAegisFighterWingLaunch = onCall<{ sessionId?: unknown; wingId?: unknown }>(async (request) => {
+export const getAegisFighterWingLaunch = auditedOnCall<{ sessionId?: unknown; wingId?: unknown }>('getAegisFighterWingLaunch', async (request) => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   if (!isRecord(raw) || Object.keys(raw).some((key) => key !== 'sessionId' && key !== 'wingId')) {
@@ -28658,10 +28659,10 @@ export const getAegisFighterWingLaunch = onCall<{ sessionId?: unknown; wingId?: 
 });
 
 /** Atomically launch one charged AEGIS Fighter Bay wing for the current attack. */
-export const launchAegisFighterWing = onCall<{
+export const launchAegisFighterWing = auditedOnCall<{
   sessionId?: unknown; requestId?: unknown; expectedTurn?: unknown; expectedRevision?: unknown;
   expectedWingRevision?: unknown; wingId?: unknown;
-}>(async (request) => {
+}>('launchAegisFighterWing', async (request) => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = new Set(['sessionId', 'requestId', 'expectedTurn', 'expectedRevision', 'expectedWingRevision', 'wingId']);
@@ -29162,7 +29163,7 @@ function isWolfRangeTargetAssignmentResult(value: unknown): value is WolfRangeTa
 }
 
 /** Read source-derived AEGIS action availability without returning composition, dice, or facilitator notes. */
-export const getWolfRangeActionChoice = onCall<{ sessionId?: unknown }>(async (request) => {
+export const getWolfRangeActionChoice = auditedOnCall<{ sessionId?: unknown }>('getWolfRangeActionChoice', async (request) => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   if (isRecord(raw) && Object.keys(raw).some((key) => key !== 'sessionId')) {
@@ -29216,10 +29217,10 @@ export const getWolfRangeActionChoice = onCall<{ sessionId?: unknown }>(async (r
 });
 
 /** Lock an entitled AEGIS use/pass choice and any required dice before targets are assigned. */
-export const commitWolfRangeActionChoice = onCall<{
+export const commitWolfRangeActionChoice = auditedOnCall<{
   sessionId?: unknown; requestId?: unknown; expectedTurn?: unknown; expectedRevision?: unknown;
   range?: unknown; actionIds?: unknown;
-}>(async (request) => {
+}>('commitWolfRangeActionChoice', async (request) => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = new Set(['sessionId', 'requestId', 'expectedTurn', 'expectedRevision', 'range', 'actionIds']);
@@ -29395,10 +29396,10 @@ export const commitWolfRangeActionChoice = onCall<{
 });
 
 /** Assign already-locked hits to opaque contacts; target submission never draws fresh dice. */
-export const assignWolfRangeTargets = onCall<{
+export const assignWolfRangeTargets = auditedOnCall<{
   sessionId?: unknown; requestId?: unknown; expectedTurn?: unknown; expectedRevision?: unknown;
   range?: unknown; assignments?: unknown;
-}>(async (request) => {
+}>('assignWolfRangeTargets', async (request) => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = new Set(['sessionId', 'requestId', 'expectedTurn', 'expectedRevision', 'range', 'assignments']);
@@ -29686,9 +29687,9 @@ function isWolfFighterRangeActionResult(value: unknown): value is WolfFighterRan
 }
 
 /** Read the current Wing Commander's private, per-wing range choice. */
-export const getWolfFighterRangeActionChoice = onCall<{
+export const getWolfFighterRangeActionChoice = auditedOnCall<{
   sessionId?: unknown; range?: unknown; sourceId?: unknown;
-}>(async (request) => {
+}>('getWolfFighterRangeActionChoice', async (request) => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   if (!isRecord(raw) || Object.keys(raw).some((key) => !['sessionId', 'range', 'sourceId'].includes(key)) ||
@@ -29718,10 +29719,10 @@ export const getWolfFighterRangeActionChoice = onCall<{
 });
 
 /** Persist a fighter subset/action choice. Dice remain locked until range choices are reconciled. */
-export const commitWolfFighterRangeActionChoice = onCall<{
+export const commitWolfFighterRangeActionChoice = auditedOnCall<{
   sessionId?: unknown; requestId?: unknown; expectedTurn?: unknown; expectedRevision?: unknown;
   range?: unknown; sourceId?: unknown; fighterIndexes?: unknown; actions?: unknown;
-}>(async (request) => {
+}>('commitWolfFighterRangeActionChoice', async (request) => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = new Set(['sessionId', 'requestId', 'expectedTurn', 'expectedRevision', 'range', 'sourceId',
@@ -29939,7 +29940,7 @@ function wolfEscortChoice(attack: DocumentSnapshot, range: WolfEscortRange, sour
 }
 
 /** Read current source choices using opaque contacts; resolved dice remain private. */
-export const getWolfEscortRangeActionChoice = onCall<{ sessionId?: unknown; sourceId?: unknown; range?: unknown }>(async (request) => {
+export const getWolfEscortRangeActionChoice = auditedOnCall<{ sessionId?: unknown; sourceId?: unknown; range?: unknown }>('getWolfEscortRangeActionChoice', async (request) => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const sourceId = isRecord(raw) ? wolfEscortSourceId(raw.sourceId) : null;
@@ -29980,10 +29981,10 @@ export const getWolfEscortRangeActionChoice = onCall<{ sessionId?: unknown; sour
 });
 
 /** Save a zero-or-more-action choice; the complete shared range lock owns dice and costs. */
-export const commitWolfEscortRangeActionChoice = onCall<{
+export const commitWolfEscortRangeActionChoice = auditedOnCall<{
   sessionId?: unknown; sourceId?: unknown; range?: unknown; requestId?: unknown;
   expectedTurn?: unknown; expectedRevision?: unknown; actions?: unknown; fighterIndexes?: unknown; targetContactIds?: unknown;
-}>(async (request) => {
+}>('commitWolfEscortRangeActionChoice', async (request) => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const sourceId = isRecord(raw) ? wolfEscortSourceId(raw.sourceId) : null;
@@ -30198,9 +30199,9 @@ function wolfRangeSupportView(
 }
 
 /** Read one safe current actor view; only opaque contacts and operational counts leave the server. */
-export const getWolfRangeSupportActionChoice = onCall<{
+export const getWolfRangeSupportActionChoice = auditedOnCall<{
   sessionId?: unknown; sourceId?: unknown; range?: unknown;
-}>(async (request) => {
+}>('getWolfRangeSupportActionChoice', async (request) => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const sourceId = isRecord(raw) ? wolfRangeSupportSourceId(raw.sourceId) : null;
@@ -30253,10 +30254,10 @@ export const getWolfRangeSupportActionChoice = onCall<{
 });
 
 /** Commit a use/pass choice with current actor, turn, attack revision, custody and target checks. */
-export const commitWolfRangeSupportActionChoice = onCall<{
+export const commitWolfRangeSupportActionChoice = auditedOnCall<{
   sessionId?: unknown; requestId?: unknown; expectedTurn?: unknown; expectedRevision?: unknown;
   range?: unknown; sourceId?: unknown; use?: unknown; targetContactId?: unknown;
-}>(async (request) => {
+}>('commitWolfRangeSupportActionChoice', async (request) => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const sourceId = isRecord(raw) ? wolfRangeSupportSourceId(raw.sourceId) : null;
@@ -30658,7 +30659,7 @@ function isWolfForceFieldChoiceResult(value: unknown): value is WolfForceFieldCh
 }
 
 /** Read the configured Captain's pre-target choice without exposing force composition or private notes. */
-export const getWolfForceFieldChoice = onCall<{ sessionId?: unknown }>(async (request) => {
+export const getWolfForceFieldChoice = auditedOnCall<{ sessionId?: unknown }>('getWolfForceFieldChoice', async (request) => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   if (isRecord(raw) && Object.keys(raw).some((key) => key !== 'sessionId')) {
@@ -30683,9 +30684,9 @@ export const getWolfForceFieldChoice = onCall<{ sessionId?: unknown }>(async (re
 });
 
 /** Record the current Gorgoneion Captain's explicit Force Field target or pass. */
-export const commitWolfForceFieldChoice = onCall<{
+export const commitWolfForceFieldChoice = auditedOnCall<{
   sessionId?: unknown; requestId?: unknown; expectedTurn?: unknown; expectedRevision?: unknown; targetShipId?: unknown;
-}>(async (request) => {
+}>('commitWolfForceFieldChoice', async (request) => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = new Set(['sessionId', 'requestId', 'expectedTurn', 'expectedRevision', 'targetShipId']);
@@ -31238,7 +31239,7 @@ function isWolfBoardingDefenceChoiceResult(value: unknown): value is WolfBoardin
 }
 
 /** Read only the current target ship's boarding choice and its team inventory. */
-export const getWolfBoardingDefenceChoice = onCall<{ sessionId?: unknown }>(async (request) => {
+export const getWolfBoardingDefenceChoice = auditedOnCall<{ sessionId?: unknown }>('getWolfBoardingDefenceChoice', async (request) => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   if (isRecord(raw) && Object.keys(raw).some((key) => key !== 'sessionId')) {
@@ -31300,10 +31301,10 @@ export const getWolfBoardingDefenceChoice = onCall<{ sessionId?: unknown }>(asyn
 });
 
 /** Reserve the target ship crew's explicit 0..available Security Teams choice. */
-export const commitWolfBoardingDefenceChoice = onCall<{
+export const commitWolfBoardingDefenceChoice = auditedOnCall<{
   sessionId?: unknown; requestId?: unknown; expectedTurn?: unknown; expectedRevision?: unknown;
   targetShipId?: unknown; securityTeams?: unknown;
-}>(async (request) => {
+}>('commitWolfBoardingDefenceChoice', async (request) => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = new Set(['sessionId', 'requestId', 'expectedTurn', 'expectedRevision', 'targetShipId', 'securityTeams']);
@@ -31457,9 +31458,9 @@ function requireWolfBoardingSpecialPlayer(player: DocumentSnapshot, uid: string)
 }
 
 /** Return only the current actor's next boarding choice and only the dice that actor may reroll. */
-export const getWolfBoardingSpecialChoice = onCall<{
+export const getWolfBoardingSpecialChoice = auditedOnCall<{
   sessionId?: unknown; instanceId?: unknown;
-}>(async (request) => {
+}>('getWolfBoardingSpecialChoice', async (request) => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   if (!isRecord(raw) || Object.keys(raw).some((key) => key !== 'sessionId' && key !== 'instanceId') ||
@@ -31551,10 +31552,10 @@ export const getWolfBoardingSpecialChoice = onCall<{
 });
 
 /** Commit one choice made by the current Commander, craft holder, Militia Leader, reroll source, or facilitator. */
-export const commitWolfBoardingSpecialChoice = onCall<{
+export const commitWolfBoardingSpecialChoice = auditedOnCall<{
   sessionId?: unknown; requestId?: unknown; expectedTurn?: unknown; expectedRevision?: unknown;
   instanceId?: unknown; choice?: unknown;
-}>(async (request) => {
+}>('commitWolfBoardingSpecialChoice', async (request) => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const topKeys = new Set(['sessionId', 'requestId', 'expectedTurn', 'expectedRevision', 'instanceId', 'choice']);
@@ -32092,7 +32093,7 @@ function dioneMaliadesLaunchView(
 }
 
 /** Return only Dione Engineer launch eligibility; hidden attack composition stays server-side. */
-export const getDioneMaliadesLaunch = onCall<{ sessionId?: unknown }>(async request => {
+export const getDioneMaliadesLaunch = auditedOnCall<{ sessionId?: unknown }>('getDioneMaliadesLaunch', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   if (!isRecord(raw) || Object.keys(raw).some((key) => key !== 'sessionId')) {
@@ -32112,12 +32113,12 @@ export const getDioneMaliadesLaunch = onCall<{ sessionId?: unknown }>(async requ
 });
 
 /** Admit Maliades to the battle table exactly once under live Dione Engineer authority. */
-export const launchDioneMaliades = onCall<{
+export const launchDioneMaliades = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
   expectedTurn?: unknown;
   expectedRevision?: unknown;
-}>(async request => {
+}>('launchDioneMaliades', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = new Set(['sessionId', 'requestId', 'expectedTurn', 'expectedRevision']);
@@ -32391,7 +32392,7 @@ function pdfEscortWingLaunchView(
 }
 
 /** Return the current P.D.F. Colonel's server-filtered Fighter Bay launch status. */
-export const getPdfEscortWingLaunch = onCall<{ sessionId?: unknown }>(async request => {
+export const getPdfEscortWingLaunch = auditedOnCall<{ sessionId?: unknown }>('getPdfEscortWingLaunch', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   if (!isRecord(raw) || Object.keys(raw).some((key) => key !== 'sessionId')) {
@@ -32412,13 +32413,13 @@ export const getPdfEscortWingLaunch = onCall<{ sessionId?: unknown }>(async requ
 });
 
 /** Atomically launch the P.D.F. Escort Wing under Prompt 231's bay and attack gate. */
-export const launchPdfEscortWing = onCall<{
+export const launchPdfEscortWing = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
   expectedTurn?: unknown;
   expectedRevision?: unknown;
   expectedWingRevision?: unknown;
-}>(async request => {
+}>('launchPdfEscortWing', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = new Set(['sessionId', 'requestId', 'expectedTurn', 'expectedRevision', 'expectedWingRevision']);
@@ -32553,10 +32554,10 @@ function isWolfFighterLaunchChoiceResult(value: unknown): value is WolfFighterLa
 }
 
 /** Record a source's explicit pass against its fresh, entitled launch choice. */
-export const passWolfFighterLaunchChoice = onCall<{
+export const passWolfFighterLaunchChoice = auditedOnCall<{
   sessionId?: unknown; requestId?: unknown; sourceId?: unknown; expectedTurn?: unknown;
   expectedRevision?: unknown; expectedWingRevision?: unknown;
-}>(async (request) => {
+}>('passWolfFighterLaunchChoice', async (request) => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const sourceId = isRecord(raw) && (WOLF_FIGHTER_LAUNCH_SOURCE_IDS as readonly unknown[]).includes(raw.sourceId)
@@ -32702,14 +32703,14 @@ function isWolfConsoleVisitResult(
 }
 
 /** Begin the physical ten-second adjacency observation under live GM authority. */
-export const startWolfConsoleVisit = onCall<{
+export const startWolfConsoleVisit = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   requestId?: unknown;
   expectedCycle?: unknown;
   targetUid?: unknown;
   targetShipId?: unknown;
-}>(async request => {
+}>('startWolfConsoleVisit', async request => {
   const uid = requireUid(request.auth);
   const observation = requireStartWolfConsoleVisitRequest(request.data ?? {});
   if (!SHIP_DAMAGE_DECKS[observation.targetShipId]) {
@@ -32883,7 +32884,7 @@ function isWolfConsoleSabotageResult(
 }
 
 /** Resolve one observed console sabotage atomically under facilitator authority. */
-export const resolveWolfConsoleSabotage = onCall<{
+export const resolveWolfConsoleSabotage = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   requestId?: unknown;
@@ -32891,7 +32892,7 @@ export const resolveWolfConsoleSabotage = onCall<{
   expectedCycle?: unknown;
   mode?: unknown;
   chosenSystemId?: unknown;
-}>(async request => {
+}>('resolveWolfConsoleSabotage', async request => {
   const uid = requireUid(request.auth);
   const submission = requireResolveWolfConsoleSabotageRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${submission.sessionId}`);
@@ -33293,13 +33294,13 @@ function isWolfSupplySabotageResult(
  * Resolve supply sabotage and consume the caller's Wolf-action slot in the
  * same transaction, after every action-specific eligibility check succeeds.
  */
-export const submitWolfSupplySabotage = onCall<{
+export const submitWolfSupplySabotage = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
   expectedCycle?: unknown;
   shuttleId?: unknown;
   resourceId?: unknown;
-}>(async (request) => {
+}>('submitWolfSupplySabotage', async (request) => {
   const uid = requireUid(request.auth);
   const submission = requireWolfSupplySabotageRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${submission.sessionId}`);
@@ -33857,13 +33858,13 @@ function isAcknowledgeWolfHackingAlertResult(
  * Record facilitator review of one exact private sabotage alert and publish
  * only an actor-free decorative notice to the session's player consoles.
  */
-export const acknowledgeWolfHackingAlert = onCall<{
+export const acknowledgeWolfHackingAlert = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   requestId?: unknown;
   alertId?: unknown;
   expectedRevision?: unknown;
-}>(async (request) => {
+}>('acknowledgeWolfHackingAlert', async (request) => {
   const uid = requireUid(request.auth);
   const submission = requireAcknowledgeWolfHackingAlertRequest(request.data ?? {});
   const alertRef = db.doc(
@@ -34030,11 +34031,11 @@ function isWolfHomingBeaconResult(
  * server-owned current system. This callable never declares or starts an
  * attack; the schedule explicitly becomes eligible only after cycle start.
  */
-export const submitWolfHomingBeacon = onCall<{
+export const submitWolfHomingBeacon = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
   expectedCycle?: unknown;
-}>(async (request) => {
+}>('submitWolfHomingBeacon', async (request) => {
   const uid = requireUid(request.auth);
   const submission = requireWolfHomingBeaconRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${submission.sessionId}`);
@@ -34335,12 +34336,12 @@ function isWolfIntelligenceResult(
 }
 
 /** Send the Wolf's short private handler message and apply its printed suspicion cost. */
-export const submitWolfIntelligence = onCall<{
+export const submitWolfIntelligence = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
   expectedCycle?: unknown;
   message?: unknown;
-}>(async (request) => {
+}>('submitWolfIntelligence', async (request) => {
   const uid = requireUid(request.auth);
   const submission = requireWolfIntelligenceRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${submission.sessionId}`);
@@ -34589,12 +34590,12 @@ function privateLoyaltyPayload(
 }
 
 /** Resolve one private Intelligence Agent investigation with server-owned 4-in-5 accuracy. */
-export const investigateAsIntelligenceAgent = onCall<{
+export const investigateAsIntelligenceAgent = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
   expectedCycle?: unknown;
   targetUid?: unknown;
-}>(async (request) => {
+}>('investigateAsIntelligenceAgent', async (request) => {
   const uid = requireUid(request.auth);
   const submission = requireIntelligenceInvestigationRequest(request.data ?? {});
   if (submission.targetUid === uid) {
@@ -34756,7 +34757,7 @@ export const investigateAsIntelligenceAgent = onCall<{
 });
 
 /** AEGIS may grant the SNN Press shuttle a limited exception during restricted airspace. */
-export const unlockPressAirspace = onCall<{ sessionId?: unknown; instanceId?: unknown }>(async request => {
+export const unlockPressAirspace = auditedOnCall<{ sessionId?: unknown; instanceId?: unknown }>('unlockPressAirspace', async request => {
   const uid = requireUid(request.auth);
   const requestData = requireAirspaceRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${requestData.sessionId}`);
@@ -34832,40 +34833,40 @@ export const unlockPressAirspace = onCall<{ sessionId?: unknown; instanceId?: un
 });
 
 /** Enable or disable a playable role for this session. */
-export const setActiveRoleEnabled = onCall<{
+export const setActiveRoleEnabled = auditedOnCall<{
   sessionId?: string;
   instanceId?: string;
   roleId?: string;
   enabled?: boolean;
-}>(async (request) => {
+}>('setActiveRoleEnabled', async (request) => {
   requireUid(request.auth);
   return rejectLegacySetupMutation();
 });
 
 /** Apply the GM-reviewed roster atomically; individual draft edits never reach the server. */
-export const setActiveRoleConfiguration = onCall<{
+export const setActiveRoleConfiguration = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   activeRoleIds?: unknown;
-}>(async (request) => {
+}>('setActiveRoleConfiguration', async (request) => {
   requireUid(request.auth);
   return rejectLegacySetupMutation();
 });
 
 /** Replace role availability with the recommended player-count template. */
-export const applyRolePreset = onCall<{
+export const applyRolePreset = auditedOnCall<{
   sessionId?: string;
   instanceId?: string;
   playerCount?: number;
-}>(async (request) => {
+}>('applyRolePreset', async (request) => {
   requireUid(request.auth);
   return rejectLegacySetupMutation();
 });
 
 /** Fire a ship's one-use confetti dispenser and atomically add its GM log event. */
-export const popShipConfetti = onCall<{
+export const popShipConfetti = auditedOnCall<{
   sessionId?: string; shipId?: string; roleId?: string; requestId?: string; instanceId?: string;
-}>(async (request) => {
+}>('popShipConfetti', async (request) => {
   const uid = requireUid(request.auth);
   const activation = requireShipConfettiRequest(request.data ?? {});
   const shipId = activation.shipId;
@@ -35060,7 +35061,7 @@ export const popShipConfetti = onCall<{
 });
 
 /** Connected-player count used for the last-player disconnect warning. */
-export const getSessionPresence = onCall<{ sessionId?: string }>(async (request) => {
+export const getSessionPresence = auditedOnCall<{ sessionId?: string }>('getSessionPresence', async (request) => {
   const uid = requireUid(request.auth);
   const { sessionId } = requireSessionRequest(request.data ?? {});
   const member = await db.doc(`sessions/${sessionId}/players/${uid}`).get();
@@ -35092,11 +35093,11 @@ function isEscapeMutationResult(value: unknown, sessionId: string): value is Esc
 }
 
 /** The affected player explicitly leaves the destroyed ship's station. */
-export const fleeDestroyedShip = onCall<{
+export const fleeDestroyedShip = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
   expectedSetupRevision?: unknown;
-}>(async (request) => {
+}>('fleeDestroyedShip', async (request) => {
   const uid = requireUid(request.auth);
   const decision = requireEscapeRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${decision.sessionId}`);
@@ -35186,9 +35187,9 @@ export const fleeDestroyedShip = onCall<{
 });
 
 /** Renew the short server-side lease that distinguishes live devices from ghosts. */
-export const refreshPresence = onCall<{
+export const refreshPresence = auditedOnCall<{
   sessionId?: string; activeConsoleRoleId?: string | null; instanceId?: string;
-}>(async (request) => {
+}>('refreshPresence', async (request) => {
   const uid = requireUid(request.auth);
   const { sessionId, instanceId, activeConsoleRoleId } = requirePresenceRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${sessionId}`);
@@ -35467,11 +35468,11 @@ export const refreshPresence = onCall<{
 });
 
 /** Mark this identity disconnected and start retention on a transition to empty. */
-export const disconnectFromSession = onCall<{
+export const disconnectFromSession = auditedOnCall<{
   sessionId?: string;
   instanceId?: string;
   connectionGeneration?: number;
-}>(async (request) => {
+}>('disconnectFromSession', async (request) => {
   const uid = requireUid(request.auth);
   const { sessionId, instanceId, connectionGeneration } = requireDisconnectRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${sessionId}`);
@@ -35885,13 +35886,13 @@ function sameSeatMutationFingerprint(value: unknown, expected: SeatMutationFinge
 }
 
 /** Claim an open seat. First transaction wins; losers get a clean error. */
-export const claimSeat = onCall<{
+export const claimSeat = auditedOnCall<{
   sessionId: string;
   seatId: string;
   requestId: string;
   expectedSetupRevision: number;
 }>(
-  async (request) => {
+  'claimSeat', async (request) => {
     const uid = requireUid(request.auth);
     const parsed = requireSessionSeatRequest(request.data ?? {});
     const { sessionId, seatId } = parsed;
@@ -36029,7 +36030,7 @@ export const claimSeat = onCall<{
 );
 
 /** Release a seat you hold, or -- as GM -- any seat. */
-export const releaseSeat = onCall<{
+export const releaseSeat = auditedOnCall<{
   sessionId: string;
   seatId: string;
   requestId: string;
@@ -36037,7 +36038,7 @@ export const releaseSeat = onCall<{
   instanceId?: string;
   reason?: string;
 }>(
-  async (request) => {
+  'releaseSeat', async (request) => {
     const uid = requireUid(request.auth);
     const parsed = requireSessionSeatRequest(request.data ?? {});
     const { sessionId, seatId } = parsed;
@@ -36189,8 +36190,8 @@ export const releaseSeat = onCall<{
 );
 
 /** Elevate a player to GM. Only an existing GM (or the session owner) may. */
-export const elevateToGm = onCall<{ sessionId: string; targetUid: string; instanceId?: string }>(
-  async (request) => {
+export const elevateToGm = auditedOnCall<{ sessionId: string; targetUid: string; instanceId?: string }>(
+  'elevateToGm', async (request) => {
     const uid = requireUid(request.auth);
     const { sessionId, targetUid, instanceId } = requireElevationRequest(request.data ?? {});
     const sessionRef = db.doc('sessions/' + sessionId);
@@ -36555,14 +36556,14 @@ type StoredUnrestAlert = {
 };
 
 /** Reconcile all retained stores from one destroyed ship exactly once. */
-export const scavengeDestroyedShipStores = onCall<{
+export const scavengeDestroyedShipStores = auditedOnCall<{
   sessionId: string;
   instanceId: string;
   requestId: string;
   sourceShipId: string;
   expectedRevision: number;
   allocations: Record<string, Record<string, number>>;
-}>(async (request) => {
+}>('scavengeDestroyedShipStores', async (request) => {
   const uid = requireUid(request.auth);
   const change = requireShipStoreScavengeRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${change.sessionId}`);
@@ -36773,10 +36774,10 @@ export const scavengeDestroyedShipStores = onCall<{
   });
 });
 
-export const adjustShipResource = onCall<{
+export const adjustShipResource = auditedOnCall<{
   sessionId: string; shipId: string; resourceId: string; delta: number; instanceId?: string;
   requestId?: string; expectedRevision?: number;
-}>(async (request) => {
+}>('adjustShipResource', async (request) => {
   const uid = requireUid(request.auth);
   const change = requireShipCounterRequest(request.data ?? {});
   const identity = requireVesselActionRequest(request.data ?? {});
@@ -36846,10 +36847,10 @@ export const adjustShipResource = onCall<{
   });
 });
 
-export const adjustShipUnrest = onCall<{
+export const adjustShipUnrest = auditedOnCall<{
   sessionId: string; shipId: string; delta: number; instanceId?: string;
   requestId?: string; expectedRevision?: number;
-}>(async (request) => {
+}>('adjustShipUnrest', async (request) => {
   const uid = requireUid(request.auth);
   const change = requireShipUnrestRequest(request.data ?? {});
   const identity = requireVesselActionRequest(request.data ?? {});
@@ -36940,9 +36941,9 @@ export const adjustShipUnrest = onCall<{
  * consent is tied to the ship's vessel revision and current turn so a later
  * counter change or captain replacement cannot authorize a stale action.
  */
-export const consentCommissarPurge = onCall<{
+export const consentCommissarPurge = auditedOnCall<{
   sessionId: string; shipId: string; requestId: string; expectedRevision: number;
-}>(async (request) => {
+}>('consentCommissarPurge', async (request) => {
   const uid = requireUid(request.auth);
   const consent = requireCommissarPurgeRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${consent.sessionId}`);
@@ -37027,9 +37028,9 @@ export const consentCommissarPurge = onCall<{
 });
 
 /** Apply one printed survivor-track loss and one unrest reduction atomically. */
-export const applyCommissarPurge = onCall<{
+export const applyCommissarPurge = auditedOnCall<{
   sessionId: string; shipId: string; requestId: string; expectedRevision: number;
-}>(async (request) => {
+}>('applyCommissarPurge', async (request) => {
   const uid = requireUid(request.auth);
   const purge = requireCommissarPurgeRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${purge.sessionId}`);
@@ -37181,9 +37182,9 @@ export const applyCommissarPurge = onCall<{
 });
 
 /** Refresh the caller's private Commissar authority projection after reconnect or role replacement. */
-export const getCommissarPurgeAuthority = onCall<{
+export const getCommissarPurgeAuthority = auditedOnCall<{
   sessionId: string;
-}>(async (request) => {
+}>('getCommissarPurgeAuthority', async (request) => {
   const uid = requireUid(request.auth);
   const authorityRequest = requireSessionRequest(request.data ?? {});
   return db.runTransaction(async (tx) => {
@@ -37204,9 +37205,9 @@ export const getCommissarPurgeAuthority = onCall<{
   });
 });
 
-export const dismissUnrestAlert = onCall<{
+export const dismissUnrestAlert = auditedOnCall<{
   sessionId: string; shipId: string; instanceId: string; requestId?: string; expectedRevision?: number;
-}>(async (request) => {
+}>('dismissUnrestAlert', async (request) => {
   const uid = requireUid(request.auth);
   const dismissal = requireUnrestDismissalRequest(request.data ?? {});
   const identity = requireVesselActionRequest(request.data ?? {});
@@ -37264,11 +37265,11 @@ const SMALL_SHIP_CAPTAIN_ROLE_IDS: Readonly<Record<SmallShipId, string>> = {
 type MutinyRecoveryMode = 'captain-swap' | 'replacement-transfer' | 'crew-attestation';
 
 /** Install a different captain and record the facilitator's printed 1–3 reduction. */
-export const resolveShipMutiny = onCall<{
+export const resolveShipMutiny = auditedOnCall<{
   sessionId?: unknown; instanceId?: unknown; requestId?: unknown;
   shipId?: unknown; newCaptainUid?: unknown; reduction?: unknown; expectedRevision?: unknown;
   recoveryMode?: unknown; expectedEligibilityRevision?: unknown;
-}>(async request => {
+}>('resolveShipMutiny', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = [
@@ -37846,10 +37847,10 @@ export const resolveShipMutiny = onCall<{
  * Draw randomly from the remaining deck for the GM damage control. Gameplay
  * mechanics use the same deck resolver inside their authoritative transactions.
  */
-export const addShipDamage = onCall<{
+export const addShipDamage = auditedOnCall<{
   sessionId: string; shipId: string; instanceId: string;
   requestId?: string; expectedRevision?: number;
-}>(async (request) => {
+}>('addShipDamage', async (request) => {
   const uid = requireUid(request.auth);
   const change = requireShipDamageRequest(request.data ?? {});
   const identity = requireVesselActionRequest(request.data ?? {});
@@ -38065,8 +38066,8 @@ export const addShipDamage = onCall<{
  * Authoritative randomness. The result is written to the session event log so
  * it cannot be quietly re-rolled, and only then returned to the caller.
  */
-export const rollDice = onCall<{ sessionId: string; sides: number; count: number }>(
-  async (request) => {
+export const rollDice = auditedOnCall<{ sessionId: string; sides: number; count: number }>(
+  'rollDice', async (request) => {
     const uid = requireUid(request.auth);
     const { sessionId, sides, count } = requireDiceRequest(request.data ?? {});
 
@@ -38104,10 +38105,10 @@ export const rollDice = onCall<{ sessionId: string; sides: number; count: number
 type StoredPopulationAlert = StoredUnrestAlert & { population: number };
 
 /** GM-only, atomic movement through the ship's printed survivor track. */
-export const adjustShipPopulation = onCall<{
+export const adjustShipPopulation = auditedOnCall<{
   sessionId: string; shipId: string; delta: number; instanceId?: string;
   requestId?: string; expectedRevision?: number;
-}>(async (request) => {
+}>('adjustShipPopulation', async (request) => {
   const uid = requireUid(request.auth);
   const change = requireShipUnrestRequest(request.data ?? {});
   const identity = requireVesselActionRequest(request.data ?? {});
@@ -38227,7 +38228,7 @@ export const adjustShipPopulation = onCall<{
  * GM counter inputs can arrive as a short ordered run. The transaction applies
  * each click in sequence so threshold alerts cannot be lost by netting changes.
  */
-export const applyShipCounterSteps = onCall<{
+export const applyShipCounterSteps = auditedOnCall<{
   sessionId: string;
   instanceId: string;
   shipId: string;
@@ -38236,7 +38237,7 @@ export const applyShipCounterSteps = onCall<{
   steps: number[];
   requestId?: string;
   expectedRevision: number;
-}>(async (request) => {
+}>('applyShipCounterSteps', async (request) => {
   const uid = requireUid(request.auth);
   const change = requireShipCounterBatchRequest(request.data ?? {});
   const identity = requireVesselActionRequest(request.data ?? {});
@@ -38536,14 +38537,14 @@ function fighterWingCountReceiptReply(
 }
 
 /** Correct one AEGIS fighter-wing count through a GM-owned CAS revision. */
-export const setFighterWingCount = onCall<{
+export const setFighterWingCount = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   requestId?: unknown;
   wingId?: unknown;
   count?: unknown;
   expectedRevision?: unknown;
-}>(async request => {
+}>('setFighterWingCount', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = ['sessionId', 'instanceId', 'requestId', 'wingId', 'count', 'expectedRevision'];
@@ -38680,13 +38681,13 @@ export const setFighterWingCount = onCall<{
 });
 
 /** Build one replacement fighter through the charged, server-owned AEGIS Construction Bay. */
-export const buildFighter = onCall<{
+export const buildFighter = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
   requestId?: unknown;
   wingId?: unknown;
   expectedRevision?: unknown;
-}>(async request => {
+}>('buildFighter', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = ['sessionId', 'instanceId', 'requestId', 'wingId', 'expectedRevision'];
@@ -38809,9 +38810,9 @@ export const buildFighter = onCall<{
   });
 });
 
-export const dismissPopulationAlert = onCall<{
+export const dismissPopulationAlert = auditedOnCall<{
   sessionId: string; shipId: string; instanceId: string; requestId?: string; expectedRevision?: number;
-}>(async (request) => {
+}>('dismissPopulationAlert', async (request) => {
   const uid = requireUid(request.auth);
   const dismissal = requireUnrestDismissalRequest(request.data ?? {});
   const identity = requireVesselActionRequest(request.data ?? {});
@@ -39048,10 +39049,10 @@ async function requireHighwallMiningAuthority(
 }
 
 /** Resolve one of Highwall's two standard operations, or its fuelled third operation. */
-export const runHighwallMining = onCall<{
+export const runHighwallMining = auditedOnCall<{
   sessionId?: unknown; requestId?: unknown; resource?: unknown;
   expectedRevision?: unknown; expectedControlRevision?: unknown; expectedCycle?: unknown;
-}>(async request => {
+}>('runHighwallMining', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   if (!isRecord(raw) || Object.keys(raw).some((key) => ![
@@ -39331,12 +39332,12 @@ function isCurrentScoutRequestRecord(
 }
 
 /** Record one legal scouting request from current server role, position, fuel, and cadence. */
-export const requestScout = onCall<{
+export const requestScout = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
   entitlementId?: unknown;
   targetCoordinate?: unknown;
-}>(async request => {
+}>('requestScout', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data as unknown;
   const allowedFields = new Set(['sessionId', 'requestId', 'entitlementId', 'targetCoordinate']);
@@ -39685,9 +39686,9 @@ function hummingbirdHarvestStaleReply(
 }
 
 /** Roll Hummingbird's private 2d6 harvest receipt. The player allocates it in a second call. */
-export const rollHummingbirdHarvest = onCall<{
+export const rollHummingbirdHarvest = auditedOnCall<{
   sessionId?: unknown; requestId?: unknown; expectedRevision?: unknown;
-}>(async request => {
+}>('rollHummingbirdHarvest', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   if (!raw || typeof raw !== 'object' || Array.isArray(raw) ||
@@ -39814,9 +39815,9 @@ export const rollHummingbirdHarvest = onCall<{
 });
 
 /** Commit the player's food-die allocation and credit only Hummingbird cargo. */
-export const allocateHummingbirdHarvest = onCall<{
+export const allocateHummingbirdHarvest = auditedOnCall<{
   sessionId?: unknown; requestId?: unknown; expectedRevision?: unknown; foodDieIndex?: unknown;
-}>(async request => {
+}>('allocateHummingbirdHarvest', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   if (!raw || typeof raw !== 'object' || Array.isArray(raw) ||
@@ -40130,10 +40131,10 @@ function smallShipReceiptReply(
 }
 
 /** Atomically admit or release one optional small ship from a fleet host. */
-export const setSmallShipDocking = onCall<{
+export const setSmallShipDocking = auditedOnCall<{
   sessionId?: unknown; smallShipId?: unknown; hostShipId?: unknown; docked?: unknown;
   instanceId?: unknown; requestId?: unknown; expectedRevision?: unknown;
-}>(async request => {
+}>('setSmallShipDocking', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   if (!raw || typeof raw !== 'object' || Array.isArray(raw) ||
@@ -40280,11 +40281,11 @@ export const setSmallShipDocking = onCall<{
 });
 
 /** Run the four-step small-ship cycle against the docked host's resources. */
-export const runSmallShipMaintenance = onCall<{
+export const runSmallShipMaintenance = auditedOnCall<{
   sessionId?: unknown; smallShipId?: unknown; shipId?: unknown; requestId?: unknown; action?: unknown;
   expectedRevision?: unknown; instanceId?: unknown; foodLevel?: unknown; waterLevel?: unknown; consoles?: unknown;
   productionConsoleId?: unknown; productionOreAmount?: unknown;
-}>(async request => {
+}>('runSmallShipMaintenance', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   if (!raw || typeof raw !== 'object' || Array.isArray(raw) ||
@@ -40513,11 +40514,11 @@ async function requireVoyage33MaintenanceAuthority(
 }
 
 /** Run Voyage 33-0's four-step host-funded maintenance lane. Docking remains P251. */
-export const runVoyage33Maintenance = onCall<{
+export const runVoyage33Maintenance = auditedOnCall<{
   sessionId?: unknown; shipId?: unknown; requestId?: unknown; action?: unknown;
   expectedRevision?: unknown; expectedDockingRevision?: unknown; expectedCycle?: unknown; instanceId?: unknown; reconcileOnly?: unknown;
   foodLevel?: unknown; waterLevel?: unknown; consoles?: unknown;
-}>(async request => {
+}>('runVoyage33Maintenance', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   if (!raw || typeof raw !== 'object' || Array.isArray(raw) ||
@@ -40783,11 +40784,11 @@ async function requireVulcanLabourAuthority(
 }
 
 /** Resolve one of Vulcan's two Coordination-phase Additional Labour charges. */
-export const runVulcanAdditionalLabour = onCall<{
+export const runVulcanAdditionalLabour = auditedOnCall<{
   sessionId?: unknown; requestId?: unknown; instanceId?: unknown; expectedRevision?: unknown;
   targetExpectedRevision?: unknown; sourceConsoleId?: unknown; targetShipId?: unknown;
   targetConsoleId?: unknown; productionScrap?: unknown; productionOreAmount?: unknown;
-}>(async request => {
+}>('runVulcanAdditionalLabour', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = [
@@ -41095,11 +41096,11 @@ function maintenanceReceiptReply(
 }
 
 /** One atomic, revision-checked maintenance action. Dice are never supplied by a client. */
-export const runMaintenance = onCall<{
+export const runMaintenance = auditedOnCall<{
   sessionId?: unknown; shipId?: unknown; requestId?: unknown; action?: unknown; expectedRevision?: unknown;
   instanceId?: unknown; foodLevel?: unknown; waterLevel?: unknown;
   consoles?: unknown; refuels?: unknown; productionConsoleId?: unknown; productionMode?: unknown; productionScrap?: unknown; productionOreAmount?: unknown; consoleRoleId?: unknown;
-}>(async request => {
+}>('runMaintenance', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = ['sessionId', 'shipId', 'requestId', 'action', 'expectedRevision', 'instanceId', 'foodLevel', 'waterLevel', 'consoles', 'refuels', 'productionConsoleId', 'productionMode', 'productionScrap', 'productionOreAmount', 'consoleRoleId'];
@@ -41575,10 +41576,10 @@ function vipCardEvent(
 }
 
 /** Draw one private physical card from the charged Dione VIP Lounge. */
-export const drawVipCard = onCall<{
+export const drawVipCard = auditedOnCall<{
   sessionId?: unknown; shipId?: unknown; requestId?: unknown; expectedRevision?: unknown;
   instanceId?: unknown; consoleRoleId?: unknown;
-}>(async request => {
+}>('drawVipCard', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = ['sessionId', 'shipId', 'requestId', 'expectedRevision', 'instanceId', 'consoleRoleId'];
@@ -41734,10 +41735,10 @@ export const drawVipCard = onCall<{
 });
 
 /** Transfer one unspent VIP card during the printed Coordination window. */
-export const transferVipCard = onCall<{
+export const transferVipCard = auditedOnCall<{
   sessionId?: unknown; requestId?: unknown; cardId?: unknown; targetUid?: unknown;
   expectedRevision?: unknown; instanceId?: unknown;
-}>(async request => {
+}>('transferVipCard', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = ['sessionId', 'requestId', 'cardId', 'targetUid', 'expectedRevision', 'instanceId'];
@@ -41823,10 +41824,10 @@ export const transferVipCard = onCall<{
 });
 
 /** Discard one privately held VIP card to reroll one server die before the riot step. */
-export const rerollVipUnrest = onCall<{
+export const rerollVipUnrest = auditedOnCall<{
   sessionId?: unknown; shipId?: unknown; requestId?: unknown; expectedRevision?: unknown;
   cardId?: unknown; dieIndex?: unknown; instanceId?: unknown; consoleRoleId?: unknown;
-}>(async request => {
+}>('rerollVipUnrest', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = [
@@ -41992,14 +41993,14 @@ function toTimestampMillis(value: unknown): number | undefined {
 }
 
 /** Publish one bounded, public Admiral directive without granting GM authority. */
-export const publishAdmiralDirectiveCommand = onCall<{
+export const publishAdmiralDirectiveCommand = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
   kind?: unknown;
   text?: unknown;
   expectedRevision?: unknown;
   instanceId?: unknown;
-}>(async request => {
+}>('publishAdmiralDirectiveCommand', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = ['sessionId', 'requestId', 'kind', 'text', 'expectedRevision', 'instanceId'];
@@ -42117,14 +42118,14 @@ export const publishAdmiralDirectiveCommand = onCall<{
 });
 
 /** Record one bounded President action without applying later prompt mechanics. */
-export const recordPresidentActionCommand = onCall<{
+export const recordPresidentActionCommand = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
   kind?: unknown;
   text?: unknown;
   expectedRevision?: unknown;
   instanceId?: unknown;
-}>(async request => {
+}>('recordPresidentActionCommand', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = ['sessionId', 'requestId', 'kind', 'text', 'expectedRevision', 'instanceId'];
@@ -42296,14 +42297,14 @@ function isPresidentialVisitResult(value: unknown, sessionId: string): value is 
 }
 
 /** Spend exactly one capital during Coordination to reduce one active ship's unrest by one. */
-export const recordPresidentialVisit = onCall<{
+export const recordPresidentialVisit = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
   shipId?: unknown;
   expectedCapitalRevision?: unknown;
   expectedVesselRevision?: unknown;
   instanceId?: unknown;
-}>(async request => {
+}>('recordPresidentialVisit', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = ['sessionId', 'requestId', 'shipId', 'expectedCapitalRevision', 'expectedVesselRevision', 'instanceId'];
@@ -42560,9 +42561,9 @@ function isElectionCommandReply(value: unknown): value is Record<string, unknown
 }
 
 /** Freeze roster-derived voting policy once, before the first ballot exists. */
-export const configurePresidentialElection = onCall<{
+export const configurePresidentialElection = auditedOnCall<{
   sessionId?: unknown; instanceId?: unknown; requestId?: unknown; expectedRevision?: unknown; policy?: unknown;
-}>(async request => {
+}>('configurePresidentialElection', async request => {
   const uid = requireUid(request.auth), raw = request.data;
   const base = electionRequestBase(raw, 'election policy');
   if (!isRecord(raw) || Object.keys(raw).some(key => !['sessionId','instanceId','requestId','expectedRevision','policy'].includes(key)) ||
@@ -42628,11 +42629,11 @@ export const configurePresidentialElection = onCall<{
 });
 
 /** Store one secret ballot under a server-only per-voter path; no vote returns to the caller. */
-export const castPresidentialBallot = onCall<{
+export const castPresidentialBallot = auditedOnCall<{
   sessionId?: unknown; requestId?: unknown; expectedRevision?: unknown;
   presidentCandidateId?: unknown; vicePresidentCandidateId?: unknown;
   presidentUid?: unknown; vicePresidentUid?: unknown;
-}>(async request => {
+}>('castPresidentialBallot', async request => {
   const uid = requireUid(request.auth), raw: unknown = request.data;
   const base = electionRequestBase(raw, 'secret ballot');
   if (!isRecord(raw) || Object.keys(raw).some(key => !['sessionId','requestId','expectedRevision',
@@ -42706,11 +42707,11 @@ export const castPresidentialBallot = onCall<{
 });
 
 /** Tally server-owned ballots and commit the elected session offices once. */
-export const resolvePresidentialElection = onCall<{
+export const resolvePresidentialElection = auditedOnCall<{
   sessionId?: unknown; instanceId?: unknown; requestId?: unknown; expectedRevision?: unknown;
   presidentCandidateId?: unknown; vicePresidentCandidateId?: unknown;
   confirmVicePresidentVacancy?: unknown;
-}>(async request => {
+}>('resolvePresidentialElection', async request => {
   const uid = requireUid(request.auth), raw: unknown = request.data;
   const base = electionRequestBase(raw, 'election resolution');
   if (!isRecord(raw) || Object.keys(raw).some(key => !['sessionId','instanceId','requestId','expectedRevision',
@@ -42910,7 +42911,7 @@ export const resolvePresidentialElection = onCall<{
 });
 
 /** Apply one President-authorized point against an exact resolved crisis outcome. */
-export const updatePoliticalCapital = onCall<{
+export const updatePoliticalCapital = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
   action?: unknown;
@@ -42918,7 +42919,7 @@ export const updatePoliticalCapital = onCall<{
   crisisRevision?: unknown;
   expectedRevision?: unknown;
   instanceId?: unknown;
-}>(async request => {
+}>('updatePoliticalCapital', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = ['sessionId', 'requestId', 'action', 'crisisId', 'crisisRevision', 'expectedRevision', 'instanceId'];
@@ -43042,9 +43043,9 @@ export const updatePoliticalCapital = onCall<{
   });
 });
 
-export const setFleetRedAlert = onCall<{
+export const setFleetRedAlert = auditedOnCall<{
   sessionId: string; active: boolean; expectedRevision: number; instanceId?: string; text?: unknown; requestId?: unknown;
-}>(async request => {
+}>('setFleetRedAlert', async request => {
   const uid = requireUid(request.auth);
   const data = request.data;
   if (!data || Object.keys(data).some(key => !['sessionId', 'active', 'expectedRevision', 'instanceId', 'text', 'requestId'].includes(key)) ||
@@ -43143,9 +43144,9 @@ export const setFleetRedAlert = onCall<{
 });
 
 /** Press dispatches are serialized so two open Press consoles cannot overwrite unseen copy. */
-export const publishPressDispatch = onCall<{
+export const publishPressDispatch = auditedOnCall<{
   sessionId?: unknown; requestId?: unknown; text?: unknown; expectedRevision?: unknown;
-}>(async request => {
+}>('publishPressDispatch', async request => {
   const uid = requireUid(request.auth);
   const data = requirePressDispatchRequest(request.data ?? {});
   const dispatchId = randomUUID();
@@ -43225,9 +43226,9 @@ export const publishPressDispatch = onCall<{
 });
 
 /** Only the active Press Officer may retire one fleet dispatch from the ticker. */
-export const dismissPressDispatch = onCall<{
+export const dismissPressDispatch = auditedOnCall<{
   sessionId?: unknown; requestId?: unknown; dispatchId?: unknown; expectedRevision?: unknown;
-}>(async request => {
+}>('dismissPressDispatch', async request => {
   const uid = requireUid(request.auth);
   const data = requirePressDispatchDismissalRequest(request.data ?? {});
   const ref = db.doc(`sessions/${data.sessionId}`);
@@ -43309,10 +43310,10 @@ export const dismissPressDispatch = onCall<{
 });
 
 /** GM correction: restore all systems and the deck, preserving casualty history. */
-export const repairAllShipDamage = onCall<{
+export const repairAllShipDamage = auditedOnCall<{
   sessionId: string; shipId: string; instanceId: string;
   requestId?: string; expectedRevision?: number;
-}>(async request => {
+}>('repairAllShipDamage', async request => {
   const uid = requireUid(request.auth);
   const change = requireShipDamageRequest(request.data ?? {});
   if (!SHIP_DAMAGE_DECKS[change.shipId]) throw new HttpsError('invalid-argument', 'Unknown damage deck.');
@@ -43429,9 +43430,9 @@ function maintenanceRollbackReceiptReply(
 }
 
 /** Undo only recorded steps whose resulting state has not subsequently changed. */
-export const rollbackMaintenance = onCall<{
+export const rollbackMaintenance = auditedOnCall<{
   sessionId?: unknown; shipId?: unknown; instanceId?: unknown; requestId?: unknown; expectedRevision?: unknown;
-}>(async request => {
+}>('rollbackMaintenance', async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
   const allowed = ['sessionId', 'shipId', 'instanceId', 'requestId', 'expectedRevision'];
@@ -43557,13 +43558,13 @@ function requireMissionMovementAvailable(session: DocumentSnapshot, craftIds: re
 }
 
 /** One active member clears the exact server-held cycle briefing for every console. */
-export const clearTurnAdvanceInterstitial = onCall(createTurnInterstitialHandler({
+export const clearTurnAdvanceInterstitial = auditedOnCall('clearTurnAdvanceInterstitial', createTurnInterstitialHandler({
   db, requireUid, isActivePlayer, requireActiveGameplayPhase,
   serverTimestamp: () => FieldValue.serverTimestamp(),
 }));
 
 /** Choose the unspecified initial host for an enabled printed Union craft. */
-export const setUnionCraftStartingHost = onCall(createUnionCraftStartingHostHandler({
+export const setUnionCraftStartingHost = auditedOnCall('setUnionCraftStartingHost', createUnionCraftStartingHostHandler({
   db, requireUid, requireFacilitatorInstance, requireCastingWindow,
   setupForSession: session => {
     const setup = canonicalSetupForSession(session, sessionActiveRoleIds(session));

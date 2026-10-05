@@ -1,5 +1,6 @@
+import { auditedOnCall } from './securityCallable';
 import { FieldValue, Timestamp, getFirestore, type DocumentSnapshot, type Transaction } from 'firebase-admin/firestore';
-import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import { HttpsError, } from 'firebase-functions/v2/https';
 import { decideActionAuthorization } from './actionMetadata';
 import { commandReceiptDisposition, type CommandFingerprint } from './commandIdempotency';
 import {
@@ -338,8 +339,8 @@ function readPrivateState(
   };
 }
 
-export const readEndeavourResearchWorkspace = onCall<{ sessionId?: unknown }>(
-  CALLABLE_RUNTIME_OPTIONS,
+export const readEndeavourResearchWorkspace = auditedOnCall<{ sessionId?: unknown }>(
+  'readEndeavourResearchWorkspace', CALLABLE_RUNTIME_OPTIONS,
   async (request) => {
     const uid = requireUid(request.auth);
     const sessionId = validateReadRequest(request.data);
@@ -363,7 +364,7 @@ export const readEndeavourResearchWorkspace = onCall<{ sessionId?: unknown }>(
   },
 );
 
-export const advanceEndeavourResearchTrack = onCall<{
+export const advanceEndeavourResearchTrack = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
   expectedControlRevision?: unknown;
@@ -372,7 +373,7 @@ export const advanceEndeavourResearchTrack = onCall<{
   trackId?: unknown;
   funding?: unknown;
 }>(
-  CALLABLE_RUNTIME_OPTIONS,
+  'advanceEndeavourResearchTrack', CALLABLE_RUNTIME_OPTIONS,
   async (request) => {
     const uid = requireUid(request.auth);
     const command = validateCommand(request.data);

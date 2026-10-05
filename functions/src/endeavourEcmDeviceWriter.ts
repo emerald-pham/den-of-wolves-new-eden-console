@@ -1,5 +1,6 @@
+import { auditedOnCall } from './securityCallable';
 import { FieldValue, Timestamp, getFirestore, type DocumentSnapshot, type Transaction } from 'firebase-admin/firestore';
-import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import { HttpsError, } from 'firebase-functions/v2/https';
 import { boundCoreConsoleRole } from './consoleRolePolicy';
 import { commandReceiptDisposition, type CommandFingerprint } from './commandIdempotency';
 import {
@@ -370,8 +371,8 @@ function buildWorkspace(
   };
 }
 
-export const readEndeavourEcmDeviceWorkspace = onCall<{ sessionId?: unknown }>(
-  CALLABLE_RUNTIME_OPTIONS,
+export const readEndeavourEcmDeviceWorkspace = auditedOnCall<{ sessionId?: unknown }>(
+  'readEndeavourEcmDeviceWorkspace', CALLABLE_RUNTIME_OPTIONS,
   async (request) => {
     const uid = requireUid(request.auth);
     const sessionId = validateReadRequest(request.data);
@@ -396,14 +397,14 @@ export const readEndeavourEcmDeviceWorkspace = onCall<{ sessionId?: unknown }>(
   },
 );
 
-export const activateEndeavourEcmDevice = onCall<{
+export const activateEndeavourEcmDevice = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
   expectedControlRevision?: unknown;
   expectedDeviceRevision?: unknown;
   expectedCycle?: unknown;
 }>(
-  CALLABLE_RUNTIME_OPTIONS,
+  'activateEndeavourEcmDevice', CALLABLE_RUNTIME_OPTIONS,
   async (request) => {
     const uid = requireUid(request.auth);
     const command = validateCommand(request.data);

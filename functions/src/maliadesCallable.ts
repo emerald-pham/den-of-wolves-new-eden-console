@@ -1,5 +1,6 @@
+import { auditedOnCall } from './securityCallable';
 import { FieldValue, getFirestore, type DocumentSnapshot, type Transaction } from 'firebase-admin/firestore';
-import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import { HttpsError, } from 'firebase-functions/v2/https';
 import { boundCoreConsoleRole } from './consoleRolePolicy';
 import { commandReceiptDisposition, type CommandFingerprint } from './commandIdempotency';
 import { commandError } from './commandErrors';
@@ -197,13 +198,13 @@ async function runMaliadesRangeAction(
   );
 }
 
-export const resolveMaliadesMedium = onCall(CALLABLE_RUNTIME_OPTIONS, async request =>
+export const resolveMaliadesMedium = auditedOnCall('resolveMaliadesMedium', CALLABLE_RUNTIME_OPTIONS, async request =>
   runMaliadesRangeAction(request, 'medium'));
 
-export const resolveMaliadesShort = onCall(CALLABLE_RUNTIME_OPTIONS, async request =>
+export const resolveMaliadesShort = auditedOnCall('resolveMaliadesShort', CALLABLE_RUNTIME_OPTIONS, async request =>
   runMaliadesRangeAction(request, 'short'));
 
-export const repairMaliades = onCall(CALLABLE_RUNTIME_OPTIONS, async request => {
+export const repairMaliades = auditedOnCall('repairMaliades', CALLABLE_RUNTIME_OPTIONS, async request => {
   const uid = requireUid(request.auth);
   const command = exactCommandRequest(request.data, 'repair');
   const fingerprint = fingerprintFor('maliades-repair', uid, command);

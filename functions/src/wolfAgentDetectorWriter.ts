@@ -1,6 +1,7 @@
+import { auditedOnCall } from './securityCallable';
 import { randomInt } from 'node:crypto';
 import { FieldValue, Timestamp, getFirestore } from 'firebase-admin/firestore';
-import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import { HttpsError, } from 'firebase-functions/v2/https';
 import { commandReceiptDisposition } from './commandIdempotency';
 import { endeavourResearchTrack } from './endeavourResearch';
 import { reserveWolfAgentDetectorTest } from './endeavourWolfAgentDetector';
@@ -63,10 +64,10 @@ function isSafeResult(value: unknown, request: ReturnType<typeof validateRequest
  * accuracy roll are recorded in a server-only audit document, separate from
  * the private report projection returned to the current Scientist.
  */
-export const runWolfAgentDetectorTest = onCall<{
+export const runWolfAgentDetectorTest = auditedOnCall<{
   sessionId?: unknown; requestId?: unknown; expectedCycle?: unknown;
   expectedRevision?: unknown; targetUid?: unknown;
-}>(async (request) => {
+}>('runWolfAgentDetectorTest', async (request) => {
   const uid = requireUid(request.auth);
   const command = validateRequest(request.data);
   if (command.targetUid === uid) throw new HttpsError('invalid-argument', 'Choose another player to test.');

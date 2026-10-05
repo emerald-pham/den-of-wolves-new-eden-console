@@ -1,6 +1,7 @@
+import { auditedOnCall } from './securityCallable';
 import { randomInt } from 'node:crypto';
 import { FieldValue, Timestamp, getFirestore, type DocumentSnapshot } from 'firebase-admin/firestore';
-import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import { HttpsError, } from 'firebase-functions/v2/https';
 import { isExtraShipAdmitted } from './extraShipAdmission';
 import { fleetGroupRecord } from './fleetGroups';
 import {
@@ -222,10 +223,10 @@ function currentView(sessionId: string, state: RecordValue, serverTime: string):
   }
 }
 
-export const resolveWolfAttackAftermath = onCall<{
+export const resolveWolfAttackAftermath = auditedOnCall<{
   sessionId?: unknown; attackId?: unknown; requestId?: unknown; action?: unknown;
   selectedShipIds?: unknown; shuttleId?: unknown; targetShipId?: unknown;
-}>(CALLABLE_RUNTIME_OPTIONS, async (request) => {
+}>('resolveWolfAttackAftermath', CALLABLE_RUNTIME_OPTIONS, async (request) => {
   const uid = requireUid(request.auth);
   const command = parseWolfAttackAftermathCommand(request.data);
   if (!command) throw new HttpsError('invalid-argument', 'Invalid Wolf attack aftermath choice.');

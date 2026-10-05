@@ -1,6 +1,7 @@
+import { auditedOnCall } from './securityCallable';
 import { getFirestore, type DocumentSnapshot, type Transaction } from 'firebase-admin/firestore';
 import { isDeepStrictEqual } from 'node:util';
-import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import { HttpsError, } from 'firebase-functions/v2/https';
 import { isLiveSetupGm } from './gameSetup';
 import { shipForRole } from './crewAccess';
 import { replacementRoleFor } from './replacementRoles';
@@ -126,7 +127,7 @@ export type ScoutMapCommit = (input: Readonly<{
 
 /** GM reveals one selected-chart fact from a committed, immutable legal request. */
 export function createResolvePendingScoutRequest(commitMapKnowledge: ScoutMapCommit) {
-  return onCall(CALLABLE_RUNTIME_OPTIONS, async (request) => {
+  return auditedOnCall('resolvePendingScoutRequest', CALLABLE_RUNTIME_OPTIONS, async (request) => {
     const actorUid = uid(request.auth);
     const raw = command(request.data, ['sessionId', 'requestId', 'instanceId']);
     return resolveCommittedScoutRequest(commitMapKnowledge, raw.sessionId as string,
@@ -263,7 +264,7 @@ function validScoutAudit(audit: RecordValue, expected: ScoutResolutionPlan['audi
 }
 
 /** Return one fact; no endpoint accepts a chart selector or exports a chart. */
-export const readPrivateScoutResult = onCall(CALLABLE_RUNTIME_OPTIONS, async (request) => {
+export const readPrivateScoutResult = auditedOnCall('readPrivateScoutResult', CALLABLE_RUNTIME_OPTIONS, async (request) => {
   const db = getFirestore();
   const actorUid = uid(request.auth);
   const raw = command(request.data, record(request.data) && 'instanceId' in request.data
@@ -290,7 +291,7 @@ export const readPrivateScoutResult = onCall(CALLABLE_RUNTIME_OPTIONS, async (re
 });
 
 /** A GM sees only pending request coordinates and source identities. */
-export const listPendingScoutRequests = onCall(CALLABLE_RUNTIME_OPTIONS, async (request) => {
+export const listPendingScoutRequests = auditedOnCall('listPendingScoutRequests', CALLABLE_RUNTIME_OPTIONS, async (request) => {
   const db = getFirestore();
   const actorUid = uid(request.auth);
   const raw = command(request.data, ['sessionId', 'instanceId']);
@@ -327,7 +328,7 @@ export const listPendingScoutRequests = onCall(CALLABLE_RUNTIME_OPTIONS, async (
 });
 
 /** Current owned GM receives committed results, never a chart or player identity map. */
-export const listGmScoutResolutionLog = onCall(CALLABLE_RUNTIME_OPTIONS, async request => {
+export const listGmScoutResolutionLog = auditedOnCall('listGmScoutResolutionLog', CALLABLE_RUNTIME_OPTIONS, async request => {
   const actorUid = uid(request.auth);
   const raw = command(request.data, ['sessionId', 'instanceId']);
   const sessionId = raw.sessionId as string;
@@ -370,7 +371,7 @@ export const listGmScoutResolutionLog = onCall(CALLABLE_RUNTIME_OPTIONS, async r
 });
 
 /** Reconnect index: own request identities and states, never chart facts. */
-export const listMyScoutReports = onCall(CALLABLE_RUNTIME_OPTIONS, async (request) => {
+export const listMyScoutReports = auditedOnCall('listMyScoutReports', CALLABLE_RUNTIME_OPTIONS, async (request) => {
   const db = getFirestore();
   const actorUid = uid(request.auth);
   const raw = command(request.data, ['sessionId']);
@@ -420,7 +421,7 @@ function currentRoleShip(player: DocumentSnapshot): string | undefined {
 }
 
 /** One durable note remains bound to the same requester, source ship and live fleet group. */
-export const readMyScoutDiscoveryNote = onCall(CALLABLE_RUNTIME_OPTIONS, async (request) => {
+export const readMyScoutDiscoveryNote = auditedOnCall('readMyScoutDiscoveryNote', CALLABLE_RUNTIME_OPTIONS, async (request) => {
   const db = getFirestore();
   const actorUid = uid(request.auth);
   const raw = command(request.data, ['sessionId', 'noteId']);

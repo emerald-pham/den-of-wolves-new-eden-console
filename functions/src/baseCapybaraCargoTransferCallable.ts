@@ -1,5 +1,6 @@
+import { auditedOnCall } from './securityCallable';
 import { FieldValue, Timestamp, getFirestore, type DocumentSnapshot } from 'firebase-admin/firestore';
-import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import { HttpsError, } from 'firebase-functions/v2/https';
 import { commandReceiptDisposition, type CommandFingerprint } from './commandIdempotency';
 import { CALLABLE_RUNTIME_OPTIONS } from './runtimeOptions';
 import { isPresenceStale } from './sessionLifecycle';
@@ -193,7 +194,7 @@ function requireBaseVesselMode(session: DocumentSnapshot): 'base-capybara' {
 }
 
 /** Persist one source-authorized base Capybara transfer through the server transaction. */
-export const transferBaseCapybaraCargo = onCall<{
+export const transferBaseCapybaraCargo = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
   expectedCycle?: unknown;
@@ -203,7 +204,7 @@ export const transferBaseCapybaraCargo = onCall<{
   resourceId?: unknown;
   direction?: unknown;
   amount?: unknown;
-}>(CALLABLE_RUNTIME_OPTIONS, async (request) => {
+}>('transferBaseCapybaraCargo', CALLABLE_RUNTIME_OPTIONS, async (request) => {
   const uid = requireUid(request.auth);
   const command = parseCommand(request.data);
   const fingerprint: CommandFingerprint = {

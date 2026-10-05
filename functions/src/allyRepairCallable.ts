@@ -1,5 +1,6 @@
+import { auditedOnCall } from './securityCallable';
 import { FieldValue, Timestamp, getFirestore, type DocumentSnapshot } from 'firebase-admin/firestore';
-import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import { HttpsError, } from 'firebase-functions/v2/https';
 import { decideActionAuthorization } from './actionMetadata';
 import { commandReceiptDisposition, type CommandFingerprint } from './commandIdempotency';
 import { fleetGroupRecord } from './fleetGroups';
@@ -201,7 +202,7 @@ function replayReply(
   return { ...stored, status: 'replayed' };
 }
 
-export const repairConsolesFromAlly = onCall<{
+export const repairConsolesFromAlly = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
   expectedControlRevision?: unknown;
@@ -209,7 +210,7 @@ export const repairConsolesFromAlly = onCall<{
   expectedCycle?: unknown;
   expectedHostShipId?: unknown;
   systemIds?: unknown;
-}>(CALLABLE_RUNTIME_OPTIONS, async (request) => {
+}>('repairConsolesFromAlly', CALLABLE_RUNTIME_OPTIONS, async (request) => {
   const uid = requireUid(request.auth);
   const command = validateRequest(request.data);
   const fingerprint = fingerprintFor(uid, command);

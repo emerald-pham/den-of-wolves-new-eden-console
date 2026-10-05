@@ -1,5 +1,6 @@
+import { auditedOnCall } from './securityCallable';
 import { FieldValue, Timestamp, getFirestore, type DocumentSnapshot } from 'firebase-admin/firestore';
-import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import { HttpsError, } from 'firebase-functions/v2/https';
 import { commandReceiptDisposition, type CommandFingerprint } from './commandIdempotency';
 import { isExtraShipAdmitted } from './extraShipAdmission';
 import { buildAuthoritativeEventEnvelope, EventVisibility } from './eventEnvelope';
@@ -181,7 +182,7 @@ function activeVessels(session: DocumentSnapshot): readonly string[] {
   return ids as string[];
 }
 
-export const repairGorgoneionWithDrones = onCall<{
+export const repairGorgoneionWithDrones = auditedOnCall<{
   sessionId?: unknown;
   requestId?: unknown;
   expectedCycle?: unknown;
@@ -189,7 +190,7 @@ export const repairGorgoneionWithDrones = onCall<{
   expectedDockingRevision?: unknown;
   expectedHostShipId?: unknown;
   systemId?: unknown;
-}>(CALLABLE_RUNTIME_OPTIONS, async (request) => {
+}>('repairGorgoneionWithDrones', CALLABLE_RUNTIME_OPTIONS, async (request) => {
   const uid = requireUid(request.auth);
   const command = parseGorgoneionRepairDronesCommand(request.data);
   if (!command) throw new HttpsError('invalid-argument', 'Invalid Gorgoneion Repair Drones request.');
