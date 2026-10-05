@@ -21,7 +21,7 @@ export default function TurnPhaseCoordinator() {
     let active = true;
     let unsubscribe: (() => void) | undefined;
     setAttack(null);
-    if (sessionId && actorUid && connection === 'live') {
+    if (sessionId && actorUid && connection === 'live' && session?.phase !== 'closed') {
       void import('@/lib/firestore').then(({ subscribeWolfAttackMemberView }) => {
         if (active) unsubscribe = subscribeWolfAttackMemberView(sessionId, view => {
           if (active) setAttack(view?.sessionId === sessionId ? view : null);
@@ -34,14 +34,14 @@ export default function TurnPhaseCoordinator() {
       active = false;
       unsubscribe?.();
     };
-  }, [sessionId, actorUid, connection]);
+  }, [session?.phase, sessionId, actorUid, connection]);
 
   const attackLocked = attack?.sessionId === sessionId && attack?.turn === phase?.turn &&
     attack?.status === 'declared';
 
   useEffect(() => {
     if (
-      !session || !phase || phase.airspace.state === 'lifted' || phase.timerPause ||
+      !session || session.phase === 'closed' || !phase || phase.airspace.state === 'lifted' || phase.timerPause ||
       phase.progression === 'manual' ||
       connection !== 'live' || attackLocked
     ) {

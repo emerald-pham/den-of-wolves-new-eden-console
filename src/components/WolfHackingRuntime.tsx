@@ -43,10 +43,10 @@ export default function WolfHackingRuntime() {
   const sessionId = session?.id;
   const uid = me?.uid;
   const serverTrusted = connection === 'live' && sessionSnapshotFreshness === 'server';
-  const gmAuthorized = Boolean(serverTrusted && sessionId && uid && me?.role === 'gm' &&
+  const gmAuthorized = Boolean(serverTrusted && session?.phase !== 'closed' && sessionId && uid && me?.role === 'gm' &&
     gmInstance?.sessionId === sessionId && gmInstance.uid === uid);
   const gmKey = gmAuthorized ? `${sessionId}:${uid}:${gmInstance!.id}` : '';
-  const playerAuthorized = Boolean(serverTrusted && sessionId && uid && me?.role === 'player');
+  const playerAuthorized = Boolean(serverTrusted && session?.phase !== 'closed' && sessionId && uid && me?.role === 'player');
   const playerKey = playerAuthorized ? `${sessionId}:${uid}` : '';
   const [gmView, setGmView] = useState<GmQueueView>({ key: '', status: 'inactive', alerts: [] });
   const [playerView, setPlayerView] = useState<PlayerQueueView>({

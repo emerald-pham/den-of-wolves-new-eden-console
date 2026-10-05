@@ -10,9 +10,10 @@ function endgameCopy(session: GameSession): string {
   if (session.phase === 'closed' && snapshot) {
     return `Session closed after Cycle ${snapshot.cycle} // The server-frozen result remains available to entitled readers.`;
   }
-  if (session.gameOutcome?.cause === 'candidate-complete') {
-    const code = session.gameOutcome.candidateCode ?? snapshot?.candidate?.code;
-    return `Candidate ${code ?? 'system'} completed in Cycle ${session.gameOutcome.cycle} // Server calculations and the committed route are frozen.`;
+  const outcome = snapshot?.outcome ?? session.gameOutcome;
+  if (outcome?.cause === 'candidate-complete') {
+    const code = outcome.candidateCode ?? snapshot?.candidate?.code;
+    return `Candidate ${code ?? 'system'} completed in Cycle ${outcome.cycle} // Server calculations and the committed route are frozen.`;
   }
   if (session.gameOutcome?.cause === 'pursuit-limit') {
     return `Pursuit reached 10 in Cycle ${session.gameOutcome.cycle} // Endgame evaluation active. Gameplay controls are frozen.`;

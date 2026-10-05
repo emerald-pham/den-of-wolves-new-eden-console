@@ -70,10 +70,11 @@ import type { CounterStep } from './counterPreview';
 import type { DiseaseOutbreakDetails, CrisisDeliveryPressure, CrisisKind, CrisisStateName, ZealotryResponseAction, CivilUnrestResolution } from '@/types/crisis';
 import { normalizeShuttleManifest } from '@/data/shuttles';
 import { normalizePressDispatch } from './pressDispatchState';
-import { parseArrestPosseCalculation, parseSessionDebriefProjection } from './firestore';
+import { parseArrestPosseCalculation, parseSessionDebriefProjection, sessionFrom } from './firestore';
 import {
   acceptCallableSessionAuthority,
   sessionSnapshotAuthorityFor,
+  sessionSnapshotAuthorityVersion,
 } from './sessionSnapshotAuthority';
 import {
   captureSessionAuthority,
@@ -2031,6 +2032,52 @@ export async function resumeSession(sessionId: string): Promise<boolean> {
   );
   const reply = await call({ sessionId });
   return applySession(reply.data, sessionId);
+}
+
+/** Refetch only the public debrief for an already authenticated, server-confirmed closed member. */
+export async function readClosedSessionHistory(sessionId: string): Promise<boolean> {
+  const initial = useSessionStore.getState();
+  const initialSession = initial.session;
+  const initialMember = initial.me;
+  const uid = auth().currentUser?.uid;
+  const expectedGroupId = initialMember?.role === 'gm' ? 'gm' : initialMember?.fleetGroupId;
+  if (!initialSession || initialSession.id !== sessionId || initialSession.phase !== 'closed' ||
+      initialSession.debriefSnapshot || !initialMember || initialMember.sessionId !== sessionId ||
+      !uid || initialMember.uid !== uid || !expectedGroupId || initial.connection !== 'live' ||
+      initial.sessionSnapshotFreshness !== 'server') return false;
+
+  const authority = sessionSnapshotAuthorityFor(sessionId, uid);
+  const startingAuthorityVersion = sessionSnapshotAuthorityVersion(authority);
+  const read = httpsCallable<{ readonly sessionId: string }, unknown>(functions(), 'getCurrentMemberSession');
+  const response = (await read({ sessionId })).data;
+  const fields = ['type', 'sessionId', 'actorUid', 'groupId', 'connectionGeneration',
+    'assignedRoleId', 'activeConsoleRoleId', 'session'];
+  if (!isPlainRecord(response) || Object.keys(response).length !== fields.length ||
+      Object.keys(response).some(key => !fields.includes(key)) || response.type !== 'current-member-session' ||
+      response.sessionId !== sessionId || response.actorUid !== uid || response.groupId !== expectedGroupId ||
+      !Number.isSafeInteger(response.connectionGeneration) || Number(response.connectionGeneration) < 1 ||
+      response.assignedRoleId !== null && typeof response.assignedRoleId !== 'string' ||
+      response.activeConsoleRoleId !== null && typeof response.activeConsoleRoleId !== 'string' ||
+      !isPlainRecord(response.session) || response.session.id !== sessionId || response.session.phase !== 'closed') {
+    return false;
+  }
+  const session = sessionFrom(sessionId, response.session);
+  if (session.phase !== 'closed' || !session.debriefSnapshot) return false;
+
+  const latest = useSessionStore.getState();
+  const latestGroupId = latest.me?.role === 'gm' ? 'gm' : latest.me?.fleetGroupId;
+  if (sessionSnapshotAuthorityVersion(authority) !== startingAuthorityVersion ||
+      auth().currentUser?.uid !== uid || latest.session?.id !== sessionId || latest.session.phase !== 'closed' ||
+      latest.session.debriefSnapshot || latest.me?.uid !== uid || latest.me.sessionId !== sessionId ||
+      latestGroupId !== response.groupId || latest.me.connectionGeneration !== initialMember.connectionGeneration ||
+      latest.connection !== 'live' || latest.sessionSnapshotFreshness !== 'server' ||
+      Number.isSafeInteger(latest.me.connectionGeneration) &&
+        latest.me.connectionGeneration !== response.connectionGeneration ||
+      Number.isSafeInteger(initialMember.connectionGeneration) &&
+        initialMember.connectionGeneration !== response.connectionGeneration) return false;
+  if (!acceptCallableSessionAuthority(session, uid)) return false;
+  latest.setSession(session);
+  return true;
 }
 
 export interface SessionDebriefActionResult {
