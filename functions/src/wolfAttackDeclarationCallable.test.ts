@@ -2295,6 +2295,85 @@ it('returns only current group pursuit values to the assigned Commander before a
     .rejects.toMatchObject({ code: 'permission-denied' });
 });
 
+it.each(['manual', 'automatic'] as const)('does not commit a new Commander Team dial in %s Coordination', async progression => {
+  commanderCycleActionFixture(4, 3);
+  mock.documents.delete('sessions/s1/wolfAttackWindow/current');
+  const stored = mock.documents.get('sessions/s1')!;
+  const phase = stored.turnPhase as Fields;
+  patchSession({
+    ...(progression === 'manual' ? { fullGameDemo: { status: 'active', progression: 'manual' } } : {}),
+    turnPhase: { ...phase, ...(progression === 'manual' ? { progression: 'manual' } : {}),
+      airspace: { state: 'lifted', tickerActive: true, pressAccess: false } },
+  });
+  const before = structuredClone([...mock.documents]);
+  await expect(commitWolfCommanderAttackDial.run(request({
+    sessionId: 's1', requestId: `coordination-dial-${progression}`, expectedCycle: 4,
+    expectedNavigationRevision: 7, targetGroupId: 'fleet-2',
+  }, 'wolfcmd'))).rejects.toMatchObject({ code: 'failed-precondition',
+    message: expect.stringMatching(/live Team Phase/) });
+  expect([...mock.documents]).toEqual(before);
+  expect(mock.documents.has('sessions/s1/wolfCommanderCycleDials/cycle-4')).toBe(false);
+});
+
+it.each(['manual', 'automatic'] as const)('does not offer a new Commander Team dial in %s Coordination', async progression => {
+  commanderCycleActionFixture(4, 3);
+  mock.documents.delete('sessions/s1/wolfAttackWindow/current');
+  const phase = mock.documents.get('sessions/s1')!.turnPhase as Fields;
+  patchSession({
+    ...(progression === 'manual' ? { fullGameDemo: { status: 'active', progression: 'manual' } } : {}),
+    turnPhase: { ...phase, ...(progression === 'manual' ? { progression: 'manual' } : {}),
+      airspace: { state: 'lifted', tickerActive: true, pressAccess: false } },
+  });
+  await expect(getWolfCommanderCycleAttackDial.run(request({ sessionId: 's1' }, 'wolfcmd')))
+    .resolves.toMatchObject({ status: 'unavailable', reason: 'team-phase-closed' });
+  expect(mock.documents.has('sessions/s1/wolfCommanderCycleDials/cycle-4')).toBe(false);
+});
+
+it('keeps a manual Team dial available without a wall clock, then recovers only its exact current-actor receipt in Coordination', async () => {
+  commanderCycleActionFixture(4, 3);
+  mock.documents.delete('sessions/s1/wolfAttackWindow/current');
+  const phase = mock.documents.get('sessions/s1')!.turnPhase as Fields;
+  patchSession({ fullGameDemo: { status: 'active', progression: 'manual' }, turnPhase: {
+    ...phase, progression: 'manual', teamPhaseEndsAt: '2020-01-01T00:00:00.000Z',
+    openAirspaceEndsAt: '2020-01-01T00:10:00.000Z',
+  } });
+  await expect(getWolfCommanderCycleAttackDial.run(request({ sessionId: 's1' }, 'wolfcmd')))
+    .resolves.toMatchObject({ status: 'available' });
+  const payload = { sessionId: 's1', requestId: 'manual-team-dial', expectedCycle: 4,
+    expectedNavigationRevision: 7, targetGroupId: 'fleet-2' };
+  const committed = await commitWolfCommanderAttackDial.run(request(payload, 'wolfcmd'));
+  const current = mock.documents.get('sessions/s1')!;
+  patchSession({ turnPhase: { ...(current.turnPhase as Fields),
+    airspace: { state: 'lifted', tickerActive: true, pressAccess: false } } });
+  const before = structuredClone([...mock.documents]);
+  await expect(commitWolfCommanderAttackDial.run(request(payload, 'wolfcmd'))).resolves.toEqual(committed);
+  await expect(getWolfCommanderCycleAttackDial.run(request({ sessionId: 's1' }, 'wolfcmd')))
+    .resolves.toMatchObject({ status: 'committed', groupId: 'fleet-2' });
+  await expect(commitWolfCommanderAttackDial.run(request({ ...payload, targetGroupId: 'fleet-1' }, 'wolfcmd')))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  await expect(commitWolfCommanderAttackDial.run(request(payload, 'u1')))
+    .rejects.toMatchObject({ code: 'permission-denied' });
+  expect([...mock.documents]).toEqual(before);
+  const player = mock.documents.get('sessions/s1/players/wolfcmd')!;
+  put('sessions/s1/players/wolfcmd', { ...player, connected: false });
+  await expect(commitWolfCommanderAttackDial.run(request(payload, 'wolfcmd')))
+    .rejects.toMatchObject({ code: 'permission-denied' });
+});
+
+it('still closes an ordinary Commander Team dial at its deadline even with restricted airspace', async () => {
+  commanderCycleActionFixture(4, 3);
+  mock.documents.delete('sessions/s1/wolfAttackWindow/current');
+  const phase = mock.documents.get('sessions/s1')!.turnPhase as Fields;
+  patchSession({ turnPhase: { ...phase, teamPhaseEndsAt: '2020-01-01T00:00:00.000Z' } });
+  await expect(getWolfCommanderCycleAttackDial.run(request({ sessionId: 's1' }, 'wolfcmd')))
+    .resolves.toMatchObject({ status: 'unavailable', reason: 'team-phase-closed' });
+  await expect(commitWolfCommanderAttackDial.run(request({
+    sessionId: 's1', requestId: 'expired-normal-team-dial', expectedCycle: 4,
+    expectedNavigationRevision: 7, targetGroupId: 'fleet-2',
+  }, 'wolfcmd'))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.documents.has('sessions/s1/wolfCommanderCycleDials/cycle-4')).toBe(false);
+});
+
 it('commits and replays a Commander dial using valid documents under its exact cycle ledger', async () => {
   commanderCycleActionFixture(4, 3);
   mock.documents.delete('sessions/s1/wolfAttackWindow/current');

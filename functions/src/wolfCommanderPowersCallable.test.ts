@@ -81,7 +81,7 @@ function seedSession(): void {
     phase: 'active', currentTurn: 3, activeVesselIds: ['aegis', 'dione', 'icebreaker'],
     turnPhase: { turn: 3, teamPhaseEndsAt: teamEnd,
       openAirspaceEndsAt: new Date(Date.parse(teamEnd) + 60_000).toISOString(),
-      airspace: { state: 'lifted', tickerActive: true, pressAccess: false } },
+      airspace: { state: 'restricted', tickerActive: true, pressAccess: false } },
   });
   put('sessions/s1/players/commander', {
     uid: 'commander', role: 'player', connected: true, replacementRoleId: 'wolf-commander',
@@ -131,6 +131,57 @@ it('rejects a second Commander address in the same cycle without creating anothe
     sessionId: 's1', requestId: 'commander-address-second', expectedCycle: 3, message: 'Second address.',
   }))).rejects.toMatchObject({ code: 'failed-precondition' });
   expect([...mock.documents.keys()].filter((path) => path.includes('/events/'))).toHaveLength(1);
+});
+
+it.each(['manual', 'automatic'] as const)('denies a new Commander Team address in %s Coordination without an event or receipt', async progression => {
+  const session = mock.documents.get('sessions/s1')!;
+  put('sessions/s1', { ...session,
+    ...(progression === 'manual' ? { fullGameDemo: { status: 'active', progression: 'manual' } } : {}),
+    turnPhase: { ...(session.turnPhase as Fields), ...(progression === 'manual' ? { progression: 'manual' } : {}),
+      airspace: { state: 'lifted', tickerActive: true, pressAccess: false } },
+  });
+  const before = structuredClone([...mock.documents]);
+  await expect(publishWolfCommanderAddress.run(request({
+    sessionId: 's1', requestId: `coordination-address-${progression}`, expectedCycle: 3,
+    message: 'An address must wait for the next live Team Phase.',
+  }))).rejects.toMatchObject({ code: 'failed-precondition', message: expect.stringMatching(/live Team Phase/) });
+  expect([...mock.documents]).toEqual(before);
+  expect(mock.documents.has('sessions/s1/wolfCommanderAddresses/cycle-3')).toBe(false);
+});
+
+it('permits a manual restricted Team address after its stored deadline and recovers only the exact current Commander receipt in Coordination', async () => {
+  const session = mock.documents.get('sessions/s1')!;
+  put('sessions/s1', { ...session, fullGameDemo: { status: 'active', progression: 'manual' },
+    turnPhase: { ...(session.turnPhase as Fields), progression: 'manual',
+      teamPhaseEndsAt: '2020-01-01T00:00:00.000Z', openAirspaceEndsAt: '2020-01-01T00:10:00.000Z' },
+  });
+  const payload = { sessionId: 's1', requestId: 'manual-team-address', expectedCycle: 3, message: 'Team address.' };
+  const committed = await publishWolfCommanderAddress.run(request(payload));
+  put('sessions/s1', { ...mock.documents.get('sessions/s1'),
+    turnPhase: { ...(mock.documents.get('sessions/s1')!.turnPhase as Fields),
+      airspace: { state: 'lifted', tickerActive: true, pressAccess: false } },
+  });
+  const before = structuredClone([...mock.documents]);
+  await expect(publishWolfCommanderAddress.run(request(payload))).resolves.toEqual(committed);
+  await expect(publishWolfCommanderAddress.run(request({ ...payload, message: 'Changed message.' })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  await expect(publishWolfCommanderAddress.run(request(payload, 'gm')))
+    .rejects.toMatchObject({ code: 'permission-denied' });
+  expect([...mock.documents]).toEqual(before);
+  put('sessions/s1/players/commander', { ...mock.documents.get('sessions/s1/players/commander'), connected: false });
+  await expect(publishWolfCommanderAddress.run(request(payload)))
+    .rejects.toMatchObject({ code: 'permission-denied' });
+});
+
+it('still rejects an expired ordinary restricted Team address', async () => {
+  const session = mock.documents.get('sessions/s1')!;
+  put('sessions/s1', { ...session,
+    turnPhase: { ...(session.turnPhase as Fields), teamPhaseEndsAt: '2020-01-01T00:00:00.000Z' },
+  });
+  await expect(publishWolfCommanderAddress.run(request({
+    sessionId: 's1', requestId: 'expired-normal-address', expectedCycle: 3, message: 'Too late.',
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.documents.has('sessions/s1/wolfCommanderAddresses/cycle-3')).toBe(false);
 });
 
 it('requires the current-cycle Commander address before offering amnesty and records a pending consequence', async () => {
