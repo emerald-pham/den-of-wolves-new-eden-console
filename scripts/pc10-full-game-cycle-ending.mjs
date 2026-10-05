@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { writeFile } from 'node:fs/promises';
 import { setTimeout as delay } from 'node:timers/promises';
+import { completeOfferedTurnAdvance } from './pc10-full-game-demo-proof-helpers.mjs';
 
 /** Compose a real full-demo admission/role tour with ordinary GM UI progression.
  * This proves the fresh final-cycle branch; it does not claim all game functions.
@@ -47,9 +48,15 @@ export async function runEnding({ gm, crew, initial, directory }) {
       assert.equal(held.cycle, current.cycle, 'Elapsed time does not advance a manual game.');
       assert.equal(held.airspace, 'lifted');
       lastAdvance = null;
-      await gm.page.getByRole('button', { name: `Advance to Cycle ${current.cycle + 1}`, exact: true }).click();
-      await gm.page.getByRole('button', { name: `ARE YOU SURE? // Advance to Cycle ${current.cycle + 1}`, exact: true }).click();
-      await gm.until(`Committed cycle ${current.cycle}`, value => value.cycle === current.cycle + 1 || value.phase === 'debrief');
+      const before = await gm.observe();
+      const offered = gm.page.getByRole('button', { name: `ARE YOU SURE? // Advance to Cycle ${current.cycle + 1}`, exact: true });
+      const uiAdvance = await completeOfferedTurnAdvance({
+        expected: { sessionId: initial.sessionId, uidHash: before.uidHash,
+          instanceId: before.instanceId, cycle: current.cycle },
+        inspect: async () => ({ ...(await gm.observe()), confirmationOffered: await offered.isVisible() }),
+        clickAdvance: () => gm.page.getByRole('button', { name: `Advance to Cycle ${current.cycle + 1}`, exact: true }).click(),
+        clickConfirmation: () => offered.click(),
+      });
       assert.equal(lastAdvance?.sessionId, initial.sessionId);
       assert.equal(lastAdvance?.expectedTurn, current.cycle, 'Replay the exact UI-issued request.');
       const replay = await gm.callable('advanceTurn', lastAdvance);
@@ -57,7 +64,7 @@ export async function runEnding({ gm, crew, initial, directory }) {
       const after = await state();
       assert.equal(replay.result.currentTurn, after.cycle);
       advances.push({ fromCycle: current.cycle, toCycle: after.cycle, phase: after.phase,
-        requestId: lastAdvance.requestId, uiCommitted: true, exactSdkReplayAccepted: true });
+        requestId: lastAdvance.requestId, uiCommitted: true, confirmationActuallyOffered: uiAdvance.confirmationClicked, exactSdkReplayAccepted: true });
     }
     const terminal = await state();
     assert.equal(terminal.phase, 'debrief');

@@ -101,3 +101,31 @@ export function isObservedGameEnding(current) {
     current.debriefSource === 'failure-review' && current.debriefResult === 'failure' &&
       ['pursuit-limit', 'total-fleet-loss'].includes(current.debriefCause);
 }
+
+/** Follow only the live actor's offered ordinary advance/confirmation controls. */
+export async function completeOfferedTurnAdvance(options) {
+  const now = options.now ?? Date.now;
+  const wait = options.wait ?? (() => delay(100));
+  const deadline = now() + (options.timeoutMs ?? 60_000);
+  let advanceClicked = false, confirmationClicked = false, current;
+  while (now() < deadline) {
+    current = await options.inspect();
+    for (const key of ['sessionId', 'uidHash', 'instanceId']) assert.equal(current[key], options.expected[key]);
+    assert.equal(current.sameActor, true); assert.equal(current.playerRole, 'gm');
+    assert.equal(current.gmInstanceOwned, true);
+    const fresh = current.connection === 'live' && current.freshness === 'server';
+    const committed = current.cycle === options.expected.cycle + 1 ||
+      current.phase === 'debrief' && current.cycle === options.expected.cycle;
+    if (advanceClicked && fresh && committed)
+      return { advanceClicked, confirmationClicked, current };
+    assert.equal(current.cycle, options.expected.cycle);
+    assert.equal(current.phase, 'active');
+    if (fresh && !advanceClicked) {
+      advanceClicked = true; await options.clickAdvance();
+    } else if (fresh && advanceClicked && !confirmationClicked && current.confirmationOffered) {
+      confirmationClicked = true; await options.clickConfirmation();
+    }
+    await wait();
+  }
+  throw new Error(`Offered normal turn advance did not commit: ${JSON.stringify(current)}`);
+}
