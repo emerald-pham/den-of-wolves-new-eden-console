@@ -225,3 +225,99 @@ test('a timer-held advance clicks only its actually offered confirmation and pre
     now: () => time, wait: async () => { time += 1; } }));
   assert.equal(first, 1); assert.equal(second, 0);
 });
+
+const presentationActor = (name, overrides = {}) => {
+  const gm = name === 'gm';
+  const expected = {
+    sessionId: 'fresh-presentation-session', uidHash: `${name}-uid-hash`,
+    profileRoleId: gm ? null : 'controller', playerRole: gm ? 'gm' : 'player',
+    assignedRoleId: null, activeConsoleRoleId: null, instanceId: gm ? 'owned-gm-instance' : null,
+    gmInstanceOwned: gm,
+  };
+  return {
+    name, expected,
+    inspect: async () => ({ ...expected, sameActor: true, connection: 'live', freshness: 'server', cycle: 1,
+      announcementTurn: 1, announcementRevision: 4, naturalTransmissionMounted: false,
+      ordinaryBriefingMounted: false, ordinaryBriefingHeld: false, ...overrides }),
+    paintTwoFrames: async () => {},
+  };
+};
+
+test('presentation readiness waits for each actual delayed transmission to mount and detach before two paint frames', async () => {
+  const { waitForFullGamePresentationReady } = await import('./pc10-full-game-demo-proof-helpers.mjs');
+  const gm = presentationActor('gm'), crew = presentationActor('crew');
+  let gmInspections = 0, crewInspections = 0, gmFrames = 0, crewFrames = 0, time = 0;
+  gm.inspect = async () => ({ ...await presentationActor('gm').inspect(),
+    naturalTransmissionMounted: ++gmInspections === 3 });
+  crew.inspect = async () => ({ ...await presentationActor('crew').inspect(),
+    naturalTransmissionMounted: ++crewInspections === 3 });
+  gm.paintTwoFrames = async () => { gmFrames += 1; };
+  crew.paintTwoFrames = async () => { crewFrames += 1; };
+  const result = await waitForFullGamePresentationReady({ expectedAnnouncement: { turn: 1, revision: 4 }, actors: [gm, crew],
+    now: () => time, wait: async () => { time += 1; } });
+  assert.equal(result.status, 'ready');
+  assert.equal(result.actorCount, 2);
+  assert.ok(gmInspections >= 5 && crewInspections >= 5, 'An initial unpainted DOM cannot be mistaken for a detached transmission.');
+  assert.equal(gmFrames, 1); assert.equal(crewFrames, 1);
+});
+
+test('presentation readiness catches a natural transmission reappearing during its two-frame settling boundary', async () => {
+  const { waitForFullGamePresentationReady } = await import('./pc10-full-game-demo-proof-helpers.mjs');
+  const gm = presentationActor('gm'), crew = presentationActor('crew');
+  const gmCounts = { inspections: 0, frames: 0 }, crewCounts = { inspections: 0, frames: 0 };
+  let time = 0;
+  for (const [actor, counts] of [[gm, gmCounts], [crew, crewCounts]]) {
+    actor.inspect = async () => ({ ...await presentationActor(actor.name).inspect(),
+      naturalTransmissionMounted: ++counts.inspections === 1 || counts.inspections === 3 });
+    actor.paintTwoFrames = async () => { counts.frames += 1; };
+  }
+  await waitForFullGamePresentationReady({ expectedAnnouncement: { turn: 1, revision: 4 }, actors: [gm, crew],
+    now: () => time, wait: async () => { time += 1; } });
+  assert.equal(gmCounts.inspections, 5); assert.equal(crewCounts.inspections, 5);
+  assert.equal(gmCounts.frames, 2); assert.equal(crewCounts.frames, 2);
+});
+
+test('presentation readiness rejects actor, session, or role authority changes before and after paint', async () => {
+  const { waitForFullGamePresentationReady } = await import('./pc10-full-game-demo-proof-helpers.mjs');
+  const gm = presentationActor('gm'), crew = presentationActor('crew');
+  let gmInspections = 0, time = 0;
+  gm.inspect = async () => ({ ...await presentationActor('gm').inspect(),
+    naturalTransmissionMounted: ++gmInspections === 1,
+    ...(gmInspections >= 3 ? { uidHash: 'replacement-uid-hash' } : {}) });
+  await assert.rejects(waitForFullGamePresentationReady({ expectedAnnouncement: { turn: 1, revision: 4 }, actors: [gm, crew],
+    now: () => time, wait: async () => { time += 1; } }), /uidHash/);
+
+  for (const changed of [{ sessionId: 'old-session' }, { profileRoleId: 'different-role' },
+    { activeConsoleRoleId: 'different-console' }, { gmInstanceOwned: false }, { freshness: 'cached' }]) {
+    const actor = presentationActor('gm', changed);
+    await assert.rejects(waitForFullGamePresentationReady({ expectedAnnouncement: { turn: 1, revision: 4 }, actors: [actor, crew],
+      now: () => time, wait: async () => { time += 1; } }));
+  }
+});
+
+test('GM and crew share one fixed 60-second presentation-readiness budget', async () => {
+  const { waitForFullGamePresentationReady } = await import('./pc10-full-game-demo-proof-helpers.mjs');
+  let now = 0, inspections = 0, paints = 0;
+  const actors = ['gm', 'crew'].map(name => {
+    const actor = presentationActor(name, { naturalTransmissionMounted: true });
+    actor.inspect = async () => { inspections += 1; return { ...await presentationActor(name).inspect(), naturalTransmissionMounted: true }; };
+    actor.paintTwoFrames = async () => { paints += 1; };
+    return actor;
+  });
+  await assert.rejects(waitForFullGamePresentationReady({ expectedAnnouncement: { turn: 1, revision: 4 }, actors,
+    now: () => now, wait: async () => { now += 30_000; } }), /60-second readiness budget/);
+  assert.equal(now, 60_000);
+  assert.equal(inspections, 4, 'Both surfaces are observed within the same deadline, not one budget per page.');
+  assert.equal(paints, 0);
+});
+
+test('an unacknowledged held cycle briefing remains a blocker and is never cleared by the readiness helper', async () => {
+  const { waitForFullGamePresentationReady } = await import('./pc10-full-game-demo-proof-helpers.mjs');
+  let now = 0, clears = 0;
+  const actors = ['gm', 'crew'].map(name => ({ ...presentationActor(name, {
+    naturalTransmissionMounted: true, ordinaryBriefingMounted: true, ordinaryBriefingHeld: true,
+  }), clearBriefing: async () => { clears += 1; } }));
+  await assert.rejects(waitForFullGamePresentationReady({ expectedAnnouncement: { turn: 1, revision: 4 }, actors,
+    now: () => now, wait: async () => { now += 60_000; } }), /60-second readiness budget/);
+  assert.equal(clears, 0);
+});
