@@ -8,6 +8,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { chromium } from 'playwright';
 import { createPc07AuthenticatedSession, buildFixtureCallableObservation } from './pc07-authenticated-session.mjs';
 import { runPc10NaturalDisconnectAcceptance } from './pc10-natural-disconnect.mjs';
+import { createPc10OriginBrowserCapture } from './pc10-origin-callable-observer.mjs';
 import { PC10_PROOF_CALLABLE_ACTIONS, createPc10CallableTrace, observePc10CallableTrace,
   pc10SafeCallableOutcome, pc10MessageCohortSize, capturePc10AuthoritativeFailureSnapshot,
   observePc10FailureBeforeCleanup } from './pc10-proof-diagnostics.mjs';
@@ -344,8 +345,8 @@ export async function completePc10OrdinaryUiAdmission({ join, consent, inspect }
  * Tokens remain in memory. Evidence records role/action/state categories only.
  * These are automated browser clients, never a human/device playtest claim. */
 export async function createPc10BrowserActor(browser, baseUrl, label, viewport = { width: 390, height: 844 },
-  { captureMode = 'durable' } = {}) {
-  if (!['durable', 'stream'].includes(captureMode)) throw new TypeError('Unsupported callable body capture mode.');
+  { captureMode = 'durable', originProjectId = process.env.VITE_FIREBASE_PROJECT_ID, originFunctionsOrigin } = {}) {
+  if (!['durable', 'stream', 'origin'].includes(captureMode)) throw new TypeError('Unsupported callable body capture mode.');
   const context = await browser.newContext({ viewport, reducedMotion: 'reduce' });
   const page = await context.newPage();
   page.setDefaultTimeout(20_000);
@@ -447,8 +448,17 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
   let functionsSdkModule = '/node_modules/.vite/deps/firebase_functions.js';
   let firestoreSdkModule = '/node_modules/.vite/deps/firebase_firestore.js';
   const durableBuffer = { maxTotalBufferSize: 8 * 1024 * 1024, maxResourceBufferSize: 512 * 1024 };
-  let cdpSession;
+  let cdpSession, originCapture;
   try {
+    if (captureMode === 'origin') {
+      const port = process.env.VITE_FIREBASE_FUNCTIONS_EMULATOR_PORT ?? '5001';
+      if (!originFunctionsOrigin && (!/^[0-9]+$/.test(port) || Number(port) < 1 || Number(port) > 65_535)) {
+        throw new TypeError('Origin collector requires a valid local Functions port.');
+      }
+      originCapture = await createPc10OriginBrowserCapture({ context, page, label, projectId: originProjectId,
+        functionsOrigin: originFunctionsOrigin ?? `http://127.0.0.1:${port}`, observedCalls,
+        failures: callableObservationFailures, boundaryFactory: createPc10CallableObservationBoundary });
+    } else {
     cdpSession = await context.newCDPSession(page);
     const callableNameFor = urlValue => {
       if (typeof urlValue !== 'string') return null;
@@ -774,7 +784,9 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
     });
     await cdpSession.send('Network.enable', durableBuffer);
     if (captureMode === 'durable') await cdpSession.send('Network.configureDurableMessages', durableBuffer);
+    }
   } catch (error) {
+    await originCapture?.close().catch(() => undefined);
     await cdpSession?.detach().catch(() => undefined);
     await context.close().catch(() => undefined);
     throw error;
@@ -894,6 +906,7 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
       const actor = await bounded(enter(joinCode), 60_000, `ordinary join at ${joinStage}`);
       actorHash = buildFixtureCallableObservation({ name: 'joinSession', transport: 'independent-browser-SDK',
         actorUid: actor.localId, startedAt: 0, completedAt: 0, status: 200 }).actorHash;
+      originCapture?.bindIdentity(actor.localId);
       return actor;
     }
     catch (error) {
@@ -937,11 +950,13 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
   }
   return { context, page, errors, label, observe, until, join, callable, privateRead, geometry,
     observedCalls, callableObservationFailures, identityObservations,
-    callableObservationBoundaries: observationBoundary.boundaries,
-    drainObservedCalls: () => bounded(observationBoundary.drain(), 10_000, 'callable observations'),
-    setOffline: value => observationBoundary.transition(value ? 'offline' : 'online', () => context.setOffline(value)),
-    reload: () => observationBoundary.transition('reload', () => page.reload()),
-    close: async () => { try { await cdpSession.detach(); } finally { await context.close(); } } };
+    callableObservationBoundaries: (originCapture ?? observationBoundary).boundaries,
+    drainObservedCalls: () => bounded((originCapture ?? observationBoundary).drain(), 10_000, 'callable observations'),
+    setOffline: value => (originCapture ?? observationBoundary).transition(value ? 'offline' : 'online', () => context.setOffline(value)),
+    reload: () => (originCapture ?? observationBoundary).transition('reload', () => page.reload()),
+    bindOriginIdentity: (uid, sessionId) => originCapture?.bindIdentity(uid, sessionId),
+    close: async () => { try { if (originCapture) await originCapture.close(); else await cdpSession.detach(); }
+      finally { await context.close(); } } };
 }
 
 /** Fresh, normal authenticated full roster. All ordinary players join and
@@ -949,7 +964,7 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
  * No admin gameplay seeding or result injection is performed. */
 export async function createPc10BrowserTable({ baseUrl, directory, expansion = 'capybara', coreCount = 20,
   captureMode = 'durable' } = {}) {
-  if (!['durable', 'stream'].includes(captureMode)) throw new TypeError('Unsupported callable body capture mode.');
+  if (!['durable', 'stream', 'origin'].includes(captureMode)) throw new TypeError('Unsupported callable body capture mode.');
   assert.ok(baseUrl && directory, 'An isolated UI URL and evidence directory are required.');
   assert.ok(['localhost', '127.0.0.1'].includes(new URL(baseUrl).hostname), 'Local browser proof only.');
   assert.match(process.env.VITE_FIREBASE_PROJECT_ID ?? '', /^demo-[a-z0-9-]+$/, 'Local demo project only.');
@@ -1030,6 +1045,8 @@ export async function createPc10BrowserTable({ baseUrl, directory, expansion = '
       }),
     });
     const actorRoles = new Map(fixture.players.map((actor, index) => [actor.localId, roles[index]]));
+    for (const [index, actor] of fixture.players.entries()) clients.get(roles[index]).bindOriginIdentity?.(actor.localId, fixture.sessionId);
+    clients.get('press-officer').bindOriginIdentity?.(fixture.press.localId, fixture.sessionId);
     actorRoles.set(fixture.press.localId, 'press-officer');
     actorRoles.set(fixture.gm.localId, 'gm');
     const originalCall = fixture.call;
