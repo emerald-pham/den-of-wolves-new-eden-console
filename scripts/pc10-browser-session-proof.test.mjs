@@ -434,20 +434,21 @@ test('unsupported, malformed, empty, oversized, wrong-lifecycle, and incomplete 
       streamConfigurationError: new Error('private CDP stream error') }),
       configure: async ({ requestId, finish }) => finish(requestId), stage: 'stream-start' },
     { label: 'malformed buffered bytes', fixture: () => cdpCallableObservationActor({ captureMode: 'stream' }),
-      configure: async ({ requestId, setStreamBuffer, finish }) => { setStreamBuffer(requestId, '%%%'); finish(requestId); },
+      prepare: ({ requestId, setStreamBuffer }) => setStreamBuffer(requestId, '%%%'),
+      configure: async ({ requestId, finish }) => finish(requestId),
       stage: 'stream-buffer-malformed' },
     { label: 'missing body bytes', fixture: () => cdpCallableObservationActor({ captureMode: 'stream' }),
       configure: async ({ requestId, finish }) => finish(requestId), stage: 'stream-body-empty' },
     { label: 'body over 512 KiB', fixture: () => cdpCallableObservationActor({ captureMode: 'stream' }),
-      configure: async ({ requestId, setStreamBuffer, finish }) => {
-        setStreamBuffer(requestId, Buffer.alloc(512 * 1024 + 1, 0x61).toString('base64'));
-        finish(requestId);
-      }, stage: 'stream-body-too-large' },
+      prepare: ({ requestId, setStreamBuffer }) =>
+        setStreamBuffer(requestId, Buffer.alloc(512 * 1024 + 1, 0x61).toString('base64')),
+      configure: async ({ requestId, finish }) => finish(requestId), stage: 'stream-body-too-large' },
   ];
-  for (const { label, fixture: createFixture, configure, stage } of streamCases) {
+  for (const { label, fixture: createFixture, prepare, configure, stage } of streamCases) {
     const fixture = await createFixture();
     const { actor, start, receiveHeaders, finish, setStreamBuffer } = fixture;
     const requestId = start(`strict-stream-${label.replaceAll(' ', '-')}`);
+    await prepare?.({ requestId, setStreamBuffer, finish });
     receiveHeaders(requestId, 200);
     await nextObservationTurn();
     await configure({ requestId, setStreamBuffer, finish });
