@@ -5,7 +5,6 @@ import { HashRouter, Link, Navigate, Route, Routes, useLocation, useNavigate } f
 import Landing from '@/routes/Landing';
 import RoleSelect from '@/routes/RoleSelect';
 import NotFound from '@/routes/NotFound';
-import ShipConsole from '@/routes/ShipConsole';
 import ShipRoleSelect from '@/routes/ShipRoleSelect';
 import JointEngineeringConsole from '@/routes/JointEngineeringConsole';
 import {
@@ -69,9 +68,25 @@ const FleetGroupWorkspace = lazy(() => import('@/components/FleetGroupWorkspace'
 const PresidentOffice = lazy(() => import('@/routes/PresidentOffice'));
 const ElectionWorkspace = lazy(() => import('@/routes/ElectionWorkspace'));
 const CrisisReportPanel = lazy(() => import('@/components/CrisisReportPanel'));
+const ShipConsole = lazy(() => import('@/routes/ShipConsole'));
 const hasConsoleDradis = (path: string): boolean =>
   path === '/press' || path.startsWith('/ships/') || path.startsWith('/union/') ||
   path.startsWith('/shuttles/') || path.startsWith('/replacement/');
+
+function DeferredShipConsole({ observer = false }: Readonly<{ observer?: boolean }>) {
+  return <Suspense fallback={(
+    <main className="session-mode">
+      <div className="session-mode__panel cic-frame">
+        <Link className="session-mode__back cic-text-button" to="/console">
+          Back to stations
+        </Link>
+        <p role="status">Opening ship console…</p>
+      </div>
+    </main>
+  )}>
+    <ShipConsole observer={observer} />
+  </Suspense>;
+}
 
 function pursuitEmergencyAuthorityMatches(session: GameSession): boolean {
   const marker = session.pursuitEmergencyWindow;
@@ -1194,9 +1209,9 @@ function AppRoutes() {
                 </Suspense>
               )} />
               <Route path="/ships/:shipId/roles" element={<ShipRoleSelect />} />
-              <Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} />
-              <Route path="/ships/:shipId/observer" element={<ShipConsole observer />} />
-              <Route path="/ships/:shipId" element={<ShipConsole />} />
+              <Route path="/ships/:shipId/roles/:roleId" element={<DeferredShipConsole />} />
+              <Route path="/ships/:shipId/observer" element={<DeferredShipConsole observer />} />
+              <Route path="/ships/:shipId" element={<DeferredShipConsole />} />
               <Route path="/union/roles/:roleId" element={<JointEngineeringConsole />} />
               <Route path="/replacement/:roleId" element={<ReplacementRoleWorkspace />} />
               <Route path="*" element={<NotFound />} />
