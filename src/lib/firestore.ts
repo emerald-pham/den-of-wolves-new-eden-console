@@ -26,6 +26,7 @@ import { isWolfAttackMemberView } from '../../functions/src/wolfAttackAudience';
 import type {
   CommissarPurgeAuthority,
   CandidateReveal,
+  CandidateDebriefPathStep,
   CandidatePlanCheckpoint,
   DamageDraw,
   FacilitatorRuleCall,
@@ -1549,6 +1550,7 @@ function sessionDebriefOutcome(value: unknown): NonNullable<NonNullable<GameSess
 function sessionDebriefFrom(
   value: unknown,
   currentSurvivorOutcome: GameSession['survivorOutcome'],
+  allowGroupIds = false,
 ): GameSession['debriefSnapshot'] {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
   const raw = value as Record<string, unknown>;
@@ -1570,21 +1572,20 @@ function sessionDebriefFrom(
     if (Object.keys(source).length !== 2 || Object.keys(source).some(key => !['code', 'groups'].includes(key)) ||
         !['N', 'O', 'P'].includes(String(source.code)) || !Array.isArray(source.groups) ||
         source.groups.length < 1 || source.groups.length > 100) return undefined;
-    const parsedGroups: {
-      requirements: { id: string; status: 'met' | 'unmet' }[];
-      rolls: { id: string; face?: number; result: 'success' | 'failure' }[];
-      losses: { shipId: string; reason: string }[];
-      humanCalls: { id: string; cycle: number }[];
-    }[] = [];
+    const parsedGroups: NonNullable<NonNullable<GameSession['debriefSnapshot']>['candidate']>['groups'][number][] = [];
     for (const entry of source.groups) {
       if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) return undefined;
       const group = entry as Record<string, unknown>;
-      if (Object.keys(group).length !== 4 || Object.keys(group).some(key =>
-        !['requirements', 'rolls', 'losses', 'humanCalls'].includes(key)) ||
+      const hasGroupId = Object.hasOwn(group, 'groupId');
+      const hasPath = Object.hasOwn(group, 'path');
+      if (Object.keys(group).length !== 4 + Number(hasGroupId) + Number(hasPath) || Object.keys(group).some(key =>
+        !['groupId', 'requirements', 'rolls', 'losses', 'humanCalls', 'path'].includes(key)) ||
+          hasGroupId && (!allowGroupIds || typeof group.groupId !== 'string' || !/^[\w-]{1,80}$/.test(group.groupId)) ||
           !Array.isArray(group.requirements) || group.requirements.length > 50 ||
           !Array.isArray(group.rolls) || group.rolls.length > 50 ||
           !Array.isArray(group.losses) || group.losses.length > 100 ||
-          !Array.isArray(group.humanCalls) || group.humanCalls.length > 50) return undefined;
+          !Array.isArray(group.humanCalls) || group.humanCalls.length > 50 ||
+          hasPath && (!Array.isArray(group.path) || group.path.length > 200)) return undefined;
       const requirements = group.requirements.flatMap(item => {
         if (typeof item !== 'object' || item === null || Array.isArray(item)) return [];
         const requirement = item as Record<string, unknown>;
@@ -1618,9 +1619,36 @@ function sessionDebriefFrom(
             !Number.isSafeInteger(call.cycle) || Number(call.cycle) < 0) return [];
         return [{ id: call.id, cycle: Number(call.cycle) }];
       });
+      const path = hasPath && Array.isArray(group.path) ? group.path.flatMap(item => {
+        if (typeof item !== 'object' || item === null || Array.isArray(item)) return [];
+        const step = item as Record<string, unknown>;
+        const action = step.action;
+        const validResult = action === 'ring-repair' || action === 'sabotage-ring' ||
+          action === 'station-liberation' || action === 'contribute-reactor'
+          ? step.result === 'completed'
+          : action === 'ring-passage' ? step.result === 'crossed'
+            : action === 'nebula-jump' ? ['reached', 'lost', 'left-behind'].includes(String(step.result))
+              : action === 'station-activation' ? step.result === 'activated' : false;
+        const shipId = step.shipId === undefined ? undefined : parseEntityId('vessel', step.shipId);
+        if (Object.keys(step).some(key => !['action', 'result', 'shipId', 'fuelSpent', 'capacity'].includes(key)) ||
+            Object.keys(step).length < 2 || Object.keys(step).length > 5 || !validResult ||
+            step.shipId !== undefined && !shipId ||
+            step.fuelSpent !== undefined && (!Number.isSafeInteger(step.fuelSpent) || Number(step.fuelSpent) < 0 || Number(step.fuelSpent) > 1_000_000) ||
+            step.capacity !== undefined && (!Number.isSafeInteger(step.capacity) || Number(step.capacity) < 0 || Number(step.capacity) > 1_000_000)) return [];
+        return [{ action: action as CandidateDebriefPathStep['action'],
+          result: step.result as CandidateDebriefPathStep['result'],
+          ...(shipId ? { shipId } : {}),
+          ...(step.fuelSpent === undefined ? {} : { fuelSpent: Number(step.fuelSpent) }),
+          ...(step.capacity === undefined ? {} : { capacity: Number(step.capacity) }),
+        }];
+      }) : undefined;
       if (requirements.length !== group.requirements.length || rolls.length !== group.rolls.length ||
-          losses.length !== group.losses.length || humanCalls.length !== group.humanCalls.length) return undefined;
-      parsedGroups.push({ requirements, rolls, losses, humanCalls });
+          losses.length !== group.losses.length || humanCalls.length !== group.humanCalls.length ||
+          hasPath && (!Array.isArray(group.path) || path?.length !== group.path.length)) return undefined;
+      parsedGroups.push({
+        ...(hasGroupId ? { groupId: group.groupId as string } : {}),
+        requirements, rolls, losses, humanCalls, ...(path ? { path } : {}),
+      });
     }
     candidate = { code: source.code as 'N' | 'O' | 'P', groups: parsedGroups };
   }
@@ -1648,6 +1676,15 @@ function sessionDebriefFrom(
     cycle: Number(raw.cycle), occurredAt: raw.occurredAt, committedAt: raw.committedAt,
     ...(outcome ? { outcome } : {}), ...(survivorOutcome ? { survivorOutcome } : {}), ...(candidate ? { candidate } : {}),
   };
+}
+
+/** Parse a member-safe debrief, optionally accepting group identifiers for the live GM endpoint only. */
+export function parseSessionDebriefProjection(
+  value: unknown,
+  currentSurvivorOutcome: GameSession['survivorOutcome'],
+  options: { readonly allowGroupIds?: boolean } = {},
+): GameSession['debriefSnapshot'] {
+  return sessionDebriefFrom(value, currentSurvivorOutcome, options.allowGroupIds === true);
 }
 
 function wolfAttackWindow(value: unknown): WolfAttackWindow | null {

@@ -28,12 +28,26 @@ export interface CandidateDebriefCall {
   readonly audience: DebriefAudience;
 }
 
+export type CandidateDebriefPathAction =
+  | 'ring-repair' | 'ring-passage' | 'sabotage-ring' | 'nebula-jump'
+  | 'station-liberation' | 'contribute-reactor' | 'station-activation';
+export type CandidateDebriefPathResult = 'completed' | 'crossed' | 'reached' | 'lost' | 'left-behind' | 'activated';
+export interface CandidateDebriefPathStep {
+  readonly action: CandidateDebriefPathAction;
+  readonly result: CandidateDebriefPathResult;
+  readonly audience: DebriefAudience;
+  readonly shipId?: string;
+  readonly fuelSpent?: number;
+  readonly capacity?: number;
+}
+
 export interface CandidateDebriefGroupInput {
   readonly groupId: string;
   readonly requirements: readonly CandidateDebriefRequirement[];
   readonly rolls: readonly CandidateDebriefRoll[];
   readonly losses: readonly CandidateDebriefLoss[];
   readonly humanCalls: readonly CandidateDebriefCall[];
+  readonly path?: readonly CandidateDebriefPathStep[];
 }
 
 export interface CandidateDebriefInput {
@@ -57,6 +71,7 @@ export interface CandidateDebriefGroup {
   readonly rolls: readonly CandidateDebriefRoll[];
   readonly losses: readonly CandidateDebriefLoss[];
   readonly humanCalls: readonly CandidateDebriefCall[];
+  readonly path?: readonly CandidateDebriefPathStep[];
 }
 
 export interface SessionDebriefSnapshot {
@@ -116,6 +131,37 @@ function safeCandidateCode(value: unknown): value is 'N' | 'O' | 'P' {
   return value === 'N' || value === 'O' || value === 'P';
 }
 
+const PATH_RESULTS: Readonly<Record<CandidateDebriefPathAction, readonly CandidateDebriefPathResult[]>> = {
+  'ring-repair': ['completed'], 'ring-passage': ['crossed'], 'sabotage-ring': ['completed'],
+  'nebula-jump': ['reached', 'lost', 'left-behind'], 'station-liberation': ['completed'],
+  'contribute-reactor': ['completed'], 'station-activation': ['activated'],
+};
+
+function parseCandidatePath(value: unknown): CandidateDebriefPathStep[] | undefined {
+  if (!Array.isArray(value) || value.length > 200) return undefined;
+  const steps: CandidateDebriefPathStep[] = [];
+  for (const item of value) {
+    const step = record(item);
+    const allowed = ['action', 'result', 'audience', 'shipId', 'fuelSpent', 'capacity'];
+    if (!step || Object.keys(step).some(key => !allowed.includes(key)) ||
+        !Object.hasOwn(PATH_RESULTS, String(step.action)) ||
+        !PATH_RESULTS[step.action as CandidateDebriefPathAction]?.includes(step.result as CandidateDebriefPathResult) ||
+        !audience(step.audience) || step.shipId !== undefined && !safeId(step.shipId) ||
+        step.fuelSpent !== undefined && (!Number.isSafeInteger(step.fuelSpent) || Number(step.fuelSpent) < 0 || Number(step.fuelSpent) > 1_000_000) ||
+        step.capacity !== undefined && (!Number.isSafeInteger(step.capacity) || Number(step.capacity) < 0 || Number(step.capacity) > 1_000_000) ||
+        ![3, 4, 5, 6].includes(Object.keys(step).length)) return undefined;
+    steps.push({
+      action: step.action as CandidateDebriefPathAction,
+      result: step.result as CandidateDebriefPathResult,
+      audience: step.audience,
+      ...(step.shipId === undefined ? {} : { shipId: step.shipId }),
+      ...(step.fuelSpent === undefined ? {} : { fuelSpent: Number(step.fuelSpent) }),
+      ...(step.capacity === undefined ? {} : { capacity: Number(step.capacity) }),
+    });
+  }
+  return steps;
+}
+
 function parseCandidateSummary(value: unknown): SessionDebriefSnapshot['candidate'] {
   const raw = record(value);
   if (!raw || Object.keys(raw).length !== 2 || Object.keys(raw).some(key => !['code', 'groups'].includes(key)) ||
@@ -124,13 +170,15 @@ function parseCandidateSummary(value: unknown): SessionDebriefSnapshot['candidat
   const groups: CandidateDebriefGroup[] = [];
   for (const entry of raw.groups) {
     const group = record(entry);
-    if (!group || Object.keys(group).length !== 5 ||
-        Object.keys(group).some(key => !['groupId', 'requirements', 'rolls', 'losses', 'humanCalls'].includes(key)) ||
+    if (!group || ![5, 6].includes(Object.keys(group).length) ||
+        Object.keys(group).some(key => !['groupId', 'requirements', 'rolls', 'losses', 'humanCalls', 'path'].includes(key)) ||
         !safeId(group.groupId) || seenGroups.has(group.groupId) ||
         !Array.isArray(group.requirements) || group.requirements.length > 50 ||
         !Array.isArray(group.rolls) || group.rolls.length > 50 ||
         !Array.isArray(group.losses) || group.losses.length > 100 ||
         !Array.isArray(group.humanCalls) || group.humanCalls.length > 50) return undefined;
+    const path = group.path === undefined ? undefined : parseCandidatePath(group.path);
+    if (group.path !== undefined && !path) return undefined;
     seenGroups.add(group.groupId);
     const requirements: CandidateDebriefRequirement[] = [];
     const requirementIds = new Set<string>();
@@ -176,7 +224,7 @@ function parseCandidateSummary(value: unknown): SessionDebriefSnapshot['candidat
       callIds.add(call.id);
       humanCalls.push({ id: call.id, cycle: Number(call.cycle), audience: call.audience });
     }
-    groups.push({ groupId: group.groupId, requirements, rolls, losses, humanCalls });
+    groups.push({ groupId: group.groupId, requirements, rolls, losses, humanCalls, ...(path ? { path } : {}) });
   }
   return { code: raw.code, groups };
 }
@@ -412,6 +460,9 @@ export function sessionDebriefProjection(
             .map(({ shipId, reason }) => ({ shipId, reason })),
           humanCalls: group.humanCalls.filter(call => gm || call.audience === 'members')
             .map(({ id, cycle }) => ({ id, cycle })),
+          ...(group.path ? { path: group.path.filter(step => gm || step.audience === 'members' &&
+            (step.shipId === undefined || allowedShips.has(step.shipId)))
+            .map(({ audience: _audience, ...step }) => step) } : {}),
         })),
     }
     : undefined;

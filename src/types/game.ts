@@ -1566,6 +1566,15 @@ export interface SurvivorOutcome {
   readonly lostOrDestroyedShipIds: readonly VesselId[];
 }
 
+export interface CandidateDebriefPathStep {
+  readonly action: 'ring-repair' | 'ring-passage' | 'sabotage-ring' | 'nebula-jump' |
+    'station-liberation' | 'contribute-reactor' | 'station-activation';
+  readonly result: 'completed' | 'crossed' | 'reached' | 'lost' | 'left-behind' | 'activated';
+  readonly shipId?: VesselId;
+  readonly fuelSpent?: number;
+  readonly capacity?: number;
+}
+
 /** Entitled, immutable explanation shown after the shared terminal freeze. */
 export interface SessionDebriefSnapshot {
   readonly type: 'session-debrief';
@@ -1589,10 +1598,13 @@ export interface SessionDebriefSnapshot {
   readonly candidate?: {
     readonly code: 'N' | 'O' | 'P';
     readonly groups: readonly {
+      /** Present only in the private live-GM projection. */
+      readonly groupId?: string;
       readonly requirements: readonly { readonly id: string; readonly status: 'met' | 'unmet' }[];
       readonly rolls: readonly { readonly id: string; readonly face?: number; readonly result: 'success' | 'failure' }[];
       readonly losses: readonly { readonly shipId: VesselId; readonly reason: string }[];
       readonly humanCalls: readonly { readonly id: string; readonly cycle: number }[];
+      readonly path?: readonly CandidateDebriefPathStep[];
     }[];
   };
 }
