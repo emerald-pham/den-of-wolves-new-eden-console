@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { FieldValue, Timestamp, getFirestore, type DocumentSnapshot } from 'firebase-admin/firestore';
-import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import { HttpsError } from 'firebase-functions/v2/https';
+import { auditedOnCall } from './securityCallable';
 import { commandError } from './commandErrors';
 import {
   shuttleMovementConflictDetails,
@@ -150,12 +151,12 @@ function replayArrival(
 
 /** Complete one reached shuttle trip and publish only its docking/history result. */
 export function createCompleteShuttleArrivalCallable() {
-  return onCall<{
+  return auditedOnCall<{
   sessionId?: unknown;
   shuttleId?: unknown;
   transitRequestId?: unknown;
   expectedControlRevision?: unknown;
-  }>(async request => {
+  }>('completeShuttleArrival', async request => {
   const uid = request.auth?.uid;
   if (!uid) throw commandError('unauthenticated', 'Sign in before completing shuttle arrival.', 'unauthenticated');
   const raw = request.data;

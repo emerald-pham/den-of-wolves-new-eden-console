@@ -9,11 +9,13 @@ it('routes every production SDK callable constructor including factories through
     const source = ts.createSourceFile(file, readFileSync(new URL(file, import.meta.url), 'utf8'), ts.ScriptTarget.Latest, true);
     const constructors = new Set<string>();
     for (const node of source.statements) {
-      if (!ts.isImportDeclaration(node) || node.moduleSpecifier.getText(source) !== "'firebase-functions/v2/https'") continue;
+      if (!ts.isImportDeclaration(node) || !ts.isStringLiteral(node.moduleSpecifier) ||
+          node.moduleSpecifier.text !== 'firebase-functions/v2/https') continue;
       const imports = node.importClause?.namedBindings;
       if (imports && ts.isNamedImports(imports)) for (const entry of imports.elements) {
         if ((entry.propertyName ?? entry.name).text === 'onCall') constructors.add(entry.name.text);
       }
+      if (imports && ts.isNamespaceImport(imports)) constructors.add(`${imports.name.text}.onCall`);
     }
     const visit = (node: ts.Node) => {
       if (ts.isCallExpression(node) && constructors.has(node.expression.getText(source))) {
