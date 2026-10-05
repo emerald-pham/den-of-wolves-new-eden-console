@@ -579,3 +579,23 @@ test('malicious binding getters cannot serialize an arbitrary private error thro
   assert.ok(fixture.failures.some(value => value.category === 'origin-binding-schema'));
   assert.equal(JSON.stringify(fixture.failures).includes('private-token'), false);
 });
+
+test('delayed sanitized metadata preserves the actual earlier requestfailed boundary rather than inventing late failure time', async () => {
+  const clock = { at: Date.now() }, metadataGate = deferred(), responseGate = deferred();
+  const fixture = nativeFixture({ clock, responder: () => responseGate.promise,
+    bindingPort: (packet, ledger) => packet.stage === 'metadata'
+      ? metadataGate.promise.then(() => ledger.receive(packet)) : Promise.resolve(ledger.receive(packet)) });
+  const operation = fixture.fetch(request());
+  void operation.catch(() => undefined);
+  await nextTurn();
+  await fixture.ledger.transition('reload', async () => {
+    clock.at += 1; responseGate.reject(new DOMException('private real abort reason', 'AbortError'));
+    await nextTurn(); clock.at += 1;
+  });
+  await assert.rejects(operation, error => error.name === 'AbortError');
+  metadataGate.resolve();
+  await nextTurn(); await settled(fixture);
+  assert.equal(fixture.observedCalls[0].requestFailedAt, clock.at - 1);
+  assert.equal(fixture.observedCalls[0].observationDisposition, 'cancelled-during-planned-navigation');
+  assert.deepEqual(fixture.failures, []);
+});
