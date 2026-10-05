@@ -599,3 +599,24 @@ test('delayed sanitized metadata preserves the actual earlier requestfailed boun
   assert.equal(fixture.observedCalls[0].observationDisposition, 'cancelled-during-planned-navigation');
   assert.deepEqual(fixture.failures, []);
 });
+
+test('a completed origin body arriving after an actual cancelled transport cannot retain cancellation credit', async () => {
+  const clock = { at: Date.now() }, metadataGate = deferred();
+  const fixture = nativeFixture({ clock, finish: false, bindingPort: (packet, ledger) => packet.stage === 'metadata'
+    ? metadataGate.promise.then(() => ledger.receive(packet)) : Promise.resolve(ledger.receive(packet)) });
+  const operation = fixture.fetch(request());
+  await nextTurn();
+  await fixture.ledger.transition('reload', async () => {
+    clock.at += 1;
+    fixture.network('failed', 'native-protocol-1', { errorText: 'net::ERR_ABORTED', canceled: true });
+    await nextTurn(); clock.at += 1;
+  });
+  metadataGate.resolve();
+  await operation; await settled(fixture);
+  assert.equal(fixture.observedCalls[0].status, 200);
+  assert.ok(fixture.observedCalls[0].bodyCompletedAt !== null, 'Actual completed bytes remain recorded.');
+  assert.ok(fixture.failures.some(value => value.category === 'origin-transport-mismatch'),
+    'A completed original body and cancelled wire transport are contradictory strict evidence.');
+  assert.equal(fixture.observedCalls[0].observationDisposition, undefined,
+    'Delayed complete bytes cannot inherit earlier incomplete cancellation credit.');
+});
