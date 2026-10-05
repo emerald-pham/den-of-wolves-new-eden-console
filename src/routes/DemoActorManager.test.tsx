@@ -1,12 +1,13 @@
 import { beforeEach, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import type { GameSession, Player } from '@/types/game';
 import { useSessionStore } from '@/store/useSessionStore';
 import { acknowledgeSessionWaiver } from '@/lib/sessionWaiver';
 import DemoActorManager from './DemoActorManager';
 
-const api = vi.hoisted(() => ({ prepare: vi.fn(), readRoster: vi.fn(() => []), switchActor: vi.fn() }));
+const api = vi.hoisted(() => ({ profile: { sessionId: 'demo-session', roleId: 'controller' },
+  prepare: vi.fn(), readRoster: vi.fn(() => []), switchActor: vi.fn() }));
 vi.mock('@/lib/demoActorProfiles', () => ({
   prepareDemoActors: api.prepare,
   readDemoActorRoster: api.readRoster,
@@ -16,7 +17,7 @@ vi.mock('@/lib/demoActorProfiles', () => ({
 }));
 vi.mock('@/lib/demoActorContext', async importOriginal => ({
   ...await importOriginal<typeof import('@/lib/demoActorContext')>(),
-  activeDemoActorProfile: { sessionId: 'demo-session', roleId: 'controller' },
+  activeDemoActorProfile: api.profile,
   demoActorJoinCode: () => '482100',
 }));
 vi.mock('@/lib/sessionService', () => ({ joinSession: vi.fn(), connect: vi.fn() }));
@@ -27,7 +28,7 @@ const session = {
 } as unknown as GameSession;
 
 beforeEach(() => {
-  vi.clearAllMocks(); localStorage.clear(); acknowledgeSessionWaiver();
+  vi.clearAllMocks(); api.profile.roleId = 'controller'; localStorage.clear(); acknowledgeSessionWaiver();
   useSessionStore.getState().reset();
   useSessionStore.getState().setIdentity(session, { uid: 'controller-auth', sessionId: session.id, role: 'player' } as Player);
   useSessionStore.getState().setConnection('live');
@@ -68,4 +69,15 @@ it('blocks preparation until live authority returns', async () => {
   show();
   await waitFor(() => expect(screen.getByRole('button', { name: 'Prepare demo crew' })).toBeDisabled());
   expect(api.prepare).not.toHaveBeenCalled();
+});
+
+it('returns replacement extra-ship actors to the ordinary station catalog', async () => {
+  api.profile.roleId = 'admiral';
+  useSessionStore.getState().setMe({ uid: 'admiral-auth', sessionId: session.id,
+    role: 'player', replacementRoleId: 'warrior-captain' } as Player);
+  await act(async () => { show(); });
+  const entry = screen.getByRole('link', { name: "Enter this actor's stations" });
+  expect(entry).toHaveAttribute('href', '/console');
+  fireEvent.click(entry);
+  expect(screen.getByText('Station catalog returned')).toBeInTheDocument();
 });

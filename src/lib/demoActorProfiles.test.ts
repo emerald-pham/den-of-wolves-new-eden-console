@@ -127,6 +127,21 @@ describe('ordinary authenticated demo cohort preparation', () => {
     expect(api.claim).not.toHaveBeenCalled();
   });
 
+  it('retains the anchor identity after a replacement and never restores its original station on recovery', async () => {
+    const api = gateway();
+    const originalRoster = await prepareDemoActors(session, { gateway: api });
+    api.presence.mockClear(); api.join.mockClear(); api.claim.mockClear();
+    api.presence.mockRejectedValueOnce(new Error('Reconnect needed.'));
+    api.resume.mockResolvedValueOnce({ session, player: { uid: 'auth-admiral', sessionId: session.id,
+      role: 'player', assignedRoleId: 'admiral', replacementRoleId: 'doctor',
+      activeConsoleRoleId: null, seatId: null } as Player });
+    await expect(renewDemoActorPresence(session, { gateway: api })).resolves.toEqual([]);
+    expect(api.presence.mock.calls.every(call => call.length === 1)).toBe(true);
+    expect(readDemoActorRoster(session.id)).toEqual(originalRoster);
+    expect(api.join).not.toHaveBeenCalled();
+    expect(api.claim).not.toHaveBeenCalled();
+  });
+
   it('drops private or credential fields and rejects ambiguous local roster identities', async () => {
     const api = gateway();
     const roster = await prepareDemoActors(session, { gateway: api });
