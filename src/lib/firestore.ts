@@ -4326,6 +4326,50 @@ export function subscribeSessionState(
     refresh();
     return () => { stopped = true; if (timer) clearTimeout(timer); memberFeedRefresh = () => undefined; };
   };
+  let playerDiscoveryListenerGeneration = 0;
+  let unsubscribePlayerDiscovery: Unsubscribe = () => undefined;
+  const stopPlayerDiscoveryListener = () => {
+    playerDiscoveryListenerGeneration += 1;
+    unsubscribePlayerDiscovery();
+  };
+  const startPlayerDiscoveryListener = (): Unsubscribe => {
+    stopPlayerDiscoveryListener();
+    const generation = playerDiscoveryListenerGeneration;
+    unsubscribePlayerDiscovery = onSnapshot(
+      doc(database, `sessions/${sessionId}/playerDiscoveries/${uid}`),
+      { includeMetadataChanges: true },
+      (snapshot) => {
+        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken ||
+            generation !== playerDiscoveryListenerGeneration) return;
+        if (handlers.sessionReadAudience === 'member') {
+          // A resumed member's discovery can arrive before the actor/feed that
+          // authorizes it. Hold this reader's fresh event until both confirm.
+          pendingMemberDiscovery = memberActorAvailable === false || snapshot.metadata?.fromCache === true || !snapshot.exists()
+            ? undefined : playerDiscoveryProjection(snapshot.data());
+          if (!pendingMemberDiscovery) handlers.onPlayerDiscovery?.(null);
+          else publishPendingMemberDiscovery();
+          return;
+        }
+        if (snapshot.metadata?.fromCache === true && sessionSnapshotAuthority.hasServerSessionAuthority) return;
+        const projection = snapshot.exists() ? playerDiscoveryProjection(snapshot.data()) ?? null : null;
+        handlers.onPlayerDiscovery?.(snapshot.metadata?.fromCache === true &&
+          projection?.candidateReveals?.length
+          ? { ...projection, candidateReveals: [] }
+          : projection);
+      },
+      (error: { readonly code?: string }) => {
+        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken ||
+            generation !== playerDiscoveryListenerGeneration) return;
+        pendingMemberDiscovery = undefined;
+        if (error.code === 'permission-denied' || error.code === 'not-found') {
+          handlers.onPlayerDiscovery?.(null);
+          return;
+        }
+        onError();
+      },
+    );
+    return stopPlayerDiscoveryListener;
+  };
   unsubscribes = [
     sessionDocument ? onSnapshot(sessionDocument, { includeMetadataChanges: true }, (snapshot) => {
       if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
@@ -4391,11 +4435,13 @@ export function subscribeSessionState(
         handlers.onKicked();
       } else if (snapshot.exists() && snapshot.get('connected') === true) {
         const player = playerFrom(sessionId, uid, snapshot.data());
+        let rebindDiscovery = false;
         if (!fromCache && handlers.sessionReadAudience === 'member') {
           const nextFingerprint = actorFingerprint(player);
           if (memberActorAvailable !== true || nextFingerprint !== memberActorFingerprint) {
-            if (memberActorFingerprint !== undefined && nextFingerprint !== memberActorFingerprint) {
+            if (memberActorFingerprint !== undefined) {
               pendingMemberDiscovery = undefined;
+              rebindDiscovery = true;
             }
             memberActorAvailable = true;
             memberSessionConfirmed = false;
@@ -4406,6 +4452,11 @@ export function subscribeSessionState(
         }
         memberPlayer = player;
         handlers.onPlayer(player);
+        // The actor change withdraws the old projection. Its private document
+        // may be unchanged, so the old listener need not emit again. Rebind the
+        // same UID's reader for a fresh server authorization; retired callbacks
+        // cannot publish into this new actor generation.
+        if (rebindDiscovery && handlers.onPlayerDiscovery) startPlayerDiscoveryListener();
         if (!fromCache) memberFeedRefresh();
         handlers.onPlayerFreshness?.(!fromCache);
         if (!fromCache) publishPendingMemberDiscovery();
@@ -4422,39 +4473,7 @@ export function subscribeSessionState(
       if (error.code === 'permission-denied' || error.code === 'not-found') revokeMemberActor();
       onError();
     }),
-    ...(handlers.onPlayerDiscovery ? [onSnapshot(
-      doc(database, `sessions/${sessionId}/playerDiscoveries/${uid}`),
-      { includeMetadataChanges: true },
-      (snapshot) => {
-        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
-        if (handlers.sessionReadAudience === 'member') {
-          // A resumed member's discovery can arrive before the actor/feed that
-          // authorizes it. Publishing it early loses it when App withdraws
-          // unconfirmed state. Hold only this subscription's fresh server
-          // event, then deliver after both independent authorities confirm.
-          pendingMemberDiscovery = memberActorAvailable === false || snapshot.metadata?.fromCache === true || !snapshot.exists()
-            ? undefined : playerDiscoveryProjection(snapshot.data());
-          if (!pendingMemberDiscovery) handlers.onPlayerDiscovery?.(null);
-          else publishPendingMemberDiscovery();
-          return;
-        }
-        if (snapshot.metadata?.fromCache === true && sessionSnapshotAuthority.hasServerSessionAuthority) return;
-        const projection = snapshot.exists() ? playerDiscoveryProjection(snapshot.data()) ?? null : null;
-        handlers.onPlayerDiscovery?.(snapshot.metadata?.fromCache === true &&
-          projection?.candidateReveals?.length
-          ? { ...projection, candidateReveals: [] }
-          : projection);
-      },
-      (error: { readonly code?: string }) => {
-        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
-        pendingMemberDiscovery = undefined;
-        if (error.code === 'permission-denied' || error.code === 'not-found') {
-          handlers.onPlayerDiscovery?.(null);
-          return;
-        }
-        onError();
-      },
-    )] : []),
+    ...(handlers.onPlayerDiscovery ? [startPlayerDiscoveryListener()] : []),
     ...(handlers.onGmDiscovery ? [onSnapshot(
       doc(database, `sessions/${sessionId}/gmDiscovery/current`),
       { includeMetadataChanges: true },

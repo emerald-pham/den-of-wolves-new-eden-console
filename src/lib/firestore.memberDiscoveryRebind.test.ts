@@ -51,8 +51,8 @@ function publish(path: string, data: Record<string, unknown>, fromCache = false)
 
 function begin() {
   let generation = 2;
-  const read = vi.fn(async () => ({ data: {
-    type: 'current-member-session', sessionId: 'rebind', actorUid: 'miner', groupId: 'fleet-1',
+  const read = vi.fn(async (payload: { readonly sessionId: string }) => ({ data: {
+    type: 'current-member-session', sessionId: payload.sessionId, actorUid: 'miner', groupId: 'fleet-1',
     connectionGeneration: generation, assignedRoleId: 'icebreaker-miner', activeConsoleRoleId: 'icebreaker-miner',
     session: { name: 'Rebind', joinCode: 'ABCD', ownerUid: 'gm', phase: 'active', currentTurn: 1,
       createdAt: '2026-10-05T12:00:00.000Z', updatedAt: '2026-10-05T12:01:00.000Z',
@@ -92,7 +92,7 @@ it('rebinds the same-UID discovery reader after a new connection generation even
   const feed = await originalProjection();
   feed.reconnect();
   await vi.waitFor(() => expect(callbacks('playerDiscoveries/miner')).toHaveLength(2));
-  expect(callbacks('playerDiscoveries/miner')[0].active).toBe(false);
+  expect(callbacks('playerDiscoveries/miner')[0]!.active).toBe(false);
   expect(feed.visible()).toBeUndefined();
   publish('playerDiscoveries/miner', discovery);
   await vi.waitFor(() => expect(feed.visible()).toMatchObject({ shipId: 'icebreaker', revision: 3 }));
@@ -101,7 +101,7 @@ it('rebinds the same-UID discovery reader after a new connection generation even
 
 it('rejects late discovery callbacks from the retired connection while the new reader waits for fresh authority', async () => {
   const feed = await originalProjection();
-  const retired = callbacks('playerDiscoveries/miner')[0];
+  const retired = callbacks('playerDiscoveries/miner')[0]!;
   feed.reconnect();
   await vi.waitFor(() => expect(callbacks('playerDiscoveries/miner')).toHaveLength(2));
   await vi.waitFor(() => expect(feed.read.mock.calls.length).toBeGreaterThan(1));
