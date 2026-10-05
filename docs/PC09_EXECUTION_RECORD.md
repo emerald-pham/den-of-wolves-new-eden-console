@@ -268,3 +268,9 @@ Corrected `f86c0006` passes exact candidate CI `37256681113`; the initial
 Exact-main CI still owns all deploy-range Functions, Rules, typography, ticker,
 render and build gates. Final range whitespace cleanup changes only two handoff
 paragraph breaks; no product or test content changes after the verified repair.
+
+Documentation-tip CI `37257186016` at `486651c3` failed the generated dependency
+view check: the owner had regenerated that view locally but omitted it from the
+commit. The failure remains preserved. The corrected commit includes the
+catalog-generated companion; no product, status, test or budget changes are
+made for this documentation repair.

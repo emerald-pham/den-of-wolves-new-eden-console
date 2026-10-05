@@ -217,3 +217,9 @@ This retry verifies the changed unit-test range; it does not substitute for the
 required exact-main Functions/Rules/rendered gates before production deployment.
 The final full-range whitespace check also replaces two historical handoff
 hard-break spaces with ordinary Markdown paragraphs, preserving their content.
+
+Documentation-tip CI `37257186016` at `486651c3` failed the generated dependency
+view check: the owner had regenerated that view locally but omitted it from the
+commit. The failure remains preserved. The corrected commit includes the
+catalog-generated companion; no product, status, test or budget changes are
+made for this documentation repair.
