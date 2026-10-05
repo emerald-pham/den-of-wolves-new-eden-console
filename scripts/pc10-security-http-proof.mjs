@@ -197,6 +197,9 @@ try {
       current.me.seatId === 'wing-commander' && current.me.activeConsoleRoleId === 'wing-commander' &&
       current.session?.currentTurn === 1 && current.connection === 'live' && current.sessionSnapshotFreshness === 'server';
   }, { url: sessionStoreUrl, uid: wing.localId }, { timeout: 30000 });
+  await page.getByRole('heading', { name: 'AEGIS', exact: true }).waitFor();
+  await page.getByRole('heading', { name: 'Stations and consoles', exact: true }).waitFor({ state: 'hidden' });
+  await page.getByRole('button', { name: 'Build 1 fighter // 1 material', exact: true }).first().waitFor();
   const ui = await page.evaluate(async url => {
     const { useSessionStore, SESSION_STORAGE_KEY } = await import(url);
     const current = useSessionStore.getState();
