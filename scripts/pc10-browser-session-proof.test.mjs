@@ -1113,3 +1113,229 @@ test('actual rate-marker diagnosis reports a valid below-budget concurrent windo
   assert.equal(proof.buildPc10RateLimitStateDiagnostic({ ...input,
     observedAt: 61_000 }).freshClockDecision, 'invalid-marker');
 });
+
+// Network.dataReceived.data is optional before streamResourceContent enables
+// streaming. These events describe byte lengths, never replacement body bytes.
+const receiveStreamMetadata = (fixture, requestId, dataLength, encodedDataLength = dataLength) =>
+  fixture.events.emit('Network.dataReceived', { requestId, timestamp: 2.5, dataLength, encodedDataLength });
+const streamReplyBytes = revision => Buffer.from(JSON.stringify({ result: { status: 'committed', revision } }));
+
+test('pre-activation metadata completes only from the actual returned buffer and loadingFinished', async () => {
+  const fixture = await cdpCallableObservationActor({ captureMode: 'stream', deferStreamStart: true });
+  const requestId = fixture.start('pre-activation-buffer');
+  fixture.receiveHeaders(requestId);
+  await nextObservationTurn();
+  const bytes = streamReplyBytes(51);
+  receiveStreamMetadata(fixture, requestId, 9, 3);
+  receiveStreamMetadata(fixture, requestId, bytes.length - 9, 4);
+  fixture.finish(requestId);
+  let drained = false;
+  const drain = fixture.actor.drainObservedCalls().then(() => { drained = true; });
+  await nextObservationTurn();
+  assert.equal(drained, false, 'Metadata and loadingFinished cannot supply the buffered bytes.');
+  assert.equal(fixture.actor.observedCalls[0].bodyCompletedAt, null);
+  fixture.resolveStreamStart(requestId, bytes.toString('base64'));
+  await drain;
+  assert.equal(fixture.actor.observedCalls[0].status, 200);
+  assert.equal(fixture.actor.observedCalls[0].revision, 51);
+  assert.equal(fixture.actor.observedCalls[0].requestFinishedAt !== null, true);
+  assert.equal(fixture.actor.observedCalls[0].bodyCompletedAt !== null, true);
+  assert.deepEqual(fixture.actor.callableObservationFailures, []);
+  assert.deepEqual(fixture.commands.find(command => command.method === 'Network.enable').parameters,
+    { maxTotalBufferSize: 8 * 1024 * 1024, maxResourceBufferSize: 512 * 1024 });
+});
+
+test('buffered pre-activation bytes and actual chunks before and after the reply remain in exact order', async () => {
+  const fixture = await cdpCallableObservationActor({ captureMode: 'stream', deferStreamStart: true });
+  const requestId = fixture.start('stream-reply-order');
+  fixture.receiveHeaders(requestId);
+  await nextObservationTurn();
+  const prefix = Buffer.from('{"result":{"status":');
+  receiveStreamMetadata(fixture, requestId, prefix.length);
+  fixture.receiveStreamChunk(requestId, Buffer.from('"committed","revision":').toString('base64'));
+  fixture.resolveStreamStart(requestId, prefix.toString('base64'));
+  await nextObservationTurn();
+  fixture.receiveStreamChunk(requestId, Buffer.from('52}}').toString('base64'));
+  assert.equal(fixture.actor.observedCalls[0].bodyCompletedAt, null, 'An activation reply is not loadingFinished.');
+  fixture.finish(requestId);
+  await fixture.actor.drainObservedCalls();
+  assert.equal(fixture.actor.observedCalls[0].revision, 52);
+  assert.equal(fixture.actor.observedCalls[0].resultStatus, 'committed');
+  assert.deepEqual(fixture.actor.callableObservationFailures, []);
+});
+
+test('pre-activation metadata requires enough actual buffered bytes even when later chunks would fill the length', async () => {
+  for (const buffer of ['', Buffer.from('{').toString('base64')]) {
+    const fixture = await cdpCallableObservationActor({ captureMode: 'stream', deferStreamStart: true });
+    const requestId = fixture.start('unbacked-pre-activation');
+    fixture.receiveHeaders(requestId);
+    await nextObservationTurn();
+    receiveStreamMetadata(fixture, requestId, 2);
+    fixture.receiveStreamChunk(requestId, streamReplyBytes(53).toString('base64'));
+    fixture.resolveStreamStart(requestId, buffer);
+    fixture.finish(requestId);
+    await fixture.actor.drainObservedCalls();
+    assert.equal(fixture.actor.observedCalls[0].bodyCompletedAt, null);
+    assert.equal(fixture.actor.observedCalls[0].revision, null);
+    assert.equal(fixture.actor.callableObservationFailures.length, 1);
+    assert.equal(fixture.actor.callableObservationFailures[0].bodyFailureStage, 'stream-buffer-incomplete');
+  }
+});
+
+test('a data-bearing chunk fences off later missing bytes before the activation reply returns', async () => {
+  const fixture = await cdpCallableObservationActor({ captureMode: 'stream', deferStreamStart: true });
+  const requestId = fixture.start('data-bearing-activation-fence');
+  fixture.receiveHeaders(requestId);
+  await nextObservationTurn();
+  fixture.receiveStreamChunk(requestId, streamReplyBytes(54).toString('base64'));
+  receiveStreamMetadata(fixture, requestId, 1);
+  fixture.resolveStreamStart(requestId, streamReplyBytes(99).toString('base64'));
+  fixture.finish(requestId);
+  await fixture.actor.drainObservedCalls();
+  assert.equal(fixture.actor.observedCalls[0].bodyCompletedAt, null);
+  assert.equal(fixture.actor.observedCalls[0].revision, null);
+  assert.equal(fixture.actor.callableObservationFailures[0].bodyFailureStage, 'stream-chunk-missing');
+});
+
+test('missing positive-length chunks after activation cannot borrow already returned buffer bytes', async () => {
+  const fixture = await cdpCallableObservationActor({ captureMode: 'stream' });
+  const requestId = fixture.start('post-activation-missing');
+  fixture.setStreamBuffer(requestId, streamReplyBytes(55).toString('base64'));
+  fixture.receiveHeaders(requestId);
+  await nextObservationTurn();
+  receiveStreamMetadata(fixture, requestId, 1);
+  fixture.finish(requestId);
+  await fixture.actor.drainObservedCalls();
+  assert.equal(fixture.actor.observedCalls[0].bodyCompletedAt, null);
+  assert.equal(fixture.actor.observedCalls[0].revision, null);
+  assert.equal(fixture.actor.callableObservationFailures[0].bodyFailureStage, 'stream-chunk-missing');
+});
+
+test('stream metadata lengths must be nonnegative safe integers before they can be accounted', async () => {
+  const malformed = [
+    [undefined, 1], [null, 1], ['1', 1], [-1, 1], [0.5, 1], [Number.MAX_SAFE_INTEGER + 1, 1],
+    [1, undefined], [1, null], [1, '1'], [1, -1], [1, 0.5], [1, Number.MAX_SAFE_INTEGER + 1],
+  ];
+  for (const [dataLength, encodedDataLength] of malformed) {
+    const fixture = await cdpCallableObservationActor({ captureMode: 'stream', deferStreamStart: true });
+    const requestId = fixture.start('malformed-stream-metadata');
+    fixture.receiveHeaders(requestId);
+    await nextObservationTurn();
+    fixture.events.emit('Network.dataReceived', { requestId, timestamp: 2.5, dataLength, encodedDataLength });
+    fixture.resolveStreamStart(requestId, streamReplyBytes(56).toString('base64'));
+    fixture.finish(requestId);
+    await fixture.actor.drainObservedCalls();
+    assert.equal(fixture.actor.observedCalls[0].bodyCompletedAt, null);
+    assert.equal(fixture.actor.observedCalls[0].revision, null);
+    assert.equal(fixture.actor.callableObservationFailures[0].bodyFailureStage, 'stream-metadata-malformed');
+  }
+});
+
+test('data-bearing chunks must match dataLength rather than their compressed encodedDataLength', async () => {
+  for (const lengthDelta of [-1, 0, 1]) {
+    const fixture = await cdpCallableObservationActor({ captureMode: 'stream' });
+    const requestId = fixture.start('stream-chunk-length-binding');
+    fixture.receiveHeaders(requestId);
+    await nextObservationTurn();
+    const bytes = streamReplyBytes(57);
+    fixture.events.emit('Network.dataReceived', { requestId, timestamp: 2.5,
+      dataLength: bytes.length + lengthDelta, encodedDataLength: 1, data: bytes.toString('base64') });
+    fixture.finish(requestId);
+    await fixture.actor.drainObservedCalls();
+    if (lengthDelta === 0) {
+      assert.equal(fixture.actor.observedCalls[0].revision, 57);
+      assert.deepEqual(fixture.actor.callableObservationFailures, []);
+    } else {
+      assert.equal(fixture.actor.observedCalls[0].bodyCompletedAt, null);
+      assert.equal(fixture.actor.observedCalls[0].revision, null);
+      assert.equal(fixture.actor.callableObservationFailures[0].bodyFailureStage, 'stream-chunk-length');
+    }
+  }
+});
+
+test('cumulative pre-activation byte declarations cannot exceed the existing 512 KiB body cap', async () => {
+  const fixture = await cdpCallableObservationActor({ captureMode: 'stream', deferStreamStart: true });
+  const requestId = fixture.start('pre-activation-cap');
+  fixture.receiveHeaders(requestId);
+  await nextObservationTurn();
+  receiveStreamMetadata(fixture, requestId, 256 * 1024);
+  receiveStreamMetadata(fixture, requestId, 256 * 1024 + 1);
+  fixture.resolveStreamStart(requestId, streamReplyBytes(58).toString('base64'));
+  fixture.finish(requestId);
+  await fixture.actor.drainObservedCalls();
+  assert.equal(fixture.actor.observedCalls[0].bodyCompletedAt, null);
+  assert.equal(fixture.actor.observedCalls[0].revision, null);
+  assert.equal(fixture.actor.callableObservationFailures[0].bodyFailureStage, 'stream-body-too-large');
+});
+
+test('Chromium zero-byte encoded-length flushes add no body bytes and still require loadingFinished', async () => {
+  const fixture = await cdpCallableObservationActor({ captureMode: 'stream' });
+  const requestId = fixture.start('encoded-length-flush');
+  fixture.receiveHeaders(requestId);
+  await nextObservationTurn();
+  fixture.receiveStreamChunk(requestId, streamReplyBytes(59).toString('base64'));
+  receiveStreamMetadata(fixture, requestId, 0, 19);
+  await fixture.actor.drainObservedCalls();
+  assert.equal(fixture.actor.observedCalls[0].requestFinishedAt, null);
+  assert.equal(fixture.actor.observedCalls[0].bodyCompletedAt, null);
+  assert.equal(fixture.actor.observedCalls[0].revision, null);
+  fixture.finish(requestId);
+  await fixture.actor.drainObservedCalls();
+  assert.equal(fixture.actor.observedCalls[0].revision, 59);
+  assert.deepEqual(fixture.actor.callableObservationFailures, []);
+});
+
+test('zero-byte metadata without any actual body stays empty and cannot manufacture a reply', async () => {
+  const fixture = await cdpCallableObservationActor({ captureMode: 'stream' });
+  const requestId = fixture.start('zero-only-stream');
+  fixture.receiveHeaders(requestId);
+  await nextObservationTurn();
+  receiveStreamMetadata(fixture, requestId, 0, 4);
+  fixture.finish(requestId);
+  await fixture.actor.drainObservedCalls();
+  assert.equal(fixture.actor.observedCalls[0].bodyCompletedAt, null);
+  assert.equal(fixture.actor.observedCalls[0].revision, null);
+  assert.equal(fixture.actor.callableObservationFailures[0].bodyFailureStage, 'stream-body-empty');
+});
+
+test('pre-activation accounting cannot use a different protocol request buffer for identical payloads', async () => {
+  const fixture = await cdpCallableObservationActor({ captureMode: 'stream', deferStreamStart: true });
+  const first = fixture.start('metadata-protocol-one'), second = fixture.start('metadata-protocol-two');
+  fixture.receiveHeaders(first);
+  fixture.receiveHeaders(second);
+  await nextObservationTurn();
+  const bytes = streamReplyBytes(60);
+  receiveStreamMetadata(fixture, first, bytes.length);
+  receiveStreamMetadata(fixture, second, bytes.length);
+  fixture.resolveStreamStart(first, bytes.toString('base64'));
+  fixture.resolveStreamStart(second, '');
+  fixture.finish(second);
+  fixture.finish(first);
+  await fixture.actor.drainObservedCalls();
+  assert.equal(fixture.actor.observedCalls[0].requestHash, fixture.actor.observedCalls[1].requestHash);
+  assert.equal(fixture.actor.observedCalls[0].revision, 60);
+  assert.equal(fixture.actor.observedCalls[1].bodyCompletedAt, null);
+  assert.equal(fixture.actor.observedCalls[1].revision, null);
+  assert.equal(fixture.actor.callableObservationFailures.length, 1);
+  assert.equal(fixture.actor.callableObservationFailures[0].protocolRequestHash, protocolHash('metadata-protocol-two'));
+  assert.equal(fixture.actor.callableObservationFailures[0].bodyFailureStage, 'stream-buffer-incomplete');
+});
+
+test('accounted metadata does not waive JSON validity or leak request IDs and private reply text', async () => {
+  const fixture = await cdpCallableObservationActor({ captureMode: 'stream', deferStreamStart: true });
+  const requestId = fixture.start('private-raw-protocol-id');
+  fixture.receiveHeaders(requestId);
+  await nextObservationTurn();
+  const bytes = Buffer.from('private-token private-note invalid JSON');
+  receiveStreamMetadata(fixture, requestId, bytes.length);
+  fixture.resolveStreamStart(requestId, bytes.toString('base64'));
+  fixture.finish(requestId);
+  await fixture.actor.drainObservedCalls();
+  assert.equal(fixture.actor.observedCalls[0].bodyCompletedAt, null);
+  assert.equal(fixture.actor.observedCalls[0].revision, null);
+  assert.equal(fixture.actor.callableObservationFailures[0].bodyFailureStage, 'json-parse');
+  for (const privateValue of [requestId, 'private-token', 'private-note']) {
+    assert.equal(JSON.stringify(fixture.actor.callableObservationFailures).includes(privateValue), false);
+    assert.equal(JSON.stringify(fixture.actor.observedCalls).includes(privateValue), false);
+  }
+});
