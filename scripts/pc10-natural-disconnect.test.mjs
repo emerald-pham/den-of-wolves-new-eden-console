@@ -57,12 +57,17 @@ test('the global scheduler is blocked whenever another table has a connected act
 test('active recovery verifies the seat reclaimed by resume rather than sending a new casting command',async()=>{
  const {assertReturnedCoreStation}=await proof();
  assert.equal(typeof assertReturnedCoreStation,'function','Verify the actual returning seat without bypassing the casting lock.');
- const reply={player:{connected:true,assignedRoleId:'admiral',seatId:'admiral'}};
+ // The real resume reply intentionally omits connected; use the authoritative
+ // own player document for that assertion without changing the reply contract.
+ const reply={player:{assignedRoleId:'admiral',seatId:'admiral'}};
+ const player={id:'same-actor',get:field=>field==='connected'?true:undefined};
  const seat={exists:true,get:field=>({roleId:'admiral',status:'claimed',holderUid:'same-actor'})[field]};
- assert.doesNotThrow(()=>assertReturnedCoreStation({roleId:'admiral',uid:'same-actor',reply,seat}));
- assert.throws(()=>assertReturnedCoreStation({roleId:'admiral',uid:'different-actor',reply,seat}),/identity|UID|actor/i);
+ assert.doesNotThrow(()=>assertReturnedCoreStation({roleId:'admiral',uid:'same-actor',reply,seat,player}));
+ assert.throws(()=>assertReturnedCoreStation({roleId:'admiral',uid:'different-actor',reply,seat,player}),/identity|UID|actor/i);
  assert.throws(()=>assertReturnedCoreStation({roleId:'admiral',uid:'same-actor',reply,
-  seat:{...seat,get:field=>field==='status'?'open':seat.get(field)}}),/claimed|seat/i);
+  seat:{...seat,get:field=>field==='status'?'open':seat.get(field)},player}),/claimed|seat/i);
+ assert.throws(()=>assertReturnedCoreStation({roleId:'admiral',uid:'same-actor',reply,seat,
+  player:{...player,get:()=>false}}),/connected/i);
 });
 
 test('a failed overlapping proof batch still drains every actual in-flight request before cleanup',async()=>{
