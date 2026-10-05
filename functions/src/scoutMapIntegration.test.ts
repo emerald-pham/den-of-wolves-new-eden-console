@@ -144,7 +144,8 @@ it('resolves one private fact and publishes its coordinate only to the request-t
   expect(wing.knownCoordinates).toContain('0408');
   expect(scientist.knownCoordinates).not.toContain('0408');
   expect(scientist.shipId).toBe('shepherd');
-  expect(JSON.stringify(wing)).not.toMatch(/Deep Nebula|accruedBonus/);
+  expect(wing.candidateReveals).toEqual([{ code: 'O', title: 'Deep Nebula' }]);
+  expect(JSON.stringify(wing)).not.toMatch(/accruedBonus|hiddenScoutCount|chartId/);
   const notePath = [...mock.documents.keys()].find((path) => path.includes('/playerDiscoveryNotes/'));
   expect(notePath).toBeDefined();
   expect(mock.documents.get(notePath!)).toMatchObject({ shipId: 'shepherd' });
