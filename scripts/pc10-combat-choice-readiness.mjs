@@ -76,16 +76,22 @@ export async function waitForWolfChoiceReadiness({ original, expected, inspectAc
     budget();
     const actor = await inspectActor(); budget();
     // Check every identity, audience, lease and phase field before a private
-    // source read. Only airspace may be the natural resolution consequence.
-    originalIdentity({ ...actor, airspace: original.airspace }, original);
+    // source read. Attack finalization restores its locked Team/restricted
+    // projection to Coordination/lifted in the same manual cycle.
+    originalIdentity({ ...actor, airspace: original.airspace, turnStatePhase: original.turnStatePhase }, original);
     const gm = inspectGm ? await inspectGm() : null;
-    if (gm) { originalIdentity({ ...gm, airspace: originalGm.airspace }, originalGm); budget(); }
+    if (gm) { originalIdentity({ ...gm, airspace: originalGm.airspace, turnStatePhase: originalGm.turnStatePhase }, originalGm); budget(); }
     if (!live(actor) || gm && !live(gm)) return false;
     const projections = [[actor, original], ...(gm ? [[gm, originalGm]] : [])];
-    const changedAirspace = projections.filter(([current, bound]) => current.airspace !== bound.airspace);
-    if (changedAirspace.length) {
+    const changedWindow = projections.filter(([current, bound]) =>
+      current.airspace !== bound.airspace || current.turnStatePhase !== bound.turnStatePhase);
+    const forwardResolutionWindow = ([value, bound]) => bound.airspace === 'restricted' && value.airspace === 'lifted' &&
+      (value.turnStatePhase === bound.turnStatePhase || bound.turnStatePhase === 'team' && value.turnStatePhase === 'coordination');
+    if (changedWindow.length) {
+      if (!changedWindow.every(forwardResolutionWindow))
+        for (const [value, bound] of projections) originalIdentity(value, bound);
       const current = await inspectAttack(); budget();
-      if (gm && changedAirspace.every(([value, bound]) => bound.airspace === 'restricted' && value.airspace === 'lifted') &&
+      if (gm && changedWindow.every(forwardResolutionWindow) &&
           typeof expected.sessionId === 'string' && expected.sessionId && expected.status !== 'resolved' &&
           original.sessionId === expected.sessionId && originalGm.sessionId === expected.sessionId &&
           // The real private document has no sessionId field: its original
@@ -95,18 +101,18 @@ export async function waitForWolfChoiceReadiness({ original, expected, inspectAc
           current.turn === expected.turn && Number.isSafeInteger(current.revision) && current.revision > expected.revision &&
           current.status === 'resolved' && current.currentStep === 'resolved' && current.airspaceLocked === false) {
         const afterActor = await inspectActor(); budget();
-        originalIdentity({ ...afterActor, airspace: original.airspace }, original);
+        originalIdentity({ ...afterActor, airspace: original.airspace, turnStatePhase: original.turnStatePhase }, original);
         const afterGm = await inspectGm(); budget();
-        originalIdentity({ ...afterGm, airspace: originalGm.airspace }, originalGm);
+        originalIdentity({ ...afterGm, airspace: originalGm.airspace, turnStatePhase: originalGm.turnStatePhase }, originalGm);
         if (!live(afterActor) || !live(afterGm)) return false;
         for (const [value, bound] of [[afterActor, original], [afterGm, originalGm]])
-          if (value.airspace !== bound.airspace && !(bound.airspace === 'restricted' && value.airspace === 'lifted'))
-            originalIdentity(value, bound);
+          if ((value.airspace !== bound.airspace || value.turnStatePhase !== bound.turnStatePhase) &&
+              !forwardResolutionWindow([value, bound])) originalIdentity(value, bound);
         // This ends the obsolete choice inspection with zero gameplay credit.
         // The caller must independently read and verify the final attack.
         resolvedSource = current; return false;
       }
-      // Any other airspace change retains the original hard assertion.
+      // Any other window change retains the original hard assertion.
       for (const [value, bound] of projections) originalIdentity(value, bound);
     }
     if (requireBoardingDiscovery) {
