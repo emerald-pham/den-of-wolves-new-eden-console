@@ -133,6 +133,16 @@ test('failed diagnostic probes are explicit unavailable values rather than succe
   assert.equal(JSON.stringify(diagnostic).includes('secret'),false);
 });
 
+test('stalled failure probes are capped before restoration and cannot manufacture control presence',async()=>{
+  const blocked=()=>({isVisible:()=>new Promise(()=>{})});
+  const page={url:()=>baseHref,getByRole:blocked,getByLabel:blocked};
+  const diagnostic=await proof.captureLiveSettingsFailure({page,stage:'focus-private-brief',
+    error:{name:'TimeoutError'},probeBudgetMs:3});
+  assert.equal(diagnostic.probeStatus,'timed-out');
+  assert.ok(Object.values(diagnostic.controls).every(value=>value===null));
+  assert.equal(diagnostic.route,'console');assert.equal(diagnostic.category,'timeout');
+});
+
 test('restoration errors are classified and fail the original restoration gate without exposing cause text',async()=>{
   const evidence={status:'pixels-captured-awaiting-decode'};
   const failure=Object.assign(new Error('private original UID token'),{name:'TimeoutError'});
