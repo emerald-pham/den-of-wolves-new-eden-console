@@ -5,6 +5,21 @@ import { writeFile } from 'node:fs/promises';
 import { setTimeout as delay } from 'node:timers/promises';
 import { candidateEvidenceEnvelope, waitForMaintenanceReceipt } from './pc10-candidate-proof-helpers.mjs';
 
+function hasExactKeys(value, expected) {
+  return typeof value === 'object' && value !== null && !Array.isArray(value) &&
+    Object.keys(value).length === expected.length && expected.every(key => Object.hasOwn(value, key));
+}
+
+/** Native-test seam for the safe browser-to-Node Firestore read envelope. */
+export function unwrapBrowserFirestoreReadOutcome(outcome) {
+  if (hasExactKeys(outcome, ['status', 'value']) && outcome.status === 'ok') return outcome.value;
+  if (hasExactKeys(outcome, ['status', 'code']) && outcome.status === 'error' &&
+      (outcome.code === null || (typeof outcome.code === 'string' && outcome.code.length <= 128))) {
+    throw new Error('Authenticated browser Firestore read failed.');
+  }
+  throw new Error('Authenticated browser Firestore read returned an invalid result.');
+}
+
 /** Compose genuine UI-selected crew accounts; no token, Admin write or store setter. */
 export function createTwoBrowserGameplay(context) {
   const { gm, crew, initial, roster, directory } = context;
@@ -120,18 +135,21 @@ export function createTwoBrowserGameplay(context) {
   async function read(roleId, suffix, { collection = false } = {}) {
     const surface = await select(roleId, { enter: false });
     await live(surface);
-    return surface.page.evaluate(async ({ sid, suffix, collection }) => {
+    const outcome = await surface.page.evaluate(async ({ sid, suffix, collection }) => {
       const source = await (await fetch('/src/lib/firestore.ts')).text();
       const match = source.match(/from\s+["']([^"']*firebase_firestore\.js[^"']*)["']/);
       if (!match) throw new Error('Read the actual current browser SDK import before the entitled read.');
       const sdk = await import(match[1]);
       const { db } = await import('/src/lib/firestore.ts');
       const path = `sessions/${sid}/${suffix}`;
-      if (collection) return (await sdk.getDocs(sdk.collection(db(), path))).docs.map(document =>
-        ({ id: document.id, ...document.data() }));
-      const document = await sdk.getDoc(sdk.doc(db(), path));
-      return document.exists() ? { id: document.id, ...document.data() } : null;
+      const value = collection
+        ? (await sdk.getDocs(sdk.collection(db(), path))).docs.map(document =>
+          ({ id: document.id, ...document.data() }))
+        : await sdk.getDoc(sdk.doc(db(), path)).then(document =>
+          document.exists() ? { id: document.id, ...document.data() } : null);
+      return { status: 'ok', value };
     }, { sid: initial.sessionId, suffix, collection });
+    return unwrapBrowserFirestoreReadOutcome(outcome);
   }
   async function ui(roleId, description, decision) {
     const surface = await select(roleId);
