@@ -7,6 +7,7 @@ import {
   type DemoActorGateway,
 } from './demoActorProfiles';
 import type { DemoActorProfile } from './demoActorContext';
+import { demoActorRosterStorageKey } from './demoActorContext';
 
 const session = {
   id: 'demo-session', name: 'Solo rehearsal', joinCode: '482100', ownerUid: 'gm',
@@ -101,5 +102,39 @@ describe('ordinary authenticated demo cohort preparation', () => {
     delete ordinary.fullGameDemo;
     await renewDemoActorPresence(ordinary, { gateway: api });
     expect(api.presence).not.toHaveBeenCalled();
+  });
+
+  it('does not replace a lost established identity or proceed into its seat', async () => {
+    const api = gateway();
+    await prepareDemoActors(session, { gateway: api });
+    api.claim.mockClear(); api.join.mockClear();
+    api.identity.mockRejectedValueOnce(new Error('Actor account is unavailable.'));
+    await expect(prepareDemoActors(session, { gateway: api })).rejects.toThrow(/unavailable/i);
+    expect(api.join).not.toHaveBeenCalled();
+    expect(api.claim).not.toHaveBeenCalled();
+    expect(readDemoActorRoster(session.id)[0]?.uid).toBe('auth-admiral');
+  });
+
+  it('cannot silently reactivate a kicked actor through background presence recovery', async () => {
+    const api = gateway();
+    const roster = await prepareDemoActors(session, { gateway: api });
+    api.join.mockClear(); api.claim.mockClear();
+    api.presence.mockRejectedValue(new Error('permission-denied'));
+    api.resume.mockRejectedValue(new Error('kicked'));
+    const failed = await renewDemoActorPresence(session, { gateway: api });
+    expect(failed).toEqual(roster.map(actor => actor.label));
+    expect(api.join).not.toHaveBeenCalled();
+    expect(api.claim).not.toHaveBeenCalled();
+  });
+
+  it('drops private or credential fields and rejects ambiguous local roster identities', async () => {
+    const api = gateway();
+    const roster = await prepareDemoActors(session, { gateway: api });
+    localStorage.setItem(demoActorRosterStorageKey(session.id), JSON.stringify(roster.map(actor => ({
+      ...actor, privateLoyalty: 'never restore', token: 'never restore', label: 'untrusted name',
+    }))));
+    expect(readDemoActorRoster(session.id)).toEqual(roster);
+    localStorage.setItem(demoActorRosterStorageKey(session.id), JSON.stringify([roster[0], roster[0]]));
+    expect(readDemoActorRoster(session.id)).toEqual([]);
   });
 });

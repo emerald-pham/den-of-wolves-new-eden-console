@@ -23,4 +23,11 @@ it('hydrates neither the GM cache nor another actor outbox into a cold actor doc
   expect(second.useSessionStore.getState().pendingCommands).toEqual([]);
   expect(second.useSessionStore.getState().gmAccessAuthenticatedAt).toBeNull();
   expect(second.useSessionStore.getState().privateLoyalty).toBeNull();
+  vi.resetModules();
+  window.history.replaceState(null, '', '/?demoActor=session-a~admiral');
+  const returning = await import('./useSessionStore');
+  expect(returning.useSessionStore.getState().me?.uid).toBe('auth-admiral');
+  expect(returning.useSessionStore.getState().pendingCommands.map(command => command.id)).toEqual(['actor-command']);
+  expect(returning.useSessionStore.getState().privateLoyalty).toBeNull();
+  expect(JSON.parse(localStorage.getItem('dow-new-eden-session') ?? '{}').state.me.uid).toBe('gm');
 });
