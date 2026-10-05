@@ -15,7 +15,7 @@ it('hydrates neither the GM cache nor another actor outbox into a cold actor doc
   expect(first.useSessionStore.getState().me).toBeNull();
   expect(first.useSessionStore.getState().pendingCommands).toEqual([]);
   first.useSessionStore.getState().setIdentity({ id: 'session-a' } as GameSession, { uid: 'auth-admiral', role: 'player' } as Player);
-  first.useSessionStore.getState().enqueueCommand({ id: 'actor-command', kind: 'setShipPreference', createdAt: 'now', payload: { sessionId: 'session-a', shipId: 'aegis', requestId: 'actor-command' } });
+  first.useSessionStore.getState().enqueueCommand({ id: 'actor-command', kind: 'claimSeat', createdAt: 'now', payload: { sessionId: 'session-a', seatId: 'aegis:admiral', requestId: 'actor-command', expectedSetupRevision: 0 } });
   vi.resetModules();
   window.history.replaceState(null, '', '/?demoActor=session-a~wing-commander');
   const second = await import('./useSessionStore');

@@ -24,7 +24,7 @@ vi.mock('@/lib/sessionService', () => ({ joinSession: vi.fn(), connect: vi.fn() 
 const session = {
   id: 'demo-session', name: 'Solo rehearsal', joinCode: '482100', phase: 'casting', currentTurn: 0,
   fullGameDemo: { status: 'preparing', progression: 'manual' },
-} as GameSession;
+} as unknown as GameSession;
 
 beforeEach(() => {
   vi.clearAllMocks(); localStorage.clear(); acknowledgeSessionWaiver();
@@ -44,6 +44,7 @@ function show() {
 it('prepares the crew with one user action and exposes a visible return route', async () => {
   api.prepare.mockResolvedValue([{ sessionId: session.id, roleId: 'admiral', uid: 'admiral-auth', label: 'Admiral' }]);
   show();
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Prepare demo crew' })).toBeEnabled());
   fireEvent.click(screen.getByRole('button', { name: 'Prepare demo crew' }));
   await waitFor(() => expect(api.prepare).toHaveBeenCalledWith(session, expect.anything()));
   expect(await screen.findByRole('button', { name: /Admiral/i })).toBeInTheDocument();
@@ -52,19 +53,19 @@ it('prepares the crew with one user action and exposes a visible return route', 
   expect(screen.getByText('Station catalog returned')).toBeInTheDocument();
 });
 
-it('does not prepare an ordinary session or claim that its actors are human attendees', () => {
+it('does not prepare an ordinary session or claim that its actors are human attendees', async () => {
   const ordinary = { ...session } as GameSession & { fullGameDemo?: unknown };
   delete ordinary.fullGameDemo;
   useSessionStore.getState().setSession(ordinary);
   show();
   expect(screen.queryByRole('button', { name: 'Prepare demo crew' })).not.toBeInTheDocument();
-  expect(screen.getByRole('alert')).toHaveTextContent(/GM.*prepare/i);
+  await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/GM.*prepare/i));
   expect(api.prepare).not.toHaveBeenCalled();
 });
 
-it('blocks preparation until live authority returns', () => {
+it('blocks preparation until live authority returns', async () => {
   useSessionStore.getState().setSessionSnapshotFreshness('cache');
   show();
-  expect(screen.getByRole('button', { name: 'Prepare demo crew' })).toBeDisabled();
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Prepare demo crew' })).toBeDisabled());
   expect(api.prepare).not.toHaveBeenCalled();
 });

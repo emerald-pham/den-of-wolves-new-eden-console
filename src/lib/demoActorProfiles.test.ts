@@ -13,7 +13,7 @@ const session = {
   phase: 'casting', currentTurn: 0, playerCount: 8, setupRevision: 2,
   activeRoleIds: ['admiral', 'wing-commander'], pressEnabled: true,
   fullGameDemo: { status: 'preparing', progression: 'manual' },
-} as GameSession;
+} as unknown as GameSession;
 
 function gateway() {
   const seen = new Map<string, string>();
@@ -62,7 +62,7 @@ describe('ordinary authenticated demo cohort preparation', () => {
 
   it('does not register an identity from a mismatched join reply', async () => {
     const api = gateway();
-    api.join.mockResolvedValue({ session, player: { uid: 'different-auth', sessionId: session.id } as Player });
+    api.join.mockResolvedValue({ session: { ...session, setupRevision: 2 }, player: { uid: 'different-auth', sessionId: session.id } as Player });
     await expect(prepareDemoActors(session, { gateway: api })).rejects.toThrow(/identity/i);
     expect(api.claim).not.toHaveBeenCalled();
     expect(readDemoActorRoster(session.id)).toEqual([]);
