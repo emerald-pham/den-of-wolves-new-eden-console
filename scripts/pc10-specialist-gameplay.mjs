@@ -63,7 +63,8 @@ const RENDERED_STATUS_CODES = new Set([
 ]);
 const PRIVATE_CHOICE_FIELDS = new Set([
   'targetCoordinate', 'trackId', 'missionOpportunityId', 'taskOpportunityId',
-  'destinationShipId', 'transitRequestId', 'expectedDepartureRequestId', 'hostShipId',
+  'missionId', 'opportunityId', 'destinationShipId', 'transitRequestId',
+  'expectedDepartureRequestId', 'hostShipId',
 ]);
 
 /**
