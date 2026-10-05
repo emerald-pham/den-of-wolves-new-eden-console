@@ -113,7 +113,8 @@ it.each(['lobby', 'casting', 'briefing'] as const)(
   'waits for a started candidate cycle during normal %s instead of querying on setup snapshots', async phase => {
     useSessionStore.setState(state => ({ session: { ...state.session!, phase, currentTurn: 0 },
       me: { ...state.me!, uid: 'gm', role: 'gm' },
-      gmInstance: { id: 'instance1', uid: 'gm', sessionId: 's1', claimedAt: '2026-10-05T12:00:00.000Z' } }));
+      gmInstance: { id: 'instance1', uid: 'gm', sessionId: 's1', name: 'GM', deviceLabel: 'Laptop',
+        claimedAt: '2026-10-05T12:00:00.000Z' } }));
     render(<CandidatePreparationPanel />);
     for (let update = 1; update <= 6; update += 1) {
       await act(async () => useSessionStore.setState(state => ({ session: { ...state.session!, updatedAt: String(update) } })));
@@ -128,7 +129,8 @@ it.each(['lobby', 'casting', 'briefing'] as const)(
 it('begins candidate reads after the same original GM receives the real positive-cycle state', async () => {
   useSessionStore.setState(state => ({ session: { ...state.session!, phase: 'casting', currentTurn: 0 },
     me: { ...state.me!, uid: 'gm', role: 'gm' },
-    gmInstance: { id: 'instance1', uid: 'gm', sessionId: 's1', claimedAt: '2026-10-05T12:00:00.000Z' } }));
+    gmInstance: { id: 'instance1', uid: 'gm', sessionId: 's1', name: 'GM', deviceLabel: 'Laptop',
+      claimedAt: '2026-10-05T12:00:00.000Z' } }));
   render(<CandidatePreparationPanel />);
   expect(service.read).not.toHaveBeenCalled();
   await act(async () => useSessionStore.setState(state => ({ session: { ...state.session!, phase: 'active', currentTurn: 1 } })));
@@ -159,7 +161,8 @@ it('cannot restore private candidate calculations from a late read after positiv
   const deferred = new Promise(resolve => { resolveRead = resolve; });
   service.read.mockReturnValue(deferred);
   useSessionStore.setState(state => ({ me: { ...state.me!, uid: 'gm', role: 'gm' },
-    gmInstance: { id: 'instance1', uid: 'gm', sessionId: 's1', claimedAt: '2026-10-05T12:00:00.000Z' } }));
+    gmInstance: { id: 'instance1', uid: 'gm', sessionId: 's1', name: 'GM', deviceLabel: 'Laptop',
+      claimedAt: '2026-10-05T12:00:00.000Z' } }));
   render(<CandidatePreparationPanel />);
   expect(service.read).toHaveBeenCalledTimes(1);
   await act(async () => useSessionStore.setState(state => ({ session: { ...state.session!, phase: 'casting', currentTurn: 0 } })));

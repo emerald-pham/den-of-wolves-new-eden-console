@@ -154,7 +154,8 @@ it('delivers the Comms Officer automatic report in its current replacement stati
 function ownedGm(phase: SessionPhase = 'active') {
   useSessionStore.setState(state => ({ session: { ...state.session!, phase },
     me: { ...state.me!, uid: 'gm1', role: 'gm' },
-    gmInstance: { id: 'browser-1', sessionId: 's1', uid: 'gm1', claimedAt: '2026-10-05T12:00:00.000Z' } }));
+    gmInstance: { id: 'browser-1', sessionId: 's1', uid: 'gm1', name: 'GM', deviceLabel: 'Laptop',
+      claimedAt: '2026-10-05T12:00:00.000Z' } }));
   api.listPendingScoutRequests.mockResolvedValue([]);
 }
 
