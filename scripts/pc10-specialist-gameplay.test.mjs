@@ -17,6 +17,7 @@ test('specialist driver waits for matching live GM and ordinary crew projections
   let polls = 0;
   const game = {
     context: { gm, initial: { sessionId: 'fresh-session' } },
+    select: async () => crew,
     state: async surface => surface === gm
       ? polls === 0 ? { ...live, live: false } : live
       : live,
@@ -35,7 +36,7 @@ test('specialist driver waits for matching live GM and ordinary crew projections
 
 test('specialist driver never commits a projection from another session or changed actor', async () => {
   const gm = { label: 'gm' }, crew = { label: 'crew' };
-  const game = { context: { gm, initial: { sessionId: 'fresh-session' } },
+  const game = { context: { gm, initial: { sessionId: 'fresh-session' } }, select: async () => crew,
     state: async () => ({ live: true, sessionId: 'other-session', cycle: 1 }) };
   const driver = createSpecialistGameplayDriver(game, { now: () => 1, timeoutMs: 0 });
   const actor = { uidHash: 'same-actor-hash', sessionId: 'fresh-session', sameActor: true,
@@ -128,6 +129,22 @@ test('PDF group relay evidence hashes the message instead of storing its text', 
   assert.equal(evidence.request.textLength, message.length);
   assert.equal(evidence.request.textHash.length, 64);
   assert.equal(JSON.stringify(evidence).includes(message), false);
+});
+
+test('rendered private and group text is represented only by a bounded status code', () => {
+  const evidence = projectSpecialistActionEvidence({
+    roleId: 'quellon-explorer', endpoint: 'allocateHummingbirdHarvest',
+    actor: { uidHash: 'sha256-explorer', sessionId: 'session' },
+    request: { requestId: 'harvest-1', expectedRevision: 1, foodDieIndex: 0 },
+    response: { httpStatus: 200, result: { status: 'committed', revision: 2 } },
+    replay: { status: 'committed', result: { status: 'replayed', revision: 2 } },
+    cost: null, projection: { renderedStatus: 'private die result is 6 and 5; do not persist',
+      privateActorStatus: 'private roll contains die values 6 and 5' },
+  });
+  assert.equal(evidence.projection.renderedStatus, undefined);
+  assert.equal(evidence.projection.privateActorStatus, undefined);
+  assert.equal(JSON.stringify(evidence).includes('die result'), false);
+  assert.equal(JSON.stringify(evidence).includes('6 and 5'), false);
 });
 
 test('unknown callable names fail closed instead of receiving generic proof credit', () => {
