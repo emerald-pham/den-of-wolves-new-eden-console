@@ -12,7 +12,8 @@ const mock = vi.hoisted(() => {
       get: (field: string) => fields?.[field], data: () => fields };
   };
   const get = vi.fn(async (target: { path: string }) => {
-    if (target.path.endsWith('/missionOpportunities')) {
+    if (target.path.endsWith('/missionOpportunities') ||
+        target.path.endsWith('/boaMissionReclamationChoices')) {
       const prefix = `${target.path}/`;
       return { docs: [...documents.keys()].filter((path) => path.startsWith(prefix))
         .map((path) => snapshot(path)) };
@@ -160,7 +161,7 @@ describe('Boa mission reclamation callables', () => {
     }))).rejects.toMatchObject({ code: 'failed-precondition' });
     await expect(callables.chooseBoaMissionReclamationOpportunity(request({
       ...command, taskOpportunityId: 'L-99', requestId: 'boa-invalid-task',
-    }))).rejects.toMatchObject({ code: 'failed-precondition' });
+    }))).rejects.toMatchObject({ code: 'invalid-argument' });
     put(`sessions/s1/missionStartSnapshots/${ARRIVAL}`, { type: 'away-mission-start-snapshot' });
     await expect(callables.chooseBoaMissionReclamationOpportunity(request({
       ...command, requestId: 'boa-after-deal',
