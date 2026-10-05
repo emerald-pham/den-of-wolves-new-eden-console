@@ -233,7 +233,7 @@ export function createBasePendingProcedureCallbacks({
 
   const defaults = createPendingProcedureDefaultSteps();
   const coreSteps = Object.fromEntries(CORE_CRAFT_PROCEDURES.map(row => [row.id, defaults[row.id]]));
-  const gmSteps = Object.fromEntries(BASE_GM_CHOICE_INPUTS.map(row => [row.endpoint, defaults[row.endpoint]]));
+  const gmSteps = Object.fromEntries(GM_RULING_COUNTER_PROCEDURES.map(row => [row.id, defaults[row.id]]));
   Object.assign(coreSteps, overridesByCaseId(coreStepOverrides, CORE_CRAFT_PROCEDURES));
   Object.assign(gmSteps,
     overridesByCaseId(gmStepOverrides, GM_RULING_COUNTER_PROCEDURES),
