@@ -13,7 +13,18 @@ import { createPc07AuthenticatedSession } from './pc07-authenticated-session.mjs
 export async function createPc10BrowserActor(browser, baseUrl, label, viewport = { width: 390, height: 844 }) {
   const context = await browser.newContext({ viewport, reducedMotion: 'reduce' });
   const page = await context.newPage();
+  page.setDefaultTimeout(20_000);
+  page.setDefaultNavigationTimeout(20_000);
   const errors = [];
+  let joinStage = 'not started';
+  async function bounded(operation, timeoutMs, name) {
+    let timer;
+    try {
+      return await Promise.race([operation, new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`${label}: ${name} exceeded ${timeoutMs}ms`)), timeoutMs);
+      })]);
+    } finally { clearTimeout(timer); }
+  }
   let storeModule = '/src/store/useSessionStore.ts';
   let functionsSdkModule = '/node_modules/.vite/deps/firebase_functions.js';
   page.on('pageerror', error => errors.push(error.message));
@@ -23,7 +34,7 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
     if (url.pathname.endsWith('/firebase_functions.js')) functionsSdkModule = url.href;
   });
   async function observe() {
-    return page.evaluate(async moduleUrl => {
+    return bounded(page.evaluate(async moduleUrl => {
       const { auth } = await import('/src/lib/firebase.ts');
       const { useSessionStore } = await import(moduleUrl);
       const state = useSessionStore.getState();
@@ -33,7 +44,7 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
         seatId: state.me?.seatId ?? null, connection: state.connection,
         freshness: state.sessionSnapshotFreshness, phase: state.session?.phase ?? null,
         cycle: state.session?.currentTurn ?? null };
-    }, storeModule);
+    }, storeModule), 10_000, 'identity observation');
   }
   async function until(label, ready, timeoutMs = 30_000) {
     const deadline = Date.now() + timeoutMs;
@@ -45,15 +56,19 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
     }
     throw new Error(`${label}: ${JSON.stringify(state)}`);
   }
-  async function join(joinCode) {
+  async function enter(joinCode) {
     console.log(`${label}: ordinary UI join started`);
+    joinStage = 'launcher navigation';
     await page.goto(baseUrl);
+    console.log(`${label}: launcher loaded`);
     const motion = page.getByRole('button', { name: /^REDUCED MOTION/i });
     if (await motion.isVisible()) await motion.click();
     await page.getByRole('textbox', { name: 'Session code', exact: true }).fill(joinCode);
     await page.getByRole('button', { name: 'Join a session', exact: true }).click();
+    joinStage = 'waiver admission';
     const waiver = page.getByRole('dialog', { name: 'CODE OF CONDUCT', exact: true });
     await waiver.waitFor();
+    console.log(`${label}: consent displayed`);
     const regulations = waiver.getByRole('checkbox', { name: /^Acknowledge regulation/ });
     await regulations.first().waitFor();
     assert.equal(await regulations.count(), 3, 'All existing admission regulations must be present.');
@@ -71,18 +86,20 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
       const captureDirectory = process.env.PC10_EVIDENCE_DIRECTORY;
       if (captureDirectory) {
         await mkdir(captureDirectory, { recursive: true });
-        await page.screenshot({ path: `${captureDirectory}/${label}-consent-failure.png` });
+        await bounded(page.screenshot({ path: `${captureDirectory}/${label}-consent-failure.png` }), 5_000,
+          'failure screenshot').catch(() => undefined);
         await writeFile(`${captureDirectory}/${label}-consent-failure.json`, `${JSON.stringify({
           label, message: error.message, regulationChecks: await regulations.evaluateAll(inputs => inputs.map(input => input.checked)),
           consentStatus: await waiver.getByRole('status').allTextContents(),
           buttonDisabled: await acknowledge.isDisabled({ timeout: 1_000 }).catch(() => null),
           waiverVisible: await waiver.isVisible(),
           documentUrl: page.url(),
-          identity: await observe(), browserErrors: errors,
+          identity: await observe().catch(error => ({ unavailable: error.message })), browserErrors: errors,
         }, null, 2)}\n`);
       }
       throw error;
     }
+    joinStage = 'authoritative joined identity';
     await until(`${label} ordinary Auth join`, state => state.hasAuth && state.sameActor && state.hasSession);
     console.log(`${label}: ordinary UI admission and consent passed`);
     return page.evaluate(async () => {
@@ -92,6 +109,21 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
       function assertIdentity(value) { if (!value) throw new Error('Joined browser has no Firebase Auth identity.'); }
       return { localId: current.uid, idToken: await current.getIdToken() };
     });
+  }
+  async function join(joinCode) {
+    try { return await bounded(enter(joinCode), 60_000, `ordinary join at ${joinStage}`); }
+    catch (error) {
+      const directory = process.env.PC10_EVIDENCE_DIRECTORY;
+      if (directory) {
+        await mkdir(directory, { recursive: true });
+        await writeFile(`${directory}/${label}-join-diagnostic.json`, `${JSON.stringify({
+          roleId: label, status: 'failed', stage: joinStage, message: error.message,
+          documentUrl: page.url(), browserErrors: errors,
+        }, null, 2)}\n`);
+      }
+      await bounded(context.close(), 5_000, 'failed join context cleanup').catch(() => undefined);
+      throw error;
+    }
   }
   async function callable(name, data) {
     return page.evaluate(async ({ sdkUrl, name, data }) => {
@@ -137,7 +169,7 @@ export async function createPc10BrowserTable({ baseUrl, directory, expansion = '
     const press = await createPc10BrowserActor(browser, baseUrl, 'press-officer');
     clients.set('press-officer', press);
     fixture = await createPc07AuthenticatedSession('PC10 fresh overlapping browser rehearsal', coreCount, {
-      clearBriefing: true, keepAlive: true, serializeFixtureCalls: false, expansion,
+      clearBriefing: true, keepAlive: true, serializeFixtureCalls: false, browserOwnsPresence: true, expansion,
       capybaraEnabled: true, joinBrowserPlayers: joins, joinPressPlayer: press.join,
     });
     const actorRoles = new Map(fixture.players.map((actor, index) => [actor.localId, roles[index]]));
