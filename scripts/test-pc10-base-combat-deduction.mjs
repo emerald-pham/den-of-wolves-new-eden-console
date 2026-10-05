@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { resolveLiveWolfAttack } from './pc10-live-wolf-attack-ui-proof.mjs';
 
 // Native procedure contracts only; these surfaces provide no gameplay/Auth evidence.
 const contracts = () => import('./pc10-base-combat-deduction-contracts.mjs');
-const actor = (changes = {}) => ({ sessionId: 'native-session', uidHash: 'native-executive',
+const actor = (changes = {}) => ({ hasAuth: true, sessionId: 'native-session', uidHash: 'native-executive',
   profileRoleId: 'executive-officer', activeConsoleRoleId: 'executive-officer', playerRole: 'player',
   cycle: 1, phase: 'active', sameActor: true, connection: 'live', freshness: 'server', ...changes });
 const gm = (changes = {}) => actor({ uidHash: 'native-gm', profileRoleId: 'gm', playerRole: 'gm',
@@ -118,4 +119,159 @@ test('the existing real attack resolver accepts an explicit source-control suppl
   const result = await resolveLiveWolfAttack({ gm: {}, roster: [] }, { tools, timeoutMs: 10, verifyReplay: false,
     chooseNext: async value => { assert.equal(value.attackId, 'native-only'); supplements++; status = 'resolved'; return true; } });
   assert.equal(result.status, 'resolved'); assert.equal(supplements, 1);
+});
+
+test('the current-phase original GM wait observes cache transitions without accepting or changing the source actor', async () => {
+  const { waitForOriginalBaseActor } = await contracts();
+  let reads = 0, time = 0;
+  const current = await waitForOriginalBaseActor({ original: gm(),
+    inspect: async () => { reads++; return gm(reads < 3 ? { freshness: 'cache', connection: 'reconnecting' } : {}); },
+    now: () => time, wait: async () => { time += 1; }, timeoutMs: 4 });
+  assert.equal(reads, 3); assert.equal(current.freshness, 'server');
+});
+
+test('a cache period does not relax original Auth, GM ownership, instance, phase or role fences', async () => {
+  const { waitForOriginalBaseActor } = await contracts();
+  for (const change of [{ hasAuth: false }, { uidHash: 'foreign' }, { sameActor: false },
+    { playerRole: 'player' }, { instanceId: 'replacement' }, { gmInstanceOwned: false }, { phase: 'debrief' }]) {
+    let reads = 0;
+    await assert.rejects(waitForOriginalBaseActor({ original: gm(),
+      inspect: async () => { reads++; return gm({ connection: 'reconnecting', freshness: 'cache', ...change }); },
+      timeoutMs: 2, now: () => 0, wait: async () => { throw new Error('Wrong identities cannot wait for permission.'); } }));
+    assert.equal(reads, 1);
+  }
+});
+
+test('current-phase readiness has a bounded read-only deadline and produces no endpoint replay', async () => {
+  const { waitForOriginalBaseActor } = await contracts();
+  let reads = 0, time = 0;
+  await assert.rejects(waitForOriginalBaseActor({ original: gm(),
+    inspect: async () => { reads++; return gm({ freshness: 'cache' }); }, timeoutMs: 2,
+    now: () => time, wait: async () => { time += 1; } }), /deadline|fresh|live/i);
+  assert.equal(reads, 2);
+});
+
+const aftermath = (changes = {}) => ({ type: 'wolf-attack-member-view', schemaVersion: 1,
+  sessionId: 'native-session', attackId: 'native-attack', turn: 1, revision: 9,
+  status: 'resolved', phase: 'active', currentStep: 'resolved', range: null,
+  deadlineAt: '2026-10-05T10:00:00Z', serverTime: '2026-10-05T10:00:01Z', visibility: 'members',
+  redaction: ['composition', 'unresolved-dice', 'facilitator-notes', 'intervention-state'],
+  remainingThreatCount: 2, returningThreatCount: 1,
+  results: [{ range: 'boarding', sourceId: 'wolf-attack-damage', targetId: 'aegis', bearing: null,
+    contactReference: 'AEGIS', effect: 'Fleet damage', outcome: { damage: 1, populationLoss: 1000 },
+    serverTime: '2026-10-05T10:00:01Z' }], ...changes });
+const committedAttack = { attackId: 'native-attack', turn: 1, revision: 9 };
+
+test('member aftermath acceptance awaits both the exact source revision and the real rendered committed results', async () => {
+  const { waitForBaseMemberAftermath } = await contracts();
+  let reads = 0, paints = 0, time = 0;
+  const result = await waitForBaseMemberAftermath({ original: actor(), inspect: async () => actor(),
+    expected: committedAttack, read: async () => ++reads === 1 ? aftermath({ revision: 8 }) : aftermath(),
+    renderedReady: async () => ++paints > 1, now: () => time, wait: async () => { time += 1; }, timeoutMs: 4 });
+  assert.equal(result.revision, 9); assert.equal(reads, 3); assert.equal(paints, 2);
+});
+
+test('pending entitled member reads cannot be accepted under a changed original role, UID or console', async () => {
+  const { waitForBaseMemberAftermath } = await contracts();
+  for (const change of [{ uidHash: 'foreign' }, { profileRoleId: 'admiral' }, { activeConsoleRoleId: 'admiral' }]) {
+    let reads = 0;
+    await assert.rejects(waitForBaseMemberAftermath({ original: actor(),
+      inspect: async () => reads ? actor(change) : actor(), read: async () => { reads++; return aftermath(); },
+      expected: committedAttack, renderedReady: async () => true }));
+    assert.equal(reads, 1);
+  }
+});
+
+test('a public aftermath read rejects nested private dice or unknown fields instead of laundering the raw server document', async () => {
+  const { assertSafeBaseMemberAftermath } = await contracts();
+  assert.doesNotThrow(() => assertSafeBaseMemberAftermath(aftermath(), { sessionId: 'native-session', ...committedAttack }));
+  for (const value of [aftermath({ secret: 'hidden' }), aftermath({ calculationReceipt: { rolls: [6] } }),
+    aftermath({ results: [{ ...aftermath().results[0], outcome: { damage: 1, dice: [6] } }] }),
+    aftermath({ results: [{ ...aftermath().results[0], actorUid: 'hidden' }] })])
+    assert.throws(() => assertSafeBaseMemberAftermath(value, { sessionId: 'native-session', ...committedAttack }));
+});
+
+test('private investigator replies fail closed on arbitrary nested additions as well as named truth fields', async () => {
+  const { validatePrivateDeductionReply } = await contracts();
+  const expected = { sessionId: 'native-session', cycle: 1, investigatorUid: 'native-investigator', targetUid: 'native-target' };
+  const result = { type: 'wolf-agent-detector-test', status: 'committed', requestId: 'native-request', revision: 1,
+    targetDisplayName: 'Native target', reportedWolf: false, ...expected };
+  assert.doesNotThrow(() => validatePrivateDeductionReply(result, expected));
+  for (const unknown of [{ evidence: { actualWolf: true } }, { suspicion: 7 }, { status: 'stale' }])
+    assert.throws(() => validatePrivateDeductionReply({ ...result, ...unknown }, expected));
+});
+
+test('source attack requests use actual per-callable bindings and never invent a CAS field on aftermath', async () => {
+  const { baseWolfActionExpectation } = await contracts();
+  assert.deepEqual(baseWolfActionExpectation('commitWolfFighterRangeActionChoice', committedAttack), { expectedTurn: 1, expectedRevision: 9 });
+  assert.deepEqual(baseWolfActionExpectation('resolveWolfAttackAftermath', committedAttack), { attackId: 'native-attack' });
+  assert.throws(() => baseWolfActionExpectation('inventedWolfMutation', committedAttack));
+});
+
+test('exact receipt recovery preserves meaningful source status values and every committed consequence', async () => {
+  const { captureBaseUiReceipt } = await contracts();
+  const fixture = receiptSurface({ result: { status: 'due', turn: 1, revision: 4 } });
+  fixture.surface.callable = async () => ({ status: 'committed', result: { status: 'deferred', turn: 1, revision: 4 } });
+  await assert.rejects(captureBaseUiReceipt({ surface: fixture.surface, endpoint: 'setWolfAttackWindow',
+    expectedActor: actor(), decision: fixture.click, record: () => {} }), /consequence|preserve/i);
+});
+
+test('UI control names resolve against the actual source presenters for Short Maliades, GM ruling and private investigation', async () => {
+  const { BASE_COMBAT_CONTROL_LABELS } = await contracts();
+  for (const [key, file] of [
+    ['maliadesShort', 'src/components/DioneMaliadesRangeActions.tsx'],
+    ['commanderRuling', 'src/components/WolfBoardingChoicePanels.tsx'],
+    ['investigationRegion', 'src/components/PrivateLoyaltyPanel.tsx']]) {
+    const source = await readFile(new URL(`../${file}`, import.meta.url), 'utf8');
+    assert.ok(source.replace(/\s+/g, ' ').includes(BASE_COMBAT_CONTROL_LABELS[key]), `The normal ${key} control must actually exist in source.`);
+  }
+});
+
+test('Short Range assignments respect actual server fighter-coverage constraints and distinct targets per source', async () => {
+  const { chooseBaseRangeAssignments } = await contracts();
+  const view = { range: 'short-range', choiceStatus: 'targets-required',
+    eligibleActions: [{ actionId: 'missiles', sourceId: 'aegis-missile-launchers' }, { actionId: 'lasers', sourceId: 'aegis-point-defence-lasers' }],
+    hitSlots: [{ actionId: 'missiles', count: 2, damagePerHit: 1 }, { actionId: 'lasers', count: 1, damagePerHit: 1 }],
+    contacts: [{ contactId: 'contact-1', available: true, requiredCoverageDamage: null },
+      { contactId: 'contact-2', available: true, requiredCoverageDamage: 2 },
+      { contactId: 'contact-3', available: true, requiredCoverageDamage: 1 }] };
+  const choices = chooseBaseRangeAssignments(view);
+  assert.deepEqual(choices, [{ actionId: 'missiles', contactIds: ['contact-2', 'contact-3'] }, { actionId: 'lasers', contactIds: ['contact-2'] }]);
+  for (const choice of choices) assert.equal(new Set(choice.contactIds).size, choice.contactIds.length);
+  assert.throws(() => chooseBaseRangeAssignments({ ...view, contacts: [{ contactId: 'contact-1', available: true }] }), /coverage/i);
+});
+
+function nativeOccupiedRoster(count) {
+  const roles = ['refinery-124-pdf-colonel', 'wing-commander', 'quellon-explorer',
+    ...Array.from({ length: count - 3 }, (_, i) => `native-role-${i}`), 'press-officer'];
+  const holders = roles.map((roleId, i) => ({ uid: `native-current-${i}`, role: 'player', connected: true,
+    assignedRoleId: roleId === 'press-officer' ? null : roleId, activeConsoleRoleId: roleId,
+    seatId: roleId === 'press-officer' ? null : `native-seat-${i}`, replacementRoleId: null,
+    replacementStatus: null, escapeState: null }));
+  const roster = holders.map(holder => ({ roleId: holder.activeConsoleRoleId,
+    uidHash: createHash('sha256').update(holder.uid).digest('hex').slice(0, 16) }));
+  return { holders, roster, activeRoleIds: roles.filter(role => role !== 'press-officer'), playerCount: count };
+}
+
+test('the ordinary explicit setup plan covers exactly occupied18/20 core holders and claimed Press using actual original identities', async () => {
+  const { baseDeductionAssignments } = await contracts();
+  for (const count of [18, 20]) {
+    const source = nativeOccupiedRoster(count), assignments = baseDeductionAssignments({ ...source, scenario: 'wolf-cult' });
+    assert.equal(assignments.length, count + 1);
+    assert.equal(assignments.filter(value => value.kind === 'wolf-agent').length, 1);
+    assert.equal(assignments.filter(value => value.kind === 'wolf-cult').length, 1);
+    assert.equal(assignments.filter(value => value.kind === 'intelligence-agent').length, 1);
+    assert.equal(new Set(assignments.map(value => value.uid)).size, assignments.length);
+    assert.equal(assignments.find(value => value.kind === 'intelligence-agent').roleId, 'quellon-explorer');
+    assert.equal(assignments[0].kind, 'wolf-agent', 'Assign an actual other Wolf before enabling Intelligence.');
+  }
+});
+
+test('the explicit setup plan rejects missing or replaced occupied holders, unknown UID mappings and conflicting source roles', async () => {
+  const { baseDeductionAssignments } = await contracts(), source = nativeOccupiedRoster(18);
+  for (const changed of [{ holders: source.holders.slice(1) },
+    { holders: source.holders.map((holder, i) => i === 0 ? { ...holder, uid: 'foreign-current' } : holder) },
+    { holders: source.holders.map((holder, i) => i === 0 ? { ...holder, replacementStatus: 'pending' } : holder) },
+    { intelligenceRoleId: 'wing-commander' }, { playerCount: 12 }, { scenario: 'automatic-default' }])
+    assert.throws(() => baseDeductionAssignments({ ...source, scenario: 'wolf-cult', ...changed }));
 });
