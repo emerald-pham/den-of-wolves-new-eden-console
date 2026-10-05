@@ -14,7 +14,7 @@ const expectedNames = [
   'createSession', 'joinSession', 'resumeSession', 'getCurrentMemberSession',
   'refreshPresence', 'confirmSetup', 'startGame', 'prepareFullGameDemo',
   'beginSessionDebrief', 'closeSession', 'getSessionDebrief',
-  'readFleetGroupMessages', 'sendFleetGroupMessage',
+  'readFleetGroupMessages', 'sendFleetGroupMessage', 'loginGmAccess',
 ];
 const permittedClassifications = new Set([
   'served-ui-path', 'legacy/deprecated-internal-compatibility',
@@ -85,6 +85,7 @@ test('review annotations preserve the canonical matrix and anchor each concrete 
       assert.equal(byName.get(name).classification, 'external/manual-only');
       assert.equal(byName.get(name).clientCallTrace.status, 'no-current-client-call-found');
     }
+    assert.equal(byName.get('loginGmAccess').classification, 'served-ui-path');
 
     const untouchedMatrix = readFileSync(join(repositoryDirectory, 'docs/PC10_ACTION_ROLE_MATRIX.json'));
     assert.equal(sha256(untouchedMatrix), matrixBefore, 'the canonical generated snapshot is not rewritten');
