@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { readFile, readdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { extractLoyaltyKindIds } from './pc10-loyalty-kind-ids.mjs';
 
 const require = createRequire(new URL('../functions/package.json', import.meta.url));
 const sourceCommit = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
@@ -12,6 +13,7 @@ const endpoints = Object.entries(require('../functions/lib/index.js'))
     : value.__endpoint.scheduleTrigger ? 'schedule' : 'background' }));
 const { ROLE_IDS } = require('../functions/lib/roleConfiguration.js');
 const { REPLACEMENT_ROLE_CATALOG } = require('../functions/lib/replacementRoles.js');
+const loyaltyKindIds = extractLoyaltyKindIds(await readFile('functions/src/gameSetup.ts', 'utf8'));
 async function sourceFiles(directory) {
   const result = [];
   for (const entry of await readdir(directory, { withFileTypes: true })) {
@@ -30,13 +32,7 @@ const rows = endpoints.map(endpoint => ({ ...endpoint,
 const roles = [...ROLE_IDS.map(id => ({ id, kind: id.startsWith('joint-engineering-') ? 'sparse-roster station' : 'core/optional station' })),
   ...REPLACEMENT_ROLE_CATALOG.map(role => ({ id: role.id, kind: 'replacement role' })),
   { id: 'gm', kind: 'authenticated facilitator' },
-  { id: 'fleet-loyalist', kind: 'private loyalty functions' },
-  { id: 'wolf-agent', kind: 'private loyalty functions' },
-  { id: 'intelligence-agent', kind: 'private loyalty functions' },
-  { id: 'universal-arbour', kind: 'private loyalty functions' },
-  { id: 'android', kind: 'private loyalty functions' },
-  { id: 'friend', kind: 'private loyalty functions' },
-  { id: 'wolf-cult', kind: 'private loyalty functions' }];
+  ...loyaltyKindIds.map(id => ({ id, kind: 'private loyalty functions' }))];
 const inventory = { schemaVersion: 1, sourceCommit,
   binding: 'Built SDK __endpoint exports from current Functions source; independent review and gameplay evidence remain separate.',
   accounting: 'Every callable is inventoried. Background jobs are separately traced; an inventory row alone is not acceptance.',
