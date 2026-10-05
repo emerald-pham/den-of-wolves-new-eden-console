@@ -2,6 +2,14 @@
 
 Opening: 703/751 overall; 245/293 campaign. Target: 48 assigned closures, 751/751 and 293/293. All rows start pending. Added scope earns zero campaign credit.
 
+The [function and role matrix](PC10_FUNCTION_ROLE_MATRIX.json) enumerates the
+actual compiled Firebase SDK endpoints, their current client consumers, core,
+sparse-roster, replacement and private-loyalty roles. Each row separately tracks
+fresh-game, authority/privacy/recovery, automated browser and human-device
+evidence. Inventory and focused regression passes grant no gameplay credit.
+Regenerate it after the final Functions integration and bind each accepted row
+to the corresponding real scenario and source/runtime evidence.
+
 | ID | Required behavior | Implementation / connection | Authenticated gameplay / recovery / privacy | Review / release |
 |---|---|---|---|---|
 | 181 | Create the Wing Commander workspace. | pending | pending | pending |

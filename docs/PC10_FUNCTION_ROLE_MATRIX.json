@@ -1,0 +1,2926 @@
+{
+  "schemaVersion": 1,
+  "sourceCommit": "0613c8b939b59f62488fc78545a12cf3e5fa1d7b",
+  "binding": "Built SDK __endpoint exports from current Functions source; independent review and gameplay evidence remain separate.",
+  "accounting": "Every callable is inventoried. Background jobs are separately traced; an inventory row alone is not acceptance.",
+  "roles": [
+    {
+      "id": "admiral",
+      "kind": "core/optional station",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "executive-officer",
+      "kind": "core/optional station",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "wing-commander",
+      "kind": "core/optional station",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "dione-captain",
+      "kind": "core/optional station",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "dione-engineer",
+      "kind": "core/optional station",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "dione-president",
+      "kind": "core/optional station",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "icebreaker-captain",
+      "kind": "core/optional station",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "icebreaker-engineer",
+      "kind": "core/optional station",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "icebreaker-miner",
+      "kind": "core/optional station",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "shepherd-captain",
+      "kind": "core/optional station",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "shepherd-engineer",
+      "kind": "core/optional station",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "shepherd-scientist",
+      "kind": "core/optional station",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "quellon-captain",
+      "kind": "core/optional station",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "quellon-engineer",
+      "kind": "core/optional station",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "quellon-explorer",
+      "kind": "core/optional station",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "refinery-124-captain",
+      "kind": "core/optional station",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "refinery-124-engineer",
+      "kind": "core/optional station",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "refinery-124-pdf-colonel",
+      "kind": "core/optional station",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "press-officer",
+      "kind": "core/optional station",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "capybara-captain",
+      "kind": "core/optional station",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "capybara-recycler",
+      "kind": "core/optional station",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "joint-engineering-quellon-refinery",
+      "kind": "sparse-roster station",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "joint-engineering-shepherd-icebreaker",
+      "kind": "sparse-roster station",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "wolf-commander",
+      "kind": "replacement role",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "comms-officer",
+      "kind": "replacement role",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "vip-host",
+      "kind": "replacement role",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "commissar",
+      "kind": "replacement role",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "rosal-militia-leader",
+      "kind": "replacement role",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "doctor",
+      "kind": "replacement role",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "pdf-fighter-ace",
+      "kind": "replacement role",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "gorgoneion-captain",
+      "kind": "replacement role",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "capybara-small-captain",
+      "kind": "replacement role",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "warrior-captain",
+      "kind": "replacement role",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "vulcan-captain",
+      "kind": "replacement role",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "gm",
+      "kind": "authenticated facilitator",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "wolf-agent",
+      "kind": "private loyalty functions",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "intelligence-agent",
+      "kind": "private loyalty functions",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    },
+    {
+      "id": "wolf-cult",
+      "kind": "private loyalty functions",
+      "currentFreshGameProof": "pending",
+      "recoveryProof": "pending",
+      "usabilityProof": "pending"
+    }
+  ],
+  "functions": [
+    {
+      "name": "repairConsolesFromAlly",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/allyRepairService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "repairGorgoneionWithDrones",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/gorgoneionRepairDronesService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "repairWarriorWithDrones",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/warriorRepairDronesService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "resolveWolfAttackAftermath",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/wolfAttackAftermathService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "transferBaseCapybaraCargo",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/baseCapybaraCargoService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "readPrivateScoutResult",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/scoutResultService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "listPendingScoutRequests",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/scoutResultService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "listGmScoutResolutionLog",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/scoutResultService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "listMyScoutReports",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/scoutResultService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "readMyScoutDiscoveryNote",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/scoutResultService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "advanceEndeavourResearchTrack",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/endeavourResearchService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "readEndeavourResearchWorkspace",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/endeavourResearchService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "runWolfAgentDetectorTest",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/wolfAgentDetectorService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "activateEndeavourEcmDevice",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/endeavourEcmDeviceService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "readEndeavourEcmDeviceWorkspace",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/endeavourEcmDeviceService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "repairMaliades",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/maliadesService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "resolveMaliadesMedium",
+      "kind": "callable",
+      "clientConsumers": [],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "resolveMaliadesShort",
+      "kind": "callable",
+      "clientConsumers": [],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "proposePermissionedDismantling",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/permissionedDismantlingService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "getGorgoneionMissionSupportProjection",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/gorgoneionMissionSupportService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "applyGorgoneionMissionSupport",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/gorgoneionMissionSupportService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "commitAwayMissionLifecycleCommand",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/awayMissionLifecycleService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "consentToPermissionedDismantling",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/permissionedDismantlingService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "declinePermissionedDismantling",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/permissionedDismantlingService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "revokePermissionedDismantlingConsent",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/permissionedDismantlingService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "applyPermissionedDismantling",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/permissionedDismantlingService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "attestPlayerHeldTokenBaseline",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sameTableTradeService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "createSameTableTradeOffer",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sameTableTradeService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "acceptSameTableTradeOffer",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sameTableTradeService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "dockVoyage33",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/voyage33MovementService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "jumpVoyage33",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/voyage33MovementService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "getSmallShipJumpWorkspace",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/smallShipJumpService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "jumpSmallShip",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/smallShipJumpService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "getBoardingSecurityTeamLocations",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/boardingSecurityTeamService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "readCandidateWorkspace",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/candidateService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "executeCandidateAction",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/candidateService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "resolvePendingScoutRequest",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/scoutResultService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "automaticallyResolveScoutRequest",
+      "kind": "background",
+      "clientConsumers": [],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "createSession",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "confirmSetup",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts",
+        "src/routes/GmConsole.tsx",
+        "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "setFacilitatorResponsibility",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts",
+        "src/routes/GmConsole.tsx",
+        "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "startGame",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "prepareFullGameDemo",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "advanceFullGameDemoPhase",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "transferShuttleControlCommand",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/shuttleControlService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "transferShuttleCargoCommand",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/shuttleCargoService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "rechargeHostConsoleFromShuttle",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/serviceShuttleRechargeService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "repairConsolesFromBlacksmith",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/blacksmithRepairService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "repairConsolesFromPhilia",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/philiaRepairService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "repairConsolesFromMacaw",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/macawRepairService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "recycleWithBoa",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/boaRecyclingService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "repairConsolesFromChacau",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/chacauRepairService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "upgradeEndeavourFieldTargets",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/endeavourFieldUpgradeService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "evacuateShuttleSurvivorsCommand",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/shuttleEvacuationService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "requestShuttleDeparture",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/shuttleDepartureService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "beginShuttleTransit",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/shuttleDepartureService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "retargetShuttleTransit",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/shuttleDepartureService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "completeShuttleArrival",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/shuttleDepartureService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "dealPrivateInitialCards",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "openPrivateMissionDiscards",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "discardPrivateMissionCard",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "setShipPreference",
+      "kind": "callable",
+      "clientConsumers": [],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "assignRole",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts",
+        "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "releaseRole",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts",
+        "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "setReplacementEligibility",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "assignReplacementRole",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "setFacilitatorCensusNote",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts",
+        "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "calculateArrestPosse",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "resolveArrestPosse",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/arrestPosseService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "resolveArrestCaseDisposition",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/arrestCaseDispositionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "attestVipHostVisit",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/vipHostService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "rerollHostedShipMaintenance",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/vipHostService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "getPdfFighterAceCombatView",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/pdfFighterAceService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "getPdfFighterAcePermissionView",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/pdfFighterAceService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "grantPdfFighterAcePermission",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/pdfFighterAceService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "commitPdfFighterAceCombat",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/pdfFighterAceService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "deliverWolfCultIntelligence",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts",
+        "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "transitionCrisis",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts",
+        "src/routes/GmConsole.tsx",
+        "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "setDiseaseQuarantine",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts",
+        "src/routes/GmConsole.tsx",
+        "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "admitVoyage33",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts",
+        "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "recordApproachingVesselResponse",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/approachingVesselResponseService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "recordZealotryResponse",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts",
+        "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "recordCivilUnrestResolution",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts",
+        "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "submitCivilUnrestGrievance",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts",
+        "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "authorArbourVision",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts",
+        "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "authorFacilitatorRuleCall",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts",
+        "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "setCandidatePlanCheckpoint",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts",
+        "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "assignLoyalty",
+      "kind": "callable",
+      "clientConsumers": [],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "revealAndroidProof",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/androidProofService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "readFleetGroupMessages",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/fleetGroupService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "sendFleetGroupMessage",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/fleetGroupService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "shareKnownSystemDetails",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/fleetGroupService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "readFleetGroupNavigation",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/fleetGroupService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "sendScoutTaxiCourier",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/scoutTaxiCommunicationService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "sendScoutTaxiTransfer",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/fleetGroupService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "confirmFleetPartition",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/fleetGroupService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "getCurrentMemberSession",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/firestore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "beginSessionDebrief",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "closeSession",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "getSessionDebrief",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "joinSession",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/demoActorProfiles.ts",
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "resumeSession",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/demoActorProfiles.ts",
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "loginGmAccess",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "logoutGmAccess",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts",
+        "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "claimGmInstance",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts",
+        "src/routes/GmConsole.tsx",
+        "src/routes/RoleSelect.tsx",
+        "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "setGmShipConsoleWriteGrant",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "listGmInstances",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/firestore.ts",
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "kickGmInstance",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts",
+        "src/routes/GmConsole.tsx",
+        "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "releaseGmInstance",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/components/AppHeader.tsx",
+        "src/lib/sessionService.ts",
+        "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "kickPlayer",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts",
+        "src/routes/GmConsole.tsx",
+        "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "triggerDradisContact",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "setCapybaraEnabled",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts",
+        "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "setPressEnabled",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts",
+        "src/routes/GmConsole.tsx",
+        "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "setDioneEnabled",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts",
+        "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "moveShipToLocation",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "jumpShip",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "listUnresolvedJumpFailures",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "adjudicateFailedJump",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "setShipConsoleLock",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "setGmControlsLocked",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts",
+        "src/routes/GmConsole.tsx",
+        "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "setDebriefMode",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts",
+        "src/routes/GmConsole.tsx",
+        "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "advanceTurn",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "scheduleAirspaceClosureParking",
+      "kind": "background",
+      "clientConsumers": [],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "parkShuttlesAtAirspaceClosure",
+      "kind": "background",
+      "clientConsumers": [],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "reconcileAirspaceClosureTasks",
+      "kind": "schedule",
+      "clientConsumers": [],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "startSinglePlayerDemo",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "replayTurnStartAnnouncement",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "beginOpenAirspacePhase",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "extendAirspaceWindow",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "setEmergencyTimerPaused",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "getWolfAttackThreatWindowOptions",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "setWolfAttackWindow",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "commitWolfCommanderAttackDial",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "getWolfCommanderCycleAttackDial",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "publishWolfCommanderAddress",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "createWolfAmnestyOffer",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "respondToWolfAmnesty",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "recordWolfAmnestyConsequence",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "getWolfAmnestyView",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "stageWolfAttackPreparation",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "declareWolfAttack",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "syncWolfAttackAudienceProjection",
+      "kind": "background",
+      "clientConsumers": [],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "advanceWolfAttackLifecycle",
+      "kind": "background",
+      "clientConsumers": [],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "refreshWolfAttackDecisionSummaryOnPlayerChange",
+      "kind": "background",
+      "clientConsumers": [],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "advanceWolfAttackToLongRange",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "getWolfCommanderTargeting",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "applyWolfCommanderTargetRerolls",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "finishWolfCommanderTargetingRerolls",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "applyWolfCommanderRangeTargetAdjustment",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "getWolfCommanderRangeTargetDial",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "getAegisCommandAndControl",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "applyAegisCommandAndControl",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "passAegisCommandAndControl",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "getAegisEnrichedWarheadChoice",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "commitAegisEnrichedWarheadChoice",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "getAegisFighterWingLaunch",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "launchAegisFighterWing",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "getWolfRangeActionChoice",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "commitWolfRangeActionChoice",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "assignWolfRangeTargets",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "getWolfFighterRangeActionChoice",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "commitWolfFighterRangeActionChoice",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "getWolfEscortRangeActionChoice",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/wolfEscortRangeService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "commitWolfEscortRangeActionChoice",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/wolfEscortRangeService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "getWolfRangeSupportActionChoice",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "commitWolfRangeSupportActionChoice",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "getWolfForceFieldChoice",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "commitWolfForceFieldChoice",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "getWolfBoardingDefenceChoice",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "commitWolfBoardingDefenceChoice",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "getWolfBoardingSpecialChoice",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "commitWolfBoardingSpecialChoice",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "getDioneMaliadesLaunch",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "launchDioneMaliades",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "getPdfEscortWingLaunch",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "launchPdfEscortWing",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "passWolfFighterLaunchChoice",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "startWolfConsoleVisit",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "resolveWolfConsoleSabotage",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "submitWolfSupplySabotage",
+      "kind": "callable",
+      "clientConsumers": [],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "acknowledgeWolfHackingAlert",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "submitWolfHomingBeacon",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/wolfActionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "submitWolfIntelligence",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/wolfActionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "investigateAsIntelligenceAgent",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/intelligenceInvestigationService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "unlockPressAirspace",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/airspaceService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "setActiveRoleEnabled",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts",
+        "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "setActiveRoleConfiguration",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts",
+        "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "applyRolePreset",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts",
+        "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "popShipConfetti",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/components/PressConfetti.tsx",
+        "src/lib/sessionService.ts",
+        "src/routes/ShipConsole.tsx",
+        "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "getSessionPresence",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "fleeDestroyedShip",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts",
+        "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "refreshPresence",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/demoActorProfiles.ts",
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "disconnectFromSession",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/components/AppHeader.tsx",
+        "src/lib/sessionService.ts",
+        "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "deleteInactiveSessions",
+      "kind": "schedule",
+      "clientConsumers": [],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "expireStalePlayers",
+      "kind": "schedule",
+      "clientConsumers": [],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "claimSeat",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/demoActorProfiles.ts",
+        "src/lib/sessionService.ts",
+        "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "releaseSeat",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts",
+        "src/store/useSessionStore.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "elevateToGm",
+      "kind": "callable",
+      "clientConsumers": [],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "scavengeDestroyedShipStores",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "adjustShipResource",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "adjustShipUnrest",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "consentCommissarPurge",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "applyCommissarPurge",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "getCommissarPurgeAuthority",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "dismissUnrestAlert",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "resolveShipMutiny",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "addShipDamage",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/shipDamageService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "rollDice",
+      "kind": "callable",
+      "clientConsumers": [],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "adjustShipPopulation",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "applyShipCounterSteps",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "setFighterWingCount",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "buildFighter",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "dismissPopulationAlert",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/sessionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "runHighwallMining",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/highwallMiningService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "requestScout",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/scoutRequestService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "rollHummingbirdHarvest",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/hummingbirdHarvestService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "allocateHummingbirdHarvest",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/hummingbirdHarvestService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "setSmallShipDocking",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/smallShipService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "runSmallShipMaintenance",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/smallShipService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "runVoyage33Maintenance",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/smallShipService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "runVulcanAdditionalLabour",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/vulcanLabourService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "runMaintenance",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/maintenanceService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "drawVipCard",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/vipCardService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "transferVipCard",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/vipCardService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "rerollVipUnrest",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/vipCardService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "publishAdmiralDirectiveCommand",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/admiralDirectiveService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "recordPresidentActionCommand",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/presidentWorkspaceService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "recordPresidentialVisit",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/presidentWorkspaceService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "configurePresidentialElection",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/presidentialElectionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "castPresidentialBallot",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/presidentialElectionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "resolvePresidentialElection",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/presidentialElectionService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "updatePoliticalCapital",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/presidentWorkspaceService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "setFleetRedAlert",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/fleetAlertService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "publishPressDispatch",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/pressDispatchService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "dismissPressDispatch",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/pressDispatchService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "repairAllShipDamage",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/shipDamageService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "rollbackMaintenance",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/maintenanceService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "clearTurnAdvanceInterstitial",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/turnInterstitialService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    },
+    {
+      "name": "setUnionCraftStartingHost",
+      "kind": "callable",
+      "clientConsumers": [
+        "src/lib/unionCraftSetupService.ts"
+      ],
+      "currentFreshGameProof": "pending",
+      "authorityPrivacyRecoveryProof": "pending",
+      "automatedBrowserProof": "pending",
+      "humanDeviceProof": "not claimed"
+    }
+  ]
+}
