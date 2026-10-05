@@ -156,6 +156,9 @@ test('the action catalog contains specialist ordinary actions and no GM correcti
     'repairConsolesFromMacaw', 'proposePermissionedDismantling', 'consentToPermissionedDismantling',
     'applyPermissionedDismantling', 'resolveWolfAttackAftermath',
   ]) assert.ok(endpoints.has(endpoint), `missing ordinary source action ${endpoint}`);
+  assert.equal(PC10_SPECIALIST_ACTIONS['explorer-route-request']?.endpoint, 'requestShuttleDeparture');
+  assert.equal(PC10_SPECIALIST_ACTIONS['explorer-route-transit']?.endpoint, 'beginShuttleTransit');
+  assert.equal(PC10_SPECIALIST_ACTIONS['explorer-route-arrival']?.endpoint, 'completeShuttleArrival');
   assert.equal(endpoints.has('setFighterWingCount'), false);
 });
 
