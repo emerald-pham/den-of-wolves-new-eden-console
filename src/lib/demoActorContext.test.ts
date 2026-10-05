@@ -1,11 +1,14 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import {
   demoActorAppName,
   demoActorManagerUrl,
   demoActorProfileFromUrl,
   demoActorSessionStorageKey,
   demoActorUrl,
+  readDemoActorAccountUid,
+  rememberDemoActorAccount,
 } from './demoActorContext';
+beforeEach(() => { localStorage.clear(); });
 
 describe('fixed-document demo actor context', () => {
   it('keeps the normal app and persisted store untouched', () => {
@@ -13,12 +16,13 @@ describe('fixed-document demo actor context', () => {
     expect(demoActorSessionStorageKey('dow-new-eden-session', null)).toBe('dow-new-eden-session');
   });
 
-  it('uses a separate app and store for each actor in each demo session', () => {
+  it('reuses real role accounts across fresh games while isolating every session outbox', () => {
     const admiral = { sessionId: 'session-a', roleId: 'admiral' };
     const engineer = { sessionId: 'session-a', roleId: 'dione-engineer' };
     expect(demoActorAppName(admiral)).not.toBe(demoActorAppName(engineer));
     expect(demoActorSessionStorageKey('store', admiral)).not.toBe(demoActorSessionStorageKey('store', engineer));
-    expect(demoActorAppName(admiral)).not.toBe(demoActorAppName({ ...admiral, sessionId: 'session-b' }));
+    expect(demoActorAppName(admiral)).toBe(demoActorAppName({ ...admiral, sessionId: 'session-b' }));
+    expect(demoActorSessionStorageKey('store', admiral)).not.toBe(demoActorSessionStorageKey('store', { ...admiral, sessionId: 'session-b' }));
   });
 
   it('rejects malformed, unknown and ambiguous actor identifiers', () => {
@@ -44,5 +48,12 @@ describe('fixed-document demo actor context', () => {
     expect(new URL(url).hash).toBe('#/demo-actors');
     expect(demoActorProfileFromUrl(url)?.roleId).toBe('admiral');
     expect(url).not.toContain('secret');
+  });
+
+  it('records only public real-UID metadata and refuses to silently rebind a role account', () => {
+    rememberDemoActorAccount({ sessionId: 'session-a', roleId: 'admiral' }, 'real-admiral');
+    expect(readDemoActorAccountUid('admiral')).toBe('real-admiral');
+    expect(() => rememberDemoActorAccount({ sessionId: 'session-b', roleId: 'admiral' }, 'replacement-uid')).toThrow(/identity/i);
+    expect(JSON.stringify([...Array.from({ length: localStorage.length }, (_, i) => localStorage.getItem(localStorage.key(i)!))])).not.toMatch(/session-a|token|credential|password|secret/);
   });
 });

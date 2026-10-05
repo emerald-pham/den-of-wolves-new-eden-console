@@ -7,7 +7,7 @@ import {
   type DemoActorGateway,
 } from './demoActorProfiles';
 import type { DemoActorProfile } from './demoActorContext';
-import { demoActorRosterStorageKey } from './demoActorContext';
+import { demoActorRosterStorageKey, readDemoActorAccountUid } from './demoActorContext';
 
 const session = {
   id: 'demo-session', name: 'Solo rehearsal', joinCode: '482100', ownerUid: 'gm',
@@ -136,5 +136,44 @@ describe('ordinary authenticated demo cohort preparation', () => {
     expect(readDemoActorRoster(session.id)).toEqual(roster);
     localStorage.setItem(demoActorRosterStorageKey(session.id), JSON.stringify([roster[0], roster[0]]));
     expect(readDemoActorRoster(session.id)).toEqual([]);
+  });
+
+  it('retains a real identity before a lost admission acknowledgement and cannot replace it on retry', async () => {
+    const api = gateway();
+    api.join.mockRejectedValueOnce(new Error('Lost join reply.'));
+    await expect(prepareDemoActors(session, { gateway: api })).rejects.toThrow('Lost join reply.');
+    expect(readDemoActorAccountUid('admiral')).toBe('auth-admiral');
+    expect(readDemoActorRoster(session.id)).toEqual([]);
+    api.identity.mockImplementationOnce(async (_profile, expectedUid) => {
+      expect(expectedUid).toBe('auth-admiral');
+      throw new Error('SDK account unavailable.');
+    });
+    await expect(prepareDemoActors(session, { gateway: api })).rejects.toThrow(/unavailable/i);
+    expect(api.join).toHaveBeenCalledTimes(1);
+    expect(api.claim).not.toHaveBeenCalled();
+  });
+
+  it('reuses the authenticated role pool for a fresh session without carrying old session state', async () => {
+    const api = gateway();
+    await prepareDemoActors(session, { gateway: api });
+    const next = { ...session, id: 'fresh-session' };
+    api.join.mockImplementation(async profile => ({ session: { ...next, setupRevision: 2 },
+      player: { uid: `auth-${profile.roleId}`, sessionId: next.id, role: 'player', seatId: null } as Player }));
+    await prepareDemoActors(next, { gateway: api });
+    expect(api.identity).toHaveBeenCalledWith({ sessionId: next.id, roleId: 'admiral' }, 'auth-admiral');
+    expect(readDemoActorRoster(next.id)).toHaveLength(3);
+    expect(readDemoActorRoster(session.id)).toHaveLength(3);
+  });
+
+  it('stops operational presence on complete, debrief and closed sessions', async () => {
+    const api = gateway();
+    await prepareDemoActors(session, { gateway: api });
+    api.identity.mockClear(); api.presence.mockClear();
+    for (const ended of [{ ...session, fullGameDemo: { status: 'complete', progression: 'manual' } },
+      { ...session, phase: 'debrief' }, { ...session, phase: 'closed' }]) {
+      await renewDemoActorPresence(ended as GameSession, { gateway: api });
+    }
+    expect(api.identity).not.toHaveBeenCalled();
+    expect(api.presence).not.toHaveBeenCalled();
   });
 });
