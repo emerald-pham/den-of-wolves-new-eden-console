@@ -2,6 +2,7 @@ import { beforeEach, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import type { GameSession, Player } from '@/types/game';
+import type * as DemoActorContext from '@/lib/demoActorContext';
 import { useSessionStore } from '@/store/useSessionStore';
 import { acknowledgeSessionWaiver } from '@/lib/sessionWaiver';
 import DemoActorManager from './DemoActorManager';
@@ -16,7 +17,7 @@ vi.mock('@/lib/demoActorProfiles', () => ({
   assertSelectedDemoActorIdentity: vi.fn(async () => undefined),
 }));
 vi.mock('@/lib/demoActorContext', async importOriginal => ({
-  ...await importOriginal<typeof import('@/lib/demoActorContext')>(),
+  ...await importOriginal<typeof DemoActorContext>(),
   activeDemoActorProfile: api.profile,
   demoActorJoinCode: () => '482100',
 }));

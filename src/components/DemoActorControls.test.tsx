@@ -3,7 +3,8 @@ import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { useSessionStore } from '@/store/useSessionStore';
 import { acknowledgeSessionWaiver, resetSessionWaiver } from '@/lib/sessionWaiver';
-import type { GameSession, Player } from '@/types/game';
+import type { GameSession } from '@/types/game';
+import type * as DemoActorContext from '@/lib/demoActorContext';
 import DemoActorControls from './DemoActorControls';
 
 const api = vi.hoisted(() => ({
@@ -12,7 +13,7 @@ const api = vi.hoisted(() => ({
   renew: vi.fn(async () => []), switchActor: vi.fn(async () => undefined),
 }));
 vi.mock('@/lib/demoActorContext', async importOriginal => ({
-  ...await importOriginal<typeof import('@/lib/demoActorContext')>(),
+  ...await importOriginal<typeof DemoActorContext>(),
   activeDemoActorProfile: api.profile,
 }));
 vi.mock('@/lib/demoActorProfiles', () => ({
@@ -26,7 +27,8 @@ const session = { id: 'demo-session', joinCode: '482100', phase: 'casting', curr
 beforeEach(() => {
   vi.clearAllMocks(); api.actors = []; api.profile.roleId = 'controller'; localStorage.clear(); acknowledgeSessionWaiver();
   useSessionStore.getState().reset();
-  useSessionStore.getState().setIdentity(session, { uid: 'controller', role: 'player', sessionId: session.id } as Player);
+  useSessionStore.getState().setIdentity(session, { uid: 'controller', displayName: 'Crew controller',
+    role: 'player', sessionId: session.id, seatId: null, joinedAt: '2026-10-05T00:00:00Z' });
   useSessionStore.getState().setConnection('live');
   useSessionStore.getState().setSessionSnapshotFreshness('server');
 });
@@ -64,12 +66,12 @@ it.each([
   { replacementRoleId: 'doctor', expected: 'Quellon // Doctor' },
   { replacementRoleId: 'warrior-captain', expected: 'RSS Warrior // Warrior Captain' },
   { assignedRoleId: 'wing-commander', activeConsoleRoleId: 'wing-commander', expected: 'Wing Commander' },
-])('keeps the original persona identity while disclosing its current $expected station', player => {
+] as const)('keeps the original persona identity while disclosing its current $expected station', player => {
   api.profile.roleId = 'admiral';
   prepareActor();
   const { expected, ...fields } = player;
-  useSessionStore.getState().setMe({ uid: 'real-admiral', sessionId: session.id, role: 'player',
-    assignedRoleId: 'admiral', ...fields } as Player);
+  useSessionStore.getState().setMe({ ...useSessionStore.getState().me!, uid: 'real-admiral',
+    assignedRoleId: 'admiral', ...fields });
   show();
   expect(screen.getByRole('option', { name: 'AEGIS // Admiral // persona' })).toBeInTheDocument();
   expect(screen.getByText(/Current station:/)).toHaveTextContent(expected);
@@ -79,12 +81,12 @@ it.each([
 
 it.each([
   { replacementStatus: 'awaiting-re-role', expected: 'awaiting GM role assignment' },
-  { escapeState: { status: 'pending' }, expected: 'awaiting escape' },
+  { escapeState: { status: 'pending', shipId: 'aegis', destructionEventId: 'demo-escape', revision: 1 }, expected: 'awaiting escape' },
   { activeConsoleRoleId: null, assignedRoleId: null, seatId: null, expected: 'not selected' },
-])('explains $expected without restoring the persona original station', player => {
+] as const)('explains $expected without restoring the persona original station', player => {
   api.profile.roleId = 'admiral'; prepareActor();
   const { expected, ...fields } = player;
-  useSessionStore.getState().setMe({ uid: 'real-admiral', sessionId: session.id, role: 'player', ...fields } as Player);
+  useSessionStore.getState().setMe({ ...useSessionStore.getState().me!, uid: 'real-admiral', ...fields });
   show();
   expect(screen.getByText(/Current station:/)).toHaveTextContent(expected);
   expect(api.switchActor).not.toHaveBeenCalled();

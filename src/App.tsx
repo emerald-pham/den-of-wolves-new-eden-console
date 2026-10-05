@@ -56,6 +56,7 @@ import { stripGmNavigationProjection, stripPersistedNavigationProjection } from 
 import { shouldLoadAwayMissionDiscardPanel } from '@/lib/awayMissionVisibility';
 import type { GmDiscoveryProjection } from '@/lib/firestore';
 import { parseVoyage33MovementState } from '../functions/src/voyage33Movement';
+import { activeDemoActorProfile, demoActorPresenceAllowed } from '@/lib/demoActorContext';
 
 const GM_RECONCILE_INTERVAL_MS = 5_000;
 const PRESENCE_HEARTBEAT_INTERVAL_MS = 10_000;
@@ -96,6 +97,8 @@ const PresidentOffice = lazy(() => import('@/routes/PresidentOffice'));
 const ElectionWorkspace = lazy(() => import('@/routes/ElectionWorkspace'));
 const CrisisReportPanel = lazy(() => import('@/components/CrisisReportPanel'));
 const ShipConsole = lazy(() => import('@/routes/ShipConsole'));
+const DemoActorManager = lazy(() => import('@/routes/DemoActorManager'));
+const DemoActorControls = lazy(() => import('@/components/DemoActorControls'));
 const hasConsoleDradis = (path: string): boolean =>
   path === '/press' || path.startsWith('/ships/') || path.startsWith('/union/') ||
   path.startsWith('/shuttles/') || path.startsWith('/replacement/');
@@ -1171,6 +1174,7 @@ function AppRoutes() {
         turnPhase={session?.turnPhase}
       />
       <AppHeader />
+      {activeDemoActorProfile && <Suspense fallback={null}><DemoActorControls /></Suspense>}
       <WolfHackingRuntime />
       <EndgameDialog />
       <CommunicationError />
@@ -1201,6 +1205,7 @@ function AppRoutes() {
             {escapeLocked ? <EscapeState /> : <Routes location={screen}>
               <Route path="/" element={home} />
               <Route path="/roles" element={<RoleSelect />} />
+              <Route path="/demo-actors" element={<DeferredRoute label="demo crew"><DemoActorManager /></DeferredRoute>} />
               <Route path="/brief" element={
                 <Suspense fallback={
                   <main className="role-brief-screen">
@@ -1349,7 +1354,8 @@ function AppRuntime() {
     }, GM_RECONCILE_INTERVAL_MS);
     const heartbeat = window.setInterval(() => {
       const state = useSessionStore.getState();
-      if (state.session?.phase !== 'closed' && state.connection === 'live' && state.session && state.me) {
+      if (state.session?.phase !== 'closed' && state.connection === 'live' && state.session && state.me &&
+          demoActorPresenceAllowed(state.session, activeDemoActorProfile)) {
         run(renewPresence);
       }
     }, PRESENCE_HEARTBEAT_INTERVAL_MS);

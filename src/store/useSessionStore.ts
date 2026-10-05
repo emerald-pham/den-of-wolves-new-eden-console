@@ -23,6 +23,7 @@ import type { DiseaseOutbreakDetails, CrisisKind, CrisisStateName, CrisisStatePr
 import { normalizeShuttleManifest } from '@/data/shuttles';
 import { stripPersistedNavigationProjection } from '@/lib/navigationPrivacy';
 import type { CommandErrorKind } from '@/lib/commandErrors';
+import { demoActorSessionStorageKey } from '@/lib/demoActorContext';
 
 export const SESSION_STORAGE_KEY = 'dow-new-eden-session';
 export const GM_ACCESS_TIMEOUT_MS = 24 * 60 * 60 * 1000;
@@ -791,7 +792,7 @@ export const useSessionStore = create<SessionState>()(
       reset: () => set({ ...initial }),
     }),
     {
-      name: SESSION_STORAGE_KEY,
+      name: demoActorSessionStorageKey(SESSION_STORAGE_KEY),
       version: 1,
       storage: createJSONStorage(() => localStorage),
       partialize: ({ session, me, gmInstance, gmAccessAuthenticatedAt, pendingCommands, mode, lastRoute }) => ({

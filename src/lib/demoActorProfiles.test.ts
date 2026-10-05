@@ -34,7 +34,7 @@ function gateway() {
     expectedSetupRevision: command.expectedSetupRevision,
   }));
   const resume = vi.fn(join);
-  const presence = vi.fn(async () => undefined);
+  const presence = vi.fn<DemoActorGateway['presence']>(async () => undefined);
   return { identity, join, claim, resume, presence } satisfies DemoActorGateway;
 }
 
@@ -132,7 +132,7 @@ describe('ordinary authenticated demo cohort preparation', () => {
     const originalRoster = await prepareDemoActors(session, { gateway: api });
     api.presence.mockClear(); api.join.mockClear(); api.claim.mockClear();
     api.presence.mockRejectedValueOnce(new Error('Reconnect needed.'));
-    api.resume.mockResolvedValueOnce({ session, player: { uid: 'auth-admiral', sessionId: session.id,
+    api.resume.mockResolvedValueOnce({ session: { ...session, setupRevision: 2 }, player: { uid: 'auth-admiral', sessionId: session.id,
       role: 'player', assignedRoleId: 'admiral', replacementRoleId: 'doctor',
       activeConsoleRoleId: null, seatId: null } as Player });
     await expect(renewDemoActorPresence(session, { gateway: api })).resolves.toEqual([]);
