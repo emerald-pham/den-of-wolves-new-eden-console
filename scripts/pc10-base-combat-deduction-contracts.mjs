@@ -36,6 +36,35 @@ export async function waitForOriginalBaseActor({ inspect, original, timeoutMs = 
   throw new Error('Original live server actor readiness deadline expired; no callable was reissued.');
 }
 
+/** Finish the mounted panel's one exact recovery before choosing another private record. */
+export async function waitForBaseLoyaltyUiReceipt({ inspect, original, inspectUi, retry,
+  requestFingerprint, receipt, timeoutMs = 60_000, now = Date.now, wait = () => delay(200) }) {
+  const deadline = now() + timeoutMs;
+  let exactUiRetries = 0;
+  while (now() < deadline) {
+    const current = await inspect();
+    assertOriginalIdentity(current, original);
+    if (current.connection !== 'live' || current.freshness !== 'server') {
+      await wait();
+      continue;
+    }
+    const state = await inspectUi();
+    assertOriginalBaseActor(await inspect(), original);
+    if (state.confirmed === true) return { visibleConsequence: true, exactUiRetries };
+    if (state.retryReady === true && exactUiRetries === 0) {
+      assert.equal(typeof requestFingerprint, 'string');
+      assert.ok(requestFingerprint.length && receipt, 'Recover only a captured actual request and receipt.');
+      exactUiRetries += 1;
+      const recovery = await retry();
+      assertOriginalBaseActor(await inspect(), original);
+      assert.equal(recovery.requestFingerprint, requestFingerprint, 'Visible retry must keep the exact original request.');
+      assert.deepEqual(recovery.receipt, receipt, 'Visible retry must preserve every original receipt consequence.');
+    }
+    await wait();
+  }
+  throw new Error('Original loyalty UI receipt remains unconfirmed at its deadline; no further retry or credit.');
+}
+
 export function originalRoleForUid(uid, roster) {
   assert.equal(typeof uid, 'string');
   const matches = roster.filter(actor => actor.uidHash === uidHash(uid));

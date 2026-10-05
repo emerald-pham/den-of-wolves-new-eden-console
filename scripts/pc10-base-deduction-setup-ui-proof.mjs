@@ -3,7 +3,7 @@ import { writeFile } from 'node:fs/promises';
 import { setTimeout as delay } from 'node:timers/promises';
 import { createTwoBrowserGameplay } from './pc10-two-browser-gameplay.mjs';
 import { assertOriginalBaseActor, baseDeductionAssignments, captureBaseUiReceipt,
-  proofHash, uidHash, waitForOriginalBaseActor } from './pc10-base-combat-deduction-contracts.mjs';
+  proofHash, uidHash, waitForOriginalBaseActor, waitForBaseLoyaltyUiReceipt } from './pc10-base-combat-deduction-contracts.mjs';
 
 /** Opt-in normal printed variant; this hook exercises no Cult private procedure. */
 export function createBaseDeductionSetupHooks(options = {}) {
@@ -145,8 +145,32 @@ export function createBaseDeductionSetupHooks(options = {}) {
         expectedRequest: { targetUid: assignment.uid, kind: assignment.kind, suspicion: assignment.suspicion },
         decision: () => button.click(), record: async value => { report.requests.push(value); await save(context); } });
       assert.equal(receipt.sessionId, initial.sessionId); assert.deepEqual(receipt.assignedUids, [assignment.uid]);
+      const capturedRequest = report.requests.at(-1).requestFingerprint;
+      const uiCompletion = await waitForBaseLoyaltyUiReceipt({
+        inspect: () => gm.observe(), original: gmActor, receipt, requestFingerprint: capturedRequest,
+        inspectUi: async () => {
+          const retry = panel.getByRole('button', { name: 'Retry exact request', exact: true });
+          const retryVisible = await retry.isVisible();
+          return { confirmed: await panel.locator('.gm-loyalty-setup__message').filter({
+            hasText: 'Private record committed by the server. Aggregate coverage updates with the live GM projection.',
+          }).isVisible() && !retryVisible,
+          retryReady: retryVisible && await retry.isEnabled() };
+        },
+        retry: async () => {
+          let retryFingerprint;
+          const recovered = await captureBaseUiReceipt({ surface: gm, endpoint: 'assignLoyalty', expectedActor: gmActor,
+            expectedRequest: { targetUid: assignment.uid, kind: assignment.kind, suspicion: assignment.suspicion },
+            decision: () => panel.getByRole('button', { name: 'Retry exact request', exact: true }).click(),
+            verifyReplay: false, record: async value => {
+              retryFingerprint = value.requestFingerprint;
+              report.requests.push({ ...value, visibleExactUiRecovery: true }); await save(context);
+            } });
+          return { receipt: recovered, requestFingerprint: retryFingerprint };
+        },
+      });
       report.configuredHolders.push({ roleId: assignment.roleId, uidHash: uidHash(assignment.uid), kind: assignment.kind,
-        suspicion: assignment.suspicion, setupRevision: receipt.setupRevision, transport: 'actual normal GM UI + exact original receipt recovery' });
+        suspicion: assignment.suspicion, setupRevision: receipt.setupRevision, ...uiCompletion,
+        transport: 'actual normal GM UI + exact original receipt recovery' });
       await save(context);
     }
     const census = await readSource('loyaltyCensus/current');
