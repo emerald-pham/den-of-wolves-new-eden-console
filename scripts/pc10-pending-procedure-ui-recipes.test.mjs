@@ -98,6 +98,31 @@ test('Shuttle evacuation binds its public ledger revision and current custody re
     request: { ...input.request, expectedControlRevision: 9 } }).status, 'pending');
 });
 
+test('Service shuttle recharge binds its own ledger plus custody and maintenance revisions', () => {
+  const actor = { uidHash: 'engineer-hash', sessionId: 'session-1', profileRoleId: 'icebreaker-engineer',
+    activeConsoleRoleId: 'icebreaker-engineer', sameActor: true, connection: 'live', freshness: 'server' };
+  const result = { status: 'committed', sessionId: 'session-1', requestId: 'recharge-1', shuttleId: 'blacksmith',
+    hostShipId: 'icebreaker', consoleId: 'hydroponics', cycle: 2, maintenanceRevision: 9,
+    rechargeRevision: 3, immediate: true, message: 'Host console recharged.' };
+  const input = { caseId: 'core:rechargeHostConsoleFromShuttle', expected: { sessionId: 'session-1',
+    uidHash: 'engineer-hash', roleId: 'icebreaker-engineer', cycle: 2, sourceRevision: 2,
+    controlRevision: 7, maintenanceRevision: 8, expectedHostShipId: 'icebreaker', shuttleId: 'blacksmith' },
+    offered: true, mountedUi: true, actorBefore: actor, actorAfter: actor,
+    sourceBefore: { live: true, sessionId: 'session-1', cycle: 2, revision: 2 },
+    sourceAfter: { live: true, sessionId: 'session-1', cycle: 2, revision: 3 },
+    request: { sessionId: 'session-1', requestId: 'recharge-1', expectedCycle: 2,
+      shuttleId: 'blacksmith', expectedControlRevision: 7, expectedMaintenanceRevision: 8,
+      expectedHostShipId: 'icebreaker' },
+    response: { httpStatus: 200, result, exactReplay: true },
+    replay: { result: { ...result, status: 'replayed' } },
+    rendered: { visible: true, resultStatus: 'committed' } };
+  assert.equal(evaluateProcedureCapture(input).status, 'completed');
+  assert.equal(evaluateProcedureCapture({ ...input,
+    request: { ...input.request, expectedControlRevision: 6 } }).status, 'pending');
+  assert.equal(evaluateProcedureCapture({ ...input,
+    request: { ...input.request, expectedMaintenanceRevision: 7 } }).status, 'pending');
+});
+
 test('Boa mission choice receipt binds its choice revision to the current rendered workspace', () => {
   const actor = { uidHash: 'recycler-hash', sessionId: 'session-1', profileRoleId: 'capybara-recycler',
     activeConsoleRoleId: 'capybara-recycler', sameActor: true, connection: 'live', freshness: 'server' };
