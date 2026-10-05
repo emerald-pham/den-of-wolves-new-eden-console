@@ -243,6 +243,40 @@ export async function runFreshFullGameDemoUi(options = {}) {
 
     await mark('GM sequential normal role assignment');
     const casting = gm.page.getByRole('region', { name: 'Facilitator casting', exact: true });
+    const firstRoleId = confirmed.activeRoleIds[0];
+    const firstRole = casting.getByLabel(`Role for DEMO // ${firstRoleId}`, { exact: true });
+    await firstRole.waitFor();
+    evidence.castingViewports = [];
+    for (const viewport of [{ width: 320, height: 844 }, { width: 844, height: 390 }, { width: 1440, height: 900 }]) {
+      await gm.page.setViewportSize(viewport);
+      await firstRole.scrollIntoViewIfNeeded();
+      await firstRole.focus();
+      await gm.page.keyboard.press('ArrowDown');
+      assert.equal(await firstRole.inputValue(), firstRoleId, 'Keyboard selection offers only the canonical held role.');
+      await gm.page.keyboard.press('Tab');
+      const metrics = await gm.page.evaluate(({ label, viewport }) => {
+        const select = [...document.querySelectorAll('select')].find(element =>
+          [...element.labels ?? []].some(item => item.textContent === label));
+        const row = select?.closest('.gm-casting-board__player');
+        const assign = row?.querySelector('button');
+        const box = element => {
+          const rect = element.getBoundingClientRect();
+          return { x: rect.x, width: rect.width, height: rect.height };
+        };
+        return { ...viewport, noHorizontalOverflow: document.documentElement.scrollWidth <= window.innerWidth,
+          select: box(select), action: box(assign), keyboardFocusReachedAssignment: document.activeElement === assign,
+          reducedMotion: matchMedia('(prefers-reduced-motion: reduce)').matches };
+      }, { label: `Role for DEMO // ${firstRoleId}`, viewport });
+      assert.equal(metrics.noHorizontalOverflow, true);
+      assert.equal(metrics.keyboardFocusReachedAssignment, true);
+      assert.equal(metrics.reducedMotion, true);
+      for (const control of [metrics.select, metrics.action]) {
+        assert.ok(control.x >= 0 && control.x + control.width <= viewport.width + 1);
+        assert.ok(control.height >= 44, 'Casting controls retain the shared touch target.');
+      }
+      evidence.castingViewports.push(metrics);
+      await gm.page.screenshot({ path: `${directory}/casting-${viewport.width}x${viewport.height}.png` });
+    }
     for (const roleId of confirmed.activeRoleIds) {
       const name = `DEMO // ${roleId}`;
       await casting.getByLabel(`Role for ${name}`, { exact: true }).selectOption(roleId);
