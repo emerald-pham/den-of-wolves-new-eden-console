@@ -276,6 +276,22 @@ test('a mounted Commander presenter uses its actual Targeting dice name after th
   assert.deepEqual(names, ['Targeting dice']);
 });
 
+test('Bravo cannot proceed while the same actor still paints the pre-Alpha launch state', async () => {
+  const { inspectWolfChoicePaint } = await moduleUnderTest();
+  let alphaText = 'Launch Fighter Wing Alpha Pass Fighter Wing Alpha';
+  const buttons = { isVisible: async () => true, isEnabled: async () => true };
+  const panel = { isVisible: async () => true, innerText: async () => 'Cycle 1 // flight control',
+    getByRole: (role, options) => role === 'article' ? {
+      innerText: async () => options.name === 'Fighter Wing Alpha' ? alphaText : 'Launch Fighter Wing Bravo Pass Fighter Wing Bravo',
+      getByRole: () => buttons,
+    } : buttons };
+  const page = { getByRole: () => panel };
+  const spec = { kind: 'aegis-launch', sourceId: 'fighter-wing-bravo', settledLaunchChoices: [{ sourceId: 'fighter-wing-alpha', status: 'launched' }] };
+  assert.equal((await inspectWolfChoicePaint(page, spec, choice())).status, 'pending');
+  alphaText = 'Fighter Wing Alpha is launched for this attack.';
+  assert.equal((await inspectWolfChoicePaint(page, spec, choice())).status, 'eligible');
+});
+
 function routeFixture({ route = '#/brief', changed = {}, entering = true } = {}) {
   const calls = []; let path = route;
   const original = actor(changed);
