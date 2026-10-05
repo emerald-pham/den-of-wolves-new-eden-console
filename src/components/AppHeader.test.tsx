@@ -996,7 +996,7 @@ it('gives the existing GM access email a 44px target without changing its link o
     render(<MemoryRouter><AppHeader /></MemoryRouter>);
     await userEvent.setup().click(screen.getByRole('button', { name: /^Settings$/ }));
     const contact = within(screen.getByRole('dialog', { name: 'Session settings' }))
-      .getByRole('link', { name: 'emerald.pham@hey.com', exact: true });
+      .getByRole('link', { name: 'emerald.pham@hey.com' });
     expect(contact).toHaveAttribute('href', 'mailto:emerald.pham@hey.com');
     expect(Number.parseFloat(getComputedStyle(contact).minHeight)).toBeGreaterThanOrEqual(44);
     expect(Number.parseFloat(getComputedStyle(contact).minWidth)).toBeGreaterThanOrEqual(44);
