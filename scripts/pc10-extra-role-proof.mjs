@@ -8,6 +8,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { runFreshFullGameDemoUi } from './pc10-full-game-demo-ui-proof.mjs';
 import { assertSelectedActor } from './pc10-full-game-demo-proof-helpers.mjs';
 import { runPursuitLimitEnding } from './pc10-full-game-cycle-ending.mjs';
+import { chooseAffordableRation } from './pc10-extra-role-proof-helpers.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const scenario = process.argv[2] ?? 'joint';
@@ -159,8 +160,14 @@ async function maintenance(context, anchorRoleId, shipId, fuelCraft) {
     while (!(await locator.isEnabled()) && Date.now() < deadline) await delay(200);
     assert.equal(await locator.isEnabled(), true, `${shipId} ${action} must use the normal available UI.`);
     if (action === 'rations') {
-      await crew.page.getByLabel('Food ration level', { exact: true }).selectOption('3');
-      await crew.page.getByLabel('Water ration level', { exact: true }).selectOption('3');
+      const current = await state(gm);
+      assert.equal(current.live, true);
+      for (const resource of ['Food', 'Water']) {
+        const choice = crew.page.getByLabel(`${resource} ration level`, { exact: true });
+        const options = await choice.locator('option').evaluateAll(options => options.map(option => ({
+          value: option.value, text: option.textContent.trim() })));
+        await choice.selectOption(chooseAffordableRation(options, current.resources?.[shipId]?.[resource.toLowerCase()]));
+      }
     }
     if (action === 'bays' && fuelCraft) {
       const choices = crew.page.locator('select[aria-label$="refuelling"]');
