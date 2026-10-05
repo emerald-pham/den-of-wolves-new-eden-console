@@ -160,6 +160,7 @@ describe('Wolf range contact guidance DTO', () => {
 
 describe('session debrief lifecycle services', () => {
   beforeEach(() => {
+    vi.mocked(httpsCallable).mockReset();
     useSessionStore.getState().reset();
     useSessionStore.getState().setIdentity({ ...session, phase: 'failure' }, { ...player, role: 'gm' });
     useSessionStore.getState().setGmInstance({ id: 'gm-1', sessionId: 's1', uid: 'u1', name: 'GM',
