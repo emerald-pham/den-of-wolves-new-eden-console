@@ -21,7 +21,7 @@ const validContext = () => ({
   initial: { sessionId: 'fresh-session', joinCode: 'ordinary-code' },
   started: { sessionId: 'fresh-session', phase: 'active', cycle: 1, phaseProgression: 'manual',
     fullGameDemo: { status: 'active', progression: 'manual' }, activeRoleIds: makeRoster().filter(actor => actor.roleId !== 'press-officer').map(actor => actor.roleId),
-    pressEnabled: true },
+    pressEnabled: true, capybaraEnabled: true },
   roster: makeRoster(),
 });
 
@@ -44,7 +44,7 @@ test('full-game schedule covers the added real Capybara and specialist functions
   assert.deepEqual(byId['capybara-maintenance-production'].roles, ['capybara-recycler']);
   assert.deepEqual(byId['macaw-dismantle-consent'].roles, ['capybara-captain', 'target-player']);
   assert.equal(byId['boa-mission-reclamation'].before, 'mission-deal');
-  assert.equal(byId['capybara-wolf-scrap'].availability, 'actual-post-wolf-three-damage-only');
+  assert.equal(byId['boa-wolf-scrap'].availability, 'actual-post-wolf-three-damage-only');
 });
 
 test('fresh Capybara acceptance requires the confirmed full twenty-role roster plus independent Press', () => {
@@ -64,7 +64,7 @@ test('fresh Capybara acceptance requires the confirmed full twenty-role roster p
 
   const nonManual = validContext();
   nonManual.started.fullGameDemo.progression = 'timed';
-  assert.throws(() => assertCapybaraRunContext(nonManual), /manual full-game demo/);
+  assert.throws(() => assertCapybaraRunContext(nonManual), /protected unlimited manual mode/);
 });
 
 test('only same-actor UI commit, exact SDK retry, live projections, and rendered result complete a stage', () => {
