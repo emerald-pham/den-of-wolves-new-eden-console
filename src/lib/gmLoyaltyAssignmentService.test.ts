@@ -48,7 +48,8 @@ function configureGm(
 
 function acceptServerProjection(overrides: Record<string, unknown>, sessionId = 's1') {
   const before = useSessionStore.getState();
-  const current = before.session as Record<string, unknown>;
+  const current = before.session;
+  if (!current) throw new Error('Server projection requires an established fixture session.');
   const authority = sessionSnapshotAuthorityFor(sessionId, 'gm-1');
   const previous = authority.latestServerAuthorityCursor;
   const nextMillis = previous
