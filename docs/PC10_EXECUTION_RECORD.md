@@ -127,7 +127,12 @@ After PC10 completion is returned to the parent, follow existing
 rules guidance, then **PC12** strictly backup Mac-hosted authoritative offline
 LAN browser mode in the same repository. These later phases are authorized
 roadmap only and are not executed in this task. The latest October 5 instruction
-supersedes earlier wording prohibiting a future PC11.
+supersedes earlier wording prohibiting a future PC11. The owner sets October 10
+as the available work window. PC12 remains unstarted and conditional, with no
+owner cancellation yet. The owner subsequently said “execute” for the
+[PC10 to PC11 lessons and handoff](PC10_PC11_HANDOFF.md): record them now, then
+apply them at PC11's sequential turn. The deadline changes prioritization,
+not acceptance or release gates.
 
 Firebase remains primary/default with cloud data/deployment intact. PC12 must
 mirror UX/mechanics, have no internet runtime dependencies, use local identity,

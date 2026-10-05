@@ -236,3 +236,21 @@ owner authorization applies CC0 only to her own rights and contributions;
 third-party/game material, dependencies, other contributors and assets with
 unconfirmed provenance are excluded. Existing asset bytes and third-party
 notices remain unchanged.
+
+## October 10 deadline and sequential PC11 handoff
+
+The owner's October 5 steering sets **October 10** as the available work
+window. Complete PC10 first, return it to the parent, then follow the existing
+post-PC10 work and PC11 sequentially. The owner said “execute” for the
+[PC10 to PC11 implementation lessons](PC10_PC11_HANDOFF.md): audit mounted
+actions, explain actual current states and adjacent costs/blockers/next actors,
+qualify small live slices, reuse scoped PC10 evidence, use exact accessible
+controls and retain finite appropriate-role families. Apply these now to the
+plan and at PC11's turn; do not start PC11 concurrently.
+
+PC12 is unstarted and conditional; it has not been cancelled. The owner decides
+on deferral or cancellation after a concrete reuse and service-boundary
+assessment. Earlier coarse estimates are not a reliable schedule. Deadline
+pressure does not weaken functionality, privacy, acceptance or release gates.
+The linked handoff records the current evidence limits, critical path and
+bounded offline architecture assessment.
