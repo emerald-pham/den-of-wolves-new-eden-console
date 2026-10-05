@@ -12,7 +12,7 @@ const attackSummary = value => value && ({
 
 /** Resolve an actually declared current attack. No roster, dice or survivor input. */
 export async function resolveLiveWolfAttack(context, { tools = candidateGameplayTools(context),
-  timeoutMs = 8 * 60_000, declareIfPlanned = false, verifyReplay = true } = {}) {
+  timeoutMs = 8 * 60_000, declareIfPlanned = false, verifyReplay = true, chooseNext } = {}) {
   const { gm, roster } = context;
   const replays = [];
   async function uiReceipt(surface, endpoint, decision) {
@@ -210,6 +210,7 @@ export async function resolveLiveWolfAttack(context, { tools = candidateGameplay
     current = await attack();
     assert.equal((await tools.state()).phase, 'active');
     if (current.status === 'resolved') break;
+    if (chooseNext && await chooseNext(current)) continue;
     if (current.currentStep === 'targeting') await targeting(current);
     else if (['long-range', 'medium-range', 'short-range'].includes(current.currentStep)) {
       if (await fighterRange(current)) continue;
