@@ -3543,7 +3543,24 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
       occurredAt: rawOutcome.occurredAt,
     }
     : undefined;
-  const gameOutcome = pursuitFailureOutcome ?? totalFleetLossOutcome;
+  const candidateSuccessOutcome = rawOutcome && typeof rawOutcome === 'object' && !Array.isArray(rawOutcome) &&
+    rawOutcome.type === 'game-outcome' && rawOutcome.result === 'success' &&
+    rawOutcome.cause === 'candidate-complete' &&
+    (rawOutcome.candidateCode === 'N' || rawOutcome.candidateCode === 'O' || rawOutcome.candidateCode === 'P') &&
+    Number.isSafeInteger(rawOutcome.cycle) && rawOutcome.cycle >= 0 &&
+    typeof rawOutcome.occurredAt === 'string' && Number.isFinite(Date.parse(rawOutcome.occurredAt)) &&
+    Object.keys(rawOutcome).length === 6 && Object.keys(rawOutcome).every((key) =>
+      ['type', 'result', 'cause', 'candidateCode', 'cycle', 'occurredAt'].includes(key))
+    ? {
+      type: 'game-outcome' as const,
+      result: 'success' as const,
+      cause: 'candidate-complete' as const,
+      candidateCode: rawOutcome.candidateCode as 'N' | 'O' | 'P',
+      cycle: rawOutcome.cycle as number,
+      occurredAt: rawOutcome.occurredAt,
+    }
+    : undefined;
+  const gameOutcome = pursuitFailureOutcome ?? totalFleetLossOutcome ?? candidateSuccessOutcome;
   const rawSurvivors = data.survivorOutcome;
   const survivorKeys = [
     'type', 'cycle', 'occurredAt', 'fleetShipPopulation', 'survivingShipPopulation',
@@ -3978,17 +3995,26 @@ function closedMemberSessionFrom(sessionId: string, response: RecordValue, data:
       [data.createdAt, data.updatedAt].some(value => value !== undefined && optionalIso(value) !== value)) {
     throw new Error('The closed member history is malformed.');
   }
-  // An internal empty projection prevents legacy roster defaults from becoming
-  // operational state. It adds no retained vessel or craft information to history.
-  const session = sessionFrom(sessionId, { ...data,
-    memberSessionScope: { groupId: response.groupId, vesselIds: [], craftIds: [] } });
+  const session = sessionFrom(sessionId, data);
   if (data.gameOutcome !== undefined && !session.gameOutcome ||
       data.survivorOutcome !== undefined && !session.survivorOutcome ||
       data.debriefSnapshot !== undefined && !session.debriefSnapshot ||
       data.fullGameDemo !== undefined && session.fullGameDemo?.status !== 'complete') {
     throw new Error('The closed member history is malformed.');
   }
-  return session;
+  // The server has already selected this member's immutable history audience.
+  // Keep only history fields; neither legacy defaults nor a second audience
+  // projection may fabricate operations or erase the entitled debrief.
+  return {
+    id: session.id, name: session.name, joinCode: '', phase: 'closed', currentTurn: session.currentTurn,
+    ...(session.playerCount !== undefined ? { playerCount: session.playerCount } : {}),
+    ...(session.turnLimit !== undefined ? { turnLimit: session.turnLimit } : {}),
+    ...(session.gameOutcome ? { gameOutcome: session.gameOutcome } : {}),
+    ...(session.survivorOutcome ? { survivorOutcome: session.survivorOutcome } : {}),
+    ...(session.debriefSnapshot ? { debriefSnapshot: session.debriefSnapshot } : {}),
+    ...(session.fullGameDemo ? { fullGameDemo: session.fullGameDemo } : {}),
+    createdAt: session.createdAt, updatedAt: session.updatedAt,
+  };
 }
 
 /** Keep the local snapshot current while Firestore handles reconnect/cache replay. */

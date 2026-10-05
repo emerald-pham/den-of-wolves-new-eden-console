@@ -1334,8 +1334,11 @@ function AppRuntime() {
     // Slow mobile connections must not accumulate another request on every tick.
     // Keep independent leases so a slow GM check cannot delay presence renewal.
     const pending = new Set<() => Promise<void>>();
-    const closedHistoryRequests = new Set<string>();
+    let active = true;
+    const closedHistoryRequests = new Map<string, { readonly pending: boolean;
+      readonly confirmed: boolean; readonly retryAfter: number }>();
     const readClosedHistoryIfReady = () => {
+      if (!active) return;
       const state = useSessionStore.getState();
       const member = state.me;
       const sessionId = state.session?.id;
@@ -1346,9 +1349,18 @@ function AppRuntime() {
         state.sessionSnapshotFreshness !== 'server'
       ) return;
       const requestKey = `${sessionId}:${uid}:${member.connectionGeneration ?? 'legacy'}`;
-      if (closedHistoryRequests.has(requestKey)) return;
-      closedHistoryRequests.add(requestKey);
-      run(async () => { await readClosedSessionHistory(sessionId); });
+      const prior = closedHistoryRequests.get(requestKey);
+      if (prior?.pending || prior?.confirmed || prior && Date.now() < prior.retryAfter) return;
+      closedHistoryRequests.set(requestKey, { pending: true, confirmed: false, retryAfter: 0 });
+      run(async () => {
+        let confirmed = false;
+        try { confirmed = await readClosedSessionHistory(sessionId); }
+        finally {
+          if (active) closedHistoryRequests.set(requestKey, {
+            pending: false, confirmed, retryAfter: Date.now() + 5_000,
+          });
+        }
+      });
     };
     const run = (check: () => Promise<void>) => {
       if (pending.has(check)) return;
@@ -1366,7 +1378,10 @@ function AppRuntime() {
     const renewPresence = () => refreshPresence().catch(markAuthorityOffline);
     const reconnectIfNeeded = () => {
       const state = useSessionStore.getState();
-      if (state.session?.phase === 'closed' && state.sessionSnapshotFreshness === 'server') return;
+      if (state.session?.phase === 'closed' && state.sessionSnapshotFreshness === 'server') {
+        readClosedHistoryIfReady();
+        return;
+      }
       run(connectAutomaticallyDeduplicated);
     };
     const stopVersionMonitor = startVersionUpgradeMonitor({
@@ -1386,7 +1401,8 @@ function AppRuntime() {
 
     const retry = window.setInterval(() => {
       const state = useSessionStore.getState();
-      if (state.session?.phase !== 'closed' && state.connection !== 'live') run(connectAutomaticallyDeduplicated);
+      if (state.session?.phase === 'closed') readClosedHistoryIfReady();
+      else if (state.connection !== 'live') run(connectAutomaticallyDeduplicated);
     }, CONNECT_RETRY_INTERVAL_MS);
     const reconcileGm = window.setInterval(() => {
       const state = useSessionStore.getState();
@@ -1413,6 +1429,8 @@ function AppRuntime() {
     document.addEventListener('visibilitychange', reconnectWhenVisible);
 
     return () => {
+      active = false;
+      closedHistoryRequests.clear();
       window.clearInterval(retry);
       window.clearInterval(reconcileGm);
       window.clearInterval(heartbeat);

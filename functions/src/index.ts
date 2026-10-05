@@ -43574,8 +43574,8 @@ export const resolvePresidentialElection = auditedOnCall<{
       const closePhase = turnStateForPhaseContext(session.get('turnState'), turnPhaseState(session.get('turnPhase')),
         session.get('currentTurn'), sessionTurnLimit(session));
       const closingPhase = turnPhaseState(session.get('turnPhase'));
-      if (!closePhase || closingPhase?.progression === 'manual' ||
-          (closePhase.phase === 'team' && Date.now() < Date.parse(closePhase.endsAt))) {
+      if (!closePhase || closePhase.phase === 'team' &&
+          (closingPhase?.progression === 'manual' || Date.now() < Date.parse(closePhase.endsAt))) {
         throw commandError('failed-precondition', 'The configured close-cycle Team window is still open.', 'invalid-phase');
       }
     }
