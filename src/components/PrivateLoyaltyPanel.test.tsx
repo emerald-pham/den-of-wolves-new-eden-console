@@ -432,6 +432,57 @@ it('clears a selected Intelligence Agent target after reassignment or disconnect
   expect(investigatePlayer).not.toHaveBeenCalled();
 });
 
+it('ignores an Intelligence Agent reply and old roster callback after the actor changes fleet groups', async () => {
+  const user = userEvent.setup();
+  const reply = deferred<Awaited<ReturnType<typeof investigatePlayer>>>();
+  const rosterCallbacks: Array<(players: readonly import('@/types/game').Player[]) => void> = [];
+  prepareLivePlayer();
+  useSessionStore.getState().setSession({ id: 's1', phase: 'active', currentTurn: 2 } as never);
+  useSessionStore.getState().setMe({
+    ...useSessionStore.getState().me!, fleetGroupId: 'fleet-1',
+  });
+  useSessionStore.getState().setPrivateLoyalty({ kind: 'intelligence-agent', suspicion: 6 });
+  vi.mocked(subscribeConnectedPlayers).mockImplementation((_sessionId, onPlayers) => {
+    rosterCallbacks.push(onPlayers);
+    onPlayers([] as never);
+    return vi.fn();
+  });
+  vi.mocked(investigatePlayer).mockReturnValue(reply.promise);
+
+  render(<PrivateLoyaltyPanel />);
+  act(() => rosterCallbacks[0]?.([
+    { uid: 'u3', role: 'player', displayName: 'Morgan', fleetGroupId: 'fleet-1', connected: true },
+  ] as never));
+  await user.click(screen.getByRole('button', { name: 'Run private investigation' }));
+  await waitFor(() => expect(investigatePlayer).toHaveBeenCalledWith('u3'));
+
+  act(() => useSessionStore.getState().setMe({
+    ...useSessionStore.getState().me!, fleetGroupId: 'fleet-2',
+  }));
+  act(() => rosterCallbacks[0]?.([
+    { uid: 'u4', role: 'player', displayName: 'Taylor', fleetGroupId: 'fleet-1', connected: true },
+  ] as never));
+  act(() => rosterCallbacks[1]?.([
+    { uid: 'u5', role: 'player', displayName: 'Casey', fleetGroupId: 'fleet-2', connected: true },
+  ] as never));
+  expect(screen.getByRole('combobox', { name: 'Investigation target' })).toHaveValue('u5');
+
+  await act(async () => reply.resolve({
+    status: 'committed', type: 'intelligence-investigation', sessionId: 's1',
+    requestId: 'investigate-old-group', cycle: 2, revision: 1, investigatorUid: 'u2',
+    targetUid: 'u3', targetDisplayName: 'Morgan', reportedWolf: true, suspicion: 8,
+  }));
+
+  expect(useSessionStore.getState().privateLoyalty).toEqual({
+    kind: 'intelligence-agent', suspicion: 6,
+  });
+  expect(screen.queryByText(/Cycle 2 \/\/ Morgan/)).not.toBeInTheDocument();
+  expect(within(screen.getByRole('combobox', { name: 'Investigation target' }))
+    .getAllByRole('option').map((option) => option.textContent)).toEqual([
+    'Choose a connected player in your fleet group', 'Casey',
+  ]);
+});
+
 it('hydrates a prior private investigation without exposing a new action outside active cycles', () => {
   prepareLivePlayer();
   useSessionStore.getState().setSession({ id: 's1', phase: 'briefing', currentTurn: 2 } as never);
