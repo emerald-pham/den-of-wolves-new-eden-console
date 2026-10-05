@@ -1,6 +1,9 @@
 import { createHash } from 'node:crypto';
 
 export const CALLABLE_RATE_LIMIT_POLICIES = {
+  // Three devices may each refresh every five seconds (36/min), with ample
+  // remaining budget for snapshot bursts, focus changes and reconnects.
+  getCurrentMemberSession: { windowMs: 60_000, maxRequests: 120 },
   // These budgets absorb duplicate reconnect/bootstrap calls while bounding repeated full roster work.
   resumeSession: { windowMs: 60_000, maxRequests: 10 },
   getSessionPresence: { windowMs: 60_000, maxRequests: 12 },

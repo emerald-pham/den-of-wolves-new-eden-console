@@ -1,6 +1,7 @@
 import { holdTurnAdvancePhase } from './turnInterstitial';
 import { parsedMemberSessionDetails } from './memberSession';
 import { createCurrentMemberSessionReader } from './memberSessionCallable';
+import { limitCurrentMemberSessionReader } from './memberSessionLimit';
 import { createTurnInterstitialHandler } from './turnInterstitialCallable';
 import { createUnionCraftStartingHostHandler } from './unionCraftSetupCallable';
 import { requireAttackAwareEmergencyTimerPauseRequest } from './wolfAttackTimerRequest';
@@ -17904,7 +17905,9 @@ function publicMemberSessionSource(sessionSnap: DocumentSnapshot, sessionId: str
   };
 }
 
-const currentMemberSessionReader = createCurrentMemberSessionReader({ db, projectSession: publicMemberSessionSource });
+const currentMemberSessionReader = limitCurrentMemberSessionReader({
+  db, read: createCurrentMemberSessionReader({ db, projectSession: publicMemberSessionSource }),
+});
 export const getCurrentMemberSession = auditedOnCall('getCurrentMemberSession', async request => currentMemberSessionReader(request));
 
 /** Redeem a legacy four-digit or current six-digit code and register presence. */
