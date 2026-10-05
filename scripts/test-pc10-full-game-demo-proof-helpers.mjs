@@ -330,3 +330,99 @@ test('an unacknowledged held cycle briefing remains a blocker and is never clear
   assert.equal(inspections, 4, 'The natural transmission detaches but the held briefing alone prevents readiness.');
   assert.equal(clears, 0);
 });
+
+const demoStartActor = (profileRoleId, uidHash, overrides = {}) => ({
+  hasAuth: true, sameActor: true, uidHash, sessionId: 'fresh-presentation-session',
+  playerRole: 'player', profileRoleId, assignedRoleId: profileRoleId === 'press-officer' || profileRoleId === 'controller' ? null : profileRoleId,
+  activeConsoleRoleId: profileRoleId === 'controller' ? null : profileRoleId,
+  instanceId: null, gmInstanceOwned: false, connection: 'live', freshness: 'server',
+  cycle: 0, phase: 'casting', setupConfirmed: true,
+  fullGameDemo: { status: 'preparing', progression: 'manual' },
+  activeRoleIds: ['admiral', 'shepherd-scientist'], pressEnabled: true,
+  ...overrides,
+});
+
+const demoStartActorOptions = {
+  sessionId: 'fresh-presentation-session',
+  controller: { sessionId: 'fresh-presentation-session', uidHash: 'controller-uid-hash' },
+  roster: [
+    { roleId: 'admiral', uidHash: 'admiral-uid-hash' },
+    { roleId: 'shepherd-scientist', uidHash: 'scientist-uid-hash' },
+    { roleId: 'press-officer', uidHash: 'press-uid-hash' },
+  ],
+};
+
+test('presentation start identity follows the legitimate controller-to-known-Press handoff without changing the admission snapshot', async () => {
+  const { captureFullGameDemoPresentationActor } = await import('./pc10-full-game-demo-proof-helpers.mjs');
+  assert.equal(typeof captureFullGameDemoPresentationActor, 'function');
+  const initialController = demoStartActor('controller', demoStartActorOptions.controller.uidHash,
+    { activeRoleIds: ['admiral', 'shepherd-scientist'] });
+  const press = demoStartActor('press-officer', 'press-uid-hash');
+  const captured = captureFullGameDemoPresentationActor(press, demoStartActorOptions);
+  assert.equal(captured.profileRoleId, 'press-officer');
+  assert.equal(captured.uidHash, 'press-uid-hash');
+  assert.equal(captured.assignedRoleId, null);
+  assert.equal(captured.activeConsoleRoleId, 'press-officer');
+  assert.ok(Object.isFrozen(captured), 'Start identity is an immutable snapshot, not a live actor object.');
+  assert.equal(initialController.profileRoleId, 'controller', 'Admission and manager-Back evidence keeps the original controller.');
+  assert.equal(initialController.uidHash, 'controller-uid-hash');
+});
+
+test('presentation start identity also accepts another confirmed, assigned original demo persona', async () => {
+  const { captureFullGameDemoPresentationActor } = await import('./pc10-full-game-demo-proof-helpers.mjs');
+  assert.equal(typeof captureFullGameDemoPresentationActor, 'function');
+  const scientist = captureFullGameDemoPresentationActor(
+    demoStartActor('shepherd-scientist', 'scientist-uid-hash'), demoStartActorOptions);
+  assert.equal(scientist.profileRoleId, 'shepherd-scientist');
+  assert.equal(scientist.uidHash, 'scientist-uid-hash');
+  assert.equal(scientist.assignedRoleId, 'shepherd-scientist');
+  assert.equal(scientist.activeConsoleRoleId, 'shepherd-scientist');
+});
+
+test('presentation start identity rejects foreign, stale, reassigned, unknown, and wrong-session actors', async () => {
+  const { captureFullGameDemoPresentationActor } = await import('./pc10-full-game-demo-proof-helpers.mjs');
+  assert.equal(typeof captureFullGameDemoPresentationActor, 'function');
+  const press = demoStartActor('press-officer', 'press-uid-hash');
+  for (const changed of [
+    { uidHash: 'foreign-uid-hash' },
+    { connection: 'connecting' },
+    { freshness: 'cache' },
+    { sameActor: false },
+    { assignedRoleId: 'admiral' },
+    { activeConsoleRoleId: 'admiral' },
+    { profileRoleId: 'unknown-persona' },
+    { sessionId: 'another-session' },
+    { phase: 'active' },
+    { setupConfirmed: false },
+    { fullGameDemo: { status: 'active', progression: 'manual' } },
+  ]) {
+    assert.throws(() => captureFullGameDemoPresentationActor({ ...press, ...changed }, demoStartActorOptions));
+  }
+  assert.throws(() => captureFullGameDemoPresentationActor(
+    demoStartActor('admiral', 'unlisted-uid-hash'), demoStartActorOptions));
+  assert.throws(() => captureFullGameDemoPresentationActor(
+    demoStartActor('controller', 'foreign-controller-uid'), demoStartActorOptions));
+});
+
+test('presentation readiness treats connecting/cache projections as pending, then requires the same actors live and server-fresh', async () => {
+  const { waitForFullGamePresentationReady } = await import('./pc10-full-game-demo-proof-helpers.mjs');
+  const gm = presentationActor('gm'), crew = presentationActor('crew');
+  let now = 0;
+  const inspections = { gm: 0, crew: 0 };
+  for (const [actor, label] of [[gm, 'gm'], [crew, 'crew']]) {
+    actor.inspect = async () => {
+      inspections[label] += 1;
+      const fresh = inspections[label] >= 3;
+      const base = await presentationActor(label).inspect();
+      return fresh ? { ...base, naturalTransmissionMounted: inspections[label] === 3 }
+        : { ...base, sessionId: null, sameActor: false, playerRole: null,
+        assignedRoleId: null, activeConsoleRoleId: null, instanceId: null,
+        gmInstanceOwned: false, connection: 'connecting', freshness: 'cache' };
+    };
+    actor.paintTwoFrames = async () => {};
+  }
+  const result = await waitForFullGamePresentationReady({ expectedAnnouncement: { turn: 1, revision: 4 }, actors: [gm, crew],
+    now: () => now, wait: async () => { now += 1; } });
+  assert.equal(result.status, 'ready');
+  assert.ok(inspections.gm >= 5 && inspections.crew >= 5, 'Both original actors were revalidated after the stale cache phase.');
+});
