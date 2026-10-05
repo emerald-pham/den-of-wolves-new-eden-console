@@ -345,6 +345,8 @@ const demoStartActor = (profileRoleId, uidHash, overrides = {}) => ({
 const demoStartActorOptions = {
   sessionId: 'fresh-presentation-session',
   controller: { sessionId: 'fresh-presentation-session', uidHash: 'controller-uid-hash' },
+  confirmedRoleIds: ['admiral', 'shepherd-scientist'],
+  pressIncluded: true,
   roster: [
     { roleId: 'admiral', uidHash: 'admiral-uid-hash' },
     { roleId: 'shepherd-scientist', uidHash: 'scientist-uid-hash' },
