@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { useSessionStore } from '@/store/useSessionStore';
 import { setGmShipConsoleWriteGrant } from '@/lib/sessionService';
 import { createCandidateAttempt, executeCandidateAttempt, readCandidateWorkspace, recoverCandidateAttempt,
@@ -86,15 +86,24 @@ function CandidatePreparationWorkspace() {
   const [message, setMessage] = useState(''); const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState<CandidateAttempt>(); const [refresh, setRefresh] = useState(0);
   const [gmShipId, setGmShipId] = useState('');
+  const readinessId = useId();
   const isGm = me?.role === 'gm';
   const groupIds = [...new Set(Object.values(session?.shipFleetGroupIds ?? {}))];
   const groupId = isGm ? selectedGroup || me?.fleetGroupId || groupIds[0] || 'fleet-1' : me?.fleetGroupId;
-  const ready = !!session && !!me && me.sessionId === session.id && !!groupId &&
+  const started = typeof session?.currentTurn === 'number' && Number.isSafeInteger(session.currentTurn) && session.currentTurn >= 1;
+  const ready = started && !!session && !!me && me.sessionId === session.id && !!groupId &&
     freshness === 'server' && connection === 'live' && (!isGm ||
       (!!gmInstance && gmInstance.uid === me.uid && gmInstance.sessionId === session.id));
+  const canMakeChoices = ready && session?.phase === 'active';
+  const currentWorkspace = ready ? workspace : undefined;
+  const ended = session?.phase === 'success' || session?.phase === 'failure' || session?.phase === 'debrief' ||
+    session?.phase === 'closed' || session?.phase === 'retained-empty';
+  const readBlocker = !started && connection === 'live' && freshness === 'server'
+    ? 'Awaiting GM start // candidate operations open from Cycle 1.'
+    : 'Reconnect to receive current candidate actions and original results.';
   useEffect(() => {
     let cancelled = false; setWorkspace(undefined);
-    if (!ready || !groupId) return;
+    if (!ready || !groupId) { setPending(undefined); setMessage(''); return; }
     try { setPending(recoverCandidateAttempt(groupId)); } catch { setPending(undefined); }
     void readCandidateWorkspace(groupId).then(value => { if (!cancelled) setWorkspace(value); })
       .catch(cause => { if (!cancelled) setMessage(cause instanceof Error ? cause.message : 'Candidate operations unavailable.'); });
@@ -113,10 +122,10 @@ function CandidatePreparationWorkspace() {
     try { void execute(createCandidateAttempt(choice)); }
     catch (cause) { setMessage(cause instanceof Error ? cause.message : 'Candidate authority unavailable.'); }
   }
-  const gmShips = [...new Set(workspace?.paths.flatMap(path => path.ships.filter(ship => ship.canAct).map(ship => ship.shipId)) ?? [])];
+  const gmShips = [...new Set(currentWorkspace?.paths.flatMap(path => path.ships.filter(ship => ship.canAct).map(ship => ship.shipId)) ?? [])];
   const grantShip = gmShips.includes(gmShipId) ? gmShipId : gmShips[0];
   async function enableGmControl() {
-    if (!ready || !gmInstance || !grantShip || busy) return;
+    if (!canMakeChoices || !gmInstance || !grantShip || busy) return;
     setBusy(true);
     try {
       await setGmShipConsoleWriteGrant(grantShip, true, { shipId: grantShip, sessionId: session!.id,
@@ -129,19 +138,21 @@ function CandidatePreparationWorkspace() {
     <div className="candidate-preparation__header"><h2>New Eden preparation</h2>
       {isGm && groupIds.length > 1 && <label>Fleet group<select value={groupId ?? ''} onChange={event => setSelectedGroup(event.target.value)}>
         {groupIds.map(id => <option key={id} value={id}>{id}</option>)}</select></label>}
-      <button className="cic-action-button" type="button" disabled={!ready || busy} onClick={() => setRefresh(value => value + 1)}>
+      <button className="cic-action-button" type="button" disabled={!ready || busy}
+        aria-describedby={!ready || ended ? readinessId : undefined} onClick={() => setRefresh(value => value + 1)}>
         Refresh candidate operations</button></div>
     {session.currentTurn === 6 && <p>Cycle 6 // agree a New Eden plan with your fleet and identify who acts next.</p>}
-    {workspace && <p>Cycle {workspace.cycle} // candidate revision {workspace.revision}</p>}
-    {isGm && ready && grantShip && <div className="candidate-preparation__action">
+    {currentWorkspace && <p>Cycle {currentWorkspace.cycle} // candidate revision {currentWorkspace.revision}</p>}
+    {ready && ended && <p id={readinessId}>Game ended // original candidate results remain available.</p>}
+    {isGm && canMakeChoices && grantShip && <div className="candidate-preparation__action">
       <label>GM candidate vessel<select value={grantShip} disabled={busy} onChange={event => setGmShipId(event.target.value)}>
         {gmShips.map(shipId => <option key={shipId} value={shipId}>{shipId}</option>)}</select></label>
       <button className="cic-action-button" type="button" disabled={busy} onClick={() => void enableGmControl()}>Enable GM candidate ship control</button>
       <p>Current scoped control // {gmInstance?.shipConsoleWriteGrant?.shipId ?? 'choose a vessel and enable control'}.</p>
     </div>}
-    {!ready ? <p>Reconnect to receive current candidate actions and original results.</p> : !workspace ?
-      <p>Receiving current candidate operations…</p> : workspace.paths.length === 0 ?
-        <p>Scout or arrive at a candidate to receive its preparation and actions.</p> : workspace.paths.map(path =>
+    {!ready ? <p id={readinessId}>{readBlocker}</p> : !currentWorkspace ?
+      <p>Receiving current candidate operations…</p> : currentWorkspace.paths.length === 0 ?
+        <p>Scout or arrive at a candidate to receive its preparation and actions.</p> : currentWorkspace.paths.map(path =>
           <article key={`${path.code}-${path.coordinate}`} className="candidate-preparation__path">
             <h3>{path.title}</h3>
             <p>{path.code === 'N' ? 'Repair: 10 materials, one Engineering Shuttle and five distinct research tracks with four crosses. Ring repair permanently consumes the Engineering Shuttle; it cannot launch, repair, recharge or join a mission afterward. Passage: five fuel from each ship.' :
@@ -154,14 +165,14 @@ function CandidatePreparationWorkspace() {
             <p className="candidate-preparation__next">Next actor // {path.nextActor}</p>
             <ul className="candidate-preparation__ships">{path.ships.map(ship => <li key={ship.shipId}>
               <strong>{ship.shipId}</strong> // {ship.summary || ship.result}{ship.blocker && ` // ${ship.blocker}`}</li>)}</ul>
-            {ready && <CandidateChoices path={path} revision={workspace.revision} groupId={workspace.groupId}
+            {canMakeChoices && <CandidateChoices path={path} revision={currentWorkspace.revision} groupId={currentWorkspace.groupId}
               busy={busy || !!pending} submit={submit} gm={isGm} grantedShipId={gmInstance?.shipConsoleWriteGrant?.shipId} />}
           </article>)}
     {message && <p role="status" aria-live="polite">{message}</p>}
     {ready && pending && !busy && <button className="cic-action-button" type="button"
       onClick={() => void execute(pending)}>Retry original candidate request</button>}
-    {isGm && workspace?.privateCalculations && <details><summary>Private GM candidate calculations</summary>
-      <ul>{workspace.privateCalculations.map(audit => <li key={audit.requestId}>{audit.code} // {audit.result} //
+    {isGm && currentWorkspace?.privateCalculations && <details><summary>Private GM candidate calculations</summary>
+      <ul>{currentWorkspace.privateCalculations.map(audit => <li key={audit.requestId}>{audit.code} // {audit.result} //
         {JSON.stringify(audit.calculation)}</li>)}</ul></details>}
   </section>;
 }
