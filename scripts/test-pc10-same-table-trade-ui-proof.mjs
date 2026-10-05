@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { mkdtemp, readFile as readEvidence } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -6,6 +7,7 @@ import { join } from 'node:path';
 import test from 'node:test';
 import {
   createSameTableTradeUiProof,
+  selectionMatchesOriginalIdentity,
   validateActorPair,
   validateTrainingScenario,
 } from './pc10-same-table-trade-ui-proof.mjs';
@@ -82,6 +84,21 @@ test('trade actors need distinct original player identities with live same-table
   assert.equal(validateActorPair(sender, { ...recipient, uidHash: sender.uidHash }, 'session-one').eligible, false);
   assert.equal(validateActorPair(sender, { ...recipient, live: false }, 'session-one').eligible, false);
   assert.equal(validateActorPair(sender, { ...recipient, replacement: true }, 'session-one').eligible, false);
+});
+
+test('baseline and recipient selectors match the full-demo raw-UID fingerprint against the original actor UID', () => {
+  const originalUid = 'actual-original-player-uid';
+  const actorIdentity = {
+    uid: originalUid,
+    uidHash: createHash('sha256').update(new TextEncoder().encode(originalUid)).digest('hex').slice(0, 16),
+  };
+  const jsonWrappedUidHash = createHash('sha256').update(JSON.stringify(originalUid)).digest('hex').slice(0, 16);
+  assert.notEqual(actorIdentity.uidHash, jsonWrappedUidHash,
+    'This fixture distinguishes the full-demo TextEncoder(raw UID) fingerprint from JSON-wrapped request hashes.');
+  assert.equal(selectionMatchesOriginalIdentity(originalUid, actorIdentity), true,
+    'The exact selected original UID must pass both ordinary UI selector guards.');
+  assert.equal(selectionMatchesOriginalIdentity('different-selected-actor', actorIdentity), false,
+    'A selector that names another account must be rejected before the UI action is submitted.');
 });
 
 test('omitting physical observations blocks before creating a browser adapter or submitting counts', async () => {
