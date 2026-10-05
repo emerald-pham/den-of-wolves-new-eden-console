@@ -382,7 +382,7 @@ test('mounted write grant is verified as a single-shot enable, same-instance rel
     afterReload: { actor: gmActor, projection: grantProjection(true) },
     restore: { request: { ...request, enabled: false },
       response: { httpStatus: 200, result: { enabled: false } },
-      rendered: { visible: true, resultStatus: 'committed', controlPressed: false, observerMode: 'read' },
+      rendered: { visible: true, resultStatus: 'committed', enabled: false, controlPressed: false, observerMode: 'read' },
       afterReload: { actor: gmActor, projection: grantProjection(false) } },
     trainingChoice: 'gm-training:deliberate-choice' });
   const accepted = evaluateProcedureCapture(proof);
