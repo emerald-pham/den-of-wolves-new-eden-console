@@ -229,7 +229,17 @@ test('evidence projection never persists raw requests, notes, UIDs, or random da
       expectedCycle: 2, expectedRevision: 7, shipId: 'shepherd' },
     trainingChoice: 'GM training: assign damage through the normal control.',
   }));
-  assert.equal(gmDamage.status, 'completed');
-  assert.equal(gmDamage.trainingChoice, 'GM training: assign damage through the normal control.');
+  assert.equal(gmDamage.status, 'pending', 'free-form facilitator wording must not enter evidence');
+  const disclosedChoice = evaluateProcedureCapture(capture({ caseId: 'gm:addShipDamage',
+    expected: { sessionId: 'session-1', uidHash: 'gm-hash', instanceId: 'gm-instance', roleId: 'gm',
+      cycle: 2, sourceRevision: 7 }, actorBefore: gmActor, actorAfter: gmActor,
+    sourceBefore: { live: true, sessionId: 'session-1', cycle: 2, revision: 7 },
+    sourceAfter: { live: true, sessionId: 'session-1', cycle: 2, revision: 8 },
+    request: { sessionId: 'session-1', instanceId: 'gm-instance', requestId: 'damage-1',
+      expectedCycle: 2, expectedRevision: 7, shipId: 'shepherd' },
+    trainingChoice: 'gm-training:assign-damage',
+  }));
+  assert.equal(disclosedChoice.status, 'completed');
+  assert.equal(disclosedChoice.trainingChoice, 'gm-training:assign-damage');
   assert.equal(gmDamage.randomOutcomeRecorded, false);
 });
