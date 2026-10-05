@@ -165,6 +165,22 @@ test('rendered private and group text is represented only by a bounded status co
   assert.equal(JSON.stringify(evidence).includes('6 and 5'), false);
 });
 
+test('private research and mission selectors are hashed in request and response receipts', () => {
+  const evidence = projectSpecialistActionEvidence({
+    roleId: 'shepherd-scientist', endpoint: 'advanceEndeavourResearchTrack',
+    actor: { uidHash: 'sha256-scientist', sessionId: 'session' },
+    request: { requestId: 'research-1', trackId: 'wolf-agent-detector', funding: 'shepherd-ore',
+      expectedControlRevision: 2, expectedResearchRevision: 4, expectedCycle: 1 },
+    response: { httpStatus: 200, result: { status: 'committed', revision: 5, trackId: 'wolf-agent-detector' } },
+    replay: { status: 'committed', result: { status: 'replayed', revision: 5, trackId: 'wolf-agent-detector' } },
+    cost: { resource: 'ore', amount: 5 }, projection: {},
+  });
+  assert.equal(evidence.request.trackId, undefined);
+  assert.equal(evidence.response.trackId, undefined);
+  assert.equal(evidence.request.trackIdHash.length, 64);
+  assert.equal(JSON.stringify(evidence).includes('wolf-agent-detector'), false);
+});
+
 test('callback records failures without calling a partial gameplay run complete', async () => {
   let saved;
   const game = { context: { gm: {}, initial: { sessionId: 'fresh-session' } },
