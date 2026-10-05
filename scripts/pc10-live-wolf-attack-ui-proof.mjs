@@ -4,6 +4,8 @@ import { createHash } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 import { candidateGameplayTools } from './pc10-candidate-manual-ui-proof.mjs';
 import { CANDIDATE_PROOF_SHIPS } from './pc10-candidate-proof-helpers.mjs';
+import { assertWolfChoiceActor, createWolfChoiceWaiter, observeWolfChoiceActor } from './pc10-combat-choice-readiness.mjs';
+import { assertOriginalBaseActor, baseWolfActionExpectation } from './pc10-base-combat-deduction-contracts.mjs';
 const attackSummary = value => value && ({
   status: value.status, revision: value.revision, currentStep: value.currentStep,
   turn: value.turn, enemyCount: value.preparation?.shipIds?.length,
@@ -15,7 +17,28 @@ export async function resolveLiveWolfAttack(context, { tools = candidateGameplay
   timeoutMs = 8 * 60_000, declareIfPlanned = false, verifyReplay = true, chooseNext } = {}) {
   const { gm, roster } = context;
   const replays = [];
+  assert.ok(timeoutMs > 0 && timeoutMs <= 8 * 60_000, 'Keep the existing maximum eight-minute combat budget.');
+  const originalGm = await gm.observe();
+  let deadline, stageDeadline, stageKey;
+  const readySources = new WeakMap();
+  let sourceWait;
+  async function waitChoice(surface, current, spec) {
+    const result = await sourceWait(surface, current, spec, { deadlineAt: stageDeadline });
+    readySources.delete(surface);
+    if (result.status === 'eligible') readySources.set(surface, { expected: result.expected, actor: result.originalActor });
+    return result;
+  }
+  const select = (roleId, options = {}) => tools.select(roleId, { ...options, deadlineAt: stageDeadline });
   async function uiReceipt(surface, endpoint, decision) {
+    const bound = readySources.get(surface);
+    if (bound) {
+      assertWolfChoiceActor(await observeWolfChoiceActor(surface), bound.actor);
+      assertOriginalBaseActor(await gm.observe(), originalGm);
+      const current = await attack();
+      for (const key of ['attackId', 'turn', 'revision', 'currentStep', 'status'])
+        assert.equal(current[key], bound.expected[key], `Current source ${key} changed before the UI choice.`);
+      assert.ok(Date.now() < stageDeadline && Date.now() < deadline, 'Current choice must stay within its original stage budget.');
+    }
     let result;
     const response = await observeUiReceipt({
       waitForResponse: () => surface.page.waitForResponse(response => response.request().method() === 'POST' &&
@@ -23,6 +46,12 @@ export async function resolveLiveWolfAttack(context, { tools = candidateGameplay
       choose: async () => { result = await tools.receipt(surface, endpoint, decision); },
     });
     const request = response.request().postDataJSON()?.data;
+    if (bound) {
+      assertWolfChoiceActor(await observeWolfChoiceActor(surface), bound.actor);
+      assertOriginalBaseActor(await gm.observe(), originalGm);
+      for (const [key, value] of Object.entries(baseWolfActionExpectation(endpoint, bound.expected)))
+        assert.deepEqual(request?.[key], value, `The actual UI request must retain the ready source ${key}.`);
+    }
     if (verifyReplay && typeof request?.requestId === 'string') {
       const replay = await surface.callable(endpoint, request);
       assert.equal(replay.status, 'committed', `${endpoint} original actor exact receipt recovery`);
@@ -34,14 +63,14 @@ export async function resolveLiveWolfAttack(context, { tools = candidateGameplay
     return result;
   }
   const attack = () => tools.read('gm', 'wolfAttackState/current');
-  async function afterChoice(previous) {
-    const deadline = Date.now() + 60_000; let current;
-    while (Date.now() < deadline) {
+  async function afterChoice(previous, reason = 'Real Wolf choice did not commit') {
+    const consequenceDeadline = Math.min(Date.now() + 60_000, deadline, stageDeadline); let current;
+    while (Date.now() < consequenceDeadline) {
       current = await attack();
       if (current?.revision > previous.revision || current?.attackId !== previous.attackId) return current;
       await delay(200);
     }
-    throw new Error(`Real Wolf choice did not commit: ${JSON.stringify(attackSummary(current))}`);
+    throw new Error(`${reason}: ${JSON.stringify(attackSummary(current))}`);
   }
   async function commanderRole(current) {
     const uid = current.decisionSummary?.commander?.actors?.[0]?.uid;
@@ -54,41 +83,59 @@ export async function resolveLiveWolfAttack(context, { tools = candidateGameplay
   async function targeting(current) {
     const roleId = await commanderRole(current);
     if (roleId && current.decisionSummary?.commander?.status === 'pending') {
-      const surface = await tools.select(roleId, { enter: false });
+      const surface = await select(roleId, { enter: false });
       const url = new URL(surface.page.url()); url.hash = '/brief'; await surface.page.goto(url.href);
       await surface.until('Actual current Commander brief', value => value.sameActor && value.connection === 'live' && value.freshness === 'server');
+      const ready = await waitChoice(surface, current, { kind: 'commander-targeting' });
+      if (ready.status === 'source-changed') return;
+      assert.equal(ready.status, 'eligible', 'The required Commander control must actually be offered.');
       await uiReceipt(surface, 'finishWolfCommanderTargetingRerolls', () => surface.page.getByRole('button', { name: 'Finish rerolls', exact: true }).click());
       await afterChoice(current); return;
     }
-    const wing = await tools.select('wing-commander');
-    for (const label of ['Fighter Wing Alpha', 'Fighter Wing Bravo']) {
+    const wing = await select('wing-commander');
+    for (const [label, sourceId] of [['Fighter Wing Alpha', 'fighter-wing-alpha'], ['Fighter Wing Bravo', 'fighter-wing-bravo']]) {
+      const ready = await waitChoice(wing, current, { kind: 'aegis-launch', sourceId });
+      if (ready.status === 'source-changed') return;
+      if (ready.status !== 'eligible') continue;
       const launch = wing.page.getByRole('button', { name: `Launch ${label}`, exact: true });
       if (await launch.isVisible() && await launch.isEnabled()) {
         const prior = await attack();
         await uiReceipt(wing, 'launchAegisFighterWing', () => launch.click());
         await afterChoice(prior); return;
       }
-    }
-    const executive = await tools.select('executive-officer');
-    const enrich = executive.page.getByRole('button', { name: 'Enrich warheads // 5 ore', exact: true });
-    if (await enrich.isVisible() && await enrich.isEnabled()) {
-      await uiReceipt(executive, 'commitAegisEnrichedWarheadChoice', () => enrich.click());
+      const pass = wing.page.getByRole('button', { name: `Pass ${label}`, exact: true });
+      assert.equal(await pass.isEnabled(), true, 'Use only the source-offered explicit pass.');
+      await uiReceipt(wing, 'passWolfFighterLaunchChoice', () => pass.click());
       await afterChoice(current); return;
     }
+    const executive = await select('executive-officer');
+    const warheadReady = await waitChoice(executive, current, { kind: 'warheads' });
+    if (warheadReady.status === 'source-changed') return;
+    const enrich = executive.page.getByRole('button', { name: 'Enrich warheads // 5 ore', exact: true });
+    if (warheadReady.status === 'eligible') {
+      const pass = executive.page.getByRole('button', { name: 'Pass enriched warheads', exact: true });
+      const control = await enrich.isVisible() && await enrich.isEnabled() ? enrich : pass;
+      await uiReceipt(executive, 'commitAegisEnrichedWarheadChoice', () => control.click());
+      await afterChoice(current); return;
+    }
+    const commandReady = await waitChoice(executive, current, { kind: 'command-and-control' });
+    if (commandReady.status === 'source-changed') return;
     const cnc = executive.page.getByRole('button', { name: 'Pass Command and Control', exact: true });
-    if (await cnc.isVisible() && await cnc.isEnabled()) {
+    if (commandReady.status === 'eligible') {
       await uiReceipt(executive, 'passAegisCommandAndControl', () => cnc.click());
       await afterChoice(current); return;
     }
-    await delay(350);
+    await afterChoice(current, 'Current Wing and EO targeting controls have only explicit blockers and no source progress; no role reload fallback');
   }
   async function fighterRange(current) {
     if (current.currentStep === 'long-range') return false;
     const range = current.currentStep === 'medium-range' ? 'Medium Range' : 'Short Range';
-    const wing = await tools.select('wing-commander');
-    const panels = wing.page.getByRole('region', { name: new RegExp(`Fighter Wing (Alpha|Bravo) ${range} actions$`) });
-    for (let p = 0; p < await panels.count(); p++) {
-      const panel = panels.nth(p);
+    const wing = await select('wing-commander');
+    for (const [label, sourceId] of [['Fighter Wing Alpha', 'fighter-wing-alpha'], ['Fighter Wing Bravo', 'fighter-wing-bravo']]) {
+      const ready = await waitChoice(wing, current, { kind: 'fighter-range', sourceId, range: current.currentStep });
+      if (ready.status === 'source-changed') return true;
+      if (ready.status !== 'eligible') continue;
+      const panel = wing.page.getByRole('region', { name: `${label} ${range} actions`, exact: true });
       const commit = panel.getByRole('button', { name: range === 'Medium Range' ? 'Resolve Medium actions' : 'Pass Short Range', exact: true });
       if (!(await commit.isVisible())) continue;
       if (range === 'Medium Range') {
@@ -109,7 +156,8 @@ export async function resolveLiveWolfAttack(context, { tools = candidateGameplay
         } else await uiReceipt(wing, 'commitWolfFighterRangeActionChoice', () => commit.click());
       } else {
         for (const checkbox of await panel.getByRole('checkbox', { name: /^Fighter \d+ Short attack$/ }).all()) await checkbox.check();
-        const attackButton = panel.getByRole('button', { name: /^(Resolve selected Short attacks|Pass Short Range)$/ });
+        const resolve = panel.getByRole('button', { name: 'Resolve selected Short attacks', exact: true });
+        const attackButton = await resolve.isEnabled() ? resolve : panel.getByRole('button', { name: 'Pass Short Range', exact: true });
         await uiReceipt(wing, 'commitWolfFighterRangeActionChoice', () => attackButton.click());
       }
       await afterChoice(current); return true;
@@ -117,11 +165,15 @@ export async function resolveLiveWolfAttack(context, { tools = candidateGameplay
     return false;
   }
   async function supportRange(current) {
-    const miner = await tools.select('icebreaker-miner');
-    await miner.page.getByRole('link', { name: 'Open Highwall shuttle console', exact: true }).click();
+    const miner = await select('icebreaker-miner');
+    const link = miner.page.getByRole('link', { name: 'Open Highwall shuttle console', exact: true });
+    await link.waitFor({ state: 'visible', timeout: Math.max(1, Math.min(35_000, stageDeadline - Date.now())) });
+    await link.click();
+    const ready = await waitChoice(miner, current, { kind: 'range-support', sourceId: 'highwall', range: current.currentStep });
+    if (ready.status === 'source-changed') return true;
+    if (ready.status !== 'eligible') return false;
     const range = { 'long-range': 'Long Range', 'medium-range': 'Medium Range', 'short-range': 'Short Range' }[current.currentStep];
     const panel = miner.page.getByRole('region', { name: `Highwall Cannon ${range} choice`, exact: true });
-    if (!(await panel.isVisible())) return false;
     const use = panel.getByRole('button', { name: 'Use Highwall Cannon', exact: true });
     const pass = panel.getByRole('button', { name: 'Pass this range', exact: true });
     if (!(await pass.isVisible()) || !(await pass.isEnabled())) return false;
@@ -129,9 +181,11 @@ export async function resolveLiveWolfAttack(context, { tools = candidateGameplay
     await afterChoice(current); return true;
   }
   async function aegisRange(current) {
-    const executive = await tools.select('executive-officer');
+    const executive = await select('executive-officer');
+    const ready = await waitChoice(executive, current, { kind: 'range-actions' });
+    if (ready.status === 'source-changed') return;
+    assert.equal(ready.status, 'eligible', 'The current required EO range or target-assignment controls must actually be offered.');
     const panel = executive.page.getByRole('region', { name: 'Wolf range actions', exact: true });
-    if (!(await panel.isVisible())) { await delay(350); return; }
     const use = panel.getByRole('button', { name: 'Use selected actions', exact: true });
     if (await use.isVisible()) {
       const checkboxes = panel.getByRole('checkbox');
@@ -151,7 +205,7 @@ export async function resolveLiveWolfAttack(context, { tools = candidateGameplay
         await selector.selectOption(chosen); assigned.set(source, [...used, chosen]);
       }
       const commit = panel.getByRole('button', { name: 'Commit target assignments', exact: true });
-      if (!(await commit.isVisible())) { await delay(350); return; }
+      assert.equal(await commit.isVisible(), true, 'Current target assignment commit must remain rendered.');
       await uiReceipt(executive, 'assignWolfRangeTargets', () => commit.click());
     }
     await afterChoice(current);
@@ -161,9 +215,11 @@ export async function resolveLiveWolfAttack(context, { tools = candidateGameplay
       ...Object.values(CANDIDATE_PROOF_SHIPS).map(ship => ship.engineer),
       ...roster.map(actor => actor.roleId).filter(roleId => roleId !== 'press-officer')];
     for (const roleId of [...new Set(actors)].filter(roleId => roster.some(actor => actor.roleId === roleId))) {
-      const actor = await tools.select(roleId);
+      const actor = await select(roleId);
+      const specialReady = await waitChoice(actor, current, { kind: 'boarding-special' });
+      if (specialReady.status === 'source-changed') return;
       const special = actor.page.getByRole('region', { name: 'Current boarding special choice', exact: true });
-      if (await special.isVisible()) {
+      if (specialReady.status === 'eligible') {
         const stay = special.getByRole('button', { name: /^Stay at / });
         const pass = special.getByRole('button', { name: 'Pass rerolls', exact: true });
         const militia = special.getByRole('button', { name: 'Commit Militia risk', exact: true });
@@ -173,6 +229,9 @@ export async function resolveLiveWolfAttack(context, { tools = candidateGameplay
           await afterChoice(current); return;
         }
       }
+      const defenceReady = await waitChoice(actor, current, { kind: 'boarding-defence' });
+      if (defenceReady.status === 'source-changed') return;
+      if (defenceReady.status !== 'eligible') continue;
       const defend = actor.page.getByRole('button', { name: 'Commit defence', exact: true });
       if (await defend.isVisible()) {
         const panel = actor.page.getByRole('region', { name: / boarding defence$/i }).filter({ has: defend });
@@ -183,7 +242,7 @@ export async function resolveLiveWolfAttack(context, { tools = candidateGameplay
         await afterChoice(current); return;
       }
     }
-    await delay(350);
+    await afterChoice(current, 'Current boarding actors have only explicit blockers and no source progress; no repeat role reload loop');
   }
   let current = await attack();
   const setup = await tools.state();
@@ -205,12 +264,22 @@ export async function resolveLiveWolfAttack(context, { tools = candidateGameplay
     current = await attack();
   }
   assert.notEqual(current.status, 'planned', 'No planner or undeclared-source bypass.');
-  const deadline = Date.now() + timeoutMs;
+  deadline = Date.now() + timeoutMs;
+  sourceWait = createWolfChoiceWaiter(context, { tools, originalGm, deadlineAt: deadline });
   while (Date.now() < deadline) {
     current = await attack();
     assert.equal((await tools.state()).phase, 'active');
     if (current.status === 'resolved') break;
-    if (chooseNext && await chooseNext(current)) continue;
+    const key = JSON.stringify([current.attackId, current.turn, current.revision, current.currentStep]);
+    if (key !== stageKey) { stageKey = key; stageDeadline = Math.min(Date.now() + 60_000, deadline); }
+    assert.ok(Date.now() < stageDeadline, 'Original current combat decision stage deadline expired.');
+    if (chooseNext) {
+      const chosen = await chooseNext(current, { waitChoice, deadlineAt: stageDeadline });
+      if (chosen?.status === 'current-ui-blocked') {
+        await afterChoice(current, chosen.reason); continue;
+      }
+      if (chosen) continue;
+    }
     if (current.currentStep === 'targeting') await targeting(current);
     else if (['long-range', 'medium-range', 'short-range'].includes(current.currentStep)) {
       if (await fighterRange(current)) continue;

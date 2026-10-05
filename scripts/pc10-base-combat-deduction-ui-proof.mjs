@@ -3,6 +3,7 @@ import { writeFile } from 'node:fs/promises';
 import { setTimeout as delay } from 'node:timers/promises';
 import { createTwoBrowserGameplay } from './pc10-two-browser-gameplay.mjs';
 import { resolveLiveWolfAttack } from './pc10-live-wolf-attack-ui-proof.mjs';
+import { assertWolfChoiceActor, observeWolfChoiceActor } from './pc10-combat-choice-readiness.mjs';
 import { assertBaseCombatPrerequisites, assertOriginalBaseActor, assertRequiredBaseBranches, baseMemberRowsMatch, baseWolfActionExpectation,
   BASE_COMBAT_CONTROL_LABELS, baseResearchPaintMatches, captureBaseUiReceipt, chooseBaseRangeAssignments,
   openingWolfCounts, openBaseEndeavourResearchRoute, originalRoleForUid, proofHash, uidHash, validatePrivateDeductionReply,
@@ -47,12 +48,13 @@ export async function runBaseCombatAndDeduction(context, options = {}) {
   assert.match(evidenceName, /^[a-z0-9-]+\.json$/);
   const save = () => writeFile(`${directory}/${evidenceName}`, `${JSON.stringify(report, null, 2)}\n`);
   const recordRequest = async entry => { report.requests.push(entry); await save(); };
+  const combatReadiness = new WeakMap();
   const branch = (id, value) => { report.branches[id] = value; };
   const blocked = (id, blocker, nextActor) => branch(id, { status: 'blocked', credited: false, blocker, nextActor });
   const committed = (id, details = {}) => branch(id, { status: 'committed', ...details });
 
-  async function select(roleId, { brief = false, enter = true } = {}) {
-    const surface = await a.select(roleId, { enter: brief ? false : enter });
+  async function select(roleId, { brief = false, enter = true, deadlineAt } = {}) {
+    const surface = await a.select(roleId, { enter: brief ? false : enter, deadlineAt });
     const observed = await surface.observe();
     if (roleId === 'gm') assertOriginalBaseActor(observed, originalGm);
     else {
@@ -102,8 +104,8 @@ export async function runBaseCombatAndDeduction(context, options = {}) {
       source, controls, displayedCostsBlockersAndNextActor: text });
     await save();
   }
-  async function waitAttack(previous) {
-    const deadline = Date.now() + 60_000;
+  async function waitAttack(previous, deadlineAt = Infinity) {
+    const deadline = Math.min(Date.now() + 60_000, deadlineAt);
     while (Date.now() < deadline) {
       const current = await readGm('wolfAttackState/current');
       if (current?.attackId !== previous?.attackId || current?.revision > (previous?.revision ?? -1)) return current;
@@ -115,8 +117,22 @@ export async function runBaseCombatAndDeduction(context, options = {}) {
     const current = await readGm('wolfAttackState/current');
     assert.ok(current && current.status !== 'resolved');
     assert.equal(current.turn, originalGm.cycle);
-    const result = await rpc(surface, endpoint, decision, baseWolfActionExpectation(endpoint, current));
-    await waitAttack(current); return result;
+    const ready = combatReadiness.get(surface);
+    if (ready) {
+      assertWolfChoiceActor(await observeWolfChoiceActor(surface), ready.actor);
+      for (const key of ['attackId', 'turn', 'revision', 'currentStep', 'status'])
+        assert.equal(current[key], ready.expected[key], `Current source ${key} changed before the UI choice.`);
+      assert.ok(Date.now() < ready.deadlineAt, 'Keep the original current combat decision budget.');
+    }
+    const result = await rpc(surface, endpoint, async () => {
+      if (ready) {
+        assertWolfChoiceActor(await observeWolfChoiceActor(surface), ready.actor);
+        assert.ok(Date.now() < ready.deadlineAt, 'Do not click an expired current combat decision.');
+      }
+      return decision();
+    }, baseWolfActionExpectation(endpoint, current));
+    if (ready) assertWolfChoiceActor(await observeWolfChoiceActor(surface), ready.actor);
+    await waitAttack(current, ready?.deadlineAt); return result;
   }
   async function firstAvailableTarget(selectControl, preferred) {
     const options = await selectControl.locator('option').evaluateAll(nodes => nodes
@@ -150,12 +166,22 @@ export async function runBaseCombatAndDeduction(context, options = {}) {
   }
 
   // Supplement the existing complete server lifecycle; these are actual source controls.
-  async function chooseNext(current) {
+  async function chooseNext(current, { waitChoice, deadlineAt }) {
+    const paint = async (surface, kind, fields = {}) => {
+      const result = await waitChoice(surface, current, { kind, ...fields });
+      combatReadiness.delete(surface);
+      if (result.status === 'eligible') combatReadiness.set(surface, { expected: result.expected, actor: result.originalActor, deadlineAt });
+      return result;
+    };
+    const chooseActor = (roleId, options = {}) => select(roleId, { ...options, deadlineAt });
     const range = { 'long-range': 'Long Range', 'medium-range': 'Medium Range', 'short-range': 'Short Range' }[current.currentStep];
     if (current.currentStep === 'targeting') {
       const commanderUid = current.decisionSummary?.commander?.status === 'pending' && current.decisionSummary?.commander?.actors?.[0]?.uid;
       if (commanderUid) {
-        const role = originalRoleForUid(commanderUid, roster), surface = await select(role, { brief: true });
+        const role = originalRoleForUid(commanderUid, roster), surface = await chooseActor(role, { brief: true });
+        const ready = await paint(surface, 'commander-targeting');
+        if (ready.status === 'source-changed') return true;
+        assert.equal(ready.status, 'eligible', 'The current required Commander choice must actually be offered.');
         const button = surface.page.getByRole('button', { name: 'Finish rerolls', exact: true });
         await button.waitFor();
         await receiptForAttack(surface, 'finishWolfCommanderTargetingRerolls', () => button.click());
@@ -164,7 +190,10 @@ export async function runBaseCombatAndDeduction(context, options = {}) {
       }
       const forceActor = current.decisionSummary?.forceField?.actor;
       if (current.decisionSummary?.forceField?.status === 'pending' && forceActor) {
-        const role = originalRoleForUid(forceActor.uid, roster), surface = await select(role);
+        const role = originalRoleForUid(forceActor.uid, roster), surface = await chooseActor(role);
+        const ready = await paint(surface, 'force-field');
+        if (ready.status === 'source-changed') return true;
+        assert.equal(ready.status, 'eligible', 'The current required Captain choice must actually be offered.');
         const panel = surface.page.getByRole('region', { name: 'Gorgoneion Force Field Projector', exact: true });
         await panel.waitFor(); await guidance(role, panel, 'force-field');
         const radios = panel.getByRole('radio');
@@ -174,9 +203,12 @@ export async function runBaseCombatAndDeduction(context, options = {}) {
         await receiptForAttack(surface, 'commitWolfForceFieldChoice', () => (radios.count().then(count => count ? protect : pass)).then(button => button.click()));
         return true;
       }
-      const wing = await select('wing-commander'), launchPanel = wing.page.getByRole('region', { name: 'AEGIS fighter wing launches', exact: true });
-      if (await launchPanel.isVisible()) {
+      const wing = await chooseActor('wing-commander'), launchPanel = wing.page.getByRole('region', { name: 'AEGIS fighter wing launches', exact: true });
+      {
         for (const [label, id] of [['Fighter Wing Alpha', 'alpha'], ['Fighter Wing Bravo', 'bravo']]) {
+          const ready = await paint(wing, 'aegis-launch', { sourceId: `fighter-wing-${id}` });
+          if (ready.status === 'source-changed') return true;
+          if (ready.status !== 'eligible') continue;
           const launch = launchPanel.getByRole('button', { name: `Launch ${label}`, exact: true });
           if (await launch.isVisible() && await launch.isEnabled()) {
             await guidance('wing-commander', launchPanel, `aegis-${id}-launch`);
@@ -197,7 +229,11 @@ export async function runBaseCombatAndDeduction(context, options = {}) {
         ['dione-engineer', 'Launch Maliades', 'launchDioneMaliades', 'Pass Maliades'],
         ['refinery-124-pdf-colonel', 'Launch PDF Escort Wing', 'launchPdfEscortWing', 'Pass PDF Escort Wing']]) {
         if (!roster.some(value => value.roleId === role)) continue;
-        const surface = await select(role), launch = surface.page.getByRole('button', { name: label, exact: true });
+        const surface = await chooseActor(role);
+        const ready = await paint(surface, role === 'dione-engineer' ? 'maliades-launch' : 'pdf-launch');
+        if (ready.status === 'source-changed') return true;
+        if (ready.status !== 'eligible') continue;
+        const launch = surface.page.getByRole('button', { name: label, exact: true });
         const pass = surface.page.getByRole('button', { name: passLabel, exact: true });
         if (await launch.isVisible() && await launch.isEnabled()) {
           await receiptForAttack(surface, endpoint, () => launch.click()); return true;
@@ -206,9 +242,11 @@ export async function runBaseCombatAndDeduction(context, options = {}) {
           await receiptForAttack(surface, 'passWolfFighterLaunchChoice', () => pass.click()); return true;
         }
       }
-      const executive = await select('executive-officer');
+      const executive = await chooseActor('executive-officer');
       const warheads = executive.page.getByRole('region', { name: 'Enriched warheads', exact: true });
-      if (await warheads.isVisible()) {
+      const warheadReady = await paint(executive, 'warheads');
+      if (warheadReady.status === 'source-changed') return true;
+      if (warheadReady.status === 'eligible') {
         const enrich = warheads.getByRole('button', { name: 'Enrich warheads // 5 ore', exact: true });
         const pass = warheads.getByRole('button', { name: 'Pass enriched warheads', exact: true });
         if (await pass.isVisible() && await pass.isEnabled()) {
@@ -221,7 +259,9 @@ export async function runBaseCombatAndDeduction(context, options = {}) {
       }
       const cnc = executive.page.getByRole('region', { name: 'Command and Control', exact: true });
       const pass = cnc.getByRole('button', { name: 'Pass Command and Control', exact: true });
-      if (await cnc.isVisible() && await pass.isVisible() && await pass.isEnabled()) {
+      const commandReady = await paint(executive, 'command-and-control');
+      if (commandReady.status === 'source-changed') return true;
+      if (commandReady.status === 'eligible') {
         await guidance('executive-officer', cnc, 'command-and-control');
         if (options.commandAndControl === 'redirect') {
           await cnc.getByRole('radio').first().check();
@@ -233,10 +273,12 @@ export async function runBaseCombatAndDeduction(context, options = {}) {
     }
     if (range) {
       if (current.currentStep !== 'long-range') {
-        const surface = await select('wing-commander');
+        const surface = await chooseActor('wing-commander');
         for (const label of ['Fighter Wing Alpha', 'Fighter Wing Bravo']) {
+          const ready = await paint(surface, 'fighter-range', { sourceId: label.endsWith('Alpha') ? 'fighter-wing-alpha' : 'fighter-wing-bravo', range: current.currentStep });
+          if (ready.status === 'source-changed') return true;
+          if (ready.status !== 'eligible') continue;
           const panel = surface.page.getByRole('region', { name: `${label} ${range} actions`, exact: true });
-          if (!(await panel.isVisible())) continue;
           const pass = panel.getByRole('button', { name: `Pass ${range}`, exact: true });
           const use = panel.getByRole('button', { name: current.currentStep === 'medium-range' ? 'Resolve Medium actions' : 'Resolve selected Short attacks', exact: true });
           if (!(await pass.isVisible()) || !(await pass.isEnabled())) continue;
@@ -255,8 +297,12 @@ export async function runBaseCombatAndDeduction(context, options = {}) {
       }
       for (const [role, label] of [['dione-engineer', 'Maliades'], ['refinery-124-pdf-colonel', 'P.D.F. Escort Fighter Wing']]) {
         if (!roster.some(value => value.roleId === role)) continue;
-        const surface = await select(role), panel = surface.page.getByRole('region', { name: `${label} ${range} actions`, exact: true });
-        if (!(await panel.isVisible())) continue;
+        if (current.currentStep === 'long-range') continue; // Escort controls exist only at Medium and Short.
+        const surface = await chooseActor(role);
+        const ready = await paint(surface, 'escort-range', { sourceId: role === 'dione-engineer' ? 'maliades' : 'pdf-escort-fighter-wing', range: current.currentStep });
+        if (ready.status === 'source-changed') return true;
+        if (ready.status !== 'eligible') continue;
+        const panel = surface.page.getByRole('region', { name: `${label} ${range} actions`, exact: true });
         await guidance(role, panel, `${label}-${range}`);
         if (label === 'Maliades') {
           const pass = panel.getByRole('button', { name: `Pass Maliades ${range}`, exact: true });
@@ -288,10 +334,15 @@ export async function runBaseCombatAndDeduction(context, options = {}) {
         ['gorgoneion-captain', 'Gorgoneion Missile Array', null],
         ['capybara-recycler', 'Boa Scrap Strike', 'Open Boa shuttle console']]) {
         if (!roster.some(value => value.roleId === role)) continue;
-        const surface = await select(role);
-        if (link) { const open = surface.page.getByRole('link', { name: link, exact: true }); if (await open.isVisible()) await open.click(); }
+        const surface = await chooseActor(role);
+        if (link) {
+          const open = surface.page.getByRole('link', { name: link, exact: true });
+          await open.waitFor({ state: 'visible', timeout: Math.max(1, Math.min(35_000, deadlineAt - Date.now())) }); await open.click();
+        }
+        const ready = await paint(surface, 'range-support', { sourceId: role === 'icebreaker-miner' ? 'highwall' : role === 'capybara-recycler' ? 'boa' : 'gorgoneion-missile-array', range: current.currentStep });
+        if (ready.status === 'source-changed') return true;
+        if (ready.status !== 'eligible') continue;
         const panel = surface.page.getByRole('region', { name: `${label} ${range} choice`, exact: true });
-        if (!(await panel.isVisible())) continue;
         const pass = panel.getByRole('button', { name: 'Pass this range', exact: true });
         if (!(await pass.isVisible()) || !(await pass.isEnabled())) continue;
         await guidance(role, panel, `${label}-${range}`);
@@ -304,8 +355,11 @@ export async function runBaseCombatAndDeduction(context, options = {}) {
         await receiptForAttack(surface, 'commitWolfRangeSupportActionChoice', () =>
           (use.isEnabled().then(enabled => enabled ? use : pass)).then(button => button.click())); return true;
       }
-      const executive = await select('executive-officer'), panel = executive.page.getByRole('region', { name: 'Wolf range actions', exact: true });
-      if (await panel.isVisible()) {
+      const executive = await chooseActor('executive-officer');
+      const rangeReady = await paint(executive, 'range-actions');
+      if (rangeReady.status === 'source-changed') return true;
+      const panel = executive.page.getByRole('region', { name: 'Wolf range actions', exact: true });
+      if (rangeReady.status === 'eligible') {
         await guidance('executive-officer', panel, `aegis-${range}`);
         const use = panel.getByRole('button', { name: 'Use selected actions', exact: true });
         const pass = panel.getByRole('button', { name: 'Pass this range', exact: true });
@@ -316,7 +370,7 @@ export async function runBaseCombatAndDeduction(context, options = {}) {
         }
         const commit = panel.getByRole('button', { name: 'Commit target assignments', exact: true });
         if (await commit.isVisible()) {
-          const view = await currentActorRead(executive, 'getWolfRangeActionChoice');
+          const view = rangeReady.choice;
           assert.equal(view.turn, current.turn); assert.equal(view.revision, current.revision); assert.equal(view.currentStep, current.currentStep);
           const assignments = chooseBaseRangeAssignments(view), labels = {
             'aegis-missile-launchers': 'Missile launchers', 'aegis-point-defence-lasers': 'Point-defence lasers',
@@ -336,14 +390,19 @@ export async function runBaseCombatAndDeduction(context, options = {}) {
     if (current.currentStep === 'boarding') {
       const commanderUid = current.decisionSummary?.commander?.actors?.[0]?.uid;
       if (commanderUid) {
-        const role = originalRoleForUid(commanderUid, roster), surface = await select(role, { brief: true });
+        const role = originalRoleForUid(commanderUid, roster), surface = await chooseActor(role, { brief: true });
+        const ready = await paint(surface, 'boarding-special');
+        if (ready.status === 'source-changed') return true;
         const pass = surface.page.getByRole('button', { name: 'Do not lead', exact: true });
-        if (await pass.isVisible() && await pass.isEnabled()) {
+        if (ready.status === 'eligible' && await pass.isVisible() && await pass.isEnabled()) {
           await receiptForAttack(surface, 'commitWolfBoardingSpecialChoice', () => pass.click()); return true;
         }
       }
-      const surface = await select('gm'), panel = surface.page.getByRole('region', { name: 'Facilitator ruling for destroyed Commander-led parties', exact: true });
-      if (await panel.isVisible()) {
+      const surface = await chooseActor('gm');
+      const gmReady = await paint(surface, 'boarding-special');
+      if (gmReady.status === 'source-changed') return true;
+      const panel = surface.page.getByRole('region', { name: 'Facilitator ruling for destroyed Commander-led parties', exact: true });
+      if (gmReady.status === 'eligible' && gmReady.choice.choice?.kind === 'commander-ruling') {
         await guidance('gm', panel, 'commander-consequence');
         assert.ok(typeof options.commanderRuling === 'string' && options.commanderRuling.trim(),
           'An actual required Commander consequence needs the caller’s explicit GM ruling; no invented ruling.');
@@ -353,8 +412,10 @@ export async function runBaseCombatAndDeduction(context, options = {}) {
       const roles = [...new Set(['executive-officer', 'refinery-124-pdf-colonel', ...roster.map(actor => actor.roleId)])]
         .filter(role => role !== 'press-officer' && roster.some(actor => actor.roleId === role));
       for (const role of roles) {
-        const currentActor = await select(role), special = currentActor.page.getByRole('region', { name: 'Current boarding special choice', exact: true });
-        if (await special.isVisible()) {
+        const currentActor = await chooseActor(role), special = currentActor.page.getByRole('region', { name: 'Current boarding special choice', exact: true });
+        const specialReady = await paint(currentActor, 'boarding-special');
+        if (specialReady.status === 'source-changed') return true;
+        if (specialReady.status === 'eligible') {
           await guidance(role, special, 'source-boarding-special');
           const stay = special.getByRole('button', { name: /^Stay at / });
           const pass = special.getByRole('button', { name: 'Pass rerolls', exact: true });
@@ -364,6 +425,9 @@ export async function runBaseCombatAndDeduction(context, options = {}) {
             await receiptForAttack(currentActor, 'commitWolfBoardingSpecialChoice', () => offered.click()); return true;
           }
         }
+        const defenceReady = await paint(currentActor, 'boarding-defence');
+        if (defenceReady.status === 'source-changed') return true;
+        if (defenceReady.status !== 'eligible') continue;
         const defence = currentActor.page.getByRole('region', { name: / boarding defence$/i });
         const commit = defence.getByRole('button', { name: 'Commit defence', exact: true });
         if (await commit.isVisible()) {
@@ -374,7 +438,7 @@ export async function runBaseCombatAndDeduction(context, options = {}) {
         }
       }
     }
-    return false;
+    return { status: 'current-ui-blocked', reason: 'Every inspected current source choice was explicitly unavailable or intentionally belongs to another actor; no role reload or SDK mutation fallback.' };
   }
 
   async function combatProcedure() {
@@ -409,7 +473,7 @@ export async function runBaseCombatAndDeduction(context, options = {}) {
     assert.equal(current.turn, originalGm.cycle);
     const tools = { ...a, state, read: (_role, suffix) => readGm(suffix), select,
       receipt: receiptForAttack, record: async (stage, details) => {
-        report.observations.push({ stage, attack: details.attack, cycle: details.cycle }); await save();
+        report.observations.push({ stage, ...details }); await save();
       } };
     const resolved = await resolveLiveWolfAttack(context, { tools, verifyReplay: false, chooseNext,
       timeoutMs: options.timeoutMs ?? 8 * 60_000 });

@@ -11,10 +11,10 @@ export function createTwoBrowserGameplay(context) {
   assert.ok(initial.sessionId && initial.joinCode && roster.length);
   const actions = [], snapshots = [];
   const hash = value => createHash('sha256').update(JSON.stringify(value ?? null)).digest('hex');
-  async function live(surface) {
+  async function live(surface, deadlineAt = Date.now() + 60_000) {
     return surface.until('The current normally admitted actor is live', state =>
       state.sameActor && state.sessionId === initial.sessionId && state.connection === 'live' &&
-      state.freshness === 'server' && (surface !== gm || state.gmInstanceOwned));
+      state.freshness === 'server' && (surface !== gm || state.gmInstanceOwned), Math.max(1, Math.min(60_000, deadlineAt - Date.now())));
   }
   async function state(surface = gm) {
     return surface.page.evaluate(async moduleUrl => {
@@ -48,8 +48,9 @@ export function createTwoBrowserGameplay(context) {
         shipProjection: snapshot.session ? projectShipState(snapshot.session, shipId) : null };
     }, { moduleUrl: surface.storeModuleUrl(), shipId });
   }
-  async function select(roleId, { enter = true } = {}) {
-    if (roleId === 'gm') { await live(gm); return gm; }
+  async function select(roleId, { enter = true, deadlineAt = Date.now() + 60_000 } = {}) {
+    const navigationTimeout = () => Math.max(1, Math.min(35_000, deadlineAt - Date.now()));
+    if (roleId === 'gm') { await live(gm, deadlineAt); return gm; }
     const actor = roster.find(value => value.roleId === roleId);
     assert.ok(actor, `${roleId} must be a genuinely admitted account in this fresh roster.`);
     const current = await crew.observe();
@@ -59,22 +60,46 @@ export function createTwoBrowserGameplay(context) {
       url.searchParams.set('demoActor', `${initial.sessionId}~${roleId}`);
       url.searchParams.set('demoJoin', initial.joinCode);
       url.hash = '/demo-actors';
-      await crew.page.goto(url.href);
+      await crew.page.goto(url.href, { timeout: navigationTimeout() });
     }
-    const actual = await live(crew);
+    const actual = await live(crew, deadlineAt);
     assert.equal(actual.profileRoleId, roleId);
     assert.equal(actual.uidHash, actor.uidHash, 'Select the original role account, never manufacture another identity.');
-    if (enter && (actual.activeConsoleRoleId !== roleId || new URL(crew.page.url()).hash === '#/demo-actors')) {
-      const entry = crew.page.getByRole('link', { name: "Enter this actor's stations", exact: true });
-      if (await entry.isVisible()) await entry.click();
-      if (roleId === 'press-officer') {
-        await crew.page.getByRole('link', { name: 'Press Officer', exact: true }).click();
-      } else {
-        const roleLink = crew.page.locator(`a[href$="/roles/${roleId}"]`);
-        await roleLink.waitFor(); await roleLink.click();
+    const onRoleRoute = () => {
+      const path = new URL(crew.page.url()).hash;
+      return roleId === 'press-officer' ? path === '#/press'
+        : /^#\/(?:ships\/[^/]+|union)\/roles\//.test(path) && path.endsWith(`/roles/${roleId}`);
+    };
+    async function originalAccount() {
+      assert.ok(Date.now() < deadlineAt, 'Original role navigation deadline expired.');
+      const current = await crew.observe();
+      assert.equal(current.uidHash, actor.uidHash); assert.equal(current.profileRoleId, roleId);
+      assert.equal(current.sessionId, initial.sessionId); assert.equal(current.hasAuth, true); assert.equal(current.sameActor, true);
+    }
+    if (enter && (actual.activeConsoleRoleId !== roleId || !onRoleRoute())) {
+      for (let hop = 0; hop < 4 && !onRoleRoute(); hop++) {
+        await originalAccount();
+        const path = new URL(crew.page.url()).hash;
+        let link;
+        if (path === '#/demo-actors') link = crew.page.getByRole('link', { name: "Enter this actor's stations", exact: true });
+        else if (path === '#/brief') link = crew.page.getByRole('link', { name: 'Back to stations', exact: true });
+        else if (path.startsWith('#/shuttles/')) link = crew.page.getByRole('link', { name: /^Back to / }).first();
+        else if (path === '#/console' || /^#\/ships\/[^/]+\/roles$/.test(path)) {
+          link = roleId === 'press-officer' ? crew.page.getByRole('link', { name: 'Press Officer', exact: true })
+            : crew.page.locator(`a[href$="/roles/${roleId}"]`);
+          if (path !== '#/console' && !(await link.isVisible())) link = crew.page.getByRole('link', { name: 'Back to fleet', exact: true });
+        } else link = crew.page.getByRole('link', { name: /^(?:Back to (?:stations|role selection)|View ship consoles|Change role|Leave ship)$/ }).first();
+        await link.waitFor({ state: 'visible', timeout: navigationTimeout() });
+        await originalAccount(); await link.click();
+        await crew.page.waitForURL(url => url.hash !== path, { timeout: navigationTimeout() });
+        await originalAccount();
       }
+      assert.ok(onRoleRoute(), 'Normal Back and chooser navigation must reach the original role console.');
       await crew.until(`The actual ${roleId} console is held`, value =>
-        value.activeConsoleRoleId === roleId && value.sameActor && value.connection === 'live' && value.freshness === 'server');
+        value.activeConsoleRoleId === roleId && value.uidHash === actor.uidHash && value.profileRoleId === roleId &&
+        value.sessionId === initial.sessionId && value.sameActor && value.connection === 'live' && value.freshness === 'server',
+      Math.max(1, deadlineAt - Date.now()));
+      await originalAccount();
     }
     return crew;
   }
