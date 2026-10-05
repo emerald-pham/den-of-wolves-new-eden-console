@@ -140,6 +140,29 @@ it('returns only entitled immutable history for an existing disconnected member 
   expect(JSON.stringify(response.session)).not.toMatch(/foreign|sourceId|nebula-bonus|aegis|fleet-1|hiddenChartRoute/);
 });
 
+it('reads closed history without parsing retained operational setup or scanning raw session state', async () => {
+  records['sessions/s1'] = {
+    ...records['sessions/s1'], phase: 'closed', chartId: 'corrupt-private-chart', setup: { invalid: true },
+    debriefSnapshot: { type: 'session-debrief', version: 1, source: 'final-cycle', result: 'completed',
+      cause: 'final-cycle', cycle: 2, occurredAt: '2026-10-05T12:00:00.000Z', committedAt: '2026-10-05T12:01:00.000Z' },
+  };
+  records['sessions/s1/players/u1']!.connected = false;
+  projectSession.mockImplementation(() => { throw new Error('closed history must not parse operational setup'); });
+
+  const response = await read(request());
+
+  expect(response.session).toMatchObject({ phase: 'closed', debriefSnapshot: { result: 'completed' } });
+  expect(response.session).not.toHaveProperty('setup');
+  expect(response.session).not.toHaveProperty('chartId');
+  expect(projectSession).not.toHaveBeenCalled();
+});
+
+it('retains a valid full-game preparation marker in the current member projection', async () => {
+  records['sessions/s1']!.fullGameDemo = { status: 'preparing', progression: 'manual' };
+
+  expect((await read(request())).session.fullGameDemo).toEqual({ status: 'preparing', progression: 'manual' });
+});
+
 it('denies closed history to disconnected outsiders, stale-group readers, and kicked members', async () => {
   records['sessions/s1']!.phase = 'closed';
   records['sessions/s1/players/u1']!.connected = false;

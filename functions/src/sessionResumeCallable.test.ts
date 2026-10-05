@@ -211,12 +211,12 @@ function prepareResume(
   return { playerData, sessionData };
 }
 
-function enableClosedHistoryReads(groupId = 'fleet-1') {
+function enableClosedHistoryReads(groupId = 'fleet-1', memberUids = ['u1']) {
   const previousGet = mock.get.getMockImplementation();
   mock.get.mockImplementation((reference: { path: string }) => {
     if (reference.path === 'sessions/s1/fleetGroups') {
-      const groups = [{ id: groupId, data: () => ({ id: groupId, vesselIds: ['aegis'], memberUids: ['u1'] }),
-        get: (field: string) => ({ id: groupId, vesselIds: ['aegis'], memberUids: ['u1'] })[field] }];
+      const fields = { id: groupId, vesselIds: ['aegis'], memberUids };
+      const groups = [{ id: groupId, data: () => fields, get: (field: string) => fields[field as keyof typeof fields] }];
       return { docs: groups };
     }
     if (reference.path === 'sessions/s1/shuttleDepartures') return { docs: [] };
@@ -697,7 +697,7 @@ it.each([
 ])('does not restore %s into closed history', async (_label, actorFields) => {
   prepareResume({ status: 'open', holderUid: null }, actorFields,
     { phase: 'closed', activeVesselIds: ['aegis'] });
-  enableClosedHistoryReads();
+  enableClosedHistoryReads('fleet-1', _label === 'outsider' ? ['u2'] : ['u1']);
 
   await expect(resumeSession.run(request('s1'))).rejects.toMatchObject({ code: 'permission-denied' });
   expect(mock.update).not.toHaveBeenCalled();
