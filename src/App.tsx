@@ -1244,7 +1244,7 @@ function AppRoutes() {
                 <Suspense fallback={
                   <main className="role-brief-screen">
                     <article className="role-brief cic-frame">
-                      <Link className="session-mode__back cic-text-button" to="/console">
+                      <Link className="session-mode__back cic-text-button" to="/console" aria-label="Back to stations">
                         Back to stations
                       </Link>
                       <p role="status">Opening private briefing…</p>

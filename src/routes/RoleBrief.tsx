@@ -131,7 +131,7 @@ export default function RoleBrief() {
     return (
       <main className="role-brief-screen">
         <article className="role-brief cic-frame">
-          <Link className="session-mode__back cic-text-button" to="/console">Back to stations</Link>
+          <Link className="session-mode__back cic-text-button" to="/console" aria-label="Back to stations">Back to stations</Link>
           <p role="status">Waiting for the current private briefing…</p>
         </article>
       </main>
@@ -154,7 +154,7 @@ export default function RoleBrief() {
   return (
     <main className="role-brief-screen">
       <article className="role-brief cic-frame" aria-labelledby="role-brief-title">
-        <Link className="session-mode__back cic-text-button" to="/console">
+        <Link className="session-mode__back cic-text-button" to="/console" aria-label="Back to stations">
           Back to stations
         </Link>
         <p className="eyebrow">{session.name} // private briefing</p>
