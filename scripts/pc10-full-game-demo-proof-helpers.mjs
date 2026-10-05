@@ -279,6 +279,17 @@ export async function waitForFullGamePresentationReady(options) {
       const snapshot = await actor.inspect();
       const serverCurrent = assertPresentationActor(snapshot, actor.expected, actor.name);
       if (!serverCurrent) return { snapshot, serverCurrent };
+      // The same healthy member may still show its prior server snapshot while
+      // the real start propagates. It cannot earn presentation credit until the
+      // exact Cycle 1 source marker, actual mount/detach and paint are observed.
+      if (expectedAnnouncement.turn === 1 && snapshot.cycle === 0) {
+        assert.ok(['lobby', 'casting'].includes(snapshot.phase),
+          `${actor.name}: only the ordinary before-start phase may remain pending.`);
+        assert.deepEqual(snapshot.fullGameDemo, { status: 'preparing', progression: 'manual' });
+        assert.equal(snapshot.announcementTurn, null, `${actor.name}: a different source marker cannot be a pending start.`);
+        assert.equal(snapshot.announcementRevision, null);
+        return { snapshot, serverCurrent: false };
+      }
       assert.equal(snapshot.cycle, expectedAnnouncement.turn,
         `${actor.name}: the original current-cycle presentation must be inspected.`);
       assert.ok(snapshot.announcementTurn === null || Number.isSafeInteger(snapshot.announcementTurn),
