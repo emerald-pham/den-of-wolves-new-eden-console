@@ -53,6 +53,14 @@ describe('private callable denial telemetry', () => {
 });
 
 describe('server-owned uncertainty boundary', () => {
+  it.each(['adjudicateFailedJump', 'commitAwayMissionLifecycleCommand', 'runWolfAgentDetectorTest',
+    'resolveWolfAttackAftermath', 'advanceWolfAttackLifecycle'])
+    ('rejects client outcomes on the real %s server-random procedure', async callableName => {
+      const handler = vi.fn(() => ({ status: 'committed' }));
+      await expect(auditedOnCall(callableName, handler).run({ ...request,
+        data: { sessionId: 's1', outcome: 'client-forced' } })).rejects.toMatchObject({ code: 'invalid-argument' });
+      expect(handler).not.toHaveBeenCalled();
+    });
   it.each(['rolls', 'dice', 'result', 'outcome', 'seed', 'entropy', 'bonus', 'accuracy', 'deckOrder', 'cardDraw', 'clueRoll'])
     ('rejects injected %s before a random producer runs', async key => {
       const handler = vi.fn(() => ({ rolls: [4] }));
