@@ -18,12 +18,12 @@ async function callableObservationActor() {
   let nextRequest = 0;
   cdp.send = async (method, parameters = {}) => {
     if (method === 'Network.configureDurableMessages' || method === 'Network.enable') return {};
-    if (method === 'Network.getResponseBody') {
-      if (!finished.has(parameters.requestId)) throw new Error('Response body is not complete yet.');
-      const body = responseBodies.get(parameters.requestId);
-      if (!body) throw new Error('Response body is missing.');
-      return body;
-    }
+      if (method === 'Network.getResponseBody') {
+        if (!finished.has(parameters.requestId)) throw new Error('Response body is not complete yet.');
+        const body = responseBodies.get(parameters.requestId);
+        if (!body) throw new Error('Response body is missing.');
+        return body;
+      }
     throw new Error(`Unexpected CDP command: ${method}`);
   };
   cdp.detach = async () => undefined;
@@ -40,8 +40,10 @@ async function callableObservationActor() {
   };
   const respond = request => {
     let resolve, reject;
+    // This mock is a CDP Network.getResponseBody result; CDP names the flag
+    // `base64Encoded` (unlike Playwright's Response API).
     const body = new Promise((yes, no) => { resolve = yes; reject = no; }).then(reply => ({
-      body: JSON.stringify(reply), isBase64Encoded: false,
+      body: JSON.stringify(reply), base64Encoded: false,
     }));
     void body.catch(() => undefined);
     responseBodies.set(request, body);
@@ -71,6 +73,7 @@ async function cdpCallableObservationActor({ durableConfigurationError } = {}) {
   const finished = new Set();
   let nextRequest = 0;
   let navigationComplete = false;
+  // Keep mock command results aligned with CDP Network.getResponseBody's schema.
   events.send = async (method, parameters = {}) => {
     commands.push({ method, parameters });
     if (method === 'Network.configureDurableMessages') {
@@ -109,10 +112,12 @@ async function cdpCallableObservationActor({ durableConfigurationError } = {}) {
     events.emit('Network.responseReceived', { requestId, timestamp: 2,
       response: { url: `http://localhost/demo/us-central1/${name}`, status } });
   };
-  const respond = (requestId, reply = { result: { status: 'committed', revision: 7 } }, status = 200) => {
-    responseBodies.set(requestId, typeof reply === 'string' ? { body: reply, isBase64Encoded: false }
-      : { body: JSON.stringify(reply), isBase64Encoded: false });
+  const setResponseBody = (requestId, response, status = 200) => {
+    responseBodies.set(requestId, response);
     receiveHeaders(requestId, status);
+  };
+  const respond = (requestId, reply = { result: { status: 'committed', revision: 7 } }, status = 200) => {
+    setResponseBody(requestId, { body: typeof reply === 'string' ? reply : JSON.stringify(reply), base64Encoded: false }, status);
   };
   const finish = requestId => {
     finished.add(requestId);
@@ -121,7 +126,7 @@ async function cdpCallableObservationActor({ durableConfigurationError } = {}) {
   const fail = (requestId, errorText = 'net::ERR_ABORTED') => {
     events.emit('Network.loadingFailed', { requestId, timestamp: 3, errorText, canceled: true });
   };
-  return { actor, page, context, events, commands, responseBodies, start, startRequest, respond, finish, fail,
+  return { actor, page, context, events, commands, responseBodies, start, startRequest, respond, setResponseBody, finish, fail,
     receiveHeaders, completeNavigation() { navigationComplete = true; events.emit('test-navigation-complete'); } };
 }
 
@@ -235,6 +240,37 @@ test('identical callable requests retain distinct CDP protocol lifecycles', asyn
   assert.equal(actor.observedCalls[1].revision, 5);
   assert.equal(JSON.stringify(actor.observedCalls).includes('protocol-one'), false);
   assert.equal(JSON.stringify(actor.observedCalls).includes('protocol-two'), false);
+});
+
+test('actual CDP base64Encoded false and true response bodies decode to the same callable reply', async () => {
+  for (const base64Encoded of [false, true]) {
+    const { actor, start, setResponseBody, finish } = await cdpCallableObservationActor();
+    const requestId = start();
+    const reply = { result: { status: 'committed', revision: base64Encoded ? 9 : 8 } };
+    const json = JSON.stringify(reply);
+    setResponseBody(requestId, { body: base64Encoded ? Buffer.from(json, 'utf8').toString('base64') : json,
+      base64Encoded });
+    finish(requestId);
+    await actor.drainObservedCalls();
+    assert.equal(actor.observedCalls.length, 1);
+    assert.equal(actor.observedCalls[0].revision, base64Encoded ? 9 : 8);
+    assert.equal(actor.observedCalls[0].resultStatus, 'committed');
+    assert.deepEqual(actor.callableObservationFailures, []);
+  }
+});
+
+test('an isBase64Encoded-only legacy body is malformed CDP observation data', async () => {
+  const { actor, start, setResponseBody, finish } = await cdpCallableObservationActor();
+  const requestId = start();
+  setResponseBody(requestId, { body: JSON.stringify({ result: { status: 'committed', revision: 10 } }),
+    isBase64Encoded: false });
+  finish(requestId);
+  await actor.drainObservedCalls();
+  assert.equal(actor.observedCalls[0].status, 200);
+  assert.equal(actor.observedCalls[0].requestFinishedAt !== null, true);
+  assert.equal(actor.observedCalls[0].bodyCompletedAt, null);
+  assert.equal(actor.callableObservationFailures.length, 1);
+  assert.equal(actor.callableObservationFailures[0].category, 'response-observation-unavailable');
 });
 
 test('observed GET and OPTIONS requests to callable paths are ignored by protocol ID', async () => {

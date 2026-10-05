@@ -99,8 +99,10 @@ test('browser event hooks retain a real issued-only request and complete the sam
   assert.equal(client.observedCalls[0].bodyCompletedAt, null);
   assert.equal(client.observedCalls[0].requestHash, requestHash('private-request'));
   let release;
+  // This mock is a CDP Network.getResponseBody result. Use its exact
+  // `base64Encoded` field rather than a Playwright response field name.
   const body = new Promise(resolve => { release = resolve; }).then(reply => ({
-    body: JSON.stringify(reply), isBase64Encoded: false,
+    body: JSON.stringify(reply), base64Encoded: false,
   }));
   void body.catch(() => undefined);
   bodies.set(request.requestId, body);
