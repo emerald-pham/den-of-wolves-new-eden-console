@@ -122,6 +122,10 @@ async function cdpCallableObservationActor({ durableConfigurationError } = {}) {
     receiveHeaders, completeNavigation() { navigationComplete = true; events.emit('test-navigation-complete'); } };
 }
 
+// These two pre-finish rejection cases remain direct boundary tests: the live
+// observer reads bodies only after Network.loadingFinished, so simulating an
+// early getResponseBody rejection through CDP would invent a transport event
+// and could incorrectly fail a legitimate still-in-flight callable.
 function incompleteBodyBoundaryActor() {
   const observedCalls = [], callableObservationFailures = [], failuresByRequest = new WeakMap();
   const boundary = proof.createPc10CallableObservationBoundary({
