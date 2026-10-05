@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createHash } from 'node:crypto';
 import {
-  assertNavigationScoutActor, assertNavigationScoutCensus, waitForNavigationScoutPaint,
+  assertNavigationScoutActor, assertNavigationScoutConsequenceActor, assertNavigationScoutCensus, waitForNavigationScoutPaint,
   assertNavigationScoutRequest, assertNavigationScoutReplay, assertNavigationScoutCost,
   validateScoutBundle, safeNavigationScoutEvidence, summarizeNavigationScoutBranches,
   captureNavigationScoutUiReceipt,
@@ -68,6 +68,20 @@ test('fresh source census uses all confirmed roles and independent normally admi
   assert.throws(() => assertNavigationScoutCensus({ ...context, roster: context.roster.slice(0, 2) }), /census|roster|Press/);
   assert.throws(() => assertNavigationScoutCensus({ ...context, roster: context.roster.map(x => ({ ...x, uidHash: 'a'.repeat(16) })) }), /independent/);
   assert.throws(() => assertNavigationScoutCensus({ ...context, started: { ...context.started, fullGameDemo: null } }), /manual/);
+});
+
+test('a navigation consequence may rebind only the original ship to its observed authoritative new group', () => {
+  const current = { ...actor(), groupId: 'fleet-3', vesselRevisions: { aegis: 9 } };
+  const consequence = { endpoint: 'jumpShip', result: { status: 'jumped', shipId: 'aegis', revision: 9 },
+    shipGroups: { aegis: 'fleet-3' } };
+  assertNavigationScoutConsequenceActor(current, actor(), consequence);
+  for (const patch of [{ groupId: 'fleet-4' }, { uidHash: 'c'.repeat(16) }, { cycle: 3 }, { generation: 4 }]) {
+    assert.throws(() => assertNavigationScoutConsequenceActor({ ...current, ...patch }, actor(), consequence), /Original|source|group/);
+  }
+  assert.throws(() => assertNavigationScoutConsequenceActor(current, actor(),
+    { ...consequence, endpoint: 'readPrivateScoutResult' }), /source|group/);
+  assert.throws(() => assertNavigationScoutConsequenceActor(current, actor(),
+    { ...consequence, result: { ...consequence.result, shipId: 'quellon' } }), /source|group/);
 });
 
 test('delayed source paint waits without reloading, mutation or an increased budget', async () => {

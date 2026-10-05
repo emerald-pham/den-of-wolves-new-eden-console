@@ -8,6 +8,7 @@ export const NAV_SCOUT_BRANCHES = Object.freeze([
 ]);
 const pending = () => { throw new Error('Navigation/scout proof contract is not implemented.'); };
 export const assertNavigationScoutActor = pending;
+export const assertNavigationScoutConsequenceActor = pending;
 export const assertNavigationScoutCensus = pending;
 export const waitForNavigationScoutPaint = pending;
 export const assertNavigationScoutRequest = pending;
