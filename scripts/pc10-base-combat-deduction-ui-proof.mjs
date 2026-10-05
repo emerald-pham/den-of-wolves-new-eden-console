@@ -19,6 +19,44 @@ const attackSummary = value => value && ({ attackFingerprint: proofHash(value.at
   revision: value.revision, status: value.status, currentStep: value.currentStep,
   remainingThreatCount: value.calculationReceipt?.survivingWolfShips?.length });
 
+/** Match visible presenter fields without letting CSS uppercase identifiers or hide missing paint. */
+export async function renderedBaseMemberAftermath(surface, view) {
+  if (view.status !== 'resolved' || view.currentStep !== 'resolved') return false;
+  const panel = surface.page.getByRole('region', { name: 'Wolf attack status', exact: true });
+  const visibleText = async field => {
+    if (await field.count() !== 1 || !(await field.isVisible())) return null;
+    const text = await field.textContent();
+    return text === null ? null : text.replace(/\s+/g, ' ').trim();
+  };
+  if (await panel.count() !== 1 || !(await panel.isVisible())) return false;
+  // textContent preserves the source spelling; visibility is checked on each
+  // semantic field before it can count as paint. No identifier case-folding.
+  if (await visibleText(panel.locator('.wolf-attack-status__header .eyebrow')) !== `Fleet alert // cycle ${view.turn}` ||
+      await visibleText(panel.locator('.wolf-attack-status__phase')) !== 'Attack complete') return false;
+  const deadline = panel.locator('.wolf-attack-status__deadline'), time = deadline.locator('time');
+  if (await visibleText(deadline) !== `Resolution committed // ${view.deadlineAt}` ||
+      await visibleText(time) !== view.deadlineAt || await time.getAttribute('datetime') !== view.deadlineAt) return false;
+  const list = panel.getByRole('list', { name: 'Committed attack results', exact: true });
+  const painted = [];
+  if (view.results.length) {
+    if (await list.count() !== 1 || !(await list.isVisible())) return false;
+    const rows = await list.locator(':scope > li').all();
+    if (rows.length !== view.results.length) return false;
+    for (const row of rows) {
+      if (!(await row.isVisible())) return false;
+      const spans = await row.locator(':scope > span').all();
+      if (spans.length !== 2) return false;
+      const fields = await Promise.all([row.locator(':scope > strong'), ...spans,
+        row.locator(':scope > small')].map(visibleText));
+      if (fields.some(text => text === null)) return false;
+      painted.push(fields.join(' '));
+    }
+  } else if (await list.count() !== 0 || await visibleText(panel.locator('.wolf-attack-status__pending')) !==
+      'Attack progress is server recorded. Results appear here when a step commits.') return false;
+  const threats = panel.getByLabel('Remaining Wolf threat count', { exact: true });
+  return baseMemberRowsMatch(view, painted, await visibleText(threats));
+}
+
 /** Caller owns Team/Coordination changes, setup, resources, and the genuine ending. */
 export function createBaseCombatDeductionCallback(options = {}) {
   return context => runBaseCombatAndDeduction(context, options);
@@ -153,17 +191,6 @@ export async function runBaseCombatAndDeduction(context, options = {}) {
       status: reply.status, resultFingerprint: proofHash(reply.result ?? null), gameplayMutation: false });
     await save(); assert.equal(reply.status, 'committed');
     assert.equal(reply.result?.sessionId, initial.sessionId); return reply.result;
-  }
-
-  async function renderedMemberAftermath(surface, view) {
-    const panel = surface.page.getByRole('region', { name: 'Wolf attack status', exact: true });
-    if (!(await panel.isVisible())) return false;
-    const text = (await panel.innerText()).replace(/\s+/g, ' ');
-    if (!text.includes(`Fleet alert // cycle ${view.turn}`) || !text.includes('Attack complete') || !text.includes('Resolution committed')) return false;
-    const rows = panel.getByRole('list', { name: 'Committed attack results', exact: true }).getByRole('listitem');
-    const threats = panel.getByLabel('Remaining Wolf threat count', { exact: true });
-    const painted = await Promise.all((await rows.all()).map(row => row.innerText()));
-    return baseMemberRowsMatch(view, painted, await threats.isVisible() ? await threats.innerText() : null);
   }
 
   // Supplement the existing complete server lifecycle; these are actual source controls.
@@ -477,7 +504,7 @@ export async function runBaseCombatAndDeduction(context, options = {}) {
     committed('wolf-resolution', { attack: attackSummary(resolved), serverCalculationFingerprint: proofHash(resolved.calculationReceipt) });
     const surface = await select('executive-officer'), original = await surface.observe();
     const view = await waitForBaseMemberAftermath({ inspect: () => surface.observe(), original, expected: resolved,
-      read: () => a.read('executive-officer', 'wolfAttackAudience/current'), renderedReady: value => renderedMemberAftermath(surface, value) });
+      read: () => a.read('executive-officer', 'wolfAttackAudience/current'), renderedReady: value => renderedBaseMemberAftermath(surface, value) });
     await guidance('executive-officer', surface.page.getByRole('region', { name: 'Wolf attack status', exact: true }), 'committed public aftermath');
     committed('member-aftermath', { audience: 'members', resultCount: view.results.length,
       revision: view.revision, remainingThreatCount: view.remainingThreatCount, returningThreatCount: view.returningThreatCount });
