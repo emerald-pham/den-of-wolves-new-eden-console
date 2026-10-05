@@ -63,7 +63,7 @@ it('shows only the current fleet’s mission tasks and binds the pre-deal choice
   expect(mocks.read).toHaveBeenCalledWith('s1');
   expect(within(panel).getByText(/Asterion.*5143/)).toBeInTheDocument();
   fireEvent.click(within(panel).getByRole('button', { name: /Review Asterion mission tasks/ }));
-  const choice = within(panel).getByRole('radiogroup', { name: 'Select a mission-card task' });
+  const choice = within(panel).getByRole('group', { name: 'Select a mission-card task' });
   expect(within(choice).getByLabelText(/L-1.*Recover the stranded survey crew/i)).toBeInTheDocument();
   fireEvent.click(within(panel).getByRole('radio', { name: /L-1.*Recover the stranded survey crew/i }));
   fireEvent.click(within(panel).getByRole('button', { name: /Apply Boa reclamation to L-1/ }));
