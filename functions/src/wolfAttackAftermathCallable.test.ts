@@ -1,3 +1,4 @@
+import type * as NodeCrypto from 'node:crypto';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { randomInt } from 'node:crypto';
 import type { CallableRequest } from 'firebase-functions/v2/https';
@@ -42,7 +43,7 @@ vi.mock('firebase-functions/v2/https', () => ({
   HttpsError: class HttpsError extends Error { constructor(readonly code: string, message: string) { super(message); } },
   onCall: (optionsOrHandler: unknown, maybeHandler?: (request: unknown) => unknown) => ({ run: maybeHandler ?? optionsOrHandler }),
 }));
-vi.mock('node:crypto', async (importOriginal) => ({ ...await importOriginal<typeof import('node:crypto')>(), ...(({ randomInt: vi.fn(() => 5) })) }));
+vi.mock('node:crypto', async (importOriginal) => ({ ...await importOriginal<typeof NodeCrypto>(), ...(({ randomInt: vi.fn(() => 5) })) }));
 
 import { resolveWolfAttackAftermath } from './wolfAttackAftermathCallable';
 

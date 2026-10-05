@@ -152,7 +152,7 @@ try {
   assert.equal(procedureBefore.get('calculation').fighterDelta, 1);
   assert.deepEqual(procedureBefore.get('requiredChoices').map(choice => choice.kind), ['wing']);
   const replay = await accepted(winner.actor, 'buildFighter', winner.data);
-  assert.equal(replay.status, 'replayed');
+  assert.deepEqual(replay, racing[winnerIndex].result, 'An exact retry preserves the established committed reply contract.');
   assert.ok(auditBefore.updateTime.isEqual((await auditRef.get()).updateTime));
   assert.ok(procedureBefore.updateTime.isEqual((await procedureRef.get()).updateTime));
   const after = (await session.get()).data();

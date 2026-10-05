@@ -1,9 +1,10 @@
+import type * as NodeCrypto from 'node:crypto';
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { CallableRequest } from 'firebase-functions/v2/https';
 
 type Fields = Record<string, unknown>;
 const cryptoMock = vi.hoisted(() => ({ randomInt: vi.fn() }));
-vi.mock('node:crypto', async (importOriginal) => ({ ...await importOriginal<typeof import('node:crypto')>(), ...(cryptoMock) }));
+vi.mock('node:crypto', async (importOriginal) => ({ ...await importOriginal<typeof NodeCrypto>(), ...(cryptoMock) }));
 
 const mock = vi.hoisted(() => {
   const documents = new Map<string, Fields>();
