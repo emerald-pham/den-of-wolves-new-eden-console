@@ -98,7 +98,9 @@ try {
   assert.equal(noAuth.status, 401);
   assert.equal((await noAuth.json()).error.status, 'UNAUTHENTICATED');
   await denied(players[0], 'getCurrentMemberSession', { notes: 'PC10-PRIVATE-NOTE-CANARY' }, 'INVALID_ARGUMENT');
-  await denied(players[0], 'listGmInstances', {}, 'PERMISSION_DENIED');
+  await denied(players[0], 'buildFighter', {
+    requestId: randomUUID(), wingId: 'fighter-wing-alpha', expectedRevision: 0,
+  }, 'PERMISSION_DENIED');
   const eventsBefore = (await db.collection(`sessions/${sessionId}/events`).where('type', '==', 'roll').get()).size;
   for (const key of ['rolls', 'outcome', 'seed', 'bonus', 'deckOrder']) {
     await denied(players[0], 'rollDice', { sides: 6, count: 1, [key]: 'PC10-CLIENT-OUTCOME-CANARY' }, 'INVALID_ARGUMENT');
