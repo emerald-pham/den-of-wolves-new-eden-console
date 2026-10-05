@@ -1,6 +1,6 @@
 import { commissarPurgeAuthorityIsCurrent } from '@/lib/commissarPurgeAuthority';
 import { memberSessionProjection } from '../functions/src/memberSession';
-import { lazy, Suspense, useEffect, useRef } from 'react';
+import { Component, lazy, Suspense, useEffect, useRef, type ReactNode } from 'react';
 import { HashRouter, Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import Landing from '@/routes/Landing';
 import RoleSelect from '@/routes/RoleSelect';
@@ -73,19 +73,40 @@ const hasConsoleDradis = (path: string): boolean =>
   path === '/press' || path.startsWith('/ships/') || path.startsWith('/union/') ||
   path.startsWith('/shuttles/') || path.startsWith('/replacement/');
 
-function DeferredShipConsole({ observer = false }: Readonly<{ observer?: boolean }>) {
-  return <Suspense fallback={(
+class DeferredModuleBoundary extends Component<
+  Readonly<{ children: ReactNode; fallback: ReactNode }>, { failed: boolean }
+> {
+  override state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  override render() { return this.state.failed ? this.props.fallback : this.props.children; }
+}
+
+function DeferredRouteNotice({ label, failed = false }: Readonly<{ label: string; failed?: boolean }>) {
+  return (
     <main className="session-mode">
       <div className="session-mode__panel cic-frame">
         <Link className="session-mode__back cic-text-button" to="/console">
           Back to stations
         </Link>
-        <p role="status">Opening ship console…</p>
+        <p role={failed ? 'alert' : 'status'}>
+          {failed ? `Could not open ${label}. Reload the console to try again.` : `Opening ${label}…`}
+        </p>
+        {failed && <button type="button" className="cic-action-button" onClick={() => window.location.reload()}>
+          Reload console
+        </button>}
       </div>
     </main>
-  )}>
-    <ShipConsole observer={observer} />
-  </Suspense>;
+  );
+}
+
+function DeferredRoute({ label, children }: Readonly<{ label: string; children: ReactNode }>) {
+  return <DeferredModuleBoundary key={label} fallback={<DeferredRouteNotice label={label} failed />}>
+    <Suspense fallback={<DeferredRouteNotice label={label} />}>{children}</Suspense>
+  </DeferredModuleBoundary>;
+}
+
+function DeferredShipConsole({ observer = false }: Readonly<{ observer?: boolean }>) {
+  return <DeferredRoute label="ship console"><ShipConsole observer={observer} /></DeferredRoute>;
 }
 
 function pursuitEmergencyAuthorityMatches(session: GameSession): boolean {
@@ -1116,7 +1137,16 @@ function AppRoutes() {
           <>
             <PrivateLoyaltyPanel />
             {session && me && (
-              <Suspense fallback={null}><CrisisReportPanel /></Suspense>
+              <DeferredModuleBoundary key={`${session.id}:${me.uid}`} fallback={(
+                <aside className="crisis-report deferred-crisis-notice cic-frame" aria-label="Crisis report unavailable">
+                  <p role="alert">Crisis report could not open. Reload the console to try again.</p>
+                  <button type="button" className="cic-action-button" onClick={() => window.location.reload()}>
+                    Reload console
+                  </button>
+                </aside>
+              )}>
+                <Suspense fallback={null}><CrisisReportPanel /></Suspense>
+              </DeferredModuleBoundary>
             )}
             <Suspense fallback={null}><FleetGroupWorkspace /></Suspense>
             {showAwayMissionDiscardPanel && (
@@ -1176,32 +1206,14 @@ function AppRoutes() {
                 </Suspense>
               )} />
               <Route path="/president" element={(
-                <Suspense fallback={(
-                  <main className="session-mode">
-                    <div className="session-mode__panel cic-frame">
-                      <Link className="session-mode__back cic-text-button" to="/console">
-                        Back to stations
-                      </Link>
-                      <p role="status">Opening President&apos;s office…</p>
-                    </div>
-                  </main>
-                )}>
+                <DeferredRoute label="President's office">
                   <PresidentOffice />
-                </Suspense>
+                </DeferredRoute>
               )} />
               <Route path="/election" element={(
-                <Suspense fallback={(
-                  <main className="session-mode">
-                    <div className="session-mode__panel cic-frame">
-                      <Link className="session-mode__back cic-text-button" to="/console">
-                        Back to stations
-                      </Link>
-                      <p role="status">Opening presidential election…</p>
-                    </div>
-                  </main>
-                )}>
+                <DeferredRoute label="presidential election">
                   <ElectionWorkspace />
-                </Suspense>
+                </DeferredRoute>
               )} />
               <Route path="/shuttles/:shuttleId" element={(
                 <Suspense fallback={<main className="session-mode"><p role="status">Opening shuttle console…</p></main>}>
