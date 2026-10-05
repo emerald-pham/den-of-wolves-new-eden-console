@@ -10,6 +10,7 @@ import { MAINTENANCE_EVENT_ACTIONS as CLIENT_MAINTENANCE_EVENT_ACTIONS, MAINTENA
 import { MAINTENANCE_EVENT_ACTIONS as SERVER_MAINTENANCE_EVENT_ACTIONS, MAINTENANCE_EVENT_RESULT_STEPS as SERVER_MAINTENANCE_EVENT_RESULT_STEPS } from '../../functions/src/maintenanceEvent';
 import { firstTurnWolfAttackComposition } from '../../functions/src/wolfAttackComposition';
 import { resolveWolfTargeting } from '../../functions/src/wolfCombatMath';
+import { sessionDebriefProjection } from '../../functions/src/sessionDebrief';
 
 vi.mock('firebase/firestore', () => ({
   collection: vi.fn(),
@@ -954,6 +955,40 @@ it('hydrates a strict reader-scoped debrief and full-game demo marker', () => {
     survivorOutcome: fleetLossSurvivors, debriefSnapshot: fleetLossDebrief,
   }).debriefSnapshot).toEqual(fleetLossDebrief);
 });
+
+it.each(['final-cycle', 'failure-review', 'candidate'] as const)(
+  'hydrates the actual server debrief projection for %s without admitting private fields', source => {
+    const final = source === 'final-cycle';
+    const outcome = final ? undefined : {
+      type: 'game-outcome', result: source === 'candidate' ? 'success' : 'failure',
+      cause: source === 'candidate' ? 'candidate-complete' : 'pursuit-limit',
+      cycle: 5, occurredAt: '2026-10-05T12:00:00.000Z',
+      ...(source === 'candidate' ? { candidateCode: 'N' } : { navigationRevision: 2 }),
+    };
+    const frozen = {
+      type: 'session-debrief', version: 1, source,
+      result: final ? 'completed' : outcome!.result,
+      cause: final ? 'final-cycle' : outcome!.cause, cycle: 5,
+      occurredAt: '2026-10-05T12:00:00.000Z', committedAt: '2026-10-05T12:01:00.000Z',
+      ...(outcome ? { outcome } : {}),
+      ...(source === 'candidate' ? { candidate: { code: 'N', groups: [{
+        groupId: 'fleet-a', requirements: [{ id: 'paid-crossing', status: 'met' }],
+        rolls: [{ id: 'private-roll', face: 4, result: 'success', audience: 'gm' }],
+        losses: [], humanCalls: [],
+      }] } } : {}),
+    };
+    const projected = sessionDebriefProjection(frozen, { groupId: 'fleet-a', vesselIds: ['aegis'] });
+    expect(projected).toBeDefined();
+    const hydrated = sessionFrom('fresh-terminal', {
+      ...sessionData(8), phase: 'closed', currentTurn: 5, debriefSnapshot: projected,
+    });
+    expect(hydrated.debriefSnapshot).toMatchObject({ source, result: frozen.result, cause: frozen.cause, cycle: 5 });
+    expect(JSON.stringify(hydrated.debriefSnapshot)).not.toContain('private-roll');
+    expect(sessionFrom('unsafe-terminal', {
+      ...sessionData(8), phase: 'closed', debriefSnapshot: { ...projected, gmNote: 'private' },
+    }).debriefSnapshot).toBeUndefined();
+  },
+);
 
 it('parses GM-only group route details only when explicitly enabled for the live reader', () => {
   const outcome = { type: 'game-outcome', result: 'success', cause: 'candidate-complete',
