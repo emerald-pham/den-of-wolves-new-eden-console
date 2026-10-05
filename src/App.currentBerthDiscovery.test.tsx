@@ -180,10 +180,13 @@ it.each(['member', 'session'] as const)('holds a matching current berth until in
     callbacks.onPlayerDiscovery?.(discovery());
   });
   expectWithdrawn();
-  act(() => {
-    if (source === 'member') callbacks.onPlayerFreshness?.(true);
-    else callbacks.onSessionFreshness?.(true);
-  });
+  if (source === 'session') {
+    act(() => callbacks.onSessionFreshness?.(true));
+    expectWithdrawn();
+  }
+  // Session loss retires the existing independent player freshness too. A
+  // renewed header alone must not reinstate that player's private audience.
+  act(() => callbacks.onPlayerFreshness?.(true));
   expect(useSessionStore.getState().session?.playerDiscovery?.shipId).toBe('shepherd');
 });
 
