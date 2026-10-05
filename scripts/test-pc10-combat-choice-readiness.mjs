@@ -230,7 +230,7 @@ test('the current manual phase and airspace cannot change while an original acto
   }
 });
 
-test('target-assignment readiness uses the actual assignments region and enabled selectors before an intended choice', async () => {
+test('target-assignment readiness uses the actual range-actions region and enabled selectors before an intended choice', async () => {
   const { inspectWolfChoicePaint } = await moduleUnderTest();
   const names = [];
   const panel = { isVisible: async () => true, innerText: async () => 'Cycle 1 // weapon control Target assignment',
@@ -241,7 +241,7 @@ test('target-assignment readiness uses the actual assignments region and enabled
     } };
   const page = { getByRole: (_kind, options) => { names.push(options.name); return panel; } };
   const result = await inspectWolfChoicePaint(page, { kind: 'range-actions' }, choice({ choiceStatus: 'targets-required', range: 'long-range' }));
-  assert.equal(result.status, 'eligible'); assert.deepEqual(names, ['Wolf range assignments']);
+  assert.equal(result.status, 'eligible'); assert.deepEqual(names, ['Wolf range actions']);
 });
 
 test('actual terminal launch receipts paint as explicit blockers after a previous wing launched once', async () => {
