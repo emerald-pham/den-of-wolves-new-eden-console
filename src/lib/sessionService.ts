@@ -70,7 +70,7 @@ import type { CounterStep } from './counterPreview';
 import type { DiseaseOutbreakDetails, CrisisDeliveryPressure, CrisisKind, CrisisStateName, ZealotryResponseAction, CivilUnrestResolution } from '@/types/crisis';
 import { normalizeShuttleManifest } from '@/data/shuttles';
 import { normalizePressDispatch } from './pressDispatchState';
-import { parseArrestPosseCalculation } from './firestore';
+import { parseArrestPosseCalculation, parseSessionDebriefProjection } from './firestore';
 import {
   acceptCallableSessionAuthority,
   sessionSnapshotAuthorityFor,
@@ -2017,6 +2017,90 @@ export async function resumeSession(sessionId: string): Promise<boolean> {
   );
   const reply = await call({ sessionId });
   return applySession(reply.data, sessionId);
+}
+
+export interface SessionDebriefActionResult {
+  readonly phase: 'debrief' | 'closed';
+  readonly committed: boolean;
+  readonly cycle: number;
+  readonly result: 'success' | 'failure' | 'completed';
+}
+
+function currentDebriefGmAuthority() {
+  const { session, me, gmInstance } = useSessionStore.getState();
+  if (!session || !me || me.role !== 'gm' || me.sessionId !== session.id || !gmInstance ||
+      gmInstance.sessionId !== session.id || gmInstance.uid !== me.uid) {
+    throw new Error('A live GM instance is required for debrief controls.');
+  }
+  return { session, gmInstance };
+}
+
+function sessionDebriefActionResult(value: unknown, phase: SessionDebriefActionResult['phase']): SessionDebriefActionResult {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new Error('Invalid debrief action result.');
+  }
+  const raw = value as Record<string, unknown>;
+  const keys = ['phase', 'committed', 'cycle', 'result'];
+  if (Object.keys(raw).length !== keys.length || Object.keys(raw).some(key => !keys.includes(key)) ||
+      raw.phase !== phase || typeof raw.committed !== 'boolean' || !Number.isSafeInteger(raw.cycle) ||
+      Number(raw.cycle) < 0 || !['success', 'failure', 'completed'].includes(String(raw.result))) {
+    throw new Error('Invalid debrief action result.');
+  }
+  return { phase, committed: raw.committed, cycle: Number(raw.cycle),
+    result: raw.result as SessionDebriefActionResult['result'] };
+}
+
+function updateSessionPhaseAfterDebrief(sessionId: string, phase: 'debrief' | 'closed'): void {
+  const store = useSessionStore.getState();
+  if (store.session?.id === sessionId) store.setSession({ ...store.session, phase });
+}
+
+/** Enter the immutable debrief for a server-committed failure through the active GM lease. */
+export async function beginSessionDebrief(): Promise<SessionDebriefActionResult> {
+  const { session, gmInstance } = currentDebriefGmAuthority();
+  const call = httpsCallable<{ sessionId: string; instanceId: string; requestId: string }, SessionDebriefActionResult>(
+    functions(), 'beginSessionDebrief',
+  );
+  const reply = await call({ sessionId: session.id, instanceId: gmInstance.id, requestId: commandId() });
+  const result = sessionDebriefActionResult(reply.data, 'debrief');
+  updateSessionPhaseAfterDebrief(session.id, result.phase);
+  return result;
+}
+
+/** Close only an already committed debrief; server receipts make retries idempotent. */
+export async function closeSession(): Promise<SessionDebriefActionResult> {
+  const { session, gmInstance } = currentDebriefGmAuthority();
+  const call = httpsCallable<{ sessionId: string; instanceId: string; requestId: string }, SessionDebriefActionResult>(
+    functions(), 'closeSession',
+  );
+  const reply = await call({ sessionId: session.id, instanceId: gmInstance.id, requestId: commandId() });
+  const result = sessionDebriefActionResult(reply.data, 'closed');
+  updateSessionPhaseAfterDebrief(session.id, result.phase);
+  return result;
+}
+
+/** Read the full candidate summary only when the server confirms a live facilitator lease. */
+export async function getSessionDebrief(): Promise<NonNullable<GameSession['debriefSnapshot']>> {
+  const { session, gmInstance } = currentDebriefGmAuthority();
+  if (session.phase !== 'debrief' && session.phase !== 'closed') {
+    throw new Error('A committed debrief is required for facilitator history.');
+  }
+  const call = httpsCallable<{ sessionId: string; instanceId: string }, unknown>(
+    functions(), 'getSessionDebrief',
+  );
+  const reply = await call({ sessionId: session.id, instanceId: gmInstance.id });
+  const envelope = reply.data as unknown;
+  if (typeof envelope !== 'object' || envelope === null || Array.isArray(envelope)) {
+    throw new Error('Invalid facilitator debrief projection.');
+  }
+  const raw = envelope as Record<string, unknown>;
+  if (Object.keys(raw).length !== 3 || Object.keys(raw).some(key => !['type', 'sessionId', 'snapshot'].includes(key)) ||
+      raw.type !== 'session-debrief' || raw.sessionId !== session.id) {
+    throw new Error('Invalid facilitator debrief projection.');
+  }
+  const parsed = parseSessionDebriefProjection(raw.snapshot, session.survivorOutcome, { allowGroupIds: true });
+  if (!parsed) throw new Error('Invalid facilitator debrief projection.');
+  return parsed;
 }
 
 /** Confirm the entire setup tuple through one replay-safe authoritative command. */
