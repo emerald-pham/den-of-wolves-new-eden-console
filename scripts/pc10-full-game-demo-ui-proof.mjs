@@ -453,7 +453,7 @@ export async function runFreshFullGameDemoUi(options = {}) {
           const brief = crew.page.getByRole('link', { name: 'Open private brief', exact: true });
           await brief.waitFor(); await brief.click();
           member = await crew.until(`Private ${actor.roleId} assignment belongs to current actor`, state => state.briefMatchesActor && state.briefRoleId === actor.roleId);
-          await crew.page.getByRole('link', { name: 'Back to stations', exact: true }).first().click();
+          await crew.page.locator('.role-brief-screen').getByRole('link', { name: /^(?:←\s*)?Back to stations$/ }).click();
           await crew.page.locator(`a[href$="/roles/${actor.roleId}"]`).click();
         }
         member = await crew.until(`Current ${actor.roleId} station entered`, state => state.activeConsoleRoleId === actor.roleId && state.sameActor && state.connection === 'live');
