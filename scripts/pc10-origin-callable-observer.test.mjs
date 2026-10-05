@@ -534,3 +534,48 @@ test('the actual actor adapter opts into origin binding without enabling durable
   await actor.close();
   assert.deepEqual(operations.map(value => value.name), ['binding', 'init', 'Network.enable', 'detach', 'context-close']);
 });
+
+test('a clone body failure during a real planned transport cancellation remains a body failure', async () => {
+  const clock = { at: Date.now() };
+  let controller;
+  const fixture = nativeFixture({ clock, finish: false, responder: ({ url }) => response(undefined, { url,
+    bodyStream: new ReadableStream({ start(value) { controller = value; } }) }) });
+  const operation = fixture.fetch(request());
+  await nextTurn();
+  await fixture.ledger.transition('reload', async () => {
+    clock.at += 1;
+    fixture.network('failed', 'native-protocol-1', { errorText: 'net::ERR_ABORTED', canceled: true });
+    controller.error(new Error('private body failure'));
+    await nextTurn(); clock.at += 1;
+  });
+  await operation; await settled(fixture);
+  assert.equal(fixture.observedCalls[0].status, 200);
+  assert.equal(fixture.observedCalls[0].bodyCompletedAt, null);
+  assert.ok(fixture.failures.some(value => value.category === 'response-observation-unavailable' &&
+    value.bodyFailureStage === 'origin-body-read-failed'), 'Transport cancellation cannot erase a separately observed clone failure.');
+  assert.equal(JSON.stringify([fixture.packets, fixture.failures]).includes('private body failure'), false);
+});
+
+test('captured originating bytes still require an actual terminal native network event within the same10s drain', async () => {
+  const timers = new Map(); let counter = 0;
+  const fixture = nativeFixture({ finish: false, ledgerTimers: { setTimeout: (callback, duration) => {
+    timers.set(++counter, { callback, duration }); return counter;
+  }, clearTimeout: id => timers.delete(id) } });
+  await fixture.fetch(request());
+  const drain = fixture.ledger.drain();
+  await nextTurn();
+  assert.ok(fixture.observedCalls[0].bodyCompletedAt !== null);
+  assert.equal(fixture.observedCalls[0].requestFinishedAt, null);
+  assert.equal([...timers.values()][0].duration, 10_000);
+  [...timers.values()][0].callback();
+  await assert.rejects(drain, /Origin callable census exceeded the observation budget/);
+  assert.ok(fixture.failures.some(value => value.category === 'unknown-callable-lifecycle'));
+});
+
+test('malicious binding getters cannot serialize an arbitrary private error through the supported Node callback', () => {
+  const fixture = nativeFixture();
+  const packet = { get schemaVersion() { throw new Error('private-token-private-url-private-binding-error'); } };
+  assert.deepEqual(fixture.ledger.receive(packet), { ok: false });
+  assert.ok(fixture.failures.some(value => value.category === 'origin-binding-schema'));
+  assert.equal(JSON.stringify(fixture.failures).includes('private-token'), false);
+});
