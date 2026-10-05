@@ -7,6 +7,7 @@ import { initialPdfEscortWingMemberView } from '@/lib/pdfEscortWingProjection';
 import { useSessionStore } from '@/store/useSessionStore';
 import refinery124 from '@/data/vessels/refinery-124';
 import './PdfEscortWingReference.css';
+import PdfNewsRelayPanel from './PdfNewsRelayPanel';
 
 function launchStatus(view: PdfEscortWingLaunchView | null, canRead: boolean): string {
   if (!view) return canRead ? 'Checking current Wolf attack launch authority…' :
@@ -152,18 +153,19 @@ export default function PdfEscortWingReference({ state, writable = false }: {
               ? `Resolved // ${current.shortRollCount} fighter rolls`
               : 'Not resolved'}</dd></div>
             <div><dt>Wing losses</dt><dd>{current.losses}</dd></div>
-            <div><dt>Away mission reference</dt><dd>Fuel-free participation // printed bonuses +{wing.mission.bonuses.searchAndRescue} search &amp; rescue // +{wing.mission.bonuses.salvage} salvage // result integration pending</dd></div>
+            <div><dt>Away mission reference</dt><dd>Fuel-free participation // +{wing.mission.bonuses.searchAndRescue} search &amp; rescue // +{wing.mission.bonuses.salvage} salvage // server applies these bonuses only to opportunities this participant contributes to</dd></div>
             <div><dt>Combat launch</dt><dd>{PDF_FIGHTER_WING_SYSTEM.name} // charged and undamaged // {wing.launch.phase}</dd></div>
           </dl>
           <p>{fighterBay?.effect ?? `${PDF_FIGHTER_WING_SYSTEM.name} launch reference unavailable`}</p>
           <p className="aegis-craft__system-label">Combat reference</p>
           <p>{wing.combat.mediumRange}</p>
           <p>{wing.combat.shortRange} {wing.combat.lossRule}</p>
-          <p>Medium and Short combat resolution is not available in the console yet.</p>
+          <p>Live Medium and Short choices appear during the matching Wolf Attack range step below this reference.</p>
           <p className="aegis-system__damaged-rule">{fighterBay?.effect.match(/Damaged:.*$/i)?.[0] ?? 'Damaged: launch unavailable.'}</p>
           <PdfEscortWingLaunchPanelView view={launchView} canRead={canReadLaunchAuthority}
             busy={pending} error={error}
             onLaunch={() => void launch()} onPass={() => void pass()} />
+          <PdfNewsRelayPanel enabled={writable} />
           {launchView?.launched && <PdfFighterAcePermissionControl sourceId="pdf-escort-fighter-wing"
             enabled={canReadLaunchAuthority} refreshKey={launchView.revision} />}
         </article>

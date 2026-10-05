@@ -17,3 +17,33 @@
   border-color: var(--cic-rule);
   color: var(--cic-ink);
 }
+
+.pdf-news-relay textarea {
+  display: block;
+  width: 100%;
+  min-height: 7rem;
+  box-sizing: border-box;
+  margin-block: 0.5rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--cic-amber);
+  border-radius: 0;
+  background: var(--cic-void);
+  color: var(--cic-ink);
+  font: 16px/1.35 var(--cic-mono);
+  resize: vertical;
+}
+
+.pdf-news-relay :is(textarea, button):focus-visible {
+  outline: 2px solid var(--cic-cyan);
+  outline-offset: 2px;
+}
+
+.pdf-news-relay__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+@media (max-width: 480px) {
+  .pdf-news-relay__actions button { width: 100%; }
+}

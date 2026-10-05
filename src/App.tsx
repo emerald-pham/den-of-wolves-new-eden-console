@@ -1196,7 +1196,8 @@ function AppRoutes() {
                 <Suspense fallback={null}><CrisisReportPanel /></Suspense>
               </DeferredModuleBoundary>
             )}
-            <Suspense fallback={null}><FleetGroupWorkspace /></Suspense>
+            {location.pathname !== '/ships/refinery-124/roles/refinery-124-pdf-colonel' &&
+              <Suspense fallback={null}><FleetGroupWorkspace /></Suspense>}
             {showAwayMissionDiscardPanel && (
               <Suspense fallback={null}>
                 <AwayMissionDiscardPanel />
