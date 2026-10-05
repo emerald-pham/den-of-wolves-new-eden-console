@@ -5,7 +5,16 @@ import {
   type LoyaltyKind,
 } from '../../functions/src/gameSetup';
 import { selectIsGm, useSessionStore } from '@/store/useSessionStore';
-import { captureSessionAuthority, isCurrentSessionAuthority, requireFreshSessionAuthority } from './sessionMutationAuthority';
+import {
+  captureSessionAuthority,
+  hasFreshSessionAuthority,
+  isCurrentSessionAuthority,
+  requireFreshSessionAuthority,
+} from './sessionMutationAuthority';
+import {
+  sessionSnapshotAuthorityFor,
+  sessionSnapshotAuthorityVersion,
+} from './sessionSnapshotAuthority';
 import { auth, functions } from './firebase';
 
 export interface ExplicitGmLoyaltyAssignmentRequest {
@@ -25,6 +34,8 @@ export interface ExplicitGmLoyaltyAssignmentReceipt {
 function requireCurrentGmRequest(request: ExplicitGmLoyaltyAssignmentRequest): {
   readonly uid: string;
   readonly checkpoint: NonNullable<ReturnType<typeof captureSessionAuthority>>;
+  readonly baselineSetupRevision: number;
+  readonly baselinePhase: 'lobby' | 'casting';
 } {
   const store = useSessionStore.getState();
   if (!store.session || !store.me || !store.gmInstance || !selectIsGm(store) || store.me.role !== 'gm') {
@@ -63,9 +74,21 @@ function requireCurrentGmRequest(request: ExplicitGmLoyaltyAssignmentRequest): {
   } else if (request.partnerUid !== undefined) {
     throw new Error('Only Friend loyalty can name a reciprocal partner.');
   }
+  const baselineSetupRevision = safeSetupRevision(store.session.setupRevision);
+  if (baselineSetupRevision === undefined || baselineSetupRevision >= Number.MAX_SAFE_INTEGER) {
+    throw new Error('The confirmed setup revision is invalid. Refresh before assigning private loyalty.');
+  }
+  const baselinePhase: 'lobby' | 'casting' = store.session.phase;
   const checkpoint = captureSessionAuthority(store.session.id, store.me.uid);
   if (!checkpoint) throw new Error('Live GM session authority is required.');
-  return { uid: store.me.uid, checkpoint };
+  return { uid: store.me.uid, checkpoint, baselineSetupRevision, baselinePhase };
+}
+
+function safeSetupRevision(value: unknown): number | undefined {
+  if (value === undefined) return 0;
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
+    ? value
+    : undefined;
 }
 
 function parseSafeReceipt(value: unknown, request: ExplicitGmLoyaltyAssignmentRequest): ExplicitGmLoyaltyAssignmentReceipt {
@@ -93,7 +116,8 @@ function parseSafeReceipt(value: unknown, request: ExplicitGmLoyaltyAssignmentRe
 export async function submitExplicitGmLoyaltyAssignment(
   request: ExplicitGmLoyaltyAssignmentRequest,
 ): Promise<ExplicitGmLoyaltyAssignmentReceipt> {
-  const { uid, checkpoint } = requireCurrentGmRequest(request);
+  const { uid, checkpoint, baselineSetupRevision, baselinePhase } = requireCurrentGmRequest(request);
+  const expectedSetupRevision = baselineSetupRevision + 1;
   const currentAuth = auth();
   await currentAuth.authStateReady();
   if (currentAuth.currentUser?.uid !== uid) {
@@ -106,9 +130,30 @@ export async function submitExplicitGmLoyaltyAssignment(
   }
   const receipt = parseSafeReceipt(reply.data, request);
   const latest = useSessionStore.getState();
-  if (!isCurrentSessionAuthority(checkpoint) || latest.session?.id !== request.sessionId ||
-      latest.me?.uid !== uid || latest.me.role !== 'gm' || !selectIsGm(latest) ||
-      latest.gmInstance?.id !== request.instanceId || latest.gmInstance.uid !== uid) {
+  const sessionIdentityMatches = latest.session?.id === request.sessionId &&
+    latest.me?.sessionId === request.sessionId && latest.me?.uid === uid && latest.me.role === 'gm' &&
+    selectIsGm(latest) && latest.gmInstance?.id === request.instanceId &&
+    latest.gmInstance.uid === uid && latest.gmInstance.sessionId === request.sessionId;
+  const latestSetupRevision = safeSetupRevision(latest.session?.setupRevision);
+  // If the listener has not accepted a newer server snapshot, the displayed
+  // session must still be the pre-call casting window and revision.
+  const unchangedAuthoritySnapshot = isCurrentSessionAuthority(checkpoint) &&
+    sessionIdentityMatches && latestSetupRevision === baselineSetupRevision &&
+    receipt.setupRevision === expectedSetupRevision &&
+    latest.session?.phase === baselinePhase && latest.session.setupConfirmed === true &&
+    latest.session.configurationLocked !== true;
+  // The callable writes one setup revision. A listener-first reply may advance
+  // authority exactly once, but only when its accepted snapshot matches that
+  // receipt and remains inside the same unlocked setup window.
+  const exactOwnAcceptedSnapshot = hasFreshSessionAuthority() &&
+    sessionSnapshotAuthorityFor(checkpoint.sessionId, uid) === checkpoint.authority &&
+    Number.isSafeInteger(checkpoint.version + 1) &&
+    sessionSnapshotAuthorityVersion(checkpoint.authority) === checkpoint.version + 1 &&
+    sessionIdentityMatches && latestSetupRevision === expectedSetupRevision &&
+    receipt.setupRevision === expectedSetupRevision &&
+    latest.session?.setupConfirmed === true && latest.session.configurationLocked !== true &&
+    (latest.session.phase === 'lobby' || latest.session.phase === 'casting');
+  if (!unchangedAuthoritySnapshot && !exactOwnAcceptedSnapshot) {
     throw new Error('The GM session authority changed while the assignment was pending. Refresh before continuing.');
   }
   return receipt;
