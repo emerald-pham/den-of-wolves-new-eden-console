@@ -313,11 +313,20 @@ test('GM and crew share one fixed 60-second presentation-readiness budget', asyn
 
 test('an unacknowledged held cycle briefing remains a blocker and is never cleared by the readiness helper', async () => {
   const { waitForFullGamePresentationReady } = await import('./pc10-full-game-demo-proof-helpers.mjs');
-  let now = 0, clears = 0;
-  const actors = ['gm', 'crew'].map(name => ({ ...presentationActor(name, {
-    naturalTransmissionMounted: true, ordinaryBriefingMounted: true, ordinaryBriefingHeld: true,
-  }), clearBriefing: async () => { clears += 1; } }));
+  let now = 0, clears = 0, inspections = 0;
+  const actors = ['gm', 'crew'].map(name => {
+    const actor = presentationActor(name);
+    let actorInspections = 0;
+    actor.inspect = async () => {
+      inspections += 1; actorInspections += 1;
+      return { ...await presentationActor(name).inspect(),
+        naturalTransmissionMounted: actorInspections === 1,
+        ordinaryBriefingMounted: true, ordinaryBriefingHeld: true };
+    };
+    return { ...actor, clearBriefing: async () => { clears += 1; } };
+  });
   await assert.rejects(waitForFullGamePresentationReady({ expectedAnnouncement: { turn: 1, revision: 4 }, actors,
-    now: () => now, wait: async () => { now += 60_000; } }), /60-second readiness budget/);
+    now: () => now, wait: async () => { now += 30_000; } }), /60-second readiness budget/);
+  assert.equal(inspections, 4, 'The natural transmission detaches but the held briefing alone prevents readiness.');
   assert.equal(clears, 0);
 });
