@@ -97,6 +97,42 @@ describe('authoritative immutable session debrief', () => {
     expect(JSON.stringify(projected)).not.toMatch(/private-receipt|groupId|nebula-bonus|private-adjudication|dione|fleet-b/);
   });
 
+  it('explains the committed route while filtering GM-only and foreign-group path steps', () => {
+    const h = harness({ phase: 'active' });
+    const result = commitTerminal(h.tx, h.ref, h.snapshot(), {
+      source: 'candidate', committedAt: '2026-10-05T12:01:00.000Z',
+      outcome: { type: 'game-outcome', result: 'success', cause: 'candidate-complete',
+        candidateCode: 'N', cycle: 4, occurredAt: '2026-10-05T12:00:00.000Z' },
+      candidate: { code: 'N', groups: [
+        { groupId: 'fleet-a', requirements: [{ id: 'paid-crossing', status: 'met' }], rolls: [], losses: [], humanCalls: [],
+          path: [
+            { action: 'ring-passage', result: 'crossed', shipId: 'aegis', fuelSpent: 2, audience: 'members' },
+            { action: 'sabotage-ring', result: 'completed', shipId: 'aegis', audience: 'gm' },
+            { action: 'ring-repair', result: 'completed', shipId: 'dione', audience: 'members' },
+          ] },
+        { groupId: 'fleet-b', requirements: [], rolls: [], losses: [], humanCalls: [],
+          path: [{ action: 'nebula-jump', result: 'reached', shipId: 'shepherd', audience: 'members' }] },
+      ] },
+    });
+
+    const member = sessionDebriefProjection(result.snapshot, { groupId: 'fleet-a', vesselIds: ['aegis'] });
+    expect(member?.candidate).toMatchObject({ code: 'N', groups: [{
+      requirements: [{ id: 'paid-crossing', status: 'met' }],
+      path: [{ action: 'ring-passage', result: 'crossed', shipId: 'aegis', fuelSpent: 2 }],
+    }] });
+    expect(JSON.stringify(member)).not.toMatch(/sabotage-ring|fleet-b|dione|shepherd/);
+
+    const gm = sessionDebriefProjection(result.snapshot, { groupId: 'gm', vesselIds: ['aegis', 'dione', 'shepherd'], gm: true });
+    expect(gm?.candidate).toMatchObject({ code: 'N', groups: [
+      { groupId: 'fleet-a', path: [
+        { action: 'ring-passage', result: 'crossed', shipId: 'aegis', fuelSpent: 2 },
+        { action: 'sabotage-ring', result: 'completed', shipId: 'aegis' },
+        { action: 'ring-repair', result: 'completed', shipId: 'dione' },
+      ] },
+      { groupId: 'fleet-b', path: [{ action: 'nebula-jump', result: 'reached', shipId: 'shepherd' }] },
+    ] });
+  });
+
   it('commits the authoritative O-candidate all-fleet-loss failure without inventing survivors or arrivals', () => {
     const lossSurvivors = {
       ...survivorOutcome,
