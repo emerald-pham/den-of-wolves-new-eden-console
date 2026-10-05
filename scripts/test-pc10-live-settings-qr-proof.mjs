@@ -28,6 +28,100 @@ const tokens = () => ({ mono, radius:'0px', void:'#04070a', ink:'#e4ecee', amber
   samples:[{name:'Settings title',fontFamily:mono,color:'rgb(232, 137, 43)',expectedColor:'amber',fontSize:16},
     {name:'Join link',fontFamily:mono,color:'rgb(70, 200, 222)',expectedColor:'cyan',fontSize:10.88}] });
 
+function paintReadinessPage({wait,paintBlocker=false}={}) {
+  const events=[];
+  const page={locator:selector=>({waitFor:async options=>{
+    events.push({action:'wait-detached',selector,...options});
+    if(wait)await wait(selector,options);
+  }}),waitForFunction:async(callback,argument,options)=>{
+    events.push({action:'paint-probe',...options});
+    assert.equal(argument,undefined);
+    const probe=()=>vm.runInNewContext(`(${callback.toString()})()`,{
+      document:{querySelector:selector=>{
+        events.push({action:'dom-query',selector});return paintBlocker?{}:null;
+      }},requestAnimationFrame:fn=>{events.push({action:'paint-frame'});queueMicrotask(fn);},
+    });
+    if(paintBlocker){assert.equal(await probe(),false);paintBlocker=false;}
+    assert.equal(await probe(),true,'The actual DOM must be clear after painting.');
+  }};
+  return {page,events};
+}
+
+test('Settings waits for normal transmission and held briefing removal rather than pointer-event visibility',async()=>{
+  let finishTransmission;
+  const normalCompletion=new Promise(resolve=>{finishTransmission=resolve;});
+  const {page,events}=paintReadinessPage({wait:selector=>selector==='.turn-start-announcement__console'?normalCompletion:undefined});
+  let completed=false,checks=0;
+  const operation=proof.waitForLiveSettingsPaintReady({page,checkpoint:async()=>{
+    checks+=1;assertOriginalSettingsActor(actor(),expected);
+  }}).then(value=>{completed=true;return value;});
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(completed,false);assert.equal(checks,1);
+  assert.equal(events.some(event=>event.action==='paint-probe'),false);
+  finishTransmission();
+  const observed=await operation;
+  assert.deepEqual(events.filter(event=>event.action==='wait-detached').map(event=>[event.selector,event.state]),[
+    ['.turn-start-announcement__console','detached'],['.turn-interstitial-clear','detached'],
+  ]);
+  assert.equal(events.filter(event=>event.action==='paint-frame').length,2);
+  assert.equal(checks,2);assert.equal(observed.normalTransmissionCompleted,true);
+});
+
+test('a transmission that appears during the paint frames still blocks capture until its real DOM is gone',async()=>{
+  const {page,events}=paintReadinessPage({paintBlocker:true});
+  await proof.waitForLiveSettingsPaintReady({page,checkpoint:async()=>assertOriginalSettingsActor(actor(),expected)});
+  assert.equal(events.filter(event=>event.action==='paint-frame').length,4);
+  assert.ok(events.filter(event=>event.action==='dom-query').every(event=>
+    event.selector==='.turn-start-announcement__console, .turn-interstitial-clear'));
+});
+
+test('normal transmission and painting share the existing sixty-second readiness budget',async t=>{
+  let now=1_000;t.mock.method(Date,'now',()=>now);
+  const {page,events}=paintReadinessPage({wait:selector=>{now+=selector==='.turn-start-announcement__console'?35_000:5_000;}});
+  await proof.waitForLiveSettingsPaintReady({page,checkpoint:async()=>assertOriginalSettingsActor(actor(),expected)});
+  assert.deepEqual(events.filter(event=>event.action==='wait-detached').map(event=>event.timeout),[60_000,25_000]);
+  assert.equal(events.find(event=>event.action==='paint-probe').timeout,20_000);
+});
+
+test('uncleared normal briefing timeout is preserved without clicking clearance or changing presentation',async()=>{
+  const failure=Object.assign(new Error('normal briefing remained held'),{name:'TimeoutError'});
+  const {page,events}=paintReadinessPage({wait:selector=>{
+    if(selector==='.turn-interstitial-clear')throw failure;
+  }});
+  await assert.rejects(proof.waitForLiveSettingsPaintReady({page,checkpoint:async()=>assertOriginalSettingsActor(actor(),expected)}),error=>error===failure);
+  assert.equal(events.some(event=>event.action==='paint-probe'),false);
+});
+
+test('paint readiness cannot accept a changed original actor after normal transmission completion',async()=>{
+  const {page}=paintReadinessPage();let checks=0;
+  await assert.rejects(proof.waitForLiveSettingsPaintReady({page,checkpoint:async()=>{
+    checks+=1;return assertOriginalSettingsActor(checks===1?actor():{...actor(),uidHash:'9999999999999999'},expected);
+  }}),/original ordinary roster actor/i);
+});
+
+test('native Settings scrolling centers the target and awaits two actual paint frames before measurement',async()=>{
+  const events=[],frames=[];
+  const target={evaluate:callback=>vm.runInNewContext(`(${callback.toString()})(element)`,{
+    element:{scrollIntoView:options=>events.push({...options})},
+    requestAnimationFrame:callback=>frames.push(callback),
+  })};
+  let completed=false;
+  const operation=proof.scrollLiveSettingsTargetIntoView(target).then(()=>{completed=true;});
+  assert.deepEqual(events,[{block:'center',inline:'nearest',behavior:'instant'}]);
+  assert.equal(completed,false);assert.equal(frames.length,1);
+  frames.shift()();await Promise.resolve();
+  assert.equal(completed,false);assert.equal(frames.length,1);
+  frames.shift()();await operation;
+  assert.equal(completed,true);
+});
+
+test('fractional viewport clipping still fails the exact fitted and 44px target contract',()=>{
+  for(const amount of [0.23,0.41]){
+    const metrics=geometry();metrics.controls[0].rect=rectangle(20,844-44+amount,144,44);
+    assert.ok(settingsGeometryFailures(metrics).includes('Close settings: control is clipped or covered.'));
+  }
+});
+
 function restoringDocument({roleId='press-officer',changeIdentity=false,navigationFailure,navigationWait}={}) {
   const entry={...actor(),uidHash:'fedcba0987654321',profileRoleId:roleId};
   let href=baseHref,changing=false,loaded=false;

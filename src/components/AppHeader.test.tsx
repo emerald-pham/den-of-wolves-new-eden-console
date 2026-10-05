@@ -987,6 +987,23 @@ it('keeps the long settings changelog independently scrollable', () => {
   expect(changelogRule).toMatch(/overflow-y:\s*auto/);
 });
 
+it('gives the existing GM access email a 44px target without changing its link or copy', async () => {
+  const stylesheet = readFileSync('src/index.css', 'utf8');
+  const style = document.createElement('style');
+  style.textContent = stylesheet.match(/\.settings-dialog__gm-access a\s*\{[^}]*\}/)?.[0] ?? '';
+  document.head.append(style);
+  try {
+    render(<MemoryRouter><AppHeader /></MemoryRouter>);
+    await userEvent.setup().click(screen.getByRole('button', { name: /^Settings$/ }));
+    const contact = within(screen.getByRole('dialog', { name: 'Session settings' }))
+      .getByRole('link', { name: 'emerald.pham@hey.com', exact: true });
+    expect(contact).toHaveAttribute('href', 'mailto:emerald.pham@hey.com');
+    expect(Number.parseFloat(getComputedStyle(contact).minHeight)).toBeGreaterThanOrEqual(44);
+    expect(Number.parseFloat(getComputedStyle(contact).minWidth)).toBeGreaterThanOrEqual(44);
+    expect(getComputedStyle(contact).display).toBe('inline-flex');
+  } finally { style.remove(); }
+});
+
 it('focuses the dialog, closes it with Escape, and restores settings focus', async () => {
   const user = userEvent.setup();
   render(<MemoryRouter><AppHeader /></MemoryRouter>);
