@@ -87,6 +87,9 @@ test('the known live ordinary controller may stay unselected while 17 original c
   assert.equal(result.presentPlayerUids.length, 17);
   assert.equal(result.presentPlayerUids.includes(input.controller.uid), false);
   assert.equal(result.presentPlayerUids.includes(input.targetUid), false);
+  assert.throws(() => resolve({ ...input, choice: {
+    ...input.choice, presentRoleIds: [...input.choice.presentRoleIds, 'controller'],
+  } }), /current roster/i, 'The extra controller must not widen the selected-role schema.');
   assert.deepEqual(result.presentPlayerUids,
     input.choice.presentRoleIds.map(roleId => input.roster.find(actor => actor.roleId === roleId).uid));
 });
@@ -137,6 +140,10 @@ test('stale visible options fail while an unselected absent original role remain
   const stale = fixture();
   stale.visibleLabels.pop();
   assert.throws(() => resolve(stale), /current|option|census|match/i);
+
+  const staleCensus = fixture();
+  staleCensus.currentPlayers.find(player => player.uid === staleCensus.roster[1].uid).connected = false;
+  assert.throws(() => resolve(staleCensus), /stale|disconnected/i);
 
   const pending = fixture();
   const absentRole = pending.choice.presentRoleIds.pop();
