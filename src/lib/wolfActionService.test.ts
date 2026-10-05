@@ -67,6 +67,9 @@ it('submits only the selected shuttle resource and current cycle authority for s
     sessionId: 's1', requestId: 'wolf-sabotage-1', cycle: 2, revision: 1,
     coverRoleId: 'dione-engineer', shuttleId: 'maliades', resourceId: 'fuel',
     destroyedAmount: 2, remainingAmount: 3, suspicion: 4,
+    actorUid: 'u2', actorRoleId: 'dione-engineer', vesselId: 'maliades', turn: 2,
+    phase: 'active', idempotencyKey: 'wolf-sabotage-1',
+    auditId: 'wolf-supply-sabotage-wolf-sabotage-1',
   };
   call.mockResolvedValue({ data: result });
 

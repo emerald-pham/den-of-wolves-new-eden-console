@@ -133,6 +133,9 @@ it('offers only positive cargo on the active cover-role shuttle and commits a pr
     requestId: 'wolf-sabotage-1', cycle: 2, revision: 1,
     coverRoleId: 'dione-engineer', shuttleId: 'maliades', resourceId: 'fuel',
     destroyedAmount: 2, remainingAmount: 3, suspicion: 4,
+    actorUid: 'u2', actorRoleId: 'dione-engineer', vesselId: 'maliades', turn: 2,
+    phase: 'active', idempotencyKey: 'wolf-sabotage-1',
+    auditId: 'wolf-supply-sabotage-wolf-sabotage-1',
   });
 
   render(<PrivateLoyaltyPanel />);
@@ -177,6 +180,9 @@ it('reuses the same sabotage request identity after an uncertain transport failu
       requestId: 'wolf-sabotage-retry', cycle: 2, revision: 1,
       coverRoleId: 'dione-engineer', shuttleId: 'maliades', resourceId: 'fuel',
       destroyedAmount: 2, remainingAmount: 3, suspicion: 4,
+      actorUid: 'u2', actorRoleId: 'dione-engineer', vesselId: 'maliades', turn: 2,
+      phase: 'active', idempotencyKey: 'wolf-sabotage-retry',
+      auditId: 'wolf-supply-sabotage-wolf-sabotage-retry',
     });
 
   render(<PrivateLoyaltyPanel />);
