@@ -31,6 +31,13 @@ export function assertWolfChoiceActor(current, original) {
   assert.equal(live(current), true, 'The original combat actor must remain a live server projection.');
 }
 
+function assertClosedReadWindow(current, original) {
+  const unchanged = current.airspace === original.airspace && current.turnStatePhase === original.turnStatePhase;
+  const restored = original.airspace === 'restricted' && current.airspace === 'lifted' &&
+    ['team', 'coordination'].includes(original.turnStatePhase) && current.turnStatePhase === 'coordination';
+  assert.ok(unchanged || restored, 'Original combat airspace/turnStatePhase has no proven full forward restoration.');
+}
+
 function assertClosedReadAuthority(current, original, expected) {
   for (const key of [...identityKeys, 'discoveryAuthority', 'entitledShipId'])
     assert.ok(Object.hasOwn(original, key) && original[key] !== undefined,
@@ -51,7 +58,11 @@ function assertClosedReadAuthority(current, original, expected) {
       new Set(vessels).size === vessels.length);
   }
   if (original.playerRole === 'gm') assert.equal(original.gmInstanceOwned, true);
-  assertWolfChoiceActor(current, original);
+  // A full forward window is only a candidate until the single reinspection
+  // below proves this exact original attack resolved and unlocked. Every
+  // non-window identity, lease and audience field remains exact here.
+  assertClosedReadWindow(current, original);
+  assertWolfChoiceActor({ ...current, airspace: original.airspace, turnStatePhase: original.turnStatePhase }, original);
   assert.equal(current.entitledShipId, original.entitledShipId);
   assert.deepEqual(current.discoveryAuthority, original.discoveryAuthority, 'Original combat discovery authority changed.');
 }
@@ -114,18 +125,29 @@ export async function waitForWolfChoiceReadiness({ original, expected, inspectAc
       assert.equal(expected.airspaceLocked, true);
       assert.ok(originalGm && inspectGm && denial.originalGm && denial.inspectGm,
         'Original GM read authority is required for closed boarding recovery.');
+      // The richer GM read may already see restoration after the waiter's last
+      // raw authority check. Its lease/audience stays bound to that observation;
+      // its combat window stays bound to the original waiter, never renewed.
+      const readOriginalGm = { ...denial.originalGm,
+        airspace: originalGm.airspace, turnStatePhase: originalGm.turnStatePhase };
+      let priorActor = original, priorGm = originalGm, priorReadGm = denial.originalGm;
       async function strictAuthority() {
         budget();
         const actor = await inspectActor(); budget();
         assertClosedReadAuthority(actor, original, expected);
+        assertClosedReadWindow(actor, priorActor);
         const gm = await inspectGm(); budget();
-        assertWolfChoiceActor(gm, originalGm);
+        assertClosedReadWindow(gm, priorGm);
+        assertWolfChoiceActor({ ...gm, airspace: originalGm.airspace, turnStatePhase: originalGm.turnStatePhase }, originalGm);
         const readGm = await denial.inspectGm(); budget();
         assert.equal(denial.originalGm.playerRole, 'gm');
-        for (const key of identityKeys) if (Object.hasOwn(originalGm, key))
+        for (const key of identityKeys) if (!['airspace', 'turnStatePhase'].includes(key) && Object.hasOwn(originalGm, key))
           assert.equal(denial.originalGm[key], originalGm[key], `Original GM read ${key} changed.`);
         assert.equal(denial.originalGm.instanceId, originalGm.instanceId);
-        assertClosedReadAuthority(readGm, denial.originalGm, expected);
+        assertClosedReadAuthority(denial.originalGm, readOriginalGm, expected);
+        assertClosedReadAuthority(readGm, readOriginalGm, expected);
+        assertClosedReadWindow(readGm, priorReadGm);
+        priorActor = actor; priorGm = gm; priorReadGm = readGm;
       }
       await strictAuthority();
       // Exactly one GM read of the original session path, inside this same
