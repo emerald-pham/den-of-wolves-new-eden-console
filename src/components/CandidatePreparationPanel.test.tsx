@@ -1,5 +1,5 @@
 import { beforeEach, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import CandidatePreparationPanel from './CandidatePreparationPanel';
 import { useSessionStore } from '@/store/useSessionStore';
@@ -66,4 +66,13 @@ it('clears stale group presentation and disables mutations when live authority d
   useSessionStore.setState({ sessionSnapshotFreshness: 'cache', connection: 'connecting' });
   await waitFor(() => expect(screen.queryByRole('button', { name: /Contribute.*materials/i })).not.toBeInTheDocument());
   expect(screen.getByText(/Reconnect.*candidate/i)).toBeInTheDocument();
+});
+it('refreshes current blockers when another actor commits a server session update', async () => {
+  render(<CandidatePreparationPanel />);
+  await screen.findByRole('heading', { name: 'Ancient Jump Ring' });
+  const updated = path('P'); updated.chargeCapacity = 17;
+  service.read.mockResolvedValue({ type: 'candidate-workspace', sessionId: 's1', groupId: 'fleet-1', cycle: 6,
+    revision: 4, paths: [updated] });
+  act(() => useSessionStore.setState(state => ({ session: { ...state.session!, updatedAt: '2026-10-05T13:00:00.000Z' } })));
+  expect(await screen.findByText(/17\/18 charge capacity/)).toBeInTheDocument();
 });
