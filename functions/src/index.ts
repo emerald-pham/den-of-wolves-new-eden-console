@@ -36646,7 +36646,7 @@ export const claimSeat = auditedOnCall<{
       expectedRevision: revisioned.expectedSetupRevision,
       payload: { seatId },
     };
-    return db.runTransaction(async (tx): Promise<SeatMutationReceipt> => {
+    const resolveClaim = async (tx: Transaction): Promise<SeatMutationReceipt> => {
         const [prior, marker, session, seat, player, legacyEvent] = await Promise.all([
           tx.get(requestRef), tx.get(markerRef), tx.get(sessionRef), tx.get(seatRef), tx.get(playerRef),
           tx.get(eventRef),
@@ -36756,7 +36756,19 @@ export const claimSeat = auditedOnCall<{
         });
         tx.set(markerRef, { fingerprint: markerFingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
         return reply;
-    });
+    };
+    // An exact receipt is a read of an already committed result. Use one
+    // consistent current snapshot for the original live-player, actor,
+    // fingerprint and command-namespace checks, without holding write locks
+    // against simultaneous browser presence renewals or other receipt reads.
+    const replay = await db.runTransaction(async (tx) => {
+      const prior = await tx.get(requestRef);
+      return prior.exists ? resolveClaim(tx) : null;
+    }, { readOnly: true });
+    if (replay !== null) return replay;
+    // A missing receipt still follows the unchanged authoritative mutation
+    // transaction, including casting, revision, seat and pointer checks.
+    return db.runTransaction(resolveClaim);
   },
 );
 
