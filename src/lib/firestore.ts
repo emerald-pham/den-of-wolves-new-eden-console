@@ -1628,8 +1628,16 @@ function sessionDebriefFrom(
     currentSurvivorOutcome && JSON.stringify(raw.survivorOutcome) === JSON.stringify(currentSurvivorOutcome)
       ? currentSurvivorOutcome : undefined;
   if (raw.survivorOutcome !== undefined && !survivorOutcome) return undefined;
-  if (raw.source === 'candidate' && (!outcome || outcome.result !== 'success' || !candidate || candidate.code !== outcome.candidateCode ||
-      raw.result !== 'success' || raw.cause !== 'candidate-complete') ||
+  const candidateSuccess = outcome?.result === 'success' && outcome.cause === 'candidate-complete' &&
+    candidate?.code === outcome.candidateCode && raw.result === 'success' && raw.cause === 'candidate-complete';
+  const candidateOFailure = outcome?.result === 'failure' && outcome.cause === 'total-fleet-loss' &&
+    candidate?.code === 'O' && candidate.groups.length > 0 && raw.result === 'failure' && raw.cause === 'total-fleet-loss' &&
+    survivorOutcome?.cycle === outcome.cycle && survivorOutcome.occurredAt === outcome.occurredAt &&
+    survivorOutcome.survivingShipPopulation === 0 && survivorOutcome.survivingShipIds.length === 0 &&
+    survivorOutcome.lostOrDestroyedShipIds.length > 0 &&
+    candidate.groups.flatMap(group => group.losses).length > 0 &&
+    candidate.groups.flatMap(group => group.losses).every(loss => survivorOutcome.lostOrDestroyedShipIds.includes(loss.shipId));
+  if (raw.source === 'candidate' && !candidateSuccess && !candidateOFailure ||
       raw.source === 'final-cycle' && (outcome || raw.result !== 'completed' || raw.cause !== 'final-cycle') ||
       raw.source === 'failure-review' && (!outcome || outcome.result !== 'failure' || raw.result !== 'failure' || raw.cause !== outcome.cause)) return undefined;
   return {

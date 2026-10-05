@@ -181,6 +181,22 @@ function parseCandidateSummary(value: unknown): SessionDebriefSnapshot['candidat
   return { code: raw.code, groups };
 }
 
+function validCandidateOFailure(
+  outcome: Record<string, unknown> | undefined,
+  candidate: SessionDebriefSnapshot['candidate'],
+  survivorOutcome: Record<string, unknown> | undefined,
+): boolean {
+  if (!outcome || outcome.result !== 'failure' || outcome.cause !== 'total-fleet-loss' ||
+      !candidate || candidate.code !== 'O' || candidate.groups.length === 0 || !survivorOutcome ||
+      outcome.cycle !== survivorOutcome.cycle || outcome.occurredAt !== survivorOutcome.occurredAt ||
+      survivorOutcome.survivingShipPopulation !== 0 || !Array.isArray(survivorOutcome.survivingShipIds) ||
+      survivorOutcome.survivingShipIds.length !== 0 || !Array.isArray(survivorOutcome.lostOrDestroyedShipIds) ||
+      survivorOutcome.lostOrDestroyedShipIds.length === 0) return false;
+  const lostShips = new Set(survivorOutcome.lostOrDestroyedShipIds as string[]);
+  const candidateLosses = candidate.groups.flatMap(group => group.losses);
+  return candidateLosses.length > 0 && candidateLosses.every(loss => lostShips.has(loss.shipId));
+}
+
 /** Strip untrusted or private server fields before an outcome can enter the public receipt. */
 export function safeGameOutcome(value: unknown): Record<string, unknown> | undefined {
   const raw = record(value);
@@ -276,7 +292,9 @@ function storedDebrief(value: unknown): SessionDebriefSnapshot | undefined {
   const candidate = raw.candidate === undefined ? undefined : parseCandidateSummary(raw.candidate);
   if (raw.outcome !== undefined && !outcome || raw.survivorOutcome !== undefined && !survivorOutcome ||
       raw.candidate !== undefined && !candidate) return undefined;
-  if (raw.source === 'candidate' && (!outcome || outcome.result !== 'success' || !candidate)) return undefined;
+  if (raw.source === 'candidate' && (!outcome || !candidate ||
+      !(outcome.result === 'success' && outcome.cause === 'candidate-complete' && candidate.code === outcome.candidateCode ||
+        validCandidateOFailure(outcome, candidate, survivorOutcome)))) return undefined;
   if (raw.source === 'final-cycle' && (raw.result !== 'completed' || outcome)) return undefined;
   return {
     type: 'session-debrief', version: 1, source: raw.source as SessionDebriefSource,
@@ -296,8 +314,11 @@ function buildSnapshot(snapshot: DocumentSnapshot, input: SessionDebriefInput): 
   const rawSurvivorOutcome = input.survivorOutcome ?? snapshot.get('survivorOutcome');
   const survivorOutcome = rawSurvivorOutcome === undefined ? undefined : safeSurvivorOutcome(rawSurvivorOutcome);
   if (rawSurvivorOutcome !== undefined && !survivorOutcome) throw new Error('The committed survivor outcome is malformed.');
-  if (input.source === 'candidate' && (!outcome || outcome.result !== 'success' || !candidate ||
-      candidate.code !== outcome.candidateCode)) throw new Error('A candidate success must include its server result and explanation.');
+  if (input.source === 'candidate' && (!outcome || !candidate ||
+      !(outcome.result === 'success' && outcome.cause === 'candidate-complete' && candidate.code === outcome.candidateCode ||
+        validCandidateOFailure(outcome, candidate, survivorOutcome)))) {
+    throw new Error('A candidate terminal result must include its authoritative explanation.');
+  }
   if (input.source === 'final-cycle' && (outcome || !survivorOutcome)) throw new Error('Final-cycle debrief requires an authoritative survivor outcome.');
   if (input.source === 'failure-review' && (!outcome || outcome.result !== 'failure')) throw new Error('A failure debrief requires a committed server failure.');
   const cycle = outcome ? Number(outcome.cycle) : Number(survivorOutcome?.cycle);
