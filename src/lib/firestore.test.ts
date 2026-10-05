@@ -304,7 +304,7 @@ it('preserves the actual member-safe candidate history without reapplying an emp
   try {
     await vi.waitFor(() => expect(onSession).toHaveBeenCalled());
     expect(onError).not.toHaveBeenCalled();
-    const accepted = onSession.mock.calls[0][0];
+    const accepted = onSession.mock.calls[0]![0];
     expect(accepted.debriefSnapshot).toEqual(envelope.session.debriefSnapshot);
     expect(accepted.shipResources).toBeUndefined();
     expect(JSON.stringify(accepted)).not.toMatch(/foreign-requirement|memberSessionScope/);
