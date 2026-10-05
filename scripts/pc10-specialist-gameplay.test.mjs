@@ -43,7 +43,7 @@ test('specialist evidence keeps only bounded action, actor, revision, cost, and 
     expectedRecyclingRevision: 2, expectedCycle: 1, expectedHostShipId: 'aegis',
   });
   assert.deepEqual(evidence.response, { httpStatus: 200, resultStatus: 'committed', revision: 3,
-    scrapRemaining: 4, replayStatus: 'replayed', replayRevision: 3, exactReplay: true });
+    scrapRemaining: 4, replayStatus: 'replayed', replayRevision: 3, exactReplay: true, projectionRevision: 3 });
   assert.equal(evidence.projection.gm.revision, evidence.projection.crew.revision);
   assert.equal(JSON.stringify(evidence).includes('RAW-AUTH-UID'), false);
   assert.equal(JSON.stringify(evidence).includes('RAW-SESSION-ID'), false);
