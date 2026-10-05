@@ -123,8 +123,8 @@ export function assertSimulatedAttendanceRoster({ demo, currentPlayerUids, targe
 
 /** Return an allowlisted, private-safe receipt summary. Raw request/result objects never leave memory. */
 export function privateSafeActionReceipt({ family, branch, endpoint, actor, sessionId, cycle, phase,
-  request, result, replay, reloadedSameActor = true, simulatedAttendance = false }) {
-  assertEquivalentExactReplay(result, replay);
+  request, result, replay, statusPairs = [], reloadedSameActor = true, simulatedAttendance = false }) {
+  assertEquivalentExactReplay(result, replay, { statusPairs });
   assert.ok(request && typeof request === 'object');
   assert.equal(typeof request.requestId, 'string', 'The observed UI request needs its actual idempotency key.');
   assert.ok(actor && typeof actor.uidHash === 'string' && typeof actor.roleId === 'string');
@@ -160,8 +160,11 @@ export async function captureMountedUiAction({ surface, endpoint, expectedActor,
     'GM mutations must carry the currently owned instance.');
   const result = envelope?.result;
   assert.ok(result && typeof result === 'object', 'The normal UI action must return its committed result.');
-  if (Object.hasOwn(result, 'status')) assert.equal(MUTATION_STATUS.has(result.status), true,
-    'The normal UI result must be committed/replayed.');
+  if (Object.hasOwn(result, 'status')) {
+    const sourceStatus = statusPairs.some(pair => Array.isArray(pair) && pair.length === 2 && pair[0] === result.status);
+    assert.equal(MUTATION_STATUS.has(result.status) || sourceStatus, true,
+      'The normal UI result must be committed/replayed or use its explicitly declared source result status.');
+  }
 
   const afterUi = await surface.observe();
   if (expectedActor.actorKind === 'gm') assertGmInstanceFence(afterUi, expectedActor);
