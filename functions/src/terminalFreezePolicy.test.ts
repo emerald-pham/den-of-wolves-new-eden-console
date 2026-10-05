@@ -210,6 +210,7 @@ it('keeps known read-only authority projections explicitly classified', () => {
 it('exports the debrief lifecycle and GM reader through the audited callable boundary', () => {
   for (const name of ['beginSessionDebrief', 'closeSession', 'getSessionDebrief']) {
     expect(source).toContain(`export const ${name} = auditedOnCall('${name}'`);
+    expect(terminalFreezeExemptions.has(name)).toBe(true);
   }
 });
 
