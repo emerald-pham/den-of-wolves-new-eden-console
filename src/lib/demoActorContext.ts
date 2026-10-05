@@ -46,9 +46,13 @@ export const DEMO_ACTOR_ROSTER_CHANGED = 'dow-new-eden-demo-actors-changed';
 
 export function demoSessionStatus(session: GameSession | null): 'preparing' | 'active' | 'complete' | null {
   const marker = (session as (GameSession & { fullGameDemo?: unknown }) | null)?.fullGameDemo;
-  if (!marker || typeof marker !== 'object' || !('progression' in marker) || marker.progression !== 'manual' ||
-      !('status' in marker) || !['preparing', 'active', 'complete'].includes(String(marker.status))) return null;
-  return marker.status as 'preparing' | 'active' | 'complete';
+  if (!marker || typeof marker !== 'object' || Array.isArray(marker)) return null;
+  const keys = Object.keys(marker);
+  if (keys.length !== 2 || keys.some(key => key !== 'status' && key !== 'progression') ||
+      !('progression' in marker) || marker.progression !== 'manual' ||
+      !('status' in marker) || typeof marker.status !== 'string') return null;
+  return marker.status === 'preparing' || marker.status === 'active' || marker.status === 'complete'
+    ? marker.status : null;
 }
 
 /** Foreground normal presence is unchanged; terminal demo actors become idle. */
