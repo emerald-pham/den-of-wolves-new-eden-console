@@ -3248,7 +3248,7 @@ it('does not let a delayed older census revision overwrite the newer server proj
   expect(onCensus).toHaveBeenLastCalledWith({
     revision: 8,
     entries: [{ uid: 'u2', kind: 'wolf-agent', suspicion: 20 }],
-  });
+  }, 'present');
 });
 
 it('keeps the GM Wolf Cult intelligence projection monotonic and clears terminal access loss', () => {
