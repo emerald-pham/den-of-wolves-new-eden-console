@@ -92,6 +92,21 @@ test('statusless source service receipts are compared exactly instead of guessed
   ));
 });
 
+test('source endpoint result labels may change only through an explicitly declared retry pair', () => {
+  const original = { status: 'docked', revision: 1, host: 'source-host' };
+  const replay = { status: 'replayed', revision: 1, host: 'source-host' };
+  assert.throws(() => assertEquivalentExactReplay(original, replay), /source status/i);
+  assert.doesNotThrow(() => assertEquivalentExactReplay(original, replay, {
+    statusPairs: [['docked', 'replayed']],
+  }));
+  assert.throws(() => assertEquivalentExactReplay(original, { ...replay, host: 'other-host' }, {
+    statusPairs: [['docked', 'replayed']],
+  }), /exact retry/i);
+  assert.throws(() => assertEquivalentExactReplay(
+    { ...original, status: 'jumped' }, replay, { statusPairs: [['docked', 'replayed']] },
+  ), /source status/i);
+});
+
 test('simulated posse inputs must be explicitly manual-demo and current, distinct, non-target accounts', () => {
   const input = { demo: { status: 'active', progression: 'manual' },
     currentPlayerUids: ['target', 'a', 'b', 'c'], targetUid: 'target',
