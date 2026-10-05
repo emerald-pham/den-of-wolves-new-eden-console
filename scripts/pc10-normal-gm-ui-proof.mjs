@@ -113,13 +113,14 @@ try {
   await settings.getByRole('button', { name: 'Revoke GM access', exact: true }).waitFor();
   await settings.getByRole('button', { name: 'Close settings', exact: true }).click();
   stage = 'normal named GM instance admission';
-  await gm.page.getByRole('link', { name: 'GM join', exact: true }).click();
+  await gm.page.getByRole('link', { name: /GM join$/i }).click();
   await gm.page.getByLabel('Input GM Name', { exact: true }).fill('PC10 local GM UI');
   await gm.page.getByRole('button', { name: 'Join as GM', exact: true }).click();
   const ownedGm = await gm.until('Live owned GM instance', state => state.playerRole === 'gm' &&
     state.gmInstanceOwned && state.connection === 'live' && state.freshness === 'server');
   if (!(await gm.page.getByRole('region', { name: 'Setup', exact: true }).isVisible())) {
-    await gm.page.getByRole('button', { name: 'GM Console', exact: true }).click();
+    await gm.page.getByRole('button', { name: 'Open station catalog', exact: true }).click();
+    await gm.page.getByRole('link', { name: 'GM Console', exact: true }).click();
   }
   stage = 'normal setup confirmation';
   const setup = gm.page.getByRole('region', { name: 'Setup', exact: true });
