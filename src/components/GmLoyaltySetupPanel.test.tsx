@@ -16,7 +16,7 @@ const coreRoster = [
 
 const rosterWithPress = [
   ...coreRoster,
-  { uid: 'press', sessionId: 's1', displayName: 'Press', role: 'player', assignedRoleId: 'press-officer', replacementStatus: null, connected: true, activeConsoleRoleId: 'press-officer' },
+  { uid: 'press', sessionId: 's1', displayName: 'Press', role: 'player', assignedRoleId: null, seatId: null, replacementStatus: null, replacementRoleId: null, escapeState: null, connected: true, activeConsoleRoleId: 'press-officer' },
 ] as never;
 
 function prepareGm({
@@ -25,11 +25,15 @@ function prepareGm({
   setupConfirmed = true,
   phase = 'casting',
   configurationLocked = false,
+  pressEnabled = true,
+  pressClaimed = false,
+  playerCount = 14,
 } = {}) {
   const session = {
     id: 's1', name: 'Fleet', joinCode: '1234', phase, currentTurn: 0,
-    setupConfirmed, configurationLocked, setupRevision: 4, playerCount: 14,
+    setupConfirmed, configurationLocked, setupRevision: 4, playerCount,
     universalArbourEnabled, wolfCultEnabled,
+    pressEnabled, pressClaimed,
     activeRoleIds: ['aegis-engineer', 'dione-engineer', 'asterion-engineer'],
   };
   useSessionStore.getState().setIdentity(session as never, {
@@ -70,7 +74,7 @@ describe('connected GM loyalty setup panel', () => {
     expect(screen.queryByRole('option', { name: 'Wolf Cult' })).not.toBeInTheDocument();
     expect(screen.getByText(/explicit printed configuration/i)).toBeInTheDocument();
     expect(screen.getByText(/Current core holders \/\/ 0 of 3 configured/i)).toBeInTheDocument();
-    expect(screen.getByText(/Every current core role holder needs a private record before start/i)).toBeInTheDocument();
+    expect(screen.getByText(/Every current core role holder and claimed Press Officer needs a private record before start/i)).toBeInTheDocument();
   });
 
   it('offers reciprocal Friend selection from other current holders and uses source suspicion', async () => {
@@ -160,11 +164,30 @@ describe('connected GM loyalty setup panel', () => {
     expect(screen.queryByRole('button', { name: 'Assign private loyalty' })).not.toBeInTheDocument();
   });
 
-  it('keeps claimed Press private loyalty blocked until the official server path supports it', () => {
-    prepareGm({ universalArbourEnabled: true });
+  it('offers a claimed Press holder as an explicit target while keeping core counts separate', () => {
+    prepareGm({ universalArbourEnabled: true, pressClaimed: true });
     render(<GmLoyaltySetupPanel players={rosterWithPress} />);
-    expect(screen.getByText(/release the claimed Press role before using explicit loyalty/i)).toBeInTheDocument();
-    expect(screen.queryByRole('combobox', { name: 'Private loyalty type' })).not.toBeInTheDocument();
+    expect(screen.getByText(/Current core holders \/\/ 0 of 3 configured/i)).toBeInTheDocument();
+    expect(screen.getByText(/Press holder \/\/ private record required/i)).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: /Press Officer — Press/ })).toBeInTheDocument();
+  });
+
+  it('blocks Press loyalty when the claim is not stable and authoritative', () => {
+    prepareGm({ universalArbourEnabled: true, pressClaimed: true });
+    const stalePress = [
+      ...coreRoster,
+      { uid: 'press', sessionId: 's1', displayName: 'Press', role: 'player', assignedRoleId: null, seatId: 'press-officer', replacementStatus: null, replacementRoleId: null, escapeState: null, connected: true, activeConsoleRoleId: 'press-officer' },
+    ] as never;
+    render(<GmLoyaltySetupPanel players={stalePress} />);
+    expect(screen.getByText(/refresh or reconcile the claimed Press holder before configuring private loyalty/i)).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: /Press Officer — Press/ })).not.toBeInTheDocument();
+  });
+
+  it('keeps the Wolf count source-derived and shows the additional Arbour blocker before start', () => {
+    prepareGm({ universalArbourEnabled: true, playerCount: 8 });
+    render(<GmLoyaltySetupPanel players={coreRoster} />);
+    expect(screen.getByText(/Wolf roles \/\/ 0 of 1 required/i)).toBeInTheDocument();
+    expect(screen.getByText(/assign 1 Wolf role record before start/i)).toBeInTheDocument();
   });
 
   it('blocks the editor when both optional printed loyalty scenarios are enabled', () => {

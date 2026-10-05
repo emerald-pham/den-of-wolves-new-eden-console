@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   GM_LOYALTY_KINDS,
   allowedExplicitGmLoyaltyKinds,
+  canonicalGmLoyaltyAssignmentHolders,
   canonicalGmLoyaltyHolders,
   explicitLoyaltyCoverage,
   hasOtherConfiguredWolf,
@@ -72,6 +73,37 @@ describe('explicit GM loyalty setup options', () => {
     expect(uniqueHolders.map((holder) => holder.uid)).toEqual(['u1', 'u2']);
     expect(explicitLoyaltyCoverage(uniqueHolders, ['u1'])).toEqual({ configured: 1, total: 2, complete: false });
     expect(explicitLoyaltyCoverage(uniqueHolders, ['u1', 'u2'])).toEqual({ configured: 2, total: 2, complete: true });
+  });
+
+  it('counts a claimed Press holder only from a stable live station record and outside core roles', () => {
+    const core = { uid: 'u1', displayName: 'A', role: 'player', assignedRoleId: 'aegis-engineer', replacementStatus: null, connected: true };
+    const press = {
+      uid: 'press', displayName: 'Press', role: 'player', assignedRoleId: null, seatId: null,
+      activeConsoleRoleId: 'press-officer', replacementStatus: null, replacementRoleId: null,
+      escapeState: null, connected: true,
+    };
+    const holders = canonicalGmLoyaltyAssignmentHolders(
+      [core, press] as never,
+      ['aegis-engineer'],
+      { enabled: true, claimed: true },
+    );
+    expect(holders.map((holder) => holder.uid)).toEqual(['u1', 'press']);
+    expect(holders.find((holder) => holder.uid === 'press')?.assignedRoleId).toBe('press-officer');
+    expect(canonicalGmLoyaltyAssignmentHolders(
+      [core, press] as never,
+      ['aegis-engineer'],
+      { enabled: false, claimed: true },
+    ).map((holder) => holder.uid)).toEqual(['u1']);
+    expect(canonicalGmLoyaltyAssignmentHolders(
+      [core, { ...press, seatId: 'aegis-engineer' }] as never,
+      ['aegis-engineer'],
+      { enabled: true, claimed: true },
+    ).map((holder) => holder.uid)).toEqual(['u1']);
+    expect(canonicalGmLoyaltyAssignmentHolders(
+      [core, press, { ...press, uid: 'press-2' }] as never,
+      ['aegis-engineer'],
+      { enabled: true, claimed: true },
+    ).map((holder) => holder.uid)).toEqual(['u1']);
   });
 
   it('requires a different configured Wolf holder before an Intelligence Agent assignment', () => {
