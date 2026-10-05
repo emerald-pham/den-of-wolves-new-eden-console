@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "baseline": "248ba5fe7460dd2708baf4dc152190001ffbdb20",
-  "auditBoundary": "Static source-consumer reconciliation for exact 248ba5fe7460dd2708baf4dc152190001ffbdb20..3390ae22c0ea136a60185620e8d8aba26d2e0094 Functions runtime-source transition: 56 changed non-test TypeScript modules, with SHA-256 over exact before/after source bytes (absent baseline files hash as empty source). Consumer names are traced from current runtime imports, re-exports, endpoint bodies and local helper references; the current entrypoint has 242 source-declared SDK exports (233 callable, 9 background/scheduled) and its changed index transition selects 213 actual named exports. This static map grants no build, deployment, runtime, or gameplay acceptance.",
+  "auditBoundary": "Static source-consumer reconciliation for exact 248ba5fe7460dd2708baf4dc152190001ffbdb20..4072c165 Functions runtime-source transition: 56 changed non-test TypeScript modules, with SHA-256 over exact before/after source bytes (absent baseline files hash as empty source). Consumer names are traced from current runtime imports, re-exports, endpoint bodies and local helper references; the current entrypoint has 242 source-declared SDK exports (233 callable, 9 background/scheduled) and its changed index transition selects 213 actual named exports. This static map grants no build, deployment, runtime, or gameplay acceptance.",
   "modules": {
     "functions/src/actionAudit.ts": {
       "before": "ca1fef48c8a9986dd6f8ede1854da990c01846b7c0eabcb24b78f19ac75cb5ef",
@@ -760,7 +760,7 @@
     },
     "functions/src/memberSessionCallable.ts": {
       "before": "27226866df5cd7770b35db34e817878d31f8b353f884521f4af87fa088cb099f",
-      "after": "cbe7297d9aa6715826e0957b30b98f89c5e4fd4eb2275f1c434eaa46373b2ab1",
+      "after": "e648196fa9e775305630dbf7c6f7371f9eff52024eeb19a4e4396247d32a878c",
       "consumers": [
         "getCurrentMemberSession",
         "joinSession",
