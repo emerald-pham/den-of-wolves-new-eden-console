@@ -103,3 +103,21 @@ test('cache or offline actor state never qualifies a terminal transition despite
   await assert.rejects(waitForWolfChoiceReadiness(f.options), /deadline/);
   assert.equal(f.counts.sources, 0); assert.equal(f.counts.choices, 0); assert.equal(f.counts.waits, 3);
 });
+
+test('a GM authority change while the final private attack read is in flight cannot qualify terminal progress', async () => {
+  for (const change of [{ playerRole: 'player' }, { instanceId: 'foreign' }, { gmInstanceOwned: false },
+    { uidHash: 'foreign' }, { connectionGeneration: 4 }, { turnStatePhase: 'team' }]) {
+    const f = fixture({ gmAt: n => gm({ airspace: 'lifted', ...(n > 1 ? change : {}) }) });
+    await assert.rejects(waitForWolfChoiceReadiness(f.options));
+    assert.equal(f.counts.sources, 1); assert.equal(f.counts.choices, 0); assert.equal(f.counts.paints, 0);
+  }
+});
+
+test('an actor change while the final private attack read is in flight cannot qualify terminal progress', async () => {
+  for (const change of [{ uidHash: 'foreign' }, { fleetGroupId: 'fleet-2' }, { seatId: 'foreign' },
+    { connectionGeneration: 4 }, { replacementStatus: 'active' }]) {
+    const f = fixture({ actorAt: n => actor({ airspace: 'lifted', ...(n > 1 ? change : {}) }) });
+    await assert.rejects(waitForWolfChoiceReadiness(f.options));
+    assert.equal(f.counts.sources, 1); assert.equal(f.counts.choices, 0); assert.equal(f.counts.paints, 0);
+  }
+});
