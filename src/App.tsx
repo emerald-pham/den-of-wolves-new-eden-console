@@ -1,6 +1,6 @@
 import { commissarPurgeAuthorityIsCurrent } from '@/lib/commissarPurgeAuthority';
 import { memberSessionProjection } from '../functions/src/memberSession';
-import { Component, lazy, Suspense, useEffect, useRef, type ReactNode } from 'react';
+import { Component, lazy, Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
 import { HashRouter, Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import Landing from '@/routes/Landing';
 import RoleSelect from '@/routes/RoleSelect';
@@ -236,6 +236,11 @@ function playerEntitlementKey(player: Player | null | undefined): string | undef
   return player.assignedRoleId ? `assigned:${player.assignedRoleId}` : undefined;
 }
 
+function playerBriefRoleId(player: Player | null | undefined): string | undefined {
+  if (!player || player.replacementStatus != null) return undefined;
+  return player.replacementRoleId ?? player.assignedRoleId ?? undefined;
+}
+
 function playerAuthorityKey(player: Player | null | undefined): string | undefined {
   if (!player || player.role !== 'player') return undefined;
   if (player.replacementStatus === 'awaiting-re-role') return undefined;
@@ -303,6 +308,9 @@ function AppRoutes() {
   const sessionPhase = session?.phase;
   const playerUid = me?.uid;
   const playerRole = me?.role;
+  const hasRoleBriefAudience = playerBriefRoleId(me) !== undefined;
+  const previousRoleBriefAudience = useRef({ sessionId, playerUid, available: hasRoleBriefAudience });
+  const [roleBriefActivationRevision, setRoleBriefActivationRevision] = useState(0);
   const gmInstanceId = useSessionStore((state) => state.gmInstance?.id);
   const awayMissionPointerCount = useSessionStore((state) => state.awayMissionHandPointers.length);
   const gmAwayMissionPointerCount = useSessionStore((state) => state.gmAwayMissionHandPointers.length);
@@ -347,6 +355,17 @@ function AppRoutes() {
       : replacementRouteShipId
         ? findShip(replacementRouteShipId)?.id ?? 'aegis'
       : shuttleHost ?? 'aegis';
+
+  useEffect(() => {
+    const previous = previousRoleBriefAudience.current;
+    const sameIdentity = previous.sessionId === sessionId && previous.playerUid === playerUid;
+    const gainsBriefAudience = sameIdentity && hasRoleBriefAudience && !previous.available;
+    previousRoleBriefAudience.current = { sessionId, playerUid, available: hasRoleBriefAudience };
+    // A new assignment needs its own private reader. Losing an assignment
+    // clears the brief in onPlayer and terminates its SDK reader through Rules;
+    // preserve the current session listener's pending station-release callbacks.
+    if (gainsBriefAudience) setRoleBriefActivationRevision((revision) => revision + 1);
+  }, [hasRoleBriefAudience, playerUid, sessionId]);
 
   useEffect(() => {
     appRoutesMounted.current = true;
@@ -708,6 +727,7 @@ function AppRoutes() {
       subscribeLoyaltyCensus,
     }) => {
       if (!active) return;
+      const briefAudienceAvailable = playerBriefRoleId(useSessionStore.getState().me) !== undefined;
       subscribeLoyaltyCensusFn = subscribeLoyaltyCensus;
       unsubscribe = subscribeSessionState(sessionId, playerUid, {
         sessionReadAudience: playerRole === 'gm' ? 'gm' : 'member',
@@ -931,9 +951,7 @@ function AppRoutes() {
               useSessionStore.getState().setSession(stripNavigationProjection(current));
             }
           }
-          const effectiveBriefRoleId = next.replacementStatus === 'awaiting-re-role'
-            ? undefined
-            : next.replacementRoleId ?? next.assignedRoleId;
+          const effectiveBriefRoleId = playerBriefRoleId(next);
           if (!effectiveBriefRoleId) {
             pendingRoleBrief = null;
             store.setRoleBrief(null);
@@ -1119,7 +1137,10 @@ function AppRoutes() {
           }
           store.setFacilitatorRuleCall(next);
         },
-        onRoleBrief: (next) => {
+        // Rules deny an absent/unassigned private brief. Opening that reader
+        // without an assignment causes an offline/resume loop and prevents
+        // presence heartbeats. Existing matching GM assignments remain valid.
+        ...(briefAudienceAvailable ? { onRoleBrief: (next: RoleBriefProjection | null) => {
           if (!callbackCurrent()) return;
           const store = useSessionStore.getState();
           if (!next) {
@@ -1127,7 +1148,7 @@ function AppRoutes() {
             store.setRoleBrief(null);
             return;
           }
-          if (store.me?.uid !== next.assignmentUid || store.me.replacementStatus != null) {
+          if (store.me?.uid !== next.assignmentUid || playerBriefRoleId(store.me) === undefined) {
             pendingRoleBrief = null;
             store.setRoleBrief(null);
             return;
@@ -1142,7 +1163,7 @@ function AppRoutes() {
           // matching assignment arrives, while removing any former brief.
           pendingRoleBrief = next;
           store.setRoleBrief(null, true);
-        },
+        } } : {}),
         onAwayMissionHandPointers: (next) => {
           if (!callbackCurrent()) return;
           const store = useSessionStore.getState();
@@ -1221,7 +1242,7 @@ function AppRoutes() {
       unsubscribeAuthorityFreshness();
       unsubscribe();
     };
-  }, [gmInstanceId, identityHydrationRevision, playerAuthority, playerRole, playerUid, sessionId, sessionPhase]);
+  }, [gmInstanceId, identityHydrationRevision, playerAuthority, playerRole, playerUid, roleBriefActivationRevision, sessionId, sessionPhase]);
 
   useEffect(() => {
     if (gmAccessAuthenticatedAt === null) return;
