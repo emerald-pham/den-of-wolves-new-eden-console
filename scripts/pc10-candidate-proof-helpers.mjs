@@ -59,8 +59,10 @@ export function candidateEvidenceEnvelope(details = {}) {
 export async function prepareCandidateEvidenceDirectory(directory, plan) {
   await mkdir(directory, { recursive: true });
   assert.equal((await readdir(directory)).length, 0, 'Refuse to reuse an existing nonempty evidence directory.');
-  await writeFile(`${directory}/candidate-harness-plan.json`, `${JSON.stringify(candidateEvidenceEnvelope({ ...plan,
-    status: 'planned', candidateEndingObserved: false }), null, 2)}\n`, { flag: 'wx' });
+  const evidence = { ...candidateEvidenceEnvelope(plan), status: 'planned', candidateEndingObserved: false,
+    actualBrowserProcesses: 0, actualBrowserContexts: 0, actualAuthenticatedActors: 0,
+    expectedBrowserProcesses: 2, expectedBrowserContexts: 2 };
+  await writeFile(`${directory}/candidate-harness-plan.json`, `${JSON.stringify(evidence, null, 2)}\n`, { flag: 'wx' });
 }
 
 function liveActor(actor, sessionId) {
