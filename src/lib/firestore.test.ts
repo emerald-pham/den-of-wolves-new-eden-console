@@ -11,6 +11,8 @@ import { MAINTENANCE_EVENT_ACTIONS as SERVER_MAINTENANCE_EVENT_ACTIONS, MAINTENA
 import { firstTurnWolfAttackComposition } from '../../functions/src/wolfAttackComposition';
 import { resolveWolfTargeting } from '../../functions/src/wolfCombatMath';
 import { sessionDebriefProjection } from '../../functions/src/sessionDebrief';
+import { createCurrentMemberSessionReader } from '../../functions/src/memberSessionCallable';
+import type { Firestore as AdminFirestore } from 'firebase-admin/firestore';
 
 vi.mock('firebase/firestore', () => ({
   collection: vi.fn(),
@@ -204,7 +206,39 @@ it('uses the current member read feed without subscribing to a raw session root'
   stop();
 });
 
-it('stops member feed polling and private listeners after receiving immutable closed history', async () => {
+async function productionClosedMemberEnvelope(sessionId = 'closed-feed') {
+  const records: Record<string, Record<string, unknown>> = {
+    [`sessions/${sessionId}`]: {
+      id: sessionId, name: 'Table one', joinCode: 'PRIVATE RETAINED CODE', phase: 'closed', currentTurn: 4,
+      playerCount: 8, turnLimit: 4, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-10-05T12:01:00.000Z',
+      shipResources: { aegis: { fuel: 90 } }, privateBrief: 'PRIVATE RETAINED BRIEF',
+      debriefSnapshot: { type: 'session-debrief', version: 1, source: 'final-cycle', result: 'completed',
+        cause: 'final-cycle', cycle: 4, occurredAt: '2026-10-05T12:00:00.000Z', committedAt: '2026-10-05T12:01:00.000Z' },
+    },
+    [`sessions/${sessionId}/players/u1`]: { role: 'player', connected: false, fleetGroupId: 'fleet-1',
+      connectionGeneration: 3, assignedRoleId: 'admiral', activeConsoleRoleId: null },
+    [`sessions/${sessionId}/fleetGroups/fleet-1`]: { id: 'fleet-1', vesselIds: ['aegis'], memberUids: ['u1'] },
+  };
+  const snapshot = (path: string) => ({ id: path.split('/').at(-1), exists: !!records[path],
+    data: () => records[path], get: (key: string) => records[path]?.[key] });
+  const database = {
+    doc: (path: string) => ({ path }), collection: (path: string) => ({ path, collection: true }),
+    runTransaction: async (read: (transaction: unknown) => unknown) => read({
+      get: async ({ path, collection }: { path: string; collection?: boolean }) => collection
+        ? { docs: Object.keys(records).filter(key => key.startsWith(path + '/') && !key.slice(path.length + 1).includes('/')).map(snapshot) }
+        : snapshot(path),
+    }),
+  } as unknown as AdminFirestore;
+  const read = createCurrentMemberSessionReader({ db: database, projectSession: () => {
+    throw new Error('Closed history must not project retained operational state.');
+  } });
+  return read({ auth: { uid: 'u1' }, data: { sessionId } });
+}
+
+it('stops member feed polling and private listeners after the actual server returns immutable closed history', async () => {
+  const envelope = await productionClosedMemberEnvelope();
+  expect(envelope.session).not.toHaveProperty('memberSessionScope');
+  expect(envelope.session).not.toHaveProperty('shipResources');
   vi.useFakeTimers();
   vi.mocked(doc).mockImplementation(((_db: unknown, path: string) => ({ path })) as never);
   vi.mocked(collection).mockImplementation(((_db: unknown, path: string) => ({ path })) as never);
@@ -214,23 +248,18 @@ it('stops member feed polling and private listeners after receiving immutable cl
     if (reference.path) listenerPaths.push(reference.path);
     const stop = vi.fn(); listenerStops.push(stop); return stop;
   }) as never);
-  const read = vi.fn().mockResolvedValue({ data: {
-    type: 'current-member-session', sessionId: 'closed-feed', actorUid: 'u1', groupId: 'fleet-1',
-    connectionGeneration: 3, assignedRoleId: 'admiral', activeConsoleRoleId: null,
-    session: { ...sessionData(8), phase: 'closed', currentTurn: 4,
-      memberSessionScope: { groupId: 'fleet-1', vesselIds: ['aegis'], craftIds: [] }, shuttleDockings: [], shuttleVisitLog: [],
-      debriefSnapshot: { type: 'session-debrief', version: 1, source: 'final-cycle', result: 'completed',
-        cause: 'final-cycle', cycle: 4, occurredAt: '2026-10-05T12:00:00.000Z', committedAt: '2026-10-05T12:01:00.000Z' } },
-  } });
+  const read = vi.fn().mockResolvedValue({ data: envelope });
   vi.mocked(httpsCallable).mockReturnValue(read as never);
   const onSession = vi.fn();
+  const onError = vi.fn();
   const stop = subscribeSessionState('closed-feed', 'u1', {
-    sessionReadAudience: 'member', onSession, onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(), onError: vi.fn(),
+    sessionReadAudience: 'member', onSession, onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(), onError,
     onPrivateLoyalty: vi.fn(), onRoleBrief: vi.fn(),
   });
 
   try {
     await vi.waitFor(() => expect(onSession).toHaveBeenCalledWith(expect.objectContaining({ phase: 'closed' })));
+    expect(onError).not.toHaveBeenCalled();
     expect(listenerPaths).toContain('sessions/closed-feed/secrets/loyalty-u1');
     expect(listenerPaths).toContain('sessions/closed-feed/roleBriefs/u1');
     expect(listenerStops.every(unsubscribe => unsubscribe.mock.calls.length === 1)).toBe(true);
@@ -242,6 +271,35 @@ it('stops member feed polling and private listeners after receiving immutable cl
     stop();
     vi.useRealTimers();
   }
+});
+
+it.each([
+  { response: { actorUid: 'foreign-member' } },
+  { response: { sessionId: 'foreign-session' } },
+  { response: { groupId: 'foreign-group' } },
+  { response: { connectionGeneration: 0 } },
+  { session: { id: 'foreign-session' } },
+  { session: { shipResources: { aegis: { fuel: 90 } } } },
+  { session: { privateBrief: 'PRIVATE CARD' } },
+  { session: { joinCode: 'RETAINED JOIN CODE' } },
+  { session: { debriefSnapshot: { type: 'session-debrief', privateCard: 'PRIVATE CARD' } } },
+])('rejects an unbound or operational closed-history envelope %j', async (change) => {
+  const envelope = await productionClosedMemberEnvelope();
+  vi.mocked(doc).mockImplementation(((_db: unknown, path: string) => ({ path })) as never);
+  vi.mocked(collection).mockImplementation(((_db: unknown, path: string) => ({ path })) as never);
+  vi.mocked(onSnapshot).mockImplementation(() => vi.fn());
+  const read = vi.fn().mockResolvedValue({ data: { ...envelope, ...change.response,
+    session: { ...envelope.session, ...change.session } } });
+  vi.mocked(httpsCallable).mockReturnValue(read as never);
+  const onSession = vi.fn();
+  const onError = vi.fn();
+  const stop = subscribeSessionState('closed-feed', 'u1', {
+    sessionReadAudience: 'member', onSession, onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(), onError,
+  });
+  try {
+    await vi.waitFor(() => expect(onError).toHaveBeenCalled());
+    expect(onSession).not.toHaveBeenCalled();
+  } finally { stop(); }
 });
 
 it('hydrates the bounded Philia repair receipt through the member wire parser', () => {
@@ -2172,6 +2230,31 @@ it('rebinds a denied same-UID secret listener after the player projection change
   });
   expect(onPrivateLoyalty).toHaveBeenLastCalledWith({ kind: 'wolf-cult', suspicion: 6 });
   expect(onWolfCultIntelligence).toHaveBeenLastCalledWith(expect.objectContaining({ revision: 1 }));
+});
+
+it('unsubscribes the recovered same-UID private listener exactly once and ignores its late delivery', () => {
+  const { callbacks, errors, unsubscribeSpies } = captureSessionListener();
+  const onPrivateLoyalty = vi.fn();
+  const stop = subscribeSessionState('s1', 'u1', {
+    onSession: vi.fn(), onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(),
+    onPrivateLoyalty, onError: vi.fn(),
+  });
+  errors[3]?.({ code: 'permission-denied' });
+  callbacks[1]?.({
+    metadata: { fromCache: false }, exists: () => true,
+    get: (field: string) => field === 'connected' ? true : undefined,
+    data: () => ({ role: 'player', assignedRoleId: 'admiral' }),
+  });
+  expect(unsubscribeSpies).toHaveLength(5);
+  const recoveredStop = unsubscribeSpies[4];
+  stop();
+  stop();
+  expect(recoveredStop).toHaveBeenCalledTimes(1);
+  expect(unsubscribeSpies[3]).toHaveBeenCalledTimes(1);
+  const callsAtStop = onPrivateLoyalty.mock.calls.length;
+  callbacks[4]?.({ metadata: { fromCache: false }, exists: () => true,
+    get: () => ({ type: 'loyalty', kind: 'wolf-agent', suspicion: 5 }) });
+  expect(onPrivateLoyalty).toHaveBeenCalledTimes(callsAtStop);
 });
 
 it('rebinds the denied same-UID Arbour secret path and hydrates a fresh call', () => {
