@@ -14,6 +14,60 @@ const actor = (changes = {}) => ({ hasAuth: true, sessionId: 'native-session', u
 const gm = (changes = {}) => actor({ uidHash: 'native-gm', profileRoleId: 'gm', playerRole: 'gm',
   activeConsoleRoleId: null, instanceId: 'native-instance', gmInstanceOwned: true, ...changes });
 
+function researchRouteFixture({ route = '#/ships/shepherd/roles/shepherd-scientist', missing = false } = {}) {
+  const calls = [];
+  const page = {
+    url: () => `http://127.0.0.1:5174/${route}`,
+    getByRole: (kind, options) => {
+      assert.equal(kind, 'link');
+      assert.deepEqual(options, { name: 'Open Endeavour shuttle console', exact: true });
+      return {
+        waitFor: async () => { calls.push('wait-link'); if (missing) throw new Error('normal-link deadline'); },
+        click: async () => { calls.push('click-link'); route = '#/shuttles/endeavour'; },
+      };
+    },
+    waitForURL: async predicate => {
+      calls.push('wait-route');
+      assert.equal(predicate(new URL(page.url())), true);
+    },
+  };
+  return { page, calls, checkpoint: async () => { calls.push('original-actor'); } };
+}
+
+test('required research navigation waits for the normal Endeavour link and exact route before credit', async () => {
+  const { openBaseEndeavourResearchRoute } = await contracts();
+  assert.equal(typeof openBaseEndeavourResearchRoute, 'function');
+  const fixture = researchRouteFixture();
+  await openBaseEndeavourResearchRoute(fixture);
+  assert.deepEqual(fixture.calls, ['original-actor', 'wait-link', 'original-actor', 'click-link', 'wait-route', 'original-actor']);
+});
+
+test('an already mounted Endeavour route preserves original actor checks without another navigation', async () => {
+  const { openBaseEndeavourResearchRoute } = await contracts();
+  assert.equal(typeof openBaseEndeavourResearchRoute, 'function');
+  const fixture = researchRouteFixture({ route: '#/shuttles/endeavour' });
+  await openBaseEndeavourResearchRoute(fixture);
+  assert.deepEqual(fixture.calls, ['original-actor', 'original-actor']);
+});
+
+test('changed original Scientist authority after link readiness prevents the research navigation click', async () => {
+  const { openBaseEndeavourResearchRoute } = await contracts();
+  assert.equal(typeof openBaseEndeavourResearchRoute, 'function');
+  const fixture = researchRouteFixture();
+  let checks = 0;
+  fixture.checkpoint = async () => { fixture.calls.push('original-actor'); if (++checks === 2) throw new Error('original actor changed'); };
+  await assert.rejects(openBaseEndeavourResearchRoute(fixture), /original actor changed/);
+  assert.deepEqual(fixture.calls, ['original-actor', 'wait-link', 'original-actor']);
+});
+
+test('a missing normal Endeavour link fails within its existing locator deadline without route bypass', async () => {
+  const { openBaseEndeavourResearchRoute } = await contracts();
+  assert.equal(typeof openBaseEndeavourResearchRoute, 'function');
+  const fixture = researchRouteFixture({ missing: true });
+  await assert.rejects(openBaseEndeavourResearchRoute(fixture), /normal-link deadline/);
+  assert.deepEqual(fixture.calls, ['original-actor', 'wait-link']);
+});
+
 test('a confirmed loyalty UI receipt needs no recovery click before the next private assignment', async()=>{
  const {waitForBaseLoyaltyUiReceipt}=await contracts();
  assert.equal(typeof waitForBaseLoyaltyUiReceipt,'function');
