@@ -5,6 +5,7 @@ import {
   composePc10SpecialistSteps,
   createPc10SpecialistPhaseSteps,
   makePc10SpecialistActionStep,
+  runPc10SpecialistAction,
   runCapybaraMaintenanceCycle,
 } from './pc10-specialist-phases.mjs';
 
@@ -127,6 +128,23 @@ test('specialist actions leave missing live opportunities and private choices ex
   assert.equal(unavailable.status, 'uncredited');
   assert.equal(unavailable.reason, 'control-not-currently-offered');
   assert.equal(captures, 0);
+});
+
+test('Macaw does not accept Capybara self-target salvage without the facilitator ruling', async () => {
+  let selects = 0;
+  const result = await runPc10SpecialistAction({
+    game: { context: { initial: { sessionId: 'fresh-session' }, roster: [
+      { roleId: 'capybara-captain', uidHash: 'captain-hash' },
+    ] }, select: async () => { selects += 1; } },
+    driver: { capture: async () => assert.fail('self-target must remain blocked before UI submission') },
+    actionId: 'macaw-salvage-propose', targetRoleId: 'capybara-captain', targetShipId: 'capybara',
+    targetConsoleId: 'jump-drive', targetConsoleLabel: 'Jump Drive',
+    inspect: async () => ({ ready: true, gmRevision: 1, crewRevision: 1,
+      renderedStatusCode: 'public-result-visible' }),
+  });
+  assert.deepEqual(result, { status: 'uncredited', actionId: 'macaw-salvage-propose',
+    reason: 'self-target-prohibited-pending-facilitator-ruling' });
+  assert.equal(selects, 0);
 });
 
 test('the action catalog contains specialist ordinary actions and no GM correction shortcut', () => {
