@@ -49,4 +49,9 @@ describe('Boa reclamation difficulty', () => {
     expect(applyBoaReclamationDifficulty(current, 'D-2')).toBeNull();
     expect(applyBoaReclamationDifficulty([...current, ...current], 'D-1')).toBeNull();
   });
+
+  it('fails closed instead of preserving a malformed selected calculation', () => {
+    const current = [outcome('D-1', 10, -1, 20, 'failure')];
+    expect(applyBoaReclamationDifficulty(current, 'D-1')).toBeNull();
+  });
 });
