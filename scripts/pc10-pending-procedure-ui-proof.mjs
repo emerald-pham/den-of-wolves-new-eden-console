@@ -69,7 +69,7 @@ add(C, 'repairMaliades', 'dione-engineer', 'team', { mountedPath: 'Maliades repa
 add(C, 'rollHummingbirdHarvest', 'quellon-explorer', 'coordination', { mountedPath: 'HummingbirdHarvest server-roll control',
   requirement: 'first applicable cycle, current Explorer and fuelled eligible Hummingbird in its scouting action phase',
   costPolicy: 'no player resource cost; outcome is a private server-generated two-die roll', randomOutcome: true });
-add(C, 'runHighwallMining', 'icebreaker-miner', 'team', { mountedPath: 'HighwallMining',
+add(C, 'runHighwallMining', 'icebreaker-miner', 'coordination', { mountedPath: 'HighwallMining',
   requirement: 'current Icebreaker Miner, active Highwall docked to its proper host, eligible action phase and remaining operation capacity',
   costPolicy: 'server rolls Materials 1d6 or Ore 3d6; two operations, or three with fuelled Highwall, per cycle', randomOutcome: true });
 add(C, 'beginShuttleTransit', 'current-shuttle-holder', 'coordination', { mountedPath: 'Shuttle departure panel',
@@ -211,6 +211,10 @@ export function evaluateProcedureCapture(input) {
       spec.replayPolicy === 'exact-request-id' && typeof (request?.requestId ?? request?.idempotencyKey) !== 'string' ||
       input.response?.httpStatus !== 200 || !acceptedStatus) {
     return pending(spec, 'captured-request-or-server-result-does-not-match-the-source-case');
+  }
+  if (spec.endpoint === 'chooseBoaMissionReclamationOpportunity' &&
+      request.expectedChoiceRevision !== input.sourceBefore.revision) {
+    return pending(spec, 'Boa-choice-request-did-not-use-the-current-source-choice-revision');
   }
   if (input.response?.exactReplay !== true && spec.replayPolicy === 'exact-request-id') {
     return pending(spec, 'exact-original-sdk-retry-not-confirmed');
