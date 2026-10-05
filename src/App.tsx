@@ -543,6 +543,11 @@ function AppRoutes() {
         pendingGmDiscovery = undefined;
         state.setVoyage33MovementProjection(undefined, false);
         playerProjectionFresh = false;
+        // A missing or unchanged census can emit its server projection once.
+        // Retire the listener when authority becomes stale so the renewed
+        // player projection requests a fresh census instead of waiting forever
+        // for a callback that was correctly rejected during the interruption.
+        clearLoyaltyCensus();
         invalidatePendingStationReleaseFreshness();
         clearCurrentGroupCandidateReveals();
       }
