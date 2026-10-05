@@ -59,6 +59,39 @@ export async function completePreparedCrew(options) {
   throw new Error(`Ordinary crew preparation did not finish: ${JSON.stringify(current)}`);
 }
 
+/** Uses only the visible setup control; one local freshness recovery is bounded. */
+export async function confirmPreparedSetup(options) {
+  const now = options.now ?? Date.now;
+  const wait = options.wait ?? (() => delay(100));
+  const deadline = now() + (options.timeoutMs ?? 60_000);
+  const offered = 'Roster confirmation rejected // review the live setup and retry.';
+  let clicks = 0, authorityLostAfterClick = false, initialRequestCount, current;
+  while (now() < deadline) {
+    current = await options.inspect();
+    for (const key of ['sessionId', 'uidHash', 'instanceId']) assert.equal(current[key], options.expected[key]);
+    for (const key of ['hasAuth', 'sameActor', 'gmInstanceOwned']) assert.equal(current[key], true);
+    assert.equal(current.playerRole, 'gm'); assert.equal(current.cycle, 0);
+    assert.ok(['lobby', 'casting'].includes(current.phase));
+    assert.ok(Number.isSafeInteger(current.setupRequestCount) && current.setupRequestCount >= 0);
+    initialRequestCount ??= current.setupRequestCount;
+    await options.onObserve?.(current);
+    const fresh = current.connection === 'live' && current.freshness === 'server';
+    if (fresh && current.confirmed) return { clicks, current };
+    if (clicks > 0 && !fresh) authorityLostAfterClick = true;
+    if (clicks > 0 && current.rosterStatus === offered) {
+      assert.ok(clicks === 1 && authorityLostAfterClick && current.setupRequestCount === initialRequestCount,
+        'Setup retry is not a recoverable local freshness rejection.');
+      if (fresh && current.confirmEnabled) {
+        clicks += 1; await options.click();
+      }
+    } else if (clicks === 0 && fresh && current.confirmEnabled) {
+      clicks += 1; await options.click();
+    }
+    await wait();
+  }
+  throw new Error(`Normal setup UI did not confirm: ${JSON.stringify(current)}`);
+}
+
 export function isObservedGameEnding(current) {
   if (!['debrief', 'closed'].includes(current.phase) || current.debriefType !== 'session-debrief' ||
       current.debriefVersion !== 1 || !Number.isSafeInteger(current.debriefCycle) || current.debriefCycle < 1 ||

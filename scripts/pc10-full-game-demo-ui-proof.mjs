@@ -6,7 +6,7 @@ import { resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { pathToFileURL } from 'node:url';
 import { chromium } from 'playwright';
-import { proofRuntimeFromViteSource, validateProofRuntime, assertSelectedActor, completePreparedCrew, isObservedGameEnding } from './pc10-full-game-demo-proof-helpers.mjs';
+import { proofRuntimeFromViteSource, validateProofRuntime, assertSelectedActor, completePreparedCrew, confirmPreparedSetup, isObservedGameEnding } from './pc10-full-game-demo-proof-helpers.mjs';
 
 /** Real UI/SDK driver. Callbacks may compose later genuine game decisions. */
 export async function runFreshFullGameDemoUi(options = {}) {
@@ -28,7 +28,7 @@ export async function runFreshFullGameDemoUi(options = {}) {
   const driverCommit = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
   const builtRuntimeIndexSha256 = createHash('sha256').update(await readFile(`${root}/functions/lib/index.js`)).digest('hex');
   await mkdir(directory, { recursive: true });
-  const browsers = [], surfaces = [], errors = [], calls = [], remoteRequests = [], transitions = [], roleSurfaces = [];
+  const browsers = [], surfaces = [], errors = [], calls = [], requests = [], remoteRequests = [], transitions = [], roleSurfaces = [];
   const evidence = { schemaVersion: 1, sourceCommit, driverCommit, builtRuntimeIndexSha256, runtime,
     actualBrowserProcesses: 2, actualBrowserContexts: 2, actualHumans: 0, physicalAttendanceProof: false,
     callableFixtures: false, adminGameplayWrites: false, acceleratedClock: false, wholeGameProof: false,
@@ -63,6 +63,9 @@ export async function runFreshFullGameDemoUi(options = {}) {
       const url = new URL(request.url());
       if (url.pathname === '/src/store/useSessionStore.ts') storeUrl = url.href;
       if (url.pathname.endsWith('/firebase_functions.js')) sdkUrl = url.href;
+      const endpoint = url.pathname.match(/\/us-central1\/([A-Za-z][A-Za-z0-9_]*)$/)?.[1];
+      if (endpoint && request.method() === 'POST') requests.push({ surface: label, endpoint,
+        transport: 'actual browser Firebase SDK', at: new Date().toISOString() });
     });
     page.on('response', response => {
       const endpoint = new URL(response.url()).pathname.match(/\/us-central1\/([A-Za-z][A-Za-z0-9_]*)$/)?.[1];
@@ -83,6 +86,12 @@ export async function runFreshFullGameDemoUi(options = {}) {
           playerRole: state.me?.role ?? null, profileRoleId: activeDemoActorProfile?.roleId ?? null,
           assignedRoleId: state.me?.assignedRoleId ?? null, activeConsoleRoleId: state.me?.activeConsoleRoleId ?? null,
           connection: state.connection, freshness: state.sessionSnapshotFreshness,
+          communicationError: state.communicationError ? { code: state.communicationError.code,
+            kind: state.communicationError.kind ?? null } : null,
+          setupUi: { confirmEnabled: [...document.querySelectorAll('button')].some(button =>
+            button.getAttribute('aria-label') === 'Confirm setup // Confirm roster' && !button.disabled),
+            rosterStatus: document.querySelector('[aria-label="Roster confirmation status"]')?.textContent ?? '',
+            authorityStatus: document.querySelector('[aria-label="Setup authority status"]')?.textContent ?? '' },
           gmInstanceOwned: !!state.gmInstance && state.gmInstance.uid === state.me?.uid && state.gmInstance.sessionId === state.session?.id,
           instanceId: state.gmInstance?.id ?? null, setupConfirmed: state.session?.setupConfirmed ?? false,
           setupRevision: state.session?.setupRevision ?? null, activeRoleIds: state.session?.activeRoleIds ?? [],
@@ -170,6 +179,44 @@ export async function runFreshFullGameDemoUi(options = {}) {
     await setup.getByRole('button', { name: 'Setup', exact: true }).click();
     await setup.getByLabel('Recommended player count', { exact: true }).selectOption(String(playerCount));
     await setup.getByLabel('Star chart', { exact: true }).selectOption(chartId);
+    if (!gameplayOnly) {
+      evidence.modalViewports = [];
+      const beforeModalRequests = requests.filter(request => ['setCapybaraEnabled', 'setDioneEnabled', 'setPressEnabled'].includes(request.endpoint)).length;
+      for (const name of ['Capybara', 'Dione', 'Press']) {
+        for (const viewport of [{ width: 320, height: 844 }, { width: 844, height: 390 }, { width: 1440, height: 900 }]) {
+          await gm.page.setViewportSize(viewport);
+          const trigger = setup.getByRole('button', { name: `Disable ${name}`, exact: true });
+          await trigger.click();
+          const dialog = gm.page.getByRole('alertdialog', { name: name === 'Press' ? 'Change Press availability' : 'Change convoy manifest', exact: true });
+          const cancel = dialog.getByRole('button', { name: name === 'Press' ? 'Cancel Press change' : 'Cancel convoy change', exact: true });
+          assert.equal(await cancel.evaluate(button => document.activeElement === button), true);
+          await gm.page.keyboard.press('Tab');
+          assert.equal(await dialog.getByRole('button').last().evaluate(button => document.activeElement === button), true);
+          await gm.page.keyboard.press('Tab');
+          assert.equal(await cancel.evaluate(button => document.activeElement === button), true);
+          const metrics = await dialog.evaluate((element, viewport) => ({ ...viewport,
+            portalledOutsideRoute: !element.closest('.gm-console, .screen-fade'),
+            buttons: [...element.querySelectorAll('button')].map(button => {
+              const rect = button.getBoundingClientRect();
+              const hit = document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2);
+              return { name: button.textContent.trim(), height: rect.height,
+                withinViewport: rect.x >= 0 && rect.y >= 0 && rect.right <= innerWidth + 1 && rect.bottom <= innerHeight + 1,
+                pointerTarget: hit === button || button.contains(hit) };
+            }) }), viewport);
+          assert.equal(metrics.portalledOutsideRoute, true);
+          for (const button of metrics.buttons) {
+            assert.equal(button.withinViewport, true); assert.equal(button.pointerTarget, true);
+            assert.ok(button.height >= 44);
+          }
+          evidence.modalViewports.push({ name, ...metrics });
+          await gm.page.screenshot({ path: `${directory}/modal-${name.toLowerCase()}-${viewport.width}x${viewport.height}.png` });
+          await cancel.click(); await dialog.waitFor({ state: 'hidden' });
+          assert.equal(await trigger.evaluate(button => document.activeElement === button), true);
+        }
+      }
+      assert.equal(requests.filter(request => ['setCapybaraEnabled', 'setDioneEnabled', 'setPressEnabled'].includes(request.endpoint)).length,
+        beforeModalRequests, 'Read-only geometry capture cancels every local confirmation.');
+    }
     if (options.capybaraEnabled !== undefined) {
       const change = setup.getByRole('button', { name: options.capybaraEnabled ? 'Enable Capybara' : 'Disable Capybara', exact: true });
       if (await change.isVisible()) {
@@ -183,7 +230,27 @@ export async function runFreshFullGameDemoUi(options = {}) {
       await gm.page.getByRole('button', { name: 'ARE YOU SURE? // Disable Press', exact: true }).click();
       await gm.until('Ordinary Press availability choice committed', state => state.pressEnabled === false);
     }
-    await setup.getByRole('button', { name: 'Confirm setup // Confirm roster', exact: true }).click();
+    const confirmControl = setup.getByRole('button', { name: 'Confirm setup // Confirm roster', exact: true });
+    evidence.setupReadiness = [];
+    let lastReadiness;
+    const setupConfirmation = await confirmPreparedSetup({ expected: gmIdentity,
+      inspect: async () => {
+        const current = await gm.observe();
+        return { ...current, confirmEnabled: await confirmControl.isEnabled(), rosterStatus: current.setupUi.rosterStatus,
+          setupRequestCount: requests.filter(request => request.surface === gm.label && request.endpoint === 'confirmSetup').length,
+          confirmed: current.setupConfirmed && current.activeRoleIds.length === playerCount };
+      },
+      click: () => confirmControl.click(),
+      onObserve: current => {
+        const readiness = { sameActor: current.sameActor, connection: current.connection, freshness: current.freshness,
+          gmInstanceOwned: current.gmInstanceOwned, confirmEnabled: current.confirmEnabled,
+          setupRequestCount: current.setupRequestCount, setupConfirmed: current.setupConfirmed,
+          rosterStatus: current.rosterStatus, authorityStatus: current.setupUi.authorityStatus,
+          communicationError: current.communicationError };
+        const serialized = JSON.stringify(readiness);
+        if (serialized !== lastReadiness) { evidence.setupReadiness.push(readiness); lastReadiness = serialized; }
+      } });
+    evidence.setupConfirmationClicks = setupConfirmation.clicks;
     const confirmed = await gm.until('Real confirmed roles', state => state.setupConfirmed && state.activeRoleIds.length === playerCount && state.cycle === 0);
     assert.equal(confirmed.pressEnabled, includePress);
     if (options.capybaraEnabled !== undefined) assert.equal(confirmed.capybaraEnabled, options.capybaraEnabled);
@@ -460,7 +527,7 @@ export async function runFreshFullGameDemoUi(options = {}) {
     assert.equal((await gm.observe()).uidHash, gmIdentity.uidHash);
     assert.deepEqual(remoteRequests, []); assert.deepEqual(errors, []);
     Object.assign(evidence, { status: 'passed', initial, confirmed, prepared, controller, started, coordination,
-      rolesVisited: roleSurfaces, roleSurfaceCount: roleSurfaces.length, transitions, calls, errors, remoteRequests,
+      rolesVisited: roleSurfaces, roleSurfaceCount: roleSurfaces.length, transitions, calls, requests, errors, remoteRequests,
       scope: gameplayOnly ? 'Actual fresh full-demo admission, normal casting/start and a supplied genuine manual candidate gameplay callback; no client cache or fault probes.' :
         'Actual fresh full-demo admission, normal casting/start, confirmed role surfaces, interrupted seat recovery and manual phase control. Every game-function branch and ending remain separately owned.' });
     evidence.sourceCommitAtCompletion = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
@@ -475,7 +542,7 @@ export async function runFreshFullGameDemoUi(options = {}) {
     evidence.sourceCommitAtCompletion = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
     evidence.builtRuntimeIndexSha256AtCompletion = createHash('sha256').update(await readFile(`${root}/functions/lib/index.js`)).digest('hex');
     evidence.sourceChangedDuringProof = evidence.sourceCommitAtCompletion !== sourceCommit || evidence.builtRuntimeIndexSha256AtCompletion !== builtRuntimeIndexSha256;
-    await writeFile(`${directory}/failure.json`, `${JSON.stringify({ ...evidence, status: 'failed', stage, message: error.message, states, transitions, calls, errors, remoteRequests }, null, 2)}\n`);
+    await writeFile(`${directory}/failure.json`, `${JSON.stringify({ ...evidence, status: 'failed', stage, message: error.message, states, transitions, calls, requests, errors, remoteRequests }, null, 2)}\n`);
     console.error(JSON.stringify({ status: 'failed', stage, message: error.message, directory }));
     throw error;
   } finally { for (const browser of browsers) await browser.close(); }
