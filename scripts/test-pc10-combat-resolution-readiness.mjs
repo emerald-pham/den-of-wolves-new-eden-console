@@ -121,3 +121,21 @@ test('an actor change while the final private attack read is in flight cannot qu
     assert.equal(f.counts.sources, 1); assert.equal(f.counts.choices, 0); assert.equal(f.counts.paints, 0);
   }
 });
+
+test('the real GM-private attack document binds its session through original reader authority without an invented payload field', async () => {
+  const current = resolved(); delete current.sessionId;
+  const f = fixture({ current });
+  const result = await waitForWolfChoiceReadiness(f.options);
+  assert.equal(result.status, 'source-changed'); assert.equal(result.gameplayCredit, false);
+  assert.equal(f.counts.sources, 1); assert.equal(f.counts.choices, 0); assert.equal(f.counts.paints, 0);
+});
+
+test('a private attack without a session field still cannot cross the original actor and owned GM session binding', async () => {
+  const current = resolved(); delete current.sessionId;
+  for (const key of ['original', 'originalGm']) {
+    const f = fixture({ current });
+    f.options[key].sessionId = 'foreign';
+    await assert.rejects(waitForWolfChoiceReadiness(f.options));
+    assert.equal(f.counts.sources, 0); assert.equal(f.counts.choices, 0);
+  }
+});
