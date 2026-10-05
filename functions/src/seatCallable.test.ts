@@ -68,8 +68,13 @@ const mock = vi.hoisted(() => {
   });
   const remove = vi.fn((target: Ref) => { documents.delete(target.path); });
   let transactionTail: Promise<void> = Promise.resolve();
-  const runTransaction = vi.fn((callback: (tx: unknown) => unknown) => {
-    const run = transactionTail.then(() => callback({ get, update, set, delete: remove }));
+  const runTransaction = vi.fn((callback: (tx: unknown) => unknown, options?: { readOnly: boolean }) => {
+    const rejectReadOnlyWrite = () => { throw new Error('Read-only seat replay cannot mutate authority.'); };
+    const run = transactionTail.then(() => callback({ get,
+      update: options?.readOnly ? rejectReadOnlyWrite : update,
+      set: options?.readOnly ? rejectReadOnlyWrite : set,
+      delete: options?.readOnly ? rejectReadOnlyWrite : remove,
+    }));
     transactionTail = run.then(() => undefined, () => undefined);
     return run;
   });
