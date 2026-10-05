@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { mkdir, readdir, writeFile } from 'node:fs/promises';
 import { isAbsolute, relative, resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
+import { assertWolfChoiceActor } from './pc10-combat-choice-readiness.mjs';
 
 export const CANDIDATE_PROOF_SHIPS = Object.freeze({
   aegis: { name: 'AEGIS', engineer: 'executive-officer', captain: 'admiral' },
@@ -21,6 +22,95 @@ export async function chooseOfferedRingEngineeringShuttle(select) {
   assert.ok(available.length, 'A genuine available Engineering Shuttle must be shown.');
   await select.selectOption(available[0]);
   return available[0];
+}
+
+const candidateStaleCursor = 'Candidate session authority changed. Refresh the live report.';
+
+/** The mounted candidate report, one offered refresh and its choice share the original35s budget. */
+export async function waitForCandidateChoice({ observeActor, inspectPanel, refresh, choose,
+  expectedReceipt, deadlineAt = Infinity, now = Date.now, wait = remaining => delay(Math.min(200, remaining)) }) {
+  const deadline = Math.min(now() + 35_000, deadlineAt);
+  const budget = () => {
+    assert.ok(now() < deadline, 'Current candidate choice readiness deadline expired; no fallback or new request.');
+  };
+  budget();
+  const original = await observeActor(); budget();
+  assert.equal(original.phase, 'active', 'Original candidate actor must be in active gameplay.');
+  assert.ok(Number.isSafeInteger(original.cycle) && original.cycle >= 1);
+  for (const key of ['sessionId', 'uidHash', 'profileRoleId', 'assignedRoleId', 'activeConsoleRoleId', 'fleetGroupId'])
+    assert.ok(typeof original[key] === 'string' && original[key].length, `Original candidate ${key} is required.`);
+  assert.ok(Number.isSafeInteger(original.connectionGeneration) && original.connectionGeneration >= 1,
+    'Original candidate connection generation is required.');
+  assertWolfChoiceActor(original, original);
+  assert.equal(original.pendingCommandCount, 0, 'A pending original candidate mutation cannot acquire another choice.');
+  let expectedRevision;
+  if (expectedReceipt) {
+    assert.equal(expectedReceipt.endpoint, 'executeCandidateAction', 'Use the latest actual candidate receipt.');
+    for (const source of [expectedReceipt.request, expectedReceipt.result]) {
+      assert.equal(source?.sessionId, original.sessionId, 'Latest candidate receipt session must remain current.');
+      assert.equal(source?.code, 'N', 'Latest Ring receipt must be the same candidate source.');
+    }
+    assert.equal(expectedReceipt.request.expectedGroupId, original.fleetGroupId, 'Latest candidate receipt group must remain current.');
+    assert.ok(['committed', 'replayed'].includes(expectedReceipt.result.status), 'A stale candidate receipt cannot enable another choice.');
+    expectedRevision = expectedReceipt.result.revision;
+    assert.ok(Number.isSafeInteger(expectedRevision) && expectedRevision >= 0, 'Latest candidate receipt revision must be safe.');
+  }
+  let refreshCount = 0;
+  async function authority() {
+    budget(); const current = await observeActor(); budget();
+    assertWolfChoiceActor(current, original);
+    assert.equal(current.pendingCommandCount, 0, 'A pending candidate mutation cannot enable another choice.');
+  }
+  function currentPaint(paint) {
+    assert.ok(Number.isSafeInteger(paint.panelCount) && paint.panelCount >= 0 && paint.panelCount <= 1,
+      'Exactly one candidate panel is required; duplicate cardinality cannot choose the first.');
+    if (!paint.panelCount || !paint.panelVisible) return false;
+    assert.equal(paint.pendingAttempt, false, 'A pending candidate attempt must recover its original request first.');
+    assert.ok(Array.isArray(paint.messages));
+    assert.ok(!paint.messages.includes('Transmitting candidate choice…'), 'A pending candidate transmission cannot become a new choice.');
+    assert.ok(paint.messages.every(message => message === candidateStaleCursor), 'Unclassified current candidate status cannot refresh or choose.');
+    assert.ok(Number.isSafeInteger(paint.headerCount) && paint.headerCount >= 0 && paint.headerCount <= 1,
+      'The current candidate header must be unique.');
+    assert.ok(Number.isSafeInteger(paint.control.count) && paint.control.count >= 0 && paint.control.count <= 1,
+      'Exactly one requested candidate control is required; duplicate cardinality cannot choose the first.');
+    if (!paint.headerCount) return false;
+    assert.equal(paint.cycle, original.cycle, 'Current candidate cycle must match the original actor.');
+    assert.ok(Number.isSafeInteger(paint.revision) && paint.revision >= 0, 'Current candidate revision must be safe.');
+    if (expectedRevision !== undefined) assert.equal(paint.revision, expectedRevision, 'Current candidate revision must match the latest actual receipt.');
+    return !paint.receiving && paint.control.count === 1 && paint.control.visible && paint.control.enabled;
+  }
+  async function paint() {
+    await authority();
+    const current = await inspectPanel({ deadlineAt: deadline }); budget();
+    await authority();
+    return { current, ready: currentPaint(current) };
+  }
+  await authority();
+  while (now() < deadline) {
+    const { current, ready } = await paint();
+    if (ready) {
+      const final = await paint();
+      if (final.ready) {
+        assert.equal(final.current.revision, current.revision, 'Current candidate revision changed before the offered choice.');
+        await authority(); budget();
+        const result = await choose({ original, cycle: current.cycle, revision: current.revision,
+          deadlineAt: deadline, refreshCount });
+        // A paid crossing can release this console. Keep its original response and
+        // budget without treating that authoritative consequence as a new actor.
+        budget(); return result;
+      }
+    } else if (!refreshCount && current.panelCount === 1 && current.panelVisible && current.messages.includes(candidateStaleCursor)) {
+      assert.ok(Number.isSafeInteger(current.refresh.count) && current.refresh.count >= 0 && current.refresh.count <= 1,
+        'Exactly one mounted candidate refresh is required.');
+      if (current.refresh.count === 1 && current.refresh.visible && current.refresh.enabled) {
+        await authority(); budget(); refreshCount++;
+        await refresh({ deadlineAt: deadline }); budget();
+        await authority();
+      }
+    }
+    budget(); await wait(deadline - now());
+  }
+  budget();
 }
 
 /** Configure the ordinary root runner; no runtime or actor is created here. */

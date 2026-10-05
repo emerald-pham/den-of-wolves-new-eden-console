@@ -10,9 +10,10 @@ import { runFreshFullGameDemoUi } from './pc10-full-game-demo-ui-proof.mjs';
 import { createTwoBrowserGameplay } from './pc10-two-browser-gameplay.mjs';
 import { completeOfferedTurnAdvance } from './pc10-full-game-demo-proof-helpers.mjs';
 import { runStationEnding } from './pc10-candidate-station-ui-proof.mjs';
+import { observeWolfChoiceActor } from './pc10-combat-choice-readiness.mjs';
 import { CANDIDATE_PROOF_SHIPS as SHIPS, candidateShipRole, candidateProofOptions,
-  assertCandidateAdmission, assertFreshCandidateStart, waitForFreshCandidateStart, prepareCandidateEvidenceDirectory,
-  candidateEvidenceEnvelope, chooseOfferedRingEngineeringShuttle } from './pc10-candidate-proof-helpers.mjs';
+  assertCandidateAdmission, waitForFreshCandidateStart, prepareCandidateEvidenceDirectory,
+  candidateEvidenceEnvelope, chooseOfferedRingEngineeringShuttle, waitForCandidateChoice } from './pc10-candidate-proof-helpers.mjs';
 
 const TRACKS = ['reactor', 'jump-drive', 'hydroponics', 'water-reclamation', 'advanced-hydroponics'];
 
@@ -46,20 +47,64 @@ export function candidateGameplayTools(context) {
     await tools.save('candidate-gameplay-progress.json', { choices, receipts });
     console.log(JSON.stringify({ candidateStage: stage, ...details }));
   }
-  async function receipt(surface, endpoint, decision) {
+  async function receipt(surface, endpoint, decision, { deadlineAt, now = Date.now, expectedRequest } = {}) {
+    const budget = () => {
+      if (deadlineAt !== undefined) assert.ok(now() < deadlineAt, 'Current candidate choice readiness deadline expired before its original UI receipt.');
+    };
+    budget();
     const actual = await observeUiReceipt({
       waitForResponse: () => surface.page.waitForResponse(value => value.request().method() === 'POST' &&
-        new URL(value.url()).pathname.endsWith(`/us-central1/${endpoint}`)),
+        new URL(value.url()).pathname.endsWith(`/us-central1/${endpoint}`),
+      ...(deadlineAt === undefined ? [] : [{ timeout: deadlineAt - now() }])),
       choose: decision,
     });
-    const body = await actual.json();
+    budget(); const body = await actual.json(); budget();
     const request = actual.request().postDataJSON()?.data;
     assert.equal(actual.status(), 200, `${endpoint}: ${JSON.stringify(body)}`);
     assert.ok(body.result, `Real ${endpoint} response has a result.`);
     assert.notEqual(body.result.status, 'stale', `Observe current UI state before another ${endpoint} choice.`);
+    for (const [key, value] of Object.entries(expectedRequest ?? {}))
+      assert.deepEqual(request?.[key], value, `Current candidate request payload ${key} must match the offered choice.`);
     receipts.push({ endpoint, actor: surface.label, request, result: body.result,
       transport: 'actual connected UI request and unmodified server response' });
     return body.result;
+  }
+  /** Recover only the mounted Ring crossing control; no callable read or mutation fallback. */
+  async function candidateChoice(surface, shipId, { deadlineAt = context.deadlineAt ?? Infinity, now = Date.now, wait } = {}) {
+    assert.ok(SHIPS[shipId], 'A source-supported Ring ship is required.');
+    const panel = surface.page.getByRole('region', { name: 'Candidate preparation and actions', exact: true });
+    const buttonName = `Cross Ring // ${shipId} // five fuel`;
+    const remaining = deadline => {
+      const timeout = deadline - now();
+      assert.ok(timeout > 0, 'Current candidate choice readiness deadline expired before a mounted control.');
+      return { timeout };
+    };
+    async function control(name) {
+      const locator = panel.getByRole('button', { name, exact: true }), count = await locator.count();
+      return { count, visible: count === 1 && await locator.isVisible(), enabled: count === 1 && await locator.isEnabled() };
+    }
+    return waitForCandidateChoice({ deadlineAt, now, ...(wait ? { wait } : {}),
+      observeActor: () => observeWolfChoiceActor(surface),
+      expectedReceipt: receipts.findLast(value => value.endpoint === 'executeCandidateAction'),
+      inspectPanel: async ({ deadlineAt }) => {
+        const panelCount = await panel.count(), panelVisible = panelCount === 1 && await panel.isVisible();
+        if (!panelVisible) return { panelCount, panelVisible };
+        const text = await panel.innerText(remaining(deadlineAt));
+        const headers = [...text.matchAll(/(?:^|\n)Cycle (\d+) \/\/ candidate revision (\d+)(?=\n|$)/g)];
+        return { panelCount, panelVisible, headerCount: headers.length,
+          cycle: headers.length === 1 ? Number(headers[0][1]) : undefined,
+          revision: headers.length === 1 ? Number(headers[0][2]) : undefined,
+          receiving: text.includes('Receiving current candidate operations…'),
+          messages: await panel.getByRole('status').allTextContents(),
+          pendingAttempt: (await panel.getByRole('button', { name: 'Retry original candidate request', exact: true }).count()) > 0,
+          control: await control(buttonName), refresh: await control('Refresh candidate operations') };
+      },
+      refresh: ({ deadlineAt }) => panel.getByRole('button', { name: 'Refresh candidate operations', exact: true }).click(remaining(deadlineAt)),
+      choose: ready => receipt(surface, 'executeCandidateAction', () =>
+        panel.getByRole('button', { name: buttonName, exact: true }).click(remaining(ready.deadlineAt)),
+      { deadlineAt: ready.deadlineAt, now, expectedRequest: { sessionId: ready.original.sessionId,
+        expectedGroupId: ready.original.fleetGroupId, expectedRevision: ready.revision, code: 'N', action: 'ring-passage', shipId } }),
+    });
   }
   async function cycle(target) {
     const current = await gm.observe();
@@ -308,7 +353,7 @@ export function candidateGameplayTools(context) {
       ...(context.admission ? { admission: context.admission } : {}), choices, receipts,
       ending: state.debriefSnapshot, scope: 'Genuine fresh ordinary admission and manually progressed candidate path via two browser contexts. Explicit GM demo counter choices are listed.' });
   }
-  return { ...tools, context, begin, record, waitState, receipt, cycle, coordination, gmSupplies, printedRationBudget, gmRepair, research, jump, scout, confirmPhysicalGroups,
+  return { ...tools, context, begin, record, waitState, receipt, candidateChoice, cycle, coordination, gmSupplies, printedRationBudget, gmRepair, research, jump, scout, confirmPhysicalGroups,
     candidateGroup, gmCandidateShip, candidateGeometry, complete };
 }
 
@@ -357,9 +402,7 @@ export async function runRingEnding(context) {
   await tools.candidateGeometry(gm, 'N', 'repaired');
   for (const shipId of start.activeVesselIds) {
     const surface = await tools.select(candidateShipRole(context.roster, shipId, 'captain'));
-    const panel = surface.page.getByRole('region', { name: 'Candidate preparation and actions', exact: true });
-    const result = await tools.receipt(surface, 'executeCandidateAction', () =>
-      panel.getByRole('button', { name: `Cross Ring // ${shipId} // five fuel`, exact: true }).click());
+    const result = await tools.candidateChoice(surface, shipId);
     assert.equal(result.outcome, 'crossed'); assert.equal(result.fuelSpent, 5);
     await tools.record('actual paid Ring passage', { shipId, fuelSpent: 5 });
   }
