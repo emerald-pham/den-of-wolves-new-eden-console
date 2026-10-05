@@ -84,7 +84,7 @@ it('rejects a duplicate, damaged, stale-turn, or unknown target before mutation'
   expect(() => applyVulcanAdditionalLabour({ ...base, targetShipId: 'vulcan' })).toThrow(/another active ship/i);
 });
 
-it('does not permit Vulcan Additional Labour after its current Team cycle is closed', () => {
+it('does not permit Vulcan Additional Labour from a closed cycle missing its Team result receipts', () => {
   const baseState = emptySmallShipState('vulcan', 'aegis');
   const closed = advanceSmallShipMaintenance({
     state: {
@@ -101,4 +101,49 @@ it('does not permit Vulcan Additional Labour after its current Team cycle is clo
   expect(closed.state.cycle).toMatchObject({ step: 0, charges: ['additional-labour-1'] });
   expect(() => applyVulcanAdditionalLabour({ ...base, sourceCycle: closed.state.cycle }))
     .toThrow(/available after Vulcan maintenance in the current cycle/i);
+});
+
+function completeNaturalVulcanMaintenance() {
+  let state = emptySmallShipState('vulcan', 'aegis');
+  let hostResources = { ...targetResources };
+  for (const action of ['begin', 'rations', 'unrest', 'riot', 'reactor', 'end']) {
+    const result = advanceSmallShipMaintenance({ state, action,
+      expectedRevision: state.cycle.revision, currentTurn: 1, hostResources,
+      foodLevel: 1, waterLevel: 1, rolls: [6, 6],
+      consoles: [...VULCAN_ADDITIONAL_LABOUR_CONSOLES], now: '2026-10-05T09:00:00.000Z' });
+    state = result.state;
+    hostResources = result.hostResources;
+  }
+  return state.cycle;
+}
+
+it('keeps both natural Team maintenance charges usable independently after the normal end reset', () => {
+  const completed = completeNaturalVulcanMaintenance();
+  expect(completed).toMatchObject({ step: 0, turn: 1, chargingSkipped: false,
+    completedAt: '2026-10-05T09:00:00.000Z', charges: [...VULCAN_ADDITIONAL_LABOUR_CONSOLES] });
+  expect(Object.keys(completed.results).sort()).toEqual(['1', '2', '3', '4']);
+  const first = applyVulcanAdditionalLabour({ ...base, sourceCycle: completed });
+  expect(first.sourceCycle).toMatchObject({ step: 0, completedAt: completed.completedAt,
+    revision: completed.revision + 1, charges: ['additional-labour-2'] });
+  const second = applyVulcanAdditionalLabour({ ...base, sourceCycle: first.sourceCycle,
+    sourceConsoleId: 'additional-labour-2', targetShipId: 'dione', targetConsoleId: 'hydroponics' });
+  expect(second.sourceCycle.charges).toEqual([]);
+  expect(second.targetResources).toMatchObject({ water: 3, food: 13 });
+  expect(second.immediate).toBe(true);
+});
+
+it('rejects unfinished, malformed, skipped, or stale closed maintenance without consuming a charge', () => {
+  const completed = completeNaturalVulcanMaintenance();
+  for (const invalid of [
+    { ...completed, completedAt: undefined },
+    { ...completed, completedAt: 'invalid' },
+    { ...completed, startedAt: undefined },
+    { ...completed, results: { '1': 'rations', '2': 'unrest', '3': 'riot' } },
+    { ...completed, chargingSkipped: true },
+    { ...completed, turn: 2 },
+  ]) {
+    const before = structuredClone(invalid);
+    expect(() => applyVulcanAdditionalLabour({ ...base, sourceCycle: invalid })).toThrow(/current cycle/i);
+    expect(invalid).toEqual(before);
+  }
 });
