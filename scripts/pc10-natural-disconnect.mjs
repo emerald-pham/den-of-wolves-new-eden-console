@@ -13,9 +13,30 @@ const execute=promisify(execFile);
 
 /** The scheduled function scans collection groups. Never run it beside a live foreign table. */
 export function assertSchedulerSessionScope(sessionId,players,instances) {
- const foreign=[...players,...instances].filter(document=>
-  document.get('connected')===true&&document.ref.path.split('/')[1]!==sessionId);
+ const foreign=[...players,...instances].filter(document=>{
+  const segments=document.ref.path.split('/');
+  return document.get('connected')===true&&
+   (segments[0]!=='sessions'||segments[1]!==sessionId||segments.length!==4);
+ });
  assert.equal(foreign.length,0,'The global scheduler would touch connected actors in another session.');
+}
+
+/** Observe every real transport, including siblings of a failed operation, before cleanup. */
+export async function awaitProofBatch(operations) {
+ const results=await Promise.allSettled(operations);
+ const failures=results.filter(result=>result.status==='rejected');
+ if(failures.length)throw failures[0].reason;
+ return results.map(result=>result.value);
+}
+
+export function assertReturnedCoreStation({roleId,uid,reply,seat}) {
+ assert.equal(reply.player.connected,true,'The original actor must be connected after normal resume.');
+ assert.equal(reply.player.assignedRoleId,roleId,'Same identity must recover its assigned core role.');
+ assert.equal(reply.player.seatId,roleId,'Normal resume must return its reclaimed own seat.');
+ assert.equal(seat.exists,true,'The returning seat record must exist.');
+ assert.equal(seat.get('roleId'),roleId,'The seat must match the assigned core role.');
+ assert.equal(seat.get('status'),'claimed','Normal resume must reclaim the available own seat.');
+ assert.equal(seat.get('holderUid'),uid,'Only the original UID may own the reclaimed seat.');
 }
 
 function deadline(phase,window) {
@@ -134,34 +155,40 @@ export async function runPc10NaturalDisconnectAcceptance(table,{
   calls,checks,backgroundInvocations,
  };
  const assertIdentity=async()=>{
-  const states=await Promise.all([...clients.values()].map(client=>client.observe()));
+  const states=await awaitProofBatch([...clients.values()].map(client=>client.observe()));
   for(const state of states)assert.ok(state.hasAuth&&state.sameActor,'A browser must retain its original authenticated identity.');
   if(table.assertSameIdentity)await table.assertSameIdentity();
  };
- async function checked(role,name,payload={}) {
+ async function operation(role,name,payload={}) {
   const startedAt=Date.now();
   const reply=await command(role,name,payload);
   const completedAt=Date.now();
   calls.push({roleId:role,name,startedAt,completedAt,status:reply.status,
    resultStatus:reply.result?.status??null,denialCode:reply.error?.code??reply.error?.status??null});
-  assert.equal(reply.status,200,`${role} ${name} must succeed through its normal authenticated transport.`);
-  return {reply:reply.result,startedAt,completedAt};
+  return {reply,startedAt,completedAt};
+ }
+ async function checked(role,name,payload={}) {
+  const result=await operation(role,name,payload);
+  assert.equal(result.reply.status,200,`${role} ${name} must succeed through its normal authenticated transport.`);
+  return {...result,reply:result.reply.result};
  }
  try {
   await assertIdentity();
   let before=await snapshot(fixture);
   assert.equal(before.state.phase,'active','Start from a real active table.');
   assert.equal(before.state.turnPhase.timerPause,undefined,'Begin after the actual briefing is acknowledged.');
+  assert.ok(Date.parse(before.state.turnPhase.openAirspaceEndsAt)>Date.now()+PRESENCE_LEASE_MS+leaseMarginMs,
+   'Begin while the normal game clock has enough actual time for the lease to expire.');
   assert.equal(before.state.connectedPlayers,actors.length,'All declared actors must begin connected.');
   assert.equal(before.state.liveGmInstances,1,'One normal GM instance must begin live.');
   assert.deepEqual(new Set(before.players.docs.map(doc=>doc.id)),new Set(actors.map(({actor})=>actor.localId)),
    'The natural expiry proof owns exactly this table\'s real actors.');
   // Renew normally once before disappearance; this is not a clock/lease seed.
-  await Promise.all(actors.map(({roleId})=>checked(roleId,'refreshPresence',
+  await awaitProofBatch(actors.map(({roleId})=>checked(roleId,'refreshPresence',
    roleId==='gm'?{instanceId:fixture.instanceId}:{activeConsoleRoleId:roleId})));
   await fixture.stopHeartbeats();
   assert.equal(fixture.heartbeatFailures.length,0,'Fixture heartbeat failures cannot be hidden by stopping the timers.');
-  await Promise.all([...clients.values()].map(client=>client.context.setOffline(true)));
+  await awaitProofBatch([...clients.values()].map(client=>client.context.setOffline(true)));
   const offlineAt=Date.now();
   before=await snapshot(fixture);
   report.before=before.state;
@@ -207,17 +234,22 @@ export async function runPc10NaturalDisconnectAcceptance(table,{
   await checked('gm','claimGmInstance',{instanceId:fixture.instanceId,
    name:'Local facilitator',deviceLabel:'Natural-disconnect local proof'});
   await checked('gm','refreshPresence',{instanceId:fixture.instanceId});
-  await Promise.all([...clients.values()].map(client=>client.context.setOffline(false)));
-  await Promise.all(actors.filter(({roleId})=>roleId!=='gm').map(async({roleId})=>{
+  await awaitProofBatch([...clients.values()].map(client=>client.context.setOffline(false)));
+  await awaitProofBatch(actors.filter(({roleId})=>roleId!=='gm').map(async({roleId,actor})=>{
    const result=await checked(roleId,'resumeSession');
    if(roleId!=='press-officer') {
-    assert.equal(result.reply.player.assignedRoleId,roleId,'Same identity must recover its assigned core role.');
-    assert.equal(result.reply.player.seatId,roleId,'Normal resume must reclaim its own available seat.');
-    await checked(roleId,'claimSeat',{seatId:roleId,requestId:randomUUID(),
-     expectedSetupRevision:result.reply.session.setupRevision});
+    // Active-game resume itself reclaims this preserved pointer. A NEW seat
+    // casting request is correctly locked after startGame and is not recovery.
+    const seat=await fixture.session.collection('seats').doc(roleId).get();
+    assertReturnedCoreStation({roleId,uid:actor.localId,reply:result.reply,seat});
    }
    await checked(roleId,'refreshPresence',{activeConsoleRoleId:roleId});
   }));
+  const activeRecast=await operation(fixture.roles[0],'claimSeat',{seatId:fixture.roles[0],
+   requestId:randomUUID(),expectedSetupRevision:(await fixture.session.get()).get('setupRevision')});
+  assert.notEqual(activeRecast.reply.status,200,'A new casting command must remain denied during the active game.');
+  assert.match(activeRecast.reply.error?.code??activeRecast.reply.error?.status??'',
+   /failed-precondition|FAILED_PRECONDITION/,'The actual casting lock must reject the new active request.');
   await assertIdentity();
   const finished=await snapshot(fixture);
   report.finished=finished.state;
@@ -239,6 +271,7 @@ export async function runPc10NaturalDisconnectAcceptance(table,{
   }
   checks.sameAuthenticatedIdentitiesRecovered=true;
   checks.normalSdkCoreAndPressRecovery=true;
+  checks.newActiveCastingRequestStillDenied=true;
   checks.sameGmNormalClaim=true;
   checks.remainingTimeRestoredExactlyOnce=true;
   checks.cyclePreserved=true;

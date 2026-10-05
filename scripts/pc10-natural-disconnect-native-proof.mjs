@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
-import {readFile} from 'node:fs/promises';
+import {mkdir,readFile,writeFile} from 'node:fs/promises';
 import {createRequire} from 'node:module';
 import {initializeApp,deleteApp} from 'firebase/app';
 import {getAuth,connectAuthEmulator,signInAnonymously} from 'firebase/auth';
@@ -17,7 +17,7 @@ const require=createRequire(new URL('../functions/package.json',import.meta.url)
 const {recommendedRoleIds}=require('../functions/lib/roleConfiguration.js');
 const roles=recommendedRoleIds(8);
 const nativeActors=new Map(),actions=[];
-let fixture;
+let fixture,stage='normal anonymous SDK authentication';
 async function createNativeActor(roleId) {
  const app=initializeApp({projectId:project,apiKey:project,authDomain:`${project}.firebaseapp.com`},
   `natural-disconnect-${roleId}-${randomUUID()}`);
@@ -45,6 +45,7 @@ async function createNativeActor(roleId) {
 }
 try {
  for(const roleId of roles)nativeActors.set(roleId,await createNativeActor(roleId));
+ stage='ordinary SDK joins and normal GM setup';
  fixture=await createPc07AuthenticatedSession('PC10 real lease native SDK disconnect proof',8,{
   keepAlive:true,serializeFixtureCalls:false,clearBriefing:true,
   joinBrowserPlayers:Object.fromEntries([...nativeActors].map(([roleId,actor])=>[roleId,actor.join])),
@@ -62,10 +63,17 @@ try {
     'Keep the original normal Firebase Auth UID; never mint a recovery identity.');
   },
  };
+ stage='natural-expiry and ordinary SDK recovery acceptance';
  const report=await runPc10NaturalDisconnectAcceptance(table,{directory,expectBrowserContexts:0,restartHeartbeats:false});
  console.log(JSON.stringify({passed:report.passed,actorClients:report.actorClients,
   nativeSdkActors:nativeActors.size,browserContexts:0,actualHumanDevices:0,
   leaseWaitElapsedMs:report.leaseWaitElapsedMs,checks:report.checks}));
+} catch(error) {
+ await mkdir(directory,{recursive:true});
+ await writeFile(`${directory}/native-failure.json`,JSON.stringify({passed:false,stage,
+  message:error.message,actorClients:nativeActors.size+Number(Boolean(fixture?.gm)),
+  actualIndependentBrowserContexts:0,actualHumanDevices:0,tokensOrCredentialsRecorded:false,actions},null,2)+'\n');
+ throw error;
 } finally {
  try {await fixture?.cleanup();}
  finally {await Promise.all([...nativeActors.values()].map(actor=>deleteApp(actor.app)));}
