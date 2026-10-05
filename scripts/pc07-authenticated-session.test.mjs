@@ -1,6 +1,37 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { joinConfiguredBrowserPlayers, shouldMaintainFixturePresence } from './pc07-authenticated-session.mjs';
+import * as fixture from './pc07-authenticated-session.mjs';
+import { createServer } from 'node:http';
+
+async function localCallableServer(t, respond) {
+  const server = createServer(respond);
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => { server.closeAllConnections(); server.close(); });
+  return `http://127.0.0.1:${server.address().port}`;
+}
+
+test('authenticated fixture calls bound an actual nonresponding local server without retry or identity disclosure', async t => {
+  const requests = [];
+  const origin = await localCallableServer(t, request => { requests.push(request.url); });
+  assert.equal(typeof fixture.performFixtureCallable, 'function');
+  await assert.rejects(() => fixture.performFixtureCallable({ origin, project: 'demo-test',
+    actor: { localId: 'not-in-diagnostics', idToken: 'not-in-diagnostics' },
+    name: 'resumeSession', data: { sessionId: 'private-not-in-diagnostics' }, timeoutMs: 100 }), error =>
+    error.message === 'Local fixture callable resumeSession exceeded 100ms without a reply.');
+  assert.deepEqual(requests, ['/demo-test/us-central1/resumeSession']);
+});
+
+test('bounded fixture transport returns the actual callable JSON and HTTP status', async t => {
+  const origin = await localCallableServer(t, (_request, response) => {
+    response.writeHead(409, { 'Content-Type': 'application/json' });
+    response.end(JSON.stringify({ error: { status: 'ABORTED' } }));
+  });
+  assert.equal(typeof fixture.performFixtureCallable, 'function');
+  assert.deepEqual(await fixture.performFixtureCallable({ origin, project: 'demo-test',
+    actor: { idToken: 'local-test-only' }, name: 'claimSeat', data: {}, timeoutMs: 1_000 }),
+  { status: 409, error: { status: 'ABORTED' } });
+});
 
 test('browser-owned presence can expire without an API heartbeat keeping core or Press connected', () => {
   assert.equal(shouldMaintainFixturePresence({ browserControlled: true, browserOwnsPresence: true }), false);
