@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createHash } from 'node:crypto';
+import { EventEmitter } from 'node:events';
 import * as proof from './pc10-browser-session-proof.mjs';
 
 const requestHash = value => createHash('sha256').update(`security-denial-request\0${value}`).digest('hex');
@@ -70,35 +71,56 @@ test('network failures retain correlation and each genuine retry gets a separate
 });
 
 test('browser event hooks retain a real issued-only request and complete the same trace after body observation', async () => {
-  const listeners = new Map();
-  const page = { setDefaultTimeout() {}, setDefaultNavigationTimeout() {},
-    on(name, callback) { listeners.set(name, callback); } };
-  const context = { newPage: async () => page, close: async () => {} };
+  // Keep the same assertions while adapting the fixture to the observer's
+  // canonical CDP request IDs and Network lifecycle (one body store per ID).
+  const page = new EventEmitter();
+  page.setDefaultTimeout = () => undefined;
+  page.setDefaultNavigationTimeout = () => undefined;
+  const cdp = new EventEmitter();
+  const bodies = new Map(), finished = new Set();
+  cdp.send = async (method, parameters = {}) => {
+    if (method === 'Network.configureDurableMessages' || method === 'Network.enable') return {};
+    if (method === 'Network.getResponseBody') {
+      if (!finished.has(parameters.requestId)) throw new Error('Response body is not complete yet.');
+      return bodies.get(parameters.requestId);
+    }
+    throw new Error(`Unexpected CDP command: ${method}`);
+  };
+  cdp.detach = async () => undefined;
+  const context = { newPage: async () => page, newCDPSession: async () => cdp, close: async () => {} };
   const browser = { newContext: async () => context };
   const client = await proof.createPc10BrowserActor(browser, 'http://localhost:5174', 'admiral');
-  const request = { url: () => 'http://127.0.0.1:5011/demo-proof/us-central1/sendFleetGroupMessage',
-    method: () => 'POST', postDataJSON: () => ({ data: { sessionId: 'private-session',
-      requestId: 'private-request', text: 'private-note', Authorization: 'private-token' } }) };
-  listeners.get('request')(request);
+  const request = { requestId: 'protocol-private-request', timestamp: 1, wallTime: 1,
+    request: { url: 'http://127.0.0.1:5011/demo-proof/us-central1/sendFleetGroupMessage', method: 'POST',
+      postData: JSON.stringify({ data: { sessionId: 'private-session', requestId: 'private-request',
+        expectedGroupId: 'fleet-2', text: 'private-note', Authorization: 'private-token' } }) } };
+  cdp.emit('Network.requestWillBeSent', request);
   assert.equal(client.observedCalls.length, 1);
   assert.equal(client.observedCalls[0].bodyCompletedAt, null);
   assert.equal(client.observedCalls[0].requestHash, requestHash('private-request'));
   let release;
-  const body = new Promise(resolve => { release = resolve; });
-  listeners.get('response')({ request: () => request, status: () => 200, json: () => body });
+  const body = new Promise(resolve => { release = resolve; }).then(reply => ({
+    body: JSON.stringify(reply), isBase64Encoded: false,
+  }));
+  void body.catch(() => undefined);
+  bodies.set(request.requestId, body);
+  cdp.emit('Network.responseReceived', { requestId: request.requestId, timestamp: 2,
+    response: { url: request.request.url, status: 200 } });
   const trace = client.observedCalls[0];
   assert.ok(trace.headersReceivedAt >= trace.issuedAt);
   assert.equal(trace.bodyCompletedAt, null);
-  listeners.get('requestfinished')(request);
+  finished.add(request.requestId);
+  cdp.emit('Network.loadingFinished', { requestId: request.requestId, timestamp: 3, encodedDataLength: 1 });
   release({ result: { status: 'committed', groupId: 'fleet-2', messageId: 'private-request', text: 'private-note' } });
   await client.drainObservedCalls();
   assert.equal(client.observedCalls.length, 1);
   assert.equal(client.observedCalls[0], trace);
   assert.ok(trace.bodyCompletedAt >= trace.requestFinishedAt);
   assert.equal(trace.status, 200);
-  const failed = { ...request, postDataJSON: () => ({ data: { requestId: 'other-private-request' } }) };
-  listeners.get('request')(failed);
-  listeners.get('requestfailed')(failed);
+  const failed = { ...request, requestId: 'protocol-other-request', request: { ...request.request,
+    postData: JSON.stringify({ data: { sessionId: 'private-session', requestId: 'other-private-request' } }) } };
+  cdp.emit('Network.requestWillBeSent', failed);
+  cdp.emit('Network.loadingFailed', { requestId: failed.requestId, timestamp: 4, errorText: 'net::ERR_ABORTED', canceled: true });
   assert.equal(client.observedCalls.length, 2);
   assert.ok(client.observedCalls[1].requestFailedAt >= client.observedCalls[1].issuedAt);
   assert.equal(client.observedCalls[1].bodyCompletedAt, null);
