@@ -108,3 +108,17 @@ it('keeps the exact original GM mutation pending after same-UID demotion', async
   mutateMe({ role: 'gm' }); useSessionStore.setState({ gmInstance });
   expect(recoverCandidateAttempt('fleet-1')).toEqual(attempt);
 });
+it('returns the original player result after its settled console is released without changing actor audience', async () => {
+  mutateMe({ role: 'player', assignedRoleId: 'executive-officer', activeConsoleRoleId: 'executive-officer' });
+  useSessionStore.setState({ gmInstance: null });
+  const attempt = createCandidateAttempt({ expectedRevision: 0, expectedGroupId: 'fleet-1', code: 'O',
+    coordinate: '0408', action: 'nebula-jump', shipId: 'aegis' });
+  const result = { type: 'candidate-action-result', status: 'committed', sessionId: 's1', requestId: attempt.requestId,
+    revision: 1, code: 'O', action: 'nebula-jump', summary: 'Original paid loss.', outcome: 'lost', fuelSpent: 6, remainingFuel: 4 };
+  transport.call.mockImplementation(async () => {
+    mutateMe({ activeConsoleRoleId: undefined, candidateDisposition: { code: 'O', outcome: 'lost', cycle: 6 } });
+    return { data: result };
+  });
+  await expect(executeCandidateAttempt(attempt)).resolves.toEqual(result);
+  expect(recoverCandidateAttempt('fleet-1')).toBeUndefined();
+});
