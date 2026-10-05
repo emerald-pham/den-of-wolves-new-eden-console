@@ -77,7 +77,7 @@ let originalClaim: GmInstance;
 let leaseSeenAt: string;
 let briefData: Record<string, unknown> | null;
 let claimVisible: boolean;
-let failNextMemberRead: boolean;
+let memberReadUnavailableUntilResume: boolean;
 let listeners: Listener[];
 let unmount: (() => void) | undefined;
 
@@ -150,7 +150,7 @@ beforeEach(() => {
   actor = { uid: sdk.auth.currentUser.uid, sessionId, displayName: 'Presence actor', role: 'player', connected: true,
     fleetGroupId: 'fleet-1', connectionGeneration: 1, assignedRoleId: null, replacementRoleId: null,
     replacementStatus: null, activeConsoleRoleId: null, seatId: null, joinedAt: new Date().toISOString() };
-  leaseSeenAt = new Date().toISOString(); claimVisible = true; briefData = null; failNextMemberRead = false; listeners = [];
+  leaseSeenAt = new Date().toISOString(); claimVisible = true; briefData = null; memberReadUnavailableUntilResume = false; listeners = [];
   originalClaim = { id: 'original-gm-claim', sessionId, uid: actor.uid, name: 'Original GM', deviceLabel: 'Fixture',
     claimedAt: leaseSeenAt, responsibilities: ['main', 'assistant'] };
   sdk.read.mockReset().mockImplementation(async () => snapshot(rootPath(), sessionData));
@@ -178,11 +178,11 @@ beforeEach(() => {
   sdk.call.mockReset().mockImplementation(async (name) => {
     switch (name) {
       case 'resumeSession':
+        memberReadUnavailableUntilResume = false;
         actor = { ...actor, connectionGeneration: (actor.connectionGeneration ?? 1) + 1 };
         return { data: { session: projectedSession(), player: actor } };
       case 'getCurrentMemberSession':
-        if (failNextMemberRead) {
-          failNextMemberRead = false;
+        if (memberReadUnavailableUntilResume) {
           throw Object.assign(new Error('Fixture member read unavailable.'), { code: 'functions/unavailable' });
         }
         return { data: { type: 'current-member-session', sessionId, actorUid: actor.uid, groupId: 'fleet-1',
@@ -283,8 +283,9 @@ describe('role-brief audience and presence recovery', () => {
     const oldListener = activeListeners(briefPath()).at(-1)!;
     briefData = null;
     // A healthy member feed may confirm the changed actor before the retry
-    // tick. One real transport failure makes the ordinary resume path necessary.
-    failNextMemberRead = true;
+    // tick. A transient feed outage until the next ordinary resume makes that
+    // recovery path necessary, including serialized same-tick feed retries.
+    memberReadUnavailableUntilResume = true;
     act(() => publishActor({ ...actor, assignedRoleId: null, activeConsoleRoleId: null, seatId: null }));
     expect(useSessionStore.getState()).toMatchObject({ roleBrief: null, connection: 'offline', sessionSnapshotFreshness: 'cache' });
     await advance(10_000);
