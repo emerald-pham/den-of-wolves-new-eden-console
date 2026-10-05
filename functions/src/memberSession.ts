@@ -86,7 +86,8 @@ export function publicFullGameDemoState(value: unknown): {
 } | undefined {
   const demo = record(value);
   if (Object.keys(demo).length !== 2 || !Object.keys(demo).every(key => ['status', 'progression'].includes(key)) ||
-      !['preparing', 'active', 'complete'].includes(String(demo.status)) || demo.progression !== 'manual') return undefined;
+      typeof demo.status !== 'string' || !['preparing', 'active', 'complete'].includes(demo.status) ||
+      demo.progression !== 'manual') return undefined;
   return { status: demo.status as 'preparing' | 'active' | 'complete', progression: 'manual' };
 }
 
