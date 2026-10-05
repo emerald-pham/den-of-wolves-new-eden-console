@@ -151,3 +151,14 @@ proves recovery, private reads/write denial, revocation, keyboard and motion;
 it does not claim finalized combat rows. Those rows use the separate actual
 two-attack proof. Zero page exceptions are recorded; no production or physical
 device claim is made.
+
+The fresh strict battle proof at `cba5d520` also completes the actual finalized
+result-row acceptance on frozen `296dd59b` Functions. Its seven visible committed
+rows exactly equal the current Wing member's local-contact filter, with nonempty
+Source/Outcome, truthful unknown bearings and no opaque target ID or invented
+coordinate attributes. The actual projection GET succeeds under Rules; private
+root reads deny. Raw, identity-free summary, pre-run binding and cropped reading
+are in `/tmp/dow-pc09-resumed-evidence/positive-rebuild-arrival-contract/`.
+All captured browser errors are zero in that separate 24-check battle/build
+proof. The standalone eight motion/viewport cases remain targeting evidence;
+the two proofs' boundaries are preserved.

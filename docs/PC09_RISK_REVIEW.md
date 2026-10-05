@@ -298,3 +298,26 @@ derives its receipt ID from `transitRequestId`; its exact-key parser correctly
 rejected the extra field. The corrected driver uses that existing wire contract
 and preserves the exact replay/docking assertions. The early failure remains in
 `positive-rebuild-paid-readiness/`; it earns no battle or repair acceptance.
+
+The complete strict proof on driver/client `cba5d520439162c804cbc0e42ed6abf1638c0841`
+and frozen `296dd59b` Functions passed 24 checks/505 ordinary actions at
+2026-10-05 00:19:00 UTC. It retains both genuine Short losses (Alpha 4→3→2),
+the later ordinary launch at three, exact immutable Station carryover, the
+second surviving Station return, paid API build/full receipt replay, separate
+Wing UI build and seven current-local-contact DRADIS result rows. The two builds
+spend materials 21→20→19 and restore Alpha 2→3→4. All captured console/page,
+HTTP, failed-request and synthetic heartbeat errors are zero. Its normal
+Blacksmith flight takes the real 60 seconds; one genuine damaged Alpha Bay repair
+spends four materials and replays without changes. Construction is intact in
+this passing run, so no drone-repair execution is inferred from its contingent
+branch. The earlier actual paid drone repair remains separately labelled.
+
+Current raw, launch and screenshots are in
+`/tmp/dow-pc09-resumed-evidence/positive-rebuild-arrival-contract/`. Raw result
+SHA-256 is `75b5381b4c629aaa58d82f6d4424acf30328236d0e04d3dca64d7a0f6d255a94`.
+Its original `identitiesRetained:false` label is inaccurate: ephemeral emulator
+UID/session identifiers occur in receipt and browser checks, but no Auth token
+is retained. The raw result is unchanged; `safe-result.json` is an explicitly
+allowlisted identity-free summary. A metadata-only driver correction labels
+future output truthfully without rerunning or self-stamping the captured pass.
+Root inspected all three Wing layouts and the cropped committed DRADIS readout.

@@ -6,6 +6,12 @@ commits before implementation. This table covers every changed test file and new
 ordinary gameplay driver against the settled PC08 audit baseline `b36119e9`.
 
 Existing tests remain enabled. No test file is deleted and no test is deliberately skipped.
+
+The strict positive driver's future raw-output flag now correctly labels its
+retained ephemeral UID/session identifiers. The already captured passing raw
+result remains unchanged; its identity-free allowlisted summary documents the
+original inaccurate flag. This metadata correction changes no gameplay or
+assertion and needs no repeat of the complete authenticated proof.
 Specific fixture repairs preserve the original assertions: pressure uses the current
 `hold` value; elected President fixtures include current office authority; Voyage admission
 includes its actual current GM ruling; the old force-field fixture includes the canonical

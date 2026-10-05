@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "auditBoundary": "Explicit launch/change records only. Runtime tools omit effective-model fields; do not infer runtime confirmation from policy intent or task existence.",
   "ownerException": "GPT-6 Astra is authorized only for an isolated P605a product implementation worker. Coordinator remains Sol6.1 Max; tests, review, documentation and every other prompt stay Sol6.1 or Luna6. No session default change or inherited exception.",
-  "checkedAt": "2026-10-04",
+  "checkedAt": "2026-10-05",
   "launches": [
     {
       "taskId": "/root",
@@ -330,7 +330,15 @@
       "effectiveModelConfirmed": false,
       "modelChanges": [],
       "worktree": "/private/tmp/dow-pc09-risk-review-20261004",
-      "candidateCommit": "c123368c77f0f5a072785263d94c67fdeb4af9ca"
+      "candidateCommit": "c123368c77f0f5a072785263d94c67fdeb4af9ca",
+      "scopeChanges": [
+        {
+          "date": "2026-10-05",
+          "purpose": "One bounded final verification of the original nine findings, eight directly blocking repairs, approved election policy, fresh ordinary evidence and current 216-consumer runtime inventory; restore the same existing review checkout only. No new reviewer or model change.",
+          "modelChanged": false,
+          "effectiveModelConfirmed": false
+        }
+      ]
     },
     {
       "taskId": "/root/pc09_combat_ui_recovery",
@@ -382,7 +390,7 @@
       "taskId": "/root/pc09_risk_review",
       "model": "gpt-6.1-sol",
       "effort": "max",
-      "status": "One consolidated independent batch contains nine findings; same reviewer awaits stable bounded repairs, final ordinary acceptance evidence and the now-approved election repair for targeted verification."
+      "status": "Same existing Sol 6.1 Max reviewer receives one bounded final verification after all fresh ordinary proofs pass. Root retains metadata, final gates, CI and release."
     }
   ],
   "findings": [

@@ -1468,7 +1468,7 @@ try {
       'The current Icebreaker Engineer fuelled and flew Blacksmith normally, then paid four host materials per required damaged console, at most two before the second attack',
       'Wing Commander made the separate browser build from the Alpha card identified by its visible heading',
       ...(specialKinds.includes('commander-ruling') ? ['explicit Commander consequence ruling'] : []),
-    ], preparedScene: false, productionGameplay: false, identitiesRetained: false,
+    ], preparedScene: false, productionGameplay: false, identitiesRetained: true, authTokensRetained: false,
     browserErrors, browserHttpErrors, browserRequestFailures,
     heartbeatFailures: f.heartbeatFailures, sessionCleanedUp: true,
     completedAt: new Date().toISOString() }, null, 2) + '\n');

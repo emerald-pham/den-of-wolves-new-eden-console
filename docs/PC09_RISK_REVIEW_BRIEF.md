@@ -50,3 +50,34 @@ same-identity recovery and separately prove departure/replacement behavior.
 No PC10, post-PC10 or PC11 acceptance belongs in this review. The original dirty
 checkout, private source files, unrelated worktrees and reservations remain
 preserved. Do not copy private PDFs or derivative text into findings or Git.
+
+## Same-reviewer bounded final verification — October 5
+
+All original nine findings and eight directly blocking acceptance deltas are
+integrated. Verify those fixes and materially changed risk once, returning all
+remaining findings together; do not start a second broad review. The root
+ordinary acceptance packet is stable and indexed in `PC09_PLAYTEST_REPORT.md`.
+The strict proof at client/driver `cba5d520` passes 24 checks/505 actions,
+durable Alpha 4→3→2, immutable Station carryover, actual paid repair, both paid
+builds and seven committed DRADIS rows. Console/page, HTTP, failed-request and
+synthetic heartbeat errors are all zero. Its runtime is frozen `296dd59b`, with
+all 207 JS files/tree hash verified. Commander, Detector, P producer, DRADIS
+recovery, Voyage and prepared presentation have fresh separate artifacts.
+
+Inspect the late minimal Rules absent-projection GET allowance and current
+attack client controllers; server guards and present-document privacy remain.
+Include approved unique-both election handling, configured tie rejection and
+the explicit no-candidate branch's defensive evidence. The fresh crisis raw
+source field remains `not-specified`; its separately labelled sidecar is post-run
+binding, not a pre-run receipt. One composed EO resume 500 followed by automatic
+200 is retained and is not described as zero HTTP failure. Pre-reconnect raw
+artifacts were lost. The strict raw identity-retention label is inaccurate and
+unchanged; its allowlisted safe summary records that limitation, and future
+driver output is corrected. Do not infer production or physical proof.
+
+Reconcile the actual SDK/AST runtime inventory: 232 endpoints, 216 named affected
+consumers, Hosting and Firestore Rules, with no broad Functions fallback. Final
+0.5.68/703 catalog metadata and final gates follow this verification; the exact
+49 IDs and intended metadata draft are fixed, not new implementation scope.
+Restore only the existing review branch/worktree. Use current root dependencies
+if needed; start no emulator, Vite, browser scenario, coordinator or new reviewer.

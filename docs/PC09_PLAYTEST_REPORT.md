@@ -37,23 +37,31 @@ and deadline/resource fixtures are disclosed in the individual reports.
 | DRADIS recovery, privacy and navigation | `/tmp/dow-pc09-resumed-evidence/dradis/result.json` and `launch.json` | Nine checks/eight viewport-motion cases pass at client/driver `2ccd9762`: ordinary declaration, offline withdrawal, online reacquisition, reload/reselection, private reads denied, projection writes denied, keyboard exit, parent/browser navigation and GM revocation. Zero page exceptions. This standalone proof shows targeting rather than committed battle rows; the strict battle proof owns committed rows. |
 | Detector research and private tests | `/tmp/dow-pc09-resumed-evidence/detector/pc09-wolf-agent-detector.json` and `launch.json` | Ordinary research in cycles 1–4 builds the Detector; three private tests commit and a fourth denies. Investigator reports contain no loyalty truth; Rules isolate reports and separate private audits. Exact four-out-of-five reliability is covered natively, not inferred statistically from three trials. No rendered UI claim. |
 | Ancient Space Station producer and repeat | `/tmp/dow-pc09-resumed-evidence/p-station/result.json` and `launch.json` | Seven checks/32 actions pass: ordinary movement produces P pressure, the selected window/composition declares, both wing choices and EO range passes resolve, finalization returns exact survivors, and the next same-cycle declaration succeeds. Chart/deadline fixtures and an authorized precombat GM maintenance repair are disclosed. No hidden battle/result/dice seed. |
+| Voyage arrival, docking and needs | `/tmp/dow-pc09-resumed-evidence/voyage-hooks/result.json` and `launch.json` | Six fresh HTTP checks pass: actual crisis admission, once-only people/motivation hooks, ordinary P251 docking to Dione and P250 full rations costing four host food/four water. Exact docking and ration retries do not repeat changes or spending. Eighteen ordinary Auth actors, no gameplay fixture writes and no rendered UI claim. |
+| Two attacks, durable losses, paid rebuild and committed DRADIS rows | `/tmp/dow-pc09-resumed-evidence/positive-rebuild-arrival-contract/safe-result.json`, original `result.json` and pre-run `launch.json` | 24 checks/505 ordinary actions pass at driver/client `cba5d520`. Alpha stays 4→3→2 through two real Short Ace losses, then paid API build/exact retry leaves 3 and the separate Wing UI build restores 4. Materials fall 21→20→19 for the two builds. The prior exact Station return is consumed once; the second attack returns a Station. Seven actual entitled DRADIS rows equal the current local-contact filter. Three Wing viewports use system monospace with no horizontal overflow. All captured browser console/page, HTTP, failed-request and synthetic heartbeat errors are zero. |
 
-The root Commander, DRADIS, Detector and P Station proofs use frozen Functions
+The root Commander, DRADIS, Detector, P Station, Voyage and strict battle proofs use frozen Functions
 source `296dd59b55998ac6c039a5f3774803257685329d`, all 207 compiled JavaScript
 files verified with tree SHA-256
 `54d4c79e639a4ddd59e4882b7be6d3f4735f38ec97717cbf2b68f9cd4db7a260`.
 The hash encoding is sorted relative path, NUL, file bytes, NUL. The crisis
 runtime is separately bound and is not claimed to equal the final root runtime.
 
-The strict two-attack ordinary return/rebuild proof remains pending. Its eight
-failed attempts are preserved under `/tmp/dow-pc09-resumed-evidence/positive-rebuild*`.
-The distinct corrections preserve full rations, actual fighter losses, complete
-receipts, material costs, exact retries and all browser-error assertions. The
-current finite carrier budget covers both possible ordinary Storage losses
-before combat through disclosed current-GM +1 grants. A normal Blacksmith flight
-and paid repair contingency restore required damaged launch consoles before
-the later maintenance; no outcome or post-battle resource write is selected.
-See the [risk report](PC09_RISK_REVIEW.md).
+Eight distinct failed strict-proof attempts remain preserved under
+`/tmp/dow-pc09-resumed-evidence/positive-rebuild*`; the complete pass uses a new
+directory. Corrections preserve every full-ration, loss, receipt, cost, retry and
+browser-error assertion. The disclosed pregame carrier budget covers possible
+ordinary Storage losses. The passing run fuels and flies Blacksmith for its real
+60-second trip, then pays four AEGIS materials to repair the damaged Alpha Bay,
+replaying that repair without further changes. Construction was intact in this
+pass; the genuine paid drone repair and exact retry remain in the earlier
+`f2d18578` failure trace and the composed proof. No outcome or post-battle
+inventory fixture write is selected. The raw passing result's original
+`identitiesRetained:false` label is inaccurate: receipts/browser checks contain
+ephemeral emulator UIDs/session IDs, with no Auth tokens. The raw file is unchanged;
+the allowlisted `safe-result.json` omits those identities and records the raw
+SHA-256. Future driver output now labels their retention correctly. See the
+[risk report](PC09_RISK_REVIEW.md).
 
 ## Audit and independent review
 

@@ -178,3 +178,16 @@ The type-only Rules correction `1527cb51` narrows the denied-read failure diagno
 Only row 10 was used. Its Vite and Firebase processes are stopped, listeners are gone, and coordination status has no live row-10 reservation; root's row 2 services were left untouched. The row-10 local config was generated for this worktree and is being released. The review worktree remains for parent integration; cleanup is eligible after the parent confirms its commits are integrated.
 
 No election gameplay implementation gap remains from the independent review. The pre-reconnect standalone P250/P251 hook artifact is unavailable; this final Auth proof revalidates admission, arrival, and motivation activation but does not repeat docking/maintenance. Reconcile the earlier accepted hook result from the parent's retained records. If unavailable, record it as an evidence limitation only; do not rewrite P250/P251 `done` or add a PC09 prerequisite.
+
+### Fresh root Voyage hooks after recovery
+
+Root refreshed the unchanged six-check HTTP driver on October 5 at
+`/tmp/dow-pc09-resumed-evidence/voyage-hooks/result.json`, with the pre-run
+`launch.json` binding driver `cba5d520439162c804cbc0e42ed6abf1638c0841` and frozen
+Functions `296dd59b55998ac6c039a5f3774803257685329d` (207 files, tree hash
+`54d4c79e639a4ddd59e4882b7be6d3f4735f38ec97717cbf2b68f9cd4db7a260`).
+All six ordinary 18-actor checks pass: actual crisis admission and hooks,
+P251 docking to Dione and exact docking retry, and P250 full rations charging
+four host food/four water with an exact retry that spends no more. No gameplay
+state fixture write or rendered UI is claimed. This fills the missing fresh
+docking/maintenance artifact without changing P250/P251 or PC09 prerequisites.
