@@ -119,6 +119,59 @@ async function cdpCallableObservationActor({ durableConfigurationError } = {}) {
     completeNavigation() { navigationComplete = true; events.emit('test-navigation-complete'); } };
 }
 
+function incompleteBodyBoundaryActor() {
+  const observedCalls = [], callableObservationFailures = [], failuresByRequest = new WeakMap();
+  const boundary = proof.createPc10CallableObservationBoundary({
+    onFailure(state, category) {
+      const byCategory = failuresByRequest.get(state) ?? new Map();
+      if (byCategory.has(category)) return;
+      const failure = { roleId: 'admiral', name: state.trace.name, requestHash: state.trace.requestHash,
+        status: state.trace.status, category };
+      byCategory.set(category, failure); failuresByRequest.set(state, byCategory); callableObservationFailures.push(failure);
+    },
+    onCancellation(state) {
+      for (const failure of failuresByRequest.get(state)?.values() ?? []) {
+        const index = callableObservationFailures.indexOf(failure);
+        if (index !== -1) callableObservationFailures.splice(index, 1);
+      }
+      failuresByRequest.delete(state);
+    },
+    onBodyUnavailable({ trace }) { proof.observePc10CallableTrace(trace, { stage: 'body-unavailable', at: Date.now() }); },
+  });
+  const context = { setOffline: async () => undefined };
+  const actor = { observedCalls, callableObservationFailures,
+    callableObservationBoundaries: boundary.boundaries,
+    drainObservedCalls: () => boundary.drain(),
+    setOffline: value => boundary.transition(value ? 'offline' : 'online', () => context.setOffline(value)),
+  };
+  const start = () => {
+    const trace = proof.createPc10CallableTrace({ name: 'getCurrentMemberSession',
+      transport: 'independent-browser-SDK', data: { sessionId: 'own-session' },
+      startedAt: Date.now() });
+    const state = boundary.start(trace);
+    observedCalls.push(trace);
+    return state;
+  };
+  const respond = state => {
+    proof.observePc10CallableTrace(state.trace, { stage: 'headers', at: Date.now(), status: 200 });
+    let resolve, reject;
+    const pendingBody = new Promise((yes, no) => { resolve = yes; reject = no; });
+    boundary.capture(state, pendingBody.then(reply => {
+      proof.observePc10CallableTrace(state.trace, { stage: 'body', at: Date.now(), reply });
+    }));
+    return { resolve: () => resolve({ result: { actorUid: 'own-actor', sessionId: 'own-session' } }), reject };
+  };
+  const finish = state => {
+    proof.observePc10CallableTrace(state.trace, { stage: 'finished', at: Date.now() });
+    boundary.finish(state);
+  };
+  const fail = (state, code) => {
+    proof.observePc10CallableTrace(state.trace, { stage: 'failed', at: Date.now() });
+    boundary.fail(state, code);
+  };
+  return { actor, context, start, respond, finish, fail };
+}
+
 test('the observer uses the protocol session and rejects unavailable durable body support', async () => {
   assert.equal(typeof proof.createPc10BrowserActor, 'function');
   const failure = new Error('Network.configureDurableMessages is unsupported');
@@ -303,7 +356,7 @@ test('body loss without an actual requestfailed cancellation is never excused by
 });
 
 test('a rejected body with no terminal transport event stays a strict observation failure', async () => {
-  const { actor, context, start, respond, fail } = await callableObservationActor();
+  const { actor, context, start, respond, fail } = incompleteBodyBoundaryActor();
   const request = start(), body = respond(request);
   context.setOffline = async () => body.reject(new Error('body unavailable without transport evidence'));
   await actor.setOffline(true);
@@ -319,7 +372,7 @@ test('a rejected body with no terminal transport event stays a strict observatio
 });
 
 test('body rejection is classified only after its actual offline transport cancellation arrives', async () => {
-  const { actor, start, respond, fail } = await callableObservationActor();
+  const { actor, start, respond, fail } = incompleteBodyBoundaryActor();
   const request = start(), body = respond(request);
   await actor.setOffline(true);
   body.reject(new Error('partial body rejected before the transport event'));
