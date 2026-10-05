@@ -1,6 +1,20 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { joinConfiguredBrowserPlayers } from './pc07-authenticated-session.mjs';
+import { joinConfiguredBrowserPlayers, shouldMaintainFixturePresence } from './pc07-authenticated-session.mjs';
+
+test('browser-owned presence can expire without an API heartbeat keeping core or Press connected', () => {
+  assert.equal(shouldMaintainFixturePresence({ browserControlled: true, browserOwnsPresence: true }), false);
+  assert.equal(shouldMaintainFixturePresence({ browserControlled: true, browserOwnsPresence: true,
+    serializeFixtureCalls: true }), false);
+  assert.equal(shouldMaintainFixturePresence({ browserControlled: false, browserOwnsPresence: true }), true);
+});
+
+test('existing API and serialized browser proof heartbeat policies remain explicit', () => {
+  assert.equal(shouldMaintainFixturePresence({ browserControlled: true }), true);
+  assert.equal(shouldMaintainFixturePresence({ browserControlled: false }), true);
+  assert.equal(shouldMaintainFixturePresence({ browserControlled: true, serializeFixtureCalls: true }), false);
+  assert.equal(shouldMaintainFixturePresence({ browserControlled: false, serializeFixtureCalls: true }), true);
+});
 
 test('configured browser actors replace matching core players before ordinary joins', async () => {
   const roles = ['admiral', 'pdf-fighter-ace', 'wolf-agent'];
