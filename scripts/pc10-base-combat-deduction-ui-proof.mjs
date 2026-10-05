@@ -5,7 +5,7 @@ import { createTwoBrowserGameplay } from './pc10-two-browser-gameplay.mjs';
 import { resolveLiveWolfAttack } from './pc10-live-wolf-attack-ui-proof.mjs';
 import { assertBaseCombatPrerequisites, assertOriginalBaseActor, assertRequiredBaseBranches, baseMemberRowsMatch, baseWolfActionExpectation,
   BASE_COMBAT_CONTROL_LABELS, captureBaseUiReceipt, chooseBaseRangeAssignments,
-  openingWolfCounts, originalRoleForUid, proofHash, uidHash, validatePrivateDeductionReply,
+  openingWolfCounts, openBaseEndeavourResearchRoute, originalRoleForUid, proofHash, uidHash, validatePrivateDeductionReply,
   waitForBaseMemberAftermath, waitForBaseResearchReceipt, waitForOriginalBaseActor,
 } from './pc10-base-combat-deduction-contracts.mjs';
 export { createBaseDeductionSetupHooks } from './pc10-base-deduction-setup-ui-proof.mjs';
@@ -431,8 +431,9 @@ export async function runBaseCombatAndDeduction(context, options = {}) {
     if (!roster.some(value => value.roleId === role)) { blocked('agent-detector', 'No current Scientist in confirmed roster.', role); return; }
     let intendedTarget;
     if (options.detectorTest) intendedTarget = await availableWolfTarget();
-    const surface = await select(role), link = surface.page.getByRole('link', { name: 'Open Endeavour shuttle console', exact: true });
-    if (await link.isVisible()) await link.click();
+    const surface = await select(role), originalResearchActor = await surface.observe();
+    await openBaseEndeavourResearchRoute({ page: surface.page,
+      checkpoint: async () => assertOriginalBaseActor(await surface.observe(), originalResearchActor) });
     const research = surface.page.getByRole('region', { name: 'Endeavour research controls', exact: true });
     await research.waitFor(); await guidance(role, research, 'research-readiness');
     async function renderedResearch(workspace, receipt) {

@@ -340,3 +340,18 @@ export async function captureBaseUiReceipt({ surface, endpoint, expectedActor,
   }
   return body.result;
 }
+
+/** Use the current holder's real route control; a transient unpainted link is not an optional branch. */
+export async function openBaseEndeavourResearchRoute({ page, checkpoint }) {
+  await checkpoint();
+  if (new URL(page.url()).hash === '#/shuttles/endeavour') {
+    await checkpoint();
+    return;
+  }
+  const link = page.getByRole('link', { name: 'Open Endeavour shuttle console', exact: true });
+  await link.waitFor();
+  await checkpoint();
+  await link.click();
+  await page.waitForURL(url => url.hash === '#/shuttles/endeavour');
+  await checkpoint();
+}
