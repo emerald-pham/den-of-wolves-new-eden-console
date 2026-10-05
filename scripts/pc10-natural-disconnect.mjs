@@ -49,8 +49,9 @@ export function createNativeSetupPresence({setInterval,clearInterval}={}) {
  };
 }
 
-export function assertReturnedCoreStation({roleId,uid,reply,seat}) {
- assert.equal(reply.player.connected,true,'The original actor must be connected after normal resume.');
+export function assertReturnedCoreStation({roleId,uid,reply,seat,player}) {
+ assert.equal(player.id,uid,'The original UID must identify the authoritative player document.');
+ assert.equal(player.get('connected'),true,'The original actor must be connected after normal resume.');
  assert.equal(reply.player.assignedRoleId,roleId,'Same identity must recover its assigned core role.');
  assert.equal(reply.player.seatId,roleId,'Normal resume must return its reclaimed own seat.');
  assert.equal(seat.exists,true,'The returning seat record must exist.');
@@ -260,8 +261,9 @@ export async function runPc10NaturalDisconnectAcceptance(table,{
    if(roleId!=='press-officer') {
     // Active-game resume itself reclaims this preserved pointer. A NEW seat
     // casting request is correctly locked after startGame and is not recovery.
-    const seat=await fixture.session.collection('seats').doc(roleId).get();
-    assertReturnedCoreStation({roleId,uid:actor.localId,reply:result.reply,seat});
+    const [seat,player]=await fixture.db.getAll(fixture.session.collection('seats').doc(roleId),
+     fixture.session.collection('players').doc(actor.localId));
+    assertReturnedCoreStation({roleId,uid:actor.localId,reply:result.reply,seat,player});
    }
    await checked(roleId,'refreshPresence',{activeConsoleRoleId:roleId});
   }));
