@@ -98,7 +98,15 @@ function clearClosedHistoryTransientState(session?: GameSession): void {
   store.setVoyage33MovementProjection(undefined, false);
   store.setSeats([]);
   const current = session ?? store.session;
-  if (current) store.setSession(stripPersistedNavigationProjection(current));
+  if (current) {
+    const safeSession = stripPersistedNavigationProjection(current);
+    // Debrief data is server-validated and reader-scoped before it enters this
+    // in-memory session. Keep it ephemeral while the durable allowlist clears
+    // navigation and any other fields that do not belong in closed history.
+    store.setSession(current.debriefSnapshot
+      ? { ...safeSession, debriefSnapshot: current.debriefSnapshot }
+      : safeSession);
+  }
 }
 const GmConsole = lazy(() => import('@/routes/GmConsole'));
 const RoleBrief = lazy(() => import('@/routes/RoleBrief'));
