@@ -23203,8 +23203,11 @@ export const createWolfAmnestyOffer = auditedOnCall<{
       throw commandError('failed-precondition', 'Resolve the existing private amnesty offer before making another.', 'conflict');
     }
     const now = Date.now();
+    const manualFullGameDemo = fullGameDemoState(session.get('fullGameDemo'))?.status === 'active';
     const offerId = `amnesty-${cycle}-${raw.requestId}`;
-    const responseDeadline = new Date(now + deadlineMinutes * 60_000).toISOString();
+    const responseDeadline = manualFullGameDemo
+      ? '9999-12-31T23:59:59.999Z'
+      : new Date(now + deadlineMinutes * 60_000).toISOString();
     const revision = (previous?.revision ?? 0) + 1;
     const offer = {
       type: 'wolf-amnesty-offer', sessionId, offerId, cycle, revision,
@@ -23290,6 +23293,7 @@ export const respondToWolfAmnesty = auditedOnCall<{
     try {
       resolved = resolveWolfAmnestyDecision(
         current, { kind: 'response', answer }, current.cycle, new Date().toISOString(),
+        fullGameDemoState(session.get('fullGameDemo'))?.status === 'active' ? { progression: 'manual' } : undefined,
       );
     } catch (error) {
       throw commandError(
@@ -23380,6 +23384,7 @@ export const recordWolfAmnestyConsequence = auditedOnCall<{
     try {
       resolved = resolveWolfAmnestyDecision(
         current, { kind: 'facilitator-consequence', text }, current.cycle, new Date().toISOString(),
+        fullGameDemoState(session.get('fullGameDemo'))?.status === 'active' ? { progression: 'manual' } : undefined,
       );
     } catch (error) {
       throw commandError(

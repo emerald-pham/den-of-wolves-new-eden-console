@@ -49,12 +49,17 @@ function usePrivateAmnestyView(enabled: boolean) {
   };
 }
 
-function OfferDetails({ offer }: { readonly offer: WolfAmnestyOfferView }) {
+function OfferDetails({ offer, manualProgression = false }: {
+  readonly offer: WolfAmnestyOfferView;
+  readonly manualProgression?: boolean;
+}) {
   return (
     <dl className="wolf-amnesty__details">
       <div><dt>Target ship</dt><dd>{shipName(offer.targetShipId)}</dd></div>
       <div><dt>Condition</dt><dd>{CONDITION_TEXT}</dd></div>
-      <div><dt>Response due</dt><dd><time dateTime={offer.responseDeadline}>{formatDeadline(offer.responseDeadline)}</time></dd></div>
+      <div><dt>{manualProgression ? 'Response window' : 'Response due'}</dt><dd>{manualProgression
+        ? 'No wall-clock expiry // manual full-game demo'
+        : <time dateTime={offer.responseDeadline}>{formatDeadline(offer.responseDeadline)}</time>}</dd></div>
       <div><dt>Offer status</dt><dd>{statusLabel(offer)}</dd></div>
     </dl>
   );
@@ -114,7 +119,8 @@ export function WolfCommanderAddressAmnestyPanel() {
     setActionError(null);
     setNotice(null);
     try {
-      const result = await createWolfAmnestyOffer(targetShipId, currentCycle, deadlineMinutes);
+      const result = await createWolfAmnestyOffer(targetShipId, currentCycle,
+        manualFullGameDemo ? 1440 : deadlineMinutes);
       setView((current) => current ? {
         ...current,
         offer: {
@@ -140,7 +146,7 @@ export function WolfCommanderAddressAmnestyPanel() {
       </header>
       <p className="wolf-amnesty__copy">
         {manualFullGameDemo
-          ? 'Address the fleet during Team Phase; the address remains available until the GM advances the cycle. An amnesty offer states the printed surrender condition and a response deadline; it does not decide the bargain.'
+          ? 'Address the fleet during Team Phase; the address remains available until the GM advances the cycle. An amnesty offer states the printed surrender condition, with no wall-clock expiry in this manual full-game demo; it does not decide the bargain.'
           : 'Address the fleet during Team Phase for up to 30 seconds. An amnesty offer states the printed surrender condition and a response deadline; it does not decide the bargain.'}
       </p>
       {loading && <p role="status">Loading current address and amnesty state…</p>}
@@ -173,14 +179,17 @@ export function WolfCommanderAddressAmnestyPanel() {
               {activeShips.map((ship) => <option key={ship.id} value={ship.id}>{ship.name}</option>)}
             </select>
           </label>
-          <label className="wolf-amnesty__field">
+          {!manualFullGameDemo && <label className="wolf-amnesty__field">
             Response deadline
             <select value={deadlineMinutes} disabled={busy}
               onChange={(event) => setDeadlineMinutes(Number(event.currentTarget.value))}>
               <option value={5}>5 minutes</option><option value={10}>10 minutes</option>
               <option value={30}>30 minutes</option><option value={60}>1 hour</option>
             </select>
-          </label>
+          </label>}
+          {manualFullGameDemo && <p className="wolf-amnesty__condition">
+            No wall-clock response deadline // captain choice or deliberate GM ruling.
+          </p>}
           <p className="wolf-amnesty__condition">Condition // {CONDITION_TEXT}</p>
           <button className="cic-action-button" type="button"
             disabled={busy || loading || !targetShipId || Boolean(offer && isUnresolved(offer))}
@@ -191,7 +200,7 @@ export function WolfCommanderAddressAmnestyPanel() {
       )}
       {offer && <section className="wolf-amnesty__offer" aria-label="Current private amnesty offer">
         <h3>Current amnesty offer</h3>
-        <OfferDetails offer={offer} />
+        <OfferDetails offer={offer} manualProgression={manualFullGameDemo} />
         {offer.response && <p>Captain response // {offer.response}</p>}
         {offer.ruling && <p>Facilitator consequence // {offer.ruling}</p>}
       </section>}
@@ -215,7 +224,9 @@ export function WolfAmnestyCaptainPanel({ shipId }: { readonly shipId: string })
   const [actionError, setActionError] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now());
   const offer = view?.offer?.targetShipId === shipId ? view.offer : null;
-  const expired = Boolean(offer && now > Date.parse(offer.responseDeadline));
+  const manualFullGameDemo = session?.fullGameDemo?.status === 'active' &&
+    session.fullGameDemo.progression === 'manual';
+  const expired = Boolean(offer && !manualFullGameDemo && now > Date.parse(offer.responseDeadline));
 
   if (!captain) return null;
 
@@ -248,14 +259,19 @@ export function WolfAmnestyCaptainPanel({ shipId }: { readonly shipId: string })
       {loading && <p role="status">Checking for a private offer to {shipName(shipId)}…</p>}
       {!loading && !offer && <p className="wolf-amnesty__status" role="status">No private offer is addressed to this ship.</p>}
       {offer && <>
-        <p className="wolf-amnesty__copy">The Wolf Commander has made this explicit offer. Your answer records your response only; accepting does not decide the ship's fate.</p>
-        <OfferDetails offer={offer} />
+        <p className="wolf-amnesty__copy">{manualFullGameDemo
+          ? 'The Wolf Commander has made this explicit offer. There is no wall-clock expiry in the manual full-game demo; your answer records your response only and does not decide the ship’s fate.'
+          : 'The Wolf Commander has made this explicit offer. Your answer records your response only; accepting does not decide the ship’s fate.'}</p>
+        <OfferDetails offer={offer} manualProgression={manualFullGameDemo} />
         {offer.status === 'offered' && !expired && <div className="wolf-amnesty__actions">
           <button className="cic-action-button cic-action-button--confirm" type="button" disabled={busy}
             onClick={() => void respond('accept')}>Accept offer</button>
           <button className="cic-action-button" type="button" disabled={busy}
             onClick={() => void respond('decline')}>Decline offer</button>
         </div>}
+        {offer.status === 'offered' && manualFullGameDemo && <p className="wolf-amnesty__status" role="status">
+          Manual full-game demo // no wall-clock expiry. Answer when ready; no consequence is applied automatically.
+        </p>}
         {offer.status === 'offered' && expired && <p className="wolf-amnesty__status" role="status">
           The response deadline passed without a recorded answer. The facilitator must decide what follows.
         </p>}
@@ -277,6 +293,7 @@ export function WolfAmnestyCaptainPanel({ shipId }: { readonly shipId: string })
 
 /** Facilitator-only ruling control for accepted or unanswered expired offers. */
 export function GmWolfAmnestyPanel() {
+  const session = useSessionStore((state) => state.session);
   const me = useSessionStore((state) => state.me);
   const instance = useSessionStore((state) => state.gmInstance);
   const gm = Boolean(me?.role === 'gm' && instance && instance.sessionId === me.sessionId && instance.uid === me.uid);
@@ -286,8 +303,12 @@ export function GmWolfAmnestyPanel() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now());
   const offer = view?.offer ?? null;
-  const unansweredExpired = Boolean(offer && offer.status === 'offered' && now > Date.parse(offer.responseDeadline));
-  const mayRule = Boolean(offer && (offer.status === 'accepted-pending-facilitator' || unansweredExpired));
+  const manualFullGameDemo = session?.fullGameDemo?.status === 'active' &&
+    session.fullGameDemo.progression === 'manual';
+  const unansweredExpired = Boolean(offer && offer.status === 'offered' && !manualFullGameDemo &&
+    now > Date.parse(offer.responseDeadline));
+  const mayRule = Boolean(offer && (offer.status === 'accepted-pending-facilitator' || unansweredExpired ||
+    (manualFullGameDemo && offer.status === 'offered')));
 
   if (!gm) return null;
 
@@ -319,9 +340,14 @@ export function GmWolfAmnestyPanel() {
       {loading && <p role="status">Loading private amnesty record…</p>}
       {!loading && !offer && <p className="wolf-amnesty__status" role="status">No current amnesty offer needs a ruling.</p>}
       {offer && <>
-        <OfferDetails offer={offer} />
+        <OfferDetails offer={offer} manualProgression={manualFullGameDemo} />
+        {offer.status === 'offered' && manualFullGameDemo && <p className="wolf-amnesty__status" role="status">
+          Manual full-game demo // no response countdown. The GM may record a deliberate, reasoned consequence after reviewing the offer.
+        </p>}
         {offer.status === 'offered' && !unansweredExpired && <p className="wolf-amnesty__status" role="status">
-          Awaiting the target captain's response. No response or consequence is applied automatically.
+          {manualFullGameDemo
+            ? 'Awaiting the target captain’s response. No response or consequence is applied automatically.'
+            : 'Awaiting the target captain\'s response. No response or consequence is applied automatically.'}
         </p>}
         {unansweredExpired && <p className="wolf-amnesty__status" role="status">
           No response before the deadline. A facilitator ruling is required; no bargain was decided automatically.

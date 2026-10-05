@@ -3074,7 +3074,7 @@ export default function GmConsole() {
                   : 'Completed full-game demo // this session remains permanently labeled as training.'}
             </p>
             <p className="gm-console__hint">
-              Each demo role uses a real Firebase-authenticated account. The crew represents simulated roles,
+              Each demo role uses a real authenticated account. The crew represents simulated roles,
               not physical attendance; role authority, choices, consent, and server rules still apply.
             </p>
             {demoManagerHref && fullGameDemo.status !== 'complete' && (
@@ -4662,7 +4662,7 @@ export default function GmConsole() {
                     </p>}
                   </> : demoIsPreparing ? <>
                     <p className="gm-role-setup__note">
-                      Permanent training session prepared // each demo role must join and claim a real seat through the normal Firebase-authenticated flow.
+                      Permanent training session prepared // each demo role must join and claim a real seat through the normal authenticated admission flow.
                       The GM assigns roles and starts Cycle 1 using the same server readiness checks as production.
                     </p>
                     {demoManagerHref && <p className="gm-role-setup__note">

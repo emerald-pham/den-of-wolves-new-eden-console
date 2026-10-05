@@ -36,6 +36,7 @@ const terminalFreezeExemptions = new Set([
   'disconnectFromSession', 'elevateToGm',
   // Setup and casting commands have their own pre-game windows. Legacy setup
   // shims always reject, and debrief mode is intentionally available afterward.
+  'prepareFullGameDemo',
   'confirmSetup', 'setFacilitatorResponsibility', 'startGame', 'setShipPreference',
   'assignRole', 'releaseRole', 'assignLoyalty', 'setCapybaraEnabled', 'setDioneEnabled',
   'setActiveRoleEnabled', 'setActiveRoleConfiguration', 'applyRolePreset',
@@ -212,7 +213,7 @@ it('classifies full-game demo preparation as a live-GM Cycle 0 casting operation
   expect(body).toContain('requireFacilitatorInstance(tx, prepare.sessionId, uid, prepare.instanceId)');
   expect(body).toContain("sessionTurn(session.get('currentTurn')) !== 0");
   expect(body).toContain('requireCastingWindow(session)');
-  expect(body).toContain("player.get('role') === 'player'");
+  expect(body).toContain("players.docs.some(player => player.exists && player.get('role') === 'player')");
 });
 
 it('keeps known read-only authority projections explicitly classified', () => {
