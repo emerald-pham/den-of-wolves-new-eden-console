@@ -24,6 +24,10 @@ const REQUEST_FIELDS = Object.freeze({
   commitAwayMissionLifecycleCommand: ['requestId', 'missionId', 'expectedRevision', 'type', 'count', 'opportunityId', 'shipId'],
   commitWolfBoardingDefenceChoice: ['requestId', 'attackId', 'choice'],
   commitWolfFighterRangeActionChoice: ['requestId', 'attackId', 'choice'],
+  requestShuttleDeparture: ['requestId', 'shuttleId', 'destinationShipId', 'expectedControlRevision', 'expectedCycle'],
+  beginShuttleTransit: ['requestId', 'shuttleId', 'expectedDepartureRequestId', 'expectedControlRevision', 'expectedCycle'],
+  retargetShuttleTransit: ['requestId', 'shuttleId', 'transitRequestId', 'destinationShipId', 'expectedControlRevision', 'expectedCycle'],
+  completeShuttleArrival: ['shuttleId', 'transitRequestId', 'expectedControlRevision'],
 });
 
 const RESULT_FIELDS = Object.freeze({
@@ -47,13 +51,20 @@ const RESULT_FIELDS = Object.freeze({
   commitAwayMissionLifecycleCommand: ['status', 'revision', 'expectedRevision', 'currentRevision'],
   commitWolfBoardingDefenceChoice: ['status', 'revision', 'choiceStatus'],
   commitWolfFighterRangeActionChoice: ['status', 'revision', 'choiceStatus'],
+  requestShuttleDeparture: ['status', 'requestId', 'revision', 'shuttleId', 'destinationShipId', 'cycle'],
+  beginShuttleTransit: ['status', 'requestId', 'revision', 'shuttleId', 'transitRequestId', 'destinationShipId', 'cycle'],
+  retargetShuttleTransit: ['status', 'requestId', 'revision', 'shuttleId', 'transitRequestId', 'destinationShipId', 'cycle'],
+  completeShuttleArrival: ['status', 'revision', 'shuttleId', 'transitRequestId', 'hostShipId', 'arrivedAt'],
 });
 
 const RENDERED_STATUS_CODES = new Set([
   'public-result-visible', 'private-result-visible', 'current-group-note-visible',
   'mission-choice-visible', 'post-attack-scrap-visible',
 ]);
-const PRIVATE_CHOICE_FIELDS = new Set(['targetCoordinate', 'trackId', 'missionOpportunityId', 'taskOpportunityId']);
+const PRIVATE_CHOICE_FIELDS = new Set([
+  'targetCoordinate', 'trackId', 'missionOpportunityId', 'taskOpportunityId',
+  'destinationShipId', 'transitRequestId', 'expectedDepartureRequestId', 'hostShipId',
+]);
 
 /**
  * Source map for actions that must be exercised through current, ordinary controls.
