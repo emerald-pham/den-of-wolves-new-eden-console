@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   PC10_SPECIALIST_ACTIONS,
   composePc10SpecialistSteps,
+  createPc10SpecialistPhaseSteps,
   makePc10SpecialistActionStep,
   runCapybaraMaintenanceCycle,
 } from './pc10-specialist-phases.mjs';
@@ -159,4 +160,35 @@ test('phase composition places real caller callbacks around two cycle-specific s
   assert.deepEqual(calls, [
     'base-before', 'cycle-1', 'base-cycle-transition', 'cycle-2', 'candidate-ending', 'terminal-ending',
   ]);
+});
+
+test('phase plan compiles Capybara cycles and normal UI actions into runnable ordered callbacks', async () => {
+  const calls = [];
+  const planSteps = createPc10SpecialistPhaseSteps({
+    beforeSpecialists: async () => calls.push('base-before'),
+    cycleOne: [
+      { actionId: 'capybara-maintenance', cycle: 1, refuelCraft: 'boa' },
+      async () => calls.push('cycle-one-action'),
+    ],
+    betweenCycles: async () => calls.push('base-cycle-transition'),
+    cycleTwo: [{ actionId: 'capybara-maintenance', cycle: 2, refuelCraft: 'macaw' }],
+    candidateEnding: async () => calls.push('candidate-ending'),
+    terminalEnding: async () => calls.push('terminal-ending'),
+  });
+  assert.equal(planSteps.length, 6);
+  assert.ok(planSteps.every(step => typeof step === 'function'));
+
+  const context = { initial: { sessionId: 'fresh-session' }, roster: [{ roleId: 'capybara-recycler' }] };
+  const state = { live: true, sessionId: 'fresh-session', cycle: 1, phase: 'active',
+    turnPhase: { airspace: { state: 'restricted' } }, activeVesselIds: ['capybara'], maintenanceCycles: {} };
+  const game = { context: { ...context, initial: context.initial, gm: {} }, state: async () => state,
+    maintenanceUi: async (shipId, roleId, options) => {
+      calls.push(`${shipId}/${roleId}/${Object.values(options.refuels)[0]}`);
+      state.maintenanceCycles.capybara = { turn: 1, step: 0, completedAt: 'server-time' };
+      return state.maintenanceCycles.capybara;
+    } };
+  const outcome = await planSteps[1]({ context, game, driver: {} });
+  assert.equal(outcome.status, 'completed');
+  assert.equal(outcome.refueledCraft, 'boa');
+  assert.deepEqual(calls, ['capybara/capybara-recycler/boa']);
 });
