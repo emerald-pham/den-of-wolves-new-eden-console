@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
 import { resolveLiveWolfAttack } from './pc10-live-wolf-attack-ui-proof.mjs';
 
@@ -274,4 +276,41 @@ test('the explicit setup plan rejects missing or replaced occupied holders, unkn
     { holders: source.holders.map((holder, i) => i === 0 ? { ...holder, replacementStatus: 'pending' } : holder) },
     { intelligenceRoleId: 'wing-commander' }, { playerCount: 12 }, { scenario: 'automatic-default' }])
     assert.throws(() => baseDeductionAssignments({ ...source, scenario: 'wolf-cult', ...changed }));
+});
+
+async function setupSurface(t, { replaceAfterClick = false, foreignUid = false } = {}) {
+  const directory = await mkdtemp(join(tmpdir(), 'pc10-native-base-setup-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  let enabled = false, clicks = 0, calls = 0;
+  const gmState = () => gm({ uidHash: foreignUid ? 'foreign' : 'native-gm', cycle: 0, phase: 'casting',
+    instanceId: enabled && replaceAfterClick ? 'replacement' : 'native-instance' });
+  const surface = { observe: async () => gmState(), callable: async () => { calls++; },
+    page: { getByRole: (_role, { name }) => ({
+      isVisible: async () => name === `${enabled ? 'Disable' : 'Enable'} Wolf Cult`,
+      isEnabled: async () => true,
+      getAttribute: async () => String(enabled),
+      click: async () => { enabled = true; clicks++; },
+    }) } };
+  return { context: { gm: surface, initial: { sessionId: 'native-session', uidHash: 'native-gm' }, directory },
+    counts: () => ({ clicks, calls, enabled }) };
+}
+
+test('the optional deduction setup hook selects only the actual pre-confirmation GM UI choice, never a setup SDK mutation', async t => {
+  const { createBaseDeductionSetupHooks } = await import('./pc10-base-deduction-setup-ui-proof.mjs');
+  const fixture = await setupSurface(t), hooks = createBaseDeductionSetupHooks();
+  assert.equal(typeof hooks.onBeforeStart, 'function');
+  await hooks.onSetup(fixture.context);
+  assert.deepEqual(fixture.counts(), { clicks: 1, calls: 0, enabled: true });
+  const evidence = JSON.parse(await readFile(`${fixture.context.directory}/base-deduction-setup.json`, 'utf8'));
+  assert.equal(evidence.status, 'awaiting-normal-confirmation-and-occupied-casting');
+  assert.equal(evidence.actorUidsRecorded, false); assert.equal(evidence.privateProcedureAcceptance, false);
+});
+
+test('a changed GM identity or instance cannot receive deduction setup credit after the visible choice', async t => {
+  const { createBaseDeductionSetupHooks } = await import('./pc10-base-deduction-setup-ui-proof.mjs');
+  for (const change of [{ foreignUid: true }, { replaceAfterClick: true }]) {
+    const fixture = await setupSurface(t, change);
+    await assert.rejects(createBaseDeductionSetupHooks().onSetup(fixture.context));
+    assert.equal(fixture.counts().calls, 0);
+  }
 });
