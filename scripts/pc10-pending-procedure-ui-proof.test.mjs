@@ -305,7 +305,7 @@ test('mounted AEGIS console lock requires its original vessel receipt, exact rep
       grantEnabled: true },
     request, response: { httpStatus: 200, result: receipt, exactReplay: true },
     replay: { status: 'committed', result: { ...receipt } },
-    rendered: { visible: true, resultStatus: 'committed' },
+    rendered: { visible: true, resultStatus: 'committed', locked: false },
     afterReload: { actor: gmActor, projection: { kind: 'ship-console-lock', live: true,
       sessionId: 'session-1', cycle: 2, uidHash, instanceId: 'gm-instance', shipId: 'aegis',
       locked: false, revision: 8 } },
@@ -314,8 +314,8 @@ test('mounted AEGIS console lock requires its original vessel receipt, exact rep
       response: { httpStatus: 200, result: { enabled: false } },
       rendered: { visible: true, enabled: false },
       afterReload: { actor: gmActor, projection: { kind: 'gm-ship-console-write-grant', live: true,
-        sessionId: 'session-1', cycle: 2, uidHash, instanceId: 'gm-instance', shipId: 'aegis',
-        enabled: false } } },
+        sessionId: 'session-1', cycle: 2, uidHash, instanceId: 'gm-instance', shipId: null,
+        targetShipId: 'aegis', enabled: false } } },
     trainingChoice: 'gm-training:deliberate-choice' });
   assert.equal(evaluateProcedureCapture(proof).status, 'completed');
   for (const changes of [
@@ -340,9 +340,12 @@ test('mounted census note requires the exact private receipt, replay, and matchi
       sourceRevision: 4 }, actorBefore: gmActor, actorAfter: gmActor,
     sourceBefore: { live: true, sessionId: 'session-1', cycle: 2, revision: 4 },
     sourceAfter: { live: true, sessionId: 'session-1', cycle: 2, revision: 5 },
+    sourceSpecificBefore: { kind: 'facilitator-census', live: true, sessionId: 'session-1', cycle: 2,
+      uidHash, instanceId: 'gm-instance', revision: 4, targetUidHash: pc10UidHash(targetUid), entryPresent: true },
     request, response: { httpStatus: 200, result: receipt, exactReplay: true },
     replay: { status: 'committed', result: { ...receipt } },
-    rendered: { visible: true, resultStatus: 'committed' },
+    rendered: { visible: true, resultStatus: 'committed', targetUidHash: pc10UidHash(targetUid),
+      noteHash: pc10ProofHash(note) },
     afterReload: { actor: gmActor, projection: { kind: 'facilitator-census', live: true,
       sessionId: 'session-1', cycle: 2, uidHash, instanceId: 'gm-instance', revision: 5,
       targetUidHash: pc10UidHash(targetUid), noteHash: pc10ProofHash(note) } },
@@ -366,16 +369,21 @@ test('mounted write grant is verified as a single-shot enable, same-instance rel
   const request = { sessionId: 'session-1', instanceId: 'gm-instance', shipId: 'aegis', enabled: true,
     claimedAt: '2026-10-05T12:00:00.000Z' };
   const grantProjection = enabled => ({ kind: 'gm-ship-console-write-grant', live: true,
-    sessionId: 'session-1', cycle: 2, uidHash, instanceId: 'gm-instance', shipId: 'aegis', enabled });
+    sessionId: 'session-1', cycle: 2, uidHash, instanceId: 'gm-instance', shipId: enabled ? 'aegis' : null,
+    targetShipId: 'aegis', enabled });
   const proof = capture({ caseId: 'gm:setGmShipConsoleWriteGrant',
     expected: { sessionId: 'session-1', uidHash, instanceId: 'gm-instance', roleId: 'gm', cycle: 2,
       shipId: 'aegis' }, actorBefore: gmActor, actorAfter: gmActor,
     sourceBefore: { live: true, sessionId: 'session-1', cycle: 2 },
     sourceAfter: { live: true, sessionId: 'session-1', cycle: 2 },
     request, response: { httpStatus: 200, result: { enabled: true, shipId: 'aegis' } },
-    replay: null, rendered: { visible: true, resultStatus: 'committed' },
+    replay: null, rendered: { visible: true, resultStatus: 'committed', controlPressed: true, observerMode: 'write' },
     beforeProjection: grantProjection(false),
     afterReload: { actor: gmActor, projection: grantProjection(true) },
+    restore: { request: { ...request, enabled: false },
+      response: { httpStatus: 200, result: { enabled: false } },
+      rendered: { visible: true, resultStatus: 'committed', controlPressed: false, observerMode: 'read' },
+      afterReload: { actor: gmActor, projection: grantProjection(false) } },
     trainingChoice: 'gm-training:deliberate-choice' });
   const accepted = evaluateProcedureCapture(proof);
   assert.equal(accepted.status, 'completed');
@@ -385,6 +393,8 @@ test('mounted write grant is verified as a single-shot enable, same-instance rel
     { request: { ...request, requestId: 'invented-replay-key' } },
     { response: { ...proof.response, result: { enabled: true, shipId: 'dione' } } },
     { afterReload: { ...proof.afterReload, projection: grantProjection(false) } },
+    { restore: undefined },
+    { restore: { ...proof.restore, response: { httpStatus: 200, result: { enabled: true, shipId: 'aegis' } } } },
     { response: { ...proof.response, exactReplay: true } },
   ]) assert.equal(evaluateProcedureCapture({ ...proof, ...changes }).status, 'pending');
 });
