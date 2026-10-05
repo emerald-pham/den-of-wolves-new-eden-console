@@ -911,6 +911,31 @@ it('hydrates a strict reader-scoped debrief and full-game demo marker', () => {
   expect(sessionFrom('unsafe-demo-marker', {
     ...sessionData(8), fullGameDemo: { status: 'complete', progression: 'manual', hidden: true },
   }).fullGameDemo).toBeUndefined();
+
+  const fleetLossOutcome = { type: 'game-outcome', result: 'failure', cause: 'total-fleet-loss',
+    cycle: 6, occurredAt: '2026-10-05T12:00:00.000Z' };
+  const fleetLossSurvivors = {
+    type: 'survivor-outcome', cycle: 6, occurredAt: '2026-10-05T12:00:00.000Z',
+    fleetShipPopulation: 100, survivingShipPopulation: 0, evacuatedPopulation: 0,
+    escapePodCapacity: 0, lostPopulation: 100, smallVesselPopulation: 0,
+    admittedVesselPopulation: 0, finalSurvivors: 0,
+    survivingShipIds: [], lostOrDestroyedShipIds: ['aegis'],
+  };
+  const fleetLossDebrief = {
+    type: 'session-debrief', version: 1, source: 'candidate', result: 'failure',
+    cause: 'total-fleet-loss', cycle: 6, occurredAt: '2026-10-05T12:00:00.000Z',
+    committedAt: '2026-10-05T12:01:00.000Z', outcome: fleetLossOutcome,
+    survivorOutcome: fleetLossSurvivors,
+    candidate: { code: 'O', groups: [{
+      requirements: [{ id: 'O-requirements', status: 'met' }],
+      rolls: [{ id: 'aegis', result: 'failure' }],
+      losses: [{ shipId: 'aegis', reason: 'lost-in-nebula' }], humanCalls: [],
+    }] },
+  };
+  expect(sessionFrom('candidate-o-total-loss', {
+    ...sessionData(8), phase: 'closed', gameOutcome: fleetLossOutcome,
+    survivorOutcome: fleetLossSurvivors, debriefSnapshot: fleetLossDebrief,
+  }).debriefSnapshot).toEqual(fleetLossDebrief);
 });
 
 it('keeps typed entity IDs stable at the session snapshot boundary', () => {

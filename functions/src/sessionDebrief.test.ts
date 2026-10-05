@@ -97,6 +97,74 @@ describe('authoritative immutable session debrief', () => {
     expect(JSON.stringify(projected)).not.toMatch(/private-receipt|groupId|nebula-bonus|private-adjudication|dione|fleet-b/);
   });
 
+  it('commits the authoritative O-candidate all-fleet-loss failure without inventing survivors or arrivals', () => {
+    const lossSurvivors = {
+      ...survivorOutcome,
+      cycle: 6,
+      fleetShipPopulation: 100,
+      survivingShipPopulation: 0,
+      evacuatedPopulation: 0,
+      escapePodCapacity: 0,
+      lostPopulation: 100,
+      finalSurvivors: 0,
+      survivingShipIds: [],
+      lostOrDestroyedShipIds: ['aegis', 'dione'],
+    };
+    const h = harness({ phase: 'active' });
+    const input = {
+      source: 'candidate' as const,
+      committedAt: '2026-10-05T12:01:00.000Z',
+      outcome: { type: 'game-outcome', result: 'failure', cause: 'total-fleet-loss',
+        cycle: 6, occurredAt: '2026-10-05T12:00:00.000Z' },
+      survivorOutcome: lossSurvivors,
+      candidate: { code: 'O' as const, groups: [{ groupId: 'fleet-a',
+        requirements: [{ id: 'O-requirements', status: 'met' as const }],
+        rolls: [{ id: 'aegis', result: 'failure' as const, audience: 'members' as const },
+          { id: 'dione', result: 'failure' as const, audience: 'members' as const }],
+        losses: [{ shipId: 'aegis', reason: 'lost-in-nebula', audience: 'members' as const },
+          { shipId: 'dione', reason: 'lost-in-nebula', audience: 'members' as const }],
+        humanCalls: [] }] },
+      sessionPatch: { candidateVesselOutcomes: {
+        aegis: { outcome: 'lost', groupId: 'fleet-a' }, dione: { outcome: 'lost', groupId: 'fleet-a' },
+      } },
+    };
+
+    const committed = commitTerminal(h.tx, h.ref, h.snapshot(), input);
+    const replay = commitTerminal(h.tx, h.ref, h.snapshot(), {
+      ...input, committedAt: '2026-10-05T12:02:00.000Z',
+    });
+    const projected = sessionDebriefProjection(committed.snapshot, { groupId: 'fleet-a', vesselIds: ['aegis', 'dione'] });
+
+    expect(committed.committed).toBe(true);
+    expect(committed.snapshot).toMatchObject({ source: 'candidate', result: 'failure', cause: 'total-fleet-loss',
+      outcome: { result: 'failure', cause: 'total-fleet-loss' }, candidate: { code: 'O' },
+      survivorOutcome: lossSurvivors });
+    expect(replay.committed).toBe(false);
+    expect(replay.snapshot).toEqual(committed.snapshot);
+    expect(h.current.phase).toBe('debrief');
+    expect(h.current.debriefSnapshot).toEqual(committed.snapshot);
+    expect(projected?.candidate).toEqual({ code: 'O', groups: [{
+      requirements: [{ id: 'O-requirements', status: 'met' }],
+      rolls: [{ id: 'aegis', result: 'failure' }, { id: 'dione', result: 'failure' }],
+      losses: [{ shipId: 'aegis', reason: 'lost-in-nebula' }, { shipId: 'dione', reason: 'lost-in-nebula' }],
+      humanCalls: [],
+    }] });
+    expect(projected?.survivorOutcome?.survivingShipIds).toEqual([]);
+    expect(JSON.stringify(projected)).not.toMatch(/arrived|crossed|safe|groupId|candidateVesselOutcomes/);
+  });
+
+  it('rejects a non-O or survivor-inconsistent candidate failure before writing', () => {
+    const h = harness({ phase: 'active' });
+    const input = {
+      source: 'candidate' as const, committedAt: '2026-10-05T12:01:00.000Z',
+      outcome: { type: 'game-outcome', result: 'failure', cause: 'total-fleet-loss',
+        cycle: 6, occurredAt: '2026-10-05T12:00:00.000Z' },
+      candidate: { code: 'P' as const, groups: [] }, survivorOutcome,
+    };
+    expect(() => commitTerminal(h.tx, h.ref, h.snapshot(), input)).toThrow();
+    expect(h.updates).toHaveLength(0);
+  });
+
   it('returns the original snapshot on an exact replay and rejects a conflicting terminal result', () => {
     const h = harness({ phase: 'failure', gameOutcome: {
       type: 'game-outcome', result: 'failure', cause: 'total-fleet-loss', cycle: 8,
