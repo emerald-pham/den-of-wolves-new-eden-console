@@ -512,6 +512,34 @@ describe('presence lease', () => {
       .toEqual(expect.any(mock.Timestamp));
   });
 
+  it.each([undefined, 'press-officer'])('renews unchanged exclusive Press authority without locking core players or rewriting the session (%s)', async activeConsoleRoleId => {
+    session({ phase: 'active', currentTurn: 2, turnPhase: ACTIVE_TURN_PHASE,
+      pressEnabled: true, pressHolderUid: 'u1' });
+    player({ activeConsoleRoleId: 'press-officer', assignedRoleId: null });
+    livePlayer('core', { assignedRoleId: 'admiral', seatId: 'admiral', activeConsoleRoleId: 'admiral' });
+    put('sessions/s1/secrets/loyalty-u1', { payload: { type: 'private-marker' } });
+    await refreshPresence.run(request({ sessionId: 's1' }));
+    put('sessions/s1/players/u1', { ...read('sessions/s1/players/u1'), lastSeenAt: mock.Timestamp.fromDate(NOW) });
+    put('sessions/s1/presenceReconciliations/u1', {
+      lastFullReconciliationAt: mock.Timestamp.fromMillis(NOW.getTime() - PRESENCE_RECONCILIATION_INTERVAL_MS - 1),
+    });
+    mock.get.mockClear(); mock.update.mockClear(); mock.set.mockClear();
+    mock.setRejectReadsAfterWrite(true);
+
+    await expect(refreshPresence.run(request({ sessionId: 's1',
+      ...(activeConsoleRoleId ? { activeConsoleRoleId } : {}) }))).resolves.toEqual({ sessionId: 's1' });
+
+    const playerQueries = mock.get.mock.calls.map(([target]) => target as { path: string; filters?: unknown[] })
+      .filter(target => target.path === 'sessions/s1/players');
+    expect(playerQueries).toHaveLength(1);
+    expect(playerQueries[0].filters).toEqual([['activeConsoleRoleId', '==', 'press-officer']]);
+    expect(readPaths()).not.toContain('sessions/s1/secrets');
+    expect(readPaths()).not.toContain('sessions/s1/loyaltyCensus/current');
+    expect(mock.update.mock.calls.map(([ref]) => (ref as { path: string }).path)).toEqual(['sessions/s1/players/u1']);
+    expect(read('sessions/s1/secrets/loyalty-u1')).toEqual({ payload: { type: 'private-marker' } });
+    expect(read('activeMemberships/u1')).toMatchObject({ sessionId: 's1' });
+  });
+
   it('keeps the full marker isolated by session and player identity', async () => {
     session();
     player();

@@ -44,6 +44,7 @@ vi.mock('firebase-admin/firestore', () => ({
     collection: (path: string) => ({
       path,
       doc: (id?: string) => ({ path: path + '/' + (id ?? 'generated-session') }),
+      where: (field: string, operator: string, value: unknown) => ({ path, filters: [[field, operator, value]] }),
     }),
     runTransaction: (callback: (tx: unknown) => unknown) => {
       let writeStarted = false;
@@ -264,7 +265,10 @@ function prepareCurrentResume() {
   const group = { id: 'fleet-1', vesselIds: [...setup.activeVesselIds], memberUids: ['u1'], memberShipIds: { u1: 'aegis' } };
   const discovery = playerDiscoveryProjection(snapshot(current.playerData), navigation, 5, group.vesselIds, undefined, 'u1', 'aegis');
   const underlying = mock.get.getMockImplementation()!;
-  mock.get.mockImplementation((ref: { path: string }) => {
+  mock.get.mockImplementation((ref: { path: string; filters?: unknown[] }) => {
+    if (ref.path === 'sessions/s1/players' && ref.filters) {
+      return { docs: [{ ...snapshot(current.playerData), id: 'u1' }] };
+    }
     if (ref.path === 'sessions/s1/fleetGroups/fleet-1') return snapshot(group);
     if (ref.path === 'sessions/s1/fleetGroups') return { docs: [{ ...snapshot(group), id: 'fleet-1' }] };
     if (ref.path === 'sessions/s1/playerDiscoveries/u1') return snapshot({ ...discovery, updatedAt: 'prior-server-time' });
@@ -290,6 +294,39 @@ function overrideResumeRead(path: string, fields: Readonly<Record<string, unknow
   const underlying = mock.get.getMockImplementation()!;
   mock.get.mockImplementation((ref: { path: string }) => ref.path === path ? snapshot(fields, exists) : underlying(ref));
 }
+
+function prepareCurrentPressResume() {
+  const current = prepareCurrentResume();
+  Object.assign(current.playerData, { assignedRoleId: null, seatId: null, activeConsoleRoleId: 'press-officer' });
+  current.sessionData.pressEnabled = true;
+  current.sessionData.pressHolderUid = 'u1';
+  const group = { id: 'fleet-1', vesselIds: current.sessionData.activeVesselIds as string[], memberUids: ['u1'] };
+  const underlying = mock.get.getMockImplementation()!;
+  const navigation = underlying({ path: 'sessions/s1/serverState/navigation' }).data();
+  const projection = playerDiscoveryProjection(snapshot(current.playerData), navigation, 5, group.vesselIds, undefined, 'u1');
+  mock.get.mockImplementation((ref: { path: string }) => {
+    if (ref.path === 'sessions/s1/fleetGroups/fleet-1') return snapshot(group);
+    if (ref.path === 'sessions/s1/fleetGroups') return { docs: [{ ...snapshot(group), id: 'fleet-1' }] };
+    if (ref.path === 'sessions/s1/playerDiscoveries/u1') return snapshot({ ...projection, updatedAt: 'prior-server-time' });
+    return underlying(ref);
+  });
+  return current;
+}
+
+it('renews an unchanged current Press member without locking all core players or shared navigation', async () => {
+  prepareCurrentPressResume();
+  mock.enforceReadOrder = true;
+
+  const reply = await resumeSession.run(request('s1'));
+
+  expect(reply.player).toMatchObject({ connectionGeneration: 4, assignedRoleId: null, seatId: null, activeConsoleRoleId: 'press-officer' });
+  const playerQueries = mock.get.mock.calls.map(([ref]) => ref as { path: string; filters?: unknown[] })
+    .filter(ref => ref.path === 'sessions/s1/players');
+  expect(playerQueries).toHaveLength(1);
+  expect(playerQueries[0].filters).toEqual([['activeConsoleRoleId', '==', 'press-officer']]);
+  expect(nonRateLimitSetCalls().map(([ref]) => ref.path)).toEqual(['activeMemberships/u1']);
+  expect(mock.update.mock.calls.map(([ref]) => ref.path)).toEqual(['sessions/s1/players/u1']);
+});
 
 it('uses full recovery when a live member has lost the active membership marker', async () => {
   prepareCurrentResume();
