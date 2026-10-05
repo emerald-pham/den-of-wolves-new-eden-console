@@ -10,6 +10,13 @@ import { proofRuntimeFromViteSource, validateProofRuntime, assertSelectedActor, 
 
 /** Real UI/SDK driver. Callbacks may compose later genuine game decisions. */
 export async function runFreshFullGameDemoUi(options = {}) {
+  const playerCount = options.playerCount ?? 20, includePress = options.includePress ?? true;
+  const chartId = options.chartId ?? 'A', gameplayOnly = options.gameplayOnly ?? false;
+  assert.ok(Number.isSafeInteger(playerCount) && playerCount >= 8 && playerCount <= 20);
+  assert.equal(typeof includePress, 'boolean'); assert.equal(typeof gameplayOnly, 'boolean');
+  assert.ok(['A', 'B', 'C'].includes(chartId));
+  if (options.capybaraEnabled !== undefined) assert.equal(typeof options.capybaraEnabled, 'boolean');
+  if (gameplayOnly) assert.equal(typeof options.runEnding, 'function', 'Supply the genuine manual gameplay callback.');
   const baseUrl = options.baseUrl ?? process.env.PC10_UI_URL ?? 'http://127.0.0.1:5174';
   const projectId = options.projectId ?? process.env.PC10_DEMO_PROJECT ?? 'demo-pc10-owner';
   const root = resolve(options.sourceRoot ?? process.env.PC10_SOURCE_ROOT ?? process.cwd());
@@ -25,7 +32,9 @@ export async function runFreshFullGameDemoUi(options = {}) {
   const evidence = { schemaVersion: 1, sourceCommit, driverCommit, builtRuntimeIndexSha256, runtime,
     actualBrowserProcesses: 2, actualBrowserContexts: 2, actualHumans: 0, physicalAttendanceProof: false,
     callableFixtures: false, adminGameplayWrites: false, acceleratedClock: false, wholeGameProof: false,
-    protocol: 'Fresh ordinary UI admission; normal consent and real Firebase SDK; controlled actual-response interruption disclosed.' };
+    playerCount, includePress, chartId, gameplayOnly,
+    protocol: gameplayOnly ? 'Fresh ordinary UI admission; normal consent and real Firebase SDK; no fault or cache probe.' :
+      'Fresh ordinary UI admission; normal consent and real Firebase SDK; controlled actual-response interruption disclosed.' };
   let stage = 'launch';
   const mark = async name => {
     stage = name; transitions.push({ stage, at: new Date().toISOString() });
@@ -77,6 +86,8 @@ export async function runFreshFullGameDemoUi(options = {}) {
           gmInstanceOwned: !!state.gmInstance && state.gmInstance.uid === state.me?.uid && state.gmInstance.sessionId === state.session?.id,
           instanceId: state.gmInstance?.id ?? null, setupConfirmed: state.session?.setupConfirmed ?? false,
           setupRevision: state.session?.setupRevision ?? null, activeRoleIds: state.session?.activeRoleIds ?? [],
+          activeVesselIds: state.session?.activeVesselIds ?? [], pressEnabled: state.session?.pressEnabled !== false,
+          capybaraEnabled: state.session?.capybaraEnabled !== false,
           fullGameDemo: state.session?.fullGameDemo ?? null, phaseProgression: state.session?.turnPhase?.progression ?? null,
           airspace: state.session?.turnPhase?.airspace.state ?? null, turnStatePhase: state.session?.turnState?.phase ?? null,
           gameOutcomeCause: state.session?.gameOutcome?.cause ?? null,
@@ -122,7 +133,7 @@ export async function runFreshFullGameDemoUi(options = {}) {
         const { functions } = await import('/src/lib/firebase.ts');
         const { httpsCallable } = await import(sdkUrl);
         try { return { status: 'committed', result: (await httpsCallable(functions(), name)(data)).data }; }
-        catch (error) { return { status: 'denied', code: error.code }; }
+        catch (error) { return { status: 'denied', code: error.code, message: error.message }; }
       }, { name, data, sdkUrl });
     }
     async function reducedMotion() {
@@ -154,12 +165,28 @@ export async function runFreshFullGameDemoUi(options = {}) {
       await gm.page.getByRole('button', { name: /^Open station catalog/ }).click();
       await gm.page.getByRole('link', { name: 'GM Console', exact: true }).click();
     }
-    await mark('confirm 20-role roster and prepare before ordinary admission');
+    await mark(`confirm ${playerCount}-role roster and prepare before ordinary admission`);
     const setup = gm.page.getByRole('region', { name: 'Setup', exact: true });
     await setup.getByRole('button', { name: 'Setup', exact: true }).click();
-    await setup.getByLabel('Recommended player count', { exact: true }).selectOption('20');
+    await setup.getByLabel('Recommended player count', { exact: true }).selectOption(String(playerCount));
+    await setup.getByLabel('Star chart', { exact: true }).selectOption(chartId);
+    if (options.capybaraEnabled !== undefined) {
+      const change = setup.getByRole('button', { name: options.capybaraEnabled ? 'Enable Capybara' : 'Disable Capybara', exact: true });
+      if (await change.isVisible()) {
+        await change.click();
+        await gm.page.getByRole('alertdialog', { name: 'Change convoy manifest', exact: true })
+          .getByRole('button', { name: options.capybaraEnabled ? 'Confirm add Capybara' : 'Confirm remove Capybara', exact: true }).click();
+      }
+    }
+    if (!includePress) {
+      await setup.getByRole('button', { name: 'Disable Press', exact: true }).click();
+      await gm.page.getByRole('button', { name: 'ARE YOU SURE? // Disable Press', exact: true }).click();
+      await gm.until('Ordinary Press availability choice committed', state => state.pressEnabled === false);
+    }
     await setup.getByRole('button', { name: 'Confirm setup // Confirm roster', exact: true }).click();
-    const confirmed = await gm.until('Real locked 20 roles', state => state.setupConfirmed && state.activeRoleIds.length === 20 && state.cycle === 0);
+    const confirmed = await gm.until('Real confirmed roles', state => state.setupConfirmed && state.activeRoleIds.length === playerCount && state.cycle === 0);
+    assert.equal(confirmed.pressEnabled, includePress);
+    if (options.capybaraEnabled !== undefined) assert.equal(confirmed.capybaraEnabled, options.capybaraEnabled);
     await setup.getByRole('button', { name: 'Prepare full-game demo', exact: true }).click();
     await setup.getByRole('button', { name: 'ARE YOU SURE? // PREPARE FULL-GAME DEMO', exact: true }).click();
     const prepared = await gm.until('Permanent preparation committed', state => state.fullGameDemo?.status === 'preparing');
@@ -178,40 +205,47 @@ export async function runFreshFullGameDemoUi(options = {}) {
     assert.equal(controllerDenial.status, 'denied', 'An ordinary controller cannot prepare or claim GM authority.');
     evidence.ordinaryControllerPreparationDenial = controllerDenial.code;
 
-    await mark('real ordinary cohort admission with lost first seat acknowledgement');
-    const claimPattern = `**/${projectId}/us-central1/claimSeat`;
-    let interceptOnce = true, release;
-    const hold = new Promise(resolveHold => { release = resolveHold; });
-    let trapped;
-    const firstClaim = new Promise(resolveClaim => { trapped = resolveClaim; });
-    await crew.page.route(claimPattern, async route => {
-      if (!interceptOnce) return route.continue(); interceptOnce = false;
-      const response = await route.fetch();
-      const receipt = (await response.json()).result;
-      trapped({ status: receipt?.status, httpStatus: response.status() });
-      await hold;
-      await route.fulfill({ response }).catch(() => undefined);
-    });
-    const prepareCrew = crew.page.getByRole('button', { name: 'Prepare demo crew', exact: true });
-    await prepareCrew.waitFor(); await prepareCrew.click();
-    let receiptTimeout;
-    const interruptedReceipt = await Promise.race([firstClaim, new Promise((_, reject) => {
-      receiptTimeout = setTimeout(() => reject(new Error('No real first seat receipt.')), 60_000);
-    })]).finally(() => clearTimeout(receiptTimeout));
-    assert.equal(interruptedReceipt.status, 'committed');
-    evidence.interruptedActualSeatReceipt = interruptedReceipt;
-    const establishedUidHash = await crew.page.evaluate(async () => {
-      const { readDemoActorAccountUid } = await import('/src/lib/demoActorContext.ts');
-      const uid = readDemoActorAccountUid('admiral');
-      return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(uid))))
-        .map(byte => byte.toString(16).padStart(2, '0')).join('').slice(0, 16);
-    });
-    await crew.page.reload(); release(); await crew.page.unroute(claimPattern);
-    await crew.until('Interrupted controller restored', state => state.sameActor && state.uidHash === controller.uidHash && state.connection === 'live' && state.freshness === 'server');
-    await mark('lost actual seat acknowledgement; same real controller restored');
-    await crew.page.getByRole('button', { name: 'Prepare demo crew', exact: true }).click();
+    let establishedUidHash;
+    if (gameplayOnly) {
+      await mark('ordinary cohort admission without fault or cache probes');
+      await crew.page.getByRole('button', { name: 'Prepare demo crew', exact: true }).click();
+    } else {
+      await mark('real ordinary cohort admission with lost first seat acknowledgement');
+      const claimPattern = `**/${projectId}/us-central1/claimSeat`;
+      let interceptOnce = true, release;
+      const hold = new Promise(resolveHold => { release = resolveHold; });
+      let trapped;
+      const firstClaim = new Promise(resolveClaim => { trapped = resolveClaim; });
+      await crew.page.route(claimPattern, async route => {
+        if (!interceptOnce) return route.continue(); interceptOnce = false;
+        const response = await route.fetch();
+        const receipt = (await response.json()).result;
+        trapped({ status: receipt?.status, httpStatus: response.status() });
+        await hold;
+        await route.fulfill({ response }).catch(() => undefined);
+      });
+      const prepareCrew = crew.page.getByRole('button', { name: 'Prepare demo crew', exact: true });
+      await prepareCrew.waitFor(); await prepareCrew.click();
+      let receiptTimeout;
+      const interruptedReceipt = await Promise.race([firstClaim, new Promise((_, reject) => {
+        receiptTimeout = setTimeout(() => reject(new Error('No real first seat receipt.')), 60_000);
+      })]).finally(() => clearTimeout(receiptTimeout));
+      assert.equal(interruptedReceipt.status, 'committed');
+      evidence.interruptedActualSeatReceipt = interruptedReceipt;
+      establishedUidHash = await crew.page.evaluate(async () => {
+        const { readDemoActorAccountUid } = await import('/src/lib/demoActorContext.ts');
+        const uid = readDemoActorAccountUid('admiral');
+        return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(uid))))
+          .map(byte => byte.toString(16).padStart(2, '0')).join('').slice(0, 16);
+      });
+      await crew.page.reload(); release(); await crew.page.unroute(claimPattern);
+      await crew.until('Interrupted controller restored', state => state.sameActor && state.uidHash === controller.uidHash && state.connection === 'live' && state.freshness === 'server');
+      await mark('lost actual seat acknowledgement; same real controller restored');
+      await crew.page.getByRole('button', { name: 'Prepare demo crew', exact: true }).click();
+    }
     const crewPanel = crew.page.getByRole('region', { name: 'Full-game demo crew', exact: true });
     evidence.preparationRetryCount = await completePreparedCrew({
+      expectedActorCount: confirmed.activeRoleIds.length + (includePress ? 1 : 0),
       inspect: async () => {
         const current = await crew.observe();
         return { actorCount: await crewPanel.getByRole('list', { name: 'Prepared demo actors', exact: true }).getByRole('button').count(),
@@ -227,18 +261,19 @@ export async function runFreshFullGameDemoUi(options = {}) {
         await mark(`ordinary preparation retry ${retry.retry} after ${retry.actorCount} actors`);
       },
     });
-    await crewPanel.getByRole('button', { name: /Open.*Press Officer$/ }).waitFor();
+    if (includePress) await crewPanel.getByRole('button', { name: /Open.*Press Officer$/ }).waitFor();
     const roster = await crew.page.evaluate(async sid => {
       const { readDemoActorRoster } = await import('/src/lib/demoActorProfiles.ts');
       return Promise.all(readDemoActorRoster(sid).map(async actor => ({ roleId: actor.roleId,
         uidHash: Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(actor.uid))))
           .map(byte => byte.toString(16).padStart(2, '0')).join('').slice(0, 16) })));
     }, initial.sessionId);
-    assert.equal(roster.length, 21); assert.equal(new Set(roster.map(actor => actor.uidHash)).size, 21);
+    assert.equal(roster.length, confirmed.activeRoleIds.length + (includePress ? 1 : 0));
+    assert.equal(new Set(roster.map(actor => actor.uidHash)).size, roster.length);
     assert.ok(roster.every(actor => ![gmIdentity.uidHash, controller.uidHash].includes(actor.uidHash)));
-    assert.equal(roster.find(actor => actor.roleId === 'admiral').uidHash, establishedUidHash);
-    assert.equal(await crew.page.getByLabel('Current actor', { exact: true }).locator('option').count(), 22);
-    evidence.interruptedAdmissionSameRealUid = true;
+    if (!gameplayOnly) assert.equal(roster.find(actor => actor.roleId === 'admiral').uidHash, establishedUidHash);
+    assert.equal(await crew.page.getByLabel('Current actor', { exact: true }).locator('option').count(), roster.length + 1);
+    evidence.interruptedAdmissionSameRealUid = !gameplayOnly;
     evidence.actualAuthenticatedActors = new Set([gmIdentity.uidHash, controller.uidHash, ...roster.map(actor => actor.uidHash)]).size;
 
     await mark('GM sequential normal role assignment');
@@ -291,88 +326,91 @@ export async function runFreshFullGameDemoUi(options = {}) {
     await gm.page.getByText('MANUAL', { exact: true }).first().waitFor();
     await gm.page.screenshot({ path: `${directory}/cycle-one-manual-team.png` });
     await options.onStarted?.({ gm, crew, initial, started, roster, directory });
-    await mark('one crew browser reload-selects every confirmed role and Press');
-    let priorActorDocument;
-    let cacheProbe;
-    for (const actor of roster) {
-      const priorDocument = await crew.page.evaluate(() => {
-        window.__pc10ProofDocument ??= crypto.randomUUID(); return window.__pc10ProofDocument;
-      });
-      await crew.page.getByLabel('Current actor', { exact: true }).selectOption(actor.roleId);
-      await crew.page.waitForURL(url => url.searchParams.get('demoActor') === `${initial.sessionId}~${actor.roleId}`);
-      let member = await crew.until(`Real ${actor.roleId} document`, state => state.sameActor && state.uidHash === actor.uidHash && state.profileRoleId === actor.roleId && state.connection === 'live' && state.freshness === 'server');
-      assertSelectedActor(member, { ...actor, sessionId: initial.sessionId });
-      assert.equal(member.pendingCommandCount, 0);
-      const nextDocument = await crew.page.evaluate(() => {
-        window.__pc10ProofDocument ??= crypto.randomUUID(); return window.__pc10ProofDocument;
-      });
-      assert.notEqual(nextDocument, priorDocument, 'Every actor change loads a fresh document.');
-      if (priorActorDocument) assert.notEqual(nextDocument, priorActorDocument);
-      priorActorDocument = nextDocument;
-      if (cacheProbe) {
-        const isolated = await crew.page.evaluate(async ({ storeUrl, cacheProbe }) => {
-          const { useSessionStore } = await import(storeUrl);
-          const state = useSessionStore.getState();
-          const retained = JSON.parse(localStorage.getItem(cacheProbe.key));
-          const result = { otherActorPendingCount: state.pendingCommands.length,
-            otherActorPrivateProbeVisible: JSON.stringify([state.privateLoyalty, state.roleBrief]).includes('PC10 INACTIVE ACTOR CACHE PROBE'),
-            originalActorOutboxRetained: retained.state.pendingCommands.some(command => command.id === 'pc10-inactive-actor-probe') };
-          // Restore the original local envelope before any later actor revisit.
-          localStorage.setItem(cacheProbe.key, cacheProbe.original);
-          return result;
-        }, { storeUrl: crew.storeModuleUrl(), cacheProbe });
-        assert.equal(isolated.otherActorPendingCount, 0);
-        assert.equal(isolated.otherActorPrivateProbeVisible, false);
-        assert.equal(isolated.originalActorOutboxRetained, true);
-        evidence.inactiveClientCacheProbe = { ...isolated, disclosedBrowserLocalInjection: true,
-          serverCommandsFromProbe: false, restoredOriginalEnvelope: true };
-        cacheProbe = null;
+    let coordination;
+    if (!gameplayOnly) {
+      await mark('one crew browser reload-selects every confirmed role and Press');
+      let priorActorDocument;
+      let cacheProbe;
+      for (const actor of roster) {
+        const priorDocument = await crew.page.evaluate(() => {
+          window.__pc10ProofDocument ??= crypto.randomUUID(); return window.__pc10ProofDocument;
+        });
+        await crew.page.getByLabel('Current actor', { exact: true }).selectOption(actor.roleId);
+        await crew.page.waitForURL(url => url.searchParams.get('demoActor') === `${initial.sessionId}~${actor.roleId}`);
+        let member = await crew.until(`Real ${actor.roleId} document`, state => state.sameActor && state.uidHash === actor.uidHash && state.profileRoleId === actor.roleId && state.connection === 'live' && state.freshness === 'server');
+        assertSelectedActor(member, { ...actor, sessionId: initial.sessionId });
+        assert.equal(member.pendingCommandCount, 0);
+        const nextDocument = await crew.page.evaluate(() => {
+          window.__pc10ProofDocument ??= crypto.randomUUID(); return window.__pc10ProofDocument;
+        });
+        assert.notEqual(nextDocument, priorDocument, 'Every actor change loads a fresh document.');
+        if (priorActorDocument) assert.notEqual(nextDocument, priorActorDocument);
+        priorActorDocument = nextDocument;
+        if (cacheProbe) {
+          const isolated = await crew.page.evaluate(async ({ storeUrl, cacheProbe }) => {
+            const { useSessionStore } = await import(storeUrl);
+            const state = useSessionStore.getState();
+            const retained = JSON.parse(localStorage.getItem(cacheProbe.key));
+            const result = { otherActorPendingCount: state.pendingCommands.length,
+              otherActorPrivateProbeVisible: JSON.stringify([state.privateLoyalty, state.roleBrief]).includes('PC10 INACTIVE ACTOR CACHE PROBE'),
+              originalActorOutboxRetained: retained.state.pendingCommands.some(command => command.id === 'pc10-inactive-actor-probe') };
+            // Restore the original local envelope before any later actor revisit.
+            localStorage.setItem(cacheProbe.key, cacheProbe.original);
+            return result;
+          }, { storeUrl: crew.storeModuleUrl(), cacheProbe });
+          assert.equal(isolated.otherActorPendingCount, 0);
+          assert.equal(isolated.otherActorPrivateProbeVisible, false);
+          assert.equal(isolated.originalActorOutboxRetained, true);
+          evidence.inactiveClientCacheProbe = { ...isolated, disclosedBrowserLocalInjection: true,
+            serverCommandsFromProbe: false, restoredOriginalEnvelope: true };
+          cacheProbe = null;
+        }
+        await crew.page.getByRole('link', { name: "Enter this actor's stations", exact: true }).click();
+        if (actor.roleId === 'press-officer') {
+          await crew.page.getByRole('link', { name: 'Press Officer', exact: true }).click();
+        } else {
+          const brief = crew.page.getByRole('link', { name: 'Open private brief', exact: true });
+          await brief.waitFor(); await brief.click();
+          member = await crew.until(`Private ${actor.roleId} assignment belongs to current actor`, state => state.briefMatchesActor && state.briefRoleId === actor.roleId);
+          await crew.page.getByRole('link', { name: 'Back to stations', exact: true }).first().click();
+          await crew.page.locator(`a[href$="/roles/${actor.roleId}"]`).click();
+        }
+        member = await crew.until(`Current ${actor.roleId} station entered`, state => state.activeConsoleRoleId === actor.roleId && state.sameActor && state.connection === 'live');
+        assertSelectedActor(member, { ...actor, sessionId: initial.sessionId });
+        roleSurfaces.push({ roleId: actor.roleId, uidHash: actor.uidHash, path: new URL(crew.page.url()).hash,
+          briefMatchesActor: member.briefMatchesActor, briefRoleId: member.briefRoleId,
+          privateLoyaltyPresent: member.privateLoyaltyPresent, pendingCommandCount: member.pendingCommandCount });
+        if (actor.roleId === 'admiral') {
+          cacheProbe = await crew.page.evaluate(async sid => {
+            const { demoActorSessionStorageKey } = await import('/src/lib/demoActorContext.ts');
+            const key = demoActorSessionStorageKey('dow-new-eden-session', { sessionId: sid, roleId: 'admiral' });
+            const original = localStorage.getItem(key), envelope = JSON.parse(original);
+            envelope.state.pendingCommands.push({ id: 'pc10-inactive-actor-probe', kind: 'claimSeat', createdAt: new Date().toISOString(),
+              payload: { sessionId: 'historical-inactive-probe', seatId: 'admiral', requestId: 'pc10-inactive-actor-probe', expectedSetupRevision: 0 } });
+            envelope.state.privateLoyalty = { privateText: 'PC10 INACTIVE ACTOR CACHE PROBE' };
+            // Only persisted inactive data is changed; no live store or server command is injected.
+            localStorage.setItem(key, JSON.stringify(envelope));
+            return { key, original };
+          }, initial.sessionId);
+        }
+        console.log(JSON.stringify({ stage: 'confirmed role surface', roleId: actor.roleId }));
       }
-      await crew.page.getByRole('link', { name: "Enter this actor's stations", exact: true }).click();
-      if (actor.roleId === 'press-officer') {
-        await crew.page.getByRole('link', { name: 'Press Officer', exact: true }).click();
-      } else {
-        const brief = crew.page.getByRole('link', { name: 'Open private brief', exact: true });
-        await brief.waitFor(); await brief.click();
-        member = await crew.until(`Private ${actor.roleId} assignment belongs to current actor`, state => state.briefMatchesActor && state.briefRoleId === actor.roleId);
-        await crew.page.getByRole('link', { name: 'Back to stations', exact: true }).first().click();
-        await crew.page.locator(`a[href$="/roles/${actor.roleId}"]`).click();
-      }
-      member = await crew.until(`Current ${actor.roleId} station entered`, state => state.activeConsoleRoleId === actor.roleId && state.sameActor && state.connection === 'live');
-      assertSelectedActor(member, { ...actor, sessionId: initial.sessionId });
-      roleSurfaces.push({ roleId: actor.roleId, uidHash: actor.uidHash, path: new URL(crew.page.url()).hash,
-        briefMatchesActor: member.briefMatchesActor, briefRoleId: member.briefRoleId,
-        privateLoyaltyPresent: member.privateLoyaltyPresent, pendingCommandCount: member.pendingCommandCount });
-      if (actor.roleId === 'admiral') {
-        cacheProbe = await crew.page.evaluate(async sid => {
-          const { demoActorSessionStorageKey } = await import('/src/lib/demoActorContext.ts');
-          const key = demoActorSessionStorageKey('dow-new-eden-session', { sessionId: sid, roleId: 'admiral' });
-          const original = localStorage.getItem(key), envelope = JSON.parse(original);
-          envelope.state.pendingCommands.push({ id: 'pc10-inactive-actor-probe', kind: 'claimSeat', createdAt: new Date().toISOString(),
-            payload: { sessionId: 'historical-inactive-probe', seatId: 'admiral', requestId: 'pc10-inactive-actor-probe', expectedSetupRevision: 0 } });
-          envelope.state.privateLoyalty = { privateText: 'PC10 INACTIVE ACTOR CACHE PROBE' };
-          // Only persisted inactive data is changed; no live store or server command is injected.
-          localStorage.setItem(key, JSON.stringify(envelope));
-          return { key, original };
-        }, initial.sessionId);
-      }
-      console.log(JSON.stringify({ stage: 'confirmed role surface', roleId: actor.roleId }));
+      await mark('manual Team to Coordination through actual GM UI');
+      const teamBeforeManualAdvance = await gm.observe();
+      assert.equal(teamBeforeManualAdvance.cycle, 1);
+      assert.equal(teamBeforeManualAdvance.turnStatePhase, 'team');
+      assert.equal(teamBeforeManualAdvance.phaseProgression, 'manual');
+      evidence.teamHeldThroughAllRoleSelections = true;
+      await gm.page.getByRole('button', { name: 'Open Coordination manually', exact: true }).click();
+      coordination = await gm.until('Real manual Coordination', state => state.airspace === 'lifted' && state.phaseProgression === 'manual' && state.turnStatePhase === 'coordination');
+      await delay(2_000);
+      assert.equal((await gm.observe()).cycle, 1);
+      assert.equal((await gm.observe()).turnStatePhase, 'coordination');
+      await crew.page.reload();
+      const refreshed = await crew.until('Last actual role refreshed unchanged', state => state.sameActor && state.profileRoleId === roster.at(-1).roleId && state.connection === 'live' && state.freshness === 'server');
+      assertSelectedActor(refreshed, { ...roster.at(-1), sessionId: initial.sessionId });
+      await gm.page.screenshot({ path: `${directory}/manual-coordination.png` });
     }
-    await mark('manual Team to Coordination through actual GM UI');
-    const teamBeforeManualAdvance = await gm.observe();
-    assert.equal(teamBeforeManualAdvance.cycle, 1);
-    assert.equal(teamBeforeManualAdvance.turnStatePhase, 'team');
-    assert.equal(teamBeforeManualAdvance.phaseProgression, 'manual');
-    evidence.teamHeldThroughAllRoleSelections = true;
-    await gm.page.getByRole('button', { name: 'Open Coordination manually', exact: true }).click();
-    const coordination = await gm.until('Real manual Coordination', state => state.airspace === 'lifted' && state.phaseProgression === 'manual' && state.turnStatePhase === 'coordination');
-    await delay(2_000);
-    assert.equal((await gm.observe()).cycle, 1);
-    assert.equal((await gm.observe()).turnStatePhase, 'coordination');
-    await crew.page.reload();
-    const refreshed = await crew.until('Last actual role refreshed unchanged', state => state.sameActor && state.profileRoleId === 'press-officer' && state.connection === 'live' && state.freshness === 'server');
-    assertSelectedActor(refreshed, { ...roster.find(actor => actor.roleId === 'press-officer'), sessionId: initial.sessionId });
-    await gm.page.screenshot({ path: `${directory}/manual-coordination.png` });
     if (options.runEnding) {
       await mark('supplied genuine gameplay ending');
       await options.runEnding({ gm, crew, initial, started, roster, directory });
@@ -383,7 +421,8 @@ export async function runFreshFullGameDemoUi(options = {}) {
     assert.deepEqual(remoteRequests, []); assert.deepEqual(errors, []);
     Object.assign(evidence, { status: 'passed', initial, confirmed, prepared, controller, started, coordination,
       rolesVisited: roleSurfaces, roleSurfaceCount: roleSurfaces.length, transitions, calls, errors, remoteRequests,
-      scope: 'Actual fresh full-demo admission, normal casting/start, 20 core role surfaces + Press, interrupted seat recovery and manual phase control. Every game-function branch and ending remain separately owned.' });
+      scope: gameplayOnly ? 'Actual fresh full-demo admission, normal casting/start and a supplied genuine manual candidate gameplay callback; no client cache or fault probes.' :
+        'Actual fresh full-demo admission, normal casting/start, confirmed role surfaces, interrupted seat recovery and manual phase control. Every game-function branch and ending remain separately owned.' });
     evidence.sourceCommitAtCompletion = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
     evidence.builtRuntimeIndexSha256AtCompletion = createHash('sha256').update(await readFile(`${root}/functions/lib/index.js`)).digest('hex');
     evidence.sourceChangedDuringProof = evidence.sourceCommitAtCompletion !== sourceCommit || evidence.builtRuntimeIndexSha256AtCompletion !== builtRuntimeIndexSha256;

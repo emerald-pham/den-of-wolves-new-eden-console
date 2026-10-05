@@ -35,6 +35,9 @@ export function assertSelectedActor(current, expected) {
 
 /** Drives only the manager's disclosed ordinary retry, never replacing an identity. */
 export async function completePreparedCrew(options) {
+  const expectedActorCount = options.expectedActorCount ?? 21;
+  assert.ok(Number.isSafeInteger(expectedActorCount) && expectedActorCount >= 1 && expectedActorCount <= 21,
+    'The expected ordinary demo actor count must be within the real roster bounds.');
   const now = options.now ?? Date.now;
   const wait = options.wait ?? (() => delay(250));
   const deadline = now() + (options.timeoutMs ?? 180_000);
@@ -43,8 +46,8 @@ export async function completePreparedCrew(options) {
   while (now() < deadline) {
     current = await options.inspect();
     if (current.error && !recoverable.test(current.error)) throw new Error(current.error);
-    assert.ok(Number.isSafeInteger(current.actorCount) && current.actorCount >= 0 && current.actorCount <= 21);
-    if (current.actorCount === 21 && current.live) return retries;
+    assert.ok(Number.isSafeInteger(current.actorCount) && current.actorCount >= 0 && current.actorCount <= expectedActorCount);
+    if (current.actorCount === expectedActorCount && current.live) return retries;
     if (current.live && current.retryEnabled && recoverable.test(current.error)) {
       assert.ok(retries < (options.maxRetries ?? 10), 'Ordinary crew preparation retry limit reached.');
       await options.retry();
