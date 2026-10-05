@@ -42,7 +42,7 @@ function prepareGm({
   useSessionStore.getState().setGmInstance({ id: 'gm-instance-1', sessionId: 's1', uid: 'gm-1' } as never);
   useSessionStore.getState().setConnection('live');
   useSessionStore.getState().setSessionSnapshotFreshness('server');
-  useSessionStore.setState({ gmLoyaltyCensus: { revision: 4, entries: [] } } as never);
+  useSessionStore.setState({ gmLoyaltyCensus: { revision: 4, entries: [] }, gmLoyaltyCensusStatus: 'present' } as never);
 }
 
 describe('connected GM loyalty setup panel', () => {
