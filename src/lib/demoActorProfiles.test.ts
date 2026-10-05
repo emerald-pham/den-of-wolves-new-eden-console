@@ -28,7 +28,7 @@ function gateway() {
     session: { ...session, setupRevision: revision },
     player: { uid: seen.get(profile.roleId), sessionId: session.id, role: 'player', seatId: null } as Player,
   }));
-  const claim = vi.fn(async (_profile: DemoActorProfile, command: { expectedSetupRevision: number }) => ({
+  const claim = vi.fn(async (_profile: DemoActorProfile, command: { expectedSetupRevision: number; requestId: string }) => ({
     status: 'committed', setupRevision: ++revision,
     expectedSetupRevision: command.expectedSetupRevision,
   }));

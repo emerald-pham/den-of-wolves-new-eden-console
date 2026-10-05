@@ -14,7 +14,8 @@ vi.mock('@/lib/demoActorProfiles', () => ({
   demoSessionStatus: (session: { fullGameDemo?: { status: string } } | null) => session?.fullGameDemo?.status ?? null,
   assertSelectedDemoActorIdentity: vi.fn(async () => undefined),
 }));
-vi.mock('@/lib/demoActorContext', () => ({
+vi.mock('@/lib/demoActorContext', async importOriginal => ({
+  ...await importOriginal<typeof import('@/lib/demoActorContext')>(),
   activeDemoActorProfile: { sessionId: 'demo-session', roleId: 'controller' },
   demoActorJoinCode: () => '482100',
 }));
