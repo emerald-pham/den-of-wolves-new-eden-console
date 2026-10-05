@@ -2891,6 +2891,48 @@ it('keeps Wolf attack parking separate by rejecting cycle advancement during res
   );
 });
 
+it.each([false, true])('replays a committed ordinary cycle advance after acknowledgement loss (manual demo: %s)', async (manualDemo) => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-09-06T12:20:00.000Z'));
+  if (manualDemo) mock.fullGameDemo = { status: 'active', progression: 'manual' };
+  mock.turnPhase = {
+    turn: 1,
+    teamPhaseEndsAt: '2026-09-06T12:05:00.000Z',
+    openAirspaceEndsAt: '2026-09-06T12:20:00.000Z',
+    airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
+  };
+  const advance = {
+    sessionId: 's1', instanceId: 'bridge', requestId: 'advance-test-lost-ack',
+    expectedTurn: 1,
+  };
+  const result = await advanceTurn.run(request(advance));
+  expect(result).toMatchObject({ currentTurn: 2 });
+  expect(mock.commandReceipts['sessions/s1/commandReceipts/advance-test-lost-ack'])
+    .toMatchObject({
+      fingerprint: expect.objectContaining({ actorUid: 'u1', expectedRevision: 1, action: 'advance-turn' }),
+      result,
+    });
+
+  // The live projection may have moved several cycles before the GM retries.
+  mock.currentTurn = 3;
+  mock.turnPhase = { turn: 3, airspace: { state: 'restricted', tickerActive: true, pressAccess: false } };
+  mock.update.mockClear();
+  mock.set.mockClear();
+  mock.create.mockClear();
+  await expect(advanceTurn.run(request(advance))).resolves.toEqual(result);
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.create).not.toHaveBeenCalled();
+
+  await expect(advanceTurn.run(request({ ...advance, overridePhaseTimer: true })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  mock.role = 'player';
+  await expect(advanceTurn.run(request(advance)))
+    .rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
 it('freezes the configured final full-game demo turn and its terminal receipt', async () => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2026-09-06T12:20:00.000Z'));
