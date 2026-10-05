@@ -19,6 +19,8 @@ import { isPresenceStale } from './sessionLifecycle';
 import { organiserSitesForChart } from './starChartLookup';
 import { parseCandidateStationLiberations } from './candidateStationLiberation';
 import { writeStandardActionAudit } from './actionAudit';
+import { CANDIDATE_ENGINEERING_SHUTTLES, parseCandidateCraftReservations,
+  reserveCandidateEngineeringCraft } from './candidateAvailability';
 
 type Fields = Record<string, unknown>;
 type Request = { data: unknown; auth?: { uid: string } | null };
@@ -149,12 +151,13 @@ export function createCandidateCallables(d: Dependencies) {
     const actorShip = shipForRole(role);
     const alive = actor.get('candidateDisposition') == null && actor.get('replacementStatus') == null && actor.get('escapeState') == null;
     const shipIds = actorShip && group.vesselIds.includes(actorShip) ? [actorShip] : [];
-    const engineeringIds = ['philia', 'blacksmith', 'black-sheep', 'condor', 'chacau', 'wobbly', 'ally', 'macaw'];
+    const engineeringIds = CANDIDATE_ENGINEERING_SHUTTLES;
+    const consumedCraft = parseCandidateCraftReservations(session.get('candidateCraftReservations'));
     const craftCommitments = session.get('missionCraftCommitments');
     const availableEngineering = engineeringIds.flatMap(craft => {
       const holder = control[craft]; const docks = Array.isArray(dockings) ? dockings.filter(raw => record(raw) && raw.shuttleId === craft) : [];
       const dock = docks.length === 1 && record(docks[0]) ? docks[0].shipId : undefined;
-      const available = !!holder && typeof dock === 'string' && group.vesselIds.includes(dock) &&
+      const available = !Object.hasOwn(consumedCraft, craft) && !!holder && typeof dock === 'string' && group.vesselIds.includes(dock) &&
         !damage[dock]?.destroyed && !(record(craftCommitments) && Object.hasOwn(craftCommitments, craft)) &&
         !(attack.exists && attack.get('status') !== 'resolved');
       return holder ? [{ id: craft, available }] : [];
@@ -256,6 +259,14 @@ export function createCandidateCallables(d: Dependencies) {
       } catch (error) { if (error instanceof HttpsError) throw error;
         return precondition(error instanceof Error ? error.message : 'Candidate authority could not be resolved.'); }
       const patch: Fields = {}; const outcomes: Fields = { ...(record(world.session.get('candidateVesselOutcomes')) ? world.session.get('candidateVesselOutcomes') : {}) };
+      if (command.action === 'commit-engineering-shuttle') {
+        patch.candidateCraftReservations = reserveCandidateEngineeringCraft(world.session.get('candidateCraftReservations'),
+          command.shuttleId!, { code: 'N', groupId: a.groupId, coordinate: command.coordinate,
+            sourceId: command.requestId, cycle: a.cycle });
+        const dockings = world.session.get('shuttleDockings');
+        if (!Array.isArray(dockings)) return precondition('The consumed Engineering Shuttle docking is unavailable.');
+        patch.shuttleDockings = dockings.filter(docking => record(docking) && docking.shuttleId !== command.shuttleId);
+      }
       const dispositionShips = new Set<string>();
       for (const [shipId, delta] of Object.entries(plan.shipPatches)) {
         if (delta.fuel !== undefined) patch[`shipResources.${shipId}.fuel`] = delta.fuel;

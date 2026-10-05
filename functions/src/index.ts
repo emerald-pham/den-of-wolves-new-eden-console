@@ -23,6 +23,7 @@ import { recordCandidatePlanCheckpoint } from './candidatePlanCheckpoint';
 import { createCandidateCallables } from './candidatePathsCallable';
 import { candidateStationLiberationFromFinalization } from './candidateStationLiberation';
 import { commitTerminal } from './sessionDebrief';
+import { requireCandidateVesselsAvailable, requireCandidateCraftAvailable } from './candidateAvailability';
 import {
   candidateRevealProjectionForCurrentFleetMember,
   type CandidateReveal,
@@ -9671,6 +9672,11 @@ export const requestShuttleDeparture = auditedOnCall<{
     );
     if (replay) return { ...replay, status: 'replayed' as const };
     requireMissionMovementAvailable(session, [data.shuttleId]);
+    requireCandidateCraftAvailable(session, [data.shuttleId]);
+    const candidateOrigin = Array.isArray(session.get('shuttleDockings'))
+      ? session.get('shuttleDockings').find((dock: unknown) => isRecord(dock) && dock.shuttleId === data.shuttleId)?.shipId
+      : undefined;
+    requireCandidateVesselsAvailable(session, [data.destinationShipId, ...(typeof candidateOrigin === 'string' ? [candidateOrigin] : [])]);
     requireActiveGameplayPhase(session);
     if (attackState.exists && wolfAttackBlocksNormalMovement(attackState.data())) {
       throw commandError(
@@ -38425,6 +38431,7 @@ export const applyShipCounterSteps = auditedOnCall<{
       throw commandError('failed-precondition',
         'This counter batch has a standardized audit without its bound receipt.', 'conflict');
     }
+    requireCandidateVesselsAvailable(session, [change.shipId]);
     requireActiveGameplayPhase(session);
     const currentRevision = vesselActionRevision(session, change.shipId);
     if (identity.expectedRevision !== undefined && identity.expectedRevision !== currentRevision) {

@@ -167,8 +167,8 @@ export function resolveCandidateAction(a: CandidateAuthority, original: Candidat
     if (!a.actor.gm && !a.actor.shuttleIds.includes(command.shuttleId!)) return fail('Current Engineering Shuttle holder authority is required.');
     if (site.shuttleId || !a.engineeringShuttles.some(craft => craft.id === command.shuttleId && craft.available) ||
         Object.values(state.sites).some(other => other.shuttleId === command.shuttleId)) return fail('Choose an available Engineering Shuttle not already committed.');
-    site.shuttleId = command.shuttleId; calculation.shuttleId = command.shuttleId;
-    summary = 'Engineering Shuttle committed to Ring repair.';
+    site.shuttleId = command.shuttleId; calculation.shuttleId = command.shuttleId; calculation.craftConsumed = true;
+    summary = 'Engineering Shuttle permanently consumed repairing the Ring; it cannot launch or operate again.';
   } else if (command.action === 'ring-passage') {
     const ship = ownShip(a, command);
     if (!site.repairedAt) return fail('Complete all Ring repair prerequisites first.');
