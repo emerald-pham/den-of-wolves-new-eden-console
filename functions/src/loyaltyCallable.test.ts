@@ -56,6 +56,29 @@ function deletedSecretPaths(): string[] {
     .filter((path) => path.startsWith('sessions/s1/secrets/'));
 }
 
+function addStablePressPlayer(
+  uid = 'u4',
+  fields: Record<string, unknown> = {},
+  sessionFields: Record<string, unknown> = {},
+) {
+  mock.session = {
+    ...mock.session,
+    pressEnabled: true,
+    pressHolderUid: uid,
+    ...sessionFields,
+  };
+  const playerFields = {
+    connected: true,
+    role: 'player',
+    assignedRoleId: null,
+    seatId: null,
+    activeConsoleRoleId: 'press-officer',
+    ...fields,
+  };
+  mock.players.push({ id: uid, fields: playerFields });
+  return playerFields;
+}
+
 beforeEach(() => {
   mock.get.mockReset();
   mock.update.mockReset();
@@ -500,6 +523,204 @@ it('requires a canonical active Friend partner as well as a canonical target', a
   });
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('assigns explicit loyalty to the stable claimed Press without counting it as a core role', async () => {
+  addStablePressPlayer();
+
+  await expect(assignLoyalty.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'press-loyalty-target',
+    targetUid: 'u4', kind: 'android', suspicion: null,
+  }))).resolves.toEqual({ sessionId: 's1', setupRevision: 3, assignedUids: ['u4'] });
+
+  expect(mock.set).toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/s1/secrets/loyalty-u4' }),
+    expect.objectContaining({
+      visibleToUids: ['u4'],
+      payload: { type: 'loyalty', kind: 'android', suspicion: null },
+    }),
+  );
+  expect(mock.set).toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/s1/loyaltyCensus/current' }),
+    expect.objectContaining({
+      entries: expect.arrayContaining([{ uid: 'u4', kind: 'android', suspicion: null }]),
+    }),
+  );
+  expect(mock.set).toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/s1/loyaltyAssignmentRequests/press-loyalty-target' }),
+    expect.objectContaining({
+      actorUid: 'u1', targetUid: 'u4',
+      result: { sessionId: 's1', setupRevision: 3, assignedUids: ['u4'] },
+    }),
+  );
+  const event = mock.set.mock.calls.find(([ref]) => ref.path === 'sessions/s1/events/press-loyalty-target')?.[1];
+  expect(JSON.stringify(event)).not.toMatch(/u4|android|suspicion|partnerUid/);
+  expect(mock.update).toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/s1' }),
+    expect.objectContaining({ setupRevision: 3, phase: 'casting' }),
+  );
+});
+
+it('writes source-valid reciprocal Friend role metadata when the Press is the partner', async () => {
+  addStablePressPlayer();
+
+  await expect(assignLoyalty.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'press-friend-partner',
+    targetUid: 'u2', kind: 'friend', suspicion: 0, partnerUid: 'u4',
+  }))).resolves.toMatchObject({ assignedUids: ['u2', 'u4'] });
+
+  expect(mock.set).toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/s1/secrets/loyalty-u2' }),
+    expect.objectContaining({
+      payload: expect.objectContaining({ partnerUid: 'u4', partnerRoleId: 'press-officer' }),
+    }),
+  );
+  expect(mock.set).toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/s1/secrets/loyalty-u4' }),
+    expect.objectContaining({
+      visibleToUids: ['u4'],
+      payload: expect.objectContaining({ partnerUid: 'u2', partnerRoleId: 'icebreaker-miner' }),
+    }),
+  );
+});
+
+it('writes source-valid reciprocal Friend role metadata when the Press is the target', async () => {
+  addStablePressPlayer();
+
+  await expect(assignLoyalty.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'press-friend-target',
+    targetUid: 'u4', kind: 'friend', suspicion: 0, partnerUid: 'u2',
+  }))).resolves.toMatchObject({ assignedUids: ['u4', 'u2'] });
+
+  expect(mock.set).toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/s1/secrets/loyalty-u4' }),
+    expect.objectContaining({
+      payload: expect.objectContaining({ partnerUid: 'u2', partnerRoleId: 'icebreaker-miner' }),
+    }),
+  );
+  expect(mock.set).toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/s1/secrets/loyalty-u2' }),
+    expect.objectContaining({
+      visibleToUids: ['u2'],
+      payload: expect.objectContaining({ partnerUid: 'u4', partnerRoleId: 'press-officer' }),
+    }),
+  );
+});
+
+it.each([
+  ['disabled Press', {}, { pressEnabled: false }],
+  ['wrong session holder', {}, { pressHolderUid: 'u5' }],
+  ['assigned Press role alias', { assignedRoleId: 'press-officer' }, {}],
+  ['Press seat alias', { seatId: 'press-officer' }, {}],
+  ['core holder carrying a Press console alias', { assignedRoleId: 'shepherd-scientist' }, {
+    activeRoleIds: ['admiral', 'icebreaker-miner', 'shepherd-scientist'],
+  }],
+  ['stale console claim', { activeConsoleRoleId: null }, {}],
+  ['disconnected Press', { connected: false }, {}],
+  ['kicked Press', { kickedAt: new Date() }, {}],
+  ['expired Press presence', { lastSeenAt: Timestamp.fromDate(new Date(Date.now() - 24 * 60 * 60 * 1000)) }, {}],
+  ['replacement Press', { replacementStatus: 'replaced' }, {}],
+  ['replacement-role Press', { replacementRoleId: 'wolf-commander' }, {}],
+  ['escaped Press', { escapeState: { status: 'fled', shipId: 'dione', destructionEventId: 'wreck-1', revision: 1 } }, {}],
+] as const)('rejects %s from explicit loyalty setup without writes', async (_label, playerFields, sessionFields) => {
+  addStablePressPlayer('u4', playerFields, sessionFields);
+  await expect(assignLoyalty.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: `reject-press-${_label.replaceAll(' ', '-')}`,
+    targetUid: 'u4', kind: 'android', suspicion: null,
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.delete).not.toHaveBeenCalled();
+});
+
+it('rejects duplicate active Press holders from explicit loyalty setup without writes', async () => {
+  addStablePressPlayer();
+  mock.players.push({
+    id: 'u5', fields: { connected: true, role: 'player', activeConsoleRoleId: 'press-officer' },
+  });
+
+  await expect(assignLoyalty.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'duplicate-press-loyalty',
+    targetUid: 'u4', kind: 'android', suspicion: null,
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.delete).not.toHaveBeenCalled();
+});
+
+it('counts a private Wolf loyalty on the stable Press for Intelligence Agent setup', async () => {
+  addStablePressPlayer();
+  mock.loyaltySecrets = [{
+    id: 'loyalty-u4',
+    fields: { visibleToUids: ['u4'], payload: { type: 'loyalty', kind: 'wolf-agent', suspicion: 0 } },
+  }];
+
+  await expect(assignLoyalty.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'press-wolf-allows-intelligence',
+    targetUid: 'u2', kind: 'intelligence-agent', suspicion: 6,
+  }))).resolves.toMatchObject({ assignedUids: ['u2'] });
+  expect(mock.set).toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/s1/loyaltyCensus/current' }),
+    expect.objectContaining({
+      entries: expect.arrayContaining([
+        { uid: 'u4', kind: 'wolf-agent', suspicion: 0 },
+        { uid: 'u2', kind: 'intelligence-agent', suspicion: 6 },
+      ]),
+    }),
+  );
+});
+
+it('counts a private Press Intelligence Agent when enforcing the one-card limit', async () => {
+  addStablePressPlayer();
+  mock.loyaltySecrets = [
+    {
+      id: 'loyalty-u3',
+      fields: { visibleToUids: ['u3'], payload: { type: 'loyalty', kind: 'wolf-agent', suspicion: 0 } },
+    },
+    {
+      id: 'loyalty-u4',
+      fields: { visibleToUids: ['u4'], payload: { type: 'loyalty', kind: 'intelligence-agent', suspicion: 6 } },
+    },
+  ];
+
+  await expect(assignLoyalty.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'duplicate-press-intelligence',
+    targetUid: 'u2', kind: 'intelligence-agent', suspicion: 6,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition', message: expect.stringMatching(/Intelligence Agent|already|one/i),
+  });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.delete).not.toHaveBeenCalled();
+});
+
+it('does not count a private Press Wolf when the Press authority is stale', async () => {
+  addStablePressPlayer('u4', { connected: false });
+  mock.loyaltySecrets = [{
+    id: 'loyalty-u4',
+    fields: { visibleToUids: ['u4'], payload: { type: 'loyalty', kind: 'wolf-agent', suspicion: 0 } },
+  }];
+
+  await expect(assignLoyalty.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'stale-press-wolf-does-not-count',
+    targetUid: 'u2', kind: 'intelligence-agent', suspicion: 6,
+  }))).rejects.toMatchObject({ code: 'failed-precondition', message: expect.stringMatching(/wolf/i) });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+});
+
+it('keeps ordinary Wolf selection automatic even for a valid Press holder', async () => {
+  addStablePressPlayer();
+
+  await expect(assignLoyalty.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'ordinary-press-wolf-choice',
+    targetUid: 'u4', kind: 'wolf-agent', suspicion: 0,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition', message: expect.stringMatching(/automatic.*wolf|wolf.*automatic/i),
+  });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.delete).not.toHaveBeenCalled();
 });
 
 it('ignores stale Wolf records when deciding whether Intelligence Agent setup is safe', async () => {
