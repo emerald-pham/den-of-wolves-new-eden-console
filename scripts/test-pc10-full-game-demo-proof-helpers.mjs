@@ -62,3 +62,16 @@ test('crew retry never substitutes identity recovery or an unlimited retry loop'
     maxRetries: 1, now: () => time, wait: async () => { time += 1; } }), /retry limit/);
   assert.equal(retries, 1);
 });
+
+test('ending observation accepts the authoritative final-cycle snapshot without a generic game outcome', async () => {
+  const { isObservedGameEnding } = await import('./pc10-full-game-demo-proof-helpers.mjs');
+  const ended = { phase: 'debrief', cycle: 8, gameOutcomeCause: null, debriefType: 'session-debrief', debriefVersion: 1,
+    debriefSource: 'final-cycle', debriefResult: 'completed', debriefCause: 'final-cycle', debriefCycle: 8 };
+  assert.equal(isObservedGameEnding(ended), true);
+  assert.equal(isObservedGameEnding({ ...ended, phase: 'closed' }), true);
+  for (const changed of [{ phase: 'active' }, { debriefType: null }, { debriefCycle: 7 }, { debriefResult: 'success' }]) {
+    assert.equal(isObservedGameEnding({ ...ended, ...changed }), false);
+  }
+  assert.equal(isObservedGameEnding({ ...ended, debriefSource: 'candidate', debriefResult: 'success', debriefCause: 'candidate-complete' }), true);
+  assert.equal(isObservedGameEnding({ ...ended, debriefSource: 'failure-review', debriefResult: 'failure', debriefCause: 'pursuit-limit' }), true);
+});
