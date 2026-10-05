@@ -55,7 +55,8 @@ test('a named crisis branch must have its exact current-source choice before it 
   assert.throws(() => assertRequiredCrisisChoices({ requiredBranches: ['voyage-host-docking'] }), /required.*voyage-host-docking/i);
   assert.throws(() => assertRequiredCrisisChoices({
     requiredBranches: ['voyage-admission'],
-    approachingVessel: { vesselReality: 'real', admitVoyage: false },
+    approachingVessel: { vesselReality: 'real', responseChoices: ['wait-briefly-then-leave'],
+      coordinationActions: [], responseInstructions: 'Hold for confirmation.', admitVoyage: false },
   }), /required.*voyage-admission/i);
   assert.throws(() => assertRequiredCrisisChoices({ requiredBranches: ['future-crisis'] }), /unknown.*branch/i);
 });
