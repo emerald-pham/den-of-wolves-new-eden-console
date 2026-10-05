@@ -149,3 +149,36 @@ test('setup recovery does not retry an unexplained rejection or a second local f
     assert.ok(clicks <= 2);
   }
 });
+
+test('manual cycle advance follows the offered first-click commitment without inventing confirmation', async () => {
+  const { completeOfferedTurnAdvance } = await import('./pc10-full-game-demo-proof-helpers.mjs');
+  const expected = { sessionId: 'fresh', uidHash: 'gm-hash', instanceId: 'owned', cycle: 1 };
+  let cycle = 1, first = 0, second = 0, time = 0;
+  const inspect = async () => ({ ...expected, cycle, phase: 'active', sameActor: true,
+    playerRole: 'gm', gmInstanceOwned: true, connection: 'live', freshness: 'server', confirmationOffered: false });
+  const result = await completeOfferedTurnAdvance({ expected, inspect,
+    clickAdvance: async () => { first += 1; cycle = 2; },
+    clickConfirmation: async () => { second += 1; throw new Error('Manual UI offers no confirmation.'); },
+    now: () => time, wait: async () => { time += 1; } });
+  assert.equal(first, 1); assert.equal(second, 0); assert.equal(result.current.cycle, 2);
+});
+
+test('a timer-held advance clicks only its actually offered confirmation and preserves actor authority', async () => {
+  const { completeOfferedTurnAdvance } = await import('./pc10-full-game-demo-proof-helpers.mjs');
+  const expected = { sessionId: 'fresh', uidHash: 'gm-hash', instanceId: 'owned', cycle: 6 };
+  let offered = false, phase = 'active', first = 0, second = 0, time = 0;
+  const inspect = async () => ({ ...expected, phase, sameActor: true, playerRole: 'gm',
+    gmInstanceOwned: true, connection: 'live', freshness: 'server', confirmationOffered: offered });
+  const result = await completeOfferedTurnAdvance({ expected, inspect,
+    clickAdvance: async () => { first += 1; offered = true; },
+    clickConfirmation: async () => { second += 1; phase = 'debrief'; offered = false; },
+    now: () => time, wait: async () => { time += 1; } });
+  assert.equal(first, 1); assert.equal(second, 1); assert.equal(result.current.phase, 'debrief');
+  first = 0; second = 0; phase = 'active'; offered = false;
+  await assert.rejects(completeOfferedTurnAdvance({ expected,
+    inspect: async () => ({ ...(await inspect()), uidHash: offered ? 'foreign' : expected.uidHash }),
+    clickAdvance: async () => { first += 1; offered = true; },
+    clickConfirmation: async () => { second += 1; },
+    now: () => time, wait: async () => { time += 1; } }));
+  assert.equal(first, 1); assert.equal(second, 0);
+});
