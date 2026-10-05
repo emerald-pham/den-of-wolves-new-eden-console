@@ -103,12 +103,12 @@ test('damage draw is classified as mounted only through the actual GM Assign dam
 
 test('dynamic shuttle actions resolve only the unique admitted account matching current server custody', () => {
   const roster = [
-    { roleId: 'icebreaker-miner', uidHash: 'd90d3c6f7f1f4d40' },
-    { roleId: 'dione-engineer', uidHash: 'd90d3c6f7f1f4d40' },
+    { roleId: 'icebreaker-miner', uidHash: '23315a1010be1519' },
+    { roleId: 'dione-engineer', uidHash: '23315a1010be1519' },
     { roleId: 'capybara-captain', uidHash: 'f00dbabe00000000' },
   ];
   const holderUid = 'real-auth-uid';
-  const holderHash = 'd90d3c6f7f1f4d40';
+  const holderHash = '23315a1010be1519';
   const control = { shuttleId: 'ally', holderUid, ownerUid: 'owner-uid', ownerRoleId: 'dione-engineer', revision: 4 };
   assert.equal(resolveCurrentHolderActor({ shuttleId: 'ally', control, roster }), null,
     'ambiguous duplicate matches must not select an identity');
