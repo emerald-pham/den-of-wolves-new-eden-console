@@ -597,14 +597,14 @@ it.each(['aegis', 'capybara'])('lets only a GM assign damage beneath %s maintena
 });
 
 it.each([
-  ['aegis', 'AEGIS', /Armoured Hull.*returns to the deck while other cards remain/i, /required draw.*empty.*destroyed/i],
-  ['dione', 'Dione', /non-armoured damage card costs 1 survivor/i, /required draw.*empty.*destroyed/i],
-  ['capybara', 'Capybara', /non-armoured damage card costs 1 survivor/i, /empty-deck result.*facilitator/i],
+  ['aegis', 'AEGIS', /Armoured Hull.*without survivor loss.*cycles back.*other card remains/i, /empty deck.*required draw.*destroys the ship/i],
+  ['dione', 'Dione', /non-armoured hit removes 1 survivor/i, /empty deck.*required draw.*ship is destroyed/i],
+  ['capybara', 'Capybara', /non-armoured hit removes 1 survivor/i, /expansion rules.*empty-deck draw.*facilitator/i],
 ] as const)('explains %s damage outcomes only beside the GM Assign damage control', (shipId, name, exception, exhaustion) => {
   const props = { name, shipId, systems: [], renderSystem: () => null, rations: null };
   render(<MaintenanceSystems {...props} />);
   expect(screen.queryByRole('button', { name: 'Assign damage' })).not.toBeInTheDocument();
-  expect(screen.queryByText(/The server draws 1 card at random from .* remaining .* damage deck/i)).not.toBeInTheDocument();
+  expect(screen.queryByText(/The server picks 1 card at random from the cards still in the .* damage deck/i)).not.toBeInTheDocument();
 
   act(() => useSessionStore.setState({
     me: { ...me, role: 'gm' },
@@ -612,7 +612,7 @@ it.each([
   }));
 
   const button = screen.getByRole('button', { name: 'Assign damage' });
-  const help = screen.getByText(/The server draws 1 card at random from .* remaining .* damage deck/i);
+  const help = screen.getByText(/The server picks 1 card at random from the cards still in the .* damage deck/i);
   expect(button).toHaveAccessibleDescription(help.textContent ?? '');
   expect(help).toHaveTextContent(exception);
   expect(help).toHaveTextContent(exhaustion);
