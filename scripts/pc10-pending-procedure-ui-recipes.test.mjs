@@ -91,7 +91,8 @@ test('Shuttle evacuation binds its public ledger revision and current custody re
       sourceShipId: 'quellon', destinationShipId: 'icebreaker', amount: 100, sourcePopulation: 900,
       destinationPopulation: 600, cycle: 2, movedThisCycle: 100, evacuationRevision: 5 } },
     rendered: { visible: true, resultStatus: 'committed' } };
-  assert.equal(evaluateProcedureCapture(input).status, 'completed');
+  const departureResult = evaluateProcedureCapture(input);
+  assert.equal(departureResult.status, 'completed', departureResult.reason);
   assert.equal(evaluateProcedureCapture({ ...input,
     request: { ...input.request, expectedEvacuationRevision: 3 } }).status, 'pending');
   assert.equal(evaluateProcedureCapture({ ...input,
@@ -116,7 +117,8 @@ test('Service shuttle recharge binds its own ledger plus custody and maintenance
     response: { httpStatus: 200, result, exactReplay: true },
     replay: { result: { ...result, status: 'replayed' } },
     rendered: { visible: true, resultStatus: 'committed' } };
-  assert.equal(evaluateProcedureCapture(input).status, 'completed');
+  const transitResult = evaluateProcedureCapture(input);
+  assert.equal(transitResult.status, 'completed', transitResult.reason);
   assert.equal(evaluateProcedureCapture({ ...input,
     request: { ...input.request, expectedControlRevision: 6 } }).status, 'pending');
   assert.equal(evaluateProcedureCapture({ ...input,
@@ -150,28 +152,29 @@ test('Boa mission choice receipt binds its choice revision to the current render
 // recipe must validate their exact request/receipt/state tuple rather than
 // treating the unchanged shuttle-control revision as an artificial blocker.
 test('departure request can complete from its exact typed server movement receipt', () => {
-  const actor = { uidHash: 'holder-hash', sessionId: 'session-1', profileRoleId: 'quellon-explorer',
+  const actor = { uidHash: '1bbda739c2a9bf0a', sessionId: 'session-1', profileRoleId: 'quellon-explorer',
     activeConsoleRoleId: 'quellon-explorer', sameActor: true, connection: 'live', freshness: 'server' };
   const result = { status: 'requested', sessionId: 'session-1', requestId: 'depart-1', shuttleId: 'starlight',
     holderUid: 'private-holder-uid', fleetGroupId: 'fleet-1', originShipId: 'quellon', destinationShipId: 'icebreaker',
     cycle: 2, controlRevision: 4, requestedAt: '2026-10-05T12:00:00.000Z' };
-  const input = { caseId: 'core:requestShuttleDeparture', expected: { sessionId: 'session-1', uidHash: 'holder-hash',
+  const input = { caseId: 'core:requestShuttleDeparture', expected: { sessionId: 'session-1', uidHash: '1bbda739c2a9bf0a',
     roleId: 'quellon-explorer', cycle: 2, sourceRevision: 4, controlRevision: 4, groupId: 'fleet-1',
     shuttleId: 'starlight', destinationShipId: 'icebreaker' }, offered: true, mountedUi: true,
     actorBefore: actor, actorAfter: actor,
     sourceBefore: { live: true, sessionId: 'session-1', cycle: 2, revision: 4, groupId: 'fleet-1' },
     sourceAfter: { live: true, sessionId: 'session-1', cycle: 2, revision: 4, groupId: 'fleet-1' },
     transitionBefore: { kind: 'shuttle-movement', exists: false, sessionId: 'session-1', shuttleId: 'starlight',
-      holderUidHash: 'holder-hash', groupId: 'fleet-1', controlRevision: 4, cycle: 2 },
+      holderUidHash: '1bbda739c2a9bf0a', groupId: 'fleet-1', controlRevision: 4, cycle: 2 },
     transitionAfter: { kind: 'shuttle-movement', exists: true, status: 'requested', sessionId: 'session-1',
-      requestId: 'depart-1', shuttleId: 'starlight', holderUidHash: 'holder-hash', groupId: 'fleet-1',
+      requestId: 'depart-1', shuttleId: 'starlight', holderUidHash: '1bbda739c2a9bf0a', groupId: 'fleet-1',
       destinationShipId: 'icebreaker', controlRevision: 4, cycle: 2 },
     request: { sessionId: 'session-1', requestId: 'depart-1', shuttleId: 'starlight', destinationShipId: 'icebreaker',
       expectedControlRevision: 4, expectedCycle: 2 },
     response: { httpStatus: 200, result, exactReplay: true },
     replay: { result: { ...result, status: 'replayed' } },
     rendered: { visible: true, resultStatus: 'requested' } };
-  assert.equal(evaluateProcedureCapture(input).status, 'completed');
+  const departureResult = evaluateProcedureCapture(input);
+  assert.equal(departureResult.status, 'completed', departureResult.reason);
   assert.equal(evaluateProcedureCapture({ ...input,
     transitionAfter: { ...input.transitionAfter, holderUidHash: 'foreign-holder' } }).status, 'pending');
   assert.equal(evaluateProcedureCapture({ ...input,
@@ -202,7 +205,8 @@ test('cargo transfer can complete only from the exact two-sided source ledger de
     response: { httpStatus: 200, result, exactReplay: true },
     replay: { result: { ...result, status: 'replayed' } },
     rendered: { visible: true, resultStatus: 'committed' } };
-  assert.equal(evaluateProcedureCapture(input).status, 'completed');
+  const cargoResult = evaluateProcedureCapture(input);
+  assert.equal(cargoResult.status, 'completed', cargoResult.reason);
   assert.equal(evaluateProcedureCapture({ ...input,
     transitionAfter: { ...input.transitionAfter, shuttleAmount: 4 } }).status, 'pending');
   assert.equal(evaluateProcedureCapture({ ...input,
@@ -212,23 +216,23 @@ test('cargo transfer can complete only from the exact two-sided source ledger de
 });
 
 test('begin transit binds the prior departure and current public transit projection', () => {
-  const actor = { uidHash: 'holder-hash', sessionId: 'session-1', profileRoleId: 'quellon-explorer',
+  const actor = { uidHash: '1bbda739c2a9bf0a', sessionId: 'session-1', profileRoleId: 'quellon-explorer',
     activeConsoleRoleId: 'quellon-explorer', sameActor: true, connection: 'live', freshness: 'server' };
   const result = { status: 'in-transit', sessionId: 'session-1', requestId: 'depart-1', transitRequestId: 'transit-1',
     shuttleId: 'starlight', holderUid: 'private-holder-uid', fleetGroupId: 'fleet-1', destinationShipId: 'icebreaker',
     cycle: 2, controlRevision: 4, revision: 1, requestedAt: '2026-10-05T12:00:00.000Z',
     currentPosition: { x: 0, y: 0, z: 0 }, destinationPosition: { x: 1, y: 1, z: 1 }, velocity: { x: 1, y: 1, z: 1 },
     departedAt: '2026-10-05T12:00:01.000Z', arrivesAt: '2026-10-05T12:01:01.000Z' };
-  const input = { caseId: 'core:beginShuttleTransit', expected: { sessionId: 'session-1', uidHash: 'holder-hash',
+  const input = { caseId: 'core:beginShuttleTransit', expected: { sessionId: 'session-1', uidHash: '1bbda739c2a9bf0a',
     roleId: 'quellon-explorer', cycle: 2, sourceRevision: 4, controlRevision: 4, groupId: 'fleet-1',
     shuttleId: 'starlight' }, offered: true, mountedUi: true, actorBefore: actor, actorAfter: actor,
     sourceBefore: { live: true, sessionId: 'session-1', cycle: 2, revision: 4, groupId: 'fleet-1' },
     sourceAfter: { live: true, sessionId: 'session-1', cycle: 2, revision: 1, groupId: 'fleet-1' },
     transitionBefore: { kind: 'shuttle-movement', exists: true, status: 'requested', sessionId: 'session-1',
-      requestId: 'depart-1', shuttleId: 'starlight', holderUidHash: 'holder-hash', groupId: 'fleet-1',
+      requestId: 'depart-1', shuttleId: 'starlight', holderUidHash: '1bbda739c2a9bf0a', groupId: 'fleet-1',
       destinationShipId: 'icebreaker', controlRevision: 4, cycle: 2 },
     transitionAfter: { kind: 'shuttle-movement', exists: true, status: 'in-transit', sessionId: 'session-1',
-      requestId: 'depart-1', transitRequestId: 'transit-1', shuttleId: 'starlight', holderUidHash: 'holder-hash',
+      requestId: 'depart-1', transitRequestId: 'transit-1', shuttleId: 'starlight', holderUidHash: '1bbda739c2a9bf0a',
       groupId: 'fleet-1', destinationShipId: 'icebreaker', controlRevision: 4, cycle: 2, revision: 1 },
     request: { sessionId: 'session-1', requestId: 'transit-1', shuttleId: 'starlight',
       expectedDepartureRequestId: 'depart-1', expectedControlRevision: 4, expectedCycle: 2 },
@@ -240,4 +244,37 @@ test('begin transit binds the prior departure and current public transit project
     request: { ...input.request, expectedDepartureRequestId: 'foreign-departure' } }).status, 'pending');
   assert.equal(evaluateProcedureCapture({ ...input,
     transitionAfter: { ...input.transitionAfter, revision: 2 } }).status, 'pending');
+});
+
+test('retarget requires the exact current transit, legal offered destination, and next transit revision', () => {
+  const actor = { uidHash: '1bbda739c2a9bf0a', sessionId: 'session-1', profileRoleId: 'quellon-explorer',
+    activeConsoleRoleId: 'quellon-explorer', sameActor: true, connection: 'live', freshness: 'server' };
+  const result = { status: 'in-transit', sessionId: 'session-1', requestId: 'depart-1', transitRequestId: 'transit-1',
+    shuttleId: 'starlight', holderUid: 'private-holder-uid', fleetGroupId: 'fleet-1', destinationShipId: 'dione',
+    cycle: 2, controlRevision: 4, revision: 3, requestedAt: '2026-10-05T12:00:00.000Z',
+    currentPosition: { x: 0, y: 0, z: 0 }, destinationPosition: { x: 2, y: 2, z: 2 }, velocity: { x: 1, y: 1, z: 1 },
+    departedAt: '2026-10-05T12:00:02.000Z', arrivesAt: '2026-10-05T12:01:02.000Z' };
+  const input = { caseId: 'core:retargetShuttleTransit', expected: { sessionId: 'session-1', uidHash: '1bbda739c2a9bf0a',
+    roleId: 'quellon-explorer', cycle: 2, sourceRevision: 2, controlRevision: 4, groupId: 'fleet-1',
+    shuttleId: 'starlight', transitRequestId: 'transit-1', destinationShipId: 'dione' }, offered: true, mountedUi: true,
+    actorBefore: actor, actorAfter: actor,
+    sourceBefore: { live: true, sessionId: 'session-1', cycle: 2, revision: 2, groupId: 'fleet-1' },
+    sourceAfter: { live: true, sessionId: 'session-1', cycle: 2, revision: 3, groupId: 'fleet-1' },
+    transitionBefore: { kind: 'shuttle-movement', exists: true, status: 'in-transit', sessionId: 'session-1',
+      requestId: 'depart-1', transitRequestId: 'transit-1', shuttleId: 'starlight', holderUidHash: '1bbda739c2a9bf0a',
+      groupId: 'fleet-1', destinationShipId: 'icebreaker', controlRevision: 4, cycle: 2, revision: 2 },
+    transitionAfter: { kind: 'shuttle-movement', exists: true, status: 'in-transit', sessionId: 'session-1',
+      requestId: 'depart-1', transitRequestId: 'transit-1', shuttleId: 'starlight', holderUidHash: '1bbda739c2a9bf0a',
+      groupId: 'fleet-1', destinationShipId: 'dione', controlRevision: 4, cycle: 2, revision: 3 },
+    request: { sessionId: 'session-1', requestId: 'retarget-1', shuttleId: 'starlight', transitRequestId: 'transit-1',
+      destinationShipId: 'dione', expectedControlRevision: 4, expectedCycle: 2 },
+    response: { httpStatus: 200, result, exactReplay: true },
+    replay: { result: { ...result, status: 'replayed' } },
+    rendered: { visible: true, resultStatus: 'in-transit' } };
+  const accepted = evaluateProcedureCapture(input);
+  assert.equal(accepted.status, 'completed', accepted.reason);
+  assert.equal(evaluateProcedureCapture({ ...input,
+    request: { ...input.request, transitRequestId: 'foreign-transit' } }).status, 'pending');
+  assert.equal(evaluateProcedureCapture({ ...input,
+    transitionAfter: { ...input.transitionAfter, revision: 4 } }).status, 'pending');
 });
