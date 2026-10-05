@@ -63,6 +63,23 @@ test('crew retry never substitutes identity recovery or an unlimited retry loop'
   assert.equal(retries, 1);
 });
 
+test('ordinary eleven-role preparation waits for exactly its twelve real role and Press actors', async () => {
+  const { completePreparedCrew } = await import('./pc10-full-game-demo-proof-helpers.mjs');
+  let time = 0, waited = false;
+  assert.equal(await completePreparedCrew({ expectedActorCount: 12,
+    inspect: async () => ({ actorCount: 12, live: true, retryEnabled: false, error: '' }),
+    retry: async () => { throw new Error('No retry is needed.'); },
+    now: () => time, timeoutMs: 2, wait: async () => { waited = true; time += 1; } }), 0);
+  assert.equal(waited, false);
+});
+
+test('ordinary preparation rejects impossible expected actor counts', async () => {
+  const { completePreparedCrew } = await import('./pc10-full-game-demo-proof-helpers.mjs');
+  await assert.rejects(completePreparedCrew({ expectedActorCount: 22,
+    inspect: async () => ({ actorCount: 21, live: true, retryEnabled: false, error: '' }),
+    retry: async () => {} }), /actor count/i);
+});
+
 test('ending observation accepts the authoritative final-cycle snapshot without a generic game outcome', async () => {
   const { isObservedGameEnding } = await import('./pc10-full-game-demo-proof-helpers.mjs');
   const ended = { phase: 'debrief', cycle: 8, gameOutcomeCause: null, debriefType: 'session-debrief', debriefVersion: 1,
