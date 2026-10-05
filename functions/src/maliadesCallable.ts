@@ -21,6 +21,7 @@ import {
   type MaliadesMediumChoice,
 } from './maliadesState';
 import { requirePursuitEmergencyWindowAbsent } from './pursuitEmergencyWindow';
+import { requireCandidateCraftActionAvailable } from './candidateAvailability';
 
 type RecordValue = Record<string, unknown>;
 
@@ -221,6 +222,7 @@ export const repairMaliades = auditedOnCall('repairMaliades', CALLABLE_RUNTIME_O
     requireDioneEngineer(actor, uid);
     const prior = replay(receipt, fingerprint, 'Maliades repair', (value): value is RecordValue => isActionReply(value, fingerprint));
     if (prior) return resultWithReplay(prior);
+    requireCandidateCraftActionAvailable(session, ['maliades'], ['dione']);
     requirePursuitEmergencyWindowAbsent(session);
     if (event.exists) throw new HttpsError('failed-precondition', 'This Maliades repair request already has an event receipt.');
     const currentCycle = session.get('currentTurn');
