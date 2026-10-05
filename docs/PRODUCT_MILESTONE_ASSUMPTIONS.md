@@ -560,3 +560,21 @@ broader future diegetic-rules PC11 does not enlarge this repair.
 | Source | The named Maliades component supplies an optional Medium attack/target adjustment and up to two Short attacks, with their printed self-risk and three-damage destruction. Its incomplete digital sequencing does not specify a persisted pass marker. Source routing remains in the private library and PC08_RANGE_ASSUMPTIONS. |
 | Chosen reading | The current Engineer and Maliades holder may explicitly decline all actions at either range. Persist that zero-action choice for the current attack and revision; it participates in the same locked range batch as the other sources. |
 | Alternatives and limits | A pass consumes no dice, causes no self-damage, and cannot bypass another source's pending choice. A disconnected or away assigned owner stays pending; only a genuinely unavailable holder receives an audited automatic zero-action result. The explicit durable marker is a digital extension, not quoted printed pass text. |
+
+### PC10-D1 — Protected virtual crew for the two-browser solo demo
+
+| Field | Decision |
+|---|---|
+| ID and checkpoint | PC10-D1, PC10-A02; current owner clarification of the authorized single-player full-game demo. No fixed catalog item is invented or credited. |
+| Authority | The owner requires one person to operate the full game across two browsers without manually creating a set of browser profiles. The ordinary seat-backed readiness and source Wolf assignment already support sparse actual rosters. |
+| Chosen design | Permanently label a fresh training session before any non-GM participant joins. Keep the GM on Browser A. Browser B automatically manages a disclosed crew of genuine Firebase Auth personas, with ordinary admission, casting, seats and explicit actor decisions. Each selected persona has a fixed named app and isolated persisted state/outbox; switching reloads the document. |
+| Limits | Virtual personas are simulated participants, not proof of physical attendance, independent humans or devices. Links contain only ordinary join information and nonsensitive local profile references. Normal games retain normal readiness, authority, consent and privacy. Mutually exclusive rosters, replacements and terminal outcomes require separate fresh-game branches. |
+
+### PC10-D2 — Explicit simulated arrest attendance in the protected demo
+
+| Field | Decision |
+|---|---|
+| ID and checkpoint | PC10-D2, PC10-A02; bounded demo extension under the owner's approval of isolated simulated crew controls. No additional fixed closure. |
+| Printed source | Base Player Guide v1.1 arrest procedure and Facilitator Guide v1.1 arrest/prisoner guidance, routed privately to the core-rules and facilitation derivatives. All seven preserved primary binaries match the private provenance inventory. The existing threshold, defenders, private suspicion and next-Team-Phase deadline remain the source behavior. |
+| Chosen design | In an active manual training session only, the current authenticated GM explicitly chooses named virtual posse members and presses “Simulate attendance.” The exact request, result, private case and private attendance audit are labeled simulated. It uses the same current private calculation, distinct connected roster, source arithmetic, deadline and replay rules. |
+| Limits | The demo rejects unlabeled physical attestations; a normal game rejects the simulation field. Normal results retain their existing shape, and their private audit records the GM physical-attestation evidence class. This does not assert that the program verified real people or physical attendance, expose suspicion, create roster members, grant ordinary actors GM authority or bypass consent. |

@@ -48,6 +48,19 @@ repair real authority rather than create a GM or gameplay bypass. Existing
 single-cycle access remains available. QR contains no GM credential, privileged
 token or elevated capability. Both additions follow current CIC design tokens.
 
+The owner's subsequent two-browser clarification rejects a one-UID constraint
+and manual setup of eight browser profiles. The protected demo is permanently
+labeled training. Browser A remains the normally authenticated GM; Browser B
+prepares and selects a disclosed virtual crew, with one genuine Firebase Auth
+identity per persona. Preparation is restricted to a fresh Cycle 0 with no
+ordinary participants. Admission, seats, casting, consent, gameplay choices and
+private reads retain ordinary authority. Selecting a persona reloads the
+document and uses its own app and persisted state/outbox; the manager link
+contains no GM credential. Setup/presence may be automated, but gameplay and
+consent decisions remain explicit choices. Physical attendance, mutually
+exclusive rosters and terminal branches retain separate evidence classes and
+fresh-game scenarios.
+
 ## Bounded behavior groups and handoffs
 
 Workers read their own exact catalog rows, routed private sources and relevant
@@ -65,7 +78,8 @@ have one implementation owner. They coordinate directly at dependency seams.
 | Endings (Luna 6 Max) | 563–566 | `/private/tmp/dow-pc10-endings-20261005`; freeze, immutable debrief, retained entitled history and connected terminal UI | Consume candidate result contract and existing 560–562 failure authority; no blanket private-data reveal. |
 | Workspaces and Capybara (Luna 6 Max) | 181, 215b, 223b, 233b, 576, 579, 581 | `/private/tmp/dow-pc10-workspaces-20261005`; existing specialist shells/chooser and Macaw/Boa/Scrap behavior through ordinary connected actions | Reuse PC09 ordinary combat/mission receipts and durable inventory; no copied console or correction-only closure. |
 | Security and audit (Sol 6.1 Max) | 629, 630, 631, 634, 635 | `/private/tmp/dow-pc10-security-20261005`; privacy projections, random input rejection, expensive-callable limits, redacted denial/audit contracts | Coordinate candidate/debrief private fields and receipts with those owners; preserve legitimate shared-table retries and existing auth/App Check gates. |
-| GM full demo and join QR (Luna 6 Max) | PC10-A01/A02; connected GM cycle 0→1 and unlimited/manual demo control | `/private/tmp/dow-pc10-demo-20261005`; real GM entry/start/demo/timer path, role cycling, Settings join link/QR | Retain current single-cycle demo and admission/consent/privacy; publish safe demo state and timer contract for fresh owner proof. |
+| GM full demo and join QR (Luna 6 Max) | PC10-A01/A02; connected GM cycle 0→1 and unlimited/manual demo control | `/private/tmp/dow-pc10-demo-20261005`; real GM entry/start/demo/timer path, training preparation and Settings join link/QR | Retain current single-cycle demo and admission/consent/privacy; publish safe demo state and timer contract for fresh owner proof. |
+| Demo persona implementation (Sol 6.1 Max) | PC10-A02; user-facing two-browser virtual crew | `/private/tmp/dow-pc10-demo-personas-20261005`; named Auth apps, restoration/sign-in singleflight, isolated state/outbox, reload-based actor manager | Consume the fresh-Cycle-0 protected preparation marker; preserve normal Auth, App Check and default storage behavior. This worker implements and cannot review the reconciled candidate. |
 | Orchestrator integration and proof | 584, 585, 618, 620, 641, 642, 647–651; all group acceptances | owner checkout; shared seams, acceptance matrix, authenticated gameplay drivers, final release | Integrate all groups before one reconciled independent Sol 6.1 authority/privacy review and final validation. |
 
 Each isolated branch may add narrowly scoped imports/exports in
