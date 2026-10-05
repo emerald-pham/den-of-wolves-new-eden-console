@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Firestore } from 'firebase-admin/firestore';
 import { createCandidateCallables } from './candidatePathsCallable';
+import { commitTerminal as commitRealTerminal } from './sessionDebrief';
+import { aggregateSurvivorOutcome } from './survivorOutcome';
 
 type Fields = Record<string, unknown>;
 const documents = new Map<string, Fields>();
@@ -137,5 +139,28 @@ describe('ordinary candidate callable authority and durable replay', () => {
     const originalAudit = structuredClone(documents.get('sessions/s1/procedureAudits/n1'));
     await handlers.execute(request(command));
     expect(documents.get('sessions/s1/procedureAudits/n1')).toEqual(originalAudit);
+  });
+  it('commits the last all-Nebula-loss die and cost with the real immutable failure debrief helper', async () => {
+    const stableLossDie = vi.fn(() => 1);
+    const real = createCandidateCallables({ db, die: stableLossDie, now: () => new Date('2026-10-05T12:00:00Z'),
+      requireShipAuthority, commitTerminal: commitRealTerminal, serverTimestamp: () => 'server-time',
+      survivorOutcome: (session, cycle, occurredAt) => aggregateSurvivorOutcome({ cycle, occurredAt,
+        activeFleetShipIds: session.get('activeVesselIds'), shipPopulations: session.get('shipSurvivors'),
+        destroyedShipIds: ['aegis', 'shepherd'], escapePodCapacities: { aegis: 2500, shepherd: 5000 } }),
+    });
+    await real.execute(request(command));
+    const lastCommand = { ...command, requestId: 'last-loss', expectedRevision: 1, shipId: 'shepherd' };
+    const last = await real.execute(request(lastCommand, 'captain'));
+    expect(last).toMatchObject({ outcome: 'lost', fuelSpent: 12 });
+    expect(documents.get('sessions/s1')).toMatchObject({ phase: 'debrief',
+      shipResources: { aegis: { fuel: 14 }, shepherd: { fuel: 8 } }, shipSurvivors: { aegis: 0, shepherd: 0 },
+      gameOutcome: { result: 'failure', cause: 'total-fleet-loss' },
+      debriefSnapshot: { source: 'candidate', result: 'failure', candidate: { code: 'O' } },
+      survivorOutcome: { finalSurvivors: 0 }, fullGameDemo: { status: 'complete', progression: 'manual' } });
+    const snapshot = structuredClone(documents.get('sessions/s1')?.debriefSnapshot);
+    expect(await real.execute(request(lastCommand, 'captain'))).toEqual({ ...last, status: 'replayed' });
+    expect(documents.get('sessions/s1')?.debriefSnapshot).toEqual(snapshot);
+    expect(stableLossDie).toHaveBeenCalledTimes(2);
+    expect(documents.get('sessions/s1/serverState/candidates')?.revision).toBe(2);
   });
 });
