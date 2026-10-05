@@ -559,6 +559,9 @@ it('assigns explicit loyalty to the stable claimed Press without counting it as 
     expect.objectContaining({ path: 'sessions/s1' }),
     expect.objectContaining({ setupRevision: 3, phase: 'casting' }),
   );
+  const sessionUpdate = mock.update.mock.calls.find(([ref]) => ref.path === 'sessions/s1')?.[1];
+  expect(sessionUpdate).not.toHaveProperty('activeRoleIds');
+  expect(mock.session.activeRoleIds).toEqual(['admiral', 'icebreaker-miner']);
 });
 
 it('writes source-valid reciprocal Friend role metadata when the Press is the partner', async () => {
@@ -703,6 +706,23 @@ it('does not count a private Press Wolf when the Press authority is stale', asyn
 
   await expect(assignLoyalty.run(request({
     sessionId: 's1', instanceId: 'bridge', requestId: 'stale-press-wolf-does-not-count',
+    targetUid: 'u2', kind: 'intelligence-agent', suspicion: 6,
+  }))).rejects.toMatchObject({ code: 'failed-precondition', message: expect.stringMatching(/wolf/i) });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+});
+
+it('does not count a core role carrying a Press alias as a valid setup Wolf', async () => {
+  addStablePressPlayer('u4', { assignedRoleId: 'shepherd-scientist' }, {
+    activeRoleIds: ['admiral', 'icebreaker-miner', 'shepherd-scientist'],
+  });
+  mock.loyaltySecrets = [{
+    id: 'loyalty-u4',
+    fields: { visibleToUids: ['u4'], payload: { type: 'loyalty', kind: 'wolf-agent', suspicion: 0 } },
+  }];
+
+  await expect(assignLoyalty.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'press-alias-wolf-does-not-count',
     targetUid: 'u2', kind: 'intelligence-agent', suspicion: 6,
   }))).rejects.toMatchObject({ code: 'failed-precondition', message: expect.stringMatching(/wolf/i) });
   expect(mock.set).not.toHaveBeenCalled();
