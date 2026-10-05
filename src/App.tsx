@@ -42,8 +42,6 @@ import PrivateLoyaltyPanel from '@/components/PrivateLoyaltyPanel';
 import EndgameDialog from '@/components/EndgameDialog';
 import EscapeState from '@/routes/EscapeState';
 import ReplacementRoleWorkspace from '@/routes/ReplacementRoleWorkspace';
-import PresidentOffice from '@/routes/PresidentOffice';
-import ElectionWorkspace from '@/routes/ElectionWorkspace';
 import type {
   ArbourVision,
   CommissarPurgeAuthority,
@@ -69,6 +67,8 @@ const SessionMode = lazy(() => import('@/routes/SessionMode'));
 const ShuttleConsole = lazy(() => import('@/routes/ShuttleConsole'));
 const AwayMissionDiscardPanel = lazy(() => import('@/components/AwayMissionDiscardPanel'));
 const FleetGroupWorkspace = lazy(() => import('@/components/FleetGroupWorkspace'));
+const PresidentOffice = lazy(() => import('@/routes/PresidentOffice'));
+const ElectionWorkspace = lazy(() => import('@/routes/ElectionWorkspace'));
 const hasConsoleDradis = (path: string): boolean =>
   path === '/press' || path.startsWith('/ships/') || path.startsWith('/union/') ||
   path.startsWith('/shuttles/') || path.startsWith('/replacement/');
@@ -1158,8 +1158,34 @@ function AppRoutes() {
                   <SessionMode mode="press" />
                 </Suspense>
               )} />
-              <Route path="/president" element={<PresidentOffice />} />
-              <Route path="/election" element={<ElectionWorkspace />} />
+              <Route path="/president" element={(
+                <Suspense fallback={(
+                  <main className="session-mode">
+                    <div className="session-mode__panel cic-frame">
+                      <Link className="session-mode__back cic-text-button" to="/console">
+                        Back to stations
+                      </Link>
+                      <p role="status">Opening President&apos;s office…</p>
+                    </div>
+                  </main>
+                )}>
+                  <PresidentOffice />
+                </Suspense>
+              )} />
+              <Route path="/election" element={(
+                <Suspense fallback={(
+                  <main className="session-mode">
+                    <div className="session-mode__panel cic-frame">
+                      <Link className="session-mode__back cic-text-button" to="/console">
+                        Back to stations
+                      </Link>
+                      <p role="status">Opening presidential election…</p>
+                    </div>
+                  </main>
+                )}>
+                  <ElectionWorkspace />
+                </Suspense>
+              )} />
               <Route path="/shuttles/:shuttleId" element={(
                 <Suspense fallback={<main className="session-mode"><p role="status">Opening shuttle console…</p></main>}>
                   <ShuttleConsole />
