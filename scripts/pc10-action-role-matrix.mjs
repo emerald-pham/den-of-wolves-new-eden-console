@@ -211,8 +211,7 @@ const actions = exports.filter((entry) => entry.kind === 'callable').map(({ name
     actualServedUi: servedUi,
     eligibleActor: { status: 'unresolved', roleIds: null,
       reason: 'Requires action-specific authority source review; see roleEligibility cells.' },
-    roleEligibility: roles.map(({ id }) => ({ roleId: id, status: 'unresolved',
-      reason: 'No per-action server entitlement mapping has been verified in this matrix.' })),
+    roleEligibility: roles.map(({ id }) => ({ roleId: id, status: 'unresolved' })),
     source: { callableExport: indexExportReference(name), serverReferences,
       clientReferences: clientReferences.map((reference) => ({ ...reference,
         referenceKind: reference.file.startsWith('src/components/') || reference.file.startsWith('src/routes/')
@@ -317,6 +316,7 @@ const matrix = {
   },
   fieldPolicy: {
     unresolved: 'A null value with status unresolved means this pass did not verify the contract from an action-specific source path.',
+    actionRoleEligibility: 'Each per-callable role cell is unresolved until the authoritative server entitlement check is mapped.',
     sourceReference: 'A file and line identify a static source occurrence only; they do not establish runtime reachability or entitlement.',
     guidance: 'PC11 is the authorized follow-up for broader in-console, diegetic action rules guidance; no PC11 work is counted here.',
   },

@@ -30,6 +30,7 @@ test('action and role matrix enumerates current exports with explicit unresolved
     assert.equal(matrix.acceptanceAccounting.a02Credit, 0);
     assert.equal(matrix.acceptanceAccounting.pc11Executed, false);
     assert.equal(matrix.acceptanceAccounting.pc12Executed, false);
+    assert.match(matrix.fieldPolicy.actionRoleEligibility, /authoritative server entitlement check/);
 
     const names = matrix.actions.map(row => row.exportName);
     assert.equal(new Set(names).size, 232);
