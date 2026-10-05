@@ -150,6 +150,74 @@ test('body loss without an actual requestfailed cancellation is never excused by
   assert.equal(actor.callableObservationFailures[0].category, 'response-observation-unavailable');
 });
 
+test('a rejected body with no terminal transport event stays a strict observation failure', async () => {
+  const { actor, context, start, respond, fail } = await callableObservationActor();
+  const request = start(), body = respond(request);
+  context.setOffline = async () => body.reject(new Error('body unavailable without transport evidence'));
+  await actor.setOffline(true);
+  await nextObservationTurn();
+  await actor.drainObservedCalls();
+  try {
+    assert.equal(actor.callableObservationFailures.length, 1);
+    assert.equal(actor.callableObservationFailures[0].category, 'response-observation-unavailable');
+    assert.equal(actor.observedCalls[0].requestFinishedAt, null);
+    assert.equal(actor.observedCalls[0].requestFailedAt, null);
+    assert.equal(actor.observedCalls[0].bodyCompletedAt, null);
+  } finally { fail(request, 'net::ERR_TIMED_OUT'); }
+});
+
+test('body rejection is classified only after its actual offline transport cancellation arrives', async () => {
+  const { actor, start, respond, fail } = await callableObservationActor();
+  const request = start(), body = respond(request);
+  await actor.setOffline(true);
+  body.reject(new Error('partial body rejected before the transport event'));
+  await nextObservationTurn();
+  assert.equal(actor.callableObservationFailures.length, 1, 'Intent alone never excuses a rejected body.');
+  fail(request, 'net::ERR_INTERNET_DISCONNECTED');
+  await actor.drainObservedCalls();
+  assert.deepEqual(actor.callableObservationFailures, []);
+  assert.equal(actor.observedCalls[0].observationDisposition, 'cancelled-during-planned-offline');
+  assert.ok(actor.observedCalls[0].requestFailedAt !== null);
+  assert.equal(actor.observedCalls[0].bodyCompletedAt, null);
+  assert.ok(actor.observedCalls[0].bodyObservationFailedAt !== null &&
+    actor.observedCalls[0].bodyObservationFailedAt !== undefined);
+});
+
+test('network completion without a response observation cannot become a successful drain', async () => {
+  const { actor, start, finish } = await callableObservationActor();
+  finish(start());
+  await actor.drainObservedCalls();
+  assert.equal(actor.callableObservationFailures.length, 1);
+  assert.equal(actor.callableObservationFailures[0].category, 'response-observation-unavailable');
+  assert.equal(actor.observedCalls[0].status, null);
+  assert.equal(actor.observedCalls[0].bodyCompletedAt, null);
+});
+
+test('an old unfinished request failing after online restoration is never classified as planned offline', async () => {
+  const { actor, start, fail } = await callableObservationActor();
+  const request = start();
+  await actor.setOffline(true);
+  await actor.setOffline(false);
+  const offline = actor.callableObservationBoundaries.find(boundary => boundary.kind === 'offline');
+  assert.equal(offline.endedAt, actor.callableObservationBoundaries.at(-1).completedAt);
+  fail(request, 'net::ERR_INTERNET_DISCONNECTED');
+  assert.equal(actor.callableObservationFailures.length, 1);
+  assert.notEqual(actor.observedCalls[0].observationDisposition, 'cancelled-during-planned-offline');
+});
+
+test('transport failure during a rejected offline operation remains an unexpected failure', async () => {
+  const { actor, context, start, fail } = await callableObservationActor();
+  const request = start(), failure = new Error('actual offline operation rejected');
+  context.setOffline = async () => {
+    fail(request, 'net::ERR_INTERNET_DISCONNECTED');
+    throw failure;
+  };
+  await assert.rejects(actor.setOffline(true), error => error === failure);
+  assert.equal(actor.callableObservationFailures.length, 1);
+  assert.equal(actor.callableObservationFailures[0].category, 'unexpected-request-failure');
+  assert.notEqual(actor.observedCalls[0].observationDisposition, 'cancelled-during-planned-offline');
+});
+
 test('reload tags only existing unfinished requests aborted during its actual operation', async () => {
   const { actor, page, start, respond, fail } = await callableObservationActor();
   const oldRequest = start(), body = respond(oldRequest);
