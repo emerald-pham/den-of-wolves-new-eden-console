@@ -101,8 +101,8 @@ function hummingbirdFixture() {
 }
 
 function boaReclamationFixture() {
-  const orderedCards = ['10♥', '10♦', 'K♥', ...missionDeck()
-    .map(({ id }) => id).filter((id) => !['10♥', '10♦', 'K♥'].includes(id))];
+  const orderedCards = ['10♥', '10♦', 'A♥', ...missionDeck()
+    .map(({ id }) => id).filter((id) => !['10♥', '10♦', 'A♥'].includes(id))];
   const deckState = missionDeckStateFromCards(orderedCards.map((id) =>
     missionDeck().find((card) => card.id === id)!));
   const lifecycle = createMissionLifecycleState({
