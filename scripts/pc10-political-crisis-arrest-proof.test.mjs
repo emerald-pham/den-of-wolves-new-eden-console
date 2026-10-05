@@ -11,7 +11,7 @@ import {
 } from './pc10-political-crisis-arrest-proof-contracts.mjs';
 
 const gm = {
-  sessionId: 'session-1', uidHash: 'a'.repeat(16), playerRole: 'gm',
+  sessionId: 'session-1', uidHash: 'a'.repeat(16), sameActor: true, playerRole: 'gm',
   cycle: 1, phase: 'active', turnStatePhase: 'team',
   fullGameDemo: { status: 'active', progression: 'manual' },
   connection: 'live', freshness: 'server', gmInstanceOwned: true, instanceId: 'instance-1',
@@ -38,7 +38,7 @@ test('player mutation fence keeps the same original authenticated role/session/c
     cycle: 1, phase: 'active', turnStatePhase: 'team' };
   const current = { ...expected, sameActor: true, profileRoleId: expected.roleId,
     assignedRoleId: expected.roleId, activeConsoleRoleId: expected.roleId,
-    connection: 'live', freshness: 'server' };
+    playerRole: 'player', connection: 'live', freshness: 'server' };
   assert.doesNotThrow(() => assertPlayerActorFence(current, expected));
   for (const changed of [
     { ...current, sessionId: 'other' },
