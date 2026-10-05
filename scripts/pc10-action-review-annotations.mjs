@@ -48,7 +48,7 @@ const ANCHORS = [
   ['supply.alertAcknowledgement', 'functions/src/index.ts', 'acknowledgeWolfHackingAlert'],
   ['supply.receiptUi', 'src/routes/GmConsole.tsx', 'GmConsole'],
   ['supply.otherWolfControls', 'src/components/PrivateLoyaltyPanel.tsx', 'PrivateLoyaltyPanel'],
-  ['supply.appMount', 'src/App.tsx', 'App'],
+  ['supply.appMount', 'src/App.tsx', 'AppRoutes'],
   ['supply.clientAdapter', 'src/lib/wolfActionService.ts', 'submitWolfSupplySabotage'],
 
   ['elevation.handler', 'functions/src/index.ts', 'elevateToGm'],
@@ -541,13 +541,26 @@ function sourceCommit() {
     { cwd: productSourceRoot, encoding: 'utf8' }).trim();
 }
 
-async function scanClientReferences(names) {
+async function scanClientReferences(names, aliasesByExportName = {}) {
   const paths = await sourceFiles('src');
   const references = new Map(names.map(name => [name, { identifierOccurrences: [], quotedOccurrences: [] }]));
-  const alternatives = [...names].sort((left, right) => right.length - left.length)
+  const ownersByIdentifier = new Map(names.map(name => [name, [{ exportName: name }]]));
+  for (const [exportName, aliases] of Object.entries(aliasesByExportName)) {
+    if (!references.has(exportName)) throw new Error(`Client reference alias names unknown callable ${exportName}`);
+    for (const alias of aliases) {
+      if (!alias || names.includes(alias)) throw new Error(`Invalid client reference alias ${alias} for ${exportName}`);
+      const owners = ownersByIdentifier.get(alias) ?? [];
+      owners.push({ exportName, matchedSymbol: alias });
+      ownersByIdentifier.set(alias, owners);
+    }
+  }
+  const identifierNames = [...ownersByIdentifier.keys()];
+  const alternatives = identifierNames.sort((left, right) => right.length - left.length)
+    .map(name => name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+  const callableAlternatives = [...names].sort((left, right) => right.length - left.length)
     .map(name => name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
   const identifier = new RegExp(`(?<![\\w$])(${alternatives})(?![\\w$])`, 'g');
-  const quoted = new RegExp(`(['"])(${alternatives})\\1`, 'g');
+  const quoted = new RegExp(`(['"])(${callableAlternatives})\\1`, 'g');
   for (const path of paths) {
     const text = await readFile(path, 'utf8');
     const lines = text.split(/\r?\n/);
@@ -556,7 +569,10 @@ async function scanClientReferences(names) {
       quoted.lastIndex = 0;
       const sourcePath = relative(productSourceRoot, path).replaceAll('\\', '/');
       for (const match of line.matchAll(identifier)) {
-        references.get(match[1]).identifierOccurrences.push({ path: sourcePath, line: index + 1 });
+        for (const owner of ownersByIdentifier.get(match[1]) ?? []) {
+          references.get(owner.exportName).identifierOccurrences.push({ path: sourcePath, line: index + 1,
+            ...(owner.matchedSymbol ? { matchedSymbol: owner.matchedSymbol } : {}) });
+        }
       }
       for (const match of line.matchAll(quoted)) {
         references.get(match[2]).quotedOccurrences.push({ path: sourcePath, line: index + 1 });
@@ -788,8 +804,12 @@ for (const row of sourceInventoryDeltaReviews) {
     throw new Error(`${row.exportName} is already in the preserved canonical matrix and cannot be a source delta.`);
   }
 }
+const clientReferenceAliases = Object.fromEntries(allDetailedReviews
+  .filter(row => row.clientReferenceAliases?.length)
+  .map(row => [row.exportName, row.clientReferenceAliases]));
 const [clientReferenceScans, pathToApp] = await Promise.all([
-  scanClientReferences([...allCallableNames, ...sourceInventoryDeltaReviews.map(row => row.exportName)]),
+  scanClientReferences([...allCallableNames, ...sourceInventoryDeltaReviews.map(row => row.exportName)],
+    clientReferenceAliases),
   buildAppImportGraph(),
 ]);
 for (const name of allExportNames) {
@@ -836,9 +856,12 @@ for (const row of [...endingSourceReviews, ...workspaceSourceReviews, ...demoSou
     exactQuotedReferenceCount: scan.quotedOccurrences.length,
     componentOrRouteReferenceCount: uiReferences.length,
     sourceReferences: scan,
+    ...(row.clientReferenceAliases?.length ? { referenceAliases: row.clientReferenceAliases } : {}),
     interpretation: row.classification === 'genuinely-unserved'
       ? 'A client wrapper/source reference exists, but the full current component/route scan found no action control call site. This is a source classification only; it does not claim physical unavailability or runtime acceptance.'
-      : 'Current client identifiers and callable strings are recorded for source traceability; this does not prove that a control is rendered, enabled, or usable.',
+      : row.clientReferenceAliases?.length
+        ? `Current callable references and the reviewed client wrapper aliases (${row.clientReferenceAliases.join(', ')}) are statically recorded; the service and mount anchors bind the path, without proving rendered availability or usability.`
+        : 'Current client identifiers and callable strings are recorded for source traceability; this does not prove that a control is rendered, enabled, or usable.',
   };
   if (row.classification === 'genuinely-unserved' && uiReferences.length > 0) {
     throw new Error(`${row.exportName} has a component/route reference; revisit the unserved classification`);
