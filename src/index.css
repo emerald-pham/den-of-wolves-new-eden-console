@@ -692,6 +692,57 @@ body {
   margin-top: 1.25rem;
 }
 
+.session-join-qr {
+  display: grid;
+  justify-items: center;
+  gap: 0.45rem;
+  margin-top: 1rem;
+  padding: 0.9rem;
+  border-left: 2px solid var(--cic-cyan-dim);
+  text-align: center;
+}
+
+.session-join-qr h3 {
+  margin: 0;
+  color: var(--cic-cyan);
+  font: 0.72rem/1.4 var(--cic-mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.session-join-qr__image {
+  display: block;
+  width: min(9rem, 52vw);
+  height: auto;
+  aspect-ratio: 1;
+  padding: 0.4rem;
+  border: 1px solid var(--cic-rule);
+  background: var(--cic-ink);
+  image-rendering: pixelated;
+}
+
+.session-join-qr p {
+  margin: 0;
+  font: 0.68rem/1.4 var(--cic-mono);
+}
+
+.session-join-qr__link {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--cic-cyan);
+  font: 0.68rem/1.45 var(--cic-mono);
+  overflow-wrap: anywhere;
+  text-decoration-color: var(--cic-amber-dim);
+  text-underline-offset: 0.15em;
+}
+
+.session-join-qr__link:focus-visible {
+  outline: 2px solid var(--cic-amber);
+  outline-offset: 2px;
+}
+
 .focus-dialog-backdrop {
   position: fixed;
   inset: 0;
