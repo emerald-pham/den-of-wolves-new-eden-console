@@ -188,3 +188,66 @@ stopped at the Press conduct gate before gameplay. A finite admission check
 uses all three genuine checkboxes and the ordinary countdown before another
 full positive attempt. Detailed dispositions are in the risk and test-change
 reports. No PC10 or additional gameplay feature is introduced.
+
+## Reconciled 0.5.68 candidate — October 5
+
+All 49 fixed local behavior acceptances pass. The original independent Sol 6.1
+Max reviewer completed one bounded final verification at `ef0cb942`, finding no
+remaining material product defect after the nine review repairs and eight
+directly blocking acceptance repairs. The closing catalog candidate is
+703/751 overall and 245/293 campaign items, with 703 done, six partial and
+42 missing. P605a's explicit activation is preserved; future checkpoint IDs,
+definitions and completion targets are unchanged.
+
+Fresh proof artifacts and their limits are consolidated in
+[PC09 Playtest Report](PC09_PLAYTEST_REPORT.md). Current Rules pass 164 tests
+in four files, lint passes with zero errors/16 warnings and the Functions build
+passes. Stable-source complete native verification passes 7,947 checks in
+598 files. The 0.5.68 metadata passes 44 focused checks after a separate
+historical-snapshot test correction; web build, font/copy/bundle and threat-model
+checks pass. The remaining rendered release gates precede one candidate CI.
+Exact-main deployment and surface
+verification remain pending. This record does not claim production gameplay,
+physical attendance or physical-device evidence.
+
+## Final loading-gate repair — October 5
+
+The existing render budget rejected the candidate landing graph. Root preserved
+both failed runs and deferred only the route-only ship/governance modules and
+joined-session crisis report. The same independent reviewer found one new P2:
+a rejected download escaped App and removed its route return control. Four
+permanent failures in `6348e8e4` precede product repair `779c3081`; the latter
+contains only the new modules and retains Back/reload recovery and identity.
+The 44-pixel recovery control and header-clearance checks also preserve their
+original prepared failure. Native App/rejection checks pass 103 tests, and
+rejection/font checks pass 66. Prepared browser proof passes three pending and
+twelve rejected-module cases, explicitly without actual Auth. The final full
+render benchmark passes unchanged budgets at 1,705,355 raw/453,409 gzip landing
+bytes. The same reviewer approved this narrow delta in `088fdd56` after four independent
+rejection checks, strict typecheck, documentation validation and inspection of
+all 15 prepared cases. Final rendered typography passes. The complete ticker gate passes 24 Press/Cycle 0
+viewport/font/motion cases and both lifecycle captures. Exact-candidate CI and
+production release are pending. No server,
+Rules, deployment consumer, prior gameplay acceptance or future checkpoint
+scope was enlarged by this directly blocking repair.
+
+Parent steering at closeout preserves the multiplayer proof boundary: the
+20-core-player plus separate Press/GM shared-session proofs use two/four real
+browser contexts and authenticated HTTP actors, not 21 concurrent human/device
+clients or a whole-game no-reference rehearsal. The future full-game demo entry
+is GM mode beside the existing single-turn demo, with unlimited time/manual
+advancement (the parent confirms the earlier requirement). Every-role/two-browser
+full-game, authenticated GM cycle 0→1 and the proposed overlap/usability gaps
+remain PC10/PC11 handoff context only; no future implementation or roadmap
+redesign is authorized within this checkpoint.
+
+Later parent steering explicitly authorizes the proposed fresh-game/all-role,
+approximately 21 independent authenticated-client concurrency/recovery/privacy
+and manual-free usability checks across PC10/PC11. It also authorizes parent
+roadmap addition of PC12 after PC11: a Mac-hosted authoritative LAN/Wi-Fi game
+without WAN, including local substitutes for cloud runtime services, joining,
+identity/privacy, GM control, persistence/recovery and multi-client proof.
+Preserve cloud mode/data and required credential/security/network approvals.
+Record this future authorization here; the parent revises the canonical future
+roadmap after PC09. Frozen PC09 IDs, total, status allocation and deployment
+scope remain unchanged. No next checkpoint is launched here.

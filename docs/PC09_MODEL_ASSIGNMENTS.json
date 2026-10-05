@@ -337,8 +337,48 @@
           "purpose": "One bounded final verification of the original nine findings, eight directly blocking repairs, approved election policy, fresh ordinary evidence and current 216-consumer runtime inventory; restore the same existing review checkout only. No new reviewer or model change.",
           "modelChanged": false,
           "effectiveModelConfirmed": false
+        },
+        {
+          "date": "2026-10-05",
+          "purpose": "Same existing reviewer verifies only the newly changed App loading boundaries after the unchanged render budget failed; one rejected-download P2 receives four permanent regressions and bounded containment/recovery repair. No new review owner, server authority, ordinary gameplay rerun or model change.",
+          "modelChanged": false,
+          "effectiveModelConfirmed": false
         }
-      ]
+      ],
+      "finalVerification": {
+        "date": "2026-10-05",
+        "candidateCommit": "ef0cb942a20d065b358aa306ddec5599bd87f598",
+        "result": "No remaining material product finding in the bounded follow-up",
+        "checks": {
+          "functionsFiles": 16,
+          "functionsTests": 418,
+          "clientFiles": 10,
+          "clientTests": 75,
+          "deploymentTests": 3,
+          "functionsBuild": "passed",
+          "appTypecheck": "passed",
+          "actualEndpoints": 232,
+          "namedAffectedConsumers": 216
+        },
+        "effectiveModelConfirmed": false,
+        "evidenceLimits": "Exact PDF 1/4 comparison remains native-only after reset; composed EO recovered 500\u2192200, crisis post-run source binding and strict raw identity-label limitation remain disclosed."
+      },
+      "loadingDeltaVerification": {
+        "date": "2026-10-05",
+        "candidateCommit": "779c30813f758509f83cad55cc5fbcb864abc226",
+        "result": "No remaining material loading finding; P2 rejection repaired",
+        "effectiveModelConfirmed": false,
+        "reviewCommit": "088fdd56d2ba337c4fe588037efa1c548a9c75a4",
+        "checks": {
+          "rejectionTests": 4,
+          "appTypecheck": "passed",
+          "documentationValidation": "passed",
+          "preparedCasesInspected": 15,
+          "landingRawBytes": 1705355,
+          "landingGzipBytes": 453409,
+          "largestChunkBytes": 497246
+        }
+      }
     },
     {
       "taskId": "/root/pc09_combat_ui_recovery",
@@ -385,14 +425,7 @@
       ]
     }
   ],
-  "pending": [
-    {
-      "taskId": "/root/pc09_risk_review",
-      "model": "gpt-6.1-sol",
-      "effort": "max",
-      "status": "Same existing Sol 6.1 Max reviewer receives one bounded final verification after all fresh ordinary proofs pass. Root retains metadata, final gates, CI and release."
-    }
-  ],
+  "pending": [],
   "findings": [
     "No recorded model-change call or general model-default change.",
     "Exactly one explicit Astra launch; isolated scope is P605a implementation only, with fresh history and no inherited exception.",

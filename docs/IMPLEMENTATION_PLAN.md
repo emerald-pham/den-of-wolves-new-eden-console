@@ -2301,7 +2301,7 @@ read-only dependency query may inform a numbered task but creates no receipt.
 - [x] Prompt 177
 - [x] Prompt 178
 - [x] Prompt 179
-- [ ] Prompt 180
+- [x] Prompt 180
 - [ ] Prompt 181
 - [x] Prompt 182
 - [x] Prompt 183
@@ -2339,7 +2339,7 @@ read-only dependency query may inform a numbered task but creates no receipt.
 - [x] Prompt 211
 - [x] Prompt 212
 - [x] Prompt 213
-- [ ] Prompt 214
+- [x] Prompt 214
 - [x] Prompt 215
 - [x] Prompt 215a
 - [ ] Prompt 215b
@@ -2627,31 +2627,31 @@ read-only dependency query may inform a numbered task but creates no receipt.
 - [x] Prompt 469d
 - [x] Prompt 469e
 - [x] Prompt 470
-- [ ] Prompt 471
-- [ ] Prompt 472
-- [ ] Prompt 473
-- [ ] Prompt 474
-- [ ] Prompt 475
-- [ ] Prompt 476
-- [ ] Prompt 477
-- [ ] Prompt 478
-- [ ] Prompt 479
-- [ ] Prompt 480
-- [ ] Prompt 481
-- [ ] Prompt 482
-- [ ] Prompt 483
-- [ ] Prompt 484
+- [x] Prompt 471
+- [x] Prompt 472
+- [x] Prompt 473
+- [x] Prompt 474
+- [x] Prompt 475
+- [x] Prompt 476
+- [x] Prompt 477
+- [x] Prompt 478
+- [x] Prompt 479
+- [x] Prompt 480
+- [x] Prompt 481
+- [x] Prompt 482
+- [x] Prompt 483
+- [x] Prompt 484
 - [x] Prompt 485
 - [x] Prompt 485a
 - [x] Prompt 486
 - [x] Prompt 487
 - [x] Prompt 488
 - [x] Prompt 489
-- [ ] Prompt 490
-- [ ] Prompt 491
-- [ ] Prompt 492
-- [ ] Prompt 493
-- [ ] Prompt 494
+- [x] Prompt 490
+- [x] Prompt 491
+- [x] Prompt 492
+- [x] Prompt 493
+- [x] Prompt 494
 - [x] Prompt 495
 - [x] Prompt 496
 - [x] Prompt 497
@@ -2661,42 +2661,42 @@ read-only dependency query may inform a numbered task but creates no receipt.
 - [x] Prompt 501
 - [x] Prompt 502
 - [x] Prompt 503
-- [ ] Prompt 503a
+- [x] Prompt 503a
 - [x] Prompt 504
 - [x] Prompt 505
-- [ ] Prompt 506
+- [x] Prompt 506
 - [x] Prompt 507
-- [ ] Prompt 508
+- [x] Prompt 508
 - [x] Prompt 509
 - [x] Prompt 510
 - [x] Prompt 511
 - [x] Prompt 512
-- [ ] Prompt 513
-- [ ] Prompt 514
+- [x] Prompt 513
+- [x] Prompt 514
 - [x] Prompt 515
-- [ ] Prompt 516
-- [ ] Prompt 517
+- [x] Prompt 516
+- [x] Prompt 517
 - [x] Prompt 518
-- [ ] Prompt 519
-- [ ] Prompt 520
-- [ ] Prompt 521
-- [ ] Prompt 521a
-- [ ] Prompt 521b
+- [x] Prompt 519
+- [x] Prompt 520
+- [x] Prompt 521
+- [x] Prompt 521a
+- [x] Prompt 521b
 - [x] Prompt 522
 - [x] Prompt 523
 - [x] Prompt 523a
-- [ ] Prompt 523b
-- [ ] Prompt 523c
-- [ ] Prompt 524
+- [x] Prompt 523b
+- [x] Prompt 523c
+- [x] Prompt 524
 - [x] Prompt 524a
-- [ ] Prompt 524b
-- [ ] Prompt 524c
-- [ ] Prompt 524d
+- [x] Prompt 524b
+- [x] Prompt 524c
+- [x] Prompt 524d
 - [x] Prompt 525
 - [x] Prompt 526
 - [x] Prompt 527
-- [ ] Prompt 528
-- [ ] Prompt 529
+- [x] Prompt 528
+- [x] Prompt 529
 - [x] Prompt 530
 - [x] Prompt 531
 - [x] Prompt 532
@@ -2704,10 +2704,10 @@ read-only dependency query may inform a numbered task but creates no receipt.
 - [x] Prompt 534
 - [x] Prompt 535
 - [x] Prompt 536
-- [ ] Prompt 537
-- [ ] Prompt 538
-- [ ] Prompt 539
-- [ ] Prompt 540
+- [x] Prompt 537
+- [x] Prompt 538
+- [x] Prompt 539
+- [x] Prompt 540
 - [ ] Prompt 541
 - [ ] Prompt 542
 - [ ] Prompt 543
@@ -2747,7 +2747,7 @@ read-only dependency query may inform a numbered task but creates no receipt.
 - [x] Prompt 577
 - [x] Prompt 578
 - [ ] Prompt 579
-- [ ] Prompt 580
+- [x] Prompt 580
 - [ ] Prompt 581
 - [x] Prompt 582
 - [x] Prompt 583
@@ -2777,7 +2777,7 @@ read-only dependency query may inform a numbered task but creates no receipt.
 - [x] Prompt 603a
 - [x] Prompt 604
 - [x] Prompt 605
-- [ ] Prompt 605a
+- [x] Prompt 605a
 - [x] Prompt 606
 - [x] Prompt 607
 - [x] Prompt 608
@@ -2795,7 +2795,7 @@ read-only dependency query may inform a numbered task but creates no receipt.
 - [x] Prompt 618a
 - [ ] Prompt 619
 - [ ] Prompt 620
-- [ ] Prompt 621
+- [x] Prompt 621
 - [x] Prompt 622
 - [x] Prompt 623
 - [x] Prompt 624
@@ -2819,7 +2819,7 @@ read-only dependency query may inform a numbered task but creates no receipt.
 - [ ] Prompt 642
 - [x] Prompt 643
 - [x] Prompt 644
-- [ ] Prompt 645
+- [x] Prompt 645
 - [x] Prompt 646
 - [ ] Prompt 647
 - [ ] Prompt 648

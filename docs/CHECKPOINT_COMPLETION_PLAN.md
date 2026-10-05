@@ -156,18 +156,23 @@ and post, ty” supersedes the hold. Complete PC09 including visualization,
 then the parent revises PC10 and dispatches its separate orchestrator before
 existing post-PC10 work. One checkpoint at a time; no future execution here.
 
-The post-release audit records ten open runtime findings (one P1, seven P2,
-two P3). PC09 must first repair the shared progression/carryover blockers, then
-durable fighter losses before P483 rebuild, and result/projection seams before
-P474/P484. P621 includes mixed-source receipt, holder-removal and attack-bound
-retry recovery; P645 follows the accepted aftermath and recovery dependencies.
+The historical post-release audit recorded ten open runtime findings (one P1,
+seven P2, two P3). The reviewed PC09 **0.5.68 candidate** repairs all ten,
+including the shared progression/carryover blockers, durable losses before
+P483 rebuilding, result/projection seams before P474/P484, and P621's
+mixed-source, holder-removal and attack-bound recovery. All 49 candidate
+acceptances are reconciled at **703/751** and **245/293 campaign closures**;
+exact-SHA CI and production deployment verification remain pending. P645
+follows the accepted aftermath and recovery dependencies.
 P492/P493 retain their separate trigger acceptances and are related proof,
 not hard prerequisites of the ordinary P645 playthrough. See
 [the finite findings and order](PC08_BUG_AUDIT.md#follow-on-order-and-pc09-readiness)
 and the catalog's existing PC09 acceptances. Historical PC08 `done` counts remain
-the released snapshot, with affected rows explicitly annotated **OPEN**; this
-does not give the newly failing paths repair credit or authorize future work in
-the audit. The dependency CLI reads statuses, not closure of these defects.
+the 0.5.67 released snapshot; affected rows now link the separate PC09 repair
+evidence without receiving duplicate completion credit. The original audit
+reproductions and their evidence limits remain intact. The dependency CLI reads
+statuses, not production deployment health. No future checkpoint is started by
+this candidate record.
 
 ### PC05 — 49 assigned closures; 49/293 cumulative
 

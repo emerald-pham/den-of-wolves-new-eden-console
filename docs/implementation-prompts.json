@@ -6475,6 +6475,13 @@
       "language": "The owner explicitly approved preserving President and taking the next eligible candidate from the VP ballot when one UID uniquely wins both offices, with an explicit current-GM in-game decision only if no other eligible candidate exists. Existing configured tie handling is preserved; no ordering, automatic replacement, broader office power or private ballot disclosure is inferred. Branch explanation and required action must be visible in-game. This is owner-directed policy recorded under PC09-A6, not claimed printed source text. It grants bounded repair authorization only; tests, current authenticated gameplay, the existing single review and release remain required. Future diegetic-rules PC11 remains parent-owned and outside this PC09 implementation.",
       "source": "Owner approval Sentinel_003dede4c2448191b4ae98ee1b5255aa to proposal Sentinel_7584eace61c48191b3dd1c944e39e15c, forwarded by parent codex_delegation; docs/PRODUCT_MILESTONE_ASSUMPTIONS.md PC09-A6; docs/PC09_EXECUTION_RECORD.md",
       "type": "owner decision / bounded policy repair"
+    },
+    {
+      "direction": "PC09 fixed49 -> 703/751;245/293",
+      "id": "E-PC09-FINAL-20261005",
+      "language": "All 49 fixed PC09 behavior acceptances have representative normal authenticated local/emulator and exact native proof. All ten original PC08 audit defects and the nine independent findings plus eight earlier directly blocking acceptance defects have permanent regressions. The final unchanged-budget render failure is repaired by bounded route/joined-session deferral; the same reviewer's new rejected-download finding has four permanent regressions and contained Back/reload recovery. Three pending and twelve rejected-download prepared browser cases pass without claiming ordinary authentication; the same reviewer approved the bounded loading delta in 088fdd56 after four independent rejection regressions, strict typecheck and documentation validation. The fresh complete combat/deduction/aftermath scenario includes real EO and Ace browser actors, all ranges, boarding, automatic finalization, paid repair/salvage/Doctor, arrest and two paid builds. The strict current-runtime proof passes 24 checks/505 ordinary actions, durable Alpha 4→3→2→3→4, exact Station carryover and seven actual entitled DRADIS rows, with zero captured browser console/page, HTTP, failed-request or synthetic heartbeat errors. Crisis/election passes 23 checks/91 actions; separate Commander, Detector, P-producer/repeat, DRADIS recovery, Voyage docking/needs and prepared-render artifacts are mapped in the checkpoint report. Setup allocations, accelerated disposable deadlines, simulated attendance, one recovered composed EO HTTP 500 and the crisis post-run source binding remain disclosed. Original exact destroyed-carrier, removed-holder, stale-attack and PDF comparison reproductions retain their native evidence boundary. Pre-reconnect artifacts lost in the Mac reset are not claimed inspectable. The single independent Sol 6.1 Max review approved its bounded final follow-up at ef0cb942 after 418 Functions and 75 client checks, strict Functions build/typecheck and independent SDK/AST inventory reconciliation. Fresh current Rules pass 164 tests/four files. Stable-source whole native verification passes 7,947 checks in 598 files; 44 metadata checks, the final rendered typography/full render budget and 66 rejection/font checks also pass. The complete ticker gate passes 24 viewport/font/motion cases and both normal/reduced lifecycle captures with live Press-to-Red-Alert handoff. Exact-SHA CI and production release are recorded separately. This is the 0.5.68 release candidate; exact-SHA candidate CI, main deployment and surface verification remain pending. No physical-device or production-GM gameplay is claimed. PC10 revision/dispatch remains parent-owned.",
+      "source": "docs/PC09_ACCEPTANCE_MATRIX.md; docs/PC09_PLAYTEST_REPORT.md; docs/PC09_RISK_REVIEW.md; docs/PC09_TEST_CHANGE_REPORT.md; docs/PC08_BUG_AUDIT.md; docs/PC09_EXECUTION_RECORD.md; external /tmp/dow-pc09-resumed-evidence; external /tmp/pc09-combat-recovery-restored-20261004/composed-909b4f6d; external /tmp/dow-pc09-crises-auth-proof-final",
+      "type": "evidence / authority / candidate / local-gameplay"
     }
   ],
   "plan": {
@@ -11134,8 +11141,8 @@
         "acceptance": "maintenance, AEGIS weapons, Pallas, enriched warheads, and Command and Control route to real actions. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Create the Executive Officer workspace."
       },
-      "description": "Planned [NEW] prompt. The existing Executive Officer shell can route maintenance and registered Pallas cargo through released server actions, while every combat console remains deliberately fail-closed. Workspace completion waits for the server-owned Pallas boarding and relocation actions plus Command and Control, Fighter Bay launch, Missile Launcher, enriched-warhead, and Point Defence resolvers; no gameplay completion is claimed yet.",
-      "evidenceIds": "E-AUDIT-180",
+      "description": "Completed within the fixed PC09 49-ID checkpoint. EO maintenance, AEGIS controls, Pallas/parent return and responsive workspace evidence is historically reported at 584697f4. Fresh composed gameplay proves both mid-attack same-identity recoveries. One emulator resume 500 then automatic 200 remains in its trace See docs/PC09_ACCEPTANCE_MATRIX.md and docs/PC09_PLAYTEST_REPORT.md for ordinary authenticated local/emulator, native and prepared-render evidence with their limits. This 0.5.68 candidate still requires exact-SHA CI and production deployment verification; no physical-device or production-GM gameplay is implied.",
+      "evidenceIds": "E-AUDIT-180;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "166;171;182;261;377;394;436;445;446;447;448;449;461;463",
@@ -11143,10 +11150,12 @@
       "milestoneHints": "M3;M5",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.68"
+      ],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -12052,8 +12061,8 @@
         "acceptance": "the completed device permits up to three private server-randomized tests per cycle. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Build and use the Wolf Agent Detector."
       },
-      "description": "The pure server-domain Wolf Agent Detector allowance requires the canonical four-box research track to be complete and reserves at most three ordinal test slots per cycle. Its exact-key, revision-bound state resets the allowance on a later cycle, rejects stale, backward, malformed, over-limit, and unreachable histories, and stores no target identity or randomized result. This implements Prompt 214's non-feature device allowance contract only. Prompt 508 still owns target authority, private server randomness, approximate 80% accuracy, durable persistence and replay, private delivery, UI, deployment, and playable use; none of those are claimed here. Prompt 214 remains partial until the private, authorized device path and live test allowance are verified.",
-      "evidenceIds": "E-AUDIT-214;E-214-WOLF-DETECTOR-ALLOWANCE",
+      "description": "Completed within the fixed PC09 49-ID checkpoint. Fresh current-runtime twenty-post Auth proof completes ordinary research in cycles 1–4, commits three private Detector tests and rejects the fourth. Report/truth separation and actual Rules reads/denials pass See docs/PC09_ACCEPTANCE_MATRIX.md and docs/PC09_PLAYTEST_REPORT.md for ordinary authenticated local/emulator, native and prepared-render evidence with their limits. This 0.5.68 candidate still requires exact-SHA CI and production deployment verification; no physical-device or production-GM gameplay is implied.",
+      "evidenceIds": "E-AUDIT-214;E-214-WOLF-DETECTOR-ALLOWANCE;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "211",
@@ -12061,10 +12070,12 @@
       "milestoneHints": "M3;M5",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.68"
+      ],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "partial",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -16696,8 +16707,8 @@
         "acceptance": "fuelled Medium and Short attacks deal three damage on a server roll of 5+. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Resolve Highwall combat."
       },
-      "description": "Completed in PC08 through current-actor weapon/support choices, independent Alpha/Bravo/PDF/Maliades launch and range actions, server-locked shared dice and target assignment, source-defined costs/damage/losses and immutable retries. Native authority/math/privacy checks and the normal authenticated twenty-player composed attack establish this criterion; prepared controls and release gates retain separate evidence classes. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT. Post-release PC08 audit: RANGE-05 remain OPEN; see docs/PC08_BUG_AUDIT.md. The done/release record preserves terminal 0.5.67 accounting, not a claim that these newly reproduced paths pass. Repair and proof are assigned to existing dependent PC09 work; this audit grants no fix credit.",
-      "evidenceIds": "E-AUDIT-389;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004",
+      "description": "Completed in PC08 through current-actor weapon/support choices, independent Alpha/Bravo/PDF/Maliades launch and range actions, server-locked shared dice and target assignment, source-defined costs/damage/losses and immutable retries. Native authority/math/privacy checks and the normal authenticated twenty-player composed attack establish this criterion; prepared controls and release gates retain separate evidence classes. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT. Post-release PC08 audit repairs for RANGE-05 are integrated and verified within the separate PC09 checkpoint. Exact native reproductions and qualified ordinary authenticated workflow evidence are mapped in docs/PC08_BUG_AUDIT.md and docs/PC09_PLAYTEST_REPORT.md. Historical 0.5.67 completion and release accounting remain unchanged. The 0.5.68 repair candidate still requires exact-SHA CI and production deployment verification.",
+      "evidenceIds": "E-AUDIT-389;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "265;426;433;439;440",
@@ -16873,8 +16884,8 @@
         "acceptance": "launch, target shift, Medium attack, Short attack, losses, and per-wing limits remain independent. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. When this automatic normal procedure ships, preserve existing GM fighter/craft adjustments as explicit audited corrections rather than requiring them to enter routine combat losses or rolls. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Resolve Alpha and Bravo fighter state."
       },
-      "description": "Completed in PC08 through current-actor weapon/support choices, independent Alpha/Bravo/PDF/Maliades launch and range actions, server-locked shared dice and target assignment, source-defined costs/damage/losses and immutable retries. Native authority/math/privacy checks and the normal authenticated twenty-player composed attack establish this criterion; prepared controls and release gates retain separate evidence classes. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT. Post-release PC08 audit: RANGE-01, RANGE-02 remain OPEN; see docs/PC08_BUG_AUDIT.md. The done/release record preserves terminal 0.5.67 accounting, not a claim that these newly reproduced paths pass. Repair and proof are assigned to existing dependent PC09 work; this audit grants no fix credit.",
-      "evidenceIds": "E-AUDIT-396;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004",
+      "description": "Completed in PC08 through current-actor weapon/support choices, independent Alpha/Bravo/PDF/Maliades launch and range actions, server-locked shared dice and target assignment, source-defined costs/damage/losses and immutable retries. Native authority/math/privacy checks and the normal authenticated twenty-player composed attack establish this criterion; prepared controls and release gates retain separate evidence classes. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT. Post-release PC08 audit repairs for RANGE-01, RANGE-02 are integrated and verified within the separate PC09 checkpoint. Exact native reproductions and qualified ordinary authenticated workflow evidence are mapped in docs/PC08_BUG_AUDIT.md and docs/PC09_PLAYTEST_REPORT.md. Historical 0.5.67 completion and release accounting remain unchanged. The 0.5.68 repair candidate still requires exact-SHA CI and production deployment verification.",
+      "evidenceIds": "E-AUDIT-396;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "262;182",
@@ -16924,8 +16935,8 @@
         "acceptance": "four-fighter cap, combat actions, launch requirement, and fuel-free mission participation remain distinct. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. When this automatic normal procedure ships, preserve existing GM fighter/craft adjustments as explicit audited corrections rather than requiring them to enter routine combat losses or rolls. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Resolve the PDF Escort Wing state."
       },
-      "description": "Completed in PC08 through current-actor weapon/support choices, independent Alpha/Bravo/PDF/Maliades launch and range actions, server-locked shared dice and target assignment, source-defined costs/damage/losses and immutable retries. Native authority/math/privacy checks and the normal authenticated twenty-player composed attack establish this criterion; prepared controls and release gates retain separate evidence classes. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT. Post-release PC08 audit: RANGE-07 remain OPEN; see docs/PC08_BUG_AUDIT.md. The done/release record preserves terminal 0.5.67 accounting, not a claim that these newly reproduced paths pass. Repair and proof are assigned to existing dependent PC09 work; this audit grants no fix credit.",
-      "evidenceIds": "E-AUDIT-398;E-398-PDF-ESCORT-PARTIAL;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004",
+      "description": "Completed in PC08 through current-actor weapon/support choices, independent Alpha/Bravo/PDF/Maliades launch and range actions, server-locked shared dice and target assignment, source-defined costs/damage/losses and immutable retries. Native authority/math/privacy checks and the normal authenticated twenty-player composed attack establish this criterion; prepared controls and release gates retain separate evidence classes. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT. Post-release PC08 audit repairs for RANGE-07 are integrated and verified within the separate PC09 checkpoint. Exact native reproductions and qualified ordinary authenticated workflow evidence are mapped in docs/PC08_BUG_AUDIT.md and docs/PC09_PLAYTEST_REPORT.md. Historical 0.5.67 completion and release accounting remain unchanged. The 0.5.68 repair candidate still requires exact-SHA CI and production deployment verification.",
+      "evidenceIds": "E-AUDIT-398;E-398-PDF-ESCORT-PARTIAL;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "273;182",
@@ -18337,8 +18348,8 @@
         "acceptance": "a charged, undamaged action deals two damage to one valid Wolf target. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Resolve AEGIS Missile Launchers at Long Range."
       },
-      "description": "Completed in PC08 through current-actor weapon/support choices, independent Alpha/Bravo/PDF/Maliades launch and range actions, server-locked shared dice and target assignment, source-defined costs/damage/losses and immutable retries. Native authority/math/privacy checks and the normal authenticated twenty-player composed attack establish this criterion; prepared controls and release gates retain separate evidence classes. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT. Post-release PC08 audit: RANGE-01, RANGE-08 remain OPEN; see docs/PC08_BUG_AUDIT.md. The done/release record preserves terminal 0.5.67 accounting, not a claim that these newly reproduced paths pass. Repair and proof are assigned to existing dependent PC09 work; this audit grants no fix credit.",
-      "evidenceIds": "E-WOLF;E-AUDIT-445;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004",
+      "description": "Completed in PC08 through current-actor weapon/support choices, independent Alpha/Bravo/PDF/Maliades launch and range actions, server-locked shared dice and target assignment, source-defined costs/damage/losses and immutable retries. Native authority/math/privacy checks and the normal authenticated twenty-player composed attack establish this criterion; prepared controls and release gates retain separate evidence classes. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT. Post-release PC08 audit repairs for RANGE-01, RANGE-08 are integrated and verified within the separate PC09 checkpoint. Exact native reproductions and qualified ordinary authenticated workflow evidence are mapped in docs/PC08_BUG_AUDIT.md and docs/PC09_PLAYTEST_REPORT.md. Historical 0.5.67 completion and release accounting remain unchanged. The 0.5.68 repair candidate still requires exact-SHA CI and production deployment verification.",
+      "evidenceIds": "E-WOLF;E-AUDIT-445;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "441;182",
@@ -18387,8 +18398,8 @@
         "acceptance": "four server dice use 5+ and exact upgrade/warhead/target constraints. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. When the printed action requires distinct targets, preserve every original roll and successful hit, assign only to its legal distinct contacts, and record any excess successes as unused without rerolls or duplicate damage (PC07-A6). Keep each action’s printed target limits; independent actions may share a contact when their own rules permit. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Resolve AEGIS Missile Launchers at Medium Range."
       },
-      "description": "Completed in PC08 through current-actor weapon/support choices, independent Alpha/Bravo/PDF/Maliades launch and range actions, server-locked shared dice and target assignment, source-defined costs/damage/losses and immutable retries. Native authority/math/privacy checks and the normal authenticated twenty-player composed attack establish this criterion; prepared controls and release gates retain separate evidence classes. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT. Post-release PC08 audit: RANGE-01, RANGE-04, RANGE-06, RANGE-08 remain OPEN; see docs/PC08_BUG_AUDIT.md. The done/release record preserves terminal 0.5.67 accounting, not a claim that these newly reproduced paths pass. Repair and proof are assigned to existing dependent PC09 work; this audit grants no fix credit.",
-      "evidenceIds": "E-WOLF;E-AUDIT-447;E-PC07-A6-FUTURE-TARGET-LIMITS-20261003;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004",
+      "description": "Completed in PC08 through current-actor weapon/support choices, independent Alpha/Bravo/PDF/Maliades launch and range actions, server-locked shared dice and target assignment, source-defined costs/damage/losses and immutable retries. Native authority/math/privacy checks and the normal authenticated twenty-player composed attack establish this criterion; prepared controls and release gates retain separate evidence classes. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT. Post-release PC08 audit repairs for RANGE-01, RANGE-04, RANGE-06, RANGE-08 are integrated and verified within the separate PC09 checkpoint. Exact native reproductions and qualified ordinary authenticated workflow evidence are mapped in docs/PC08_BUG_AUDIT.md and docs/PC09_PLAYTEST_REPORT.md. Historical 0.5.67 completion and release accounting remain unchanged. The 0.5.68 repair candidate still requires exact-SHA CI and production deployment verification.",
+      "evidenceIds": "E-WOLF;E-AUDIT-447;E-PC07-A6-FUTURE-TARGET-LIMITS-20261003;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "441;182",
@@ -18412,8 +18423,8 @@
         "acceptance": "the printed Medium and Short dice, thresholds, upgrade, and target limits resolve once. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. When the printed action requires distinct targets, preserve every original roll and successful hit, assign only to its legal distinct contacts, and record any excess successes as unused without rerolls or duplicate damage (PC07-A6). Keep each action’s printed target limits; independent actions may share a contact when their own rules permit. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Resolve AEGIS Point Defence."
       },
-      "description": "Completed in PC08 through current-actor weapon/support choices, independent Alpha/Bravo/PDF/Maliades launch and range actions, server-locked shared dice and target assignment, source-defined costs/damage/losses and immutable retries. Native authority/math/privacy checks and the normal authenticated twenty-player composed attack establish this criterion; prepared controls and release gates retain separate evidence classes. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT. Post-release PC08 audit: RANGE-01, RANGE-08 remain OPEN; see docs/PC08_BUG_AUDIT.md. The done/release record preserves terminal 0.5.67 accounting, not a claim that these newly reproduced paths pass. Repair and proof are assigned to existing dependent PC09 work; this audit grants no fix credit.",
-      "evidenceIds": "E-WOLF;E-AUDIT-448;E-PC07-A6-FUTURE-TARGET-LIMITS-20261003;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004",
+      "description": "Completed in PC08 through current-actor weapon/support choices, independent Alpha/Bravo/PDF/Maliades launch and range actions, server-locked shared dice and target assignment, source-defined costs/damage/losses and immutable retries. Native authority/math/privacy checks and the normal authenticated twenty-player composed attack establish this criterion; prepared controls and release gates retain separate evidence classes. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT. Post-release PC08 audit repairs for RANGE-01, RANGE-08 are integrated and verified within the separate PC09 checkpoint. Exact native reproductions and qualified ordinary authenticated workflow evidence are mapped in docs/PC08_BUG_AUDIT.md and docs/PC09_PLAYTEST_REPORT.md. Historical 0.5.67 completion and release accounting remain unchanged. The 0.5.68 repair candidate still requires exact-SHA CI and production deployment verification.",
+      "evidenceIds": "E-WOLF;E-AUDIT-448;E-PC07-A6-FUTURE-TARGET-LIMITS-20261003;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "441;182",
@@ -18437,8 +18448,8 @@
         "acceptance": "Alpha and Bravo launch only from their own charged, undamaged bay under Wing Commander authority. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Authorize Fighter Bay launches."
       },
-      "description": "Completed in PC08 through current-actor weapon/support choices, independent Alpha/Bravo/PDF/Maliades launch and range actions, server-locked shared dice and target assignment, source-defined costs/damage/losses and immutable retries. Native authority/math/privacy checks and the normal authenticated twenty-player composed attack establish this criterion; prepared controls and release gates retain separate evidence classes. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT. Post-release PC08 audit: RANGE-01, RANGE-02 remain OPEN; see docs/PC08_BUG_AUDIT.md. The done/release record preserves terminal 0.5.67 accounting, not a claim that these newly reproduced paths pass. Repair and proof are assigned to existing dependent PC09 work; this audit grants no fix credit.",
-      "evidenceIds": "E-WOLF;E-AUDIT-449;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004",
+      "description": "Completed in PC08 through current-actor weapon/support choices, independent Alpha/Bravo/PDF/Maliades launch and range actions, server-locked shared dice and target assignment, source-defined costs/damage/losses and immutable retries. Native authority/math/privacy checks and the normal authenticated twenty-player composed attack establish this criterion; prepared controls and release gates retain separate evidence classes. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT. Post-release PC08 audit repairs for RANGE-01, RANGE-02 are integrated and verified within the separate PC09 checkpoint. Exact native reproductions and qualified ordinary authenticated workflow evidence are mapped in docs/PC08_BUG_AUDIT.md and docs/PC09_PLAYTEST_REPORT.md. Historical 0.5.67 completion and release accounting remain unchanged. The 0.5.68 repair candidate still requires exact-SHA CI and production deployment verification.",
+      "evidenceIds": "E-WOLF;E-AUDIT-449;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "443;396",
@@ -18462,8 +18473,8 @@
         "acceptance": "each eligible fighter performs no more than one permitted target-number adjustment with correct wraparound. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Shift targets with fleet fighters."
       },
-      "description": "Completed in PC08 through current-actor weapon/support choices, independent Alpha/Bravo/PDF/Maliades launch and range actions, server-locked shared dice and target assignment, source-defined costs/damage/losses and immutable retries. Native authority/math/privacy checks and the normal authenticated twenty-player composed attack establish this criterion; prepared controls and release gates retain separate evidence classes. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT. Post-release PC08 audit: RANGE-06 remain OPEN; see docs/PC08_BUG_AUDIT.md. The done/release record preserves terminal 0.5.67 accounting, not a claim that these newly reproduced paths pass. Repair and proof are assigned to existing dependent PC09 work; this audit grants no fix credit.",
-      "evidenceIds": "E-WOLF;E-AUDIT-450;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004",
+      "description": "Completed in PC08 through current-actor weapon/support choices, independent Alpha/Bravo/PDF/Maliades launch and range actions, server-locked shared dice and target assignment, source-defined costs/damage/losses and immutable retries. Native authority/math/privacy checks and the normal authenticated twenty-player composed attack establish this criterion; prepared controls and release gates retain separate evidence classes. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT. Post-release PC08 audit repairs for RANGE-06 are integrated and verified within the separate PC09 checkpoint. Exact native reproductions and qualified ordinary authenticated workflow evidence are mapped in docs/PC08_BUG_AUDIT.md and docs/PC09_PLAYTEST_REPORT.md. Historical 0.5.67 completion and release accounting remain unchanged. The 0.5.68 repair candidate still requires exact-SHA CI and production deployment verification.",
+      "evidenceIds": "E-WOLF;E-AUDIT-450;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "449",
@@ -18487,8 +18498,8 @@
         "acceptance": "each committed fighter rolls once and deals the printed damage on 5+. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Attack at Medium Range with fleet fighters."
       },
-      "description": "Completed in PC08 through current-actor weapon/support choices, independent Alpha/Bravo/PDF/Maliades launch and range actions, server-locked shared dice and target assignment, source-defined costs/damage/losses and immutable retries. Native authority/math/privacy checks and the normal authenticated twenty-player composed attack establish this criterion; prepared controls and release gates retain separate evidence classes. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT. Post-release PC08 audit: RANGE-03, RANGE-04 remain OPEN; see docs/PC08_BUG_AUDIT.md. The done/release record preserves terminal 0.5.67 accounting, not a claim that these newly reproduced paths pass. Repair and proof are assigned to existing dependent PC09 work; this audit grants no fix credit.",
-      "evidenceIds": "E-WOLF;E-AUDIT-451;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004",
+      "description": "Completed in PC08 through current-actor weapon/support choices, independent Alpha/Bravo/PDF/Maliades launch and range actions, server-locked shared dice and target assignment, source-defined costs/damage/losses and immutable retries. Native authority/math/privacy checks and the normal authenticated twenty-player composed attack establish this criterion; prepared controls and release gates retain separate evidence classes. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT. Post-release PC08 audit repairs for RANGE-03, RANGE-04 are integrated and verified within the separate PC09 checkpoint. Exact native reproductions and qualified ordinary authenticated workflow evidence are mapped in docs/PC08_BUG_AUDIT.md and docs/PC09_PLAYTEST_REPORT.md. Historical 0.5.67 completion and release accounting remain unchanged. The 0.5.68 repair candidate still requires exact-SHA CI and production deployment verification.",
+      "evidenceIds": "E-WOLF;E-AUDIT-451;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "449",
@@ -18512,8 +18523,8 @@
         "acceptance": "each committed fighter hits on 3+ and is destroyed on 1–2 before any later use. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Attack at Short Range with fleet fighters."
       },
-      "description": "Completed in PC08 through current-actor weapon/support choices, independent Alpha/Bravo/PDF/Maliades launch and range actions, server-locked shared dice and target assignment, source-defined costs/damage/losses and immutable retries. Native authority/math/privacy checks and the normal authenticated twenty-player composed attack establish this criterion; prepared controls and release gates retain separate evidence classes. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT. Post-release PC08 audit: RANGE-02 remain OPEN; see docs/PC08_BUG_AUDIT.md. The done/release record preserves terminal 0.5.67 accounting, not a claim that these newly reproduced paths pass. Repair and proof are assigned to existing dependent PC09 work; this audit grants no fix credit.",
-      "evidenceIds": "E-WOLF;E-AUDIT-452;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004",
+      "description": "Completed in PC08 through current-actor weapon/support choices, independent Alpha/Bravo/PDF/Maliades launch and range actions, server-locked shared dice and target assignment, source-defined costs/damage/losses and immutable retries. Native authority/math/privacy checks and the normal authenticated twenty-player composed attack establish this criterion; prepared controls and release gates retain separate evidence classes. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT. Post-release PC08 audit repairs for RANGE-02 are integrated and verified within the separate PC09 checkpoint. Exact native reproductions and qualified ordinary authenticated workflow evidence are mapped in docs/PC08_BUG_AUDIT.md and docs/PC09_PLAYTEST_REPORT.md. Historical 0.5.67 completion and release accounting remain unchanged. The 0.5.68 repair candidate still requires exact-SHA CI and production deployment verification.",
+      "evidenceIds": "E-WOLF;E-AUDIT-452;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "449",
@@ -18537,8 +18548,8 @@
         "acceptance": "its Medium target/damage choice, Short attack, self-risk, durability, and fuel repair remain authoritative. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Resolve Maliades at range."
       },
-      "description": "Completed in PC08 through current-actor weapon/support choices, independent Alpha/Bravo/PDF/Maliades launch and range actions, server-locked shared dice and target assignment, source-defined costs/damage/losses and immutable retries. Native authority/math/privacy checks and the normal authenticated twenty-player composed attack establish this criterion; prepared controls and release gates retain separate evidence classes. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT. Post-release PC08 audit: RANGE-03, RANGE-04 remain OPEN; see docs/PC08_BUG_AUDIT.md. The done/release record preserves terminal 0.5.67 accounting, not a claim that these newly reproduced paths pass. Repair and proof are assigned to existing dependent PC09 work; this audit grants no fix credit.",
-      "evidenceIds": "E-AUDIT-453;E-WOLF;E-453-MALIADES-RANGE-BLOCKER;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004",
+      "description": "Completed in PC08 through current-actor weapon/support choices, independent Alpha/Bravo/PDF/Maliades launch and range actions, server-locked shared dice and target assignment, source-defined costs/damage/losses and immutable retries. Native authority/math/privacy checks and the normal authenticated twenty-player composed attack establish this criterion; prepared controls and release gates retain separate evidence classes. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT. Post-release PC08 audit repairs for RANGE-03, RANGE-04 are integrated and verified within the separate PC09 checkpoint. Exact native reproductions and qualified ordinary authenticated workflow evidence are mapped in docs/PC08_BUG_AUDIT.md and docs/PC09_PLAYTEST_REPORT.md. Historical 0.5.67 completion and release accounting remain unchanged. The 0.5.68 repair candidate still requires exact-SHA CI and production deployment verification.",
+      "evidenceIds": "E-AUDIT-453;E-WOLF;E-453-MALIADES-RANGE-BLOCKER;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "264;397;431;432a;433;433b",
@@ -18563,8 +18574,8 @@
         "acceptance": "only a fuelled Highwall rolls each eligible Medium/Short attack and deals three on 5+. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Resolve Highwall at range."
       },
-      "description": "Completed in PC08 through current-actor weapon/support choices, independent Alpha/Bravo/PDF/Maliades launch and range actions, server-locked shared dice and target assignment, source-defined costs/damage/losses and immutable retries. Native authority/math/privacy checks and the normal authenticated twenty-player composed attack establish this criterion; prepared controls and release gates retain separate evidence classes. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT. Post-release PC08 audit: RANGE-05 remain OPEN; see docs/PC08_BUG_AUDIT.md. The done/release record preserves terminal 0.5.67 accounting, not a claim that these newly reproduced paths pass. Repair and proof are assigned to existing dependent PC09 work; this audit grants no fix credit.",
-      "evidenceIds": "E-WOLF;E-AUDIT-454;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004",
+      "description": "Completed in PC08 through current-actor weapon/support choices, independent Alpha/Bravo/PDF/Maliades launch and range actions, server-locked shared dice and target assignment, source-defined costs/damage/losses and immutable retries. Native authority/math/privacy checks and the normal authenticated twenty-player composed attack establish this criterion; prepared controls and release gates retain separate evidence classes. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT. Post-release PC08 audit repairs for RANGE-05 are integrated and verified within the separate PC09 checkpoint. Exact native reproductions and qualified ordinary authenticated workflow evidence are mapped in docs/PC08_BUG_AUDIT.md and docs/PC09_PLAYTEST_REPORT.md. Historical 0.5.67 completion and release accounting remain unchanged. The 0.5.68 repair candidate still requires exact-SHA CI and production deployment verification.",
+      "evidenceIds": "E-WOLF;E-AUDIT-454;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "265",
@@ -18588,8 +18599,8 @@
         "acceptance": "three dice use 6+/5+/4+ by range with at most one hit per target from the array each phase. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. When the printed action requires distinct targets, preserve every original roll and successful hit, assign only to its legal distinct contacts, and record any excess successes as unused without rerolls or duplicate damage (PC07-A6). Keep each action’s printed target limits; independent actions may share a contact when their own rules permit. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Resolve the Gorgoneion Missile Array."
       },
-      "description": "Completed in PC08 through current-actor weapon/support choices, independent Alpha/Bravo/PDF/Maliades launch and range actions, server-locked shared dice and target assignment, source-defined costs/damage/losses and immutable retries. Native authority/math/privacy checks and the normal authenticated twenty-player composed attack establish this criterion; prepared controls and release gates retain separate evidence classes. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT. Post-release PC08 audit: RANGE-05 remain OPEN; see docs/PC08_BUG_AUDIT.md. The done/release record preserves terminal 0.5.67 accounting, not a claim that these newly reproduced paths pass. Repair and proof are assigned to existing dependent PC09 work; this audit grants no fix credit.",
-      "evidenceIds": "E-WOLF;E-AUDIT-455;E-PC07-A6-FUTURE-TARGET-LIMITS-20261003;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004",
+      "description": "Completed in PC08 through current-actor weapon/support choices, independent Alpha/Bravo/PDF/Maliades launch and range actions, server-locked shared dice and target assignment, source-defined costs/damage/losses and immutable retries. Native authority/math/privacy checks and the normal authenticated twenty-player composed attack establish this criterion; prepared controls and release gates retain separate evidence classes. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT. Post-release PC08 audit repairs for RANGE-05 are integrated and verified within the separate PC09 checkpoint. Exact native reproductions and qualified ordinary authenticated workflow evidence are mapped in docs/PC08_BUG_AUDIT.md and docs/PC09_PLAYTEST_REPORT.md. Historical 0.5.67 completion and release accounting remain unchanged. The 0.5.68 repair candidate still requires exact-SHA CI and production deployment verification.",
+      "evidenceIds": "E-WOLF;E-AUDIT-455;E-PC07-A6-FUTURE-TARGET-LIMITS-20261003;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "239;441",
@@ -18638,8 +18649,8 @@
         "acceptance": "each fighter chooses one target shift or one 5+ attack and cannot do both. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Resolve PDF fighters at Medium Range."
       },
-      "description": "Completed in PC08 through current-actor weapon/support choices, independent Alpha/Bravo/PDF/Maliades launch and range actions, server-locked shared dice and target assignment, source-defined costs/damage/losses and immutable retries. Native authority/math/privacy checks and the normal authenticated twenty-player composed attack establish this criterion; prepared controls and release gates retain separate evidence classes. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT. Post-release PC08 audit: RANGE-03, RANGE-04, RANGE-06, RANGE-07 remain OPEN; see docs/PC08_BUG_AUDIT.md. The done/release record preserves terminal 0.5.67 accounting, not a claim that these newly reproduced paths pass. Repair and proof are assigned to existing dependent PC09 work; this audit grants no fix credit.",
-      "evidenceIds": "E-WOLF;E-AUDIT-457;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004",
+      "description": "Completed in PC08 through current-actor weapon/support choices, independent Alpha/Bravo/PDF/Maliades launch and range actions, server-locked shared dice and target assignment, source-defined costs/damage/losses and immutable retries. Native authority/math/privacy checks and the normal authenticated twenty-player composed attack establish this criterion; prepared controls and release gates retain separate evidence classes. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT. Post-release PC08 audit repairs for RANGE-03, RANGE-04, RANGE-06, RANGE-07 are integrated and verified within the separate PC09 checkpoint. Exact native reproductions and qualified ordinary authenticated workflow evidence are mapped in docs/PC08_BUG_AUDIT.md and docs/PC09_PLAYTEST_REPORT.md. Historical 0.5.67 completion and release accounting remain unchanged. The 0.5.68 repair candidate still requires exact-SHA CI and production deployment verification.",
+      "evidenceIds": "E-WOLF;E-AUDIT-457;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "456",
@@ -18663,8 +18674,8 @@
         "acceptance": "each fighter attacks on 3+ and is destroyed on 1–2. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Resolve PDF fighters at Short Range."
       },
-      "description": "Completed in PC08 through current-actor weapon/support choices, independent Alpha/Bravo/PDF/Maliades launch and range actions, server-locked shared dice and target assignment, source-defined costs/damage/losses and immutable retries. Native authority/math/privacy checks and the normal authenticated twenty-player composed attack establish this criterion; prepared controls and release gates retain separate evidence classes. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT. Post-release PC08 audit: RANGE-07 remain OPEN; see docs/PC08_BUG_AUDIT.md. The done/release record preserves terminal 0.5.67 accounting, not a claim that these newly reproduced paths pass. Repair and proof are assigned to existing dependent PC09 work; this audit grants no fix credit.",
-      "evidenceIds": "E-WOLF;E-AUDIT-458;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004",
+      "description": "Completed in PC08 through current-actor weapon/support choices, independent Alpha/Bravo/PDF/Maliades launch and range actions, server-locked shared dice and target assignment, source-defined costs/damage/losses and immutable retries. Native authority/math/privacy checks and the normal authenticated twenty-player composed attack establish this criterion; prepared controls and release gates retain separate evidence classes. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT. Post-release PC08 audit repairs for RANGE-07 are integrated and verified within the separate PC09 checkpoint. Exact native reproductions and qualified ordinary authenticated workflow evidence are mapped in docs/PC08_BUG_AUDIT.md and docs/PC09_PLAYTEST_REPORT.md. Historical 0.5.67 completion and release accounting remain unchanged. The 0.5.68 repair candidate still requires exact-SHA CI and production deployment verification.",
+      "evidenceIds": "E-WOLF;E-AUDIT-458;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "456",
@@ -18688,8 +18699,8 @@
         "acceptance": "once at each range, Boa may spend one Scrap for one valid Wolf damage under the recorded ambiguity policy. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Resolve Boa's range actions."
       },
-      "description": "Completed in PC08 through current-actor weapon/support choices, independent Alpha/Bravo/PDF/Maliades launch and range actions, server-locked shared dice and target assignment, source-defined costs/damage/losses and immutable retries. Native authority/math/privacy checks and the normal authenticated twenty-player composed attack establish this criterion; prepared controls and release gates retain separate evidence classes. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT. Post-release PC08 audit: RANGE-04, RANGE-05 remain OPEN; see docs/PC08_BUG_AUDIT.md. The done/release record preserves terminal 0.5.67 accounting, not a claim that these newly reproduced paths pass. Repair and proof are assigned to existing dependent PC09 work; this audit grants no fix credit.",
-      "evidenceIds": "E-WOLF;E-AUDIT-459;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004",
+      "description": "Completed in PC08 through current-actor weapon/support choices, independent Alpha/Bravo/PDF/Maliades launch and range actions, server-locked shared dice and target assignment, source-defined costs/damage/losses and immutable retries. Native authority/math/privacy checks and the normal authenticated twenty-player composed attack establish this criterion; prepared controls and release gates retain separate evidence classes. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT. Post-release PC08 audit repairs for RANGE-04, RANGE-05 are integrated and verified within the separate PC09 checkpoint. Exact native reproductions and qualified ordinary authenticated workflow evidence are mapped in docs/PC08_BUG_AUDIT.md and docs/PC09_PLAYTEST_REPORT.md. Historical 0.5.67 completion and release accounting remain unchanged. The 0.5.68 repair candidate still requires exact-SHA CI and production deployment verification.",
+      "evidenceIds": "E-WOLF;E-AUDIT-459;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "400;441",
@@ -18863,8 +18874,8 @@
         "acceptance": "each available team uses the printed 1 death, 2–3 no effect, 4+ kill result from server dice. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Roll security-team defence."
       },
-      "description": "Completed in PC08 through current craft owner/host support, genuine Commander/crew/Militia choices, independent rerolls, printed automatic consequences, conditional private facilitator ruling, atomic finalization and once-only surviving-Wing return. Native checks and normal authenticated destroyed-host retention through a later attack establish this criterion. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT. Post-release PC08 audit: BOARDING-02 remain OPEN; see docs/PC08_BUG_AUDIT.md. The done/release record preserves terminal 0.5.67 accounting, not a claim that these newly reproduced paths pass. Repair and proof are assigned to existing dependent PC09 work; this audit grants no fix credit.",
-      "evidenceIds": "E-WOLF;E-AUDIT-466;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004",
+      "description": "Completed in PC08 through current craft owner/host support, genuine Commander/crew/Militia choices, independent rerolls, printed automatic consequences, conditional private facilitator ruling, atomic finalization and once-only surviving-Wing return. Native checks and normal authenticated destroyed-host retention through a later attack establish this criterion. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT. Post-release PC08 audit repairs for BOARDING-02 are integrated and verified within the separate PC09 checkpoint. Exact native reproductions and qualified ordinary authenticated workflow evidence are mapped in docs/PC08_BUG_AUDIT.md and docs/PC09_PLAYTEST_REPORT.md. Historical 0.5.67 completion and release accounting remain unchanged. The 0.5.68 repair candidate still requires exact-SHA CI and production deployment verification.",
+      "evidenceIds": "E-WOLF;E-AUDIT-466;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "378;465",
@@ -18888,8 +18899,8 @@
         "acceptance": "each remaining assault team deals one authoritative ship damage after defence. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Apply surviving-boarder damage."
       },
-      "description": "Completed in PC08 through current craft owner/host support, genuine Commander/crew/Militia choices, independent rerolls, printed automatic consequences, conditional private facilitator ruling, atomic finalization and once-only surviving-Wing return. Native checks and normal authenticated destroyed-host retention through a later attack establish this criterion. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT. Post-release PC08 audit: BOARDING-02 remain OPEN; see docs/PC08_BUG_AUDIT.md. The done/release record preserves terminal 0.5.67 accounting, not a claim that these newly reproduced paths pass. Repair and proof are assigned to existing dependent PC09 work; this audit grants no fix credit.",
-      "evidenceIds": "E-WOLF;E-AUDIT-467;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004",
+      "description": "Completed in PC08 through current craft owner/host support, genuine Commander/crew/Militia choices, independent rerolls, printed automatic consequences, conditional private facilitator ruling, atomic finalization and once-only surviving-Wing return. Native checks and normal authenticated destroyed-host retention through a later attack establish this criterion. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT. Post-release PC08 audit repairs for BOARDING-02 are integrated and verified within the separate PC09 checkpoint. Exact native reproductions and qualified ordinary authenticated workflow evidence are mapped in docs/PC08_BUG_AUDIT.md and docs/PC09_PLAYTEST_REPORT.md. Historical 0.5.67 completion and release accounting remain unchanged. The 0.5.68 repair candidate still requires exact-SHA CI and production deployment verification.",
+      "evidenceIds": "E-WOLF;E-AUDIT-467;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "466",
@@ -19063,8 +19074,8 @@
         "acceptance": "each range effect, Short immunity, and station-specific consequence match the printed card. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Resolve Battlestation destruction."
       },
-      "description": "Completed in PC08 through current craft owner/host support, genuine Commander/crew/Militia choices, independent rerolls, printed automatic consequences, conditional private facilitator ruling, atomic finalization and once-only surviving-Wing return. Native checks and normal authenticated destroyed-host retention through a later attack establish this criterion. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT. Post-release PC08 audit: BOARDING-01 remain OPEN; see docs/PC08_BUG_AUDIT.md. The done/release record preserves terminal 0.5.67 accounting, not a claim that these newly reproduced paths pass. Repair and proof are assigned to existing dependent PC09 work; this audit grants no fix credit.",
-      "evidenceIds": "E-AUDIT-469E;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004",
+      "description": "Completed in PC08 through current craft owner/host support, genuine Commander/crew/Militia choices, independent rerolls, printed automatic consequences, conditional private facilitator ruling, atomic finalization and once-only surviving-Wing return. Native checks and normal authenticated destroyed-host retention through a later attack establish this criterion. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT. Post-release PC08 audit repairs for BOARDING-01 are integrated and verified within the separate PC09 checkpoint. Exact native reproductions and qualified ordinary authenticated workflow evidence are mapped in docs/PC08_BUG_AUDIT.md and docs/PC09_PLAYTEST_REPORT.md. Historical 0.5.67 completion and release accounting remain unchanged. The 0.5.68 repair candidate still requires exact-SHA CI and production deployment verification.",
+      "evidenceIds": "E-AUDIT-469E;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "442",
@@ -19088,8 +19099,8 @@
         "acceptance": "surviving wings return in the next attack and destroyed wings do not. After the entitled actor makes any required choice, automatically resolve the printed rolls, costs, modifiers and consequences and append the private GM-log receipt. Retain genuine player choices and source rulings; additional GMs, manual result entry and routine relay are unnecessary. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Carry surviving Wolf Fighter Wings forward."
       },
-      "description": "Completed in PC08 through current craft owner/host support, genuine Commander/crew/Militia choices, independent rerolls, printed automatic consequences, conditional private facilitator ruling, atomic finalization and once-only surviving-Wing return. Native checks and normal authenticated destroyed-host retention through a later attack establish this criterion. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT. Post-release PC08 audit: BOARDING-01 remain OPEN; see docs/PC08_BUG_AUDIT.md. The done/release record preserves terminal 0.5.67 accounting, not a claim that these newly reproduced paths pass. Repair and proof are assigned to existing dependent PC09 work; this audit grants no fix credit.",
-      "evidenceIds": "E-WOLF;E-AUDIT-470;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004",
+      "description": "Completed in PC08 through current craft owner/host support, genuine Commander/crew/Militia choices, independent rerolls, printed automatic consequences, conditional private facilitator ruling, atomic finalization and once-only surviving-Wing return. Native checks and normal authenticated destroyed-host retention through a later attack establish this criterion. See PC08_ACCEPTANCE_MATRIX and PC08_PLAYTEST_REPORT. Post-release PC08 audit repairs for BOARDING-01 are integrated and verified within the separate PC09 checkpoint. Exact native reproductions and qualified ordinary authenticated workflow evidence are mapped in docs/PC08_BUG_AUDIT.md and docs/PC09_PLAYTEST_REPORT.md. Historical 0.5.67 completion and release accounting remain unchanged. The 0.5.68 repair candidate still requires exact-SHA CI and production deployment verification.",
+      "evidenceIds": "E-WOLF;E-AUDIT-470;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "469",
@@ -19113,8 +19124,8 @@
         "acceptance": "Short damage is denied while Long/Medium vulnerability remains. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Enforce Battlestation Short Range immunity."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-WOLF;E-AUDIT-471",
+      "description": "Completed within the fixed PC09 49-ID checkpoint. Battlestation Short immunity and Long/Medium vulnerability have permanent native regressions; reconciled See docs/PC09_ACCEPTANCE_MATRIX.md and docs/PC09_PLAYTEST_REPORT.md for ordinary authenticated local/emulator, native and prepared-render evidence with their limits. This 0.5.68 candidate still requires exact-SHA CI and production deployment verification; no physical-device or production-GM gameplay is implied.",
+      "evidenceIds": "E-WOLF;E-AUDIT-471;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "469e;442",
@@ -19122,10 +19133,12 @@
       "milestoneHints": "M9",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.68"
+      ],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "WOLF-ATTACK",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -19136,8 +19149,8 @@
         "acceptance": "the final bonus uses authoritative surviving-wing state at the correct step. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Apply Strikecarrier wing bonus."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-WOLF;E-AUDIT-472",
+      "description": "Completed within the fixed PC09 49-ID checkpoint. Final Strikecarrier bonus consumes authoritative surviving-wing state; permanent native coverage and ordinary boarding integration are present See docs/PC09_ACCEPTANCE_MATRIX.md and docs/PC09_PLAYTEST_REPORT.md for ordinary authenticated local/emulator, native and prepared-render evidence with their limits. This 0.5.68 candidate still requires exact-SHA CI and production deployment verification; no physical-device or production-GM gameplay is implied.",
+      "evidenceIds": "E-WOLF;E-AUDIT-472;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "469d;470",
@@ -19145,10 +19158,12 @@
       "milestoneHints": "M9",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.68"
+      ],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "WOLF-ATTACK",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -19159,8 +19174,8 @@
         "acceptance": "after Boarding, every surviving card damages its resolved target by its printed value. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Apply surviving Wolf ship damage."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-WOLF;E-AUDIT-473",
+      "description": "Completed within the fixed PC09 49-ID checkpoint. All surviving cards feed the automatic fleet-damage finalizer and complete private receipt; ordinary integrated completion and See docs/PC09_ACCEPTANCE_MATRIX.md and docs/PC09_PLAYTEST_REPORT.md for ordinary authenticated local/emulator, native and prepared-render evidence with their limits. This 0.5.68 candidate still requires exact-SHA CI and production deployment verification; no physical-device or production-GM gameplay is implied.",
+      "evidenceIds": "E-WOLF;E-AUDIT-473;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "469;130",
@@ -19168,10 +19183,12 @@
       "milestoneHints": "M9",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.68"
+      ],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "WOLF-ATTACK",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -19182,8 +19199,8 @@
         "acceptance": "extend current crew/broadcast projection surfaces so affected crews see damage, casualties, boarding, and remaining threats while hidden prep stays private. Automatically deliver entitled operational outcomes, append the complete private GM receipt and make only approved public facts available to Press through the existing news path. Press controls publication; private causes, votes, suspicion, Wolf identity and GM notes remain restricted. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately. PC08 post-release audit follow-on: Before crediting this existing result projection, repair RANGE-06 at the P447/P450/P457 publisher seam and prove that member weapon rows identify the authoritative post-shift target without revealing private preparation.",
         "title": "Publish the immediate attack result."
       },
-      "description": "Planned [EXTEND] crew/broadcast projection prompt; existing surfaces are not composed with attack results. Open PC08 baseline defects require bounded prerequisite repair/proof as specified in this acceptance and docs/PC08_BUG_AUDIT.md; no repair or future-checkpoint credit is granted by the audit.",
-      "evidenceIds": "E-WOLF;E-AUDIT-474;E-PC08-BUG-AUDIT-20261004;E-PC08-AUDIT-FOLLOWON-20261004",
+      "description": "Completed within the fixed PC09 49-ID checkpoint. Safe immediate results and complete GM receipt are integrated. Fresh composed gameplay completes the automatic finalizer, entitled projections and private Rules denials. Semantic map comparison and separate immutable/post-finalization revision bindings retain native tamper coverage See docs/PC09_ACCEPTANCE_MATRIX.md and docs/PC09_PLAYTEST_REPORT.md for ordinary authenticated local/emulator, native and prepared-render evidence with their limits. This 0.5.68 candidate still requires exact-SHA CI and production deployment verification; no physical-device or production-GM gameplay is implied.",
+      "evidenceIds": "E-WOLF;E-AUDIT-474;E-PC08-BUG-AUDIT-20261004;E-PC08-AUDIT-FOLLOWON-20261004;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "444;473;447;450;457",
@@ -19191,10 +19208,12 @@
       "milestoneHints": "M9",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.68"
+      ],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "WOLF-ATTACK",
-      "status": "missing",
+      "status": "done",
       "tag": "EXTEND"
     },
     {
@@ -19205,8 +19224,8 @@
         "acceptance": "extend the existing authoritative damage primitive so combat damage covers the drawn console, applies armour, records the card, and never exposes remaining deck order. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Reuse the common damage draw path."
       },
-      "description": "Planned [EXTEND] prompt reusing the authoritative damage primitive for combat.",
-      "evidenceIds": "E-WOLF;E-AUDIT-475",
+      "description": "Completed within the fixed PC09 49-ID checkpoint. The common damage primitive applies armour, persists the actual drawn card and keeps deck order private; native and ordinary finalizer coverage are integrated. See docs/PC09_ACCEPTANCE_MATRIX.md and docs/PC09_PLAYTEST_REPORT.md for ordinary authenticated local/emulator, native and prepared-render evidence with their limits. This 0.5.68 candidate still requires exact-SHA CI and production deployment verification; no physical-device or production-GM gameplay is implied.",
+      "evidenceIds": "E-WOLF;E-AUDIT-475;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "130",
@@ -19214,10 +19233,12 @@
       "milestoneHints": "M9",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.68"
+      ],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "WOLF-ATTACK",
-      "status": "missing",
+      "status": "done",
       "tag": "EXTEND"
     },
     {
@@ -19228,8 +19249,8 @@
         "acceptance": "extend the existing damage-deck exhaustion primitive so an empty required combat draw enters the same authoritative catastrophe flow used elsewhere. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Destroy a ship on combat deck exhaustion."
       },
-      "description": "Planned [EXTEND] prompt reusing authoritative deck-exhaustion catastrophe handling.",
-      "evidenceIds": "E-WOLF;E-AUDIT-476",
+      "description": "Completed within the fixed PC09 49-ID checkpoint. A required combat draw on an empty deck enters authoritative catastrophe, including the bounded combat Capybara rule PC09-A4. Exhaustion regressions pass; physical catastrophe is not claimed. See docs/PC09_ACCEPTANCE_MATRIX.md and docs/PC09_PLAYTEST_REPORT.md for ordinary authenticated local/emulator, native and prepared-render evidence with their limits. This 0.5.68 candidate still requires exact-SHA CI and production deployment verification; no physical-device or production-GM gameplay is implied.",
+      "evidenceIds": "E-WOLF;E-AUDIT-476;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "475",
@@ -19237,10 +19258,12 @@
       "milestoneHints": "M9",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.68"
+      ],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "WOLF-ATTACK",
-      "status": "missing",
+      "status": "done",
       "tag": "EXTEND"
     },
     {
@@ -19251,8 +19274,8 @@
         "acceptance": "extend the existing population/threshold primitive so each applicable hit steps the target's exact population track and triggers thresholds once. Automatically deliver entitled operational outcomes, append the complete private GM receipt and make only approved public facts available to Press through the existing news path. Press controls publication; private causes, votes, suspicion, Wolf identity and GM notes remain restricted. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Apply combat casualties."
       },
-      "description": "Planned [EXTEND] prompt reusing population/threshold primitives for combat casualties.",
-      "evidenceIds": "E-WOLF;E-AUDIT-477",
+      "description": "Completed within the fixed PC09 49-ID checkpoint. Exact population tracks and once-only threshold consequences feed safe member and private GM projections. Fresh composed gameplay records actual finalizer casualties and the complete private receipt; native off-marker/threshold controls remain. See docs/PC09_ACCEPTANCE_MATRIX.md and docs/PC09_PLAYTEST_REPORT.md for ordinary authenticated local/emulator, native and prepared-render evidence with their limits. This 0.5.68 candidate still requires exact-SHA CI and production deployment verification; no physical-device or production-GM gameplay is implied.",
+      "evidenceIds": "E-WOLF;E-AUDIT-477;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "466;467",
@@ -19260,10 +19283,12 @@
       "milestoneHints": "M9",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.68"
+      ],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "WOLF-ATTACK",
-      "status": "missing",
+      "status": "done",
       "tag": "EXTEND"
     },
     {
@@ -19274,8 +19299,8 @@
         "acceptance": "one ship is halved, and each additional ship costs exactly three food and three water from valid stores. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Apply Doctor casualty mitigation."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-WOLF;E-AUDIT-478",
+      "description": "Completed within the fixed PC09 49-ID checkpoint. Fresh composed gameplay commits ordinary paid Doctor mitigation. Native forward stepping covers legal off-marker survivors and the 500 floor; actual Doctor-to-ordinary/P declaration handler compositions preserve the immutable finalization. See docs/PC09_ACCEPTANCE_MATRIX.md and docs/PC09_PLAYTEST_REPORT.md for ordinary authenticated local/emulator, native and prepared-render evidence with their limits. This 0.5.68 candidate still requires exact-SHA CI and production deployment verification; no physical-device or production-GM gameplay is implied.",
+      "evidenceIds": "E-WOLF;E-AUDIT-478;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "477;280",
@@ -19283,10 +19308,12 @@
       "milestoneHints": "M9",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.68"
+      ],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "WOLF-ATTACK",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -19297,8 +19324,8 @@
         "acceptance": "one server die per authoritative damage dealt by either side yields one material on each 5+. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Resolve Warrior post-attack salvage."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-WOLF;E-AUDIT-479",
+      "description": "Completed within the fixed PC09 49-ID checkpoint. Fresh composed gameplay completes the charged Warrior server-owned salvage receipt and real material credits. Native source/current-role, per-damage-point dice and once-only controls remain. See docs/PC09_ACCEPTANCE_MATRIX.md and docs/PC09_PLAYTEST_REPORT.md for ordinary authenticated local/emulator, native and prepared-render evidence with their limits. This 0.5.68 candidate still requires exact-SHA CI and production deployment verification; no physical-device or production-GM gameplay is implied.",
+      "evidenceIds": "E-WOLF;E-AUDIT-479;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "242;477",
@@ -19306,10 +19333,12 @@
       "milestoneHints": "M9",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.68"
+      ],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "WOLF-ATTACK",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -19320,8 +19349,8 @@
         "acceptance": "each ship taking at least three damage creates exactly one Scrap opportunity per attack. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Resolve Capybara post-attack Scrap."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-WOLF;E-AUDIT-480",
+      "description": "Completed within the fixed PC09 49-ID checkpoint. Fresh composed gameplay produces actual host damage and attack-bound Scrap opportunities at the three-damage threshold. Native threshold, custody and replay controls remain. See docs/PC09_ACCEPTANCE_MATRIX.md and docs/PC09_PLAYTEST_REPORT.md for ordinary authenticated local/emulator, native and prepared-render evidence with their limits. This 0.5.68 candidate still requires exact-SHA CI and production deployment verification; no physical-device or production-GM gameplay is implied.",
+      "evidenceIds": "E-WOLF;E-AUDIT-480;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "253;477",
@@ -19329,10 +19358,12 @@
       "milestoneHints": "M9",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.68"
+      ],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "WOLF-ATTACK",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -19343,8 +19374,8 @@
         "acceptance": "each craft moves only its printed salvage/cargo after the threshold event. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Collect Scrap with Macaw or Boa."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-WOLF;E-AUDIT-481",
+      "description": "Completed within the fixed PC09 49-ID checkpoint. Fresh composed gameplay collects eligible docked Scrap through ordinary Macaw/Boa source actions, retaining real custody, costs and once-only receipts. See docs/PC09_ACCEPTANCE_MATRIX.md and docs/PC09_PLAYTEST_REPORT.md for ordinary authenticated local/emulator, native and prepared-render evidence with their limits. This 0.5.68 candidate still requires exact-SHA CI and production deployment verification; no physical-device or production-GM gameplay is implied.",
+      "evidenceIds": "E-WOLF;E-AUDIT-481;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "399;400;480",
@@ -19352,10 +19383,12 @@
       "milestoneHints": "M9",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.68"
+      ],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "WOLF-ATTACK",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -19366,8 +19399,8 @@
         "acceptance": "extend the existing damage/correction and typed craft primitives into ordinary eligible repair or permission-dismantle using correct costs, hosts, fuel, and audit events. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Resolve post-attack repairs."
       },
-      "description": "Planned [EXTEND] prompt: existing damage/correction and craft catalogs do not yet compose ordinary post-attack repair.",
-      "evidenceIds": "E-WOLF;E-AUDIT-482",
+      "description": "Completed within the fixed PC09 49-ID checkpoint. Fresh composed gameplay commits ordinary paid Macaw repair with actual host, fuel, Scrap and damaged-system inputs. Native repair/dismantling and replay boundaries remain. See docs/PC09_ACCEPTANCE_MATRIX.md and docs/PC09_PLAYTEST_REPORT.md for ordinary authenticated local/emulator, native and prepared-render evidence with their limits. This 0.5.68 candidate still requires exact-SHA CI and production deployment verification; no physical-device or production-GM gameplay is implied.",
+      "evidenceIds": "E-WOLF;E-AUDIT-482;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "475",
@@ -19375,10 +19408,12 @@
       "milestoneHints": "M9",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.68"
+      ],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "WOLF-ATTACK",
-      "status": "missing",
+      "status": "done",
       "tag": "EXTEND"
     },
     {
@@ -19389,8 +19424,8 @@
         "acceptance": "the AEGIS Construction Bay spends one material per fighter up to the current wing cap. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately. PC08 post-release audit follow-on: Before crediting rebuild, repair RANGE-02 at P396/P452: combat losses must persist to the durable Alpha/Bravo inventory once, later ordinary launch must not restore them, and only accepted construction may spend material to replace fighters within the current cap. Prove loss, retry, next attack and authorized rebuild together.",
         "title": "Rebuild fighters after combat."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet. Open PC08 baseline defects require bounded prerequisite repair/proof as specified in this acceptance and docs/PC08_BUG_AUDIT.md; no repair or future-checkpoint credit is granted by the audit.",
-      "evidenceIds": "E-AUDIT-483;E-PC08-BUG-AUDIT-20261004;E-PC08-AUDIT-FOLLOWON-20261004",
+      "description": "Completed within the fixed PC09 49-ID checkpoint. Native current Construction Bay, capacity, cost and retry guards pass. Fresh strict current-runtime proof passes 24 checks/505 actions: Alpha 4→3→2 through two actual losses, later launch at three, paid HTTP build/full receipt retry, then actual Wing UI build restores four. Build materials 21→20→19; normal Blacksmith paid repair and eight prior failures stay disclosed. See docs/PC09_ACCEPTANCE_MATRIX.md and docs/PC09_PLAYTEST_REPORT.md for ordinary authenticated local/emulator, native and prepared-render evidence with their limits. This 0.5.68 candidate still requires exact-SHA CI and production deployment verification; no physical-device or production-GM gameplay is implied.",
+      "evidenceIds": "E-AUDIT-483;E-PC08-BUG-AUDIT-20261004;E-PC08-AUDIT-FOLLOWON-20261004;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "178;469;396;452",
@@ -19398,10 +19433,12 @@
       "milestoneHints": "M9",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.68"
+      ],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -19412,8 +19449,8 @@
         "acceptance": "extend current crew/GM/broadcast surfaces so each crew sees damage, casualties, stores, salvage, repairs, surviving/returning Wolves, and outstanding recovery work with one-GM next-action visibility. Automatically deliver entitled operational outcomes, append the complete private GM receipt and make only approved public facts available to Press through the existing news path. Press controls publication; private causes, votes, suspicion, Wolf identity and GM notes remain restricted. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately. PC08 post-release audit follow-on: Integrate the entitled current PDF state from the RANGE-07 repair at P398/P457/P458 and the accepted P483 fighter inventory into the existing aftermath projection; prove that refresh/reconnect agrees with authoritative private combat state while retaining its audience boundaries.",
         "title": "Publish the complete aftermath."
       },
-      "description": "Planned [EXTEND] crew/GM/broadcast aftermath and one-GM recovery-work projection prompt. Open PC08 baseline defects require bounded prerequisite repair/proof as specified in this acceptance and docs/PC08_BUG_AUDIT.md; no repair or future-checkpoint credit is granted by the audit.",
-      "evidenceIds": "E-WOLF;E-AUDIT-484;E-PC08-BUG-AUDIT-20261004;E-PC08-AUDIT-FOLLOWON-20261004",
+      "description": "Completed within the fixed PC09 49-ID checkpoint. Fresh composed gameplay publishes safe crew/Press results, the complete private GM receipt and outstanding recovery facts through entitled reads; Rules deny hidden state. See docs/PC09_ACCEPTANCE_MATRIX.md and docs/PC09_PLAYTEST_REPORT.md for ordinary authenticated local/emulator, native and prepared-render evidence with their limits. This 0.5.68 candidate still requires exact-SHA CI and production deployment verification; no physical-device or production-GM gameplay is implied.",
+      "evidenceIds": "E-WOLF;E-AUDIT-484;E-PC08-BUG-AUDIT-20261004;E-PC08-AUDIT-FOLLOWON-20261004;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "474;477;482;398;483",
@@ -19421,10 +19458,12 @@
       "milestoneHints": "M9",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.68"
+      ],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "WOLF-ATTACK",
-      "status": "missing",
+      "status": "done",
       "tag": "EXTEND"
     },
     {
@@ -19588,8 +19627,8 @@
         "acceptance": "attacks and Commander capacity use the targeted group's pursuit only. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Preserve independent split-group threat."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-ATTACK-PRESSURE;E-AUDIT-490",
+      "description": "Completed within the fixed PC09 49-ID checkpoint. Target-group pursuit/window/capacity and source navigation bindings retain native denial/isolation checks. Fresh current-runtime P movement/attack/finalizer/next declaration and Commander selected-group dial/address/amnesty proofs pass separately. See docs/PC09_ACCEPTANCE_MATRIX.md and docs/PC09_PLAYTEST_REPORT.md for ordinary authenticated local/emulator, native and prepared-render evidence with their limits. This 0.5.68 candidate still requires exact-SHA CI and production deployment verification; no physical-device or production-GM gameplay is implied.",
+      "evidenceIds": "E-ATTACK-PRESSURE;E-AUDIT-490;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "485;307",
@@ -19597,10 +19636,12 @@
       "milestoneHints": "M10",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.68"
+      ],
       "section": "Threat pressure, Wolf loyalties, deduction, and facilitator actions (Prompts 485–524)",
       "sequenceRules": "ATTACK-PRESSURE",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -19611,8 +19652,8 @@
         "acceptance": "L schedules the required continuing pressure and missions remain blocked while operational. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Trigger Active Wolf Outpost attacks."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-ATTACK-PRESSURE;E-AUDIT-491",
+      "description": "Completed within the fixed PC09 49-ID checkpoint. L pressure, one Battlestation plus 20 other capacity and operational mission blocking are integrated. Native source controls and shared authenticated source/window/attack paths are recorded in PC09_THREATS_HANDOFF.md See docs/PC09_ACCEPTANCE_MATRIX.md and docs/PC09_PLAYTEST_REPORT.md for ordinary authenticated local/emulator, native and prepared-render evidence with their limits. This 0.5.68 candidate still requires exact-SHA CI and production deployment verification; no physical-device or production-GM gameplay is implied.",
+      "evidenceIds": "E-ATTACK-PRESSURE;E-AUDIT-491;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "312",
@@ -19620,10 +19661,12 @@
       "milestoneHints": "M10",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.68"
+      ],
       "section": "Threat pressure, Wolf loyalties, deduction, and facilitator actions (Prompts 485–524)",
       "sequenceRules": "ATTACK-PRESSURE",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -19634,8 +19677,8 @@
         "acceptance": "M includes at least two Battlestations and 25 other damage capacity under the authoritative composition, preserving the printed Fortress requirement and existing P323 arrival-pressure schedule (PC09-A8). Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately. PC08 post-release audit follow-on: Before composing this trigger with ordinary attacks, repair the existing shared lifecycle blockers RANGE-01 and BOARDING-01 at P448/P469e/P470. Prove a legal later-cycle attack with destroyed AEGIS and surviving catalog-return cards without a fabricated current-maintenance dependency or malformed return manifest. This reconciles existing producer/consumer behavior; it does not activate or infer a new Station repetition rule.",
         "title": "Trigger Active Wolf Fortress attacks."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet. Open PC08 baseline defects require bounded prerequisite repair/proof as specified in this acceptance and docs/PC08_BUG_AUDIT.md; no repair or future-checkpoint credit is granted by the audit.",
-      "evidenceIds": "E-ATTACK-PRESSURE;E-AUDIT-492;E-PC08-BUG-AUDIT-20261004;E-PC08-AUDIT-FOLLOWON-20261004",
+      "description": "Completed within the fixed PC09 49-ID checkpoint. M retains the stronger P323 schedule and printed two-Battlestation plus 25 other-capacity rule PC09-A8. Native source controls and the corrected catalog source fact are integrated; shared authenticated source/window/attack evidence is recorded in PC09_THREATS_HANDOFF.md. See docs/PC09_ACCEPTANCE_MATRIX.md and docs/PC09_PLAYTEST_REPORT.md for ordinary authenticated local/emulator, native and prepared-render evidence with their limits. This 0.5.68 candidate still requires exact-SHA CI and production deployment verification; no physical-device or production-GM gameplay is implied.",
+      "evidenceIds": "E-ATTACK-PRESSURE;E-AUDIT-492;E-PC08-BUG-AUDIT-20261004;E-PC08-AUDIT-FOLLOWON-20261004;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "312;448;469e;470",
@@ -19643,10 +19686,12 @@
       "milestoneHints": "M10",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.68"
+      ],
       "section": "Threat pressure, Wolf loyalties, deduction, and facilitator actions (Prompts 485–524)",
       "sequenceRules": "ATTACK-PRESSURE",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -19657,8 +19702,8 @@
         "acceptance": "P creates and repeats the required attacks while any Wolf force survives. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately. PC08 post-release audit follow-on: Before composing the accepted repeated attacks, repair the existing lifecycle blockers RANGE-01 and BOARDING-01 at P448/P469e/P470. Prove a legal native final receipt and later attack with surviving Station/Wing cards and destroyed AEGIS. Resolve the current schema seam separately from this prompt's existing source-defined repetition criterion; the audit itself adds no Station rule.",
         "title": "Trigger Ancient Space Station attacks."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet. Open PC08 baseline defects require bounded prerequisite repair/proof as specified in this acceptance and docs/PC08_BUG_AUDIT.md; no repair or future-checkpoint credit is granted by the audit.",
-      "evidenceIds": "E-ATTACK-PRESSURE;E-AUDIT-493;E-PC08-BUG-AUDIT-20261004;E-PC08-AUDIT-FOLLOWON-20261004",
+      "description": "Completed within the fixed PC09 49-ID checkpoint. Fresh current-runtime Auth proof produces P pressure through ordinary movement, completes the first attack/finalizer, atomically restages exact survivors and declares the second attack in the same cycle. Seven checks/32 actions pass with chart/deadline/GM maintenance fixtures disclosed. See docs/PC09_ACCEPTANCE_MATRIX.md and docs/PC09_PLAYTEST_REPORT.md for ordinary authenticated local/emulator, native and prepared-render evidence with their limits. This 0.5.68 candidate still requires exact-SHA CI and production deployment verification; no physical-device or production-GM gameplay is implied.",
+      "evidenceIds": "E-ATTACK-PRESSURE;E-AUDIT-493;E-PC08-BUG-AUDIT-20261004;E-PC08-AUDIT-FOLLOWON-20261004;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "312;448;469e;470",
@@ -19666,10 +19711,12 @@
       "milestoneHints": "M10",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.68"
+      ],
       "section": "Threat pressure, Wolf loyalties, deduction, and facilitator actions (Prompts 485–524)",
       "sequenceRules": "ATTACK-PRESSURE",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -19680,8 +19727,8 @@
         "acceptance": "only the assigned Commander can marshal ten capacity plus current pursuit once per cycle. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Resolve the Wolf Commander attack dial."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-ATTACK-PRESSURE;E-AUDIT-494",
+      "description": "Completed within the fixed PC09 49-ID checkpoint. Fresh root Commander Auth/browser proof passes the selected-group pursuit dial and once-per-cycle capacity, alongside address/amnesty and four viewport checks on the current frozen Functions runtime. Native authority/replay controls remain. See docs/PC09_ACCEPTANCE_MATRIX.md and docs/PC09_PLAYTEST_REPORT.md for ordinary authenticated local/emulator, native and prepared-render evidence with their limits. This 0.5.68 candidate still requires exact-SHA CI and production deployment verification; no physical-device or production-GM gameplay is implied.",
+      "evidenceIds": "E-ATTACK-PRESSURE;E-AUDIT-494;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "425;435",
@@ -19689,10 +19736,12 @@
       "milestoneHints": "M10",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.68"
+      ],
       "section": "Threat pressure, Wolf loyalties, deduction, and facilitator actions (Prompts 485–524)",
       "sequenceRules": "ATTACK-PRESSURE",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -19924,8 +19973,8 @@
         "acceptance": "Committed console or supply sabotage atomically records a durable private facilitator alert bound to the matching server event. The current facilitator must acknowledge the alert and that its printed clue instruction was handled before the server emits an actor-free, detail-free public notice to every player console. Queue and acknowledgement use revisions and exact request replay checks. Strict guards, private facilitator-only alert rules, a minimal member-readable notice, fail-closed parsing, live session/GM-instance authority and stale-callback protection preserve privacy and authorization. The overlay reuses HACKING_MESSAGES and Intrusion, stays aria-hidden and nonblocking, never globally enables launcher messages, and delivers statically under reduced motion. Preserve the deliberate GM acknowledgement and clue-handling boundary before public notice, including after reconnect; one facilitator suffices and hidden actor/details never reach that notice. The owner-approved experience review remains after 1.0, not part of this prompt revision. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Trigger hacking overlays after committed sabotage."
       },
-      "description": "Committed console or supply sabotage creates a durable, private facilitator alert bound to the exact server-side action and clue instruction. Across app navigation and repeated actions, the facilitator must acknowledge that instruction was handled before a replay-safe server transaction creates an actor-free and detail-free notice for every player console. Client listeners expose only current-authority facilitator alerts or the exact public notice projection; malformed and mixed state fails closed, and stale callbacks are discarded. Player notices reuse the approved HACKING_MESSAGES pool through the existing aria-hidden, nonblocking Intrusion overlay; reduced motion keeps the notice visible without animation, and launcher opt-in behavior stays unchanged. Focused callable, client, rules, responsive, font and FleetBroadcast checks pass. P503a remains partial until its trigger, facilitator acknowledgement and every-console delivery are observed through ordinary authorized production gameplay.",
-      "evidenceIds": "E-AUDIT-503A;E-503A-PRIVATE-ALERTS-OVERLAY",
+      "description": "Completed within the fixed PC09 49-ID checkpoint. Actual twenty-post Auth sabotage, private alert, deliberate GM acknowledgement/clue handling and actor/detail-free notice to every player pass; private reads deny. See docs/PC09_ACCEPTANCE_MATRIX.md and docs/PC09_PLAYTEST_REPORT.md for ordinary authenticated local/emulator, native and prepared-render evidence with their limits. This 0.5.68 candidate still requires exact-SHA CI and production deployment verification; no physical-device or production-GM gameplay is implied.",
+      "evidenceIds": "E-AUDIT-503A;E-503A-PRIVATE-ALERTS-OVERLAY;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "497;498",
@@ -19934,11 +19983,12 @@
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
       "releases": [
-        "0.5.28"
+        "0.5.28",
+        "0.5.68"
       ],
       "section": "Threat pressure, Wolf loyalties, deduction, and facilitator actions (Prompts 485–524)",
       "sequenceRules": "none",
-      "status": "partial",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -19999,8 +20049,8 @@
         "acceptance": "hidden truth and reported result are separately recorded and no client can submit “Wolf” or “loyal.” Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Prove investigation randomness ownership."
       },
-      "description": "Planned [PROVE] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-506",
+      "description": "Completed within the fixed PC09 49-ID checkpoint. Server-owned investigation result and separate truth audit are integrated and proved through normal Auth; client-supplied truth/entropy are rejected natively. See docs/PC09_ACCEPTANCE_MATRIX.md and docs/PC09_PLAYTEST_REPORT.md for ordinary authenticated local/emulator, native and prepared-render evidence with their limits. This 0.5.68 candidate still requires exact-SHA CI and production deployment verification; no physical-device or production-GM gameplay is implied.",
+      "evidenceIds": "E-AUDIT-506;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "505;428",
@@ -20008,10 +20058,12 @@
       "milestoneHints": "M10",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.68"
+      ],
       "section": "Threat pressure, Wolf loyalties, deduction, and facilitator actions (Prompts 485–524)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PROVE"
     },
     {
@@ -20047,8 +20099,8 @@
         "acceptance": "a built device performs up to three private approximately 80%-accurate tests per cycle. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Test with the Wolf Agent Detector."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-508",
+      "description": "Completed within the fixed PC09 49-ID checkpoint. Fresh current-runtime built Detector Auth proof commits three server-randomized tests and denies a fourth, with a truth-free investigator report and separate server audit. Exact 4/5 distribution and applicability are native regressions See docs/PC09_ACCEPTANCE_MATRIX.md and docs/PC09_PLAYTEST_REPORT.md for ordinary authenticated local/emulator, native and prepared-render evidence with their limits. This 0.5.68 candidate still requires exact-SHA CI and production deployment verification; no physical-device or production-GM gameplay is implied.",
+      "evidenceIds": "E-AUDIT-508;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "214;506",
@@ -20056,10 +20108,12 @@
       "milestoneHints": "M10",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.68"
+      ],
       "section": "Threat pressure, Wolf loyalties, deduction, and facilitator actions (Prompts 485–524)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -20162,8 +20216,8 @@
         "acceptance": "the facilitator receives six minus suspicion bands plus defenders and optional ±1 adjustment without revealing suspicion. Calculate the source-defined arithmetic, deadlines and resulting state automatically, preserving the explicit facilitator adjustment or unresolved ruling and keeping suspicion/private causes out of player projections. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Calculate arrest posse size privately."
       },
-      "description": "The verified facilitator console offers a private arrest-posse calculator. The server checks the selected player's current private loyalty record against the facilitator census and current role holder, then applies the catalog-authorized six minus suspicion bands plus defenders and optional ±1 adjustment. The GM-only result contains no suspicion, and the calculation leaves session, cycle, roles, and public events unchanged. Strict request and result shapes, exact replay, revision checks, malformed-state handling, GM-only Firestore reads, and stale listener protection are covered. The primary Facilitator Guide provenance is missing from this checkout, so this slice implements only the explicitly accepted formula and does not add arrest resolution or deadline policy. Keep Prompt 513 partial until an ordinary authorized production calculation is observed.",
-      "evidenceIds": "E-AUDIT-513;E-513-ARREST-POSSE-PRIVATE",
+      "description": "Completed within the fixed PC09 49-ID checkpoint. Fresh composed private investigation-to-posse proof calculates the source six-band count and resolves an explicit simulated GM attendance list. No physical attendance is inferred from test accounts. See docs/PC09_ACCEPTANCE_MATRIX.md and docs/PC09_PLAYTEST_REPORT.md for ordinary authenticated local/emulator, native and prepared-render evidence with their limits. This 0.5.68 candidate still requires exact-SHA CI and production deployment verification; no physical-device or production-GM gameplay is implied.",
+      "evidenceIds": "E-AUDIT-513;E-513-ARREST-POSSE-PRIVATE;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "497",
@@ -20172,11 +20226,12 @@
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
       "releases": [
-        "0.5.29"
+        "0.5.29",
+        "0.5.68"
       ],
       "section": "Threat pressure, Wolf loyalties, deduction, and facilitator actions (Prompts 485–524)",
       "sequenceRules": "none",
-      "status": "partial",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -20187,8 +20242,8 @@
         "acceptance": "the prisoner reaches release, execution, or explicit facilitator resolution by the end of the next Team Phase. Calculate the source-defined arithmetic, deadlines and resulting state automatically, preserving the explicit facilitator adjustment or unresolved ruling and keeping suspicion/private causes out of player projections. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Resolve arrest and its deadline."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-514",
+      "description": "Completed within the fixed PC09 49-ID checkpoint. Fresh composed gameplay proves the early disposition denial, next-Team deadline, explicit GM disposition and ordinary replacement. Native private authority and exact retry controls remain. Attendance is simulated. See docs/PC09_ACCEPTANCE_MATRIX.md and docs/PC09_PLAYTEST_REPORT.md for ordinary authenticated local/emulator, native and prepared-render evidence with their limits. This 0.5.68 candidate still requires exact-SHA CI and production deployment verification; no physical-device or production-GM gameplay is implied.",
+      "evidenceIds": "E-AUDIT-514;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "513;098",
@@ -20196,10 +20251,12 @@
       "milestoneHints": "M10",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.68"
+      ],
       "section": "Threat pressure, Wolf loyalties, deduction, and facilitator actions (Prompts 485–524)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -20233,8 +20290,8 @@
         "acceptance": "the replacement can perform their one-jump AEGIS scouting action before the game ends. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Activate the Comms Officer."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-516",
+      "description": "Completed within the fixed PC09 49-ID checkpoint. Existing one-jump Comms AEGIS scout and current replacement/location controls are reused with native guards and connected route coverage. See docs/PC09_ACCEPTANCE_MATRIX.md and docs/PC09_PLAYTEST_REPORT.md for ordinary authenticated local/emulator, native and prepared-render evidence with their limits. This 0.5.68 candidate still requires exact-SHA CI and production deployment verification; no physical-device or production-GM gameplay is implied.",
+      "evidenceIds": "E-AUDIT-516;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "515;326",
@@ -20242,10 +20299,12 @@
       "milestoneHints": "M10",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.68"
+      ],
       "section": "Threat pressure, Wolf loyalties, deduction, and facilitator actions (Prompts 485–524)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -20256,8 +20315,8 @@
         "acceptance": "a verified visit grants one hosted ship its printed maintenance reroll once. Apply PC09-A1 in docs/PRODUCT_MILESTONE_ASSUMPTIONS.md: one GM attests the otherwise unobservable VIP Host Team Time visit to an eligible ship other than Dione; the server grants the one-die reroll for its corresponding maintenance cycle and consumes it once. Bind visit, grant and consumption to current Host, ship, cycle, authority and durable replay-safe receipts. Browsing a console or shuttle docking is not visit proof; no second GM or destination-captain confirmation is required. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Activate the VIP Host."
       },
-      "description": "Source audit confirms the VIP Host maintenance reroll requires a Team Time visit to a ship other than Dione. PC09-A1 records the future digital confirmation policy under standing execution authorization: one GM attests the physical visit once; the server grants the printed one-die maintenance reroll and consumes it through durable once-only receipts. Console browsing remains read-only perspective selection, and shuttle docking history is not visit proof. Implement the attestation, grant and consumption together with current role/ship/cycle authority and private GM audit. This resolves the historical digital-actor hold; no visit, grant, reroll implementation or closure is claimed, and Prompt 517 remains missing.",
-      "evidenceIds": "E-AUDIT-517;E-517-VISIT-DECISION",
+      "description": "Completed within the fixed PC09 49-ID checkpoint. One genuine GM visit attestation and one-use maintenance reroll are integrated with native callable/service/Rules and prepared presenter checks. Emulators prove input behavior, not physical presence. PC09-A1 remains explicit See docs/PC09_ACCEPTANCE_MATRIX.md and docs/PC09_PLAYTEST_REPORT.md for ordinary authenticated local/emulator, native and prepared-render evidence with their limits. This 0.5.68 candidate still requires exact-SHA CI and production deployment verification; no physical-device or production-GM gameplay is implied.",
+      "evidenceIds": "E-AUDIT-517;E-517-VISIT-DECISION;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "515;190",
@@ -20265,10 +20324,12 @@
       "milestoneHints": "M10",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.68"
+      ],
       "section": "Threat pressure, Wolf loyalties, deduction, and facilitator actions (Prompts 485–524)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -20302,8 +20363,8 @@
         "acceptance": "boarding defence and front-line death risk resolve from current location and authoritative dice. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Activate the Militia Leader."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-519",
+      "description": "Completed within the fixed PC09 49-ID checkpoint. Fresh composed gameplay uses the existing current Militia replacement/location, boarding defence and post-combat consequence paths; native death/escape and current-role controls remain. See docs/PC09_ACCEPTANCE_MATRIX.md and docs/PC09_PLAYTEST_REPORT.md for ordinary authenticated local/emulator, native and prepared-render evidence with their limits. This 0.5.68 candidate still requires exact-SHA CI and production deployment verification; no physical-device or production-GM gameplay is implied.",
+      "evidenceIds": "E-AUDIT-519;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "515;468",
@@ -20311,10 +20372,12 @@
       "milestoneHints": "M10",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.68"
+      ],
       "section": "Threat pressure, Wolf loyalties, deduction, and facilitator actions (Prompts 485–524)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -20325,8 +20388,8 @@
         "acceptance": "the replacement's personal-combat loop, damage, target, and result are server-resolved and usable in an attack. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Activate the PDF Fighter Ace."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-520",
+      "description": "Completed within the fixed PC09 49-ID checkpoint. Canonical Commander/Ace ordering, reserved source fighter, no double loss, current-attack retry/death recovery and frozen receipt schema pass native checks. Fresh complete composed proof uses the actual permission-bound Ace browser action and exact retry. See docs/PC09_ACCEPTANCE_MATRIX.md and docs/PC09_PLAYTEST_REPORT.md for ordinary authenticated local/emulator, native and prepared-render evidence with their limits. This 0.5.68 candidate still requires exact-SHA CI and production deployment verification; no physical-device or production-GM gameplay is implied.",
+      "evidenceIds": "E-AUDIT-520;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "515;456",
@@ -20334,10 +20397,12 @@
       "milestoneHints": "M10",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.68"
+      ],
       "section": "Threat pressure, Wolf loyalties, deduction, and facilitator actions (Prompts 485–524)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -20348,8 +20413,8 @@
         "acceptance": "address, composition, target manipulation, amnesty, attack dial, and boarding each have separate phase/authority/audit contracts. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Complete Wolf Commander powers."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-521",
+      "description": "Completed within the fixed PC09 49-ID checkpoint. Fresh root Commander proof passes actual dial/address/amnesty UI and explicit consequence ruling on current Functions. Fresh composed combat covers the pre-range Commander/Ace sequence and boarding decisions. See docs/PC09_ACCEPTANCE_MATRIX.md and docs/PC09_PLAYTEST_REPORT.md for ordinary authenticated local/emulator, native and prepared-render evidence with their limits. This 0.5.68 candidate still requires exact-SHA CI and production deployment verification; no physical-device or production-GM gameplay is implied.",
+      "evidenceIds": "E-AUDIT-521;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "515;494",
@@ -20357,10 +20422,12 @@
       "milestoneHints": "M10",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.68"
+      ],
       "section": "Threat pressure, Wolf loyalties, deduction, and facilitator actions (Prompts 485–524)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -20371,8 +20438,8 @@
         "acceptance": "the assigned Commander can deliver the permitted fleet message with one attributable event and no hidden composition leak. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Resolve the Wolf Commander address."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-521A",
+      "description": "Completed within the fixed PC09 49-ID checkpoint. Fresh root Commander Auth/browser proof submits the actual current-role address and verifies its member-safe top-level message/private receipt. Canonical receipt/current-actor regressions remain. See docs/PC09_ACCEPTANCE_MATRIX.md and docs/PC09_PLAYTEST_REPORT.md for ordinary authenticated local/emulator, native and prepared-render evidence with their limits. This 0.5.68 candidate still requires exact-SHA CI and production deployment verification; no physical-device or production-GM gameplay is implied.",
+      "evidenceIds": "E-AUDIT-521A;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "521",
@@ -20380,10 +20447,12 @@
       "milestoneHints": "M10",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.68"
+      ],
       "section": "Threat pressure, Wolf loyalties, deduction, and facilitator actions (Prompts 485–524)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -20394,8 +20463,8 @@
         "acceptance": "the offer, responses, deadline, and facilitator consequence are explicit private/public records rather than an invented automatic bargain. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Resolve Wolf Commander amnesty."
       },
-      "description": "Planned [DECISION] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-521B",
+      "description": "Completed within the fixed PC09 49-ID checkpoint. Fresh root Commander Auth/browser proof passes actual offer, captain acceptance, expiry and explicit current-GM consequence ruling, with private offer and Rules denials. No automatic bargain is inferred. See docs/PC09_ACCEPTANCE_MATRIX.md and docs/PC09_PLAYTEST_REPORT.md for ordinary authenticated local/emulator, native and prepared-render evidence with their limits. This 0.5.68 candidate still requires exact-SHA CI and production deployment verification; no physical-device or production-GM gameplay is implied.",
+      "evidenceIds": "E-AUDIT-521B;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "521a",
@@ -20403,10 +20472,12 @@
       "milestoneHints": "M10",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.68"
+      ],
       "section": "Threat pressure, Wolf loyalties, deduction, and facilitator actions (Prompts 485–524)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "DECISION"
     },
     {
@@ -20492,8 +20563,8 @@
         "acceptance": "facilitators increase or decrease crisis pressure through explicit delivery decisions with no hidden client rule change. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Configure Crisis difficulty."
       },
-      "description": "Planned [DECISION] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-523B",
+      "description": "Completed within the fixed PC09 49-ID checkpoint. Explicit pressure decision is committed before delivery; all five crisis outcomes are included. Native, Auth HTTP/Rules and rendered evidence are recorded in PC09_CRISES_HANDOFF.md See docs/PC09_ACCEPTANCE_MATRIX.md and docs/PC09_PLAYTEST_REPORT.md for ordinary authenticated local/emulator, native and prepared-render evidence with their limits. This 0.5.68 candidate still requires exact-SHA CI and production deployment verification; no physical-device or production-GM gameplay is implied.",
+      "evidenceIds": "E-AUDIT-523B;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "522",
@@ -20501,10 +20572,12 @@
       "milestoneHints": "M10",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.68"
+      ],
       "section": "Threat pressure, Wolf loyalties, deduction, and facilitator actions (Prompts 485–524)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "DECISION"
     },
     {
@@ -20515,8 +20588,8 @@
         "acceptance": "the facilitator selects among documented consequences before resolution and the result is labeled as adjudication. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Configure emergency-jump severity."
       },
-      "description": "Planned [DECISION] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-523C",
+      "description": "Completed within the fixed PC09 49-ID checkpoint. Source failed-jump choice is fixed before resolution, with labelled destination/damage consequences and half-d6 rounding assumption. Native, Auth HTTP/Rules and rendered evidence are recorded in PC09_CRISES_HANDOFF.md See docs/PC09_ACCEPTANCE_MATRIX.md and docs/PC09_PLAYTEST_REPORT.md for ordinary authenticated local/emulator, native and prepared-render evidence with their limits. This 0.5.68 candidate still requires exact-SHA CI and production deployment verification; no physical-device or production-GM gameplay is implied.",
+      "evidenceIds": "E-AUDIT-523C;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "522",
@@ -20524,10 +20597,12 @@
       "milestoneHints": "M10",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.68"
+      ],
       "section": "Threat pressure, Wolf loyalties, deduction, and facilitator actions (Prompts 485–524)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "DECISION"
     },
     {
@@ -20538,8 +20613,8 @@
         "acceptance": "sabotage, clues, investigation, arrest, replacement, attack prep, all five steps, boarding, damage, salvage, repair, and aftermath complete without leaks. Prove the normal workflow with one facilitator making only genuine choices or rulings, automatic arithmetic and state changes, direct entitled player results and complete private GM receipts. Preserve P503a's intentional acknowledgement sequence and optional Press publication control. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Run the complete Wolf-and-deduction scenario."
       },
-      "description": "Planned [PROVE] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-524",
+      "description": "Completed within the fixed PC09 49-ID checkpoint. Fresh complete composed gameplay passes the explicit-loyalty sabotage/clue/investigation sequence, genuine EO/Wing/Ace/Press browser actors, every battle range, boarding, aftermath, arrest and both paid builds. Attendance/setup inputs are disclosed. See docs/PC09_ACCEPTANCE_MATRIX.md and docs/PC09_PLAYTEST_REPORT.md for ordinary authenticated local/emulator, native and prepared-render evidence with their limits. This 0.5.68 candidate still requires exact-SHA CI and production deployment verification; no physical-device or production-GM gameplay is implied.",
+      "evidenceIds": "E-AUDIT-524;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "485;497;522",
@@ -20547,10 +20622,12 @@
       "milestoneHints": "M10",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.68"
+      ],
       "section": "Threat pressure, Wolf loyalties, deduction, and facilitator actions (Prompts 485–524)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PROVE"
     },
     {
@@ -20586,8 +20663,8 @@
         "acceptance": "the configured address occurs at its printed timing, reaches the fleet once, and records any political-capital effect. Automatically deliver entitled operational outcomes, append the complete private GM receipt and make only approved public facts available to Press through the existing news path. Press controls publication; private causes, votes, suspicion, Wolf identity and GM notes remain restricted. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Resolve the President's address."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-524B",
+      "description": "Completed within the fixed PC09 49-ID checkpoint. Printed-timing President address and current political-capital effects are explicit and replay bound. Native, Auth HTTP/Rules and rendered evidence are recorded in PC09_CRISES_HANDOFF.md See docs/PC09_ACCEPTANCE_MATRIX.md and docs/PC09_PLAYTEST_REPORT.md for ordinary authenticated local/emulator, native and prepared-render evidence with their limits. This 0.5.68 candidate still requires exact-SHA CI and production deployment verification; no physical-device or production-GM gameplay is implied.",
+      "evidenceIds": "E-AUDIT-524B;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "524a",
@@ -20595,10 +20672,12 @@
       "milestoneHints": "M10",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.68"
+      ],
       "section": "Threat pressure, Wolf loyalties, deduction, and facilitator actions (Prompts 485–524)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -20609,8 +20688,8 @@
         "acceptance": "an authorized presidential action during Coordination spends one political capital to lower one ship's unrest by one; a route selection alone cannot commit its benefit. Apply PC09-A2 in docs/PRODUCT_MILESTONE_ASSUMPTIONS.md: the current President chooses an eligible ship during Coordination; atomically spend one political capital and reduce that ship's unrest by one, once per committed request. Do not invent a docking or separate routine GM-confirmation prerequisite or confuse this action with P517's Team Time benefit. Record the private GM receipt and deliver only entitled outcomes and approved public news. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Resolve a presidential visit."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-524C",
+      "description": "Completed within the fixed PC09 49-ID checkpoint. Actual Coordination visit spends one capital and lowers eligible host unrest by one, with no docking or extra GM approval. Native, Auth HTTP/Rules and rendered evidence are recorded in PC09_CRISES_HANDOFF.md See docs/PC09_ACCEPTANCE_MATRIX.md and docs/PC09_PLAYTEST_REPORT.md for ordinary authenticated local/emulator, native and prepared-render evidence with their limits. This 0.5.68 candidate still requires exact-SHA CI and production deployment verification; no physical-device or production-GM gameplay is implied.",
+      "evidenceIds": "E-AUDIT-524C;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "524b",
@@ -20618,10 +20697,12 @@
       "milestoneHints": "M10",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.68"
+      ],
       "section": "Threat pressure, Wolf loyalties, deduction, and facilitator actions (Prompts 485–524)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -20632,8 +20713,8 @@
         "acceptance": "fleet leadership and crisis powers never grant arbitrary ship resources, hidden information, or GM mutations. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Enforce presidential authority boundaries."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-524D",
+      "description": "Completed within the fixed PC09 49-ID checkpoint. Actual elected President can hold another ship seat; old station President and VP lack President authority; arbitrary resources/GM/private access deny. Native, Auth HTTP/Rules and rendered evidence are recorded in PC09_CRISES_HANDOFF.md See docs/PC09_ACCEPTANCE_MATRIX.md and docs/PC09_PLAYTEST_REPORT.md for ordinary authenticated local/emulator, native and prepared-render evidence with their limits. This 0.5.68 candidate still requires exact-SHA CI and production deployment verification; no physical-device or production-GM gameplay is implied.",
+      "evidenceIds": "E-AUDIT-524D;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "524c;044",
@@ -20641,10 +20722,12 @@
       "milestoneHints": "M10",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.68"
+      ],
       "section": "Threat pressure, Wolf loyalties, deduction, and facilitator actions (Prompts 485–524)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -20731,8 +20814,8 @@
         "acceptance": "leave, wait, prepare, aid, or other facilitator-recorded response updates timing and pressure without a client-invented consequence. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Resolve Approaching Vessel choices."
       },
-      "description": "Planned [DECISION] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-528",
+      "description": "Completed within the fixed PC09 49-ID checkpoint. Actual GM vessel ruling and permitted response/admission preserve private truth and genuine timing instructions. Native, Auth HTTP/Rules and rendered evidence are recorded in PC09_CRISES_HANDOFF.md See docs/PC09_ACCEPTANCE_MATRIX.md and docs/PC09_PLAYTEST_REPORT.md for ordinary authenticated local/emulator, native and prepared-render evidence with their limits. This 0.5.68 candidate still requires exact-SHA CI and production deployment verification; no physical-device or production-GM gameplay is implied.",
+      "evidenceIds": "E-AUDIT-528;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "527",
@@ -20740,10 +20823,12 @@
       "milestoneHints": "M3;M11;M12",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.68"
+      ],
       "section": "Crises, catastrophe, candidates, and Capybara integration (Prompts 525–585)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "DECISION"
     },
     {
@@ -20754,8 +20839,8 @@
         "acceptance": "accepting the vessel activates its people, needs, maintenance, docking, and motivated-role hooks exactly once. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Integrate Voyage 33-0 arrival."
       },
-      "description": "The P529 production slice now adds an exact-once private Voyage 33-0 arrival activation keyed to the P249 admission's session, crisis, and request identity. The admission transaction updates only existing entitled Refinery 124 and Doctor role briefs, with a GM-only activation marker/audit and no public actor or role metadata; assignment and replacement serializers carry the same motivation only after the sanitized session admission exists. Exact retries, another-request replay, absent or disabled roles, later assignment/replacement, legacy admitted-session upgrade, malformed state, unauthorized reads/writes, and private client parsing are covered. This closes the people and motivated-role hook slice while P250 maintenance and P251 docking/movement remain hard prerequisites for the full acceptance.",
-      "evidenceIds": "E-AUDIT-529;E-P529-ARRIVAL-INTEGRATION",
+      "description": "Completed within the fixed PC09 49-ID checkpoint. Actual real-vessel admission activates people/motivated-role hooks once. Fresh root six-check Auth proof on the current frozen runtime runs existing P251 docking and P250 full rations, charging four host food/four water and preserving exact retries. The result and launch binding are in resumed voyage-hooks evidence See docs/PC09_ACCEPTANCE_MATRIX.md and docs/PC09_PLAYTEST_REPORT.md for ordinary authenticated local/emulator, native and prepared-render evidence with their limits. This 0.5.68 candidate still requires exact-SHA CI and production deployment verification; no physical-device or production-GM gameplay is implied.",
+      "evidenceIds": "E-AUDIT-529;E-P529-ARRIVAL-INTEGRATION;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "249;250;251;527",
@@ -20763,10 +20848,12 @@
       "milestoneHints": "M3;M11;M12",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.68"
+      ],
       "section": "Crises, catastrophe, candidates, and Capybara integration (Prompts 525–585)",
       "sequenceRules": "none",
-      "status": "partial",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -20952,8 +21039,8 @@
         "acceptance": "facilitator records eligible voters, voting system, population weighting, timing, campaigning, and supply-use rules before ballots open. Keep electoral policy as an explicit facilitator choice made before ballots open; validate that policy and expose its permitted player instructions without requiring manual eligibility or population-weight calculation. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Configure election procedure."
       },
-      "description": "Planned [DECISION] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-537",
+      "description": "Completed within the fixed PC09 49-ID checkpoint. Actual procedure fixes eligibility, weights, timing, VP, campaigning, supplies and tie handling before secret ballots. Native, Auth HTTP/Rules and rendered evidence are recorded in PC09_CRISES_HANDOFF.md See docs/PC09_ACCEPTANCE_MATRIX.md and docs/PC09_PLAYTEST_REPORT.md for ordinary authenticated local/emulator, native and prepared-render evidence with their limits. This 0.5.68 candidate still requires exact-SHA CI and production deployment verification; no physical-device or production-GM gameplay is implied.",
+      "evidenceIds": "E-AUDIT-537;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "536",
@@ -20961,10 +21048,12 @@
       "milestoneHints": "M3;M11;M12",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.68"
+      ],
       "section": "Crises, catastrophe, candidates, and Capybara integration (Prompts 525–585)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "DECISION"
     },
     {
@@ -20975,8 +21064,8 @@
         "acceptance": "authorized ballots are counted once, secret votes remain private, and the chosen President/Vice President transition is auditable. Automatically validate configured eligibility and weighting, tally accepted ballots and commit the office transition once; the facilitator does not transcribe or total votes. Preserve secret ballots, configured tie/adjudication choices and private GM audit. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately. October 4 owner-approved conflict policy: if one UID uniquely wins both offices, preserve President and choose the next eligible candidate from the VP ballot, retaining existing configured tie handling. If no other eligible candidate exists, require an explicit in-game decision by the current GM before resolution; do not invent an automatic replacement. Show the branch explanation and required action in-game, preserve private ballots and record the decision in the audit. See PC09-A6 for the precise owner resolution.",
         "title": "Resolve the election privately."
       },
-      "description": "Existing PC09 election scope includes the October 4 owner-approved VP-ballot runner-up and explicit no-other-candidate GM decision repair. Implementation/current ordinary Auth proof and the single reconciled review/release remain pending; no closure credit is granted by the decision alone.",
-      "evidenceIds": "E-AUDIT-538;E-PC09-ELECTION-CONFLICT-20261004",
+      "description": "Completed within the fixed PC09 49-ID checkpoint. Approved unique-both office policy is implemented, with permanent tie/no-candidate/current-actor/deadline/terminal controls. Fresh normal Auth run uses actual ship-population-weighted secret ballots, retains the unique President, selects the distinct VP-ballot runner-up, and proves private Rules and current office projection. See docs/PC09_ACCEPTANCE_MATRIX.md and docs/PC09_PLAYTEST_REPORT.md for ordinary authenticated local/emulator, native and prepared-render evidence with their limits. This 0.5.68 candidate still requires exact-SHA CI and production deployment verification; no physical-device or production-GM gameplay is implied.",
+      "evidenceIds": "E-AUDIT-538;E-PC09-ELECTION-CONFLICT-20261004;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "537",
@@ -20984,10 +21073,12 @@
       "milestoneHints": "M3;M11;M12",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.68"
+      ],
       "section": "Crises, catastrophe, candidates, and Capybara integration (Prompts 525–585)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -20998,8 +21089,8 @@
         "acceptance": "new laws and formal crisis outcomes publish exactly at the next Team Phase while informal decisions remain unforced. Automatically deliver entitled operational outcomes, append the complete private GM receipt and make only approved public facts available to Press through the existing news path. Press controls publication; private causes, votes, suspicion, Wolf identity and GM notes remain restricted. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Announce binding resolutions at Team start."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-539",
+      "description": "Completed within the fixed PC09 49-ID checkpoint. Actual formal crisis/election results appear at the next Team start and survive reconnect, separate from optional Press publication. Native, Auth HTTP/Rules and rendered evidence are recorded in PC09_CRISES_HANDOFF.md See docs/PC09_ACCEPTANCE_MATRIX.md and docs/PC09_PLAYTEST_REPORT.md for ordinary authenticated local/emulator, native and prepared-render evidence with their limits. This 0.5.68 candidate still requires exact-SHA CI and production deployment verification; no physical-device or production-GM gameplay is implied.",
+      "evidenceIds": "E-AUDIT-539;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "538;101",
@@ -21007,10 +21098,12 @@
       "milestoneHints": "M3;M11;M12",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.68"
+      ],
       "section": "Crises, catastrophe, candidates, and Capybara integration (Prompts 525–585)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -21021,8 +21114,8 @@
         "acceptance": "all five crises reach a legal outcome/escalation, role and phase gates hold, and reconnect preserves every unresolved decision. Prove the normal workflow with one facilitator making only genuine choices or rulings, automatic arithmetic and state changes, direct entitled player results and complete private GM receipts. Preserve P503a's intentional acknowledgement sequence and optional Press publication control. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Run the full crisis scenario."
       },
-      "description": "Planned [PROVE] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-540",
+      "description": "Completed within the fixed PC09 49-ID checkpoint. Fresh normal 18-actor Auth proof passes 23 checks/91 ordinary callable actions, all five crisis kinds, capital cap/exact retry, Voyage admission, actual Coordination visit, next-Team announcements/reconnect and six keyboard Back cases. Deadline acceleration, unrest fixture input and simulated visit remain disclosed See docs/PC09_ACCEPTANCE_MATRIX.md and docs/PC09_PLAYTEST_REPORT.md for ordinary authenticated local/emulator, native and prepared-render evidence with their limits. This 0.5.68 candidate still requires exact-SHA CI and production deployment verification; no physical-device or production-GM gameplay is implied.",
+      "evidenceIds": "E-AUDIT-540;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "525;528;531;533;535;538",
@@ -21030,10 +21123,12 @@
       "milestoneHints": "M3;M11;M12",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.68"
+      ],
       "section": "Crises, catastrophe, candidates, and Capybara integration (Prompts 525–585)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PROVE"
     },
     {
@@ -21955,8 +22050,8 @@
         "acceptance": "each range Scrap attack follows the recorded policy for destroyed/invalid targets and never spends on denial. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately.",
         "title": "Resolve Boa combat ambiguity."
       },
-      "description": "Planned [DECISION] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-580",
+      "description": "Completed within the fixed PC09 49-ID checkpoint. Boa policy, current source/target validation, once-only Scrap debit and denial without spending are integrated; ordinary source actions have run See docs/PC09_ACCEPTANCE_MATRIX.md and docs/PC09_PLAYTEST_REPORT.md for ordinary authenticated local/emulator, native and prepared-render evidence with their limits. This 0.5.68 candidate still requires exact-SHA CI and production deployment verification; no physical-device or production-GM gameplay is implied.",
+      "evidenceIds": "E-AUDIT-580;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "459;578",
@@ -21964,10 +22059,12 @@
       "milestoneHints": "M3;M11",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.68"
+      ],
       "section": "Crises, catastrophe, candidates, and Capybara integration (Prompts 525–585)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "DECISION"
     },
     {
@@ -22693,8 +22790,8 @@
         "acceptance": "only after Prompt 433a endpoint/schema/privacy proofs and explicit owner approval, render attack source, targets, phases, ranges, bearings, effects, and outcomes from the authoritative projection without changing current contact privacy or inventing telemetry. This visualization is intentionally excluded from, and cannot block, the playable Wolf-attack exit gate. The authorization to revise PC07–PC10 prompts is not activation of this visualization. Surface its separate activation decision before PC09 closure work; deferral earns no done credit and cannot remove the assigned ID or lower the fixed checkpoint target. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately. The owner explicitly supplied the separate P605a activation on October 4, 2026: include this visualization in PC09, complete the checkpoint, then hold. This satisfies only the activation decision; all P433a functional/privacy, gameplay, review and release requirements remain. The later owner continuation instruction supersedes that intermediate hold; the PC09 task still ends after its own verified release and the parent owns future checkpoint dispatch.",
         "title": "Visualize Wolf attacks on DRADIS."
       },
-      "description": "Explicitly activated by the owner on October 4, 2026 for PC09. The branch implementation renders the existing P433a authoritative entitled Wolf-attack projection and preserves contact privacy and unknown bearings; no new telemetry, preparation disclosure or rule changes are authorized. Normal Auth/rendered recovery evidence is recorded in PC09_DRADIS_HANDOFF.md; final reconciled review, checkpoint verification and release remain required before done credit. The later owner continuation instruction supersedes the intermediate hold: this task completes PC09 only, and the parent owns the separate PC10 revision/dispatch and future work.",
-      "evidenceIds": "E-605A;E-ATTACK-DRADIS;E-PC09-P605A-ACTIVATION-20261004;E-PC09-CONTINUATION-20261004",
+      "description": "Explicitly activated by the owner on October 4 for PC09; the prior deferral has been resolved only for the existing P433a entitled projection and its privacy/unknown-bearing contract. Completed within the fixed PC09 49-ID checkpoint. Fresh root Auth proof passes nine recovery/privacy/navigation checks and eight viewport/motion cases at 2ccd9762. Strict battle proof at cba5d520 additionally matches seven actual committed rows to entitled current local contacts, preserves unknown bearings and leaks no opaque target IDs. Captured strict browser errors are zero. Explicit activation/privacy boundary remains See docs/PC09_ACCEPTANCE_MATRIX.md and docs/PC09_PLAYTEST_REPORT.md for ordinary authenticated local/emulator, native and prepared-render evidence with their limits. This 0.5.68 candidate still requires exact-SHA CI and production deployment verification; no physical-device or production-GM gameplay is implied.",
+      "evidenceIds": "E-605A;E-ATTACK-DRADIS;E-PC09-P605A-ACTIVATION-20261004;E-PC09-CONTINUATION-20261004;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "433a",
@@ -22702,10 +22799,12 @@
       "milestoneHints": "X",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.68"
+      ],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "ATTACK-DRADIS",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {
@@ -23146,8 +23245,8 @@
         "acceptance": "a participant resumes at the current step with resolved actions locked and permitted pending actions intact. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately. PC08 post-release audit follow-on: Include the open PC08 recovery seams in docs/PC08_BUG_AUDIT.md: deterministic committed support treatment after holder removal (RANGE-05), successful mixed-source EO pass/assignment receipts (RANGE-03/04), current entitled PDF projection (RANGE-07), and active-attack applicability of EO/crew-defence retries (RANGE-08/BOARDING-02). Repair the progression seams RANGE-01/BOARDING-01 before composed recovery proof. Reject requests bound to another active attack/cycle or explicitly distinguish an authorized historical receipt lookup; retain legitimate same-attack replay, current actor/berth denial and zero duplicate costs, dice or damage. Prove through normal authenticated endpoints and connected consumers; seeded fixtures alone do not close recovery.",
         "title": "Recover during a Wolf attack."
       },
-      "description": "Planned [EXTEND] prompt; no accepted gameplay proof has been recorded yet. Open PC08 baseline defects require bounded prerequisite repair/proof as specified in this acceptance and docs/PC08_BUG_AUDIT.md; no repair or future-checkpoint credit is granted by the audit.",
-      "evidenceIds": "E-WOLF;E-AUDIT-621;E-PC08-BUG-AUDIT-20261004;E-PC08-AUDIT-FOLLOWON-20261004",
+      "description": "Completed within the fixed PC09 49-ID checkpoint. All ten exact audit definitions have permanent native regressions. Fresh composed gameplay proves both same-identity EO recoveries, valid mixed-source receipts, actual Ace UI/retry, finalization and builds. Fresh strict proof completes durable losses, later launch, exact Station return and both paid builds with zero captured errors. Exact destroyed-carrier, removed-holder and stale-attack counterexamples retain their native boundary. See docs/PC09_ACCEPTANCE_MATRIX.md and docs/PC09_PLAYTEST_REPORT.md for ordinary authenticated local/emulator, native and prepared-render evidence with their limits. This 0.5.68 candidate still requires exact-SHA CI and production deployment verification; no physical-device or production-GM gameplay is implied.",
+      "evidenceIds": "E-WOLF;E-AUDIT-621;E-PC08-BUG-AUDIT-20261004;E-PC08-AUDIT-FOLLOWON-20261004;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "433;434;612;398;448;453;457;459;466;470",
@@ -23155,10 +23254,12 @@
       "milestoneHints": "X;M9",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.68"
+      ],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "WOLF-ATTACK",
-      "status": "missing",
+      "status": "done",
       "tag": "EXTEND"
     },
     {
@@ -23714,8 +23815,8 @@
         "acceptance": "private prep, targeting, all ranges, fighters, boarding, damage, casualties, salvage, repair, returning threats, and aftermath resolve. Prove the normal workflow with one facilitator making only genuine choices or rulings, automatic arithmetic and state changes, direct entitled player results and complete private GM receipts. Preserve P503a's intentional acknowledgement sequence and optional Press publication control. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately. PC08 post-release audit follow-on: Compose the accepted PC09 results, aftermath/rebuild, ordinary later attacks and recovery after the prerequisite repairs recorded in docs/PC08_BUG_AUDIT.md. Reproduce and independently verify disposition of all ten open findings through their appropriate native and authenticated HTTP/UI/Rules paths before claiming complete attack proof; high-impact progression/persistence defects need repairs, and lower-impact historical-receipt contracts need an explicit recorded resolution. Keep seeded audit fixtures separate from this complete gameplay acceptance. P492/P493 remain separate PC09 trigger acceptances and supplementary scenarios, not hard prerequisites for this ordinary complete-attack proof.",
         "title": "Run a complete Wolf attack playthrough."
       },
-      "description": "Planned [PROVE] prompt; no accepted gameplay proof has been recorded yet. Open PC08 baseline defects require bounded prerequisite repair/proof as specified in this acceptance and docs/PC08_BUG_AUDIT.md; no repair or future-checkpoint credit is granted by the audit.",
-      "evidenceIds": "E-WOLF;E-AUDIT-645;E-PC08-BUG-AUDIT-20261004;E-PC08-AUDIT-FOLLOWON-20261004",
+      "description": "Completed within the fixed PC09 49-ID checkpoint. Fresh complete composed proof passes real warheads, all ranges, both EO recoveries, actual Ace UI/retry, boarding/finalization, entitled projections, Rules privacy and arrest/next-Team disposition. Fresh strict two-attack proof adds durable loss/return, ordinary paid repair, both paid API/Wing UI builds and committed DRADIS rows with zero captured errors. Source-generated P repetition is separately proved. ; setup allocations and simulated attendance stay disclosed. See docs/PC09_ACCEPTANCE_MATRIX.md and docs/PC09_PLAYTEST_REPORT.md for ordinary authenticated local/emulator, native and prepared-render evidence with their limits. This 0.5.68 candidate still requires exact-SHA CI and production deployment verification; no physical-device or production-GM gameplay is implied.",
+      "evidenceIds": "E-WOLF;E-AUDIT-645;E-PC08-BUG-AUDIT-20261004;E-PC08-AUDIT-FOLLOWON-20261004;E-PC09-FINAL-20261005",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "524;484;621",
@@ -23723,10 +23824,12 @@
       "milestoneHints": "M13;M9",
       "relatedConsumes": "492;493",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.5.68"
+      ],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "WOLF-ATTACK",
-      "status": "missing",
+      "status": "done",
       "tag": "PROVE"
     },
     {

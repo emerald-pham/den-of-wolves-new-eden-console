@@ -288,7 +288,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 177 | PRESERVE | done | none | none | none | none | none | none | none | none | none | M3;M5 | Audit the AEGIS Jump Drive. |
 | 178 | NEW | done | 161;162;262 | none | none | none | none | none | none | none | E-AUDIT-178;E-178-VERIFIED | M3;M5 | Resolve the Construction Bay. |
 | 179 | NEW | done | 166 | none | none | none | none | none | none | none | E-AUDIT-179;E-179-ADMIRAL-DIRECTIVES | M3;M5 | Create the Admiral policy workspace. |
-| 180 | NEW | missing | 166;171;182;261;377;394;436;445;446;447;448;449;461;463 | none | none | none | none | none | none | none | E-AUDIT-180 | M3;M5 | Create the Executive Officer workspace. |
+| 180 | NEW | done | 166;171;182;261;377;394;436;445;446;447;448;449;461;463 | none | none | none | none | none | none | none | E-AUDIT-180;E-PC09-FINAL-20261005 | M3;M5 | Create the Executive Officer workspace. |
 | 181 | NEW | missing | 166;178;260;262;321;322;323;328;392;396;422;449;450;451;452 | none | none | none | none | none | none | none | E-AUDIT-181 | M3;M5 | Create the Wing Commander workspace. |
 | 182 | EXTEND | done | 165 | none | none | none | none | none | none | none | E-AUDIT-182;E-182-FAIL-CLOSED-COMBAT-CONSOLES | M3;M5 | Complete AEGIS combat-console registration. |
 | 183 | PRESERVE | done | 161;162 | none | none | none | none | none | none | none | E-AUDIT-183;E-183-VERIFIED | M3;M5 | Gate Dione by roster. |
@@ -326,7 +326,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 211 | NEW | done | 165;204;267 | none | none | none | none | none | none | none | E-AUDIT-211;E-211-ENDEAVOUR-RESEARCH-TRACKS;E-211-ENDEAVOUR-RESEARCH-WRITER;E-PC05-FINAL-RELEASE-20260929 | M3;M5 | Encode Endeavour console-upgrade research tracks. |
 | 212 | NEW | done | 211 | none | none | none | none | none | none | none | E-AUDIT-212;E-212-ENDEAVOUR-RESEARCH-CADENCE;E-212-ENDEAVOUR-RESEARCH-WRITER;E-PC05-FINAL-RELEASE-20260929 | M3;M5 | Enforce Endeavour research cadence. |
 | 213 | NEW | done | 211 | none | none | none | none | none | none | none | E-AUDIT-213;E-213-ECM-DEVICE;E-PC01-CANDIDATE;E-PC05-FINAL-RELEASE-20260929 | M3;M5 | Build and use the ECM Device. |
-| 214 | NEW | partial | 211 | none | none | none | none | none | none | none | E-AUDIT-214;E-214-WOLF-DETECTOR-ALLOWANCE | M3;M5 | Build and use the Wolf Agent Detector. |
+| 214 | NEW | done | 211 | none | none | none | none | none | none | none | E-AUDIT-214;E-214-WOLF-DETECTOR-ALLOWANCE;E-PC09-FINAL-20261005 | M3;M5 | Build and use the Wolf Agent Detector. |
 | 215 | NEW | done | 166 | none | none | none | none | none | none | none | E-AUDIT-215;E-FLEET-CAPTAIN-WORKSPACES-VERIFIED | M3;M5 | Complete the Shepherd Captain workspace. |
 | 215a | NEW | done | 166;204;361 | none | none | none | none | none | none | none | E-AUDIT-215A;E-215A-SHEPHERD-ENGINEER-WORKSPACE | M3;M5 | Complete the Shepherd Engineer workspace. |
 | 215b | NEW | missing | 166;204;211;212;213;214;267;321;325;328;391;401;410;422;508 | none | none | none | none | none | none | none | E-AUDIT-215B | M3;M5 | Complete the Scientist workspace. |
@@ -516,16 +516,16 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 386 | NEW | done | 361;369 | none | none | none | none | none | none | none | E-AUDIT-386;E-386-SERVICE-SHUTTLE-RECHARGE | M7 | Resolve service-shuttle recharge. |
 | 387 | NEW | done | 386 | none | none | none | none | none | none | none | E-AUDIT-387;E-387-SERVICE-RECHARGE-IMMEDIATE-EFFECT | M7 | Trigger immediate effects from recharge. |
 | 388 | NEW | done | 265;111 | none | none | none | none | none | none | none | E-AUDIT-388;E-388-HIGHWALL-MINING | M7 | Resolve Highwall mining. |
-| 389 | NEW | done | 265;426;433;439;440 | none | none | none | none | none | none | none | E-AUDIT-389;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004 | M7 | Resolve Highwall combat. |
+| 389 | NEW | done | 265;426;433;439;440 | none | none | none | none | none | none | none | E-AUDIT-389;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004;E-PC09-FINAL-20261005 | M7 | Resolve Highwall combat. |
 | 390 | NEW | done | 269;111 | none | none | none | none | none | none | none | E-AUDIT-390;E-390-IMPLEMENTED | M7 | Resolve Hummingbird harvesting. |
 | 391 | NEW | done | 267;165;124 | none | none | none | none | none | none | none | E-AUDIT-391;E-391-ENDEAVOUR-RESEARCH-LINK;E-391-FIELD-UPGRADE-INTEGRATION;E-PC05-FINAL-RELEASE-20260929 | M7 | Resolve Endeavour field upgrades. |
 | 392 | NEW | done | 401 | none | none | none | none | none | none | none | E-AUDIT-392;E-PC06-FINAL-20261002 | M7 | Apply Starlight mission bonuses. |
 | 393 | NEW | done | 401 | none | none | none | none | none | none | none | E-AUDIT-393;E-PC06-FINAL-20261002 | M7 | Apply Hummingbird mission bonuses. |
 | 394 | NEW | done | 261;466 | none | none | none | none | none | none | none | E-AUDIT-394;E-PC08-FINAL-20261003 | M7 | Resolve Pallas boarding support. |
 | 395 | NEW | done | 272;466 | none | none | none | none | none | none | none | E-AUDIT-395;E-PC08-FINAL-20261003 | M7 | Resolve Chepu boarding support. |
-| 396 | NEW | done | 262;182 | none | none | none | none | none | none | none | E-AUDIT-396;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004 | M7 | Resolve Alpha and Bravo fighter state. |
+| 396 | NEW | done | 262;182 | none | none | none | none | none | none | none | E-AUDIT-396;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004;E-PC09-FINAL-20261005 | M7 | Resolve Alpha and Bravo fighter state. |
 | 397 | NEW | done | 264;182;431;432a;433;433b | none | none | none | none | none | none | none | E-AUDIT-397;E-WOLF;E-397-MALIADES-STATE-PARTIAL;E-453-MALIADES-RANGE-BLOCKER;E-PC08-FINAL-20261003 | M7 | Resolve Maliades state. |
-| 398 | NEW | done | 273;182 | none | none | none | none | none | none | none | E-AUDIT-398;E-398-PDF-ESCORT-PARTIAL;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004 | M7 | Resolve the PDF Escort Wing state. |
+| 398 | NEW | done | 273;182 | none | none | none | none | none | none | none | E-AUDIT-398;E-398-PDF-ESCORT-PARTIAL;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004;E-PC09-FINAL-20261005 | M7 | Resolve the PDF Escort Wing state. |
 | 399 | NEW | done | 253;164 | none | none | none | none | none | none | none | E-AUDIT-399;E-399-MACAW-MOVEMENT-CARGO-VERIFIED | M7 | Resolve Macaw movement and cargo. |
 | 400 | NEW | done | 253;164 | none | none | none | none | none | none | none | E-AUDIT-400;E-400-BOA-MOVEMENT-CARGO-VERIFIED | M7 | Resolve Boa movement and cargo. |
 | 401 | NEW | done | 315;361 | none | none | none | none | none | none | none | E-AUDIT-401;E-401-PC04-CANDIDATE;E-PC06-FINAL-20261002 | M7 | Validate mission eligibility and leader. |
@@ -583,62 +583,62 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 442 | NEW | done | 438;439;440;130 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-442;E-PC07-FINAL-20261003 | M9 | Apply range-specific destruction effects. |
 | 443 | NEW | done | 440;396 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-443;E-PC08-FINAL-20261003 | M9 | Enforce Short Range fighter priority. |
 | 444 | NEW | done | 441;442 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-444;E-PC07-FINAL-20261003 | M9 | Close each range with an audit result. |
-| 445 | NEW | done | 441;182 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-445;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004 | M9 | Resolve AEGIS Missile Launchers at Long Range. |
+| 445 | NEW | done | 441;182 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-445;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004;E-PC09-FINAL-20261005 | M9 | Resolve AEGIS Missile Launchers at Long Range. |
 | 446 | NEW | done | 445 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-446;E-PC08-FINAL-20261003 | M9 | Spend ore on enriched warheads. |
-| 447 | NEW | done | 441;182 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-447;E-PC07-A6-FUTURE-TARGET-LIMITS-20261003;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004 | M9 | Resolve AEGIS Missile Launchers at Medium Range. |
-| 448 | NEW | done | 441;182 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-448;E-PC07-A6-FUTURE-TARGET-LIMITS-20261003;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004 | M9 | Resolve AEGIS Point Defence. |
-| 449 | NEW | done | 443;396 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-449;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004 | M9 | Authorize Fighter Bay launches. |
-| 450 | NEW | done | 449 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-450;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004 | M9 | Shift targets with fleet fighters. |
-| 451 | NEW | done | 449 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-451;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004 | M9 | Attack at Medium Range with fleet fighters. |
-| 452 | NEW | done | 449 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-452;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004 | M9 | Attack at Short Range with fleet fighters. |
-| 453 | NEW | done | 264;397;431;432a;433;433b | none | none | none | none | WOLF-ATTACK | none | none | E-AUDIT-453;E-WOLF;E-453-MALIADES-RANGE-BLOCKER;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004 | M9 | Resolve Maliades at range. |
-| 454 | NEW | done | 265 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-454;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004 | M9 | Resolve Highwall at range. |
-| 455 | NEW | done | 239;441 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-455;E-PC07-A6-FUTURE-TARGET-LIMITS-20261003;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004 | M9 | Resolve the Gorgoneion Missile Array. |
+| 447 | NEW | done | 441;182 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-447;E-PC07-A6-FUTURE-TARGET-LIMITS-20261003;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004;E-PC09-FINAL-20261005 | M9 | Resolve AEGIS Missile Launchers at Medium Range. |
+| 448 | NEW | done | 441;182 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-448;E-PC07-A6-FUTURE-TARGET-LIMITS-20261003;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004;E-PC09-FINAL-20261005 | M9 | Resolve AEGIS Point Defence. |
+| 449 | NEW | done | 443;396 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-449;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004;E-PC09-FINAL-20261005 | M9 | Authorize Fighter Bay launches. |
+| 450 | NEW | done | 449 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-450;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004;E-PC09-FINAL-20261005 | M9 | Shift targets with fleet fighters. |
+| 451 | NEW | done | 449 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-451;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004;E-PC09-FINAL-20261005 | M9 | Attack at Medium Range with fleet fighters. |
+| 452 | NEW | done | 449 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-452;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004;E-PC09-FINAL-20261005 | M9 | Attack at Short Range with fleet fighters. |
+| 453 | NEW | done | 264;397;431;432a;433;433b | none | none | none | none | WOLF-ATTACK | none | none | E-AUDIT-453;E-WOLF;E-453-MALIADES-RANGE-BLOCKER;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004;E-PC09-FINAL-20261005 | M9 | Resolve Maliades at range. |
+| 454 | NEW | done | 265 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-454;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004;E-PC09-FINAL-20261005 | M9 | Resolve Highwall at range. |
+| 455 | NEW | done | 239;441 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-455;E-PC07-A6-FUTURE-TARGET-LIMITS-20261003;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004;E-PC09-FINAL-20261005 | M9 | Resolve the Gorgoneion Missile Array. |
 | 456 | NEW | done | 273;449 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-456;E-PC08-FINAL-20261003 | M9 | Launch the PDF Fighter Wing. |
-| 457 | NEW | done | 456 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-457;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004 | M9 | Resolve PDF fighters at Medium Range. |
-| 458 | NEW | done | 456 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-458;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004 | M9 | Resolve PDF fighters at Short Range. |
-| 459 | NEW | done | 400;441 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-459;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004 | M9 | Resolve Boa's range actions. |
+| 457 | NEW | done | 456 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-457;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004;E-PC09-FINAL-20261005 | M9 | Resolve PDF fighters at Medium Range. |
+| 458 | NEW | done | 456 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-458;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004;E-PC09-FINAL-20261005 | M9 | Resolve PDF fighters at Short Range. |
+| 459 | NEW | done | 400;441 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-459;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004;E-PC09-FINAL-20261005 | M9 | Resolve Boa's range actions. |
 | 460 | NEW | done | 399;466 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-460;E-PC08-FINAL-20261003 | M9 | Apply Macaw boarding support. |
 | 461 | NEW | done | 261;272;363 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-461;E-PC08-FINAL-20261003 | M9 | Relocate Pallas or Chepu before boarding. |
 | 462 | NEW | done | 361;386 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-462;E-PC08-FINAL-20261003 | M9 | Apply engineering/service shuttle support. |
 | 463 | NEW | done | 394;395;428 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-463;E-PC08-FINAL-20261003 | M9 | Apply AEGIS and Pallas boarding rerolls. |
 | 464 | DECISION | done | 435;466 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-464;E-PC08-FINAL-20261003 | M9 | Apply Wolf Commander boarding leadership. |
 | 465 | NEW | done | 426;428 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-465;E-PC08-FINAL-20261003 | M9 | Drop Assault Transport parties. |
-| 466 | NEW | done | 378;465 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-466;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004 | M9 | Roll security-team defence. |
-| 467 | NEW | done | 466 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-467;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004 | M9 | Apply surviving-boarder damage. |
+| 466 | NEW | done | 378;465 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-466;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004;E-PC09-FINAL-20261005 | M9 | Roll security-team defence. |
+| 467 | NEW | done | 466 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-467;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004;E-PC09-FINAL-20261005 | M9 | Apply surviving-boarder damage. |
 | 468 | NEW | done | 466;280 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-468;E-PC08-FINAL-20261003 | M9 | Resolve Militia Leader defence. |
 | 469 | NEW | done | 442 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-469;E-PC08-FINAL-20261003 | M9 | Resolve Wolf Fighter Wing destruction. |
 | 469a | NEW | done | 442 | none | none | none | none | none | none | none | E-AUDIT-469A;E-PC08-FINAL-20261003 | M9 | Resolve Assault Transport destruction. |
 | 469b | NEW | done | 442 | none | none | none | none | none | none | none | E-AUDIT-469B;E-PC08-FINAL-20261003 | M9 | Resolve Wolf Destroyer destruction. |
 | 469c | NEW | done | 442 | none | none | none | none | none | none | none | E-AUDIT-469C;E-PC08-FINAL-20261003 | M9 | Resolve Wolf Cruiser destruction. |
 | 469d | NEW | done | 442 | none | none | none | none | none | none | none | E-AUDIT-469D;E-PC08-FINAL-20261003 | M9 | Resolve Strikecarrier destruction. |
-| 469e | NEW | done | 442 | none | none | none | none | none | none | none | E-AUDIT-469E;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004 | M9 | Resolve Battlestation destruction. |
-| 470 | NEW | done | 469 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-470;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004 | M9 | Carry surviving Wolf Fighter Wings forward. |
-| 471 | NEW | missing | 469e;442 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-471 | M9 | Enforce Battlestation Short Range immunity. |
-| 472 | NEW | missing | 469d;470 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-472 | M9 | Apply Strikecarrier wing bonus. |
-| 473 | NEW | missing | 469;130 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-473 | M9 | Apply surviving Wolf ship damage. |
-| 474 | EXTEND | missing | 444;473;447;450;457 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-474;E-PC08-BUG-AUDIT-20261004;E-PC08-AUDIT-FOLLOWON-20261004 | M9 | Publish the immediate attack result. |
-| 475 | EXTEND | missing | 130 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-475 | M9 | Reuse the common damage draw path. |
-| 476 | EXTEND | missing | 475 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-476 | M9 | Destroy a ship on combat deck exhaustion. |
-| 477 | EXTEND | missing | 466;467 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-477 | M9 | Apply combat casualties. |
-| 478 | NEW | missing | 477;280 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-478 | M9 | Apply Doctor casualty mitigation. |
-| 479 | NEW | missing | 242;477 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-479 | M9 | Resolve Warrior post-attack salvage. |
-| 480 | NEW | missing | 253;477 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-480 | M9 | Resolve Capybara post-attack Scrap. |
-| 481 | NEW | missing | 399;400;480 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-481 | M9 | Collect Scrap with Macaw or Boa. |
-| 482 | EXTEND | missing | 475 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-482 | M9 | Resolve post-attack repairs. |
-| 483 | NEW | missing | 178;469;396;452 | none | none | none | none | none | none | none | E-AUDIT-483;E-PC08-BUG-AUDIT-20261004;E-PC08-AUDIT-FOLLOWON-20261004 | M9 | Rebuild fighters after combat. |
-| 484 | EXTEND | missing | 474;477;482;398;483 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-484;E-PC08-BUG-AUDIT-20261004;E-PC08-AUDIT-FOLLOWON-20261004 | M9 | Publish the complete aftermath. |
+| 469e | NEW | done | 442 | none | none | none | none | none | none | none | E-AUDIT-469E;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004;E-PC09-FINAL-20261005 | M9 | Resolve Battlestation destruction. |
+| 470 | NEW | done | 469 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-470;E-PC08-FINAL-20261003;E-PC08-BUG-AUDIT-20261004;E-PC09-FINAL-20261005 | M9 | Carry surviving Wolf Fighter Wings forward. |
+| 471 | NEW | done | 469e;442 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-471;E-PC09-FINAL-20261005 | M9 | Enforce Battlestation Short Range immunity. |
+| 472 | NEW | done | 469d;470 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-472;E-PC09-FINAL-20261005 | M9 | Apply Strikecarrier wing bonus. |
+| 473 | NEW | done | 469;130 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-473;E-PC09-FINAL-20261005 | M9 | Apply surviving Wolf ship damage. |
+| 474 | EXTEND | done | 444;473;447;450;457 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-474;E-PC08-BUG-AUDIT-20261004;E-PC08-AUDIT-FOLLOWON-20261004;E-PC09-FINAL-20261005 | M9 | Publish the immediate attack result. |
+| 475 | EXTEND | done | 130 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-475;E-PC09-FINAL-20261005 | M9 | Reuse the common damage draw path. |
+| 476 | EXTEND | done | 475 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-476;E-PC09-FINAL-20261005 | M9 | Destroy a ship on combat deck exhaustion. |
+| 477 | EXTEND | done | 466;467 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-477;E-PC09-FINAL-20261005 | M9 | Apply combat casualties. |
+| 478 | NEW | done | 477;280 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-478;E-PC09-FINAL-20261005 | M9 | Apply Doctor casualty mitigation. |
+| 479 | NEW | done | 242;477 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-479;E-PC09-FINAL-20261005 | M9 | Resolve Warrior post-attack salvage. |
+| 480 | NEW | done | 253;477 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-480;E-PC09-FINAL-20261005 | M9 | Resolve Capybara post-attack Scrap. |
+| 481 | NEW | done | 399;400;480 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-481;E-PC09-FINAL-20261005 | M9 | Collect Scrap with Macaw or Boa. |
+| 482 | EXTEND | done | 475 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-482;E-PC09-FINAL-20261005 | M9 | Resolve post-attack repairs. |
+| 483 | NEW | done | 178;469;396;452 | none | none | none | none | none | none | none | E-AUDIT-483;E-PC08-BUG-AUDIT-20261004;E-PC08-AUDIT-FOLLOWON-20261004;E-PC09-FINAL-20261005 | M9 | Rebuild fighters after combat. |
+| 484 | EXTEND | done | 474;477;482;398;483 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-484;E-PC08-BUG-AUDIT-20261004;E-PC08-AUDIT-FOLLOWON-20261004;E-PC09-FINAL-20261005 | M9 | Publish the complete aftermath. |
 | 485 | REPAIR | done | 077 | none | none | none | none | ATTACK-PRESSURE | none | none | E-ATTACK-PRESSURE;E-AUDIT-485;E-485-AUTHORITATIVE-PURSUIT | M10 | Make pursuit authoritative from Turn 1. |
 | 485a | REPAIR | done | 485 | none | none | none | none | PRESENTATION-INDEPENDENT | none | none | E-PRESENTATION;E-AUDIT-485A | M10 | Restore alert-scoped Pursuit Track color. |
 | 486 | PROVE | done | 485;305 | none | none | none | none | ATTACK-PRESSURE | none | none | E-ATTACK-PRESSURE;E-AUDIT-486;E-486-COMMITTED-PURSUIT | M10 | Verify the per-cycle pursuit rise. |
 | 487 | PROVE | done | 485;306 | none | none | none | none | ATTACK-PRESSURE | none | none | E-ATTACK-PRESSURE;E-AUDIT-487;E-487-JUMP-ATTACK-PURSUIT | M10 | Verify jump-based pursuit reduction. |
 | 488 | PROVE | done | 485;306 | none | none | none | none | ATTACK-PRESSURE | none | none | E-ATTACK-PRESSURE;E-AUDIT-488;E-488-ION-THREAT-SUPPRESSION | M10 | Verify Ion Nebula threat suppression. |
 | 489 | PROVE | done | 485;306 | none | none | none | none | ATTACK-PRESSURE | none | none | E-ATTACK-PRESSURE;E-AUDIT-489;E-489-LEVEL5-THREAT-EXCEPTION | M10 | Verify the Level 5 Planet exception. |
-| 490 | NEW | missing | 485;307 | none | none | none | none | ATTACK-PRESSURE | none | none | E-ATTACK-PRESSURE;E-AUDIT-490 | M10 | Preserve independent split-group threat. |
-| 491 | NEW | missing | 312 | none | none | none | none | ATTACK-PRESSURE | none | none | E-ATTACK-PRESSURE;E-AUDIT-491 | M10 | Trigger Active Wolf Outpost attacks. |
-| 492 | NEW | missing | 312;448;469e;470 | none | none | none | none | ATTACK-PRESSURE | none | none | E-ATTACK-PRESSURE;E-AUDIT-492;E-PC08-BUG-AUDIT-20261004;E-PC08-AUDIT-FOLLOWON-20261004 | M10 | Trigger Active Wolf Fortress attacks. |
-| 493 | NEW | missing | 312;448;469e;470 | none | none | none | none | ATTACK-PRESSURE | none | none | E-ATTACK-PRESSURE;E-AUDIT-493;E-PC08-BUG-AUDIT-20261004;E-PC08-AUDIT-FOLLOWON-20261004 | M10 | Trigger Ancient Space Station attacks. |
-| 494 | NEW | missing | 425;435 | none | none | none | none | ATTACK-PRESSURE | none | none | E-ATTACK-PRESSURE;E-AUDIT-494 | M10 | Resolve the Wolf Commander attack dial. |
+| 490 | NEW | done | 485;307 | none | none | none | none | ATTACK-PRESSURE | none | none | E-ATTACK-PRESSURE;E-AUDIT-490;E-PC09-FINAL-20261005 | M10 | Preserve independent split-group threat. |
+| 491 | NEW | done | 312 | none | none | none | none | ATTACK-PRESSURE | none | none | E-ATTACK-PRESSURE;E-AUDIT-491;E-PC09-FINAL-20261005 | M10 | Trigger Active Wolf Outpost attacks. |
+| 492 | NEW | done | 312;448;469e;470 | none | none | none | none | ATTACK-PRESSURE | none | none | E-ATTACK-PRESSURE;E-AUDIT-492;E-PC08-BUG-AUDIT-20261004;E-PC08-AUDIT-FOLLOWON-20261004;E-PC09-FINAL-20261005 | M10 | Trigger Active Wolf Fortress attacks. |
+| 493 | NEW | done | 312;448;469e;470 | none | none | none | none | ATTACK-PRESSURE | none | none | E-ATTACK-PRESSURE;E-AUDIT-493;E-PC08-BUG-AUDIT-20261004;E-PC08-AUDIT-FOLLOWON-20261004;E-PC09-FINAL-20261005 | M10 | Trigger Ancient Space Station attacks. |
+| 494 | NEW | done | 425;435 | none | none | none | none | ATTACK-PRESSURE | none | none | E-ATTACK-PRESSURE;E-AUDIT-494;E-PC09-FINAL-20261005 | M10 | Resolve the Wolf Commander attack dial. |
 | 495 | NEW | done | none | none | none | none | none | none | none | none | E-495-VERIFIED | M10 | Assign hidden loyalties authoritatively. |
 | 496 | REPAIR | done | none | none | none | none | none | none | none | none | E-496-WOLF-COUNT-VERIFIED | M10 | Enforce the server-derived Wolf count. |
 | 497 | NEW | done | 495;496 | none | none | none | none | none | none | none | E-AUDIT-497;E-497-AUTHORIZATION | M10 | Authorize one Wolf action per cycle. |
@@ -648,42 +648,42 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 501 | NEW | done | 497 | none | none | none | none | none | none | none | E-AUDIT-501;E-501-PRIVATE-WOLF-INTELLIGENCE | M10 | Send Wolf intelligence privately. |
 | 502 | NEW | done | 497 | none | none | none | none | none | none | none | E-AUDIT-502;E-502-SUSPICION-CLUE | M10 | Resolve suspicion and clue rolls. |
 | 503 | NEW | done | 497;167 | none | none | none | none | none | none | none | E-AUDIT-503;E-503-WOLF-ACTION-AUDIENCES | M10 | Deliver Wolf action receipts by audience. |
-| 503a | NEW | partial | 497;498 | none | none | none | none | none | none | none | E-AUDIT-503A;E-503A-PRIVATE-ALERTS-OVERLAY | M10 | Trigger hacking overlays after committed sabotage. |
+| 503a | NEW | done | 497;498 | none | none | none | none | none | none | none | E-AUDIT-503A;E-503A-PRIVATE-ALERTS-OVERLAY;E-PC09-FINAL-20261005 | M10 | Trigger hacking overlays after committed sabotage. |
 | 504 | PROVE | done | 502;503 | none | none | none | none | none | none | none | E-AUDIT-504;E-504-PRIVATE-SUSPICION-HISTORY | M10 | Audit suspicion history privately. |
 | 505 | NEW | done | 280;501 | none | none | none | none | none | none | none | E-AUDIT-505;E-505-PRIVATE-INVESTIGATION | M10 | Investigate as the Intelligence Agent. |
-| 506 | PROVE | missing | 505;428 | none | none | none | none | none | none | none | E-AUDIT-506 | M10 | Prove investigation randomness ownership. |
+| 506 | PROVE | done | 505;428 | none | none | none | none | none | none | none | E-AUDIT-506;E-PC09-FINAL-20261005 | M10 | Prove investigation randomness ownership. |
 | 507 | NEW | done | 505;502 | none | none | none | none | none | none | none | E-AUDIT-507;E-507-INVESTIGATION-SUSPICION | M10 | Apply Intelligence Agent suspicion. |
-| 508 | NEW | missing | 214;506 | none | none | none | none | none | none | none | E-AUDIT-508 | M10 | Test with the Wolf Agent Detector. |
+| 508 | NEW | done | 214;506 | none | none | none | none | none | none | none | E-AUDIT-508;E-PC09-FINAL-20261005 | M10 | Test with the Wolf Agent Detector. |
 | 509 | NEW | done | none | none | none | none | none | none | none | none | E-509-VERIFIED | M10 | Publish Android proof. |
 | 510 | NEW | done | none | none | none | none | none | none | none | none | E-510-VERIFIED | M10 | Reveal Friend trust privately. |
 | 511 | NEW | done | 495;522 | none | none | none | none | none | none | none | E-AUDIT-511;E-511-ARBOUR-VISIONS | M10 | Deliver Universal Arbour visions. |
 | 512 | NEW | done | none | none | none | none | none | none | none | none | E-512-VERIFIED | M10 | Deliver Wolf Cult intelligence. |
-| 513 | NEW | partial | 497 | none | none | none | none | none | none | none | E-AUDIT-513;E-513-ARREST-POSSE-PRIVATE | M10 | Calculate arrest posse size privately. |
-| 514 | NEW | missing | 513;098 | none | none | none | none | none | none | none | E-AUDIT-514 | M10 | Resolve arrest and its deadline. |
+| 513 | NEW | done | 497 | none | none | none | none | none | none | none | E-AUDIT-513;E-513-ARREST-POSSE-PRIVATE;E-PC09-FINAL-20261005 | M10 | Calculate arrest posse size privately. |
+| 514 | NEW | done | 513;098 | none | none | none | none | none | none | none | E-AUDIT-514;E-PC09-FINAL-20261005 | M10 | Resolve arrest and its deadline. |
 | 515 | NEW | done | 060;062 | none | none | none | none | none | none | none | E-AUDIT-515;E-515-REPLACEMENT | M10 | Assign a replacement role. |
-| 516 | NEW | missing | 515;326 | none | none | none | none | none | none | none | E-AUDIT-516 | M10 | Activate the Comms Officer. |
-| 517 | NEW | missing | 515;190 | none | none | none | none | none | none | none | E-AUDIT-517;E-517-VISIT-DECISION | M10 | Activate the VIP Host. |
+| 516 | NEW | done | 515;326 | none | none | none | none | none | none | none | E-AUDIT-516;E-PC09-FINAL-20261005 | M10 | Activate the Comms Officer. |
+| 517 | NEW | done | 515;190 | none | none | none | none | none | none | none | E-AUDIT-517;E-517-VISIT-DECISION;E-PC09-FINAL-20261005 | M10 | Activate the VIP Host. |
 | 518 | NEW | done | 515 | none | none | none | none | none | none | none | E-AUDIT-518;E-518-COMMISSAR | M10 | Activate the Commissar. |
-| 519 | NEW | missing | 515;468 | none | none | none | none | none | none | none | E-AUDIT-519 | M10 | Activate the Militia Leader. |
-| 520 | NEW | missing | 515;456 | none | none | none | none | none | none | none | E-AUDIT-520 | M10 | Activate the PDF Fighter Ace. |
-| 521 | NEW | missing | 515;494 | none | none | none | none | none | none | none | E-AUDIT-521 | M10 | Complete Wolf Commander powers. |
-| 521a | NEW | missing | 521 | none | none | none | none | none | none | none | E-AUDIT-521A | M10 | Resolve the Wolf Commander address. |
-| 521b | DECISION | missing | 521a | none | none | none | none | none | none | none | E-AUDIT-521B | M10 | Resolve Wolf Commander amnesty. |
+| 519 | NEW | done | 515;468 | none | none | none | none | none | none | none | E-AUDIT-519;E-PC09-FINAL-20261005 | M10 | Activate the Militia Leader. |
+| 520 | NEW | done | 515;456 | none | none | none | none | none | none | none | E-AUDIT-520;E-PC09-FINAL-20261005 | M10 | Activate the PDF Fighter Ace. |
+| 521 | NEW | done | 515;494 | none | none | none | none | none | none | none | E-AUDIT-521;E-PC09-FINAL-20261005 | M10 | Complete Wolf Commander powers. |
+| 521a | NEW | done | 521 | none | none | none | none | none | none | none | E-AUDIT-521A;E-PC09-FINAL-20261005 | M10 | Resolve the Wolf Commander address. |
+| 521b | DECISION | done | 521a | none | none | none | none | none | none | none | E-AUDIT-521B;E-PC09-FINAL-20261005 | M10 | Resolve Wolf Commander amnesty. |
 | 522 | REPAIR | done | 044;045 | none | none | none | none | none | none | none | E-AUDIT-522;E-522-GM-LEASE | M10 | Model one-facilitator ownership with optional GM lanes. |
 | 523 | DECISION | done | 522;167 | none | none | none | none | none | none | none | E-AUDIT-523;E-523-IMPLEMENTED;E-523-RELEASED | M10 | Record facilitator rule calls. |
 | 523a | DECISION | done | 522 | none | none | none | none | none | none | none | E-AUDIT-523A;E-PC07-FINAL-20261003 | M10 | Configure Wolf Attack difficulty. |
-| 523b | DECISION | missing | 522 | none | none | none | none | none | none | none | E-AUDIT-523B | M10 | Configure Crisis difficulty. |
-| 523c | DECISION | missing | 522 | none | none | none | none | none | none | none | E-AUDIT-523C | M10 | Configure emergency-jump severity. |
-| 524 | PROVE | missing | 485;497;522 | none | none | none | none | none | none | none | E-AUDIT-524 | M10 | Run the complete Wolf-and-deduction scenario. |
+| 523b | DECISION | done | 522 | none | none | none | none | none | none | none | E-AUDIT-523B;E-PC09-FINAL-20261005 | M10 | Configure Crisis difficulty. |
+| 523c | DECISION | done | 522 | none | none | none | none | none | none | none | E-AUDIT-523C;E-PC09-FINAL-20261005 | M10 | Configure emergency-jump severity. |
+| 524 | PROVE | done | 485;497;522 | none | none | none | none | none | none | none | E-AUDIT-524;E-PC09-FINAL-20261005 | M10 | Run the complete Wolf-and-deduction scenario. |
 | 524a | NEW | done | 193b | none | none | none | none | none | none | none | E-AUDIT-524A;E-524A-POLITICAL-CAPITAL | M10 | Track political capital. |
-| 524b | NEW | missing | 524a | none | none | none | none | none | none | none | E-AUDIT-524B | M10 | Resolve the President's address. |
-| 524c | NEW | missing | 524b | none | none | none | none | none | none | none | E-AUDIT-524C | M10 | Resolve a presidential visit. |
-| 524d | NEW | missing | 524c;044 | none | none | none | none | none | none | none | E-AUDIT-524D | M10 | Enforce presidential authority boundaries. |
+| 524b | NEW | done | 524a | none | none | none | none | none | none | none | E-AUDIT-524B;E-PC09-FINAL-20261005 | M10 | Resolve the President's address. |
+| 524c | NEW | done | 524b | none | none | none | none | none | none | none | E-AUDIT-524C;E-PC09-FINAL-20261005 | M10 | Resolve a presidential visit. |
+| 524d | NEW | done | 524c;044 | none | none | none | none | none | none | none | E-AUDIT-524D;E-PC09-FINAL-20261005 | M10 | Enforce presidential authority boundaries. |
 | 525 | NEW | done | 008;522 | none | none | none | none | none | none | none | E-AUDIT-525;E-525-VERIFIED | M3;M11;M12 | Create the crisis state machine. |
 | 526 | NEW | done | 525 | none | none | none | none | none | none | none | E-AUDIT-526 | M3;M11;M12 | Gate crises by configuration. |
 | 527 | NEW | done | 525 | none | none | none | none | none | none | none | E-AUDIT-527 | M3;M11;M12 | Deliver Approaching Vessel. |
-| 528 | DECISION | missing | 527 | none | none | none | none | none | none | none | E-AUDIT-528 | M3;M11;M12 | Resolve Approaching Vessel choices. |
-| 529 | NEW | partial | 249;250;251;527 | none | none | none | none | none | none | none | E-AUDIT-529;E-P529-ARRIVAL-INTEGRATION | M3;M11;M12 | Integrate Voyage 33-0 arrival. |
+| 528 | DECISION | done | 527 | none | none | none | none | none | none | none | E-AUDIT-528;E-PC09-FINAL-20261005 | M3;M11;M12 | Resolve Approaching Vessel choices. |
+| 529 | NEW | done | 249;250;251;527 | none | none | none | none | none | none | none | E-AUDIT-529;E-P529-ARRIVAL-INTEGRATION;E-PC09-FINAL-20261005 | M3;M11;M12 | Integrate Voyage 33-0 arrival. |
 | 530 | NEW | done | 525 | none | none | none | none | none | none | none | E-AUDIT-530 | M3;M11;M12 | Deliver Disease Outbreak. |
 | 531 | NEW | done | 530;149 | none | none | none | none | none | none | none | E-AUDIT-531;E-149-150-531-QUARANTINE-DOCKING | M3;M11;M12 | Resolve quarantine policy. |
 | 532 | NEW | done | 525 | none | none | none | none | none | none | none | E-AUDIT-532 | M3;M11;M12 | Deliver Religious Zealotry. |
@@ -691,10 +691,10 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 534 | NEW | done | 525 | none | none | none | none | none | none | none | E-AUDIT-534 | M3;M11;M12 | Deliver Civil Unrest. |
 | 535 | DECISION | done | 534 | none | none | none | none | none | none | none | E-AUDIT-535;E-535-VERIFIED | M3;M11;M12 | Resolve Civil Unrest. |
 | 536 | NEW | done | 525 | none | none | none | none | none | none | none | E-AUDIT-536 | M3;M11;M12 | Deliver Presidential Election. |
-| 537 | DECISION | missing | 536 | none | none | none | none | none | none | none | E-AUDIT-537 | M3;M11;M12 | Configure election procedure. |
-| 538 | NEW | missing | 537 | none | none | none | none | none | none | none | E-AUDIT-538;E-PC09-ELECTION-CONFLICT-20261004 | M3;M11;M12 | Resolve the election privately. |
-| 539 | NEW | missing | 538;101 | none | none | none | none | none | none | none | E-AUDIT-539 | M3;M11;M12 | Announce binding resolutions at Team start. |
-| 540 | PROVE | missing | 525;528;531;533;535;538 | none | none | none | none | none | none | none | E-AUDIT-540 | M3;M11;M12 | Run the full crisis scenario. |
+| 537 | DECISION | done | 536 | none | none | none | none | none | none | none | E-AUDIT-537;E-PC09-FINAL-20261005 | M3;M11;M12 | Configure election procedure. |
+| 538 | NEW | done | 537 | none | none | none | none | none | none | none | E-AUDIT-538;E-PC09-ELECTION-CONFLICT-20261004;E-PC09-FINAL-20261005 | M3;M11;M12 | Resolve the election privately. |
+| 539 | NEW | done | 538;101 | none | none | none | none | none | none | none | E-AUDIT-539;E-PC09-FINAL-20261005 | M3;M11;M12 | Announce binding resolutions at Team start. |
+| 540 | PROVE | done | 525;528;531;533;535;538 | none | none | none | none | none | none | none | E-AUDIT-540;E-PC09-FINAL-20261005 | M3;M11;M12 | Run the full crisis scenario. |
 | 541 | NEW | partial | 318;525 | none | none | none | none | none | none | none | E-AUDIT-541;E-541-ARRIVAL-GROUP-REVEAL | M3;M11;M13 | Reveal a New Eden candidate. |
 | 542 | NEW | missing | 541 | none | none | none | none | none | none | none | E-AUDIT-542 | M3;M11;M13 | Make candidate discovery retry-safe. |
 | 543 | NEW | missing | 541;319 | none | none | none | none | none | none | none | E-AUDIT-543 | M3;M11;M13 | Track candidate plans by Cycle 6. |
@@ -734,7 +734,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 577 | NEW | done | 164;377;399 | none | none | none | none | none | none | none | E-AUDIT-577;E-577-MACAW-CARGO-PRODUCTION | M3;M11 | Resolve Macaw cargo. |
 | 578 | NEW | done | 400 | none | none | none | none | none | none | none | E-AUDIT-578;E-578-BOA-RECYCLING-PRODUCTION | M3;M11 | Resolve Boa recycling. |
 | 579 | NEW | missing | 401;578 | none | none | none | none | none | none | none | E-AUDIT-579 | M3;M11 | Resolve Boa reclamation. |
-| 580 | DECISION | missing | 459;578 | none | none | none | none | none | none | none | E-AUDIT-580 | M3;M11 | Resolve Boa combat ambiguity. |
+| 580 | DECISION | done | 459;578 | none | none | none | none | none | none | none | E-AUDIT-580;E-PC09-FINAL-20261005 | M3;M11 | Resolve Boa combat ambiguity. |
 | 581 | NEW | missing | 573;577;480 | none | none | none | none | none | none | none | E-AUDIT-581 | M3;M11 | Create post-damage Scrap pickups. |
 | 582 | NEW | done | 569;006 | none | none | none | none | none | none | none | E-AUDIT-582;E-582-PRIVATE-OBJECTIVES | M3;M11 | Expose Capybara objectives privately. |
 | 583 | DECISION | done | 234a;569 | none | none | none | none | none | none | none | E-AUDIT-583;E-583-CAPYBARA-BALANCE-GUIDANCE | M3;M11 | Apply the Capybara balance dial. |
@@ -764,7 +764,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 603a | REPAIR | done | none | none | SHARED-SESSION-CHROME;ROLE-SELECT | none | none | TICKER-LIFECYCLE | none | none | E-603A;E-TICKER | X | Keep the mobile session ticket out of routed content. |
 | 604 | EXTEND | done | 603 | none | none | none | none | none | none | none | E-AUDIT-604;E-604-SHORT-LANDSCAPE | X | Make maintenance work in short landscape. |
 | 605 | EXTEND | done | 351 | none | none | none | none | none | none | none | E-AUDIT-605;E-PC08-FINAL-20261003 | X | Make DRADIS responsive. |
-| 605a | NEW | missing | 433a | none | none | none | none | ATTACK-DRADIS | none | none | E-605A;E-ATTACK-DRADIS;E-PC09-P605A-ACTIVATION-20261004;E-PC09-CONTINUATION-20261004 | X | Visualize Wolf attacks on DRADIS. |
+| 605a | NEW | done | 433a | none | none | none | none | ATTACK-DRADIS | none | none | E-605A;E-ATTACK-DRADIS;E-PC09-P605A-ACTIVATION-20261004;E-PC09-CONTINUATION-20261004;E-PC09-FINAL-20261005 | X | Visualize Wolf attacks on DRADIS. |
 | 606 | EXTEND | done | 361;365;367 | none | none | none | none | none | none | none | E-AUDIT-606;E-606-TOUCH | X | Make shuttle travel touch-operable. |
 | 607 | EXTEND | done | 289;303 | none | none | none | none | none | none | none | E-AUDIT-607;E-PC06-FINAL-20261002 | X | Make jump controls keyboard-complete. |
 | 608 | EXTEND | done | none | none | none | none | none | none | none | none | E-608-DIALOG-FOCUS;E-608-UNMOUNT-FOCUS;E-608-DIALOG-FLOWS;E-608-DIALOG-RENDERED | X | Own dialog focus correctly. |
@@ -782,7 +782,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 618a | REPAIR | done | 045;084;085;086 | none | none | none | none | none | none | 048;522;618;633 | E-618A-OWNER;E-618A-DEPENDENCIES;E-618A-VERIFIED | X | Automatically recover the GM manifest after a transient connection failure. |
 | 619 | EXTEND | missing | 542;612 | none | none | none | none | none | none | none | E-AUDIT-619 | X | Make candidate retries survive reconnect. |
 | 620 | EXTEND | partial | 014;088 | none | none | none | none | none | none | none | E-AUDIT-620 | X | Recover from stale revisions. |
-| 621 | EXTEND | missing | 433;434;612;398;448;453;457;459;466;470 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-621;E-PC08-BUG-AUDIT-20261004;E-PC08-AUDIT-FOLLOWON-20261004 | X;M9 | Recover during a Wolf attack. |
+| 621 | EXTEND | done | 433;434;612;398;448;453;457;459;466;470 | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF;E-AUDIT-621;E-PC08-BUG-AUDIT-20261004;E-PC08-AUDIT-FOLLOWON-20261004;E-PC09-FINAL-20261005 | X;M9 | Recover during a Wolf attack. |
 | 622 | EXTEND | done | 401;402;612 | none | none | none | none | none | none | none | E-AUDIT-622;E-PC06-FINAL-20261002 | X | Recover during an away mission. |
 | 623 | EXTEND | done | none | none | none | none | none | none | none | none | E-623-VERIFIED | X | Preserve PWA deep links. |
 | 624 | EXTEND | done | 623 | none | none | none | none | none | none | none | E-AUDIT-624;E-624-SW-VERIFIED | X | Update the service worker safely. |
@@ -806,7 +806,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 642 | PROVE | missing | 584 | none | none | none | none | none | none | none | E-AUDIT-642 | M13 | Run a complete Capybara playthrough. |
 | 643 | PROVE | done | 424 | none | none | none | none | none | none | none | E-AUDIT-643;E-PC07-FINAL-20261003 | M13 | Run a complete split-fleet playthrough. |
 | 644 | PROVE | done | 423 | none | none | none | none | none | none | none | E-AUDIT-644;E-PC08-FINAL-20261003 | M13 | Run a complete shuttle-airspace playthrough. |
-| 645 | PROVE | missing | 524;484;621 | none | none | none | none | WOLF-ATTACK | none | 492;493 | E-WOLF;E-AUDIT-645;E-PC08-BUG-AUDIT-20261004;E-PC08-AUDIT-FOLLOWON-20261004 | M13;M9 | Run a complete Wolf attack playthrough. |
+| 645 | PROVE | done | 524;484;621 | none | none | none | none | WOLF-ATTACK | none | 492;493 | E-WOLF;E-AUDIT-645;E-PC08-BUG-AUDIT-20261004;E-PC08-AUDIT-FOLLOWON-20261004;E-PC09-FINAL-20261005 | M13;M9 | Run a complete Wolf attack playthrough. |
 | 646 | PROVE | done | 422 | none | none | none | none | none | none | none | E-AUDIT-646;E-PC06-FINAL-20261002 | M13 | Run a complete away-mission playthrough. |
 | 647 | PROVE | missing | 548;559 | none | none | none | none | none | none | none | E-AUDIT-647 | M13 | Prove Ancient Jump Ring success. |
 | 648 | PROVE | missing | 554 | none | none | none | none | none | none | none | E-AUDIT-648 | M13 | Prove Deep Nebula success and loss. |
@@ -1792,6 +1792,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | E-PC09-P605A-ACTIVATION-20261004 | owner decision / scope / stopping condition | PC09 P605a activation; hold after PC09 | docs/PRODUCT_MILESTONE_FEEDBACK.md; docs/PC09_EXECUTION_RECORD.md | The owner explicitly instructed: do visualization, hold after doing checkpoint with viz. The parent conveyed that authorization to the MacBook PC09 orchestrator. This activates only the existing P605a scope after the released P433a contract/privacy foundation; fixed 49 IDs and 703/751 target remain. No hidden telemetry, preparation disclosure, rule changes or closure evidence are inferred. After PC09 including visualization, hold without starting or revising PC10 or later tasks until a new owner instruction. Cloud execution is only a parent-owned backup decision after 25 continuous hours of MacBook failure, not a brief disconnect. |
 | E-PC09-CONTINUATION-20261004 | owner decision / sequence | PC09 completion -> separate PC10 revision/dispatch -> existing post-PC10 work | October 4 owner instruction conveyed in parent codex_delegation; docs/PC09_EXECUTION_RECORD.md; docs/PRODUCT_MILESTONE_FEEDBACK.md; docs/CHECKPOINT_COMPLETION_PLAN.md | The later October 4 owner instruction, actually just proceed thru pc10 and post, ty, supersedes the earlier hold after PC09 visualization. Complete PC09 including its activated P605a and verify its single release first. Parent then revises PC10 and launches a separate Sol 6.1 Max orchestrator, followed by existing post-PC10 work. One checkpoint at a time; the PC09 execution task implements no future phase. Fixed assignments and targets, MacBook primary and 25-continuous-hour backup boundary, existing DRADIS design and the narrow Astra P605a product-implementation-only exception remain unchanged. This record grants sequencing authorization only, not completion credit. |
 | E-PC09-ELECTION-CONFLICT-20261004 | owner decision / bounded policy repair | PC09 P538 conflict repair within fixed allocation | Owner approval Sentinel_003dede4c2448191b4ae98ee1b5255aa to proposal Sentinel_7584eace61c48191b3dd1c944e39e15c, forwarded by parent codex_delegation; docs/PRODUCT_MILESTONE_ASSUMPTIONS.md PC09-A6; docs/PC09_EXECUTION_RECORD.md | The owner explicitly approved preserving President and taking the next eligible candidate from the VP ballot when one UID uniquely wins both offices, with an explicit current-GM in-game decision only if no other eligible candidate exists. Existing configured tie handling is preserved; no ordering, automatic replacement, broader office power or private ballot disclosure is inferred. Branch explanation and required action must be visible in-game. This is owner-directed policy recorded under PC09-A6, not claimed printed source text. It grants bounded repair authorization only; tests, current authenticated gameplay, the existing single review and release remain required. Future diegetic-rules PC11 remains parent-owned and outside this PC09 implementation. |
+| E-PC09-FINAL-20261005 | evidence / authority / candidate / local-gameplay | PC09 fixed49 -> 703/751;245/293 | docs/PC09_ACCEPTANCE_MATRIX.md; docs/PC09_PLAYTEST_REPORT.md; docs/PC09_RISK_REVIEW.md; docs/PC09_TEST_CHANGE_REPORT.md; docs/PC08_BUG_AUDIT.md; docs/PC09_EXECUTION_RECORD.md; external /tmp/dow-pc09-resumed-evidence; external /tmp/pc09-combat-recovery-restored-20261004/composed-909b4f6d; external /tmp/dow-pc09-crises-auth-proof-final | All 49 fixed PC09 behavior acceptances have representative normal authenticated local/emulator and exact native proof. All ten original PC08 audit defects and the nine independent findings plus eight earlier directly blocking acceptance defects have permanent regressions. The final unchanged-budget render failure is repaired by bounded route/joined-session deferral; the same reviewer's new rejected-download finding has four permanent regressions and contained Back/reload recovery. Three pending and twelve rejected-download prepared browser cases pass without claiming ordinary authentication; the same reviewer approved the bounded loading delta in 088fdd56 after four independent rejection regressions, strict typecheck and documentation validation. The fresh complete combat/deduction/aftermath scenario includes real EO and Ace browser actors, all ranges, boarding, automatic finalization, paid repair/salvage/Doctor, arrest and two paid builds. The strict current-runtime proof passes 24 checks/505 ordinary actions, durable Alpha 4→3→2→3→4, exact Station carryover and seven actual entitled DRADIS rows, with zero captured browser console/page, HTTP, failed-request or synthetic heartbeat errors. Crisis/election passes 23 checks/91 actions; separate Commander, Detector, P-producer/repeat, DRADIS recovery, Voyage docking/needs and prepared-render artifacts are mapped in the checkpoint report. Setup allocations, accelerated disposable deadlines, simulated attendance, one recovered composed EO HTTP 500 and the crisis post-run source binding remain disclosed. Original exact destroyed-carrier, removed-holder, stale-attack and PDF comparison reproductions retain their native evidence boundary. Pre-reconnect artifacts lost in the Mac reset are not claimed inspectable. The single independent Sol 6.1 Max review approved its bounded final follow-up at ef0cb942 after 418 Functions and 75 client checks, strict Functions build/typecheck and independent SDK/AST inventory reconciliation. Fresh current Rules pass 164 tests/four files. Stable-source whole native verification passes 7,947 checks in 598 files; 44 metadata checks, the final rendered typography/full render budget and 66 rejection/font checks also pass. The complete ticker gate passes 24 viewport/font/motion cases and both normal/reduced lifecycle captures with live Press-to-Red-Alert handoff. Exact-SHA CI and production release are recorded separately. This is the 0.5.68 release candidate; exact-SHA candidate CI, main deployment and surface verification remain pending. No physical-device or production-GM gameplay is claimed. PC10 revision/dispatch remains parent-owned. |
 <!-- END GENERATED PROMPT CATALOG: dependency -->
 
 ## Shared integrity gate

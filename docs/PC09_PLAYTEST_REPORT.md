@@ -1,9 +1,9 @@
 # PC09 playtest and release report
 
-PC09 implements the fixed 49 assigned items, including all ten repairs from
-the PC08 audit, in one isolated owner branch. Completion credit, final review,
-candidate CI and production deployment are still pending. The opening catalog
-is 654/751 overall and 196/293 campaign items; the required closing snapshot is
+The reviewed PC09 0.5.68 candidate closes the fixed 49 assigned items, including
+all ten repairs from the PC08 audit, in one isolated owner branch. Candidate CI
+and production deployment verification are still pending. The opening catalog
+was 654/751 overall and 196/293 campaign items; the closing candidate snapshot is
 703/751 (93.61%) and 245/293 (83.62%). No PC10 or later implementation is part
 of this release.
 
@@ -70,7 +70,11 @@ destroyed-carrier, removed-support-holder and stale-attack retry counterexamples
 are native handler evidence; a live-carrier browser game is not presented as
 those exact reproductions. Mixed-source receipts, durable losses, PDF member
 projection and surviving Station return also have ordinary authenticated
-workflow coverage. The original definitions and historical 0.5.67 audit remain
+workflow coverage. The exact PDF private/member-state comparison is native
+regression evidence; the earlier authenticated one-of-four survivor artifact
+was lost. Fresh composed member reads and private Rules denials do not establish
+that exact comparison or a fresh rendered PDF survivor count. The original
+definitions and historical 0.5.67 audit remain
 in [PC08 Bug Audit](PC08_BUG_AUDIT.md).
 
 The single independent Sol 6.1 review returned nine findings, repaired in
@@ -78,11 +82,41 @@ bounded test-first commits. Eight further directly blocking acceptance defects
 were repaired, including the current public-attack listener, normal-clock
 promotion and fighter-launch lifecycle. Their red controls and fixes are listed
 in [PC09 Risk Review](PC09_RISK_REVIEW.md). The same reviewer's one bounded final
-verification remains pending. The [test-change report](PC09_TEST_CHANGE_REPORT.md)
+verification at `ef0cb942` found no remaining material product defect. Independent
+checks pass 418 Functions tests in 16 files, 75 client tests in 10 files, three
+deployment tests, strict Functions build and app typecheck. The
+[test-change report](PC09_TEST_CHANGE_REPORT.md)
 records every changed test/driver against `b36119e9`; assertions are retained,
 with no deleted test files or deliberately skipped tests.
 
 ## Presentation and release boundaries
+
+
+The unchanged render budget initially failed at 1,865,401 landing bytes and
+497,948 gzip bytes; the first partial import repair still failed the gzip
+budget. Both failed runs remain preserved. Ship and governance routes now load
+when opened, and the crisis report loads for a joined identity. Final local
+landing bytes are 1,705,355 raw and 453,409 gzip, under the unchanged
+1,850,458/491,219 budgets; the largest chunk is 497,246 under 512,000.
+The full final render benchmark passes at
+`/tmp/dow-pc09-resumed-evidence/render-performance-contained-final/results.json`.
+
+The same reviewer identified the newly introduced rejected-download failure
+path. Four permanent native regressions fail before repair and pass afterward;
+App plus those checks pass 103 tests. The bounded repair contains only the four
+new deferred modules, retaining route Back/reload controls and isolating crisis
+failure from routed UI. The same reviewer approved `779c3081` in report-only
+commit `088fdd56`, independently passing all four rejection regressions, strict
+typecheck and documentation validation, and inspecting all 15 prepared cases. The prepared browser check at
+`/tmp/dow-pc09-resumed-evidence/deferred-route-recovery-controls/result.json`
+passes three pending-load and twelve rejected-download cases at three sizes.
+All Back/reload targets meet 44 pixels, notices stay below the header, fonts are
+loaded/system monospace, navigation retains the prepared identity, there is no
+horizontal overflow and page exceptions are zero. All remote requests are
+blocked. This is prepared loading/recovery evidence, not ordinary Auth gameplay.
+The previously recorded native, ordinary gameplay and Rules evidence remains
+unchanged; this loading delta does not change server authority or Functions.
+
 
 The isolated five-step scene passes eight viewport/motion cases at
 `/tmp/dow-pc09-resumed-evidence/prepared-tour/`: real presenters, keyboard/focus,
@@ -95,13 +129,58 @@ missing artifacts do not earn fresh inspectable proof. Fresh results above are
 separately identified. Emulator/browser passes do not establish physical
 attendance, physical-device testing or actual production gameplay.
 
-Final native/Rules/build/responsive/release gates, independent follow-up,
-0.5.68 metadata, candidate CI, exact-main deployment and verified closeout are
-pending. The actual runtime inventory contains 232 endpoints and 216 named
+Fresh current Rules pass 164 tests in four files; lint passes with zero errors
+and 16 warnings, and both Functions/web builds pass. The complete stable-source
+native suite passes **7,947 tests in 598 files**. After 0.5.68 metadata, all
+44 version/catalog/history checks in six files pass, including the separately
+committed historical-snapshot correction. Font consistency passes 62 checks,
+copy and bundle checks pass, and threat-model validation passes nine checks.
+The rebuilt 207-file Functions tree exactly matches the fresh ordinary-runtime
+hash above. The final render benchmark and 66 loading/font checks pass. Final rendered typography also passes 56 PC01 cases, seven surfaces, eight
+Voyage metadata renders and four viewport sizes in normal/reduced motion.
+The complete ticker gate passes 24 Press/Cycle 0 viewport/font/motion cases and
+both normal/reduced lifecycle captures, including the live Press→Red Alert
+handoff. Artifacts remain in `/tmp/dow-pc09-resumed-evidence/ticker-contained-final/`.
+Candidate CI, exact-main deployment and verified closeout are pending. The actual runtime inventory
+contains 232 endpoints and 216 named
 affected consumers; Hosting, Firestore Rules and those named Functions are the
 prepared deployment surfaces. The WIF path remains unchanged.
 
-PC10 remains a separate parent-owned task. Its later every-role solo/two-browser,
-unlimited-timer and real authenticated GM cycle 0→1 acceptance must be revised
-and verified there. This checkpoint reuses existing functionality and reports
-its proof boundaries without implementing that future phase.
+The metadata check's two stale PC07/PC08 live-catalog assertions remain in the
+failure log; the correction preserves historical release boundaries and adds
+exact PC09 allocation/activation coverage. See the test-change report.
+
+## Multiplayer and future full-game acceptance boundary
+
+The strict and composed proofs each start one shared emulator game with 20
+ordinary core-player actors, an independently joined Press player and a GM.
+The Capybara expansion is enabled; it is not an additional 20-player roster.
+The strict proof holds two actual browser contexts (Wing/Press), and the composed
+proof holds four (EO/Wing/Ace/Press). Other actors act through authenticated HTTP,
+with synthetic presence refreshes; setup and main actions are serialized.
+505 strict-proof actions across two battles and the separate 18-actor governance
+scenario establish those shared-session workflows. They do not establish 21
+concurrent browser clients, sustained overlapping whole-game actions, 21 humans,
+physical devices or a complete game played entirely without consulting rules.
+
+PC10 remains a separate parent-owned revision and dispatch. The owner-requested
+entry is GM mode, then a full-game single-player demo beside the existing
+single-turn demo. It must allow unlimited time with manual advancement and a
+fresh-session walkthrough of every role and function across two browsers,
+including the real authenticated GM cycle 0→1 transition. The owner also explicitly authorizes the future complete fresh-game dress
+rehearsal, approximately 21 independent authenticated client sessions with
+overlapping actions, reconnect/retry/privacy checks, and a manual-free usability
+pass across PC10/PC11. These are future acceptance requirements, not PC09 proof
+or newly implemented behavior. PC11's in-game explanations remain future work. This handoff identifies the gaps without expanding PC09 or
+changing future roadmap definitions or statuses.
+
+The owner authorizes a subsequent **PC12**, after PC11: an authoritative server
+on her Mac serving players over a Wi-Fi/LAN router without internet. This must
+locally provide cloud-dependent runtime services, joining/identity, private
+roles, GM controls, persistence/recovery and the applicable game mechanics;
+static hosting alone is insufficient. It requires WAN-disconnected multi-client
+proof while preserving cloud mode and existing data. Credential copying and
+security/network permission changes retain their required approval boundaries.
+The parent owns the later canonical roadmap revision and separate Sol 6.1 Max
+dispatch, one checkpoint at a time. No PC12 implementation, launch or new prompt
+credit is part of this frozen 49-item PC09 release.

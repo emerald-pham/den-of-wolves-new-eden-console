@@ -493,7 +493,8 @@ candidate CI and exact-main production verification. See the
 [playtest report](PC08_PLAYTEST_REPORT.md) and the
 [five-step tour](https://dow-new-eden-console.web.app/pc08-review.html).
 Authenticated gameplay proof is local/emulator; the deployed tour proves
-prepared presentation and public parent navigation. PC09 remains unstarted.
+prepared presentation and public parent navigation. PC09 was unstarted at that
+historical closeout; its separate candidate is recorded below.
 
 **Authorized October 3, 2026.** The owner requested PC08 with full execution
 authority. PC07 opens this tranche at 605/751 done and 147/293 campaign
@@ -618,3 +619,11 @@ review and other work stay on Sol 6.1 or Luna 6. Prepared solo review access is
 presentation only. Required independent Sol review, final focused/responsive/release checks,
 exact-candidate CI and production deployment remain separate from gameplay proof.
 PC10 revision and later work remain outside this delivery.
+
+The reviewed October 5 PC09 candidate is **0.5.68**, closing exactly 49 IDs at
+**703/751 (93.61%)** overall and **245/293 (83.62%)** campaign. All ten PC08
+audit repairs are integrated, normal authenticated local/emulator acceptances
+pass and the same independent Sol 6.1 reviewer found no remaining material
+defect in the bounded follow-up. See [the checkpoint report](PC09_PLAYTEST_REPORT.md)
+for evidence classes and remaining exact-SHA CI/deployment verification. This
+candidate record grants no PC10 or later completion credit.

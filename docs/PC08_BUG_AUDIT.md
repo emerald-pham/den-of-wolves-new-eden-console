@@ -349,20 +349,22 @@ those documentation commits.
 
 The historical audit above remains the record of the released 0.5.67 baseline.
 The separate authorized PC09 task has now integrated test-first repairs for all
-ten findings in its non-main owner branch. The fixed checkpoint allocation
-remains 49 IDs. No runtime release or finding closure is claimed by this interim
-record; the final reconciled review, complete ordinary acceptance and exact-SHA
-CI/deployment remain pending.
+ten findings in its non-main owner branch. All exact permanent regressions and
+qualified fresh ordinary acceptances are reconciled, and the single independent
+reviewer approved the bounded final verification at `ef0cb942`. The fixed
+checkpoint allocation remains 49 IDs, closing a 703/751 candidate snapshot.
+The 0.5.68 candidate's exact-SHA CI and production deployment remain pending;
+this record does not claim that production already contains these repairs.
 
 | Original finding | PC09 repair and permanent regression | Current ordinary evidence and limits |
 |---|---|---|
 | RANGE-01 | The common range reader handles destroyed AEGIS before requiring live-carrier maintenance; later-cycle/no-maintenance controls pass. | Destroyed-carrier progression is native handler evidence. The ordinary complete battle proof uses live AEGIS and does not masquerade as this exact destroyed-carrier reproduction. |
-| RANGE-02 | Combat commits Alpha/Bravo losses once to durable inventory, and later launch reads that inventory. | Two ordinary attacks retain Alpha at three after an actual Short loss. Positive HTTP and Wing UI paid reconstruction is in a distinct disclosed-supplies run; the earlier cycle-4 riot/depleted-store run remains failed. |
-| RANGE-03 | The EO consumer validates the explicit authoritative pass and mixed-source result. | Native producer/consumer regression covers pass-with-hits. Ordinary EO choices run through actual UI/callables; the final connected recovery proof remains pending. |
-| RANGE-04 | Combined assignment validation accounts for already committed source contacts. | Native exact combined-total regression and authenticated mixed-source assignments are recorded separately; complete composed acceptance remains pending. |
+| RANGE-02 | Combat commits Alpha/Bravo losses once to durable inventory, and later launch reads that inventory. | Fresh strict ordinary gameplay retains Alpha 4→3→2 through two real Short losses, launches the second attack at three, then pays for an API build/exact retry and a separate Wing UI build to restore four. Eight earlier failed attempts remain preserved. |
+| RANGE-03 | The EO consumer validates the explicit authoritative pass and mixed-source result. | Native producer/consumer regression covers pass-with-hits. Fresh complete composed gameplay uses actual EO choices and both same-identity browser recoveries; no exact pass-with-hits browser counterexample is inferred. |
+| RANGE-04 | Combined assignment validation accounts for already committed source contacts. | Native exact combined-total regression and fresh composed authenticated mixed-source assignments are recorded separately. |
 | RANGE-05 | Previously committed support is replayed deterministically after holder removal, while new writes still require the current holder. | Native exact removed-holder coverage passes. The connected proof retains committed support in the one lock; a new GM-kick-after-commit browser reproduction is not claimed. |
 | RANGE-06 | Entitled result targets come from the immutable resolved range roster after shifts. | Exact old/new target comparison passes natively. Genuine authenticated Medium shifts are recorded without claiming a new exact browser comparison. |
-| RANGE-07 | Every PDF combat transition republishes only its allowlisted member state atomically. | The normal Auth member projection equals private current state and renders the actual one-of-four surviving fighters, both resolved ranges and three losses. |
+| RANGE-07 | Every PDF combat transition republishes only its allowlisted member state atomically. | Exact private/member PDF-state comparisons have permanent native regressions. The earlier authenticated one-of-four survivor artifact was lost in the Mac reset. Fresh composed evidence proves current member projection/private Rules boundaries, without claiming that exact PDF comparison or rendered survivor counterexample. |
 | RANGE-08 | EO receipt replay validates current cycle and active attack identity before returning success. | Native cycle/attack drift and write/entropy-zero denials pass; ordinary exact same-attack retries remain successful. No extra charges or rolls are observed. |
 | BOARDING-01 | Carryover accepts the catalog's legal Wing and Battlestation survivors and binds the immutable audit/sequence. | Two actual attacks consume the earlier return manifest and return a surviving Battlestation. Real source-generated P finalization and same-cycle next declaration also pass. |
 | BOARDING-02 | Crew-defence replay validates applicability to the active attack before returning historical success. | Native old-attack denial and zero-write/dice controls pass; genuine same-attack boarding retries remain successful. No stale mounted-UI success is inferred. |

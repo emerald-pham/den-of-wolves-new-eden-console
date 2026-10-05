@@ -23,6 +23,22 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     implementationProgress: {
+      completed: 703, total: 751, percentage: '93.61%',
+      done: 703, partial: 6, active: 0, missing: 42, blocked: 0,
+    },
+    implementationPrompts: ['471', '472', '473', '580', '605a', '474', '475', '476', '477', '478', '479', '480', '481', '482', '483', '484', '490', '491', '492', '493', '494', '621', '214', '503a', '506', '508', '513', '514', '516', '517', '519', '520', '521', '521a', '521b', '524', '645', '523b', '523c', '524b', '524c', '524d', '528', '529', '537', '538', '539', '540', '180'],
+    changes: [
+      'PC09 completes battle results, casualties, salvage, paid repairs and fighter rebuilding. Crews keep their committed choices and costs when they reconnect.',
+      'DRADIS shows entitled battle results beside current contacts, including unknown bearings, with visible return controls.',
+      'Investigators can research and use the private Wolf Agent Detector. Arrest decisions, Commander powers, President actions and crisis outcomes follow current roles and explicit choices.',
+      'Secret elections preserve the elected President and choose a distinct Vice President from that ballot. Formal decisions appear at the next Team start.',
+      '703 of 751 planned items are complete in the catalog snapshot used to build this release (93.61%).',
+      '245 of 293 campaign items are complete (83.62%).',
+    ],
+  },
+  {
+    version: '0.5.67',
+    implementationProgress: {
       completed: 654, total: 751, percentage: '87.08%',
       done: 654, partial: 10, active: 0, missing: 87, blocked: 0,
     },

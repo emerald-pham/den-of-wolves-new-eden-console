@@ -7,6 +7,33 @@ ordinary gameplay driver against the settled PC08 audit baseline `b36119e9`.
 
 Existing tests remain enabled. No test file is deleted and no test is deliberately skipped.
 
+The final render gate reproduced an oversized landing import graph under the
+existing byte budgets. Route-only ship/governance modules and the joined-session
+crisis report now load at their actual entry points. The same reviewer then
+reproduced a rejected module download removing the entire app. Separate red
+commit `6348e8e4` preserves all four failures before product repair `779c3081`;
+the tests require a usable keyboard Back link, retained identity and a routed
+console after crisis-report failure. The typed fixture correction `d15f21f8`
+adds only the required join code; its earlier build failure remains in the log.
+The prepared browser driver covers three pending-load cases and twelve actual
+module-download rejections at phone, desktop and landscape sizes. A preserved
+geometry failure led to the existing 44-pixel action style and readable notice
+placement. The initial accessible-name correction accepts only the existing
+CSS arrow and uppercase rendering. Every geometry, font, overflow, keyboard,
+identity and page-error assertion remains enabled. Prepared results do not
+establish authenticated gameplay.
+
+The 0.5.68 metadata check reproduced two stale historical assertions: the live
+catalog was still required to total 654, and P605a was required to stay incomplete
+after its explicit activation. Separate test-only commit `93d8853c` retains the
+PC07/PC08 49-ID release coverage, 605/654 historical totals and P605a exclusion
+from those releases. The unchanged 654 completed IDs outside PC09 are still
+counted. A new exact PC09 check requires all 49 IDs, 0.5.68 release references,
+703 done/six partial/42 missing and the explicit P605a activation evidence.
+The original two failures remain in `current-metadata-native.log`; all 44
+metadata/history checks pass in the separately named corrected log. No prior
+test case or historical boundary was removed.
+
 The strict positive driver's future raw-output flag now correctly labels its
 retained ephemeral UID/session identifiers. The already captured passing raw
 result remains unchanged; its identity-free allowlisted summary documents the
@@ -90,6 +117,7 @@ runtime identities; an unfinished run remains unfinished.
 
 | Test or gameplay driver | Change | Reason |
 |---|---|---|
+| `src/config/implementationProgress.test.ts` | Changed | Preserve historical PC07/PC08 release allocation and visualization exclusion after the owner activated P605a; retain the 654 non-PC09 completed-ID count and add exact 49-ID/703/0.5.68 current release coverage. The old live-catalog assertions are recorded as two failing checks before this separate test-only correction. |
 | `src/components/AegisFighterWingLaunchPanel.test.tsx` | Changed | Preserve independent Alpha/Bravo launch, explicit pass and active-range Ace permission controls; reproduce absent/resolved/foreign/old-cycle reads and delayed replies after resolution using real authority fixtures. The async enabled-state assertion waits for its committed view. |
 | `src/components/TurnPhaseCoordinator.attackLock.test.tsx` | Added | Reproduce repeated normal-clock promotion during a current declared attack, cancel pending promotion, and preserve ordinary behavior for resolved, foreign-session and old-cycle views. |
 | `src/components/TurnPhaseCoordinator.test.tsx` | Changed | Add the existing public audience transport mock; preserve the original Team-deadline and emergency-pause assertions. |
@@ -144,6 +172,7 @@ runtime identities; an unfinished run remains unfinished.
 | `scripts/test-pc09-deduction-prelude-http.mjs` | Added | Run the bounded normal Auth/HTTP/browser scenario named by this driver, disclose setup/clock facts, and preserve labelled failure evidence. |
 | `scripts/test-pc09-dradis-recovery-http.mjs` | Added | Run the bounded normal Auth/HTTP/browser scenario named by this driver, disclose setup/clock facts, and preserve labelled failure evidence. |
 | `scripts/test-pc09-executive-workspace-http.mjs` | Added | Run the bounded normal Auth/HTTP/browser scenario named by this driver, disclose setup/clock facts, and preserve labelled failure evidence. |
+| `scripts/test-pc09-deferred-ship-route-browser.mjs` | Added | Verify landing module isolation, three pending-load exits and twelve actual module-rejection fallbacks; retain 44-pixel Back/reload, readable notice, monospace/font, overflow, keyboard, identity and page-error checks. Explicit prepared offline fixture; no authenticated gameplay claim. |
 | `scripts/test-pc09-scene-layout.mjs` | Added | Check all five actual prepared scene presenters at eight viewport/motion combinations, keyboard/focus, 44-pixel controls, fonts, Back and zero Firebase writes; presentation evidence only. |
 | `scripts/test-pc09-voyage-hooks-http.mjs` | Added | Run the bounded normal Auth/HTTP/browser scenario named by this driver, disclose setup/clock facts, and preserve labelled failure evidence. |
 | `scripts/test-pc09-wolf-agent-detector-http.mjs` | Added | Run the bounded normal Auth/HTTP/browser scenario named by this driver, disclose setup/clock facts, and preserve labelled failure evidence. |
@@ -194,6 +223,7 @@ runtime identities; an unfinished run remains unfinished.
 | `scripts/pc09-ordinary-return-rebuild-proof.mjs` | Added | Bind an immutable runtime and perform ordinary durable fighter loss, subsequent launch, canonical return and paid rebuild checks; the recorded depleted-store/riot run remains a failure. |
 | `scripts/pc09-p-station-producer-auth-proof.mjs` | Added | Exercise actual navigation-produced P staging, declaration, source gates, finalization and automatic same-cycle continuation; do not seed attack state, dice, survivors or preparation. |
 | `scripts/prompt-602-return-navigation.mjs` | Changed | Add President and election routes to the existing prepared return inventory; its obsolete earlier role fixture still blocks that prepared run and earns no new route credit. |
+| `src/App.deferredLoading.test.tsx` | Added | Reject each of the four new lazy-module promises through the real App; require the route Back control or routed console to survive, keyboard return, retained session/player identity and no error escaping App. Four recorded failures precede the bounded error-boundary repair. |
 | `src/App.test.tsx` | Changed | Mock the new read-only amnesty projection for the current session so existing App behavior checks run with the added subscription. |
 | `src/config/returnNavigationContract.test.ts` | Changed | Cover both new governance routes in the existing visible-parent return contract. |
 | `functions/src/pc09SpecialistMechanics.rangeRecovery.test.ts` | Added | Compose real Long range math with later Ace application, preserving destroyed-contact overkill while denying forged destruction, destroyed targets and noncanonical live Ace damage. |
