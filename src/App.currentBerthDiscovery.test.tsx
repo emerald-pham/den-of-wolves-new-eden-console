@@ -164,8 +164,7 @@ it.each([
   expectWithdrawn();
 });
 
-it.each([null, {}, { ...authority({ shipId: 'dione' }), privateMap: { other: 'aegis' } }])
-  ('a present invalid witness %j cannot fall back to legacy navigation', async witness => {
+it.each([null, {}, { ...authority({ shipId: 'dione' }), privateMap: { other: 'aegis' } }])('a present invalid witness %j cannot fall back to legacy navigation', async witness => {
     const callbacks = await begin(member, witness);
     act(() => callbacks.onPlayerDiscovery?.(discovery({ shipId: 'dione' })));
     expectWithdrawn();
@@ -292,4 +291,15 @@ it.each([
   const callbacks = await begin();
   act(() => { callbacks.onSession({ ...currentSession(), memberSessionScope }); callbacks.onPlayerDiscovery?.(discovery()); });
   expectWithdrawn();
+});
+
+it.each([
+  { actorUid: 'other' }, { connectionGeneration: 5 }, { activeConsoleRoleId: null },
+])('a later unbound member header retires its private witness rather than retaining it: %j', async change => {
+  const callbacks = await begin();
+  act(() => callbacks.onPlayerDiscovery?.(discovery()));
+  expect(useSessionStore.getState().session?.playerDiscovery?.shipId).toBe('shepherd');
+  act(() => callbacks.onSession(currentSession(authority(change))));
+  expectWithdrawn();
+  expect(useSessionStore.getState().session).toHaveProperty('currentActorBerthAuthority', null);
 });
