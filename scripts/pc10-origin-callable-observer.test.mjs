@@ -338,7 +338,7 @@ test('a real renderer cancellation during the completed normal reload boundary i
   });
   await assert.rejects(operation, error => error.name === 'AbortError');
   await settled(fixture);
-  assert.equal(fixture.observedCalls[0].disposition, 'observed-cancellation');
+  assert.equal(fixture.observedCalls[0].observationDisposition, 'cancelled-during-planned-navigation');
   assert.equal(fixture.observedCalls[0].requestFailedAt !== null, true);
   assert.deepEqual(fixture.failures, []);
   const unexpected = nativeFixture({ responder: () => { throw new DOMException('private reason', 'AbortError'); } });
@@ -355,7 +355,7 @@ test('HTTP200 loadingFinished plus lost originating body stays failed even acros
   assert.ok(fixture.observedCalls[0].requestFinishedAt !== null);
   assert.equal(fixture.observedCalls[0].bodyCompletedAt, null);
   assert.ok(fixture.failures.some(value => value.category === 'response-observation-unavailable'));
-  assert.notEqual(fixture.observedCalls[0].disposition, 'observed-cancellation');
+  assert.notEqual(fixture.observedCalls[0].observationDisposition, 'cancelled-during-planned-navigation');
 });
 
 test('origin census rejects an eligible native POST without a corresponding origin closure and a duplicate protocol identity', async () => {
