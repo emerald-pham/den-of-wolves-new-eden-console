@@ -513,8 +513,8 @@ export default function PrivateLoyaltyPanel() {
             <h3>Sabotage shuttle supplies</h3>
             <p>
               Choose a positive cargo balance on a shuttle assigned to your current cover role. The server
-              checks the live assignment and cargo, calculates the half-loss, and spends your one Wolf
-              action for this active cycle.
+              checks the live assignment and cargo, destroys half the selected cargo, rounded down,
+              adds 2 suspicion, and spends your one Wolf action for this active cycle.
             </p>
             <label htmlFor="wolf-supply-target">Shuttle cargo target</label>
             <select
