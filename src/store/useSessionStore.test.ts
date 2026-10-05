@@ -80,6 +80,30 @@ describe('useSessionStore', () => {
     expect(saved.state).not.toHaveProperty('persistedSessionSnapshot');
   });
 
+  it('keeps the committed debrief available in memory but out of persisted and legacy session state', async () => {
+    const debriefSnapshot = {
+      type: 'session-debrief', version: 1, source: 'failure-review', result: 'failure',
+      cause: 'total-fleet-loss', cycle: 4, occurredAt: '2026-10-05T12:00:00.000Z',
+      committedAt: '2026-10-05T12:01:00.000Z',
+      outcome: { type: 'game-outcome', result: 'failure', cause: 'total-fleet-loss',
+        cycle: 4, occurredAt: '2026-10-05T12:00:00.000Z' },
+    };
+    const closed = { ...session, phase: 'closed' as const, debriefSnapshot } as never;
+    useSessionStore.getState().setSession(closed);
+
+    expect(useSessionStore.getState().session?.debriefSnapshot).toEqual(debriefSnapshot);
+    expect(JSON.parse(localStorage.getItem(SESSION_STORAGE_KEY)!).state.session).not.toHaveProperty('debriefSnapshot');
+
+    localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({ version: 1, state: {
+      session: closed, me: { ...player, connected: false }, gmInstance: null,
+      mode: 'console', lastRoute: '/console',
+    } }));
+    await useSessionStore.persist.rehydrate();
+
+    expect(useSessionStore.getState().session).toMatchObject({ id: 's1', phase: 'closed' });
+    expect(useSessionStore.getState().session).not.toHaveProperty('debriefSnapshot');
+  });
+
   it.each([false, true])('does not persist private navigation state from a previous UID (own ship: %s)', async (hasOwn) => {
     const own = {
       groupId: 'fleet-1', shipId: 'aegis', currentCoordinate: '0000',

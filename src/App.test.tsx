@@ -53,6 +53,7 @@ vi.mock('@/lib/sessionService', () => ({
   logoutGmAccess: vi.fn(),
   popShipConfetti: vi.fn(),
   reconcileGmAuthority: vi.fn().mockResolvedValue(undefined),
+  readClosedSessionHistory: vi.fn().mockResolvedValue(false),
   refreshPresence: vi.fn().mockResolvedValue(undefined),
   refreshCommissarPurgeAuthority: vi.fn().mockResolvedValue(null),
   requireStationReselectionForCurrentSession: vi.fn(),
@@ -105,6 +106,7 @@ const {
   joinSession,
   logoutGmAccess,
   reconcileGmAuthority,
+  readClosedSessionHistory,
   refreshPresence,
   requireStationReselectionForCurrentSession,
   releaseConsoleRole,
@@ -844,6 +846,46 @@ describe('App', () => {
     expect(useSessionStore.getState().awayMissionHands).toEqual([]);
     expect(useSessionStore.getState().awayMissionHandPointers).toEqual([]);
     unmount();
+  });
+
+  it('refetches an entitled closed debrief after cold rehydration without restoring live listeners or presence', async () => {
+    vi.useFakeTimers();
+    const closedWithoutCachedDebrief: GameSession = {
+      ...session, joinCode: '', phase: 'closed', currentTurn: 4,
+      gameOutcome: { type: 'game-outcome', result: 'failure', cause: 'total-fleet-loss',
+        cycle: 4, occurredAt: '2026-10-05T12:00:00.000Z' },
+    };
+    const committed = { type: 'session-debrief', version: 1, source: 'failure-review', result: 'failure',
+      cause: 'total-fleet-loss', cycle: 4, occurredAt: '2026-10-05T12:00:00.000Z',
+      committedAt: '2026-10-05T12:01:00.000Z',
+      outcome: closedWithoutCachedDebrief.gameOutcome } as never;
+    const returningMember = { ...player, role: 'player' as const, fleetGroupId: 'fleet-1', connected: false };
+    useSessionStore.getState().setIdentity(closedWithoutCachedDebrief, returningMember);
+    useSessionStore.getState().setConnection('offline');
+    useSessionStore.getState().setSessionSnapshotFreshness('cache');
+    vi.mocked(connectAutomatically).mockImplementationOnce(async () => {
+      const store = useSessionStore.getState();
+      store.setConnection('live');
+      store.setSessionSnapshotFreshness('server');
+    });
+    vi.mocked(readClosedSessionHistory).mockImplementationOnce(async sessionId => {
+      expect(sessionId).toBe('s1');
+      const current = useSessionStore.getState().session;
+      if (current?.id === 's1' && current.phase === 'closed') {
+        useSessionStore.getState().setSession({ ...current, debriefSnapshot: committed });
+      }
+      return true;
+    });
+
+    render(<App />);
+    await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+    expect(readClosedSessionHistory).toHaveBeenCalledTimes(1);
+    expect(useSessionStore.getState().session).toMatchObject({ phase: 'closed', debriefSnapshot: committed });
+    await act(async () => { await vi.advanceTimersByTimeAsync(10_000); });
+
+    expect(readClosedSessionHistory).toHaveBeenCalledTimes(1);
+    expect(subscribeSessionState).not.toHaveBeenCalled();
+    expect(refreshPresence).not.toHaveBeenCalled();
   });
 
   it.each(['connect', 'heartbeat', 'reconcile'] as const)(

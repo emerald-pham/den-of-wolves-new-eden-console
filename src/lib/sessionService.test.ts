@@ -217,6 +217,72 @@ describe('session debrief lifecycle services', () => {
   });
 });
 
+describe('closed member debrief rehydration', () => {
+  beforeEach(() => {
+    vi.mocked(httpsCallable).mockReset();
+    useSessionStore.getState().reset();
+  });
+
+  it('reads a server-scoped closed summary and installs it only for the same disconnected member', async () => {
+    const outcome = { type: 'game-outcome', result: 'success', cause: 'candidate-complete',
+      candidateCode: 'N', cycle: 4, occurredAt: '2026-10-05T12:00:00.000Z' };
+    const snapshot = { type: 'session-debrief', version: 1, source: 'candidate', result: 'success',
+      cause: 'candidate-complete', cycle: 4, occurredAt: outcome.occurredAt,
+      committedAt: '2026-10-05T12:01:00.000Z', outcome,
+      candidate: { code: 'N', groups: [{ requirements: [{ id: 'paid-crossing', status: 'met' }],
+        rolls: [{ id: 'passage', face: 4, result: 'success' }], losses: [], humanCalls: [],
+        path: [{ action: 'ring-passage', result: 'crossed', shipId: 'aegis', fuelSpent: 5 }],
+      }] },
+    };
+    const closed = { id: 's1', name: 'Table one', joinCode: '', phase: 'closed', currentTurn: 4,
+      playerCount: 8, turnLimit: 6, createdAt: '2026-10-05T10:00:00.000Z',
+      updatedAt: '2099-10-05T12:01:00.000Z', gameOutcome: outcome, debriefSnapshot: snapshot };
+    const returningMember = { ...player, role: 'player' as const, fleetGroupId: 'fleet-1',
+      connectionGeneration: 4, connected: false };
+    useSessionStore.getState().setIdentity({ ...session, joinCode: '', phase: 'closed' } as never, returningMember);
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+    const reader = callableReturning({ data: { type: 'current-member-session', sessionId: 's1', actorUid: 'u1',
+      groupId: 'fleet-1', connectionGeneration: 4, assignedRoleId: null, activeConsoleRoleId: null,
+      session: closed } });
+    vi.mocked(httpsCallable).mockReturnValue(reader as never);
+    const { readClosedSessionHistory } = await import('./sessionService') as unknown as {
+      readClosedSessionHistory: (sessionId: string) => Promise<boolean>;
+    };
+
+    await expect(readClosedSessionHistory('s1')).resolves.toBe(true);
+
+    expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'getCurrentMemberSession');
+    expect(reader).toHaveBeenCalledWith({ sessionId: 's1' });
+    expect(useSessionStore.getState().session).toMatchObject({ phase: 'closed', gameOutcome: outcome,
+      debriefSnapshot: { source: 'candidate', candidate: { groups: [{
+        requirements: [{ id: 'paid-crossing', status: 'met' }],
+        path: [{ action: 'ring-passage', result: 'crossed', shipId: 'aegis', fuelSpent: 5 }],
+      }] } } });
+    expect(useSessionStore.getState().me).toMatchObject({ uid: 'u1', fleetGroupId: 'fleet-1', connected: false });
+    expect(useSessionStore.getState().gmInstance).toBeNull();
+  });
+
+  it('does not accept a closed read for a different actor or group', async () => {
+    const returningMember = { ...player, role: 'player' as const, fleetGroupId: 'fleet-1',
+      connectionGeneration: 4, connected: false };
+    const before = { ...session, joinCode: '', phase: 'closed' as const };
+    useSessionStore.getState().setIdentity(before as never, returningMember);
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+    const reader = callableReturning({ data: { type: 'current-member-session', sessionId: 's1', actorUid: 'other',
+      groupId: 'fleet-2', connectionGeneration: 4, assignedRoleId: null, activeConsoleRoleId: null,
+      session: { id: 's1', name: 'Foreign', joinCode: '', phase: 'closed', currentTurn: 4 } } });
+    vi.mocked(httpsCallable).mockReturnValue(reader as never);
+    const { readClosedSessionHistory } = await import('./sessionService') as unknown as {
+      readClosedSessionHistory: (sessionId: string) => Promise<boolean>;
+    };
+
+    await expect(readClosedSessionHistory('s1')).resolves.toBe(false);
+    expect(useSessionStore.getState().session).toEqual(before);
+  });
+});
+
 describe('Wolf Commander cycle and target dial services', () => {
   beforeEach(() => {
     useSessionStore.getState().reset();
