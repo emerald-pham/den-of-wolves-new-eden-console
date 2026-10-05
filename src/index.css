@@ -2899,6 +2899,10 @@ body {
 
 
 .settings-dialog__gm-access a {
+  display: inline-flex;
+  align-items: center;
+  min-width: 44px;
+  min-height: 44px;
   color: var(--cic-cyan);
   text-decoration: underline;
   text-decoration-color: var(--cic-amber-dim);

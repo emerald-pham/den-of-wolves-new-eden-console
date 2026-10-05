@@ -15,7 +15,9 @@ const VIEWPORTS = Object.freeze([
 ]);
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const SOURCE_FILES = ['src/components/AppHeader.tsx','src/components/SessionJoinQr.tsx','src/components/SessionReadouts.tsx',
-  'src/hooks/useDialogFocus.ts','src/lib/sessionJoinLink.ts','src/lib/motionPreference.ts','src/styles/cic.css','src/index.css'];
+  'src/components/TurnStartAnnouncement.tsx','src/components/Intrusion.tsx','src/components/CycleBriefingClearanceView.tsx',
+  'src/hooks/useDialogFocus.ts','src/lib/sessionJoinLink.ts','src/lib/motionPreference.ts',
+  'src/styles/intrusion.css','src/styles/cic.css','src/index.css'];
 async function sourceBinding(root) {
   const sourceCommit=execFileSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8'}).trim();
   const trackedDirty=execFileSync('git',['status','--porcelain','--untracked-files=no'],{cwd:root,encoding:'utf8'}).trim() !== '';
@@ -40,6 +42,7 @@ export class SettingsVisualProofFailure extends Error {
 }
 const namedError = (code,message) => Object.assign(new Error(message),{code});
 const SETTINGS_STAGES = new Set(['source-binding-start','entry-audience','select-roster-actor','selected-actor-ready',
+  'normal-transmission-completion',
   'normalize-demo-crew','normalize-manager-stations','focus-private-brief','private-brief-open','private-brief-back',
   'browser-private-back','viewport-capture','final-audience','restore-audience','restore-dialog','restore-controller',
   'restore-roster-actor','restore-entry-route','restore-viewport','restore-media','restore-scroll','restore-source-binding']);
@@ -52,6 +55,36 @@ function classifySettingsFailure(error,stage) {
   const category=SETTINGS_ERROR_CATEGORIES.get(code) ?? (error?.name==='TimeoutError' ? 'timeout'
     : error?.name==='AssertionError' ? 'assertion' : 'operation-failed');
   return {stage:SETTINGS_STAGES.has(stage)?stage:'unknown',code,category};
+}
+
+/** Fleet transmission ignores pointer events while painting above Settings.
+ * Wait for its normal lifecycle, including any ordinary held briefing, then
+ * check the DOM again after two real frames. No clock or presentation changes. */
+export async function waitForLiveSettingsPaintReady({page,checkpoint}) {
+  const deadline=Date.now()+60_000;
+  const remaining=()=>{
+    const timeout=deadline-Date.now();
+    if(timeout<=0)throw Object.assign(new Error('Normal Settings paint readiness timed out.'),{name:'TimeoutError'});
+    return timeout;
+  };
+  await checkpoint();
+  await page.locator('.turn-start-announcement__console').waitFor({state:'detached',timeout:remaining()});
+  await page.locator('.turn-interstitial-clear').waitFor({state:'detached',timeout:remaining()});
+  await page.waitForFunction(async()=>{
+    await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+    return !document.querySelector('.turn-start-announcement__console, .turn-interstitial-clear');
+  },undefined,{timeout:remaining(),polling:'raf'});
+  await checkpoint();
+  return {normalTransmissionCompleted:true,paintFrames:2};
+}
+
+/** Center through normal scrolling instead of aligning fractional control
+ * edges to the viewport boundary; paint the real position before measuring. */
+export async function scrollLiveSettingsTargetIntoView(target) {
+  await target.evaluate(element=>new Promise(resolve=>{
+    element.scrollIntoView({block:'center',inline:'nearest',behavior:'instant'});
+    requestAnimationFrame(()=>requestAnimationFrame(resolve));
+  }));
 }
 
 /** Use normal keyboard links without switching the selected authenticated actor.
@@ -235,6 +268,9 @@ export function createLiveSettingsQrProof({sourceRoot=process.cwd(),actorRoleId,
         catch { identityFailed=true; throw namedError('PC10_SETTINGS_IDENTITY','Original ordinary actor/Auth/private audience changed.'); }
       };
       evidence.originalActor=await checkpoint();
+      stage('normal-transmission-completion');
+      evidence.paintReadiness=await waitForLiveSettingsPaintReady({page,checkpoint});
+      await write();
       // The real private route is visited solely to exercise its existing Back.
       // Its private contents are neither serialized nor captured unmasked.
       const openBrief=await navigateLiveSettingsToConsole({page,checkpoint,onStage:stage});
@@ -252,7 +288,7 @@ export function createLiveSettingsQrProof({sourceRoot=process.cwd(),actorRoleId,
         stage('viewport-capture');
         await checkpoint(); await page.setViewportSize({width:viewport.width,height:viewport.height});
         const settingsButton=page.getByRole('button',{name:'Settings',exact:true});
-        await settingsButton.scrollIntoViewIfNeeded();
+        await scrollLiveSettingsTargetIntoView(settingsButton);
         const opener=await measure(settingsButton,'Settings');
         const capture={name:viewport.name,viewport,stage:'opener-measured',opener};
         evidence.captures.push(capture); await write();
@@ -266,7 +302,8 @@ export function createLiveSettingsQrProof({sourceRoot=process.cwd(),actorRoleId,
           code:(await dialog.locator('.session-badge__code').innerText()).trim()};
         try { evidence.joinPayload={href:assertNormalSettingsJoin(payload),joinCode:initial.joinCode}; }
         catch { identityFailed=true; throw namedError('PC10_SETTINGS_PRIVACY','The actual join alternative violates normal admission privacy.'); }
-        await qr.scrollIntoViewIfNeeded();
+        capture.paintReadiness=await waitForLiveSettingsPaintReady({page,checkpoint});
+        await scrollLiveSettingsTargetIntoView(qr);
         const metrics=await qr.evaluate(element=>{
           const box=node=>{const r=node.getBoundingClientRect();return {left:r.left,top:r.top,right:r.right,bottom:r.bottom,width:r.width,height:r.height};};
           const r=element.getBoundingClientRect(),center=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);
@@ -288,7 +325,7 @@ export function createLiveSettingsQrProof({sourceRoot=process.cwd(),actorRoleId,
           if (!(await control.isVisible())) continue;
           const checkbox=await control.evaluate(element=>element.matches('input[type=checkbox]'));
           const target=checkbox ? control.locator('xpath=..') : control;
-          await target.scrollIntoViewIfNeeded();
+          await scrollLiveSettingsTargetIntoView(target);
           const name=await control.evaluate(element=>element.getAttribute('aria-label') ||
             [...element.labels ?? []].map(label=>label.textContent.trim()).join(' ') || element.textContent.trim());
           metrics.controls.push(await measure(target,name));
