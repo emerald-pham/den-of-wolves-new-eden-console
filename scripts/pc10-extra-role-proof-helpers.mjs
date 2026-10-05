@@ -213,15 +213,26 @@ export function createExtraRoleMatrix(scenario) {
     'Genuine Warrior mission participation and actual private hand during discards; no seeded cards.');
   add('warrior-captain', 'salvage', 'resolveWolfAttackAftermath', 'src/components/WolfAttackAftermathActionPanel.tsx',
     'Actual current Salvage Drones charge and genuine resolved attack with damage on either side.');
+  add('warrior-captain', 'cargo-transfer', 'transferWarriorCargo',
+    'src/components/ExtraShipCaptainWorkspace.tsx; src/components/BaseCapybaraCargoTransferPanel.tsx; src/lib/baseCapybaraCargoService.ts; functions/src/baseCapybaraCargoTransferCallable.ts',
+    'Current admitted Warrior Captain aboard the docked host, Coordination open, undestroyed active host, and a positive whole amount available at the selected source. One server transaction debits the host or Warrior ledger and credits the other; exact retry does not duplicate cargo.',
+    'Warrior Captain');
+  add('warrior-captain', 'jump-drive', 'jumpSmallShip',
+    'src/components/ExtraShipCaptainWorkspace.tsx; src/components/SmallShipJumpWorkspace.tsx; src/lib/smallShipJumpService.ts; functions/src/smallShipJump.ts',
+    'Current Warrior Captain, admitted docked Warrior and active host, completed current Team maintenance, Coordination open, Captain-known destination of the selected short/medium/long length, and actual host fuel 1/1/2. Warrior Jump Drive does not require a reactor charge; a successful jump detaches the craft.',
+    'Warrior Captain', { requiredRequestFields: { smallShipId: 'warrior' } });
+  add('vulcan-captain', 'jump-drive', 'jumpSmallShip',
+    'src/components/ExtraShipCaptainWorkspace.tsx; src/components/SmallShipJumpWorkspace.tsx; src/lib/smallShipJumpService.ts; functions/src/smallShipJump.ts',
+    'Current Vulcan Captain, admitted docked Vulcan and active host, completed current Team maintenance, Coordination open, Captain-known destination of the selected short/medium/long length, and actual host fuel 1/1/2. Vulcan Jump Drive does not require a reactor charge; a successful jump detaches the craft.',
+    'Vulcan Captain', { requiredRequestFields: { smallShipId: 'vulcan' } });
+  for (const range of ['medium', 'short']) add('vulcan-captain', `laser-cannon-${range}`, 'commitWolfRangeSupportActionChoice',
+    'src/components/ExtraShipCaptainWorkspace.tsx; src/components/WolfRangeSupportActionPanel.tsx; src/lib/sessionService.ts; functions/src/index.ts; functions/src/wolfAttackLifecycle.ts',
+    `The actual Wolf ${range[0].toUpperCase()}${range.slice(1)} Range step, unique current Vulcan Captain aboard Vulcan's current admitted host, living/non-mutinous Vulcan, and current-cycle Laser Cannon charge are required to use. The Captain commits one use/pass for this range; the one charge powers both Medium and Short choices. Use adds two server-rolled d6 at 4+ with up to two targets and 1 damage per success; a separate resolver owns the result.`,
+    'Vulcan Captain at the current Wolf range; shared range resolver after all required source choices',
+    { requiredRequestFields: { sourceId: 'vulcan-laser-cannon', range: `${range}-range` } });
   for (const charge of [1, 2]) add('vulcan-captain', `labour-${charge}`, 'runVulcanAdditionalLabour', 'src/components/VulcanAdditionalLabourPanel.tsx; functions/src/vulcanLabour.ts',
     'Actual completed current Team cycle with independent labour charge; permitted undamaged uncharged external console.', 'vulcan-captain',
     { requiredRequestFields: { sourceConsoleId: `additional-labour-${charge}` } });
-  for (const [role, suffix, reason] of [
-    ['warrior-captain', 'jump-drive', 'Printed metadata exists; no end-to-end authoritative Warrior Captain jump control is mounted.'],
-    ['warrior-captain', 'cargo-transfer', 'Printed metadata exists; no authoritative Warrior Captain cargo control is mounted.'],
-    ['vulcan-captain', 'jump-drive', 'Printed metadata exists; no end-to-end authoritative Vulcan Captain jump control is mounted.'],
-    ['vulcan-captain', 'laser-cannon', 'Medium/Short source resolver is unavailable on the current workspace.'],
-  ]) add(role, suffix, null, 'src/data/extraShipCaptainWorkspaces.ts', reason, 'Parent: source-path product gap', { unavailableReason: reason });
   return rows;
 }
 

@@ -28,7 +28,7 @@ export async function publicState(surface) {
       resources: s?.shipResources, maintenance: s?.maintenanceCycles, damage: s?.shipDamage,
       vesselRevisions: s?.vesselActionRevisions, shuttleFuelled: s?.shuttleFuelled,
       shuttleDockings: s?.shuttleDockings, shuttleControl: s?.shuttleControl,
-      shuttleCargo: s?.shuttleCargo, smallShips: s?.smallShipStates,
+      shuttleCargo: s?.shuttleCargo, warriorCargo: s?.warriorCargo, smallShips: s?.smallShipStates,
       knownSystems: s?.playerDiscovery?.knownSystems,
       groups: s?.playerDiscovery?.fleetGroupVesselIds,
       airspace: s?.turnPhase?.airspace.state, progression: s?.turnPhase?.progression,
@@ -62,12 +62,19 @@ export async function chooseVisibleOption(select, predicate = option => Boolean(
 }
 
 const PRIVATE_MASK = '[aria-label="Your private VIP cards"], [aria-label="Your private mission cards"], '
-  + '.role-brief__copy, .role-brief__rules--arbour-vision, .role-brief__rules--facilitator-call, .gorgoneion-mission-support__cards';
+  + '.role-brief__copy, .role-brief__rules--arbour-vision, .role-brief__rules--facilitator-call, '
+  + '.gorgoneion-mission-support__cards, .small-ship-jump-panel';
 
 // Public procedure labels only. Never serialize the full SDK request: it may
 // contain a raw UID, GM capability, private card ID or authored private content.
-const procedureFields = data => Object.fromEntries(['shipId', 'smallShipId', 'action', 'sourceConsoleId']
-  .filter(field => typeof data?.[field] === 'string').map(field => [field, data[field]]));
+export const redactedProcedureFields = data => Object.fromEntries([
+  'shipId', 'smallShipId', 'action', 'sourceConsoleId', 'resourceId', 'direction',
+  'expectedHostShipId', 'range', 'sourceId',
+].filter(field => typeof data?.[field] === 'string').map(field => [field, data[field]])
+  .concat(['amount', 'expectedCycle', 'expectedRevision', 'expectedDockingRevision', 'expectedMovementRevision',
+    'expectedCycleRevision', 'expectedTurn', 'use']
+    .filter(field => typeof data?.[field] === 'number' || typeof data?.[field] === 'boolean')
+    .map(field => [field, data[field]])));
 
 /** One ordinary crew surface; persona anchors never become replacement Auth IDs. */
 export class ExtraRoleActions {
@@ -153,7 +160,7 @@ export class ExtraRoleActions {
     const controls = await crew.page.evaluate(() => {
       const privateElement = element => Boolean(element.closest('[aria-label="Your private mission cards"], '
         + '[aria-label="Your private VIP cards"], .gorgoneion-mission-support__cards, .role-brief__copy, '
-        + '.role-brief__rules--arbour-vision, .role-brief__rules--facilitator-call'));
+        + '.role-brief__rules--arbour-vision, .role-brief__rules--facilitator-call, .small-ship-jump-panel'));
       const clean = value => String(value ?? '').replace(/Private card \S+/g, 'Private card [redacted]')
         .replace(/Discard \S+ secretly/g, 'Discard [private card] secretly');
       return {
@@ -210,7 +217,7 @@ export class ExtraRoleActions {
       const status = body.error || !result || typeof result !== 'object' || Array.isArray(result) ||
         ['stale', 'denied', 'rejected', 'invalid'].includes(result?.status) ? 'denied' : 'committed';
       return { endpoint, httpStatus: response.status(), logicalStatus: status, requestId: data?.requestId,
-        requestFields: procedureFields(data),
+        requestFields: redactedProcedureFields(data),
         transport: 'ordinary-ui', ...(trainingChoice ? { trainingChoice } : {}), at: new Date().toISOString() };
     } });
     this.evidence.receipts.push(receipt);
@@ -240,7 +247,7 @@ export class ExtraRoleActions {
       return { endpoint, httpStatus: response.status === 'committed' ? 200 : null,
         logicalStatus: response.status === 'committed' && !['stale', 'denied', 'rejected', 'invalid'].includes(result?.status) ? 'committed' : 'denied',
         requestId: data.requestId, transport: 'ordinary-sdk', trainingChoice,
-        requestFields: procedureFields(data),
+        requestFields: redactedProcedureFields(data),
         at: new Date().toISOString() };
     } });
     this.evidence.receipts.push(receipt);

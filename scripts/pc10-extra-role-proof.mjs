@@ -19,11 +19,18 @@ const JOINT = [['joint-engineering-quellon-refinery', 'quellon', 'wobbly'],
   ['joint-engineering-shepherd-icebreaker', 'icebreaker']];
 const SMALL_HOSTS = { gorgoneion: 'aegis', 'capybara-small': 'dione', warrior: 'shepherd', vulcan: 'quellon' };
 
-export function extraRoleProcedureStep(scenario, row) {
+export function extraRoleProcedureStep(scenario, row, { jumpLength = 'short' } = {}) {
   if (row.physicalFactRequired || row.unavailableReason) return { kind: 'blocked' };
   const suffix = row.id.slice(row.roleId.length + 1);
   if (suffix === 'eligibility' || suffix === 'assignment')
     return { kind: 'replacement-transition', roleId: row.roleId, action: suffix };
+  if (scenario === 'replacements' && row.roleId === 'warrior-captain' && suffix === 'cargo-transfer')
+    return { kind: 'warrior-cargo-transfer', roleId: row.roleId, craftId: 'warrior' };
+  if (scenario === 'replacements' && ['warrior', 'vulcan'].includes(row.roleId.replace('-captain', '')) && suffix === 'jump-drive')
+    return { kind: 'small-craft-jump', roleId: row.roleId, craftId: row.roleId.replace('-captain', ''), range: jumpLength };
+  const laserRange = scenario === 'replacements' && row.roleId === 'vulcan-captain'
+    ? suffix.match(/^laser-cannon-(medium|short)$/)?.[1] : undefined;
+  if (laserRange) return { kind: 'vulcan-laser-range', roleId: row.roleId, range: `${laserRange}-range` };
   if (scenario === 'joint') {
     const maintenance = JOINT.find(([role, ship, craft]) => role === row.roleId &&
       (suffix.startsWith(`${ship}-`) || suffix === `${craft}-fuel`));
@@ -114,12 +121,13 @@ export function createExtraRoleCallbacks({ scenario = 'joint', variant = 'coordi
   }
   const actorFor = roleId => plan.actors.find(actor => actor.roleId === roleId)?.anchorRoleId ?? roleId;
   const selectRole = (roleId, route = extraRoleActionRoute(roleId)) => live.select(actorFor(roleId), roleId, route);
-  async function button(id, expected, scope, name, configure) {
+  async function button(id, expected, scope, name, configure, actionOptions = {}) {
     const row = matrix.find(row => row.id === id); assert.ok(row?.endpoint);
     if (await scope.count()) await configure?.(scope);
     const locator = scope.getByRole('button', { name, exact: typeof name === 'string' }).first();
     if (!await live.offered(id, locator, scope)) return false;
-    await live.ui(expected ? live.context.crew : live.context.gm, row.endpoint, locator, { id, expected, replay: true });
+    await live.ui(expected ? live.context.crew : live.context.gm, row.endpoint, locator,
+      { id, expected, replay: true, ...actionOptions });
     return true;
   }
   async function recovery(expected, label) {
@@ -306,11 +314,15 @@ export function createExtraRoleCallbacks({ scenario = 'joint', variant = 'coordi
       if (action === 'reactor') {
         for (const choice of await panel.getByRole('checkbox').all())
           if (await choice.isChecked() && await choice.isEnabled()) await choice.uncheck();
+        const chargeLaserForRealAttack = shipId === 'vulcan' && variant === 'wolf' && round === 0;
         const printed = shipId === 'gorgoneion' ? variant === 'wolf' ? ['Force Field Projector', 'Missile Array'] : ['Repair Drones', 'Jump Drive']
           : shipId === 'capybara-small' ? round === 0 ? ['Water Reclimator', 'Hydroponics'] : ['Fuel Processor', 'Jump Drive']
-            : shipId === 'warrior' ? [variant === 'wolf' ? 'Salvage Drones' : round === 0 ? 'Repair Drones' : 'Reclamator'] : ['Additional Labour 1', 'Additional Labour 2'];
+            : shipId === 'warrior' ? [variant === 'wolf' ? 'Salvage Drones' : round === 0 ? 'Repair Drones' : 'Reclamator']
+              : chargeLaserForRealAttack ? ['Laser Cannon', 'Additional Labour 1'] : ['Additional Labour 1', 'Additional Labour 2'];
         for (const label of printed) { const choice = panel.getByRole('checkbox', { name: label, exact: true });
           if (await choice.count() && await choice.isEnabled()) await choice.check(); }
+        if (chargeLaserForRealAttack) evidence.trainingChoices.push({ roleId, cycle: cycle,
+          choice: 'Normal GM selects the printed Laser Cannon charge for the unforced current Wolf Medium/Short choice; the second reactor slot remains Additional Labour 1.' });
         if (shipId === 'warrior' && variant === 'wolf' && !await panel.getByRole('checkbox', { name: 'Salvage Drones', exact: true }).count()) {
           const current = await publicState(live.context.gm), small = current.smallShips?.warrior;
           if (small?.cycle?.step === 4) {
@@ -336,7 +348,17 @@ export function createExtraRoleCallbacks({ scenario = 'joint', variant = 'coordi
         if (consoleId === 'fuel-processor' && await ore.count()) await ore.selectOption('1');
         await button(`${roleId}:${consoleId}`, null, panel, new RegExp(`^Run ${label} //`));
       }
-      if (!await button(id, null, panel, names[action])) break;
+      const trainingChoice = action === 'reactor' && shipId === 'vulcan' && variant === 'wolf' && round === 0
+        ? 'Normal GM selects the printed Laser Cannon charge and one Additional Labour charge; server charging eligibility and current reactor capacity remain authoritative.'
+        : undefined;
+      const committed = await button(id, null, panel, names[action], undefined,
+        trainingChoice ? { trainingChoice } : {});
+      if (!committed) break;
+      if (action === 'end') await untilPublic(live.context.gm, `Actual ${name} cycle completion`, state => {
+        const cycleState = state.smallShips?.[shipId]?.cycle;
+        return state.live && cycleState?.turn === state.cycle && cycleState.step === 0 &&
+          typeof cycleState.completedAt === 'string' && Number.isFinite(Date.parse(cycleState.completedAt));
+      });
     }
   }
   async function replacementProcedure(row) {
@@ -482,13 +504,199 @@ export function createExtraRoleCallbacks({ scenario = 'joint', variant = 'coordi
     return live.block(row.id, 'Bulk Haulage is credited only from an actual winning resource resolution with bulkHaulageApplied true.',
       'Actual base-craft contributor and Mission Leader: finish normal mission assignments/resolution');
   }
+  async function warriorCargoTransfer(row) {
+    const expected = await selectRole('warrior-captain'), crew = live.context.crew;
+    const panel = crew.page.getByRole('region', { name: 'Cargo Transfer', exact: true });
+    await panel.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => undefined);
+    if (!await panel.count()) return live.block(row.id, 'The current Warrior station does not mount Cargo Transfer.', 'Warrior Captain: open the offered Warrior station');
+    const before = await publicState(crew), gmBefore = await publicState(live.context.gm);
+    const craft = before.smallShips?.warrior, hostShipId = craft?.hostShipId;
+    if (!before.live || before.cycle < 1 || before.airspace !== 'lifted' || before.phase !== 'active')
+      return live.block(row.id, 'The current actor projection is not live during Coordination.', 'GM: open actual Coordination; Warrior Captain: reconnect');
+    if (!hostShipId || !before.groups?.includes(hostShipId) || before.warriorCargo?.inventory === undefined)
+      return live.block(row.id, 'The current entitled Warrior/host/cargo projection is incomplete.', 'GM: admit and dock Warrior; Warrior Captain: remain aboard its current host');
+    if (gmBefore.smallShips?.warrior?.hostShipId !== hostShipId ||
+        gmBefore.warriorCargo?.revision !== before.warriorCargo.revision)
+      return live.block(row.id, 'The entitled Warrior projection does not yet match current GM host/cargo state.', 'Warrior Captain: reconnect after the current station/cargo projection settles');
+    if (craft.mutiny?.status === 'active' || !before.resources?.[hostShipId] || gmBefore.damage?.[hostShipId]?.destroyed !== false)
+      return live.block(row.id, 'Warrior mutiny, unavailable host inventory, or destroyed host blocks Cargo Transfer.', 'GM: restore current source prerequisites');
+    const resource = panel.getByLabel('Resource', { exact: true });
+    const options = await resource.locator('option').evaluateAll(elements => elements.map(element => ({ value: element.value, disabled: element.disabled })));
+    const selected = options.find(option => !option.disabled && Number.isSafeInteger(before.resources[hostShipId]?.[option.value]) &&
+      before.resources[hostShipId][option.value] > 0 && Number.isSafeInteger(before.warriorCargo.inventory[option.value]) &&
+      before.warriorCargo.inventory[option.value] < Number.MAX_SAFE_INTEGER);
+    if (!selected) return live.block(row.id, 'No current host resource can fund one legal positive whole Warrior load.', 'GM: preserve a current positive source inventory');
+    if (gmBefore.warriorCargo?.inventory?.[selected.value] !== before.warriorCargo.inventory[selected.value] ||
+        gmBefore.resources?.[hostShipId]?.[selected.value] !== before.resources[hostShipId][selected.value])
+      return live.block(row.id, 'The selected resource projection does not match current GM host/cargo ledgers.', 'Warrior Captain: reconnect after the current selected-resource projection settles');
+    await resource.selectOption(selected.value);
+    await panel.getByLabel('Direction', { exact: true }).selectOption('load');
+    await panel.getByLabel('Positive whole amount', { exact: true }).fill('1');
+    const action = panel.getByRole('button', { name: 'Transfer cargo', exact: true });
+    if (!await live.offered(row.id, action, panel)) return false;
+    const actual = await live.ui(crew, row.endpoint, action, { expected, replay: true });
+    assert.equal(actual.data?.direction, 'load');
+    assert.equal(actual.data?.resourceId, selected.value);
+    assert.equal(actual.data?.amount, 1);
+    assert.equal(actual.data?.expectedHostShipId, hostShipId);
+    assert.equal(actual.result?.status, 'committed');
+    assert.equal(actual.result?.hostShipId, hostShipId);
+    assert.equal(actual.result?.cargoRevision, (before.warriorCargo.revision ?? 0) + 1);
+    const expectedHostAmount = before.resources[hostShipId][selected.value] - 1;
+    const expectedCargoAmount = before.warriorCargo.inventory[selected.value] + 1;
+    const crewAfter = await untilPublic(crew, 'Warrior private cargo and host projection commit', state => state.live &&
+      state.warriorCargo?.revision === actual.result.cargoRevision &&
+      state.warriorCargo.inventory?.[selected.value] === expectedCargoAmount &&
+      state.resources?.[hostShipId]?.[selected.value] === expectedHostAmount);
+    const gmAfter = await untilPublic(live.context.gm, 'GM host/cargo ledger commit', state => state.live &&
+      state.warriorCargo?.revision === actual.result.cargoRevision &&
+      state.warriorCargo.inventory?.[selected.value] === expectedCargoAmount &&
+      state.resources?.[hostShipId]?.[selected.value] === expectedHostAmount);
+    await live.inspectCrew(expected); await live.inspectGm();
+    assert.equal(crewAfter.cycle, before.cycle);
+    assert.equal(gmAfter.smallShips?.warrior?.hostShipId, hostShipId);
+    actual.receipt.warriorCargo = { hostShipId, resourceId: selected.value, direction: 'load', amount: 1,
+      hostBefore: before.resources[hostShipId][selected.value], hostAfter: expectedHostAmount,
+      cargoBefore: before.warriorCargo.inventory[selected.value], cargoAfter: expectedCargoAmount,
+      cargoRevision: actual.result.cargoRevision };
+    recordExtraRoleResult(matrix, row.id, { status: 'committed', receipt: actual.receipt });
+    await live.save();
+    return true;
+  }
+  async function smallCraftJump(row, step) {
+    const expected = await selectRole(step.roleId), crew = live.context.crew;
+    const panel = crew.page.getByRole('region', { name: 'Small-craft Jump Drive workspace', exact: true });
+    await panel.waitFor({ state: 'visible', timeout: 12_000 }).catch(() => undefined);
+    if (!await panel.count()) return live.block(row.id, 'The current small-craft station does not mount its Jump Drive workspace.', `${step.roleId}: open the offered craft station`);
+    assert.match(await panel.innerText(), /This Jump Drive does not need a reactor charge/i,
+      'The mounted source projection must confirm this craft uses the no-charge jump rule.');
+    const before = await publicState(crew), gmBefore = await publicState(live.context.gm);
+    const small = before.smallShips?.[step.craftId], gmSmall = gmBefore.smallShips?.[step.craftId], hostShipId = small?.hostShipId;
+    if (!before.live || !hostShipId || !before.groups?.includes(hostShipId) || before.phase !== 'active' || before.airspace !== 'lifted')
+      return live.block(row.id, 'A live Captain aboard the docked active host during Coordination is required.', 'GM: preserve a docked host; current craft Captain: reconnect during Coordination');
+    if (gmSmall?.hostShipId !== hostShipId || gmSmall?.cycle?.revision !== small.cycle?.revision ||
+        gmBefore.resources?.[hostShipId]?.fuel !== before.resources?.[hostShipId]?.fuel)
+      return live.block(row.id, 'Current entitled Captain and GM host/movement projections do not match.', 'GM and current craft Captain: refresh the current admitted-host projection');
+    if (small.cycle?.turn !== before.cycle || small.cycle?.step !== 0 ||
+        typeof small.cycle?.completedAt !== 'string' || !Number.isFinite(Date.parse(small.cycle.completedAt)))
+      return live.block(row.id, 'Current-cycle small-craft Team maintenance is not complete.', 'GM: complete the real craft maintenance cycle before Coordination');
+    if (gmBefore.damage?.[hostShipId]?.destroyed !== false || !Number.isSafeInteger(gmBefore.resources?.[hostShipId]?.fuel))
+      return live.block(row.id, 'The current docked host fuel/damage authority is unavailable.', 'GM: preserve an active undestroyed host and fuel ledger');
+    const route = panel.getByLabel('Known destination', { exact: true });
+    let option;
+    const projectionDeadline = Date.now() + 12_000;
+    do {
+      option = await chooseVisibleOption(route, candidate => candidate.text.includes(`// ${step.range} //`));
+      if (!option) await delay(250);
+    } while (!option && Date.now() < projectionDeadline);
+    if (!option) return live.block(row.id, `The current Captain has no known ${step.range} destination in the live Jump Drive projection.`, `${step.roleId}: acquire a genuinely known ${step.range} route or choose a separate fresh case`);
+    const fuelMatch = option.text.match(/\/\/\s*(?:short|medium|long)\s*\/\/\s*(\d+)\s+host fuel/i);
+    assert.ok(fuelMatch, 'The chosen route must show its actual host fuel cost.');
+    const fuelCost = Number(fuelMatch[1]), fuelBefore = gmBefore.resources[hostShipId].fuel;
+    if (!Number.isSafeInteger(fuelCost) || fuelBefore < fuelCost)
+      return live.block(row.id, 'The actual host ledger cannot fund the selected known route.', 'GM: preserve printed host fuel through ordinary play');
+    const action = panel.getByRole('button', { name: 'Execute jump', exact: true });
+    if (!await live.offered(row.id, action, panel)) return false;
+    const actual = await live.ui(crew, row.endpoint, action, { expected, replay: true });
+    assert.equal(actual.data?.smallShipId, step.craftId);
+    assert.equal(actual.data?.hostShipId, hostShipId);
+    assert.ok(actual.data?.destination === option.value, 'The UI-issued jump must use the Captain-selected known route.');
+    assert.equal(actual.result?.status, 'committed');
+    assert.equal(actual.result?.smallShipId, step.craftId);
+    assert.equal(actual.result?.length, step.range);
+    assert.equal(actual.result?.fuelCost, fuelCost);
+    assert.equal(actual.result?.remainingHostFuel, fuelBefore - fuelCost);
+    assert.equal(actual.result?.detached, true);
+    const gmAfter = await untilPublic(live.context.gm, 'GM small-craft jump and exact host fuel debit', state => state.live &&
+      state.smallShips?.[step.craftId]?.hostShipId === null &&
+      state.resources?.[hostShipId]?.fuel === fuelBefore - fuelCost);
+    await live.inspectCrew(expected);
+    const crewAfter = await untilPublic(crew, 'Original Captain current-server movement projection', state => state.live &&
+      state.cycle === before.cycle && state.resources?.[hostShipId]?.fuel === fuelBefore - fuelCost);
+    await live.inspectCrew(expected); await live.inspectGm();
+    assert.equal(gmAfter.cycle, before.cycle);
+    actual.receipt.smallCraftJump = { smallShipId: step.craftId, hostShipId, range: step.range,
+      fuelCost, hostFuelBefore: fuelBefore, hostFuelAfter: fuelBefore - fuelCost,
+      detachedAfterCommit: gmAfter.smallShips[step.craftId].hostShipId === null,
+      currentActorProjectionFresh: crewAfter.live };
+    recordExtraRoleResult(matrix, row.id, { status: 'committed', receipt: actual.receipt });
+    await live.save();
+    return true;
+  }
+  async function vulcanLaserRange(row, step) {
+    const expected = await selectRole(step.roleId), crew = live.context.crew;
+    const rangeLabel = step.range === 'medium-range' ? 'Medium' : 'Short';
+    const panel = crew.page.getByRole('region', { name: `Vulcan Laser Cannon ${rangeLabel} Range choice`, exact: true });
+    await panel.waitFor({ state: 'visible', timeout: 15_000 }).catch(() => undefined);
+    if (!await panel.count()) return live.block(row.id, `The current ${rangeLabel} Wolf range has no mounted Vulcan Laser Cannon choice.`, 'GM: resolve an actual Wolf attack to this range; Vulcan Captain: open its admitted host station');
+    const [actorBefore, shipBefore, attackBefore] = await Promise.all([
+      publicState(crew), publicState(live.context.gm), wolfMetadata(),
+    ]);
+    const actorVulcan = actorBefore.smallShips?.vulcan;
+    const gmVulcan = shipBefore.smallShips?.vulcan;
+    if (!actorBefore.live || !actorVulcan?.hostShipId || actorVulcan.hostShipId !== gmVulcan?.hostShipId ||
+        !actorBefore.groups?.includes(actorVulcan.hostShipId) ||
+        actorVulcan.cycle?.turn !== gmVulcan?.cycle?.turn ||
+        actorVulcan.cycle?.charges?.includes('laser-cannon') !== gmVulcan?.cycle?.charges?.includes('laser-cannon') ||
+        attackBefore?.currentStep !== step.range || attackBefore.turn !== actorBefore.cycle)
+      return live.block(row.id, 'A current original Vulcan Captain aboard its admitted host during the matching actual Wolf range is required.', 'GM: preserve the actual range; Vulcan Captain: reconnect aboard its current host');
+    const charged = actorBefore.smallShips?.vulcan?.cycle?.turn === actorBefore.cycle &&
+      actorBefore.smallShips?.vulcan?.cycle?.charges?.includes('laser-cannon');
+    const use = panel.getByRole('button', { name: 'Use Vulcan Laser Cannon', exact: true });
+    const pass = panel.getByRole('button', { name: 'Pass this range', exact: true });
+    let action, choice;
+    if (charged) {
+      if (!await use.count() || !await use.isEnabled())
+        return live.block(row.id, 'Laser Cannon is charged, but the mounted current source view does not offer Use.', 'GM: preserve matching admitted Vulcan host/range authority');
+      action = use; choice = 'used';
+    } else {
+      const unavailable = panel.getByRole('status').filter({ hasText: /no usable fuel, charge, or Scrap/i });
+      if (!await unavailable.count() || !await pass.count() || !await pass.isEnabled())
+        return live.block(row.id, 'The server did not expose a safe pass for an uncharged current Vulcan source.', 'Vulcan Captain: complete a genuine Laser Cannon charge before its next eligible range');
+      action = pass; choice = 'passed';
+    }
+    const trainingChoice = choice === 'used'
+      ? 'Vulcan Captain chose Use at the actual printed range; server dice and target resolution remain unforced.'
+      : 'Vulcan Captain chose Pass because the current server source view reported no usable Laser Cannon charge.';
+    const actual = await live.ui(crew, row.endpoint, action,
+      { expected, replay: true, trainingChoice });
+    assert.equal(actual.data?.sourceId, 'vulcan-laser-cannon');
+    assert.equal(actual.data?.range, step.range);
+    assert.equal(actual.data?.use, choice === 'used');
+    const progressed = await (async () => {
+      const deadline = Date.now() + 45_000;
+      let current, notice = false;
+      do {
+        current = await wolfMetadata();
+        notice = await panel.getByText(/Vulcan Laser Cannon (?:use committed|pass committed)/i).count() > 0 ||
+          await panel.getByText('Choice committed', { exact: true }).count() > 0;
+        const panelStillVisible = await panel.count() > 0 && await panel.isVisible().catch(() => false);
+        const crewSourceProjectionReceived = notice || (!panelStillVisible && current?.currentStep !== step.range);
+        if (current?.revision > attackBefore.revision && crewSourceProjectionReceived) return current;
+        await delay(250);
+      } while (Date.now() < deadline);
+      throw Error(`Vulcan ${rangeLabel} choice did not reach a current GM/player projection; revision ${current?.revision ?? 'unavailable'}.`);
+    })();
+    assert.ok(progressed.revision > attackBefore.revision, 'The authoritative Wolf revision must advance for the committed choice.');
+    await live.inspectCrew(expected); await live.inspectGm();
+    actual.receipt.vulcanRangeChoice = { range: step.range, choice, turn: attackBefore.turn,
+      revisionBefore: attackBefore.revision, revisionAfter: progressed.revision,
+      laserChargeObserved: charged, currentHostShipId: actorBefore.smallShips.vulcan.hostShipId,
+      normalTrainingChoice: trainingChoice };
+    recordExtraRoleResult(matrix, row.id, { status: 'committed', receipt: actual.receipt });
+    await live.save();
+    return true;
+  }
   async function execute(row) {
-    const step = extraRoleProcedureStep(scenario, row);
+    const step = extraRoleProcedureStep(scenario, row, { jumpLength });
     if (step.kind === 'blocked') return live.block(row.id, row.unavailableReason ?? row.prerequisite, row.nextActor);
     if (step.kind === 'replacement-transition') return assign(step.roleId, step.action);
     if (step.kind === 'joint-maintenance') return jointMaintenance(step.roleId, step.shipId, step.craftId, step.action);
     if (step.kind === 'craft') return craftProcedure(row);
     if (step.kind === 'small-maintenance') return smallMaintenance(step.shipId, 0, step.action);
+    if (step.kind === 'warrior-cargo-transfer') return warriorCargoTransfer(row);
+    if (step.kind === 'small-craft-jump') return smallCraftJump(row, step);
+    if (step.kind === 'vulcan-laser-range') return vulcanLaserRange(row, step);
     if (row.id.endsWith(':docking') || row.id.endsWith(':undock')) return docking(row.roleId.replace('-captain', ''), row.id.endsWith(':docking'));
     const production = { 'water-reclimator': 'Water Reclimator', hydroponics: 'Hydroponics', 'fuel-processor': 'Fuel Processor' }[row.id.split(':')[1]];
     if (production) return button(row.id, null, (await smallPanel('capybara-small')).panel, new RegExp(`^Run ${production} //`));
@@ -606,6 +814,7 @@ export function createExtraRoleCallbacks({ scenario = 'joint', variant = 'coordi
         const colonel = await live.select('refinery-124-pdf-colonel', 'refinery-124-pdf-colonel', '/ships/refinery-124/roles/refinery-124-pdf-colonel');
         const launch = live.context.crew.page.getByRole('button', { name: 'Launch PDF Escort Wing', exact: true });
         if (await launch.count() && await launch.isEnabled()) await live.ui(live.context.crew, 'launchPdfEscortWing', launch, { expected: colonel, replay: true });
+        if (range === 'medium' || range === 'short') await perform(`vulcan-captain:laser-cannon-${range}`);
         await perform('wolf-commander:range-dial'); await perform(`gorgoneion-captain:missile-${range}`);
         if (range === aceRange) { await perform('pdf-fighter-ace:permission'); await perform(`pdf-fighter-ace:${range}`); }
       }
@@ -733,7 +942,8 @@ export function createExtraRoleCallbacks({ scenario = 'joint', variant = 'coordi
       for (const shipId of Object.keys(SMALL_HOSTS)) await docking(shipId, true);
       for (const actor of plan.actors) await assign(actor.roleId);
       for (const id of ['comms-officer:scout', 'commissar:captain-consent', 'commissar:purge', 'gorgoneion-captain:mission-support',
-        'capybara-small-captain:cargo-load', 'capybara-small-captain:cargo-unload']) await perform(id);
+        'capybara-small-captain:cargo-load', 'capybara-small-captain:cargo-unload',
+        'warrior-captain:cargo-transfer']) await perform(id);
       const rounds = variant === 'wolf' ? 1 : 3;
       for (let round = 0; round < rounds; round++) {
         await advanceActualCycle(); if ((await publicState(live.context.gm)).phase !== 'active') break;
@@ -757,7 +967,15 @@ export function createExtraRoleCallbacks({ scenario = 'joint', variant = 'coordi
         if (variant === 'mission' && round === 1) {
           if (await reachActualMissionLocation()) await actualMission();
         }
-        if (round === 2 && variant !== 'wolf') for (const role of ['gorgoneion-captain', 'capybara-small-captain']) await perform(`${role}:jump-${jumpLength}`);
+        if (round === 0 && variant === 'wolf') for (const id of [
+          'warrior-captain:jump-drive', 'vulcan-captain:jump-drive',
+        ]) await perform(id);
+        if (round === 2 && variant !== 'wolf') for (const id of [
+          'gorgoneion-captain:jump-' + jumpLength,
+          'capybara-small-captain:jump-' + jumpLength,
+          'warrior-captain:jump-drive',
+          'vulcan-captain:jump-drive',
+        ]) await perform(id);
       }
       for (const shipId of Object.keys(SMALL_HOSTS)) await docking(shipId, false);
     }
