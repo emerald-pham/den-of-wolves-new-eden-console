@@ -44,6 +44,7 @@ const terminalFreezeExemptions = new Set([
   'getCommissarPurgeAuthority', 'getCurrentMemberSession', 'getWolfRangeActionChoice',
   'getWolfForceFieldChoice', 'getWolfBoardingDefenceChoice',
   'getWolfAmnestyView', 'getBoardingSecurityTeamLocations', 'readCandidateWorkspace',
+  'beginSessionDebrief', 'closeSession', 'getSessionDebrief',
   // Current-GM acknowledgement only records handling of a prior committed
   // sabotage clue and emits its decorative notice; it must remain drainable
   // from the terminal/debrief view without reopening gameplay mutations.

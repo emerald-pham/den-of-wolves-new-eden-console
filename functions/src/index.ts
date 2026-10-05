@@ -2,6 +2,7 @@ import { holdTurnAdvancePhase } from './turnInterstitial';
 import { parsedMemberSessionDetails } from './memberSession';
 import { createCurrentMemberSessionReader } from './memberSessionCallable';
 import { limitCurrentMemberSessionReader } from './memberSessionLimit';
+import { createSessionDebriefCommands } from './sessionDebriefCallable';
 import { createTurnInterstitialHandler } from './turnInterstitialCallable';
 import { createUnionCraftStartingHostHandler } from './unionCraftSetupCallable';
 import { requireAttackAwareEmergencyTimerPauseRequest } from './wolfAttackTimerRequest';
@@ -18003,6 +18004,13 @@ const currentMemberSessionReader = limitCurrentMemberSessionReader({
   db, read: createCurrentMemberSessionReader({ db, projectSession: publicMemberSessionSource }),
 });
 export const getCurrentMemberSession = auditedOnCall('getCurrentMemberSession', async request => currentMemberSessionReader(request));
+const sessionDebriefCommands = createSessionDebriefCommands({ db, isLiveGmInstance });
+export const beginSessionDebrief = auditedOnCall('beginSessionDebrief', request =>
+  sessionDebriefCommands.begin(request));
+export const closeSession = auditedOnCall('closeSession', request =>
+  sessionDebriefCommands.close(request));
+export const getSessionDebrief = auditedOnCall('getSessionDebrief', request =>
+  sessionDebriefCommands.read(request));
 
 /** Redeem a legacy four-digit or current six-digit code and register presence. */
 export const joinSession = auditedOnCall<{ joinCode?: string; displayName?: string }>(
