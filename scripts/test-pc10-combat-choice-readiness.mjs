@@ -146,6 +146,53 @@ test('source-unavailable without a painted explicit blocker times out without si
   assert.equal(f.counters().time, 400);
 });
 
+function paintFixture({ text = '', visible = true, controls = {}, articleText = text } = {}) {
+  function node(name, isArticle = false) {
+    return {
+      isVisible: async () => visible && (name in controls ? controls[name] !== null : true),
+      isEnabled: async () => controls[name] === true,
+      innerText: async () => isArticle ? articleText : text,
+      getByRole: (kind, options) => node(options.name, kind === 'article'),
+      locator: () => node('control'),
+      first() { return this; },
+    };
+  }
+  return { getByRole: (_kind, options) => node(options.name), locator: () => node('panel') };
+}
+
+test('the actual launch checking paint cannot establish an unavailable wing, even with a disabled launch button', async () => {
+  const { inspectWolfChoicePaint } = await moduleUnderTest();
+  assert.equal(typeof inspectWolfChoicePaint, 'function');
+  const view = choice({ wingId: 'fighter-wing-alpha', launched: false });
+  const pending = paintFixture({ text: 'Cycle 1 // flight control Checking launch authority…',
+    controls: { 'Launch Fighter Wing Alpha': false, 'Pass Fighter Wing Alpha': null } });
+  assert.equal((await inspectWolfChoicePaint(pending, { kind: 'aegis-launch', sourceId: view.wingId }, view)).status, 'pending');
+  const ready = paintFixture({ text: 'Cycle 1 // flight control', controls: { 'Pass Fighter Wing Alpha': true } });
+  assert.equal((await inspectWolfChoicePaint(ready, { kind: 'aegis-launch', sourceId: view.wingId }, view)).status, 'eligible');
+});
+
+test('an older rendered EO revision remains pending although its pass is visibly enabled', async () => {
+  const { inspectWolfChoicePaint } = await moduleUnderTest();
+  const stale = paintFixture({ text: 'Command and Control Cycle 1 // Rev 3', controls: { 'Pass Command and Control': true } });
+  assert.equal((await inspectWolfChoicePaint(stale, { kind: 'command-and-control' }, choice())).status, 'pending');
+  const current = paintFixture({ text: 'Command and Control Cycle 1 // Rev 4', controls: { 'Pass Command and Control': true } });
+  assert.equal((await inspectWolfChoicePaint(current, { kind: 'command-and-control' }, choice())).status, 'eligible');
+});
+
+test('target-assignment readiness uses the actual assignments region and enabled selectors before an intended choice', async () => {
+  const { inspectWolfChoicePaint } = await moduleUnderTest();
+  const names = [];
+  const panel = { isVisible: async () => true, innerText: async () => 'Cycle 1 // weapon control Target assignment',
+    getByRole: (kind, options = {}) => {
+      if (kind === 'button') return { isVisible: async () => options.name === 'Commit target assignments', isEnabled: async () => false };
+      assert.equal(kind, 'combobox');
+      return { count: async () => 1, first: () => ({ isEnabled: async () => true }) };
+    } };
+  const page = { getByRole: (_kind, options) => { names.push(options.name); return panel; } };
+  const result = await inspectWolfChoicePaint(page, { kind: 'range-actions' }, choice({ choiceStatus: 'targets-required', range: 'long-range' }));
+  assert.equal(result.status, 'eligible'); assert.deepEqual(names, ['Wolf range assignments']);
+});
+
 function routeFixture({ route = '#/brief', changed = {}, entering = true } = {}) {
   const calls = []; let path = route;
   const original = actor(changed);
