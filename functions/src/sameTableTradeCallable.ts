@@ -478,6 +478,11 @@ export function createSameTableTradeCallables(dependencies: SameTableTradeCallab
       }
 
       dependencies.requireNonterminalSessionPhase(sessionSnapshot.get('phase'));
+      const replacementRoleId = targetSnapshot.get('replacementRoleId');
+      const targetTableId = targetSnapshot.get('replacementStatus') != null ? undefined
+        : typeof replacementRoleId === 'string' ? replacementRoleFor(replacementRoleId)?.vesselId
+          : dependencies.shipForRole(targetSnapshot.get('assignedRoleId'));
+      if (targetTableId) requireCandidateVesselsAvailable(sessionSnapshot, [targetTableId]);
 
       const baseline = {
         attestationId,
