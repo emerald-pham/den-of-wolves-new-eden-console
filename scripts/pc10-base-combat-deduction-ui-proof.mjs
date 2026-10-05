@@ -112,7 +112,16 @@ export async function runBaseCombatAndDeduction(context, options = {}) {
     }
     return surface;
   }
-  async function readGm(suffix) {
+  async function readGm(suffix, options = {}) {
+    if (options.serverOnly === true) {
+      const budget = () => assert.ok(Number.isFinite(options.deadlineAt) && Date.now() < options.deadlineAt,
+        'The original combat source reinspection deadline expired.');
+      budget();
+      assertOriginalBaseActor(await gm.observe(), originalGm); budget();
+      const value = await a.read('gm', suffix, options); budget();
+      assertOriginalBaseActor(await gm.observe(), originalGm); budget();
+      return value;
+    }
     await waitForOriginalBaseActor({ inspect: () => gm.observe(), original: originalGm });
     const value = await a.read('gm', suffix);
     await waitForOriginalBaseActor({ inspect: () => gm.observe(), original: originalGm });
@@ -494,7 +503,7 @@ export async function runBaseCombatAndDeduction(context, options = {}) {
     }
     assert.ok(current?.status === 'declared', 'Current combat mode requires the genuine already-declared attack.');
     assert.equal(current.turn, originalGm.cycle);
-    const tools = { ...a, state, read: (_role, suffix) => readGm(suffix), select,
+    const tools = { ...a, state, read: (_role, suffix, options) => readGm(suffix, options), select,
       receipt: receiptForAttack, record: async (stage, details) => {
         report.observations.push({ stage, ...details }); await save();
       } };

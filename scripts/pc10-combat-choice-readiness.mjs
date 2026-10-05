@@ -152,7 +152,7 @@ export async function waitForWolfChoiceReadiness({ original, expected, inspectAc
       await strictAuthority();
       // Exactly one GM read of the original session path, inside this same
       // deadline. There is no SDK retry, polling, paint or mutation here.
-      const current = await inspectAttack(); budget();
+      const current = await inspectAttack({ serverOnly: true }); budget();
       assert.ok(current && (!Object.hasOwn(current, 'sessionId') || current.sessionId === expected.sessionId) &&
         current.attackId === expected.attackId && current.turn === expected.turn &&
         Number.isSafeInteger(current.revision) && current.revision > expected.revision &&
@@ -467,10 +467,37 @@ export function createWolfChoiceWaiter(context, { tools, originalGm, deadlineAt 
       }
       return reply.result;
     };
+    const inspectAttack = (options = {}) => {
+      if (options.serverOnly !== true) return tools.read('gm', 'wolfAttackState/current');
+      return tools.read('gm', 'wolfAttackState/current', { serverOnly: true, deadlineAt: choiceDeadline,
+        onSnapshot: async outcome => {
+          const observed = outcome?.status === 'ok' && outcome.value && typeof outcome.value === 'object' ? outcome.value : null;
+          const integer = value => Number.isSafeInteger(value) ? value : null;
+          const boolean = value => typeof value === 'boolean' ? value : null;
+          // Only the tuple used by the strict assertion and snapshot freshness
+          // cross into evidence. No IDs, targets, contacts or private choices.
+          await record?.('current combat closed boarding source reinspection', {
+            cycle: current.turn, kind: spec.kind, roleId: original.profileRoleId, uidHash: original.uidHash,
+            revision: current.revision, currentStep: current.currentStep, diagnosticOnly: true,
+            sourceReinspection: { readSource: 'server-only', readCount: 1,
+              status: outcome?.status === 'ok' ? 'observed' : 'failed',
+              code: typeof outcome?.code === 'string' && /^(?:firestore\/)?[a-z][a-z-]{0,63}$/.test(outcome.code) ? outcome.code : null,
+              tuple: observed ? {
+                sameSession: Object.hasOwn(observed, 'sessionId') ? observed.sessionId === expected.sessionId : null,
+                sameAttack: observed.attackId === expected.attackId, turn: integer(observed.turn), revision: integer(observed.revision),
+                status: ['idle', 'due', 'prepared', 'declared', 'resolved'].includes(observed.status) ? observed.status : null,
+                currentStep: ['targeting', 'long-range', 'medium-range', 'short-range', 'boarding', 'resolved'].includes(observed.currentStep)
+                  ? observed.currentStep : null,
+                airspaceLocked: boolean(observed.airspaceLocked),
+              } : null,
+              metadata: { fromCache: boolean(outcome?.metadata?.fromCache), hasPendingWrites: boolean(outcome?.metadata?.hasPendingWrites) } },
+            gameplayCredit: false, actionCredit: false, acceptanceCredit: false });
+        } });
+    };
     const result = await waitForWolfChoiceReadiness({ original, expected,
       originalGm: expectedGm, inspectGm: () => gm.observe(), inspectActor: () => observeWolfChoiceActor(surface),
       deadlineAt: choiceDeadline, requireBoardingDiscovery: spec.kind === 'boarding-defence',
-      inspectAttack: () => tools.read('gm', 'wolfAttackState/current'),
+      inspectAttack,
       readChoice, inspectPaint: view => inspectWolfChoicePaint(surface.page, spec, view) });
     await record?.('current combat choice readiness', { cycle: current.turn, kind: spec.kind,
       roleId: original.profileRoleId, uidHash: original.uidHash, revision: current.revision,

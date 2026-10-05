@@ -157,6 +157,41 @@ export function createTwoBrowserGameplay(context) {
     }, { sid: initial.sessionId, suffix, collection });
     return unwrapBrowserFirestoreReadOutcome(outcome);
   }
+  async function readCurrentWolfAttackFromServer(roleId, suffix, { deadlineAt, onSnapshot, collection = false }) {
+    assert.ok(roleId === 'gm' && suffix === 'wolfAttackState/current' && collection === false,
+      'Server-only combat reinspection uses only the entitled GM original attack document.');
+    const budget = () => assert.ok(Number.isFinite(deadlineAt) && Date.now() < deadlineAt,
+      'The original combat source reinspection deadline expired.');
+    budget();
+    const surface = await select('gm', { enter: false, deadlineAt }); budget();
+    await live(surface, deadlineAt); budget();
+    const outcome = await surface.page.evaluate(async sid => {
+      try {
+        const source = await (await fetch('/src/lib/firestore.ts')).text();
+        const match = source.match(/from\s+["']([^"']*firebase_firestore\.js[^"']*)["']/);
+        if (!match) throw new Error('Read the actual current browser SDK import before the entitled read.');
+        const sdk = await import(match[1]);
+        const { db } = await import('/src/lib/firestore.ts');
+        const document = await sdk.getDocFromServer(sdk.doc(db(), `sessions/${sid}/wolfAttackState/current`));
+        return { status: 'ok', value: document.exists() ? { id: document.id, ...document.data() } : null,
+          metadata: { fromCache: document.metadata?.fromCache ?? null,
+            hasPendingWrites: document.metadata?.hasPendingWrites ?? null } };
+      } catch (error) {
+        return { status: 'error', code: typeof error?.code === 'string' ? error.code : null };
+      }
+    }, initial.sessionId);
+    // Retain only the already completed read. Its observer does not authorize
+    // a cache fallback, a second read, or acceptance of a pending local write.
+    await onSnapshot?.(outcome); budget();
+    if (outcome?.status === 'ok') {
+      assert.ok(hasExactKeys(outcome, ['status', 'value', 'metadata']) &&
+        hasExactKeys(outcome.metadata, ['fromCache', 'hasPendingWrites']) &&
+        outcome.metadata.fromCache === false && outcome.metadata.hasPendingWrites === false,
+      'The original combat reinspection requires a server snapshot without pending local writes.');
+      return unwrapBrowserFirestoreReadOutcome({ status: 'ok', value: outcome.value });
+    }
+    return unwrapBrowserFirestoreReadOutcome(outcome);
+  }
   async function ui(roleId, description, decision) {
     const surface = await select(roleId);
     await live(surface);
@@ -267,5 +302,8 @@ export function createTwoBrowserGameplay(context) {
         'No function or full-game acceptance follows from the adapter itself.'],
       actions, snapshots, ...details }), null, 2)}\n`);
   }
-  return { context, actions, state, shipState, select, command, read, ui, maintenanceUi, save };
+  return { context, actions, state, shipState, select, command,
+    read: (roleId, suffix, options) => options?.serverOnly === true
+      ? readCurrentWolfAttackFromServer(roleId, suffix, options) : read(roleId, suffix, options),
+    ui, maintenanceUi, save };
 }
