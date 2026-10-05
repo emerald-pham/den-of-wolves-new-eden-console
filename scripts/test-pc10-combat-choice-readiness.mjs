@@ -147,6 +147,27 @@ test('source-unavailable without a painted explicit blocker times out without si
   assert.equal(f.counters().time, 400);
 });
 
+test('automatic source progress during a missing panel is resampled within the same deadline without another actor read', async () => {
+  const { waitForWolfChoiceReadiness } = await moduleUnderTest();
+  let reads = 0;
+  const f = waitFixture({ deadlineAt: 2_000, paints: [{ status: 'pending', reason: 'No old-stage panel.' }],
+    attackRead: () => attack(++reads === 1 ? {} : { revision: 5, currentStep: 'long-range' }) });
+  const result = await waitForWolfChoiceReadiness(f.options);
+  assert.equal(result.status, 'source-changed'); assert.equal(result.gameplayCredit, false);
+  assert.equal(f.counters().choiceReads, 1); assert.ok(f.counters().time < 2_000);
+});
+
+test('same original UID moving group or hydration generation invalidates pending choice acceptance', async () => {
+  const { waitForWolfChoiceReadiness } = await moduleUnderTest();
+  for (const changed of [{ fleetGroupId: 'new-group' }, { connectionGeneration: 7 },
+    { identityHydrationRevision: 12 }, { replacementRoleId: 'replacement' }]) {
+    const original = actor({ fleetGroupId: 'original-group', connectionGeneration: 6, identityHydrationRevision: 11, replacementRoleId: null });
+    const f = waitFixture({ actorRead: () => ({ ...original, ...changed }) });
+    await assert.rejects(waitForWolfChoiceReadiness({ ...f.options, original }));
+    assert.equal(f.counters().choiceReads, 0);
+  }
+});
+
 function paintFixture({ text = '', visible = true, controls = {}, articleText = text } = {}) {
   function node(name, isArticle = false) {
     return {
