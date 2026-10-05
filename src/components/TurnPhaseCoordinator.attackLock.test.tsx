@@ -63,6 +63,17 @@ it('cancels the pending clock promotion when the attack locks before the deadlin
   expect(transport.begin).not.toHaveBeenCalled();
 });
 
+it('does not restore the attack audience listener for closed history', async () => {
+  const closed = useSessionStore.getState().session!;
+  useSessionStore.getState().setSession({ ...closed, joinCode: '', phase: 'closed' });
+
+  render(<TurnPhaseCoordinator />);
+  await act(async () => { await Promise.resolve(); });
+
+  expect(transport.subscribe).not.toHaveBeenCalled();
+  expect(transport.begin).not.toHaveBeenCalled();
+});
+
 it.each([
   ['another session', { sessionId: 's2' }], ['an old cycle', { turn: 1 }],
   ['resolved', { status: 'resolved' as const, currentStep: 'resolved' as const }],
