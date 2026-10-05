@@ -15,7 +15,9 @@ export function unwrapBrowserFirestoreReadOutcome(outcome) {
   if (hasExactKeys(outcome, ['status', 'value']) && outcome.status === 'ok') return outcome.value;
   if (hasExactKeys(outcome, ['status', 'code']) && outcome.status === 'error' &&
       (outcome.code === null || (typeof outcome.code === 'string' && outcome.code.length <= 128))) {
-    throw new Error('Authenticated browser Firestore read failed.');
+    const error = new Error('Authenticated browser Firestore read failed.');
+    if (typeof outcome.code === 'string') Object.defineProperty(error, 'code', { value: outcome.code });
+    throw error;
   }
   throw new Error('Authenticated browser Firestore read returned an invalid result.');
 }
@@ -136,18 +138,22 @@ export function createTwoBrowserGameplay(context) {
     const surface = await select(roleId, { enter: false });
     await live(surface);
     const outcome = await surface.page.evaluate(async ({ sid, suffix, collection }) => {
-      const source = await (await fetch('/src/lib/firestore.ts')).text();
-      const match = source.match(/from\s+["']([^"']*firebase_firestore\.js[^"']*)["']/);
-      if (!match) throw new Error('Read the actual current browser SDK import before the entitled read.');
-      const sdk = await import(match[1]);
-      const { db } = await import('/src/lib/firestore.ts');
-      const path = `sessions/${sid}/${suffix}`;
-      const value = collection
-        ? (await sdk.getDocs(sdk.collection(db(), path))).docs.map(document =>
-          ({ id: document.id, ...document.data() }))
-        : await sdk.getDoc(sdk.doc(db(), path)).then(document =>
-          document.exists() ? { id: document.id, ...document.data() } : null);
-      return { status: 'ok', value };
+      try {
+        const source = await (await fetch('/src/lib/firestore.ts')).text();
+        const match = source.match(/from\s+["']([^"']*firebase_firestore\.js[^"']*)["']/);
+        if (!match) throw new Error('Read the actual current browser SDK import before the entitled read.');
+        const sdk = await import(match[1]);
+        const { db } = await import('/src/lib/firestore.ts');
+        const path = `sessions/${sid}/${suffix}`;
+        const value = collection
+          ? (await sdk.getDocs(sdk.collection(db(), path))).docs.map(document =>
+            ({ id: document.id, ...document.data() }))
+          : await sdk.getDoc(sdk.doc(db(), path)).then(document =>
+            document.exists() ? { id: document.id, ...document.data() } : null);
+        return { status: 'ok', value };
+      } catch (error) {
+        return { status: 'error', code: typeof error?.code === 'string' ? error.code : null };
+      }
     }, { sid: initial.sessionId, suffix, collection });
     return unwrapBrowserFirestoreReadOutcome(outcome);
   }
