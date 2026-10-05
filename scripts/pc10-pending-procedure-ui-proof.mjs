@@ -7,6 +7,12 @@ import { createTwoBrowserGameplay } from './pc10-two-browser-gameplay.mjs';
 import { sameActionReceipt } from './pc10-specialist-gameplay.mjs';
 
 const RESULT_STATUSES = new Set(['committed', 'applied', 'repaired', 'arrived', 'requested', 'replayed', 'resolved']);
+const STATUSLESS_VESSEL_RESULTS = Object.freeze({
+  addShipDamage: { valid: result => typeof result?.destroyed === 'boolean', action: 'add-damage' },
+  repairAllShipDamage: { valid: result => result?.repaired === true, action: 'repair-damage' },
+  dismissPopulationAlert: { valid: result => result?.dismissed === true, action: 'dismiss-population' },
+  dismissUnrestAlert: { valid: result => result?.dismissed === true, action: 'dismiss-unrest' },
+});
 const REVISION_FIELDS = ['revision', 'repairRevision', 'choiceRevision', 'controlRevision', 'movementRevision',
   'currentRevision', 'upgradeRevision', 'wingRevision', 'counterRevision'];
 const TRAINING_CHOICE_CODE = 'gm-training:deliberate-choice';
@@ -125,9 +131,9 @@ add(G, 'setFacilitatorCensusNote', 'gm', 'on-started', { mountedPath: 'GmConsole
   note: 'Census note content is private and never persisted in proof evidence.' });
 add(G, 'setFacilitatorResponsibility', 'gm', 'on-setup', { mountedPath: 'GmConsole facilitator responsibility controls',
   requirement: 'live owned GM instance and current setup revision; change only an actually offered lane/instance', trainingChoice: true });
-add(G, 'setGmControlsLocked', 'gm', 'on-started', { mountedPath: 'GmConsole shared control lock',
+add(G, 'setGmControlsLocked', 'gm', 'on-started', { mountedPath: 'GmConsole shared control lock', replayPolicy: 'single-shot',
   requirement: 'active gameplay and current owned live GM instance; set explicit value then restore the original value through its visible control', trainingChoice: true });
-add(G, 'setGmShipConsoleWriteGrant', 'gm', 'on-started', { mountedPath: 'ShipConsole scoped GM write grant',
+add(G, 'setGmShipConsoleWriteGrant', 'gm', 'on-started', { mountedPath: 'ShipConsole scoped GM write grant', replayPolicy: 'single-shot',
   requirement: 'selected active ship and current GM instance claim; grant one browser instance only and revoke it after use', trainingChoice: true });
 add(G, 'setShipConsoleLock', 'gm', 'on-started', { mountedPath: 'ShipConsole current-console lock',
   requirement: 'active ship/current action revision and entitled current ship actor or scoped live GM grant', trainingChoice: true });
@@ -247,11 +253,12 @@ export function evaluateProcedureCapture(input) {
 
 function acceptedResultStatus(spec, result, request, expected) {
   if (RESULT_STATUSES.has(result?.status)) return result.status;
-  if (spec.endpoint !== 'addShipDamage' || typeof result?.destroyed !== 'boolean' ||
-      typeof result?.actorUid !== 'string' || hashUid(result.actorUid) !== expected.uidHash ||
+  const vesselResult = STATUSLESS_VESSEL_RESULTS[spec.endpoint];
+  if (!vesselResult || !vesselResult.valid(result) || typeof result?.actorUid !== 'string' ||
+      hashUid(result.actorUid) !== expected.uidHash ||
       result.vesselId !== request?.shipId || result.turn !== expected.cycle || result.phase !== 'active' ||
       typeof request?.requestId !== 'string' || result.idempotencyKey !== request.requestId ||
-      result.auditId !== `add-damage-${request.requestId}` || !Number.isSafeInteger(result.revision)) return null;
+      result.auditId !== `${vesselResult.action}-${request.requestId}` || !Number.isSafeInteger(result.revision)) return null;
   return 'committed';
 }
 
