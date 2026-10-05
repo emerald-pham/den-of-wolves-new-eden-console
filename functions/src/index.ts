@@ -22829,7 +22829,7 @@ export const commitWolfCommanderAttackDial = auditedOnCall<{
       throw commandError('failed-precondition', 'The cycle changed. Refresh the Commander attack dial.', 'stale-revision');
     }
     const phase = turnPhaseState(session.get('turnPhase'));
-    if (!phase || phase.turn !== cycle || phase.timerPause !== undefined ||
+    if (!phase || phase.turn !== cycle || phase.airspace.state !== 'restricted' || phase.timerPause !== undefined ||
         turnPhaseDeadlinePassed(phase, 'team')) {
       throw commandError('failed-precondition', 'The Commander attack dial is available only during the live Team Phase.', 'invalid-phase');
     }
@@ -22967,7 +22967,7 @@ export const getWolfCommanderCycleAttackDial = auditedOnCall<{ sessionId?: unkno
     const cycle = sessionTurn(session.get('currentTurn'));
     if (cycle < 1) throw commandError('failed-precondition', 'No live cycle is available for the Commander dial.', 'invalid-phase');
     const phase = turnPhaseState(session.get('turnPhase'));
-    const teamPhaseLive = Boolean(phase && phase.turn === cycle && phase.timerPause === undefined &&
+    const teamPhaseLive = Boolean(phase && phase.turn === cycle && phase.airspace.state === 'restricted' && phase.timerPause === undefined &&
       !turnPhaseDeadlinePassed(phase, 'team'));
     const window = windowProjection.exists ? wolfAttackWindowState(windowProjection.data()) : undefined;
     if (windowProjection.exists && !window) {
@@ -23119,7 +23119,8 @@ export const publishWolfCommanderAddress = auditedOnCall<{
     }
     const phase = turnPhaseState(session.get('turnPhase'));
     const nowMs = Date.now();
-    if (!phase || phase.turn !== cycle || phase.timerPause !== undefined || turnPhaseDeadlinePassed(phase, 'team', nowMs)) {
+    if (!phase || phase.turn !== cycle || phase.airspace.state !== 'restricted' || phase.timerPause !== undefined ||
+        turnPhaseDeadlinePassed(phase, 'team', nowMs)) {
       throw commandError('failed-precondition', 'The Commander address is available only during the live Team Phase.', 'invalid-phase');
     }
     if (address.exists || event.exists) {
