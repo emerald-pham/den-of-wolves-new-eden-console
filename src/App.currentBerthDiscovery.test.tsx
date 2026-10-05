@@ -236,7 +236,9 @@ it('does not preserve the own actor witness across persistence or a forged persi
   const current = useSessionStore.getState().session!;
   expect(stripPersistedNavigationProjection(current)).not.toHaveProperty('currentActorBerthAuthority');
   const options = useSessionStore.persist.getOptions();
-  expect(options.partialize?.(useSessionStore.getState()).session).not.toHaveProperty('currentActorBerthAuthority');
+  expect(options.partialize).toBeTypeOf('function');
+  const persisted = options.partialize?.(useSessionStore.getState()) as { session?: GameSession } | undefined;
+  expect(persisted?.session).not.toHaveProperty('currentActorBerthAuthority');
   const restored = options.merge?.({ session: current, me: member }, useSessionStore.getState());
   expect(restored?.session).not.toHaveProperty('currentActorBerthAuthority');
   expect(restored?.session?.playerDiscovery).toBeUndefined();
