@@ -471,6 +471,9 @@ export default function GmConsole() {
   const connection = useSessionStore((state) => state.connection);
   const sessionSnapshotFreshness = useSessionStore((state) => state.sessionSnapshotFreshness);
   const seats = useSessionStore((state) => state.seats);
+  const liveSetupAuthority = Boolean(session && me?.role === 'gm' && me.sessionId === session.id &&
+    local?.sessionId === session.id && local.uid === me.uid &&
+    connection === 'live' && sessionSnapshotFreshness === 'server');
   const setupReceipt = useSessionStore((state) => state.gmSetupReceipt);
   const loyaltyCensus = useSessionStore((state) => state.gmLoyaltyCensus);
   const gmWolfCultIntelligence = useSessionStore((state) => state.gmWolfCultIntelligence);
@@ -3014,6 +3017,7 @@ export default function GmConsole() {
   }
 
   async function confirmRoster(lockChart = false): Promise<void> {
+    if (!liveSetupAuthority) return;
     if (endgameEvaluation) return;
     if (lockChart && chartLocked) return;
     if (!rosterConfigurationValid) return;
@@ -4454,6 +4458,10 @@ export default function GmConsole() {
                 <p className="gm-role-setup__note" role="status" aria-label="Press GM projection">
                   {pressProjectionMessage}
                 </p>
+                {!liveSetupAuthority && <p id="gm-setup-authority-status" className="gm-role-setup__note"
+                  role="status" aria-live="polite" aria-label="Setup authority status">
+                  Reconnect until the live GM session returns before confirming setup or locking the star chart.
+                </p>}
                 <fieldset className="gm-role-setup gm-chart-setup">
                   <legend>Star chart</legend>
                   <label className="gm-role-preset">
@@ -4477,7 +4485,8 @@ export default function GmConsole() {
                     Confirm the staged setup and lock this chart. Other roster choices remain editable until start.
                   </p>
                   <button className="cic-action-button" type="button"
-                    disabled={endgameEvaluation || chartLocked || !rosterConfigurationValid || confirmingRoster || rosterQueued}
+                    disabled={!liveSetupAuthority || endgameEvaluation || chartLocked || !rosterConfigurationValid || confirmingRoster || rosterQueued}
+                    aria-describedby={!liveSetupAuthority ? 'gm-setup-authority-status' : undefined}
                     onClick={() => void confirmRoster(true)}>
                     Lock star chart
                   </button>
@@ -4565,8 +4574,9 @@ export default function GmConsole() {
                       className="cic-action-button"
                       type="button"
                       aria-label="Confirm setup // Confirm roster"
+                      aria-describedby={!liveSetupAuthority ? 'gm-setup-authority-status' : undefined}
                       disabled={
-                        !rosterConfigurationValid ||
+                        !liveSetupAuthority || !rosterConfigurationValid ||
                         endgameEvaluation || confirmingRoster || rosterQueued
                       }
                       onClick={() => void confirmRoster()}
