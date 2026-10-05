@@ -204,15 +204,32 @@ try {
     const { useSessionStore, SESSION_STORAGE_KEY } = await import(url);
     const current = useSessionStore.getState();
     const envelope = JSON.parse(localStorage.getItem(SESSION_STORAGE_KEY) ?? '{}');
+    const navigation = current.session.playerDiscovery;
+    const privateFields = ['loyalty', 'loyalties', 'wolfAssignments', 'gmDiscovery', 'missionDeck',
+      'deckOrder', 'awayMissionHands', 'deepNebulaScans', 'hiddenRolls', 'privateBonuses',
+      'facilitatorNotes', 'gmNotes', 'organiserSites', 'organiserSystems', 'organiserSystemHistory',
+      'pursuitDistances', 'pursuitGroups', 'shipFleetGroupIds', 'candidatePlanCheckpoint'];
     return { route: location.hash, role: current.me.activeConsoleRoleId, cycle: current.session.currentTurn,
       persistedKeys: Object.keys(envelope.state ?? {}).sort(),
       overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
-      forbiddenSnapshotFields: ['shipGalacticCoordinates', 'missionDeck', 'deckOrder', 'facilitatorNotes'].filter(key => Object.hasOwn(current.session, key)) };
+      forbiddenSnapshotFields: privateFields.filter(key => Object.hasOwn(current.session, key)),
+      forbiddenPersistedFields: [...privateFields, 'playerDiscovery', 'currentGroupCandidateReveals',
+        'shipGalacticCoordinates', 'shipNavigationLogs', 'voyage33Movement']
+        .filter(key => Object.hasOwn(envelope.state?.session ?? {}, key)),
+      navigation: { ownShipId: navigation?.shipId,
+        currentGroupMatches: navigation?.groupId === current.me.fleetGroupId,
+        coordinateShipIds: Object.keys(current.session.shipGalacticCoordinates ?? {}),
+        logShipIds: Object.keys(current.session.shipNavigationLogs ?? {}),
+        coordinateMatchesEntitledDiscovery: navigation?.currentCoordinate === current.session.shipGalacticCoordinates?.aegis,
+      } };
   }, sessionStoreUrl);
   assert.equal(ui.overflow, false);
   assert.equal(ui.cycle, 1, 'The browser must finish genuine cycle-one authenticated hydration.');
   assert.equal(ui.role, 'wing-commander');
   assert.deepEqual(ui.forbiddenSnapshotFields, []);
+  assert.deepEqual(ui.forbiddenPersistedFields, []);
+  assert.deepEqual(ui.navigation, { ownShipId: 'aegis', currentGroupMatches: true,
+    coordinateShipIds: ['aegis'], logShipIds: ['aegis'], coordinateMatchesEntitledDiscovery: true });
   assert.deepEqual(ui.persistedKeys, ['gmAccessAuthenticatedAt', 'gmInstance', 'lastRoute', 'me', 'mode', 'pendingCommands', 'session']);
   await mkdir(uiDirectory, { recursive: true });
   await page.screenshot({ path: `${uiDirectory}/ordinary-player-390.png`, fullPage: true });
