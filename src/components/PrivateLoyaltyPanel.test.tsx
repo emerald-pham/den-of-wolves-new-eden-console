@@ -151,7 +151,9 @@ it('offers only positive cargo on the active cover-role shuttle and commits a pr
   expect(sabotage).toBeEnabled();
   await user.click(sabotage);
 
-  await waitFor(() => expect(submitWolfSupplySabotage).toHaveBeenCalledWith('maliades', 'fuel'));
+  await waitFor(() => expect(submitWolfSupplySabotage).toHaveBeenCalledTimes(1));
+  expect(submitWolfSupplySabotage.mock.calls[0]?.slice(0, 2)).toEqual(['maliades', 'fuel']);
+  expect(submitWolfSupplySabotage.mock.calls[0]?.[2]).toEqual(expect.any(String));
   expect(await screen.findByRole('status')).toHaveTextContent(
     /2 Strytium Fuel destroyed.*3 remain.*Suspicion \/\/ 4/i,
   );
