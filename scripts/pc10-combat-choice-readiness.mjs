@@ -31,20 +31,13 @@ export async function observeWolfChoiceActor(surface) {
   const before = await surface.observe();
   const authority = await surface.page.evaluate(async moduleUrl => {
     const { useSessionStore } = await import(moduleUrl);
-    const { findConsoleRole } = await import('/src/data/roles.ts');
-    const { replacementRoleFor } = await import('/src/data/replacementRoles.ts');
-    const { findShip } = await import('/src/data/ships.ts');
     const snapshot = useSessionStore.getState(), me = snapshot.me;
-    const shipId = me?.replacementStatus == null
-      ? me?.replacementRoleId ? replacementRoleFor(me.replacementRoleId)?.vesselId
-        : findConsoleRole(me?.assignedRoleId)?.shipId : undefined;
     const discovery = snapshot.session?.playerDiscovery;
     return { sessionId: snapshot.session?.id ?? null, fleetGroupId: me?.fleetGroupId ?? null,
       connectionGeneration: me?.connectionGeneration ?? null,
       identityHydrationRevision: snapshot.identityHydrationRevision ?? null,
       replacementRoleId: me?.replacementRoleId ?? null, replacementStatus: me?.replacementStatus ?? null,
       seatId: me?.seatId ?? null, connected: me?.connected !== false,
-      entitledShipId: shipId ? findShip(shipId)?.id ?? null : null,
       // Only the audience tuple used by the source controller; no coordinates,
       // systems, candidate names, navigation logs, cards or private contacts.
       discoveryAuthority: discovery ? { groupId: discovery.groupId, shipId: discovery.shipId ?? null,
@@ -52,7 +45,10 @@ export async function observeWolfChoiceActor(surface) {
   }, surface.storeModuleUrl());
   const after = await surface.observe(); originalIdentity(after, before);
   assert.equal(authority.sessionId, before.sessionId); assert.equal(authority.connected, true);
-  return { ...after, ...authority };
+  // Protected discovery uses the server's current member berth, not the role
+  // catalog. The existing boarding getter must independently match this ship.
+  return { ...after, ...authority, entitledShipId: authority.replacementStatus == null
+    ? authority.discoveryAuthority?.shipId ?? null : null };
 }
 
 export function wolfChoiceSourceReason(view) {
