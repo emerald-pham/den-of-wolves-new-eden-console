@@ -87,7 +87,11 @@ export async function waitForWolfChoiceReadiness({ original, expected, inspectAc
       const current = await inspectAttack(); budget();
       if (gm && changedAirspace.every(([value, bound]) => bound.airspace === 'restricted' && value.airspace === 'lifted') &&
           typeof expected.sessionId === 'string' && expected.sessionId && expected.status !== 'resolved' &&
-          current?.sessionId === expected.sessionId && current.attackId === expected.attackId &&
+          original.sessionId === expected.sessionId && originalGm.sessionId === expected.sessionId &&
+          // The real private document has no sessionId field: its original
+          // authenticated GM reader uses this session's exact document path.
+          current && (!Object.hasOwn(current, 'sessionId') || current.sessionId === expected.sessionId) &&
+          current.attackId === expected.attackId &&
           current.turn === expected.turn && Number.isSafeInteger(current.revision) && current.revision > expected.revision &&
           current.status === 'resolved' && current.currentStep === 'resolved' && current.airspaceLocked === false) {
         const afterActor = await inspectActor(); budget();
