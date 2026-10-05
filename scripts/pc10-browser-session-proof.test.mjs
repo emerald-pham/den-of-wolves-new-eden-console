@@ -102,11 +102,14 @@ async function cdpCallableObservationActor({ durableConfigurationError } = {}) {
         postData: JSON.stringify({ data: { requestId: 'private-request', sessionId: 'own-session' } }) } });
     return requestId;
   };
+  const receiveHeaders = (requestId, status = 200) => {
+    events.emit('Network.responseReceived', { requestId, timestamp: 2,
+      response: { url: 'http://localhost/demo/us-central1/getCurrentMemberSession', status } });
+  };
   const respond = (requestId, reply = { result: { status: 'committed', revision: 7 } }, status = 200) => {
     responseBodies.set(requestId, typeof reply === 'string' ? { body: reply, isBase64Encoded: false }
       : { body: JSON.stringify(reply), isBase64Encoded: false });
-    events.emit('Network.responseReceived', { requestId, timestamp: 2,
-      response: { url: 'http://localhost/demo/us-central1/getCurrentMemberSession', status } });
+    receiveHeaders(requestId, status);
   };
   const finish = requestId => {
     finished.add(requestId);
@@ -116,7 +119,7 @@ async function cdpCallableObservationActor({ durableConfigurationError } = {}) {
     events.emit('Network.loadingFailed', { requestId, timestamp: 3, errorText, canceled: true });
   };
   return { actor, page, context, events, commands, responseBodies, start, respond, finish, fail,
-    completeNavigation() { navigationComplete = true; events.emit('test-navigation-complete'); } };
+    receiveHeaders, completeNavigation() { navigationComplete = true; events.emit('test-navigation-complete'); } };
 }
 
 function incompleteBodyBoundaryActor() {
@@ -227,7 +230,17 @@ test('identical callable requests retain distinct CDP protocol lifecycles', asyn
   assert.equal(JSON.stringify(actor.observedCalls).includes('protocol-two'), false);
 });
 
-test('an HTTP200 with missing or malformed protocol body remains an observation failure', async () => {
+test('a completed HTTP200 with missing or malformed protocol body remains an observation failure', async () => {
+  const missing = await cdpCallableObservationActor();
+  const missingRequest = missing.start();
+  missing.receiveHeaders(missingRequest, 200);
+  missing.finish(missingRequest);
+  await missing.actor.drainObservedCalls();
+  assert.equal(missing.actor.observedCalls[0].status, 200);
+  assert.equal(missing.actor.observedCalls[0].requestFinishedAt !== null, true);
+  assert.equal(missing.actor.observedCalls[0].bodyCompletedAt, null);
+  assert.equal(missing.actor.callableObservationFailures.length, 1);
+  assert.equal(missing.actor.callableObservationFailures[0].category, 'response-observation-unavailable');
   for (const body of ['', '{not-json']) {
     const { actor, start, respond, finish } = await cdpCallableObservationActor();
     const requestId = start(); respond(requestId, body); finish(requestId);
