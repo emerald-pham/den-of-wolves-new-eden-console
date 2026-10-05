@@ -6,8 +6,13 @@ import { useSessionStore } from '@/store/useSessionStore';
 import ShipPlot from './ShipPlot';
 
 vi.mock('@/lib/sessionService', () => ({ triggerDradisContact: vi.fn() }));
+vi.mock('@/lib/firestore', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/firestore')>();
+  return { ...actual, subscribeWolfAttackMemberView: vi.fn(() => vi.fn()) };
+});
 
 const { triggerDradisContact } = await import('@/lib/sessionService');
+const { subscribeWolfAttackMemberView } = await import('@/lib/firestore');
 
 beforeEach(() => {
   useSessionStore.getState().reset();
@@ -22,6 +27,19 @@ beforeEach(() => {
   );
 });
 afterEach(() => vi.useRealTimers());
+
+it('keeps the attack-audience listener closed when a retained navigation sample outlives the session', async () => {
+  vi.mocked(subscribeWolfAttackMemberView).mockClear();
+  const closedSession = {
+    id: 's1', name: 'Table one', joinCode: '', phase: 'closed' as const, ownerUid: 'u1',
+    createdAt: '2026-10-03T00:00:00.000Z', updatedAt: '2026-10-03T00:00:00.000Z',
+  };
+  render(<ShipPlot hostile={false} aboard viewerId="aegis" requireLocalAuthority ambientSession={closedSession}
+    localNavigation={{ groupId: 'local', sampledAt: '2026-10-03T01:00:00.000Z', navigationRevision: 1,
+      fleetPartitionRevision: 1, ships: [{ shipId: 'aegis', fleetGroupId: 'local', coordinate: '1413' }], transits: [] }} />);
+  await act(async () => { await new Promise(resolve => window.setTimeout(resolve, 25)); });
+  expect(subscribeWolfAttackMemberView).not.toHaveBeenCalled();
+});
 
 it('offers every registered DRADIS effect in any expanded console to an active GM', async () => {
   const user = userEvent.setup();

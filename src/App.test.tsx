@@ -1,3 +1,4 @@
+import { StrictMode } from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -115,7 +116,9 @@ const {
   await import('@/lib/sessionService');
 const {
   sessionSnapshotAuthorityFor,
+  subscribeCrisisReport,
   subscribeLoyaltyCensus,
+  subscribePlayerHackingNotices,
   subscribeSessionState,
 } = await import('@/lib/firestore');
 const { startVersionUpgradeMonitor } = await import('@/lib/versionUpgrade');
@@ -886,6 +889,39 @@ describe('App', () => {
     expect(readClosedSessionHistory).toHaveBeenCalledTimes(1);
     expect(subscribeSessionState).not.toHaveBeenCalled();
     expect(refreshPresence).not.toHaveBeenCalled();
+  });
+
+  it('does not open crisis or player hacking listeners for closed history', () => {
+    const closedSession: GameSession = { ...session, joinCode: '', phase: 'closed',
+      debriefSnapshot: { type: 'session-debrief', version: 1, source: 'final-cycle', result: 'completed',
+        cause: 'final-cycle', cycle: 4, occurredAt: '2026-10-05T12:00:00.000Z',
+        committedAt: '2026-10-05T12:01:00.000Z' } };
+    const returningPlayer = { ...player, role: 'player' as const, fleetGroupId: 'fleet-1' };
+    useSessionStore.getState().setIdentity(closedSession, returningPlayer);
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+    vi.mocked(subscribeCrisisReport).mockClear();
+    vi.mocked(subscribePlayerHackingNotices).mockClear();
+
+    render(<App />);
+
+    expect(subscribeCrisisReport).not.toHaveBeenCalled();
+    expect(subscribePlayerHackingNotices).not.toHaveBeenCalled();
+  });
+
+  it('deduplicates the cold closed-session resume during StrictMode effect replay', async () => {
+    const closedSession: GameSession = { ...session, joinCode: '', phase: 'closed',
+      debriefSnapshot: { type: 'session-debrief', version: 1, source: 'final-cycle', result: 'completed',
+        cause: 'final-cycle', cycle: 4, occurredAt: '2026-10-05T12:00:00.000Z',
+        committedAt: '2026-10-05T12:01:00.000Z' } };
+    useSessionStore.getState().setIdentity(closedSession, { ...player, role: 'player', fleetGroupId: 'fleet-1' });
+    useSessionStore.getState().setConnection('offline');
+    useSessionStore.getState().setSessionSnapshotFreshness('cache');
+    vi.mocked(connectAutomatically).mockClear();
+
+    render(<StrictMode><App /></StrictMode>);
+
+    await waitFor(() => expect(connectAutomatically).toHaveBeenCalledTimes(1));
   });
 
   it.each(['connect', 'heartbeat', 'reconcile'] as const)(
