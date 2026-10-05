@@ -1,4 +1,5 @@
 import { expect, it, vi } from 'vitest';
+import { act } from '@testing-library/react';
 import { recommendedRoleIds } from '@/data/rolePresets';
 import { activeFleetShipIds } from '@/data/roles';
 import { useSessionStore } from '@/store/useSessionStore';
