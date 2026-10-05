@@ -139,6 +139,16 @@ test('wrong or stale actor-private reply cannot be accepted under a matching cur
   }
 });
 
+test('a normal actor-private reply without its cycle/revision cannot stand in for the actual current source', async () => {
+  const { waitForWolfChoiceReadiness } = await moduleUnderTest();
+  for (const field of ['turn', 'revision']) {
+    const reply = choice(); delete reply[field];
+    const f = waitFixture({ choiceRead: () => reply });
+    await assert.rejects(waitForWolfChoiceReadiness(f.options), /current|source|turn|revision/i);
+    assert.equal(f.counters().paintReads, 0);
+  }
+});
+
 test('source-unavailable without a painted explicit blocker times out without silently passing the branch', async () => {
   const { waitForWolfChoiceReadiness } = await moduleUnderTest();
   const f = waitFixture({ choiceRead: () => choice({ eligible: false, reason: 'uncharged' }),
