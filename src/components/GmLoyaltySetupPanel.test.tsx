@@ -77,6 +77,26 @@ describe('connected GM loyalty setup panel', () => {
     expect(screen.getByText(/Every current core role holder and claimed Press Officer needs a private record before start/i)).toBeInTheDocument();
   });
 
+  it('allows the first explicit assignment after a server-confirmed empty census', () => {
+    prepareGm({ universalArbourEnabled: true });
+    useSessionStore.setState({ gmLoyaltyCensus: null, gmLoyaltyCensusStatus: 'empty' } as never);
+    render(<GmLoyaltySetupPanel players={coreRoster} />);
+
+    expect(screen.getByRole('combobox', { name: 'Loyalty holder' })).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Private loyalty type' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Assign private loyalty' })).toBeEnabled();
+    expect(screen.getByText(/0 of 3 configured/i)).toBeInTheDocument();
+  });
+
+  it.each(['loading', 'error'] as const)('keeps the editor blocked while the live census is %s', (status) => {
+    prepareGm({ universalArbourEnabled: true });
+    useSessionStore.setState({ gmLoyaltyCensus: null, gmLoyaltyCensusStatus: status } as never);
+    render(<GmLoyaltySetupPanel players={coreRoster} />);
+
+    expect(screen.queryByRole('combobox', { name: 'Loyalty holder' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Assign private loyalty' })).not.toBeInTheDocument();
+  });
+
   it('offers reciprocal Friend selection from other current holders and uses source suspicion', async () => {
     const user = userEvent.setup();
     prepareGm({ wolfCultEnabled: true });
