@@ -338,11 +338,34 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
   const observedCalls = [];
   const callableObservationFailures = [];
   const failuresByRequest = new WeakMap();
+  const protocolRequestHashFor = requestId => typeof requestId === 'string' && requestId.length > 0
+    ? createHash('sha256').update(`pc10-cdp-request\0${requestId}`).digest('hex') : null;
+  const safeTransportError = errorText => {
+    switch (errorText) {
+      case 'net::ERR_ABORTED': return 'aborted';
+      case 'net::ERR_INTERNET_DISCONNECTED': return 'internet-disconnected';
+      case 'net::ERR_TIMED_OUT': return 'timed-out';
+      default: return 'unknown';
+    }
+  };
+  function recordDetachedCallableFailure(name, requestId, category) {
+    const failure = { roleId: label, name, category };
+    const protocolRequestHash = protocolRequestHashFor(requestId);
+    if (protocolRequestHash) failure.protocolRequestHash = protocolRequestHash;
+    callableObservationFailures.push(failure);
+  }
   function recordCallableObservationFailure(state, category) {
     const byCategory = failuresByRequest.get(state) ?? new Map();
     if (byCategory.has(category)) return;
     const failure = { roleId: label, name: state.trace.name, requestHash: state.trace.requestHash,
       status: state.trace.status, category };
+    const protocolRequestHash = protocolRequestHashFor(state.protocolRequestId);
+    if (protocolRequestHash) failure.protocolRequestHash = protocolRequestHash;
+    if (state.transportFailure) {
+      failure.transportError = state.transportFailure.error;
+      failure.transportCancelled = state.transportFailure.canceled;
+    }
+    if (state.bodyFailureStage) failure.bodyFailureStage = state.bodyFailureStage;
     byCategory.set(category, failure);
     failuresByRequest.set(state, byCategory);
     callableObservationFailures.push(failure);
@@ -391,8 +414,8 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
           ? name : null;
       } catch { return null; }
     };
-    const unboundFailure = name => callableObservationFailures.push({ roleId: label, name,
-      category: 'unknown-callable-lifecycle' });
+    const unboundFailure = (name, requestId) => recordDetachedCallableFailure(name, requestId,
+      'unknown-callable-lifecycle');
     const eventTime = trace => Math.max(Date.now(), trace.issuedAt);
     cdpSession.on('Network.requestWillBeSent', event => {
       const name = callableNameFor(event?.request?.url);
@@ -400,7 +423,7 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
       const method = event?.request?.method;
       if (typeof method !== 'string' || method.length === 0 ||
           typeof event.requestId !== 'string' || event.requestId.length === 0) {
-        callableObservationFailures.push({ roleId: label, name, category: 'request-metadata-unavailable' });
+        recordDetachedCallableFailure(name, event?.requestId, 'request-metadata-unavailable');
         return;
       }
       const ignoredPrior = ignoredNonPostRequests.get(event.requestId);
@@ -420,6 +443,7 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
         return;
       }
       let data;
+      let requestMetadataUnavailable = false;
       try {
         if (typeof event.request.postData !== 'string') throw new Error('Callable post data is unavailable.');
         const envelope = JSON.parse(event.request.postData);
@@ -429,7 +453,7 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
         }
         data = envelope.data;
       } catch {
-        callableObservationFailures.push({ roleId: label, name, category: 'request-metadata-unavailable' });
+        requestMetadataUnavailable = true;
       }
       const trace = createPc10CallableTrace({ name, data, actorUid: undefined,
         transport: 'independent-browser-SDK', startedAt: Date.now() });
@@ -440,6 +464,7 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
       state.headersSeen = false;
       observedRequests.set(event.requestId, state);
       observedCalls.push(trace);
+      if (requestMetadataUnavailable) recordCallableObservationFailure(state, 'request-metadata-unavailable');
     });
     cdpSession.on('Network.responseReceived', event => {
       const ignoredNonPost = ignoredNonPostRequests.get(event?.requestId);
@@ -447,7 +472,7 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
       const state = observedRequests.get(event?.requestId);
       if (!state) {
         const name = callableNameFor(event?.response?.url);
-        if (name) unboundFailure(name);
+        if (name) unboundFailure(name, event?.requestId);
         return;
       }
       if (state.headersSeen || state.trace.requestFinishedAt !== null || state.trace.requestFailedAt !== null) {
@@ -470,13 +495,34 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
       }
       observePc10CallableTrace(state.trace, { stage: 'finished', at: eventTime(state.trace) });
       const capture = Promise.resolve().then(async () => {
-        const response = await cdpSession.send('Network.getResponseBody', { requestId: state.protocolRequestId });
-        if (!response || typeof response.body !== 'string' || typeof response.base64Encoded !== 'boolean') {
-          throw new Error('Callable response body is unavailable.');
+        let response;
+        try {
+          response = await cdpSession.send('Network.getResponseBody', { requestId: state.protocolRequestId });
+        } catch {
+          state.bodyFailureStage = 'get-response-body';
+          throw new Error('Callable response body read failed.');
         }
-        const bytes = response.base64Encoded ? Buffer.from(response.body, 'base64') : Buffer.from(response.body, 'utf8');
-        const reply = JSON.parse(bytes.toString('utf8'));
-        if (!reply || typeof reply !== 'object' || Array.isArray(reply)) throw new Error('Callable response body is malformed.');
+        if (!response || typeof response.body !== 'string' || typeof response.base64Encoded !== 'boolean') {
+          state.bodyFailureStage = 'response-shape';
+          throw new Error('Callable response body shape is malformed.');
+        }
+        let bytes;
+        try {
+          bytes = response.base64Encoded ? Buffer.from(response.body, 'base64') : Buffer.from(response.body, 'utf8');
+        } catch {
+          state.bodyFailureStage = 'body-decode';
+          throw new Error('Callable response body decoding failed.');
+        }
+        let reply;
+        try { reply = JSON.parse(bytes.toString('utf8')); }
+        catch {
+          state.bodyFailureStage = 'json-parse';
+          throw new Error('Callable response body JSON was malformed.');
+        }
+        if (!reply || typeof reply !== 'object' || Array.isArray(reply)) {
+          state.bodyFailureStage = 'reply-shape';
+          throw new Error('Callable response body reply shape was malformed.');
+        }
         if (!state.headersSeen) recordCallableObservationFailure(state, 'unknown-callable-lifecycle');
         const completedAt = eventTime(state.trace);
         observePc10CallableTrace(state.trace, { stage: 'body', at: completedAt, reply });
@@ -498,10 +544,14 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
         return;
       }
       observePc10CallableTrace(state.trace, { stage: 'failed', at: eventTime(state.trace) });
+      state.transportFailure = {
+        error: safeTransportError(event?.errorText),
+        canceled: typeof event?.canceled === 'boolean' ? event.canceled : null,
+      };
       observationBoundary.fail(state, event.errorText);
     });
-    await cdpSession.send('Network.configureDurableMessages', durableBuffer);
     await cdpSession.send('Network.enable', durableBuffer);
+    await cdpSession.send('Network.configureDurableMessages', durableBuffer);
   } catch (error) {
     await cdpSession?.detach().catch(() => undefined);
     await context.close().catch(() => undefined);
