@@ -199,6 +199,7 @@ function makeMountedArrivalHarness({ retryCount = 0, completeCount = 1, complete
       teamPhaseEndsAt: new Date(now + 60_000).toISOString(), openAirspaceEndsAt: new Date(now + 120_000).toISOString() },
     holderGroupId: 'fleet-1', playerDiscovery: { groupId: 'fleet-1' },
     activeVesselIds: ['quellon', 'icebreaker'], shipFleetGroupIds: { quellon: 'fleet-1', icebreaker: 'fleet-1' },
+    currentMemberScope: { groupId: 'fleet-1', vesselIds: ['quellon', 'icebreaker'], craftIds: ['starlight'] },
     shuttleControl: { starlight: { shuttleId: 'starlight', holderUid: UID, revision: 4 } },
     currentDocumentAuthority: currentDocumentAuthority(),
     shuttleDockings: [], shuttleVisitLog: [],
@@ -308,6 +309,7 @@ function makeMountedArrivalHarness({ retryCount = 0, completeCount = 1, complete
   const context = { initial: { sessionId: SESSION }, gm, roster: [{ roleId: 'quellon-explorer', uidHash: UID_HASH }] };
   context.shuttleArrivalWitness = shuttleArrivalWitness();
   context.shuttleOriginAuthority = shuttleOriginAuthority();
+  context.shuttleOriginHostShipId = 'quellon';
   return { context, game, player, initialState: structuredClone(state),
     changeCurrentHolder: () => { state = { ...state, shuttleControl: { ...state.shuttleControl,
       starlight: { ...state.shuttleControl.starlight, holderUid: 'new-holder' } } }; },
