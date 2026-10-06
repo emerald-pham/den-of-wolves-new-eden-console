@@ -80,12 +80,15 @@ async function fullHelperFailure(t, name, change, expectedError, { pendingProduc
   t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now });
   const schedulerCalls = [];
   const schedulerBoundary = new Error('Native scheduler transport boundary reached without launching a process.');
-  t.mock.method(childProcess, 'execFile', (...args) => {
+  // A plain replacement avoids execFile's original custom-promisify implementation.
+  const originalExecFile = childProcess.execFile;
+  childProcess.execFile = (...args) => {
     schedulerCalls.push(args.slice(0, 3));
     const callback = args.at(-1);
     assert.equal(typeof callback, 'function');
     callback(schedulerBoundary, '', '');
-  });
+  };
+  assert.equal(childProcess.execFile[Symbol.for('nodejs.util.promisify.custom')], undefined);
   syncBuiltinESMExports();
   const item = fixtureTable(change);
   const waiting = deferred(), stopping = deferred(), producer = deferred();
@@ -154,7 +157,8 @@ async function fullHelperFailure(t, name, change, expectedError, { pendingProduc
   } finally {
     if (controller) await controller.stop();
     if (proof) await proof.catch(() => {});
-    t.mock.timers.reset(); t.mock.restoreAll(); syncBuiltinESMExports();
+    t.mock.timers.reset(); t.mock.restoreAll();
+    childProcess.execFile = originalExecFile; syncBuiltinESMExports();
   }
 }
 
