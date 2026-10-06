@@ -87,7 +87,7 @@ function currentCapyCaller(bindings: Record<string, unknown>) {
   }
   visit(file); expect(declarations).toHaveLength(names.length);
   return new Script(`${declarations.map(node => node.getText(file)).join('\n')}\nrunSpecialist`)
-    .runInNewContext({ assert, PC10_SPECIALIST_ACTIONS, runPc10SpecialistAction, capybaraStageOutcome,
+    .runInNewContext({ assert, URL, PC10_SPECIALIST_ACTIONS, runPc10SpecialistAction, capybaraStageOutcome,
       ...specialistModule, SUCCESS_RESULT_STATUSES: new Set(['requested', 'replayed']),
       updateCapybaraStage: () => { throw new Error('No native file write or stage fixture credit.'); }, ...bindings });
 }
