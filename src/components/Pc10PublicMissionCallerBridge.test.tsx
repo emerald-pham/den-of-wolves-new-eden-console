@@ -70,7 +70,7 @@ const capySource = source('scripts/pc10-capybara-full-gameplay.mjs');
 const capyCaller = declaration(capySource, 'runCapybaraFullGameGameplay');
 const resolution = find(capyCaller, (node): node is ts.VariableStatement =>
   ts.isVariableStatement(node) && node.declarationList.declarations.some(value =>
-    value.name.getText(capySource) === 'resolved')));
+    value.name.getText(capySource) === 'resolved'));
 assert.ok(ts.isBlock(resolution.parent));
 const callerStatements = [...resolution.parent.statements];
 const begin = callerStatements.indexOf(resolution);
@@ -250,7 +250,7 @@ function nativeBridge(options: FixtureOptions = {}) {
       return { stages, checks };
     },
     extra: async () => {
-      const matrix = [{ id: 'capybara-small-captain:bulk-haulage', status: 'pending', receipts: [],
+      const matrix = [{ id: 'capybara-small-captain:bulk-haulage', status: 'pending', attempts: [],
         endpoint: 'commitAwayMissionLifecycleCommand' }];
       const workspace = { getByRole: (role: string, query: { name: string }) => panel('gm').panel.getByRole(role, query) };
       await extraAcceptance(workspace, { context: { gm: {} }, ui: async (_surface: unknown,
@@ -329,7 +329,7 @@ describe('PC10 public mission caller mapping through real lifecycle, projection,
     expect(bridge.record().outcomes?.[0]?.outcome).toBe(outcome);
     expect(bridge.record().rewards?.[0]?.bulkHaulageApplied).toBe(true);
     expect(matrix[0]?.status).toBe('committed');
-    expect(matrix[0]?.receipts).toHaveLength(1);
+    expect(matrix[0]?.attempts).toHaveLength(1);
     expect(bridge.requests.map(request => request.type)).toEqual(['addFacilitatorCards', 'resolve']);
   });
   it.each([{ assigned: '2♥', facilitator: '2♦' }, { noBulkCraft: true }] as const)(
