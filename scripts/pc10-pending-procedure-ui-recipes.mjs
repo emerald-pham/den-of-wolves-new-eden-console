@@ -337,8 +337,20 @@ export async function readActionState(surface, shuttleId, options = {}) {
   const diagnosticOnly = options?.diagnosticOnly === true;
   const input = { moduleUrl: surface.storeModuleUrl(), shuttleId };
   if (diagnosticOnly) input.diagnosticOnly = true;
-  return surface.page.evaluate(async ({ moduleUrl, shuttleId, diagnosticOnly = false }) => {
+  if (!diagnosticOnly && options?.confirmMemberProjection === true) input.confirmMemberProjection = true;
+  return surface.page.evaluate(async ({ moduleUrl, shuttleId, diagnosticOnly = false, confirmMemberProjection = false }) => {
     const { useSessionStore } = await import(moduleUrl);
+    if (confirmMemberProjection) {
+      const { confirmCurrentMemberSessionProjection } = await import('/src/lib/firestore.ts');
+      // Older inert reader fixtures have no active product feed. Their source
+      // predicates still apply; the current product module always has this API.
+      if (typeof confirmCurrentMemberSessionProjection === 'function') {
+        const original = useSessionStore.getState();
+        const sessionId = original.session?.id;
+        const uid = original.me?.uid;
+        if (!sessionId || !uid || !await confirmCurrentMemberSessionProjection(sessionId, uid)) return null;
+      }
+    }
     const current = useSessionStore.getState();
     const session = current.session;
     if (!session) return null;
@@ -3842,7 +3854,7 @@ async function recipeFor({ context, game, spec }) {
         movementAfter = await readShuttleMovement(surface, expected.sessionId, resolved.target.shuttleId).catch(() => undefined);
       }
       const latest = await readActionState(surface, movementEndpoint || memberScopedShuttleCommandEndpoint || printedOwnerControlEndpoint
-        ? resolved.target.shuttleId : undefined);
+        ? resolved.target.shuttleId : undefined, coreShuttleMovementEndpoint ? { confirmMemberProjection: true } : {});
       if (printedOwnerControlEndpoint) {
         const action = resolved.target.controlTransferAction;
         const targetUid = resolved.target.controlTransferTargetUid;

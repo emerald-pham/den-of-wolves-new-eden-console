@@ -17,7 +17,7 @@ import {
   type Firestore,
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
-import { app, functions } from './firebase';
+import { app, auth, functions } from './firebase';
 import { emulatorPorts, useEmulators } from './firebaseConfig';
 import { parsePdfEscortWingMemberView } from './pdfEscortWingProjection';
 import { parsePresidentialElectionProjection, parsePresidentialOfficesProjection } from './presidentialElectionProjection';
@@ -4019,6 +4019,37 @@ export interface SessionStateHandlers {
 // listener's cleanup cannot clear private state that a replacement listener
 // has already hydrated.
 let currentSessionSubscriptionToken: symbol | undefined;
+interface MemberProjectionConfirmation {
+  readonly sessionId: string;
+  readonly uid: string;
+  readonly subscriptionToken: symbol;
+  readonly confirm: (current: () => boolean) => Promise<boolean>;
+  readonly cancel: () => void;
+}
+let currentMemberProjectionConfirmation: MemberProjectionConfirmation | undefined;
+
+/** Confirm content through the active member feed with a read started after this intent. */
+export async function confirmCurrentMemberSessionProjection(sessionId: string, uid: string): Promise<boolean> {
+  const feed = currentMemberProjectionConfirmation;
+  const identity = () => {
+    const store = useSessionStore.getState();
+    const me = store.me;
+    if (auth().currentUser?.uid !== uid || store.session?.id !== sessionId ||
+        store.session.phase === 'closed' || store.connection !== 'live' || store.sessionSnapshotFreshness !== 'server' ||
+        me?.uid !== uid || me.sessionId !== sessionId || me.role !== 'player' || me.connected !== true ||
+        me.replacementRoleId != null || me.replacementStatus != null || me.escapeState != null ||
+        !Number.isSafeInteger(me.connectionGeneration) || (me.connectionGeneration ?? 0) < 1 ||
+        !Number.isSafeInteger(store.identityHydrationRevision) || store.identityHydrationRevision < 1) return undefined;
+    return JSON.stringify([me.fleetGroupId, me.connectionGeneration, me.assignedRoleId, me.activeConsoleRoleId,
+      me.seatId, store.identityHydrationRevision, store.gmInstance?.id]);
+  };
+  const originalIdentity = identity();
+  if (!feed || feed.sessionId !== sessionId || feed.uid !== uid || originalIdentity === undefined ||
+      currentSessionSubscriptionToken !== feed.subscriptionToken) return false;
+  const current = () => currentMemberProjectionConfirmation === feed &&
+    currentSessionSubscriptionToken === feed.subscriptionToken && identity() === originalIdentity;
+  return await feed.confirm(current) && current();
+}
 
 /** Closed member reads carry immutable history, with no operational session scope. */
 export function closedMemberSessionFrom(sessionId: string, response: RecordValue, data: RecordValue): GameSession {
@@ -4069,6 +4100,8 @@ export function subscribeSessionState(
   let subscribed = true;
   const subscriptionToken = Symbol('session-subscription');
   let gmDiscoveryTerminated = false;
+  currentMemberProjectionConfirmation?.cancel();
+  currentMemberProjectionConfirmation = undefined;
   currentSessionSubscriptionToken = subscriptionToken;
   const sessionDocument = handlers.sessionReadAudience === 'member'
     ? undefined : doc(database, `sessions/${sessionId}`);
@@ -4302,11 +4335,21 @@ export function subscribeSessionState(
     let pending = false;
     let wanted = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let confirmationRevision = 0;
+    const confirmations = new Map<number, { readonly current: () => boolean; readonly resolve: (accepted: boolean) => void }>();
+    const settleConfirmations = (revision: number, accepted: boolean) => {
+      for (const [intent, confirmation] of confirmations) {
+        if (intent > revision) continue;
+        confirmations.delete(intent);
+        confirmation.resolve(accepted && confirmation.current());
+      }
+    };
+    const cancelConfirmations = () => settleConfirmations(confirmationRevision, false);
     const current = () => !stopped && subscribed && currentSessionSubscriptionToken === subscriptionToken &&
       memberActorAvailable !== false;
     memberRefreshPending = () => pending && current();
     const refresh = () => {
-      if (!current()) return;
+      if (!current()) { cancelConfirmations(); return; }
       wanted = true;
       if (pending) return;
       pending = true;
@@ -4316,9 +4359,18 @@ export function subscribeSessionState(
           wanted = false;
           const actorEpoch = memberActorEpoch;
           const startingVersion = sessionSnapshotAuthorityVersion(sessionSnapshotAuthority);
+          // A read already in flight cannot satisfy a later confirmation.
+          // That intent leaves wanted set for the next existing loop read.
+          const readingConfirmationRevision = confirmationRevision;
+          const readingConfirmations = [...confirmations.entries()]
+            .filter(([intent]) => intent <= readingConfirmationRevision).map(([, confirmation]) => confirmation);
           try {
             const response = recordValue((await read({ sessionId })).data);
             if (!current()) break;
+            if (readingConfirmations.length && !readingConfirmations.some(confirmation => confirmation.current())) {
+              settleConfirmations(readingConfirmationRevision, false);
+              continue;
+            }
             if (actorEpoch !== memberActorEpoch || startingVersion !== sessionSnapshotAuthorityVersion(sessionSnapshotAuthority)) {
               wanted = true;
               continue;
@@ -4337,6 +4389,7 @@ export function subscribeSessionState(
               activeConsoleRoleId: response.activeConsoleRoleId as string | null });
             if (memberActorFingerprint !== undefined && memberActorFingerprint !== fingerprint) {
               handlers.onSessionFreshness?.(false);
+              cancelConfirmations();
               break;
             }
             const projectedSession = closedHistory ? closedMemberSessionFrom(sessionId, response, data) : sessionFrom(sessionId, data);
@@ -4353,8 +4406,12 @@ export function subscribeSessionState(
               handlers.onSessionFreshness?.(true);
               if (session.phase === 'closed') stopForClosedHistory();
               else publishPendingMemberDiscovery();
+              settleConfirmations(readingConfirmationRevision, true);
+            } else {
+              settleConfirmations(readingConfirmationRevision, false);
             }
           } catch {
+            settleConfirmations(readingConfirmationRevision, false);
             if (current() && actorEpoch === memberActorEpoch) {
               memberSessionConfirmed = false;
               pendingMemberDiscovery = undefined;
@@ -4364,12 +4421,28 @@ export function subscribeSessionState(
           }
         }
         pending = false;
+        if (!current()) cancelConfirmations();
         if (current()) timer = setTimeout(refresh, 5_000);
       })();
     };
+    const confirmationFeed: MemberProjectionConfirmation = {
+      sessionId, uid, subscriptionToken, cancel: cancelConfirmations,
+      confirm: isCurrent => new Promise<boolean>(resolve => {
+        if (!current() || !isCurrent()) { resolve(false); return; }
+        confirmations.set(++confirmationRevision, { current: isCurrent, resolve });
+        refresh();
+      }),
+    };
+    currentMemberProjectionConfirmation = confirmationFeed;
     memberFeedRefresh = refresh;
     refresh();
-    return () => { stopped = true; if (timer) clearTimeout(timer); memberFeedRefresh = () => undefined; };
+    return () => {
+      stopped = true;
+      cancelConfirmations();
+      if (timer) clearTimeout(timer);
+      if (currentMemberProjectionConfirmation === confirmationFeed) currentMemberProjectionConfirmation = undefined;
+      memberFeedRefresh = () => undefined;
+    };
   };
   let playerDiscoveryListenerGeneration = 0;
   let unsubscribePlayerDiscovery: Unsubscribe = () => undefined;
