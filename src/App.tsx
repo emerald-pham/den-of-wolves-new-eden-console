@@ -20,7 +20,7 @@ import AppHeader from '@/components/AppHeader';
 import WolfHackingRuntime from '@/components/WolfHackingRuntime';
 import ShipPlot from '@/components/ShipPlot';
 import { useFleetGroupNavigation } from '@/lib/useFleetGroupNavigation';
-import { memberSessionResumeBlocksFreshness } from '@/lib/sessionSnapshotAuthority';
+import { memberSessionResumeBlocksFreshness, sessionSnapshotAuthorityFor } from '@/lib/sessionSnapshotAuthority';
 import ScreenFade from '@/components/ScreenFade';
 import CommunicationError from '@/components/CommunicationError';
 import PopulationAlert from '@/components/PopulationAlert';
@@ -1668,7 +1668,17 @@ function AppRuntime() {
     const markOffline = markAuthorityOffline;
     const reconnectNow = reconnectIfNeeded;
     const reconnectWhenVisible = () => {
-      if (document.visibilityState === 'visible') reconnectIfNeeded();
+      if (document.visibilityState !== 'visible') return;
+      const state = useSessionStore.getState();
+      const uid = auth().currentUser?.uid;
+      // A short focus change must not retire this document's accepted identity.
+      // The independent stale-page monitor still owns its existing recovery.
+      if (uid && state.session && state.me && uid === state.me.uid &&
+          state.me.sessionId === state.session.id && state.identityHydrationRevision > 0 &&
+          state.connection === 'live' && state.sessionSnapshotFreshness === 'server' &&
+          state.me.connected !== false &&
+          !memberSessionResumeBlocksFreshness(sessionSnapshotAuthorityFor(state.session.id, uid))) return;
+      reconnectIfNeeded();
     };
 
     window.addEventListener('offline', markOffline);
