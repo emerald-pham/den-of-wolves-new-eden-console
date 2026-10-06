@@ -32,9 +32,9 @@ test('registration-lock annotation does not claim the unmounted GmConsole writer
     assert.ok(row.clientCallTrace.sourceReferences.identifierOccurrences.some((reference) =>
       reference.path === 'src/routes/GmConsole.tsx'),
     'the pending-command label remains visible in the scan without being treated as a control');
-    assert.ok(row.sourceAnchorIds.includes('workspace.client.setGmControlsLocked'));
-    assert.ok(row.sourceAnchorIds.includes('workspace.ui.claimGmInstance'));
-    assert.ok(!row.sourceAnchorIds.includes('workspace.ui.setGmControlsLocked'));
+    assert.ok(row.productPath.sourceAnchorIds.includes('workspace.client.setGmControlsLocked'));
+    assert.ok(row.productPath.sourceAnchorIds.includes('workspace.ui.claimGmInstance'));
+    assert.ok(!row.productPath.sourceAnchorIds.includes('workspace.ui.setGmControlsLocked'));
     assert.equal(row.guidance.status, 'not-present-in-current-ui');
   } finally {
     rmSync(temporaryDirectory, { recursive: true, force: true });
