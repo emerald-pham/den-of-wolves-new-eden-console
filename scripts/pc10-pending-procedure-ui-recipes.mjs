@@ -1506,14 +1506,15 @@ async function planPressShuttleArrival({ surface, actor, state, origin, context,
   const departureWitness = context.pressShuttleDepartureWitness;
   const transitWitness = context.pressShuttleTransitWitness;
   if (!validPressDepartureWitness(departureWitness, origin, transitWitness?.destinationShipId) ||
-      !validPressTransitWitness(transitWitness, origin, departureWitness, priorWitness?.destinationShipId) ||
+      !validPressTransitWitness(transitWitness, origin, departureWitness, transitWitness?.destinationShipId) ||
       !validPressArrivalWitness(priorWitness) ||
       priorWitness.departureRequestId !== departureWitness.departureRequestId ||
       priorWitness.transitRequestId !== transitWitness.transitRequestId ||
-      priorWitness.destinationShipId !== transitWitness.destinationShipId ||
-      priorWitness.transitRevision !== transitWitness.transitRevision ||
-      priorWitness.requestedAt !== transitWitness.requestedAt || priorWitness.departedAt !== transitWitness.departedAt ||
-      priorWitness.arrivesAt !== transitWitness.arrivesAt ||
+      priorWitness.destinationShipId === transitWitness.destinationShipId ||
+      priorWitness.transitRevision !== transitWitness.transitRevision + 1 ||
+      priorWitness.requestedAt !== transitWitness.requestedAt ||
+      Date.parse(priorWitness.departedAt) < Date.parse(transitWitness.departedAt) ||
+      Date.parse(priorWitness.departedAt) >= Date.parse(transitWitness.arrivesAt) ||
       !samePressOriginAuthority(pressOriginFromArrivalWitness(priorWitness), origin)) {
     return block('the exact original Press Request, Begin, and Retarget witnesses are required for arrival');
   }
