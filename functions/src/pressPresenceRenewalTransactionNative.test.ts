@@ -398,9 +398,25 @@ describe('current original Press lease uses read-only exclusivity plus atomic po
     expect(JSON.stringify(after)).not.toContain('FOREIGN_PRIVATE_DATA');
   });
 
-  it('keeps an omitted-role heartbeat on the same current-holder renewal path', async () => {
+  it('preserves the original omitted-role Press heartbeat transaction and current authority', async () => {
     await originalCurrentPressTable();
-    expect(await refreshPresence.run(request(pressUid, { sessionId: sid }))).toEqual({ sessionId: sid }); assertPointRenewal();
+    expect(await refreshPresence.run(request(pressUid, { sessionId: sid }))).toEqual({ sessionId: sid });
+    const writes = leaseWriteTraces(); expect(writes).toHaveLength(1);
+    expect(writes[0].reads.some(r => r.query && r.path === `sessions/${sid}/players`)).toBe(true);
+    expect(mock.transactionTraces).toHaveLength(1);
+    expect(read(playerPath)).toMatchObject({ connected: true, connectionGeneration: 3, activeConsoleRoleId: 'press-officer' });
+  });
+
+  it('does not add Press preflight reads or transactions to an ordinary Core omitted-role heartbeat', async () => {
+    await originalCurrentPressTable(); const uid = 'native-press-renewal-core-0';
+    await refreshPresence.run(request(uid, { sessionId: sid, activeConsoleRoleId: roles[0] })); clearTraces();
+    expect(await refreshPresence.run(request(uid, { sessionId: sid }))).toEqual({ sessionId: sid });
+    expect(mock.transactionTraces).toHaveLength(1);
+    expect(mock.transactionTraces[0].readOnly).toBe(false);
+    expect(mock.transactionTraces[0].reads.every(r => !r.query)).toBe(true);
+    expect(mock.transactionTraces[0].writes).toEqual([`sessions/${sid}/players/${uid}`, `activeMemberships/${uid}`]);
+    expect(read(`sessions/${sid}/players/${uid}`)).toMatchObject({ uid, sessionId: sid, assignedRoleId: roles[0],
+      seatId: roles[0], activeConsoleRoleId: roles[0], connectionGeneration: 3 });
   });
 
   it('executes the original callable when the inert DB forbids query-plus-lease writes', async () => {
