@@ -70,3 +70,33 @@ to the corresponding real scenario and source/runtime evidence.
 | Gate 3 | Available actions, costs, blockers and next actor can be understood in app | pending; broader PC11 guidance is future work |
 
 Prepared presentation, native tests, normal authenticated emulator HTTP/UI/rules, automated concurrent browsers, human/device playtesting, CI and production deployment are separate evidence classes. No unavailable evidence earns closure credit.
+
+## October 6 accepted and open finite families
+
+This snapshot binds source `47b04332cd4bdc4c0f8eb27cb5218123b157751f`.
+All 48 catalog closures and the release remain pending. Accepted subsystem
+checks do not establish an entire family or every function.
+
+| Existing scenario family | Accepted evidence | Exact open behavior |
+|---|---|---|
+| Ordinary Settings QR | Fresh normal admission and actual GM manual start; four unchanged pixel captures decoded to the exact ordinary join payload; accessible link/code and responsive presentation. | Final current-source/release reconciliation; no physical-device scan is claimed. |
+| Member and GM lifecycle / GM recipes | GM17 completed four mounted recipes, ordinary Pursuit ending, immutable debrief/closure and entitled crew reload across two browsers. | Remaining mounted member/GM functions and interrupted/repeated recovery; the intentionally unmounted registration-lock writer earns no UI credit. |
+| Full Base / combat / politics / crisis / arrest | Retained fresh prefixes committed paid maintenance and four opening combat branches. | Miner first-join authority stability; complete range/aftermath and subsequent ordinary Base actions through ending. |
+| Core and Press shuttle transit | Initial core holder/control/discovery checks passed; no departure acceptance from the failed runs. | An absent own-route read must preserve current-holder privacy; Press must retain exact current-document source authority; natural transit/retarget/arrival and reload remain open. |
+| N/O/P candidate games | CandidatePanel6 completed four ordinary cycles and twenty Scientist choices; phone/landscape targets and all viewport overflow/target-size checks passed. | Desktop native Tab reached seven of eight targets within the unchanged 48-Tab cap; all three distinct candidate outcomes and endings remain open. |
+| Capybara, sparse joint engineering and replacement-role families | Current implementation and focused native checks are retained. | Fresh appropriate-role connected functions, source costs, replay/recovery/privacy and their existing normal endings. |
+| Gate 2 independent sessions | Functional3 completed all 21 ordinary browser joins and consent. | Original GM start returned 500 before the functional/privacy commands; no concurrency acceptance. Complete the original finite overlap/reconnect/retry/privacy contract after source reconciliation. |
+| Gate 3 usability / final release | Existing action/source annotations and subsystem screenshots are retained. | Reconcile available actions, costs, blockers, committed results and next actor; one independent review, final local checks, exact candidate/main CI and deployment. |
+
+The critical path is to finish independent source-coupled repairs using existing
+fixtures, reconcile once, qualify the affected live slices, then finish the
+existing fresh families and Gate 2. Do not replay unchanged admission/research
+prefixes merely to recover missing diagnostics. Do not add a test framework,
+relax authority/privacy/keyboard budgets, or infer whole-game acceptance from
+native totals. Automated Auth actors and browser contexts remain distinct from
+physical human/device play.
+
+October 10 is the budget for the whole agreed sequence, including the existing
+post-PC10 work and PC11; PC12 remains conditional. PC10 must finish at the
+earliest safe release boundary and return to the parent first. It does not
+reserve October 10 as its own recovery buffer or execute later checkpoints.

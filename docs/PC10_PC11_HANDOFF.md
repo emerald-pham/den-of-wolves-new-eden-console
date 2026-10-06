@@ -58,46 +58,66 @@ final PC10 release and handoff before implementation.
 
 ## Current measured limits, before final PC10 qualification
 
-At planning source `0cca6ab0f847dab1846d48a6572cda8cd45a6d53`, all 48 assigned
-catalog closures remain pending. The closed boarding-read proof repair passed
-**226 focused native checks**, zero skipped; it still awaits real qualification.
-The latest bounded combat attempt reached a naturally resolved private/public
-attack but failed the closed read, so aftermath and an ending were not accepted.
-The next source-fenced qualifier is prepared, not yet executed.
+The October 6 source snapshot is
+`47b04332cd4bdc4c0f8eb27cb5218123b157751f`; all 48 catalog closures and release
+remain pending. The [current finite-family checklist](PC10_ACCEPTANCE_MATRIX.md#october-6-accepted-and-open-finite-families)
+records accepted subsystem evidence separately from open games and gates.
 
-The second first-resume diagnostic used one Chrome process, 21 independent
-contexts and 22 Auth identities including its separate GM, with zero humans
-or human devices. It observed 21 successful SDK resumes and 42 independently
-valid authority points. Its original native collection still failed with one
-missing setup presence body and another pending body at the strict snapshot.
-It earns **zero concurrency/recovery acceptance and zero campaign closures**.
-Network byte totals do not establish body retention or an eviction cause.
-No product failure is inferred from this collector failure.
+The ordinary primary Settings QR qualified with actual normal admission, manual
+GM start, four unchanged pixel decodes, accessible link/code and responsive UI.
+GM17 completed four mounted facilitator recipes through an ordinary Pursuit
+ending, debrief, closure and entitled crew reload. Those checks used two
+browser processes/contexts and automated Auth personas; no humans or physical
+devices were represented. Neither result proves every role or game function.
 
-PC10's final playtest report must replace this planning snapshot with exact
-accepted and outstanding evidence, retain the failed runs, distinguish actors,
-browser contexts and physical participants, and identify any PC10 usability
-gap. PC11's broader guidance completeness is not inferred from a PC10 ending.
+Combat26 failed the original first Miner selection because the server
+connection generation changed before its station entry. It produced no target
+checkpoint sample, aftermath or ending. Source inspection supports an initial
+join/member/player confirmation ordering counterexample; the exact historical
+callback ordering remains unproved. CandidatePanel6 reached four cycles and
+twenty Scientist choices, then failed desktop native Tab reachability at seven
+of eight targets within 48 Tabs. Phone and landscape passed, but the missing
+desktop target and runtime cause were not retained. Core/Press shuttle and
+remaining fresh families remain open. Functional3 completed 21 browser joins
+and consent, then original GM start returned 500 before the finite functional
+and privacy commands. The transaction-expiry stack identifies a rejecting
+secrets query, without proving the first blocked read or lock holder.
+
+Preserve all failed raw evidence. Source counterexamples and repairs must use
+existing fixtures and keep original authority/privacy/keyboard guards and
+budgets. They earn no historical gameplay backfill or campaign closure.
+PC10's final playtest report replaces this snapshot with exact accepted
+function/role, recovery, privacy, usability and release evidence. PC11's broader
+guidance completeness is not inferred from a PC10 ending.
 
 ## Deadline-aware critical path and risk reduction
 
-Complete the short fresh combat/aftermath/ending qualifier and the mounted GM
-control qualifiers first. Reconcile those fixes before running the full Base,
-Capybara, candidate and terminal families. Use the existing finite compositions
-and legal current game state; do not force random outcomes, resurrect destroyed
-ships or bypass authority to keep a script moving. Run heavy browser proofs
-serially on the reserved Mac emulator. Resolve the failed native concurrency
-measurement within the parent's authorized diagnostic boundary before claiming
-that gate. Keep role/function, interrupted/repeated/recovery and privacy gaps
-visible in one current matrix.
+October 10 covers **all agreed sequential work**, including post-PC10 and PC11;
+it is not a PC10-only recovery buffer. Finish PC10 at the earliest safe boundary,
+return it to the parent, and leave the later checkpoints unstarted here.
+
+Isolate the retained failures with independent code-only work before replaying
+fresh prefixes: initial member authority ordering, absent own shuttle-route
+privacy, desktop keyboard reachability and reader load. Reconcile source fixes
+once and qualify the affected exact-role live slices. Then use the existing
+finite Base, Capybara, N/O/P, sparse/replacement and terminal compositions
+through their ordinary endings, followed by the original independent-session
+contract and scoped usability pass. No added test framework or reduced
+role/function/security coverage is authorized. Heavy fresh browser proofs stay
+serial on the reserved Mac runtime.
 
 After all scoped acceptance is complete, obtain the one reconciled independent
-Sol 6.1 review, run the final appropriate local checks, then verify exact-candidate
-CI, exact-main CI and deployment. Report PC10 to the parent before later work.
-For PC11, the mounted-action audit and nearby state/cost guidance provide a
-bounded first slice; reuse current proof rather than adding a new collection
-system. Unestimated post-PC10 participant availability and any fresh acceptance
-failure remain schedule risks. No reliable combined completion date is established.
+Sol 6.1 review, run final appropriate local checks, and verify exact-candidate
+CI, exact-main CI and deployment. Use retained verified subsystem evidence
+where current source is unchanged. A new gameplay failure requires a focused
+source correction, not another unchanged-prefix diagnostic loop. Reconcile the
+function/role matrix and source annotations once against the final candidate.
+
+PC11 starts with mounted-action mapping and adjacent state/cost/blocker/next
+actor guidance, reusing PC10's exact scoped evidence. Participant availability
+for the existing post-prompt Wolf-alert review and any new acceptance failure
+remain combined schedule risks; no exact closing hour or guaranteed combined
+completion date has been established.
 
 ## Conditional PC12 architecture assessment
 

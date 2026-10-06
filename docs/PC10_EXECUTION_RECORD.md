@@ -155,6 +155,20 @@ reused, and heavy browser proofs run serially. Failed fresh base attempts retain
 their evidence and receive no gameplay acceptance credit.
 No closure or release credit is claimed by this record.
 
+The October 6 critical-path correction treats October 10 as the budget for the
+whole agreed sequence, including post-PC10 and PC11, with PC12 conditional.
+The [finite-family checklist](PC10_ACCEPTANCE_MATRIX.md#october-6-accepted-and-open-finite-families)
+separates accepted Settings QR and GM ending evidence from remaining games,
+concurrency, usability and release. Four isolated bounded groups reuse existing
+fixtures for initial-member confirmation, own-route Rules privacy, candidate
+keyboard reachability and member-reader semantics/load. Root retains actual
+runtime, acceptance, integration, the one final review and release ownership.
+No unchanged full prefix is rerun only for diagnostics, and no new framework
+or waived role/function/privacy coverage is introduced.
+
+The following restore diagnosis is retained historical evidence; it does not
+replace the current finite-family checklist.
+
 The finite October 5 restore diagnosis retained failed fresh attempt 5: six
 paid maintenance cycles and two scout requests committed, then ordinary
 Admiral admission returned HTTP 500 with a transaction-lock timeout. A separate
