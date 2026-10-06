@@ -55,6 +55,7 @@ export async function authorArbourVisionUi({ gm, initial, started, roster }) {
   assert.ok(Number.isSafeInteger(original.hydrationRevision) && original.hydrationRevision >= 1);
   assert.ok(Number.isFinite(started.documentTimeOrigin) && started.documentTimeOrigin > 0);
   assert.equal(started.documentTimeOrigin, initial.documentTimeOrigin);
+  let boundCensus;
   async function hold() {
     remaining(60_000);
     const actor = await observeLifecycleActor(gm, initial.sessionId);
@@ -67,6 +68,8 @@ export async function authorArbourVisionUi({ gm, initial, started, roster }) {
     assert.equal(hash(source.authUid), original.uidHash); assert.equal(source.playerUid, source.authUid);
     assert.equal(source.playerSessionId, initial.sessionId); assert.notEqual(source.connected, false);
     assert.equal(source.documentTimeOrigin, started.documentTimeOrigin);
+    if (boundCensus !== undefined) assert.deepEqual(source.census, boundCensus,
+      'The original entitled Arbour holder must remain current through reply and replay.');
     assertLateReplyAuthority(original, await observeLifecycleActor(gm, initial.sessionId));
     remaining(60_000); return source;
   }
@@ -75,6 +78,7 @@ export async function authorArbourVisionUi({ gm, initial, started, roster }) {
   if (before.currentCall !== null) assertProjection(before.currentCall, initial.sessionId);
   assert.ok(before.census && Number.isSafeInteger(before.census.revision) && before.census.revision >= 1);
   assert.ok(Array.isArray(before.census.entries));
+  boundCensus = before.census;
   const holders = before.census.entries.filter(entry => entry.kind === 'universal-arbour');
   assert.equal(holders.length, 1); const targetUid = holders[0].uid;
   assert.ok(typeof targetUid === 'string' && targetUid);
@@ -139,16 +143,21 @@ export async function assertArbourRecipientReceipt({ crew, actor, sessionId, rec
   assert.ok(receipt && receipt.status === 'committed'); assertProjection(projectionOf(receipt), sessionId);
   const original = await observeLifecycleActor(crew, sessionId);
   assertOriginalActor(original, original); assert.equal(original.uidHash, actor.uidHash);
-  assert.equal(original.playerRole, 'player'); assert.equal(original.profileRoleId, actor.roleId);
-  assert.ok(Number.isSafeInteger(original.hydrationRevision) && original.hydrationRevision >= 1);
-  assert.equal(original.cycle, 1); assert.equal(original.phase, 'active');
+  const holdActor = current => {
+    assertLateReplyAuthority(original, current);
+    assert.equal(current.playerRole, 'player'); assert.equal(current.profileRoleId, actor.roleId);
+    assert.equal(current.assignedRoleId, actor.roleId); assert.equal(current.activeConsoleRoleId, actor.roleId);
+    assert.ok(Number.isSafeInteger(current.hydrationRevision) && current.hydrationRevision >= 1);
+    assert.equal(current.cycle, 1); assert.equal(current.phase, 'active');
+  };
+  holdActor(original);
   const source = await readSource(crew);
   assert.equal(hash(source.authUid), actor.uidHash); assert.equal(source.authUid, receipt.recipientUid);
   assert.equal(source.playerUid, source.authUid); assert.equal(source.playerSessionId, sessionId);
   assert.notEqual(source.connected, false); assert.equal(source.privateKind, 'universal-arbour');
   assert.ok(Number.isFinite(source.documentTimeOrigin) && source.documentTimeOrigin > 0);
   assertProjection(source.recipientCall, sessionId); assert.deepEqual(source.recipientCall, projectionOf(receipt));
-  assertLateReplyAuthority(original, await observeLifecycleActor(crew, sessionId));
+  holdActor(await observeLifecycleActor(crew, sessionId));
   assert.equal((await readSource(crew)).documentTimeOrigin, source.documentTimeOrigin);
   return true;
 }
