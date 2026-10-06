@@ -164,12 +164,13 @@ test('the serialized exact member read cannot publish its pre-digest Auth/store 
 
 test('the exact source tuple can bind the original GM when source role fields are explicitly null', () => {
   const gm = { sessionId, uidHash: originalUidHash, hasAuth: true, sameActor: true,
-    profileSessionId: null, profileRoleId: null, playerRole: 'gm', assignedRoleId: null,
+    profileSessionId: null, profileRoleId: null, documentTimeOrigin: 12345,
+    playerRole: 'gm', assignedRoleId: null,
     activeConsoleRoleId: null, phase: 'active', cycle: 2, connection: 'live', freshness: 'server' };
   const rich = { ...gm, fleetGroupId: null, connectionGeneration: 8, identityHydrationRevision: 4 };
   const exact = { sessionId, meSessionId: sessionId, sameActor: true, authUidHash: originalUidHash,
     memberUidHash: originalUidHash, memberDocumentIdHash: originalUidHash, profileSessionId: null,
-    profileRoleId: null, playerRole: 'gm', assignedRoleId: null, activeConsoleRoleId: null,
+    profileRoleId: null, documentTimeOrigin: 12345, playerRole: 'gm', assignedRoleId: null, activeConsoleRoleId: null,
     fleetGroupId: null, connectionGeneration: 8, identityHydrationRevision: 4,
     connected: true, escapeLocked: false };
   assert.equal(composeBasePostCombatActorObservation(gm, rich, exact).sameActor, true);
@@ -184,6 +185,7 @@ test('the public original-actor hold rejects any UID, document, session, role, g
   const original = { hasAuth: true, sameActor: true, sessionId, meSessionId: sessionId,
     profileSessionId: sessionId, uidHash: originalUidHash, authUidHash: originalUidHash,
     memberUidHash: originalUidHash, memberDocumentIdHash: originalUidHash,
+    documentTimeOrigin: 12345,
     profileRoleId: originalRole, playerRole: 'player', assignedRoleId: originalRole,
     activeConsoleRoleId: originalRole, fleetGroupId: 'fleet-1', connectionGeneration: 7,
     identityHydrationRevision: 3, connected: true, escapeLocked: false,
