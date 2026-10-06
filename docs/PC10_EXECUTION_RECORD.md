@@ -197,6 +197,32 @@ expectation with a stronger mounted-path assertion, and leaves the other
 manual-only assertions and canonical 232/241 artifacts intact. Root owns all
 remaining actual acceptance and the one reconciled review/release.
 
+GM21 subsequently closed at `db96d9f2` with genuine browser-global consent
+retained and zero accepted casting/counter/ending credit. Its failing pre-start
+assertion lacked a contemporaneous casting source sample, so the exact cause is
+unproved. An independent native test then reproduced the enabled preference
+control before the own player was connected. The panel now requires actual
+`connected=true`; the new and existing focused check passed 7 cases. The Press
+first-selection repair passed 14 new and 94 retained native checks. The Core
+Request/Begin/Retarget/arrival recipe repair passed 56 focused checks, preserving
+all original assertions and titles with disclosed fixture input completions.
+None of these source/native results backfills an actual family or ending.
+
+The separately prepared GM22 caller corrects its predecessor's NEW 30-second
+budget to the full-game surface's existing 60-second deadline and captures
+readiness and original PRIMARY identity in the same read-only source sample.
+Core8 binds the original host from the ordinary member's actual docking before
+departure; Press4 preserves its original caller guards. They have not run.
+Passive foreground roster renewal and adjacent Core nonmovement recipes remain
+bounded source repairs; complete fresh families and Gate 2 stay open.
+
+After GM21 browser closure and exact-owned-session cleanup, Root offered the
+parent's requested next bounded heavy window for Chain Scanner final checks.
+Root's reserved servers remain idle; source/native work continues while heavy
+proofs await explicit return. This environment has no outgoing thread-message
+capability, so the offer is recorded without inventing parent acknowledgement.
+No unrelated task's files, services, browser tabs or reservations were changed.
+
 The following restore diagnosis is retained historical evidence; it does not
 replace the current finite-family checklist.
 

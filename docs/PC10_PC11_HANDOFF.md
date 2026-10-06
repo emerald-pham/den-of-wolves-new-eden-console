@@ -58,9 +58,10 @@ final PC10 release and handoff before implementation.
 
 ## Current measured limits, before final PC10 qualification
 
-The October 6 source snapshot is
-`47b04332cd4bdc4c0f8eb27cb5218123b157751f`; all 48 catalog closures and release
-remain pending. The [current finite-family checklist](PC10_ACCEPTANCE_MATRIX.md#october-6-accepted-and-open-finite-families)
+The latest closed October 6 actual snapshot is
+`db96d9f23c5e17de98e3d9135b00b9ef02796aa3` (GM21); subsequent native repairs
+are integrated through `b2df7af5`. All 48 catalog closures and release remain
+pending. The [current finite-family checklist](PC10_ACCEPTANCE_MATRIX.md#october-6-accepted-and-open-finite-families)
 records accepted subsystem evidence separately from open games and gates.
 
 The ordinary primary Settings QR qualified with actual normal admission, manual
@@ -70,11 +71,15 @@ ending, debrief, closure and entitled crew reload. Those checks used two
 browser processes/contexts and automated Auth personas; no humans or physical
 devices were represented. Neither result proves every role or game function.
 
-Combat26 failed the original first Miner selection because the server
-connection generation changed before its station entry. It produced no target
-checkpoint sample, aftermath or ending. Source inspection supports an initial
-join/member/player confirmation ordering counterexample; the exact historical
-callback ordering remains unproved. CandidatePanel6 reached four cycles and
+Combat29 and the separate eight-core minimal Miner qualifier changed the
+original generation before station entry. Neither proves stable selection or
+an ending; the initiating historical callback remains unproved. Independent
+native tests reproduce passive foreground roster resume and cancellation
+defects, without attributing those historical failures. Core member-scope
+four-leg movement, Press initial member readiness, and primary casting-control
+readiness repairs have focused native evidence; fresh qualification remains
+open. GM21 retained genuine consent but failed before start without a current
+casting source sample. CandidatePanel6 reached four cycles and
 twenty Scientist choices, then failed desktop native Tab reachability at seven
 of eight targets within 48 Tabs. Phone and landscape passed, but the missing
 desktop target and runtime cause were not retained. Core/Press shuttle and
