@@ -88,7 +88,8 @@ export async function receptionFixture({ initialNetworkMs = 18, initialComponent
   const events = [], listeners = new Map(), timers = new Set(), reads = [];
   const emit = (event, value) => { for (const listener of listeners.get(event) ?? []) listener(value); };
   const schedule = (fn, ms) => { const timer = setTimeout(() => { timers.delete(timer); fn(); }, ms); timers.add(timer); return timer; };
-  let clickCount = 0, screenshotCount = 0, sourcePaintCount = 0, documentEpoch = window.performance.timeOrigin;
+  let clickCount = 0, screenshotCount = 0, sourcePaintCount = 0;
+  const foreignDocuments = [];
   const read = groupId => new Promise(resolveReport => {
     const ordinal = reads.length, fromRefresh = clickCount > 0;
     const data = { sessionId: store.session.id, expectedGroupId: groupId, ...(fromRefresh ? refreshScope : {}) };
@@ -113,7 +114,7 @@ export async function receptionFixture({ initialNetworkMs = 18, initialComponent
   });
   const root = createRoot(window.document.querySelector('#source-root'));
   const render = () => root.render(React.createElement(component.namespace.default)); render();
-  const browserRealm = createContext({ document: window.document, performance: { get timeOrigin() { return documentEpoch; } },
+  const browserRealm = createContext({ document: window.document, performance: window.performance,
     innerWidth: 320, getComputedStyle: window.getComputedStyle.bind(window), matchMedia: () => ({ matches: false }),
     requestAnimationFrame: callback => window.requestAnimationFrame(time => { sourcePaintCount++; callback(time); }),
     cancelAnimationFrame: window.cancelAnimationFrame.bind(window), setTimeout: window.setTimeout.bind(window), clearTimeout: window.clearTimeout.bind(window) });
@@ -167,9 +168,13 @@ export async function receptionFixture({ initialNetworkMs = 18, initialComponent
   assert.ok(reads.length > 0);
   return { dom, window, store, report, events, reads, surface, render, panel,
     received: async () => { while (window.document.body.textContent.includes('Receiving current candidate operations…')) await delay(2); },
-    changeDocument: () => { documentEpoch++; }, clearDocument: () => { documentEpoch = 0; },
+    changeDocument: () => {
+      const foreign = new JSDOM('<!doctype html><html><body></body></html>'); foreignDocuments.push(foreign);
+      browserRealm.document = foreign.window.document; browserRealm.performance = foreign.window.performance;
+    }, clearDocument: () => { browserRealm.performance = {}; },
     screenshotCount: () => screenshotCount, clickCount: () => clickCount,
     dispose: () => { root.unmount(); for (const timer of timers) clearTimeout(timer); window.close();
+      for (const foreign of foreignDocuments) foreign.window.close();
       for (const [key, descriptor] of Object.entries(saved)) {
         if (descriptor) Object.defineProperty(globalThis, key, descriptor); else delete globalThis[key];
       } },
