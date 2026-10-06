@@ -615,7 +615,7 @@ test('maps an isolated service-shuttle recharge index diff only to its callable'
 
 test('maps an isolated Endeavour field-upgrade callable diff to Hosting and only its Function', () => {
   const after = readFileSync(new URL('../functions/src/index.ts', import.meta.url), 'utf8');
-  const marker = 'export const upgradeEndeavourFieldTargets = onCall<';
+  const marker = 'export const upgradeEndeavourFieldTargets = auditedOnCall<';
   const start = after.indexOf(marker);
   assert.notEqual(start, -1);
   const lineEnd = after.indexOf('\n', start);
@@ -634,12 +634,12 @@ test('maps an isolated Endeavour field-upgrade callable diff to Hosting and only
 
 test('fails closed for Endeavour callable changes mixed with another export or an untracked helper', () => {
   const after = readFileSync(new URL('../functions/src/index.ts', import.meta.url), 'utf8');
-  const marker = 'export const upgradeEndeavourFieldTargets = onCall<';
+  const marker = 'export const upgradeEndeavourFieldTargets = auditedOnCall<';
   const start = after.indexOf(marker);
   assert.notEqual(start, -1);
   const lineEnd = after.indexOf('\n', start);
   const before = `${after.slice(0, lineEnd + 1)}    // baseline marker\n${after.slice(lineEnd + 1)}`;
-  const otherCallableMarker = 'export const createSession = onCall<';
+  const otherCallableMarker = 'export const createSession = auditedOnCall<';
   const otherStart = after.indexOf(otherCallableMarker);
   assert.notEqual(otherStart, -1);
   const otherLineEnd = after.indexOf('\n', otherStart);
@@ -672,7 +672,7 @@ test('fails closed for Endeavour callable changes mixed with another export or a
 
 test('fails closed when a new Endeavour callable is added alongside an untracked helper', () => {
   const after = readFileSync(new URL('../functions/src/index.ts', import.meta.url), 'utf8');
-  const marker = 'export const upgradeEndeavourFieldTargets = onCall<';
+  const marker = 'export const upgradeEndeavourFieldTargets = auditedOnCall<';
   const start = after.indexOf(marker);
   assert.notEqual(start, -1);
   const close = after.indexOf('\n});', start);
@@ -990,9 +990,9 @@ test('fails closed on a post-receipt Philia/helper mix even with a verified old 
     targets: ['hosting', 'functions'],
     isAncestor,
     sourceAtRevision: (revision, file) => {
-      assert.equal(file, 'functions/src/index.ts');
-      if (revision === after) return currentIndex;
-      return execFileSync('git', ['show', `${revision}:${file}`], { encoding: 'utf8' });
+      if (revision === after && file === 'functions/src/index.ts') return currentIndex;
+      const sourceRevision = revision === after ? receipt : revision;
+      return execFileSync('git', ['show', `${sourceRevision}:${file}`], { encoding: 'utf8' });
     },
   }), /Cannot safely map a Philia repair index change mixed with another callable or untracked source edit/);
 });
@@ -1148,9 +1148,9 @@ test('maps PDF Escort Wing server modules to their exact deployed callable consu
   }
 
   const indexSource = readFileSync(new URL('../functions/src/index.ts', import.meta.url), 'utf8');
-  assert.match(indexSource, /export const declareWolfAttack\s*=\s*onCall/);
-  assert.match(indexSource, /export const getPdfEscortWingLaunch\s*=\s*onCall/);
-  assert.match(indexSource, /export const launchPdfEscortWing\s*=\s*onCall/);
+  assert.match(indexSource, /export const declareWolfAttack\s*=\s*auditedOnCall<[\s\S]*?>\('declareWolfAttack',/);
+  assert.match(indexSource, /export const getPdfEscortWingLaunch\s*=\s*auditedOnCall<[\s\S]*?>\('getPdfEscortWingLaunch',/);
+  assert.match(indexSource, /export const launchPdfEscortWing\s*=\s*auditedOnCall<[\s\S]*?>\('launchPdfEscortWing',/);
   assert.match(indexSource, /projectPdfEscortWingMemberView/);
 });
 
@@ -1159,7 +1159,7 @@ test('maps away-mission server modules only to their audited deployed callable c
   assert.deepEqual(selectedFunctions(selected), functionTargets(['dealPrivateInitialCards']));
 
   const indexSource = readFileSync(new URL('../functions/src/index.ts', import.meta.url), 'utf8');
-  assert.match(indexSource, /export const dealPrivateInitialCards\s*=\s*onCall/);
+  assert.match(indexSource, /export const dealPrivateInitialCards\s*=\s*auditedOnCall<[\s\S]*?>\('dealPrivateInitialCards',/);
   assert.throws(
     () => selectorFor(['functions/src/missionLifecycle.ts']),
     /Functions changed but no named callable deployment could be proven/,
@@ -1603,7 +1603,7 @@ test('includes unchanged callable bodies affected by PC05 index-local authority 
 
 test('fails closed when PC05 shared index code changes beyond the audited candidate', () => {
   const beforeSource = execFileSync('git', ['show', '7782840d:functions/src/index.ts'], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
-  const afterSource = readFileSync('functions/src/index.ts', 'utf8') + '\n// unaudited shared helper change\n';
+  const afterSource = execFileSync('git', ['show', `${PC05_REVIEWED_CANDIDATE}:functions/src/index.ts`], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 }) + '\n// unaudited shared helper change\n';
   assert.throws(() => deploymentSelector({ before: 'base', after: 'candidate',
     files: ['functions/src/index.ts'], targets: ['functions'], isAncestor: () => false,
     sourceAtRevision: (revision) => revision === 'base' ? beforeSource : afterSource,
