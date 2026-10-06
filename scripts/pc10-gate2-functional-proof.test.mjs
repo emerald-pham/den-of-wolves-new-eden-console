@@ -175,6 +175,22 @@ test('a drain identity/authority/unclassified transport failure cannot unlock th
     qualifyDrainGap: () => ({ allowed: false }) }));
   assert.equal(actual, 0);
 });
+test('a source-qualified expired actor can come online before original same-UID resume', async () => {
+  let onlineCalls = 0;
+  const options = { roleId: original.roleId, kind: 'online', original, transitions: [], drains: [],
+    client: { drainObservedCalls: async () => {}, setOffline: async value => { assert.equal(value, false); onlineCalls++; } },
+    observeBinding: async () => binding({ storeUid: null, sessionId: null, assignedRoleId: null,
+      activeConsoleRoleId: null, seatId: null }),
+    captureAuthority: async () => source({ connected: false, sameMembership: false, seatHolderUid: null, seatStatus: 'available' }),
+    qualifyDrainGap: async () => ({ allowed: false }) };
+  const result = await transitionPc10FunctionalBrowser(options);
+  assert.equal(result.outcome, 'completed'); assert.equal(onlineCalls, 1);
+  assert.equal(result.beforeBinding.authUid, original.uid); assert.equal(result.afterBinding.sessionId, null);
+  assert.equal(result.afterSource.sessionId, original.sessionId);
+  await assert.rejects(transitionPc10FunctionalBrowser({ ...options,
+    captureAuthority: async () => source() }));
+  assert.equal(onlineCalls, 1);
+});
 
 test('finite orchestration keeps 7/7/6 writes, original claim replays and all 21 commanded recovered privacy responses', async () => {
   const roles = Array.from({ length: 20 }, (_, i) => `core-${i}`), all = [...roles, 'press-officer'];
