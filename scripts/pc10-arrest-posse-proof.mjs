@@ -264,9 +264,10 @@ export async function readOriginalPreparedDemoRoster(context, sessionId) {
   }, sessionId);
 }
 
-async function readCurrentConnectedPlayerCensus(surface, sessionId, targetUid) {
+async function readCurrentConnectedPlayerCensus(surface, sessionId, targetUid, deadlineAt) {
   assert.ok(surface?.page, 'The live GM page is required for a current attendance census.');
-  return surface.page.evaluate(async ({ currentSessionId, expectedTargetUid }) => new Promise((resolve, reject) => {
+  return surface.page.evaluate(async ({ currentSessionId, expectedTargetUid, deadlineAt }) => new Promise((resolve, reject) => {
+    if (Date.now() >= deadlineAt) { reject(new Error('The original arrest attendance census deadline is exhausted.')); return; }
     let stop = () => undefined;
     let finished = false;
     const finish = (settle, value) => {
@@ -277,8 +278,12 @@ async function readCurrentConnectedPlayerCensus(surface, sessionId, targetUid) {
       settle(value);
     };
     const timeout = window.setTimeout(() => finish(reject,
-      new Error('The server-backed connected-player census did not include the current target.')), 15_000);
+      new Error('The server-backed connected-player census did not include the current target.')),
+    Math.min(15_000, deadlineAt - Date.now()));
     void import('/src/lib/firestore.ts').then(({ subscribeConnectedPlayers }) => {
+      if (finished || Date.now() >= deadlineAt) {
+        finish(reject, new Error('The original arrest attendance census deadline is exhausted.')); return;
+      }
       stop = subscribeConnectedPlayers(currentSessionId, players => {
         if (!Array.isArray(players) || !players.some(player => player.uid === expectedTargetUid)) return;
         finish(resolve, players.map(player => ({
@@ -297,7 +302,7 @@ async function readCurrentConnectedPlayerCensus(surface, sessionId, targetUid) {
       if (finished) stop();
     }).catch(error => finish(reject,
       new Error(`The current connected-player census could not be read: ${error instanceof Error ? error.message : 'source import failed'}`)));
-  }), { currentSessionId: sessionId, expectedTargetUid: targetUid });
+  }), { currentSessionId: sessionId, expectedTargetUid: targetUid, deadlineAt });
 }
 
 async function readCurrentDemoController(surface, sessionId) {
@@ -508,7 +513,129 @@ async function selectTargetFromLiveCensus(context, region, choice, roster, state
       JSON.stringify(after.eligibleUids) !== JSON.stringify(source.eligibleUids)) {
     return { blocker: 'current-target-census-or-control-changed-before-arrest-action' };
   }
-  return { targetUid, visibleTargetUids: after.mount.options.map(option => option.uid) };
+  return { targetUid, visibleTargetUids: after.mount.options.map(option => option.uid), original, target,
+    censusRevision: after.censusRevision, eligibleUids: after.eligibleUids };
+}
+
+/** One private source subscription held only in this accepted GM document. */
+async function openCurrentArrestCalculation({ moduleUrl, original, target, eligibleUids, expected, deadlineAt }) {
+  const [{ auth }, { useSessionStore }, { parseArrestPosseCalculation, subscribeGmArrestPosseCalculation }] = await Promise.all([
+    import('/src/lib/firebase.ts'), import(moduleUrl), import('/src/lib/firestore.ts'),
+  ]);
+  const parsed = parseArrestPosseCalculation(expected, original.sessionId);
+  if (!parsed || Object.keys(expected).some(key => expected[key] !== parsed[key])) {
+    throw new Error('current-arrest-calculation-source-result-malformed');
+  }
+  let projection, stopped = false, frame, timeout, settleWait;
+  let stop = () => undefined;
+  const close = () => {
+    if (stopped) return;
+    stopped = true;
+    window.cancelAnimationFrame(frame);
+    window.clearTimeout(timeout);
+    stop();
+  };
+  const inspect = async () => {
+    const user = auth().currentUser;
+    const uidHash = user ? Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(user.uid))))
+      .map(byte => byte.toString(16).padStart(2, '0')).join('').slice(0, 16) : null;
+    const state = useSessionStore.getState(), instance = state.gmInstance;
+    const actor = { hasAuth: !!user, sameActor: !!user && state.me?.uid === user.uid && auth().currentUser?.uid === user.uid,
+      uidHash, sessionId: state.session?.id ?? null, memberSessionId: state.me?.sessionId ?? null,
+      playerRole: state.me?.role ?? null, instanceId: instance?.id ?? null, claimedAt: instance?.claimedAt ?? null,
+      gmInstanceOwned: !!instance && instance.uid === user?.uid && instance.sessionId === state.session?.id,
+      generation: state.me?.connectionGeneration ?? null, hydrationRevision: state.identityHydrationRevision,
+      connection: state.connection, freshness: state.sessionSnapshotFreshness,
+      privateAudienceMatches: !state.roleBrief || state.roleBrief.assignmentUid === user?.uid,
+      foreignPendingCount: state.pendingCommands.filter(command => command.payload?.sessionId &&
+        command.payload.sessionId !== original.sessionId).length,
+      cycle: state.session?.currentTurn ?? null, phase: state.session?.phase ?? null,
+      setupRevision: state.session?.setupRevision ?? null, turnStatePhase: state.session?.turnState?.phase ?? null,
+      fullGameDemo: state.session?.fullGameDemo ?? null };
+    const result = (status, blocker = null) => {
+      if (status === 'blocked') close();
+      return { status, blocker, actor };
+    };
+    const authorityCurrent = ['uidHash', 'sessionId', 'instanceId', 'claimedAt', 'generation', 'hydrationRevision',
+      'cycle', 'phase', 'setupRevision', 'turnStatePhase'].every(key => actor[key] === original[key]) &&
+      actor.hasAuth && actor.sameActor && actor.gmInstanceOwned && actor.playerRole === 'gm' &&
+      actor.memberSessionId === original.sessionId && actor.connection === 'live' && actor.freshness === 'server' &&
+      actor.privateAudienceMatches && actor.foreignPendingCount === 0 &&
+      actor.fullGameDemo?.status === 'active' && actor.fullGameDemo?.progression === 'manual';
+    if (!authorityCurrent) return result('blocked', 'original-arrest-calculation-document-authority-changed');
+    if (stopped || Date.now() >= deadlineAt) return result('blocked', 'current-arrest-calculation-readiness-original-deadline-exhausted');
+    if (projection === undefined) return result('pending');
+    if (projection === null) return result('blocked', 'current-arrest-calculation-source-missing-or-invalid');
+    const current = parseArrestPosseCalculation(projection, original.sessionId);
+    if (!current || Object.keys(parsed).some(key => current[key] !== parsed[key]) ||
+        Object.keys(current).some(key => current[key] !== parsed[key])) {
+      return result('blocked', 'current-arrest-calculation-projection-does-not-match-original-ui-result');
+    }
+    if (state.communicationError?.code === 'gm-arrest-posse-link') {
+      return result('blocked', 'current-arrest-calculation-source-subscription-unavailable');
+    }
+    if (state.gmLoyaltyCensusStatus === 'loading') return result('pending');
+    const census = state.gmLoyaltyCensus;
+    const currentUids = (census?.entries ?? []).filter(entry => Number.isSafeInteger(entry.suspicion) &&
+      entry.suspicion >= 0).map(entry => entry.uid);
+    if (state.gmLoyaltyCensusStatus !== 'present' || census?.revision !== parsed.censusRevision ||
+        currentUids.length !== eligibleUids.length || new Set(currentUids).size !== currentUids.length ||
+        currentUids.some(uid => !eligibleUids.includes(uid))) {
+      return result('blocked', 'current-arrest-calculation-census-changed-or-unavailable');
+    }
+    const panels = [...document.querySelectorAll('[aria-label="Arrest posse calculator"]')];
+    if (!panels.length) return result('pending');
+    if (panels.length !== 1) return result('blocked', 'current-arrest-calculation-mount-ambiguous');
+    const panel = panels[0], controls = ['target', 'defenders', 'adjustment'].map(name =>
+      [...panel.querySelectorAll(`#arrest-posse-${name}`)]);
+    if (controls.some(matches => matches.length > 1)) return result('blocked', 'current-arrest-calculation-mount-ambiguous');
+    if (controls.some(matches => matches.length === 0)) return result('pending');
+    const [select, defenders, adjustment] = controls.map(matches => matches[0]);
+    const names = [select, defenders, adjustment].map(control => control.labels?.length === 1 ? [...control.labels[0].childNodes]
+      .filter(node => node.nodeType === Node.TEXT_NODE).map(node => node.textContent).join('').trim() : null);
+    const options = [...select.options].filter(option => option.value), values = options.map(option => option.value);
+    if (JSON.stringify(names) !== JSON.stringify(['Target player', 'Defenders', 'Optional adjustment']) ||
+        values.length !== currentUids.length || new Set(values).size !== values.length || values.some(uid => !currentUids.includes(uid)) ||
+        options.some(option => option.disabled) ||
+        options.find(option => option.value === target.uid)?.textContent?.trim() !== `${target.displayName} (${target.uid})` ||
+        select.value !== parsed.targetUid || defenders.value !== String(parsed.defenders) ||
+        adjustment.value !== (parsed.adjustment === undefined ? 'none' : String(parsed.adjustment))) {
+      return result('blocked', 'current-arrest-calculation-inputs-or-target-options-changed');
+    }
+    const counts = [...panel.querySelectorAll('.gm-arrest-posse__result')];
+    const groups = [...panel.querySelectorAll('.gm-arrest-posse__attendance')];
+    if (!counts.length || !groups.length) return result('pending');
+    if (counts.length !== 1 || groups.length !== 1 || counts[0].getAttribute('role') !== 'status' ||
+        counts[0].textContent.trim().replace(/\s+/g, ' ') !== `${parsed.requiredPlayers} players needed` ||
+        groups[0].getAttribute('role') !== 'group' || groups[0].getAttribute('aria-label') !== 'Simulated posse attendance') {
+      return result('blocked', 'current-arrest-calculation-mount-does-not-match-original-ui-result');
+    }
+    if ([panel, counts[0], groups[0]].some(element => element.getClientRects().length === 0) ||
+        [select, defenders, adjustment, groups[0]].some(element => element.disabled)) return result('pending');
+    return result('ready');
+  };
+  const initial = await inspect();
+  if (initial.status === 'blocked') throw new Error(initial.blocker);
+  const remaining = deadlineAt - Date.now();
+  if (remaining <= 0) throw new Error('current-arrest-calculation-readiness-original-deadline-exhausted');
+  timeout = window.setTimeout(() => {
+    close(); settleWait?.({ status: 'blocked', blocker: 'current-arrest-calculation-readiness-original-deadline-exhausted' });
+  }, remaining);
+  try {
+    stop = subscribeGmArrestPosseCalculation(original.sessionId,
+      next => { if (!stopped) projection = next; }, () => { if (!stopped) projection = null; });
+  } catch (error) { close(); throw error; }
+  return { inspect, close, wait: () => new Promise((resolve, reject) => {
+    settleWait = resolve;
+    const check = async () => {
+      try {
+        const value = await inspect();
+        if (value.status !== 'pending') resolve(value);
+        else frame = window.requestAnimationFrame(check);
+      } catch (error) { close(); reject(error); }
+    };
+    void check();
+  }) };
 }
 
 async function runCalculation(context, choice, options, deadlineAt) {
@@ -537,60 +664,117 @@ async function runCalculation(context, choice, options, deadlineAt) {
   const { request, result, replay } = await captureMountedUiAction({ surface: context.gm,
     endpoint: 'calculateArrestPosse', expectedActor: gmActor(context, state),
     executeUi: () => button.click(remainingTargetOperation(deadlineAt)) });
+  for (const key of ['sessionId', 'targetUid', 'defenders', 'adjustment']) {
+    assert.equal(result[key], request[key], `The calculation ${key} must match its original UI request.`);
+  }
+  assert.equal(request.targetUid, target.targetUid);
+  assert.equal(request.defenders, choice.defenders);
+  assert.equal(request.adjustment, choice.adjustment === 'none' ? undefined : choice.adjustment);
+  assert.equal(result.requestId, request.requestId);
+  assert.equal(result.revision, request.expectedRevision + 1);
+  assert.equal(result.censusRevision, target.censusRevision);
   return { receipt: await safeReceipt({ branch, endpoint: 'calculateArrestPosse', context, state, request, result, replay }),
-    roster, targetUid: target.targetUid };
+    roster, targetUid: target.targetUid, target, calculation: result };
 }
 
-async function runSimulatedAttendance(context, choice, options, roster, targetUid) {
+async function runSimulatedAttendance(context, choice, options, calculated, deadlineAt) {
   const branch = ATTENDANCE_BRANCH;
+  const { roster, targetUid, target, calculation: expected } = calculated;
   const state = await context.gm.observe();
   const blockedBy = assertActiveManualGm(state, context);
   if (blockedBy.length) return blocked(branch, blockedBy, options);
   if (state.fullGameDemo?.status !== 'active' || state.fullGameDemo?.progression !== 'manual') {
     return blocked(branch, ['source-simulated-attendance-requires-active-manual-demo'], options);
   }
-  const panel = context.gm.page.getByRole('region', { name: 'Arrest posse calculator', exact: true });
-  const calculation = panel.getByText(/^\d+ players needed$/, { exact: false });
-  if (!(await calculation.isVisible().catch(() => false))) return blocked(branch,
-    ['current-census-posse-calculation-required-before-attendance'], options);
-  const group = panel.getByRole('group', { name: 'Simulated posse attendance', exact: true });
-  if (!(await group.isVisible().catch(() => false))) return blocked(branch,
-    ['source-simulated-attendance-control-not-mounted'], options);
-  if (await panel.getByText('Demo result based on simulated attendance.', { exact: true }).isVisible().catch(() => false)) {
-    return blocked(branch, ['simulated-posse-result-already-exists-no-new-attendance-created'], options);
+  if (Date.now() >= deadlineAt) return blocked(branch,
+    ['current-arrest-calculation-readiness-original-deadline-exhausted'], options);
+  // The capture's existing reload creates a new document. Certify its current
+  // generation/hydration once, while retaining the original UID/session/claim.
+  const original = { ...state, ...await observeLifecycleActor(context.gm, context.initial.sessionId),
+    memberSessionId: context.initial.sessionId };
+  assertOriginalArrestTargetActor({ ...target.original, generation: original.generation,
+    hydrationRevision: original.hydrationRevision }, original);
+  assert.ok(Number.isSafeInteger(original.hydrationRevision) && original.hydrationRevision >= 0);
+  let source;
+  try {
+    source = await context.gm.page.evaluateHandle(openCurrentArrestCalculation,
+      { moduleUrl: context.gm.storeModuleUrl(), original, target: target.target,
+        eligibleUids: target.eligibleUids, expected, deadlineAt });
+    const current = await source.evaluate(reader => reader.wait());
+    if (current.status !== 'ready') return blocked(branch, [current.blocker], options);
+    assertOriginalArrestTargetActor(original, current.actor);
+    const panel = context.gm.page.getByRole('region', { name: 'Arrest posse calculator', exact: true });
+    const calculation = panel.getByText(/^\d+ players needed$/, { exact: false });
+    if (!(await calculation.isVisible().catch(() => false))) return blocked(branch,
+      ['current-census-posse-calculation-required-before-attendance'], options);
+    const group = panel.getByRole('group', { name: 'Simulated posse attendance', exact: true });
+    if (!(await group.isVisible().catch(() => false))) return blocked(branch,
+      ['source-simulated-attendance-control-not-mounted'], options);
+    if (await panel.getByText('Demo result based on simulated attendance.', { exact: true }).isVisible().catch(() => false)) {
+      return blocked(branch, ['simulated-posse-result-already-exists-no-new-attendance-created'], options);
+    }
+    const labels = await group.locator('label').all();
+    const visibleLabels = await Promise.all(labels.map(async label => (await label.innerText(remainingTargetOperation(deadlineAt))).trim()));
+    remainingTargetOperation(deadlineAt);
+    const currentPlayers = await readCurrentConnectedPlayerCensus(context.gm, context.initial.sessionId, targetUid, deadlineAt);
+    const controller = await readCurrentDemoController(context.crew, context.initial.sessionId);
+    const mapped = resolveSimulatedAttendanceActors({ sessionId: context.initial.sessionId,
+      roster, currentPlayers, visibleLabels, controller, choice, targetUid });
+    const controlsByRole = new Map();
+    for (let index = 0; index < labels.length; index += 1) {
+      const actor = mapped.options[index];
+      assert.equal(actor.label, visibleLabels[index]);
+      const checkbox = labels[index].locator('input[type="checkbox"]');
+      assert.equal(await checkbox.count(), 1);
+      controlsByRole.set(actor.roleId, checkbox);
+    }
+    assertSimulatedAttendanceRoster({ demo: state.fullGameDemo, currentPlayerUids: mapped.currentPlayerUids,
+      targetUid, presentPlayerUids: mapped.presentPlayerUids,
+      attendanceEvidence: 'simulated-demo', physicalAttendance: false });
+    const selectedRoles = new Set(choice.presentRoleIds);
+    for (const [roleId, checkbox] of controlsByRole) {
+      if (selectedRoles.has(roleId)) await checkbox.check(remainingTargetOperation(deadlineAt));
+      else if (await checkbox.isChecked(remainingTargetOperation(deadlineAt))) await checkbox.uncheck(remainingTargetOperation(deadlineAt));
+    }
+    if (await mountedArrestTargetSelect(panel).inputValue(remainingTargetOperation(deadlineAt)) !== targetUid) {
+      return blocked(branch, ['current-target-select-no-longer-matches-the-posse-calculation-target'], options);
+    }
+    const after = await source.evaluate(reader => reader.inspect());
+    if (after.status !== 'ready') return blocked(branch,
+      [after.blocker ?? 'current-arrest-calculation-readiness-no-longer-current'], options);
+    assertOriginalArrestTargetActor(original, after.actor);
+    const button = panel.getByRole('button', { name: 'Simulate attendance', exact: true });
+    if (!(await button.isEnabled().catch(() => false))) return blocked(branch,
+      ['source-attendance-disabled-until-calculation-and-current-inputs-match'], options);
+    const { request, result, replay } = await captureMountedUiAction({ surface: context.gm,
+      endpoint: 'resolveArrestPosse', expectedActor: gmActor(context, state), executeUi: async () => {
+        const before = await source.evaluate(reader => reader.inspect());
+        if (before.status !== 'ready') blocked(branch,
+          [before.blocker ?? 'current-arrest-calculation-readiness-no-longer-current'], { required: true });
+        assertOriginalArrestTargetActor(original, before.actor);
+        try { await button.click(remainingTargetOperation(deadlineAt)); }
+        finally {
+          // Release this document's read before the capture's legitimate reload.
+          await source.evaluate(reader => reader.close()); await source.dispose(); source = null;
+        }
+      } });
+    assert.equal(request.expectedRevision, expected.revision);
+    assert.equal(request.expectedCycle, original.cycle);
+    assert.equal(request.targetUid, targetUid);
+    assert.equal(request.attendanceEvidence, 'simulated-demo');
+    assert.deepEqual([...request.presentPlayerUids].sort(), [...mapped.presentPlayerUids].sort());
+    assert.equal(result.requiredPlayers, expected.requiredPlayers);
+    const restored = { ...await context.gm.observe(), ...await observeLifecycleActor(context.gm, context.initial.sessionId),
+      memberSessionId: context.initial.sessionId };
+    assertOriginalArrestTargetActor({ ...original, generation: restored.generation,
+      hydrationRevision: restored.hydrationRevision }, restored);
+    assert.ok(Number.isSafeInteger(restored.hydrationRevision) && restored.hydrationRevision >= 0);
+    remainingTargetOperation(deadlineAt);
+    return safeReceipt({ branch, endpoint: 'resolveArrestPosse', context, state, request, result, replay,
+      simulatedAttendance: true });
+  } finally {
+    if (source) { try { await source.evaluate(reader => reader.close()); } finally { await source.dispose(); } }
   }
-  const labels = await group.locator('label').all();
-  const visibleLabels = await Promise.all(labels.map(async label => (await label.innerText()).trim()));
-  const currentPlayers = await readCurrentConnectedPlayerCensus(context.gm, context.initial.sessionId, targetUid);
-  const controller = await readCurrentDemoController(context.crew, context.initial.sessionId);
-  const mapped = resolveSimulatedAttendanceActors({ sessionId: context.initial.sessionId,
-    roster, currentPlayers, visibleLabels, controller, choice, targetUid });
-  const controlsByRole = new Map();
-  for (let index = 0; index < labels.length; index += 1) {
-    const actor = mapped.options[index];
-    assert.equal(actor.label, visibleLabels[index]);
-    const checkbox = labels[index].locator('input[type="checkbox"]');
-    assert.equal(await checkbox.count(), 1);
-    controlsByRole.set(actor.roleId, checkbox);
-  }
-  assertSimulatedAttendanceRoster({ demo: state.fullGameDemo, currentPlayerUids: mapped.currentPlayerUids,
-    targetUid, presentPlayerUids: mapped.presentPlayerUids,
-    attendanceEvidence: 'simulated-demo', physicalAttendance: false });
-  const selectedRoles = new Set(choice.presentRoleIds);
-  for (const [roleId, checkbox] of controlsByRole) {
-    if (selectedRoles.has(roleId)) await checkbox.check();
-    else if (await checkbox.isChecked()) await checkbox.uncheck();
-  }
-  if (await mountedArrestTargetSelect(panel).inputValue() !== targetUid) {
-    return blocked(branch, ['current-target-select-no-longer-matches-the-posse-calculation-target'], options);
-  }
-  const button = panel.getByRole('button', { name: 'Simulate attendance', exact: true });
-  if (!(await button.isEnabled().catch(() => false))) return blocked(branch,
-    ['source-attendance-disabled-until-calculation-and-current-inputs-match'], options);
-  const { request, result, replay } = await captureMountedUiAction({ surface: context.gm,
-    endpoint: 'resolveArrestPosse', expectedActor: gmActor(context, state), executeUi: () => button.click() });
-  return safeReceipt({ branch, endpoint: 'resolveArrestPosse', context, state, request, result, replay,
-    simulatedAttendance: true });
 }
 
 /** Calculate and optionally submit only explicitly selected simulated attendance. */
@@ -607,7 +791,7 @@ export async function proveArrestPosse(context, choice = undefined, options = {}
   if (calculated?.accepted === false) return calculated;
   const result = [calculated.receipt];
   if (choice.presentRoleIds !== undefined) {
-    const attendance = await runSimulatedAttendance(context, choice, options, calculated.roster, calculated.targetUid);
+    const attendance = await runSimulatedAttendance(context, choice, options, calculated, deadlineAt);
     if (attendance.accepted === false) result.push(attendance); else result.push(attendance);
   } else result.push(missing(ATTENDANCE_BRANCH, options));
   return saveEvidence(context, { family: FAMILY, accepted: result.filter(row => row.accepted !== false),
