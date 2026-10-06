@@ -154,6 +154,8 @@ async function prepareCounter(fixture) {
 // one-step button after a disabled earlier button, without leaving the pinned ship group.
 test('the default counter recipe chooses the first enabled control in the exact mounted ship group', async () => {
   const gmSource = await readFile(new URL('../src/routes/GmConsole.tsx', import.meta.url), 'utf8');
+  const resourcesSource = await readFile(new URL('../src/data/resources.ts', import.meta.url), 'utf8');
+  const recipeSource = await readFile(new URL('./pc10-pending-procedure-ui-recipes.mjs', import.meta.url), 'utf8');
   const fleet = gmSource.indexOf('aria-label="Fleet resource controls"');
   const mode = gmSource.indexOf('aria-label="Ship numbers write mode"', fleet);
   const group = gmSource.indexOf('aria-label={`${ship.name} resource controls`}', mode);
@@ -167,6 +169,10 @@ test('the default counter recipe chooses the first enabled control in the exact 
   'The source has one parent write-mode toggle, then a named ship group whose resource list precedes population.');
   assert.match(gmSource.slice(decrease, increase), /disabled=\{!shipNumberWrite[^}]*visibleAmount === 0\}/,
     'A zero-valued resource disables only its mounted decrease control.');
+  const resourceLabels = [...resourcesSource.matchAll(/\{ id: '[^']+', label: '([^']+)'/g)].map(match => match[1]);
+  assert.ok(resourceLabels.length > 0);
+  assert.ok(recipeSource.includes(`const GM_RESOURCE_COUNTER_BUTTON = /^(?:Increase|Decrease) (?:${resourceLabels.join('|')})$/;`),
+    'The factory candidate names stay aligned with the actual mounted resource definitions.');
 
   const fixture = makeFixture();
   const { recipe, planned } = await prepareCounter(fixture);
