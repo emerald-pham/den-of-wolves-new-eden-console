@@ -85,6 +85,25 @@ export async function observeLifecycleActor(surface, expectedSessionId) {
       /^gm[A-Z]/.test(key) && !['gmInstance', 'gmAccessAuthenticatedAt'].includes(key) ||
       ['privateLoyalty', 'roleBrief', 'wolfCult', 'arbourVision', 'intelligenceInvestigation', 'awayMissionHand',
         'facilitatorRuleCall', 'commissarPurgeAuthority', 'candidatePrivateWorkspace'].includes(key));
+    let privateCount = 0, privatePayloadCount = 0;
+    let pointerDefaultPresent = false, censusStatusPresent = false;
+    for (const key of privateKeys) {
+      const value = s[key]; // Reuse the original scan; no additional store snapshot or field read.
+      const present = value !== null && value !== undefined;
+      if (present) privateCount++;
+      if (key === 'gmAwayMissionHandPointers') {
+        pointerDefaultPresent = true;
+        if (!(Array.isArray(value) && value.length === 0 && Reflect.ownKeys(value).length === 1)) {
+          privatePayloadCount++;
+        }
+      } else if (key === 'gmLoyaltyCensusStatus') {
+        censusStatusPresent = true;
+        if (value !== 'loading') privatePayloadCount++;
+      } else if (present) privatePayloadCount++;
+    }
+    // These two non-nullable Source defaults must be present and valid.
+    if (!pointerDefaultPresent) privatePayloadCount++;
+    if (!censusStatusPresent) privatePayloadCount++;
     return { sessionId: session?.id ?? null, uidHash: await hash(user?.uid), hasAuth: !!user,
       sameActor: !!user && s.me?.uid === user.uid, connection: s.connection, freshness: s.sessionSnapshotFreshness,
       generation: s.me?.connectionGeneration ?? null, hydrationRevision: s.identityHydrationRevision,
@@ -96,7 +115,7 @@ export async function observeLifecycleActor(surface, expectedSessionId) {
       grantShipId: s.gmInstance?.shipConsoleWriteGrant?.shipId ?? null,
       gmAccessCached: s.gmAccessAuthenticatedAt !== null, phase: session?.phase ?? null,
       cycle: session?.currentTurn ?? null, setupRevision: session?.setupRevision ?? null,
-      privateCount: privateKeys.filter(key => s[key] !== null && s[key] !== undefined).length,
+      privateCount, privatePayloadCount,
       privateAudienceMatches: !s.roleBrief || s.roleBrief.assignmentUid === user?.uid,
       pendingCount: s.pendingCommands.length,
       foreignPendingCount: s.pendingCommands.filter(command => command.payload?.sessionId &&
