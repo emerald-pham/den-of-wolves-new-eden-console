@@ -53,6 +53,11 @@ function locatorFor(nodes) {
       assert.equal(nodes.length, 1, 'Expected one mounted source node before reading visible text.');
       return nodes[0].textContent ?? nodes[0].name;
     },
+    async waitFor({ state = 'visible' } = {}) {
+      assert.equal(state, 'visible');
+      assert.equal(nodes.length, 1, 'Expected one mounted source node while waiting for visible text.');
+      assert.equal(nodes[0].visible !== false, true);
+    },
     async click() {
       assert.equal(nodes.length, 1, 'Expected one mounted source control before click.');
       assert.equal(await locator.isVisible(), true);
@@ -107,6 +112,7 @@ function makeFixture() {
   });
   const resourceRows = new Map();
   const counter = (resourceId, label, direction, row, amountNode) => element('button', direction + ' ' + label, {
+    attributes: { 'aria-label': direction + ' ' + label },
     enabled: () => writeMode && (direction === 'Increase' || state.shipResources.aegis[resourceId] > 0),
     click() {
       const step = direction === 'Increase' ? 1 : -1;
@@ -211,6 +217,7 @@ function fixtureCounterSourceWitness(fixture, sourceBefore, recipe) {
     claimedAt: CLAIMED_AT,
     connectionGeneration: fixture.lifecycle.generation,
     hydrationRevision: fixture.lifecycle.hydrationRevision,
+    actorRoleId: fixture.lifecycle.activeConsoleRoleId,
     phase: sourceBefore.phase,
     cycle: sourceBefore.cycle,
     shipId: recipe.expected.shipId,
@@ -226,16 +233,6 @@ function fixtureCounterSourceWitness(fixture, sourceBefore, recipe) {
     afterVisibleAmount: Number(afterVisible?.replaceAll(',', '')),
     afterRevision: fixture.state.vesselActionRevisions.aegis,
   };
-}
-
-function sourceRenderedCounterWitness(witness) {
-  const visible = witness.beforeAmount === witness.beforeVisibleAmount &&
-    witness.afterAmount === witness.afterVisibleAmount &&
-    witness.afterAmount === witness.beforeAmount + witness.step &&
-    witness.afterRevision === witness.beforeRevision + 1 &&
-    witness.shipId === 'aegis' && witness.groupId === 'native-fleet-7' &&
-    witness.resourceId === 'ore' && witness.resourceLabel === 'Strytium Ore';
-  return { visible, resultStatus: visible ? 'committed' : null };
 }
 
 async function makeCounterCapture() {
@@ -280,7 +277,6 @@ async function makeCounterCapture() {
     actorAfter: { ...fixture.actor },
   });
   const counterSourceWitness = fixtureCounterSourceWitness(fixture, sourceBefore, recipe);
-  const rendered = sourceRenderedCounterWitness(counterSourceWitness);
   const proofInput = {
     caseId: 'gm:applyShipCounterSteps',
     expected: recipe.expected,
@@ -297,7 +293,7 @@ async function makeCounterCapture() {
     request,
     response: { httpStatus: 200, result, exactReplay: true },
     replay: { status: 'committed', result: structuredClone(result) },
-    rendered,
+    rendered: inspected.rendered,
     trainingChoice: recipe.trainingChoice,
     randomOutcomeForced: false,
     randomOutcomeRecorded: false,
@@ -353,11 +349,23 @@ test('the default counter recipe binds the selected mounted counter and visible 
     live: true, sessionId: SESSION_ID, cycle: 1, revision: 15, groupId: 'native-fleet-7',
   });
   assert.deepEqual(inspected.counterSourceWitness, counterSourceWitness);
-  assert.deepEqual(inspected.rendered, sourceRenderedCounterWitness(counterSourceWitness));
+  assert.deepEqual(inspected.rendered, {
+    kind: 'gm-counter-rendered-source-v1', visible: true, resultStatus: 'committed',
+    shipId: 'aegis', groupId: 'native-fleet-7', resourceId: 'ore',
+    resourceLabel: 'Strytium Ore', beforeAmount: 4, amount: 3,
+  });
 });
 
 test('the source-shaped statusless one-step counter receipt is accepted only with its original mounted witness', async () => {
   const { proofInput } = await makeCounterCapture();
+  if (proofInput.expected.counterSelection) {
+    assert.equal(proofInput.expected.counterSelection.kind, 'gm-counter-selection-v1');
+    for (const key of Object.keys(proofInput.expected.counterSelection)) {
+      if (key === 'kind') continue;
+      assert.equal(proofInput.counterSourceWitness[key], proofInput.expected.counterSelection[key],
+        'The post-receipt source witness must retain the initial selected value for ' + key + '.');
+    }
+  }
   const outcome = evaluateProcedureCapture(proofInput);
   assert.equal(outcome.status, 'completed',
     'A source-shaped successful one-step counter receipt remained pending: ' + JSON.stringify(outcome));
@@ -384,8 +392,17 @@ test('counter result negatives reject changed tuple, actor, revision, UI, and re
       'captured-request-or-server-result-does-not-match-the-source-case'],
     ['request expected revision changes', input => { input.request.expectedRevision += 1; },
       'captured-request-or-server-result-does-not-match-the-source-case'],
+    ['request identity changes', input => { input.request.requestId = 'other-request'; },
+      'captured-request-or-server-result-does-not-match-the-source-case'],
     ['statusful generic committed result cannot bypass the exact counter DTO', input => {
       input.response.result.status = 'committed';
+      const witness = input.counterSourceWitness;
+      input.rendered = {
+        kind: 'gm-counter-rendered-source-v1', visible: true, resultStatus: 'committed',
+        shipId: witness.shipId, groupId: witness.groupId, resourceId: witness.resourceId,
+        resourceLabel: witness.resourceLabel, beforeAmount: witness.beforeAmount,
+        amount: witness.afterAmount,
+      };
     }, 'captured-request-or-server-result-does-not-match-the-source-case'],
     ['result loses the actor UID and cannot fall back to role metadata', input => {
       delete input.response.result.actorUid;
@@ -400,6 +417,11 @@ test('counter result negatives reject changed tuple, actor, revision, UI, and re
       'captured-request-or-server-result-does-not-match-the-source-case'],
     ['result resource changes', input => { input.response.result.resourceId = 'water'; },
       'captured-request-or-server-result-does-not-match-the-source-case'],
+    ['result request identity changes', input => { input.response.result.requestId = 'other-request'; },
+      'captured-request-or-server-result-does-not-match-the-source-case'],
+    ['result expected revision changes', input => {
+      input.response.result.expectedRevision += 1;
+    }, 'captured-request-or-server-result-does-not-match-the-source-case'],
     ['result reports a different applied step array', input => { input.response.result.appliedSteps = [1]; },
       'captured-request-or-server-result-does-not-match-the-source-case'],
     ['result amount differs from the independent visible source amount', input => {
@@ -431,6 +453,9 @@ test('counter result negatives reject changed tuple, actor, revision, UI, and re
     ['source counter witness GM lifecycle generation changes', input => {
       input.counterSourceWitness.connectionGeneration += 1;
     }, 'captured-request-or-server-result-does-not-match-the-source-case'],
+    ['source counter witness actor UID changes', input => {
+      input.counterSourceWitness.uidHash = '0000000000000000';
+    }, 'captured-request-or-server-result-does-not-match-the-source-case'],
     ['source counter witness hydration authority changes', input => {
       input.counterSourceWitness.hydrationRevision += 1;
     }, 'captured-request-or-server-result-does-not-match-the-source-case'],
@@ -449,6 +474,12 @@ test('counter result negatives reject changed tuple, actor, revision, UI, and re
       'exact-retry-receipt-differs'],
     ['source-bound mounted counter value is not visible', input => {
       input.rendered.visible = false;
+    }, 'current-result-not-visible-in-the-mounted-control'],
+    ['generic status text cannot replace the mounted counter value', input => {
+      input.rendered = { visible: true, resultStatus: 'committed' };
+    }, 'current-result-not-visible-in-the-mounted-control'],
+    ['rendered value cannot diverge from the selected resource witness', input => {
+      input.rendered.amount += 1;
     }, 'current-result-not-visible-in-the-mounted-control'],
   ];
   for (const [name, mutate, reason] of cases) {
