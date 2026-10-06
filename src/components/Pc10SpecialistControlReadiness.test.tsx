@@ -1,7 +1,7 @@
 import { createHash, webcrypto } from 'node:crypto';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { createContext, Script, SyntheticModule } from 'node:vm';
+import { constants, createContext, Script, SyntheticModule } from 'node:vm';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter, Link, Route, Routes, useLocation } from 'react-router-dom';
 import { beforeEach, expect, it, vi } from 'vitest';
@@ -16,9 +16,12 @@ vi.mock('firebase/functions', () => ({ httpsCallable: () => transport.call }));
 vi.mock('@/lib/firebase', () => ({ functions: () => ({}) }));
 vi.mock('./ScoutReportController', () => ({ default: () => null }));
 const nativeScript = (name: string) => pathToFileURL(resolve(process.cwd(), 'scripts', name)).href;
-const { createTwoBrowserGameplay } = await import(/* @vite-ignore */ nativeScript('pc10-two-browser-gameplay.mjs'));
-const { createSpecialistGameplayDriver } = await import(/* @vite-ignore */ nativeScript('pc10-specialist-gameplay.mjs'));
-const { runPc10SpecialistAction } = await import(/* @vite-ignore */ nativeScript('pc10-specialist-phases.mjs'));
+const nativeImport = (name: string) => new Script('import(url)', {
+  importModuleDynamically: constants.USE_MAIN_CONTEXT_DEFAULT_LOADER,
+}).runInNewContext({ url: nativeScript(name) });
+const { createTwoBrowserGameplay } = await nativeImport('pc10-two-browser-gameplay.mjs');
+const { createSpecialistGameplayDriver } = await nativeImport('pc10-specialist-gameplay.mjs');
+const { runPc10SpecialistAction } = await nativeImport('pc10-specialist-phases.mjs');
 const sid = 'native-specialist-session', uid = 'private-native-wing', roleId = 'wing-commander';
 const uidHash = (value: string) => createHash('sha256').update(value).digest('hex').slice(0, 16);
 const plain = <T,>(value: T): T => JSON.parse(JSON.stringify(value));
