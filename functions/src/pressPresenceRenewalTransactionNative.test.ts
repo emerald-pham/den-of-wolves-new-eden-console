@@ -346,6 +346,11 @@ async function originalCurrentPressTable() {
   // Use the original server producer, not a fabricated canonical fleet/projection.
   await resumeSession.run(request(gmUid, { sessionId: sid }));
   await refreshPresence.run(request(pressUid, { sessionId: sid, activeConsoleRoleId: 'press-officer' }));
+  // Exact current SNN control from the original captured privacy command;
+  // this is authoritative inert DB fixture state, not a fabricated SDK reply.
+  change(sessionPath, { shuttleControl: { 'snn-press-shuttle': {
+    shuttleId: 'snn-press-shuttle', ownerRoleId: 'press-officer', ownerUid: pressUid, holderUid: pressUid, revision: 0,
+  } } });
   put(`sessions/${sid}/secrets/foreign-native-private`, { uid: 'foreign-player', privateMarker: 'FOREIGN_PRIVATE_DATA' });
   const current = await getCurrentMemberSession.run(request(pressUid, { sessionId: sid }));
   expect(current).toMatchObject({ actorUid: pressUid, sessionId: sid, connectionGeneration: 3,
