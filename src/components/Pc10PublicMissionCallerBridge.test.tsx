@@ -96,7 +96,7 @@ const resolveLoop = find(extraCaller, (node): node is ts.ForOfStatement =>
   ts.isForOfStatement(node) && ts.isArrayLiteralExpression(node.expression) &&
   node.expression.elements.some(value => ts.isStringLiteral(value) && value.text === 'Resolve away mission'));
 const extraAcceptance = new Function('workspace', 'live', 'stage', 'matrix', 'recordExtraRoleResult',
-  'mission', `return (async () => { ${resolveLoop.getText(extraSource)} })();`) as (...args: unknown[]) => Promise<void>;
+  'mission', 'gm', `return (async () => { ${resolveLoop.getText(extraSource)} })();`) as (...args: unknown[]) => Promise<void>;
 const extraHelpers = source('scripts/pc10-extra-role-proof-helpers.mjs');
 const recordExtraRoleResult = new Function('assert', `${declaration(extraHelpers, 'recordExtraRoleResult')
   .getText(extraHelpers).replace(/^export /, '')}; return recordExtraRoleResult;`)(assert);
@@ -276,7 +276,7 @@ function nativeBridge(options: FixtureOptions = {}) {
         return { result: latest, receipt: { endpoint: 'commitAwayMissionLifecycleCommand', httpStatus: 200,
           logicalStatus: 'committed', identityVerified: true, exactBrowserSdkReplay: true,
           requestId: latest.requestId, revision: latest.revision } };
-      } }, async () => undefined, matrix, recordExtraRoleResult, missionId);
+      } }, async () => undefined, matrix, recordExtraRoleResult, missionId, {});
       return matrix;
     },
   };
