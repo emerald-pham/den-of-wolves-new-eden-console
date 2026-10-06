@@ -1061,6 +1061,7 @@ export default function ShuttleControl({ control }: Props) {
         </p>
         <label htmlFor={`shuttle-retarget-destination-${control.shuttleId}`}>New destination ship</label>
         <select className="shuttle-control__touch-target" id={`shuttle-retarget-destination-${control.shuttleId}`} value={destinationShipId}
+          aria-describedby={`shuttle-retarget-guidance-${control.shuttleId}`}
           disabled={busy || !departureWindowOpen}
           onChange={(event) => setDestinationShipId(event.target.value)}>
           <option value="">Keep current course</option>
@@ -1068,6 +1069,9 @@ export default function ShuttleControl({ control }: Props) {
             {findShip(shipId)?.name ?? shipId}
           </option>)}
         </select>
+        <p id={`shuttle-retarget-guidance-${control.shuttleId}`}>
+          Choose a destination other than the original departure ship or the current destination.
+        </p>
         <div className="console-workspace__actions">
           <button className="cic-action-button shuttle-control__touch-target" type="button"
             disabled={busy || !departureWindowOpen || !destinationShipId}
