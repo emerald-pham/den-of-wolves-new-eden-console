@@ -36071,7 +36071,7 @@ export const refreshPresence = auditedOnCall<{
       if (renewed) return { sessionId };
     }
   }
-  if (!instanceId && (activeConsoleRoleId === undefined || activeConsoleRoleId === 'press-officer')) {
+  if (!instanceId && activeConsoleRoleId === 'press-officer') {
     const stableCurrentPress = (
       session: DocumentSnapshot, player: DocumentSnapshot, membership: DocumentSnapshot,
     ) => {
