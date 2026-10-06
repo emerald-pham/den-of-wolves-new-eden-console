@@ -265,7 +265,7 @@ function fixture({ beforeCapture, beforeClick, afterFill, duringSecondSelection,
       return { ready: true, gmRevision: 7, crewRevision: 7, renderedStatusCode: 'public-result-visible' };
     },
   });
-  return { run, runCapy, events, posts, replays, game, changeAuth: (value: string) => { authUid = value; },
+  return { run, runCapy, reply: () => plain(issuedReply), events, posts, replays, game, changeAuth: (value: string) => { authUid = value; },
     replaceDocument: () => { documentTimeOrigin += 1000; },
     counts: () => ({ selects, fills, clicks, observers }), saved: () => saved };
 }
@@ -287,11 +287,12 @@ it('keeps the original prepared Scout form through the real public selector and 
 it.each(['aegis', 'capybara'])('qualifies only the actual revision-less recorded Scout request at current host %s through the entire Capy caller', async receivingShipId => {
   const f = fixture({ capy: true, receivingShipId });
   const outcome = await f.runCapy();
+  const result = f.reply();
   expect(outcome.status).toBe('captured');
-  expect(Object.keys(outcome.result).sort()).toEqual(['status', 'resolution', 'requestId', 'sessionId', 'cycle',
+  expect(Object.keys(result).sort()).toEqual(['status', 'resolution', 'requestId', 'sessionId', 'cycle',
     'entitlementId', 'source', 'ownerRoleId', 'anchorShipId', 'receivingShipId', 'targetCoordinate'].sort());
-  expect(outcome.result.receivingShipId).toBe(receivingShipId);
-  expect(outcome.result.revision).toBeUndefined(); expect(outcome.result.currentRevision).toBeUndefined();
+  expect(result.receivingShipId).toBe(receivingShipId);
+  expect(result.revision).toBeUndefined(); expect(result.currentRevision).toBeUndefined();
   const stage = capybaraStageOutcome({ ...outcome, roleId });
   expect(stage).toMatchObject({ status: 'completed', endpoint: 'requestScout', roleId, cycle: 1,
     scope: 'request-recorded' });
