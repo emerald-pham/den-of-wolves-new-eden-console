@@ -24,6 +24,8 @@ import {
 } from '../../functions/src/awayMissionLifecycleAdapter';
 import { createMissionLifecycleState } from '../../functions/src/missionLifecycle';
 import { missionDeck, missionDeckStateFromCards, type MissionCardId } from '../../functions/src/missionDeck';
+import { deriveAwayMissionParticipantCraftSnapshots } from '../../functions/src/awayMissionCraftSnapshot';
+import { emptySmallShipState } from '../../functions/src/smallShip';
 
 const transport = vi.hoisted(() => ({ uid: '', callable: vi.fn(), invoke: vi.fn() }));
 vi.mock('firebase/functions', () => ({ httpsCallable: transport.callable }));
@@ -129,15 +131,25 @@ function fixture(options: FixtureOptions = {}): AwayMissionLifecycleRecord {
     missionId: bulk ? 'native-bulk-mission' : 'native-boa-mission', siteCode: 'D', leaderUid: leader,
     participants: [{ uid: wing, roleId: 'wing-commander' },
       { uid: actor, roleId: bulk ? 'capybara-small-captain' : 'capybara-recycler' }],
-    availableCarrierCraftIds: bulk ? ['starlight', 'capybara-small'] : ['starlight', 'boa'],
+    availableCarrierCraftIds: bulk ? ['starlight'] : ['starlight', 'boa'],
     deckState: deck, dealtCount: 2,
     initialCards: [{ participantUid: wing, cardId: '10♥' }, { participantUid: actor, cardId: '10♦' }],
   });
   assert.ok(lifecycle);
+  const participantCrafts = deriveAwayMissionParticipantCraftSnapshots({
+    participantSnapshots: lifecycle.participants,
+    availableCarrierCraftIds: lifecycle.availableCarrierCraftIds,
+    activeVesselIds: bulk ? ['aegis'] : ['aegis', 'capybara'],
+    smallShipStates: bulk ? { 'capybara-small': {
+      ...emptySmallShipState('capybara-small', options.noBulkCraft ? null : 'aegis'),
+      dockingRevision: options.noBulkCraft ? 0 : 1,
+    } } : {},
+    expansion: bulk ? 'base' : 'capybara', capybaraEnabled: true,
+    opportunityGroupVesselIds: ['aegis'], opportunityCoordinate: 'L4', shipGalacticCoordinates: { aegis: 'L4' },
+  });
+  assert.ok(participantCrafts);
   let record = createAwayMissionLifecycleRecord({
-    sessionId: sid, groupId: group, sourceCycle: 3, lifecycle,
-    participantCrafts: [{ participantUid: wing, craftIds: ['starlight'] },
-      { participantUid: actor, craftIds: bulk ? (options.noBulkCraft ? [] : ['capybara-small']) : ['boa'] }],
+    sessionId: sid, groupId: group, sourceCycle: 3, lifecycle, participantCrafts,
     ...(!bulk ? { boaReclamation: { actorUid: recycler, opportunityId: 'D-1' } } : {}),
   });
   assert.ok(record);
@@ -257,6 +269,10 @@ function nativeBridge(options: FixtureOptions = {}) {
         _name: string, button: { click: () => Promise<void> }) => {
         latest = undefined; await button.click(); assert.ok(latest);
         assert.ok(parseAwayMissionLifecyclePublicState(latest.publicState, missionId));
+        const originalRequest = requests.at(-1); assert.ok(originalRequest);
+        const replay = replayMutate(command(originalRequest, gm));
+        assert.equal(replay.revision, latest.revision);
+        assert.deepEqual(replay.publicState, latest.publicState);
         return { result: latest, receipt: { endpoint: 'commitAwayMissionLifecycleCommand', httpStatus: 200,
           logicalStatus: 'committed', identityVerified: true, exactBrowserSdkReplay: true,
           requestId: latest.requestId, revision: latest.revision } };
@@ -289,7 +305,7 @@ describe('PC10 public mission caller mapping through real lifecycle, projection,
     expect(bridge.actions.every(row => row.exactBrowserSdkReplay === true)).toBe(true);
   });
   it('keeps a genuine failed Boa task pending despite completed custody delivery', async () => {
-    const bridge = nativeBridge({ assigned: '2♥', facilitator: '2♦' }); await bridge.prepareResolution();
+    const bridge = nativeBridge({ assigned: '4♥', facilitator: 'J♦' }); await bridge.prepareResolution();
     const result = await bridge.capy();
     expect(bridge.record().outcomes?.[0]?.outcome).toBe('failure');
     expect(result.stages[0]?.status).toBe('pending');
@@ -332,7 +348,7 @@ describe('PC10 public mission caller mapping through real lifecycle, projection,
     expect(matrix[0]?.attempts).toHaveLength(1);
     expect(bridge.requests.map(request => request.type)).toEqual(['addFacilitatorCards', 'resolve']);
   });
-  it.each([{ assigned: '2♥', facilitator: '2♦' }, { noBulkCraft: true }] as const)(
+  it.each([{ assigned: '4♥', facilitator: 'J♦' }, { noBulkCraft: true }] as const)(
     'does not credit actual non-winning or non-Capybara-craft rewards: %j', async options => {
       const bridge = nativeBridge({ bulk: true, ...options });
       expect((await bridge.extra())[0]?.status).toBe('pending');
