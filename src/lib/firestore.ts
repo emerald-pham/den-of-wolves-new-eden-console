@@ -3993,6 +3993,8 @@ export interface SessionStateHandlers {
   readonly sessionSnapshotAuthority?: SessionSnapshotAuthority;
   /** Recheck this document's accepted join/resume identity before FIRST player initialization. */
   readonly initialMemberActor?: () => Player | undefined;
+  /** Prepare recovery deduplication from accepted App authority before station refresh withdraws freshness. */
+  readonly prepareStationMemberRefresh?: (player: Player) => ((isCurrent: () => boolean) => void) | undefined;
   readonly onPlayer: (player: Player) => void;
   readonly onKicked: () => void;
   readonly onSeats: (seats: readonly Seat[]) => void;
@@ -4209,6 +4211,7 @@ export function subscribeSessionState(
     });
   };
   let memberFeedRefresh: () => void = () => undefined;
+  let memberRefreshPending: () => boolean = () => false;
   let unsubscribes: Unsubscribe[] = [];
   let subscriptionsReady = false;
   let stopRequestedBeforeReady = false;
@@ -4301,6 +4304,7 @@ export function subscribeSessionState(
     let timer: ReturnType<typeof setTimeout> | undefined;
     const current = () => !stopped && subscribed && currentSessionSubscriptionToken === subscriptionToken &&
       memberActorAvailable !== false;
+    memberRefreshPending = () => pending && current();
     const refresh = () => {
       if (!current()) return;
       wanted = true;
@@ -4477,6 +4481,19 @@ export function subscribeSessionState(
       } else if (snapshot.exists() && snapshot.get('connected') === true) {
         const player = playerFrom(sessionId, uid, snapshot.data());
         let rebindDiscovery = false;
+        const stationActivation = !fromCache && handlers.sessionReadAudience === 'member' &&
+          memberActorAvailable === true && memberSessionConfirmed && memberPlayer?.role === 'player' && memberPlayer.connected === true &&
+          player.role === 'player' && memberPlayer.uid === uid && player.uid === uid &&
+          memberPlayer.sessionId === sessionId && player.sessionId === sessionId &&
+          Number.isSafeInteger(player.connectionGeneration) && (player.connectionGeneration ?? 0) > 0 &&
+          player.connectionGeneration === memberPlayer.connectionGeneration && typeof player.fleetGroupId === 'string' &&
+          /^fleet-[1-9][0-9]*$/.test(player.fleetGroupId) && player.fleetGroupId === memberPlayer.fleetGroupId &&
+          isWireSafeEntityId(player.assignedRoleId) && player.assignedRoleId === memberPlayer.assignedRoleId &&
+          player.seatId === player.assignedRoleId && memberPlayer.seatId === player.seatId &&
+          memberPlayer.activeConsoleRoleId === null && player.activeConsoleRoleId === player.assignedRoleId &&
+          memberPlayer.replacementRoleId == null && memberPlayer.replacementStatus == null && memberPlayer.escapeState == null &&
+          player.replacementRoleId == null && player.replacementStatus == null && player.escapeState == null;
+        const retainPendingRefresh = stationActivation ? handlers.prepareStationMemberRefresh?.(player) : undefined;
         if (!fromCache && handlers.sessionReadAudience === 'member') {
           const nextFingerprint = actorFingerprint(player);
           if (memberActorAvailable !== true || nextFingerprint !== memberActorFingerprint) {
@@ -4512,6 +4529,14 @@ export function subscribeSessionState(
         // cannot publish into this new actor generation.
         if (rebindDiscovery && handlers.onPlayerDiscovery) startPlayerDiscoveryListener();
         if (!fromCache) memberFeedRefresh();
+        if (retainPendingRefresh) {
+          const activationEpoch = memberActorEpoch;
+          retainPendingRefresh(() => memberRefreshPending() && memberActorEpoch === activationEpoch &&
+            memberActorAvailable === true && memberPlayer?.connected === true && memberPlayer.role === 'player' &&
+            memberPlayer.uid === uid && memberPlayer.sessionId === sessionId &&
+            actorFingerprint(memberPlayer) === actorFingerprint(player) && memberPlayer.seatId === player.seatId &&
+            memberPlayer.replacementRoleId == null && memberPlayer.replacementStatus == null && memberPlayer.escapeState == null);
+        }
         handlers.onPlayerFreshness?.(!fromCache);
         if (!fromCache) publishPendingMemberDiscovery();
         // A legacy listener can terminate while the document is absent. A

@@ -65,6 +65,7 @@ import { auth } from '@/lib/firebase';
 const GM_RECONCILE_INTERVAL_MS = 5_000;
 const PRESENCE_HEARTBEAT_INTERVAL_MS = 10_000;
 let automaticConnectionAttempt: Promise<void> | null = null;
+let pendingStationMemberRefresh: (() => boolean) | undefined;
 
 function connectAutomaticallyDeduplicated(): Promise<void> {
   if (automaticConnectionAttempt) return automaticConnectionAttempt;
@@ -761,6 +762,46 @@ function AppRoutes() {
               activeDemoActorProfile && activeDemoActorProfile.sessionId !== sessionId) return undefined;
           return initialMember;
         },
+        prepareStationMemberRefresh: (player) => {
+          if (!callbackCurrent()) return;
+          const original = useSessionStore.getState();
+          const member = original.me;
+          if (!initialMember || initialMember.uid !== playerUid || initialMember.sessionId !== sessionId ||
+              initialMember.role !== 'player' || initialMember.connected === false || !member ||
+              initialMember.replacementRoleId != null || initialMember.replacementStatus != null || initialMember.escapeState != null ||
+              member.uid !== playerUid || member.sessionId !== sessionId || member.role !== 'player' || member.connected !== true ||
+              original.session?.id !== sessionId || original.connection !== 'live' || original.sessionSnapshotFreshness !== 'server' ||
+              ['debrief', 'closed'].includes(original.session.phase ?? '') ||
+              auth().currentUser?.uid !== playerUid || original.identityHydrationRevision !== identityHydrationRevision ||
+              !sessionSnapshotAuthorityFor(sessionId, playerUid).hasServerSessionAuthority ||
+              memberSessionResumeBlocksFreshness(sessionSnapshotAuthorityFor(sessionId, playerUid)) ||
+              !(identityHydrationRevision > 0) || !Number.isSafeInteger(member.connectionGeneration) ||
+              (member.connectionGeneration ?? 0) < 1 || member.connectionGeneration !== initialMember.connectionGeneration ||
+              member.fleetGroupId !== initialMember.fleetGroupId || member.assignedRoleId !== initialMember.assignedRoleId ||
+              member.seatId !== initialMember.seatId || player.uid !== member.uid || player.sessionId !== member.sessionId ||
+              player.connectionGeneration !== member.connectionGeneration || player.fleetGroupId !== member.fleetGroupId ||
+              player.assignedRoleId !== member.assignedRoleId || player.seatId !== member.seatId ||
+              (member.activeConsoleRoleId !== null && member.activeConsoleRoleId !== player.activeConsoleRoleId) ||
+              member.replacementRoleId != null || member.replacementStatus != null || member.escapeState != null) return;
+          // This owns only an in-flight read. The existing false freshness and
+          // private projection withdrawal remain in force until it accepts.
+          return (isCurrentRead) => {
+            pendingStationMemberRefresh = () => {
+              const current = useSessionStore.getState();
+              const next = current.me;
+              return callbackCurrent() && isCurrentRead() && auth().currentUser?.uid === playerUid &&
+                current.identityHydrationRevision === identityHydrationRevision && current.session?.id === sessionId &&
+                !['debrief', 'closed'].includes(current.session.phase ?? '') &&
+                sessionSnapshotAuthorityFor(sessionId, playerUid).hasServerSessionAuthority &&
+                !memberSessionResumeBlocksFreshness(sessionSnapshotAuthorityFor(sessionId, playerUid)) &&
+                next?.uid === playerUid && next.sessionId === sessionId && next.role === 'player' && next.connected === true &&
+                next.connectionGeneration === member.connectionGeneration && next.fleetGroupId === member.fleetGroupId &&
+                next.assignedRoleId === member.assignedRoleId && next.activeConsoleRoleId === player.activeConsoleRoleId &&
+                next.seatId === member.seatId && next.replacementRoleId == null && next.replacementStatus == null &&
+                next.escapeState == null && (!activeDemoActorProfile || activeDemoActorProfile.sessionId === sessionId);
+            };
+          };
+        },
         onSession: (incoming) => {
           if (!callbackCurrent()) return;
           const store = useSessionStore.getState();
@@ -863,6 +904,7 @@ function AppRoutes() {
         },
         onSessionFreshness: (fresh) => {
           if (!callbackCurrent()) return;
+          pendingStationMemberRefresh = undefined;
           const store = useSessionStore.getState();
           if (fresh && playerRole === 'player' &&
               memberSessionResumeBlocksFreshness(sessionSnapshotAuthorityFor(sessionId, playerUid))) {
@@ -1255,6 +1297,7 @@ function AppRoutes() {
         },
         onError: () => {
           if (!callbackCurrent()) return;
+          pendingStationMemberRefresh = undefined;
           playerProjectionFresh = false;
           invalidatePendingStationReleaseFreshness();
           clearCurrentGroupCandidateReveals();
@@ -1502,6 +1545,7 @@ function AppRuntime() {
       });
     };
     const markAuthorityOffline = () => {
+      pendingStationMemberRefresh = undefined;
       const store = useSessionStore.getState();
       store.setSessionSnapshotFreshness('cache');
       store.setConnection('offline');
@@ -1533,7 +1577,7 @@ function AppRuntime() {
     const retry = window.setInterval(() => {
       const state = useSessionStore.getState();
       if (state.session?.phase === 'closed') readClosedHistoryIfReady();
-      else if (state.connection !== 'live') run(connectAutomaticallyDeduplicated);
+      else if (state.connection !== 'live' && !pendingStationMemberRefresh?.()) run(connectAutomaticallyDeduplicated);
     }, CONNECT_RETRY_INTERVAL_MS);
     const reconcileGm = window.setInterval(() => {
       const state = useSessionStore.getState();
