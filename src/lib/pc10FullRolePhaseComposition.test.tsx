@@ -350,3 +350,54 @@ it('the actual Capy factory explicitly chooses full role plus callback phase own
   expect(factory({ fullRoleLoop: false })).toMatchObject({ gameplayOnly: true, gameplayManagesPhases: false });
   for (const value of [null, 'true', 1, {}, []]) expect(() => factory({ fullRoleLoop: value })).toThrow();
 });
+
+it.each(['uid', 'session', 'cache'] as const)('the actual client parser/service rejects an original read after %s authority withdrawal', async change => {
+  const f = fixture(), originalInvoke = transport.invoke.getMockImplementation()!;
+  transport.invoke.mockImplementationOnce(async (request: Row) => {
+    const reply = await originalInvoke(request);
+    const current = useSessionStore.getState();
+    if (change === 'uid') useSessionStore.setState({ me: { ...current.me!, uid: 'foreign-current-uid' } });
+    if (change === 'session') useSessionStore.setState({ session: { ...current.session!, id: 'foreign-current-session' } });
+    if (change === 'cache') useSessionStore.setState({ sessionSnapshotFreshness: 'cache' });
+    return reply;
+  });
+  await expect(f.originalResearch()).rejects.toThrow(/authority changed|live session state/);
+  expect(f.counts().uiResearchClicks).toBe(0); expect(f.counts().exactReplays).toBe(0);
+  expect(f.outcome().status).toBe('pending');
+});
+
+it.each(['stale', 'unpainted', 'wrong-cycle', 'wrong-role', 'no-exact-replay'] as const)(
+  'the unchanged stage evaluator refuses a previously real receipt after %s evidence drift', async change => {
+    const f = fixture(); await f.originalResearch();
+    const branch = (f.report.branches as Row)['detector-research-cross'] as Row;
+    const rows = f.report.requests as Row[], request = rows.find(row => row.exactOriginalSdkReplay === true)!;
+    if (change === 'stale') branch.status = 'stale';
+    if (change === 'unpainted') branch.exactSourceAndRenderedReceipt = false;
+    if (change === 'wrong-cycle') request.cycle = 2;
+    if (change === 'wrong-role') request.roleId = 'foreign-role';
+    if (change === 'no-exact-replay') request.exactOriginalSdkReplay = false;
+    expect(f.outcome().status).toBe('pending');
+    expect(f.counts().uiResearchClicks).toBe(1); expect(f.counts().exactReplays).toBe(1);
+  });
+
+it('an interrupted original onStarted hook cannot run the supplied gameplay or generic phase control', async () => {
+  const f = fixture(), options = { gameplayOnly: false, gameplayManagesPhases: true,
+    onStarted: async () => { throw new Error('original Team preparation interrupted'); }, runEnding: f.originalResearch };
+  await expect(produce(options, f.context, () => undefined, async () => undefined, {}))
+    .rejects.toThrow(/original Team preparation interrupted/);
+  expect(f.counts()).toEqual({ uiPhaseClicks: 0, uiResearchClicks: 0, exactReplays: 0, readCalls: 0 });
+  expect(f.outcome().status).toBe('pending');
+});
+
+it('the actual Capy standalone factory retains original public callback ordering and ignores the former raw override', async () => {
+  const calls: string[] = [];
+  const factory = new Function('assert', 'prepareCycleOneCapybaraFleet', 'runCapybaraFullGameGameplay', 'runPursuitLimitEnding', js(
+    `${functionText(capy, 'capybaraFullGameDemoOptions')}\nreturn capybaraFullGameDemoOptions;`,
+  ))(assert, async () => { calls.push('seven-host-preparation'); return { status: 'completed' }; },
+    async () => { calls.push('original-gameplay'); }, async () => undefined) as (options?: Row) =>
+      { gameplayOnly: boolean; onStarted: (input: Row) => Promise<void>; runEnding: (input: Row) => Promise<void> };
+  const options = factory({ gameplayOnly: false, onStarted: async () => { calls.push('original-caller-hook'); } });
+  expect(options.gameplayOnly).toBe(true);
+  await options.onStarted({}); await options.runEnding({});
+  expect(calls).toEqual(['original-caller-hook', 'seven-host-preparation', 'original-gameplay']);
+});
