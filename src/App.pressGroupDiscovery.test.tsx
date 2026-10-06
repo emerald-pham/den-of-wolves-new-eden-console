@@ -296,6 +296,16 @@ function expectWithdrawn() {
 }
 
 describe('ordinary original Press receives only current own group metadata', () => {
+  it('binds the real own SNN scope and control without inventing a root holder or retained occupancy flag', async () => {
+    await joinedPress();
+    expect(useSessionStore.getState().session?.pressClaimed).toBe(false);
+    expect(useSessionStore.getState().session).not.toHaveProperty('pressHolderUid');
+    expect(useSessionStore.getState().session?.shuttleControl?.['snn-press-shuttle']).toEqual({
+      shuttleId: 'snn-press-shuttle', ownerRoleId: 'press-officer', ownerUid: actor.uid, holderUid: actor.uid, revision: 0,
+    });
+    await sourceDiscovery(); expectOwnGroup();
+  });
+
   it('accepts the actual no-ship server projection through normal join/member/player/SDK source delivery', async () => {
     await joinedPress(); await sourceDiscovery(); expectOwnGroup();
     expect(callCount('joinSession')).toBe(1);
