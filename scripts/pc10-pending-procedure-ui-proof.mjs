@@ -595,6 +595,467 @@ function validShuttleArrivalCapture(input, expected) {
   };
 }
 
+// Press SNN has a deliberately narrower member projection than the core shuttles:
+// its private audience contains the craft but no vessel map or ship balances.
+const PRESS_SHUTTLE_ID = 'snn-press-shuttle';
+const PRESS_DOCUMENT_AUTHORITY_KEYS = Object.freeze(['kind', 'sessionId', 'uidHash', 'groupId',
+  'activeConsoleRoleId', 'assignedRoleId', 'connectionGeneration', 'identityHydrationRevision',
+  'documentTimeOrigin', 'audienceHash', 'authorityHash', 'discoveryRevision',
+  'discoveryVesselsHash', 'shuttleAuthorized']);
+const PRESS_ORIGIN_AUTHORITY_KEYS = Object.freeze(['kind', 'sessionId', 'uidHash', 'shuttleId', 'groupId',
+  'cycle', 'controlRevision', 'originShipId', 'sourceAuthority']);
+const PRESS_GROUP_AUTHORITY_KEYS = Object.freeze(['groupId', 'fleetGroupVesselIds', 'revision']);
+const PRESS_DOCKING_KEYS = Object.freeze(['kind', 'shuttleId', 'dockingCount', 'originShipId']);
+const PRESS_DEPARTURE_WITNESS_KEYS = Object.freeze(['kind', 'status', 'endpoint', 'sessionId', 'roleId',
+  'uidHash', 'shuttleId', 'groupId', 'cycle', 'controlRevision', 'originShipId', 'destinationShipId',
+  'departureRequestId', 'requestedAt', 'sourceAuthority']);
+const PRESS_TRANSIT_WITNESS_KEYS = Object.freeze(['kind', 'status', 'endpoint', 'sessionId', 'roleId',
+  'uidHash', 'shuttleId', 'groupId', 'cycle', 'controlRevision', 'originShipId', 'destinationShipId',
+  'departureRequestId', 'transitRequestId', 'transitRevision', 'requestedAt', 'departedAt', 'arrivesAt',
+  'sourceAuthority']);
+const PRESS_ARRIVAL_WITNESS_KEYS = Object.freeze(['kind', 'status', 'endpoint', 'sessionId', 'roleId',
+  'uidHash', 'shuttleId', 'groupId', 'cycle', 'controlRevision', 'originShipId', 'departureRequestId',
+  'transitRequestId', 'destinationShipId', 'transitRevision', 'requestedAt', 'departedAt', 'arrivesAt',
+  'sourceAuthority']);
+
+function pressHashJson(value) {
+  return createHash('sha256').update(JSON.stringify(value)).digest('hex');
+}
+
+function validPressDocumentAuthority(value, expected = {}) {
+  return exactKeys(value, PRESS_DOCUMENT_AUTHORITY_KEYS) &&
+    value.kind === 'press-shuttle-current-document' && value.sessionId === expected.sessionId &&
+    typeof value.sessionId === 'string' && value.uidHash === expected.uidHash &&
+    /^[0-9a-f]{16}$/.test(value.uidHash ?? '') && value.groupId === expected.groupId &&
+    typeof value.groupId === 'string' && value.groupId.length > 0 &&
+    value.activeConsoleRoleId === 'press-officer' && value.assignedRoleId === null &&
+    Number.isSafeInteger(value.connectionGeneration) && value.connectionGeneration >= 1 &&
+    Number.isSafeInteger(value.identityHydrationRevision) && value.identityHydrationRevision >= 1 &&
+    Number.isFinite(value.documentTimeOrigin) && value.documentTimeOrigin > 0 &&
+    /^[0-9a-f]{64}$/.test(value.audienceHash ?? '') && /^[0-9a-f]{64}$/.test(value.authorityHash ?? '') &&
+    Number.isSafeInteger(value.discoveryRevision) && value.discoveryRevision >= 0 &&
+    /^[0-9a-f]{64}$/.test(value.discoveryVesselsHash ?? '') && value.shuttleAuthorized === true;
+}
+
+function samePressDocumentAuthority(left, right) {
+  return exactKeys(left, PRESS_DOCUMENT_AUTHORITY_KEYS) && exactKeys(right, PRESS_DOCUMENT_AUTHORITY_KEYS) &&
+    PRESS_DOCUMENT_AUTHORITY_KEYS.every(key => left[key] === right[key]);
+}
+
+function validPressGroupAuthority(value, authority, originShipId, destinationShipId) {
+  if (!exactKeys(value, PRESS_GROUP_AUTHORITY_KEYS) || value.groupId !== authority?.groupId ||
+      value.revision !== authority?.discoveryRevision || !Array.isArray(value.fleetGroupVesselIds) ||
+      value.fleetGroupVesselIds.length === 0 ||
+      value.fleetGroupVesselIds.some(id => typeof id !== 'string' || !id) ||
+      new Set(value.fleetGroupVesselIds).size !== value.fleetGroupVesselIds.length) return false;
+  const vessels = [...value.fleetGroupVesselIds].sort();
+  return JSON.stringify(value.fleetGroupVesselIds) === JSON.stringify(vessels) &&
+    pressHashJson(vessels) === authority.discoveryVesselsHash &&
+    pressHashJson({ groupId: value.groupId, vesselIds: [], craftIds: [PRESS_SHUTTLE_ID] }) === authority.audienceHash &&
+    vessels.includes(originShipId) && vessels.includes(destinationShipId);
+}
+
+function validPressOriginAuthority(value, expected = {}) {
+  return exactKeys(value, PRESS_ORIGIN_AUTHORITY_KEYS) && value.kind === 'press-shuttle-origin' &&
+    value.sessionId === expected.sessionId && value.uidHash === expected.uidHash &&
+    /^[0-9a-f]{16}$/.test(value.uidHash ?? '') && value.shuttleId === PRESS_SHUTTLE_ID &&
+    value.shuttleId === expected.shuttleId && value.groupId === expected.groupId &&
+    typeof value.groupId === 'string' && value.groupId.length > 0 && value.cycle === expected.cycle &&
+    Number.isSafeInteger(value.cycle) && value.cycle >= 1 &&
+    value.controlRevision === expected.controlRevision && Number.isSafeInteger(value.controlRevision) &&
+    value.controlRevision >= 0 && typeof value.originShipId === 'string' && value.originShipId.length > 0 &&
+    validPressDocumentAuthority(value.sourceAuthority, { sessionId: value.sessionId,
+      uidHash: value.uidHash, groupId: value.groupId }) &&
+    (!expected.sourceAuthority || samePressDocumentAuthority(value.sourceAuthority, expected.sourceAuthority));
+}
+
+function samePressOriginAuthority(left, right) {
+  return validPressOriginAuthority(left, { sessionId: right?.sessionId, uidHash: right?.uidHash,
+    shuttleId: right?.shuttleId, groupId: right?.groupId, cycle: right?.cycle,
+    controlRevision: right?.controlRevision, sourceAuthority: right?.sourceAuthority }) &&
+    validPressOriginAuthority(right, { sessionId: left?.sessionId, uidHash: left?.uidHash,
+      shuttleId: left?.shuttleId, groupId: left?.groupId, cycle: left?.cycle,
+      controlRevision: left?.controlRevision, sourceAuthority: left?.sourceAuthority }) &&
+    left.originShipId === right.originShipId && samePressDocumentAuthority(left.sourceAuthority, right.sourceAuthority);
+}
+
+function validPressDepartureWitness(witness, origin, destinationShipId) {
+  return exactKeys(witness, PRESS_DEPARTURE_WITNESS_KEYS) && witness.kind === 'press-shuttle-departure-witness' &&
+    witness.status === 'completed' && witness.endpoint === 'requestShuttleDeparture' &&
+    witness.sessionId === origin.sessionId && witness.roleId === 'press-officer' &&
+    witness.uidHash === origin.uidHash && witness.shuttleId === PRESS_SHUTTLE_ID &&
+    witness.groupId === origin.groupId && witness.cycle === origin.cycle &&
+    witness.controlRevision === origin.controlRevision && witness.originShipId === origin.originShipId &&
+    witness.destinationShipId === destinationShipId && typeof witness.departureRequestId === 'string' &&
+    witness.departureRequestId.length > 0 && typeof witness.requestedAt === 'string' &&
+    Number.isFinite(Date.parse(witness.requestedAt)) &&
+    samePressDocumentAuthority(witness.sourceAuthority, origin.sourceAuthority);
+}
+
+function validPressTransitWitness(witness, origin, departureWitness, destinationShipId) {
+  return exactKeys(witness, PRESS_TRANSIT_WITNESS_KEYS) && witness.kind === 'press-shuttle-transit-witness' &&
+    witness.status === 'completed' && witness.endpoint === 'beginShuttleTransit' &&
+    witness.sessionId === origin.sessionId && witness.roleId === 'press-officer' &&
+    witness.uidHash === origin.uidHash && witness.shuttleId === PRESS_SHUTTLE_ID &&
+    witness.groupId === origin.groupId && witness.cycle === origin.cycle &&
+    witness.controlRevision === origin.controlRevision && witness.originShipId === origin.originShipId &&
+    witness.destinationShipId === destinationShipId &&
+    witness.departureRequestId === departureWitness.departureRequestId &&
+    typeof witness.transitRequestId === 'string' && witness.transitRequestId.length > 0 &&
+    Number.isSafeInteger(witness.transitRevision) && witness.transitRevision >= 1 &&
+    witness.requestedAt === departureWitness.requestedAt && typeof witness.departedAt === 'string' &&
+    typeof witness.arrivesAt === 'string' && Number.isFinite(Date.parse(witness.departedAt)) &&
+    Number.isFinite(Date.parse(witness.arrivesAt)) &&
+    Date.parse(witness.arrivesAt) - Date.parse(witness.departedAt) === 60_000 &&
+    Date.parse(witness.requestedAt) <= Date.parse(witness.departedAt) &&
+    samePressDocumentAuthority(witness.sourceAuthority, origin.sourceAuthority);
+}
+
+function validPressArrivalWitness(witness, origin, expected = {}) {
+  return exactKeys(witness, PRESS_ARRIVAL_WITNESS_KEYS) && witness.kind === 'press-shuttle-arrival-witness' &&
+    witness.status === 'completed' && witness.endpoint === 'retargetShuttleTransit' &&
+    witness.sessionId === origin.sessionId && witness.roleId === 'press-officer' &&
+    witness.uidHash === origin.uidHash && witness.shuttleId === PRESS_SHUTTLE_ID &&
+    witness.groupId === origin.groupId && witness.cycle === origin.cycle &&
+    witness.controlRevision === origin.controlRevision && witness.originShipId === origin.originShipId &&
+    typeof witness.departureRequestId === 'string' && witness.departureRequestId.length > 0 &&
+    typeof witness.transitRequestId === 'string' && witness.transitRequestId.length > 0 &&
+    typeof witness.destinationShipId === 'string' && witness.destinationShipId.length > 0 &&
+    (expected.destinationShipId === undefined || witness.destinationShipId === expected.destinationShipId) &&
+    Number.isSafeInteger(witness.transitRevision) && witness.transitRevision >= 1 &&
+    typeof witness.requestedAt === 'string' && typeof witness.departedAt === 'string' &&
+    typeof witness.arrivesAt === 'string' && [witness.requestedAt, witness.departedAt, witness.arrivesAt]
+      .every(value => Number.isFinite(Date.parse(value))) &&
+    Date.parse(witness.requestedAt) <= Date.parse(witness.departedAt) &&
+    Date.parse(witness.arrivesAt) - Date.parse(witness.departedAt) === 60_000 &&
+    samePressDocumentAuthority(witness.sourceAuthority, origin.sourceAuthority);
+}
+
+function validPressMovementCapture(input, endpoint) {
+  const expected = input.expected ?? {};
+  const origin = input.pressOriginAuthority;
+  const before = input.transitionBefore;
+  const after = input.transitionAfter;
+  const request = input.request;
+  const result = input.response?.result;
+  const groupBefore = input.pressGroupAuthorityBefore;
+  const groupAfter = input.pressGroupAuthorityAfter;
+  const sameAuthority = validPressOriginAuthority(origin, { sessionId: expected.sessionId,
+    uidHash: expected.uidHash, shuttleId: expected.shuttleId, groupId: expected.groupId,
+    cycle: expected.cycle, controlRevision: expected.controlRevision,
+    sourceAuthority: expected.sourceAuthority }) &&
+    validPressOriginAuthority(expected.pressOriginAuthority, { sessionId: expected.sessionId,
+      uidHash: expected.uidHash, shuttleId: expected.shuttleId, groupId: expected.groupId,
+      cycle: expected.cycle, controlRevision: expected.controlRevision,
+      sourceAuthority: expected.sourceAuthority }) && samePressOriginAuthority(origin, expected.pressOriginAuthority) &&
+    expected.originShipId === origin.originShipId && expected.destinationShipId !== origin.originShipId &&
+    validPressDocumentAuthority(input.pressSourceAuthorityBefore, { sessionId: expected.sessionId,
+      uidHash: expected.uidHash, groupId: expected.groupId }) &&
+    validPressDocumentAuthority(input.pressSourceAuthorityAfter, { sessionId: expected.sessionId,
+      uidHash: expected.uidHash, groupId: expected.groupId }) &&
+    samePressDocumentAuthority(input.pressSourceAuthorityBefore, origin.sourceAuthority) &&
+    samePressDocumentAuthority(input.pressSourceAuthorityAfter, origin.sourceAuthority) &&
+    validPressGroupAuthority(groupBefore, origin.sourceAuthority, origin.originShipId, expected.destinationShipId) &&
+    validPressGroupAuthority(groupAfter, origin.sourceAuthority, origin.originShipId, expected.destinationShipId) &&
+    JSON.stringify(groupBefore) === JSON.stringify(groupAfter) &&
+    Array.isArray(input.pressActiveVesselIdsBefore) && Array.isArray(input.pressActiveVesselIdsAfter) &&
+    JSON.stringify(input.pressActiveVesselIdsBefore) === JSON.stringify(input.pressActiveVesselIdsAfter) &&
+    input.pressActiveVesselIdsBefore.includes(origin.originShipId) &&
+    input.pressActiveVesselIdsBefore.includes(expected.destinationShipId) &&
+    validPressDocking(input.pressDockingBefore, endpoint === 'requestShuttleDeparture' || endpoint === 'beginShuttleTransit'
+      ? 1 : 0, endpoint === 'requestShuttleDeparture' || endpoint === 'beginShuttleTransit'
+        ? origin.originShipId : null) &&
+    validPressDocking(input.pressDockingAfter, endpoint === 'requestShuttleDeparture' ? 1 : 0,
+      endpoint === 'requestShuttleDeparture' ? origin.originShipId : null) &&
+    exactKeys(input.sourceBefore, ['live', 'sessionId', 'cycle', 'phase', 'revision', 'groupId']) &&
+    exactKeys(input.sourceAfter, ['live', 'sessionId', 'cycle', 'phase', 'revision', 'groupId']) &&
+    input.sourceBefore.live === true && input.sourceAfter.live === true &&
+    input.sourceBefore.sessionId === origin.sessionId && input.sourceAfter.sessionId === origin.sessionId &&
+    input.sourceBefore.cycle === origin.cycle && input.sourceAfter.cycle === origin.cycle &&
+    input.sourceBefore.phase === 'active' && input.sourceAfter.phase === 'active' &&
+    input.sourceBefore.revision === expected.sourceRevision &&
+    input.sourceAfter.revision === (endpoint === 'requestShuttleDeparture'
+      ? expected.sourceRevision : result?.revision) &&
+    input.sourceBefore.groupId === origin.groupId && input.sourceAfter.groupId === origin.groupId &&
+    input.mountedUi === true && matchesActor(input.actorBefore, expected, false) &&
+    matchesActor(input.actorAfter, expected, false) && input.actorBefore.profileRoleId === 'press-officer' &&
+    input.actorAfter.profileRoleId === 'press-officer' && input.actorBefore.activeConsoleRoleId === 'press-officer' &&
+    input.actorAfter.activeConsoleRoleId === 'press-officer' && input.actorBefore.assignedRoleId === null &&
+    input.actorAfter.assignedRoleId === null && input.response?.httpStatus === 200 &&
+    exactKeys(input.response, ['httpStatus', 'result', 'exactReplay']) && input.response.exactReplay === true &&
+    input.replay?.status === 'committed' && sameActionReceipt(result, input.replay.result) &&
+    input.rendered?.visible === true && input.rendered.resultStatus === result?.status;
+  if (!sameAuthority || !request || !result || request.sessionId !== expected.sessionId ||
+      request.shuttleId !== PRESS_SHUTTLE_ID || request.expectedControlRevision !== origin.controlRevision ||
+      request.expectedCycle !== origin.cycle || result.sessionId !== expected.sessionId ||
+      result.shuttleId !== PRESS_SHUTTLE_ID || hashUid(result.holderUid) !== origin.uidHash ||
+      result.fleetGroupId !== origin.groupId || result.cycle !== origin.cycle ||
+      result.controlRevision !== origin.controlRevision ||
+      !Array.isArray(input.pressActiveVesselIdsBefore) ||
+      new Set(input.pressActiveVesselIdsBefore).size !== input.pressActiveVesselIdsBefore.length ||
+      input.pressActiveVesselIdsBefore.some(id => typeof id !== 'string' || !id) ||
+      JSON.stringify(input.pressActiveVesselIdsBefore) !== JSON.stringify([...input.pressActiveVesselIdsBefore].sort())) return false;
+
+  const beforeKeys = endpoint === 'requestShuttleDeparture'
+    ? ['kind', 'exists', 'sessionId', 'shuttleId', 'holderUidHash', 'groupId', 'controlRevision', 'cycle']
+    : endpoint === 'beginShuttleTransit'
+      ? ['kind', 'exists', 'status', 'sessionId', 'requestId', 'shuttleId', 'holderUidHash', 'groupId',
+        'destinationShipId', 'controlRevision', 'cycle']
+      : ['kind', 'exists', 'status', 'sessionId', 'requestId', 'transitRequestId', 'shuttleId',
+        'holderUidHash', 'groupId', 'destinationShipId', 'controlRevision', 'cycle', 'revision'];
+  const afterKeys = endpoint === 'requestShuttleDeparture'
+    ? ['kind', 'exists', 'status', 'sessionId', 'requestId', 'shuttleId', 'holderUidHash', 'groupId',
+      'destinationShipId', 'controlRevision', 'cycle']
+    : ['kind', 'exists', 'status', 'sessionId', 'requestId', 'transitRequestId', 'shuttleId',
+      'holderUidHash', 'groupId', 'destinationShipId', 'controlRevision', 'cycle', 'revision'];
+  if (!exactKeys(before, beforeKeys) || !exactKeys(after, afterKeys) || before.kind !== 'shuttle-movement' ||
+      after.kind !== 'shuttle-movement' || before.sessionId !== origin.sessionId || after.sessionId !== origin.sessionId ||
+      before.shuttleId !== PRESS_SHUTTLE_ID || after.shuttleId !== PRESS_SHUTTLE_ID ||
+      before.holderUidHash !== origin.uidHash || after.holderUidHash !== origin.uidHash ||
+      before.groupId !== origin.groupId || after.groupId !== origin.groupId ||
+      before.controlRevision !== origin.controlRevision || after.controlRevision !== origin.controlRevision ||
+      before.cycle !== origin.cycle || after.cycle !== origin.cycle) return false;
+
+  const departureKeys = ['sessionId', 'requestId', 'shuttleId', 'destinationShipId', 'expectedControlRevision', 'expectedCycle'];
+  const transitKeys = ['sessionId', 'requestId', 'shuttleId', 'expectedDepartureRequestId',
+    'expectedControlRevision', 'expectedCycle'];
+  const retargetKeys = ['sessionId', 'requestId', 'shuttleId', 'transitRequestId', 'destinationShipId',
+    'expectedControlRevision', 'expectedCycle'];
+  const requestId = request.requestId;
+  const validRequest = exactKeys(request, endpoint === 'requestShuttleDeparture' ? departureKeys
+    : endpoint === 'beginShuttleTransit' ? transitKeys : retargetKeys) &&
+    typeof requestId === 'string' && requestId.length > 0;
+  if (!validRequest) return false;
+
+  if (endpoint === 'requestShuttleDeparture') {
+    const resultKeys = ['status', 'sessionId', 'requestId', 'shuttleId', 'holderUid', 'fleetGroupId',
+      'originShipId', 'destinationShipId', 'cycle', 'controlRevision', 'requestedAt'];
+    return before.exists === false && after.exists === true && after.status === 'requested' &&
+      before.exists === false && after.requestId === requestId &&
+      request.destinationShipId === expected.destinationShipId && request.destinationShipId !== origin.originShipId &&
+      result.status === 'requested' && result.requestId === requestId &&
+      result.originShipId === origin.originShipId && result.destinationShipId === expected.destinationShipId &&
+      exactKeys(result, resultKeys) && typeof result.requestedAt === 'string' &&
+      Number.isFinite(Date.parse(result.requestedAt));
+  }
+
+  if (endpoint === 'beginShuttleTransit') {
+    const prior = input.pressShuttleDepartureWitness;
+    const resultKeys = ['status', 'sessionId', 'requestId', 'transitRequestId', 'shuttleId', 'holderUid',
+      'fleetGroupId', 'destinationShipId', 'cycle', 'controlRevision', 'requestedAt', 'revision',
+      'currentPosition', 'destinationPosition', 'velocity', 'departedAt', 'arrivesAt'];
+    if (!validPressDepartureWitness(prior, origin, expected.destinationShipId) ||
+        before.exists !== true || before.status !== 'requested' || before.requestId !== prior.departureRequestId ||
+        before.destinationShipId !== prior.destinationShipId || after.exists !== true || after.status !== 'in-transit' ||
+        after.requestId !== prior.departureRequestId || after.transitRequestId !== requestId ||
+        after.destinationShipId !== prior.destinationShipId || request.expectedDepartureRequestId !== prior.departureRequestId ||
+        result.status !== 'in-transit' || result.requestId !== prior.departureRequestId || result.transitRequestId !== requestId ||
+        result.destinationShipId !== prior.destinationShipId || result.requestedAt !== prior.requestedAt ||
+        result.revision !== after.revision || !Number.isSafeInteger(result.revision) || result.revision < 1 ||
+        !exactKeys(result, resultKeys) || !validPublicPoint(result.currentPosition) ||
+        !validPublicPoint(result.destinationPosition) || !validPublicPoint(result.velocity) ||
+        typeof result.departedAt !== 'string' || typeof result.arrivesAt !== 'string' ||
+        !Number.isFinite(Date.parse(result.departedAt)) || !Number.isFinite(Date.parse(result.arrivesAt)) ||
+        Date.parse(result.arrivesAt) - Date.parse(result.departedAt) !== 60_000 ||
+        Date.parse(result.requestedAt) > Date.parse(result.departedAt)) return false;
+    return true;
+  }
+
+  const prior = input.pressShuttleTransitWitness;
+  const resultKeys = ['status', 'sessionId', 'requestId', 'transitRequestId', 'shuttleId', 'holderUid',
+    'fleetGroupId', 'destinationShipId', 'cycle', 'controlRevision', 'requestedAt', 'revision',
+    'currentPosition', 'destinationPosition', 'velocity', 'departedAt', 'arrivesAt'];
+  return validPressTransitWitness(prior, origin, input.pressShuttleDepartureWitness ??
+    { departureRequestId: prior?.departureRequestId, requestedAt: prior?.requestedAt }, before.destinationShipId) &&
+    before.exists === true && before.status === 'in-transit' && before.requestId === prior.departureRequestId &&
+    before.transitRequestId === prior.transitRequestId && before.destinationShipId === prior.destinationShipId &&
+    before.revision === prior.transitRevision && after.exists === true && after.status === 'in-transit' &&
+    after.requestId === prior.departureRequestId && after.transitRequestId === prior.transitRequestId &&
+    after.destinationShipId === expected.destinationShipId && expected.destinationShipId !== prior.destinationShipId &&
+    after.revision === before.revision + 1 && request.transitRequestId === prior.transitRequestId &&
+    request.destinationShipId === expected.destinationShipId && result.status === 'in-transit' &&
+    result.requestId === prior.departureRequestId && result.transitRequestId === prior.transitRequestId &&
+    result.destinationShipId === expected.destinationShipId && result.requestedAt === prior.requestedAt &&
+    result.revision === after.revision && exactKeys(result, resultKeys) &&
+    validPublicPoint(result.currentPosition) && validPublicPoint(result.destinationPosition) &&
+    validPublicPoint(result.velocity) && typeof result.departedAt === 'string' && typeof result.arrivesAt === 'string' &&
+    Number.isFinite(Date.parse(result.departedAt)) && Number.isFinite(Date.parse(result.arrivesAt)) &&
+    Date.parse(result.arrivesAt) - Date.parse(result.departedAt) === 60_000 &&
+    Date.parse(result.departedAt) >= Date.parse(prior.departedAt) &&
+    Date.parse(result.departedAt) < Date.parse(prior.arrivesAt);
+}
+
+function validPressDocking(value, dockingCount, originShipId) {
+  return exactKeys(value, PRESS_DOCKING_KEYS) && value.kind === 'press-shuttle-docking' &&
+    value.shuttleId === PRESS_SHUTTLE_ID && value.dockingCount === dockingCount &&
+    value.originShipId === originShipId;
+}
+
+function validPressArrivalCapture(input, expected) {
+  const spec = CASE_BY_ID.get('core:completeShuttleArrival');
+  const arrival = input.arrival;
+  const before = arrival?.before;
+  const beforeProjection = arrival?.beforeProjection;
+  const afterProjection = arrival?.afterProjection;
+  const origin = input.pressOriginAuthority;
+  const witness = arrival?.priorWitness;
+  const departureWitness = input.pressShuttleDepartureWitness;
+  const transitWitness = input.pressShuttleTransitWitness;
+  const result = input.response?.result;
+  const transitRequestId = expected.transitRequestId;
+  const destinationShipId = expected.destinationShipId;
+  const sourceKeys = ['live', 'sessionId', 'cycle', 'phase', 'groupId'];
+  const projectionBaseKeys = ['kind', 'live', 'sessionId', 'cycle', 'phase', 'turn', 'progression',
+    'airspaceState', 'pressAccess', 'timerPaused', 'holderUidHash', 'controlRevision', 'groupId',
+    'originShipId', 'destinationShipId', 'destinationActive', 'destinationInGroup'];
+  const validInstant = value => typeof value === 'string' && Number.isFinite(Date.parse(value));
+  const manualCoordination = projection => projection?.phase === 'active' &&
+    projection.progression === 'manual' && projection.timerPaused === false &&
+    projection.turn === projection.cycle &&
+    (projection.airspaceState === 'lifted' || projection.pressAccess === true);
+  const validGroup = validPressGroupAuthority(input.pressGroupAuthorityBefore, origin?.sourceAuthority,
+    origin?.originShipId, destinationShipId) &&
+    validPressGroupAuthority(input.pressGroupAuthorityAfter, origin?.sourceAuthority,
+      origin?.originShipId, destinationShipId) &&
+    JSON.stringify(input.pressGroupAuthorityBefore) === JSON.stringify(input.pressGroupAuthorityAfter);
+  const validAuthority = validPressOriginAuthority(origin, { sessionId: expected.sessionId,
+    uidHash: expected.uidHash, shuttleId: expected.shuttleId, groupId: expected.groupId,
+    cycle: expected.cycle, controlRevision: expected.controlRevision, sourceAuthority: expected.sourceAuthority }) &&
+    validPressOriginAuthority(expected.pressOriginAuthority, { sessionId: expected.sessionId,
+      uidHash: expected.uidHash, shuttleId: expected.shuttleId, groupId: expected.groupId,
+      cycle: expected.cycle, controlRevision: expected.controlRevision, sourceAuthority: expected.sourceAuthority }) &&
+    samePressOriginAuthority(origin, expected.pressOriginAuthority) &&
+    validPressDocumentAuthority(arrival?.authorityBefore, { sessionId: expected.sessionId,
+      uidHash: expected.uidHash, groupId: expected.groupId }) &&
+    validPressDocumentAuthority(arrival?.authorityAfter, { sessionId: expected.sessionId,
+      uidHash: expected.uidHash, groupId: expected.groupId }) &&
+    samePressDocumentAuthority(arrival.authorityBefore, origin.sourceAuthority) &&
+    samePressDocumentAuthority(arrival.authorityAfter, origin.sourceAuthority) && validGroup;
+  const manual = arrival?.captureMode !== 'automatic-source-effect';
+  const requestKeys = ['sessionId', 'shuttleId', 'transitRequestId', 'expectedControlRevision'];
+  const resultKeys = ['status', 'sessionId', 'requestId', 'transitRequestId', 'shuttleId',
+    'hostShipId', 'arrivedAt', 'transitRevision'];
+  const baseFields = validPressDepartureWitness(departureWitness, origin, transitWitness?.destinationShipId) &&
+    validPressTransitWitness(transitWitness, origin, departureWitness, transitWitness?.destinationShipId) &&
+    validPressArrivalWitness(witness, origin, expected) &&
+    witness.departureRequestId === departureWitness.departureRequestId &&
+    witness.transitRequestId === transitWitness.transitRequestId &&
+    witness.transitRevision === transitWitness.transitRevision + 1 &&
+    witness.destinationShipId !== transitWitness.destinationShipId &&
+    witness.requestedAt === transitWitness.requestedAt &&
+    Date.parse(witness.departedAt) >= Date.parse(transitWitness.departedAt) &&
+    Date.parse(witness.departedAt) < Date.parse(transitWitness.arrivesAt) &&
+    witness.departureRequestId === expected.departureRequestId &&
+    witness.transitRequestId === transitRequestId && witness.destinationShipId === destinationShipId &&
+    witness.transitRevision === expected.transitRevision &&
+    witness.requestedAt === before?.requestedAt && witness.departedAt === before?.departedAt &&
+    witness.arrivesAt === before?.arrivesAt && expected.sourceAuthority &&
+    samePressDocumentAuthority(witness.sourceAuthority, expected.sourceAuthority) &&
+    validPressDocking(input.pressDockingBefore, 0, null) &&
+    validPressDocking(input.pressDockingAfter, 1, destinationShipId) && validAuthority &&
+    Array.isArray(input.pressActiveVesselIdsBefore) && Array.isArray(input.pressActiveVesselIdsAfter) &&
+    JSON.stringify(input.pressActiveVesselIdsBefore) === JSON.stringify(input.pressActiveVesselIdsAfter) &&
+    input.pressActiveVesselIdsBefore.includes(origin?.originShipId) &&
+    input.pressActiveVesselIdsBefore.includes(destinationShipId) &&
+    exactKeys(input.sourceBefore, sourceKeys) && exactKeys(input.sourceAfter, sourceKeys) &&
+    input.sourceBefore.live === true && input.sourceAfter.live === true &&
+    input.sourceBefore.sessionId === expected.sessionId && input.sourceAfter.sessionId === expected.sessionId &&
+    input.sourceBefore.cycle === expected.cycle && input.sourceAfter.cycle === expected.cycle &&
+    input.sourceBefore.phase === 'active' && input.sourceAfter.phase === 'active' &&
+    input.sourceBefore.groupId === expected.groupId && input.sourceAfter.groupId === expected.groupId &&
+    input.mountedUi === true && matchesActor(input.actorBefore, expected, false) &&
+    matchesActor(input.actorAfter, expected, false) && input.actorBefore.profileRoleId === 'press-officer' &&
+    input.actorAfter.profileRoleId === 'press-officer' && input.actorBefore.activeConsoleRoleId === 'press-officer' &&
+    input.actorAfter.activeConsoleRoleId === 'press-officer' && input.actorBefore.assignedRoleId === null &&
+    input.actorAfter.assignedRoleId === null && exactKeys(input.response, ['httpStatus', 'result', 'exactReplay']) &&
+    input.response.httpStatus === 200 && input.response.exactReplay === false && input.replay === null &&
+    exactKeys(input.request, requestKeys) && input.request.sessionId === expected.sessionId &&
+    input.request.shuttleId === PRESS_SHUTTLE_ID && input.request.transitRequestId === transitRequestId &&
+    input.request.expectedControlRevision === expected.controlRevision &&
+    exactKeys(result, resultKeys) && result.status === 'arrived' && result.sessionId === expected.sessionId &&
+    result.requestId === `arrival-${transitRequestId}` && result.transitRequestId === transitRequestId &&
+    result.shuttleId === PRESS_SHUTTLE_ID && result.hostShipId === destinationShipId &&
+    result.transitRevision === expected.transitRevision && validInstant(result.arrivedAt) &&
+    input.rendered?.visible === true && input.rendered.resultStatus === 'arrived';
+  const validBefore = exactKeys(before, ['kind', 'status', 'sessionId', 'departureRequestId', 'transitRequestId',
+    'shuttleId', 'holderUidHash', 'groupId', 'originShipId', 'destinationShipId', 'controlRevision', 'cycle',
+    'transitRevision', 'requestedAt', 'departedAt', 'arrivesAt']) &&
+    before.kind === 'press-shuttle-arrival-before' && before.status === 'in-transit' &&
+    before.sessionId === expected.sessionId && before.departureRequestId === expected.departureRequestId &&
+    before.transitRequestId === transitRequestId && before.shuttleId === PRESS_SHUTTLE_ID &&
+    before.holderUidHash === expected.uidHash && before.groupId === expected.groupId &&
+    before.originShipId === origin?.originShipId && before.destinationShipId === destinationShipId &&
+    before.controlRevision === expected.controlRevision && before.cycle === expected.cycle &&
+    before.transitRevision === expected.transitRevision && Number.isSafeInteger(before.transitRevision) &&
+    [before.requestedAt, before.departedAt, before.arrivesAt].every(validInstant) &&
+    Date.parse(before.requestedAt) <= Date.parse(before.departedAt) &&
+    Date.parse(before.arrivesAt) - Date.parse(before.departedAt) === 60_000 &&
+    Date.parse(result?.arrivedAt ?? '') >= Date.parse(before.arrivesAt);
+  const validProjection = exactKeys(beforeProjection, [...projectionBaseKeys, 'dockingCount']) &&
+    beforeProjection.kind === 'press-shuttle-arrival-projection' && beforeProjection.live === true &&
+    beforeProjection.sessionId === expected.sessionId && beforeProjection.cycle === expected.cycle &&
+    beforeProjection.holderUidHash === expected.uidHash && beforeProjection.controlRevision === expected.controlRevision &&
+    beforeProjection.groupId === expected.groupId && beforeProjection.originShipId === origin?.originShipId &&
+    beforeProjection.destinationShipId === destinationShipId && beforeProjection.destinationActive === true &&
+    beforeProjection.destinationInGroup === true && beforeProjection.dockingCount === 0 &&
+    manualCoordination(beforeProjection) &&
+    exactKeys(afterProjection, [...projectionBaseKeys, 'movementAbsent', 'dockings', 'visits', 'observedAt']) &&
+    afterProjection.kind === 'press-shuttle-arrival-projection' && afterProjection.live === true &&
+    afterProjection.sessionId === expected.sessionId && afterProjection.cycle === expected.cycle &&
+    afterProjection.holderUidHash === expected.uidHash && afterProjection.controlRevision === expected.controlRevision &&
+    afterProjection.groupId === expected.groupId && afterProjection.originShipId === origin?.originShipId &&
+    afterProjection.destinationShipId === destinationShipId && afterProjection.destinationActive === true &&
+    afterProjection.destinationInGroup === true && afterProjection.movementAbsent === true &&
+    manualCoordination(afterProjection) && afterProjection.phase === beforeProjection.phase &&
+    afterProjection.turn === beforeProjection.turn && afterProjection.progression === beforeProjection.progression &&
+    afterProjection.airspaceState === beforeProjection.airspaceState && afterProjection.pressAccess === beforeProjection.pressAccess &&
+    validInstant(afterProjection.observedAt) && Date.parse(afterProjection.observedAt) >= Date.parse(before.arrivesAt) &&
+    Array.isArray(afterProjection.dockings) && afterProjection.dockings.length === 1 &&
+    exactKeys(afterProjection.dockings[0], ['shuttleId', 'shipId', 'dockedAt']) &&
+    afterProjection.dockings[0].shuttleId === PRESS_SHUTTLE_ID &&
+    afterProjection.dockings[0].shipId === destinationShipId && afterProjection.dockings[0].dockedAt === result?.arrivedAt &&
+    Array.isArray(afterProjection.visits) && afterProjection.visits.length === 2 &&
+    afterProjection.visits.every(visit => exactKeys(visit, ['id', 'shuttleId', 'shipId', 'action', 'occurredAt']) &&
+      visit.shuttleId === PRESS_SHUTTLE_ID && validInstant(visit.occurredAt)) &&
+    afterProjection.visits.filter(visit => visit.id === `shuttle-arrival-${transitRequestId}-departed` &&
+      visit.shipId === origin.originShipId && visit.action === 'departed' &&
+      Date.parse(visit.occurredAt) >= Date.parse(before.requestedAt) &&
+      Date.parse(visit.occurredAt) <= Date.parse(before.departedAt)).length === 1 &&
+    afterProjection.visits.filter(visit => visit.id === `shuttle-arrival-${transitRequestId}-docked` &&
+      visit.shipId === destinationShipId && visit.action === 'docked' &&
+      visit.occurredAt === result?.arrivedAt).length === 1;
+  const readyKeys = ['panel', 'label', 'visible', 'enabled', 'sessionId', 'cycle', 'transitRequestId', 'observedAt'];
+  const automaticKeys = ['kind', 'panel', 'armedAt', 'arrivesAt', 'remainingMs', 'responseObservedAt'];
+  const ready = arrival?.readyControl;
+  const automatic = arrival?.automaticObservation;
+  const validMode = manual
+    ? exactKeys(arrival, ['readyControl', 'priorWitness', 'authorityBefore', 'authorityAfter',
+      'groupAuthorityBefore', 'groupAuthorityAfter', 'before', 'beforeProjection', 'afterProjection']) &&
+      exactKeys(ready, readyKeys) && ready.panel === 'Shuttle departure' && ready.label === 'Complete arrival' &&
+      ready.visible === true && ready.enabled === true && ready.sessionId === expected.sessionId &&
+      ready.cycle === expected.cycle && ready.transitRequestId === transitRequestId &&
+      validInstant(ready.observedAt) && Date.parse(ready.observedAt) >= Date.parse(before?.arrivesAt ?? '')
+    : exactKeys(arrival, ['captureMode', 'priorWitness', 'authorityBefore', 'authorityAfter',
+      'groupAuthorityBefore', 'groupAuthorityAfter', 'automaticObservation', 'before',
+      'beforeProjection', 'afterProjection']) && arrival.captureMode === 'automatic-source-effect' &&
+      exactKeys(automatic, automaticKeys) && automatic.kind === 'source-useEffect' &&
+      automatic.panel === 'Shuttle departure' && validInstant(automatic.armedAt) &&
+      automatic.arrivesAt === before?.arrivesAt && Number.isSafeInteger(automatic.remainingMs) &&
+      automatic.remainingMs >= 1 && automatic.remainingMs <= 35_000 &&
+      Date.parse(automatic.arrivesAt) > Date.parse(automatic.armedAt) &&
+      Math.abs(Date.parse(automatic.arrivesAt) - Date.parse(automatic.armedAt) - automatic.remainingMs) <= 1_000 &&
+      validInstant(automatic.responseObservedAt) &&
+      Date.parse(automatic.responseObservedAt) >= Date.parse(before?.arrivesAt ?? '');
+  if (!baseFields || !validBefore || !validProjection || !validMode || !validAuthority) {
+    return pending(spec, 'press-single-shot-arrival-does-not-match-original-holder-source-transit-and-natural-arrival');
+  }
+  return { status: 'completed', caseId: spec.id, family: spec.family, endpoint: spec.endpoint,
+    actorRoleId: 'press-officer', cycle: expected.cycle, revision: expected.transitRevision,
+    actorHash: hash(input.actorBefore.uidHash), requestFingerprint: hash(input.request),
+    arrivalMode: arrival.captureMode ?? 'manual-control', exactSdkRetry: 'not-claimed',
+    randomOutcomeRecorded: false, rendered: 'arrived' };
+}
+
 function exactReplayMatches(input, result) {
   return input.response?.exactReplay === true && input.replay?.status === 'committed' &&
     exactKeys(input.replay.result, Object.keys(result)) && sameActionReceipt(result, input.replay.result);
@@ -823,6 +1284,51 @@ export function evaluateProcedureCapture(input) {
     'authorFacilitatorRuleCall'].includes(spec.endpoint)) {
     return evaluateMountedGmCapture(spec, input, expected);
   }
+  if (['requestShuttleDeparture', 'beginShuttleTransit', 'retargetShuttleTransit'].includes(spec.endpoint) &&
+      input.pressOriginAuthority !== undefined) {
+    if (!validPressMovementCapture(input, spec.endpoint)) {
+      return pending(spec, 'press-movement-receipt-does-not-match-original-holder-document-group-and-source-chain');
+    }
+    const result = input.response.result;
+    const common = { status: 'completed', caseId: spec.id, family: spec.family, endpoint: spec.endpoint,
+      actorRoleId: 'press-officer', cycle: expected.cycle, revision: input.sourceAfter.revision,
+      actorHash: hash(input.actorBefore.uidHash), requestFingerprint: hash(input.request),
+      exactSdkRetry: 'same-original-request-receipt-confirmed', randomOutcomeRecorded: false,
+      rendered: result.status };
+    if (spec.endpoint === 'requestShuttleDeparture') return { ...common, pressShuttleDepartureWitness: {
+      kind: 'press-shuttle-departure-witness', status: 'completed', endpoint: spec.endpoint,
+      sessionId: expected.sessionId, roleId: 'press-officer', uidHash: expected.uidHash,
+      shuttleId: PRESS_SHUTTLE_ID, groupId: expected.groupId, cycle: expected.cycle,
+      controlRevision: expected.controlRevision, originShipId: expected.originShipId,
+      destinationShipId: expected.destinationShipId, departureRequestId: input.request.requestId,
+      requestedAt: result.requestedAt, sourceAuthority: expected.sourceAuthority,
+    } };
+    if (spec.endpoint === 'beginShuttleTransit') return { ...common, pressShuttleTransitWitness: {
+      kind: 'press-shuttle-transit-witness', status: 'completed', endpoint: spec.endpoint,
+      sessionId: expected.sessionId, roleId: 'press-officer', uidHash: expected.uidHash,
+      shuttleId: PRESS_SHUTTLE_ID, groupId: expected.groupId, cycle: expected.cycle,
+      controlRevision: expected.controlRevision, originShipId: expected.originShipId,
+      destinationShipId: expected.destinationShipId,
+      departureRequestId: input.pressShuttleDepartureWitness.departureRequestId,
+      transitRequestId: input.request.requestId, transitRevision: result.revision,
+      requestedAt: result.requestedAt, departedAt: result.departedAt, arrivesAt: result.arrivesAt,
+      sourceAuthority: expected.sourceAuthority,
+    } };
+    return { ...common, pressShuttleArrivalWitness: {
+      kind: 'press-shuttle-arrival-witness', status: 'completed', endpoint: spec.endpoint,
+      sessionId: expected.sessionId, roleId: 'press-officer', uidHash: expected.uidHash,
+      shuttleId: PRESS_SHUTTLE_ID, groupId: expected.groupId, cycle: expected.cycle,
+      controlRevision: expected.controlRevision, originShipId: expected.originShipId,
+      departureRequestId: input.pressShuttleTransitWitness.departureRequestId,
+      transitRequestId: input.pressShuttleTransitWitness.transitRequestId,
+      destinationShipId: expected.destinationShipId, transitRevision: result.revision,
+      requestedAt: result.requestedAt, departedAt: result.departedAt, arrivesAt: result.arrivesAt,
+      sourceAuthority: expected.sourceAuthority,
+    } };
+  }
+  if (spec.endpoint === 'completeShuttleArrival' && input.pressOriginAuthority !== undefined) {
+    return validPressArrivalCapture(input, expected);
+  }
   if (spec.endpoint === 'completeShuttleArrival') return validShuttleArrivalCapture(input, expected);
   const revisionlessSourceReceipt = ['requestShuttleDeparture', 'transferShuttleCargoCommand', 'beginShuttleTransit']
     .includes(spec.endpoint) && validShuttleTransition(input, spec.endpoint);
@@ -966,7 +1472,16 @@ export async function captureMountedProcedureAction({ context, game, caseId, exp
   };
   let roleId = expected?.roleId ?? spec.actorRoleId;
   let resolvedHolder = null;
-  if (spec.actorRoleId === 'current-shuttle-holder' || spec.actorRoleId === 'current-ally-holder') {
+  const pressMovementCapture = spec.actorRoleId === 'current-shuttle-holder' &&
+    expected?.pressOriginAuthority?.shuttleId === PRESS_SHUTTLE_ID &&
+    expected?.pressOriginAuthority?.uidHash === expected?.uidHash;
+  if (pressMovementCapture) {
+    const admittedPressHolder = context.roster?.filter(candidate => candidate.uidHash === expected.uidHash) ?? [];
+    if (admittedPressHolder.length !== 1 || admittedPressHolder[0].roleId !== 'press-officer') {
+      return pending(spec, 'original-Press-holder-is-not-uniquely-admitted-in-the-existing-roster');
+    }
+    roleId = 'press-officer';
+  } else if (spec.actorRoleId === 'current-shuttle-holder' || spec.actorRoleId === 'current-ally-holder') {
     const shuttleId = spec.actorRoleId === 'current-ally-holder' ? 'ally' : expected?.shuttleId;
     if (!shuttleId) return pending(spec, 'source shuttle identity was not supplied');
     const gmSurface = await game.select('gm');
@@ -1022,6 +1537,8 @@ export async function captureMountedProcedureAction({ context, game, caseId, exp
   const sourceBeforeProof = spec.endpoint === 'completeShuttleArrival'
     ? { live: sourceBefore.live, sessionId: sourceBefore.sessionId,
       cycle: sourceBefore.cycle, phase: sourceBefore.phase, ...(groupId ? { groupId } : {}) }
+    : pressMovementCapture ? { live: sourceBefore.live, sessionId: sourceBefore.sessionId,
+      cycle: sourceBefore.cycle, phase: sourceBefore.phase, revision: sourceRevision, ...(groupId ? { groupId } : {}) }
     : { live: sourceBefore.live, sessionId: sourceBefore.sessionId,
       cycle: sourceBefore.cycle, revision: sourceRevision, ...(groupId ? { groupId } : {}) };
   let preClickActionRequest = false;
@@ -1089,14 +1606,36 @@ export async function captureMountedProcedureAction({ context, game, caseId, exp
   ...(['requestShuttleDeparture', 'beginShuttleTransit', 'retargetShuttleTransit'].includes(spec.endpoint)
     ? { originAuthority: action.originAuthority,
     sourceAuthorityBefore: action.sourceAuthorityBefore, sourceAuthorityAfter: observed?.sourceAuthorityAfter } : {}),
+  ...(pressMovementCapture && ['requestShuttleDeparture', 'beginShuttleTransit', 'retargetShuttleTransit'].includes(spec.endpoint)
+    ? { pressOriginAuthority: action.pressOriginAuthority,
+      pressShuttleDepartureWitness: action.pressShuttleDepartureWitness,
+      pressShuttleTransitWitness: action.pressShuttleTransitWitness,
+      pressSourceAuthorityBefore: action.pressSourceAuthorityBefore,
+      pressSourceAuthorityAfter: observed?.pressSourceAuthorityAfter,
+      pressGroupAuthorityBefore: action.pressGroupAuthorityBefore,
+      pressGroupAuthorityAfter: observed?.pressGroupAuthorityAfter,
+      pressActiveVesselIdsBefore: action.pressActiveVesselIdsBefore,
+      pressActiveVesselIdsAfter: observed?.pressActiveVesselIdsAfter,
+      pressDockingBefore: action.pressDockingBefore,
+      pressDockingAfter: observed?.pressDockingAfter } : {}),
   request, response: { httpStatus: result.status(), result: actualResult, exactReplay }, replay,
   rendered: observed?.rendered, cost: observed?.cost ?? displayedCost, consent: observed?.consent,
   sourceSpecificBefore: observed?.sourceSpecificBefore, beforeProjection: observed?.beforeProjection,
   afterEnable: observed?.afterEnable, enableGrant: observed?.enableGrant,
   afterReload: observed?.afterReload, restore: observed?.restore,
   ...(spec.endpoint === 'completeShuttleArrival' ? { arrival: {
-    ...action.arrival, authorityAfter: observed?.authorityAfter, afterProjection: observed?.arrivalAfter,
+    ...action.arrival, authorityAfter: observed?.authorityAfter,
+    groupAuthorityAfter: observed?.pressGroupAuthorityAfter, afterProjection: observed?.arrivalAfter,
   }, originAuthority: action.originAuthority,
+    ...(pressMovementCapture ? { pressOriginAuthority: action.pressOriginAuthority,
+      pressShuttleDepartureWitness: action.pressShuttleDepartureWitness,
+      pressShuttleTransitWitness: action.pressShuttleTransitWitness,
+      pressGroupAuthorityBefore: action.pressGroupAuthorityBefore,
+      pressGroupAuthorityAfter: observed?.pressGroupAuthorityAfter,
+      pressActiveVesselIdsBefore: action.pressActiveVesselIdsBefore,
+      pressActiveVesselIdsAfter: observed?.pressActiveVesselIdsAfter,
+      pressDockingBefore: action.pressDockingBefore,
+      pressDockingAfter: observed?.pressDockingAfter } : {}),
   } : {}),
   cleanupGrant: observed?.cleanupGrant,
   trainingChoice, randomOutcomeForced: false, randomOutcomeRecorded: false };

@@ -30,6 +30,24 @@ const CURRENT_DOCUMENT_AUTHORITY_KEYS = Object.freeze(['sessionId', 'uidHash', '
   'shuttleAuthorized']);
 const SHUTTLE_ORIGIN_AUTHORITY_KEYS = Object.freeze(['sessionId', 'uidHash', 'shuttleId', 'groupId', 'cycle',
   'controlRevision', 'sourceAuthority']);
+const PRESS_DOCUMENT_AUTHORITY_KEYS = Object.freeze(['kind', 'sessionId', 'uidHash', 'groupId',
+  'activeConsoleRoleId', 'assignedRoleId', 'connectionGeneration', 'identityHydrationRevision',
+  'documentTimeOrigin', 'audienceHash', 'authorityHash', 'discoveryRevision',
+  'discoveryVesselsHash', 'shuttleAuthorized']);
+const PRESS_ORIGIN_AUTHORITY_KEYS = Object.freeze(['kind', 'sessionId', 'uidHash', 'shuttleId', 'groupId',
+  'cycle', 'controlRevision', 'originShipId', 'sourceAuthority']);
+const PRESS_DEPARTURE_WITNESS_KEYS = Object.freeze(['kind', 'status', 'endpoint', 'sessionId', 'roleId',
+  'uidHash', 'shuttleId', 'groupId', 'cycle', 'controlRevision', 'originShipId', 'destinationShipId',
+  'departureRequestId', 'requestedAt', 'sourceAuthority']);
+const PRESS_TRANSIT_WITNESS_KEYS = Object.freeze(['kind', 'status', 'endpoint', 'sessionId', 'roleId',
+  'uidHash', 'shuttleId', 'groupId', 'cycle', 'controlRevision', 'originShipId', 'destinationShipId',
+  'departureRequestId', 'transitRequestId', 'transitRevision', 'requestedAt', 'departedAt', 'arrivesAt',
+  'sourceAuthority']);
+const PRESS_ARRIVAL_WITNESS_KEYS = Object.freeze(['kind', 'status', 'endpoint', 'sessionId', 'roleId',
+  'uidHash', 'shuttleId', 'groupId', 'cycle', 'controlRevision', 'originShipId', 'departureRequestId',
+  'transitRequestId', 'destinationShipId', 'transitRevision', 'requestedAt', 'departedAt', 'arrivesAt',
+  'sourceAuthority']);
+const PRESS_SHUTTLE_ID = 'snn-press-shuttle';
 
 function isRevision(value) { return Number.isSafeInteger(value) && value >= 0; }
 function hashUid(uid) { return typeof uid === 'string' && uid ? createHash('sha256').update(uid).digest('hex').slice(0, 16) : null; }
@@ -51,6 +69,77 @@ function validCurrentDocumentAuthority(value, { sessionId, uidHash, groupId, rol
 function sameCurrentDocumentAuthority(left, right) {
   return exactKeys(left, CURRENT_DOCUMENT_AUTHORITY_KEYS) && exactKeys(right, CURRENT_DOCUMENT_AUTHORITY_KEYS) &&
     CURRENT_DOCUMENT_AUTHORITY_KEYS.every(key => left[key] === right[key]);
+}
+
+function validPressDocumentAuthority(value, expected = {}) {
+  return exactKeys(value, PRESS_DOCUMENT_AUTHORITY_KEYS) && value.kind === 'press-shuttle-current-document' &&
+    value.sessionId === expected.sessionId && typeof value.sessionId === 'string' &&
+    value.uidHash === expected.uidHash && /^[0-9a-f]{16}$/.test(value.uidHash ?? '') &&
+    value.groupId === expected.groupId && typeof value.groupId === 'string' && value.groupId.length > 0 &&
+    value.activeConsoleRoleId === 'press-officer' && value.assignedRoleId === null &&
+    Number.isSafeInteger(value.connectionGeneration) && value.connectionGeneration >= 1 &&
+    Number.isSafeInteger(value.identityHydrationRevision) && value.identityHydrationRevision >= 1 &&
+    Number.isFinite(value.documentTimeOrigin) && value.documentTimeOrigin > 0 &&
+    /^[0-9a-f]{64}$/.test(value.audienceHash ?? '') && /^[0-9a-f]{64}$/.test(value.authorityHash ?? '') &&
+    Number.isSafeInteger(value.discoveryRevision) && value.discoveryRevision >= 0 &&
+    /^[0-9a-f]{64}$/.test(value.discoveryVesselsHash ?? '') && value.shuttleAuthorized === true;
+}
+
+function samePressDocumentAuthority(left, right) {
+  return exactKeys(left, PRESS_DOCUMENT_AUTHORITY_KEYS) && exactKeys(right, PRESS_DOCUMENT_AUTHORITY_KEYS) &&
+    PRESS_DOCUMENT_AUTHORITY_KEYS.every(key => left[key] === right[key]);
+}
+
+function validPressOriginAuthority(origin, expected = {}) {
+  return exactKeys(origin, PRESS_ORIGIN_AUTHORITY_KEYS) && origin.kind === 'press-shuttle-origin' &&
+    origin.sessionId === expected.sessionId && origin.uidHash === expected.uidHash &&
+    /^[0-9a-f]{16}$/.test(origin.uidHash ?? '') && origin.shuttleId === PRESS_SHUTTLE_ID &&
+    origin.shuttleId === expected.shuttleId && origin.groupId === expected.groupId &&
+    typeof origin.groupId === 'string' && origin.groupId.length > 0 && origin.cycle === expected.cycle &&
+    Number.isSafeInteger(origin.cycle) && origin.cycle >= 1 &&
+    origin.controlRevision === expected.controlRevision && Number.isSafeInteger(origin.controlRevision) &&
+    origin.controlRevision >= 0 && typeof origin.originShipId === 'string' && origin.originShipId.length > 0 &&
+    (!expected.sourceAuthority || samePressDocumentAuthority(origin.sourceAuthority, expected.sourceAuthority)) &&
+    validPressDocumentAuthority(origin.sourceAuthority, { sessionId: origin.sessionId, uidHash: origin.uidHash,
+      groupId: origin.groupId });
+}
+
+function samePressOriginAuthority(left, right) {
+  return validPressOriginAuthority(left, { sessionId: right?.sessionId, uidHash: right?.uidHash,
+    shuttleId: right?.shuttleId, groupId: right?.groupId, cycle: right?.cycle,
+    controlRevision: right?.controlRevision }) && validPressOriginAuthority(right, {
+    sessionId: left.sessionId, uidHash: left.uidHash, shuttleId: left.shuttleId, groupId: left.groupId,
+    cycle: left.cycle, controlRevision: left.controlRevision }) && left.originShipId === right.originShipId &&
+    samePressDocumentAuthority(left.sourceAuthority, right.sourceAuthority);
+}
+
+function validPressArrivalWitness(witness) {
+  return exactKeys(witness, PRESS_ARRIVAL_WITNESS_KEYS) && witness.kind === 'press-shuttle-arrival-witness' &&
+    witness.status === 'completed' && witness.endpoint === 'retargetShuttleTransit' &&
+    witness.sessionId === witness.sourceAuthority?.sessionId && witness.roleId === 'press-officer' &&
+    witness.uidHash === witness.sourceAuthority?.uidHash && witness.shuttleId === PRESS_SHUTTLE_ID &&
+    witness.groupId === witness.sourceAuthority?.groupId && Number.isSafeInteger(witness.cycle) && witness.cycle >= 1 &&
+    Number.isSafeInteger(witness.controlRevision) && witness.controlRevision >= 0 &&
+    typeof witness.originShipId === 'string' && witness.originShipId.length > 0 &&
+    typeof witness.departureRequestId === 'string' && witness.departureRequestId.length > 0 &&
+    typeof witness.transitRequestId === 'string' && witness.transitRequestId.length > 0 &&
+    typeof witness.destinationShipId === 'string' && witness.destinationShipId.length > 0 &&
+    Number.isSafeInteger(witness.transitRevision) && witness.transitRevision >= 1 &&
+    typeof witness.requestedAt === 'string' && typeof witness.departedAt === 'string' &&
+    typeof witness.arrivesAt === 'string' && [witness.requestedAt, witness.departedAt, witness.arrivesAt]
+      .every(value => Number.isFinite(Date.parse(value))) &&
+    Date.parse(witness.requestedAt) <= Date.parse(witness.departedAt) &&
+    Date.parse(witness.arrivesAt) - Date.parse(witness.departedAt) === 60_000 &&
+    validPressDocumentAuthority(witness.sourceAuthority, { sessionId: witness.sessionId,
+      uidHash: witness.uidHash, groupId: witness.groupId });
+}
+
+function pressOriginFromArrivalWitness(witness) {
+  if (!validPressArrivalWitness(witness)) return null;
+  return { kind: 'press-shuttle-origin', sessionId: witness.sessionId, uidHash: witness.uidHash,
+    shuttleId: witness.shuttleId, groupId: witness.groupId, cycle: witness.cycle,
+    controlRevision: witness.controlRevision, originShipId: witness.originShipId,
+    sourceAuthority: witness.sourceAuthority };
 }
 
 function validShuttleOriginAuthority(origin, expected = {}) {
@@ -76,6 +165,98 @@ function shuttleOriginAuthorityMatches(origin, state, expected, shuttleId) {
     sameCurrentDocumentAuthority(state?.currentDocumentAuthority, origin.sourceAuthority);
 }
 
+function authoritySha256(value) {
+  return createHash('sha256').update(JSON.stringify(value)).digest('hex');
+}
+
+function validPressGroupAuthority(value, origin) {
+  const keys = ['groupId', 'fleetGroupVesselIds', 'revision'];
+  if (!exactKeys(value, keys) || value.groupId !== origin.groupId ||
+      value.revision !== origin.sourceAuthority.discoveryRevision || !Array.isArray(value.fleetGroupVesselIds) ||
+      value.fleetGroupVesselIds.length === 0 ||
+      value.fleetGroupVesselIds.some(id => typeof id !== 'string' || !id) ||
+      new Set(value.fleetGroupVesselIds).size !== value.fleetGroupVesselIds.length) return false;
+  const sorted = [...value.fleetGroupVesselIds].sort();
+  return JSON.stringify(sorted) === JSON.stringify(value.fleetGroupVesselIds) &&
+    authoritySha256(sorted) === origin.sourceAuthority.discoveryVesselsHash &&
+    authoritySha256({ groupId: origin.groupId, vesselIds: [], craftIds: [PRESS_SHUTTLE_ID] }) ===
+      origin.sourceAuthority.audienceHash;
+}
+
+function pressShuttleOriginAuthorityMatches(origin, state, expected) {
+  const control = state?.shuttleControl?.[PRESS_SHUTTLE_ID];
+  return validPressOriginAuthority(origin, { ...expected, shuttleId: PRESS_SHUTTLE_ID }) &&
+    state?.live === true && state.sessionId === origin.sessionId && state.cycle === origin.cycle &&
+    state.phase === 'active' && state.holderGroupId === origin.groupId && state.pressEnabled === true &&
+    validPressDocumentAuthority(state.pressDocumentAuthority, { sessionId: origin.sessionId,
+      uidHash: origin.uidHash, groupId: origin.groupId }) &&
+    samePressDocumentAuthority(state.pressDocumentAuthority, origin.sourceAuthority) &&
+    validPressGroupAuthority(state.pressGroupAuthority, origin) &&
+    state.pressGroupAuthority.fleetGroupVesselIds.includes(origin.originShipId) &&
+    state.activeVesselIds?.includes(origin.originShipId) === true &&
+    control?.shuttleId === PRESS_SHUTTLE_ID && control.ownerRoleId === 'press-officer' &&
+    hashUid(control.holderUid) === origin.uidHash && control.revision === origin.controlRevision;
+}
+
+function pressDestinationIsCurrentGroupMember(state, origin, destinationShipId) {
+  return typeof destinationShipId === 'string' && destinationShipId.length > 0 &&
+    destinationShipId !== origin.originShipId &&
+    validPressGroupAuthority(state?.pressGroupAuthority, origin) &&
+    state.pressGroupAuthority.fleetGroupVesselIds.includes(destinationShipId) &&
+    state.activeVesselIds?.includes(destinationShipId) === true;
+}
+
+function samePressGroupAuthority(left, right) {
+  return exactKeys(left, ['groupId', 'fleetGroupVesselIds', 'revision']) &&
+    exactKeys(right, ['groupId', 'fleetGroupVesselIds', 'revision']) &&
+    left.groupId === right.groupId && left.revision === right.revision &&
+    JSON.stringify(left.fleetGroupVesselIds) === JSON.stringify(right.fleetGroupVesselIds);
+}
+
+function pressDockingWitness(state) {
+  const rows = state?.shuttleDockings?.filter(row => row.shuttleId === PRESS_SHUTTLE_ID) ?? [];
+  return { kind: 'press-shuttle-docking', shuttleId: PRESS_SHUTTLE_ID, dockingCount: rows.length,
+    originShipId: rows.length === 1 ? rows[0].shipId : null };
+}
+
+function pressActiveVesselIds(state) {
+  const rows = state?.activeVesselIds;
+  if (!Array.isArray(rows) || rows.some(id => typeof id !== 'string' || !id) || new Set(rows).size !== rows.length) return null;
+  return [...rows].sort();
+}
+
+function validPressDepartureWitness(witness, origin, destinationShipId) {
+  return exactKeys(witness, PRESS_DEPARTURE_WITNESS_KEYS) && witness.kind === 'press-shuttle-departure-witness' &&
+    witness.status === 'completed' && witness.endpoint === 'requestShuttleDeparture' &&
+    witness.sessionId === origin.sessionId && witness.roleId === 'press-officer' &&
+    witness.uidHash === origin.uidHash && witness.shuttleId === PRESS_SHUTTLE_ID &&
+    witness.groupId === origin.groupId && witness.cycle === origin.cycle &&
+    witness.controlRevision === origin.controlRevision && witness.originShipId === origin.originShipId &&
+    witness.destinationShipId === destinationShipId && typeof witness.departureRequestId === 'string' &&
+    witness.departureRequestId.length > 0 && typeof witness.requestedAt === 'string' &&
+    Number.isFinite(Date.parse(witness.requestedAt)) &&
+    samePressDocumentAuthority(witness.sourceAuthority, origin.sourceAuthority);
+}
+
+function validPressTransitWitness(witness, origin, departureWitness, destinationShipId) {
+  return exactKeys(witness, PRESS_TRANSIT_WITNESS_KEYS) && witness.kind === 'press-shuttle-transit-witness' &&
+    witness.status === 'completed' && witness.endpoint === 'beginShuttleTransit' &&
+    witness.sessionId === origin.sessionId && witness.roleId === 'press-officer' &&
+    witness.uidHash === origin.uidHash && witness.shuttleId === PRESS_SHUTTLE_ID &&
+    witness.groupId === origin.groupId && witness.cycle === origin.cycle &&
+    witness.controlRevision === origin.controlRevision && witness.originShipId === origin.originShipId &&
+    witness.destinationShipId === destinationShipId &&
+    witness.departureRequestId === departureWitness.departureRequestId &&
+    typeof witness.transitRequestId === 'string' && witness.transitRequestId.length > 0 &&
+    Number.isSafeInteger(witness.transitRevision) && witness.transitRevision >= 1 &&
+    witness.requestedAt === departureWitness.requestedAt && typeof witness.departedAt === 'string' &&
+    typeof witness.arrivesAt === 'string' && Number.isFinite(Date.parse(witness.departedAt)) &&
+    Number.isFinite(Date.parse(witness.arrivesAt)) &&
+    Date.parse(witness.arrivesAt) - Date.parse(witness.departedAt) === 60_000 &&
+    Date.parse(witness.requestedAt) <= Date.parse(witness.departedAt) &&
+    samePressDocumentAuthority(witness.sourceAuthority, origin.sourceAuthority);
+}
+
 /** Select an actual option that is both offered and enabled under its current budget. */
 export function chooseOfferedAffordableOption(options, budget) {
   if (!Array.isArray(options) || !Number.isFinite(budget) || budget < 0) return null;
@@ -92,6 +273,8 @@ export async function readActionState(surface, shuttleId) {
     const session = current.session;
     if (!session) return null;
     let currentDocumentAuthority;
+    let pressDocumentAuthority = null;
+    let pressGroupAuthority = null;
     if (typeof shuttleId === 'string' && shuttleId) {
       currentDocumentAuthority = null;
       const me = current.me;
@@ -152,12 +335,105 @@ export async function readActionState(surface, shuttleId) {
           identityHydrationRevision: hydrationRevision, documentTimeOrigin,
           audienceHash, authorityHash, shuttleAuthorized: scope.craftIds.includes(shuttleId) };
       }
+      if (shuttleId === 'snn-press-shuttle') {
+        const discovery = session.playerDiscovery;
+        const discoveryIds = discovery?.fleetGroupVesselIds;
+        const control = session.shuttleControl?.[shuttleId];
+        const pressScopeValid = scopeValid && scope.groupId === me?.fleetGroupId &&
+          scope.vesselIds.length === 0 && scope.craftIds.length === 1 && scope.craftIds[0] === shuttleId;
+      const discoveryValid = record(discovery) && discovery.groupId === scope?.groupId &&
+        Number.isSafeInteger(discovery.revision) && discovery.revision >= 0 &&
+        Array.isArray(discoveryIds) && discoveryIds.length > 0 &&
+        discoveryIds.every(value => typeof value === 'string' && value.length > 0) &&
+        new Set(discoveryIds).size === discoveryIds.length;
+      const controlValid = record(control) && control.shuttleId === shuttleId &&
+        control.ownerRoleId === 'press-officer' && control.holderUid === user?.uid &&
+        Number.isSafeInteger(control.revision) && control.revision >= 0;
+      const pressInputSnapshot = (snapshot, authUid) => {
+        const value = snapshot?.session;
+        const profile = snapshot?.me;
+        const currentScope = value?.memberSessionScope;
+        const currentDiscovery = value?.playerDiscovery;
+        const currentControl = value?.shuttleControl?.[shuttleId];
+        return {
+          authUid: authUid ?? null, connection: snapshot?.connection ?? null,
+          freshness: snapshot?.sessionSnapshotFreshness ?? null,
+          hydrationRevision: snapshot?.identityHydrationRevision ?? null,
+          sessionId: value?.id ?? null, phase: value?.phase ?? null,
+          pressEnabled: value?.pressEnabled ?? null,
+          role: profile?.role ?? null, profileSessionId: profile?.sessionId ?? null,
+          profileUid: profile?.uid ?? null, connected: profile?.connected ?? null,
+          replacementStatus: profile?.replacementStatus ?? null, fleetGroupId: profile?.fleetGroupId ?? null,
+          activeConsoleRoleId: profile?.activeConsoleRoleId ?? null,
+          assignedRoleId: profile?.assignedRoleId ?? null,
+          connectionGeneration: profile?.connectionGeneration ?? null,
+          scope: record(currentScope) ? { groupId: currentScope.groupId ?? null,
+            vesselIds: Array.isArray(currentScope.vesselIds) ? [...currentScope.vesselIds] : null,
+            craftIds: Array.isArray(currentScope.craftIds) ? [...currentScope.craftIds] : null } : null,
+          discovery: record(currentDiscovery) ? { groupId: currentDiscovery.groupId ?? null,
+            revision: currentDiscovery.revision ?? null,
+            fleetGroupVesselIds: Array.isArray(currentDiscovery.fleetGroupVesselIds)
+              ? [...currentDiscovery.fleetGroupVesselIds] : null } : null,
+          control: record(currentControl) ? { shuttleId: currentControl.shuttleId ?? null,
+            ownerRoleId: currentControl.ownerRoleId ?? null, holderUid: currentControl.holderUid ?? null,
+            revision: currentControl.revision ?? null } : null,
+          activeVesselIds: Array.isArray(value?.activeVesselIds) ? [...value.activeVesselIds] : null,
+          dockings: Array.isArray(value?.shuttleDockings)
+            ? value.shuttleDockings.filter(row => row?.shuttleId === shuttleId).map(row => ({
+              shuttleId: row.shuttleId, shipId: row.shipId, dockedAt: row.dockedAt ?? null,
+            })) : null,
+          timeOrigin: globalThis.performance?.timeOrigin ?? null,
+        };
+      };
+      const pressActorCurrent = !!user && !!me && pressScopeValid && discoveryValid && controlValid &&
+          current.connection === 'live' && current.sessionSnapshotFreshness === 'server' &&
+          me.role === 'player' && me.connected === true && me.replacementStatus === null &&
+          session.phase !== 'closed' && session.id === me.sessionId && user.uid === me.uid &&
+          me.activeConsoleRoleId === 'press-officer' && me.assignedRoleId === null &&
+          scope.groupId === me.fleetGroupId && discovery.groupId === me.fleetGroupId &&
+          session.pressEnabled !== false && Number.isSafeInteger(generation) && generation >= 1 &&
+          Number.isSafeInteger(hydrationRevision) && hydrationRevision >= 1 &&
+          Number.isFinite(documentTimeOrigin) && documentTimeOrigin > 0;
+        if (pressActorCurrent) {
+          const originalPressInput = pressInputSnapshot(current, user.uid);
+          const uidHash = await hashUid(user.uid);
+          const normalizedScope = { groupId: scope.groupId, vesselIds: [], craftIds: [shuttleId] };
+          const normalizedVessels = [...discoveryIds].sort();
+          const audienceHash = await hashObject(normalizedScope);
+          const discoveryVesselsHash = await hashObject(normalizedVessels);
+          const authorityHash = await hashObject({ sessionId: session.id, authUid: user.uid, meUid: me.uid,
+            role: me.role, connected: me.connected, replacementStatus: me.replacementStatus,
+            activeConsoleRoleId: me.activeConsoleRoleId, assignedRoleId: me.assignedRoleId,
+            fleetGroupId: me.fleetGroupId, connection: current.connection,
+            freshness: current.sessionSnapshotFreshness, generation, hydrationRevision, documentTimeOrigin,
+            audience: normalizedScope, discoveryGroupId: discovery.groupId,
+            discoveryRevision: discovery.revision, discoveryVesselIds: normalizedVessels,
+            control: { shuttleId: control.shuttleId, ownerRoleId: control.ownerRoleId,
+              holderUid: control.holderUid, revision: control.revision } });
+          pressDocumentAuthority = { kind: 'press-shuttle-current-document', sessionId: session.id,
+            uidHash, groupId: scope.groupId, activeConsoleRoleId: me.activeConsoleRoleId,
+            assignedRoleId: me.assignedRoleId, connectionGeneration: generation,
+            identityHydrationRevision: hydrationRevision, documentTimeOrigin, audienceHash,
+            authorityHash, discoveryRevision: discovery.revision, discoveryVesselsHash,
+            shuttleAuthorized: scope.craftIds.includes(shuttleId) };
+          pressGroupAuthority = { groupId: scope.groupId, fleetGroupVesselIds: normalizedVessels,
+            revision: discovery.revision };
+          const afterDigest = useSessionStore.getState();
+          const afterAuthUid = auth().currentUser?.uid;
+          if (JSON.stringify(originalPressInput) !== JSON.stringify(pressInputSnapshot(afterDigest, afterAuthUid))) {
+            pressDocumentAuthority = null;
+            pressGroupAuthority = null;
+          }
+        }
+      }
     }
     return {
       live: current.connection === 'live' && current.sessionSnapshotFreshness === 'server',
       sessionId: session.id, cycle: session.currentTurn, phase: session.phase, turnPhase: session.turnPhase,
       holderGroupId: session.playerDiscovery?.groupId,
       ...(typeof shuttleId === 'string' && shuttleId ? { currentDocumentAuthority } : {}),
+      ...(shuttleId === 'snn-press-shuttle' ? { pressDocumentAuthority, pressGroupAuthority,
+        pressEnabled: session.pressEnabled !== false } : {}),
       activeVesselIds: session.activeVesselIds, activeRoleIds: session.activeRoleIds,
       shipResources: session.shipResources, shipDamage: session.shipDamage,
       shipSurvivors: session.shipSurvivors, shipMutinies: session.shipMutinies,
@@ -241,6 +517,8 @@ async function readShuttleMovement(surface, sessionId, shuttleId) {
         raw.shuttleId !== shuttleId || typeof raw.requestId !== 'string' || !raw.requestId ||
         typeof raw.holderUid !== 'string' || !raw.holderUid ||
         typeof raw.fleetGroupId !== 'string' || !raw.fleetGroupId ||
+        shuttleId === 'snn-press-shuttle' && raw.status === 'requested' &&
+          (typeof raw.originShipId !== 'string' || !raw.originShipId) ||
         typeof raw.destinationShipId !== 'string' || !Number.isSafeInteger(raw.cycle) ||
         raw.cycle < 1 || !Number.isSafeInteger(raw.controlRevision) || raw.controlRevision < 0 ||
         typeof raw.requestedAt !== 'string' || !Number.isFinite(Date.parse(raw.requestedAt))) return undefined;
@@ -249,6 +527,9 @@ async function readShuttleMovement(surface, sessionId, shuttleId) {
     const projection = { status: raw.status, requestId: raw.requestId, shuttleId: raw.shuttleId,
       holderUidHash, groupId: raw.fleetGroupId, destinationShipId: raw.destinationShipId,
       controlRevision: raw.controlRevision, cycle: raw.cycle };
+    if (shuttleId === 'snn-press-shuttle' && raw.status === 'requested') {
+      projection.originShipId = raw.originShipId;
+    }
     if (raw.status === 'in-transit') {
       if (typeof raw.transitRequestId !== 'string' || !raw.transitRequestId ||
           !Number.isSafeInteger(raw.revision) || raw.revision < 1) return undefined;
@@ -419,6 +700,88 @@ function sourceTimedArrivalReady(state, movement, sessionId, shuttleId, holderUi
       (armAutomatic ? remainingMs <= 0 || remainingMs > 35_000 : remainingMs > 0)) return null;
   return { before, beforeProjection: shuttleArrivalProjection(state, before),
     sourceAuthority: state.currentDocumentAuthority, arrivalsAt, observedAtMs, remainingMs };
+}
+
+function pressArrivalBefore(sessionId, origin, movement) {
+  if (!movement || movement.status !== 'in-transit') return null;
+  return { kind: 'press-shuttle-arrival-before', status: movement.status, sessionId,
+    departureRequestId: movement.requestId, transitRequestId: movement.transitRequestId,
+    shuttleId: PRESS_SHUTTLE_ID, holderUidHash: movement.holderUidHash, groupId: movement.groupId,
+    originShipId: origin.originShipId, destinationShipId: movement.destinationShipId,
+    controlRevision: movement.controlRevision, cycle: movement.cycle,
+    transitRevision: movement.revision, requestedAt: movement.requestedAt,
+    departedAt: movement.departedAt, arrivesAt: movement.arrivesAt };
+}
+
+function pressArrivalProjection(state, before, origin, { movementAbsent = false, observedAt } = {}) {
+  const control = state?.shuttleControl?.[PRESS_SHUTTLE_ID];
+  const dockings = state?.shuttleDockings?.filter(row => row.shuttleId === PRESS_SHUTTLE_ID) ?? [];
+  const groupCurrent = validPressGroupAuthority(state?.pressGroupAuthority, origin);
+  const groupVessels = groupCurrent ? state.pressGroupAuthority.fleetGroupVesselIds : [];
+  const visitIds = new Set([
+    `shuttle-arrival-${before.transitRequestId}-departed`,
+    `shuttle-arrival-${before.transitRequestId}-docked`,
+  ]);
+  const projection = {
+    kind: 'press-shuttle-arrival-projection', live: state?.live === true,
+    sessionId: state?.sessionId, cycle: state?.cycle, phase: state?.phase,
+    turn: state?.turnPhase?.turn, progression: state?.turnPhase?.progression ?? null,
+    airspaceState: state?.turnPhase?.airspace?.state ?? null,
+    pressAccess: state?.turnPhase?.airspace?.pressAccess ?? null,
+    timerPaused: state?.turnPhase?.timerPause !== undefined,
+    holderUidHash: hashUid(control?.holderUid), controlRevision: control?.revision,
+    groupId: state?.pressDocumentAuthority?.groupId ?? null,
+    originShipId: origin.originShipId, destinationShipId: before.destinationShipId,
+    destinationActive: state?.activeVesselIds?.includes(before.destinationShipId) === true,
+    destinationInGroup: groupCurrent && groupVessels.includes(before.destinationShipId),
+  };
+  if (!movementAbsent) return { ...projection, dockingCount: dockings.length };
+  return { ...projection, movementAbsent: movementAbsent === true,
+    dockings: dockings.map(row => ({ shuttleId: row.shuttleId, shipId: row.shipId,
+      dockedAt: row.dockedAt })),
+    visits: (state?.shuttleVisitLog ?? []).filter(row => visitIds.has(row.id)).map(row => ({
+      id: row.id, shuttleId: row.shuttleId, shipId: row.shipId, action: row.action,
+      occurredAt: row.occurredAt,
+    })), observedAt };
+}
+
+function priorPressWitnessMatchesTransit(witness, state, movement, origin) {
+  return validPressArrivalWitness(witness) && samePressOriginAuthority(pressOriginFromArrivalWitness(witness), origin) &&
+    samePressDocumentAuthority(state?.pressDocumentAuthority, witness.sourceAuthority) &&
+    witness.groupId === state?.holderGroupId && witness.cycle === state?.cycle &&
+    witness.controlRevision === state?.shuttleControl?.[PRESS_SHUTTLE_ID]?.revision &&
+    witness.departureRequestId === movement?.requestId && witness.transitRequestId === movement?.transitRequestId &&
+    witness.destinationShipId === movement?.destinationShipId && witness.transitRevision === movement?.revision &&
+    movement?.status === 'in-transit' && movement.shuttleId === PRESS_SHUTTLE_ID &&
+    movement.holderUidHash === origin.uidHash && movement.groupId === origin.groupId &&
+    movement.controlRevision === origin.controlRevision && movement.cycle === origin.cycle &&
+    Number.isSafeInteger(movement.revision) && movement.revision >= 1;
+}
+
+function pressSourceTimedArrivalReady(state, movement, sessionId, origin, priorWitness, { armAutomatic = false } = {}) {
+  const before = pressArrivalBefore(sessionId, origin, movement);
+  const arrivalsAt = Date.parse(before?.arrivesAt ?? '');
+  const departedAt = Date.parse(before?.departedAt ?? '');
+  const requestedAt = Date.parse(before?.requestedAt ?? '');
+  const observedAtMs = Date.now();
+  const remainingMs = arrivalsAt - observedAtMs;
+  const manualCoordination = state?.phase === 'active' && state?.live === true &&
+    state.sessionId === sessionId && state.cycle === movement?.cycle &&
+    state.turnPhase?.turn === state.cycle && state.turnPhase?.progression === 'manual' &&
+    state.turnPhase?.timerPause === undefined &&
+    (state.turnPhase?.airspace?.state === 'lifted' || state.turnPhase?.airspace?.pressAccess === true);
+  if (!before || !pressShuttleOriginAuthorityMatches(origin, state, { sessionId,
+    uidHash: origin.uidHash, groupId: origin.groupId, cycle: origin.cycle,
+    controlRevision: origin.controlRevision, sourceAuthority: origin.sourceAuthority }) ||
+      !priorPressWitnessMatchesTransit(priorWitness, state, movement, origin) ||
+      before.holderUidHash !== origin.uidHash || before.groupId !== origin.groupId ||
+      !pressDestinationIsCurrentGroupMember(state, origin, before.destinationShipId) ||
+      (state.shuttleDockings?.filter(row => row.shuttleId === PRESS_SHUTTLE_ID) ?? []).length !== 0 ||
+      !manualCoordination || !Number.isFinite(arrivalsAt) || !Number.isFinite(departedAt) ||
+      !Number.isFinite(requestedAt) || requestedAt > departedAt || arrivalsAt - departedAt !== 60_000 ||
+      (armAutomatic ? remainingMs <= 0 || remainingMs > 35_000 : remainingMs > 0)) return null;
+  return { before, beforeProjection: pressArrivalProjection(state, before, origin),
+    sourceAuthority: state.pressDocumentAuthority, arrivalsAt, observedAtMs, remainingMs };
 }
 
 function shuttleCargoWitness(sessionId, cycle, shuttleId, holderUidHash, groupId, controlRevision,
@@ -992,6 +1355,257 @@ function mountedTarget(spec, actor, state, expectedOverrides = {}) {
   return { target, roleId };
 }
 
+async function planPressShuttleTransition({ endpoint, surface, actor, state, origin, context, target }) {
+  const page = surface.page;
+  const block = reason => ({ offered: false, reason });
+  const panel = page.getByRole('region', { name: 'Shuttle departure', exact: true });
+  const currentActorMatches = value => value?.sameActor === true && value.sessionId === origin.sessionId &&
+    value.uidHash === origin.uidHash && value.profileRoleId === 'press-officer' &&
+    value.activeConsoleRoleId === 'press-officer' && value.assignedRoleId === null &&
+    value.connection === 'live' && value.freshness === 'server';
+  const originalStateMatches = value => pressShuttleOriginAuthorityMatches(origin, value, {
+    sessionId: origin.sessionId, uidHash: actor.uidHash, groupId: origin.groupId,
+    cycle: origin.cycle, controlRevision: origin.controlRevision, sourceAuthority: origin.sourceAuthority,
+  });
+  const group = state.pressGroupAuthority;
+  const activeVessels = pressActiveVesselIds(state);
+  const docking = pressDockingWitness(state);
+  const movement = await readShuttleMovement(surface, origin.sessionId, PRESS_SHUTTLE_ID).catch(() => undefined);
+  if (new URL(page.url()).hash !== '#/press' || !currentActorMatches(actor) || !originalStateMatches(state) ||
+      !activeVessels || movement === undefined) {
+    return block('the original Press document, group, route, or source movement is no longer current');
+  }
+  const groupBefore = { groupId: group.groupId, fleetGroupVesselIds: [...group.fleetGroupVesselIds], revision: group.revision };
+  const authorityBefore = state.pressDocumentAuthority;
+  const unchangedSource = async () => {
+    const latest = await readActionState(surface, PRESS_SHUTTLE_ID);
+    const latestActor = await surface.observe();
+    const latestMovement = await readShuttleMovement(surface, origin.sessionId, PRESS_SHUTTLE_ID).catch(() => undefined);
+    const latestActiveVessels = pressActiveVesselIds(latest);
+    const latestDocking = pressDockingWitness(latest);
+    return latest && currentActorMatches(latestActor) && pressShuttleOriginAuthorityMatches(origin, latest, {
+      sessionId: origin.sessionId, uidHash: actor.uidHash, groupId: origin.groupId,
+      cycle: origin.cycle, controlRevision: origin.controlRevision, sourceAuthority: origin.sourceAuthority,
+    }) && samePressDocumentAuthority(latest.pressDocumentAuthority, authorityBefore) &&
+      samePressGroupAuthority(latest.pressGroupAuthority, groupBefore) &&
+      JSON.stringify(latestActiveVessels) === JSON.stringify(activeVessels) &&
+      JSON.stringify(latestDocking) === JSON.stringify(docking) &&
+      JSON.stringify(latestMovement) === JSON.stringify(movement) ? latest : null;
+  };
+  const actualPanel = async (buttonName, selectLabel, candidatePredicate) => {
+    let destination = null;
+    if (selectLabel) {
+      destination = await selectActualOption(panel.getByLabel(selectLabel, { exact: true }), option =>
+        option.offered && option.enabled && candidatePredicate(option.value));
+      if (!destination) return null;
+      target.destinationShipId = destination.value;
+    }
+    const button = await one(panel.getByRole('button', { name: buttonName, exact: true }));
+    return button ? { destination, button } : null;
+  };
+  const originInGroup = pressDestinationIsCurrentGroupMember(state, origin, origin.originShipId) ||
+    state.pressGroupAuthority.fleetGroupVesselIds.includes(origin.originShipId) &&
+      state.activeVesselIds?.includes(origin.originShipId) === true;
+
+  if (endpoint === 'requestShuttleDeparture') {
+    if (movement !== null || docking.dockingCount !== 1 || docking.originShipId !== origin.originShipId ||
+        !originInGroup) {
+      return block('the original Press shuttle is not uniquely docked at its current active same-group origin');
+    }
+    const controls = await actualPanel('Request departure', 'Destination ship', value =>
+      value !== origin.originShipId && pressDestinationIsCurrentGroupMember(state, origin, value));
+    if (!controls) return block('no enabled source-offered same-group SNN destination and Request control is available');
+    const transitionBefore = shuttleMovementWitness(origin.sessionId, PRESS_SHUTTLE_ID, origin.uidHash,
+      origin.groupId, origin.controlRevision, origin.cycle, null);
+    return { offered: true, transitionBefore, pressOriginAuthority: origin,
+      pressSourceAuthorityBefore: authorityBefore, pressGroupAuthorityBefore: groupBefore,
+      pressActiveVesselIdsBefore: activeVessels, pressDockingBefore: docking, click: async () => {
+        const latest = await unchangedSource();
+        const count = await controls.button.count();
+        const visible = await controls.button.isVisible();
+        const enabled = await controls.button.isEnabled();
+        const selected = await panel.getByLabel('Destination ship', { exact: true }).inputValue();
+        if (!latest || count !== 1 || !visible || !enabled || selected !== target.destinationShipId) {
+          throw new Error('The original Press holder, unique docking, group destination, or Request control changed before click.');
+        }
+        await controls.button.click();
+      } };
+  }
+
+  if (endpoint === 'beginShuttleTransit') {
+    const prior = context.pressShuttleDepartureWitness;
+    if (!validPressDepartureWitness(prior, origin, movement?.destinationShipId) ||
+        !movement || movement.status !== 'requested' || movement.originShipId !== origin.originShipId ||
+        movement.requestId !== prior.departureRequestId || movement.destinationShipId !== prior.destinationShipId ||
+        movement.holderUidHash !== origin.uidHash || movement.groupId !== origin.groupId ||
+        movement.controlRevision !== origin.controlRevision || movement.cycle !== origin.cycle ||
+        docking.dockingCount !== 1 || docking.originShipId !== origin.originShipId ||
+        !pressDestinationIsCurrentGroupMember(state, origin, movement.destinationShipId)) {
+      return block('the same Press source-accepted departure request, origin docking, or destination is unavailable');
+    }
+    const button = await one(panel.getByRole('button', { name: 'Begin transit', exact: true }));
+    if (!button) return block('the current source Press departure does not offer Begin transit');
+    target.departureRequestId = prior.departureRequestId;
+    target.destinationShipId = prior.destinationShipId;
+    const transitionBefore = shuttleMovementWitness(origin.sessionId, PRESS_SHUTTLE_ID, origin.uidHash,
+      origin.groupId, origin.controlRevision, origin.cycle, movement);
+    return { offered: true, transitionBefore, pressOriginAuthority: origin,
+      pressShuttleDepartureWitness: prior, pressSourceAuthorityBefore: authorityBefore,
+      pressGroupAuthorityBefore: groupBefore, pressActiveVesselIdsBefore: activeVessels,
+      pressDockingBefore: docking, click: async () => {
+        if (!await unchangedSource() || await button.count() !== 1 || !await button.isVisible() || !await button.isEnabled()) {
+          throw new Error('The original Press Request, current holder, or Begin transit control changed before click.');
+        }
+        await button.click();
+      } };
+  }
+
+  const prior = context.pressShuttleTransitWitness;
+  if (!validPressDepartureWitness(context.pressShuttleDepartureWitness, origin, prior?.destinationShipId) ||
+      !validPressTransitWitness(prior, origin, context.pressShuttleDepartureWitness, movement?.destinationShipId) ||
+      !movement || movement.status !== 'in-transit' || movement.requestId !== prior.departureRequestId ||
+      movement.transitRequestId !== prior.transitRequestId || movement.destinationShipId !== prior.destinationShipId ||
+      movement.revision !== prior.transitRevision || movement.requestedAt !== prior.requestedAt ||
+      movement.departedAt !== prior.departedAt || movement.arrivesAt !== prior.arrivesAt ||
+      movement.holderUidHash !== origin.uidHash || movement.groupId !== origin.groupId ||
+      movement.controlRevision !== origin.controlRevision || movement.cycle !== origin.cycle ||
+      docking.dockingCount !== 0 || !pressDestinationIsCurrentGroupMember(state, origin, movement.destinationShipId)) {
+    return block('the same Press source-accepted transit and current in-flight group state are unavailable');
+  }
+  const controls = await actualPanel('Retarget shuttle', 'New destination ship', value =>
+    value !== prior.destinationShipId && value !== origin.originShipId &&
+    pressDestinationIsCurrentGroupMember(state, origin, value));
+  if (!controls) return block('no enabled different same-group SNN destination and Retarget control is available');
+  target.departureRequestId = prior.departureRequestId;
+  target.transitRequestId = prior.transitRequestId;
+  target.destinationShipId = controls.destination.value;
+  target.movementRevision = prior.transitRevision;
+  const transitionBefore = shuttleMovementWitness(origin.sessionId, PRESS_SHUTTLE_ID, origin.uidHash,
+    origin.groupId, origin.controlRevision, origin.cycle, movement);
+  return { offered: true, transitionBefore, pressOriginAuthority: origin,
+    pressShuttleDepartureWitness: context.pressShuttleDepartureWitness,
+    pressShuttleTransitWitness: prior, pressSourceAuthorityBefore: authorityBefore,
+    pressGroupAuthorityBefore: groupBefore, pressActiveVesselIdsBefore: activeVessels,
+    pressDockingBefore: docking, click: async () => {
+      if (!await unchangedSource() || await controls.button.count() !== 1 ||
+          !await controls.button.isVisible() || !await controls.button.isEnabled() ||
+          await panel.getByLabel('New destination ship', { exact: true }).inputValue() !== target.destinationShipId) {
+        throw new Error('The original Press transit, group destination, or Retarget control changed before click.');
+      }
+      await controls.button.click();
+  } };
+}
+
+async function planPressShuttleArrival({ surface, actor, state, origin, context, target }) {
+  const page = surface.page;
+  const panel = page.getByRole('region', { name: 'Shuttle departure', exact: true });
+  const block = reason => ({ offered: false, reason });
+  const automatic = context.pressShuttleArrivalCaptureMode === 'automatic-source-effect';
+  const manual = !automatic;
+  const priorWitness = context.pressShuttleArrivalWitness;
+  const departureWitness = context.pressShuttleDepartureWitness;
+  const transitWitness = context.pressShuttleTransitWitness;
+  if (!validPressDepartureWitness(departureWitness, origin, transitWitness?.destinationShipId) ||
+      !validPressTransitWitness(transitWitness, origin, departureWitness, priorWitness?.destinationShipId) ||
+      !validPressArrivalWitness(priorWitness) ||
+      priorWitness.departureRequestId !== departureWitness.departureRequestId ||
+      priorWitness.transitRequestId !== transitWitness.transitRequestId ||
+      priorWitness.destinationShipId !== transitWitness.destinationShipId ||
+      priorWitness.transitRevision !== transitWitness.transitRevision ||
+      priorWitness.requestedAt !== transitWitness.requestedAt || priorWitness.departedAt !== transitWitness.departedAt ||
+      priorWitness.arrivesAt !== transitWitness.arrivesAt ||
+      !samePressOriginAuthority(pressOriginFromArrivalWitness(priorWitness), origin)) {
+    return block('the exact original Press Request, Begin, and Retarget witnesses are required for arrival');
+  }
+  if (target.movementBefore === undefined) {
+    target.movementBefore = await readShuttleMovement(surface, origin.sessionId, PRESS_SHUTTLE_ID).catch(() => undefined);
+  }
+  const movement = target.movementBefore;
+  if (movement === undefined) return block('the current Press source transit document is not readable');
+  const readiness = pressSourceTimedArrivalReady(state, movement, origin.sessionId, origin, priorWitness,
+    { armAutomatic: automatic });
+  if (new URL(page.url()).hash !== '#/press' || !readiness) {
+    return block('the original Press source transit has not reached the natural mounted arrival window');
+  }
+  const currentActorMatches = value => value?.sameActor === true && value.sessionId === origin.sessionId &&
+    value.uidHash === origin.uidHash && value.profileRoleId === 'press-officer' &&
+    value.activeConsoleRoleId === 'press-officer' && value.assignedRoleId === null &&
+    value.connection === 'live' && value.freshness === 'server';
+  const activeVessels = pressActiveVesselIds(state);
+  const docking = pressDockingWitness(state);
+  const groupBefore = { groupId: state.pressGroupAuthority.groupId,
+    fleetGroupVesselIds: [...state.pressGroupAuthority.fleetGroupVesselIds],
+    revision: state.pressGroupAuthority.revision };
+  if (!currentActorMatches(actor) || !activeVessels || docking.dockingCount !== 0) {
+    return block('the original Press holder, current group, or undocked transit state is no longer available');
+  }
+  const completeControl = panel.getByRole('button', { name: 'Complete arrival', exact: true });
+  const retryControl = panel.getByRole('button', { name: 'Retry arrival', exact: true });
+  if (await retryControl.count() !== 0) return block('the mounted Press arrival control is a retry; the proof is single-shot');
+  target.departureRequestId = readiness.before.departureRequestId;
+  target.transitRequestId = readiness.before.transitRequestId;
+  target.destinationShipId = readiness.before.destinationShipId;
+  target.movementRevision = readiness.before.transitRevision;
+  const arrival = {
+    ...(automatic ? { captureMode: 'automatic-source-effect' } : {}),
+    ...(!automatic ? { readyControl: { panel: 'Shuttle departure', label: 'Complete arrival',
+      visible: true, enabled: true, sessionId: state.sessionId, cycle: state.cycle,
+      transitRequestId: readiness.before.transitRequestId, observedAt: new Date(readiness.observedAtMs).toISOString() } } : {}),
+    priorWitness, authorityBefore: readiness.sourceAuthority,
+    groupAuthorityBefore: groupBefore, before: readiness.before,
+    beforeProjection: readiness.beforeProjection,
+    ...(automatic ? { automaticObservation: { kind: 'source-useEffect', panel: 'Shuttle departure',
+      armedAt: new Date(readiness.observedAtMs).toISOString(), arrivesAt: readiness.before.arrivesAt,
+      remainingMs: readiness.remainingMs, responseObservedAt: null } } : {}),
+  };
+  target.arrival = arrival;
+  const originalAuthority = readiness.sourceAuthority;
+  const originalGroup = groupBefore;
+  const originalBefore = readiness.before;
+  const originalProjection = readiness.beforeProjection;
+  const validateLatest = async ({ armAutomatic } = {}) => {
+    const latest = await readActionState(surface, PRESS_SHUTTLE_ID);
+    const currentMovement = await readShuttleMovement(surface, origin.sessionId, PRESS_SHUTTLE_ID).catch(() => undefined);
+    const latestReadiness = pressSourceTimedArrivalReady(latest, currentMovement, origin.sessionId,
+      origin, priorWitness, { armAutomatic });
+    const latestActor = await surface.observe();
+    const retryCount = await retryControl.count();
+    const completeCount = await completeControl.count();
+    if (!latestReadiness || !currentActorMatches(latestActor) ||
+        !samePressDocumentAuthority(latestReadiness.sourceAuthority, originalAuthority) ||
+        !samePressGroupAuthority(latest.pressGroupAuthority, originalGroup) ||
+        JSON.stringify(latestReadiness.before) !== JSON.stringify(originalBefore) ||
+        JSON.stringify(latestReadiness.beforeProjection) !== JSON.stringify(originalProjection) ||
+        JSON.stringify(pressDockingWitness(latest)) !== JSON.stringify(docking) || retryCount !== 0 ||
+        automatic && completeCount !== 0 || manual && (completeCount !== 1 ||
+          !await completeControl.isVisible() || !await completeControl.isEnabled())) return null;
+    return latestReadiness;
+  };
+  if (automatic) {
+    if (await completeControl.count() !== 0) return block('the automatic Press arrival must arm before a manual completion control appears');
+    return { offered: true, arrival, pressOriginAuthority: origin,
+      pressShuttleDepartureWitness: departureWitness, pressShuttleTransitWitness: transitWitness,
+      pressGroupAuthorityBefore: groupBefore, pressActiveVesselIdsBefore: activeVessels,
+      pressDockingBefore: docking, observe: async () => {
+        const latestReadiness = await validateLatest({ armAutomatic: true });
+        if (!latestReadiness) throw new Error('The original Press source transit, group, or pre-arrival window changed before automatic observation.');
+        arrival.automaticObservation.armedAt = new Date(latestReadiness.observedAtMs).toISOString();
+        arrival.automaticObservation.remainingMs = latestReadiness.remainingMs;
+      } };
+  }
+  if (await completeControl.count() !== 1 || !await completeControl.isVisible() || !await completeControl.isEnabled()) {
+    return block('the actual source-mounted Complete arrival control is not visible and enabled');
+  }
+  return { offered: true, arrival, pressOriginAuthority: origin,
+    pressShuttleDepartureWitness: departureWitness, pressShuttleTransitWitness: transitWitness,
+    pressGroupAuthorityBefore: groupBefore, pressActiveVesselIdsBefore: activeVessels,
+    pressDockingBefore: docking, click: async () => {
+      const latestReadiness = await validateLatest();
+      if (!latestReadiness) throw new Error('The original Press source transit or natural arrival-ready control changed before click.');
+      await completeControl.click();
+    } };
+}
+
 async function planFor({ spec, surface, actor, state, context, target, gmOperation }) {
   const page = surface.page;
   const endpoint = spec.endpoint;
@@ -1004,6 +1618,19 @@ async function planFor({ spec, surface, actor, state, context, target, gmOperati
     if (!actual) return block('the exact source-rendered control is absent, disabled, or ambiguous');
     return { offered: true, click: () => actual.click() };
   };
+  if (['requestShuttleDeparture', 'beginShuttleTransit', 'retargetShuttleTransit',
+    'completeShuttleArrival'].includes(endpoint) && context.pressShuttleOriginAuthority) {
+    if (target.shuttleId !== PRESS_SHUTTLE_ID || actor?.profileRoleId !== 'press-officer' ||
+        actor?.activeConsoleRoleId !== 'press-officer' || actor?.assignedRoleId !== null) {
+      return block('the source-mounted Press action is not under the original Press role and SNN control');
+    }
+    if (endpoint === 'completeShuttleArrival') {
+      return planPressShuttleArrival({ surface, actor, state, origin: context.pressShuttleOriginAuthority,
+        context, target });
+    }
+    return planPressShuttleTransition({ endpoint, surface, actor, state,
+      origin: context.pressShuttleOriginAuthority, context, target });
+  }
   if (UNVERIFIABLE_GM_CHOICES.has(endpoint)) return block('requires an explicit live GM-authored choice and a source receipt not safely verifiable by this finite recipe');
   let originalGm;
   if (CERTIFIED_GM_RECIPES.has(endpoint)) {
@@ -1026,16 +1653,23 @@ async function planFor({ spec, surface, actor, state, context, target, gmOperati
     gmOperation.readinessDeadlineAt = Math.min(gmOperation.deadlineAt, Date.now() + 20_000);
   }
   const verifyGmDocument = () => verifyGmOperation(surface, gmOperation);
+  const pressMountedRoute = target.shuttleId === PRESS_SHUTTLE_ID &&
+    context.pressShuttleOriginAuthority?.shuttleId === PRESS_SHUTTLE_ID &&
+    actor.activeConsoleRoleId === 'press-officer';
   if (target.shuttleId && new URL(page.url()).hash !== `#/shuttles/${target.shuttleId}`) {
-    const route = page.locator(`a[href$="/shuttles/${target.shuttleId}"]`);
-    const offeredRoute = await one(route);
-    if (!offeredRoute) return block('the selected original actor has no current visible normal-navigation link to this craft console');
-    await offeredRoute.click();
-    await page.waitForURL(url => url.hash === `#/shuttles/${target.shuttleId}`, { timeout: 10_000 });
-    const afterNavigation = await surface.observe();
-    if (afterNavigation.uidHash !== actor.uidHash || afterNavigation.sessionId !== context.initial.sessionId ||
-        afterNavigation.activeConsoleRoleId !== actor.activeConsoleRoleId || afterNavigation.connection !== 'live' ||
-        afterNavigation.freshness !== 'server') return block('normal craft navigation changed actor, role, session, or freshness');
+    if (pressMountedRoute) {
+      if (new URL(page.url()).hash !== '#/press') return block('the original Press holder is not on the source-mounted Press console route');
+    } else {
+      const route = page.locator(`a[href$="/shuttles/${target.shuttleId}"]`);
+      const offeredRoute = await one(route);
+      if (!offeredRoute) return block('the selected original actor has no current visible normal-navigation link to this craft console');
+      await offeredRoute.click();
+      await page.waitForURL(url => url.hash === `#/shuttles/${target.shuttleId}`, { timeout: 10_000 });
+      const afterNavigation = await surface.observe();
+      if (afterNavigation.uidHash !== actor.uidHash || afterNavigation.sessionId !== context.initial.sessionId ||
+          afterNavigation.activeConsoleRoleId !== actor.activeConsoleRoleId || afterNavigation.connection !== 'live' ||
+          afterNavigation.freshness !== 'server') return block('normal craft navigation changed actor, role, session, or freshness');
+    }
   }
 
   if (endpoint === 'setGmShipConsoleWriteGrant' || endpoint === 'setShipConsoleLock') {
@@ -1884,33 +2518,64 @@ async function recipeFor({ context, game, spec }) {
     return { expected: {}, prepare: pending, inspect: async () => ({}) };
   };
   let movementOrigin = context.shuttleOriginAuthority;
+  let pressOrigin = context.pressShuttleOriginAuthority;
   if (movementEndpoint) {
-    const witness = context.shuttleArrivalWitness;
-    const witnessOrigin = spec.endpoint === 'completeShuttleArrival'
-      ? shuttleOriginAuthorityFromArrivalWitness(witness) : null;
-    if (spec.endpoint === 'completeShuttleArrival' && witness !== undefined && !witnessOrigin) {
-      return refuse('the original retarget witness is invalid for the current holder, group, or document authority');
-    }
-    if (movementOrigin !== undefined && movementOrigin !== null &&
-        !validShuttleOriginAuthority(movementOrigin, {
-          sessionId: context.initial.sessionId, uidHash: movementOrigin.uidHash,
-          roleId: movementOrigin.sourceAuthority?.roleId, groupId: movementOrigin.groupId,
-          cycle: movementOrigin.cycle, controlRevision: movementOrigin.controlRevision,
-          shuttleId: movementOrigin.shuttleId,
-        })) {
-      const admitted = context.roster.filter(candidate => candidate.uidHash === movementOrigin.uidHash);
-      if (movementOrigin.shuttleId === 'snn-press-shuttle' && admitted.length === 1 &&
-          admitted[0].roleId === 'press-officer') {
-        return refuse('Press movement remains pending: no current berth or vessel scope is available in its member projection.');
+    const pressWitness = context.pressShuttleArrivalWitness;
+    const pressWitnessOrigin = spec.endpoint === 'completeShuttleArrival'
+      ? pressOriginFromArrivalWitness(pressWitness) : null;
+    if (pressOrigin || pressWitness !== undefined || pressWitnessOrigin) {
+      if (movementOrigin !== undefined && movementOrigin !== null) {
+        return refuse('Press movement cannot mix its source document with the core-berth shuttle authority.');
       }
-      return refuse('the original shuttle holder authority is missing, malformed, or no longer admitted');
+      if (spec.endpoint === 'completeShuttleArrival' && !pressWitnessOrigin) {
+        return refuse('the exact original Press retarget witness is missing or invalid for arrival');
+      }
+      if (pressOrigin !== undefined && pressOrigin !== null &&
+          !validPressOriginAuthority(pressOrigin, { sessionId: context.initial.sessionId,
+            uidHash: pressOrigin.uidHash, shuttleId: PRESS_SHUTTLE_ID, groupId: pressOrigin.groupId,
+            cycle: pressOrigin.cycle, controlRevision: pressOrigin.controlRevision,
+            sourceAuthority: pressOrigin.sourceAuthority })) {
+        return refuse('the original Press holder, current document, or source group witness is malformed');
+      }
+      if (pressOrigin && pressWitnessOrigin && !samePressOriginAuthority(pressOrigin, pressWitnessOrigin)) {
+        return refuse('the original Press holder authority disagrees with the retarget witness');
+      }
+      pressOrigin ??= pressWitnessOrigin;
+      if (!pressOrigin) return refuse('the exact original Press holder authority is missing; no holder fallback is allowed');
+      const admitted = context.roster.filter(candidate => candidate.uidHash === pressOrigin.uidHash);
+      if (admitted.length !== 1 || admitted[0].roleId !== 'press-officer' ||
+          pressOrigin.shuttleId !== PRESS_SHUTTLE_ID) {
+        return refuse('the original Press UID is not uniquely admitted as the Press role');
+      }
+      context = { ...context, pressShuttleOriginAuthority: pressOrigin };
+    } else {
+      const witness = context.shuttleArrivalWitness;
+      const witnessOrigin = spec.endpoint === 'completeShuttleArrival'
+        ? shuttleOriginAuthorityFromArrivalWitness(witness) : null;
+      if (spec.endpoint === 'completeShuttleArrival' && witness !== undefined && !witnessOrigin) {
+        return refuse('the original retarget witness is invalid for the current holder, group, or document authority');
+      }
+      if (movementOrigin !== undefined && movementOrigin !== null &&
+          !validShuttleOriginAuthority(movementOrigin, {
+            sessionId: context.initial.sessionId, uidHash: movementOrigin.uidHash,
+            roleId: movementOrigin.sourceAuthority?.roleId, groupId: movementOrigin.groupId,
+            cycle: movementOrigin.cycle, controlRevision: movementOrigin.controlRevision,
+            shuttleId: movementOrigin.shuttleId,
+          })) {
+        const admitted = context.roster.filter(candidate => candidate.uidHash === movementOrigin.uidHash);
+        if (movementOrigin.shuttleId === 'snn-press-shuttle' && admitted.length === 1 &&
+            admitted[0].roleId === 'press-officer') {
+          return refuse('Press movement remains pending: no current berth or vessel scope is available in its member projection.');
+        }
+        return refuse('the original shuttle holder authority is missing, malformed, or no longer admitted');
+      }
+      if (movementOrigin && witnessOrigin && !sameShuttleOriginAuthority(movementOrigin, witnessOrigin)) {
+        return refuse('the original holder authority disagrees with the completed retarget witness');
+      }
+      movementOrigin ??= witnessOrigin;
+      if (!movementOrigin) return refuse('the exact original shuttle holder authority is missing; no holder fallback is allowed');
+      context = { ...context, shuttleOriginAuthority: movementOrigin };
     }
-    if (movementOrigin && witnessOrigin && !sameShuttleOriginAuthority(movementOrigin, witnessOrigin)) {
-      return refuse('the original holder authority disagrees with the completed retarget witness');
-    }
-    movementOrigin ??= witnessOrigin;
-    if (!movementOrigin) return refuse('the exact original shuttle holder authority is missing; no holder fallback is allowed');
-    context = { ...context, shuttleOriginAuthority: movementOrigin };
   }
   let roleToUse = spec.actorRoleId;
   let holderTarget = {};
@@ -1918,6 +2583,10 @@ async function recipeFor({ context, game, spec }) {
       !['current-shuttle-holder', 'current-ally-holder'].includes(roleToUse) &&
       !context.roster.some(candidate => candidate.roleId === roleToUse)) return null;
   if (spec.actorRoleId === 'current-shuttle-holder' || spec.actorRoleId === 'current-ally-holder') {
+    if (movementEndpoint && pressOrigin) {
+      holderTarget = { shuttleId: PRESS_SHUTTLE_ID };
+      roleToUse = 'press-officer';
+    } else {
     const sourceSurface = await game.select('gm');
     const sourceActor = await sourceSurface.observe();
     const sourceState = await readActionState(sourceSurface);
@@ -1970,6 +2639,7 @@ async function recipeFor({ context, game, spec }) {
     }
     holderTarget = { shuttleId: holders[0].shuttleId };
     roleToUse = holders[0].roleId;
+    }
   }
   const preserveMountedShuttleRoute = spec.actorRoleId === 'current-shuttle-holder' &&
     ['requestShuttleDeparture', 'beginShuttleTransit', 'retargetShuttleTransit',
@@ -1981,12 +2651,31 @@ async function recipeFor({ context, game, spec }) {
     const refuse = async () => ({ offered: false, reason: 'the original actor/session is not currently live from a server snapshot' });
     return { expected: {}, prepare: refuse, inspect: async () => ({}) };
   }
+  if (pressOrigin && (actor.uidHash !== pressOrigin.uidHash || actor.profileRoleId !== 'press-officer' ||
+      actor.activeConsoleRoleId !== 'press-officer' || actor.assignedRoleId !== null)) {
+    return refuse('the source-mounted Press route no longer belongs to the original Press holder and role');
+  }
   const documentAuthorityShuttleId = ['requestShuttleDeparture', 'beginShuttleTransit', 'retargetShuttleTransit',
     'completeShuttleArrival'].includes(spec.endpoint) ? holderTarget.shuttleId : undefined;
   const state = await readActionState(initialSurface, documentAuthorityShuttleId);
   if (!liveState(state, context.initial.sessionId)) {
     const refuse = async () => ({ offered: false, reason: 'the required current server session projection is unavailable' });
     return { expected: {}, prepare: refuse, inspect: async () => ({}) };
+  }
+  if (pressOrigin && !pressShuttleOriginAuthorityMatches(pressOrigin, state, {
+    sessionId: context.initial.sessionId, uidHash: pressOrigin.uidHash, groupId: pressOrigin.groupId,
+    cycle: pressOrigin.cycle, controlRevision: pressOrigin.controlRevision,
+    sourceAuthority: pressOrigin.sourceAuthority,
+  })) {
+    return refuse('the original Press UID, current document generation, group membership, control or cycle changed');
+  }
+  if (spec.endpoint === 'requestShuttleDeparture' && pressOrigin) {
+    const dockings = state.shuttleDockings?.filter(row => row.shuttleId === PRESS_SHUTTLE_ID) ?? [];
+    if (dockings.length !== 1 || dockings[0].shipId !== pressOrigin.originShipId ||
+        !state.pressGroupAuthority.fleetGroupVesselIds.includes(pressOrigin.originShipId) ||
+        !state.activeVesselIds?.includes(pressOrigin.originShipId)) {
+      return refuse('the original SNN must have one current docked host in the source Press group projection');
+    }
   }
   const resolved = mountedTarget(spec, actor, state, { roleId: roleToUse, target: holderTarget });
   const roleId = resolved.roleId;
@@ -2003,6 +2692,13 @@ async function recipeFor({ context, game, spec }) {
     const controlRevision = state.shuttleControl?.[resolved.target.shuttleId]?.revision;
     if (isRevision(controlRevision)) expected.controlRevision = controlRevision;
   }
+  if (pressOrigin) {
+    expected.groupId = pressOrigin.groupId;
+    expected.controlRevision = pressOrigin.controlRevision;
+    expected.originShipId = pressOrigin.originShipId;
+    expected.pressOriginAuthority = pressOrigin;
+    expected.sourceAuthority = pressOrigin.sourceAuthority;
+  }
   if (['requestShuttleDeparture', 'beginShuttleTransit', 'retargetShuttleTransit'].includes(spec.endpoint) &&
       context.shuttleOriginAuthority?.groupId) {
     expected.groupId = context.shuttleOriginAuthority.groupId;
@@ -2015,6 +2711,16 @@ async function recipeFor({ context, game, spec }) {
     expected.destinationShipId = context.shuttleArrivalWitness.destinationShipId;
     expected.transitRevision = context.shuttleArrivalWitness.transitRevision;
     expected.sourceAuthority = context.shuttleArrivalWitness.sourceAuthority;
+  }
+  if (spec.endpoint === 'completeShuttleArrival' && pressOrigin &&
+      validPressArrivalWitness(context.pressShuttleArrivalWitness)) {
+    expected.groupId = context.pressShuttleArrivalWitness.groupId;
+    expected.departureRequestId = context.pressShuttleArrivalWitness.departureRequestId;
+    expected.transitRequestId = context.pressShuttleArrivalWitness.transitRequestId;
+    expected.destinationShipId = context.pressShuttleArrivalWitness.destinationShipId;
+    expected.transitRevision = context.pressShuttleArrivalWitness.transitRevision;
+    expected.pressOriginAuthority = pressOrigin;
+    expected.sourceAuthority = context.pressShuttleArrivalWitness.sourceAuthority;
   }
   if (resolved.target.hostShipId) expected.groupId = state.shipFleetGroupIds?.[resolved.target.hostShipId];
   let auxiliary = null;
@@ -2091,7 +2797,54 @@ async function recipeFor({ context, game, spec }) {
           return { offered: false, reason: 'current service-shuttle holder, host, maintenance, Coordination phase, fuel, or ledger no longer matches the prepared action' };
         }
       }
-      if (['requestShuttleDeparture', 'beginShuttleTransit', 'retargetShuttleTransit'].includes(spec.endpoint)) {
+      const pressMovementEndpoint = movementEndpoint && expected.pressOriginAuthority?.shuttleId === PRESS_SHUTTLE_ID;
+      if (pressMovementEndpoint && spec.endpoint !== 'completeShuttleArrival') {
+        const origin = expected.pressOriginAuthority;
+        const currentGroup = latest.pressGroupAuthority;
+        const currentActiveVessels = pressActiveVesselIds(latest);
+        const currentDocking = pressDockingWitness(latest);
+        const currentMovement = await readShuttleMovement(surface, expected.sessionId, PRESS_SHUTTLE_ID).catch(() => undefined);
+        const currentWitness = currentMovement === undefined ? null : shuttleMovementWitness(expected.sessionId,
+          PRESS_SHUTTLE_ID, uidHash, origin.groupId, latest.shuttleControl?.[PRESS_SHUTTLE_ID]?.revision,
+          latest.cycle, currentMovement);
+        const expectedDocking = spec.endpoint === 'requestShuttleDeparture' || spec.endpoint === 'beginShuttleTransit'
+          ? { kind: 'press-shuttle-docking', shuttleId: PRESS_SHUTTLE_ID, dockingCount: 1,
+            originShipId: origin.originShipId }
+          : { kind: 'press-shuttle-docking', shuttleId: PRESS_SHUTTLE_ID, dockingCount: 0, originShipId: null };
+        if (currentActor.sameActor !== true || currentActor.profileRoleId !== 'press-officer' ||
+            currentActor.activeConsoleRoleId !== 'press-officer' || currentActor.assignedRoleId !== null ||
+            !pressShuttleOriginAuthorityMatches(origin, latest, { sessionId: expected.sessionId,
+              uidHash, groupId: expected.groupId, cycle: expected.cycle,
+              controlRevision: expected.controlRevision, sourceAuthority: expected.sourceAuthority }) ||
+            !samePressDocumentAuthority(latest.pressDocumentAuthority, preparedPlan.pressSourceAuthorityBefore) ||
+            !samePressGroupAuthority(currentGroup, preparedPlan.pressGroupAuthorityBefore) ||
+            JSON.stringify(currentActiveVessels) !== JSON.stringify(preparedPlan.pressActiveVesselIdsBefore) ||
+            JSON.stringify(currentDocking) !== JSON.stringify(expectedDocking) ||
+            !currentWitness || JSON.stringify(currentWitness) !== JSON.stringify(preparedPlan.transitionBefore) ||
+            !pressDestinationIsCurrentGroupMember(latest, origin, expected.destinationShipId)) {
+          return { offered: false, reason: 'the original Press holder, source document, group, docking, destination or exact movement state changed before action' };
+        }
+      } else if (pressMovementEndpoint && spec.endpoint === 'completeShuttleArrival') {
+        const origin = expected.pressOriginAuthority;
+        const armAutomatic = context.pressShuttleArrivalCaptureMode === 'automatic-source-effect';
+        const movement = await readShuttleMovement(surface, expected.sessionId, PRESS_SHUTTLE_ID).catch(() => undefined);
+        const readiness = pressSourceTimedArrivalReady(latest, movement, expected.sessionId, origin,
+          context.pressShuttleArrivalWitness, { armAutomatic });
+        const panel = surface.page.getByRole('region', { name: 'Shuttle departure', exact: true });
+        const retryCount = await panel.getByRole('button', { name: 'Retry arrival', exact: true }).count();
+        const completeControl = panel.getByRole('button', { name: 'Complete arrival', exact: true });
+        const completeCount = await completeControl.count();
+        if (!readiness || !samePressDocumentAuthority(readiness.sourceAuthority, preparedPlan.arrival?.authorityBefore) ||
+            !samePressGroupAuthority(latest.pressGroupAuthority, preparedPlan.pressGroupAuthorityBefore) ||
+            JSON.stringify(pressActiveVesselIds(latest)) !== JSON.stringify(preparedPlan.pressActiveVesselIdsBefore) ||
+            JSON.stringify(pressDockingWitness(latest)) !== JSON.stringify(preparedPlan.pressDockingBefore) ||
+            JSON.stringify(readiness.before) !== JSON.stringify(preparedPlan.arrival?.before) ||
+            JSON.stringify(readiness.beforeProjection) !== JSON.stringify(preparedPlan.arrival?.beforeProjection) ||
+            retryCount !== 0 || armAutomatic && completeCount !== 0 || !armAutomatic &&
+              (completeCount !== 1 || !await completeControl.isVisible() || !await completeControl.isEnabled())) {
+          return { offered: false, reason: 'the original Press source transit, current authority, or single-shot natural arrival readiness changed before action' };
+        }
+      } else if (['requestShuttleDeparture', 'beginShuttleTransit', 'retargetShuttleTransit'].includes(spec.endpoint)) {
         if (!shuttleOriginAuthorityMatches(context.shuttleOriginAuthority, latest, {
           sessionId: expected.sessionId, uidHash, roleId,
           groupId: context.shuttleOriginAuthority?.groupId, cycle: expected.cycle,
@@ -2107,7 +2860,7 @@ async function recipeFor({ context, game, spec }) {
           return { offered: false, reason: 'source shuttle movement changed before the mounted action' };
         }
       }
-      if (spec.endpoint === 'completeShuttleArrival') {
+      if (spec.endpoint === 'completeShuttleArrival' && !pressMovementEndpoint) {
         const armAutomatic = context.shuttleArrivalCaptureMode === 'automatic-source-effect';
         const movement = await readShuttleMovement(surface, expected.sessionId, resolved.target.shuttleId).catch(() => undefined);
         const readiness = sourceTimedArrivalReady(latest, movement, expected.sessionId,
@@ -2133,6 +2886,20 @@ async function recipeFor({ context, game, spec }) {
       const movementEndpoint = ['requestShuttleDeparture', 'beginShuttleTransit', 'retargetShuttleTransit',
         'completeShuttleArrival'].includes(spec.endpoint);
       const latest = await readActionState(surface, movementEndpoint ? resolved.target.shuttleId : undefined);
+      if (spec.endpoint === 'completeShuttleArrival' && pressOrigin) {
+        const movementAfter = await readShuttleMovement(surface, expected.sessionId, PRESS_SHUTTLE_ID).catch(() => undefined);
+        const arrivalAfter = pressArrivalProjection(latest, preparedPlan.arrival.before,
+          pressOrigin, { movementAbsent: movementAfter === null, observedAt: new Date().toISOString() });
+        return {
+          sourceAfter: { live: latest?.live === true, sessionId: latest?.sessionId,
+            cycle: latest?.cycle, phase: latest?.phase, groupId: expected.groupId },
+          rendered: await positiveRenderedStatus(surface, spec.endpoint, result),
+          arrivalAfter, authorityAfter: latest?.pressDocumentAuthority,
+          pressGroupAuthorityAfter: latest?.pressGroupAuthority,
+          pressActiveVesselIdsAfter: pressActiveVesselIds(latest),
+          pressDockingAfter: pressDockingWitness(latest),
+        };
+      }
       if (spec.endpoint === 'completeShuttleArrival') {
         const movementAfter = await readShuttleMovement(surface, expected.sessionId, resolved.target.shuttleId).catch(() => undefined);
         const arrivalAfter = shuttleArrivalProjection(latest, resolved.target.arrival.before,
@@ -2165,7 +2932,7 @@ async function recipeFor({ context, game, spec }) {
         : ['requestShuttleDeparture', 'beginShuttleTransit', 'retargetShuttleTransit']
         .includes(spec.endpoint) && movementAfter !== undefined
         ? shuttleMovementWitness(expected.sessionId, resolved.target.shuttleId, uidHash,
-          context.shuttleOriginAuthority?.groupId, latest.shuttleControl?.[resolved.target.shuttleId]?.revision,
+          pressOrigin?.groupId ?? context.shuttleOriginAuthority?.groupId, latest.shuttleControl?.[resolved.target.shuttleId]?.revision,
           latest.cycle, movementAfter)
         : spec.endpoint === 'transferShuttleCargoCommand'
           ? shuttleCargoWitness(latest.sessionId, latest.cycle, resolved.target.shuttleId, uidHash,
@@ -2179,7 +2946,11 @@ async function recipeFor({ context, game, spec }) {
           revision, ...(expected.groupId ? { groupId: expected.groupId } : {}) },
         rendered: visible, ...(cost ? { cost } : {}), ...(transitionAfter ? { transitionAfter } : {}),
         ...(['requestShuttleDeparture', 'beginShuttleTransit', 'retargetShuttleTransit'].includes(spec.endpoint)
-          ? { sourceAuthorityAfter: latest?.currentDocumentAuthority } : {}),
+          ? pressOrigin ? { pressSourceAuthorityAfter: latest?.pressDocumentAuthority,
+            pressGroupAuthorityAfter: latest?.pressGroupAuthority,
+            pressActiveVesselIdsAfter: pressActiveVesselIds(latest),
+            pressDockingAfter: pressDockingWitness(latest) }
+            : { sourceAuthorityAfter: latest?.currentDocumentAuthority } : {}),
       };
     },
   };
