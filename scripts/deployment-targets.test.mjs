@@ -171,7 +171,7 @@ const MALIADE_REPAIR_STALE_REPLY_TYPE = `export interface MaliadesRepairCallable
 const MALIADE_CALLABLE_AFTER = readFileSync(
   new URL('../functions/src/maliadesCallable.ts', import.meta.url), 'utf8',
 );
-const MALIADE_REPAIR_EXPORT_START = 'export const repairMaliades = onCall(CALLABLE_RUNTIME_OPTIONS, async request => {';
+const MALIADE_REPAIR_EXPORT_START = "export const repairMaliades = auditedOnCall('repairMaliades', CALLABLE_RUNTIME_OPTIONS, async request => {";
 function replaceMaliadeFixtureOnce(source, before, after, label) {
   const count = source.split(before).length - 1;
   assert.equal(count, 1, `Maliades selector fixture expects one ${label}`);
@@ -1066,9 +1066,9 @@ test('maps Maliades source modules to the exact callables that consume them', ()
   const callableSource = readFileSync(new URL('../functions/src/maliadesCallable.ts', import.meta.url), 'utf8');
   assert.match(indexSource, /type WolfAttackStageState,[\s\S]*from '\.\/wolfAttackDeclaration';/);
   assert.match(indexSource, /const stageState: WolfAttackStageState = \{/);
-  assert.match(indexSource, /export const declareWolfAttack\s*=\s*onCall/);
-  assert.match(indexSource, /export const getDioneMaliadesLaunch\s*=\s*onCall/);
-  assert.match(indexSource, /export const launchDioneMaliades\s*=\s*onCall/);
+  assert.match(indexSource, /export const declareWolfAttack\s*=\s*auditedOnCall<[\s\S]*?>\('declareWolfAttack',/);
+  assert.match(indexSource, /export const getDioneMaliadesLaunch\s*=\s*auditedOnCall<[\s\S]*?>\('getDioneMaliadesLaunch',/);
+  assert.match(indexSource, /export const launchDioneMaliades\s*=\s*auditedOnCall<[\s\S]*?>\('launchDioneMaliades',/);
   assert.match(indexSource, /beginMaliadesAttack,[\s\S]*launchMaliades,[\s\S]*parseMaliadesState,[\s\S]*from '\.\/maliadesState';/);
   assert.match(callableSource, /repairMaliades as repairMaliadesState,[\s\S]*type MaliadesMediumChoice,[\s\S]*from '\.\/maliadesState';/);
   assert.match(indexSource, /export\s*\{\s*repairMaliades,\s*resolveMaliadesMedium,\s*resolveMaliadesShort,\s*\}\s*from '\.\/maliadesCallable';/s);
