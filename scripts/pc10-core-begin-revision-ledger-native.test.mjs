@@ -123,7 +123,7 @@ function gmSource(docked) {
       dockedAt: '2026-10-06T11:59:00.000Z' }] : [] };
 }
 
-async function runDefaultBeginCapture(diagnosticOnly = false) {
+async function runDefaultBeginCapture({ diagnosticOnly = false, postHydrationDrift = false } = {}) {
   let currentStore = memberStore(true);
   let currentMovement = requestedMovement();
   let committedResult = null;
@@ -131,6 +131,7 @@ async function runDefaultBeginCapture(diagnosticOnly = false) {
   const page = makeSerializedPage({ getStore: () => currentStore, getMovement: () => currentMovement,
     click: async () => {
       currentStore = memberStore(false);
+      if (postHydrationDrift) currentStore.identityHydrationRevision++;
       currentMovement = transitMovement();
       committedResult = { status: 'in-transit', sessionId: SESSION, requestId: DEPARTURE_ID,
         transitRequestId: TRANSIT_ID, shuttleId: SHUTTLE, holderUid: UID, fleetGroupId: GROUP,
@@ -202,21 +203,24 @@ test('default Begin capture keeps control custody revision separate from transit
 
 test('opt-in Begin diagnostic retains redacted pre/post source authority and movement ledgers', async () => {
   const baseline = await runDefaultBeginCapture();
-  const { capture, inspected, sdkRetryCount, calls } = await runDefaultBeginCapture(true);
+  const { capture, inspected, sdkRetryCount, calls } = await runDefaultBeginCapture({ diagnosticOnly: true });
   const tuple = capture.sourceDiagnosticOnly?.captureTuple;
 
+  assert.equal(Object.hasOwn(baseline.capture, 'sourceDiagnosticOnly'), false,
+    'default capture output remains free of opt-in diagnostics');
   assert.ok(tuple, 'the original opt-in diagnostic should retain its already-sampled post-capture tuple');
   assert.equal(tuple.kind, 'pc10-shuttle-capture-tuple-v1');
   assert.equal(tuple.zeroCredit, true);
   for (const side of ['before', 'after']) {
     assert.deepEqual(Object.keys(tuple[side]).sort(), ['documentAuthority', 'movement', 'source']);
-    assert.deepEqual(tuple[side].source, { present: true, live: true, sessionHash: hashUid(SESSION),
-      cycle: CYCLE, phase: 'active', revision: CONTROL_REVISION, groupHash: hashUid(GROUP) });
+    assert.deepEqual(tuple[side].source, { present: true, isNull: false, live: true,
+      sessionHash: hashUid(SESSION), cycle: CYCLE, revision: CONTROL_REVISION, groupHash: hashUid(GROUP) });
     const authority = tuple[side].documentAuthority;
     assert.deepEqual(Object.keys(authority).sort(), ['audienceHash', 'authorityHash', 'connectionGeneration',
-      'documentTimeOriginHash', 'groupHash', 'identityHydrationRevision', 'present', 'roleHash',
+      'documentTimeOriginHash', 'groupHash', 'identityHydrationRevision', 'isNull', 'present', 'roleHash',
       'shuttleAuthorized', 'uidHash']);
     assert.equal(authority.present, true);
+    assert.equal(authority.isNull, false);
     assert.equal(authority.uidHash, UID_HASH);
     assert.equal(authority.groupHash, hashUid(GROUP));
     assert.equal(authority.roleHash, hashUid(ROLE));
@@ -224,11 +228,11 @@ test('opt-in Begin diagnostic retains redacted pre/post source authority and mov
     assert.equal(authority.identityHydrationRevision, 1);
     assert.equal(authority.shuttleAuthorized, true);
   }
-  assert.deepEqual(tuple.before.movement, { present: true, exists: true, state: 'requested',
+  assert.deepEqual(tuple.before.movement, { present: true, isNull: false, exists: true, state: 'requested',
     sessionHash: hashUid(SESSION), requestHash: hashUid(DEPARTURE_ID), transitRequestHash: null,
     shuttleHash: hashUid(SHUTTLE), holderUidHash: UID_HASH, groupHash: hashUid(GROUP),
     destinationHash: hashUid(DESTINATION), cycle: CYCLE, controlRevision: CONTROL_REVISION, revision: null });
-  assert.deepEqual(tuple.after.movement, { present: true, exists: true, state: 'in-transit',
+  assert.deepEqual(tuple.after.movement, { present: true, isNull: false, exists: true, state: 'in-transit',
     sessionHash: hashUid(SESSION), requestHash: hashUid(DEPARTURE_ID), transitRequestHash: hashUid(TRANSIT_ID),
     shuttleHash: hashUid(SHUTTLE), holderUidHash: UID_HASH, groupHash: hashUid(GROUP),
     destinationHash: hashUid(DESTINATION), cycle: CYCLE, controlRevision: CONTROL_REVISION, revision: 1 });
@@ -242,6 +246,8 @@ test('opt-in Begin diagnostic retains redacted pre/post source authority and mov
   assert.equal(capture.status, 'completed', capture.reason,
     'diagnostic retention cannot change the original acceptance result');
   assert.equal(capture.revision, CONTROL_REVISION);
+  assert.deepEqual(Object.fromEntries(Object.entries(capture).filter(([key]) => key !== 'sourceDiagnosticOnly')),
+    baseline.capture, 'the diagnostic does not alter the ordinary acceptance result');
   assert.equal(inspected.sourceAfter.revision, CONTROL_REVISION);
   assert.equal(inspected.transitionAfter.revision, 1);
   assert.equal(sdkRetryCount, 1, 'the existing exact replay remains the only callable replay');
@@ -251,4 +257,19 @@ test('opt-in Begin diagnostic retains redacted pre/post source authority and mov
   for (const privateValue of [SESSION, UID, GROUP, SHUTTLE, HOST, DESTINATION, DEPARTURE_ID, TRANSIT_ID]) {
     assert.equal(retained.includes(privateValue), false, 'diagnostic omits raw private source identifiers');
   }
+
+  const drifted = await runDefaultBeginCapture({ diagnosticOnly: true, postHydrationDrift: true });
+  const driftTuple = drifted.capture.sourceDiagnosticOnly?.captureTuple;
+  assert.equal(drifted.capture.status, 'pending', 'a changed document remains rejected');
+  assert.equal(drifted.capture.reason, 'live-source-cycle-revision-or-group-changed');
+  assert.ok(driftTuple);
+  assert.equal(driftTuple.before.documentAuthority.identityHydrationRevision, 1);
+  assert.equal(driftTuple.after.documentAuthority.identityHydrationRevision, 2);
+  assert.notEqual(driftTuple.before.documentAuthority.authorityHash,
+    driftTuple.after.documentAuthority.authorityHash);
+  assert.equal(driftTuple.after.movement.state, 'in-transit',
+    'the tuple shows the observed transit even though changed authority blocks capture');
+  assert.equal(drifted.sdkRetryCount, 1);
+  assert.deepEqual(drifted.calls, baseline.calls,
+    'document-drift diagnostics use no extra projection, movement, or callable reads');
 });
