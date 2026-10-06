@@ -202,3 +202,13 @@ test('selection accepts current initial resume generation but a held combat oper
   assert.throws(() => assertWolfChoiceActor({ ...original, connectionGeneration: 14 }, original), /connectionGeneration changed/);
   assert.equal(f.sdkCalls, 0);
 });
+
+test('accepted normal resume DTO may omit connected while explicit disconnected membership still fails', async () => {
+  // Functions resumeSession's player reply retains UID/session/group/generation
+  // but omits connected; the current member listener supplies that optional bit.
+  const f = fixture(); delete f.store.me.connected;
+  await f.run({ enter: false });
+  assert.equal(f.sdkCalls, 0);
+  const disconnected = fixture(); disconnected.store.me.connected = false;
+  await assert.rejects(disconnected.run({ enter: false }));
+});
