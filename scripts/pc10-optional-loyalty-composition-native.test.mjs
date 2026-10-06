@@ -199,8 +199,8 @@ async function harness(mode, { selectedRole = ROLE, cargo = {}, stock = 9, airsp
         const body = callback.toString().replace(/\bimport\s*\(/g, 'fixtureImport(');
         const performance = { timeOrigin: gm ? 50 : documentId, getEntriesByType: () => [] };
         const document = { querySelector: () => null, querySelectorAll: () => [] };
-        return new Function('fixtureImport', 'crypto', 'performance', 'document', 'input', `return (${body})(input);`)(
-          fixtureImport, webcrypto, performance, document, input);
+        return new Function('fixtureImport', 'crypto', 'performance', 'globalThis', 'document', 'input', `return (${body})(input);`)(
+          fixtureImport, webcrypto, performance, { performance }, document, input);
       },
       getByLabel: name => {
         if (name === 'Current actor') return locator({ select: role => {
@@ -214,7 +214,8 @@ async function harness(mode, { selectedRole = ROLE, cargo = {}, stock = 9, airsp
       },
       getByRole: (role, { name = '' } = {}) => {
         if (role === 'link') return locator({ click: () => {
-          path = name === "Enter this actor's stations" ? '#/console'
+          path = name === 'Open Pallas shuttle console' ? '#/shuttles/pallas'
+            : name === "Enter this actor's stations" ? '#/console'
             : name === 'Open private brief' ? '#/brief' : name === 'Press Officer' ? '#/press' : path;
           events.push({ kind: 'link', name, roleId: selected });
         } });
@@ -268,7 +269,7 @@ async function harness(mode, { selectedRole = ROLE, cargo = {}, stock = 9, airsp
           } }) : locator(),
           innerText: async () => 'Supply sabotage destroyed cargo. Clue instruction: handled privately.',
         };
-        return { getByRole: () => locator({ text: 'Loaded 2 Security teams.' }) };
+        return { getByRole: () => locator({ text: 'Loaded 2 Security Teams.' }) };
       },
     };
     const surface = {
@@ -305,6 +306,7 @@ async function harness(mode, { selectedRole = ROLE, cargo = {}, stock = 9, airsp
   };
   const cargoPanel = {
     count: async () => 1, isVisible: async () => true,
+    waitFor: async () => undefined,
     getByLabel: name => name === 'Resource' ? locator({ options, select: resource => { draftResource = resource; } })
       : locator({ fill: value => { draftAmount = Number(value); } }),
     getByRole: (role, { name } = {}) => role === 'button' && name === 'Load shuttle'
@@ -323,7 +325,7 @@ async function harness(mode, { selectedRole = ROLE, cargo = {}, stock = 9, airsp
           shipAmount: calculation.shipAmount, shuttleAmount: calculation.shuttleAmount,
           ...(malformedReceipt ? { amount: 1 } : {}) });
         await afterCargoReply?.(session);
-      } }) : locator({ text: 'Loaded 2 Security teams.' }),
+      } }) : locator({ text: 'Loaded 2 Security Teams.' }),
   };
   const gm = makeSurface(true), crew = makeSurface(false);
   const initial = { sessionId: SESSION, joinCode: 'normal-code', uidHash: hash(GM_UID) };
