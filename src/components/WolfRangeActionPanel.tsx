@@ -17,6 +17,9 @@ type RangeAssignment = Readonly<{ actionId: string; contactIds: readonly string[
 type ActionSelection = readonly string[];
 type ActionSelectionUpdate = (previous: ActionSelection) => ActionSelection;
 type BoundActionSelection = Readonly<{ scopeKey: string; formKey: string; actionIds: ActionSelection }>;
+type TargetSelection = Readonly<Record<string, readonly string[]>>;
+type TargetSelectionUpdate = (previous: TargetSelection) => TargetSelection;
+type BoundTargetSelection = Readonly<{ scopeKey: string; formKey: string; assignmentsByAction: TargetSelection }>;
 type WolfRangeActionOption = WolfRangeActionChoiceView['eligibleActions'][number];
 type WolfWingCommanderTargetAction = WolfRangeActionOption & Readonly<{
   range: 'medium-range';
@@ -65,6 +68,7 @@ export function WolfRangeActionPanelView({
   busy = false,
   message,
   actionSelection,
+  targetSelection,
 }: Readonly<{
   view: WolfRangeActionChoiceView;
   onUseActions: (actionIds: readonly string[]) => void;
@@ -73,18 +77,21 @@ export function WolfRangeActionPanelView({
   busy?: boolean;
   message?: string;
   actionSelection?: Readonly<{ actionIds: ActionSelection; update: (change: ActionSelectionUpdate) => void }>;
+  targetSelection?: Readonly<{ assignmentsByAction: TargetSelection; update: (change: TargetSelectionUpdate) => void }>;
 }>) {
   const [localSelectedActions, setLocalSelectedActions] = useState<ActionSelection>([]);
   const selectedActions = actionSelection?.actionIds ?? localSelectedActions;
   const setSelectedActions = actionSelection?.update ?? setLocalSelectedActions;
-  const [assignmentsByAction, setAssignmentsByAction] = useState<Readonly<Record<string, readonly string[]>>>({});
+  const [localAssignmentsByAction, setLocalAssignmentsByAction] = useState<TargetSelection>({});
+  const assignmentsByAction = targetSelection?.assignmentsByAction ?? localAssignmentsByAction;
+  const setAssignmentsByAction = targetSelection?.update ?? setLocalAssignmentsByAction;
   const selectableActions = useMemo(() => view.eligibleActions.filter(({ sourceId }) =>
     sourceId.startsWith('aegis-')),
   [view.eligibleActions]);
   const draftKey = rangeDraftKey(view);
   useEffect(() => {
     setLocalSelectedActions([]);
-    setAssignmentsByAction({});
+    setLocalAssignmentsByAction({});
   }, [draftKey]);
   const availableContacts = useMemo(() => view.contacts.filter(({ available }) => available), [view.contacts]);
   const wingCommanderTargetIds = useMemo(() => new Set(view.eligibleActions
@@ -293,6 +300,7 @@ export default function WolfRangeActionPanel({
   });
   const sessionId = authority.sessionId;
   const [selection, setSelection] = useState<BoundActionSelection | null>(null);
+  const [targetDraft, setTargetDraft] = useState<BoundTargetSelection | null>(null);
   const scopeKey = authority.ready && memberView ? JSON.stringify([
     authority.key, memberView.sessionId, memberView.attackId, memberView.turn, memberView.revision,
     memberView.status, memberView.currentStep, memberView.range,
@@ -304,6 +312,8 @@ export default function WolfRangeActionPanel({
     // bounded recovery revalidates the same window. Keep only the local draft;
     // no prior view is displayed or allowed to submit during that withdrawal.
     setSelection((previous) => previous && (!scopeKey || previous.scopeKey !== scopeKey ||
+      (hasView && previous.formKey !== formKey)) ? null : previous);
+    setTargetDraft((previous) => previous && (!scopeKey || previous.scopeKey !== scopeKey ||
       (hasView && previous.formKey !== formKey)) ? null : previous);
   }, [scopeKey, formKey, hasView]);
 
@@ -336,6 +346,15 @@ export default function WolfRangeActionPanel({
       update: (change) => setSelection((previous) => ({
         scopeKey: scopeKey!, formKey: formKey!,
         actionIds: change(previous?.scopeKey === scopeKey && previous.formKey === formKey ? previous.actionIds : []),
+      })),
+    }}
+    targetSelection={{
+      assignmentsByAction: targetDraft?.scopeKey === scopeKey && targetDraft.formKey === formKey
+        ? targetDraft.assignmentsByAction : {},
+      update: (change) => setTargetDraft((previous) => ({
+        scopeKey: scopeKey!, formKey: formKey!,
+        assignmentsByAction: change(previous?.scopeKey === scopeKey && previous.formKey === formKey
+          ? previous.assignmentsByAction : {}),
       })),
     }}
     {...(displayMessage ? { message: displayMessage } : {})}
