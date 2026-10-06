@@ -2571,6 +2571,137 @@ describe('shuttle departure privacy', () => {
     await assertFails(getDoc(doc(as('foreign'), path)));
   });
 
+  it('lets only the live current group holder observe an absent exact route', async () => {
+    const path = `${SESSION}/shuttleDepartures/starlight`;
+    const control = {
+      shuttleId: 'starlight', ownerRoleId: 'wing-commander', ownerUid: 'alice',
+      holderUid: 'alice', revision: 0,
+    };
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, SESSION), {
+        phase: 'active', activeRoleIds: ['wing-commander', 'icebreaker-miner'],
+        activeVesselIds: ['aegis', 'icebreaker'],
+        shuttleControl: { starlight: control },
+      }, { merge: true });
+      await setDoc(doc(db, `${SESSION}/players/alice`), {
+        role: 'player', connected: true, kickedAt: null, assignedRoleId: 'wing-commander',
+        activeConsoleRoleId: 'wing-commander', replacementStatus: null, escapeState: null,
+        fleetGroupId: 'fleet-1',
+      }, { merge: true });
+      await setDoc(doc(db, `${SESSION}/players/crew`), {
+        uid: 'crew', role: 'player', connected: true, kickedAt: null,
+        assignedRoleId: 'icebreaker-miner', activeConsoleRoleId: 'icebreaker-miner',
+        replacementStatus: null, escapeState: null, fleetGroupId: 'fleet-1',
+      });
+      await setDoc(doc(db, `${SESSION}/players/foreign`), {
+        uid: 'foreign', role: 'player', connected: true, kickedAt: null,
+        assignedRoleId: 'wing-commander', fleetGroupId: 'fleet-2',
+      });
+      await setDoc(doc(db, `${SESSION}/fleetGroups/fleet-1`), {
+        id: 'fleet-1', vesselIds: ['aegis', 'icebreaker'], memberUids: ['alice', 'crew', 'press'],
+        memberShipIds: { alice: 'aegis', crew: 'icebreaker' },
+      });
+      await setDoc(doc(db, `${SESSION}/fleetGroups/fleet-2`), {
+        id: 'fleet-2', vesselIds: ['dione'], memberUids: ['foreign'],
+        memberShipIds: { foreign: 'dione' },
+      });
+    });
+
+    const absent = await assertSucceeds(getDoc(doc(as('alice'), path)));
+    expect(absent.exists()).toBe(false);
+    await assertFails(getDoc(doc(as('crew'), path)));
+    await assertFails(getDoc(doc(as('foreign'), path)));
+    await assertFails(getDoc(doc(as('alice'), `${SESSION}/shuttleDepartures/uncontrolled-craft`)));
+    await assertFails(getDoc(doc(as('alice'), 'sessions/s2/shuttleDepartures/starlight')));
+    await assertFails(getDoc(doc(as('stranger'), path)));
+    await assertFails(getDoc(doc(as('press'), `${SESSION}/shuttleDepartures/snn-press-shuttle`)));
+
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), `${SESSION}/players/alice`), { fleetGroupId: 'fleet-2' });
+    });
+    await assertFails(getDoc(doc(as('alice'), path)));
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), `${SESSION}/players/alice`), { fleetGroupId: 'fleet-1' });
+      await updateDoc(doc(ctx.firestore(), SESSION), { activeRoleIds: ['icebreaker-miner'] });
+    });
+    await assertFails(getDoc(doc(as('alice'), path)));
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), SESSION), { activeRoleIds: ['wing-commander', 'icebreaker-miner'] });
+    });
+
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), `${SESSION}/players/alice`), { kickedAt: 'removed' });
+    });
+    await assertFails(getDoc(doc(as('alice'), path)));
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), `${SESSION}/players/alice`), { kickedAt: deleteField() });
+      await updateDoc(doc(ctx.firestore(), `${SESSION}/players/alice`), { connected: false });
+    });
+    await assertFails(getDoc(doc(as('alice'), path)));
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), `${SESSION}/players/alice`), { connected: true });
+      await updateDoc(doc(ctx.firestore(), `${SESSION}/fleetGroups/fleet-1`), {
+        memberShipIds: { crew: 'icebreaker' },
+      });
+    });
+    await assertFails(getDoc(doc(as('alice'), path)));
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), `${SESSION}/fleetGroups/fleet-1`), {
+        memberShipIds: { alice: 'dione', crew: 'icebreaker' },
+      });
+    });
+    await assertFails(getDoc(doc(as('alice'), path)));
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), `${SESSION}/fleetGroups/fleet-1`), {
+        memberShipIds: { alice: 'aegis', crew: 'icebreaker' },
+      });
+      await updateDoc(doc(ctx.firestore(), SESSION), {
+        'shuttleControl.starlight.holderUid': 'crew',
+        'shuttleControl.starlight.revision': 1,
+      });
+    });
+    await assertFails(getDoc(doc(as('alice'), path)));
+    await assertSucceeds(getDoc(doc(as('crew'), path)));
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), SESSION), {
+        'shuttleControl.starlight.revision': -1,
+      });
+    });
+    await assertFails(getDoc(doc(as('crew'), path)));
+  });
+
+  it('keeps pending route reads group-scoped and completed routes private', async () => {
+    const path = `${SESSION}/shuttleDepartures/starlight`;
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, `${SESSION}/players/foreign`), {
+        uid: 'foreign', role: 'player', connected: true, fleetGroupId: 'fleet-2',
+      });
+      await setDoc(doc(db, `${SESSION}/fleetGroups/fleet-1`), {
+        id: 'fleet-1', vesselIds: ['aegis', 'icebreaker'], memberUids: ['alice', 'press'],
+      });
+      await setDoc(doc(db, `${SESSION}/fleetGroups/fleet-2`), {
+        id: 'fleet-2', vesselIds: ['dione'], memberUids: ['foreign'],
+      });
+      await setDoc(doc(db, path), {
+        status: 'requested', shuttleId: 'starlight', fleetGroupId: 'fleet-1',
+        originShipId: 'aegis', destinationShipId: 'icebreaker',
+      });
+    });
+
+    await assertSucceeds(getDoc(doc(as('press'), path)));
+    await assertFails(getDoc(doc(as('foreign'), path)));
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), path), { status: 'completed' });
+    });
+    await assertFails(getDoc(doc(as('press'), path)));
+    await assertFails(getDocs(collection(as('press'), `${SESSION}/shuttleDepartures`)));
+    await assertFails(setDoc(doc(as('press'), path), { destinationShipId: 'dione' }));
+    await assertFails(updateDoc(doc(as('gm1'), path), { destinationShipId: 'dione' }));
+    await assertFails(deleteDoc(doc(as('gm1'), path)));
+  });
+
   it('keeps immutable transit history server-only', async () => {
     const path = `${SESSION}/shuttleTransitChains/starlight`;
     await env.withSecurityRulesDisabled(async (ctx) => {
