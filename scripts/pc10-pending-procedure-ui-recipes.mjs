@@ -2235,15 +2235,18 @@ async function planFor({ spec, surface, actor, state, context, target, gmOperati
           sessionId: context.initial.sessionId, uidHash: actor.uidHash, roleId: actor.activeConsoleRoleId,
           groupId: originGroupId, cycle: state.cycle, controlRevision: state.shuttleControl?.[target.shuttleId]?.revision,
         }, target.shuttleId) || current !== null || current === undefined ||
-            !currentMemberShuttleScopeMatches(latest, target.shuttleId, originGroupId,
+            target.shuttleId !== PRESS_SHUTTLE_ID && !currentMemberShuttleScopeMatches(latest,
+              target.shuttleId, originGroupId,
               { hostShipId: target.hostShipId, destinationShipId: target.destinationShipId })) {
           throw new Error('The original source departure authority or movement state changed before the mounted request.');
         }
-        const currentSelect = panel.getByLabel('Destination ship', { exact: true });
-        const currentOption = await selectActualOption(currentSelect, candidate => candidate.offered && candidate.enabled &&
-          candidate.value === target.destinationShipId && currentMemberShuttleScopeMatches(latest, target.shuttleId,
-            originGroupId, { hostShipId: target.hostShipId, destinationShipId: candidate.value }));
-        if (!currentOption) throw new Error('The original same-group destination is no longer offered in the current member scope.');
+        if (target.shuttleId !== PRESS_SHUTTLE_ID) {
+          const currentSelect = panel.getByLabel('Destination ship', { exact: true });
+          const currentOption = await selectActualOption(currentSelect, candidate => candidate.offered && candidate.enabled &&
+            candidate.value === target.destinationShipId && currentMemberShuttleScopeMatches(latest, target.shuttleId,
+              originGroupId, { hostShipId: target.hostShipId, destinationShipId: candidate.value }));
+          if (!currentOption) throw new Error('The original same-group destination is no longer offered in the current member scope.');
+        }
         await action.click();
       } };
     }
@@ -3195,7 +3198,8 @@ async function recipeFor({ context, game, spec }) {
           groupId: context.shuttleOriginAuthority?.groupId, cycle: expected.cycle,
           controlRevision: context.shuttleOriginAuthority?.controlRevision,
         }, resolved.target.shuttleId) || expected.groupId !== context.shuttleOriginAuthority?.groupId ||
-            spec.endpoint === 'requestShuttleDeparture' && !currentMemberShuttleScopeMatches(latest,
+            spec.endpoint === 'requestShuttleDeparture' && resolved.target.shuttleId !== PRESS_SHUTTLE_ID &&
+              !currentMemberShuttleScopeMatches(latest,
               resolved.target.shuttleId, context.shuttleOriginAuthority?.groupId, {
                 hostShipId: resolved.target.hostShipId, destinationShipId: resolved.target.destinationShipId,
               })) {
