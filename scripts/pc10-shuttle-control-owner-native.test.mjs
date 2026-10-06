@@ -83,6 +83,7 @@ function serializedSurface({ uid, roleId, currentControl = control(), isGm = fal
     ? { value: target, textContent: target }
     : { value: target.value, textContent: target.textContent ?? target.value, disabled: target.disabled }),
   onSelect: value => selectedTargets.push(value) });
+  recipient.getAttribute = async name => name === 'id' ? `shuttle-recipient-${SHUTTLE_ID}` : null;
   const handoff = makeLocator({ count: handoffVisible ? 1 : 0,
     onClick: async () => { clickLog.push('Hand off control'); } });
   const reclaim = makeLocator({ count: reclaimVisible ? 1 : 0,
