@@ -31,7 +31,8 @@ const sourceJs = ts.transpileModule([identifiers, sourceFunction('parseArrestPos
 }).outputText.replace(/\bexport /g, '');
 
 function fixture({ projection = 'ready', paintAt = 2, onFrame = () => {}, afterChecks = () => {},
-  afterReload = () => {}, resultChange = () => {}, deadlineOffset = 35_000 } = {}) {
+  afterReload = () => {}, resultChange = () => {}, deadlineOffset = 35_000, attendanceEnabled = false,
+  beforeAttendanceCapture = () => {} } = {}) {
   const roster = [...ROLES, 'press-officer'].map(roleId => ({ sessionId: SID, roleId,
     uid: `original-${roleId}`, displayName: `DEMO // ${roleId}` }));
   const target = roster.find(actor => actor.roleId === TARGET_ROLE);
@@ -55,7 +56,7 @@ function fixture({ projection = 'ready', paintAt = 2, onFrame = () => {}, afterC
   resultChange(result);
   const counts = { calculationClicks: 0, replayCalls: [], reloads: 0, subscriptions: 0, unsubscribes: 0,
     connectedSubscriptions: 0, connectedStops: 0, frames: 0, checkboxes: [], attendanceClicks: 0,
-    sourceCallbacks: 0, timeouts: [], timerClears: 0, cancelledFrames: 0 };
+    sourceCallbacks: 0, timeouts: [], timerClears: 0, cancelledFrames: 0, handlesDisposed: 0 };
   const deadlineAt = Date.now() + deadlineOffset;
   let selectedTarget = roster[0].uid, defenders = '0', adjustment = 'none', reloaded = false;
   let painted = false, groupMounted = false, resultText = '', callbacks, frameId = 0;
@@ -103,6 +104,7 @@ function fixture({ projection = 'ready', paintAt = 2, onFrame = () => {}, afterC
     if (projection === 'private-extra') next.suspicion = 0;
     callbacks.next(snapshot(next, projection === 'cache-only'));
   }
+  const replaceProjection = change => callbacks?.next(snapshot({ ...result, ...change }));
   async function browserCallback(callback, input, browser) {
     counts.sourceCallbacks++;
     let logicalTime = Date.now();
@@ -169,9 +171,9 @@ function fixture({ projection = 'ready', paintAt = 2, onFrame = () => {}, afterC
   }
   const checkbox = player => ({ count: async () => 1, isChecked: async () => selected.get(player.uid),
     check: async options => { counts.checkboxes.push(['check', player.uid, options?.timeout]); selected.set(player.uid, true);
-      afterChecks({ state, user, target, counts }); },
+      afterChecks({ state, user, target, counts, replaceProjection }); },
     uncheck: async options => { counts.checkboxes.push(['uncheck', player.uid, options?.timeout]); selected.set(player.uid, false);
-      afterChecks({ state, user, target, counts }); } });
+      afterChecks({ state, user, target, counts, replaceProjection }); } });
   const group = { isVisible: async () => groupMounted, locator: selector => {
     assert.equal(selector, 'label'); return { all: async () => currentPlayers.filter(player => player.uid !== target.uid).map(player => ({
       innerText: async () => player.displayName, locator: selector => {
@@ -198,27 +200,65 @@ function fixture({ projection = 'ready', paintAt = 2, onFrame = () => {}, afterC
       if (options.name === 'Calculate required players') return { isEnabled: async () => true, click: async options => {
         assert.ok(options.timeout > 0 && options.timeout <= deadlineOffset); counts.calculationClicks++;
       } };
-      assert.equal(options.name, 'Simulate attendance'); return { isEnabled: async () => false,
-        click: async () => { counts.attendanceClicks++; assert.fail('The native qualification stops before attendance mutation.'); } };
+      assert.equal(options.name, 'Simulate attendance'); return { isEnabled: async () => attendanceEnabled,
+        click: async options => {
+          assert.ok(attendanceEnabled); assert.ok(options.timeout > 0 && options.timeout <= deadlineOffset);
+          assert.equal([...selected.values()].filter(Boolean).length, 17);
+          assert.equal(selected.get(controllerUid), false); assert.equal(selected.get('original-press-officer'), false);
+          assert.equal(callbacks !== null, true, 'The one calculation subscription survives through the final pre-click check.');
+          counts.attendanceClicks++;
+        } };
     } };
-  const observe = () => ({ hasAuth: true, sameActor: true, uidHash: hash(user.uid), sessionId: state.session.id,
+  const observe = () => {
+    if (counts.checkboxes.length === 19 && counts.attendanceClicks === 0 && attendanceEnabled) {
+      beforeAttendanceCapture({ state, user, target, counts, replaceProjection });
+    }
+    return { hasAuth: true, sameActor: true, uidHash: hash(user.uid), sessionId: state.session.id,
     phase: state.session.phase, cycle: state.session.currentTurn, setupRevision: state.session.setupRevision,
     playerRole: state.me.role, instanceId: state.gmInstance.id, gmInstanceOwned: state.gmInstance.uid === user.uid,
     turnStatePhase: state.session.turnState.phase, connection: state.connection, freshness: state.sessionSnapshotFreshness,
-    fullGameDemo: state.session.fullGameDemo });
+    fullGameDemo: state.session.fullGameDemo };
+  };
   const response = { url: () => 'http://127.0.0.1:5011/demo-pc10-owner/us-central1/calculateArrestPosse',
     ok: () => true, request: () => ({ method: () => 'POST', postDataJSON: () => ({ data: request }) }),
     json: async () => ({ result }) };
+  const attendanceRequest = { sessionId: SID, instanceId: state.gmInstance.id, requestId: 'actual-ui-attendance-request',
+    expectedCycle: 1, expectedRevision: result.revision, targetUid: target.uid,
+    presentPlayerUids: roster.filter(actor => ROLES.includes(actor.roleId) && actor.roleId !== TARGET_ROLE).map(actor => actor.uid).sort(),
+    attendanceEvidence: 'simulated-demo' };
+  const attendanceResult = { status: 'committed', type: 'arrest-posse-outcome', sessionId: SID,
+    requestId: attendanceRequest.requestId, turn: 1, revision: 1, targetUid: target.uid, requiredPlayers: result.requiredPlayers,
+    presentPlayers: 17, outcome: 'arrested', deadlineCycle: 2, attendanceEvidence: 'simulated-demo' };
+  const attendanceResponse = { ...response,
+    url: () => 'http://127.0.0.1:5011/demo-pc10-owner/us-central1/resolveArrestPosse',
+    request: () => ({ method: () => 'POST', postDataJSON: () => ({ data: attendanceRequest }) }),
+    json: async () => ({ result: attendanceResult }) };
   const context = { initial: { sessionId: SID }, started: observe(), deadlineAt,
+    directory: '/tmp/dow-pc10-evidence/arrest-calculation-attendance-sol-20261006/native-fixture-only',
     gm: { observe: async () => observe(), storeModuleUrl: () => '/src/store/useSessionStore.ts',
       until: async (description, predicate) => { assert.ok(description.includes('restored after reload')); assert.equal(predicate(observe()), true); },
       callable: async (endpoint, payload) => {
-        assert.equal(endpoint, 'calculateArrestPosse'); assert.deepEqual(payload, request);
-        counts.replayCalls.push(endpoint); return { status: 'committed', result };
+        assert.ok(['calculateArrestPosse', 'resolveArrestPosse'].includes(endpoint));
+        assert.deepEqual(payload, endpoint === 'calculateArrestPosse' ? request : attendanceRequest);
+        counts.replayCalls.push(endpoint); return { status: 'committed', result: endpoint === 'calculateArrestPosse' ? result : attendanceResult };
       }, page: { evaluate: (callback, input) => browserCallback(callback, input, 'gm'),
+        evaluateHandle: async (callback, input) => {
+          const reader = await browserCallback(callback, input, 'gm');
+          let disposed = false;
+          return { evaluate: async callback => {
+            assert.equal(disposed, false);
+            const realm = createContext({ reader });
+            assert.equal(new Script('[typeof process,typeof require,typeof Buffer].join(",")').runInContext(realm),
+              'undefined,undefined,undefined');
+            const result = await new Script(`(${callback.toString()})(reader)`).runInContext(realm);
+            return result === undefined ? undefined : plain(result);
+          }, dispose: async () => { disposed = true; counts.handlesDisposed++; } };
+        },
         getByRole: (role, options) => { assert.equal(role, 'region'); assert.deepEqual(options, { name: 'Arrest posse calculator', exact: true }); return panel; },
-        waitForResponse: async predicate => { assert.equal(predicate(response), true); return response; },
+        waitForResponse: async predicate => { const next = counts.calculationClicks === 0 ? response : attendanceResponse;
+          assert.equal(predicate(next), true); return next; },
         reload: async () => { counts.reloads++; reloaded = true;
+          if (counts.reloads === 2) { assert.equal(callbacks, null); assert.equal(counts.handlesDisposed, 1); }
           state.me.connectionGeneration++; state.identityHydrationRevision = 1;
           afterReload({ state, user, target, counts }); } } },
     crew: { page: { evaluate: (callback, input) => browserCallback(callback, input, 'crew') } } };
@@ -232,6 +272,7 @@ function assertFiniteRead(f) {
   assert.equal(f.counts.calculationClicks, 1); assert.equal(f.counts.replayCalls.length, 2);
   assert.equal(f.counts.reloads, 1, 'Only the original capture reload is permitted.');
   assert.equal(f.counts.subscriptions, 1); assert.equal(f.counts.unsubscribes, 1);
+  assert.equal(f.counts.handlesDisposed, 1);
   assert.equal(f.counts.attendanceClicks, 0); assert.ok(f.counts.timeouts.every(timeout => timeout > 0 && timeout <= 35_000));
 }
 
@@ -308,8 +349,36 @@ for (const [name, change] of Object.entries({
   });
 }
 
-test('an unchanged HTTP200 receipt cannot extend an already exhausted calculation-to-attendance deadline', async () => {
-  const f = fixture({ afterReload: () => { /* No extra document mutation is needed to exhaust the native deadline. */ }, deadlineOffset: 1 });
+test('an unchanged HTTP200 receipt cannot extend an already exhausted calculation-to-attendance deadline', async t => {
+  t.mock.timers.enable({ apis: ['Date'], now: Date.now() });
+  const f = fixture({ afterReload: () => t.mock.timers.tick(35_000) });
   await assert.rejects(f.run(), /deadline.*exhausted|original.*deadline/i);
-  assert.equal(f.counts.attendanceClicks, 0); assert.ok(f.counts.subscriptions <= 1);
+  assert.equal(f.counts.calculationClicks, 1); assert.equal(f.counts.replayCalls.length, 2);
+  assert.equal(f.counts.reloads, 1); assert.equal(f.counts.attendanceClicks, 0); assert.equal(f.counts.subscriptions, 0);
+});
+
+for (const change of [{ revision: 2 }, { requestId: 'replacement-request' }, { censusRevision: 39 }]) {
+  test(`a late same-count private replacement remains uncredited after checkbox mapping: ${JSON.stringify(change)}`, async () => {
+    const f = fixture({ afterChecks: f => f.replaceProjection(change) });
+    await assert.rejects(f.run(), /current-arrest-calculation-projection-does-not-match-original-ui-result/);
+    assertFiniteRead(f); assert.equal(f.counts.checkboxes.length, 19);
+  });
+}
+
+test('the final pre-click read rejects a same-count replacement delivered after the attendance capture starts', async () => {
+  const f = fixture({ attendanceEnabled: true, beforeAttendanceCapture: f => f.replaceProjection({ revision: 2 }) });
+  await assert.rejects(f.run(), /current-arrest-calculation-projection-does-not-match-original-ui-result/);
+  assertFiniteRead(f); assert.equal(f.counts.checkboxes.length, 19);
+});
+
+test('the native UI-capture model releases its old-document handle before the existing attendance reload', async () => {
+  const f = fixture({ attendanceEnabled: true });
+  const report = await f.run();
+  assert.equal(report.accepted.length, 2); assert.equal(report.blocked.length, 0);
+  assert.equal(report.accepted[1].simulatedAttendance, true); assert.equal(report.accepted[1].physicalAttendanceProof, false);
+  assert.equal(report.actualHumanAttendance, false); assert.equal(report.simulatedAttendanceOnly, true);
+  assert.equal(f.counts.calculationClicks, 1); assert.equal(f.counts.attendanceClicks, 1);
+  assert.deepEqual(f.counts.replayCalls, ['calculateArrestPosse', 'calculateArrestPosse', 'resolveArrestPosse', 'resolveArrestPosse']);
+  assert.equal(f.counts.reloads, 2); assert.equal(f.counts.subscriptions, 1); assert.equal(f.counts.unsubscribes, 1);
+  assert.equal(f.counts.handlesDisposed, 1); assert.equal(f.state.me.connectionGeneration, 6);
 });
