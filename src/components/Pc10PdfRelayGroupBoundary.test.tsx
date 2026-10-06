@@ -23,7 +23,7 @@ import { normalizeDisplayName } from '@/lib/displayName';
 import { Timestamp as FirestoreTimestamp } from 'firebase/firestore';
 import type { Player } from '@/types/game';
 import { stripGmNavigationProjection } from '@/lib/navigationPrivacy';
-import type { Firestore, DocumentSnapshot } from 'firebase-admin/firestore';
+type MemberReaderOptions = Parameters<typeof createCurrentMemberSessionReader>[0];
 
 const functionsRequire = createRequire(resolve(process.cwd(), 'functions/package.json'));
 const { HttpsError } = functionsRequire('firebase-functions/v2/https');
@@ -42,7 +42,7 @@ const nativeImport = (name: string) => new Script('import(url)', {
 const specialist = await nativeImport('pc10-specialist-gameplay.mjs');
 const { createTwoBrowserGameplay } = await nativeImport('pc10-two-browser-gameplay.mjs');
 const { runPc10SpecialistAction, PC10_SPECIALIST_ACTIONS } = await nativeImport('pc10-specialist-phases.mjs');
-const { capybaraStageOutcome, projectCapybaraEvidence } = await nativeImport('pc10-capybara-full-gameplay.mjs');
+const { capybaraStageOutcome } = await nativeImport('pc10-capybara-full-gameplay.mjs');
 const sourceFile = (path: string) => ts.createSourceFile(path, readFileSync(resolve(process.cwd(), path), 'utf8'),
   ts.ScriptTarget.Latest, true);
 function declarations(file: ts.SourceFile, names: string[]) {
@@ -160,8 +160,8 @@ function actualHandlers() {
     requireNonterminalSessionPhase, requirePursuitEmergencyWindowAbsent, isPresenceStale, fleetGroupRecord,
     ordinaryFleetCommunicationGroup, isCanonicalRequestId, commandReceiptDisposition, commandError,
     HttpsError, FieldValue: { serverTimestamp: () => 'native-inert-write-time' } });
-  const memberRead = createCurrentMemberSessionReader({ db: db as unknown as Firestore,
-    projectSession: (source: DocumentSnapshot, id: string) => ({ ...source.data(), id }) });
+  const memberRead = createCurrentMemberSessionReader({ db: db as unknown as MemberReaderOptions['db'],
+    projectSession: (source, id) => ({ ...source.data(), id }) });
   return { member: async () => memberRead({ auth: { uid }, data: { sessionId: sid } }),
     player: () => actualPlayerFrom(sid, uid, data.get(`sessions/${sid}/players/${uid}`)!),
     gmSession: () => ({ ...sessionFrom(sid, data.get(`sessions/${sid}`)!),
@@ -303,8 +303,9 @@ function fixture({ replyChange, noteChange, afterSend, beforeSecondSelect, durin
   const applyMember = async () => {
     const envelope = await backend.member();
     const projected = stripGmNavigationProjection(sessionFrom(sid, envelope.session));
+    const berth = envelope.currentActorBerthAuthority;
     useSessionStore.getState().setSession({ ...projected,
-      currentActorBerthAuthority: envelope.currentActorBerthAuthority });
+      ...(berth === undefined ? {} : { currentActorBerthAuthority: berth }) });
     useSessionStore.getState().setMe(backend.player());
     return envelope;
   };
@@ -383,8 +384,7 @@ it.each([
   ['withdrawn own player', () => { useSessionStore.setState(state => ({ me: { ...state.me!, connected: false } })); }],
   ['cache member view', () => { useSessionStore.getState().setSessionSnapshotFreshness('cache'); }],
 ] as const)('does not credit private member relay after %s', async (_label, change) => {
-  let f: ReturnType<typeof fixture>;
-  f = fixture({ afterSend: () => { change(f); } });
+  const f = fixture({ afterSend: () => { change(f); } });
   await expect(f.run()).rejects.toThrow();
   expect(f.counts()).toEqual({ selects: 2, fills: 1, clicks: 1, observers: 1 });
   expect(f.backend.noteWrites()).toBe(1);
