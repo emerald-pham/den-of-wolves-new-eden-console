@@ -60,6 +60,7 @@ import { shouldLoadAwayMissionDiscardPanel } from '@/lib/awayMissionVisibility';
 import type { GmDiscoveryProjection } from '@/lib/firestore';
 import { parseVoyage33MovementState } from '../functions/src/voyage33Movement';
 import { activeDemoActorProfile, demoActorPresenceAllowed } from '@/lib/demoActorContext';
+import { auth } from '@/lib/firebase';
 
 const GM_RECONCILE_INTERVAL_MS = 5_000;
 const PRESENCE_HEARTBEAT_INTERVAL_MS = 10_000;
@@ -394,6 +395,7 @@ function AppRoutes() {
     // accepts this document's identity. Earlier actor/feed readers can publish
     // pre-resume authority after that identity has been accepted.
     if (playerRole === 'player' && !(identityHydrationRevision > 0)) return;
+    const initialMember = useSessionStore.getState().me;
     let active = true;
     const identity = `${sessionId}:${playerUid}`;
     if (
@@ -737,6 +739,28 @@ function AppRoutes() {
       unsubscribe = subscribeSessionState(sessionId, playerUid, {
         sessionReadAudience: playerRole === 'gm' ? 'gm' : 'member',
         sessionSnapshotAuthority: sessionSnapshotAuthorityFor(sessionId, playerUid),
+        initialMemberActor: () => {
+          const current = useSessionStore.getState();
+          const member = current.me;
+          // A first player confirmation can precede its member transaction.
+          // Only this document's accepted identity may initialize that reader.
+          if (!callbackCurrent() || !initialMember || initialMember.role !== 'player' || !(identityHydrationRevision > 0) ||
+              !sessionSnapshotAuthorityFor(sessionId, playerUid).hasServerSessionAuthority ||
+              auth().currentUser?.uid !== playerUid || current.identityHydrationRevision !== identityHydrationRevision ||
+              current.session?.id !== sessionId || current.connection !== 'live' || current.sessionSnapshotFreshness !== 'server' ||
+              ['debrief', 'closed'].includes(current.session.phase ?? '') ||
+              !member || member.uid !== playerUid || member.sessionId !== sessionId || member.role !== 'player' ||
+              member.connected === false || initialMember.connected === false ||
+              !Number.isSafeInteger(initialMember.connectionGeneration) || (initialMember.connectionGeneration ?? 0) < 1 ||
+              member.connectionGeneration !== initialMember.connectionGeneration || member.fleetGroupId !== initialMember.fleetGroupId ||
+              (member.assignedRoleId ?? null) !== (initialMember.assignedRoleId ?? null) ||
+              (member.activeConsoleRoleId ?? null) !== (initialMember.activeConsoleRoleId ?? null) ||
+              (member.seatId ?? null) !== (initialMember.seatId ?? null) ||
+              member.replacementRoleId != null || member.replacementStatus != null || member.escapeState != null ||
+              initialMember.replacementRoleId != null || initialMember.replacementStatus != null || initialMember.escapeState != null ||
+              activeDemoActorProfile && activeDemoActorProfile.sessionId !== sessionId) return undefined;
+          return initialMember;
+        },
         onSession: (incoming) => {
           if (!callbackCurrent()) return;
           const store = useSessionStore.getState();

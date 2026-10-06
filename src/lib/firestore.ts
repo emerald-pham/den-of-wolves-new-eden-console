@@ -3991,6 +3991,8 @@ export interface SessionStateHandlers {
   readonly onSessionFreshness?: (fresh: boolean) => void;
   /** Retain accepted server authority when an equivalent listener is restarted. */
   readonly sessionSnapshotAuthority?: SessionSnapshotAuthority;
+  /** Recheck this document's accepted join/resume identity before FIRST player initialization. */
+  readonly initialMemberActor?: () => Player | undefined;
   readonly onPlayer: (player: Player) => void;
   readonly onKicked: () => void;
   readonly onSeats: (seats: readonly Seat[]) => void;
@@ -4483,6 +4485,12 @@ export function subscribeSessionState(
             // not a lease change that should trigger ordinary resume recovery.
             const firstConfirmedPlayer = memberActorAvailable === undefined && player.role === 'player' &&
               memberSessionConfirmed && nextFingerprint === confirmedMemberActorFingerprint;
+            const initialActor = memberActorAvailable === undefined && memberActorEpoch === 0
+              ? handlers.initialMemberActor?.() : undefined;
+            const firstAcceptedPlayer = initialActor?.uid === uid && initialActor.sessionId === sessionId &&
+              initialActor.role === 'player' && player.role === 'player' && player.replacementRoleId == null &&
+              player.replacementStatus == null && player.escapeState == null &&
+              nextFingerprint === actorFingerprint(initialActor);
             if (memberActorFingerprint !== undefined) {
               pendingMemberDiscovery = undefined;
               rebindDiscovery = true;
@@ -4490,7 +4498,7 @@ export function subscribeSessionState(
             memberActorAvailable = true;
             memberSessionConfirmed = false;
             memberActorFingerprint = nextFingerprint;
-            if (!firstConfirmedPlayer) {
+            if (!firstConfirmedPlayer && !firstAcceptedPlayer) {
               memberActorEpoch += 1;
               handlers.onSessionFreshness?.(false);
             }
