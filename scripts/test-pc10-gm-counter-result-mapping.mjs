@@ -44,6 +44,15 @@ function locatorFor(nodes) {
       assert.equal(nodes.length, 1, 'Expected one source node before checking enablement.');
       return typeof nodes[0].enabled === 'function' ? nodes[0].enabled() : nodes[0].enabled !== false;
     },
+    locator(selector) {
+      const tagName = String(selector).toLowerCase();
+      return locatorFor(nodes.flatMap(node => descendants(node)).filter(node =>
+        node.tagName?.toLowerCase() === tagName));
+    },
+    async innerText() {
+      assert.equal(nodes.length, 1, 'Expected one mounted source node before reading visible text.');
+      return nodes[0].textContent ?? nodes[0].name;
+    },
     async click() {
       assert.equal(nodes.length, 1, 'Expected one mounted source control before click.');
       assert.equal(await locator.isVisible(), true);
@@ -57,8 +66,9 @@ function locatorFor(nodes) {
   return locator;
 }
 
-function element(role, name, { attributes = {}, children = [], enabled = true, click, textContent } = {}) {
-  return { role, name, attributes, children, enabled, click, textContent };
+function element(role, name, { attributes = {}, children = [], enabled = true, click, textContent,
+  tagName = role === 'listitem' ? 'LI' : role === 'strong' ? 'STRONG' : undefined } = {}) {
+  return { role, name, attributes, children, enabled, click, textContent, tagName };
 }
 
 function makeFixture() {
@@ -95,22 +105,47 @@ function makeFixture() {
       actions.push('write-mode');
     },
   });
-  const counter = (resourceId, label, direction) => element('button', direction + ' ' + label, {
+  const resourceRows = new Map();
+  const counter = (resourceId, label, direction, row, amountNode) => element('button', direction + ' ' + label, {
     enabled: () => writeMode && (direction === 'Increase' || state.shipResources.aegis[resourceId] > 0),
     click() {
       const step = direction === 'Increase' ? 1 : -1;
-      selected.counter = { resourceId, label, step, before: state.shipResources.aegis[resourceId] };
+      const beforeVisible = row.attributes['aria-label']?.match(/^.+: ([0-9,]+)$/)?.[1];
+      selected.counter = {
+        resourceId, label, step, before: state.shipResources.aegis[resourceId],
+        beforeVisibleAmount: Number(beforeVisible?.replaceAll(',', '')),
+        beforeRevision: state.vesselActionRevisions.aegis,
+        groupId: state.shipFleetGroupIds.aegis,
+        groupLabel: 'AEGIS resource controls',
+      };
       actions.push(direction + ':' + label);
       state.shipResources.aegis[resourceId] += step;
       state.vesselActionRevisions.aegis += 1;
+      const amount = String(state.shipResources.aegis[resourceId]);
+      row.name = label + ': ' + amount;
+      row.attributes['aria-label'] = row.name;
+      amountNode.name = amount;
+      amountNode.textContent = amount;
     },
   });
-  const resourceButtons = RESOURCE_LABELS.flatMap(([resourceId, label]) => [
-    counter(resourceId, label, 'Decrease'), counter(resourceId, label, 'Increase'),
-  ]);
+  const resourceRowElements = RESOURCE_LABELS.map(([resourceId, label]) => {
+    const amount = String(state.shipResources.aegis[resourceId]);
+    const row = element('listitem', label + ': ' + amount, {
+      attributes: { 'aria-label': label + ': ' + amount },
+    });
+    const amountNode = element('strong', amount, { textContent: amount });
+    const buttons = [counter(resourceId, label, 'Decrease', row, amountNode),
+      counter(resourceId, label, 'Increase', row, amountNode)];
+    row.children = [
+      element('generic', label, { textContent: label }),
+      element('generic', 'Strytium counter controls', { children: [buttons[0], amountNode, buttons[1]] }),
+    ];
+    resourceRows.set(resourceId, row);
+    return row;
+  });
   const group = element('group', 'AEGIS resource controls', {
     attributes: { 'aria-label': 'AEGIS resource controls' },
-    children: resourceButtons,
+    children: resourceRowElements,
   });
   const fleet = element('region', 'Fleet resource controls', {
     children: [
@@ -143,7 +178,7 @@ function makeFixture() {
     assert.equal(role, 'gm');
     return surface;
   } };
-  return { actions, actor, context, game, surface, state, selected };
+  return { actions, actor, context, game, lifecycle, surface, state, selected, resourceRows };
 }
 
 async function makePreparedCounter(fixture) {
@@ -164,6 +199,112 @@ async function makePreparedCounter(fixture) {
   return { recipe, planned, sourceBefore };
 }
 
+function fixtureCounterSourceWitness(fixture, sourceBefore, recipe) {
+  const selected = fixture.selected.counter;
+  const row = fixture.resourceRows.get(selected.resourceId);
+  const afterVisible = row.attributes['aria-label']?.match(/^.+: ([0-9,]+)$/)?.[1];
+  return {
+    kind: 'gm-counter-source-witness-v1',
+    sessionId: SESSION_ID,
+    instanceId: INSTANCE_ID,
+    uidHash: GM_UID_HASH,
+    claimedAt: CLAIMED_AT,
+    connectionGeneration: fixture.lifecycle.generation,
+    hydrationRevision: fixture.lifecycle.hydrationRevision,
+    phase: sourceBefore.phase,
+    cycle: sourceBefore.cycle,
+    shipId: recipe.expected.shipId,
+    groupId: selected.groupId,
+    groupLabel: selected.groupLabel,
+    resourceId: selected.resourceId,
+    resourceLabel: selected.label,
+    step: selected.step,
+    beforeAmount: sourceBefore.shipResources.aegis[selected.resourceId],
+    beforeVisibleAmount: selected.beforeVisibleAmount,
+    beforeRevision: selected.beforeRevision,
+    afterAmount: fixture.state.shipResources.aegis[selected.resourceId],
+    afterVisibleAmount: Number(afterVisible?.replaceAll(',', '')),
+    afterRevision: fixture.state.vesselActionRevisions.aegis,
+  };
+}
+
+function sourceRenderedCounterWitness(witness) {
+  const visible = witness.beforeAmount === witness.beforeVisibleAmount &&
+    witness.afterAmount === witness.afterVisibleAmount &&
+    witness.afterAmount === witness.beforeAmount + witness.step &&
+    witness.afterRevision === witness.beforeRevision + 1 &&
+    witness.shipId === 'aegis' && witness.groupId === 'native-fleet-7' &&
+    witness.resourceId === 'ore' && witness.resourceLabel === 'Strytium Ore';
+  return { visible, resultStatus: visible ? 'committed' : null };
+}
+
+async function makeCounterCapture() {
+  const fixture = makeFixture();
+  const { recipe, sourceBefore } = await makePreparedCounter(fixture);
+  const selected = fixture.selected.counter;
+  const requestId = 'native-gm-counter-one-step';
+  const request = {
+    sessionId: SESSION_ID,
+    instanceId: INSTANCE_ID,
+    shipId: recipe.expected.shipId,
+    counter: 'resource',
+    steps: [selected.step],
+    requestId,
+    expectedRevision: recipe.expected.sourceRevision,
+    resourceId: selected.resourceId,
+  };
+  const result = {
+    amount: selected.before + selected.step,
+    appliedSteps: [selected.step],
+    alertRaised: false,
+    sessionId: SESSION_ID,
+    instanceId: INSTANCE_ID,
+    shipId: recipe.expected.shipId,
+    counter: 'resource',
+    resourceId: selected.resourceId,
+    requestId,
+    expectedRevision: recipe.expected.sourceRevision,
+    actorUid: GM_UID,
+    actorRoleId: null,
+    vesselId: recipe.expected.shipId,
+    turn: recipe.expected.cycle,
+    phase: 'active',
+    revision: recipe.expected.sourceRevision + 1,
+    idempotencyKey: requestId,
+    auditId: 'counter-batch-' + requestId,
+  };
+  const inspected = await recipe.inspect({
+    surface: fixture.surface,
+    result,
+    request,
+    actorAfter: { ...fixture.actor },
+  });
+  const counterSourceWitness = fixtureCounterSourceWitness(fixture, sourceBefore, recipe);
+  const rendered = sourceRenderedCounterWitness(counterSourceWitness);
+  const proofInput = {
+    caseId: 'gm:applyShipCounterSteps',
+    expected: recipe.expected,
+    offered: true,
+    mountedUi: true,
+    actorBefore: { ...fixture.actor },
+    actorAfter: { ...fixture.actor },
+    sourceBefore: {
+      live: true, sessionId: SESSION_ID, cycle: sourceBefore.cycle,
+      revision: sourceBefore.vesselActionRevisions.aegis, groupId: sourceBefore.shipFleetGroupIds.aegis,
+    },
+    sourceAfter: inspected.sourceAfter,
+    counterSourceWitness,
+    request,
+    response: { httpStatus: 200, result, exactReplay: true },
+    replay: { status: 'committed', result: structuredClone(result) },
+    rendered,
+    trainingChoice: recipe.trainingChoice,
+    randomOutcomeForced: false,
+    randomOutcomeRecorded: false,
+  };
+  return { fixture, recipe, selected, request, result, inspected, counterSourceWitness, proofInput };
+}
+
 test('the statusless result fixture matches the current GM UI, service, and callable source contract', async () => {
   const gmUi = await readFile(new URL('../src/routes/GmConsole.tsx', import.meta.url), 'utf8');
   const service = await readFile(new URL('../src/lib/sessionService.ts', import.meta.url), 'utf8');
@@ -173,6 +314,8 @@ test('the statusless result fixture matches the current GM UI, service, and call
 
   assert.match(gmUi, /onClick=\{\(\) => stageCounterChange\(target, amount, -1\)\}/);
   assert.match(gmUi, /onClick=\{\(\) => stageCounterChange\(target, amount, 1\)\}/);
+  assert.match(gmUi, /aria-label=\{counter\.staged\?\.stale[\s\S]*?visibleAmount\}/);
+  assert.match(gmUi, /<strong>\{visibleAmount\}<\/strong>/);
   assert.match(service, /steps: \[\.\.\.steps\],\s*requestId: commandId\(\),\s*expectedRevision,/);
   assert.match(service, /counter: target\.counter,[\s\S]{0,160}resourceId: target\.resourceId/);
   assert.match(service, /actorRoleId: raw\.actorRoleId/);
@@ -189,90 +332,132 @@ test('the statusless result fixture matches the current GM UI, service, and call
   assert.match(batchSource, /return \{\s*amount: steps\.reduce[\s\S]*?appliedSteps: \[\.\.\.steps\],[\s\S]*?alertRaised: false,/);
 });
 
-test('the current default mounted recipe and statusless source receipt map to completed', async () => {
-  const fixture = makeFixture();
-  const { recipe, sourceBefore } = await makePreparedCounter(fixture);
+test('the default counter recipe binds the selected mounted counter and visible source result', async () => {
+  const { fixture, recipe, selected, inspected, counterSourceWitness, proofInput } = await makeCounterCapture();
   assert.deepEqual(fixture.actions, ['write-mode', 'Decrease:Strytium Ore']);
-  assert.deepEqual(fixture.selected.counter, { resourceId: 'ore', label: 'Strytium Ore', step: -1, before: 4 });
-
-  const requestId = 'native-gm-counter-one-step';
-  const { resourceId, step, before } = fixture.selected.counter;
-  const request = {
-    sessionId: SESSION_ID,
-    instanceId: INSTANCE_ID,
-    shipId: 'aegis',
-    counter: 'resource',
-    steps: [step],
-    requestId,
-    expectedRevision: recipe.expected.sourceRevision,
-    resourceId,
-  };
-  assert.equal(request.shipId, recipe.expected.shipId);
-  assert.equal(request.instanceId, recipe.expected.instanceId);
-  assert.equal(request.expectedRevision, recipe.expected.sourceRevision);
-
-  // Mirrors applyResourceSteps + the successful applyShipCounterSteps resource
-  // transaction's batchContext and vesselActionEnvelope. Success is statusless.
-  const result = {
-    amount: before + step,
-    appliedSteps: [step],
-    alertRaised: false,
-    sessionId: SESSION_ID,
-    instanceId: INSTANCE_ID,
-    shipId: 'aegis',
-    counter: 'resource',
-    resourceId,
-    requestId,
-    expectedRevision: recipe.expected.sourceRevision,
-    actorUid: GM_UID,
-    actorRoleId: null,
-    vesselId: recipe.expected.shipId,
-    turn: recipe.expected.cycle,
-    phase: 'active',
-    revision: recipe.expected.sourceRevision + 1,
-    idempotencyKey: requestId,
-    auditId: 'counter-batch-' + requestId,
-  };
-  assert.equal(Object.hasOwn(result, 'status'), false);
-  assert.deepEqual(Object.keys(result).sort(), [
+  assert.deepEqual(selected, {
+    resourceId: 'ore', label: 'Strytium Ore', step: -1, before: 4,
+    beforeVisibleAmount: 4, beforeRevision: 14, groupId: 'native-fleet-7',
+    groupLabel: 'AEGIS resource controls',
+  });
+  assert.equal(proofInput.request.shipId, recipe.expected.shipId);
+  assert.equal(proofInput.request.instanceId, recipe.expected.instanceId);
+  assert.equal(proofInput.request.expectedRevision, recipe.expected.sourceRevision);
+  assert.deepEqual(Object.keys(proofInput.response.result).sort(), [
     'actorRoleId', 'actorUid', 'alertRaised', 'amount', 'appliedSteps', 'auditId', 'counter',
     'expectedRevision', 'idempotencyKey', 'instanceId', 'phase', 'requestId', 'resourceId',
     'revision', 'sessionId', 'shipId', 'turn', 'vesselId',
   ]);
-
-  const inspected = await recipe.inspect({
-    surface: fixture.surface,
-    result,
-    request,
-    actorAfter: { ...fixture.actor },
-  });
+  assert.equal(Object.hasOwn(proofInput.response.result, 'status'), false);
   assert.deepEqual(inspected.sourceAfter, {
     live: true, sessionId: SESSION_ID, cycle: 1, revision: 15, groupId: 'native-fleet-7',
   });
-  assert.equal(inspected.rendered.resultStatus, 'committed');
-  assert.equal(inspected.rendered.visible, false,
-    'The real successful counter source currently has no status message that this fixture can render.');
+  assert.deepEqual(inspected.counterSourceWitness, counterSourceWitness);
+  assert.deepEqual(inspected.rendered, sourceRenderedCounterWitness(counterSourceWitness));
+});
 
-  const outcome = evaluateProcedureCapture({
-    caseId: 'gm:applyShipCounterSteps',
-    expected: recipe.expected,
-    offered: true,
-    mountedUi: true,
-    actorBefore: { ...fixture.actor },
-    actorAfter: { ...fixture.actor },
-    sourceBefore: {
-      live: true, sessionId: SESSION_ID, cycle: sourceBefore.cycle,
-      revision: sourceBefore.vesselActionRevisions.aegis, groupId: sourceBefore.shipFleetGroupIds.aegis,
-    },
-    sourceAfter: inspected.sourceAfter,
-    request,
-    response: { httpStatus: 200, result, exactReplay: true },
-    replay: { status: 'committed', result: structuredClone(result) },
-    rendered: inspected.rendered,
-    trainingChoice: recipe.trainingChoice,
-    randomOutcomeForced: false,
-    randomOutcomeRecorded: false,
-  });
+test('the source-shaped statusless one-step counter receipt is accepted only with its original mounted witness', async () => {
+  const { proofInput } = await makeCounterCapture();
+  const outcome = evaluateProcedureCapture(proofInput);
   assert.equal(outcome.status, 'completed',
     'A source-shaped successful one-step counter receipt remained pending: ' + JSON.stringify(outcome));
+});
+
+test('counter result negatives reject changed tuple, actor, revision, UI, and replay fields', async t => {
+  const { proofInput } = await makeCounterCapture();
+  const cases = [
+    ['request group is not a callable field', input => { input.request.groupId = 'native-fleet-7'; },
+      'captured-request-or-server-result-does-not-match-the-source-case'],
+    ['request session changes', input => { input.request.sessionId = 'foreign-session'; },
+      'captured-request-or-server-result-does-not-match-the-source-case'],
+    ['request GM instance changes', input => { input.request.instanceId = 'foreign-instance'; },
+      'captured-request-or-server-result-does-not-match-the-source-case'],
+    ['request vessel changes', input => { input.request.shipId = 'dione'; },
+      'captured-request-or-server-result-does-not-match-the-source-case'],
+    ['request counter changes', input => { input.request.counter = 'unrest'; },
+      'captured-request-or-server-result-does-not-match-the-source-case'],
+    ['request resource changes', input => { input.request.resourceId = 'water'; },
+      'captured-request-or-server-result-does-not-match-the-source-case'],
+    ['request selected step changes', input => { input.request.steps = [1]; },
+      'captured-request-or-server-result-does-not-match-the-source-case'],
+    ['request adds a second step', input => { input.request.steps = [-1, -1]; },
+      'captured-request-or-server-result-does-not-match-the-source-case'],
+    ['request expected revision changes', input => { input.request.expectedRevision += 1; },
+      'captured-request-or-server-result-does-not-match-the-source-case'],
+    ['statusful generic committed result cannot bypass the exact counter DTO', input => {
+      input.response.result.status = 'committed';
+    }, 'captured-request-or-server-result-does-not-match-the-source-case'],
+    ['result loses the actor UID and cannot fall back to role metadata', input => {
+      delete input.response.result.actorUid;
+    }, 'captured-request-or-server-result-does-not-match-the-source-case'],
+    ['result has a foreign actor UID', input => { input.response.result.actorUid = 'foreign-actor'; },
+      'captured-request-or-server-result-does-not-match-the-source-case'],
+    ['result actor role metadata is malformed', input => { input.response.result.actorRoleId = {}; },
+      'captured-request-or-server-result-does-not-match-the-source-case'],
+    ['result instance changes', input => { input.response.result.instanceId = 'foreign-instance'; },
+      'captured-request-or-server-result-does-not-match-the-source-case'],
+    ['result ship and vessel envelope diverge', input => { input.response.result.shipId = 'dione'; },
+      'captured-request-or-server-result-does-not-match-the-source-case'],
+    ['result resource changes', input => { input.response.result.resourceId = 'water'; },
+      'captured-request-or-server-result-does-not-match-the-source-case'],
+    ['result reports a different applied step array', input => { input.response.result.appliedSteps = [1]; },
+      'captured-request-or-server-result-does-not-match-the-source-case'],
+    ['result amount differs from the independent visible source amount', input => {
+      input.response.result.amount += 1;
+    }, 'captured-request-or-server-result-does-not-match-the-source-case'],
+    ['result revision is not the next source revision', input => {
+      input.response.result.revision += 1;
+    }, 'captured-request-or-server-result-does-not-match-the-source-case'],
+    ['result idempotency key changes', input => { input.response.result.idempotencyKey = 'other'; },
+      'captured-request-or-server-result-does-not-match-the-source-case'],
+    ['result audit identity changes', input => { input.response.result.auditId = 'counter-batch-other'; },
+      'captured-request-or-server-result-does-not-match-the-source-case'],
+    ['result turn changes', input => { input.response.result.turn += 1; },
+      'captured-request-or-server-result-does-not-match-the-source-case'],
+    ['result phase changes', input => { input.response.result.phase = 'briefing'; },
+      'captured-request-or-server-result-does-not-match-the-source-case'],
+    ['source counter witness is for another group', input => {
+      input.counterSourceWitness.groupId = 'foreign-group';
+    }, 'captured-request-or-server-result-does-not-match-the-source-case'],
+    ['source counter witness is for another resource label', input => {
+      input.counterSourceWitness.resourceLabel = 'Water';
+    }, 'captured-request-or-server-result-does-not-match-the-source-case'],
+    ['source counter witness loses original amount', input => {
+      input.counterSourceWitness.beforeAmount += 1;
+    }, 'captured-request-or-server-result-does-not-match-the-source-case'],
+    ['source counter witness current visible amount changes', input => {
+      input.counterSourceWitness.afterVisibleAmount += 1;
+    }, 'captured-request-or-server-result-does-not-match-the-source-case'],
+    ['source counter witness GM lifecycle generation changes', input => {
+      input.counterSourceWitness.connectionGeneration += 1;
+    }, 'captured-request-or-server-result-does-not-match-the-source-case'],
+    ['source counter witness hydration authority changes', input => {
+      input.counterSourceWitness.hydrationRevision += 1;
+    }, 'captured-request-or-server-result-does-not-match-the-source-case'],
+    ['mounted actor loses original GM instance ownership', input => {
+      input.actorAfter.gmInstanceOwned = false;
+    }, 'original-authenticated-role-or-mounted-control-not-current'],
+    ['mounted actor changes GM instance', input => {
+      input.actorAfter.instanceId = 'foreign-instance';
+    }, 'original-authenticated-role-or-mounted-control-not-current'],
+    ['live source changes selected ship group', input => {
+      input.sourceAfter.groupId = 'foreign-group';
+    }, 'live-source-cycle-revision-or-group-changed'],
+    ['exact SDK replay is missing', input => { input.response.exactReplay = false; },
+      'exact-original-sdk-retry-not-confirmed'],
+    ['exact SDK replay receipt differs', input => { input.replay.result.amount += 1; },
+      'exact-retry-receipt-differs'],
+    ['source-bound mounted counter value is not visible', input => {
+      input.rendered.visible = false;
+    }, 'current-result-not-visible-in-the-mounted-control'],
+  ];
+  for (const [name, mutate, reason] of cases) {
+    await t.test(name, () => {
+      const input = structuredClone(proofInput);
+      mutate(input);
+      const outcome = evaluateProcedureCapture(input);
+      assert.equal(outcome.status, 'pending', JSON.stringify(outcome));
+      assert.equal(outcome.reason, reason);
+    });
+  }
 });
