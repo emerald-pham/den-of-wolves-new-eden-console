@@ -77,20 +77,20 @@ add(C, 'rollHummingbirdHarvest', 'quellon-explorer', 'coordination', { mountedPa
 add(C, 'runHighwallMining', 'icebreaker-miner', 'coordination', { mountedPath: 'HighwallMining',
   requirement: 'current Icebreaker Miner, active Highwall docked to its proper host, eligible action phase and remaining operation capacity',
   costPolicy: 'server rolls Materials 1d6 or Ore 3d6; two operations, or three with fuelled Highwall, per cycle', randomOutcome: true });
+add(C, 'requestShuttleDeparture', 'current-shuttle-holder', 'coordination', { mountedPath: 'Shuttle departure panel',
+  requirement: 'current holder, enabled craft, source-accepted destination and live departure window; attack/movement blockers clear', sourceGroup: true });
 add(C, 'beginShuttleTransit', 'current-shuttle-holder', 'coordination', { mountedPath: 'Shuttle departure panel',
   requirement: 'exact live departure request, current craft holder, valid route/group and no source movement blocker', sourceGroup: true,
   unavailableReason: 'no valid source-accepted pending departure request exists' });
+add(C, 'retargetShuttleTransit', 'current-shuttle-holder', 'coordination', { mountedPath: 'Shuttle departure panel retarget control',
+  requirement: 'same current holder and original request-bound in-flight transit inside the source retarget window', sourceGroup: true,
+  unavailableReason: 'no valid in-flight source transit is inside the retarget window' });
 add(C, 'completeShuttleArrival', 'current-shuttle-holder', 'coordination', { mountedPath: 'Shuttle departure panel arrival control',
   requirement: 'server has naturally marked the exact current transit chain as arrived; same holder and request remain current',
   unavailableReason: 'no real transit has naturally reached server-arrived state', replayPolicy: 'single-shot' });
 add(C, 'evacuateShuttleSurvivorsCommand', 'current-shuttle-holder', 'coordination', { mountedPath: 'Survivor evacuation panel',
   requirement: 'current craft holder, valid destination, live Coordination and remaining cycle evacuation capacity', sourceGroup: true,
   costPolicy: 'move only currently projected survivors, bounded by source roster and five-thousand-per-cycle limit' });
-add(C, 'requestShuttleDeparture', 'current-shuttle-holder', 'coordination', { mountedPath: 'Shuttle departure panel',
-  requirement: 'current holder, enabled craft, source-accepted destination and live departure window; attack/movement blockers clear', sourceGroup: true });
-add(C, 'retargetShuttleTransit', 'current-shuttle-holder', 'coordination', { mountedPath: 'Shuttle departure panel retarget control',
-  requirement: 'same current holder and original request-bound in-flight transit inside the source retarget window', sourceGroup: true,
-  unavailableReason: 'no valid in-flight source transit is inside the retarget window' });
 add(C, 'transferShuttleCargoCommand', 'current-shuttle-holder', 'coordination', { mountedPath: 'Shuttle cargo transfer panel',
   requirement: 'same-group active player, current docking/host, live Coordination, positive currently affordable quantity and selected resource', sourceGroup: true,
   costPolicy: 'two-sided host/craft balances change by exactly the selected quantity; no resource creation' });
@@ -343,6 +343,7 @@ function validShuttleTransition(input, endpoint) {
     return exactKeys(before, movementKeys) && before.kind === 'shuttle-movement' && before.exists === true &&
       before.status === 'in-transit' && before.sessionId === expected.sessionId && before.shuttleId === expected.shuttleId &&
       before.holderUidHash === expected.uidHash && before.groupId === expected.groupId &&
+      (expected.departureRequestId === undefined || before.requestId === expected.departureRequestId) &&
       before.transitRequestId === expected.transitRequestId && before.controlRevision === expected.controlRevision &&
       before.cycle === expected.cycle && Number.isSafeInteger(before.revision) && before.revision >= 1 &&
       exactKeys(after, movementKeys) && after.kind === 'shuttle-movement' && after.exists === true &&
@@ -366,6 +367,160 @@ function validShuttleTransition(input, endpoint) {
       typeof result.arrivesAt === 'string' && Number.isFinite(Date.parse(result.arrivesAt));
   }
   return false;
+}
+
+function validShuttleArrivalCapture(input, expected) {
+  const arrival = input.arrival;
+  const ready = arrival?.readyControl;
+  const before = arrival?.before;
+  const beforeProjection = arrival?.beforeProjection;
+  const afterProjection = arrival?.afterProjection;
+  const request = input.request;
+  const response = input.response;
+  const result = response?.result;
+  const transitRequestId = expected.transitRequestId;
+  const shuttleId = expected.shuttleId;
+  const destinationShipId = expected.destinationShipId;
+  const baseProjectionKeys = ['kind', 'live', 'sessionId', 'cycle', 'phase', 'turn', 'progression',
+    'airspaceState', 'pressAccess', 'timerPaused', 'holderUidHash', 'controlRevision',
+    'holderGroupId', 'destinationGroupId', 'destinationActive', 'resourceBalances'];
+  const beforeProjectionKeys = [...baseProjectionKeys, 'dockingCount'];
+  const afterProjectionKeys = [...baseProjectionKeys, 'movementAbsent', 'dockings', 'visits', 'observedAt'];
+  const dockingKeys = ['shuttleId', 'shipId', 'dockedAt'];
+  const visitKeys = ['id', 'shuttleId', 'shipId', 'action', 'occurredAt'];
+  const movementKeys = ['kind', 'status', 'sessionId', 'departureRequestId', 'transitRequestId',
+    'shuttleId', 'holderUidHash', 'groupId', 'destinationShipId', 'controlRevision', 'cycle',
+    'transitRevision', 'requestedAt', 'departedAt', 'arrivesAt'];
+  const requestKeys = ['sessionId', 'shuttleId', 'transitRequestId', 'expectedControlRevision'];
+  const resultKeys = ['status', 'sessionId', 'requestId', 'transitRequestId', 'shuttleId',
+    'hostShipId', 'arrivedAt', 'transitRevision'];
+  const priorWitnessKeys = ['status', 'endpoint', 'sessionId', 'roleId', 'uidHash', 'shuttleId', 'groupId',
+    'cycle', 'controlRevision', 'departureRequestId', 'transitRequestId', 'destinationShipId', 'transitRevision'];
+  const balanceKeys = ['host', 'shuttle'];
+  const inventoryKeys = ['ore', 'fuel', 'food', 'water', 'materials', 'securityTeams', 'scrap'];
+  const sourceKeys = ['live', 'sessionId', 'cycle', 'phase', 'groupId'];
+  const coordinationIsManual = projection => projection?.phase === 'active' &&
+    projection.progression === 'manual' && projection.timerPaused === false &&
+    projection.turn === projection.cycle &&
+    (projection.airspaceState === 'lifted' ||
+      shuttleId === 'snn-press-shuttle' && projection.pressAccess === true);
+  const validInstant = value => typeof value === 'string' && Number.isFinite(Date.parse(value));
+  const validInventory = value => exactKeys(value, Object.keys(value ?? {})) &&
+    Object.keys(value).every(key => inventoryKeys.includes(key)) &&
+    Object.values(value).every(amount => Number.isSafeInteger(amount) && amount >= 0);
+
+  if (input.mountedUi !== true || typeof expected.roleId !== 'string' ||
+      !matchesActor(input.actorBefore, expected, false) || !matchesActor(input.actorAfter, expected, false) ||
+      !exactKeys(arrival, arrival?.captureMode === 'automatic-source-effect'
+        ? ['captureMode', 'priorWitness', 'automaticObservation', 'before', 'beforeProjection', 'afterProjection']
+        : ['readyControl', 'priorWitness', 'before', 'beforeProjection', 'afterProjection']) ||
+      !exactKeys(arrival.priorWitness, priorWitnessKeys) || arrival.priorWitness.status !== 'completed' ||
+      arrival.priorWitness.endpoint !== 'retargetShuttleTransit' ||
+      arrival.priorWitness.sessionId !== expected.sessionId || arrival.priorWitness.roleId !== expected.roleId ||
+      arrival.priorWitness.uidHash !== expected.uidHash || arrival.priorWitness.shuttleId !== shuttleId ||
+      arrival.priorWitness.groupId !== expected.groupId || arrival.priorWitness.cycle !== expected.cycle ||
+      arrival.priorWitness.controlRevision !== expected.controlRevision ||
+      arrival.priorWitness.departureRequestId !== expected.departureRequestId ||
+      arrival.priorWitness.transitRequestId !== transitRequestId ||
+      arrival.priorWitness.destinationShipId !== destinationShipId ||
+      arrival.priorWitness.transitRevision !== expected.transitRevision ||
+      !exactKeys(input.sourceBefore, sourceKeys) || !exactKeys(input.sourceAfter, sourceKeys) ||
+      input.sourceBefore.live !== true || input.sourceAfter.live !== true ||
+      input.sourceBefore.sessionId !== expected.sessionId || input.sourceAfter.sessionId !== expected.sessionId ||
+      input.sourceBefore.cycle !== expected.cycle || input.sourceAfter.cycle !== expected.cycle ||
+      input.sourceBefore.phase !== 'active' || input.sourceAfter.phase !== 'active' ||
+      input.sourceBefore.groupId !== expected.groupId || input.sourceAfter.groupId !== expected.groupId ||
+      (arrival.captureMode === 'automatic-source-effect'
+        ? !exactKeys(arrival.automaticObservation, ['kind', 'panel', 'armedAt', 'arrivesAt', 'remainingMs', 'responseObservedAt']) ||
+          arrival.automaticObservation.kind !== 'source-useEffect' ||
+          arrival.automaticObservation.panel !== 'Shuttle departure' ||
+          !validInstant(arrival.automaticObservation.armedAt) ||
+          arrival.automaticObservation.arrivesAt !== before?.arrivesAt ||
+          !Number.isSafeInteger(arrival.automaticObservation.remainingMs) ||
+          arrival.automaticObservation.remainingMs < 1 || arrival.automaticObservation.remainingMs > 35_000 ||
+          Date.parse(arrival.automaticObservation.arrivesAt) <= Date.parse(arrival.automaticObservation.armedAt) ||
+          Math.abs(Date.parse(arrival.automaticObservation.arrivesAt) -
+            Date.parse(arrival.automaticObservation.armedAt) - arrival.automaticObservation.remainingMs) > 1_000 ||
+          !validInstant(arrival.automaticObservation.responseObservedAt) ||
+          Date.parse(arrival.automaticObservation.responseObservedAt) < Date.parse(before?.arrivesAt ?? '')
+        : !exactKeys(ready, ['panel', 'label', 'visible', 'enabled', 'sessionId', 'cycle', 'transitRequestId', 'observedAt']) ||
+          ready.panel !== 'Shuttle departure' || ready.label !== 'Complete arrival' ||
+          ready.visible !== true || ready.enabled !== true || ready.sessionId !== expected.sessionId ||
+          ready.cycle !== expected.cycle || ready.transitRequestId !== transitRequestId || !validInstant(ready.observedAt)) ||
+      !exactKeys(before, movementKeys) || before.kind !== 'shuttle-arrival-before' ||
+      before.status !== 'in-transit' || before.sessionId !== expected.sessionId ||
+      typeof before.departureRequestId !== 'string' || !before.departureRequestId ||
+      before.departureRequestId !== expected.departureRequestId ||
+      before.transitRequestId !== transitRequestId || before.shuttleId !== shuttleId ||
+      before.holderUidHash !== expected.uidHash || before.groupId !== expected.groupId ||
+      before.destinationShipId !== destinationShipId || before.controlRevision !== expected.controlRevision ||
+      before.cycle !== expected.cycle || before.transitRevision !== expected.transitRevision ||
+      !Number.isSafeInteger(before.transitRevision) || before.transitRevision < 1 ||
+      !validInstant(before.requestedAt) || !validInstant(before.departedAt) || !validInstant(before.arrivesAt) ||
+      Date.parse(before.requestedAt) > Date.parse(before.departedAt) ||
+      Date.parse(before.arrivesAt) - Date.parse(before.departedAt) !== 60_000 ||
+      arrival.captureMode !== 'automatic-source-effect' && Date.parse(ready.observedAt) < Date.parse(before.arrivesAt) ||
+      !exactKeys(beforeProjection, beforeProjectionKeys) || beforeProjection.kind !== 'shuttle-arrival-projection' ||
+      beforeProjection.live !== true || beforeProjection.sessionId !== expected.sessionId ||
+      beforeProjection.cycle !== expected.cycle || beforeProjection.holderUidHash !== expected.uidHash ||
+      beforeProjection.controlRevision !== expected.controlRevision || beforeProjection.holderGroupId !== expected.groupId ||
+      beforeProjection.destinationGroupId !== expected.groupId || beforeProjection.destinationActive !== true ||
+      beforeProjection.dockingCount !== 0 || !coordinationIsManual(beforeProjection) ||
+      !exactKeys(request, requestKeys) || request.sessionId !== expected.sessionId ||
+      request.shuttleId !== shuttleId || request.transitRequestId !== transitRequestId ||
+      request.expectedControlRevision !== expected.controlRevision ||
+      response?.httpStatus !== 200 || !exactKeys(response, ['httpStatus', 'exactReplay', 'result']) ||
+      response.exactReplay !== false || input.replay !== null ||
+      !exactKeys(result, resultKeys) || result.status !== 'arrived' || result.sessionId !== expected.sessionId ||
+      result.requestId !== `arrival-${transitRequestId}` || result.transitRequestId !== transitRequestId ||
+      result.shuttleId !== shuttleId || result.hostShipId !== destinationShipId ||
+      result.transitRevision !== before.transitRevision || !validInstant(result.arrivedAt) ||
+      Date.parse(result.arrivedAt) < Date.parse(before.arrivesAt) ||
+      !exactKeys(afterProjection, afterProjectionKeys) || afterProjection.kind !== 'shuttle-arrival-projection' ||
+      afterProjection.live !== true || afterProjection.sessionId !== expected.sessionId ||
+      afterProjection.cycle !== expected.cycle || afterProjection.holderUidHash !== expected.uidHash ||
+      afterProjection.controlRevision !== expected.controlRevision || afterProjection.holderGroupId !== expected.groupId ||
+      afterProjection.destinationGroupId !== expected.groupId || afterProjection.destinationActive !== true ||
+      afterProjection.movementAbsent !== true || !coordinationIsManual(afterProjection) ||
+      afterProjection.phase !== beforeProjection.phase || afterProjection.turn !== beforeProjection.turn ||
+      afterProjection.progression !== beforeProjection.progression ||
+      afterProjection.airspaceState !== beforeProjection.airspaceState ||
+      afterProjection.pressAccess !== beforeProjection.pressAccess ||
+      !exactKeys(afterProjection.resourceBalances, balanceKeys) ||
+      !exactKeys(beforeProjection.resourceBalances, balanceKeys) ||
+      !validInventory(beforeProjection.resourceBalances.host) ||
+      !validInventory(beforeProjection.resourceBalances.shuttle) ||
+      !validInventory(afterProjection.resourceBalances.host) ||
+      !validInventory(afterProjection.resourceBalances.shuttle) ||
+      !exactKeys(afterProjection.resourceBalances.host, Object.keys(beforeProjection.resourceBalances.host)) ||
+      !exactKeys(afterProjection.resourceBalances.shuttle, Object.keys(beforeProjection.resourceBalances.shuttle)) ||
+      JSON.stringify(afterProjection.resourceBalances) !== JSON.stringify(beforeProjection.resourceBalances) ||
+      !validInstant(afterProjection.observedAt) || Date.parse(afterProjection.observedAt) < Date.parse(before.arrivesAt) ||
+      !Array.isArray(afterProjection.dockings) || afterProjection.dockings.length !== 1 ||
+      !exactKeys(afterProjection.dockings[0], dockingKeys) ||
+      afterProjection.dockings[0].shuttleId !== shuttleId ||
+      afterProjection.dockings[0].shipId !== destinationShipId ||
+      afterProjection.dockings[0].dockedAt !== result.arrivedAt ||
+      !Array.isArray(afterProjection.visits) || afterProjection.visits.length !== 2 ||
+      afterProjection.visits.some(visit => !exactKeys(visit, visitKeys) || visit.shuttleId !== shuttleId ||
+        !validInstant(visit.occurredAt)) ||
+      afterProjection.visits.filter(visit => visit.id === `shuttle-arrival-${transitRequestId}-departed` &&
+        visit.action === 'departed' && visit.shipId !== destinationShipId &&
+        Date.parse(visit.occurredAt) >= Date.parse(before.requestedAt) &&
+        Date.parse(visit.occurredAt) <= Date.parse(before.departedAt)).length !== 1 ||
+      afterProjection.visits.filter(visit => visit.id === `shuttle-arrival-${transitRequestId}-docked` &&
+        visit.action === 'docked' && visit.shipId === destinationShipId && visit.occurredAt === result.arrivedAt).length !== 1 ||
+      input.rendered?.visible !== true || input.rendered.resultStatus !== 'arrived') {
+    return pending(CASE_BY_ID.get('core:completeShuttleArrival'),
+      'single-shot-arrival-does-not-match-the-live-holder-transit-ready-control-and-source-docking');
+  }
+  return {
+    status: 'completed', caseId: 'core:completeShuttleArrival', family: 'pending-core-craft-actions',
+    endpoint: 'completeShuttleArrival', actorRoleId: expected.roleId, cycle: expected.cycle,
+    actorHash: hash(input.actorBefore.uidHash), requestFingerprint: hash(request),
+    arrivalMode: arrival.captureMode ?? 'manual-control',
+    exactSdkRetry: 'not-claimed', randomOutcomeRecorded: false, rendered: 'arrived',
+  };
 }
 
 function exactReplayMatches(input, result) {
@@ -579,6 +734,7 @@ export function evaluateProcedureCapture(input) {
     'authorFacilitatorRuleCall'].includes(spec.endpoint)) {
     return evaluateMountedGmCapture(spec, input, expected);
   }
+  if (spec.endpoint === 'completeShuttleArrival') return validShuttleArrivalCapture(input, expected);
   const revisionlessSourceReceipt = ['requestShuttleDeparture', 'transferShuttleCargoCommand', 'beginShuttleTransit']
     .includes(spec.endpoint) && validShuttleTransition(input, spec.endpoint);
   if (spec.endpoint === 'evacuateShuttleSurvivorsCommand' && !validShuttleTransition(input, spec.endpoint)) {
@@ -658,6 +814,13 @@ export function evaluateProcedureCapture(input) {
     status: 'completed', caseId: spec.id, family: spec.family, endpoint: spec.endpoint,
     actorRoleId: expected.roleId, cycle: expected.cycle, revision: input.sourceAfter.revision,
     actorHash: hash(input.actorBefore.uidHash), requestFingerprint: hash(input.request),
+    ...(spec.endpoint === 'retargetShuttleTransit' ? { shuttleArrivalWitness: {
+      status: 'completed', endpoint: 'retargetShuttleTransit', sessionId: expected.sessionId,
+      roleId: expected.roleId, uidHash: expected.uidHash, shuttleId: expected.shuttleId,
+      groupId: expected.groupId, cycle: expected.cycle, controlRevision: expected.controlRevision,
+      departureRequestId: input.transitionBefore.requestId, transitRequestId: expected.transitRequestId,
+      destinationShipId: expected.destinationShipId, transitRevision: input.transitionAfter.revision,
+    } } : {}),
     exactSdkRetry: spec.replayPolicy === 'exact-request-id' ? 'same-original-request-receipt-confirmed' : 'not-claimed',
     ...(input.cost ? { cost: { resource: input.cost.resource, amount: input.cost.amount, direction: input.cost.direction } } : {}),
     ...(trainingChoice ? { trainingChoice } : {}),
@@ -763,7 +926,9 @@ export async function captureMountedProcedureAction({ context, game, caseId, exp
   const groupId = expected?.groupId ?? (expected?.shipId
     ? sourceBefore.shipFleetGroupIds?.[expected.shipId] : undefined);
   const sourceBeforeProof = { live: sourceBefore.live, sessionId: sourceBefore.sessionId,
-    cycle: sourceBefore.cycle, revision: sourceRevision, ...(groupId ? { groupId } : {}) };
+    cycle: sourceBefore.cycle, phase: sourceBefore.phase,
+    ...(spec.endpoint !== 'completeShuttleArrival' ? { revision: sourceRevision } : {}),
+    ...(groupId ? { groupId } : {}) };
   let preClickActionRequest = false;
   const beforeMountedClick = request => {
     try {
@@ -782,15 +947,18 @@ export async function captureMountedProcedureAction({ context, game, caseId, exp
     surface.page.off('request', beforeMountedClick);
   }
   if (preClickActionRequest) return pending(spec, 'matching-action-callable-post-preceded-the-mounted-control-click');
-  if (action?.offered !== true || typeof action.click !== 'function') {
+  if (action?.offered !== true || typeof action.click !== 'function' && typeof action.observe !== 'function') {
     return pending(spec, action?.reason ?? spec.unavailableReason);
   }
   const displayedCost = action.cost ?? null;
   const result = await observeUiReceipt({
     waitForResponse: () => surface.page.waitForResponse(response => response.request().method() === 'POST' &&
       new URL(response.url()).pathname.endsWith(`/us-central1/${spec.endpoint}`), { timeout: remaining() }),
-    choose: action.click,
+    choose: action.observe ?? action.click,
   });
+  if (action.arrival?.captureMode === 'automatic-source-effect') {
+    action.arrival.automaticObservation.responseObservedAt = new Date().toISOString();
+  }
   let body;
   try { body = await result.json(); } catch { body = null; }
   const request = result.request().postDataJSON()?.data;
@@ -813,9 +981,11 @@ export async function captureMountedProcedureAction({ context, game, caseId, exp
     sourceBefore, request, result: actualResult, replay: replay?.result ?? null });
   if (certifiedGm) await observeCaptureActor(surface);
   const sourceAfter = observed?.sourceAfter;
-  const proofInput = { caseId, expected: { ...normalizedExpected, cycle: sourceBefore.cycle,
-    sourceRevision, groupId, cost: action.expectedCost ?? normalizedExpected.cost,
-    distinctConsent: action.distinctConsent ?? normalizedExpected.distinctConsent },
+  const capturedExpected = { ...normalizedExpected, cycle: sourceBefore.cycle,
+    ...(spec.endpoint !== 'completeShuttleArrival' ? { sourceRevision } : {}),
+    groupId, cost: action.expectedCost ?? normalizedExpected.cost,
+    distinctConsent: action.distinctConsent ?? normalizedExpected.distinctConsent };
+  const proofInput = { caseId, expected: capturedExpected,
   offered: true, mountedUi: true, actorBefore, actorAfter,
   sourceBefore: sourceBeforeProof, sourceAfter,
   transitionBefore: action.transitionBefore, transitionAfter: observed?.transitionAfter,
@@ -823,6 +993,9 @@ export async function captureMountedProcedureAction({ context, game, caseId, exp
   rendered: observed?.rendered, cost: observed?.cost ?? displayedCost, consent: observed?.consent,
   sourceSpecificBefore: observed?.sourceSpecificBefore, beforeProjection: observed?.beforeProjection,
   afterReload: observed?.afterReload, restore: observed?.restore,
+  ...(spec.endpoint === 'completeShuttleArrival' ? { arrival: {
+    ...action.arrival, afterProjection: observed?.arrivalAfter,
+  } } : {}),
   cleanupGrant: observed?.cleanupGrant,
   trainingChoice, randomOutcomeForced: false, randomOutcomeRecorded: false };
   if (deferEvaluation) {
@@ -835,8 +1008,11 @@ export async function captureMountedProcedureAction({ context, game, caseId, exp
   return proof;
 }
 
-async function runCasesAtCheckpoint({ family, cases, checkpoint, context, steps, gameFactory, directory }) {
-  const game = gameFactory(context), selected = cases.filter(spec => spec.checkpoint === checkpoint);
+async function runCasesAtCheckpoint({ family, cases, checkpoint, context, steps, gameFactory, directory,
+  onlyCaseIds, evidenceSuffix }) {
+  const allowedCases = onlyCaseIds ? new Set(onlyCaseIds) : null;
+  const game = gameFactory(context), selected = cases.filter(spec => spec.checkpoint === checkpoint &&
+    (!allowedCases || allowedCases.has(spec.id)));
   const evidence = { schemaVersion: 1, family, checkpoint, sourceCommit: context.sourceCommit ?? null,
     humanPhysicalProof: false, adminGameplayWrites: false, acceleratedClock: false,
     privateTextPersisted: false, sourceRandomnessForced: false,
@@ -929,7 +1105,7 @@ async function runCasesAtCheckpoint({ family, cases, checkpoint, context, steps,
   if (directory) {
     await mkdir(directory, { recursive: true });
     const name = family === C ? 'pending-core-craft-actions' : 'pending-gm-rulings-counters';
-    await writeFile(resolve(directory, `${name}-${checkpoint}.json`), `${JSON.stringify(evidence, null, 2)}\n`);
+    await writeFile(resolve(directory, `${name}-${evidenceSuffix ?? checkpoint}.json`), `${JSON.stringify(evidence, null, 2)}\n`);
   }
   return { ...summary, evidence };
 }
@@ -938,8 +1114,16 @@ async function runCasesAtCheckpoint({ family, cases, checkpoint, context, steps,
 export function createPendingCoreCraftActionsCallback({ steps = {}, gameFactory = createTwoBrowserGameplay } = {}) {
   const run = checkpoint => context => runCasesAtCheckpoint({ family: C, cases: CORE_CRAFT_PROCEDURES,
     checkpoint, context, steps, gameFactory, directory: context.directory });
+  const runSourceTimedArrival = context => runCasesAtCheckpoint({ family: C, cases: CORE_CRAFT_PROCEDURES,
+    checkpoint: 'coordination', onlyCaseIds: ['core:completeShuttleArrival'], evidenceSuffix: 'shuttle-arrival-ready',
+    context, steps, gameFactory, directory: context.directory });
+  const runAutomaticSourceArrival = context => runCasesAtCheckpoint({ family: C, cases: CORE_CRAFT_PROCEDURES,
+    checkpoint: 'coordination', onlyCaseIds: ['core:completeShuttleArrival'], evidenceSuffix: 'shuttle-arrival-automatic',
+    context: { ...context, shuttleArrivalCaptureMode: 'automatic-source-effect' }, steps, gameFactory,
+    directory: context.directory });
   return Object.freeze({ onStarted: run('team'), onCoordination: run('coordination'),
-    beforeMissionDeal: run('before-mission-deal'), afterWolf: run('after-wolf') });
+    beforeMissionDeal: run('before-mission-deal'), afterWolf: run('after-wolf'),
+    onShuttleArrivalReady: runSourceTimedArrival, onShuttleAutoArrivalArmed: runAutomaticSourceArrival });
 }
 
 /** Prestart facilitator setup and source-offered live rulings/counters; this never owns the root runner's phases. */

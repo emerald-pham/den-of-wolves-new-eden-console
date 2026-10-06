@@ -17,9 +17,9 @@ export const BASE_PENDING_PROCEDURE_SOURCE_BINDING = Object.freeze({
   baseRunnerPath: '/tmp/dow-pc10-evidence/proof-draft/pc10-base-gameplay.mjs',
   baseRunnerSha256: 'd3ce4d1cf80316943fa27e4f7bb0d09e4de41aa95948012e09765efda7b6d040',
   procedureProofPath: 'scripts/pc10-pending-procedure-ui-proof.mjs',
-  procedureProofSha256: '6b1501667f2a657064c9ab34a5919b46cfc56911cde239789d5bc28a9a6332a1',
+  procedureProofSha256: 'b74fce5dafcee7709ceb7be7d3ad71c8c9e5b75bb0ae9d15d9e552e3040f8f64',
   procedureRecipesPath: 'scripts/pc10-pending-procedure-ui-recipes.mjs',
-  procedureRecipesSha256: '0f3c5e9a521eccda97469678d90fb53bb30062041915e8e03079c929f6d896db',
+  procedureRecipesSha256: 'f73315071d8eeea57de5e95a5a60c1182bff3d49236d19de0bcff6398e45630e',
 });
 
 /**
@@ -42,6 +42,24 @@ export const BASE_PENDING_PROCEDURE_PLACEMENTS = Object.freeze([
     before: 'the naturally offered opening Wolf attack',
     hooks: Object.freeze(['core.onCoordination']),
     caseIds: Object.freeze(CORE_CRAFT_PROCEDURES.filter(row => row.checkpoint === 'coordination').map(row => row.id)),
+  }),
+  Object.freeze({
+    stage: 'cycle-1-source-timed-shuttle-auto-arrival-observer-armed',
+    sourceAnchor: 'ShuttleControl.tsx source arrival timer and automatic completion effect',
+    after: 'the same manual Cycle 1 Coordination has the original retargeted transit with 1–35 seconds remaining',
+    before: 'the natural source arrivesAt and automatic useEffect callable response',
+    hooks: Object.freeze(['core.onShuttleAutoArrivalArmed']),
+    caseIds: Object.freeze(['core:completeShuttleArrival']),
+    note: 'After the natural wait outside capture, this arrival-only flow arms the existing browser response observer before arrivesAt and makes no click or callable retry. It accepts only the ordinary current holder useEffect response and exact arrived projection; a missed or prior response stays pending. Use this separately named automatic flow or the manual ready-control flow, never both for one transit.',
+  }),
+  Object.freeze({
+    stage: 'cycle-1-source-timed-shuttle-arrival-ready',
+    sourceAnchor: 'the mounted Shuttle departure panel and its current source-projected arrivesAt',
+    after: 'the same manual Cycle 1 Coordination reaches the natural retargeted arrival time and the current holder sees the enabled Complete arrival control',
+    before: 'the root-owned manual advance to Cycle 2',
+    hooks: Object.freeze(['core.onShuttleArrivalReady']),
+    caseIds: Object.freeze(['core:completeShuttleArrival']),
+    note: 'Carry the completed Retarget proof shuttleArrivalWitness through context.shuttleArrivalWitness. The root waits on the actual current mounted ready control and source time, then invokes this arrival-only hook once; it does not rerun other Coordination mutations or retry the SDK call.',
   }),
   Object.freeze({
     stage: 'cycle-1-after-wolf',
@@ -266,6 +284,8 @@ export function createBasePendingProcedureCallbacks({
     onCycle1Started: combine('cycle-1-started-after-supplies', gm.onStarted, core.onStarted),
     onCycle1Maintenance: invoke(gm.onMaintenance, 'cycle-1-after-six-paid-maintenance'),
     onCycle1Coordination: cycle1Coordination,
+    onShuttleAutoArrivalArmed: invoke(core.onShuttleAutoArrivalArmed, 'shuttle-auto-arrival-observer-armed'),
+    onShuttleArrivalReady: invoke(core.onShuttleArrivalReady, 'shuttle-arrival-ready'),
     onCycle1AfterWolf: invoke(core.afterWolf, 'cycle-1-after-wolf'),
     onCycle2Maintenance: invoke(gm.onMaintenance, 'cycle-2-after-six-paid-maintenance'),
     onCycle2Coordination: invoke(core.onCoordination, 'cycle-2-coordination'),

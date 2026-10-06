@@ -6,6 +6,7 @@ import { observeLifecycleActor, inspectLifecycleObserverMount, recordLifecycleAf
 import { assertOriginalActor, assertLateReplyAuthority } from './pc10-member-gm-lifecycle-contracts.mjs';
 
 const RESOURCE_COSTS = Object.freeze({ food: 6, water: 6, ore: 6, fuel: 6, materials: 3 });
+const ARRIVAL_RESOURCE_IDS = Object.freeze(['ore', 'fuel', 'food', 'water', 'materials', 'securityTeams', 'scrap']);
 const SHIP_FOR_ROLE = Object.freeze({
   'quellon-explorer': 'quellon', 'icebreaker-miner': 'icebreaker',
   'icebreaker-engineer': 'icebreaker', 'refinery-124-engineer': 'refinery-124',
@@ -21,9 +22,6 @@ const REPAIR_PANELS = Object.freeze({
 });
 const UNVERIFIABLE_GM_CHOICES = new Set([
   'setFacilitatorResponsibility', 'setGmControlsLocked', 'setCandidatePlanCheckpoint',
-]);
-const UNVERIFIABLE_SHUTTLE_RECEIPTS = new Set([
-  'completeShuttleArrival',
 ]);
 const GM_GRANT_LIFECYCLE = new WeakMap();
 const CERTIFIED_GM_RECIPES = new Set(['setGmShipConsoleWriteGrant', 'setShipConsoleLock',
@@ -51,6 +49,7 @@ async function readActionState(surface) {
     return {
       live: current.connection === 'live' && current.sessionSnapshotFreshness === 'server',
       sessionId: session.id, cycle: session.currentTurn, phase: session.phase, turnPhase: session.turnPhase,
+      holderGroupId: session.playerDiscovery?.groupId,
       activeVesselIds: session.activeVesselIds, activeRoleIds: session.activeRoleIds,
       shipResources: session.shipResources, shipDamage: session.shipDamage,
       shipSurvivors: session.shipSurvivors, shipMutinies: session.shipMutinies,
@@ -131,18 +130,26 @@ async function readShuttleMovement(surface, sessionId, shuttleId) {
       'currentPosition', 'destinationPosition', 'velocity', 'departedAt', 'arrivesAt'];
     const allowed = raw?.status === 'requested' ? requestKeys : raw?.status === 'in-transit' ? transitKeys : [];
     if (!isRecord(raw) || !allowed.length || Object.keys(raw).some(key => !allowed.includes(key)) ||
-        raw.shuttleId !== shuttleId || typeof raw.requestId !== 'string' ||
-        typeof raw.holderUid !== 'string' || typeof raw.fleetGroupId !== 'string' ||
+        raw.shuttleId !== shuttleId || typeof raw.requestId !== 'string' || !raw.requestId ||
+        typeof raw.holderUid !== 'string' || !raw.holderUid ||
+        typeof raw.fleetGroupId !== 'string' || !raw.fleetGroupId ||
         typeof raw.destinationShipId !== 'string' || !Number.isSafeInteger(raw.cycle) ||
-        !Number.isSafeInteger(raw.controlRevision) || typeof raw.requestedAt !== 'string') return undefined;
+        raw.cycle < 1 || !Number.isSafeInteger(raw.controlRevision) || raw.controlRevision < 0 ||
+        typeof raw.requestedAt !== 'string' || !Number.isFinite(Date.parse(raw.requestedAt))) return undefined;
     const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(raw.holderUid));
     const holderUidHash = [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, '0')).join('').slice(0, 16);
     const projection = { status: raw.status, requestId: raw.requestId, shuttleId: raw.shuttleId,
       holderUidHash, groupId: raw.fleetGroupId, destinationShipId: raw.destinationShipId,
       controlRevision: raw.controlRevision, cycle: raw.cycle };
     if (raw.status === 'in-transit') {
-      if (typeof raw.transitRequestId !== 'string' || !Number.isSafeInteger(raw.revision)) return undefined;
-      return { ...projection, transitRequestId: raw.transitRequestId, revision: raw.revision };
+      if (typeof raw.transitRequestId !== 'string' || !raw.transitRequestId ||
+          !Number.isSafeInteger(raw.revision) || raw.revision < 1) return undefined;
+      if (typeof raw.departedAt !== 'string' || typeof raw.arrivesAt !== 'string' ||
+          !Number.isFinite(Date.parse(raw.departedAt)) || !Number.isFinite(Date.parse(raw.arrivesAt)) ||
+          Date.parse(raw.requestedAt) > Date.parse(raw.departedAt) ||
+          Date.parse(raw.arrivesAt) - Date.parse(raw.departedAt) !== 60_000) return undefined;
+      return { ...projection, transitRequestId: raw.transitRequestId, revision: raw.revision,
+        requestedAt: raw.requestedAt, departedAt: raw.departedAt, arrivesAt: raw.arrivesAt };
     }
     return projection;
   }, { moduleUrl: surface.storeModuleUrl(), sessionId, shuttleId });
@@ -170,6 +177,115 @@ function shuttleMovementWitness(sessionId, shuttleId, holderUidHash, groupId, co
     shuttleId, holderUidHash: movement.holderUidHash, groupId: movement.groupId,
     destinationShipId: movement.destinationShipId, controlRevision: movement.controlRevision,
     cycle: movement.cycle, ...(Number.isSafeInteger(movement.revision) ? { revision: movement.revision } : {}) };
+}
+
+function shuttleArrivalBefore(sessionId, shuttleId, holderUidHash, movement) {
+  if (!movement || movement.status !== 'in-transit') return null;
+  return { kind: 'shuttle-arrival-before', status: movement.status, sessionId,
+    departureRequestId: movement.requestId, transitRequestId: movement.transitRequestId,
+    shuttleId, holderUidHash: movement.holderUidHash, groupId: movement.groupId,
+    destinationShipId: movement.destinationShipId, controlRevision: movement.controlRevision,
+    cycle: movement.cycle, transitRevision: movement.revision, requestedAt: movement.requestedAt,
+    departedAt: movement.departedAt, arrivesAt: movement.arrivesAt };
+}
+
+function arrivalInventory(value, absentAllowed) {
+  if (value === undefined && absentAllowed) return {};
+  if (!value || typeof value !== 'object' || Array.isArray(value) ||
+      Object.keys(value).some(key => !ARRIVAL_RESOURCE_IDS.includes(key)) ||
+      Object.values(value).some(amount => !Number.isSafeInteger(amount) || amount < 0)) return null;
+  return Object.fromEntries(ARRIVAL_RESOURCE_IDS.filter(key => Object.hasOwn(value, key))
+    .map(key => [key, value[key]]));
+}
+
+function shuttleArrivalBalances(state, before) {
+  return {
+    host: arrivalInventory(state?.shipResources?.[before.destinationShipId], false),
+    shuttle: arrivalInventory(state?.shuttleCargo?.[before.shuttleId], true),
+  };
+}
+
+const SHUTTLE_ARRIVAL_WITNESS_KEYS = Object.freeze(['status', 'endpoint', 'sessionId', 'roleId', 'uidHash',
+  'shuttleId', 'groupId', 'cycle', 'controlRevision', 'departureRequestId', 'transitRequestId',
+  'destinationShipId', 'transitRevision']);
+
+function validShuttleArrivalWitness(witness) {
+  return witness && typeof witness === 'object' && !Array.isArray(witness) &&
+    Object.keys(witness).length === SHUTTLE_ARRIVAL_WITNESS_KEYS.length &&
+    Object.keys(witness).every(key => SHUTTLE_ARRIVAL_WITNESS_KEYS.includes(key)) &&
+    witness.status === 'completed' && witness.endpoint === 'retargetShuttleTransit' &&
+    typeof witness.sessionId === 'string' && typeof witness.roleId === 'string' &&
+    typeof witness.uidHash === 'string' && /^[0-9a-f]{16}$/.test(witness.uidHash) &&
+    typeof witness.shuttleId === 'string' && typeof witness.groupId === 'string' &&
+    Number.isSafeInteger(witness.cycle) && witness.cycle >= 1 &&
+    Number.isSafeInteger(witness.controlRevision) && witness.controlRevision >= 0 &&
+    typeof witness.departureRequestId === 'string' && witness.departureRequestId.length > 0 &&
+    typeof witness.transitRequestId === 'string' && witness.transitRequestId.length > 0 &&
+    typeof witness.destinationShipId === 'string' &&
+    Number.isSafeInteger(witness.transitRevision) && witness.transitRevision >= 1;
+}
+
+function priorWitnessMatchesTransit(witness, state, movement, sessionId, shuttleId, holderUidHash, roleId) {
+  return validShuttleArrivalWitness(witness) && witness.sessionId === sessionId &&
+    witness.roleId === roleId && witness.uidHash === holderUidHash && witness.shuttleId === shuttleId &&
+    witness.groupId === state?.holderGroupId && witness.cycle === state?.cycle &&
+    witness.controlRevision === state?.shuttleControl?.[shuttleId]?.revision &&
+    witness.departureRequestId === movement?.requestId &&
+    witness.transitRequestId === movement?.transitRequestId &&
+    witness.destinationShipId === movement?.destinationShipId &&
+    witness.transitRevision === movement?.revision &&
+    witness.groupId === state?.shipFleetGroupIds?.[movement?.destinationShipId];
+}
+
+function shuttleArrivalProjection(state, before, { movementAbsent = false, observedAt } = {}) {
+  const control = state?.shuttleControl?.[before.shuttleId];
+  const dockings = state?.shuttleDockings?.filter(row => row.shuttleId === before.shuttleId) ?? [];
+  const visitIds = new Set([
+    `shuttle-arrival-${before.transitRequestId}-departed`,
+    `shuttle-arrival-${before.transitRequestId}-docked`,
+  ]);
+  const projection = {
+    kind: 'shuttle-arrival-projection', live: state?.live === true,
+    sessionId: state?.sessionId, cycle: state?.cycle, phase: state?.phase,
+    turn: state?.turnPhase?.turn, progression: state?.turnPhase?.progression ?? null,
+    airspaceState: state?.turnPhase?.airspace?.state ?? null,
+    pressAccess: state?.turnPhase?.airspace?.pressAccess ?? null,
+    timerPaused: state?.turnPhase?.timerPause !== undefined,
+    holderUidHash: hashUid(control?.holderUid), controlRevision: control?.revision,
+    holderGroupId: state?.holderGroupId ?? null,
+    destinationGroupId: state?.shipFleetGroupIds?.[before.destinationShipId] ?? null,
+    destinationActive: state?.activeVesselIds?.includes(before.destinationShipId) === true,
+    resourceBalances: shuttleArrivalBalances(state, before),
+  };
+  if (!movementAbsent) return { ...projection, dockingCount: dockings.length };
+  return { ...projection, movementAbsent: movementAbsent === true,
+    dockings: dockings.map(row => ({ ...row })),
+    visits: (state?.shuttleVisitLog ?? []).filter(row => visitIds.has(row.id)).map(row => ({ ...row })),
+    observedAt };
+}
+
+function sourceTimedArrivalReady(state, movement, sessionId, shuttleId, holderUidHash, roleId, priorWitness,
+  { armAutomatic = false } = {}) {
+  const before = shuttleArrivalBefore(sessionId, shuttleId, holderUidHash, movement);
+  const control = state?.shuttleControl?.[shuttleId];
+  const arrivalsAt = Date.parse(before?.arrivesAt ?? '');
+  const observedAtMs = Date.now();
+  const remainingMs = arrivalsAt - observedAtMs;
+  const manualCoordination = state?.phase === 'active' && state?.live === true &&
+    state.sessionId === sessionId && state.cycle === movement?.cycle &&
+    state.turnPhase?.turn === state.cycle && state.turnPhase?.progression === 'manual' &&
+    state.turnPhase?.timerPause === undefined &&
+    (state.turnPhase?.airspace?.state === 'lifted' ||
+      shuttleId === 'snn-press-shuttle' && state.turnPhase?.airspace?.pressAccess === true);
+  if (!before || !isRevision(control?.revision) || control.shuttleId !== shuttleId ||
+      hashUid(control.holderUid) !== holderUidHash || control.revision !== before.controlRevision ||
+      !priorWitnessMatchesTransit(priorWitness, state, movement, sessionId, shuttleId, holderUidHash, roleId) ||
+      before.holderUidHash !== holderUidHash || before.groupId !== state.shipFleetGroupIds?.[before.destinationShipId] ||
+      !state.activeVesselIds?.includes(before.destinationShipId) ||
+      (state.shuttleDockings?.filter(row => row.shuttleId === shuttleId) ?? []).length !== 0 ||
+      !manualCoordination || !Number.isFinite(arrivalsAt) ||
+      (armAutomatic ? remainingMs <= 0 || remainingMs > 35_000 : remainingMs > 0)) return null;
+  return { before, beforeProjection: shuttleArrivalProjection(state, before), arrivalsAt, observedAtMs, remainingMs };
 }
 
 function shuttleCargoWitness(sessionId, cycle, shuttleId, holderUidHash, groupId, controlRevision,
@@ -207,6 +323,7 @@ function resultRevision(result) {
 
 function revisionFor(endpoint, state, target, auxiliary) {
   if (endpoint === 'setGmShipConsoleWriteGrant') return undefined;
+  if (endpoint === 'completeShuttleArrival') return undefined;
   if (endpoint === 'setFacilitatorCensusNote') return state?.gmLoyaltyCensus?.revision;
   if (endpoint === 'authorFacilitatorRuleCall') return state?.gmFacilitatorRuleCall?.revision ?? 0;
   if (endpoint === 'chooseBoaMissionReclamationOpportunity') {
@@ -236,6 +353,7 @@ function revisionFor(endpoint, state, target, auxiliary) {
 
 function afterRevision(endpoint, state, target, result, auxiliary) {
   if (endpoint === 'setGmShipConsoleWriteGrant') return undefined;
+  if (endpoint === 'completeShuttleArrival') return undefined;
   if (endpoint === 'setFacilitatorCensusNote') return state?.gmLoyaltyCensus?.revision;
   if (endpoint === 'authorFacilitatorRuleCall') return state?.gmFacilitatorRuleCall?.revision;
   if (endpoint === 'chooseBoaMissionReclamationOpportunity') {
@@ -300,6 +418,7 @@ export async function positiveRenderedStatus(surface, endpoint, result) {
     rollbackMaintenance: /rollback|rolled back|maintenance/i,
     requestShuttleDeparture: /departure requested/i,
     beginShuttleTransit: /transit begun|in transit/i,
+    completeShuttleArrival: /shuttle arrived at /i,
     retargetShuttleTransit: /course changed|retarget/i,
     transferShuttleCargoCommand: /loaded|unloaded|cargo transfer/i,
     transferShuttleControlCommand: /handed off|reclaimed/i,
@@ -574,7 +693,6 @@ async function planFor({ spec, surface, actor, state, context, target, gmOperati
     return { offered: true, click: () => actual.click() };
   };
   if (UNVERIFIABLE_GM_CHOICES.has(endpoint)) return block('requires an explicit live GM-authored choice and a source receipt not safely verifiable by this finite recipe');
-  if (UNVERIFIABLE_SHUTTLE_RECEIPTS.has(endpoint)) return block('the current UI reply/projection has no source-bound monotonic receipt this validator can verify; no movement or cargo mutation is attempted');
   let originalGm;
   if (CERTIFIED_GM_RECIPES.has(endpoint)) {
     try {
@@ -961,6 +1079,7 @@ async function planFor({ spec, surface, actor, state, context, target, gmOperati
           transit.controlRevision !== state.shuttleControl?.[target.shuttleId]?.revision || transit.cycle !== state.cycle) {
         return block('the in-flight transit no longer matches current holder, group, cycle, and custody');
       }
+      target.departureRequestId = transit.requestId;
       target.transitRequestId = transit.transitRequestId;
       target.movementRevision = transit.revision;
       const select = panel.getByLabel('New destination ship', { exact: true });
@@ -979,7 +1098,78 @@ async function planFor({ spec, surface, actor, state, context, target, gmOperati
         await action.click();
       } };
     }
-    if (endpoint === 'completeShuttleArrival') return block('arrival is a source-timed single-shot action; no exact SDK replay is claimed by this finite recipe');
+    if (endpoint === 'completeShuttleArrival') {
+      const automatic = context.shuttleArrivalCaptureMode === 'automatic-source-effect';
+      const readiness = sourceTimedArrivalReady(state, target.movementBefore, context.initial.sessionId,
+        target.shuttleId, actor.uidHash, actor.activeConsoleRoleId, context.shuttleArrivalWitness,
+        { armAutomatic: automatic });
+      if (!readiness) return block('the live manual Coordination projection, current holder, transit chain, destination group, or source arrival timing is not ready');
+      if (automatic) {
+        const completeCount = await panel.getByRole('button', { name: 'Complete arrival', exact: true }).count();
+        const retryCount = await panel.getByRole('button', { name: 'Retry arrival', exact: true }).count();
+        if (completeCount !== 0 || retryCount !== 0) {
+          return block('the automatic arrival observer must arm before the source exposes a manual or retry control');
+        }
+        target.departureRequestId = readiness.before.departureRequestId;
+        target.transitRequestId = readiness.before.transitRequestId;
+        target.destinationShipId = readiness.before.destinationShipId;
+        target.movementRevision = readiness.before.transitRevision;
+        const automaticObservation = { kind: 'source-useEffect', panel: 'Shuttle departure',
+          armedAt: new Date(readiness.observedAtMs).toISOString(), arrivesAt: readiness.before.arrivesAt,
+          remainingMs: readiness.remainingMs, responseObservedAt: null };
+        const arrival = { captureMode: 'automatic-source-effect', priorWitness: context.shuttleArrivalWitness,
+          automaticObservation, before: readiness.before, beforeProjection: readiness.beforeProjection };
+        target.arrival = arrival;
+        return { offered: true, arrival, observe: async () => {
+          const latest = await readActionState(surface);
+          const current = await readShuttleMovement(surface, context.initial.sessionId, target.shuttleId);
+          const latestReadiness = sourceTimedArrivalReady(latest, current, context.initial.sessionId,
+            target.shuttleId, actor.uidHash, actor.activeConsoleRoleId, context.shuttleArrivalWitness,
+            { armAutomatic: true });
+          const latestActor = await surface.observe();
+          const currentCompleteCount = await panel.getByRole('button', { name: 'Complete arrival', exact: true }).count();
+          const currentRetryCount = await panel.getByRole('button', { name: 'Retry arrival', exact: true }).count();
+          if (!latestReadiness || JSON.stringify(latestReadiness.before) !== JSON.stringify(readiness.before) ||
+              JSON.stringify(latestReadiness.beforeProjection) !== JSON.stringify(readiness.beforeProjection) ||
+              currentCompleteCount !== 0 || currentRetryCount !== 0 || latestActor.uidHash !== actor.uidHash ||
+              latestActor.sessionId !== state.sessionId || latestActor.activeConsoleRoleId !== actor.activeConsoleRoleId) {
+            throw new Error('The automatic source-arrival observer lost the original holder, transit, group, cycle, or pre-arrival window before arming.');
+          }
+          automaticObservation.armedAt = new Date(latestReadiness.observedAtMs).toISOString();
+          automaticObservation.remainingMs = latestReadiness.remainingMs;
+        } };
+      }
+      const retryCount = await panel.getByRole('button', { name: 'Retry arrival', exact: true }).count();
+      if (retryCount !== 0) return block('the mounted shuttle arrival control is a retry; this single-shot proof does not repeat it');
+      const action = await one(panel.getByRole('button', { name: 'Complete arrival', exact: true }));
+      if (!action) return block('the actual source-timed Complete arrival control is not visible and enabled');
+      target.departureRequestId = readiness.before.departureRequestId;
+      target.transitRequestId = readiness.before.transitRequestId;
+      target.destinationShipId = readiness.before.destinationShipId;
+      target.movementRevision = readiness.before.transitRevision;
+      const arrival = { readyControl: { panel: 'Shuttle departure', label: 'Complete arrival',
+        visible: true, enabled: true, sessionId: state.sessionId, cycle: state.cycle,
+        transitRequestId: readiness.before.transitRequestId, observedAt: new Date().toISOString() },
+      priorWitness: context.shuttleArrivalWitness,
+      before: readiness.before, beforeProjection: readiness.beforeProjection };
+      target.arrival = arrival;
+      return { offered: true, arrival, click: async () => {
+        const latest = await readActionState(surface);
+        const current = await readShuttleMovement(surface, context.initial.sessionId, target.shuttleId);
+        const latestReadiness = sourceTimedArrivalReady(latest, current, context.initial.sessionId,
+          target.shuttleId, actor.uidHash, actor.activeConsoleRoleId, context.shuttleArrivalWitness);
+        const latestActor = await surface.observe();
+        const currentRetryCount = await panel.getByRole('button', { name: 'Retry arrival', exact: true }).count();
+        const currentAction = await one(panel.getByRole('button', { name: 'Complete arrival', exact: true }));
+        if (!latestReadiness || JSON.stringify(latestReadiness.before) !== JSON.stringify(readiness.before) ||
+            JSON.stringify(latestReadiness.beforeProjection) !== JSON.stringify(readiness.beforeProjection) ||
+            currentRetryCount !== 0 || !currentAction || latestActor.uidHash !== actor.uidHash ||
+            latestActor.sessionId !== state.sessionId || latestActor.activeConsoleRoleId !== actor.activeConsoleRoleId) {
+          throw new Error('The source arrival chain, holder, group, cycle, manual Coordination, or ready control changed before the mounted arrival.');
+        }
+        await currentAction.click();
+      } };
+    }
   }
 
   if (endpoint === 'transferShuttleCargoCommand') {
@@ -1367,6 +1557,13 @@ async function recipeFor({ context, game, spec }) {
     const controlRevision = state.shuttleControl?.[resolved.target.shuttleId]?.revision;
     if (isRevision(controlRevision)) expected.controlRevision = controlRevision;
   }
+  if (spec.endpoint === 'completeShuttleArrival' && validShuttleArrivalWitness(context.shuttleArrivalWitness)) {
+    expected.groupId = context.shuttleArrivalWitness.groupId;
+    expected.departureRequestId = context.shuttleArrivalWitness.departureRequestId;
+    expected.transitRequestId = context.shuttleArrivalWitness.transitRequestId;
+    expected.destinationShipId = context.shuttleArrivalWitness.destinationShipId;
+    expected.transitRevision = context.shuttleArrivalWitness.transitRevision;
+  }
   if (resolved.target.hostShipId) expected.groupId = state.shipFleetGroupIds?.[resolved.target.hostShipId];
   let auxiliary = null;
   if (spec.endpoint === 'rollHummingbirdHarvest' || spec.endpoint === 'allocateHummingbirdHarvest') auxiliary = await readHarvest(initialSurface).catch(() => null);
@@ -1409,7 +1606,8 @@ async function recipeFor({ context, game, spec }) {
         return { offered: false, reason: 'the selected original account or current role changed before the mounted action' };
       if (source.cycle !== state.cycle || source.phase !== 'active') return { offered: false, reason: 'the active phase changed before the mounted action' };
       if (expected.shuttleId && currentActor.activeConsoleRoleId !== roleId) return { offered: false, reason: 'the original current shuttle-holder console is no longer active' };
-      if (!isRevision(expected.sourceRevision) && spec.endpoint !== 'setGmShipConsoleWriteGrant') {
+      if (!isRevision(expected.sourceRevision) && spec.endpoint !== 'setGmShipConsoleWriteGrant' &&
+          spec.endpoint !== 'completeShuttleArrival') {
         return { offered: false, reason: 'the exact source revision is not safely readable for this case' };
       }
       const latest = await readActionState(surface);
@@ -1444,6 +1642,20 @@ async function recipeFor({ context, game, spec }) {
           return { offered: false, reason: 'source shuttle movement changed before the mounted action' };
         }
       }
+      if (spec.endpoint === 'completeShuttleArrival') {
+        const armAutomatic = context.shuttleArrivalCaptureMode === 'automatic-source-effect';
+        const movement = await readShuttleMovement(surface, expected.sessionId, resolved.target.shuttleId).catch(() => undefined);
+        const readiness = sourceTimedArrivalReady(latest, movement, expected.sessionId,
+          resolved.target.shuttleId, uidHash, roleId, context.shuttleArrivalWitness, { armAutomatic });
+        const panel = surface.page.getByRole('region', { name: 'Shuttle departure', exact: true });
+        const retryCount = await panel.getByRole('button', { name: 'Retry arrival', exact: true }).count();
+        const completeCount = await panel.getByRole('button', { name: 'Complete arrival', exact: true }).count();
+        if (!readiness || JSON.stringify(readiness.before) !== JSON.stringify(preparedPlan.arrival?.before) ||
+            JSON.stringify(readiness.beforeProjection) !== JSON.stringify(preparedPlan.arrival?.beforeProjection) ||
+            retryCount !== 0 || armAutomatic && completeCount !== 0) {
+          return { offered: false, reason: 'the actual source-timed holder, transit, Coordination window, or single-shot ready control changed before arrival' };
+        }
+      }
       if (!preparedPlan.offered) return preparedPlan;
       return preparedPlan;
     },
@@ -1452,6 +1664,17 @@ async function recipeFor({ context, game, spec }) {
         return inspectMountedGmControl({ context, surface, request, result, spec, expected, target: resolved.target, gmOperation });
       }
       const latest = await readActionState(surface);
+      if (spec.endpoint === 'completeShuttleArrival') {
+        const movementAfter = await readShuttleMovement(surface, expected.sessionId, resolved.target.shuttleId).catch(() => undefined);
+        const arrivalAfter = shuttleArrivalProjection(latest, resolved.target.arrival.before,
+          { movementAbsent: movementAfter === null, observedAt: new Date().toISOString() });
+        return {
+          sourceAfter: { live: latest?.live === true, sessionId: latest?.sessionId,
+            cycle: latest?.cycle, phase: latest?.phase, groupId: latest?.holderGroupId },
+          rendered: await positiveRenderedStatus(surface, spec.endpoint, result),
+          arrivalAfter,
+        };
+      }
       let movementAfter;
       if (['requestShuttleDeparture', 'beginShuttleTransit', 'retargetShuttleTransit'].includes(spec.endpoint)) {
         movementAfter = await readShuttleMovement(surface, expected.sessionId, resolved.target.shuttleId).catch(() => undefined);
