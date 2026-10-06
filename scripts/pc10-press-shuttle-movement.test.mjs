@@ -271,7 +271,8 @@ test('serialized member reader emits strict Press-only source authority without 
     'discoveryVesselsHash', 'shuttleAuthorized'].sort(), 'Press authority keeps its explicit compact schema');
   assert.deepEqual(state.pressGroupAuthority, { groupId: GROUP_ID,
     fleetGroupVesselIds: ['aegis', 'dione', 'icebreaker'], revision: 12 });
-  assert.doesNotMatch(JSON.stringify(state), new RegExp(UID));
+  assert.doesNotMatch(JSON.stringify(authority), new RegExp(UID),
+    'the Press authority serializes only a UID hash; the shared session projection retains its existing control shape');
 
   const drifts = [
     { me: { activeConsoleRoleId: 'icebreaker-miner' } },
@@ -351,6 +352,7 @@ test('Press Begin and Retarget use only the exact preceding witness on the origi
   const beginRecipe = await createPendingProcedureDefaultSteps()['core:beginShuttleTransit']({
     ...beginHarness, context: { ...beginHarness.context, pressShuttleDepartureWitness: departure },
   });
+  assert.equal(beginRecipe.expected.sourceRevision, 7, 'Begin binds the current SNN control revision');
   const beginPlan = await beginRecipe.prepare({ surface: beginHarness.surface, actor: pressActor(),
     source: { cycle: 3, phase: 'active' } });
   assert.equal(beginPlan.offered, true, beginPlan.reason);
@@ -366,7 +368,8 @@ test('Press Begin and Retarget use only the exact preceding witness on the origi
     controlRevision: origin.controlRevision, cycle: origin.cycle, revision: priorTransit.transitRevision,
     requestedAt: priorTransit.requestedAt, departedAt: priorTransit.departedAt,
     arrivesAt: priorTransit.arrivesAt };
-  const retargetHarness = pressRecipeHarness({ state: current, origin, movement: inFlight });
+  const retargetState = memberStore({ session: { shuttleDockings: [] } });
+  const retargetHarness = pressRecipeHarness({ state: retargetState, origin, movement: inFlight });
   const retargetRecipe = await createPendingProcedureDefaultSteps()['core:retargetShuttleTransit']({
     ...retargetHarness, context: { ...retargetHarness.context,
       pressShuttleDepartureWitness: departure, pressShuttleTransitWitness: priorTransit },
@@ -571,7 +574,7 @@ function pressArrivalInput(retargetWitness) {
     pressActiveVesselIdsAfter: ['aegis', 'dione', 'icebreaker'],
     sourceBefore: { live: true, sessionId: SESSION_ID, cycle: 3, phase: 'active', groupId: GROUP_ID },
     sourceAfter: { live: true, sessionId: SESSION_ID, cycle: 3, phase: 'active', groupId: GROUP_ID },
-    request: { sessionId: SESSION_ID, requestId: 'arrival-transit-1', shuttleId: PRESS_SHUTTLE_ID,
+    request: { sessionId: SESSION_ID, shuttleId: PRESS_SHUTTLE_ID,
       transitRequestId: 'transit-1', expectedControlRevision: 7 },
     response: { httpStatus: 200, result, exactReplay: false }, replay: null,
     rendered: { visible: true, resultStatus: 'arrived' },
