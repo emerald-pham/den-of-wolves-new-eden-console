@@ -2207,13 +2207,20 @@ async function planFor({ spec, surface, actor, state, context, target, gmOperati
     const dockings = state.shuttleDockings?.filter(row => row.shuttleId === target.shuttleId) ?? [];
     if (dockings.length === 1) target.hostShipId = dockings[0].shipId;
     if (endpoint === 'requestShuttleDeparture') {
-      if (!currentMemberShuttleScopeMatches(state, target.shuttleId, originGroupId,
-        { hostShipId: target.hostShipId })) return block('the current member scope does not prove the original same-group docked host');
+      if (target.shuttleId === PRESS_SHUTTLE_ID
+        ? expectedGroup(state, target) !== originGroupId
+        : !currentMemberShuttleScopeMatches(state, target.shuttleId, originGroupId,
+          { hostShipId: target.hostShipId })) {
+        return block(target.shuttleId === PRESS_SHUTTLE_ID
+          ? 'the original fleet group conflicts with the current docked host'
+          : 'the current member scope does not prove the original same-group docked host');
+      }
       if (target.movementBefore !== null) return block('a server departure or transit is already recorded for this shuttle');
       const select = panel.getByLabel('Destination ship', { exact: true });
       const option = await selectActualOption(select, candidate => candidate.offered && candidate.enabled &&
-        candidate.value !== target.hostShipId && currentMemberShuttleScopeMatches(state, target.shuttleId,
-          originGroupId, { hostShipId: target.hostShipId, destinationShipId: candidate.value }));
+        candidate.value !== target.hostShipId && (target.shuttleId === PRESS_SHUTTLE_ID ||
+          currentMemberShuttleScopeMatches(state, target.shuttleId, originGroupId,
+            { hostShipId: target.hostShipId, destinationShipId: candidate.value })));
       if (!option) return block('no same-group destination is currently offered for this docked craft');
       target.destinationShipId = option.value;
       const action = await one(panel.getByRole('button', { name: 'Request departure', exact: true }));
@@ -3029,7 +3036,8 @@ async function recipeFor({ context, game, spec }) {
     expected.pressOriginAuthority = pressOrigin;
     expected.sourceAuthority = context.pressShuttleArrivalWitness.sourceAuthority;
   }
-  if (resolved.target.hostShipId) expected.groupId = spec.endpoint === 'requestShuttleDeparture'
+  if (resolved.target.hostShipId) expected.groupId = spec.endpoint === 'requestShuttleDeparture' &&
+    resolved.target.shuttleId !== PRESS_SHUTTLE_ID
     ? currentMemberShuttleScopeMatches(state, resolved.target.shuttleId,
       context.shuttleOriginAuthority?.groupId, { hostShipId: resolved.target.hostShipId,
         destinationShipId: resolved.target.destinationShipId }) ? state.currentMemberScope.groupId : undefined
@@ -3039,7 +3047,8 @@ async function recipeFor({ context, game, spec }) {
   if (spec.endpoint === 'chooseBoaMissionReclamationOpportunity') auxiliary = await readBoaWorkspace(initialSurface, context.initial.sessionId).catch(() => null);
   const initialPlan = await planFor({ spec, surface: initialSurface, actor, state, context, target: resolved.target, gmOperation });
   if (resolved.target.shipId && expected.shipId === undefined) expected.shipId = resolved.target.shipId;
-  if (resolved.target.hostShipId) expected.groupId = spec.endpoint === 'requestShuttleDeparture'
+  if (resolved.target.hostShipId) expected.groupId = spec.endpoint === 'requestShuttleDeparture' &&
+    resolved.target.shuttleId !== PRESS_SHUTTLE_ID
     ? currentMemberShuttleScopeMatches(state, resolved.target.shuttleId,
       context.shuttleOriginAuthority?.groupId, { hostShipId: resolved.target.hostShipId,
         destinationShipId: resolved.target.destinationShipId }) ? state.currentMemberScope.groupId : undefined
