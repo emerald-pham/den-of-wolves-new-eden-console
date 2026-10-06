@@ -30,7 +30,12 @@ function shuttleArrivalWitness() {
   return { status: 'completed', endpoint: 'retargetShuttleTransit', sessionId: SESSION,
     roleId: 'quellon-explorer', uidHash: UID_HASH, shuttleId: 'starlight', groupId: 'fleet-1',
     cycle: 2, controlRevision: 4, departureRequestId: 'departure-1', transitRequestId: 'transit-1',
-    destinationShipId: 'icebreaker', transitRevision: 2 };
+    destinationShipId: 'icebreaker', transitRevision: 2, sourceAuthority: currentDocumentAuthority() };
+}
+
+function shuttleOriginAuthority(sourceAuthority = currentDocumentAuthority()) {
+  return { sessionId: SESSION, uidHash: UID_HASH, shuttleId: 'starlight', groupId: 'fleet-1',
+    cycle: 2, controlRevision: 4, sourceAuthority };
 }
 
 function validArrivalCapture() {
@@ -47,7 +52,8 @@ function validArrivalCapture() {
     caseId: 'core:completeShuttleArrival',
     expected: { sessionId: SESSION, uidHash: UID_HASH, roleId: 'quellon-explorer', cycle: 2,
       groupId: 'fleet-1', shuttleId, controlRevision: 4, departureRequestId: 'departure-1',
-      transitRequestId, destinationShipId, transitRevision },
+      transitRequestId, destinationShipId, transitRevision, sourceAuthority: currentDocumentAuthority() },
+    originAuthority: shuttleOriginAuthority(),
     offered: true,
     mountedUi: true,
     actorBefore: ACTOR,
@@ -56,6 +62,7 @@ function validArrivalCapture() {
     sourceAfter: { live: true, sessionId: SESSION, cycle: 2, phase: 'active', groupId: 'fleet-1' },
     arrival: {
       priorWitness: shuttleArrivalWitness(),
+      authorityBefore: currentDocumentAuthority(), authorityAfter: currentDocumentAuthority(),
       readyControl: { panel: 'Shuttle departure', label: 'Complete arrival', visible: true,
         enabled: true, sessionId: SESSION, cycle: 2, transitRequestId,
         observedAt: new Date(now - 250).toISOString() },
@@ -114,7 +121,9 @@ function validRetargetCapture() {
     expected: { sessionId: SESSION, uidHash: UID_HASH, roleId: witness.roleId, cycle: witness.cycle,
       groupId: witness.groupId, shuttleId: witness.shuttleId, controlRevision: witness.controlRevision,
       departureRequestId: witness.departureRequestId, transitRequestId: witness.transitRequestId,
-      destinationShipId: witness.destinationShipId, sourceRevision: 1 },
+      destinationShipId: witness.destinationShipId, sourceRevision: 1, sourceAuthority: witness.sourceAuthority },
+    originAuthority: shuttleOriginAuthority(witness.sourceAuthority),
+    sourceAuthorityBefore: witness.sourceAuthority, sourceAuthorityAfter: witness.sourceAuthority,
     offered: true, mountedUi: true, actorBefore: ACTOR, actorAfter: ACTOR,
     sourceBefore: { live: true, sessionId: SESSION, cycle: witness.cycle, phase: 'active', revision: 1, groupId: witness.groupId },
     sourceAfter: { live: true, sessionId: SESSION, cycle: witness.cycle, phase: 'active', revision: witness.transitRevision, groupId: witness.groupId },
@@ -148,7 +157,7 @@ function makeMountedRetargetHarness({ originOverrides = {}, currentAuthorityOver
     ] }), selectOption: async () => {} };
   const panel = { getByLabel: () => select, getByRole: () => action };
   const page = { url: () => 'http://localhost:5174/#/shuttles/starlight',
-    evaluate: async (_fn, input) => input && typeof input === 'object'
+    evaluate: async (_fn, input) => input && typeof input === 'object' && input.sessionId
       ? structuredClone(movement) : structuredClone(state),
     getByRole: (role, options = {}) => role === 'region' && options.name === 'Shuttle departure'
       ? panel : action };
@@ -241,7 +250,7 @@ function makeMountedArrivalHarness({ retryCount = 0, completeCount = 1, complete
     url: () => 'http://localhost:5174/#/shuttles/starlight',
     on: (event, listener) => { if (event === 'request') requestListeners.add(listener); },
     off: (event, listener) => { if (event === 'request') requestListeners.delete(listener); },
-    evaluate: async (_fn, input) => input && typeof input === 'object'
+    evaluate: async (_fn, input) => input && typeof input === 'object' && input.sessionId
       ? structuredClone(movement)
       : structuredClone(state),
     getByRole: (role, options = {}) => role === 'region' && options.name === 'Shuttle departure'
@@ -286,7 +295,7 @@ function makeMountedArrivalHarness({ retryCount = 0, completeCount = 1, complete
   };
   const player = { page, storeModuleUrl: () => '/src/store/useSessionStore.ts',
     observe: async () => ACTOR, callable: async () => { sdkCalls += 1; throw new Error('single-shot arrival must not replay'); } };
-  const gmPage = { ...page, evaluate: async (_fn, input) => input && typeof input === 'object'
+  const gmPage = { ...page, evaluate: async (_fn, input) => input && typeof input === 'object' && input.sessionId
     ? structuredClone(movement) : structuredClone(state) };
   const gm = { page: gmPage, storeModuleUrl: () => '/src/store/useSessionStore.ts',
     observe: async () => ({ uidHash: 'gm-hash', sessionId: SESSION, playerRole: 'gm', instanceId: 'gm-instance',
@@ -295,6 +304,7 @@ function makeMountedArrivalHarness({ retryCount = 0, completeCount = 1, complete
     state: async surface => surface.page.evaluate(() => null, '/src/store/useSessionStore.ts') };
   const context = { initial: { sessionId: SESSION }, gm, roster: [{ roleId: 'quellon-explorer', uidHash: UID_HASH }] };
   context.shuttleArrivalWitness = shuttleArrivalWitness();
+  context.shuttleOriginAuthority = shuttleOriginAuthority();
   return { context, game, player, initialState: structuredClone(state),
     changeCurrentHolder: () => { state = { ...state, shuttleControl: { ...state.shuttleControl,
       starlight: { ...state.shuttleControl.starlight, holderUid: 'new-holder' } } }; },
@@ -344,6 +354,11 @@ test('single-shot arrival accepts only the current mounted source receipt and do
     value => { value.arrival.beforeProjection.airspaceState = 'closed'; },
     value => { value.arrival.before.departureRequestId = 'foreign-departure'; },
     value => { delete value.arrival.priorWitness; },
+    value => { delete value.arrival.authorityBefore; },
+    value => { value.arrival.authorityAfter.identityHydrationRevision += 1; },
+    value => { value.arrival.authorityAfter.documentTimeOrigin += 1; },
+    value => { value.arrival.authorityAfter.connectionGeneration += 1; },
+    value => { value.arrival.authorityAfter.audienceHash = 'c'.repeat(64); },
     value => { value.arrival.priorWitness.groupId = 'foreign-group'; },
     value => { value.arrival.priorWitness.uidHash = 'foreign-holder'; },
     value => { value.arrival.priorWitness.sessionId = 'stale-session'; },
@@ -354,6 +369,9 @@ test('single-shot arrival accepts only the current mounted source receipt and do
     value => { value.arrival.priorWitness.destinationShipId = 'dione'; },
     value => { value.arrival.priorWitness.transitRevision += 1; },
     value => { value.arrival.priorWitness.unreviewed = true; },
+    value => { value.arrival.priorWitness.sourceAuthority.uidHash = 'foreign-holder'; },
+    value => { value.originAuthority.groupId = 'foreign-group'; },
+    value => { value.originAuthority.sourceAuthority.authorityHash = 'c'.repeat(64); },
     value => { value.arrival.before.transitRequestId = 'foreign-transit'; },
     value => { value.arrival.before.cycle += 1; },
     value => { value.arrival.readyControl.observedAt = new Date(Date.now() - 90_000).toISOString(); },
@@ -454,6 +472,16 @@ test('the default arrival recipe captures one ready mounted action without SDK r
   changedHolder.changeCurrentHolder();
   await assert.rejects(mountedAction.click(), /source arrival chain/);
   assert.equal(changedHolder.clickCount(), 0, 'a new holder cannot submit the stale prepared arrival');
+
+  const changedDocument = makeMountedArrivalHarness();
+  const documentPrepared = await step({ context: changedDocument.context, game: changedDocument.game });
+  const documentAction = await documentPrepared.prepare({ surface: changedDocument.player, actor: ACTOR,
+    source: changedDocument.initialState });
+  assert.equal(documentAction.offered, true);
+  changedDocument.changeCurrentDocumentAuthority(value => ({ ...value,
+    identityHydrationRevision: value.identityHydrationRevision + 1 }));
+  await assert.rejects(documentAction.click(), /source arrival chain/);
+  assert.equal(changedDocument.clickCount(), 0, 'a rehydrated document cannot submit the stale prepared arrival');
 });
 
 test('the public retarget recipe carries the pre-departure group across undocking', async () => {
@@ -466,6 +494,29 @@ test('the public retarget recipe carries the pre-departure group across undockin
   assert.equal(action.transitionBefore.groupId, 'fleet-1');
   await action.click();
   assert.equal(harness.clickCount(), 1);
+
+  for (const options of [
+    { originOverrides: { groupId: 'fleet-2' } },
+    { originOverrides: { uidHash: 'foreign-holder' } },
+    { originOverrides: { cycle: 1 } },
+    { originOverrides: { controlRevision: 3 } },
+    { currentAuthorityOverrides: { connectionGeneration: 5 } },
+    { currentAuthorityOverrides: { documentTimeOrigin: 1_760_000_000_001 } },
+  ]) {
+    const stale = makeMountedRetargetHarness(options);
+    const stalePlan = await step({ context: stale.context, game: stale.game });
+    const staleAction = await stalePlan.prepare({ surface: stale.player, actor: ACTOR, source: stale.state });
+    assert.equal(staleAction.offered, false, JSON.stringify(options));
+    assert.equal(stale.clickCount(), 0, JSON.stringify(options));
+  }
+
+  const missingOrigin = makeMountedRetargetHarness();
+  delete missingOrigin.context.shuttleOriginAuthority;
+  const missingPlan = await step({ context: missingOrigin.context, game: missingOrigin.game });
+  const missingAction = await missingPlan.prepare({ surface: missingOrigin.player, actor: ACTOR,
+    source: missingOrigin.state });
+  assert.equal(missingAction.offered, false, 'no caller-bound pre-departure group means no retarget');
+  assert.equal(missingOrigin.clickCount(), 0);
 });
 
 test('the public arrival recipe blocks missing or drifted same-document holder authority after retarget', async () => {

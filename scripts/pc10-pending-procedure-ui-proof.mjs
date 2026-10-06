@@ -197,6 +197,47 @@ function exactKeys(value, keys) {
     Object.keys(value).length === keys.length && Object.keys(value).every(key => keys.includes(key));
 }
 
+const SOURCE_AUTHORITY_KEYS = Object.freeze(['sessionId', 'uidHash', 'groupId', 'roleId',
+  'connectionGeneration', 'identityHydrationRevision', 'documentTimeOrigin', 'audienceHash', 'authorityHash',
+  'shuttleAuthorized']);
+const SHUTTLE_ORIGIN_AUTHORITY_KEYS = Object.freeze(['sessionId', 'uidHash', 'shuttleId', 'groupId', 'cycle',
+  'controlRevision', 'sourceAuthority']);
+
+function validSourceAuthority(value, expected) {
+  return exactKeys(value, SOURCE_AUTHORITY_KEYS) && value.sessionId === expected.sessionId &&
+    value.uidHash === expected.uidHash && /^[0-9a-f]{16}$/.test(value.uidHash ?? '') &&
+    value.groupId === expected.groupId && value.roleId === expected.roleId &&
+    Number.isSafeInteger(value.connectionGeneration) && value.connectionGeneration >= 1 &&
+    Number.isSafeInteger(value.identityHydrationRevision) && value.identityHydrationRevision >= 1 &&
+    Number.isFinite(value.documentTimeOrigin) && value.documentTimeOrigin > 0 &&
+    /^[0-9a-f]{64}$/.test(value.audienceHash ?? '') && /^[0-9a-f]{64}$/.test(value.authorityHash ?? '') &&
+    value.shuttleAuthorized === true && typeof expected.shuttleId === 'string' && expected.shuttleId.length > 0;
+}
+
+function sameSourceAuthority(left, right) {
+  return exactKeys(left, SOURCE_AUTHORITY_KEYS) && exactKeys(right, SOURCE_AUTHORITY_KEYS) &&
+    SOURCE_AUTHORITY_KEYS.every(key => left[key] === right[key]);
+}
+
+function validShuttleOriginAuthority(value, expected) {
+  return exactKeys(value, SHUTTLE_ORIGIN_AUTHORITY_KEYS) && value.sessionId === expected.sessionId &&
+    value.uidHash === expected.uidHash && value.shuttleId === expected.shuttleId &&
+    value.groupId === expected.groupId && value.cycle === expected.cycle &&
+    value.controlRevision === expected.controlRevision &&
+    validSourceAuthority(value.sourceAuthority, expected) && sameSourceAuthority(value.sourceAuthority, expected.sourceAuthority);
+}
+
+function validMovementAuthorityTuple(input, expected) {
+  return validSourceAuthority(input.sourceAuthorityBefore, expected) &&
+    validSourceAuthority(input.sourceAuthorityAfter, expected) &&
+    sameSourceAuthority(input.sourceAuthorityBefore, input.sourceAuthorityAfter) &&
+    sameSourceAuthority(input.sourceAuthorityBefore, expected.sourceAuthority) &&
+    validShuttleOriginAuthority(input.originAuthority, { sessionId: expected.sessionId,
+      uidHash: expected.uidHash, shuttleId: expected.shuttleId, groupId: expected.groupId,
+      cycle: expected.cycle, controlRevision: expected.controlRevision, roleId: expected.roleId,
+      sourceAuthority: expected.sourceAuthority });
+}
+
 function validPublicPoint(value) {
   return value && typeof value === 'object' && !Array.isArray(value) &&
     Object.keys(value).length === 3 && ['x', 'y', 'z'].every(key => Number.isFinite(value[key]));
@@ -229,7 +270,8 @@ function validShuttleTransition(input, endpoint) {
       hashUid(result.holderUid) === expected.uidHash && result.fleetGroupId === expected.groupId &&
       result.destinationShipId === expected.destinationShipId && result.cycle === expected.cycle &&
       result.controlRevision === expected.controlRevision && typeof result.originShipId === 'string' &&
-      typeof result.requestedAt === 'string' && Number.isFinite(Date.parse(result.requestedAt));
+      typeof result.requestedAt === 'string' && Number.isFinite(Date.parse(result.requestedAt)) &&
+      validMovementAuthorityTuple(input, expected);
   }
   if (endpoint === 'transferShuttleCargoCommand') {
     const witnessKeys = ['kind', 'sessionId', 'cycle', 'shuttleId', 'holderUidHash', 'groupId', 'controlRevision',
@@ -290,7 +332,8 @@ function validShuttleTransition(input, endpoint) {
       validPublicPoint(result.destinationPosition) && validPublicPoint(result.velocity) &&
       typeof result.requestedAt === 'string' && Number.isFinite(Date.parse(result.requestedAt)) &&
       typeof result.departedAt === 'string' && Number.isFinite(Date.parse(result.departedAt)) &&
-      typeof result.arrivesAt === 'string' && Number.isFinite(Date.parse(result.arrivesAt));
+      typeof result.arrivesAt === 'string' && Number.isFinite(Date.parse(result.arrivesAt)) &&
+      validMovementAuthorityTuple(input, expected);
   }
   if (endpoint === 'evacuateShuttleSurvivorsCommand') {
     const witnessKeys = ['kind', 'sessionId', 'cycle', 'shuttleId', 'holderUidHash', 'groupId', 'controlRevision',
@@ -364,7 +407,8 @@ function validShuttleTransition(input, endpoint) {
       validPublicPoint(result.destinationPosition) && validPublicPoint(result.velocity) &&
       typeof result.requestedAt === 'string' && Number.isFinite(Date.parse(result.requestedAt)) &&
       typeof result.departedAt === 'string' && Number.isFinite(Date.parse(result.departedAt)) &&
-      typeof result.arrivesAt === 'string' && Number.isFinite(Date.parse(result.arrivesAt));
+      typeof result.arrivesAt === 'string' && Number.isFinite(Date.parse(result.arrivesAt)) &&
+      validMovementAuthorityTuple(input, expected);
   }
   return false;
 }
@@ -395,7 +439,8 @@ function validShuttleArrivalCapture(input, expected) {
   const resultKeys = ['status', 'sessionId', 'requestId', 'transitRequestId', 'shuttleId',
     'hostShipId', 'arrivedAt', 'transitRevision'];
   const priorWitnessKeys = ['status', 'endpoint', 'sessionId', 'roleId', 'uidHash', 'shuttleId', 'groupId',
-    'cycle', 'controlRevision', 'departureRequestId', 'transitRequestId', 'destinationShipId', 'transitRevision'];
+    'cycle', 'controlRevision', 'departureRequestId', 'transitRequestId', 'destinationShipId', 'transitRevision',
+    'sourceAuthority'];
   const balanceKeys = ['host', 'shuttle'];
   const inventoryKeys = ['ore', 'fuel', 'food', 'water', 'materials', 'securityTeams', 'scrap'];
   const sourceKeys = ['live', 'sessionId', 'cycle', 'phase', 'groupId'];
@@ -412,8 +457,10 @@ function validShuttleArrivalCapture(input, expected) {
   if (input.mountedUi !== true || typeof expected.roleId !== 'string' ||
       !matchesActor(input.actorBefore, expected, false) || !matchesActor(input.actorAfter, expected, false) ||
       !exactKeys(arrival, arrival?.captureMode === 'automatic-source-effect'
-        ? ['captureMode', 'priorWitness', 'automaticObservation', 'before', 'beforeProjection', 'afterProjection']
-        : ['readyControl', 'priorWitness', 'before', 'beforeProjection', 'afterProjection']) ||
+        ? ['captureMode', 'priorWitness', 'automaticObservation', 'before', 'beforeProjection',
+          'authorityBefore', 'authorityAfter', 'afterProjection']
+        : ['readyControl', 'priorWitness', 'before', 'beforeProjection', 'authorityBefore',
+          'authorityAfter', 'afterProjection']) ||
       !exactKeys(arrival.priorWitness, priorWitnessKeys) || arrival.priorWitness.status !== 'completed' ||
       arrival.priorWitness.endpoint !== 'retargetShuttleTransit' ||
       arrival.priorWitness.sessionId !== expected.sessionId || arrival.priorWitness.roleId !== expected.roleId ||
@@ -424,6 +471,18 @@ function validShuttleArrivalCapture(input, expected) {
       arrival.priorWitness.transitRequestId !== transitRequestId ||
       arrival.priorWitness.destinationShipId !== destinationShipId ||
       arrival.priorWitness.transitRevision !== expected.transitRevision ||
+      !validSourceAuthority(expected.sourceAuthority, { sessionId: expected.sessionId, uidHash: expected.uidHash,
+        groupId: expected.groupId, roleId: expected.roleId, shuttleId }) ||
+      !validSourceAuthority(arrival.authorityBefore, { sessionId: expected.sessionId, uidHash: expected.uidHash,
+        groupId: expected.groupId, roleId: expected.roleId, shuttleId }) ||
+      !validSourceAuthority(arrival.authorityAfter, { sessionId: expected.sessionId, uidHash: expected.uidHash,
+        groupId: expected.groupId, roleId: expected.roleId, shuttleId }) ||
+      !sameSourceAuthority(arrival.priorWitness.sourceAuthority, expected.sourceAuthority) ||
+      !sameSourceAuthority(arrival.authorityBefore, expected.sourceAuthority) ||
+      !sameSourceAuthority(arrival.authorityAfter, expected.sourceAuthority) ||
+      !validShuttleOriginAuthority(input.originAuthority, { sessionId: expected.sessionId,
+        uidHash: expected.uidHash, shuttleId, groupId: expected.groupId, cycle: expected.cycle,
+        controlRevision: expected.controlRevision, roleId: expected.roleId, sourceAuthority: expected.sourceAuthority }) ||
       !exactKeys(input.sourceBefore, sourceKeys) || !exactKeys(input.sourceAfter, sourceKeys) ||
       input.sourceBefore.live !== true || input.sourceAfter.live !== true ||
       input.sourceBefore.sessionId !== expected.sessionId || input.sourceAfter.sessionId !== expected.sessionId ||
@@ -820,6 +879,7 @@ export function evaluateProcedureCapture(input) {
       groupId: expected.groupId, cycle: expected.cycle, controlRevision: expected.controlRevision,
       departureRequestId: input.transitionBefore.requestId, transitRequestId: expected.transitRequestId,
       destinationShipId: expected.destinationShipId, transitRevision: input.transitionAfter.revision,
+      sourceAuthority: input.sourceAuthorityAfter,
     } } : {}),
     exactSdkRetry: spec.replayPolicy === 'exact-request-id' ? 'same-original-request-receipt-confirmed' : 'not-claimed',
     ...(input.cost ? { cost: { resource: input.cost.resource, amount: input.cost.amount, direction: input.cost.direction } } : {}),
@@ -989,13 +1049,17 @@ export async function captureMountedProcedureAction({ context, game, caseId, exp
   offered: true, mountedUi: true, actorBefore, actorAfter,
   sourceBefore: sourceBeforeProof, sourceAfter,
   transitionBefore: action.transitionBefore, transitionAfter: observed?.transitionAfter,
+  ...(['requestShuttleDeparture', 'beginShuttleTransit', 'retargetShuttleTransit'].includes(spec.endpoint)
+    ? { originAuthority: action.originAuthority,
+    sourceAuthorityBefore: action.sourceAuthorityBefore, sourceAuthorityAfter: observed?.sourceAuthorityAfter } : {}),
   request, response: { httpStatus: result.status(), result: actualResult, exactReplay }, replay,
   rendered: observed?.rendered, cost: observed?.cost ?? displayedCost, consent: observed?.consent,
   sourceSpecificBefore: observed?.sourceSpecificBefore, beforeProjection: observed?.beforeProjection,
   afterReload: observed?.afterReload, restore: observed?.restore,
   ...(spec.endpoint === 'completeShuttleArrival' ? { arrival: {
-    ...action.arrival, afterProjection: observed?.arrivalAfter,
-  } } : {}),
+    ...action.arrival, authorityAfter: observed?.authorityAfter, afterProjection: observed?.arrivalAfter,
+  }, originAuthority: action.originAuthority,
+  } : {}),
   cleanupGrant: observed?.cleanupGrant,
   trainingChoice, randomOutcomeForced: false, randomOutcomeRecorded: false };
   if (deferEvaluation) {

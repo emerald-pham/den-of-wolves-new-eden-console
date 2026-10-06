@@ -249,12 +249,18 @@ test('Boa mission choice receipt binds its choice revision to the current render
 test('departure request can complete from its exact typed server movement receipt', () => {
   const actor = { uidHash: '1bbda739c2a9bf0a', sessionId: 'session-1', profileRoleId: 'quellon-explorer',
     activeConsoleRoleId: 'quellon-explorer', sameActor: true, connection: 'live', freshness: 'server' };
+  const sourceAuthority = { sessionId: 'session-1', uidHash: '1bbda739c2a9bf0a', groupId: 'fleet-1',
+    roleId: 'quellon-explorer', connectionGeneration: 4, identityHydrationRevision: 3,
+    documentTimeOrigin: 1_760_000_000_000, audienceHash: 'a'.repeat(64), authorityHash: 'b'.repeat(64),
+    shuttleAuthorized: true };
   const result = { status: 'requested', sessionId: 'session-1', requestId: 'depart-1', shuttleId: 'starlight',
     holderUid: 'private-holder-uid', fleetGroupId: 'fleet-1', originShipId: 'quellon', destinationShipId: 'icebreaker',
     cycle: 2, controlRevision: 4, requestedAt: '2026-10-05T12:00:00.000Z' };
   const input = { caseId: 'core:requestShuttleDeparture', expected: { sessionId: 'session-1', uidHash: '1bbda739c2a9bf0a',
     roleId: 'quellon-explorer', cycle: 2, sourceRevision: 4, controlRevision: 4, groupId: 'fleet-1',
-    shuttleId: 'starlight', destinationShipId: 'icebreaker' }, offered: true, mountedUi: true,
+    shuttleId: 'starlight', destinationShipId: 'icebreaker', sourceAuthority }, offered: true, mountedUi: true,
+    originAuthority: { sessionId: 'session-1', uidHash: '1bbda739c2a9bf0a', shuttleId: 'starlight',
+      groupId: 'fleet-1', cycle: 2, controlRevision: 4, sourceAuthority },
     actorBefore: actor, actorAfter: actor,
     sourceBefore: { live: true, sessionId: 'session-1', cycle: 2, revision: 4, groupId: 'fleet-1' },
     sourceAfter: { live: true, sessionId: 'session-1', cycle: 2, revision: 4, groupId: 'fleet-1' },
@@ -263,6 +269,7 @@ test('departure request can complete from its exact typed server movement receip
     transitionAfter: { kind: 'shuttle-movement', exists: true, status: 'requested', sessionId: 'session-1',
       requestId: 'depart-1', shuttleId: 'starlight', holderUidHash: '1bbda739c2a9bf0a', groupId: 'fleet-1',
       destinationShipId: 'icebreaker', controlRevision: 4, cycle: 2 },
+    sourceAuthorityBefore: sourceAuthority, sourceAuthorityAfter: sourceAuthority,
     request: { sessionId: 'session-1', requestId: 'depart-1', shuttleId: 'starlight', destinationShipId: 'icebreaker',
       expectedControlRevision: 4, expectedCycle: 2 },
     response: { httpStatus: 200, result, exactReplay: true },
@@ -313,6 +320,10 @@ test('cargo transfer can complete only from the exact two-sided source ledger de
 test('begin transit binds the prior departure and current public transit projection', () => {
   const actor = { uidHash: '1bbda739c2a9bf0a', sessionId: 'session-1', profileRoleId: 'quellon-explorer',
     activeConsoleRoleId: 'quellon-explorer', sameActor: true, connection: 'live', freshness: 'server' };
+  const sourceAuthority = { sessionId: 'session-1', uidHash: '1bbda739c2a9bf0a', groupId: 'fleet-1',
+    roleId: 'quellon-explorer', connectionGeneration: 4, identityHydrationRevision: 3,
+    documentTimeOrigin: 1_760_000_000_000, audienceHash: 'a'.repeat(64), authorityHash: 'b'.repeat(64),
+    shuttleAuthorized: true };
   const result = { status: 'in-transit', sessionId: 'session-1', requestId: 'depart-1', transitRequestId: 'transit-1',
     shuttleId: 'starlight', holderUid: 'private-holder-uid', fleetGroupId: 'fleet-1', destinationShipId: 'icebreaker',
     cycle: 2, controlRevision: 4, revision: 1, requestedAt: '2026-10-05T12:00:00.000Z',
@@ -320,7 +331,9 @@ test('begin transit binds the prior departure and current public transit project
     departedAt: '2026-10-05T12:00:01.000Z', arrivesAt: '2026-10-05T12:01:01.000Z' };
   const input = { caseId: 'core:beginShuttleTransit', expected: { sessionId: 'session-1', uidHash: '1bbda739c2a9bf0a',
     roleId: 'quellon-explorer', cycle: 2, sourceRevision: 4, controlRevision: 4, groupId: 'fleet-1',
-    shuttleId: 'starlight' }, offered: true, mountedUi: true, actorBefore: actor, actorAfter: actor,
+    shuttleId: 'starlight', sourceAuthority }, offered: true, mountedUi: true, actorBefore: actor, actorAfter: actor,
+    originAuthority: { sessionId: 'session-1', uidHash: '1bbda739c2a9bf0a', shuttleId: 'starlight',
+      groupId: 'fleet-1', cycle: 2, controlRevision: 4, sourceAuthority },
     sourceBefore: { live: true, sessionId: 'session-1', cycle: 2, revision: 4, groupId: 'fleet-1' },
     sourceAfter: { live: true, sessionId: 'session-1', cycle: 2, revision: 1, groupId: 'fleet-1' },
     transitionBefore: { kind: 'shuttle-movement', exists: true, status: 'requested', sessionId: 'session-1',
@@ -329,6 +342,7 @@ test('begin transit binds the prior departure and current public transit project
     transitionAfter: { kind: 'shuttle-movement', exists: true, status: 'in-transit', sessionId: 'session-1',
       requestId: 'depart-1', transitRequestId: 'transit-1', shuttleId: 'starlight', holderUidHash: '1bbda739c2a9bf0a',
       groupId: 'fleet-1', destinationShipId: 'icebreaker', controlRevision: 4, cycle: 2, revision: 1 },
+    sourceAuthorityBefore: sourceAuthority, sourceAuthorityAfter: sourceAuthority,
     request: { sessionId: 'session-1', requestId: 'transit-1', shuttleId: 'starlight',
       expectedDepartureRequestId: 'depart-1', expectedControlRevision: 4, expectedCycle: 2 },
     response: { httpStatus: 200, result, exactReplay: true },
@@ -344,6 +358,10 @@ test('begin transit binds the prior departure and current public transit project
 test('retarget requires the exact current transit, legal offered destination, and next transit revision', () => {
   const actor = { uidHash: '1bbda739c2a9bf0a', sessionId: 'session-1', profileRoleId: 'quellon-explorer',
     activeConsoleRoleId: 'quellon-explorer', sameActor: true, connection: 'live', freshness: 'server' };
+  const sourceAuthority = { sessionId: 'session-1', uidHash: '1bbda739c2a9bf0a', groupId: 'fleet-1',
+    roleId: 'quellon-explorer', connectionGeneration: 4, identityHydrationRevision: 3,
+    documentTimeOrigin: 1_760_000_000_000, audienceHash: 'a'.repeat(64), authorityHash: 'b'.repeat(64),
+    shuttleAuthorized: true };
   const result = { status: 'in-transit', sessionId: 'session-1', requestId: 'depart-1', transitRequestId: 'transit-1',
     shuttleId: 'starlight', holderUid: 'private-holder-uid', fleetGroupId: 'fleet-1', destinationShipId: 'dione',
     cycle: 2, controlRevision: 4, revision: 3, requestedAt: '2026-10-05T12:00:00.000Z',
@@ -351,7 +369,9 @@ test('retarget requires the exact current transit, legal offered destination, an
     departedAt: '2026-10-05T12:00:02.000Z', arrivesAt: '2026-10-05T12:01:02.000Z' };
   const input = { caseId: 'core:retargetShuttleTransit', expected: { sessionId: 'session-1', uidHash: '1bbda739c2a9bf0a',
     roleId: 'quellon-explorer', cycle: 2, sourceRevision: 2, controlRevision: 4, groupId: 'fleet-1',
-    shuttleId: 'starlight', transitRequestId: 'transit-1', destinationShipId: 'dione' }, offered: true, mountedUi: true,
+    shuttleId: 'starlight', transitRequestId: 'transit-1', destinationShipId: 'dione', sourceAuthority }, offered: true, mountedUi: true,
+    originAuthority: { sessionId: 'session-1', uidHash: '1bbda739c2a9bf0a', shuttleId: 'starlight',
+      groupId: 'fleet-1', cycle: 2, controlRevision: 4, sourceAuthority },
     actorBefore: actor, actorAfter: actor,
     sourceBefore: { live: true, sessionId: 'session-1', cycle: 2, revision: 2, groupId: 'fleet-1' },
     sourceAfter: { live: true, sessionId: 'session-1', cycle: 2, revision: 3, groupId: 'fleet-1' },
@@ -361,6 +381,7 @@ test('retarget requires the exact current transit, legal offered destination, an
     transitionAfter: { kind: 'shuttle-movement', exists: true, status: 'in-transit', sessionId: 'session-1',
       requestId: 'depart-1', transitRequestId: 'transit-1', shuttleId: 'starlight', holderUidHash: '1bbda739c2a9bf0a',
       groupId: 'fleet-1', destinationShipId: 'dione', controlRevision: 4, cycle: 2, revision: 3 },
+    sourceAuthorityBefore: sourceAuthority, sourceAuthorityAfter: sourceAuthority,
     request: { sessionId: 'session-1', requestId: 'retarget-1', shuttleId: 'starlight', transitRequestId: 'transit-1',
       destinationShipId: 'dione', expectedControlRevision: 4, expectedCycle: 2 },
     response: { httpStatus: 200, result, exactReplay: true },
