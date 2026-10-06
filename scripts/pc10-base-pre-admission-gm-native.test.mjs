@@ -7,6 +7,7 @@ import test, { after } from 'node:test';
 import { createContext, Script, SyntheticModule } from 'node:vm';
 import { webcrypto } from 'node:crypto';
 import { createBaseGameplayDriverOptions } from './pc10-base-gameplay-composed-post-combat.mjs';
+import { createBasePendingProcedureCallbacks } from './pc10-base-pending-procedure-composition.mjs';
 import { createPendingGmRulingsCountersCallbacks } from './pc10-pending-procedure-ui-proof.mjs';
 import { createTwoBrowserGameplay } from './pc10-two-browser-gameplay.mjs';
 
@@ -270,7 +271,7 @@ test('the pre-admission mode cannot receive later-phase context or any invented 
 
 test('the real pending case keeps identical original observation and zero mutation counts', async () => {
   const before = await fixture(), after = await fixture();
-  const callbacks = createPendingGmRulingsCountersCallbacks();
+  const callbacks = createBasePendingProcedureCallbacks();
   // The admitted-path constructor still applies when a caller already has a
   // roster. These inert rows establish no actual account/admission acceptance.
   const admittedContext = { ...before.context,
