@@ -406,6 +406,7 @@ async function fixture(options = {}) {
         url = next; mounted = remainingMountReads === 0; options.onGoto?.({ raw });
       },
       reload: async () => {
+        uiEvents.push('reload');
         reloads += 1; raw.me.connectionGeneration += 1; raw.identityHydrationRevision = 1;
         if (route() === '#/gm') { remainingGmMountReads = options.gmMountReads ?? 0; gmMounted = remainingGmMountReads === 0; }
         await options.onReload?.({ raw, reloads });
@@ -438,6 +439,7 @@ async function fixture(options = {}) {
         return new Promise((resolve, reject) => waiting.push({ predicate, resolve, reject }));
       } },
     callable: async (endpoint, data) => {
+      uiEvents.push(`replay:${endpoint}`);
       const exact = writes.find(write => write.endpoint === endpoint && JSON.stringify(write.data) === JSON.stringify(data));
       assert.ok(exact); return { status: 'committed', result: exact.result };
     } };
@@ -567,7 +569,7 @@ test('public GM form consumes the existing readiness budget while its exact norm
   } finally { f.close(); }
 });
 
-test('public strict grant capture stays pending when the real source StrictMode reload cleanup removes enabled grant', async () => {
+test('public source-faithful grant captures explicit revoke before real StrictMode reload and durable false grant', async () => {
   const sourceCleanupCalls = [];
   const f = await fixture({ route: '#/gm', onReload: async ({ raw }) => {
     const observer = await createObserverFixture({ granted: raw.gmInstance.shipConsoleWriteGrant?.shipId === 'aegis' });
@@ -580,15 +582,131 @@ test('public strict grant capture stays pending when the real source StrictMode 
   try {
     const result = await callbackFor(f, ['setGmShipConsoleWriteGrant']).onStarted(f.context);
     const row = rowFor(result, 'setGmShipConsoleWriteGrant');
-    assert.equal(row.status, 'pending');
-    assert.equal(row.reason, 'single-shot-enable-and-ui-revoke-do-not-share-the-same-live-GM-lease');
-    assert.equal(row.leaseDiagnostic.restorePresent, false);
-    assert.equal(row.leaseDiagnostic.enabledProjectionPresent, false);
-    assert.equal(row.leaseDiagnostic.projectionClaimMatches, true);
+    assert.equal(row.status, 'completed', row.reason);
     assert.equal(sourceCleanupCalls.length, 1); assert.equal(sourceCleanupCalls[0].enabled, false);
     assert.equal(sourceCleanupCalls[0].instanceId, original.instanceId);
     assert.equal(sourceCleanupCalls[0].claimedAt, original.claimedAt);
-    assert.equal(f.writes.length, 1); assert.equal(f.writes[0].data.enabled, true);
+    assert.equal(f.writes.length, 2); assert.equal(f.writes[0].data.enabled, true);
+    assert.equal(f.writes[1].data.enabled, false);
+    assert.ok(f.uiEvents.indexOf('click:GM ship console read write access',
+      f.uiEvents.indexOf('click:ARE YOU SURE?')) < f.uiEvents.indexOf('reload'));
     assert.equal(f.reloads(), 1); assert.equal(result.familyAcceptanceClaimed, false);
+  } finally { f.close(); }
+});
+
+test('real full source observer enables and explicitly revokes through its visible controls while one accepted document stays mounted', async () => {
+  const f = await createObserverFixture({ granted: false });
+  try {
+    await f.mount();
+    const state = f.api.useSessionStore.getState();
+    await React.act(async () => {
+      state.setIdentity(state.session, state.me);
+      state.setConnection('live'); state.setSessionSnapshotFreshness('server');
+    });
+    const click = async control => React.act(async () => {
+      assert.ok(control && !control.disabled);
+      control.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    });
+    await click(f.container.querySelector('[aria-label="GM ship console read write access"]'));
+    await click([...dom.window.document.querySelectorAll('[role="alertdialog"] button')]
+      .find(control => control.textContent.trim() === 'ARE YOU SURE?'));
+    assert.equal(f.api.useSessionStore.getState().gmInstance.shipConsoleWriteGrant.shipId, 'aegis');
+    await click(f.container.querySelector('[aria-label="GM ship console read write access"]'));
+    assert.equal(f.api.useSessionStore.getState().gmInstance.shipConsoleWriteGrant, undefined);
+    assert.deepEqual(f.calls.map(call => call.enabled), [false, true, false]);
+    assert.ok(f.calls.every(call => call.claimedAt === original.claimedAt && call.instanceId === original.instanceId));
+    assert.equal(f.api.useSessionStore.getState().connection, 'live');
+  } finally { await f.close(); }
+});
+
+test('public composed grant and lock each use their own single UI enable, same-document revoke and only then reload', async () => {
+  const f = await fixture({ route: '#/gm' });
+  try {
+    const result = await callbackFor(f, ['setGmShipConsoleWriteGrant', 'setShipConsoleLock']).onStarted(f.context);
+    for (const endpoint of ['setGmShipConsoleWriteGrant', 'setShipConsoleLock'])
+      assert.equal(rowFor(result, endpoint).status, 'completed', rowFor(result, endpoint).reason);
+    assert.deepEqual(f.writes.map(write => [write.endpoint, write.data.enabled ?? write.data.locked]), [
+      ['setGmShipConsoleWriteGrant', true], ['setGmShipConsoleWriteGrant', false],
+      ['setGmShipConsoleWriteGrant', true], ['setShipConsoleLock', false], ['setGmShipConsoleWriteGrant', false],
+    ]);
+    assert.deepEqual(f.uiEvents.filter(value => value === 'reload' || value === 'click:ARE YOU SURE?' ||
+      value === 'click:Release ICN console lock' || value === 'replay:setShipConsoleLock'), [
+      'click:ARE YOU SURE?', 'reload', 'click:ARE YOU SURE?', 'click:Release ICN console lock',
+      'replay:setShipConsoleLock', 'reload',
+    ]);
+    assert.equal(f.reloads(), 2); assert.equal(f.raw.gmInstance.shipConsoleWriteGrant, null);
+    assert.equal(f.raw.session.shipConsoleLocks.aegis, false); assert.equal(f.raw.session.vesselActionRevisions.aegis, 4);
+    assert.ok(f.writes.filter(write => write.endpoint === 'setGmShipConsoleWriteGrant')
+      .every(write => write.data.claimedAt === original.claimedAt && write.data.instanceId === original.instanceId));
+    assert.equal(result.familyAcceptanceClaimed, false);
+  } finally { f.close(); }
+});
+
+test('public lock independently obtains the exact original same-document UI grant before its release and replay', async () => {
+  const f = await fixture({ route: '#/gm' });
+  try {
+    const result = await callbackFor(f, ['setShipConsoleLock']).onStarted(f.context);
+    assert.equal(rowFor(result, 'setShipConsoleLock').status, 'completed', rowFor(result, 'setShipConsoleLock').reason);
+    assert.deepEqual(f.writes.map(write => [write.endpoint, write.data.enabled ?? write.data.locked]), [
+      ['setGmShipConsoleWriteGrant', true], ['setShipConsoleLock', false], ['setGmShipConsoleWriteGrant', false],
+    ]);
+    assert.equal(f.reloads(), 1); assert.equal(f.raw.gmInstance.shipConsoleWriteGrant, null);
+  } finally { f.close(); }
+});
+
+for (const endpoint of ['setGmShipConsoleWriteGrant', 'setShipConsoleLock']) {
+  test(`public ${endpoint} cannot credit a grant that reappears after explicit revoke and required reload`, async () => {
+    const f = await fixture({ route: '#/gm', onReload: ({ raw }) => {
+      raw.gmInstance.shipConsoleWriteGrant = { shipId: 'aegis' };
+    } });
+    try {
+      const result = await callbackFor(f, [endpoint]).onStarted(f.context);
+      assert.equal(rowFor(result, endpoint).status, 'pending');
+      assert.equal(f.writes.filter(write => write.endpoint === 'setGmShipConsoleWriteGrant' && write.data.enabled).length, 1);
+      assert.equal(f.reloads(), 1); assert.equal(result.observedProcedureCount, 0);
+    } finally { f.close(); }
+  });
+}
+
+for (const [name, change] of [
+  ['UID', raw => { raw.me.uid = 'native-foreign-gm'; }],
+  ['session', raw => { raw.session.id = 'native-foreign-session'; }],
+  ['instance', raw => { raw.gmInstance.id = 'native-foreign-instance'; }],
+  ['claim', raw => { raw.gmInstance.claimedAt = '2026-10-05T10:01:00.000Z'; }],
+  ['document generation', raw => { raw.me.connectionGeneration += 1; }],
+  ['accepted hydration', raw => { raw.identityHydrationRevision += 1; }],
+  ['private audience', raw => { raw.roleBrief = { assignmentUid: 'native-foreign-member' }; }],
+  ['GM role', raw => { raw.me.role = 'player'; }],
+  ['foreign pending command', raw => { raw.pendingCommands = [{ payload: { sessionId: 'native-foreign-session' } }]; }],
+]) test(`public lock cannot continue after its own UI grant reply changes original ${name}`, async () => {
+  const f = await fixture({ route: '#/gm', onReceipt: ({ raw, endpoint }) => {
+    if (endpoint === 'setGmShipConsoleWriteGrant') change(raw);
+  } });
+  try {
+    const result = await callbackFor(f, ['setShipConsoleLock']).onStarted(f.context);
+    assert.equal(rowFor(result, 'setShipConsoleLock').status, 'pending');
+    assert.equal(f.writes.filter(write => write.endpoint === 'setGmShipConsoleWriteGrant' && write.data.enabled).length, 1);
+    assert.equal(f.writes.filter(write => write.endpoint === 'setShipConsoleLock').length, 0);
+    assert.equal(f.reloads(), 0);
+  } finally { f.close(); }
+});
+
+for (const [name, change] of [
+  ['UID', raw => { raw.me.uid = 'native-foreign-gm'; }],
+  ['session', raw => { raw.session.id = 'native-foreign-session'; }],
+  ['instance', raw => { raw.gmInstance.id = 'native-foreign-instance'; }],
+  ['claim', raw => { raw.gmInstance.claimedAt = '2026-10-05T10:01:00.000Z'; }],
+  ['private audience', raw => { raw.roleBrief = { assignmentUid: 'native-foreign-member' }; }],
+]) test(`public explicit grant revoke and reload never certify changed original ${name}`, async () => {
+  const f = await fixture({ route: '#/gm', onReload: ({ raw }) => {
+    change(raw);
+    if (name === 'UID') f.setAuth('native-foreign-gm');
+  } });
+  try {
+    const result = await callbackFor(f, ['setGmShipConsoleWriteGrant']).onStarted(f.context);
+    assert.equal(rowFor(result, 'setGmShipConsoleWriteGrant').status, 'pending');
+    assert.equal(f.writes.filter(write => write.endpoint === 'setGmShipConsoleWriteGrant' && write.data.enabled).length, 1);
+    assert.equal(f.writes.length, 2); assert.equal(f.writes[1].data.enabled, false);
+    assert.equal(f.reloads(), 1);
   } finally { f.close(); }
 });
