@@ -63,10 +63,12 @@ beforeEach(() => {
   store.setConnection('live'); store.setSessionSnapshotFreshness('server');
 });
 
-function fixture({ beforeCapture, beforeClick, duringSecondSelection, replayDrift = false }:
-  { beforeCapture?: () => void; beforeClick?: () => void; duringSecondSelection?: () => void; replayDrift?: boolean } = {}) {
+function fixture({ beforeCapture, beforeClick, afterFill, duringSecondSelection, replayDrift = false }:
+  { beforeCapture?: () => void; beforeClick?: () => void; afterFill?: () => void;
+    duringSecondSelection?: () => void; replayDrift?: boolean } = {}) {
   const events: string[] = [], posts: Record<string, unknown>[] = [], replays: unknown[] = [];
   let path = '/ships/aegis/roles/wing-commander', authUid = uid, responseResolve: (value: unknown) => void;
+  let documentTimeOrigin = 1000;
   let selects = 0, fills = 0, clicks = 0, observers = 0, saved: unknown;
   function Path() { path = useLocation().pathname; return null; }
   render(<MemoryRouter initialEntries={[path]}><Path /><Routes>
@@ -78,7 +80,7 @@ function fixture({ beforeCapture, beforeClick, duringSecondSelection, replayDrif
   async function evaluate(callback: (...args: never[]) => unknown, input: unknown) {
     // Execute the actual browser-serialized current-document callback, with no
     // Node globals or SDK/network module available to it.
-    const browser = createContext({ input, crypto: webcrypto, TextEncoder, document, performance: { timeOrigin: 1000 } });
+    const browser = createContext({ input, crypto: webcrypto, TextEncoder, document, performance: { timeOrigin: documentTimeOrigin } });
     const modules = new Map<string, SyntheticModule>();
     for (const [name, exports] of [
       ['/src/store/useSessionStore.ts', { useSessionStore }],
@@ -119,6 +121,7 @@ function fixture({ beforeCapture, beforeClick, duringSecondSelection, replayDrif
     fill: async (value: string) => {
       fills++; events.push('fill'); const node = query()[0]; expect(node).toBeTruthy();
       await act(async () => { fireEvent.change(node, { target: { value } }); });
+      await act(async () => { afterFill?.(); });
     },
   });
   const page = {
@@ -185,6 +188,7 @@ function fixture({ beforeCapture, beforeClick, duringSecondSelection, replayDrif
     },
   });
   return { run, events, posts, replays, game, changeAuth: (value: string) => { authUid = value; },
+    replaceDocument: () => { documentTimeOrigin += 1000; },
     counts: () => ({ selects, fills, clicks, observers }), saved: () => saved };
 }
 
@@ -234,4 +238,23 @@ it('does not substitute a different exact SDK replay receipt', async () => {
   const f = fixture({ replayDrift: true });
   await expect(f.run()).rejects.toThrow(/replay must agree/i);
   expect(f.posts).toHaveLength(1); expect(f.replays).toHaveLength(1);
+});
+
+it.each(['Auth', 'document'] as const)('rejects the original %s changing during sole final preparation', async changed => {
+  const f = fixture({ afterFill: () => changed === 'Auth' ? f.changeAuth('foreign-auth') : f.replaceDocument() });
+  await expect(f.run()).rejects.toThrow(/actor|original/i);
+  expect(f.counts().fills).toBe(1); expect(f.counts().observers).toBe(0);
+  expect(f.counts().clicks).toBe(0); expect(f.posts).toHaveLength(0); expect(f.replays).toHaveLength(0);
+});
+
+it.each([
+  ['restricted phase', () => useSessionStore.getState().setSession({ ...useSessionStore.getState().session!,
+    turnPhase: { ...useSessionStore.getState().session!.turnPhase!, airspace: { state: 'restricted', tickerActive: false, pressAccess: false } } })],
+  ['source cache', () => useSessionStore.getState().setSessionSnapshotFreshness('cache')],
+  ['replaced holder', () => useSessionStore.getState().setMe({ ...useSessionStore.getState().me!, replacementStatus: 'awaiting-re-role' })],
+] as const)('fails the current ordinary control before arming if %s arrives during preparation', async (_name, afterFill) => {
+  const f = fixture({ afterFill });
+  await expect(f.run()).rejects.toThrow(/control/i);
+  expect(f.counts().fills).toBe(1); expect(f.counts().observers).toBe(0);
+  expect(f.counts().clicks).toBe(0); expect(f.posts).toHaveLength(0); expect(f.replays).toHaveLength(0);
 });
