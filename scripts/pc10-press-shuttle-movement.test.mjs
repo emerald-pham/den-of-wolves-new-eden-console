@@ -600,6 +600,7 @@ function pressMovementInputForOrigin(endpoint, origin, options) {
 function acceptedPressRetargetChain(origin, { requestedAt, beginDepartedAt, retargetDepartedAt }) {
   const requestInput = pressMovementInputForOrigin('requestShuttleDeparture', origin);
   requestInput.response.result.requestedAt = requestedAt;
+  requestInput.replay.result.requestedAt = requestedAt;
   const request = evaluateProcedureCapture(requestInput);
   assert.equal(request.status, 'completed', request.reason);
 
@@ -610,6 +611,7 @@ function acceptedPressRetargetChain(origin, { requestedAt, beginDepartedAt, reta
     requestedAt, departedAt: beginDepartedAt,
     arrivesAt: new Date(Date.parse(beginDepartedAt) + 60_000).toISOString(),
   });
+  Object.assign(beginInput.replay.result, beginInput.response.result);
   const begin = evaluateProcedureCapture(beginInput);
   assert.equal(begin.status, 'completed', begin.reason);
 
@@ -620,6 +622,7 @@ function acceptedPressRetargetChain(origin, { requestedAt, beginDepartedAt, reta
     requestedAt, departedAt: retargetDepartedAt,
     arrivesAt: new Date(Date.parse(retargetDepartedAt) + 60_000).toISOString(),
   });
+  Object.assign(retargetInput.replay.result, retargetInput.response.result);
   const retarget = evaluateProcedureCapture(retargetInput);
   assert.equal(retarget.status, 'completed', retarget.reason);
   return {
