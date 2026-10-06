@@ -1681,7 +1681,11 @@ async function recipeFor({ context, game, spec }) {
     holderTarget = { shuttleId: holders[0].shuttleId };
     roleToUse = holders[0].roleId;
   }
-  const initialSurface = gmOperation ? await game.select('gm', { deadlineAt: gmOperation.deadlineAt }) : await game.select(roleToUse);
+  const preserveMountedShuttleRoute = spec.actorRoleId === 'current-shuttle-holder' &&
+    ['requestShuttleDeparture', 'beginShuttleTransit', 'retargetShuttleTransit',
+      'completeShuttleArrival'].includes(spec.endpoint);
+  const initialSurface = gmOperation ? await game.select('gm', { deadlineAt: gmOperation.deadlineAt })
+    : preserveMountedShuttleRoute ? await game.select(roleToUse, { enter: false }) : await game.select(roleToUse);
   const actor = await initialSurface.observe();
   if (actor?.sessionId !== context.initial.sessionId || actor.sameActor !== true || actor.connection !== 'live' || actor.freshness !== 'server') {
     const refuse = async () => ({ offered: false, reason: 'the original actor/session is not currently live from a server snapshot' });

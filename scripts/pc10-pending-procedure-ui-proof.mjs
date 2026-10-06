@@ -955,7 +955,11 @@ export async function captureMountedProcedureAction({ context, game, caseId, exp
     if (!resolvedHolder) return pending(spec, 'current-server-holder-is-not-one-unique-admitted-role');
     roleId = resolvedHolder.roleId;
   }
-  const surface = certifiedGm ? await game.select(roleId, { deadlineAt: gmOperation.deadlineAt }) : await game.select(roleId);
+  const preserveMountedShuttleRoute = spec.actorRoleId === 'current-shuttle-holder' &&
+    ['requestShuttleDeparture', 'beginShuttleTransit', 'retargetShuttleTransit',
+      'completeShuttleArrival'].includes(spec.endpoint);
+  const surface = certifiedGm ? await game.select(roleId, { deadlineAt: gmOperation.deadlineAt })
+    : preserveMountedShuttleRoute ? await game.select(roleId, { enter: false }) : await game.select(roleId);
   const actorBefore = await observeCaptureActor(surface);
   const isGm = roleId === 'gm';
   const rosterActor = context.roster?.find(actor => actor.roleId === roleId);
