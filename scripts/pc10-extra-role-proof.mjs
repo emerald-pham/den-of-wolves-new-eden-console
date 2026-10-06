@@ -861,7 +861,13 @@ export function createExtraRoleCallbacks({ scenario = 'joint', variant = 'coordi
       const action = workspace.getByRole('button', { name, exact: true });
       if (!await action.count() || !await action.isEnabled()) { await stage(`Mission pending: source awaits ${name}; no card/status bypass`); return; }
       const actual = await live.ui(gm, 'commitAwayMissionLifecycleCommand', action, { replay: true });
-      if (name === 'Resolve away mission' && actual.result?.publicState?.rewardResults?.some(result => result.bulkHaulageApplied === true))
+      if (name === 'Resolve away mission' && actual.result?.missionId === mission &&
+          actual.result.publicState?.missionId === mission && actual.result.publicState.status === 'resolved' &&
+          actual.result.publicState.rewards?.some(reward => reward.bulkHaulageApplied === true &&
+            Object.values(reward.resources).some(amount => Number.isSafeInteger(amount) && amount > 0) &&
+            actual.result.publicState.outcomes?.some(outcome => outcome.opportunityId === reward.opportunityId &&
+              ['success', 'critical-success'].includes(outcome.outcome) &&
+              reward.branch === (outcome.outcome === 'success' ? 'success' : 'critical'))))
         recordExtraRoleResult(matrix, 'capybara-small-captain:bulk-haulage', { status: 'committed',
           receipt: { ...actual.receipt, transport: 'source-automatic' } });
     }

@@ -1292,12 +1292,26 @@ export async function runCapybaraFullGameGameplay(context, options = {}) {
     assert.equal(resolved.publicState.status, 'resolved');
     const boaMissionOutcome = boaTaskOpportunityId && resolved.publicState.outcomes?.find(entry =>
       entry.opportunityId === boaTaskOpportunityId);
+    const boaMissionReward = boaTaskOpportunityId && resolved.publicState.rewards?.find(entry =>
+      entry.opportunityId === boaTaskOpportunityId);
     const delivered = await missionUi('wing-commander', missionId, panel =>
       panel.getByRole('button', { name: 'Drop mission rewards at selected ship', exact: true }).click());
     assert.equal(delivered.publicState.status, 'complete');
+    const boaDeliveredReward = boaTaskOpportunityId && delivered.publicState.rewards?.find(entry =>
+      entry.opportunityId === boaTaskOpportunityId);
     if (boaTaskOpportunityId && boaMissionOutcome &&
         ['success', 'critical-success'].includes(boaMissionOutcome.outcome) &&
-        ['success', 'critical'].includes(boaMissionOutcome.rewardBranch) &&
+        resolved.missionId === missionId && resolved.publicState.missionId === missionId &&
+        delivered.missionId === missionId && delivered.publicState.missionId === missionId &&
+        delivered.publicState.groupId === resolved.publicState.groupId &&
+        delivered.publicState.missionLeaderUid === resolved.publicState.missionLeaderUid &&
+        delivered.publicState.custody?.status === 'dropped-off' &&
+        delivered.publicState.custody.holderUid === resolved.publicState.missionLeaderUid &&
+        typeof delivered.publicState.custody.shipId === 'string' && delivered.publicState.custody.shipId.length > 0 &&
+        boaMissionReward?.branch === (boaMissionOutcome.outcome === 'success' ? 'success' : 'critical') &&
+        boaMissionReward.resources?.scrap === 1 && Object.keys(boaMissionReward.resources).length === 1 &&
+        boaDeliveredReward?.branch === boaMissionReward.branch &&
+        boaDeliveredReward.resources?.scrap === 1 && Object.keys(boaDeliveredReward.resources).length === 1 &&
         capybaraStages['boa-mission-reclamation'].status === 'completed') {
       await updateCapybaraStage('mission-successful-delivery', { status: 'completed', roleId: 'wing-commander',
         endpoint: 'commitAwayMissionLifecycleCommand', cycle: 3 });
