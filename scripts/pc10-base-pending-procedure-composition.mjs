@@ -13,12 +13,12 @@ import { createPendingProcedureDefaultSteps } from './pc10-pending-procedure-ui-
  * phases, creates actors, calls a gameplay endpoint, or changes source state.
  */
 export const BASE_PENDING_PROCEDURE_SOURCE_BINDING = Object.freeze({
-  rootCommit: '10959e5e7d4310cbf2dab81dc1e0aad5d9f31911',
+  rootCommit: '650c83efe73bb4910967be11125c61e8d01db9f3',
   rootCommitKind: 'integrated dependency source before metadata refresh; owner runner binds actual candidate',
   baseRunnerPath: '/tmp/dow-pc10-evidence/proof-draft/pc10-base-gameplay.mjs',
   baseRunnerSha256: 'd3ce4d1cf80316943fa27e4f7bb0d09e4de41aa95948012e09765efda7b6d040',
   procedureProofPath: 'scripts/pc10-pending-procedure-ui-proof.mjs',
-  procedureProofSha256: '4f4703299667c2e83c1aa4af43640a4d0e50a3b3db1329d7c808eec891f1f4e6',
+  procedureProofSha256: '874223a02336dbf05800481e79e85e984b660eb50689f3b0131efd50a68dacd5',
   procedureRecipesPath: 'scripts/pc10-pending-procedure-ui-recipes.mjs',
   procedureRecipesSha256: '39987a0c278bcd6b8f8b2568ba4bac115ba3c4363a3d185ef0df7a9b0995c364',
 });
