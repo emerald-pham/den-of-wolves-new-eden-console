@@ -247,7 +247,7 @@ async function fixture(options = {}) {
         revision: expectedRevision + 1, ...input, actorUid: uid,
         createdAt: '2026-10-05T10:00:01.000Z', label: 'FACILITATOR RULE CALL' };
       emit('/facilitatorRuleCalls/gm-current', serverRule);
-      const { type: _type, ...call } = serverRule;
+      const call = { ...serverRule }; delete call.type;
       response(endpoint, { sessionId, instanceId, requestId: call.callId, expectedRevision, ...input },
         { status: 'committed', ...call });
       return 'applied';
