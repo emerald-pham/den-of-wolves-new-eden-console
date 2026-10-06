@@ -292,7 +292,7 @@ function actor() { return mock.documents.get(`sessions/s1/players/${UID}`)!; }
 async function join() {
   expect(mock.documents.has(`sessions/s1/players/${UID}`)).toBe(false);
   await expect(joinSession.run(request({ joinCode: '482109', displayName: 'Native Press' })))
-    .resolves.toMatchObject({ sessionId: 's1' });
+    .resolves.toMatchObject({ session: { id: 's1' }, player: { uid: UID, sessionId: 's1' } });
   expect(actor()).toMatchObject({ uid: UID, sessionId: 's1', role: 'player', connected: true,
     connectionGeneration: 1, activeConsoleRoleId: null });
   expect(actor()).not.toHaveProperty('replacementStatus');
@@ -325,10 +325,12 @@ it('normal join then genuine Press claim persists explicit inactive replacement 
   const claimWrite = mock.update.mock.calls.find(([ref, fields]) => ref.path === `sessions/s1/players/${UID}` &&
     fields.activeConsoleRoleId === 'press-officer');
   expect(claimWrite?.[1]).toHaveProperty('replacementStatus', null);
-  // Canonical server data survives the unchanged normal resume serialization.
+  // Canonical stored truth survives resume; the existing SDK reply continues
+  // to omit inactive optional replacement fields rather than inventing defaults.
   await expect(resumeSession.run(request({ sessionId: 's1' }))).resolves.toMatchObject({
-    player: { uid: UID, activeConsoleRoleId: 'press-officer', replacementStatus: null },
+    player: { uid: UID, activeConsoleRoleId: 'press-officer' },
   });
+  expect(actor()).toHaveProperty('replacementStatus', null);
 });
 
 it.each([
