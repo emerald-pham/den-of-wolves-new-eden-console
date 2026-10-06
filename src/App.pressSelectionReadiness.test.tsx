@@ -107,7 +107,7 @@ async function deliverPlayer(value: Record<string, unknown> = { ...actor }, from
   await advance();
 }
 
-async function mount(options: { demo?: boolean; press?: boolean; gm?: boolean; legacy?: boolean; cold?: boolean; rawOptionalAbsent?: boolean } = {}) {
+async function mount(options: { demo?: boolean; press?: boolean; gm?: boolean; legacy?: boolean; cold?: boolean; rawOptionalAbsent?: boolean; heldCore?: boolean } = {}) {
   const roleId = options.press === false ? 'refinery-124-pdf-colonel' : 'press-officer';
   window.history.replaceState({}, '', options.demo === false || options.gm ? '/#/console'
     : `/?demoActor=${sessionId}~${roleId}&demoJoin=123456#/demo-actors`);
@@ -119,7 +119,7 @@ async function mount(options: { demo?: boolean; press?: boolean; gm?: boolean; l
   actor = { ...actor, role: options.gm ? 'gm' : 'player',
     assignedRoleId: options.gm || roleId === 'press-officer' ? null : roleId,
     seatId: options.gm || roleId === 'press-officer' ? null : roleId,
-    activeConsoleRoleId: roleId === 'press-officer' ? roleId : null };
+    activeConsoleRoleId: roleId === 'press-officer' || options.heldCore ? roleId : null };
   if (options.rawOptionalAbsent) {
     const raw = actor as unknown as Record<string, unknown>;
     delete raw.assignedRoleId; delete raw.replacementRoleId; delete raw.replacementStatus;
@@ -295,12 +295,13 @@ async function actualJoinReply(): Promise<Reply['data']> {
 // fixtures, bound to the actual rendered App's store/Auth/profile. The complete
 // public factory and both actual callback bodies run; no acceptable tuple is
 // created here and no proof predicate or source SDK call is substituted.
-async function publicPressSelection(onRich?: (index: number) => Promise<void>) {
+async function publicPressSelection(onRich?: (index: number) => Promise<void>, options: { enter?: boolean; deadlineMs?: number } = {}) {
   const source = await parsed('scripts/pc10-two-browser-gameplay.mjs');
   const generic = await parsed('scripts/pc10-full-game-demo-ui-proof.mjs');
   const observed = only(generic, node => ts.isFunctionDeclaration(node) && node.name?.text === 'observe');
   const call = only(generic, node => ts.isCallExpression(node) && node.expression.getText(generic) === 'page.evaluate', observed) as ts.CallExpression;
   const contextModule = await import('@/lib/demoActorContext');
+  const roleId = contextModule.activeDemoActorProfile!.roleId;
   const rows: { kind: string; index: number; value: Record<string, unknown> }[] = [];
   let rich = 0;
   async function evaluate(callback: string, moduleUrl: string, kind: string) {
@@ -344,12 +345,12 @@ async function publicPressSelection(onRich?: (index: number) => Promise<void>) {
     normalMemberRoleRequiresBerth: (role: string) => shipForRole(role) !== undefined });
   new Script(javascript(sourceFunction(source, 'createTwoBrowserGameplay'))).runInContext(factory);
   const create = new Script('createTwoBrowserGameplay;').runInContext(factory) as
-    (context: unknown) => { select: (role: string, options: { deadlineAt: number }) => Promise<unknown> };
+    (context: unknown) => { select: (role: string, options: { deadlineAt: number; enter?: boolean }) => Promise<unknown> };
   const adapter = create({ gm: {}, crew, initial: { sessionId, joinCode: '123456' },
-    started: { fullGameDemo: { status: 'active', progression: 'manual' } },
-    roster: [{ roleId: 'press-officer', uidHash: createHash('sha256').update(actor.uid).digest('hex').slice(0, 16) }],
+    started: { fullGameDemo: sessionData.fullGameDemo },
+    roster: [{ roleId, uidHash: createHash('sha256').update(actor.uid).digest('hex').slice(0, 16) }],
     directory: '/native-no-files' });
-  return { rows, select: () => adapter.select('press-officer', { deadlineAt: Date.now() + 2_000 }) };
+  return { rows, select: () => adapter.select(roleId, { deadlineAt: Date.now() + (options.deadlineMs ?? 2_000), enter: options.enter ?? true }) };
 }
 
 async function heldPressRoute() {
@@ -421,5 +422,78 @@ describe('actual initial ordinary Press source completion and public selection',
     });
     await expect(selection.select()).rejects.toThrow(/generation|Generation|changed/);
     expect(callCount('resumeSession')).toBe(0);
+  });
+
+  it('an accepted own player cannot replace the still-pending first modern member confirmation', async () => {
+    await mount({ rawOptionalAbsent: true }); await deliverPlayer(); await heldPressRoute();
+    expect(useSessionStore.getState().me?.connected).toBe(true);
+    expect(useSessionStore.getState().session).not.toHaveProperty('currentActorBerthAuthority');
+    const selection = await publicPressSelection(async index => {
+      if (index === 3) { await deliverMember(0); await deliverMember(1); }
+    });
+    await selection.select(); expectCurrentConfirmedSource();
+    expect(callCount('getCurrentMemberSession')).toBe(2); expect(callCount('resumeSession')).toBe(0);
+  });
+
+  it('genuine disconnected own player is rejected rather than treated as an incomplete confirmation', async () => {
+    await mount({ rawOptionalAbsent: true }); await heldPressRoute();
+    const selection = await publicPressSelection(async index => {
+      if (index === 1) await deliverPlayer({ ...actor, connected: false });
+    });
+    await expect(selection.select()).rejects.toThrow(/false|changed/);
+    expect(useSessionStore.getState().connection).not.toBe('live');
+    expect(callCount('resumeSession')).toBe(0);
+  });
+
+  it('genuine kicked current player cannot release initial Press readiness', async () => {
+    await mount({ rawOptionalAbsent: true }); await heldPressRoute();
+    const selection = await publicPressSelection(async index => {
+      if (index === 1) await deliverPlayer({ ...actor, kickedAt: new Date().toISOString() });
+    });
+    await expect(selection.select()).rejects.toThrow(/false|changed/);
+    expect(useSessionStore.getState().me).toBeNull();
+    expect(callCount('resumeSession')).toBe(0);
+  });
+
+  it('current foreign Auth after the first pending sample cannot release the original selection', async () => {
+    await mount({ rawOptionalAbsent: true }); await heldPressRoute();
+    const selection = await publicPressSelection(async index => {
+      if (index === 1) sdk.auth.currentUser = { uid: 'foreign-auth-uid' };
+    });
+    await expect(selection.select()).rejects.toThrow(/equal|changed|original/i);
+    expect(callCount('joinSession')).toBe(1); expect(callCount('resumeSession')).toBe(0);
+  });
+
+  it('current non-null core assignment cannot enter the Press station', async () => {
+    await mount(); await confirmOriginalPlayerAndMember();
+    await deliverPlayer({ ...actor, assignedRoleId: 'refinery-124-pdf-colonel' }); await heldPressRoute();
+    const selection = await publicPressSelection();
+    await expect(selection.select()).rejects.toThrow(/Press station has no primary assignment/);
+    expect(callCount('resumeSession')).toBe(0);
+  });
+
+  it('genuine legacy Press retains its confirmed original account path without manufacturing a modern witness', async () => {
+    await mount({ rawOptionalAbsent: true, legacy: true }); await confirmOriginalPlayerAndMember(); await heldPressRoute();
+    const selection = await publicPressSelection(); await selection.select();
+    expect(useSessionStore.getState().me?.connected).toBe(true);
+    expect(useSessionStore.getState().session).not.toHaveProperty('currentActorBerthAuthority');
+    expect(callCount('joinSession')).toBe(1); expect(callCount('resumeSession')).toBe(0);
+  });
+
+  it('original account read selection grants no Press station capability and retains its existing admitted path', async () => {
+    await mount({ rawOptionalAbsent: true }); await heldPressRoute();
+    const selection = await publicPressSelection(undefined, { enter: false }); await selection.select();
+    expect(useSessionStore.getState().me).not.toHaveProperty('connected');
+    expect(useSessionStore.getState().session).not.toHaveProperty('currentActorBerthAuthority');
+    expect(callCount('getCurrentMemberSession')).toBe(1); expect(callCount('resumeSession')).toBe(0);
+  });
+
+  it('the genuine held Core role still uses its exact existing source berth matcher', async () => {
+    await mount({ press: false, heldCore: true }); await confirmOriginalPlayerAndMember();
+    act(() => { window.location.hash = '/ships/refinery-124/roles/refinery-124-pdf-colonel'; }); await advance();
+    const selection = await publicPressSelection(); await selection.select();
+    expect(useSessionStore.getState().session?.currentActorBerthAuthority).toMatchObject({
+      shipId: 'refinery-124', actorUid: actor.uid, assignedRoleId: 'refinery-124-pdf-colonel', connectionGeneration: 3 });
+    expect(callCount('getCurrentMemberSession')).toBe(2); expect(callCount('resumeSession')).toBe(0);
   });
 });
