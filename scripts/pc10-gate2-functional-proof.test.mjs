@@ -53,6 +53,7 @@ for (const [label, changes] of [
   ['changed cycle', { afterSource: source({ currentTurn: 2 }) }],
   ['stale after-source witness', { afterSource: source({ checkedAt: 10 }) }],
   ['source point taken after original issue', { beforeSource: source({ checkedAt: 14 }) }],
+  ['scope drift from original source audience', { original: { ...original, scope: { groupId: 'fleet-2', vesselIds: ['aegis'], craftIds: [] } } }],
   ['unclassified non-200 command', { reply: { status: 429, error: { status: 'RESOURCE_EXHAUSTED' } } }],
   ['unchecked original outcome', { validation: { passed: false } }],
 ]) test(`${label} cannot silently pass`, () => assert.throws(() => assertPc10FunctionalCommand(command(changes))));
