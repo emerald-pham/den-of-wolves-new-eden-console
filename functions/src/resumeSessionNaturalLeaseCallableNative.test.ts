@@ -393,3 +393,109 @@ describe('original modern core recovery after real source lease expiry', () => {
     expect(queryLeaseWrites[0].writes.filter(path => path.startsWith(`sessions/${sid}/players/`))).toEqual([`sessions/${sid}/players/${pressUid}`]);
   });
 });
+
+function expectRosterReconciliation() {
+  expect(mock.transactionTraces.some(trace => !trace.readOnly && trace.reads.some(value =>
+    value.query && value.path === `sessions/${sid}/players`))).toBe(true);
+}
+function change(path: string, fields: StoredDocument) { put(path, { ...read(path), ...fields }); }
+
+describe('post-lease recovery keeps authorization, legacy and private-source boundaries', () => {
+  it('performs all reads before claiming an existing canonical own seat', async () => {
+    const { scopes } = await originalExpiredTable();
+    mock.setRejectReadsAfterWrite(true);
+    mock.setRejectQueryLeaseWrites(true);
+    const reply = await resumeSession.run(request(actorUid(0), { sessionId: sid }));
+    assertOriginalCoreReply(0, reply, scopes);
+  });
+
+  it.each(['missing', 'malformed-role'])('retains canonical hydration for a %s own seat', async kind => {
+    await originalExpiredTable();
+    const path = `sessions/${sid}/seats/${roles[0]}`;
+    if (kind === 'missing') mock.documents.delete(path);
+    else change(path, { roleId: roles[1] });
+    const reply = await resumeSession.run(request(actorUid(0), { sessionId: sid }));
+    expectRosterReconciliation();
+    expect(reply.player.seatId).toBe(roles[0]);
+    expect(read(path)).toMatchObject({ roleId: roles[0], status: 'claimed', holderUid: actorUid(0) });
+  });
+
+  it('does not reclaim a seat taken by another original UID after expiry', async () => {
+    await originalExpiredTable();
+    const path = `sessions/${sid}/seats/${roles[0]}`;
+    change(path, { status: 'claimed', holderUid: actorUid(1) });
+    const reply = await resumeSession.run(request(actorUid(0), { sessionId: sid }));
+    expectRosterReconciliation();
+    expect(reply.stationSelectionRequired).toBe(true);
+    expect(reply.player).toMatchObject({ uid: actorUid(0), sessionId: sid, seatId: null, activeConsoleRoleId: null });
+    expect(read(path)).toMatchObject({ status: 'claimed', holderUid: actorUid(1) });
+  });
+
+  it.each([
+    ['assignment mismatch', { assignedRoleId: roles[1] }],
+    ['inactive replacement', { replacementStatus: 'pending' }],
+    ['current replacement role', { replacementRoleId: 'passenger' }],
+    ['wrong current console', { activeConsoleRoleId: roles[1] }],
+    ['legacy connection generation', { connectionGeneration: null }],
+  ] as const)('keeps %s on the original reconciliation path', async (_label, fields) => {
+    await originalExpiredTable();
+    change(`sessions/${sid}/players/${actorUid(0)}`, fields);
+    await resumeSession.run(request(actorUid(0), { sessionId: sid }));
+    expectRosterReconciliation();
+  });
+
+  it.each(['missing-berth', 'missing-discovery', 'foreign-discovery', 'legacy-root', 'noncanonical-setup'] as const)(
+    'does not skip protected-view reconciliation for %s', async kind => {
+      await originalExpiredTable();
+      if (kind === 'missing-berth') {
+        const group = read(`sessions/${sid}/fleetGroups/fleet-1`)!;
+        const berths = { ...(group.memberShipIds as Record<string, string>) }; delete berths[actorUid(0)];
+        change(`sessions/${sid}/fleetGroups/fleet-1`, { memberShipIds: berths });
+      } else if (kind === 'missing-discovery') mock.documents.delete(`sessions/${sid}/playerDiscovery/${actorUid(0)}`);
+      else if (kind === 'foreign-discovery') change(`sessions/${sid}/playerDiscovery/${actorUid(0)}`, { groupId: 'fleet-999' });
+      else if (kind === 'legacy-root') change(`sessions/${sid}`, { shipNavigationLogs: {} });
+      else change(`sessions/${sid}`, { setup: {} });
+      await resumeSession.run(request(actorUid(0), { sessionId: sid }));
+      expectRosterReconciliation();
+    },
+  );
+
+  it.each(['kicked', 'nonmember', 'foreign-active-membership'] as const)('denies %s without claiming the original seat', async kind => {
+    await originalExpiredTable();
+    const uid = actorUid(0), path = `sessions/${sid}/players/${uid}`;
+    if (kind === 'kicked') change(path, { kickedAt: mock.Timestamp.now() });
+    else if (kind === 'nonmember') mock.documents.delete(path);
+    else {
+      put(`activeMemberships/${uid}`, { sessionId: 'foreign-session' });
+      put(`sessions/foreign-session/players/${uid}`, { connected: true, lastSeenAt: mock.Timestamp.now() });
+    }
+    await expect(resumeSession.run(request(uid, { sessionId: sid }))).rejects.toMatchObject({
+      code: kind === 'nonmember' ? 'permission-denied' : 'failed-precondition',
+    });
+    expect(read(`sessions/${sid}/seats/${roles[0]}`)).toMatchObject({ status: 'open', holderUid: null });
+    expect(read(path)?.connected).not.toBe(true);
+  });
+
+  it('keeps closed history read-only without reconnecting or claiming an expired seat', async () => {
+    await originalExpiredTable();
+    change(`sessions/${sid}`, { phase: 'closed' });
+    const reply = await resumeSession.run(request(actorUid(0), { sessionId: sid }));
+    expect(reply.session.phase).toBe('closed');
+    expect(read(`sessions/${sid}/players/${actorUid(0)}`)?.connected).toBe(false);
+    expect(read(`sessions/${sid}/seats/${roles[0]}`)).toMatchObject({ status: 'open', holderUid: null });
+    expect(read(`activeMemberships/${actorUid(0)}`)).toBeUndefined();
+    expect(mock.transactionTraces.every(trace => trace.writes.every(path => !path.startsWith(`sessions/${sid}/`)))).toBe(true);
+  });
+
+  it('projects only the original core audience and excludes foreign secrets after recovery', async () => {
+    const { scopes } = await originalExpiredTable();
+    const marker = 'foreign-private-source-never-on-member-wire';
+    put(`sessions/${sid}/secrets/loyalty-${actorUid(1)}`, { visibleToUids: [actorUid(1)], payload: { marker } });
+    change(`sessions/${sid}`, { secrets: { [actorUid(1)]: { marker } }, memberShipIds: { foreign: marker } });
+    const reply = await resumeSession.run(request(actorUid(0), { sessionId: sid }));
+    assertOriginalCoreReply(0, reply, scopes);
+    expect(JSON.stringify(reply)).not.toContain(marker);
+    expect(reply.session).not.toHaveProperty('memberShipIds');
+    expect(reply.session).not.toHaveProperty('secrets');
+  });
+});
