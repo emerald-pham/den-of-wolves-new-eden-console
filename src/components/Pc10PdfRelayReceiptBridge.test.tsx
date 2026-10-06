@@ -208,9 +208,10 @@ function fixture({ replyChange, noteChange, afterSend, beforeSecondSelect, durin
     },
     fill: async (value: string) => { fills++; await act(async () => { fireEvent.change(query()[0]!, { target: { value } }); }); },
     click: async () => {
+      const sentBeforeClick = calls.filter(call => call.name === 'sendFleetGroupMessage').length;
       const node = query()[0]!; expect(node).toBeEnabled(); clicks++;
       await act(async () => { fireEvent.click(node); });
-      await act(async () => { await vi.waitFor(() => expect(calls.filter(call => call.name === 'sendFleetGroupMessage')).toHaveLength(1)); });
+      await act(async () => { await vi.waitFor(() => expect(calls.filter(call => call.name === 'sendFleetGroupMessage').slice(sentBeforeClick)).toHaveLength(1)); });
       await act(async () => { afterSend?.(); });
     },
   });
