@@ -60,7 +60,8 @@ const startedCall = find(runner, (node): node is ts.ExpressionStatement =>
 const endingCall = find(runner, (node): node is ts.ExpressionStatement =>
   ts.isExpressionStatement(node) && node.getText(ui).startsWith('await options.runEnding('));
 const ordinaryLoop = find(runner, (node): node is ts.IfStatement =>
-  ts.isIfStatement(node) && node.expression.getText(ui) === '!gameplayOnly');
+  ts.isIfStatement(node) && node.expression.getText(ui) === '!gameplayOnly' &&
+  node.thenStatement.getText(ui).includes('for (const actor of roster)'));
 assert.ok(ts.isBlock(ordinaryLoop.thenStatement));
 const loopStatements = ordinaryLoop.thenStatement.statements;
 const phaseStart = loopStatements.findIndex(node => node.getText(ui).includes('teamBeforeManualAdvance') ||
@@ -133,6 +134,7 @@ const runResearchChoice = new Function('assert', 'assertOriginalBaseActor', 'cap
   'baseResearchPaintMatches', 'waitForBaseResearchReceipt', 'delay', 'proofHash', js(`return async input => {
   const { surface, research, report, initial, originalGm, gm, roster, save, state } = input;
   const options = { researchDetector: true };
+  const role = 'shepherd-scientist';
   const recordRequest = async entry => { report.requests.push(entry); await save(); };
   ${branchSource}
   ${rawRead}
