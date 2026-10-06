@@ -122,6 +122,7 @@ for (const kind of ['transmission', 'modal-focus-trap']) {
       explicitRefreshClicks: f.clickCount(), sourceCaptureCount: f.screenshotCount(),
       message: failure?.message ?? 'Source geometry was accepted despite mounted presentation.' };
     console.log(JSON.stringify({ presentationCounterexample: observation }));
+    assert.ok(failure, 'Mounted source presentation must remain pending; returning a geometry success cannot satisfy this regression.');
     assert.match(observation.message, /presentation|deadline|did not finish rendering/i);
     assert.equal(f.clickCount(), 0, 'Mounted presentation must consume the original readiness budget before arming the proof refresh.');
     assert.equal(f.screenshotCount(), 0);
