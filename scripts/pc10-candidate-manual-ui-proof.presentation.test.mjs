@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { readFile, mkdtemp, rm } from 'node:fs/promises';
+import { readFile, mkdtemp, mkdir, readdir, rm } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -88,11 +88,15 @@ async function actualPresentation(t, kind) {
     const focus = await componentSource('src/hooks/useDialogFocus.ts', { react: React }, realm);
     const dialog = await componentSource('src/components/FocusDialog.tsx', { ...jsx,
       'react-dom': { createPortal }, '@/hooks/useDialogFocus': focus }, realm);
-    root.render(React.createElement(dialog.namespace.default, { open: true,
+    const renderDialog = open => root.render(React.createElement(dialog.namespace.default, { open,
       title: 'Source presentation modal', description: 'Actual contained-focus source counterexample.', onClose: noAction },
     React.createElement('p', null, 'A real modal remains open.')));
-    for (let attempt = 0; !f.window.document.querySelector('[aria-modal="true"]') && attempt < 50; attempt++) await delay(2);
-    assert.ok(f.window.document.querySelector('[aria-modal="true"]')?.isConnected);
+    renderDialog(kind !== 'modal-after-refresh');
+    f.showSourceModal = () => renderDialog(true);
+    if (kind !== 'modal-after-refresh') {
+      for (let attempt = 0; !f.window.document.querySelector('[aria-modal="true"]') && attempt < 50; attempt++) await delay(2);
+      assert.ok(f.window.document.querySelector('[aria-modal="true"]')?.isConnected);
+    }
     const nativeDefault = f.surface.page.keyboard.press;
     f.surface.page.keyboard.press = async key => {
       const event = new f.window.KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
@@ -104,15 +108,20 @@ async function actualPresentation(t, kind) {
   return f;
 }
 
+async function geometryTools(t, f) {
+  const directory = await mkdtemp(resolve(tmpdir(), 'pc10-source-presentation-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const tools = candidateGameplayTools({ gm: f.surface, crew: f.surface, directory,
+    initial: { sessionId: f.store.session.id, joinCode: 'source-join' },
+    roster: [{ roleId: 'shepherd-scientist', uidHash: 'source-original-hash' }],
+    projectId: 'demo-pc10-source-reception', ports: { functions: 5011 } });
+  return { tools, directory };
+}
+
 for (const kind of ['transmission', 'modal-focus-trap']) {
   test(`public candidate geometry keeps actual ${kind} source presentation unready before ONE refresh/capture`, async t => {
     const f = await actualPresentation(t, kind);
-    const directory = await mkdtemp(resolve(tmpdir(), 'pc10-source-presentation-'));
-    t.after(() => rm(directory, { recursive: true, force: true }));
-    const tools = candidateGameplayTools({ gm: f.surface, crew: f.surface, directory,
-      initial: { sessionId: f.store.session.id, joinCode: 'source-join' },
-      roster: [{ roleId: 'shepherd-scientist', uidHash: 'source-original-hash' }],
-      projectId: 'demo-pc10-source-reception', ports: { functions: 5011 } });
+    const { tools } = await geometryTools(t, f);
     let failure;
     try { await tools.candidateGeometry(f.surface, 'N', 'research-choice', { readinessTimeoutMs: 650 }); }
     catch (error) { failure = error; }
@@ -126,5 +135,71 @@ for (const kind of ['transmission', 'modal-focus-trap']) {
     assert.match(observation.message, /presentation|deadline|did not finish rendering/i);
     assert.equal(f.clickCount(), 0, 'Mounted presentation must consume the original readiness budget before arming the proof refresh.');
     assert.equal(f.screenshotCount(), 0);
+  });
+}
+
+test('public candidate geometry waits for the actual natural Cycle4 detachment and existing two paints before ONE refresh', async t => {
+  const f = await actualPresentation(t, 'transmission');
+  const { tools } = await geometryTools(t, f), clicks = [];
+  const refresh = f.window.document.querySelector('.candidate-preparation__header button');
+  refresh.addEventListener('click', () => clicks.push({
+    transmissionDetached: !f.window.document.querySelector('.intrusion--fleet .turn-start-announcement__console'),
+    sourcePaintCount: f.events.find(event => event.kind === 'refresh-click')?.sourcePaintCount ?? 0,
+  }));
+  const originalSourceKey = f.store.session.updatedAt, started = Date.now();
+  // This normal source lifecycle uses the existing default 30 s budget, with no time override or clear/replay.
+  await tools.candidateGeometry(f.surface, 'N', 'research-choice');
+  assert.equal(clicks.length, 1); assert.equal(clicks[0].transmissionDetached, true);
+  assert.ok(clicks[0].sourcePaintCount >= 2);
+  assert.equal(f.clickCount(), 1); assert.equal(f.screenshotCount(), 3);
+  assert.equal(f.store.session.updatedAt, originalSourceKey);
+  assert.ok(Date.now() - started < 30_000);
+});
+
+test('server-held briefing alone keeps the actual original source pending before presentation DOM mounts', async t => {
+  const f = await receptionFixture({ initialNetworkMs: 0, initialComponentMs: 2 }); t.after(f.dispose); await f.received();
+  f.store.session.turnPhase = { turn: 4, timerPause: { reason: 'turn-interstitial', pausedAt: 'source-original-hold' } };
+  assert.equal(f.window.document.querySelector('.turn-interstitial-clear'), null);
+  const { tools } = await geometryTools(t, f);
+  await assert.rejects(tools.candidateGeometry(f.surface, 'N', 'research-choice', { readinessTimeoutMs: 95 }), /deadline|did not finish rendering/i);
+  assert.equal(f.clickCount(), 0); assert.equal(f.screenshotCount(), 0);
+});
+
+test('actual source modal reappearance after the ONE scoped refresh remains pending without capture or a later read', async t => {
+  const f = await actualPresentation(t, 'modal-after-refresh');
+  assert.equal(f.window.document.querySelector('[aria-modal="true"]'), null);
+  const { tools } = await geometryTools(t, f);
+  let shown = false;
+  const show = () => { if (!shown && f.clickCount() === 1) { shown = true; f.showSourceModal(); } };
+  f.surface.page.on('request', show); t.after(() => f.surface.page.off('request', show));
+  await assert.rejects(tools.candidateGeometry(f.surface, 'N', 'research-choice', { readinessTimeoutMs: 650 }), /presentation|deadline|did not finish rendering/i);
+  assert.equal(shown, true); assert.equal(f.clickCount(), 1);
+  assert.equal(f.reads.filter(value => value.fromRefresh).length, 1);
+  assert.ok(f.window.document.querySelector('[aria-modal="true"]')?.isConnected);
+  assert.equal(f.screenshotCount(), 0);
+});
+
+for (const blockDiagnosticWrite of [false, true]) {
+  test(`failed height contract preserves only finite uncredited viewport diagnostics and original error (write blocked=${blockDiagnosticWrite})`, async t => {
+    const f = await receptionFixture({ initialNetworkMs: 0, initialComponentMs: 2 }); t.after(f.dispose); await f.received();
+    const { tools, directory } = await geometryTools(t, f);
+    f.window.HTMLElement.prototype.getBoundingClientRect = () => ({ x: 0, y: 0, width: 280, height: 43 });
+    const artifact = resolve(directory, 'N-research-choice-geometry-uncredited.json');
+    if (blockDiagnosticWrite) await mkdir(artifact);
+    await assert.rejects(tools.candidateGeometry(f.surface, 'N', 'research-choice', { readinessTimeoutMs: 650 }), /mandatory 44px targets/);
+    assert.equal(f.clickCount(), 1); assert.equal(f.screenshotCount(), 3);
+    assert.equal((await readdir(directory)).includes('N-research-choice-geometry.json'), false);
+    assert.equal((await readdir(directory)).includes('candidate-gameplay-progress.json'), false);
+    if (!blockDiagnosticWrite) {
+      const diagnostic = JSON.parse(await readFile(artifact, 'utf8'));
+      assert.equal(diagnostic.status, 'failed-uncredited');
+      assert.equal(diagnostic.viewports.length, 3);
+      assert.ok(diagnostic.viewports.every(viewport => viewport.noHorizontalOverflow === true && viewport.keyboardFocusReached === true &&
+        viewport.controlTargetShortfallCount > 0 && viewport.checkboxTargetShortfallCount === 5));
+      assert.ok(diagnostic.viewports.every(viewport => Number.isSafeInteger(viewport.keyboardTraversal.tabPresses) &&
+        Number.isSafeInteger(viewport.keyboardTraversal.tabPressLimit) && viewport.keyboardTraversal.allEnabledTargetsReached === true));
+      assert.equal(Object.hasOwn(diagnostic, 'report'), false); assert.equal(Object.hasOwn(diagnostic, 'request'), false);
+      assert.equal(Object.hasOwn(diagnostic, 'text'), false);
+    }
   });
 }
