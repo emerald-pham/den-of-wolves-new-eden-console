@@ -78,6 +78,12 @@ let unmount: (() => void) | undefined;
 let watch: (() => void) | undefined;
 let frames: { connection: string; freshness: string; generation: number | undefined; hydration: number }[];
 let legacy: boolean;
+let backgroundActor: Player;
+let readBackgroundMember: () => Promise<Record<string, unknown>>;
+let backgroundPresenceReplies: ReturnType<typeof deferred<{ data: { sessionId: string } }>>[];
+let backgroundResumeReplies: ReturnType<typeof deferred<Reply>>[];
+let holdBackgroundPresence: boolean;
+let ordinaryPresence: { readonly mock: { readonly calls: readonly unknown[][] } };
 let acceptedJoin: GameSession;
 let ledger: { name: string; roleId: string; uid: string | null; generation: number | undefined; hydration: number; connection: string; freshness: string }[];
 const rootPath = () => `sessions/${sessionId}`;
@@ -112,6 +118,7 @@ async function mount(options: { demo?: boolean; press?: boolean; gm?: boolean; l
     : `/?demoActor=${sessionId}~${roleId}&demoJoin=123456#/demo-actors`);
   ({ useSessionStore } = await import('@/store/useSessionStore'));
   service = await import('@/lib/sessionService');
+  ordinaryPresence = vi.spyOn(service, 'refreshPresence');
   const context = await import('@/lib/demoActorContext');
   legacy = options.legacy === true;
   if (legacy) delete sessionData.fullGameDemo;
@@ -139,8 +146,9 @@ async function mount(options: { demo?: boolean; press?: boolean; gm?: boolean; l
       expect(options).toEqual({ readOnly: true });
       const values: Record<string, Record<string, unknown>> = {
         [rootPath()]: { ...sessionData }, [playerPath()]: { ...actor },
-        [`${rootPath()}/fleetGroups/fleet-1`]: { id: 'fleet-1', vesselIds: ['aegis', 'icebreaker'], memberUids: [actor.uid],
-          ...(!legacy ? { memberShipIds: { [actor.uid]: 'icebreaker' } } : {}) },
+        [`${rootPath()}/players/${backgroundActor.uid}`]: { ...backgroundActor },
+        [`${rootPath()}/fleetGroups/fleet-1`]: { id: 'fleet-1', vesselIds: ['aegis', 'icebreaker'], memberUids: [actor.uid, backgroundActor.uid],
+          ...(!legacy ? { memberShipIds: { [actor.uid]: 'icebreaker', [backgroundActor.uid]: 'aegis' } } : {}) },
       };
       return callback({ get: async (ref: ReturnType<typeof reference>) => ref.collection
         ? { docs: Object.keys(values).filter(path => path.startsWith(`${ref.path}/`) &&
@@ -150,6 +158,7 @@ async function mount(options: { demo?: boolean; press?: boolean; gm?: boolean; l
   const reader = createCurrentMemberSessionReader({ db: db as unknown as Parameters<typeof CreateMemberReader>[0]['db'],
     projectSession: source => source.data() as Record<string, unknown> });
   readMember = () => reader({ ...(sdk.auth.currentUser ? { auth: sdk.auth.currentUser } : {}), data: { sessionId } });
+  readBackgroundMember = () => reader({ auth: sdk.otherAuth.currentUser, data: { sessionId } });
   sdk.read.mockImplementation(ref => Promise.resolve(snapshot(ref.path, sessionData)));
   sdk.listen.mockImplementation((ref, _options, next, error) => {
     const listener = { path: ref.path, next, error, active: true };
@@ -174,12 +183,19 @@ async function mount(options: { demo?: boolean; press?: boolean; gm?: boolean; l
       memberResponses.push(pending); return pending.promise;
     }
     if (name === 'resumeSession') {
+      if (roleId === 'admiral') {
+        const pending = deferred<Reply>(); backgroundResumeReplies.push(pending); return pending.promise;
+      }
       // Exactly the normal production reconnect path is exercised. A pending
       // original SDK is never replaced by a fixture setIdentity or live flag.
       const pending = deferred<Reply>(); resumeReplies.push(pending); return pending.promise;
     }
     if (name === 'refreshPresence') {
-      if (roleId === 'admiral') return Promise.resolve({ data: { sessionId } });
+      if (roleId === 'admiral') {
+        if (!holdBackgroundPresence) return Promise.resolve({ data: { sessionId } });
+        const pending = deferred<{ data: { sessionId: string } }>();
+        backgroundPresenceReplies.push(pending); return pending.promise;
+      }
       // The production DemoActorControls starts normal persona renewal after
       // join. Its SDK reply and own-player server callback arrive separately.
       expect(data).toEqual({ sessionId });
@@ -241,6 +257,8 @@ beforeEach(() => {
     seatId: 'icebreaker-miner', activeConsoleRoleId: null, replacementRoleId: null, replacementStatus: null,
     joinedAt: new Date().toISOString() };
   listeners = []; memberResponses = []; presenceReplies = []; resumeReplies = []; frames = []; joinReply = deferred(); legacy = false; ledger = [];
+  backgroundActor = { ...actor, uid: sdk.otherAuth.currentUser.uid, assignedRoleId: 'admiral', seatId: 'admiral' };
+  backgroundPresenceReplies = []; backgroundResumeReplies = []; holdBackgroundPresence = false;
   sdk.otherAuth.authStateReady.mockReset().mockResolvedValue(undefined);
   sdk.auth.currentUser = { uid: actor.uid }; sdk.auth.authStateReady.mockReset().mockResolvedValue(undefined);
   sdk.call.mockReset(); sdk.listen.mockReset(); sdk.read.mockReset().mockResolvedValue(snapshot(rootPath(), null));
@@ -249,7 +267,7 @@ beforeEach(() => {
 afterEach(async () => {
   const current = useSessionStore.getState();
   console.info(JSON.stringify({ kind: 'native-original-source-witness', test: expect.getState().currentTestName,
-    calls: ledger, frames, current: { connection: current.connection, freshness: current.sessionSnapshotFreshness,
+    calls: ledger, frames, ordinaryForegroundPresenceCalls: ordinaryPresence.mock.calls.length, current: { connection: current.connection, freshness: current.sessionSnapshotFreshness,
       hydration: current.identityHydrationRevision, generation: current.me?.connectionGeneration,
       sdkUidMatches: sdk.auth.currentUser?.uid === current.me?.uid, sameSession: current.me?.sessionId === current.session?.id,
       berthGeneration: current.session?.currentActorBerthAuthority?.connectionGeneration,
@@ -261,6 +279,9 @@ afterEach(async () => {
   memberResponses.forEach(pending => pending.resolve({ data: {} }));
   presenceReplies.forEach(pending => pending.resolve({ data: { sessionId } }));
   resumeReplies.forEach(pending => pending.resolve({ data: { session: acceptedJoin, player: actor } }));
+  backgroundPresenceReplies.forEach(pending => pending.resolve({ data: { sessionId } }));
+  backgroundResumeReplies.forEach(pending => pending.resolve({ data: { session: acceptedJoin, player: backgroundActor } }));
+  vi.restoreAllMocks();
   await act(async () => { await Promise.resolve(); });
   vi.useRealTimers();
 });
@@ -268,6 +289,7 @@ afterEach(async () => {
 describe('real demo presence recovery while the original Miner member read is pending', () => {
   it('keeps the source-shaped omitted-connected join and both ordinary roster identities stable on successful presence', async () => {
     await mount();
+    expect(ordinaryPresence.mock.calls).toHaveLength(1);
     expect(presenceReplies).toHaveLength(1);
     expect(ledger.filter(call => call.name === 'refreshPresence').map(call => call.roleId)).toEqual(['admiral', 'icebreaker-miner']);
     expect(Object.hasOwn(useSessionStore.getState().me!, 'connected')).toBe(false);
@@ -281,35 +303,15 @@ describe('real demo presence recovery while the original Miner member read is pe
     expect(sdk.signIn).not.toHaveBeenCalled();
   });
 
-  it('withholds live authority while an original foreground roster resume is awaiting its original SDK reply', async () => {
+  it('leaves rejected immediate foreground presence to the existing App recovery owner instead of a passive gateway resume', async () => {
     await mount(); await deliverPlayer();
+    expect(presenceReplies).toHaveLength(1);
     presenceReplies[0]!.reject(Object.assign(new Error('Original SDK presence is unavailable.'), { code: 'functions/unavailable' }));
     await advance();
-    expect(callCount('resumeSession')).toBe(1);
-    expect(ledger.filter(call => call.name === 'resumeSession')).toEqual([
-      expect.objectContaining({ roleId: 'icebreaker-miner', uid: actor.uid, generation: 2, hydration: 1 }),
-    ]);
-    const { sessionSnapshotAuthorityFor, memberSessionResumeBlocksFreshness } = await import('@/lib/sessionSnapshotAuthority');
-    // Characterize the unchanged production seam before the behavioral assertion:
-    // this gateway call has no normal sessionService pending-resume token.
-    expect(memberSessionResumeBlocksFreshness(sessionSnapshotAuthorityFor(sessionId, actor.uid))).toBe(false);
-    // Source resumeSession writes nextConnectionGeneration in its transaction
-    // before replying. Its own-player callback and new current-member read may
-    // arrive while the original SDK promise remains pending.
-    actor = { ...actor, connectionGeneration: 3 };
-    await deliverPlayer();
+    expect(callCount('resumeSession')).toBe(0);
     expect(useSessionStore.getState().identityHydrationRevision).toBe(1);
-    await deliverMember(0);
-    expect(memberResponses).toHaveLength(2);
-    await deliverMember(1);
-    expect(useSessionStore.getState().session?.currentActorBerthAuthority).toMatchObject({
-      actorUid: actor.uid, sessionId, connectionGeneration: 3, assignedRoleId: 'icebreaker-miner', activeConsoleRoleId: null,
-    });
-    expect(useSessionStore.getState().me?.connectionGeneration).toBe(3);
-    expect(useSessionStore.getState().identityHydrationRevision).toBe(1);
-    expect(resumeReplies).toHaveLength(1);
-    expect(useSessionStore.getState().connection).not.toBe('live');
-    expect(useSessionStore.getState().sessionSnapshotFreshness).toBe('cache');
+    expect(useSessionStore.getState().me?.connectionGeneration).toBe(2);
+    expect(sdk.signIn).not.toHaveBeenCalled();
   });
 
   it('keeps the normal public sessionService resume fence effective with the same roster and member callback', async () => {
@@ -341,40 +343,104 @@ describe('real demo presence recovery while the original Miner member read is pe
   });
 
   it('stops the already-awaited renewal when its original document is disposed', async () => {
-    await mount();
+    holdBackgroundPresence = true; await mount();
     act(unmount!); unmount = undefined;
-    presenceReplies[0]!.reject(Object.assign(new Error('Original SDK presence is unavailable.'), { code: 'functions/unavailable' }));
+    backgroundPresenceReplies[0]!.reject(Object.assign(new Error('Original SDK presence is unavailable.'), { code: 'functions/unavailable' }));
     await advance();
     expect(callCount('resumeSession')).toBe(0);
-    expect(callCount('refreshPresence')).toBe(2);
+    expect(callCount('refreshPresence')).toBe(1);
   });
 
   it('stops the already-awaited renewal after an actual member listener error withdraws live authority', async () => {
-    await mount(); await deliverPlayer();
+    holdBackgroundPresence = true; await mount(); await deliverPlayer();
     act(() => currentPlayerReader().error({ code: 'unavailable' }));
     await advance();
     expect(useSessionStore.getState()).toMatchObject({ connection: 'offline', sessionSnapshotFreshness: 'cache' });
-    presenceReplies[0]!.reject(Object.assign(new Error('Original SDK presence is unavailable.'), { code: 'functions/unavailable' }));
+    backgroundPresenceReplies[0]!.reject(Object.assign(new Error('Original SDK presence is unavailable.'), { code: 'functions/unavailable' }));
     await advance();
     expect(callCount('resumeSession')).toBe(0);
     expect(useSessionStore.getState().identityHydrationRevision).toBe(1);
   });
 
   it('stops the already-awaited renewal after the original own-player server document becomes disconnected', async () => {
-    await mount(); await deliverPlayer();
+    holdBackgroundPresence = true; await mount(); await deliverPlayer();
     await deliverPlayer({ ...actor, connected: false });
     expect(useSessionStore.getState().connection).not.toBe('live');
-    presenceReplies[0]!.reject(Object.assign(new Error('Original SDK presence is unavailable.'), { code: 'functions/unavailable' }));
+    backgroundPresenceReplies[0]!.reject(Object.assign(new Error('Original SDK presence is unavailable.'), { code: 'functions/unavailable' }));
     await advance();
     expect(callCount('resumeSession')).toBe(0);
   });
 
   it('does not issue the delayed original-persona resume under a changed SDK Auth account', async () => {
-    await mount(); await deliverPlayer();
+    holdBackgroundPresence = true; await mount(); await deliverPlayer();
     sdk.auth.currentUser = { uid: 'foreign-sdk-account' };
-    presenceReplies[0]!.reject(Object.assign(new Error('Original SDK presence is unavailable.'), { code: 'functions/unavailable' }));
+    backgroundPresenceReplies[0]!.reject(Object.assign(new Error('Original SDK presence is unavailable.'), { code: 'functions/unavailable' }));
     await advance();
     expect(callCount('resumeSession')).toBe(0);
+    expect(sdk.signIn).not.toHaveBeenCalled();
+  });
+
+  it('retains same-UID inactive background recovery without hydrating or replacing the foreground persona', async () => {
+    holdBackgroundPresence = true; await mount(); await deliverPlayer();
+    backgroundPresenceReplies[0]!.reject(Object.assign(new Error('Background SDK presence is unavailable.'), { code: 'functions/unavailable' }));
+    await advance();
+    expect(backgroundResumeReplies).toHaveLength(1); expect(resumeReplies).toHaveLength(0);
+    expect(ledger.filter(call => call.name === 'resumeSession')).toEqual([
+      expect.objectContaining({ roleId: 'admiral', uid: backgroundActor.uid, generation: 2, hydration: 1 }),
+    ]);
+    backgroundActor = { ...backgroundActor, connectionGeneration: 3 };
+    const source = await readBackgroundMember();
+    const { sessionFrom } = await import('@/lib/firestore');
+    const player = { ...backgroundActor }; delete player.connected;
+    backgroundResumeReplies[0]!.resolve({ data: { session: sessionFrom(sessionId, source.session as Record<string, unknown>), player } });
+    await advance();
+    expect(backgroundPresenceReplies).toHaveLength(2);
+    backgroundPresenceReplies[1]!.resolve({ data: { sessionId } }); await advance();
+    expect(useSessionStore.getState()).toMatchObject({ identityHydrationRevision: 1, me: { uid: actor.uid, sessionId,
+      connectionGeneration: 2, assignedRoleId: 'icebreaker-miner', activeConsoleRoleId: null } });
+    expect(sdk.signIn).not.toHaveBeenCalled();
+  });
+
+  it('checks original document cancellation after the existing inactive SDK identity restoration await', async () => {
+    const identity = deferred<void>();
+    sdk.otherAuth.authStateReady.mockImplementation(() => identity.promise);
+    await mount();
+    expect(callCount('refreshPresence')).toBe(0);
+    act(unmount!); unmount = undefined;
+    identity.resolve(); await advance();
+    expect(callCount('refreshPresence')).toBe(0);
+    expect(callCount('resumeSession')).toBe(0);
+    expect(sdk.otherAuth.currentUser.uid).toBe(backgroundActor.uid);
+    expect(sdk.signIn).not.toHaveBeenCalled();
+  });
+
+  it('checks original live authority after the inactive original SDK resume before another presence', async () => {
+    holdBackgroundPresence = true; await mount(); await deliverPlayer();
+    backgroundPresenceReplies[0]!.reject(Object.assign(new Error('Background SDK presence is unavailable.'), { code: 'functions/unavailable' }));
+    await advance(); expect(backgroundResumeReplies).toHaveLength(1);
+    act(() => currentPlayerReader().error({ code: 'unavailable' })); await advance();
+    expect(useSessionStore.getState()).toMatchObject({ connection: 'offline', sessionSnapshotFreshness: 'cache' });
+    const source = await readBackgroundMember();
+    const { sessionFrom } = await import('@/lib/firestore');
+    backgroundResumeReplies[0]!.resolve({ data: { session: sessionFrom(sessionId, source.session as Record<string, unknown>), player: backgroundActor } });
+    await advance();
+    expect(backgroundPresenceReplies).toHaveLength(1);
+    expect(callCount('refreshPresence')).toBe(1);
+    expect(useSessionStore.getState().identityHydrationRevision).toBe(1);
+  });
+
+  it.each(['uid', 'sessionId'] as const)('rejects an inactive recovery reply with foreign %s without another presence or foreground hydration', async field => {
+    holdBackgroundPresence = true; await mount(); await deliverPlayer();
+    backgroundPresenceReplies[0]!.reject(Object.assign(new Error('Background SDK presence is unavailable.'), { code: 'functions/unavailable' }));
+    await advance(); expect(backgroundResumeReplies).toHaveLength(1);
+    const source = await readBackgroundMember();
+    const { sessionFrom } = await import('@/lib/firestore');
+    backgroundResumeReplies[0]!.resolve({ data: { session: sessionFrom(sessionId, source.session as Record<string, unknown>),
+      player: { ...backgroundActor, [field]: 'foreign-background' } } });
+    await advance();
+    expect(backgroundPresenceReplies).toHaveLength(1);
+    expect(useSessionStore.getState()).toMatchObject({ identityHydrationRevision: 1, me: { uid: actor.uid, sessionId, connectionGeneration: 2 } });
+    expect(sdk.otherAuth.currentUser.uid).toBe(backgroundActor.uid);
     expect(sdk.signIn).not.toHaveBeenCalled();
   });
 });
