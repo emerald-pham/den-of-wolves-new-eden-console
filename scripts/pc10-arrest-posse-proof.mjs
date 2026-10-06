@@ -247,8 +247,11 @@ export function resolveSimulatedAttendanceActors({ sessionId, roster, currentPla
   };
 }
 
-async function readDemoRoster(surface, sessionId) {
-  return surface.page.evaluate(async sid => {
+export async function readOriginalPreparedDemoRoster(context, sessionId) {
+  assert.ok(context?.crew?.page, 'The original prepared roster belongs to the current Crew browser.');
+  assert.ok(typeof sessionId === 'string' && sessionId.length > 0,
+    'Use the current full-game demo session for its prepared roster.');
+  return context.crew.page.evaluate(async sid => {
     const [{ readDemoActorRoster }, { demoActorDisplayName }] = await Promise.all([
       import('/src/lib/demoActorProfiles.ts'), import('/src/lib/demoActorDisplayName.ts'),
     ]);
@@ -383,7 +386,7 @@ async function runCalculation(context, choice, options) {
   const state = await context.gm.observe();
   const blockedBy = assertActiveManualGm(state, context);
   if (blockedBy.length) return blocked(branch, blockedBy, options);
-  const roster = await readDemoRoster(context.gm, context.initial.sessionId);
+  const roster = await readOriginalPreparedDemoRoster(context, context.initial.sessionId);
   const roleIds = roster.map(actor => actor.roleId);
   validatePosseChoice({ ...choice, presentRoleIds: undefined, attendanceEvidence: undefined }, roleIds);
   const panel = context.gm.page.getByRole('region', { name: 'Arrest posse calculator', exact: true });
@@ -463,7 +466,7 @@ export async function proveArrestPosse(context, choice = undefined, options = {}
     return missing(ATTENDANCE_BRANCH, options);
   }
   if (choice === undefined) return missing(CALCULATION_BRANCH, options);
-  const roster = await readDemoRoster(context.gm, context.initial.sessionId);
+  const roster = await readOriginalPreparedDemoRoster(context, context.initial.sessionId);
   const roleIds = roster.map(actor => actor.roleId);
   validatePosseChoice(choice, roleIds);
   const calculated = await runCalculation(context, choice, options);
@@ -483,7 +486,7 @@ async function runDisposition(context, choice, options) {
   const state = await context.gm.observe();
   const blockedBy = assertActiveManualGm(state, context);
   if (blockedBy.length) return blocked(branch, blockedBy, options);
-  const roster = await readDemoRoster(context.gm, context.initial.sessionId);
+  const roster = await readOriginalPreparedDemoRoster(context, context.initial.sessionId);
   const targetRoleId = choice.targetRoleId;
   if (!roster.some(actor => actor.roleId === targetRoleId)) return blocked(branch,
     ['target-role-not-in-current-demo-roster'], options);
