@@ -36071,6 +36071,63 @@ export const refreshPresence = auditedOnCall<{
       if (renewed) return { sessionId };
     }
   }
+  if (!instanceId && (activeConsoleRoleId === undefined || activeConsoleRoleId === 'press-officer')) {
+    const stableCurrentPress = (
+      session: DocumentSnapshot, player: DocumentSnapshot, membership: DocumentSnapshot,
+    ) => {
+      const generation = player.get('connectionGeneration');
+      return session.exists && hasStablePressAuthority(session, player, uid) &&
+        player.get('uid') === uid && player.get('sessionId') === sessionId &&
+        player.get('lastSeenAt') instanceof Timestamp && player.get('escapeState') == null &&
+        Number.isSafeInteger(generation) && (generation as number) >= 1 &&
+        membership.exists && membership.get('sessionId') === sessionId;
+    };
+    const configurationFence = (session: DocumentSnapshot) => ({
+      setupRevision: session.get('setupRevision'), setup: session.get('setup'),
+      phase: session.get('phase'), configurationLocked: session.get('configurationLocked'),
+      pressEnabled: session.get('pressEnabled'), pressHolderUid: session.get('pressHolderUid'),
+    });
+    // Like Core renewal, check legacy exclusivity without retaining a query
+    // transaction while writing a lease. Canonical holder and actor authority
+    // must still match in the original atomic writing transaction.
+    const preflight = await db.runTransaction(async tx => {
+      const [player, session, membership] = await Promise.all([
+        tx.get(playerRef), tx.get(sessionRef), tx.get(membershipRef),
+      ]);
+      if (!stableCurrentPress(session, player, membership) ||
+          fleetTickerBaselineDecision(sessionId, session, new Date().toISOString()).changed) return null;
+      const holders = await tx.get(pressHoldersRef);
+      if (!isSolePressHolder(holders.docs, uid)) return null;
+      return { generation: player.get('connectionGeneration'), configuration: configurationFence(session) };
+    }, { readOnly: true });
+    if (preflight !== null) {
+      const renewed = await db.runTransaction(async tx => {
+        const [player, session, membership] = await Promise.all([
+          tx.get(playerRef), tx.get(sessionRef), tx.get(membershipRef),
+        ]);
+        if (!isActivePlayer(player)) throw new HttpsError('permission-denied', 'Reconnect to the session first.');
+        if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+        if (!stableCurrentPress(session, player, membership) ||
+            player.get('connectionGeneration') !== preflight.generation ||
+            !isDeepStrictEqual(configurationFence(session), preflight.configuration)) {
+          throw commandError(
+            'permission-denied',
+            'Press is no longer available to this browser. Return to station select and reselect your role.',
+            'station-selection-required',
+          );
+        }
+        if (fleetTickerBaselineDecision(sessionId, session, new Date().toISOString()).changed) return false;
+        tx.update(playerRef, { lastSeenAt: FieldValue.serverTimestamp() });
+        tx.set(membershipRef, { sessionId, connectedAt: FieldValue.serverTimestamp() });
+        tx.set(reconciliationRef, {
+          lastFullReconciliationAt: presenceReconciliationTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+        return true;
+      });
+      if (renewed) return { sessionId };
+    }
+  }
   const stationSelectionRequired = await db.runTransaction(async (tx) => {
     const requestedRoleId = activeConsoleRoleId ?? null;
     const roleHolders = requestedRoleId
@@ -36178,6 +36235,9 @@ export const refreshPresence = auditedOnCall<{
       reconcilePress ? tx.get(secretsRef) : null,
       reconcilePress ? tx.get(censusRef) : null,
     ]);
+    if (reconcilePress && !isActivePlayer(player)) {
+      throw new HttpsError('permission-denied', 'Reconnect to the session first.');
+    }
     ensureFleetTickerBaseline(tx, sessionRef, session, new Date().toISOString());
     const presenceUpdate: Record<string, unknown> = {
       lastSeenAt: FieldValue.serverTimestamp(),
