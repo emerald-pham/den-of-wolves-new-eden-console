@@ -407,7 +407,9 @@ export async function runBaseCombatAndDeduction(context, options = {}) {
         }
         const commit = panel.getByRole('button', { name: 'Commit target assignments', exact: true });
         if (await commit.isVisible()) {
-          const view = rangeReady.choice;
+          const view = options.protectedShipPriority === undefined
+            ? rangeReady.choice
+            : { ...rangeReady.choice, protectedShipPriority: options.protectedShipPriority };
           assert.equal(view.turn, current.turn); assert.equal(view.revision, current.revision); assert.equal(view.currentStep, current.currentStep);
           const currentReadiness = combatReadiness.get(executive);
           assert.ok(currentReadiness, 'The current original actor and decision budget are required.');

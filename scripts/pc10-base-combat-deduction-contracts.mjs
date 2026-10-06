@@ -237,6 +237,31 @@ export function baseWolfActionExpectation(endpoint, current) {
 /** Human target plan using only the EO's current entitled contact/coverage projection. */
 export function chooseBaseRangeAssignments(view) {
   assert.equal(view.choiceStatus, 'targets-required');
+  const protectedShipPriority = view.protectedShipPriority;
+  let protectedShipRank;
+  if (protectedShipPriority !== undefined) {
+    const supportedTargets = new Set(['aegis', 'dione', 'icebreaker', 'quellon', 'shepherd', 'refinery-124', 'capybara']);
+    assert.ok(Array.isArray(protectedShipPriority), 'Protected ship priority must be an explicit list.');
+    assert.ok(protectedShipPriority.every(target => typeof target === 'string' && supportedTargets.has(target)),
+      'Protected ship priority contains an unknown source target.');
+    assert.equal(new Set(protectedShipPriority).size, protectedShipPriority.length,
+      'Protected ship priority cannot repeat a source target.');
+    assert.ok(Array.isArray(view.contacts), 'The current source contact list is required.');
+    for (const contact of view.contacts) {
+      assert.ok(contact && typeof contact === 'object' && typeof contact.available === 'boolean',
+        'The current source contact availability is malformed.');
+    }
+    const seenContactIds = new Set();
+    for (const contact of view.contacts.filter(item => item.available)) {
+      assert.ok(typeof contact.contactId === 'string' && contact.contactId.length > 0,
+        'The current available source contact id is malformed.');
+      assert.ok(!seenContactIds.has(contact.contactId), 'The current source contact ids must be unique.');
+      seenContactIds.add(contact.contactId);
+      assert.ok(typeof contact.targetShipId === 'string' && supportedTargets.has(contact.targetShipId),
+        'The current available source contact targetShipId is malformed.');
+    }
+    protectedShipRank = new Map(protectedShipPriority.map((target, index) => [target, index]));
+  }
   const contacts = view.contacts.filter(contact => contact.available);
   const coverage = new Map(contacts.map(contact => [contact.contactId, contact.requiredCoverageDamage]));
   if (view.range === 'short-range') assert.ok(contacts.every(contact => contact.requiredCoverageDamage === null ||
@@ -247,8 +272,16 @@ export function chooseBaseRangeAssignments(view) {
     const selected = [];
     for (let i = 0; i < Math.min(slot.count, contacts.length); i++) {
       const remaining = contacts.filter(contact => !selected.includes(contact.contactId));
-      remaining.sort((a, b) => (Math.max(coverage.get(b.contactId) ?? 0, 0) - Math.max(coverage.get(a.contactId) ?? 0, 0)) ||
-        ((coverage.get(a.contactId) === null ? 0 : 1) - (coverage.get(b.contactId) === null ? 0 : 1)));
+      remaining.sort((a, b) => {
+        const coverageOrder = Math.max(coverage.get(b.contactId) ?? 0, 0) - Math.max(coverage.get(a.contactId) ?? 0, 0);
+        if (coverageOrder !== 0) return coverageOrder;
+        if (protectedShipRank) {
+          const targetOrder = (protectedShipRank.get(a.targetShipId) ?? protectedShipRank.size) -
+            (protectedShipRank.get(b.targetShipId) ?? protectedShipRank.size);
+          if (targetOrder !== 0) return targetOrder;
+        }
+        return (coverage.get(a.contactId) === null ? 0 : 1) - (coverage.get(b.contactId) === null ? 0 : 1);
+      });
       const chosen = remaining[0].contactId; selected.push(chosen);
       if (typeof coverage.get(chosen) === 'number') coverage.set(chosen, Math.max(0, coverage.get(chosen) - slot.damagePerHit));
     }
