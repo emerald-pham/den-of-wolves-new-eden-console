@@ -71,13 +71,23 @@ function makeFixture({ aegisFood = 0, aegisDecreaseEnabled = false, aegisIncreas
     click() { actions.push(`${shipId}:${direction}:Food`); },
   });
   // This mirrors the mounted GmConsole order: each resource's Decrease button
-  // precedes Increase, under the named ship group and fleet-level mode toggle.
+  // precedes Increase in the first list; later lists/buttons hold other counters.
   const shipGroup = (shipId, shipName, currentAmount, decreaseEnabled, increaseEnabled) => element('group', `${shipName} resource controls`, {
     attributes: { 'aria-label': `${shipName} resource controls` },
-    children: [element('listitem', `Food: ${currentAmount}`, { children: [
-      counter(shipId, 'Decrease', decreaseEnabled, currentAmount), element('generic', String(currentAmount)),
-      counter(shipId, 'Increase', increaseEnabled, currentAmount),
-    ] })],
+    children: [
+      element('list', 'Resource stores', { children: [element('listitem', `Food: ${currentAmount}`, { children: [
+        counter(shipId, 'Decrease', decreaseEnabled, currentAmount), element('generic', String(currentAmount)),
+        counter(shipId, 'Increase', increaseEnabled, currentAmount),
+      ] })] }),
+      element('list', 'Survivor population', { children: [element('listitem', 'Survivor Population', { children: [
+        element('button', 'Increase Survivor Population', {
+          enabled: () => writeMode, click() { actions.push(`${shipId}:Increase:Population`); },
+        }),
+      ] })] }),
+      element('generic', 'Civil unrest', { children: [element('button', 'Increase Civil Unrest', {
+        enabled: () => writeMode, click() { actions.push(`${shipId}:Increase:Unrest`); },
+      })] }),
+    ],
   });
   const fleet = element('region', 'Fleet resource controls', { children: [
     element('generic', 'Fleet resource access', { children: [mode] }),
@@ -147,10 +157,14 @@ test('the default counter recipe chooses the first enabled control in the exact 
   const fleet = gmSource.indexOf('aria-label="Fleet resource controls"');
   const mode = gmSource.indexOf('aria-label="Ship numbers write mode"', fleet);
   const group = gmSource.indexOf('aria-label={`${ship.name} resource controls`}', mode);
-  const decrease = gmSource.indexOf('aria-label={`Decrease ${resource.label}`}', group);
+  const resourceList = gmSource.indexOf('<ul>', group);
+  const decrease = gmSource.indexOf('aria-label={`Decrease ${resource.label}`}', resourceList);
   const increase = gmSource.indexOf('aria-label={`Increase ${resource.label}`}', decrease);
-  assert.ok(fleet >= 0 && mode > fleet && group > mode && decrease > group && increase > decrease,
-    'The source has one parent write-mode toggle, then a named per-ship group with Decrease before Increase.');
+  const resourceListEnd = gmSource.indexOf('</ul>', resourceList);
+  const populationList = gmSource.indexOf('<ul>', resourceListEnd + 5);
+  assert.ok(fleet >= 0 && mode > fleet && group > mode && resourceList > group && decrease > resourceList &&
+    increase > decrease && increase < resourceListEnd && populationList > resourceListEnd,
+  'The source has one parent write-mode toggle, then a named ship group whose resource list precedes population.');
   assert.match(gmSource.slice(decrease, increase), /disabled=\{!shipNumberWrite[^}]*visibleAmount === 0\}/,
     'A zero-valued resource disables only its mounted decrease control.');
 
@@ -175,6 +189,14 @@ test('the default counter recipe chooses the first enabled control in the exact 
 // Reason: another mounted ship may have an enabled counter, but it cannot
 // substitute for a selected ship whose own resource group has no enabled control.
 test('the counter recipe does not borrow an enabled counter from a different ship group', async () => {
+  const fixture = makeFixture({ aegisDecreaseEnabled: false, aegisIncreaseEnabled: false });
+  const { planned } = await prepareCounter(fixture);
+  assert.equal(planned.offered, false);
+  assert.match(planned.reason, /no actual one-step GM resource control currently enabled/);
+  assert.deepEqual(fixture.actions, ['write-mode']);
+});
+
+test('the counter recipe does not substitute population or unrest controls for disabled resources', async () => {
   const fixture = makeFixture({ aegisDecreaseEnabled: false, aegisIncreaseEnabled: false });
   const { planned } = await prepareCounter(fixture);
   assert.equal(planned.offered, false);
