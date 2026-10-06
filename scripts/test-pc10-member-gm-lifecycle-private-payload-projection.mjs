@@ -2,7 +2,18 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import { webcrypto } from 'node:crypto';
-import { observeLifecycleActor } from './pc10-member-gm-lifecycle-ui-proof.mjs';
+import { readFile } from 'node:fs/promises';
+
+// Load the whole existing observation function verbatim without importing the
+// unrelated UI driver dependency graph (which requires installed TypeScript).
+const helperSource = await readFile(new URL('./pc10-member-gm-lifecycle-ui-proof.mjs', import.meta.url), 'utf8');
+const observationStart = helperSource.indexOf('export async function observeLifecycleActor(');
+const observationEnd = helperSource.indexOf('\nexport async function untilLifecycle(', observationStart);
+assert.ok(observationStart >= 0 && observationEnd > observationStart, 'Bind the existing observation export.');
+const observationModule = new vm.SourceTextModule(helperSource.slice(observationStart, observationEnd));
+await observationModule.link(() => { throw new Error('The isolated original observation has no top-level imports.'); });
+await observationModule.evaluate();
+const { observeLifecycleActor } = observationModule.namespace;
 
 // Exercise the actual existing observation callback with native mock modules.
 // This adds no browser or Firebase SDK and does not edit an old test/fixture.
