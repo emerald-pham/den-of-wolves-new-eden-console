@@ -8,7 +8,14 @@ import ts from 'typescript';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { useSessionStore } from '@/store/useSessionStore';
-import { isCanonicalRequestId } from '../../functions/src/requestGuards';
+import { isCanonicalRequestId, requireUid, requireNonterminalSessionPhase } from '../../functions/src/requestGuards';
+import { commandReceiptDisposition } from '../../functions/src/commandIdempotency';
+import { commandError } from '../../functions/src/commandErrors';
+import { fleetGroupRecord, ordinaryFleetCommunicationGroup } from '../../functions/src/fleetGroups';
+import { requirePursuitEmergencyWindowAbsent } from '../../functions/src/pursuitEmergencyWindow';
+import { isPresenceStale } from '../../functions/src/sessionLifecycle';
+import { HttpsError } from 'firebase-functions/v2/https';
+import { Timestamp } from 'firebase-admin/firestore';
 import PdfNewsRelayPanel from './PdfNewsRelayPanel';
 
 // Real React control, fleetGroupService/parser, Zustand, serialized generic and
@@ -76,6 +83,53 @@ function actualServerDto(payload: Row) {
     HttpsError: class extends Error { constructor(_code: string, message: string) { super(message); } },
   })) as { result: Row; message: Row; valid: boolean };
 }
+
+// The existing handlers and their actual authority/replay/read helpers execute
+// over inert in-memory document I/O. There is no deployed callable, transaction
+// concurrency or Rules claim. Exact replay executes the real no-duplicate path.
+const handlerHelpers = declarations(serverFile, ['isRecord', 'groupNoteRequest', 'isFleetGroupMessageReply',
+  'groupNoteAuthority', 'storedGroupNotes', 'activeVesselIdsForSession', 'isActivePlayer',
+  'isConnectedPlayer', 'isKickedPlayer', 'requireActiveGameplayPhase', 'requireTurnPursuitMembership',
+  'movementPursuitFleetGroups', 'commandReceiptRef', 'replayBoundCommand']);
+let readHandler: ts.Node | undefined;
+function findReadHandler(node: ts.Node): void {
+  if (ts.isVariableDeclaration(node) && node.name.getText(serverFile) === 'readFleetGroupMessages') readHandler = node.initializer;
+  ts.forEachChild(node, findReadHandler);
+}
+findReadHandler(serverFile); expect(readHandler).toBeDefined();
+const handlerSource = ts.transpileModule(`${handlerHelpers.map(node => node.getText(serverFile)).join('\n')}\n` +
+  `const send = ${(sendHandler as ts.CallExpression).arguments[1]!.getText(serverFile)};\n` +
+  `const read = ${(readHandler as ts.CallExpression).arguments[1]!.getText(serverFile)}; ({ send, read });`,
+{ compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
+function actualHandlers() {
+  const data = new Map<string, Row>([
+    [`sessions/${sid}`, { phase: 'active', activeVesselIds: ['refinery-124'] }],
+    [`sessions/${sid}/players/${uid}`, { connected: true, fleetGroupId: 'fleet-1',
+      lastSeenAt: Timestamp.now(), assignedRoleId: roleId, activeConsoleRoleId: roleId }],
+    [`sessions/${sid}/fleetGroups/fleet-1`, { id: 'fleet-1', vesselIds: ['refinery-124'],
+      memberUids: [uid], memberShipIds: { [uid]: 'refinery-124' } }],
+  ]);
+  const snapshot = (path: string) => ({ id: path.split('/').at(-1), exists: data.has(path),
+    get: (key: string) => data.get(path)?.[key], data: () => data.get(path) });
+  let noteWrites = 0;
+  const db = { doc: (path: string) => path, collection: (path: string) => ({ path }),
+    runTransaction: async (run: (tx: unknown) => unknown) => run({
+      get: async (ref: string | { path: string }) => typeof ref === 'string' ? snapshot(ref) : {
+        docs: [...data.keys()].filter(path => path.startsWith(`${ref.path}/`) &&
+          !path.slice(ref.path.length + 1).includes('/')).map(snapshot),
+      },
+      set: (ref: string, value: Row) => { if (ref.includes('/fleetGroupMessages/')) noteWrites++; data.set(ref, value); },
+    }),
+  };
+  const handlers = new Script(handlerSource).runInNewContext({ db, Timestamp, requireUid,
+    requireNonterminalSessionPhase, requirePursuitEmergencyWindowAbsent, isPresenceStale, fleetGroupRecord,
+    ordinaryFleetCommunicationGroup, isCanonicalRequestId, commandReceiptDisposition, commandError,
+    HttpsError, FieldValue: { serverTimestamp: () => 'native-inert-write-time' } });
+  return { send: async (payload: Row) => plain(await handlers.send({ auth: { uid }, data: payload })) as Row,
+    read: async (payload: Row) => plain(await handlers.read({ auth: { uid }, data: payload })) as Row,
+    notes: () => data.get(`sessions/${sid}/fleetGroupMessages/fleet-1`)?.messages as Row[],
+    noteWrites: () => noteWrites };
+}
 beforeEach(() => {
   transport.call.mockReset();
   const store = useSessionStore.getState(); store.reset();
@@ -102,6 +156,7 @@ function fixture({ replyChange, noteChange, afterSend, beforeSecondSelect, durin
   let notes: Row[] = [], saved: unknown, selects = 0, fills = 0, clicks = 0, observers = 0;
   let richSamples = 0;
   const calls: { name: string; payload: Row }[] = [], replays: Row[] = [];
+  const backend = actualHandlers();
   async function evaluate(callback: (...args: never[]) => unknown, input: unknown) {
     const browser = createContext({ input, crypto: webcrypto, TextEncoder, document, performance: { timeOrigin } });
     const modules = new Map<string, SyntheticModule>();
@@ -159,11 +214,11 @@ function fixture({ replyChange, noteChange, afterSend, beforeSecondSelect, durin
   };
   transport.call.mockImplementation(async (name: string, payload: Row) => {
     calls.push({ name, payload: plain(payload) });
-    if (name === 'readFleetGroupMessages') return { data: { groupId: 'fleet-1', messages: plain(notes) } };
+    if (name === 'readFleetGroupMessages') return { data: await backend.read(payload) };
     expect(name).toBe('sendFleetGroupMessage');
     const produced = actualServerDto(payload); expect(produced.valid).toBe(true);
-    notes = [produced.message]; noteChange?.(notes);
-    const result = produced.result; replyChange?.(result); issuedReply = plain(result);
+    const result = await backend.send(payload); expect(result).toEqual(produced.result);
+    notes = backend.notes(); noteChange?.(notes); replyChange?.(result); issuedReply = plain(result);
     const request = plain(payload); mutationRequest?.(request);
     resolveResponse?.({ url: () => 'http://native.invalid/us-central1/sendFleetGroupMessage',
       request: () => ({ method: () => 'POST', postDataJSON: () => ({ data: request }) }),
@@ -174,7 +229,7 @@ function fixture({ replyChange, noteChange, afterSend, beforeSecondSelect, durin
     storeModuleUrl: () => '/src/store/useSessionStore.ts',
     callable: async (name: string, payload: Row) => {
       expect(name).toBe('sendFleetGroupMessage'); replays.push(plain(payload));
-      const result = plain(issuedReply); replayChange?.(result); return { status: 'committed', result };
+      const result = await backend.send(payload); replayChange?.(result); return { status: 'committed', result };
     },
   };
   const gm = { page, storeModuleUrl: () => '/src/store/useSessionStore.ts' };
@@ -196,7 +251,7 @@ function fixture({ replyChange, noteChange, afterSend, beforeSecondSelect, durin
     await act(async () => { await vi.waitFor(() => expect(calls).toHaveLength(1)); }); };
   const run = async () => { await mount(); return runSpecialist('pdf-group-relay', 'pdf-group-relay',
     { roleId, message: privateText }, { roleId, record: false }); };
-  return { run, mount, game, calls, replays, reply: () => issuedReply!, saved: () => saved,
+  return { run, mount, game, calls, replays, backend, reply: () => issuedReply!, saved: () => saved,
     counts: () => ({ selects, fills, clicks, observers }), changeAuth: () => { authUid = 'foreign-native'; },
     replaceDocument: () => { timeOrigin += 1000; } };
 }
