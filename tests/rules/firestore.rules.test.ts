@@ -2702,6 +2702,135 @@ describe('shuttle departure privacy', () => {
     await assertFails(deleteDoc(doc(as('gm1'), path)));
   });
 
+  it('lets only the current Press holder observe an absent SNN route without a capital berth', async () => {
+    const path = `${SESSION}/shuttleDepartures/snn-press-shuttle`;
+    const groupPath = `${SESSION}/fleetGroups/fleet-1`;
+    const discoveryPath = `${SESSION}/playerDiscoveries/press`;
+    const pressPath = `${SESSION}/players/press`;
+    const control = {
+      shuttleId: 'snn-press-shuttle', ownerRoleId: 'press-officer', ownerUid: 'previous-holder',
+      holderUid: 'press', revision: 3,
+    };
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await updateDoc(doc(db, SESSION), {
+        phase: 'active', activeRoleIds: ['wing-commander'], activeVesselIds: ['aegis', 'icebreaker'],
+        pressEnabled: true, pressHolderUid: 'press', shuttleControl: { 'snn-press-shuttle': control },
+      });
+      await updateDoc(doc(db, pressPath), {
+        connected: true, kickedAt: null, role: 'player', activeConsoleRoleId: 'press-officer',
+        assignedRoleId: null, replacementStatus: null, fleetGroupId: 'fleet-1',
+      });
+      await setDoc(doc(db, groupPath), {
+        id: 'fleet-1', vesselIds: ['aegis', 'icebreaker'], memberUids: ['alice', 'press'],
+        memberShipIds: { alice: 'aegis' },
+      });
+      await setDoc(doc(db, discoveryPath), {
+        groupId: 'fleet-1', fleetGroupVesselIds: ['aegis', 'icebreaker'], revision: 7,
+      });
+      await setDoc(doc(db, `${SESSION}/players/foreign`), {
+        uid: 'foreign', role: 'player', connected: true, activeConsoleRoleId: 'press-officer',
+        assignedRoleId: null, replacementStatus: null, fleetGroupId: 'fleet-2',
+      });
+      await setDoc(doc(db, `${SESSION}/fleetGroups/fleet-2`), {
+        id: 'fleet-2', vesselIds: ['dione'], memberUids: ['foreign'],
+      });
+    });
+
+    const ownAbsent = await assertSucceeds(getDoc(doc(as('press'), path)));
+    expect(ownAbsent.exists()).toBe(false);
+    await assertSucceeds(getDoc(doc(as('press'), discoveryPath)));
+    await assertFails(getDoc(doc(as('alice'), path)));
+    await assertFails(getDoc(doc(as('foreign'), path)));
+    await assertFails(getDoc(doc(as('stranger'), path)));
+    await assertFails(getDoc(doc(as('press'), `${SESSION}/shuttleDepartures/other-craft`)));
+    await assertFails(getDoc(doc(as('press'), 'sessions/s2/shuttleDepartures/snn-press-shuttle')));
+    await assertFails(getDocs(collection(as('press'), `${SESSION}/shuttleDepartures`)));
+    await assertFails(setDoc(doc(as('press'), path), { status: 'requested' }));
+    await assertFails(updateDoc(doc(as('gm1'), path), { status: 'requested' }));
+    await assertFails(deleteDoc(doc(as('press'), path)));
+
+    const deniedAfter = async (mutate: (db: ReturnType<typeof as>) => Promise<unknown>) => {
+      await env.withSecurityRulesDisabled(async (ctx) => mutate(ctx.firestore()));
+      await assertFails(getDoc(doc(as('press'), path)));
+    };
+    await deniedAfter((db) => updateDoc(doc(db, pressPath), { fleetGroupId: 'fleet-2' }));
+    await deniedAfter(async (db) => {
+      await updateDoc(doc(db, pressPath), { fleetGroupId: 'fleet-1', connected: false });
+    });
+    await deniedAfter(async (db) => {
+      await updateDoc(doc(db, pressPath), { connected: true, kickedAt: 'removed' });
+    });
+    await deniedAfter(async (db) => {
+      await updateDoc(doc(db, pressPath), { kickedAt: null, replacementStatus: 'replaced' });
+    });
+    await deniedAfter(async (db) => {
+      await updateDoc(doc(db, pressPath), { replacementStatus: null, activeConsoleRoleId: 'wing-commander' });
+    });
+    await deniedAfter(async (db) => {
+      await updateDoc(doc(db, pressPath), { activeConsoleRoleId: 'press-officer' });
+      await updateDoc(doc(db, SESSION), { pressEnabled: false });
+    });
+    await deniedAfter(async (db) => {
+      await updateDoc(doc(db, SESSION), { pressEnabled: true, pressHolderUid: 'alice' });
+    });
+    await deniedAfter(async (db) => {
+      await updateDoc(doc(db, SESSION), { pressHolderUid: 'press', 'shuttleControl.snn-press-shuttle.holderUid': 'alice' });
+    });
+    await deniedAfter(async (db) => {
+      await updateDoc(doc(db, SESSION), {
+        'shuttleControl.snn-press-shuttle.holderUid': 'press',
+        'shuttleControl.snn-press-shuttle.ownerRoleId': 'wing-commander',
+      });
+    });
+    await deniedAfter(async (db) => {
+      await updateDoc(doc(db, SESSION), {
+        'shuttleControl.snn-press-shuttle.ownerRoleId': 'press-officer',
+        'shuttleControl.snn-press-shuttle.shuttleId': 'other-craft',
+      });
+    });
+    await deniedAfter(async (db) => {
+      await updateDoc(doc(db, SESSION), {
+        'shuttleControl.snn-press-shuttle.shuttleId': 'snn-press-shuttle',
+        'shuttleControl.snn-press-shuttle.ownerUid': '',
+      });
+    });
+    await deniedAfter(async (db) => {
+      await updateDoc(doc(db, SESSION), {
+        'shuttleControl.snn-press-shuttle.ownerUid': 'previous-holder',
+        'shuttleControl.snn-press-shuttle.unexpected': true,
+      });
+    });
+    await deniedAfter(async (db) => {
+      await updateDoc(doc(db, SESSION), {
+        'shuttleControl.snn-press-shuttle.unexpected': deleteField(),
+      });
+      await updateDoc(doc(db, discoveryPath), { groupId: 'fleet-2' });
+    });
+    await deniedAfter(async (db) => {
+      await updateDoc(doc(db, discoveryPath), { groupId: 'fleet-1', revision: -1 });
+    });
+    await deniedAfter(async (db) => {
+      await updateDoc(doc(db, discoveryPath), { revision: 7, fleetGroupVesselIds: ['dione'] });
+    });
+    await deniedAfter(async (db) => {
+      await updateDoc(doc(db, discoveryPath), { fleetGroupVesselIds: ['aegis', 'icebreaker'] });
+      await updateDoc(doc(db, SESSION), { 'shuttleControl.snn-press-shuttle.revision': -1 });
+    });
+    await deniedAfter(async (db) => {
+      await updateDoc(doc(db, SESSION), { 'shuttleControl.snn-press-shuttle.revision': 3 });
+      await updateDoc(doc(db, SESSION), { 'shuttleControl.snn-press-shuttle': deleteField() });
+    });
+    await deniedAfter(async (db) => {
+      await updateDoc(doc(db, SESSION), { 'shuttleControl.snn-press-shuttle': control });
+      await updateDoc(doc(db, groupPath), { memberUids: ['alice'] });
+    });
+    await deniedAfter(async (db) => {
+      await updateDoc(doc(db, groupPath), { memberUids: ['alice', 'press'] });
+      await deleteDoc(doc(db, discoveryPath));
+    });
+  });
+
   it('keeps immutable transit history server-only', async () => {
     const path = `${SESSION}/shuttleTransitChains/starlight`;
     await env.withSecurityRulesDisabled(async (ctx) => {
