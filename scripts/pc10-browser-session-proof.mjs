@@ -1115,6 +1115,7 @@ export async function createPc10BrowserTable({ baseUrl, directory, expansion = '
             `${JSON.stringify({ authoritativeFailureSnapshots, diagnosticFailures }, null, 2)}\n`);
         },
       }),
+      beforeCleanup: closeStartupBrowser,
       beforeFailureDeletion: closeStartupBrowser,
     });
     const actorRoles = new Map(fixture.players.map((actor, index) => [actor.localId, roles[index]]));
@@ -1250,9 +1251,9 @@ export async function createPc10BrowserTable({ baseUrl, directory, expansion = '
     return { fixture, clients, actions, command, writeEvidence, diagnoseIdentityFailure, diagnoseAuthoritativeFailure,
       presenceFunctionalContract, renewPresenceCohort, capturePresenceAuthority, evaluatePresenceFunctionalContract,
       diagnoseRateFailure: () => diagnoseRateFailure(fixture), cleanup: async () => {
-      // Stop real client rereads before deleting their fixture. Otherwise a
-      // failed run can keep retrying a partially deleted session during cleanup.
-      try { await browser.close(); } finally { await fixture.cleanup(); }
+      // The original fixture owns a referenced cleanup lifetime and awaits
+      // this table's browser-close hook before its own heartbeat drain/deletion.
+      await fixture.cleanup();
     } };
   } catch (error) {
     try {

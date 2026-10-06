@@ -112,7 +112,7 @@ export async function joinConfiguredBrowserPlayers({roles,players,joinCode,brows
 }
 
 /** Normal local Auth/HTTP setup. Tokens stay in memory and never enter evidence. */
-export async function createPc07AuthenticatedSession(name,playerCount=8,{clearBriefing=true,keepAlive=false,serializeFixtureCalls=false,browserOwnsPresence=false,expansion='base',capybaraEnabled=expansion==='capybara',fullGameManual=false,chartId='A',turnLimit=6,browserRoleId,joinBrowserPlayer,joinBrowserPlayers,joinPressPlayer,activeRoleIdsOverride,unionCraftStartingHosts={},explicitLoyaltySetup,onCallableIssued,onCallableObservation,beforeFailureCleanup,beforeFailureDeletion}={}) {
+export async function createPc07AuthenticatedSession(name,playerCount=8,{clearBriefing=true,keepAlive=false,serializeFixtureCalls=false,browserOwnsPresence=false,expansion='base',capybaraEnabled=expansion==='capybara',fullGameManual=false,chartId='A',turnLimit=6,browserRoleId,joinBrowserPlayer,joinBrowserPlayers,joinPressPlayer,activeRoleIdsOverride,unionCraftStartingHosts={},explicitLoyaltySetup,onCallableIssued,onCallableObservation,beforeCleanup,beforeFailureCleanup,beforeFailureDeletion}={}) {
  const env=Object.fromEntries((await readFile('.env.emulators.local','utf8')).trim().split('\n').map(line=>line.split('=')));
  const project=process.env.VITE_FIREBASE_PROJECT_ID;
  const config=localGmAccessConfiguration('serve',{...env,VITE_LOCAL_GM_ACCESS:'1',VITE_FIREBASE_PROJECT_ID:project});
@@ -272,10 +272,16 @@ export async function createPc07AuthenticatedSession(name,playerCount=8,{clearBr
   return{db,config,project,gm,players,press,roles,seatClaimRequests:Object.freeze(seatClaimRequests),unionCraftSetupProof,explicitLoyaltySetupProof,
    loyaltyActors,heartbeatFailures,sessionId,session,instanceId,call,ok,
    byRole:role=>players[roles.indexOf(role)],byLoyalty:kind=>loyaltyActors?.[kind],
-   stopHeartbeats:()=>heartbeats.stop(),restartHeartbeats:startHeartbeat,cleanup:async()=>{
+   stopHeartbeats:()=>heartbeats.stop(),restartHeartbeats:startHeartbeat,cleanup:()=>heartbeats.withCleanupLifetime(async()=>{
+    try{if(beforeCleanup)await beforeCleanup();}
+    catch(error){
+     try{await heartbeats.stop();}
+     catch(stopError){error.pc07CleanupHeartbeatStopUnavailable=true;error.pc07CleanupHeartbeatStopError=stopError;}
+     throw error;
+    }
     await heartbeats.stop();
     await db.recursiveDelete(session);
-   }};
+   })};
  }catch(error){
   return finishFailedPc07Fixture(error,{
    observeFailure:beforeFailureCleanup&&failureContext?()=>beforeFailureCleanup(failureContext,error):undefined,

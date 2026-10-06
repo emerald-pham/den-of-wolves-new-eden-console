@@ -35,5 +35,12 @@ export function createFixtureHeartbeatController({gmTick,playerTick,
   });
   return stopped;
  }
- return {start,stop,isRunning:()=>running};
+ async function withCleanupLifetime(work) {
+  // A pending SDK/close promise alone does not keep Node alive after the
+  // browser and heartbeat handles are gone. This hold sends no renewal and
+  // changes no deadline; it exists only until the original cleanup settles.
+  const hold=setInterval(()=>{},10000);
+  try{return await work();}finally{clearInterval(hold);}
+ }
+ return {start,stop,isRunning:()=>running,withCleanupLifetime};
 }
