@@ -456,7 +456,7 @@ describe('current original Press lease uses read-only exclusivity plus atomic po
   it('preserves the original malformed escape failed-precondition without any renewal write', async () => {
     await originalCurrentPressTable();
     mock.setAfterReadOnlyTransaction(() => change(playerPath, { escapeState: { status: 'required' } }));
-    await expect(renew()).rejects.toMatchObject({ code: 'failed-precondition', details: { category: 'malformed-input' } });
+    await expect(renew()).rejects.toMatchObject({ code: 'failed-precondition', details: { commandError: 'malformed-input' } });
     expect(mock.update).not.toHaveBeenCalled(); expect(mock.set).not.toHaveBeenCalled(); expect(mock.remove).not.toHaveBeenCalled();
   });
 
