@@ -262,11 +262,12 @@ export function createPc10NativeDurableObservationLedger({ label, projectId, fun
           headers: request?.headers, body: request?.postData }, configuration);
         if (!metadata.matched) { if (opaque(protocolId)) ignored.add(protocolId); return; }
         if (!opaque(protocolId) || networks.has(protocolId) || ignored.has(protocolId)) { report(networks.get(protocolId), 'unknown-callable-lifecycle'); return; }
-        const trace = createPc10CallableTrace({ name: metadata.name, transport: 'independent-browser-SDK', startedAt: now() });
+        const requestedAt = now();
+        const trace = createPc10CallableTrace({ name: metadata.name, transport: 'independent-browser-SDK', startedAt: requestedAt });
         Object.assign(trace, { roleId: label, captureMode: 'native-durable', actorHash: digest('actor', metadata.actorUid),
           sessionHash: digest('session', metadata.sessionId), requestHash: digest('request', metadata.requestId),
           groupHash: digest('group', metadata.groupId), projectHash: digest('project', metadata.projectId),
-          protocolRequestHash: createHash('sha256').update(`pc10-cdp-request\0${protocolId}`).digest('hex'), nativeRequestObservedAt: now() });
+          protocolRequestHash: createHash('sha256').update(`pc10-cdp-request\0${protocolId}`).digest('hex'), nativeRequestObservedAt: requestedAt });
         if (metadata.name === 'refreshPresence') trace.presenceRequestClassification = classifyPc10PresenceRequest(metadata, request?.postData);
         if (activeSnapshot) { trace.issuedAfterDrainSnapshot = true; trace.drainSnapshotHash = activeSnapshot.snapshotHash; activeSnapshot.postSnapshotNativeTransports++; }
         const state = { trace, metadata, protocolId, frameId: event.frameId, loaderId: event.loaderId,
