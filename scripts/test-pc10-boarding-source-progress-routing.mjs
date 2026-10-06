@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFile } from 'node:fs/promises';
 import { createContext, Script, SourceTextModule, SyntheticModule } from 'node:vm';
+import { createHash } from 'node:crypto';
 import ts from 'typescript';
 import { resolveLiveWolfAttack } from './pc10-live-wolf-attack-ui-proof.mjs';
 
@@ -49,7 +50,7 @@ async function mountedBase(adapter, result) {
 function sourceFixture({ mode = 'base', after = {}, progressAfterReads = 2, neverProgress = false,
   crewDrift = {}, gmDrift = {}, sourceReply = {}, pendingRuling = false, rulingAfter = {},
   initialRuling, commanderTarget, timeoutMs = 1_000, onClosedRead, notYourChoice = false,
-  initialCrew = {}, initialGm = {} } = {}) {
+  initialCrew = {}, initialGm = {}, gmGenericOmissions = false, gmDriftWhenClosed = {}, briefCommander = false } = {}) {
   const calls = [], selections = [], sources = [], observations = [], result = {};
   let role = 'executive-officer', closedRead = false, closingReads = 0, changed = false;
   const protocol = {
@@ -67,6 +68,11 @@ function sourceFixture({ mode = 'base', after = {}, progressAfterReads = 2, neve
     protocol.defenceChoices = {}; protocol.crewActorUidsByTarget = { shepherd: ['native-engineer'] };
     assert.deepEqual(nextWolfBoardingStage(protocol), { kind: 'defence', actorUids: ['native-engineer'], target: 'shepherd' });
   } else assert.deepEqual(nextWolfBoardingStage(protocol), { kind: 'complete' });
+  const commanderUid = 'native-original-commander';
+  if (briefCommander) {
+    protocol.commanderUid = commanderUid; protocol.commanderChoice = { target: null };
+    assert.deepEqual(nextWolfBoardingStage(protocol), { kind: 'complete' });
+  }
   const current = {
     type: 'wolf-attack-state', attackId: 'native-original-attack', turn: 1, revision: 27,
     status: 'declared', currentStep: 'boarding', airspaceLocked: true,
@@ -74,7 +80,9 @@ function sourceFixture({ mode = 'base', after = {}, progressAfterReads = 2, neve
     boardingLockedDefence: [{ target: 'aegis', lockedRolls: [4] }],
     boardingRerollChoices: { aegis: { source: 'aegis', actorUid: 'native-executive', turn: 1, revision: 26 },
       pallas: { source: 'pallas', actorUid: 'native-executive', turn: 1, revision: 27 } },
-    decisionSummary: { commander: { status: 'no-commander', actors: [] } },
+    decisionSummary: { commander: { status: briefCommander ? 'finished' : 'no-commander',
+      actors: briefCommander ? [{ uid: commanderUid }] : [] } },
+    ...(briefCommander ? { boardingCommanderChoice: { targetShipId: null, actorUid: commanderUid, turn: 1, revision: 19 } } : {}),
     ...(commanderTarget ? { boardingCommanderChoice: { targetShipId: commanderTarget,
       actorUid: 'native-commander', turn: 1, revision: 19 } } : {}),
     ...initialRuling,
@@ -90,9 +98,11 @@ function sourceFixture({ mode = 'base', after = {}, progressAfterReads = 2, neve
   const gmBase = { ...base, uidHash: 'native-gm', profileRoleId: null, assignedRoleId: null,
     activeConsoleRoleId: null, playerRole: 'gm', instanceId: 'native-original-instance', gmInstanceOwned: true,
     fleetGroupId: null, seatId: null, connectionGeneration: 0, discoveryAuthority: null, entitledShipId: null };
-  const crewBase = () => ({ ...base, uidHash: role === 'executive-officer' ? 'native-executive' : 'native-engineer',
+  const executiveHash = briefCommander ? createHash('sha256').update(commanderUid).digest('hex').slice(0, 16) : 'native-executive';
+  const crewBase = () => ({ ...base, uidHash: role === 'executive-officer' ? executiveHash : 'native-engineer',
     profileRoleId: role, assignedRoleId: role, activeConsoleRoleId: role, playerRole: 'player' });
   const observe = isGm => ({ ...(isGm ? { ...gmBase, ...initialGm } : { ...crewBase(), ...initialCrew }),
+    ...(closedRead && isGm ? gmDriftWhenClosed : {}),
     ...(changed ? isGm ? gmDrift : crewDrift : {}) });
   async function browserStoreRead(callback, moduleUrl, isGm) {
     assert.equal(moduleUrl, '/native-store');
@@ -120,8 +130,19 @@ function sourceFixture({ mode = 'base', after = {}, progressAfterReads = 2, neve
       click: async () => { throw new Error('Native routing must not invent any mutation.'); },
     };
   }
+  let documentUrl = 'http://native.invalid/#/roles';
   const surface = isGm => ({ label: isGm ? 'original GM' : 'original crew',
-    storeModuleUrl: () => '/native-store', observe: async () => observe(isGm), page: {
+    storeModuleUrl: () => '/native-store', observe: async () => {
+      const actor = observe(isGm);
+      if (gmGenericOmissions && isGm) {
+        for (const key of ['fleetGroupId', 'seatId', 'connectionGeneration', 'identityHydrationRevision',
+          'replacementRoleId', 'replacementStatus', 'discoveryAuthority', 'entitledShipId']) delete actor[key];
+      }
+      return { ...actor, ...(briefCommander && !isGm ? { privateLoyaltyPresent: true, briefMatchesActor: true } : {}) };
+    }, until: async (_name, predicate) => {
+      const value = observe(isGm); assert.equal(predicate({ ...value, privateLoyaltyPresent: true, briefMatchesActor: true }), true); return value;
+    }, page: {
+      url: () => documentUrl, goto: async url => { documentUrl = url; },
       getByRole: (kind, options = {}) => widget(kind, options.name, isGm),
       evaluate: (callback, moduleUrl) => browserStoreRead(callback, moduleUrl, isGm),
     } });
@@ -157,7 +178,7 @@ function sourceFixture({ mode = 'base', after = {}, progressAfterReads = 2, neve
       sessionId: 'native-session', reason: notYourChoice ? 'not-your-choice' : 'no-special-choice', ...sourceReply } };
   };
   gm.callable = callable(true); crew.callable = callable(false);
-  const roster = [{ roleId: 'executive-officer', uidHash: 'native-executive' },
+  const roster = [{ roleId: 'executive-officer', uidHash: executiveHash },
     { roleId: 'shepherd-engineer', uidHash: 'native-engineer' }];
   const context = { gm, crew, roster, directory: '/native-no-files', initial: { sessionId: 'native-session', joinCode: 'NATIVE' },
     started: { uidHash: gmBase.uidHash, instanceId: gmBase.instanceId } };
@@ -235,6 +256,25 @@ test('not-your-choice keeps the actual next admitted crew actor pending instead 
     ['shepherd-engineer', 'getWolfBoardingSpecialChoice'],
   ]);
   assert.equal(f.result.resolved, undefined);
+});
+
+test('a finished admitted Commander brief also stops after its one explicit no-special-choice', async () => {
+  const f = sourceFixture({ briefCommander: true });
+  await assert.rejects(f.run(), error => error === boundary);
+  assert.equal(f.calls.length, 1); assert.equal(f.calls[0].roleId, 'executive-officer');
+  assert.deepEqual(f.selections, ['executive-officer']);
+});
+
+test('the generic GM observation may omit member fields when the actual current store supplies them', async () => {
+  const f = sourceFixture({ gmGenericOmissions: true });
+  await assert.rejects(f.run(), error => error === boundary);
+  assert.equal(f.result.resolved.revision, 28); assert.equal(f.calls.length, 1);
+});
+
+test('original GM generation is captured before the crew read even when its generic observer omits it', async () => {
+  const f = sourceFixture({ gmGenericOmissions: true, gmDriftWhenClosed: { connectionGeneration: 1 } });
+  await assert.rejects(f.run(), error => error !== boundary && /generation|Generation/.test(error.message));
+  assert.equal(f.result.resolved, undefined); assert.equal(f.calls.length, 1);
 });
 
 for (const [name, after] of [
