@@ -634,7 +634,13 @@ function functionExports(source) {
       }
     }
     const block = lines.slice(declaration.line, end).join('\n');
-    if (/=\s*onCall\s*</.test(block) || /=\s*onCall\s*\(/.test(block) || /=\s*onRequest\s*</.test(block) || /=\s*onRequest\s*\(/.test(block) || /=\s*onSchedule\s*</.test(block) || /=\s*onSchedule\s*\(/.test(block)) {
+    const auditedCallable = /=\s*auditedOnCall(?:<[\s\S]*?>)?\s*\(\s*(['"])([A-Za-z][\w]{0,99})\1\s*,/.exec(block);
+    if (auditedCallable) {
+      if (auditedCallable[2] !== declaration.name) {
+        throw new Error('Cannot safely map auditedOnCall callable identity does not match exported name.');
+      }
+      exports.set(declaration.name, block);
+    } else if (/=\s*onCall\s*</.test(block) || /=\s*onCall\s*\(/.test(block) || /=\s*onRequest\s*</.test(block) || /=\s*onRequest\s*\(/.test(block) || /=\s*onSchedule\s*</.test(block) || /=\s*onSchedule\s*\(/.test(block)) {
       exports.set(declaration.name, block);
     }
   }
