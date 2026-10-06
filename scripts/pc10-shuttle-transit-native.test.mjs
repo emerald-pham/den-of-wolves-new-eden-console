@@ -138,6 +138,8 @@ function makeMountedRetargetHarness({ originOverrides = {}, currentAuthorityOver
     playerDiscovery: { groupId: 'fleet-1' }, holderGroupId: 'fleet-1',
     activeVesselIds: ['quellon', 'dione', 'icebreaker'],
     shipFleetGroupIds: { quellon: 'fleet-1', dione: 'fleet-1', icebreaker: 'fleet-1' },
+    currentMemberScope: { groupId: 'fleet-1', vesselIds: ['quellon', 'dione', 'icebreaker'],
+      craftIds: ['starlight'] },
     shuttleControl: { starlight: { shuttleId: 'starlight', holderUid: UID, revision: 4 } },
     shuttleDockings: [],
     currentDocumentAuthority: currentDocumentAuthority(currentAuthorityOverrides) };

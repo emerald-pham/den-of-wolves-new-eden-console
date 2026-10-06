@@ -92,6 +92,10 @@ function makeHarness({ origin = originAuthority(), witness, movement = null,
   mutateState = () => {}, duplicateCoreUid = false } = {}) {
   const state = sourceState();
   mutateState(state);
+  const shuttleOriginHostShipId = state.shuttleDockings.find(row => row.shuttleId === CORE_SHUTTLE)?.shipId;
+  if (movement?.status === 'in-transit') {
+    state.shuttleDockings = state.shuttleDockings.filter(row => row.shuttleId !== CORE_SHUTTLE);
+  }
   const pressState = { ...state, currentDocumentAuthority: null };
   const gmState = { ...state, holderGroupId: undefined, currentDocumentAuthority: undefined };
   const sourceSelections = [];
@@ -160,7 +164,7 @@ function makeHarness({ origin = originAuthority(), witness, movement = null,
   if (duplicateCoreUid) roster.push({ roleId: 'dione-captain', uidHash: uidHash(CORE_UID) });
   const context = {
     initial: { sessionId: SESSION_ID }, roster, shuttleOriginAuthority: origin,
-    shuttleOriginHostShipId: state.shuttleDockings.find(row => row.shuttleId === CORE_SHUTTLE)?.shipId,
+    shuttleOriginHostShipId,
     ...(witness ? { shuttleArrivalWitness: witness } : {}),
   };
   return {
