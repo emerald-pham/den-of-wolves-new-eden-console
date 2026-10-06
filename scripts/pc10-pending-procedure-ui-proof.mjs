@@ -985,10 +985,11 @@ export async function captureMountedProcedureAction({ context, game, caseId, exp
       ? sourceBefore.vesselActionRevisions?.[expected.shipId] ?? 0 : undefined);
   const groupId = expected?.groupId ?? (expected?.shipId
     ? sourceBefore.shipFleetGroupIds?.[expected.shipId] : undefined);
-  const sourceBeforeProof = { live: sourceBefore.live, sessionId: sourceBefore.sessionId,
-    cycle: sourceBefore.cycle, phase: sourceBefore.phase,
-    ...(spec.endpoint !== 'completeShuttleArrival' ? { revision: sourceRevision } : {}),
-    ...(groupId ? { groupId } : {}) };
+  const sourceBeforeProof = spec.endpoint === 'completeShuttleArrival'
+    ? { live: sourceBefore.live, sessionId: sourceBefore.sessionId,
+      cycle: sourceBefore.cycle, phase: sourceBefore.phase, ...(groupId ? { groupId } : {}) }
+    : { live: sourceBefore.live, sessionId: sourceBefore.sessionId,
+      cycle: sourceBefore.cycle, revision: sourceRevision, ...(groupId ? { groupId } : {}) };
   let preClickActionRequest = false;
   const beforeMountedClick = request => {
     try {
