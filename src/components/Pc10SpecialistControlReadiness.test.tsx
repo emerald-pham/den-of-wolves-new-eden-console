@@ -41,8 +41,8 @@ function findObserver(node: ts.Node): void {
 }
 findObserver(observerFile);
 expect(observers).toHaveLength(1);
-const returned = observers[0].body!.statements[0] as ts.ReturnStatement;
-const genericCallbackSource = (returned.expression as ts.CallExpression).arguments[0].getText(observerFile);
+const returned = observers[0]!.body!.statements[0] as ts.ReturnStatement;
+const genericCallbackSource = (returned.expression as ts.CallExpression).arguments[0]!.getText(observerFile);
 const genericCallback = new Script(`(${genericCallbackSource})`).runInNewContext();
 const sid = 'native-specialist-session', uid = 'private-native-wing', roleId = 'wing-commander';
 const uidHash = (value: string) => createHash('sha256').update(value).digest('hex').slice(0, 16);
@@ -162,8 +162,8 @@ function fixture({ beforeCapture, beforeClick, afterFill, duringSecondSelection,
     return value;
   }
   const locate = (query: () => HTMLElement[]) => ({
-    isVisible: async () => query().length === 1 && !query()[0].hidden,
-    isEnabled: async () => query().length === 1 && !query()[0].matches(':disabled'),
+    isVisible: async () => query().length === 1 && !query()[0]!.hidden,
+    isEnabled: async () => query().length === 1 && !query()[0]!.matches(':disabled'),
     first() { return this; },
     evaluateAll: async (callback: (nodes: HTMLElement[], argument?: unknown) => unknown, argument?: unknown) => {
       const nodes = query();
@@ -176,6 +176,7 @@ function fixture({ beforeCapture, beforeClick, afterFill, duringSecondSelection,
     waitFor: async () => { expect(query()).toHaveLength(1); },
     click: async () => {
       const node = query()[0]; expect(node).toBeTruthy();
+      if (!node) throw new Error('No current native DOM control.');
       if (node.tagName === 'BUTTON') {
         expect(node).toBeEnabled(); beforeClick?.(); expect(node.isConnected).toBe(true);
         clicks++; events.push('click');
@@ -188,6 +189,7 @@ function fixture({ beforeCapture, beforeClick, afterFill, duringSecondSelection,
     },
     fill: async (value: string) => {
       fills++; events.push('fill'); const node = query()[0]; expect(node).toBeTruthy();
+      if (!node) throw new Error('No current native DOM input.');
       await act(async () => { fireEvent.change(node, { target: { value } }); });
       await act(async () => { afterFill?.(); });
     },
@@ -199,19 +201,20 @@ function fixture({ beforeCapture, beforeClick, afterFill, duringSecondSelection,
     getByRole: (kind: 'region' | 'button' | 'link', options: { name: string | RegExp; exact?: boolean }) => {
       if (kind === 'region') return {
         getByRole: (childKind: 'button' | 'status', childOptions: { name?: string } = {}) => locate(() => {
-          const region = screen.queryByRole('region', { name: options.name, exact: options.exact });
-          return region ? within(region).queryAllByRole(childKind, { name: childOptions.name }) : [];
+          const region = screen.queryByRole('region', { name: options.name });
+          return region ? within(region).queryAllByRole(childKind,
+            childOptions.name === undefined ? {} : { name: childOptions.name }) : [];
         }),
         getByLabel: (name: string) => locate(() => {
-          const region = screen.queryByRole('region', { name: options.name, exact: options.exact });
+          const region = screen.queryByRole('region', { name: options.name });
           return region ? within(region).queryAllByLabelText(name) : [];
         }),
         locator: (selector: string) => locate(() => {
-          const region = screen.queryByRole('region', { name: options.name, exact: options.exact });
+          const region = screen.queryByRole('region', { name: options.name });
           return region ? [...region.querySelectorAll<HTMLElement>(selector)] : [];
         }),
       };
-      return locate(() => screen.queryAllByRole(kind, { name: options.name, exact: options.exact }));
+      return locate(() => screen.queryAllByRole(kind, { name: options.name }));
     },
     waitForResponse: () => {
       observers++; events.push('arm-response');
