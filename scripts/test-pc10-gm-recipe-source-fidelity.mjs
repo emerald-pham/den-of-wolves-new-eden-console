@@ -381,3 +381,41 @@ for (const [name, change] of [
   assert.equal(rowFor(result, 'setGmShipConsoleWriteGrant').status, 'pending');
   assert.equal(f.lists(), listsBeforeReload); assert.equal(f.writes.length, 1); f.close();
 });
+
+// Denial-only counterexamples: a later acceptable snapshot cannot erase an
+// already observed role, ownership or foreign-command violation during reload.
+for (const [name, violate, restore] of [
+  ['foreign pending command', raw => { raw.pendingCommands = [{ payload: { sessionId: 'native-foreign-session' } }]; },
+    raw => { raw.pendingCommands = []; }],
+  ['GM role loss', raw => { raw.me.role = 'player'; }, raw => { raw.me.role = 'gm'; }],
+  ['instance ownership loss', raw => { raw.gmInstance.uid = 'native-foreign-gm'; },
+    raw => { raw.gmInstance.uid = raw.me.uid; }],
+]) test(`unaccepted reload cannot wait through an observed ${name} and later grant credit`, async () => {
+  let listsBeforeReload;
+  const f = await fixture({ onReload: ({ raw }) => {
+    listsBeforeReload = f.lists(); raw.identityHydrationRevision = 0; violate(raw);
+  }, onLifecycleActorRead: ({ raw, reloads }) => {
+    if (reloads > 0 && raw.identityHydrationRevision === 0) { raw.identityHydrationRevision = 1; restore(raw); }
+  } });
+  const result = await callbackFor(f, ['setGmShipConsoleWriteGrant']).onStarted(f.context);
+  assert.equal(rowFor(result, 'setGmShipConsoleWriteGrant').status, 'pending');
+  assert.equal(f.lists(), listsBeforeReload); assert.equal(f.writes.length, 1); f.close();
+});
+
+test('exact GM form mount cannot reset its original twenty-second readiness deadline', async t => {
+  let budgetNow = Date.now(); t.mock.method(Date, 'now', () => budgetNow);
+  const f = await fixture({ gmMountReads: 1, onGmMountRead: () => { budgetNow += 20_001; } });
+  const result = await callbackFor(f, ['authorFacilitatorRuleCall']).onStarted(f.context);
+  assert.equal(rowFor(result, 'authorFacilitatorRuleCall').status, 'pending');
+  assert.equal(f.gmMountReads(), 1); assert.equal(f.fills.length, 0); assert.equal(f.writes.length, 0); f.close();
+});
+
+test('public default recipe capture fails closed when its current-document certificate is absent', async () => {
+  const f = await fixture(), spec = specs.authorFacilitatorRuleCall;
+  const callbacks = createPendingGmRulingsCountersCallbacks({ steps: { [spec.id]: async input => {
+    const recipe = await steps[spec.id](input); return { ...recipe, gmOperation: undefined };
+  } }, gameFactory: () => f.game });
+  const result = await callbacks.onStarted(f.context);
+  assert.equal(rowFor(result, spec.endpoint).status, 'pending');
+  assert.equal(f.writes.length, 0); assert.equal(f.fills.length, 0); f.close();
+});
