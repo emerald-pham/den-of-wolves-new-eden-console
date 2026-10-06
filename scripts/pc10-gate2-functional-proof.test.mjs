@@ -145,6 +145,15 @@ test('failed original command is retained before issue and has no replay or repl
   assert.equal(calls, 1); assert.equal(ledger.length, 1); assert.ok(ledger[0].failedAt);
   assert.equal(ledger[0].completedAt, null);
 });
+test('a foreign command SID is rejected before any original SDK is issued', async () => {
+  const ledger = []; let calls = 0;
+  const issue = createPc10FunctionalCommand({ ledger, originals: new Map([[original.roleId, original]]),
+    clients: new Map([[original.roleId, { callable: async () => { calls++; return member(); } }]]),
+    observeBinding: async () => binding(), captureAuthority: async () => source(), validateReply: () => ({ passed: true }) });
+  await assert.rejects(issue(original.roleId, 'resumeSession', { sessionId: 'foreign-session' }));
+  assert.equal(calls, 0); assert.equal(ledger.length, 1);
+  assert.equal(ledger[0].issuedAt, null); assert.ok(ledger[0].failedAt);
+});
 
 test('a failed strict passive-body drain uses exactly one public reload and retains the original failure', async () => {
   const transitions = [], drains = []; let reloads = 0, wrapped = 0;
