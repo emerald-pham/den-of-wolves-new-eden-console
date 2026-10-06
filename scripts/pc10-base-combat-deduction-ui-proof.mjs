@@ -431,7 +431,7 @@ export async function runBaseCombatAndDeduction(context, options = {}) {
           assert.equal(view.turn, current.turn); assert.equal(view.revision, current.revision); assert.equal(view.currentStep, current.currentStep);
           const currentReadiness = combatReadiness.get(executive);
           assert.ok(currentReadiness, 'The current original actor and decision budget are required.');
-          const diagnostic = createWolfTargetDiagnosticBuffer({ view, expected: currentReadiness.expected,
+          const diagnostic = createWolfTargetDiagnosticBuffer({ view: rangeReady.choice, expected: currentReadiness.expected,
             originalActor: currentReadiness.actor, deadlineAt: currentReadiness.deadlineAt });
           targetDiagnosticBuffers.push(diagnostic);
           const assignments = await selectBaseRangeTargetControls({ panel, view,
