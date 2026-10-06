@@ -558,8 +558,8 @@ export function createMemberGmLifecycleUiProof(options = {}) {
       await perform('gm-ship-grant-lock', context, async () => {
         if (!options.shipId) return blocked('gm-ship-grant-lock', 'Choose a current active source shipId; observer view must be mounted in the normal catalog.');
         const before = await observeLifecycleActor(context.gm), savedGmUrl = context.gm.page.url();
-        // The current source CSS arrow participates in this link's exact name.
-        const leave = context.gm.page.getByRole('link', { name: '←Change role', exact: true })
+        // Full source CSS, including inline-flex, spaces this link's arrow name.
+        const leave = context.gm.page.getByRole('link', { name: '← Change role', exact: true })
           .and(context.gm.page.locator(`a.ship-console__back[href="#/ships/${options.shipId}/roles"]`));
         try {
         const url = new URL(context.gm.page.url()); url.hash = '/console'; await context.gm.page.goto(url.href);
