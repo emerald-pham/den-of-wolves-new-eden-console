@@ -64,7 +64,11 @@ function fixture({ initial = 'pending', subsequent = 'ready', deadlineAt = Date.
   if (currentCensus) state.gmLoyaltyCensus.revision = 38;
   const selectElement = {
     get value() { return selectedValue; }, get disabled() { return disabled; },
-    get options() { return visibleOptions; }, get labels() { return [{ textContent: labelText }]; },
+    get options() { return visibleOptions; }, get labels() { return [{
+      textContent: `${labelText} ${visibleOptions.map(option => option.textContent).join(' ')}`,
+      childNodes: [{ nodeType: 3, textContent: `\n ${labelText}\n ` },
+        { nodeType: 1, textContent: visibleOptions.map(option => option.textContent).join(' ') }],
+    }]; },
   };
   const panelElement = { querySelectorAll(selector) {
     assert.equal(selector, '#arrest-posse-target'); return [selectElement];
@@ -75,7 +79,7 @@ function fixture({ initial = 'pending', subsequent = 'ready', deadlineAt = Date.
   }, querySelector: () => null };
   async function runBrowserCallback(callback, input, browser) {
     counts.serializedCallbacks++;
-    const realm = createContext({ input, crypto: webcrypto, TextEncoder, document });
+    const realm = createContext({ input, crypto: webcrypto, TextEncoder, document, Node: { TEXT_NODE: 3 } });
     assert.equal(new Script('[typeof process,typeof require,typeof Buffer].join(",")').runInContext(realm),
       'undefined,undefined,undefined');
     const exportsByModule = new Map([
