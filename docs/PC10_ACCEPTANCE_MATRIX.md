@@ -73,16 +73,20 @@ Prepared presentation, native tests, normal authenticated emulator HTTP/UI/rules
 
 ## October 6 accepted and open finite families
 
-The latest closed actual boundary is Miner2 at
-source `07c262e0f96cb71995de09b3d99a054534882270`: eight Core actors, GM and
+The latest closed actual boundary is Miner3 at
+source `aa681e72491f8d09b12b8fcb86c367a6b846783b`: eight Core actors, GM and
 controller, two automated Chrome processes/contexts, and no human playtest.
-Ordinary admission and real GM manual cycle 0→1 occurred, then the original
-pre-selection generation changed from 2 to 3. Its original tuple and initiating
-resume reply were not retained; no selection, movement or ending is accepted.
+Ordinary admission and casting completed, but the real GM Start button stayed
+disabled throughout the original 35-second click budget. No `startGame` request
+occurred. The exact disabled predicates/current player document were not
+retained; a bounded native/source investigation is open. No start, selection,
+movement or ending is accepted. Miner2's earlier real manual cycle 0→1 and
+generation 3-versus-2 failure remain historical evidence at `07c262e0`.
 The proof and post-check closed with all owned gameplay scopes zero and the
 exact source/runtime unchanged. Earlier Core7, Press3, GM20, GM21 and Miner1
-failures remain retained. Subsequent source/native integration ends at
-`bc3b08a97985ec9bc6fd9b0e2a5842178bbdf00a`, without fresh gameplay credit.
+failures remain retained. The App visibility repair is integrated and passed
+12 new and 202 retained client cases; repeated checks are not additional cases.
+It has no fresh Miner selection/recovery credit because Miner3 stopped first.
 All 48 catalog closures and the release remain pending.
 Accepted subsystem checks do not establish an entire family or every function.
 
@@ -90,7 +94,7 @@ Accepted subsystem checks do not establish an entire family or every function.
 |---|---|---|
 | Ordinary Settings QR | Fresh normal admission and actual GM manual start; four unchanged pixel captures decoded to the exact ordinary join payload; accessible link/code and responsive presentation. | Final current-source/release reconciliation; no physical-device scan is claimed. |
 | Member and GM lifecycle / GM recipes | GM17 completed four mounted recipes, ordinary Pursuit ending, immutable debrief/closure and entitled crew reload across two browsers. GM19 independently completed the fighter-count recipe but failed the resource-counter case. | Browser qualification of the repaired resource-counter lifecycle/source checks and ordinary primary casting preference. GM20 incorrectly required new consent despite valid browser-global 72-hour acknowledgement. GM21 retained genuine consent but failed during its pre-start sequence without a current casting sample; no exclusive cause is proved. The native casting repair requires actual connected-player readiness. GM22 preserves consent and uses one atomic source sample within the existing 60-second deadline. Remaining mounted member/GM functions and interrupted/repeated recovery stay open. The intentionally unmounted registration-lock writer earns no UI credit. |
-| Full Base / combat / politics / crisis / arrest | Combat29 committed nine paid maintenance actions and its opening combat choices before failure. | Combat29 and the separate eight-core Miner1/Miner2 qualifiers changed the original pre-selection generation before station acceptance; initiating callback attribution is unretained. Miner2 still failed after the independently valid foreground presence repair (12 new plus 77 retained native cases). A separate whole-App native counterexample shows a short visible-tab return starting same-document resume despite live/server authority; the narrow current-identity visibility repair is authorized but not yet integrated. Neither counterexample supplies an exclusive historical cause. Complete stable role selection, release/reselection/reload, range/aftermath and subsequent ordinary Base actions through ending. |
+| Full Base / combat / politics / crisis / arrest | Combat29 committed nine paid maintenance actions and its opening combat choices before failure. | Combat29 and the separate eight-core Miner1/Miner2 qualifiers changed the original pre-selection generation before station acceptance; initiating callback attribution is unretained. Miner2 still failed after the independently valid foreground presence repair (12 new plus 77 retained native cases). A separate whole-App native counterexample shows a short visible-tab return starting same-document resume despite live/server authority; the current-identity visibility repair is integrated with 12 new and 202 retained client cases. Neither counterexample supplies an exclusive historical cause. Miner3 stopped before a start request at the disabled GM control; source/native diagnosis remains open. Complete stable role selection, release/reselection/reload, range/aftermath and subsequent ordinary Base actions through ending. |
 | Core and Press shuttle transit | Core7 retained the original current member berth/control witness and received Request UI/exact-replay 200 responses, but its source evaluator did not accept the result. Press2 confirmed canonical null replacement status and its own SNN scope/control; Press3 failed before departure with source readiness predicates incomplete. | Core four-leg movement and the three adjacent craft commands now use actual member scope and an independently observed original docking host. The control-transfer recipe selects the unique admitted printed owner, retains the actual holder/revision, and validates the source-mounted handoff/reclaim and exact receipt. The integrated ten-file native slice passed 159 cases: 24 new control, 36 new craft, and 99 retained cases. Its first 158/159 failure is retained; a separate original-host fixture completion preserves all nine route assertions/two titles, outside the earlier three-file 101/18 aggregate. Press selection passed 14 new and 94 retained checks. Fresh Core8/Press4 movement, natural arrival, adjacent actions and reload through ending remain open. No native total establishes movement or an exclusive historical callback cause. |
 | N/O/P candidate games | CandidatePanel6 completed four ordinary cycles and twenty Scientist choices; phone/landscape targets and all viewport overflow/target-size checks passed. | Desktop native Tab reached seven of eight targets within the unchanged 48-Tab cap; all three distinct candidate outcomes and endings remain open. |
 | Capybara, sparse joint engineering and replacement-role families | Current implementation and focused native checks are retained. | Fresh appropriate-role connected functions, source costs, replay/recovery/privacy and their existing normal endings. |
@@ -98,10 +102,11 @@ Accepted subsystem checks do not establish an entire family or every function.
 | Gate 3 usability / final release | Existing action/source annotations and subsystem screenshots are retained. | Reconcile available actions, costs, blockers, committed results and next actor; one independent review, final local checks, exact candidate/main CI and deployment. |
 
 The parent explicitly returned the earlier Chain Scanner runtime windows,
-after which Root ran Miner2 following fresh preflight. After Miner2 closed,
-Root verified its own cleanup and offered the requested combined narrow
-qualifier/final-browser window. Retained Root servers remain
-idle and further heavy/browser proofs await the parent's explicit return;
+after which Root ran Miner2 and Miner3 following their fresh preflights.
+After Miner3's browser closure, exact-owned-session deletion and post-preflight,
+Root released the requested next clean window for Chain Scanner's final
+seven-minute sequence. Retained Root servers remain idle, and further
+heavy/browser proofs await the parent's explicit return;
 bounded source/native work continues. No outgoing thread-message capability is
 available in this environment, and no parent acknowledgement is fabricated.
 Each closed actual retained its own failure evidence, closed browsers before

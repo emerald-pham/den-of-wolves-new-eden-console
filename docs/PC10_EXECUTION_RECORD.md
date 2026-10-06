@@ -230,18 +230,37 @@ owned-session deletion, all three owned gameplay scopes returned to zero,
 and complete source/compiled-runtime bindings remained unchanged. No
 selection, recovery, movement or ending is accepted. A distinct whole-App
 native reproduction shows a short visible-tab return starting same-document
-resume despite current live/server authority. Root authorized a narrow
+resume despite current live/server authority. Root integrated a narrow
 visibility-handler repair with actual Auth/UID/session/hydration and pending
-resume checks; implementation/integration and fresh qualification remain open.
+resume checks at `aa681e72`. Twelve new and 202 retained client cases pass;
+the meaningful application type check and scoped lint pass with only the two
+unchanged App baseline warnings. NEW setup/cache-premise and type API
+corrections, earlier intended RED and untouched old-test byte preservation
+remain separately recorded. Fresh qualification remains open.
 The initiating historical Miner2 event/reply is still unproved. Complete fresh
 families and Gate 2 stay open.
 
-After the parent explicitly returned its earlier windows and Miner2 browser
-closure/exact-owned-session cleanup completed, Root offered the requested
-combined Chain Scanner narrow qualifier and final browser window.
+Miner3 then ran at exact `aa681e72491f8d09b12b8fcb86c367a6b846783b` with
+eight Core Auth actors, GM and controller across two automated Chrome
+processes/contexts. Ordinary admission and casting completed, but the source
+GM Start control remained disabled throughout the unchanged 35-second click
+budget; no `startGame` request occurred. All 133 intents have captured replies
+(132 HTTP 200 and one expected ordinary-controller preparation denial).
+No start, Miner selection/release/recovery or ending is accepted. The exact
+disable predicates and current casting player document were not retained;
+the lower Unassigned roster groups by selected device console and does not
+prove lost printed assignment. An isolated mounted native/source investigation
+owns this gap without speculative attribution or weakened authority.
+Both proof browsers closed before exact-owned-session deletion. Root's fresh
+post-check found all three owned gameplay scopes zero and unchanged complete
+source/compiled-runtime bindings. No human or physical-device play is claimed.
+
+After the parent's explicit runtime return and Miner3's clean boundary,
+Root released the requested next window for Chain Scanner's single final
+seven-minute sequence. No active PC10 proof was interrupted.
 Root's reserved servers remain idle; source/native work continues while heavy
 proofs await explicit return. This environment has no outgoing thread-message
-capability, so the offer is recorded without inventing parent acknowledgement.
+capability, so the release is recorded without inventing delivered acknowledgement.
 No unrelated task's files, services, browser tabs or reservations were changed.
 
 The following restore diagnosis is retained historical evidence; it does not

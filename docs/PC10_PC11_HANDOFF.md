@@ -59,8 +59,7 @@ final PC10 release and handoff before implementation.
 ## Current measured limits, before final PC10 qualification
 
 The latest closed October 6 actual snapshot is
-`db96d9f23c5e17de98e3d9135b00b9ef02796aa3` (GM21); subsequent native repairs
-are integrated through `b2df7af5`. All 48 catalog closures and release remain
+`aa681e72491f8d09b12b8fcb86c367a6b846783b` (Miner3). All 48 catalog closures and release remain
 pending. The [current finite-family checklist](PC10_ACCEPTANCE_MATRIX.md#october-6-accepted-and-open-finite-families)
 records accepted subsystem evidence separately from open games and gates.
 
@@ -78,8 +77,17 @@ native tests reproduce passive foreground roster resume and cancellation
 defects, without attributing those historical failures. Core member-scope
 four-leg movement, Press initial member readiness, and primary casting-control
 readiness repairs have focused native evidence; fresh qualification remains
-open. GM21 retained genuine consent but failed before start without a current
-casting source sample. CandidatePanel6 reached four cycles and
+open. Miner2 still failed the original generation check at `07c262e0`.
+A separate whole-App native counterexample and narrow visibility repair passed
+12 new and 202 retained client cases, without proving its historic initiator.
+Miner3 then completed ordinary admission/casting but stopped at the disabled
+real GM Start control before any `startGame` request. Its exact disable/player
+tuple was not retained. A bounded mounted native/source investigation is open;
+no start, role selection or ending credit is added. GM21 likewise retained
+genuine consent but failed before start without a current casting sample.
+Core transfer/cargo/evacuation/recharge repairs passed the reconciled 159-case
+native slice; old route assertions/titles and separate fixture completion
+remain recorded. Native totals do not establish movement. CandidatePanel6 reached four cycles and
 twenty Scientist choices, then failed desktop native Tab reachability at seven
 of eight targets within 48 Tabs. Phone and landscape passed, but the missing
 desktop target and runtime cause were not retained. Core/Press shuttle and
