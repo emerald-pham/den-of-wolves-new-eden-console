@@ -1,6 +1,6 @@
 import { act, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Firestore } from 'firebase-admin/firestore';
+import type { createCurrentMemberSessionReader as CreateMemberReader } from '../functions/src/memberSessionCallable';
 import type { GameSession, Player } from '@/types/game';
 import type { useSessionStore as SessionStore } from '@/store/useSessionStore';
 import type * as SessionService from '@/lib/sessionService';
@@ -139,9 +139,9 @@ async function mount(options: { demo?: boolean; press?: boolean; gm?: boolean; l
           !path.slice(ref.path.length + 1).includes('/')).map(path => serverSnapshot(path, values[path])) }
         : serverSnapshot(ref.path, values[ref.path]) });
     } };
-  const reader = createCurrentMemberSessionReader({ db: db as unknown as Firestore,
+  const reader = createCurrentMemberSessionReader({ db: db as unknown as Parameters<typeof CreateMemberReader>[0]['db'],
     projectSession: source => source.data() as Record<string, unknown> });
-  readMember = () => reader({ auth: sdk.auth.currentUser ?? undefined, data: { sessionId } });
+  readMember = () => reader({ ...(sdk.auth.currentUser ? { auth: sdk.auth.currentUser } : {}), data: { sessionId } });
   sdk.read.mockImplementation(ref => Promise.resolve(snapshot(ref.path, sessionData)));
   sdk.listen.mockImplementation((ref, _options, next, error) => {
     const listener = { path: ref.path, next, error, active: true };
