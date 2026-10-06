@@ -54,7 +54,7 @@ function makeLocator({ count = 1, options = [], onClick, onSelect } = {}) {
     count: async () => count,
     isVisible: async () => count > 0,
     isEnabled: async () => count > 0,
-    locator: () => ({ evaluateAll: async callback => callback(options.map(option => ({
+    locator: () => ({ evaluateAll: async callback => callback((typeof options === 'function' ? options() : options).map(option => ({
       value: option.value, textContent: option.textContent ?? option.value, disabled: option.disabled === true,
     }))) }),
     selectOption: async value => { selected = value; await onSelect?.(value); },
@@ -79,7 +79,7 @@ function serializedSurface({ uid, roleId, currentControl = control(), isGm = fal
       shuttleDockings: [{ shuttleId: SHUTTLE_ID, shipId: 'icebreaker', dockedAt: '2026-10-06T12:00:00.000Z' }],
     } }
     : memberStore({ uid, roleId, currentControl });
-  const recipient = makeLocator({ options: projectedTargets.map(target => typeof target === 'string'
+  const recipient = makeLocator({ options: () => projectedTargets.map(target => typeof target === 'string'
     ? { value: target, textContent: target }
     : { value: target.value, textContent: target.textContent ?? target.value, disabled: target.disabled }),
   onSelect: value => selectedTargets.push(value) });
@@ -89,6 +89,9 @@ function serializedSurface({ uid, roleId, currentControl = control(), isGm = fal
     onClick: async () => { clickLog.push('Reclaim control'); } });
   const absent = () => makeLocator({ count: 0 });
   const panel = {
+    count: async () => 1,
+    isVisible: async () => true,
+    isEnabled: async () => true,
     getByLabel: (label, options = {}) => label === 'Hand off to' && options.exact === true
       ? ownerActionVisible ? recipient : absent() : absent(),
     getByRole: (role, options = {}) => role === 'button' && options.exact === true &&
@@ -198,9 +201,9 @@ test('public default recipe selects the unique printed owner for a borrowed shut
   harness.ownerSurface.setControl(control({ holderUid: RECIPIENT_UID, revision: CONTROL_REVISION + 1 }));
   const inspected = await plan.inspect({ surface: harness.ownerSurface,
     actor: await harness.ownerSurface.observe(), actorAfter: await harness.ownerSurface.observe(),
-    request: { sessionId: SESSION_ID, shuttleId: SHUTTLE_ID, action: 'handoff',
+    request: { sessionId: SESSION_ID, requestId: 'native-handoff-request', shuttleId: SHUTTLE_ID, action: 'handoff',
       targetUid: RECIPIENT_UID, expectedRevision: CONTROL_REVISION },
-    result: { status: 'committed', sessionId: SESSION_ID, shuttleId: SHUTTLE_ID,
+    result: { status: 'committed', sessionId: SESSION_ID, requestId: 'native-handoff-request', shuttleId: SHUTTLE_ID,
       action: 'handoff', ownerUid: OWNER_UID, previousHolderUid: HOLDER_UID,
       holderUid: RECIPIENT_UID, revision: CONTROL_REVISION + 1 } });
   assert.equal(inspected.sourceAfter.live, true);
