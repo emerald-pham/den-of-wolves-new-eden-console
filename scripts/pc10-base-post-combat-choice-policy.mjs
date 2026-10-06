@@ -289,7 +289,17 @@ export function validateBaseMissionStartReceipt({ receipt, opportunity, sessionI
     participantRoleIds: [...snapshotRoleIds], missionLeaderRoleId };
 }
 
-/** Baseline seam for the shared-surface original-role reselection regression. */
-export async function recheckChosenBaseShipRole({ selection } = {}) {
-  return selection;
+/** Reinspect the selected role after candidate probes may have changed a shared browser surface. */
+export async function recheckChosenBaseShipRole({ selection, expectedCycle, inspectCurrentRole } = {}) {
+  if (selection?.status !== 'eligible') return selection;
+  if (!Number.isSafeInteger(expectedCycle) || expectedCycle < 1 || typeof inspectCurrentRole !== 'function') {
+    return { status: 'pending', roleId: null, blockers: ['chosen-original-role-current-read-required'] };
+  }
+  const readiness = await inspectCurrentRole(selection.roleId, expectedCycle);
+  if (readiness?.status !== 'eligible' || readiness.cycle !== expectedCycle) {
+    return { status: 'pending', roleId: null,
+      blockers: Array.isArray(readiness?.blockers) && readiness.blockers.length > 0
+        ? [...new Set(readiness.blockers)] : ['chosen-original-role-no-longer-current-live'] };
+  }
+  return { ...selection, readiness };
 }

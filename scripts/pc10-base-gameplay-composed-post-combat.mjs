@@ -11,7 +11,8 @@ import { createBasePendingProcedureComposition } from '/private/tmp/dow-pc10-exe
 import { runBaseC4CustomCrisisLifecycle } from '/private/tmp/dow-pc10-execution-20261005/scripts/pc10-crisis-voyage-proof.mjs';
 import { BASE_MISSION_ROLE_PRIORITY, assessLiveBaseAction, baseShipForRole, baseShipRoleCandidates,
   chooseAvailableBaseShipRole, selectBaseMissionTeam, selectCurrentBaseMissionCarriers,
-  validateBaseMissionStartReceipt, validateBaseScoutRequestReceipt } from './pc10-base-post-combat-choice-policy.mjs';
+  recheckChosenBaseShipRole, validateBaseMissionStartReceipt, validateBaseScoutRequestReceipt
+} from './pc10-base-post-combat-choice-policy.mjs';
 import { observeBasePostCombatActor } from './pc10-base-post-combat-actor-observation.mjs';
 
 function sequenceCallbacks(callbacks, label) {
@@ -200,7 +201,9 @@ export async function runBaseGameplay(context, integration) {
     for (const roleId of candidates) readinessByRoleId[roleId] = await currentRoleReadiness(shipId, roleId, expectedCycle,
       { expectedGroupId, enterConsole });
     const selected = chooseAvailableBaseShipRole({ candidates, readinessByRoleId, expectedCycle });
-    return { ...selected, ...(selected.status === 'eligible' ? { readiness: readinessByRoleId[selected.roleId] } : {}) };
+    return recheckChosenBaseShipRole({ selection: selected, expectedCycle,
+      inspectCurrentRole: roleId => currentRoleReadiness(shipId, roleId, expectedCycle,
+        { expectedGroupId, enterConsole }) });
   }
   async function compose(stage, callback) {
     if (typeof callback !== 'function') return undefined;
