@@ -263,6 +263,43 @@ for (const endpoint of ['authorFacilitatorRuleCall', 'setFacilitatorCensusNote']
   });
 }
 
+const finiteFailure = { stage: 'mount', route: 'gm', gmMainCount: 1, loading: false,
+  screenFadeCount: 1, crossingOut: false, outgoingStationsCount: 0,
+  formCount: 1, formVisible: false, formEnabled: true };
+for (const [name, formDiagnostic] of [
+  ['extra private field', { ...finiteFailure, uid }],
+  ['unbounded route string', { ...finiteFailure, route: '/foreign-route?secret=0000' }],
+  ['uncapped locator count', { ...finiteFailure, formCount: 3 }],
+  ['nonboolean enabled value', { ...finiteFailure, formEnabled: 'native-route-private' }],
+]) test(`public pending form evidence rejects ${name} while keeping the original pending result`, async () => {
+  const f = await fixture({ initialRoute: '#/gm' });
+  try {
+    const endpoint = 'authorFacilitatorRuleCall', spec = specs[endpoint];
+    const callback = createPendingGmRulingsCountersCallbacks({ steps: { [spec.id]: async input => ({
+      ...await steps[spec.id](input),
+      prepare: async () => ({ offered: false, reason: 'native-unavailable', formDiagnostic }),
+    }) } });
+    const result = await callback.onStarted(f.context), row = rowFor(result, endpoint);
+    assert.equal(row.status, 'pending'); assert.equal(row.reason, 'native-unavailable');
+    assert.equal(Object.hasOwn(row, 'formDiagnostic'), false); assert.equal(result.observedProcedureCount, 0);
+    assert.doesNotMatch(JSON.stringify(row), /native-route|0000|foreign-route|secret|private/);
+    assert.deepEqual(f.clicks, []); assert.equal(f.requestListeners.size, 0);
+  } finally { await f.close(); }
+});
+
+for (const endpoint of ['authorFacilitatorRuleCall', 'setFacilitatorCensusNote']) {
+  test(`public ${endpoint} retains a real mount reader error as an uncredited preparation failure`, async () => {
+    const f = await fixture({ initialRoute: '#/gm', onMountRead: () => { throw new Error('Native mount reader failure.'); } });
+    try {
+      const result = await callbackFor(f, endpoint).onStarted(f.context), row = rowFor(result, endpoint);
+      assert.equal(row.status, 'pending'); assert.equal(row.reason, 'mounted-GM-source-preparation-did-not-complete');
+      assert.equal(Object.hasOwn(row, 'formDiagnostic'), false);
+      assert.equal(result.observedProcedureCount, 0); assert.deepEqual(f.clicks, []);
+      assert.equal(f.requestListeners.size, 0);
+    } finally { await f.close(); }
+  });
+}
+
 const callbackFor = (f, endpoint) => createPendingGmRulingsCountersCallbacks({
   steps: { [specs[endpoint].id]: steps[specs[endpoint].id] },
 });
