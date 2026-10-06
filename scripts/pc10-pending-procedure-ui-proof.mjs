@@ -16,6 +16,19 @@ const STATUSLESS_VESSEL_RESULTS = Object.freeze({
   dismissUnrestAlert: { valid: result => result?.dismissed === true, action: 'dismiss-unrest' },
   setShipConsoleLock: { valid: result => typeof result?.locked === 'boolean', action: 'console-lock' },
 });
+const COUNTER_BATCH_REQUEST_KEYS = Object.freeze(['sessionId', 'instanceId', 'shipId', 'counter', 'steps',
+  'requestId', 'expectedRevision', 'resourceId']);
+const COUNTER_BATCH_RESULT_KEYS = Object.freeze(['amount', 'appliedSteps', 'alertRaised', 'sessionId', 'instanceId',
+  'shipId', 'counter', 'resourceId', 'requestId', 'expectedRevision', 'actorUid', 'actorRoleId', 'vesselId',
+  'turn', 'phase', 'revision', 'idempotencyKey', 'auditId']);
+const COUNTER_SELECTION_FIELDS = Object.freeze(['sessionId', 'instanceId', 'uidHash', 'claimedAt',
+  'connectionGeneration', 'hydrationRevision', 'actorRoleId', 'phase', 'cycle', 'shipId', 'groupId',
+  'groupLabel', 'resourceId', 'resourceLabel', 'step', 'beforeAmount', 'beforeVisibleAmount', 'beforeRevision']);
+const COUNTER_SELECTION_KEYS = Object.freeze(['kind', ...COUNTER_SELECTION_FIELDS]);
+const COUNTER_SOURCE_WITNESS_KEYS = Object.freeze(['kind', ...COUNTER_SELECTION_FIELDS,
+  'afterAmount', 'afterVisibleAmount', 'afterRevision']);
+const COUNTER_RENDERED_KEYS = Object.freeze(['kind', 'visible', 'resultStatus', 'shipId', 'groupId',
+  'resourceId', 'resourceLabel', 'beforeAmount', 'amount']);
 const REVISION_FIELDS = ['revision', 'repairRevision', 'choiceRevision', 'controlRevision', 'movementRevision',
   'currentRevision', 'upgradeRevision', 'wingRevision', 'counterRevision', 'recyclingRevision', 'evacuationRevision',
   'rechargeRevision'];
@@ -338,6 +351,12 @@ function validCost(expected, actual) {
 function exactKeys(value, keys) {
   return value && typeof value === 'object' && !Array.isArray(value) &&
     Object.keys(value).length === keys.length && Object.keys(value).every(key => keys.includes(key));
+}
+
+function sameCounterSelection(expected, actual) {
+  return exactKeys(expected, COUNTER_SELECTION_KEYS) && exactKeys(actual, COUNTER_SELECTION_KEYS) &&
+    expected.kind === 'gm-counter-selection-v1' && actual.kind === 'gm-counter-selection-v1' &&
+    COUNTER_SELECTION_FIELDS.every(field => expected[field] === actual[field]);
 }
 
 const SOURCE_AUTHORITY_KEYS = Object.freeze(['sessionId', 'uidHash', 'groupId', 'roleId',
@@ -1479,7 +1498,7 @@ export function evaluateProcedureCapture(input) {
       expected.groupId !== undefined && (input.sourceBefore?.groupId !== expected.groupId ||
         input.sourceAfter?.groupId !== expected.groupId)) return pending(spec, 'live-source-cycle-revision-or-group-changed');
   const request = input.request;
-  const acceptedStatus = acceptedResultStatus(spec, input.response?.result, request, expected);
+  const acceptedStatus = acceptedResultStatus(spec, input.response?.result, request, expected, input);
   if (request?.sessionId !== expected.sessionId ||
       expected.cycle !== undefined && request.expectedCycle !== undefined && request.expectedCycle !== expected.cycle ||
       expected.sourceRevision !== undefined && request.expectedRevision !== undefined && request.expectedRevision !== expected.sourceRevision ||
@@ -1514,7 +1533,10 @@ export function evaluateProcedureCapture(input) {
   if (!revisionlessSourceReceipt && revisionOf(input.response.result) !== input.sourceAfter.revision) {
     return pending(spec, 'server-result-and-live-projection-revisions-differ');
   }
-  if (input.rendered?.visible !== true || input.rendered.resultStatus !== acceptedStatus) {
+  const renderedCounterResult = spec.endpoint === 'applyShipCounterSteps'
+    ? acceptedCounterRenderedResult(input.rendered, input.counterSourceWitness, acceptedStatus)
+    : input.rendered?.visible === true && input.rendered.resultStatus === acceptedStatus;
+  if (!renderedCounterResult) {
     return pending(spec, 'current-result-not-visible-in-the-mounted-control');
   }
   if (!validCost(expected.cost, input.cost)) return pending(spec, 'printed-cost-or-authoritative-ledger-delta-mismatch');
@@ -1555,7 +1577,11 @@ export function evaluateProcedureCapture(input) {
   };
 }
 
-function acceptedResultStatus(spec, result, request, expected) {
+function acceptedResultStatus(spec, result, request, expected, input) {
+  if (spec.endpoint === 'applyShipCounterSteps') {
+    return acceptedCounterBatchStatus(result, request, expected, input.counterSourceWitness,
+      input.actorBefore, input.actorAfter);
+  }
   if (RESULT_STATUSES.has(result?.status)) return result.status;
   const vesselResult = STATUSLESS_VESSEL_RESULTS[spec.endpoint];
   if (!vesselResult || !vesselResult.valid(result) || typeof result?.actorUid !== 'string' ||
@@ -1564,6 +1590,63 @@ function acceptedResultStatus(spec, result, request, expected) {
       typeof request?.requestId !== 'string' || result.idempotencyKey !== request.requestId ||
       result.auditId !== `${vesselResult.action}-${request.requestId}` || !Number.isSafeInteger(result.revision)) return null;
   return 'committed';
+}
+
+function acceptedCounterBatchStatus(result, request, expected, witness, actorBefore, actorAfter) {
+  const selection = expected?.counterSelection;
+  if (!exactKeys(request, COUNTER_BATCH_REQUEST_KEYS) || !exactKeys(result, COUNTER_BATCH_RESULT_KEYS) ||
+      !exactKeys(selection, COUNTER_SELECTION_KEYS) || !exactKeys(witness, COUNTER_SOURCE_WITNESS_KEYS) ||
+      selection.kind !== 'gm-counter-selection-v1' || witness.kind !== 'gm-counter-source-witness-v1') return null;
+  const witnessMatchesSelection = COUNTER_SELECTION_FIELDS.every(field => witness[field] === selection[field]);
+  const safeAmount = value => Number.isSafeInteger(value) && value >= 0;
+  const safeRevision = value => Number.isSafeInteger(value) && value >= 0;
+  if (!witnessMatchesSelection || selection.sessionId !== expected.sessionId ||
+      selection.instanceId !== expected.instanceId || selection.uidHash !== expected.uidHash ||
+      typeof selection.claimedAt !== 'string' || !Number.isFinite(Date.parse(selection.claimedAt)) ||
+      !Number.isSafeInteger(selection.connectionGeneration) || selection.connectionGeneration < 1 ||
+      !Number.isSafeInteger(selection.hydrationRevision) || selection.hydrationRevision < 1 ||
+      !(selection.actorRoleId === null || typeof selection.actorRoleId === 'string') ||
+      selection.phase !== 'active' || selection.phase !== expected.phase && expected.phase !== undefined ||
+      selection.cycle !== expected.cycle || selection.shipId !== expected.shipId ||
+      selection.groupId !== expected.groupId || selection.groupLabel !== expected.targetShipName ||
+      typeof selection.groupLabel !== 'string' || !selection.groupLabel ||
+      typeof selection.resourceId !== 'string' || !selection.resourceId ||
+      typeof selection.resourceLabel !== 'string' || !selection.resourceLabel ||
+      ![-1, 1].includes(selection.step) || !safeAmount(selection.beforeAmount) ||
+      selection.beforeVisibleAmount !== selection.beforeAmount ||
+      !safeRevision(selection.beforeRevision) || selection.beforeRevision !== expected.sourceRevision ||
+      !safeAmount(witness.afterAmount) || witness.afterVisibleAmount !== witness.afterAmount ||
+      !safeRevision(witness.afterRevision) || witness.afterRevision !== selection.beforeRevision + 1 ||
+      witness.afterAmount !== selection.beforeAmount + selection.step || witness.afterAmount < 0) return null;
+  if (actorBefore?.activeConsoleRoleId !== selection.actorRoleId ||
+      actorAfter?.activeConsoleRoleId !== selection.actorRoleId ||
+      request.sessionId !== expected.sessionId || request.instanceId !== expected.instanceId ||
+      request.shipId !== expected.shipId || request.counter !== 'resource' ||
+      request.resourceId !== selection.resourceId || !Array.isArray(request.steps) ||
+      request.steps.length !== 1 || request.steps[0] !== selection.step ||
+      typeof request.requestId !== 'string' || request.requestId.length === 0 ||
+      request.expectedRevision !== expected.sourceRevision ||
+      result.amount !== witness.afterAmount || result.appliedSteps.length !== 1 ||
+      result.appliedSteps[0] !== request.steps[0] || result.alertRaised !== false ||
+      result.sessionId !== request.sessionId || result.instanceId !== request.instanceId ||
+      result.shipId !== request.shipId || result.counter !== 'resource' ||
+      result.resourceId !== request.resourceId || result.requestId !== request.requestId ||
+      result.expectedRevision !== request.expectedRevision || typeof result.actorUid !== 'string' ||
+      hashUid(result.actorUid) !== expected.uidHash || result.actorRoleId !== selection.actorRoleId ||
+      result.vesselId !== request.shipId || result.turn !== expected.cycle || result.phase !== 'active' ||
+      result.revision !== expected.sourceRevision + 1 || result.idempotencyKey !== request.requestId ||
+      result.auditId !== `counter-batch-${request.requestId}`) return null;
+  return 'committed';
+}
+
+function acceptedCounterRenderedResult(rendered, witness, acceptedStatus) {
+  return exactKeys(rendered, COUNTER_RENDERED_KEYS) &&
+    rendered.kind === 'gm-counter-rendered-source-v1' && rendered.visible === true &&
+    rendered.resultStatus === acceptedStatus &&
+    rendered.shipId === witness.shipId && rendered.groupId === witness.groupId &&
+    rendered.resourceId === witness.resourceId && rendered.resourceLabel === witness.resourceLabel &&
+    rendered.beforeAmount === witness.beforeAmount && rendered.amount === witness.afterAmount &&
+    witness.beforeVisibleAmount === witness.beforeAmount && witness.afterVisibleAmount === witness.afterAmount;
 }
 
 /** Capture one ordinary visible control action; its unmodified SDK request is retried only with its own idempotency key. */
@@ -1736,6 +1819,10 @@ export async function captureMountedProcedureAction({ context, game, caseId, exp
     return keepSourceDiagnostic(pending(spec, action?.reason ?? spec.unavailableReason,
       formDiagnostic ? { formDiagnostic } : {}));
   }
+  if (spec.endpoint === 'applyShipCounterSteps' &&
+      !sameCounterSelection(normalizedExpected.counterSelection, action.counterSelection)) {
+    return keepSourceDiagnostic(pending(spec, 'the original selected GM resource counter changed before the mounted click'));
+  }
   const displayedCost = action.cost ?? null;
   const result = await observeUiReceipt({
     waitForResponse: () => surface.page.waitForResponse(response => response.request().method() === 'POST' &&
@@ -1791,6 +1878,8 @@ export async function captureMountedProcedureAction({ context, game, caseId, exp
       pressActiveVesselIdsAfter: observed?.pressActiveVesselIdsAfter,
       pressDockingBefore: action.pressDockingBefore,
       pressDockingAfter: observed?.pressDockingAfter } : {}),
+  ...(spec.endpoint === 'applyShipCounterSteps'
+    ? { counterSourceWitness: observed?.counterSourceWitness } : {}),
   request, response: { httpStatus: result.status(), result: actualResult, exactReplay }, replay,
   rendered: observed?.rendered, cost: observed?.cost ?? displayedCost, consent: observed?.consent,
   sourceSpecificBefore: observed?.sourceSpecificBefore, beforeProjection: observed?.beforeProjection,

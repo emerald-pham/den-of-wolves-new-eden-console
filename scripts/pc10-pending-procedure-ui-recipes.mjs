@@ -32,6 +32,16 @@ const MEMBER_SCOPE_SHUTTLE_COMMAND_ENDPOINTS = new Set(['evacuateShuttleSurvivor
 const GM_COUNTER_SHIP_NAMES = Object.freeze({ aegis: 'AEGIS', dione: 'Dione', icebreaker: 'Icebreaker',
   capybara: 'Capybara', shepherd: 'Shepherd', quellon: 'Quellon', 'refinery-124': 'Refinery 124' });
 const GM_RESOURCE_COUNTER_BUTTON = /^(?:Increase|Decrease) (?:Strytium Ore|Strytium Fuel|Food|Water|Materials|Security Teams|Scrap)$/;
+const GM_RESOURCE_COUNTER_IDS_BY_LABEL = Object.freeze({
+  'Strytium Ore': 'ore', 'Strytium Fuel': 'fuel', Food: 'food', Water: 'water',
+  Materials: 'materials', 'Security Teams': 'securityTeams', Scrap: 'scrap',
+});
+const GM_COUNTER_SELECTION_FIELDS = Object.freeze(['sessionId', 'instanceId', 'uidHash', 'claimedAt',
+  'connectionGeneration', 'hydrationRevision', 'actorRoleId', 'phase', 'cycle', 'shipId', 'groupId',
+  'groupLabel', 'resourceId', 'resourceLabel', 'step', 'beforeAmount', 'beforeVisibleAmount', 'beforeRevision']);
+const GM_COUNTER_SELECTION_KEYS = Object.freeze(['kind', ...GM_COUNTER_SELECTION_FIELDS]);
+const GM_COUNTER_REQUEST_KEYS = Object.freeze(['sessionId', 'instanceId', 'shipId', 'counter', 'steps',
+  'requestId', 'expectedRevision', 'resourceId']);
 const CURRENT_DOCUMENT_AUTHORITY_KEYS = Object.freeze(['sessionId', 'uidHash', 'groupId', 'roleId',
   'connectionGeneration', 'identityHydrationRevision', 'documentTimeOrigin', 'audienceHash', 'authorityHash',
   'shuttleAuthorized']);
@@ -1107,6 +1117,44 @@ async function one(locator) {
   if (!locator || await locator.count() !== 1) return null;
   if (!await locator.isVisible() || !await locator.isEnabled()) return null;
   return locator;
+}
+
+async function readMountedCounterValue(group, resourceLabel) {
+  const escapedLabel = resourceLabel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const row = group.getByRole('listitem', {
+    name: new RegExp(`^${escapedLabel}: [0-9,]+$`),
+  });
+  if (await row.count() !== 1 || !await row.isVisible()) return null;
+  const accessibleLabel = await row.getAttribute('aria-label');
+  const accessibleAmount = accessibleLabel?.match(new RegExp(`^${escapedLabel}: ([0-9,]+)$`))?.[1];
+  const value = row.locator('strong');
+  if (!accessibleAmount || await value.count() !== 1 || !await value.isVisible()) return null;
+  const visibleText = await value.innerText();
+  const labelAmount = Number(accessibleAmount.replaceAll(',', ''));
+  const visibleAmount = Number(visibleText.replaceAll(',', ''));
+  if (!isRevision(labelAmount) || visibleAmount !== labelAmount) return null;
+  return { accessibleLabel, amount: labelAmount };
+}
+
+async function waitForMountedCounterValue(group, resourceLabel, expectedAmount, operation) {
+  const escapedLabel = resourceLabel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const row = group.getByRole('listitem', {
+    name: new RegExp(`^${escapedLabel}: ${expectedAmount}$`),
+  });
+  try {
+    await row.waitFor({ state: 'visible', timeout: remainingGmOperation(operation) });
+  } catch {
+    return null;
+  }
+  return readMountedCounterValue(group, resourceLabel);
+}
+
+function sameGmCounterSelection(left, right) {
+  return left && right && Object.keys(left).length === GM_COUNTER_SELECTION_KEYS.length &&
+    Object.keys(right).length === GM_COUNTER_SELECTION_KEYS.length &&
+    GM_COUNTER_SELECTION_KEYS.every(key => Object.hasOwn(left, key) && Object.hasOwn(right, key) &&
+      left[key] === right[key]) && left.kind === 'gm-counter-selection-v1' &&
+    right.kind === 'gm-counter-selection-v1';
 }
 
 async function selectActualOption(select, predicate = () => true) {
@@ -2774,9 +2822,52 @@ async function planFor({ spec, surface, actor, state, context, target, gmOperati
     const sourceBefore = { cycle: state.cycle, revision: state.vesselActionRevisions[target.shipId],
       groupId: state.shipFleetGroupIds[target.shipId] };
     const targetShipName = await group.getAttribute('aria-label');
+    const controlName = await action.getAttribute('aria-label');
+    const controlMatch = typeof controlName === 'string'
+      ? /^(Increase|Decrease) (.+)$/.exec(controlName) : null;
+    const resourceLabel = controlMatch?.[2];
+    const resourceId = resourceLabel ? GM_RESOURCE_COUNTER_IDS_BY_LABEL[resourceLabel] : undefined;
+    const step = controlMatch?.[1] === 'Increase' ? 1 : controlMatch?.[1] === 'Decrease' ? -1 : undefined;
+    const beforeAmount = state.shipResources?.[target.shipId]?.[resourceId];
+    const beforeVisible = resourceLabel ? await readMountedCounterValue(group, resourceLabel) : null;
+    if (!resourceId || ![-1, 1].includes(step) || !isRevision(beforeAmount) ||
+        !beforeVisible || beforeVisible.amount !== beforeAmount ||
+        !isRevision(sourceBefore.revision) || typeof sourceBefore.groupId !== 'string' || !sourceBefore.groupId ||
+        typeof target.counterActorBefore?.claimedAt !== 'string' ||
+        !Number.isSafeInteger(target.counterActorBefore?.connectionGeneration) ||
+        !Number.isSafeInteger(target.counterActorBefore?.hydrationRevision) ||
+        !(target.counterActorBefore?.activeConsoleRoleId === null ||
+          typeof target.counterActorBefore?.activeConsoleRoleId === 'string')) {
+      return block('the selected GM resource label, original amount, or lifecycle tuple is not source-projected');
+    }
+    const counterSelection = {
+      kind: 'gm-counter-selection-v1',
+      sessionId: state.sessionId,
+      instanceId: target.counterActorBefore.instanceId,
+      uidHash: target.counterActorBefore.uidHash,
+      claimedAt: target.counterActorBefore.claimedAt,
+      connectionGeneration: target.counterActorBefore.connectionGeneration,
+      hydrationRevision: target.counterActorBefore.hydrationRevision,
+      actorRoleId: target.counterActorBefore.activeConsoleRoleId,
+      phase: state.phase,
+      cycle: state.cycle,
+      shipId: target.shipId,
+      groupId: sourceBefore.groupId,
+      groupLabel: targetShipName,
+      resourceId,
+      resourceLabel,
+      step,
+      beforeAmount,
+      beforeVisibleAmount: beforeVisible.amount,
+      beforeRevision: sourceBefore.revision,
+    };
+    if (target.counterSelection && !sameGmCounterSelection(target.counterSelection, counterSelection)) {
+      return block('the original selected GM resource counter changed during recipe preparation');
+    }
+    target.counterSelection ??= counterSelection;
     target.counterSourceBefore = sourceBefore;
     target.targetShipName = targetShipName;
-    return { offered: true, targetShipName, click: async () => {
+    return { offered: true, targetShipName, counterSelection: target.counterSelection, click: async () => {
       remainingGmOperation(gmOperation);
       const currentActor = await surface.observe();
       const latest = await readActionState(surface);
@@ -2784,12 +2875,16 @@ async function planFor({ spec, surface, actor, state, context, target, gmOperati
       const currentLifecycle = await observeLifecycleActor(surface, context.initial.sessionId).catch(() => null);
       remainingGmOperation(gmOperation);
       const currentCounterActor = counterGmActorProjection(currentActor, currentLifecycle, latest);
+      const currentVisible = await readMountedCounterValue(group, counterSelection.resourceLabel);
       if (!counterGmLifecycleMatches(currentActor, currentLifecycle, latest, context.initial.sessionId) ||
           !counterGmActorMatches(target.counterActorBefore, currentCounterActor, context, target.shipId) ||
           !liveState(latest, context.initial.sessionId) || latest.cycle !== sourceBefore.cycle ||
           !latest.activeVesselIds?.includes(target.shipId) ||
           latest.vesselActionRevisions?.[target.shipId] !== sourceBefore.revision ||
           latest.shipFleetGroupIds?.[target.shipId] !== sourceBefore.groupId ||
+          latest.shipResources?.[target.shipId]?.[counterSelection.resourceId] !== counterSelection.beforeAmount ||
+          currentVisible?.amount !== counterSelection.beforeVisibleAmount ||
+          await action.getAttribute('aria-label') !== controlName ||
           await group.getAttribute('aria-label') !== target.targetShipName ||
           await mode.getAttribute('aria-pressed') !== 'true' || !await action.isEnabled()) {
         throw new Error('The selected source ship, group, revision, or actual mounted counter changed before the click.');
@@ -3328,6 +3423,10 @@ async function recipeFor({ context, game, spec }) {
   if (spec.endpoint === 'chooseBoaMissionReclamationOpportunity') auxiliary = await readBoaWorkspace(initialSurface, context.initial.sessionId).catch(() => null);
   const initialPlan = await planFor({ spec, surface: initialSurface, actor, state, context, target: resolved.target, gmOperation });
   if (resolved.target.shipId && expected.shipId === undefined) expected.shipId = resolved.target.shipId;
+  if (spec.endpoint === 'applyShipCounterSteps' && initialPlan.counterSelection) {
+    expected.counterSelection = initialPlan.counterSelection;
+    expected.targetShipName = resolved.target.targetShipName;
+  }
   if (coreShuttleMovementEndpoint) {
     const destinationShipId = resolved.target.destinationShipId ?? resolved.target.movementBefore?.destinationShipId;
     const memberGroupId = coreShuttleMovementMemberGroupId(state, resolved.target.shuttleId,
@@ -3578,32 +3677,77 @@ async function recipeFor({ context, game, spec }) {
         return inspectMountedGmControl({ context, surface, request, result, spec, expected, target: resolved.target, gmOperation });
       }
       if (COUNTER_SOURCE_WAIT_ENDPOINTS.has(spec.endpoint)) {
-        await bindCounterGmOperation(surface, gmOperation, expected, context, resolved.target.counterActorBefore);
-        const sourceCurrent = state => liveState(state, expected.sessionId) && state.cycle === expected.cycle &&
-          state.activeVesselIds?.includes(expected.shipId) === true &&
+        const selection = resolved.target.counterSelection;
+        const sourceActorBefore = resolved.target.counterActorBefore;
+        await bindCounterGmOperation(surface, gmOperation, expected, context, sourceActorBefore);
+        const sourceCurrent = state => liveState(state, expected.sessionId) && state.phase === 'active' &&
+          state.cycle === expected.cycle && state.activeVesselIds?.includes(expected.shipId) === true &&
           state.shipFleetGroupIds?.[expected.shipId] === expected.groupId;
-        const requestMatches = request?.sessionId === expected.sessionId &&
-          request?.instanceId === expected.instanceId && request?.shipId === expected.shipId &&
-          request?.counter === 'resource' && typeof request?.resourceId === 'string' &&
-          Array.isArray(request?.steps) && request.steps.length === 1 &&
-          (request.steps[0] === 1 || request.steps[0] === -1) &&
-          request?.expectedRevision === expected.sourceRevision &&
-          typeof request?.requestId === 'string' && request.requestId.length > 0;
+        const requestMatches = !!request && Object.keys(request).length === GM_COUNTER_REQUEST_KEYS.length &&
+          GM_COUNTER_REQUEST_KEYS.every(key => Object.hasOwn(request, key)) &&
+          request.sessionId === expected.sessionId && request.instanceId === expected.instanceId &&
+          request.shipId === expected.shipId && request.counter === 'resource' &&
+          request.resourceId === selection?.resourceId && Array.isArray(request.steps) &&
+          request.steps.length === 1 && request.steps[0] === selection?.step &&
+          request.expectedRevision === expected.sourceRevision &&
+          typeof request.requestId === 'string' && request.requestId.length > 0;
         let latest = await readActionState(surface).catch(() => null);
-        const receiptRevision = resultRevision(result);
-        if (requestMatches && sourceCurrent(latest) && isRevision(receiptRevision) &&
-            receiptRevision === expected.sourceRevision + 1 &&
-            latest.vesselActionRevisions?.[expected.shipId] !== receiptRevision) {
-          const committedState = await waitForActionState(surface, state => sourceCurrent(state) &&
-            state.vesselActionRevisions?.[expected.shipId] === receiptRevision, gmOperation);
-          latest = committedState ?? await readActionState(surface).catch(() => null);
+        const nextSourceRevision = expected.sourceRevision + 1;
+        if (requestMatches && sourceCurrent(latest) &&
+            latest.vesselActionRevisions?.[expected.shipId] !== nextSourceRevision) {
+          await waitForActionState(surface, state => sourceCurrent(state) &&
+            state.vesselActionRevisions?.[expected.shipId] === nextSourceRevision, gmOperation);
         }
-        await verifyGmOperation(surface, gmOperation);
-        const sourceAfter = { live: requestMatches && sourceCurrent(latest),
-          sessionId: latest?.sessionId, cycle: latest?.cycle,
-          revision: latest?.vesselActionRevisions?.[expected.shipId],
-          groupId: latest?.shipFleetGroupIds?.[expected.shipId] };
-        return { sourceAfter, rendered: await positiveRenderedStatus(surface, spec.endpoint, result) };
+        latest = await readActionState(surface).catch(() => null);
+        const group = surface.page.getByRole('group', { name: selection?.groupLabel, exact: true });
+        const groupVisible = await group.count() === 1 && await group.isVisible() &&
+          await group.getAttribute('aria-label') === selection?.groupLabel;
+        const afterAmount = latest?.shipResources?.[expected.shipId]?.[selection?.resourceId];
+        const afterRevision = latest?.vesselActionRevisions?.[expected.shipId];
+        const sourceResultMatches = requestMatches && sourceCurrent(latest) &&
+          afterRevision === nextSourceRevision && afterAmount === selection.beforeAmount + selection.step;
+        const visibleCounter = groupVisible && sourceResultMatches
+          ? await waitForMountedCounterValue(group, selection.resourceLabel, afterAmount, gmOperation) : null;
+        const afterSource = {
+          live: sourceResultMatches &&
+            visibleCounter?.amount === afterAmount &&
+            visibleCounter?.accessibleLabel === `${selection.resourceLabel}: ${afterAmount}`,
+          sessionId: latest?.sessionId, cycle: latest?.cycle, revision: afterRevision,
+          groupId: latest?.shipFleetGroupIds?.[expected.shipId],
+        };
+        const currentActor = await bindCounterGmOperation(surface, gmOperation, expected, context, sourceActorBefore);
+        const lifecycleStillMatches = currentActor.sessionId === selection.sessionId &&
+          currentActor.uidHash === selection.uidHash && currentActor.instanceId === selection.instanceId &&
+          currentActor.claimedAt === selection.claimedAt &&
+          currentActor.generation === selection.connectionGeneration &&
+          currentActor.hydrationRevision === selection.hydrationRevision &&
+          currentActor.activeConsoleRoleId === selection.actorRoleId &&
+          currentActor.phase === selection.phase && currentActor.cycle === selection.cycle;
+        afterSource.live = afterSource.live && lifecycleStillMatches;
+        const counterSourceWitness = {
+          ...selection,
+          kind: 'gm-counter-source-witness-v1',
+          afterAmount,
+          afterVisibleAmount: visibleCounter?.amount,
+          afterRevision,
+        };
+        const visible = afterSource.live && afterSource.groupId === selection.groupId &&
+          afterSource.revision === selection.beforeRevision + 1;
+        return {
+          sourceAfter: afterSource,
+          counterSourceWitness,
+          rendered: {
+            kind: 'gm-counter-rendered-source-v1',
+            visible,
+            resultStatus: visible ? 'committed' : null,
+            shipId: selection.shipId,
+            groupId: selection.groupId,
+            resourceId: selection.resourceId,
+            resourceLabel: selection.resourceLabel,
+            beforeAmount: selection.beforeAmount,
+            amount: afterAmount,
+          },
+        };
       }
       const movementEndpoint = ['requestShuttleDeparture', 'beginShuttleTransit', 'retargetShuttleTransit',
         'completeShuttleArrival'].includes(spec.endpoint);
