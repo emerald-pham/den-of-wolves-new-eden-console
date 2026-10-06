@@ -57,10 +57,11 @@ async function fixture(options = {}) {
   }
   const controlNames = ['GM ship console read write access', 'Release ICN console lock', 'Engage ICN console lock'];
   const known = new Set([...Object.keys(fields), 'Facilitator rule call', 'Record rule call', 'Save note',
-    'ICN console lock', ...controlNames, 'Are you sure?', 'ARE YOU SURE?']);
+    'ICN console lock', 'ICN console lock // clear', ...controlNames, 'Are you sure?', 'ARE YOU SURE?']);
   function available(name) {
     if (!known.has(name)) return 0;
     if (counts[name] !== undefined) return counts[name];
+    if (name === 'ICN console lock // clear') return raw.session.shipConsoleLocks.aegis === false ? 1 : 0;
     if (controlNames.includes(name) || name === 'ICN console lock') {
       if (route() !== '#/ships/aegis/observer' || !mounted) return 0;
       if (name === 'Release ICN console lock' && raw.session.shipConsoleLocks.aegis !== true) return 0;
@@ -87,6 +88,7 @@ async function fixture(options = {}) {
       getByRole: (_role, input) => locator(input.name), getByLabel: (label, input) => {
         assert.equal(input.exact, true); return locator(label);
       },
+      getByText: (text, input) => { assert.equal(input.exact, true); return locator(text); },
       locator: selector => { assert.equal(selector, 'xpath=ancestor::tr'); return locator('census-row'); },
       inputValue: async () => fields[name],
       fill: async value => {
@@ -320,4 +322,37 @@ test('observer mounting refuses changed original claim instead of restoring auth
   } });
   const recipe = await f.getRecipe('setGmShipConsoleWriteGrant');
   assert.equal((await f.prepare(recipe)).offered, false); assert.equal(f.writes.length, 0); f.close();
+});
+
+for (const endpoint of ['setFacilitatorCensusNote', 'authorFacilitatorRuleCall']) {
+  test(`public ${endpoint} refuses an exact claim change during input before writing`, async () => {
+    const f = await fixture({ onFill: ({ raw }) => { raw.gmInstance.claimedAt = '2026-10-05T10:01:00.000Z'; } });
+    const recipe = await f.getRecipe(endpoint), prepared = await f.prepare(recipe);
+    assert.equal(prepared.offered, true, prepared.reason);
+    await assert.rejects(prepared.click()); assert.equal(f.writes.length, 0); f.close();
+  });
+  test(`public ${endpoint} refuses source revision change during input before writing`, async () => {
+    const f = await fixture({ onFill: ({ raw }) => {
+      if (endpoint === 'setFacilitatorCensusNote') raw.gmLoyaltyCensus.revision += 1;
+      else raw.gmFacilitatorRuleCall = { sessionId: raw.session.id, revision: 1 };
+    } });
+    const recipe = await f.getRecipe(endpoint), prepared = await f.prepare(recipe);
+    assert.equal(prepared.offered, true, prepared.reason);
+    await assert.rejects(prepared.click()); assert.equal(f.writes.length, 0); f.close();
+  });
+}
+
+for (const [reason, change] of [
+  ['replaced exact claim', raw => { raw.gmInstance.claimedAt = '2026-10-05T10:01:00.000Z'; }],
+  ['foreign private audience', raw => { raw.roleBrief = { assignmentUid: 'native-foreign-member' }; }],
+  ['unaccepted hydration', raw => { raw.identityHydrationRevision = 0; }],
+]) test(`public census reload never certifies ${reason}`, async () => {
+  const f = await fixture({ onReload: ({ raw }) => change(raw) });
+  try {
+    const result = await f.run('setFacilitatorCensusNote');
+    assert.notEqual(result.inspected.sourceAfter.live, true);
+  } catch (error) {
+    assert.equal(error.name, 'AssertionError');
+  }
+  assert.equal(f.writes.length, 1, 'Only the original pre-reload authorized note was written.'); f.close();
 });
