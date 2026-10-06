@@ -435,7 +435,7 @@ function AppRoutes() {
     const currentPressGroupDiscoveryMatches = (
       current: GameSession, player: Player | null | undefined, projection: PlayerDiscoveryProjection,
       requirePlayerFresh = true,
-    ) => {
+    ): projection is PlayerDiscoveryProjection & Required<Pick<PlayerDiscoveryProjection, 'fleetGroupVesselIds'>> => {
       const store = useSessionStore.getState();
       const scope = current.memberSessionScope;
       const control = current.shuttleControl?.['snn-press-shuttle'];
@@ -468,7 +468,9 @@ function AppRoutes() {
     };
     // Press has no capital-ship berth. Its protected document supplies only
     // current group metadata here; chart and candidate fields stay withheld.
-    const pressGroupMetadata = (projection: PlayerDiscoveryProjection): PlayerDiscoveryProjection => ({
+    const pressGroupMetadata = (
+      projection: PlayerDiscoveryProjection & Required<Pick<PlayerDiscoveryProjection, 'fleetGroupVesselIds'>>,
+    ): PlayerDiscoveryProjection => ({
       groupId: projection.groupId, fleetGroupVesselIds: projection.fleetGroupVesselIds, revision: projection.revision,
       knownCoordinates: [], knownSystems: {}, pursuitDistance: 0, navigationLogs: [],
     });

@@ -171,10 +171,15 @@ No unchanged full prefix is rerun only for diagnostics, and no new framework
 or waived role/function/privacy coverage is introduced.
 
 After Combat29 closed, the parent requested a short Chain Scanner browser
-runtime window. PC10's proof browsers are closed, its owned gameplay scopes
-were verified empty, and its reserved servers remain idle. Heavy proofs and
-broad checks are parked pending the parent's explicit runtime return; code and
-small native work continue. The final report must disclose test-only fixture
+runtime window. PC10 closed its proof browsers, verified its owned gameplay
+scopes empty, and retained its reserved servers idle. The parent then explicitly
+returned the window after Chain Scanner closed its owned browsers, servers and
+emulators. Root resumes serialized heavy proofs after fresh ownership, source,
+compiled-runtime and empty-scope checks. Core member-scope and Press group-only
+discovery repairs are integrated and native-tested; fresh movement and ending
+evidence remains pending. The cold-resume probe reproduced no product defect:
+all 20 investigation cases remain outside the candidate, including its unchanged
+unsupported pre-LIVE premise. The final report must disclose test-only fixture
 API completions separately from source repairs, including the unchanged
 assertions and the two rejected, unapplied GM actor-guard fallback proposals.
 
