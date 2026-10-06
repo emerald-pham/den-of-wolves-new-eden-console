@@ -1220,7 +1220,21 @@ async function inspectMountedGmControl({ context, surface, request, result, spec
       state.gmFacilitatorRuleCall?.callId === request.requestId &&
       state.gmFacilitatorRuleCall?.revision === expected.sourceRevision + 1);
     const reloaded = await reloadMountedGm(surface, expected);
+    const current = await observeLifecycleActor(surface, expected.sessionId);
+    // Certify the genuine reload's accepted document, then hold it through inspection.
+    assertOriginalActor(current, current, { gm: true });
+    const original = target.gmRecipeAuthority;
+    if (current.uidHash !== original.uidHash || current.sessionId !== original.sessionId ||
+        current.instanceId !== original.instanceId || current.claimedAt !== original.claimedAt ||
+        !Number.isSafeInteger(current.hydrationRevision) || current.hydrationRevision < 1 ||
+        current.phase !== 'active' || current.cycle !== expected.cycle) {
+      throw new Error('The reloaded rule-call document lacks its original GM claim or accepted authority.');
+    }
     const projection = ruleCallProjection(reloaded.state, expected);
+    const afterInspection = await observeLifecycleActor(surface, expected.sessionId);
+    assertLateReplyAuthority(current, afterInspection);
+    if (afterInspection.phase !== current.phase || afterInspection.cycle !== current.cycle)
+      throw new Error('The current reloaded GM phase or cycle changed during rule-call inspection.');
     return {
       sourceAfter: { live: committedState !== null && reloaded.state?.live === true && projection?.live === true,
         sessionId: reloaded.state?.sessionId, cycle: reloaded.state?.cycle,
