@@ -591,6 +591,56 @@ async function waitForMountedGmForm(surface, panel, operation) {
   return false;
 }
 
+async function goToGmFormRoute(surface, operation) {
+  const page = surface.page;
+  const route = () => new URL(page.url()).hash.slice(1).split('?')[0];
+  const budget = () => remainingGmOperation(operation, Math.min(35_000,
+    operation.readinessDeadlineAt - Date.now()));
+  const follow = async locator => {
+    await verifyGmOperation(surface, operation);
+    budget();
+    const control = await one(locator);
+    if (!control) return false;
+    await control.click({ timeout: budget() });
+    await verifyGmOperation(surface, operation);
+    budget();
+    return true;
+  };
+  await verifyGmOperation(surface, operation);
+  budget();
+  // Canonical GM selection certifies live authority without changing routes.
+  // Use only the source's current normal links; this never reloads, reclaims
+  // authority or navigates another actor's document.
+  if (route() === '/ships/aegis/observer') {
+    const back = page.getByRole('link', { name: '← Change role', exact: true }).and(
+      page.locator('a.ship-console__back.cic-text-button[href="#/ships/aegis/roles"]'));
+    if (!await follow(back) || route() !== '/ships/aegis/roles') return false;
+  }
+  if (route() === '/ships/aegis/roles') {
+    const back = page.locator('main.ship-role-select a.session-mode__back.cic-text-button[href="#/console"]');
+    if (!await follow(back) || route() !== '/console') return false;
+  }
+  if (route() === '/console') {
+    const gmLink = page.getByRole('link', { name: 'GM Console', exact: true }).and(
+      page.locator('a.role-card.cic-frame[href="#/gm"]'));
+    while (Date.now() < operation.readinessDeadlineAt) {
+      await verifyGmOperation(surface, operation);
+      const count = await gmLink.count();
+      if (count !== 0) break;
+      const mounting = await page.evaluate(() => window.location.hash.slice(1).split('?')[0] === '/console' &&
+        Array.from(document.querySelectorAll('[role="status"]')).some(element =>
+          element.textContent?.trim() === 'Opening stations…'));
+      await verifyGmOperation(surface, operation);
+      if (!mounting) return false;
+      await new Promise(resolve => setTimeout(resolve, Math.min(200, budget())));
+    }
+    if (!await follow(gmLink)) return false;
+  }
+  await verifyGmOperation(surface, operation);
+  budget();
+  return route() === '/gm';
+}
+
 async function goToShipObserver(surface, operation) {
   const page = surface.page;
   const original = operation.current;
@@ -928,6 +978,7 @@ async function planFor({ spec, surface, actor, state, context, target, gmOperati
     target.censusBefore = { kind: 'facilitator-census', live: true, sessionId: state.sessionId,
       cycle: state.cycle, uidHash: actor.uidHash, instanceId: actor.instanceId, revision: census.revision,
       targetUidHash: hashUid(entry.uid), entryPresent: true };
+    if (!await goToGmFormRoute(surface, gmOperation)) return block('the original GM has no exact mounted normal route to the census form');
     const noteField = page.getByLabel(`Facilitator note for ${entry.uid}`, { exact: true });
     if (!await waitForMountedGmForm(surface, noteField, gmOperation)) return block('the actual current census row note control is not offered');
     const row = noteField.locator('xpath=ancestor::tr');
@@ -965,6 +1016,7 @@ async function planFor({ spec, surface, actor, state, context, target, gmOperati
       source: 'The mounted full-game training disclosure and simulated-demo attendance mode',
       decision: 'Only named automated Auth personas are represented; no physical humans or device attendance is proved.',
       audience: 'gm-only' };
+    if (!await goToGmFormRoute(surface, gmOperation)) return block('the original GM has no exact mounted normal route to the rule-call form');
     const panel = page.getByRole('region', { name: 'Facilitator rule call', exact: true });
     if (!await waitForMountedGmForm(surface, panel, gmOperation)) return block('the actual source rule-call form is not mounted and writable');
     const ambiguity = panel.getByLabel('Question or ambiguity', { exact: true });
