@@ -361,6 +361,8 @@ it.each([
     memberSessionScope: { ...state.session!.memberSessionScope!, vesselIds: [] } } })); }],
   ['withdrawn current member witness', () => { useSessionStore.setState(state => ({ session: { ...state.session!,
     currentActorBerthAuthority: null } })); }],
+  ['absent current member witness', () => { useSessionStore.setState(state => { const session = { ...state.session! };
+    Reflect.deleteProperty(session, 'currentActorBerthAuthority'); return { session }; }); }],
   ['foreign current member witness', () => { useSessionStore.setState(state => ({ session: { ...state.session!,
     currentActorBerthAuthority: { ...state.session!.currentActorBerthAuthority!, actorUid: 'foreign-native' } } })); }],
   ['changed current witness generation', () => { useSessionStore.setState(state => ({ session: { ...state.session!,
@@ -369,6 +371,8 @@ it.each([
     currentActorBerthAuthority: { ...state.session!.currentActorBerthAuthority!, sessionId: 'foreign-session' as never } } })); }],
   ['malformed current witness', () => { useSessionStore.setState(state => { const berth = { ...state.session!.currentActorBerthAuthority! };
     Reflect.deleteProperty(berth, 'shipId'); return { session: { ...state.session!, currentActorBerthAuthority: berth } }; }); }],
+  ['unexpected private witness field', () => { useSessionStore.setState(state => ({ session: { ...state.session!,
+    currentActorBerthAuthority: { ...state.session!.currentActorBerthAuthority!, privateNote: privateText } as never } })); }],
   ['different current member group', () => { useSessionStore.setState(state => ({ me: { ...state.me!, fleetGroupId: 'fleet-2' as never } })); }],
   ['wrong current primary', () => { useSessionStore.setState(state => ({ me: { ...state.me!, assignedRoleId: 'wing-commander' as never } })); }],
   ['replaced current member', () => { useSessionStore.setState(state => ({ me: { ...state.me!, replacementRoleId: 'wing-commander' as never,
