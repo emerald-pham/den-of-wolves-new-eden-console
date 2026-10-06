@@ -129,6 +129,18 @@ export type PendingCommand = (
     }
   | {
       readonly id: string;
+      readonly kind: 'setShipPreference';
+      /** Keep an offline receipt bound to the member who began the request. */
+      readonly actorUid: string;
+      readonly payload: {
+        readonly sessionId: string;
+        readonly requestId: string;
+        readonly shipId: string;
+      };
+      readonly createdAt: string;
+    }
+  | {
+      readonly id: string;
       readonly kind: 'setGmControlsLocked';
       readonly payload: {
         readonly sessionId: string;

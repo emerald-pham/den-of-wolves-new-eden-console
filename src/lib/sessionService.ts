@@ -522,6 +522,7 @@ function isReplaySafeCommand(command: PendingCommand): boolean {
     case 'releaseGmInstance':
     case 'kickPlayer':
     case 'setPressEnabled':
+    case 'setShipPreference':
     case 'confirmSetup':
     case 'setFacilitatorResponsibility':
     case 'setFacilitatorCensusNote':
@@ -647,6 +648,28 @@ function applyCommandResult(
     store.setGmInstance(null);
     store.setMode(null);
     store.setLastRoute('/roles');
+  }
+  if (command.kind === 'setShipPreference') {
+    const reply = typeof result === 'object' && result !== null && !Array.isArray(result)
+      ? result as Record<string, unknown>
+      : null;
+    if (
+      command.actorUid !== store.me?.uid || store.me?.role !== 'player' ||
+      store.me.sessionId !== command.payload.sessionId ||
+      store.session?.id !== command.payload.sessionId ||
+      (store.session.phase !== 'lobby' && store.session.phase !== 'casting') ||
+      store.session.configurationLocked === true ||
+      !store.session.activeVesselIds?.includes(command.payload.shipId) ||
+      !reply || reply.sessionId !== command.payload.sessionId ||
+      !Number.isSafeInteger(reply.setupRevision) || Number(reply.setupRevision) < 0 ||
+      Number(reply.setupRevision) < expectedSetupRevision(store.session)
+    ) return;
+    store.setMe({
+      ...store.me,
+      shipPreferenceId: command.payload.shipId as Extract<NonNullable<Player['shipPreferenceId']>, string>,
+    });
+    store.setSession({ ...store.session, phase: 'casting', setupRevision: Number(reply.setupRevision) });
+    return;
   }
   if (
     command.kind === 'confirmSetup' &&
@@ -1133,6 +1156,15 @@ async function flushPendingCommands(): Promise<boolean> {
     if (
       !isCleanupCommand(command) &&
       (command.queuedWithServerAuthority !== true || store.sessionSnapshotFreshness !== 'server')
+    ) {
+      store.removeCommand(command.id);
+      recordStaleAuthorityReply();
+      continue;
+    }
+    if (
+      command.kind === 'setShipPreference' &&
+      (store.me?.uid !== command.actorUid || store.me.role !== 'player' ||
+        store.me.sessionId !== command.payload.sessionId)
     ) {
       store.removeCommand(command.id);
       recordStaleAuthorityReply();
@@ -2225,6 +2257,75 @@ export async function confirmSetup(setup: SetupConfirmationInput): Promise<Comma
     },
     createdAt: new Date().toISOString(),
   });
+}
+
+/** Save a nonbinding player preference through the server's receipt-backed casting command. */
+export async function submitShipPreference(
+  shipId: string,
+): Promise<{ readonly disposition: CommandDisposition; readonly requestId: string }> {
+  const initial = useSessionStore.getState();
+  const { session, me } = initial;
+  if (!session || !me || me.role !== 'player' || me.connected !== true ||
+      me.sessionId !== session.id || auth().currentUser?.uid !== me.uid) {
+    throw new Error('A current connected player is required to set a ship preference.');
+  }
+  requireFreshSessionAuthority('Reconnect and wait for current server state before submitting a preference.');
+  if (session.phase !== 'lobby' && session.phase !== 'casting') {
+    throw new Error('Ship preferences are available only during the lobby or casting window.');
+  }
+  if (session.configurationLocked === true) {
+    throw new Error('Casting is locked; ship preference changes are unavailable.');
+  }
+  const parsedShipId = parseEntityId('vessel', shipId);
+  if (!parsedShipId || !Array.isArray(session.activeVesselIds) ||
+      !session.activeVesselIds.includes(parsedShipId)) {
+    throw new Error('Choose a vessel from the current active roster.');
+  }
+  if (me.shipPreferenceId === parsedShipId) {
+    throw new Error('This vessel is already your current preference.');
+  }
+  if (initial.pendingCommands.some((command) => command.kind === 'setShipPreference' &&
+      command.actorUid === me.uid && command.payload.sessionId === session.id)) {
+    throw new Error('A ship preference is already waiting for server confirmation.');
+  }
+
+  const requestId = commandId();
+  const command: PendingCommand = {
+    id: requestId,
+    kind: 'setShipPreference',
+    actorUid: me.uid,
+    payload: { sessionId: session.id, requestId, shipId: parsedShipId },
+    createdAt: new Date().toISOString(),
+  };
+  let acceptedRevision: number | undefined;
+  const disposition = await sendOrQueue(command, (value) => {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+      throw new Error('The server did not return a valid ship-preference receipt.');
+    }
+    const reply = value as Record<string, unknown>;
+    if (reply.sessionId !== session.id || !Number.isSafeInteger(reply.setupRevision) ||
+        Number(reply.setupRevision) < 0) {
+      throw new Error('The server did not return a valid ship-preference receipt.');
+    }
+    acceptedRevision = Number(reply.setupRevision);
+  });
+
+  if (disposition === 'applied') {
+    const latest = useSessionStore.getState();
+    if (
+      acceptedRevision === undefined || latest.me?.uid !== me.uid || latest.me.role !== 'player' ||
+      latest.me.sessionId !== session.id || latest.session?.id !== session.id ||
+      (latest.session.phase !== 'lobby' && latest.session.phase !== 'casting') ||
+      latest.session.configurationLocked === true ||
+      !latest.session.activeVesselIds?.includes(parsedShipId) ||
+      latest.me.shipPreferenceId !== parsedShipId ||
+      latest.session.setupRevision !== acceptedRevision ||
+      !hasFreshSessionAuthority()
+    ) {
+      throw new Error('The player or casting state changed before the preference was confirmed. Wait for current server state before retrying.');
+    }
+  }
+  return { disposition, requestId };
 }
 
 /** Change one printed facilitator lane through the revisioned authority command. */
