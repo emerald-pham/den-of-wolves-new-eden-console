@@ -1,6 +1,6 @@
 import { act, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import type { GameSession, Player } from '@/types/game';
+import type { GameSession } from '@/types/game';
 import type { useSessionStore as SessionStore } from '@/store/useSessionStore';
 import type * as SessionService from '@/lib/sessionService';
 
