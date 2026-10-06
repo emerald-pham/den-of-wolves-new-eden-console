@@ -282,6 +282,9 @@ async function runCapybaraMaintenanceWithExactReplay(context, cycle, { refuelBoa
   assert.equal(before.fullGameDemo?.status, 'active');
   assert.equal(before.fullGameDemo?.progression, 'manual');
   assert.ok(before.activeVesselIds?.includes('capybara'));
+  let maintenanceRevision = before.maintenanceCycles?.capybara?.revision ?? 0;
+  assert.ok(Number.isSafeInteger(maintenanceRevision) && maintenanceRevision >= 0);
+  const reactorConsoleIds = ['jump-drive', 'scrap-refinery'];
   const roleId = 'capybara-recycler', surface = await game.select(roleId);
   const originalActor = await surface.observe();
   assert.equal(originalActor.sameActor, true); assert.equal(originalActor.connection, 'live');
@@ -306,15 +309,29 @@ async function runCapybaraMaintenanceWithExactReplay(context, cycle, { refuelBoa
     assert.equal(response.status(), 200, `Capybara ${actionName}: ${body.error?.message ?? response.status()}`);
     assert.equal(request?.sessionId, initial.sessionId);
     assert.equal(request?.shipId, 'capybara');
-    assert.equal(request?.expectedCycle, cycle);
+    assert.equal(request?.expectedRevision, maintenanceRevision, 'Capybara request expectedRevision must match the original source.');
+    assert.ok(typeof request?.requestId === 'string' && request.requestId.length > 0);
     assert.equal(body.result?.status, 'committed');
+    assert.equal(body.result?.sessionId, initial.sessionId, 'Capybara receipt sessionId must match the original session.');
+    assert.equal(body.result?.shipId, 'capybara', 'Capybara receipt shipId must match the original ship.');
+    assert.equal(body.result?.requestId, request.requestId, 'Capybara receipt requestId must echo the original command.');
+    assert.equal(body.result?.action, request.action, 'Capybara receipt action must echo the original command.');
+    assert.equal(body.result?.expectedRevision, request.expectedRevision, 'Capybara receipt expectedRevision must echo the original command.');
+    assert.equal(body.result?.currentTurn, cycle, 'Capybara receipt currentTurn must match the original cycle.');
+    const resultCycle = body.result?.cycle;
+    assert.equal(resultCycle?.turn, cycle, 'Capybara receipt cycle.turn must match the original cycle.');
+    assert.equal(resultCycle?.revision, maintenanceRevision + 1, 'Capybara receipt revision must advance the original source by one.');
+    assert.equal(body.result?.committedRevision, resultCycle.revision, 'Capybara committedRevision must match the receipt cycle.');
+    if (request.action === 'reactor') {
+      assert.deepEqual(request.consoles, reactorConsoleIds, 'The normal reactor request must retain the selected source console IDs.');
+      assert.deepEqual(resultCycle.charges, reactorConsoleIds, 'The normal reactor receipt must commit the selected source charges.');
+    }
     assert.equal((await surface.observe()).uidHash, originalActor.uidHash);
     assert.equal((await surface.observe()).activeConsoleRoleId, roleId);
     const replay = await surface.callable('runMaintenance', request);
     assert.equal(replay.status, 'committed');
     assert.deepEqual(normalizeReceipt(replay.result), normalizeReceipt(body.result),
       `The unchanged ${actionName} receipt must replay exactly for its original actor.`);
-    const resultCycle = body.result?.cycle;
     assert.ok(Number.isSafeInteger(resultCycle?.revision));
     const deadline = Date.now() + 25_000;
     let gmState, crewState, gmCycle, crewCycle;
@@ -330,6 +347,11 @@ async function runCapybaraMaintenanceWithExactReplay(context, cycle, { refuelBoa
     }
     assert.equal(gmCycle?.revision, resultCycle.revision, 'The current GM server projection must match the receipt.');
     assert.equal(crewCycle?.revision, resultCycle.revision, 'The current Recycler server projection must match the receipt.');
+    if (request.action === 'reactor') {
+      assert.deepEqual(gmCycle.charges, reactorConsoleIds);
+      assert.deepEqual(crewCycle.charges, reactorConsoleIds);
+    }
+    maintenanceRevision = resultCycle.revision;
     const actor = await surface.observe();
     for (const key of ['uidHash', 'sessionId', 'profileRoleId', 'activeConsoleRoleId'])
       assert.equal(actor[key], originalActor[key]);
@@ -360,7 +382,7 @@ async function runCapybaraMaintenanceWithExactReplay(context, cycle, { refuelBoa
   await execute(panel.getByRole('button', { name: 'Run unrest check', exact: true }), 'Run unrest check');
   await execute(panel.getByRole('button', { name: 'Run riot check', exact: true }), 'Run riot check');
   await gmRepair?.('capybara');
-  for (const consoleName of ['Jump Drive', 'Shuttle Bay', 'Scrap Refinery'])
+  for (const consoleName of ['Jump Drive', 'Scrap Refinery'])
     await panel.getByRole('checkbox', { name: new RegExp(`^${consoleName}(?: // Charged)?$`, 'i') }).check();
   await panel.getByRole('button', { name: 'Power up reactor', exact: true }).click();
   await execute(panel.getByRole('button', { name: 'ARE YOU SURE?', exact: true }), 'Confirm actual reactor power');
@@ -368,7 +390,7 @@ async function runCapybaraMaintenanceWithExactReplay(context, cycle, { refuelBoa
   const scrapChoice = production.getByRole('radio', { name: 'Generate 1 Scrap', exact: true });
   await scrapChoice.waitFor({ state: 'visible' });
   await scrapChoice.check();
-  for (const consoleName of ['Jump Drive', 'Shuttle Bay', 'Scrap Refinery']) {
+  for (const consoleName of ['Scrap Refinery']) {
     const run = production.getByRole('button', { name: `Run ${consoleName}`, exact: true });
     if (await run.isEnabled()) await execute(run, `Run ${consoleName}`);
     else {
@@ -404,7 +426,7 @@ async function runCapybaraMaintenanceWithExactReplay(context, cycle, { refuelBoa
           projectionRevision: revision },
         projection: { gm: { source: 'server', cycle, revision, status: 'committed' },
           crew: { source: 'server', cycle, revision, status: 'committed' }, renderedStatus: 'public-result-visible' },
-        cost: { resource: 'Reactor charges', amount: 3, result: '1 Scrap from the printed Scrap Refinery choice' } } },
+        cost: { resource: 'Reactor charges', amount: reactorConsoleIds.length, result: '1 Scrap from the printed Scrap Refinery choice' } } },
     stageEvidence: { status: 'captured', roleId, endpoint: 'runMaintenance',
       evidence: { endpoint: 'runMaintenance',
         actor: { uidHash: productionReceipt.actor.uidHash, activeConsoleRoleId: productionReceipt.actor.activeConsoleRoleId,
@@ -414,7 +436,7 @@ async function runCapybaraMaintenanceWithExactReplay(context, cycle, { refuelBoa
           projectionRevision: revision },
         projection: { gm: { source: 'server', cycle, revision, status: 'committed' },
           crew: { source: 'server', cycle, revision, status: 'committed' }, renderedStatus: 'public-result-visible' },
-        cost: { resource: 'Reactor charges', amount: 3, result: '1 Scrap from the printed Scrap Refinery choice' } } },
+        cost: { resource: 'Reactor charges', amount: reactorConsoleIds.length, result: '1 Scrap from the printed Scrap Refinery choice' } } },
     before: { scrap: scrapBefore }, after: { scrap: scrapAfter, fuelledBoa: after.shuttleFuelled?.boa === true },
     actions: completedSteps, source: 'ordinary live Capybara Recycler maintenance UI plus exact same-actor SDK replays',
   };
