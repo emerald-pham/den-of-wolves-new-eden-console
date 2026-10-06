@@ -10,6 +10,7 @@ import { createPc07AuthenticatedSession, buildFixtureCallableObservation } from 
 import { runPc10NaturalDisconnectAcceptance } from './pc10-natural-disconnect.mjs';
 import { createPc10OriginBrowserCapture } from './pc10-origin-callable-observer.mjs';
 import { createPc10NativeDurableBrowserCapture } from './pc10-native-durable-observer.mjs';
+import { createPc10PrivateSdkPhaseDiagnostics, readPc10PrivateSdkInPage } from './pc10-private-sdk-phase-diagnostics.mjs';
 import { validatePc10PresenceFunctionalContract, buildPc10PresenceSdkRenewal, capturePc10PresenceAuthority,
   assertPc10PresenceCohortWitnesses, evaluatePc10PresenceInstrumentationContract } from './pc10-presence-functional-contract.mjs';
 import { PC10_PROOF_CALLABLE_ACTIONS, createPc10CallableTrace, observePc10CallableTrace,
@@ -455,11 +456,15 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
   let observationId = 0;
   let actorHash;
   let joinStage = 'not started';
-  async function bounded(operation, timeoutMs, name) {
+  async function bounded(operation, timeoutMs, name, diagnostic) {
     let timer;
     try {
       return await Promise.race([operation, new Promise((_, reject) => {
-        timer = setTimeout(() => reject(new Error(`${label}: ${name} exceeded ${timeoutMs}ms`)), timeoutMs);
+        diagnostic?.budgetStarted(Date.now());
+        timer = setTimeout(() => {
+          diagnostic?.deadline();
+          reject(new Error(`${label}: ${name} exceeded ${timeoutMs}ms`));
+        }, timeoutMs);
       })]);
     } finally { clearTimeout(timer); }
   }
@@ -812,9 +817,13 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
     await context.close().catch(() => undefined);
     throw error;
   }
+  const privateSdkPhases = createPc10PrivateSdkPhaseDiagnostics(page);
+  const privateSdkByOperation = new WeakMap();
   page.on('pageerror', error => errors.push(error.message));
   page.on('console', message => {
-    const event = parsePc10IdentityObservationEvent(message.text());
+    const text = message.text();
+    if (privateSdkPhases.observeMessage(message, text)) return;
+    const event = parsePc10IdentityObservationEvent(text);
     if (!event) return;
     const record = identityRecords.get(event.observationId);
     if (record) record.pageEvents.push({ ...event, observedAt: Date.now() });
@@ -976,19 +985,26 @@ export async function createPc10BrowserActor(browser, baseUrl, label, viewport =
     return page.evaluate(() => ({ viewport: document.documentElement.clientWidth,
       document: document.documentElement.scrollWidth, body: document.body.scrollWidth }));
   }
-  async function privateRead(sessionId, suffix) {
-    return bounded(page.evaluate(async ({ moduleUrl, sessionId, suffix }) => {
-      const { db } = await import('/src/lib/firestore.ts');
-      const { doc, getDocFromServer } = await import(moduleUrl);
-      try {
-        const reply = await getDocFromServer(doc(db(), `sessions/${sessionId}/${suffix}`));
-        return { status: 'read', exists: reply.exists() };
-      } catch (error) { return { status: 'denied', code: error.code }; }
-    }, { moduleUrl: firestoreSdkModule, sessionId, suffix }), 15_000, 'private SDK read');
+  function privateRead(sessionId, suffix, { diagnosticBinding } = {}) {
+    const diagnostic = diagnosticBinding === undefined ? null : privateSdkPhases.begin({
+      binding: diagnosticBinding, suffix, moduleUrl: firestoreSdkModule });
+    const operation = (async () => {
+      const original = page.evaluate(readPc10PrivateSdkInPage, { moduleUrl: firestoreSdkModule, sessionId, suffix,
+        ...(diagnostic ? { invocationId: diagnostic.value.invocationId } : {}) });
+      // Observe and unwrap the SAME original promise. Late settlements mutate
+      // diagnostic-only fields; they cannot refill the timed-out command.
+      const observed = diagnostic ? original.then(diagnostic.fulfilled, error => {
+        diagnostic.rejected(); throw error;
+      }) : original;
+      return bounded(observed, 15_000, 'private SDK read', diagnostic);
+    })();
+    if (diagnostic) privateSdkByOperation.set(operation, diagnostic.value);
+    return operation;
   }
   return { context, page, errors, label, observe, until, join, callable, privateRead, geometry,
     observedCalls, callableObservationFailures, identityObservations, explicitSdkInvocations,
     sdkInvocationForReply: reply => sdkInvocationsByReply.get(reply),
+    privateSdkDiagnosticForOperation: operation => privateSdkByOperation.get(operation),
     callableObservationBoundaries: (originCapture ?? observationBoundary).boundaries,
     drainObservedCalls: () => bounded((originCapture ?? observationBoundary).drain(), 10_000, 'callable observations'),
     setOffline: value => (originCapture ?? observationBoundary).transition(value ? 'offline' : 'online', () => context.setOffline(value)),

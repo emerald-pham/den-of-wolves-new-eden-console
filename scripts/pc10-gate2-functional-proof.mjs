@@ -388,8 +388,17 @@ export function createPc10FunctionalCommand({ ledger, originals, clients, observ
       entry.trace = createPc10CallableTrace({ name, data, actorUid: original.uid, startedAt: entry.issuedAt,
         transport: roleId === 'gm' ? 'authenticated-emulator-HTTP' : 'independent-browser-SDK' });
       const client = clients.get(roleId);
+      let privateOperation;
+      if (roleId !== 'gm' && name === 'privateFirestoreRead') {
+        privateOperation = client.privateRead(data.sessionId, data.suffix, { diagnosticBinding: {
+          commandId: entry.commandId, roleId, actorHash: hash(`security-denial-actor\0${entry.beforeBinding.authUid}`),
+          sessionHash: hash(`security-denial-session\0${entry.beforeBinding.sessionId}`),
+          contextHash: entry.beforeBinding.contextHash, nativeDocumentHash: entry.beforeBinding.nativeDocumentHash,
+          sourceBeforeHash: entry.beforeSource.sourceHash, commandFingerprint: entry.registeredRequestFingerprint } });
+        entry.privateSdkDiagnostic = client.privateSdkDiagnosticForOperation?.(privateOperation) ?? null;
+      }
       const reply = roleId === 'gm' ? await gmCall(name, data)
-        : name === 'privateFirestoreRead' ? await client.privateRead(data.sessionId, data.suffix)
+        : name === 'privateFirestoreRead' ? await privateOperation
           : await client.callable(name, data, { retainPresenceAuthority: true });
       entry.completedAt = clock(); entry.reply = reply; // The ORIGINAL awaited reply/error is retained.
       entry.invocation = client?.sdkInvocationForReply?.(reply) ?? null;
