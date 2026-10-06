@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFile } from 'node:fs/promises';
 import { createHash, webcrypto } from 'node:crypto';
-import { evaluateProcedureCapture } from './pc10-pending-procedure-ui-proof.mjs';
+import { captureMountedProcedureAction, evaluateProcedureCapture } from './pc10-pending-procedure-ui-proof.mjs';
 import { createPendingProcedureDefaultSteps, readActionState } from './pc10-pending-procedure-ui-recipes.mjs';
 
 const PRESS_SHUTTLE_ID = 'snn-press-shuttle';
@@ -112,14 +112,19 @@ function browserLocator({ options = [], onClick = () => {}, onSelect = () => {} 
 function pressRecipeHarness({ state = memberStore(), origin = ORIGIN, destinationOptions = [
   { value: 'quellon', textContent: 'Quellon', disabled: false },
   { value: 'icebreaker', textContent: 'Icebreaker', disabled: false },
+], newDestinationOptions = [
+  { value: 'aegis', textContent: 'Aegis', disabled: false },
+  { value: 'dione', textContent: 'Dione', disabled: false },
 ], movement = null } = {}) {
   let selectedDestination = '';
   let clickCount = 0;
   let gmSelections = 0;
   const select = browserLocator({ options: destinationOptions, onSelect: value => { selectedDestination = value; } });
+  const retargetSelect = browserLocator({ options: newDestinationOptions, onSelect: value => { selectedDestination = value; } });
   const button = browserLocator({ onClick: () => { clickCount += 1; } });
   const panel = {
-    getByLabel: label => label === 'Destination ship' ? select : browserLocator(),
+    getByLabel: label => label === 'Destination ship' ? select
+      : label === 'New destination ship' ? retargetSelect : browserLocator(),
     getByRole: () => button,
   };
   const surface = serializedSurface(state);
@@ -201,10 +206,13 @@ function movementInput(endpoint, { priorDeparture = departureWitness(), priorTra
   const actor = pressActor();
   return { caseId: `core:${endpoint}`, expected, offered: true, mountedUi: true,
     actorBefore: actor, actorAfter: { ...actor }, sourceBefore: { live: true, sessionId: SESSION_ID, cycle: 3, phase: 'active', revision: 7, groupId: GROUP_ID },
-    sourceAfter: { live: true, sessionId: SESSION_ID, cycle: 3, phase: 'active', revision: 7, groupId: GROUP_ID },
+    sourceAfter: { live: true, sessionId: SESSION_ID, cycle: 3, phase: 'active',
+      revision: endpoint === 'requestShuttleDeparture' ? 7 : result.revision, groupId: GROUP_ID },
     transitionBefore, transitionAfter, pressOriginAuthority: ORIGIN,
     pressSourceAuthorityBefore: SOURCE_AUTHORITY, pressSourceAuthorityAfter: { ...SOURCE_AUTHORITY },
     pressGroupAuthorityBefore: PRESS_GROUP_AUTHORITY, pressGroupAuthorityAfter: PRESS_GROUP_AUTHORITY,
+    pressActiveVesselIdsBefore: ['aegis', 'dione', 'icebreaker'],
+    pressActiveVesselIdsAfter: ['aegis', 'dione', 'icebreaker'],
     pressDockingBefore: { kind: 'press-shuttle-docking', shuttleId: PRESS_SHUTTLE_ID,
       dockingCount: endpoint === 'requestShuttleDeparture' || endpoint === 'beginShuttleTransit' ? 1 : 0,
       originShipId: endpoint === 'requestShuttleDeparture' || endpoint === 'beginShuttleTransit' ? 'aegis' : null },
@@ -257,6 +265,10 @@ test('serialized member reader emits strict Press-only source authority without 
   assert.equal(authority.discoveryRevision, 12);
   assert.match(authority.discoveryVesselsHash, /^[0-9a-f]{64}$/);
   assert.equal(authority.shuttleAuthorized, true);
+  assert.deepEqual(Object.keys(authority).sort(), ['kind', 'sessionId', 'uidHash', 'groupId',
+    'activeConsoleRoleId', 'assignedRoleId', 'connectionGeneration', 'identityHydrationRevision',
+    'documentTimeOrigin', 'audienceHash', 'authorityHash', 'discoveryRevision',
+    'discoveryVesselsHash', 'shuttleAuthorized'].sort(), 'Press authority keeps its explicit compact schema');
   assert.deepEqual(state.pressGroupAuthority, { groupId: GROUP_ID,
     fleetGroupVesselIds: ['aegis', 'dione', 'icebreaker'], revision: 12 });
   assert.doesNotMatch(JSON.stringify(state), new RegExp(UID));
@@ -304,6 +316,69 @@ test('default Press request keeps the original UID on #/press and selects only a
   const blocked = await createPendingProcedureDefaultSteps()['core:requestShuttleDeparture']({ ...harness, context: missing });
   assert.equal((await blocked.prepare({ surface: harness.surface, actor: pressActor(),
     source: { cycle: 3, phase: 'active' } })).offered, false);
+
+  const foreignUid = 'f'.repeat(16);
+  const foreign = { ...origin, uidHash: foreignUid,
+    sourceAuthority: { ...origin.sourceAuthority, uidHash: foreignUid, authorityHash: 'e'.repeat(64) } };
+  const noFallback = await createPendingProcedureDefaultSteps()['core:requestShuttleDeparture']({
+    ...harness, context: { ...harness.context, pressShuttleOriginAuthority: foreign } });
+  assert.equal((await noFallback.prepare({ surface: harness.surface, actor: pressActor(),
+    source: { cycle: 3, phase: 'active' } })).offered, false,
+  'a foreign original Press holder stays blocked without selecting another holder');
+
+  for (const drift of [{ me: { connectionGeneration: 6 } }, { identityHydrationRevision: 10 }]) {
+    const changedState = memberStore(drift);
+    const changed = await readActionState(serializedSurface(changedState), PRESS_SHUTTLE_ID);
+    assert.notEqual(changed.pressDocumentAuthority.authorityHash, origin.sourceAuthority.authorityHash);
+    const staleOriginHarness = pressRecipeHarness({ state: changedState, origin });
+    const staleOriginRecipe = await createPendingProcedureDefaultSteps()['core:requestShuttleDeparture'](staleOriginHarness);
+    assert.equal((await staleOriginRecipe.prepare({ surface: staleOriginHarness.surface, actor: pressActor(),
+      source: { cycle: 3, phase: 'active' } })).offered, false,
+    'the live generation or hydration cannot inherit the pre-request origin witness');
+  }
+});
+
+test('Press Begin and Retarget use only the exact preceding witness on the original mounted route', async () => {
+  const current = memberStore();
+  const read = await readActionState(serializedSurface(current), PRESS_SHUTTLE_ID);
+  const origin = { ...ORIGIN, sourceAuthority: read.pressDocumentAuthority };
+  const departure = { ...departureWitness(), sourceAuthority: origin.sourceAuthority };
+  const requested = { status: 'requested', requestId: departure.departureRequestId,
+    shuttleId: PRESS_SHUTTLE_ID, holderUidHash: UID_HASH, groupId: GROUP_ID,
+    destinationShipId: departure.destinationShipId, originShipId: origin.originShipId,
+    controlRevision: origin.controlRevision, cycle: origin.cycle, requestedAt: departure.requestedAt };
+  const beginHarness = pressRecipeHarness({ state: current, origin, movement: requested });
+  const beginRecipe = await createPendingProcedureDefaultSteps()['core:beginShuttleTransit']({
+    ...beginHarness, context: { ...beginHarness.context, pressShuttleDepartureWitness: departure },
+  });
+  const beginPlan = await beginRecipe.prepare({ surface: beginHarness.surface, actor: pressActor(),
+    source: { cycle: 3, phase: 'active' } });
+  assert.equal(beginPlan.offered, true, beginPlan.reason);
+  assert.equal(beginPlan.transitionBefore.status, 'requested');
+  await beginPlan.click();
+  assert.equal(beginHarness.clickCount(), 1);
+  assert.equal(beginHarness.gmSelections(), 0);
+
+  const priorTransit = { ...transitWitness(), sourceAuthority: origin.sourceAuthority };
+  const inFlight = { status: 'in-transit', requestId: priorTransit.departureRequestId,
+    transitRequestId: priorTransit.transitRequestId, shuttleId: PRESS_SHUTTLE_ID,
+    holderUidHash: UID_HASH, groupId: GROUP_ID, destinationShipId: priorTransit.destinationShipId,
+    controlRevision: origin.controlRevision, cycle: origin.cycle, revision: priorTransit.transitRevision,
+    requestedAt: priorTransit.requestedAt, departedAt: priorTransit.departedAt,
+    arrivesAt: priorTransit.arrivesAt };
+  const retargetHarness = pressRecipeHarness({ state: current, origin, movement: inFlight });
+  const retargetRecipe = await createPendingProcedureDefaultSteps()['core:retargetShuttleTransit']({
+    ...retargetHarness, context: { ...retargetHarness.context,
+      pressShuttleDepartureWitness: departure, pressShuttleTransitWitness: priorTransit },
+  });
+  const retargetPlan = await retargetRecipe.prepare({ surface: retargetHarness.surface, actor: pressActor(),
+    source: { cycle: 3, phase: 'active' } });
+  assert.equal(retargetPlan.offered, true, retargetPlan.reason);
+  assert.equal(retargetPlan.transitionBefore.revision, 1);
+  assert.equal(retargetHarness.selectedDestination(), 'dione');
+  await retargetPlan.click();
+  assert.equal(retargetHarness.clickCount(), 1);
+  assert.equal(retargetHarness.gmSelections(), 0);
 });
 
 test('Press Request, Begin, and Retarget receipts need the same strict current source tuple and exact SDK replay', () => {
@@ -353,6 +428,72 @@ test('Press Request, Begin, and Retarget receipts need the same strict current s
   assert.equal(evaluateProcedureCapture({ ...begin,
     pressShuttleDepartureWitness: { ...begin.pressShuttleDepartureWitness, groupId: 'foreign-group' } }).status, 'pending',
   'Begin rejects a foreign prior request tuple');
+  assert.equal(evaluateProcedureCapture({ ...retarget,
+    pressShuttleTransitWitness: { ...retarget.pressShuttleTransitWitness, transitRequestId: 'foreign-transit' } }).status, 'pending',
+  'Retarget rejects a different prior Begin transit ID');
+  assert.equal(evaluateProcedureCapture({ ...retarget,
+    pressDockingAfter: { ...retarget.pressDockingAfter, dockingCount: 1, originShipId: 'aegis' } }).status, 'pending',
+  'Retarget must remain undocked at its source projection');
+});
+
+test('public mounted capture keeps the proven Press holder on its original document and exact source witness', async () => {
+  const current = memberStore();
+  const read = await readActionState(serializedSurface(current), PRESS_SHUTTLE_ID);
+  const origin = { ...ORIGIN, sourceAuthority: read.pressDocumentAuthority };
+  const fixture = movementInput('requestShuttleDeparture');
+  fixture.expected.sourceAuthority = origin.sourceAuthority;
+  fixture.expected.pressOriginAuthority = origin;
+  fixture.pressOriginAuthority = origin;
+  fixture.pressSourceAuthorityBefore = origin.sourceAuthority;
+  fixture.pressSourceAuthorityAfter = origin.sourceAuthority;
+  let selected;
+  let clicks = 0;
+  const request = fixture.request;
+  const result = fixture.response.result;
+  const response = {
+    ok: () => true, status: () => 200,
+    request: () => ({ method: () => 'POST', url: () => 'https://example.test/us-central1/requestShuttleDeparture',
+      postDataJSON: () => ({ data: request }) }),
+    json: async () => ({ result }),
+  };
+  const surface = {
+    observe: async () => pressActor(),
+    callable: async (_endpoint, exactRequest) => ({ status: 'committed', result: structuredClone(result), request: exactRequest }),
+    page: {
+      on() {}, off() {},
+      waitForResponse: async () => response,
+    },
+  };
+  const game = {
+    select: async (roleId, options) => {
+      selected = { roleId, options };
+      assert.equal(roleId, 'press-officer');
+      assert.equal(options?.enter, false);
+      return surface;
+    },
+    state: async () => ({ live: true, sessionId: SESSION_ID, cycle: 3, phase: 'active' }),
+  };
+  const proof = await captureMountedProcedureAction({
+    context: { initial: { sessionId: SESSION_ID }, roster: [{ roleId: 'press-officer', uidHash: UID_HASH }] },
+    game, caseId: 'core:requestShuttleDeparture', expected: fixture.expected,
+    prepare: async () => ({ offered: true, pressOriginAuthority: origin,
+      pressSourceAuthorityBefore: origin.sourceAuthority, pressGroupAuthorityBefore: PRESS_GROUP_AUTHORITY,
+      pressActiveVesselIdsBefore: ['aegis', 'dione', 'icebreaker'],
+      pressDockingBefore: { kind: 'press-shuttle-docking', shuttleId: PRESS_SHUTTLE_ID,
+        dockingCount: 1, originShipId: 'aegis' }, transitionBefore: fixture.transitionBefore,
+      click: async () => { clicks += 1; } }),
+    inspect: async () => ({ sourceAfter: fixture.sourceAfter, transitionAfter: fixture.transitionAfter,
+      pressSourceAuthorityAfter: origin.sourceAuthority, pressGroupAuthorityAfter: PRESS_GROUP_AUTHORITY,
+      pressActiveVesselIdsAfter: ['aegis', 'dione', 'icebreaker'],
+      pressDockingAfter: { kind: 'press-shuttle-docking', shuttleId: PRESS_SHUTTLE_ID,
+        dockingCount: 1, originShipId: 'aegis' },
+      rendered: { visible: true, resultStatus: 'requested' } }),
+  });
+  assert.deepEqual(selected, { roleId: 'press-officer', options: { enter: false } });
+  assert.equal(clicks, 1);
+  assert.equal(proof.status, 'completed', proof.reason);
+  assert.equal(proof.pressShuttleDepartureWitness.originShipId, 'aegis');
+  assert.equal(proof.exactSdkRetry, 'same-original-request-receipt-confirmed');
 });
 
 test('Press automatic arrival binds the exact source-timed transit and own visit projection without core ship balances', () => {
@@ -378,6 +519,11 @@ test('Press automatic arrival binds the exact source-timed transit and own visit
     arrival: { ...input.arrival, afterProjection: { ...input.arrival.afterProjection,
       visits: input.arrival.afterProjection.visits.slice(0, 1) } } }).status, 'pending',
   'arrival needs the exact departure and docking visits');
+  assert.equal(evaluateProcedureCapture({ ...input, pressShuttleDepartureWitness: undefined }).status, 'pending',
+    'arrival must retain the original Request witness');
+  assert.equal(evaluateProcedureCapture({ ...input,
+    pressShuttleTransitWitness: { ...input.pressShuttleTransitWitness, departureRequestId: 'foreign-departure' } }).status, 'pending',
+  'arrival must retain the original Begin witness and exact request chain');
 });
 
 function pressArrivalInput(retargetWitness) {
@@ -398,6 +544,8 @@ function pressArrivalInput(retargetWitness) {
     transitRequestId: 'transit-1', destinationShipId: 'dione', transitRevision: 2,
     requestedAt: before.requestedAt, departedAt: before.departedAt, arrivesAt: before.arrivesAt,
     sourceAuthority: SOURCE_AUTHORITY };
+  const originalDeparture = { ...departureWitness(), sourceAuthority: SOURCE_AUTHORITY };
+  const originalTransit = { ...transitWitness(), sourceAuthority: SOURCE_AUTHORITY };
   const afterProjection = { ...baseProjection, movementAbsent: true,
     dockings: [{ shuttleId: PRESS_SHUTTLE_ID, shipId: 'dione', dockedAt: arrivedAt }],
     visits: [
@@ -413,7 +561,14 @@ function pressArrivalInput(retargetWitness) {
     departureRequestId: 'departure-1', transitRequestId: 'transit-1', destinationShipId: 'dione',
     transitRevision: 2, sourceAuthority: SOURCE_AUTHORITY, pressOriginAuthority: ORIGIN }, offered: true, mountedUi: true,
     actorBefore: actor, actorAfter: { ...actor }, pressOriginAuthority: ORIGIN,
+    pressShuttleDepartureWitness: originalDeparture, pressShuttleTransitWitness: originalTransit,
     pressGroupAuthorityBefore: PRESS_GROUP_AUTHORITY, pressGroupAuthorityAfter: PRESS_GROUP_AUTHORITY,
+    pressDockingBefore: { kind: 'press-shuttle-docking', shuttleId: PRESS_SHUTTLE_ID,
+      dockingCount: 0, originShipId: null },
+    pressDockingAfter: { kind: 'press-shuttle-docking', shuttleId: PRESS_SHUTTLE_ID,
+      dockingCount: 1, originShipId: 'dione' },
+    pressActiveVesselIdsBefore: ['aegis', 'dione', 'icebreaker'],
+    pressActiveVesselIdsAfter: ['aegis', 'dione', 'icebreaker'],
     sourceBefore: { live: true, sessionId: SESSION_ID, cycle: 3, phase: 'active', groupId: GROUP_ID },
     sourceAfter: { live: true, sessionId: SESSION_ID, cycle: 3, phase: 'active', groupId: GROUP_ID },
     request: { sessionId: SESSION_ID, requestId: 'arrival-transit-1', shuttleId: PRESS_SHUTTLE_ID,
