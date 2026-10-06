@@ -42,6 +42,8 @@ test('mission participants come from the current mounted group labels, with only
 function carrierInput(changes = {}) {
   return { opportunity, currentSession, navigationRead: { status: 'ok', fromCache: false, hasPendingWrites: false,
     value: { revision: 19, shipGalacticCoordinates: currentSession.shipGalacticCoordinates } },
+    fleetGroupRead: { status: 'ok', fromCache: false, hasPendingWrites: false,
+      value: { id: 'fleet-4', vesselIds: ['dione', 'shepherd'], memberUids: ['sera'] } },
     roster, readinessByRoleId: readiness,
     departureByCraftId: { endeavour: null }, retainedShuttles: {},
     ...changes };
@@ -57,6 +59,8 @@ test('mission carrier eligibility is bound to current server navigation, group, 
     { navigationRead: { status: 'ok', fromCache: false, hasPendingWrites: false,
       value: { revision: 19, shipGalacticCoordinates: { ...currentSession.shipGalacticCoordinates, shepherd: '0000' } } } },
     { currentSession: { ...currentSession, shipFleetGroupIds: { ...currentSession.shipFleetGroupIds, shepherd: 'fleet-3' } } },
+    { fleetGroupRead: { status: 'ok', fromCache: false, hasPendingWrites: false,
+      value: { id: 'fleet-4', vesselIds: ['dione', 'shepherd'], memberUids: ['different-current-member'] } } },
     { currentSession: { ...currentSession, activeVesselIds: ['dione'] } },
     { currentSession: { ...currentSession, shuttleDockings: [
       ...currentSession.shuttleDockings, { shuttleId: 'endeavour', shipId: 'shepherd', dockedAt: 'duplicate' },
