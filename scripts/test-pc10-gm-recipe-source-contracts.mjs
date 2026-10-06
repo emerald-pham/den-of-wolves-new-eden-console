@@ -30,7 +30,7 @@ async function fixture(options = {}) {
   };
   let authUid = uid, url = 'http://localhost:5174/#/gm', mounted = true;
   let mountReads = 0, remainingMountReads = options.mountReads ?? 0;
-  let reloads = 0, lists = 0;
+  let reloads = 0, lists = 0, lifecycleReads = 0;
   const fields = { 'Question or ambiguity': '', 'Source or reference': '', Decision: '',
     Audience: 'gm-only', 'Supersedes call ID (optional)': '', [`Facilitator note for ${targetUid}`]: '' };
   const writes = [], fills = [], uiEvents = [], waiting = [], requestListeners = new Set();
@@ -184,10 +184,14 @@ async function fixture(options = {}) {
       },
       evaluate: async (callback, input) => {
         browser.input = input;
-        return normalize(await new Script(`(${callback.toString()})(input)`, {
+        const result = normalize(await new Script(`(${callback.toString()})(input)`, {
           importModuleDynamically: async path => {
             assert.ok(modules.has(path), `Only genuine browser dependencies: ${path}`); return modules.get(path);
           } }).runInContext(browser));
+        if (callback.toString().includes('privateAudienceMatches:')) {
+          lifecycleReads += 1; options.onLifecycleActorRead?.({ raw, reloads, lifecycleReads });
+        }
+        return result;
       },
       getByRole: (role, input = {}) => role === 'status'
         ? { allTextContents: async () => ['RULE CALL APPLIED'] } : locator(input.name),
@@ -375,13 +379,35 @@ for (const [reason, change] of [
   ['unaccepted hydration', raw => { raw.identityHydrationRevision = 0; }],
 ]) test(`public census reload never certifies ${reason}`, async () => {
   const f = await fixture({ onReload: ({ raw }) => change(raw) });
+  let result, denial;
   try {
-    const result = await f.run('setFacilitatorCensusNote');
-    assert.notEqual(result.inspected.sourceAfter.live, true);
+    result = await f.run('setFacilitatorCensusNote');
   } catch (error) {
-    assert.equal(error.name, 'AssertionError');
+    denial = error;
   }
+  if (denial) assert.equal(denial.name, 'AssertionError');
+  else assert.notEqual(result.inspected.sourceAfter.live, true);
   assert.equal(f.writes.length, 1, 'Only the original pre-reload authorized note was written.'); f.close();
+});
+
+for (const [reason, options] of [
+  ['replaced exact claim', { onReload: ({ raw }) => { raw.gmInstance.claimedAt = '2026-10-05T10:01:00.000Z'; } }],
+  ['foreign private audience', { onReload: ({ raw }) => { raw.roleBrief = { assignmentUid: 'native-foreign-member' }; } }],
+  ['unaccepted hydration', { onReload: ({ raw }) => { raw.identityHydrationRevision = 0; } }],
+  ['current accepted document generation changed during inspection', { onLifecycleActorRead: ({ raw, reloads }) => {
+    if (reloads === 1) raw.me.connectionGeneration += 1;
+  } }],
+  ['current accepted hydration changed during inspection', { onLifecycleActorRead: ({ raw, reloads }) => {
+    if (reloads === 1) raw.identityHydrationRevision += 1;
+  } }],
+]) test(`public rule reload never certifies ${reason}`, async () => {
+  const f = await fixture(options), caseId = specs.authorFacilitatorRuleCall.id;
+  const hooks = createPendingGmRulingsCountersCallbacks({ steps: { [caseId]: steps[caseId] }, gameFactory: () => f.game });
+  const result = await hooks.onStarted(f.context);
+  const row = result.evidence.cases.find(row => row.caseId === caseId);
+  assert.notEqual(row.status, 'completed');
+  assert.equal(result.observedProcedureCount, 0); assert.equal(result.familyAcceptanceClaimed, false);
+  assert.equal(f.writes.length, 1, 'Only the original pre-reload authorized ruling was written.'); f.close();
 });
 
 test('public four-recipe callback preserves exact receipts, deferred grant/revoke and private evidence limits', async () => {
