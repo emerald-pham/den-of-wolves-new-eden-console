@@ -18,6 +18,21 @@ const UID_HASH = createHash('sha256').update(UID).digest('hex').slice(0, 16);
 const ACTOR = { uidHash: UID_HASH, sessionId: SESSION, profileRoleId: 'quellon-explorer',
   activeConsoleRoleId: 'quellon-explorer', sameActor: true, connection: 'live', freshness: 'server' };
 
+function currentDocumentAuthority(overrides = {}) {
+  return { sessionId: SESSION, meSessionId: SESSION, berthSessionId: SESSION,
+    actualAuthUidHash: UID_HASH, meUidHash: UID_HASH, berthUidHash: UID_HASH,
+    scopeGroupId: 'fleet-1', berthGroupId: 'fleet-1',
+    audienceHash: 'a'.repeat(64), berthHash: 'b'.repeat(64),
+    connectionGeneration: 4, berthConnectionGeneration: 4, identityHydrationRevision: 3,
+    documentTimeOrigin: 1_760_000_000_000,
+    assignedRoleId: 'quellon-explorer', activeConsoleRoleId: 'quellon-explorer',
+    berthAssignedRoleId: 'quellon-explorer', berthActiveConsoleRoleId: 'quellon-explorer',
+    playerRole: 'player', berthRole: 'player', connected: true, freshness: 'server',
+    replacementStatus: null, berthReplacementStatus: null,
+    berthVesselAuthorized: true, shuttleAudienceAuthorized: true,
+    ...overrides };
+}
+
 function shuttleArrivalWitness() {
   return { status: 'completed', endpoint: 'retargetShuttleTransit', sessionId: SESSION,
     roleId: 'quellon-explorer', uidHash: UID_HASH, shuttleId: 'starlight', groupId: 'fleet-1',
@@ -138,6 +153,7 @@ function makeMountedArrivalHarness({ retryCount = 0, completeCount = 1, complete
     holderGroupId: 'fleet-1', playerDiscovery: { groupId: 'fleet-1' },
     activeVesselIds: ['quellon', 'icebreaker'], shipFleetGroupIds: { quellon: 'fleet-1', icebreaker: 'fleet-1' },
     shuttleControl: { starlight: { shuttleId: 'starlight', holderUid: UID, revision: 4 } },
+    currentDocumentAuthority: currentDocumentAuthority(),
     shuttleDockings: [], shuttleVisitLog: [],
     shipResources: { icebreaker: { food: 8, materials: 3 } },
     shuttleCargo: { starlight: { food: 2 } } };
@@ -247,6 +263,9 @@ function makeMountedArrivalHarness({ retryCount = 0, completeCount = 1, complete
   return { context, game, player, initialState: structuredClone(state),
     changeCurrentHolder: () => { state = { ...state, shuttleControl: { ...state.shuttleControl,
       starlight: { ...state.shuttleControl.starlight, holderUid: 'new-holder' } } }; },
+    changeCurrentDocumentAuthority: mutation => { state = { ...state, currentDocumentAuthority:
+      mutation(state.currentDocumentAuthority && structuredClone(state.currentDocumentAuthority)) }; },
+    removeCurrentDocumentAuthority: () => { state = { ...state }; delete state.currentDocumentAuthority; },
     clickCount: () => clickCount, sdkCalls: () => sdkCalls };
 }
 
@@ -400,6 +419,32 @@ test('the default arrival recipe captures one ready mounted action without SDK r
   changedHolder.changeCurrentHolder();
   await assert.rejects(mountedAction.click(), /source arrival chain/);
   assert.equal(changedHolder.clickCount(), 0, 'a new holder cannot submit the stale prepared arrival');
+});
+
+test('the public arrival recipe blocks missing or drifted same-document holder authority after retarget', async () => {
+  const step = createPendingProcedureDefaultSteps()['core:completeShuttleArrival'];
+  const mutations = [
+    harness => harness.removeCurrentDocumentAuthority(),
+    harness => harness.changeCurrentDocumentAuthority(value => ({ ...value, actualAuthUidHash: 'foreign-holder' })),
+    harness => harness.changeCurrentDocumentAuthority(value => ({ ...value, meUidHash: 'foreign-holder' })),
+    harness => harness.changeCurrentDocumentAuthority(value => ({ ...value, berthUidHash: 'foreign-holder' })),
+    harness => harness.changeCurrentDocumentAuthority(value => ({ ...value, meSessionId: 'other-session' })),
+    harness => harness.changeCurrentDocumentAuthority(value => ({ ...value, scopeGroupId: 'fleet-2' })),
+    harness => harness.changeCurrentDocumentAuthority(value => ({ ...value, audienceHash: 'b'.repeat(64) })),
+    harness => harness.changeCurrentDocumentAuthority(value => ({ ...value, shuttleAudienceAuthorized: false })),
+    harness => harness.changeCurrentDocumentAuthority(value => ({ ...value, connectionGeneration: value.connectionGeneration + 1 })),
+    harness => harness.changeCurrentDocumentAuthority(value => ({ ...value, identityHydrationRevision: value.identityHydrationRevision + 1 })),
+    harness => harness.changeCurrentDocumentAuthority(value => ({ ...value, documentTimeOrigin: value.documentTimeOrigin + 1 })),
+  ];
+  for (const [index, mutate] of mutations.entries()) {
+    const harness = makeMountedArrivalHarness();
+    mutate(harness);
+    const prepared = await step({ context: harness.context, game: harness.game });
+    const result = await captureMountedProcedureAction({ context: harness.context, game: harness.game,
+      caseId: 'core:completeShuttleArrival', timeoutMs: 1000, ...prepared });
+    assert.equal(result.status, 'pending', `authority mutation ${index}`);
+    assert.equal(harness.clickCount(), 0, `authority mutation ${index} must not click`);
+  }
 });
 
 test('the separate automatic arrival observer arms before natural source time and never clicks', async () => {
