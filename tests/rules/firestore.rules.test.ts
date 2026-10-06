@@ -2751,7 +2751,7 @@ describe('shuttle departure privacy', () => {
     await assertFails(deleteDoc(doc(as('press'), path)));
 
     const deniedAfter = async (mutate: (db: ReturnType<typeof as>) => Promise<unknown>) => {
-      await env.withSecurityRulesDisabled(async (ctx) => mutate(ctx.firestore()));
+      await env.withSecurityRulesDisabled(async (ctx) => { await mutate(ctx.firestore()); });
       await assertFails(getDoc(doc(as('press'), path)));
     };
     await deniedAfter((db) => updateDoc(doc(db, pressPath), { fleetGroupId: 'fleet-2' }));
