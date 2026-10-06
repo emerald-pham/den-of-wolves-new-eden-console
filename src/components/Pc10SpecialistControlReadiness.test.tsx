@@ -1,4 +1,6 @@
 import { createHash, webcrypto } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import ts from 'typescript';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { constants, createContext, Script, SyntheticModule } from 'node:vm';
@@ -22,6 +24,20 @@ const nativeImport = (name: string) => new Script('import(url)', {
 const { createTwoBrowserGameplay } = await nativeImport('pc10-two-browser-gameplay.mjs');
 const { createSpecialistGameplayDriver } = await nativeImport('pc10-specialist-gameplay.mjs');
 const { runPc10SpecialistAction } = await nativeImport('pc10-specialist-phases.mjs');
+// Bind the generic surface to its actual production callback rather than
+// supplying fixture-only generation/HY/berth fields it does not return.
+const observerFile = ts.createSourceFile('full-game-proof.mjs', readFileSync(resolve(process.cwd(),
+  'scripts/pc10-full-game-demo-ui-proof.mjs'), 'utf8'), ts.ScriptTarget.Latest, true);
+const observers: ts.FunctionDeclaration[] = [];
+function findObserver(node: ts.Node): void {
+  if (ts.isFunctionDeclaration(node) && node.name?.text === 'observe') observers.push(node);
+  ts.forEachChild(node, findObserver);
+}
+findObserver(observerFile);
+expect(observers).toHaveLength(1);
+const returned = observers[0].body!.statements[0] as ts.ReturnStatement;
+const genericCallbackSource = (returned.expression as ts.CallExpression).arguments[0].getText(observerFile);
+const genericCallback = new Script(`(${genericCallbackSource})`).runInNewContext();
 const sid = 'native-specialist-session', uid = 'private-native-wing', roleId = 'wing-commander';
 const uidHash = (value: string) => createHash('sha256').update(value).digest('hex').slice(0, 16);
 const plain = <T,>(value: T): T => JSON.parse(JSON.stringify(value));
@@ -32,6 +48,10 @@ beforeEach(() => {
   store.reset();
   store.setIdentity({ id: sid, name: 'Native table', joinCode: '4821', phase: 'active', currentTurn: 1,
     activeRoleIds: [roleId], activeVesselIds: ['aegis'], ownerUid: 'native-gm',
+    memberSessionScope: { groupId: 'fleet-1', vesselIds: ['aegis'], craftIds: ['starlight'] },
+    currentActorBerthAuthority: { sessionId: sid, actorUid: uid, groupId: 'fleet-1', role: 'player',
+      connectionGeneration: 3, assignedRoleId: roleId, activeConsoleRoleId: roleId,
+      replacementRoleId: null, replacementStatus: null, shipId: 'aegis' },
     createdAt: '2026-10-06T00:00:00.000Z', updatedAt: '2026-10-06T00:00:00.000Z',
     turnPhase: { turn: 1, teamPhaseEndsAt: '2000-01-01T00:00:00.000Z',
       openAirspaceEndsAt: '2099-01-01T00:00:00.000Z',
@@ -43,8 +63,8 @@ beforeEach(() => {
   store.setConnection('live'); store.setSessionSnapshotFreshness('server');
 });
 
-function fixture({ beforeCapture, beforeClick, replayDrift = false }:
-  { beforeCapture?: () => void; beforeClick?: () => void; replayDrift?: boolean } = {}) {
+function fixture({ beforeCapture, beforeClick, duringSecondSelection, replayDrift = false }:
+  { beforeCapture?: () => void; beforeClick?: () => void; duringSecondSelection?: () => void; replayDrift?: boolean } = {}) {
   const events: string[] = [], posts: Record<string, unknown>[] = [], replays: unknown[] = [];
   let path = '/ships/aegis/roles/wing-commander', authUid = uid, responseResolve: (value: unknown) => void;
   let selects = 0, fills = 0, clicks = 0, observers = 0, saved: unknown;
@@ -53,20 +73,12 @@ function fixture({ beforeCapture, beforeClick, replayDrift = false }:
     <Route path="/ships/aegis/roles/wing-commander" element={<Link to="/shuttles/starlight">Open Starlight shuttle console</Link>} />
     <Route path="/shuttles/starlight" element={<><Link to="/ships/aegis/roles/wing-commander">Back to AEGIS Wing Commander console</Link><ScoutRequestControls entitlementId="starlight" /></>} />
   </Routes></MemoryRouter>);
-  const currentActor = async () => {
-    const s = useSessionStore.getState(), me = s.me;
-    return { uidHash: uidHash(authUid), hasAuth: !!authUid, sameActor: authUid === me?.uid,
-      sessionId: s.session?.id, profileRoleId: roleId, profileSessionId: sid,
-      playerRole: me?.role, activeConsoleRoleId: me?.activeConsoleRoleId,
-      assignedRoleId: me?.assignedRoleId, seatId: me?.seatId, fleetGroupId: me?.fleetGroupId,
-      replacementRoleId: me?.replacementRoleId, replacementStatus: me?.replacementStatus,
-      connectionGeneration: me?.connectionGeneration, identityHydrationRevision: s.identityHydrationRevision,
-      documentTimeOrigin: 1000, connection: s.connection, freshness: s.sessionSnapshotFreshness };
-  };
+  const currentActor = async () => evaluate(genericCallback, '/src/store/useSessionStore.ts');
+  let richSamplesInSelection = 0;
   async function evaluate(callback: (...args: never[]) => unknown, input: unknown) {
     // Execute the actual browser-serialized current-document callback, with no
     // Node globals or SDK/network module available to it.
-    const browser = createContext({ input, crypto: webcrypto, TextEncoder, performance: { timeOrigin: 1000 } });
+    const browser = createContext({ input, crypto: webcrypto, TextEncoder, document, performance: { timeOrigin: 1000 } });
     const modules = new Map<string, SyntheticModule>();
     for (const [name, exports] of [
       ['/src/store/useSessionStore.ts', { useSessionStore }],
@@ -79,11 +91,16 @@ function fixture({ beforeCapture, beforeClick, replayDrift = false }:
       await module.link(() => { throw new Error('No extra import in the native selector.'); });
       await module.evaluate(); modules.set(name, module);
     }
-    return plain(await new Script(`(${callback.toString()})(input)`, {
+    const value = plain(await new Script(`(${callback.toString()})(input)`, {
       importModuleDynamically: async name => {
         const module = modules.get(name); if (!module) throw new Error(`No SDK or extra source import ${name}`); return module;
       },
     }).runInContext(browser));
+    if (callback.toString().includes('currentMemberBerthPresent')) {
+      richSamplesInSelection++;
+      if (selects === 2 && richSamplesInSelection === 1) await act(async () => { duringSecondSelection?.(); });
+    }
+    return value;
   }
   const locate = (query: () => HTMLElement[]) => ({
     isVisible: async () => query().length === 1 && !query()[0].hidden,
@@ -149,10 +166,12 @@ function fixture({ beforeCapture, beforeClick, replayDrift = false }:
     },
   };
   const gm = {}, context = { gm, crew, initial: { sessionId: sid, joinCode: 'NATIVE' },
-    roster: [{ roleId, uidHash: uidHash(uid) }], directory: '/tmp/native-specialist-no-files' };
+    roster: [{ roleId, uidHash: uidHash(uid) }], started: { fullGameDemo: { status: 'active', progression: 'manual' } }, directory: '/tmp/native-specialist-no-files' };
   const actual = createTwoBrowserGameplay(context);
   const game = { ...actual,
-    select: async (...args: unknown[]) => { selects++; return actual.select(...args); },
+    // The native-only deadline is finite; production's existing defaults are untouched.
+    select: async (selectedRole: string) => { selects++; richSamplesInSelection = 0;
+      return actual.select(selectedRole, { deadlineAt: Date.now() + 500 }); },
     state: async () => ({ live: true, sessionId: sid, cycle: 1 }),
     save: async (_name: string, value: unknown) => { saved = value; },
   };
@@ -173,7 +192,7 @@ it('keeps the original prepared Scout form through the real public selector and 
   const f = fixture();
   const result = await f.run();
   expect(result.status).toBe('captured');
-  expect(f.counts()).toEqual({ selects: 1, fills: 1, clicks: 1, observers: 1 });
+  expect(f.counts()).toEqual({ selects: 2, fills: 1, clicks: 1, observers: 1 });
   expect(f.events.indexOf('fill')).toBeLessThan(f.events.indexOf('arm-response'));
   expect(f.events.indexOf('arm-response')).toBeLessThan(f.events.indexOf('ordinary-sdk'));
   expect(f.posts).toHaveLength(1); expect(f.replays).toEqual(f.posts);
@@ -187,9 +206,6 @@ it.each([
   ['UID', () => useSessionStore.getState().setMe({ ...useSessionStore.getState().me!, uid: 'foreign-uid' })],
   ['SID', () => useSessionStore.getState().setSession({ ...useSessionStore.getState().session!, id: 'foreign-sid' })],
   ['console', () => useSessionStore.getState().setMe({ ...useSessionStore.getState().me!, activeConsoleRoleId: null })],
-  ['generation', () => useSessionStore.getState().setMe({ ...useSessionStore.getState().me!, connectionGeneration: 4 })],
-  ['hydration', () => useSessionStore.setState({ identityHydrationRevision: 2 })],
-  ['group', () => useSessionStore.getState().setMe({ ...useSessionStore.getState().me!, fleetGroupId: 'fleet-2' })],
   ['assignment', () => useSessionStore.getState().setMe({ ...useSessionStore.getState().me!, assignedRoleId: 'comms-officer' })],
   ['replacement', () => useSessionStore.getState().setMe({ ...useSessionStore.getState().me!, replacementStatus: 'awaiting-re-role' })],
   ['connection', () => useSessionStore.getState().setConnection('offline')],
@@ -200,6 +216,17 @@ it.each([
   const f = fixture({ beforeCapture: change });
   await expect(f.run()).rejects.toThrow();
   expect(f.counts().clicks).toBe(0); expect(f.counts().observers).toBe(0);
+  expect(f.posts).toHaveLength(0); expect(f.replays).toHaveLength(0);
+});
+
+it.each([
+  ['generation', () => useSessionStore.getState().setMe({ ...useSessionStore.getState().me!, connectionGeneration: 4 })],
+  ['hydration', () => useSessionStore.setState({ identityHydrationRevision: 2 })],
+  ['group', () => useSessionStore.getState().setMe({ ...useSessionStore.getState().me!, fleetGroupId: 'fleet-2' })],
+] as const)('retains the real rich selector original %s fence before final preparation', async (_label, change) => {
+  const f = fixture({ duringSecondSelection: change });
+  await expect(f.run()).rejects.toThrow(/changed/i);
+  expect(f.counts().observers).toBe(0); expect(f.counts().clicks).toBe(0);
   expect(f.posts).toHaveLength(0); expect(f.replays).toHaveLength(0);
 });
 
