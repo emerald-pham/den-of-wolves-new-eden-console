@@ -65,9 +65,23 @@ export function assertLateReplyAuthority(before, current) {
   assert.equal(current.activeConsoleRoleId, before.activeConsoleRoleId);
 }
 
+/** Current Source emits content count; original Native aggregate-zero fixtures remain valid. */
+export function assertClearedPrivatePayload(current) {
+  assert.ok(current && typeof current === 'object' && !Array.isArray(current), 'Use a held private-clearance observation.');
+  if ('privatePayloadCount' in current) {
+    assert.ok(Object.hasOwn(current, 'privatePayloadCount') && Number.isSafeInteger(current.privatePayloadCount) &&
+      current.privatePayloadCount >= 0 && current.privatePayloadCount === 0,
+    'The Source private-payload count must be an own, safe nonnegative integer zero.');
+  } else {
+    // Legacy Native fixtures prove absence through their original aggregate zero.
+    // Current Source observations always supply the new field; no unknown count is guessed.
+    assert.equal(current.privateCount, 0);
+  }
+}
+
 export function assertClearedPrivateState(before, current) {
   assert.equal(current.hasAuth, true); assert.equal(current.uidHash, before.uidHash);
-  assert.equal(current.sessionId, null); assert.equal(current.privateCount, 0);
+  assert.equal(current.sessionId, null); assertClearedPrivatePayload(current);
   assert.equal(current.instanceId, null); assert.equal(current.gmInstanceOwned, false);
   assert.equal(current.foreignPendingCount, 0);
 }
