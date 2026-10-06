@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CallableRequest } from 'firebase-functions/v2/https';
 import { PRESENCE_LEASE_MS } from './sessionLifecycle';
 import { recommendedRoleIds } from './roleConfiguration';
+import { escapeStateForDestruction } from './escapeState';
 
 type StoredDocument = Record<string, unknown>;
 // Reuse the existing lifecycle native fixture's inert SDK/transaction ports.
@@ -432,7 +433,7 @@ describe('current original Press lease uses read-only exclusivity plus atomic po
     ['generation', () => change(playerPath, { connectionGeneration: 4 })],
     ['UID tuple', () => change(playerPath, { uid: 'foreign-player' })],
     ['SID tuple', () => change(playerPath, { sessionId: 'foreign-session' })],
-    ['escape marker', () => change(playerPath, { escapeState: { status: 'required' } })],
+    ['escape marker', () => change(playerPath, { escapeState: escapeStateForDestruction('snn-press-shuttle', 'native-destruction', 1) })],
     ['closed phase', () => change(sessionPath, { phase: 'closed' })],
     ['disconnected', () => change(playerPath, { connected: false })],
     ['kick', () => change(playerPath, { kickedAt: mock.Timestamp.now() })],
@@ -449,6 +450,13 @@ describe('current original Press lease uses read-only exclusivity plus atomic po
   ] as const)('denies changed %s authority between preflight and renewal without writes', async (_label, mutate) => {
     await originalCurrentPressTable(); mock.setAfterReadOnlyTransaction(mutate);
     await expect(renew()).rejects.toMatchObject({ code: 'permission-denied' });
+    expect(mock.update).not.toHaveBeenCalled(); expect(mock.set).not.toHaveBeenCalled(); expect(mock.remove).not.toHaveBeenCalled();
+  });
+
+  it('preserves the original malformed escape failed-precondition without any renewal write', async () => {
+    await originalCurrentPressTable();
+    mock.setAfterReadOnlyTransaction(() => change(playerPath, { escapeState: { status: 'required' } }));
+    await expect(renew()).rejects.toMatchObject({ code: 'failed-precondition', details: { category: 'malformed-input' } });
     expect(mock.update).not.toHaveBeenCalled(); expect(mock.set).not.toHaveBeenCalled(); expect(mock.remove).not.toHaveBeenCalled();
   });
 
