@@ -1625,7 +1625,8 @@ export async function captureMountedProcedureAction({ context, game, caseId, exp
   afterReload: observed?.afterReload, restore: observed?.restore,
   ...(spec.endpoint === 'completeShuttleArrival' ? { arrival: {
     ...action.arrival, authorityAfter: observed?.authorityAfter,
-    groupAuthorityAfter: observed?.pressGroupAuthorityAfter, afterProjection: observed?.arrivalAfter,
+    ...(pressMovementCapture ? { groupAuthorityAfter: observed?.pressGroupAuthorityAfter } : {}),
+    afterProjection: observed?.arrivalAfter,
   }, originAuthority: action.originAuthority,
     ...(pressMovementCapture ? { pressOriginAuthority: action.pressOriginAuthority,
       pressShuttleDepartureWitness: action.pressShuttleDepartureWitness,
