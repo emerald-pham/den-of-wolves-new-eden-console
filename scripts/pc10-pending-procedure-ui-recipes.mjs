@@ -430,6 +430,8 @@ async function reloadMountedGm(surface, expected, operation) {
     if (actor.hasAuth && actor.uidHash !== original.uidHash || actor.sessionId !== null && actor.sessionId !== original.sessionId ||
         actor.instanceId !== null && actor.instanceId !== original.instanceId ||
         actor.claimedAt !== null && actor.claimedAt !== original.claimedAt || actor.privateAudienceMatches !== true ||
+        actor.foreignPendingCount !== 0 || actor.playerRole !== null && actor.playerRole !== 'gm' ||
+        actor.hasAuth && actor.instanceId !== null && actor.gmInstanceOwned !== true ||
         actor.phase !== null && actor.phase !== original.phase || actor.cycle !== null && actor.cycle !== original.cycle) {
       assert.fail('The genuine GM reload lost its original identity, claim, private audience, phase or cycle.');
     }
