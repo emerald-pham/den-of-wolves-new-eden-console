@@ -64,8 +64,8 @@ function makeLocator({ count = 1, options = [], onClick, onSelect } = {}) {
 }
 
 function serializedSurface({ uid, roleId, currentControl = control(), isGm = false,
-  ownerActionVisible = true, selectedTargets = [], clickLog = [] } = {}) {
-  const storeState = isGm
+  ownerActionVisible = true, offeredTargets = [RECIPIENT_UID], selectedTargets = [], clickLog = [] } = {}) {
+  let storeState = isGm
     ? { connection: 'live', sessionSnapshotFreshness: 'server', session: {
       id: SESSION_ID, currentTurn: CYCLE, phase: 'active', playerDiscovery: { groupId: GROUP_ID },
       activeVesselIds: ['icebreaker', 'dione'], activeRoleIds: [OWNER_ROLE, HOLDER_ROLE],
@@ -74,8 +74,10 @@ function serializedSurface({ uid, roleId, currentControl = control(), isGm = fal
       shuttleDockings: [{ shuttleId: SHUTTLE_ID, shipId: 'icebreaker', dockedAt: '2026-10-06T12:00:00.000Z' }],
     } }
     : memberStore({ uid, roleId, currentControl });
-  const recipient = makeLocator({ options: selectedTargets.map(target => ({ value: target, textContent: target })) ,
-    onSelect: value => selectedTargets.selected = value });
+  const recipient = makeLocator({ options: offeredTargets.map(target => typeof target === 'string'
+    ? { value: target, textContent: target }
+    : { value: target.value, textContent: target.textContent ?? target.value, disabled: target.disabled }),
+  onSelect: value => selectedTargets.push(value) });
   const handoff = makeLocator({ count: ownerActionVisible ? 1 : 0,
     onClick: async () => { clickLog.push('Hand off control'); } });
   const reclaim = makeLocator({ count: ownerActionVisible && currentControl.holderUid !== currentControl.ownerUid ? 1 : 0,
@@ -119,17 +121,29 @@ function serializedSurface({ uid, roleId, currentControl = control(), isGm = fal
       ? { ...sourceSnapshot(currentControl) }
       : { ...sourceSnapshot(currentControl), currentMemberScope: { groupId: GROUP_ID,
         vesselIds: ['icebreaker', 'dione'], craftIds: [SHUTTLE_ID] } },
+    setControl: nextControl => {
+      storeState = isGm
+        ? { connection: 'live', sessionSnapshotFreshness: 'server', session: {
+          id: SESSION_ID, currentTurn: CYCLE, phase: 'active', playerDiscovery: { groupId: GROUP_ID },
+          activeVesselIds: ['icebreaker', 'dione'], activeRoleIds: [OWNER_ROLE, HOLDER_ROLE],
+          shipFleetGroupIds: { icebreaker: GROUP_ID, dione: GROUP_ID },
+          shuttleControl: { [SHUTTLE_ID]: nextControl },
+          shuttleDockings: [{ shuttleId: SHUTTLE_ID, shipId: 'icebreaker', dockedAt: '2026-10-06T12:00:00.000Z' }],
+        } }
+        : memberStore({ uid, roleId, currentControl: nextControl });
+    },
     selectedTargets, clickLog,
   };
 }
 
-function makeHarness({ currentControl = control(), roster, ownerActionVisible = true } = {}) {
+function makeHarness({ currentControl = control(), roster, ownerActionVisible = true,
+  offeredTargets = [RECIPIENT_UID] } = {}) {
   const selectedRoles = [];
   const selectedTargets = [];
   const clickLog = [];
   const gmSurface = serializedSurface({ uid: 'owned-gm-auth-uid', isGm: true, currentControl });
   const ownerSurface = serializedSurface({ uid: OWNER_UID, roleId: OWNER_ROLE, currentControl,
-    ownerActionVisible, selectedTargets, clickLog });
+    ownerActionVisible, offeredTargets, selectedTargets, clickLog });
   const holderSurface = serializedSurface({ uid: HOLDER_UID, roleId: HOLDER_ROLE, currentControl,
     ownerActionVisible: false, selectedTargets, clickLog });
   const byRole = new Map([[OWNER_ROLE, ownerSurface], [HOLDER_ROLE, holderSurface]]);
