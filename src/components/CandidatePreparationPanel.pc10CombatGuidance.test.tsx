@@ -1,9 +1,13 @@
 import { act, cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { candidateWorkspace, type CandidateAuthority } from '../../functions/src/candidatePaths';
+import type { CandidateWorkspace } from '@/lib/candidateService';
 import { useSessionStore } from '@/store/useSessionStore';
 import CandidatePreparationPanel from './CandidatePreparationPanel';
+
+const { candidateWorkspace } = await vi.importActual<{
+  candidateWorkspace: (authority: unknown, state: unknown) => CandidateWorkspace;
+}>('../../functions/src/candidatePaths');
 
 const service = vi.hoisted(() => ({ read: vi.fn(), execute: vi.fn(), create: vi.fn(), recover: vi.fn(), grant: vi.fn() }));
 vi.mock('@/lib/sessionService', () => ({ setGmShipConsoleWriteGrant: service.grant }));
@@ -11,7 +15,7 @@ vi.mock('@/lib/candidateService', () => ({ readCandidateWorkspace: service.read,
   createCandidateAttempt: service.create, recoverCandidateAttempt: service.recover }));
 
 function sourceWorkspace(gm = false, liberated = false, code: 'N' | 'O' | 'P' = 'P') {
-  const authority: CandidateAuthority = { sessionId: 'guidance-session', cycle: 2, phase: 'active',
+  const authority = { sessionId: 'guidance-session', cycle: 2, phase: 'active',
     coordination: true, now: '2026-10-06T12:00:00.000Z', groupId: 'fleet-1', vesselIds: ['aegis'],
     actor: { uid: gm ? 'original-gm' : 'original-member', gm, shipIds: ['aegis'], research: false, shuttleIds: [] },
     discovered: [{ code, coordinate: '4888' }], ships: { aegis: { fuel: 8, materials: 2,

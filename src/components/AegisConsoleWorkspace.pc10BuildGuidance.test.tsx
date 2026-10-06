@@ -5,12 +5,13 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { FIGHTER_WING_CAPACITY } from '../../functions/src/fighterWings';
 import { useSessionStore } from '@/store/useSessionStore';
 import { ConsoleAccessContext } from '@/lib/consoleAccess';
+import type * as SessionService from '@/lib/sessionService';
 import type { GameSession } from '@/types/game';
 import AegisConsoleWorkspace from './AegisConsoleWorkspace';
 
 const service = vi.hoisted(() => ({ build: vi.fn() }));
 vi.mock('@/lib/sessionService', async importOriginal => ({
-  ...await importOriginal<typeof import('@/lib/sessionService')>(), buildFighter: service.build,
+  ...await importOriginal<typeof SessionService>(), buildFighter: service.build,
 }));
 
 beforeEach(() => {
@@ -71,7 +72,7 @@ it('names Construction Bay damage independently of the undamaged launch bay', ()
 });
 
 it('reports the actual zero-material blocker and keeps the one-material build price', () => {
-  patchSession({ shipResources: { aegis: { materials: 0 } } as NonNullable<GameSession['shipResources']> });
+  patchSession({ shipResources: { aegis: { materials: 0 } } as unknown as NonNullable<GameSession['shipResources']> });
   mount(); const card = blocked();
   expect(card.getByText('0 materials')).toBeVisible();
   expect(card.getByText(/Build unavailable.*1 material.*AEGIS crew/i)).toBeVisible();
