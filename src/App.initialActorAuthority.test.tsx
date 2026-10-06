@@ -301,8 +301,12 @@ describe('initial accepted actor confirmation before a slow member transaction',
       });
       expect(useSessionStore.getState().connection).not.toBe('live');
       if (kind !== 'kicked') expect(useSessionStore.getState().sessionSnapshotFreshness).toBe('cache');
+      // A generic transient listener error is not terminal revocation. Its
+      // already pending authenticated transaction may subsequently confirm.
+      // Disconnection/missing/kicked/permission-denied actually revoke it.
       await deliverMember(0);
-      expect(useSessionStore.getState().connection).not.toBe('live');
+      if (kind !== 'unavailable') expect(useSessionStore.getState().connection).not.toBe('live');
+      else expect(useSessionStore.getState().session?.playerDiscovery).toBeUndefined();
     },
   );
 
