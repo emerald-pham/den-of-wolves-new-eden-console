@@ -70,7 +70,8 @@ async function fixture(options = {}) {
     return 1;
   }
   function enabled(name) {
-    if (disabled.has(name) || options.endgame === true) return false;
+    if (disabled.has(name) || options.endgame === true &&
+        (Object.hasOwn(fields, name) || ['Record rule call', 'Save note'].includes(name))) return false;
     if (name === 'Record rule call') return options.recordStaysDisabled !== true &&
       ['Question or ambiguity', 'Source or reference', 'Decision'].every(label => fields[label].trim());
     if (name === 'Release ICN console lock') return raw.gmInstance.shipConsoleWriteGrant?.shipId === 'aegis';
@@ -311,6 +312,10 @@ for (const [label, options] of [
   ['ambiguous Record', { counts: { 'Record rule call': 2 } }],
 ]) test(`public rule recipe leaves ${label} unoffered without filling`, async () => {
   const f = await fixture(options), recipe = await f.getRecipe('authorFacilitatorRuleCall');
+  if (label === 'endgame form') {
+    assert.equal(await f.surface.page.getByRole('region', { name: 'Facilitator rule call', exact: true }).isEnabled(), true);
+    assert.equal(await f.surface.page.getByLabel('Decision', { exact: true }).isEnabled(), false);
+  }
   assert.equal((await f.prepare(recipe)).offered, false);
   assert.equal(f.fills.length, 0); assert.equal(f.writes.length, 0); f.close();
 });
