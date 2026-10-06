@@ -7,7 +7,7 @@ import { useSessionStore } from '@/store/useSessionStore';
 import './CastingPreferencePanel.css';
 
 type CastingSession = Pick<GameSession, 'id' | 'phase' | 'activeVesselIds' | 'configurationLocked'>;
-type CastingPlayer = Pick<Player, 'role' | 'uid' | 'shipPreferenceId'>;
+type CastingPlayer = Pick<Player, 'role' | 'uid' | 'connected' | 'shipPreferenceId'>;
 
 type PreferenceFeedback =
   | { readonly kind: 'idle' }
@@ -48,7 +48,7 @@ export default function CastingPreferencePanel({
   const activePreference = options?.find((option) => option.id === player.shipPreferenceId);
   const selectedOption = options?.find((option) => option.id === selectedShipId);
   const hasFreshConnection = window.navigator.onLine && connection === 'live' &&
-    sessionSnapshotFreshness === 'server';
+    sessionSnapshotFreshness === 'server' && player.connected === true;
   const phaseAllowsPreference = CASTING_PHASES.has(session.phase);
   const locked = session.configurationLocked === true;
   const queued = pendingPreference !== undefined;
