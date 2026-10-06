@@ -177,7 +177,8 @@ test('the default counter recipe chooses the first enabled control in the exact 
   const fixture = makeFixture();
   const { recipe, planned } = await prepareCounter(fixture);
   assert.equal(planned.offered, true, planned.reason);
-  assert.equal(await fixture.mode.getAttribute('aria-pressed'), 'true');
+  assert.equal(await fixture.surface.page.getByRole('button', { name: 'Ship numbers write mode', exact: true })
+    .getAttribute('aria-pressed'), 'true');
   assert.equal(recipe.expected.sessionId, SESSION_ID);
   assert.equal(recipe.expected.uidHash, GM_UID_HASH);
   assert.equal(recipe.expected.instanceId, INSTANCE_ID);
