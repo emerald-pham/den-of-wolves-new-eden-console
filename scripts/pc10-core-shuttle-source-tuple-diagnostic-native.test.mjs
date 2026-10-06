@@ -121,11 +121,13 @@ async function makeCaptureHarness({ postState, movementAfter = transitMovement()
     status: () => 200, ok: () => true, json: async () => ({ result: resultAfter }) };
   let clickCount = 0;
   const beginButton = { count: async () => 1, isVisible: async () => true, isEnabled: async () => true,
-    click: async () => { clickCount++; stateRef.current = postState ? postState(coreStoreState()) : (() => {
-      const after = structuredClone(stateRef.current);
+    click: async () => {
+      clickCount++;
+      const after = coreStoreState();
       after.session.shuttleDockings = [];
-      return after;
-    })(); } };
+      if (postState) stateRef.current = postState(after) ?? after;
+      else stateRef.current = after;
+    } };
   const panel = { getByRole: (role, options = {}) => role === 'button' &&
       options.name === 'Begin transit' && options.exact === true ? beginButton : { count: async () => 0 } };
   Object.assign(serialized.page, {
@@ -180,17 +182,19 @@ const expectedPredicateDiagnostic = {
   source: { latestLive: true, sessionMatches: true, cycleMatches: true, phaseActive: true,
     liveStateCurrent: true, holderGroupMatchesOrigin: true, memberScopeGroupMatchesOrigin: true },
   authority: { originAuthorityMatches: true, sameCurrentDocumentAuthority: true,
+    currentDocumentAuthorityPresent: true,
     currentControlCraftMatches: true, currentControlHolderMatchesOrigin: true,
     currentControlRevisionMatchesOrigin: true },
   member: { originHostPresent: true, dockingCount: 0, dockingStateMatches: true,
     memberScopeMatches: true, originHostInMemberScope: true, originHostActive: true,
     destinationDiffersFromOriginHost: true, destinationInMemberScope: true, destinationActive: true,
     memberGroupAvailable: true, memberGroupMatchesOrigin: true, memberGroupMatchesExpected: true },
-  movement: { recordPresent: true, missing: false, unreadable: false, statusMatches: true,
+  movement: { recordPresent: true, missing: false, unreadable: false, state: 'in-transit', revision: 1, statusMatches: true,
     shuttleMatches: true, holderMatchesOrigin: true, groupMatchesOrigin: true,
     controlRevisionMatchesOrigin: true, cycleMatches: true, destinationMatchesSelected: true,
     currentControlRevisionMatchesOrigin: true, destinationDiffersFromOriginHost: true,
-    requestOriginMatchesHost: null, resultDestinationMatches: true, movementTupleCurrent: true },
+    resultDestinationMatches: true, sourceTupleCurrent: true, movementTupleCurrent: true,
+    requestOriginMatchesHost: null },
 };
 
 test('Core movement opt-in capture retains exact post-inspect source, authority, scope and movement predicates', async () => {
@@ -199,6 +203,8 @@ test('Core movement opt-in capture retains exact post-inspect source, authority,
   const normalDiagnostic = normal.outcome.sourceDiagnosticOnly?.captureTuple?.postInspectPredicates;
   assert.deepEqual(normalDiagnostic, expectedPredicateDiagnostic,
     'the public default recipe and full capture must preserve the inspector predicate tuple');
+  assert.equal(normal.outcome.sourceDiagnosticOnly.captureTuple.after.source.groupHash, await hashUid(GROUP_ID),
+    'the post-sample hash identifies the member scope group without exposing its value');
   assert.equal(normal.clickCount, 1, 'one visible mounted Begin action was captured');
   assert.equal(normal.serialized.calls.evaluate, 6, 'the existing default recipe/capture evaluation count is unchanged');
   assert.equal(normal.serialized.calls.getDoc, 3, 'only the existing plan, prepare and inspect movement reads ran');
@@ -223,8 +229,22 @@ test('Core movement opt-in capture retains exact post-inspect source, authority,
     { name: 'member destination removed', postState: state => { state.session.memberSessionScope.vesselIds = [HOST]; },
       assert: tuple => { assert.equal(tuple.member.destinationInMemberScope, false);
         assert.equal(tuple.authority.sameCurrentDocumentAuthority, false); assert.equal(tuple.member.memberGroupAvailable, false); } },
+    { name: 'origin host removed from member scope', postState: state => { state.session.memberSessionScope.vesselIds = [DESTINATION]; },
+      assert: tuple => { assert.equal(tuple.member.originHostInMemberScope, false);
+        assert.equal(tuple.authority.currentDocumentAuthorityPresent, false); assert.equal(tuple.member.memberGroupAvailable, false); } },
     { name: 'host no longer active', postState: state => { state.session.activeVesselIds = [DESTINATION]; },
       assert: tuple => { assert.equal(tuple.member.originHostActive, false); assert.equal(tuple.member.memberGroupAvailable, false); } },
+    { name: 'destination no longer active', postState: state => { state.session.activeVesselIds = [HOST]; },
+      assert: tuple => { assert.equal(tuple.member.destinationInMemberScope, true);
+        assert.equal(tuple.member.destinationActive, false); assert.equal(tuple.member.memberGroupAvailable, false); } },
+    { name: 'Begin retains a docking', postState: state => { state.session.shuttleDockings = [
+      { shuttleId: CORE_SHUTTLE, shipId: HOST, dockedAt: REQUESTED_AT }]; },
+      assert: tuple => { assert.equal(tuple.member.dockingCount, 1);
+        assert.equal(tuple.member.dockingStateMatches, false); assert.equal(tuple.member.memberGroupAvailable, false); } },
+    { name: 'current document hydration drift', postState: state => { state.identityHydrationRevision++; },
+      assert: tuple => { assert.equal(tuple.authority.currentDocumentAuthorityPresent, true);
+        assert.equal(tuple.authority.sameCurrentDocumentAuthority, false);
+        assert.equal(tuple.authority.originAuthorityMatches, false); } },
     { name: 'current holder control drift', postState: state => { state.session.shuttleControl[CORE_SHUTTLE].holderUid = 'foreign-holder'; },
       assert: tuple => { assert.equal(tuple.authority.currentControlHolderMatchesOrigin, false);
         assert.equal(tuple.authority.originAuthorityMatches, false); } },
@@ -254,5 +274,9 @@ test('Core movement opt-in capture retains exact post-inspect source, authority,
     assert.ok(tuple, `${item.name} is retained in opt-in post-inspect evidence`);
     assert.equal(tuple.zeroCredit, true);
     item.assert(tuple);
+    if (item.name === 'holder group differs from member scope') {
+      assert.equal(capture.outcome.sourceDiagnosticOnly.captureTuple.after.source.groupHash, await hashUid(GROUP_ID),
+        'the differing holderGroupId is distinguished from the still-original member scope group hash');
+    }
   }
 });
