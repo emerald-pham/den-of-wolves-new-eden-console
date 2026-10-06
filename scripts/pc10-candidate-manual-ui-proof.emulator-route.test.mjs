@@ -61,12 +61,12 @@ function candidateRefreshSurface({ refreshResponse, pendingResponse } = {}) {
     evaluate: async callback => {
       if (String(callback).includes('candidate-workspace-source-paint')) return true;
       if (String(callback).includes('candidate-workspace-mounted-reception')) return {
-        panelCount: 1, panelVisible: true, pendingMutation: false, transmitting: false };
+        panelCount: 1, panelVisible: true, pendingMutation: false, transmitting: false, normalPresentationDetached: true };
       if (String(callback).includes('candidate-workspace-current-source')) return {
         sessionId: 'session-test', cycle: 4, phase: 'active', groupId: 'fleet-1', shipFleetGroupIds: {},
         playerRole: 'gm', instanceId: 'owned-instance', instanceClaimedAt: 'lease-1',
         gmInstanceOwned: true, live: true, documentTimeOrigin: 1000,
-        connectionGeneration: 3, identityHydrationRevision: 1, sessionUpdatedAt: 'source-key-0' };
+        connectionGeneration: 3, identityHydrationRevision: 1, sessionUpdatedAt: 'source-key-0', ordinaryBriefingHeld: false };
       return undefined;
     },
   }, observe: async () => ({ hasAuth: true, sameActor: true, uidHash: 'actor-hash', sessionId: 'session-test',
