@@ -54,6 +54,9 @@ export default function EndeavourResearchChoices({
       <p>Private Scientist workspace // Endeavour Team research</p>
       <p>Cycle choices: {standardUsed} of 3 standard; {oreUsed} of 2 additional.</p>
       {workspace && <p>Shepherd // {workspace.shepherdOre} ore available</p>}
+      {workspace && <p>Research choice cost // Standard research: 0 Shepherd ore.
+        {' '}Additional research: 5 Shepherd ore. Materials pay for later field upgrades or device purchases,
+        not the research choice.</p>}
       {!liveTeamPhase && workspace && <p>Research choices are available during the live Team Phase.</p>}
       {notice && <p role="status">{notice}</p>}
       {error && <p role="alert">{error}</p>}

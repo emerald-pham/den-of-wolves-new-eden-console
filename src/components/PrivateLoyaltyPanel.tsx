@@ -91,6 +91,19 @@ function wolfSupplyTargets(session: GameSession | null, me: Player | null): read
     }));
 }
 
+function wolfSupplyLoadingShuttles(session: GameSession | null, me: Player | null) {
+  if (!session || !me || me.role !== 'player' || me.sessionId !== session.id ||
+      me.replacementStatus != null || me.replacementRoleId != null || me.escapeState != null) return [];
+  const coverRoleId = wolfCoverRoleId(me);
+  if (!coverRoleId || (me.activeConsoleRoleId != null && me.activeConsoleRoleId !== coverRoleId)) return [];
+  const roleIsActive = coverRoleId === 'press-officer'
+    ? session.pressEnabled !== false
+    : session.activeRoleIds?.includes(coverRoleId) === true;
+  if (!roleIsActive) return [];
+  return SHUTTLECRAFT.filter(shuttle => shuttle.captainRoleId === coverRoleId &&
+    (shuttle.cargoTransferTypes?.length ?? 0) > 0);
+}
+
 /** The current browser's private setup card; never accepts another player's id. */
 export default function PrivateLoyaltyPanel() {
   const loyalty = useSessionStore((state) => state.privateLoyalty);
@@ -152,6 +165,7 @@ export default function PrivateLoyaltyPanel() {
   const wolfActionAvailable = sessionPhase === 'active' && Number.isSafeInteger(currentCycle) &&
     (currentCycle as number) >= 1;
   const supplyTargets = wolfSupplyTargets(session, me);
+  const supplyLoadingShuttles = wolfSupplyLoadingShuttles(session, me);
   const selectedSupplyTarget = supplyTargets.find((target) => target.key === wolfSupplyTargetKey);
   const selectedInvestigationTarget = investigationTargets.find((player) =>
     player.uid === investigationTargetUid && player.connected === true &&
@@ -540,10 +554,18 @@ export default function PrivateLoyaltyPanel() {
               {wolfPending ? 'Committing…' : 'Sabotage selected supply'}
             </button>
             {wolfActionAvailable && supplyTargets.length === 0 && (
-              <p className="private-loyalty-panel__proof-status">
-                No positive cargo is available on an active shuttle assigned to your current cover role.
-                Refresh after the crew’s cargo projection changes.
-              </p>
+              <>
+                <p className="private-loyalty-panel__proof-status">
+                  No positive cargo is available on an active shuttle assigned to your current cover role.
+                  Refresh after the crew’s cargo projection changes.
+                </p>
+                {supplyLoadingShuttles.map(shuttle => <p className="private-loyalty-panel__proof-status" key={shuttle.id}>
+                  Next actor // Current entitled {shuttle.name} holder: open that shuttle’s console and Transfer cargo.
+                  {' '}{shuttle.name} // {shuttle.cargoTransfer}.
+                  {' '}Choose a permitted Resource and Amount, then Load at a legal dock with current host stock
+                  and available capacity. Return here after the crew’s cargo projection changes.
+                </p>)}
+              </>
             )}
             {!wolfActionAvailable && (
               <p className="private-loyalty-panel__proof-status" role="status">

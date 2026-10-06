@@ -163,6 +163,10 @@ function CandidatePreparationWorkspace() {
                 `${path.liberated ? 'Station liberated' : 'Station occupied'} // ${path.chargeCapacity}/18 charge capacity // ${path.activated ? 'defences active' : 'power pending'}`}</p>
             {path.blockers.length > 0 && <ul aria-label={`${path.title} blockers`}>{path.blockers.map(blocker => <li key={blocker}>{blocker}</li>)}</ul>}
             <p className="candidate-preparation__next">Next actor // {path.nextActor}</p>
+            {canMakeChoices && path.code === 'P' && !path.liberated && !path.completed &&
+              <p className="candidate-preparation__next">{isGm
+                ? 'GM // open GM Console’s existing Wolf attack controls; battle crews use their assigned ship combat console.'
+                : 'Battle crews // open your assigned ship combat console for the offered range and boarding actions. The GM uses the existing Wolf attack controls in GM Console.'}</p>}
             <ul className="candidate-preparation__ships">{path.ships.map(ship => <li key={ship.shipId}>
               <strong>{ship.shipId}</strong> // {ship.summary || ship.result}{ship.blocker && ` // ${ship.blocker}`}</li>)}</ul>
             {canMakeChoices && <CandidateChoices path={path} revision={currentWorkspace.revision} groupId={currentWorkspace.groupId}

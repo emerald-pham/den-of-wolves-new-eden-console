@@ -209,6 +209,12 @@ export default function EndgameDialog() {
       >
         <div className="endgame-debrief">
           <p className="endgame-debrief__status">{endgameCopy(session)}</p>
+          {!hasLiveGmInstance && session.phase === 'failure' && <p>
+            Next actor // A live GM freezes the failure into a debrief. Review the retained result while waiting.
+          </p>}
+          {!hasLiveGmInstance && session.phase === 'debrief' && <p>
+            Next actor // A live GM closes the session after the committed debrief is available and reviewed.
+          </p>}
           {displayedDebrief && <>
             <p className="endgame-debrief__result">Server result // {readableId(displayedDebrief.result)} // Cycle {displayedDebrief.cycle}</p>
             <CandidateSummary snapshot={displayedDebrief} />
