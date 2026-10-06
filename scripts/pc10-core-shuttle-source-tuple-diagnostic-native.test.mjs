@@ -98,7 +98,8 @@ function makeSerializedPage({ stateRef, movementSnapshots }) {
   return { page, calls };
 }
 
-async function makeCaptureHarness({ postState, movementAfter = transitMovement(), resultAfter = transitResult() } = {}) {
+async function makeCaptureHarness({ postState, movementAfter = transitMovement(), resultAfter = transitResult(),
+  diagnosticOnly = true } = {}) {
   const stateRef = { current: coreStoreState() };
   const serialized = makeSerializedPage({ stateRef,
     movementSnapshots: [requestedMovement(), requestedMovement(), requestedMovement(), movementAfter] });
@@ -164,7 +165,8 @@ async function makeCaptureHarness({ postState, movementAfter = transitMovement()
     groupId: GROUP_ID, cycle: CYCLE, controlRevision: CONTROL_REVISION,
     sourceAuthority: originSource.currentDocumentAuthority };
   const context = { initial: { sessionId: SESSION_ID }, roster: [{ roleId: CORE_ROLE, uidHash: actorHash }],
-    shuttleOriginAuthority: origin, shuttleOriginHostShipId: HOST, shuttleSourceDiagnosticOnly: true };
+    shuttleOriginAuthority: origin, shuttleOriginHostShipId: HOST,
+    ...(diagnosticOnly ? { shuttleSourceDiagnosticOnly: true } : {}) };
   const initialSpec = CORE_CRAFT_PROCEDURES.find(spec => spec.endpoint === 'beginShuttleTransit');
   const prepared = await createPendingProcedureDefaultSteps()[initialSpec.id]({ context, game, spec: initialSpec });
   serialized.calls.evaluate = 0;
@@ -215,6 +217,15 @@ test('Core movement opt-in capture retains exact post-inspect source, authority,
     'departure-request-1', 'transit-request-1']) {
     assert.equal(diagnosticText.includes(privateValue), false, 'the source diagnostic contains no raw private identifier');
   }
+
+  const defaultCapture = await makeCaptureHarness({ diagnosticOnly: false });
+  assert.equal(defaultCapture.outcome.status, 'completed', 'default source capture preserves the same accepted fixture');
+  assert.equal(defaultCapture.outcome.revision, normal.outcome.revision);
+  assert.equal(defaultCapture.outcome.exactSdkRetry, normal.outcome.exactSdkRetry);
+  assert.equal(Object.hasOwn(defaultCapture.outcome, 'sourceDiagnosticOnly'), false,
+    'diagnostic fields stay absent when the opt-in is not requested');
+  assert.equal(defaultCapture.serialized.calls.evaluate, normal.serialized.calls.evaluate);
+  assert.equal(defaultCapture.serialized.calls.getDoc, normal.serialized.calls.getDoc);
 
   const rejectedCases = [
     { name: 'reader live false', postState: state => { state.connection = 'offline'; },
