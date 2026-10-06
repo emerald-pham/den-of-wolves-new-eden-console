@@ -64,7 +64,12 @@ function makeLocator({ count = 1, options = [], onClick, onSelect } = {}) {
 }
 
 function serializedSurface({ uid, roleId, currentControl = control(), isGm = false,
-  ownerActionVisible = true, offeredTargets = [RECIPIENT_UID], selectedTargets = [], clickLog = [] } = {}) {
+  ownerActionVisible = true, handoffVisible = ownerActionVisible,
+  reclaimVisible = ownerActionVisible && currentControl.holderUid !== currentControl.ownerUid,
+  offeredTargets = [RECIPIENT_UID], selectedTargets = [], clickLog = [] } = {}) {
+  let authUid = uid;
+  let projectedControl = currentControl;
+  let projectedTargets = [...offeredTargets];
   let storeState = isGm
     ? { connection: 'live', sessionSnapshotFreshness: 'server', session: {
       id: SESSION_ID, currentTurn: CYCLE, phase: 'active', playerDiscovery: { groupId: GROUP_ID },
@@ -74,13 +79,13 @@ function serializedSurface({ uid, roleId, currentControl = control(), isGm = fal
       shuttleDockings: [{ shuttleId: SHUTTLE_ID, shipId: 'icebreaker', dockedAt: '2026-10-06T12:00:00.000Z' }],
     } }
     : memberStore({ uid, roleId, currentControl });
-  const recipient = makeLocator({ options: offeredTargets.map(target => typeof target === 'string'
+  const recipient = makeLocator({ options: projectedTargets.map(target => typeof target === 'string'
     ? { value: target, textContent: target }
     : { value: target.value, textContent: target.textContent ?? target.value, disabled: target.disabled }),
   onSelect: value => selectedTargets.push(value) });
-  const handoff = makeLocator({ count: ownerActionVisible ? 1 : 0,
+  const handoff = makeLocator({ count: handoffVisible ? 1 : 0,
     onClick: async () => { clickLog.push('Hand off control'); } });
-  const reclaim = makeLocator({ count: ownerActionVisible && currentControl.holderUid !== currentControl.ownerUid ? 1 : 0,
+  const reclaim = makeLocator({ count: reclaimVisible ? 1 : 0,
     onClick: async () => { clickLog.push('Reclaim control'); } });
   const absent = () => makeLocator({ count: 0 });
   const panel = {
@@ -99,15 +104,17 @@ function serializedSurface({ uid, roleId, currentControl = control(), isGm = fal
         if (moduleUrl === '/src/store/useSessionStore.ts') {
           return { useSessionStore: { getState: () => storeState } };
         }
-        if (moduleUrl === '/src/lib/firebase.ts') return { auth: () => ({ currentUser: { uid } }) };
+        if (moduleUrl === '/src/lib/firebase.ts') return { auth: () => ({ currentUser: { uid: authUid } }) };
         throw new Error(`Unexpected serialized source import: ${String(moduleUrl)}`);
       };
       const source = callback.toString().replace(/\bimport\s*\(/g, 'fixtureImport(');
       return new Function('fixtureImport', 'crypto', 'input', `return (${source})(input);`)(
         fixtureImport, webcrypto, input);
     },
-    getByRole: (role, options = {}) => role === 'region' && options.name === 'Shuttle control' &&
-      options.exact === true ? panel : absent(),
+    getByRole: (role, options = {}) => role === 'status'
+      ? { allTextContents: async () => ['Shuttle control handed off.'] }
+      : role === 'region' && options.name === 'Shuttle control' && options.exact === true
+        ? panel : absent(),
   };
   return {
     page, storeModuleUrl: () => '/src/store/useSessionStore.ts',
@@ -118,10 +125,11 @@ function serializedSurface({ uid, roleId, currentControl = control(), isGm = fal
         activeConsoleRoleId: roleId, assignedRoleId: roleId, playerRole: 'player',
         sameActor: true, connection: 'live', freshness: 'server' },
     state: async () => isGm
-      ? { ...sourceSnapshot(currentControl) }
-      : { ...sourceSnapshot(currentControl), currentMemberScope: { groupId: GROUP_ID,
+      ? { ...sourceSnapshot(projectedControl) }
+      : { ...sourceSnapshot(projectedControl), currentMemberScope: { groupId: GROUP_ID,
         vesselIds: ['icebreaker', 'dione'], craftIds: [SHUTTLE_ID] } },
     setControl: nextControl => {
+      projectedControl = nextControl;
       storeState = isGm
         ? { connection: 'live', sessionSnapshotFreshness: 'server', session: {
           id: SESSION_ID, currentTurn: CYCLE, phase: 'active', playerDiscovery: { groupId: GROUP_ID },
@@ -132,18 +140,22 @@ function serializedSurface({ uid, roleId, currentControl = control(), isGm = fal
         } }
         : memberStore({ uid, roleId, currentControl: nextControl });
     },
+    mutateStore: mutator => mutator(storeState),
+    setOfferedTargets: targets => { projectedTargets = [...targets]; },
+    setAuthUid: nextUid => { authUid = nextUid; },
     selectedTargets, clickLog,
   };
 }
 
 function makeHarness({ currentControl = control(), roster, ownerActionVisible = true,
-  offeredTargets = [RECIPIENT_UID] } = {}) {
+  handoffVisible = ownerActionVisible, reclaimVisible = ownerActionVisible &&
+    currentControl.holderUid !== currentControl.ownerUid, offeredTargets = [RECIPIENT_UID] } = {}) {
   const selectedRoles = [];
   const selectedTargets = [];
   const clickLog = [];
   const gmSurface = serializedSurface({ uid: 'owned-gm-auth-uid', isGm: true, currentControl });
   const ownerSurface = serializedSurface({ uid: OWNER_UID, roleId: OWNER_ROLE, currentControl,
-    ownerActionVisible, offeredTargets, selectedTargets, clickLog });
+    ownerActionVisible, handoffVisible, reclaimVisible, offeredTargets, selectedTargets, clickLog });
   const holderSurface = serializedSurface({ uid: HOLDER_UID, roleId: HOLDER_ROLE, currentControl,
     ownerActionVisible: false, selectedTargets, clickLog });
   const byRole = new Map([[OWNER_ROLE, ownerSurface], [HOLDER_ROLE, holderSurface]]);
@@ -181,6 +193,19 @@ test('public default recipe selects the unique printed owner for a borrowed shut
     actor: await harness.ownerSurface.observe(), source: await harness.ownerSurface.state() });
   assert.equal(action.offered, true, action.reason);
   assert.equal(typeof action.click, 'function');
+  await action.click();
+  assert.deepEqual(harness.clickLog, ['Hand off control']);
+  harness.ownerSurface.setControl(control({ holderUid: RECIPIENT_UID, revision: CONTROL_REVISION + 1 }));
+  const inspected = await plan.inspect({ surface: harness.ownerSurface,
+    actor: await harness.ownerSurface.observe(), actorAfter: await harness.ownerSurface.observe(),
+    request: { sessionId: SESSION_ID, shuttleId: SHUTTLE_ID, action: 'handoff',
+      targetUid: RECIPIENT_UID, expectedRevision: CONTROL_REVISION },
+    result: { status: 'committed', sessionId: SESSION_ID, shuttleId: SHUTTLE_ID,
+      action: 'handoff', ownerUid: OWNER_UID, previousHolderUid: HOLDER_UID,
+      holderUid: RECIPIENT_UID, revision: CONTROL_REVISION + 1 } });
+  assert.equal(inspected.sourceAfter.live, true);
+  assert.equal(inspected.sourceAfter.revision, CONTROL_REVISION + 1);
+  assert.equal(inspected.sourceAfter.groupId, GROUP_ID);
 });
 
 test('missing, duplicate, or inconsistent printed-owner admission never falls back to the borrowed holder', async t => {
@@ -207,6 +232,72 @@ test('missing, duplicate, or inconsistent printed-owner admission never falls ba
       assert.deepEqual(harness.clickLog, []);
     });
   }
+});
+
+test('the mounted owner plan blocks control, document, target, and current-role drift immediately before click', async t => {
+  const cases = [
+    ['owner identity changed', harness => harness.ownerSurface.setControl(control({ ownerUid: 'foreign-owner-uid' }))],
+    ['holder changed', harness => harness.ownerSurface.setControl(control({ holderUid: 'foreign-holder-uid' }))],
+    ['control revision changed', harness => harness.ownerSurface.setControl(control({ revision: CONTROL_REVISION + 1 }))],
+    ['member connection generation changed', harness => harness.ownerSurface.mutateStore(state => {
+      state.me.connectionGeneration++;
+      state.session.currentActorBerthAuthority.connectionGeneration++;
+    })],
+    ['identity hydration changed', harness => harness.ownerSurface.mutateStore(state => {
+      state.identityHydrationRevision++;
+    })],
+    ['authenticated UID changed', harness => harness.ownerSurface.setAuthUid('foreign-auth-uid')],
+    ['offered recipient disappeared', harness => harness.ownerSurface.setOfferedTargets([])],
+  ];
+  for (const [name, drift] of cases) {
+    await t.test(name, async () => {
+      const harness = makeHarness();
+      const plan = await createPendingProcedureDefaultSteps()['core:transferShuttleControlCommand']({
+        context: harness.context, game: harness.game,
+      });
+      const action = await plan.prepare({ surface: harness.ownerSurface,
+        actor: await harness.ownerSurface.observe(), source: await harness.ownerSurface.state() });
+      assert.equal(action.offered, true, action.reason);
+      drift(harness);
+      await assert.rejects(action.click);
+      assert.deepEqual(harness.clickLog, []);
+    });
+  }
+});
+
+test('reclaim is used only when it is the actual enabled source path; a stale handoff path does not fall through', async t => {
+  await t.test('no offered target and visible reclaim', async () => {
+    const harness = makeHarness({ offeredTargets: [] });
+    const plan = await createPendingProcedureDefaultSteps()['core:transferShuttleControlCommand']({
+      context: harness.context, game: harness.game,
+    });
+    const action = await plan.prepare({ surface: harness.ownerSurface,
+      actor: await harness.ownerSurface.observe(), source: await harness.ownerSurface.state() });
+    assert.equal(action.offered, true, action.reason);
+    await action.click();
+    assert.deepEqual(harness.clickLog, ['Reclaim control']);
+  });
+  await t.test('offered handoff target but missing handoff button', async () => {
+    const harness = makeHarness({ handoffVisible: false, reclaimVisible: true });
+    const plan = await createPendingProcedureDefaultSteps()['core:transferShuttleControlCommand']({
+      context: harness.context, game: harness.game,
+    });
+    const action = await plan.prepare({ surface: harness.ownerSurface,
+      actor: await harness.ownerSurface.observe(), source: await harness.ownerSurface.state() });
+    assert.equal(action.offered, false);
+    assert.deepEqual(harness.clickLog, []);
+  });
+  await t.test('no target and no mounted reclaim control', async () => {
+    const harness = makeHarness({ currentControl: control({ holderUid: OWNER_UID }),
+      offeredTargets: [], reclaimVisible: false });
+    const plan = await createPendingProcedureDefaultSteps()['core:transferShuttleControlCommand']({
+      context: harness.context, game: harness.game,
+    });
+    const action = await plan.prepare({ surface: harness.ownerSurface,
+      actor: await harness.ownerSurface.observe(), source: await harness.ownerSurface.state() });
+    assert.equal(action.offered, false);
+    assert.deepEqual(harness.clickLog, []);
+  });
 });
 
 test('public capture reselects the source owner and stops if the owner/holder control tuple is stale', async () => {
