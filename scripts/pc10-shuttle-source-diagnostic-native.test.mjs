@@ -150,7 +150,7 @@ async function makeCoreRecipeHarness({ movementSnapshots }) {
   serialized.calls.store = 0;
   serialized.calls.auth = 0;
   const context = { initial: { sessionId: SESSION_ID }, roster: [{ roleId: CORE_ROLE, uidHash }],
-    shuttleOriginAuthority: origin, shuttleSourceDiagnosticOnly: true };
+    shuttleOriginAuthority: origin, shuttleOriginHostShipId: 'icebreaker', shuttleSourceDiagnosticOnly: true };
   return { game, surface, context, actor, sessionProjection, serialized, selections };
 }
 
