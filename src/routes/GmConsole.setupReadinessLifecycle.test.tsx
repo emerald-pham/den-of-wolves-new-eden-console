@@ -185,8 +185,7 @@ describe('normal mounted full-game setup readiness', () => {
     expect(setupCalls()).toHaveLength(0);
   });
 
-  it.each(['cache', 'offline', 'foreign-member-session', 'foreign-claim-uid', 'demoted'])
-    ('cannot enable Start through a canonical source roster refresh after existing %s authority loss', async loss => {
+  it.each(['cache', 'offline', 'foreign-member-session', 'foreign-claim-uid', 'demoted'])('cannot enable Start through a canonical source roster refresh after existing %s authority loss', async loss => {
       await mounted();
       await act(async () => {
         const store = useSessionStore.getState();
