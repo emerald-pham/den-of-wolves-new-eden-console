@@ -23,7 +23,6 @@ const REPAIR_PANELS = Object.freeze({
 const UNVERIFIABLE_GM_CHOICES = new Set([
   'setFacilitatorResponsibility', 'setGmControlsLocked', 'setCandidatePlanCheckpoint',
 ]);
-const GM_GRANT_LIFECYCLE = new WeakMap();
 const CERTIFIED_GM_RECIPES = new Set(['setGmShipConsoleWriteGrant', 'setShipConsoleLock',
   'setFacilitatorCensusNote', 'authorFacilitatorRuleCall']);
 const CURRENT_DOCUMENT_AUTHORITY_KEYS = Object.freeze(['sessionId', 'uidHash', 'groupId', 'roleId',
@@ -785,6 +784,38 @@ async function captureMountedUiCallable(surface, endpoint, click, operation) {
     response: { httpStatus: response.status(), result: body?.result } };
 }
 
+async function enableMountedGmGrant(surface, expected, claimedAt, operation) {
+  const access = surface.page.getByRole('button', { name: 'GM ship console read write access', exact: true });
+  const captured = await captureMountedUiCallable(surface, 'setGmShipConsoleWriteGrant', async () => {
+    await verifyGmOperation(surface, operation);
+    const before = await readCertifiedWriteGrant(surface, expected, operation);
+    if (!before || before.claimedAt !== claimedAt || before.projection.enabled !== false ||
+        !await one(access) || await access.getAttribute('aria-pressed') !== 'false') {
+      throw new Error('The original observer is not read-only for its own explicit UI grant.');
+    }
+    await access.click({ timeout: remainingGmOperation(operation, 35_000) });
+    const dialog = surface.page.getByRole('alertdialog', { name: 'Are you sure?', exact: true });
+    const confirm = await one(dialog.getByRole('button', { name: 'ARE YOU SURE?', exact: true }));
+    if (!confirm) throw new Error('The original observer grant confirmation is unavailable.');
+    await verifyGmOperation(surface, operation);
+    await confirm.click({ timeout: remainingGmOperation(operation, 35_000) });
+  }, operation);
+  await verifyGmOperation(surface, operation);
+  const after = await readCertifiedWriteGrant(surface, expected, operation);
+  const request = captured.request, result = captured.response.result;
+  if (Object.keys(request ?? {}).length !== 5 || request?.sessionId !== expected.sessionId ||
+      request.instanceId !== expected.instanceId || request.shipId !== 'aegis' || request.enabled !== true ||
+      request.claimedAt !== claimedAt || captured.response.httpStatus !== 200 ||
+      Object.keys(result ?? {}).length !== 2 || result?.enabled !== true || result.shipId !== 'aegis' ||
+      after?.projection.enabled !== true || after.claimedAt !== claimedAt ||
+      await access.getAttribute('aria-pressed') !== 'true' ||
+      await surface.page.locator('.ship-console').getAttribute('data-observer-mode') !== 'write') {
+    throw new Error('The exact original same-document UI enable receipt and source grant are not verified.');
+  }
+  return { ...captured, rendered: { visible: true, controlPressed: true, observerMode: 'write' },
+    afterEnable: { actor: await verifyGmOperation(surface, operation), projection: after.projection } };
+}
+
 async function revokeMountedGmGrant(surface, expected, claimedAt, operation) {
   await goToShipObserver(surface, operation);
   const before = await readCertifiedWriteGrant(surface, expected, operation).catch(() => null);
@@ -812,12 +843,13 @@ async function revokeMountedGmGrant(surface, expected, claimedAt, operation) {
   }
   const reloaded = await reloadMountedGm(surface, expected, operation);
   const after = await readCertifiedWriteGrant(surface, expected, operation).catch(() => null);
-  if (!visible || after?.projection.enabled !== false || after.claimedAt !== claimedAt) return null;
+  if (!visible || !after || after.claimedAt !== claimedAt) return null;
   return {
     restore: { request: captured.request, response: captured.response,
       rendered: { visible: true, enabled: false, controlPressed: false, observerMode: 'read' },
       afterReload: { actor: reloaded.actor, projection: after.projection } },
-    sourceAfter: { live: reloaded.state?.live === true, sessionId: reloaded.state?.sessionId,
+    state: reloaded.state,
+    sourceAfter: { live: reloaded.state?.live === true && after.projection.enabled === false, sessionId: reloaded.state?.sessionId,
       cycle: reloaded.state?.cycle, revision: reloaded.state?.vesselActionRevisions?.aegis },
   };
 }
@@ -940,28 +972,34 @@ async function planFor({ spec, surface, actor, state, context, target, gmOperati
       } };
     }
 
-    const capturedGrant = GM_GRANT_LIFECYCLE.get(context);
-    if (grant.projection.enabled !== true || !lockMounted || !capturedGrant ||
-        capturedGrant.sessionId !== gmExpected.sessionId || capturedGrant.uidHash !== gmExpected.uidHash ||
-        capturedGrant.instanceId !== gmExpected.instanceId || capturedGrant.claimedAt !== grant.claimedAt) {
-      return block('AEGIS must be source-locked at a current vessel action revision with this GM instance grant enabled');
+    if (grant.projection.enabled !== false || !lockMounted) {
+      return block('AEGIS must be source-locked at a current vessel action revision with the original GM visibly read-only before its own UI grant');
     }
     target.gmLockBefore = { kind: 'ship-console-lock', live: true, sessionId: state.sessionId,
       cycle: state.cycle, uidHash: actor.uidHash, instanceId: actor.instanceId, shipId: 'aegis',
-      locked: true, revision: lockRevision, grantEnabled: true };
-    const release = await one(releaseControl);
-    if (!release) return block('the actual AEGIS release-lock control is absent, disabled, or ambiguous');
+      locked: true, revision: lockRevision, grantEnabled: false };
+    if (await releaseControl.count() !== 1 || !await releaseControl.isVisible()) {
+      return block('the actual AEGIS release-lock control is absent or ambiguous');
+    }
     return { offered: true, click: async () => {
       await verifyGmDocument();
       const latestGrant = await readCertifiedWriteGrant(surface, gmExpected, gmOperation);
       const currentState = await readActionState(surface);
-      if (!latestGrant?.projection.enabled || currentState.shipConsoleLocks?.aegis !== true ||
+      if (latestGrant?.projection.enabled !== false || currentState.shipConsoleLocks?.aegis !== true ||
           currentState.vesselActionRevisions?.aegis !== lockRevision ||
-          latestGrant.claimedAt !== target.gmClaimedAt ||
-          await release.isEnabled() !== true) {
-        throw new Error('The current AEGIS lock, write grant, or vessel revision changed before release.');
+          latestGrant.claimedAt !== target.gmClaimedAt) {
+        throw new Error('The current AEGIS lock, read-only authority or vessel revision changed before the explicit UI grant.');
       }
-      await release.click({ timeout: remainingGmOperation(gmOperation, 35_000) });
+      target.gmLockGrantEnable = await enableMountedGmGrant(surface, gmExpected, target.gmClaimedAt, gmOperation);
+      const grantedState = await readActionState(surface);
+      await verifyGmDocument();
+      if (!liveState(grantedState, gmExpected.sessionId) || grantedState.cycle !== state.cycle ||
+          grantedState.shipConsoleLocks?.aegis !== true || grantedState.vesselActionRevisions?.aegis !== lockRevision ||
+          !grantedState.activeVesselIds?.includes('aegis') || !await one(releaseControl)) {
+        throw new Error('The enabled original observer no longer offers this exact current source lock release.');
+      }
+      target.gmLockBefore.grantEnabled = target.gmLockGrantEnable.afterEnable.projection.enabled;
+      await releaseControl.click({ timeout: remainingGmOperation(gmOperation, 35_000) });
     } };
   }
 
@@ -1587,32 +1625,30 @@ async function planFor({ spec, surface, actor, state, context, target, gmOperati
   return block('no safe mounted action recipe is available for this endpoint');
 }
 
-async function inspectMountedGmControl({ context, surface, request, result, spec, expected, target, gmOperation }) {
+async function inspectMountedGmControl({ surface, request, result, spec, expected, target, gmOperation }) {
   await verifyGmOperation(surface, gmOperation);
   if (spec.endpoint === 'setGmShipConsoleWriteGrant') {
     const access = surface.page.getByRole('button', { name: 'GM ship console read write access', exact: true });
     const liveUi = await access.count() === 1 && await access.isVisible() &&
       await access.getAttribute('aria-pressed') === 'true' &&
       await surface.page.locator('.ship-console').getAttribute('data-observer-mode') === 'write';
-    const reloaded = await reloadMountedGm(surface, expected, gmOperation);
     const grant = await readCertifiedWriteGrant(surface, expected, gmOperation).catch(() => null);
     const leaseMatches = grant?.claimedAt === request.claimedAt &&
       request.sessionId === expected.sessionId && request.instanceId === expected.instanceId &&
       request.shipId === 'aegis' && request.enabled === true && result?.enabled === true && result?.shipId === 'aegis';
-    if (leaseMatches && grant?.projection.enabled === true) {
-      GM_GRANT_LIFECYCLE.set(context, { sessionId: expected.sessionId, uidHash: expected.uidHash,
-        instanceId: expected.instanceId, claimedAt: request.claimedAt });
-    }
-    const cleanupGrant = async () => {
-      try { return (await revokeMountedGmGrant(surface, expected, request.claimedAt, gmOperation))?.restore ?? null; }
-      finally { GM_GRANT_LIFECYCLE.delete(context); }
-    };
+    const afterEnable = { actor: await verifyGmOperation(surface, gmOperation), projection: grant?.projection };
+    // Write access belongs to this mounted observer. Source unmount/StrictMode
+    // cleanup revokes it, so explicit UI revoke precedes the genuine reload.
+    const revoked = liveUi && leaseMatches && grant?.projection.enabled === true
+      ? await revokeMountedGmGrant(surface, expected, request.claimedAt, gmOperation) : null;
+    const cleanupGrant = async () =>
+      (await revokeMountedGmGrant(surface, expected, request.claimedAt, gmOperation))?.restore ?? null;
     return {
-      sourceAfter: { live: reloaded.state?.live === true && leaseMatches,
-        sessionId: reloaded.state?.sessionId, cycle: reloaded.state?.cycle, revision: undefined },
+      sourceAfter: { live: revoked?.sourceAfter.live === true && leaseMatches,
+        sessionId: revoked?.sourceAfter.sessionId, cycle: revoked?.sourceAfter.cycle, revision: undefined },
       rendered: { visible: liveUi, controlPressed: true, observerMode: 'write' },
       beforeProjection: target.gmGrantBefore,
-      afterReload: { actor: reloaded.actor, projection: grant?.projection },
+      afterEnable, afterReload: revoked?.restore.afterReload, restore: revoked?.restore,
       cleanupGrant,
     };
   }
@@ -1627,17 +1663,16 @@ async function inspectMountedGmControl({ context, surface, request, result, spec
       state.live && state.sessionId === expected.sessionId && state.cycle === expected.cycle &&
       state.shipConsoleLocks?.aegis === false &&
       state.vesselActionRevisions?.aegis === expected.sourceRevision + 1, gmOperation);
-    const lockReload = await reloadMountedGm(surface, expected, gmOperation);
-    const lockRevision = lockReload.state?.vesselActionRevisions?.aegis;
-    const lockProjection = {
-      kind: 'ship-console-lock', live: lockReload.state?.live === true &&
-        lockReload.state?.shipConsoleLocks?.aegis === false && lockRevision === expected.sourceRevision + 1,
-      sessionId: lockReload.state?.sessionId, cycle: lockReload.state?.cycle,
-      uidHash: expected.uidHash, instanceId: expected.instanceId, shipId: 'aegis',
-      locked: lockReload.state?.shipConsoleLocks?.aegis, revision: lockRevision,
-    };
     const revoked = await revokeMountedGmGrant(surface, expected, target.gmClaimedAt, gmOperation).catch(() => null);
-    GM_GRANT_LIFECYCLE.delete(context);
+    const lockState = revoked?.state;
+    const lockRevision = lockState?.vesselActionRevisions?.aegis;
+    const lockProjection = {
+      kind: 'ship-console-lock', live: revoked?.sourceAfter.live === true &&
+        lockState?.shipConsoleLocks?.aegis === false && lockRevision === expected.sourceRevision + 1,
+      sessionId: lockState?.sessionId, cycle: lockState?.cycle,
+      uidHash: expected.uidHash, instanceId: expected.instanceId, shipId: 'aegis',
+      locked: lockState?.shipConsoleLocks?.aegis, revision: lockRevision,
+    };
     return {
       sourceAfter: { live: afterCommit !== null && lockProjection.live === true &&
         revoked?.sourceAfter?.live === true && revoked.sourceAfter.revision === lockRevision,
@@ -1645,7 +1680,8 @@ async function inspectMountedGmControl({ context, surface, request, result, spec
       rendered: { visible: releaseRendered && afterCommit !== null, locked: false,
         lockLabel: releaseRendered ? 'ICN console lock // clear' : null },
       sourceSpecificBefore: target.gmLockBefore,
-      afterReload: { actor: lockReload.actor, projection: lockProjection },
+      enableGrant: target.gmLockGrantEnable,
+      afterReload: { actor: revoked?.restore.afterReload.actor, projection: lockProjection },
       restore: revoked?.restore,
     };
   }
@@ -1812,8 +1848,7 @@ async function recipeFor({ context, game, spec }) {
     trainingChoice: spec.trainingChoice ? (preparedPlan.trainingChoice ?? 'gm-training:deliberate-choice') : null,
     ...(spec.endpoint === 'setGmShipConsoleWriteGrant' ? { cleanupMountedGmGrant: async () => {
       if (resolved.target.gmGrantEnableAttempted !== true) return null;
-      try { return await revokeMountedGmGrant(initialSurface, expected, resolved.target.gmClaimedAt, gmOperation); }
-      finally { GM_GRANT_LIFECYCLE.delete(context); }
+      return revokeMountedGmGrant(initialSurface, expected, resolved.target.gmClaimedAt, gmOperation);
     } } : {}),
     prepare: async ({ surface, actor: currentActor, source }) => {
       if (currentActor.uidHash !== uidHash || currentActor.sessionId !== expected.sessionId || currentActor.profileRoleId !== roleId && currentActor.playerRole !== 'gm')

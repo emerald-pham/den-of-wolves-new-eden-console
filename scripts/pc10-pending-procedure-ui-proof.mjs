@@ -616,6 +616,20 @@ function validGrantRestore(restore, expected, claimedAt) {
     validGrantProjection(projection, expected, false, claimedAt);
 }
 
+function validGrantEnable(enable, expected, claimedAt) {
+  const request = enable?.request, result = enable?.response?.result;
+  return exactKeys(enable, ['request', 'response', 'rendered', 'afterEnable']) &&
+    exactKeys(request, ['sessionId', 'instanceId', 'shipId', 'enabled', 'claimedAt']) &&
+    request.sessionId === expected.sessionId && request.instanceId === expected.instanceId &&
+    request.shipId === 'aegis' && request.enabled === true && request.claimedAt === claimedAt &&
+    Number.isFinite(Date.parse(claimedAt)) && exactKeys(enable.response, ['httpStatus', 'result']) &&
+    enable.response.httpStatus === 200 && exactKeys(result, ['enabled', 'shipId']) &&
+    result.enabled === true && result.shipId === 'aegis' && enable.rendered?.visible === true &&
+    enable.rendered.controlPressed === true && enable.rendered.observerMode === 'write' &&
+    sameReloadedActor(enable.afterEnable?.actor, expected) &&
+    validGrantProjection(enable.afterEnable?.projection, expected, true, claimedAt);
+}
+
 function evaluateMountedGmCapture(spec, input, expected) {
   const endpoint = spec.endpoint;
   if (input.mountedUi !== true || expected.roleId !== 'gm' ||
@@ -642,8 +656,10 @@ function evaluateMountedGmCapture(spec, input, expected) {
         input.replay !== null || response.exactReplay === true ||
         input.rendered?.visible !== true || input.rendered.controlPressed !== true ||
         input.rendered.observerMode !== 'write' || !validGrantProjection(input.beforeProjection, expected, false, request.claimedAt) ||
+        !sameReloadedActor(input.afterEnable?.actor, expected) ||
+        !validGrantProjection(input.afterEnable?.projection, expected, true, request.claimedAt) ||
         !sameReloadedActor(input.afterReload?.actor, expected) ||
-        !validGrantProjection(input.afterReload?.projection, expected, true, request.claimedAt) ||
+        !validGrantProjection(input.afterReload?.projection, expected, false, request.claimedAt) ||
         !validGrantRestore(restore, expected, request.claimedAt)) {
       return pending(spec, 'single-shot-write-grant-or-source-confirmed-UI-revoke-is-not-proved');
     }
@@ -688,6 +704,7 @@ function evaluateMountedGmCapture(spec, input, expected) {
         projection.shipId !== 'aegis' || projection.locked !== false || projection.revision !== result.revision ||
         input.rendered?.visible !== true || input.rendered.locked !== false ||
         input.rendered.lockLabel !== 'ICN console lock // clear' ||
+        !validGrantEnable(input.enableGrant, expected, input.restore?.request?.claimedAt) ||
         !validGrantRestore(input.restore, expected, input.restore?.request?.claimedAt)) {
       return pending(spec, 'AEGIS-console-lock-request-receipt-replay-reload-or-grant-revoke-is-not-proved');
     }
@@ -1060,6 +1077,7 @@ export async function captureMountedProcedureAction({ context, game, caseId, exp
   request, response: { httpStatus: result.status(), result: actualResult, exactReplay }, replay,
   rendered: observed?.rendered, cost: observed?.cost ?? displayedCost, consent: observed?.consent,
   sourceSpecificBefore: observed?.sourceSpecificBefore, beforeProjection: observed?.beforeProjection,
+  afterEnable: observed?.afterEnable, enableGrant: observed?.enableGrant,
   afterReload: observed?.afterReload, restore: observed?.restore,
   ...(spec.endpoint === 'completeShuttleArrival' ? { arrival: {
     ...action.arrival, authorityAfter: observed?.authorityAfter, afterProjection: observed?.arrivalAfter,
@@ -1091,13 +1109,15 @@ async function runCasesAtCheckpoint({ family, cases, checkpoint, context, steps,
   let deferredGrantIndex = -1;
   const finishDeferredGrant = async lockInput => {
     if (!deferredGrant) return;
-    const restore = lockInput?.restore ?? await deferredGrant.cleanupGrant?.().catch(() => null);
+    const restore = deferredGrant.restore ?? lockInput?.restore ?? await deferredGrant.cleanupGrant?.().catch(() => null);
     const grantClaim = deferredGrant.request?.claimedAt;
     const restoreClaim = restore?.request?.claimedAt;
     const sameCapturedLease = typeof grantClaim === 'string' && grantClaim === restoreClaim &&
       deferredGrant.expected?.sessionId === restore?.request?.sessionId &&
       deferredGrant.expected?.instanceId === restore?.request?.instanceId &&
-      deferredGrant.afterReload?.projection?.enabled === true &&
+      deferredGrant.afterEnable?.projection?.enabled === true &&
+      deferredGrant.afterEnable?.projection?.claimedAtHash === hash(grantClaim) &&
+      deferredGrant.afterReload?.projection?.enabled === false &&
       deferredGrant.afterReload?.projection?.claimedAtHash === hash(grantClaim);
     if (restore && sameCapturedLease) {
       deferredGrant.restore = restore;
@@ -1107,7 +1127,7 @@ async function runCasesAtCheckpoint({ family, cases, checkpoint, context, steps,
         'single-shot-enable-and-ui-revoke-do-not-share-the-same-live-GM-lease', {
           leaseDiagnostic: {
             restorePresent: Boolean(restore),
-            enabledProjectionPresent: deferredGrant.afterReload?.projection?.enabled === true,
+            enabledProjectionPresent: deferredGrant.afterEnable?.projection?.enabled === true,
             projectionClaimMatches: typeof grantClaim === 'string' &&
               typeof deferredGrant.afterReload?.projection?.claimedAtHash === 'string'
               ? deferredGrant.afterReload.projection.claimedAtHash === hash(grantClaim) : null,
