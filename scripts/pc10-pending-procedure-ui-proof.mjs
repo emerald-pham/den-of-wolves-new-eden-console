@@ -202,6 +202,50 @@ function appendShuttleSourceDiagnostic(outcome, value, input) {
 const SHUTTLE_CAPTURE_DIAGNOSTIC_ENDPOINTS = new Set(['requestShuttleDeparture', 'beginShuttleTransit',
   'retargetShuttleTransit', 'completeShuttleArrival']);
 const SHUTTLE_CAPTURE_DIAGNOSTIC_STATES = new Set(['requested', 'in-transit', 'arrived']);
+const CORE_SHUTTLE_POST_INSPECT_DIAGNOSTIC_BOOLEAN_KEYS = Object.freeze({
+  source: ['sessionMatches', 'cycleMatches', 'phaseActive', 'liveStateCurrent',
+    'holderGroupMatchesOrigin', 'memberScopeGroupMatchesOrigin'],
+  authority: ['originAuthorityMatches', 'currentDocumentAuthorityPresent', 'sameCurrentDocumentAuthority', 'currentControlCraftMatches',
+    'currentControlHolderMatchesOrigin', 'currentControlRevisionMatchesOrigin'],
+  member: ['dockingStateMatches', 'memberScopeMatches', 'originHostPresent', 'originHostInMemberScope',
+    'originHostActive', 'destinationDiffersFromOriginHost', 'destinationInMemberScope', 'destinationActive',
+    'memberGroupAvailable', 'memberGroupMatchesOrigin', 'memberGroupMatchesExpected'],
+  movement: ['recordPresent', 'missing', 'unreadable', 'statusMatches', 'shuttleMatches',
+    'holderMatchesOrigin', 'groupMatchesOrigin', 'controlRevisionMatchesOrigin', 'cycleMatches',
+    'destinationMatchesSelected', 'currentControlRevisionMatchesOrigin', 'destinationDiffersFromOriginHost',
+    'resultDestinationMatches', 'sourceTupleCurrent', 'movementTupleCurrent'],
+});
+
+function safeCoreShuttlePostInspectPredicateDiagnostic(value) {
+  const keys = Object.keys(CORE_SHUTTLE_POST_INSPECT_DIAGNOSTIC_BOOLEAN_KEYS);
+  if (!exactKeys(value, ['kind', 'zeroCredit', ...keys]) ||
+      value.kind !== 'pc10-core-shuttle-post-inspect-predicate-diagnostic-v1' || value.zeroCredit !== true ||
+      !exactKeys(value.source, ['latestLive', ...CORE_SHUTTLE_POST_INSPECT_DIAGNOSTIC_BOOLEAN_KEYS.source]) ||
+      value.source.latestLive !== null && typeof value.source.latestLive !== 'boolean' ||
+      !exactKeys(value.authority, CORE_SHUTTLE_POST_INSPECT_DIAGNOSTIC_BOOLEAN_KEYS.authority) ||
+      !exactKeys(value.member, ['dockingCount', ...CORE_SHUTTLE_POST_INSPECT_DIAGNOSTIC_BOOLEAN_KEYS.member]) ||
+      !Number.isSafeInteger(value.member.dockingCount) || value.member.dockingCount < 0 || value.member.dockingCount > 2 ||
+      !exactKeys(value.movement, ['state', 'revision', ...CORE_SHUTTLE_POST_INSPECT_DIAGNOSTIC_BOOLEAN_KEYS.movement,
+        'requestOriginMatchesHost']) ||
+      value.movement.state !== null && !SHUTTLE_CAPTURE_DIAGNOSTIC_STATES.has(value.movement.state) ||
+      value.movement.revision !== null && (!Number.isSafeInteger(value.movement.revision) || value.movement.revision < 1)) return null;
+  for (const [name, fields] of Object.entries(CORE_SHUTTLE_POST_INSPECT_DIAGNOSTIC_BOOLEAN_KEYS)) {
+    if (fields.some(key => typeof value[name][key] !== 'boolean')) return null;
+  }
+  if (value.movement.requestOriginMatchesHost !== undefined &&
+      value.movement.requestOriginMatchesHost !== null && typeof value.movement.requestOriginMatchesHost !== 'boolean') return null;
+  return {
+    kind: value.kind, zeroCredit: true,
+    source: Object.fromEntries(['latestLive', ...CORE_SHUTTLE_POST_INSPECT_DIAGNOSTIC_BOOLEAN_KEYS.source]
+      .map(key => [key, value.source[key]])),
+    authority: Object.fromEntries(CORE_SHUTTLE_POST_INSPECT_DIAGNOSTIC_BOOLEAN_KEYS.authority
+      .map(key => [key, value.authority[key]])),
+    member: Object.fromEntries(['dockingCount', ...CORE_SHUTTLE_POST_INSPECT_DIAGNOSTIC_BOOLEAN_KEYS.member]
+      .map(key => [key, value.member[key]])),
+    movement: Object.fromEntries(['state', 'revision', ...CORE_SHUTTLE_POST_INSPECT_DIAGNOSTIC_BOOLEAN_KEYS.movement,
+      'requestOriginMatchesHost'].map(key => [key, value.movement[key] ?? null])),
+  };
+}
 
 function diagnosticRecord(value) {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -256,6 +300,8 @@ function safeShuttleCaptureTuple(input) {
   if (!SHUTTLE_CAPTURE_DIAGNOSTIC_ENDPOINTS.has(endpoint) ||
       input.expected?.shuttleId === PRESS_SHUTTLE_ID) return null;
   const arrival = endpoint === 'completeShuttleArrival';
+  const postInspectPredicates = endpoint === 'completeShuttleArrival' ? null
+    : safeCoreShuttlePostInspectPredicateDiagnostic(input.corePostInspectPredicates);
   return { kind: 'pc10-shuttle-capture-tuple-v1', zeroCredit: true,
     before: {
       source: safeShuttleCaptureSource(input.sourceBefore),
@@ -268,7 +314,9 @@ function safeShuttleCaptureTuple(input) {
       documentAuthority: safeShuttleCaptureAuthority(input.sourceAuthorityAfter ??
         (arrival ? input.arrival?.authorityAfter : undefined)),
       movement: safeShuttleCaptureMovement(input.transitionAfter ?? (arrival ? input.response?.result : undefined)),
-    } };
+    },
+    ...(postInspectPredicates && input.expected?.shuttleId !== PRESS_SHUTTLE_ID
+      ? { postInspectPredicates } : {}) };
 }
 
 function appendShuttleCaptureTuple(outcome, diagnostic, input) {
@@ -1880,6 +1928,7 @@ export async function captureMountedProcedureAction({ context, game, caseId, exp
       pressDockingAfter: observed?.pressDockingAfter } : {}),
   ...(spec.endpoint === 'applyShipCounterSteps'
     ? { counterSourceWitness: observed?.counterSourceWitness } : {}),
+  ...(observed?.corePostInspectPredicates ? { corePostInspectPredicates: observed.corePostInspectPredicates } : {}),
   request, response: { httpStatus: result.status(), result: actualResult, exactReplay }, replay,
   rendered: observed?.rendered, cost: observed?.cost ?? displayedCost, consent: observed?.consent,
   sourceSpecificBefore: observed?.sourceSpecificBefore, beforeProjection: observed?.beforeProjection,

@@ -768,6 +768,92 @@ function coreShuttleMovementMemberGroupId(state, shuttleId, groupId, originHostS
   return scope.groupId;
 }
 
+function coreShuttlePostInspectPredicateDiagnostic({ latest, expected, origin, shuttleId,
+  originGroupId, originHostShipId, destinationShipId, endpoint, memberGroupId,
+  expectedStatus, currentControlRevision, sourceTupleCurrent, movementTupleCurrent, movementAfter, result }) {
+  const control = latest?.shuttleControl?.[shuttleId];
+  const scope = latest?.currentMemberScope;
+  const dockings = latest?.shuttleDockings?.filter(row => row?.shuttleId === shuttleId) ?? [];
+  const requiresOriginDocking = endpoint === 'requestShuttleDeparture';
+  const scopeOptions = {
+    ...(requiresOriginDocking ? { hostShipId: originHostShipId } : {}),
+    ...(destinationShipId ? { destinationShipId } : {}),
+  };
+  const scopeMatches = currentMemberShuttleScopeMatches(latest, shuttleId, originGroupId, scopeOptions);
+  const originAuthorityMatches = shuttleOriginAuthorityMatches(origin, latest, {
+    sessionId: expected.sessionId, uidHash: expected.uidHash, roleId: expected.roleId,
+    groupId: originGroupId, cycle: expected.cycle, controlRevision: origin?.controlRevision,
+  }, shuttleId) === true;
+  const movementStatus = ['requested', 'in-transit', 'arrived'].includes(movementAfter?.status)
+    ? movementAfter.status : null;
+  const safeDockingCount = Math.min(dockings.length, 2);
+  return {
+    kind: 'pc10-core-shuttle-post-inspect-predicate-diagnostic-v1', zeroCredit: true,
+    source: {
+      latestLive: typeof latest?.live === 'boolean' ? latest.live : null,
+      sessionMatches: latest?.sessionId === expected.sessionId,
+      cycleMatches: latest?.cycle === expected.cycle,
+      phaseActive: latest?.phase === 'active',
+      liveStateCurrent: liveState(latest, expected.sessionId),
+      holderGroupMatchesOrigin: latest?.holderGroupId === origin?.groupId,
+      memberScopeGroupMatchesOrigin: latest?.currentMemberScope?.groupId === origin?.groupId,
+    },
+    authority: {
+      originAuthorityMatches,
+      currentDocumentAuthorityPresent: latest?.currentDocumentAuthority !== undefined &&
+        latest?.currentDocumentAuthority !== null,
+      sameCurrentDocumentAuthority: sameCurrentDocumentAuthority(latest?.currentDocumentAuthority,
+        origin?.sourceAuthority) === true,
+      currentControlCraftMatches: control?.shuttleId === shuttleId,
+      currentControlHolderMatchesOrigin: hashUid(control?.holderUid) === origin?.uidHash,
+      currentControlRevisionMatchesOrigin: control?.revision === origin?.controlRevision,
+    },
+    member: {
+      originHostPresent: typeof originHostShipId === 'string' && originHostShipId.length > 0,
+      dockingCount: safeDockingCount,
+      dockingStateMatches: requiresOriginDocking
+        ? dockings.length === 1 && dockings[0].shipId === originHostShipId
+        : dockings.length === 0,
+      memberScopeMatches: scopeMatches,
+      originHostInMemberScope: Array.isArray(scope?.vesselIds) && scope.vesselIds.includes(originHostShipId),
+      originHostActive: latest?.activeVesselIds?.includes(originHostShipId) === true,
+      destinationDiffersFromOriginHost: typeof destinationShipId === 'string' && destinationShipId.length > 0 &&
+        destinationShipId !== originHostShipId,
+      destinationInMemberScope: typeof destinationShipId === 'string' &&
+        destinationShipId !== originHostShipId && Array.isArray(scope?.vesselIds) &&
+        scope.vesselIds.includes(destinationShipId),
+      destinationActive: typeof destinationShipId === 'string' &&
+        latest?.activeVesselIds?.includes(destinationShipId) === true,
+      memberGroupAvailable: typeof memberGroupId === 'string' && memberGroupId.length > 0,
+      memberGroupMatchesOrigin: memberGroupId === originGroupId,
+      memberGroupMatchesExpected: memberGroupId === expected.groupId,
+    },
+    movement: {
+      recordPresent: movementAfter !== undefined && movementAfter !== null,
+      missing: movementAfter === null,
+      unreadable: movementAfter === undefined,
+      state: movementStatus,
+      revision: Number.isSafeInteger(movementAfter?.revision) && movementAfter.revision >= 1
+        ? movementAfter.revision : null,
+      statusMatches: movementAfter?.status === expectedStatus,
+      shuttleMatches: movementAfter?.shuttleId === shuttleId,
+      holderMatchesOrigin: movementAfter?.holderUidHash === origin?.uidHash,
+      groupMatchesOrigin: movementAfter?.groupId === originGroupId,
+      controlRevisionMatchesOrigin: movementAfter?.controlRevision === origin?.controlRevision,
+      cycleMatches: movementAfter?.cycle === expected.cycle,
+      destinationMatchesSelected: movementAfter?.destinationShipId === destinationShipId,
+      currentControlRevisionMatchesOrigin: currentControlRevision === origin?.controlRevision,
+      destinationDiffersFromOriginHost: typeof destinationShipId === 'string' &&
+        destinationShipId !== originHostShipId,
+      requestOriginMatchesHost: endpoint === 'requestShuttleDeparture'
+        ? result?.originShipId === originHostShipId : null,
+      resultDestinationMatches: result?.destinationShipId === destinationShipId,
+      sourceTupleCurrent: sourceTupleCurrent === true,
+      movementTupleCurrent,
+    },
+  };
+}
+
 function coreShuttleArrivalMemberGroupId(state, shuttleId, groupId, originHostShipId, destinationShipId) {
   if (typeof originHostShipId !== 'string' || !originHostShipId ||
       !currentMemberShuttleScopeMatches(state, shuttleId, groupId, { destinationShipId })) return null;
@@ -3912,6 +3998,7 @@ async function recipeFor({ context, game, spec }) {
       const resource = resolved.target.expectedCost?.resource;
       const cost = resource ? { ...resolved.target.expectedCost,
         before: resourceBalance(state, resolved.target, resource), after: resourceBalance(latest, resolved.target, resource) } : undefined;
+      let corePostInspectPredicates;
       if (coreShuttleMovementEndpoint) {
         const origin = context.shuttleOriginAuthority;
         const destinationShipId = spec.endpoint === 'requestShuttleDeparture' ? request?.destinationShipId
@@ -3934,6 +4021,12 @@ async function recipeFor({ context, game, spec }) {
           (spec.endpoint !== 'requestShuttleDeparture' ||
             result?.originShipId === originHostShipId && result?.destinationShipId === destinationShipId) &&
           (spec.endpoint === 'requestShuttleDeparture' || result?.destinationShipId === destinationShipId);
+        if (context.shuttleSourceDiagnosticOnly === true) {
+          corePostInspectPredicates = coreShuttlePostInspectPredicateDiagnostic({ latest, expected, origin,
+            shuttleId: resolved.target.shuttleId, originGroupId, originHostShipId, destinationShipId,
+            endpoint: spec.endpoint, memberGroupId, expectedStatus, currentControlRevision,
+            sourceTupleCurrent, movementTupleCurrent, movementAfter, result });
+        }
         if (memberGroupId !== originGroupId || memberGroupId !== expected.groupId ||
             !sourceTupleCurrent || !movementTupleCurrent) {
           const rejectedTransitionAfter = movementAfter === undefined ? undefined
@@ -3943,6 +4036,7 @@ async function recipeFor({ context, game, spec }) {
             revision, ...(typeof latest?.currentMemberScope?.groupId === 'string'
               ? { groupId: latest.currentMemberScope.groupId } : {}) },
           ...(rejectedTransitionAfter ? { transitionAfter: rejectedTransitionAfter } : {}),
+          ...(corePostInspectPredicates ? { corePostInspectPredicates } : {}),
           sourceAuthorityAfter: latest?.currentDocumentAuthority };
         }
       } else if (resolved.target.hostShipId && expected.groupId && latest.shipFleetGroupIds?.[resolved.target.hostShipId] !== expected.groupId) {
@@ -3968,6 +4062,7 @@ async function recipeFor({ context, game, spec }) {
             ? { groupId: latest.currentMemberScope.groupId }
             : expected.groupId ? { groupId: expected.groupId } : {}) },
         rendered: visible, ...(cost ? { cost } : {}), ...(transitionAfter ? { transitionAfter } : {}),
+        ...(corePostInspectPredicates ? { corePostInspectPredicates } : {}),
         ...(['requestShuttleDeparture', 'beginShuttleTransit', 'retargetShuttleTransit'].includes(spec.endpoint)
           ? pressOrigin ? { pressSourceAuthorityAfter: latest?.pressDocumentAuthority,
             pressGroupAuthorityAfter: latest?.pressGroupAuthority,
