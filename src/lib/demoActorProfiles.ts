@@ -109,6 +109,11 @@ interface ActorOptions {
   readonly onProgress?: (actors: readonly DemoActorRecord[]) => void;
   readonly shouldContinue?: () => boolean;
   readonly waitForReady?: () => Promise<void>;
+  readonly foregroundPresence?: {
+    readonly profile: DemoActorProfile;
+    readonly uid: string;
+    readonly refresh: () => Promise<void>;
+  };
 }
 
 function requirePreparation(session: GameSession): void {
@@ -220,12 +225,25 @@ export async function renewDemoActorPresence(session: GameSession, options: Acto
     if (options.shouldContinue?.() === false) break;
     try {
       await api.identity(profile, profile.uid);
+      if (options.shouldContinue?.() === false) break;
+      const foreground = options.foregroundPresence;
+      if (foreground?.profile.sessionId === profile.sessionId && foreground.profile.roleId === profile.roleId) {
+        if (foreground.uid !== profile.uid) throw new Error('The selected demo actor identity changed.');
+        // The document's normal presence owner also owns its reconnect and
+        // identity hydration. Passive roster renewal must not resume it again.
+        await foreground.refresh();
+        if (options.shouldContinue?.() === false) break;
+        continue;
+      }
       try { await api.presence(profile); }
       catch {
+        if (options.shouldContinue?.() === false) break;
         // Resume is the ordinary recovery path and still rejects kicked actors.
         checkedReply(await api.resume(profile, session.id), profile, profile.uid);
+        if (options.shouldContinue?.() === false) break;
         await api.presence(profile);
       }
+      if (options.shouldContinue?.() === false) break;
     } catch { failed.push(profile.label); }
   }
   return failed;

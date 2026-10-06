@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { activeDemoActorProfile, demoActorManagerUrl, DEMO_ACTOR_ROSTER_CHANGED, demoActorRosterStorageKey } from '@/lib/demoActorContext';
+import { activeDemoActorProfile, demoActorManagerUrl, DEMO_ACTOR_ROSTER_CHANGED, demoActorRosterStorageKey, readDemoActorAccountUid } from '@/lib/demoActorContext';
 import { demoSessionStatus, readDemoActorRoster, renewDemoActorPresence, switchDemoActor, type DemoActorRecord } from '@/lib/demoActorProfiles';
+import { auth } from '@/lib/firebase';
+import { refreshPresence } from '@/lib/sessionService';
 import { useSessionStore } from '@/store/useSessionStore';
 import { isSessionWaiverAcknowledged } from '@/lib/sessionWaiver';
 import { findConsoleRole } from '@/data/roles';
@@ -51,11 +53,15 @@ export default function DemoActorControls() {
 
   useEffect(() => {
     if (!profile || !joined || !status || status === 'complete' || session?.phase === 'debrief' || session?.phase === 'closed') return;
+    const originalUid = me?.uid;
+    if (!originalUid) return;
     let disposed = false;
     let renewing = false;
     const current = () => {
       const state = useSessionStore.getState();
-      return !disposed && state.session?.id === profile.sessionId && state.me?.sessionId === profile.sessionId &&
+      return !disposed && readDemoActorAccountUid(profile.roleId) === originalUid &&
+        auth().currentUser?.uid === originalUid && state.me?.uid === originalUid && state.me.role === 'player' &&
+        state.me.connected !== false && state.session?.id === profile.sessionId && state.me.sessionId === profile.sessionId &&
         state.connection === 'live' && state.sessionSnapshotFreshness === 'server' &&
         ['preparing', 'active'].includes(demoSessionStatus(state.session) ?? '') &&
         !['debrief', 'closed'].includes(state.session?.phase ?? '') && isSessionWaiverAcknowledged();
@@ -66,7 +72,24 @@ export default function DemoActorControls() {
       if (!currentSession) return;
       renewing = true;
       try {
-        const failed = await renewDemoActorPresence(currentSession, { shouldContinue: current });
+        const failed = await renewDemoActorPresence(currentSession, {
+          shouldContinue: current,
+          foregroundPresence: {
+            profile, uid: originalUid,
+            refresh: async () => {
+              if (!current()) throw new Error('The selected demo actor is no longer current.');
+              try { await refreshPresence(); }
+              catch (cause) {
+                if (current()) {
+                  const state = useSessionStore.getState();
+                  state.setSessionSnapshotFreshness('cache');
+                  state.setConnection('offline');
+                }
+                throw cause;
+              }
+            },
+          },
+        });
         if (!disposed) setError(failed.length ? 'Some demo actors could not reconnect. Return to the crew controller and retry.' : null);
       } finally { renewing = false; }
     };
@@ -74,7 +97,7 @@ export default function DemoActorControls() {
     const timer = window.setInterval(() => { void renew().catch(() => undefined); }, HEARTBEAT_MS);
     window.addEventListener('online', renew);
     return () => { disposed = true; window.clearInterval(timer); window.removeEventListener('online', renew); };
-  }, [joined, profile, sessionId, status, session?.phase]);
+  }, [joined, profile, sessionId, status, session?.phase, me?.uid]);
 
   if (!profile || !joined || !session || !status) return null;
 
