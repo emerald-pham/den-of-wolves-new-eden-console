@@ -113,3 +113,38 @@ test('an empty Crew roster remains unavailable even when GM-local storage has re
   assert.throws(() => arrestProof.validatePosseChoice(input.choice, roster.map(actor => actor.roleId)),
     /current prepared role roster/i);
 });
+
+test('the public arrest proof uses the Crew-local prepared roster before touching the GM UI', async () => {
+  const input = identities();
+  const counters = { gm: 0, crew: 0 };
+  const gmState = {
+    sessionId: SESSION_ID,
+    uidHash: 'current-gm-hash',
+    instanceId: 'current-owned-instance',
+    cycle: 1,
+    phase: 'active',
+    turnStatePhase: 'team',
+    connection: 'live',
+    freshness: 'server',
+    sameActor: true,
+    playerRole: 'gm',
+    gmInstanceOwned: true,
+    fullGameDemo: { status: 'inactive', progression: 'manual' },
+  };
+  const gm = sourceReader([], counters, 'gm');
+  gm.observe = async () => gmState;
+  const context = {
+    initial: { sessionId: SESSION_ID },
+    started: { uidHash: gmState.uidHash, instanceId: gmState.instanceId },
+    gm,
+    crew: sourceReader(input.roster, counters, 'crew'),
+  };
+
+  let result;
+  await assert.doesNotReject(async () => {
+    result = await arrestProof.proveArrestPosse(context, input.choice);
+  });
+  assert.equal(result.accepted, false, 'The inactive demo safely blocks before any UI action.');
+  assert.deepEqual(counters, { gm: 0, crew: 1 },
+    'The public proof must use Crew-local storage; GM stays empty and the blocked UI is untouched.');
+});
