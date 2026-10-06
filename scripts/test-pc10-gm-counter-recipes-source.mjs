@@ -68,7 +68,10 @@ function element(role, name, { attributes = {}, children = [], enabled = true, v
   return { role, name, attributes, children, enabled, value };
 }
 
-function makeMountedSourceFixture() {
+function makeMountedSourceFixture({ wingCounts = {
+  'fighter-wing-alpha': { count: 3, capacity: 4, revision: 8 },
+  'fighter-wing-bravo': { count: 3, capacity: 4, revision: 9 },
+} } = {}) {
   let shipNumberWrite = false;
   const actions = [];
   const modeButton = element('button', 'Ship numbers write mode', {
@@ -83,10 +86,11 @@ function makeMountedSourceFixture() {
     enabled: () => shipNumberWrite,
     click() { actions.push(`${direction}:${name}`); },
   });
-  const fighterWing = wingId => element('listitem', `${wingId} fighter count 3`, {
-    children: [
-      element('spinbutton', `Set ${wingId} fighter count`, {
-        attributes: { 'aria-label': `Set ${wingId} fighter count`, max: '4' }, value: '3',
+  const fighterWing = wingId => element('listitem', `${wingId} fighter count ${wingCounts[wingId].count}`, {
+      children: [
+        element('spinbutton', `Set ${wingId} fighter count`, {
+        attributes: { 'aria-label': `Set ${wingId} fighter count`, max: String(wingCounts[wingId].capacity) },
+        value: String(wingCounts[wingId].count),
       }),
       element('button', `Apply ${wingId} fighter count`, {
         enabled: () => shipNumberWrite,
@@ -125,7 +129,8 @@ function makeMountedSourceFixture() {
       vesselActionRevisions: { aegis: 14 },
       shipFleetGroupIds: { aegis: 'native-fleet' },
       shipResources: { aegis: { materials: 4 } },
-      fighterWingCounts: { 'fighter-wing-alpha': { count: 3, revision: 8 } },
+      fighterWingCounts: Object.fromEntries(Object.entries(wingCounts).map(([wingId, current]) =>
+        [wingId, { count: current.count, revision: current.revision }])),
     }),
   };
   const actor = {
@@ -223,4 +228,22 @@ test('the default GM fighter-count recipe follows parent mode and binds the matc
   }).inputValue(), '4');
   assert.equal(fixture.actor.connectionGeneration, 7);
   assert.equal(fixture.actor.hydrationRevision, 11);
+});
+
+test('the default GM fighter-count recipe finds a wing with capacity when the first wing is full', async () => {
+  const fixture = makeMountedSourceFixture({ wingCounts: {
+    'fighter-wing-alpha': { count: 4, capacity: 4, revision: 12 },
+    'fighter-wing-bravo': { count: 3, capacity: 4, revision: 15 },
+  } });
+  const { recipe, planned } = await recipeForEndpoint('setFighterWingCount', fixture);
+
+  assert.equal(planned.offered, true, planned.reason);
+  assert.equal(recipe.expected.sourceRevision, 15);
+  await planned.click();
+  assert.equal(await fixture.surface.page.getByRole('spinbutton', {
+    name: 'Set fighter-wing-bravo fighter count', exact: true,
+  }).inputValue(), '4');
+  assert.deepEqual(fixture.actions.filter(value => typeof value === 'string'), [
+    'write-mode', 'apply:fighter-wing-bravo',
+  ]);
 });
