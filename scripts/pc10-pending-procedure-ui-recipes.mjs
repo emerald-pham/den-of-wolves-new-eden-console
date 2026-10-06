@@ -590,6 +590,19 @@ async function waitForMountedGmForm(surface, panel, operation) {
     const mount = await surface.page.evaluate(() => {
       const fades = document.querySelectorAll('.screen-fade');
       const fade = fades.length === 1 ? fades[0] : null;
+      const contents = fade?.querySelectorAll('.screen-fade__content');
+      const content = contents?.length === 1 ? contents[0] : null;
+      const overviews = content?.querySelectorAll('main.session-mode.ship-role-select');
+      const overview = overviews?.length === 1 ? overviews[0] : null;
+      const flags = overview?.querySelectorAll('img.ship-role-select__flag');
+      const backs = overview?.querySelectorAll('a.session-mode__back.cic-text-button');
+      const observers = overview?.querySelectorAll('a.role-card.cic-frame[aria-label="View ship consoles"], a.role-card.cic-frame[href="#/ships/aegis/observer"]');
+      const aegisOverview = content?.querySelectorAll('main').length === 1 && !!overview &&
+        flags?.length === 1 && flags[0].getAttribute('data-shared-flag') === 'aegis' &&
+        backs?.length === 1 && backs[0].getAttribute('href') === '#/console' &&
+        backs[0].textContent?.trim() === 'Back to fleet' && observers?.length === 1 &&
+        observers[0].getAttribute('href') === '#/ships/aegis/observer' &&
+        observers[0].getAttribute('aria-label') === 'View ship consoles';
       return {
         routePath: window.location.hash.slice(1).split('?')[0],
         mainCount: document.querySelectorAll('main.gm-console').length,
@@ -599,6 +612,7 @@ async function waitForMountedGmForm(surface, panel, operation) {
         crossingOut: fade?.getAttribute('data-crossing') === 'true' && fade?.getAttribute('data-phase') === 'out',
         contentCount: fade?.querySelectorAll('.screen-fade__content').length ?? 0,
         stationsCount: fade?.querySelectorAll('.screen-fade__content main.fleet-roster').length ?? 0,
+        aegisOverview,
       };
     });
     const count = await panel.count(), visible = count === 1 && await panel.isVisible();
@@ -617,9 +631,14 @@ async function waitForMountedGmForm(surface, panel, operation) {
     // changes the hash, before the GM route or its lazy fallback can mount.
     const sourceStationsCrossing = count === 0 && mount.fadeCount === 1 && mount.crossingOut &&
       mount.contentCount === 1 && mount.stationsCount === 1;
-    // Mounted absent/hidden/ambiguous forms remain unavailable. Only these two
+    // The existing same-document GM return may retain the source AEGIS role
+    // overview after the observer's Change role link and automatic cleanup.
+    const sourceAegisOverviewCrossing = count === 0 && mount.fadeCount === 1 && mount.crossingOut &&
+      mount.contentCount === 1 && mount.stationsCount === 0 && mount.aegisOverview;
+    // Mounted absent/hidden/ambiguous forms remain unavailable. Only these
     // exact source mount states share the original readiness budget.
-    if (count > 1 || mount.mainCount !== 0 || !mount.loading && !sourceStationsCrossing) return false;
+    if (count > 1 || mount.mainCount !== 0 ||
+        !mount.loading && !sourceStationsCrossing && !sourceAegisOverviewCrossing) return false;
     await new Promise(resolve => setTimeout(resolve, Math.min(200, deadlineAt - Date.now())));
   }
   return false;
