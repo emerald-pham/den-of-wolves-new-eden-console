@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
+import { createHash, webcrypto } from 'node:crypto';
 import test from 'node:test';
+import { createContext, Script, SyntheticModule } from 'node:vm';
 import { createTwoBrowserGameplay } from './pc10-two-browser-gameplay.mjs';
 import { resolveLiveWolfAttack } from './pc10-live-wolf-attack-ui-proof.mjs';
 
@@ -342,7 +344,9 @@ test('Bravo cannot proceed while the same actor still paints the pre-Alpha launc
 
 function routeFixture({ route = '#/brief', changed = {}, entering = true } = {}) {
   const calls = [], navigationTimeouts = []; let path = route;
-  const original = actor(changed);
+  const admittedUid = 'native-original-route-account';
+  const admittedUidHash = createHash('sha256').update(admittedUid).digest('hex').slice(0, 16);
+  const original = actor({ uidHash: admittedUidHash, connectionGeneration: 1, identityHydrationRevision: 1, ...changed });
   const widget = (name, target, visible = () => true) => ({
     isVisible: async () => visible(),
     waitFor: async options => { calls.push(`wait:${name}`); navigationTimeouts.push(options?.timeout); assert.ok(visible(), 'Normal visible navigation exists.'); },
@@ -350,6 +354,32 @@ function routeFixture({ route = '#/brief', changed = {}, entering = true } = {})
     first() { return this; },
   });
   const page = {
+    evaluate: async (callback, moduleUrl) => {
+      assert.equal(moduleUrl, '/native-route-store');
+      const uid = original.uidHash === admittedUidHash ? admittedUid : 'native-substituted-route-account';
+      const snapshot = { session: { id: original.sessionId },
+        me: { uid, sessionId: original.sessionId, role: original.playerRole,
+          assignedRoleId: original.assignedRoleId, activeConsoleRoleId: original.activeConsoleRoleId,
+          connectionGeneration: original.connectionGeneration, fleetGroupId: 'native-fleet', connected: true },
+        identityHydrationRevision: original.identityHydrationRevision,
+        connection: original.connection, sessionSnapshotFreshness: original.freshness };
+      const browser = createContext({ moduleUrl, crypto: webcrypto, TextEncoder, performance: { timeOrigin: 1 } });
+      const definitions = [
+        ['/native-route-store', { useSessionStore: { getState: () => snapshot } }],
+        ['/src/lib/firebase.ts', { auth: () => ({ currentUser: { uid } }) }],
+        ['/src/lib/demoActorContext.ts', { activeDemoActorProfile: { roleId: original.profileRoleId, sessionId: original.sessionId } }],
+      ];
+      const modules = new Map();
+      for (const [name, exports] of definitions) {
+        const module = new SyntheticModule(Object.keys(exports), function () {
+          for (const [key, value] of Object.entries(exports)) this.setExport(key, value);
+        }, { context: browser });
+        await module.link(() => assert.fail('No fixture imports.')); await module.evaluate(); modules.set(name, module);
+      }
+      return new Script(`(${callback.toString()})(moduleUrl)`, {
+        importModuleDynamically: async name => { assert.ok(modules.has(name)); return modules.get(name); },
+      }).runInContext(browser);
+    },
     url: () => `http://127.0.0.1:5174/${path}`,
     goto: async url => { calls.push(`reload:${new URL(url).hash}`); path = new URL(url).hash; },
     waitForURL: async (predicate, options) => { navigationTimeouts.push(options?.timeout); assert.equal(predicate(new URL(page.url())), true); },
@@ -367,11 +397,11 @@ function routeFixture({ route = '#/brief', changed = {}, entering = true } = {})
       return widget('original role chooser', '#/ships/aegis/roles/executive-officer', () => path === '#/console');
     },
   };
-  const crew = { page, observe: async () => ({ ...original }),
+  const crew = { page, storeModuleUrl: () => '/native-route-store', observe: async () => ({ ...original }),
     until: async (_description, predicate) => { assert.ok(predicate(original)); return { ...original }; } };
   const gm = { observe: async () => ({ ...original, playerRole: 'gm' }) };
   const tools = createTwoBrowserGameplay({ gm, crew, initial: { sessionId: 'native-session', joinCode: 'NATIVE' },
-    roster: [{ roleId: 'executive-officer', uidHash: 'native-executive' }], directory: '/tmp/native-unused' });
+    roster: [{ roleId: 'executive-officer', uidHash: admittedUidHash }], directory: '/tmp/native-unused' });
   return { select: () => tools.select('executive-officer', { enter: entering }), calls, navigationTimeouts, path: () => path };
 }
 
