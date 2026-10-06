@@ -2488,8 +2488,12 @@ async function inspectMountedGmControl({ surface, request, result, spec, expecte
       reloaded.state = await waitForGmPrivateFeed(surface, gmOperation, state => {
         const call = state.gmFacilitatorRuleCall;
         if (call === null) return 'loading';
+        // The reply samples committedAt before the transaction; the stored
+        // source independently resolves FieldValue.serverTimestamp().
         return call && ['sessionId', 'callId', 'revision', 'ambiguity', 'source', 'decision', 'audience',
-          'actorUid', 'createdAt', 'label'].every(key => call[key] === result[key]) &&
+          'actorUid', 'label'].every(key => call[key] === result[key]) &&
+          typeof call.createdAt === 'string' && Number.isFinite(Date.parse(call.createdAt)) &&
+          typeof result.createdAt === 'string' && Number.isFinite(Date.parse(result.createdAt)) &&
           call.sessionId === expected.sessionId && call.callId === request.requestId &&
           call.revision === expected.sourceRevision + 1 ? 'ready' : 'invalid';
       });
