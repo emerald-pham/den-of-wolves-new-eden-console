@@ -350,3 +350,78 @@ test('HTTP rejection is not converted into an Arbour success by a visible status
   try { const proof = await loadProof(); await assert.rejects(proof.deliverFacilitatorScenarioCall(f.context)); }
   finally { await f.cleanup(); }
 });
+
+for (const seam of ['afterUi', 'afterReplay']) test(`current Arbour census loss ${seam} cannot credit or continue the delivery`, async () => {
+  const f = await fixture({ [seam]: (_mutate, state) => { state.gmLoyaltyCensus.entries[0].kind = 'fleet-loyalist'; } });
+  try {
+    const proof = await loadProof(); await assert.rejects(proof.deliverFacilitatorScenarioCall(f.context));
+    if (seam === 'afterUi') assert.equal(f.events.filter(event => event.kind === 'sdk-replay').length, 0);
+  } finally { await f.cleanup(); }
+});
+
+test('serialized current revision changing during input denies before the authoring click', async () => {
+  const f = await fixture({ currentRevision: 4, beforeFill: (_mutate, state) => { state.gmArbourVision.revision += 1; } });
+  try {
+    const proof = await loadProof(); await assert.rejects(proof.deliverFacilitatorScenarioCall(f.context));
+    assert.equal(f.events.filter(event => event.kind === 'ui-click').length, 0);
+  } finally { await f.cleanup(); }
+});
+
+async function recipientFixture(patch, afterPrivateRead) {
+  const f = await fixture({ afterPrivateRead });
+  const receipt = await f.server.authorArbourVision({ auth: { uid: GM }, data: {
+    sessionId: SID, instanceId: INSTANCE, requestId: 'entitled-original-vision', expectedRevision: 0,
+    targetUid: TARGET, kind: 'danger', text: TEXT,
+  } });
+  f.mutate({ user: TARGET, state: { me: { uid: TARGET, sessionId: SID, role: 'player', connected: true,
+    connectionGeneration: 2, assignedRoleId: 'admiral', activeConsoleRoleId: 'admiral' }, gmInstance: null,
+    roleBrief: { roleId: 'admiral', assignmentUid: TARGET }, privateLoyalty: { kind: 'universal-arbour' },
+    arbourVision: f.server.arbourVision(f.server.documents.get(`sessions/${SID}/arbourVisions/${TARGET}`), SID, TARGET) } });
+  await patch?.(f.mutate, f.state);
+  return { ...f, receipt, recipient: { crew: f.context.gm, actor: f.context.roster[0], sessionId: SID, receipt } };
+}
+
+test('actual recipient Firestore parser and normal actor read bind all six fields to the captured call', async () => {
+  const f = await recipientFixture();
+  try {
+    const proof = await loadProof(), originalRead = await proof.actorState(f.context.gm, 'universal-arbour');
+    assert.equal(originalRead.privateArbourCallPresent, true);
+    assert.equal(await assertArbourRecipientReceipt(f.recipient), true);
+  } finally { await f.cleanup(); }
+});
+
+for (const [name, patch] of [
+  ['foreign session', (_mutate, state) => { state.arbourVision.sessionId = 'foreign-session'; }],
+  ['foreign recipient', (_mutate, state) => { state.arbourVision.recipientUid = 'other-admiral'; }],
+  ['another revision', (_mutate, state) => { state.arbourVision.revision += 1; }],
+  ['another text', (_mutate, state) => { state.arbourVision.text = 'Different private body'; }],
+  ['another category', (_mutate, state) => { state.arbourVision.kind = 'location'; }],
+  ['wrong label', (_mutate, state) => { state.arbourVision.label = 'WOLF INTEL'; }],
+  ['unknown private field', (_mutate, state) => { state.arbourVision.actorUid = GM; }],
+  ['missing private call', (_mutate, state) => { state.arbourVision = null; }],
+  ['wrong current card', (_mutate, state) => { state.privateLoyalty.kind = 'fleet-loyalist'; }],
+  ['lost assignment', (_mutate, state) => { state.me.assignedRoleId = null; }],
+  ['lost active role', (_mutate, state) => { state.me.activeConsoleRoleId = null; }],
+  ['unhydrated holder', (_mutate, state) => { state.identityHydrationRevision = 0; }],
+  ['foreign role brief', (_mutate, state) => { state.roleBrief.assignmentUid = GM; }],
+]) test(`current entitled Arbour projection rejects ${name}`, async () => {
+  const f = await recipientFixture(patch);
+  try { await assert.rejects(assertArbourRecipientReceipt(f.recipient)); }
+  finally { await f.cleanup(); }
+});
+
+for (const [name, change] of [
+  ['original UID change', mutate => mutate({ user: GM })],
+  ['generation change', (_mutate, state) => { state.me.connectionGeneration += 1; }],
+  ['hydration change', (_mutate, state) => { state.identityHydrationRevision += 1; }],
+  ['new document', mutate => mutate({ documentOrigin: 51 })],
+  ['debrief phase', (_mutate, state) => { state.session.phase = 'debrief'; }],
+  ['next cycle', (_mutate, state) => { state.session.currentTurn = 2; }],
+]) test(`private Arbour field sample after ${name} cannot receive delivery credit`, async () => {
+  let changed = false;
+  const f = await recipientFixture(undefined, (mutate, state) => {
+    if (!changed) { changed = true; change(mutate, state); }
+  });
+  try { await assert.rejects(assertArbourRecipientReceipt(f.recipient)); }
+  finally { await f.cleanup(); }
+});
