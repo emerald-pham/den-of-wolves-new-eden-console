@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import { writeFile } from 'node:fs/promises';
 import { setTimeout as delay } from 'node:timers/promises';
 import { candidateEvidenceEnvelope, waitForMaintenanceReceipt } from './pc10-candidate-proof-helpers.mjs';
+import { normalMemberRoleRequiresBerth } from './pc10-normal-member-projection-contract.mjs';
 
 function hasExactKeys(value, expected) {
   return typeof value === 'object' && value !== null && !Array.isArray(value) &&
@@ -33,7 +34,8 @@ export function createTwoBrowserGameplay(context) {
       state.sameActor && state.sessionId === initial.sessionId && state.connection === 'live' &&
       state.freshness === 'server' && (surface !== gm || state.gmInstanceOwned), Math.max(1, Math.min(60_000, deadlineAt - Date.now())));
   }
-  async function acceptedMember(actor, deadlineAt, { original, held = false, station = false } = {}) {
+  async function acceptedMember(actor, deadlineAt, { original, held = false, station = false, requireCurrentBerth = false } = {}) {
+    let waitingOriginal;
     const budget = () => assert.ok(Number.isFinite(deadlineAt) && Date.now() < deadlineAt,
       'Original role navigation deadline expired.');
     budget();
@@ -92,6 +94,11 @@ export function createTwoBrowserGameplay(context) {
       budget();
       assert.ok(Number.isSafeInteger(current.identityHydrationRevision) && current.identityHydrationRevision >= 0,
         'Current document identityHydrationRevision evidence is required.');
+      if (waitingOriginal) {
+        for (const key of ['documentTimeOrigin', 'uidHash', 'profileRoleId', 'profileSessionId', 'sessionId',
+          'meSessionId', 'playerRole', 'assignedRoleId', 'fleetGroupId', 'connectionGeneration', 'identityHydrationRevision'])
+          assert.equal(current[key], waitingOriginal[key], `Original pre-selection ${key} changed.`);
+      }
       if (original) {
         for (const key of ['documentTimeOrigin', 'uidHash', 'profileRoleId', 'profileSessionId', 'sessionId',
           'meSessionId', 'playerRole', 'assignedRoleId', 'fleetGroupId', 'connectionGeneration', 'identityHydrationRevision'])
@@ -124,7 +131,12 @@ export function createTwoBrowserGameplay(context) {
         }
         assert.ok(typeof current.fleetGroupId === 'string' && current.fleetGroupId.length > 0,
           'The current original member fleet group is required.');
+        // Normal fresh core hydration omits the transaction's envelope witness.
+        // Hold this document's accepted identity while its existing feed lands;
+        // absence here cannot pin the genuine legacy path prematurely.
+        if (requireCurrentBerth && !waitingOriginal) waitingOriginal = current;
         if (current.connection === 'live' && current.freshness === 'server' &&
+            (!requireCurrentBerth || current.currentMemberBerthPresent) &&
             (!station || actor.roleId === 'press-officer' || !current.currentMemberBerthPresent || current.currentMemberBerthMatches) &&
             (!held || current.activeConsoleRoleId === actor.roleId)) return current;
       }
@@ -182,7 +194,11 @@ export function createTwoBrowserGameplay(context) {
       url.hash = '/demo-actors';
       await crew.page.goto(url.href, { timeout: navigationTimeout() });
     }
-    const actual = await acceptedMember(actor, deadlineAt, { station: enter });
+    const marker = context.started?.fullGameDemo;
+    const freshManualDemo = marker && typeof marker === 'object' && !Array.isArray(marker) &&
+      Object.keys(marker).length === 2 && marker.status === 'active' && marker.progression === 'manual';
+    const requireCurrentBerth = Boolean(enter && freshManualDemo && normalMemberRoleRequiresBerth(roleId));
+    const actual = await acceptedMember(actor, deadlineAt, { station: enter, requireCurrentBerth });
     assert.equal(actual.profileRoleId, roleId);
     assert.equal(actual.uidHash, actor.uidHash, 'Select the original role account, never manufacture another identity.');
     const onRoleRoute = () => {
