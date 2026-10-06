@@ -224,6 +224,39 @@ export async function runPc10NaturalDisconnectAcceptance(table,{
   await delay(PRESENCE_LEASE_MS+leaseMarginMs);
   report.leaseWaitElapsedMs=Date.now()-offlineAt;
   const expiredCandidates=await snapshot(fixture);
+  // Record this returned source snapshot before a lease assertion can reject it.
+  // These diagnostics neither renew a lease nor replace the original guards below.
+  const checkedAt=Date.now();
+  const originalActors=new Map(actors.map(({roleId,actor})=>[actor.localId,roleId]));
+  const describeLease=(doc,identity)=>{
+   const candidate={...identity,sourcePath:doc.ref.path,sessionId:doc.get('sessionId')??null,
+    connected:doc.get('connected')===true,lastSeenAtMs:null,lastSeenAtValidity:'missing',
+    ageMs:null,agedPastLease:false};
+   try {
+    const timestamp=doc.get('lastSeenAt');
+    if(timestamp!=null) {
+     if(typeof timestamp.toMillis!=='function')candidate.lastSeenAtValidity='unsupported-type';
+     else {
+      const milliseconds=timestamp.toMillis();
+      candidate.lastSeenAtValidity=Number.isFinite(milliseconds)?'valid':'non-finite';
+      if(Number.isFinite(milliseconds)) {
+       candidate.lastSeenAtMs=milliseconds;candidate.ageMs=checkedAt-milliseconds;
+       candidate.agedPastLease=candidate.ageMs>=PRESENCE_LEASE_MS;
+      }
+     }
+    }
+   } catch(error) {
+    candidate.lastSeenAtValidity='read-failed';
+    candidate.lastSeenAtReadFailure={name:error?.name??null,message:error?.message??null};
+   }
+   return candidate;
+  };
+  report.leaseCandidates={checkedAt,expectedSessionId:fixture.sessionId,
+   players:expiredCandidates.players.docs.map(doc=>describeLease(doc,{actorUid:doc.id,
+    originalActorUid:originalActors.has(doc.id)?doc.id:null,originalRoleId:originalActors.get(doc.id)??null})),
+   gmInstances:expiredCandidates.instances.docs.map(doc=>describeLease(doc,{instanceId:doc.id,
+    actorUid:doc.get('uid')??null,originalActorUid:fixture.gm.localId,originalInstanceId:fixture.instanceId})),
+  };
   const lastSeen=expiredCandidates.players.docs.map(doc=>doc.get('lastSeenAt')?.toMillis());
   assert.ok(lastSeen.every(time=>Number.isFinite(time)&&Date.now()-time>=PRESENCE_LEASE_MS),
    'Every actor must actually age past the lease without an Admin lastSeen edit or hidden renewal.');
