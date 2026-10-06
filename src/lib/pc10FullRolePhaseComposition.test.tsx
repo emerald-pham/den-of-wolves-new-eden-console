@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import ts from 'typescript';
@@ -114,7 +115,10 @@ const observeReceipt = new Function(js(`${functionText(receipts, 'observeUiRecei
 const originalActor = new Function('assert', js(`${functionText(helpers, 'assertOriginalIdentity')}\n` +
   `${functionText(helpers, 'assertOriginalBaseActor')}\nreturn assertOriginalBaseActor;`))(assert) as
   (current: Row, original: Row) => void;
-const hash = (value: unknown) => JSON.stringify(value);
+const hashSource = find(helpers, (node): node is ts.VariableDeclaration =>
+  ts.isVariableDeclaration(node) && node.name.getText(helpers) === 'proofHash');
+const hash = new Function('createHash', js(`return (${hashSource.initializer!.getText(helpers)});`))(createHash) as
+  (value: unknown) => string;
 const captureReceipt = new Function('assert', 'assertOriginalBaseActor', 'observeUiReceipt', 'proofHash', js(
   `${functionText(helpers, 'captureBaseUiReceipt')}\nreturn captureBaseUiReceipt;`,
 ))(assert, originalActor, observeReceipt, hash) as (input: Row) => Promise<Reply>;
