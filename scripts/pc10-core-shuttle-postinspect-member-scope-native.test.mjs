@@ -108,7 +108,7 @@ function callableRequest(endpoint) {
 function callableResult(endpoint, arrivalAt, arrivalMovement) {
   if (endpoint === 'completeShuttleArrival') return { status: 'arrived', sessionId: SESSION,
     requestId: 'arrival-transit-postinspect-1', transitRequestId: 'transit-postinspect-1',
-    shuttleId: SHUTTLE, hostShipId: RETARGET_DESTINATION, arrivedAt,
+    shuttleId: SHUTTLE, hostShipId: RETARGET_DESTINATION, arrivedAt: arrivalAt,
     transitRevision: arrivalMovement.revision };
   if (endpoint === 'requestShuttleDeparture') return { status: 'requested', sessionId: SESSION,
     requestId: 'departure-postinspect-1', shuttleId: SHUTTLE, holderUid: UID, fleetGroupId: GROUP,
