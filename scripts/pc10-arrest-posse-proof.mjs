@@ -461,8 +461,13 @@ async function inspectArrestTargetSource({ moduleUrl, original, target, waitForC
   return waitForCurrentOptions && status === 'pending' && authorityCurrent ? false : result;
 }
 
+function mountedArrestTargetSelect(region) {
+  return region.getByRole('combobox', { name: 'Target player', exact: true })
+    .and(region.locator('#arrest-posse-target'));
+}
+
 async function selectTargetFromLiveCensus(context, region, choice, roster, state, deadlineAt) {
-  const targetSelect = region.getByLabel('Target player', { exact: true });
+  const targetSelect = mountedArrestTargetSelect(region);
   const targetUid = uidByRole(roster).get(choice.targetRoleId);
   if (!targetUid) return { blocker: 'target-role-has-no-current-demo-auth-account' };
   const target = roster.find(actor => actor.roleId === choice.targetRoleId);
@@ -520,7 +525,9 @@ async function runCalculation(context, choice, options, deadlineAt) {
   const target = await selectTargetFromLiveCensus(context, panel, choice, roster, state, deadlineAt);
   if (target.blocker) return blocked(branch, [target.blocker], options);
   await panel.getByLabel('Defenders', { exact: true }).fill(String(choice.defenders), remainingTargetOperation(deadlineAt));
-  await panel.getByLabel('Optional adjustment', { exact: true }).selectOption(String(choice.adjustment), remainingTargetOperation(deadlineAt));
+  await panel.getByRole('combobox', { name: 'Optional adjustment', exact: true })
+    .and(panel.locator('#arrest-posse-adjustment'))
+    .selectOption(String(choice.adjustment), remainingTargetOperation(deadlineAt));
   const currentCalculation = panel.getByText(/\d+ players needed$/, { exact: false });
   if (await currentCalculation.isVisible().catch(() => false)) return blocked(branch,
     ['matching-server-posse-calculation-already-exists-no-new-revision-created'], options);
@@ -574,7 +581,7 @@ async function runSimulatedAttendance(context, choice, options, roster, targetUi
     if (selectedRoles.has(roleId)) await checkbox.check();
     else if (await checkbox.isChecked()) await checkbox.uncheck();
   }
-  if (await panel.getByLabel('Target player', { exact: true }).inputValue() !== targetUid) {
+  if (await mountedArrestTargetSelect(panel).inputValue() !== targetUid) {
     return blocked(branch, ['current-target-select-no-longer-matches-the-posse-calculation-target'], options);
   }
   const button = panel.getByRole('button', { name: 'Simulate attendance', exact: true });
