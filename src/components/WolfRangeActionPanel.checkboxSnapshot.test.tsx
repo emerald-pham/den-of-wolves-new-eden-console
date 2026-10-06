@@ -9,6 +9,7 @@ import { useSessionStore } from '@/store/useSessionStore';
 import { acceptServerSessionAuthority, sessionSnapshotAuthorityFor } from '@/lib/sessionSnapshotAuthority';
 import { wolfAttackChoiceAuthorityIsCurrent, useWolfAttackChoiceAuthority } from '@/lib/wolfAttackChoiceController';
 import type { GameSession, Player, WolfAttackMemberView, WolfRangeActionChoiceView } from '@/types/game';
+import type * as FirestoreModule from '@/lib/firestore';
 // @ts-expect-error The unchanged native proof helper has no TypeScript declaration.
 import { selectAndCertifyBaseRangeActionControls } from '../../scripts/pc10-base-range-action-controls.mjs';
 import WolfRangeActionPanel, { WolfRangeActionPanelView } from './WolfRangeActionPanel';
@@ -20,7 +21,7 @@ vi.mock('firebase/functions', () => ({ httpsCallable: (_instance: unknown, name:
   (payload: unknown) => io.call(name, payload) }));
 vi.mock('@/lib/firebase', () => ({ app: vi.fn(), auth: () => io.auth, functions: () => ({}) }));
 vi.mock('@/lib/firestore', async importOriginal => ({
-  ...await importOriginal<typeof import('@/lib/firestore')>(), subscribeWolfAttackMemberView: io.subscribe,
+  ...await importOriginal<typeof FirestoreModule>(), subscribeWolfAttackMemberView: io.subscribe,
 }));
 
 // Actual server projection and pure weapon/contact policy. Only document and
@@ -197,7 +198,7 @@ it('snapshots the sole original first checkbox event before a supported deferred
 });
 
 it('retains the deliberate unchecked event when the controlled DOM still contains the prior checked value', async () => {
-  const f = connectedFixture();
+  connectedFixture();
   const view = await getWolfRangeActionChoice();
   if (view.type !== 'wolf-range-action-choice-view') throw new Error('The actual entitled service DTO is required.');
   let applyChange!: () => void;
