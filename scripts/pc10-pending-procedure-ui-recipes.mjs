@@ -805,6 +805,51 @@ async function waitForActionState(surface, predicate, operation, timeoutMs = 15_
   return null;
 }
 
+async function waitForGmPrivateFeed(surface, operation, classify, readyControl) {
+  const panel = surface.page.getByRole('region', { name: 'Facilitator rule call', exact: true });
+  const normalFormCurrent = async () => {
+    if (new URL(surface.page.url()).hash.slice(1).split('?')[0] !== '/gm' || !await one(panel)) return false;
+    for (const label of ['Question or ambiguity', 'Source or reference', 'Decision', 'Audience',
+      'Supersedes call ID (optional)']) {
+      if (!await one(panel.getByLabel(label, { exact: true }))) return false;
+    }
+    return true;
+  };
+  const deadlineAt = operation.readinessDeadlineAt;
+  while (Date.now() < deadlineAt) {
+    await verifyGmOperation(surface, operation);
+    if (!await normalFormCurrent()) return null;
+    const state = await readActionState(surface);
+    await verifyGmOperation(surface, operation);
+    if (Date.now() >= deadlineAt || !liveState(state, operation.original.sessionId) ||
+        state.cycle !== operation.original.cycle || state.phase !== operation.original.phase) return null;
+    const phase = classify(state);
+    if (phase === 'ready') {
+      if (!await normalFormCurrent() || readyControl && !await readyControl()) return null;
+      await verifyGmOperation(surface, operation);
+      return Date.now() < deadlineAt && new URL(surface.page.url()).hash.slice(1).split('?')[0] === '/gm'
+        ? state : null;
+    }
+    // Only an unfilled source feed can await its current subscription. A
+    // present wrong result, empty/error census or lost control is terminal.
+    if (phase !== 'loading') return null;
+    await new Promise(resolve => setTimeout(resolve, Math.min(100, deadlineAt - Date.now())));
+  }
+  return null;
+}
+
+function censusFeedPhase(state) {
+  const census = state.gmLoyaltyCensus;
+  if (state.gmLoyaltyCensusStatus === 'loading' && census === null) return 'loading';
+  if (state.gmLoyaltyCensusStatus !== 'present' || !isRevision(census?.revision) ||
+      !Array.isArray(census.entries) || census.entries.some(entry => typeof entry?.uid !== 'string' ||
+        entry.uid.length === 0 || typeof entry.kind !== 'string' ||
+        typeof entry.suspicion !== 'number' && entry.suspicion !== null ||
+        entry.note !== undefined && typeof entry.note !== 'string') ||
+      new Set(census.entries.map(entry => entry.uid)).size !== census.entries.length) return 'invalid';
+  return 'ready';
+}
+
 async function censusProjection(state, targetUid, expected, surface, operation) {
   await verifyGmOperation(surface, operation);
   const entry = state?.gmLoyaltyCensus?.entries?.find(value => value.uid === targetUid);
@@ -1070,25 +1115,30 @@ async function planFor({ spec, surface, actor, state, context, target, gmOperati
   }
 
   if (endpoint === 'setFacilitatorCensusNote') {
-    const census = state.gmLoyaltyCensus;
-    if (!liveState(state, context.initial.sessionId) || state.gmLoyaltyCensusStatus !== 'present' ||
-        !isRevision(census?.revision) || !Array.isArray(census.entries)) {
+    if (!await goToGmFormRoute(surface, gmOperation)) return block('the original GM has no exact mounted normal route to the census form');
+    // An existing row is only a mount hint. Choose the target and revision
+    // from the current private source after its original readiness completes.
+    const hint = censusFeedPhase(state) === 'ready' ? state.gmLoyaltyCensus.entries[0] : null;
+    const mountedControl = hint ? page.getByLabel(`Facilitator note for ${hint.uid}`, { exact: true })
+      : page.getByRole('region', { name: 'Facilitator rule call', exact: true });
+    if (!await waitForMountedGmForm(surface, mountedControl, gmOperation)) return unavailableGmForm('the actual current census row note control is not offered');
+    const censusState = await waitForGmPrivateFeed(surface, gmOperation, censusFeedPhase);
+    if (!censusState) {
       return block('the current facilitator census and revision are not source-projected');
     }
+    const census = censusState.gmLoyaltyCensus;
     const entry = census.entries.find(value => typeof value?.uid === 'string' && value.uid.length > 0);
     if (!entry) return block('the current source census has no eligible target entry');
     target.censusUid = entry.uid;
     target.censusNote = 'Automated virtual personas only; 0 physical humans.';
-    target.censusBefore = { kind: 'facilitator-census', live: true, sessionId: state.sessionId,
-      cycle: state.cycle, uidHash: actor.uidHash, instanceId: actor.instanceId, revision: census.revision,
+    target.censusBefore = { kind: 'facilitator-census', live: true, sessionId: censusState.sessionId,
+      cycle: censusState.cycle, uidHash: actor.uidHash, instanceId: actor.instanceId, revision: census.revision,
       targetUidHash: hashUid(entry.uid), entryPresent: true };
-    if (!await goToGmFormRoute(surface, gmOperation)) return block('the original GM has no exact mounted normal route to the census form');
     const noteField = page.getByLabel(`Facilitator note for ${entry.uid}`, { exact: true });
-    if (!await waitForMountedGmForm(surface, noteField, gmOperation)) return unavailableGmForm('the actual current census row note control is not offered');
     const row = noteField.locator('xpath=ancestor::tr');
     const save = await one(row.getByRole('button', { name: 'Save note', exact: true }));
     if (!save || !await one(noteField)) return unavailableGmForm('the actual current census row note control is not offered', 'writable');
-    return { offered: true, click: async () => {
+    return { offered: true, expectedSourceRevision: census.revision, click: async () => {
       await verifyGmDocument();
       const latest = await readActionState(surface);
       const liveEntry = latest.gmLoyaltyCensus?.entries?.find(value => value.uid === target.censusUid);
@@ -1763,6 +1813,17 @@ async function inspectMountedGmControl({ surface, request, result, spec, expecte
     const fieldValue = await field.count() === 1 ? await field.inputValue() : null;
     const visible = fieldValue === target.censusNote && await field.isVisible();
     const reloaded = await reloadMountedGm(surface, expected, gmOperation);
+    const panel = surface.page.getByRole('region', { name: 'Facilitator rule call', exact: true });
+    if (await waitForMountedGmForm(surface, panel, gmOperation)) {
+      reloaded.state = await waitForGmPrivateFeed(surface, gmOperation, state => {
+        const phase = censusFeedPhase(state);
+        if (phase !== 'ready') return phase;
+        const entry = state.gmLoyaltyCensus.entries.find(value => value.uid === target.censusUid);
+        return state.gmLoyaltyCensus.revision === before.revision + 1 && entry?.note === target.censusNote
+          ? 'ready' : 'invalid';
+      }, async () => !!await one(field) && !!await one(field.locator('xpath=ancestor::tr')
+        .getByRole('button', { name: 'Save note', exact: true })));
+    } else reloaded.state = null;
     const projection = await censusProjection(reloaded.state, target.censusUid, expected, surface, gmOperation);
     return {
       sourceAfter: { live: savedState !== null && reloaded.state?.live === true && projection?.live === true,
@@ -1787,6 +1848,17 @@ async function inspectMountedGmControl({ surface, request, result, spec, expecte
       state.gmFacilitatorRuleCall?.callId === request.requestId &&
       state.gmFacilitatorRuleCall?.revision === expected.sourceRevision + 1, gmOperation);
     const reloaded = await reloadMountedGm(surface, expected, gmOperation);
+    const panel = surface.page.getByRole('region', { name: 'Facilitator rule call', exact: true });
+    if (await waitForMountedGmForm(surface, panel, gmOperation)) {
+      reloaded.state = await waitForGmPrivateFeed(surface, gmOperation, state => {
+        const call = state.gmFacilitatorRuleCall;
+        if (call === null) return 'loading';
+        return call && ['sessionId', 'callId', 'revision', 'ambiguity', 'source', 'decision', 'audience',
+          'actorUid', 'createdAt', 'label'].every(key => call[key] === result[key]) &&
+          call.sessionId === expected.sessionId && call.callId === request.requestId &&
+          call.revision === expected.sourceRevision + 1 ? 'ready' : 'invalid';
+      });
+    } else reloaded.state = null;
     const projection = ruleCallProjection(reloaded.state, expected);
     await verifyGmOperation(surface, gmOperation);
     return {
@@ -1964,6 +2036,8 @@ async function recipeFor({ context, game, spec }) {
     expected.expectedChoiceRevision = initialPlan.expectedChoiceRevision;
     expected.groupId = auxiliary?.groupId;
     expected.opportunityId = resolved.target.opportunityId;
+  } else if (spec.endpoint === 'setFacilitatorCensusNote') {
+    if (isRevision(initialPlan.expectedSourceRevision)) expected.sourceRevision = initialPlan.expectedSourceRevision;
   } else {
     const revision = revisionFor(spec.endpoint, state, resolved.target, auxiliary);
     if (isRevision(revision)) expected.sourceRevision = revision;
@@ -1985,6 +2059,9 @@ async function recipeFor({ context, game, spec }) {
         return { offered: false, reason: 'the selected original account or current role changed before the mounted action' };
       if (source.cycle !== state.cycle || source.phase !== 'active') return { offered: false, reason: 'the active phase changed before the mounted action' };
       if (expected.shuttleId && currentActor.activeConsoleRoleId !== roleId) return { offered: false, reason: 'the original current shuttle-holder console is no longer active' };
+      // A denied census plan has no captured revision. Retain its original
+      // unavailable-source/control evidence instead of inventing a revision.
+      if (spec.endpoint === 'setFacilitatorCensusNote' && preparedPlan.offered !== true) return preparedPlan;
       if (!isRevision(expected.sourceRevision) && spec.endpoint !== 'setGmShipConsoleWriteGrant' &&
           spec.endpoint !== 'completeShuttleArrival') {
         return { offered: false, reason: 'the exact source revision is not safely readable for this case' };
