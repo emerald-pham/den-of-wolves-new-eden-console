@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import vm from 'node:vm';
+import { assertArbourRecipientReceipt } from './pc10-arbour-vision-ui-proof.mjs';
 
 const require = createRequire(import.meta.url), ts = require('typescript');
 const SID = 'original-arbour-session', GM = 'original-gm', TARGET = 'original-admiral';
@@ -74,7 +75,7 @@ async function originalServer() {
 
 async function loadProof(factory = () => { throw new Error('No fresh-game factory is run in native diagnosis.'); }) {
   const url = new URL('./pc10-explicit-loyalty-demo-proof.mjs', import.meta.url);
-  const module = new vm.SourceTextModule(`${await readFile(url, 'utf8')}\nexport { deliverFacilitatorScenarioCall };`, {
+  const module = new vm.SourceTextModule(`${await readFile(url, 'utf8')}\nexport { deliverFacilitatorScenarioCall, actorState };`, {
     identifier: url.href, initializeImportMeta: meta => { meta.url = url.href; },
   });
   await module.link(async name => {
@@ -89,7 +90,7 @@ async function loadProof(factory = () => { throw new Error('No fresh-game factor
 
 async function fixture({ uiResult = value => value, replayResult = value => value,
   uiStatus = 200, beforeFill, afterUi, afterReplay, control = {}, initialPatch,
-  currentRevision = null } = {}) {
+  currentRevision = null, afterPrivateRead } = {}) {
   const directory = await mkdtemp(join(tmpdir(), 'pc10-arbour-vision-native-'));
   const server = await originalServer(), events = [], waiters = [];
   let user = GM, documentOrigin = 50, kind = 'location', text = '', published = false;
@@ -163,11 +164,14 @@ async function fixture({ uiResult = value => value, replayResult = value => valu
       evaluate: async (callback, input) => {
         const fixtureImport = async name => name === '/src/lib/firebase.ts'
           ? { auth: () => ({ currentUser: user ? { uid: user } : null }) }
-          : name === '/src/lib/demoActorContext.ts' ? { activeDemoActorProfile: { roleId: 'gm', sessionId: SID } }
+          : name === '/src/lib/demoActorContext.ts' ? { activeDemoActorProfile: {
+            roleId: state.me.role === 'gm' ? 'gm' : 'admiral', sessionId: SID } }
             : { useSessionStore: { getState: () => state } };
         const body = callback.toString().replace(/\bimport\s*\(/g, 'fixtureImport(');
-        return new Function('fixtureImport', 'crypto', 'performance', 'document', 'input', `return (${body})(input);`)(
-          fixtureImport, webcrypto, { timeOrigin: documentOrigin }, { querySelector: () => null }, input);
+        const result = structuredClone(await new Function('fixtureImport', 'crypto', 'performance', 'document', 'input', `return (${body})(input);`)(
+          fixtureImport, webcrypto, { timeOrigin: documentOrigin }, { querySelector: () => null }, input));
+        if (body.includes('recipientCall:')) await afterPrivateRead?.(mutate, state);
+        return result;
       },
     },
     callable: async (endpoint, data) => {
