@@ -282,7 +282,7 @@ describe('real demo presence recovery while the original Miner member read is pe
     expect(ledger.filter(call => call.name === 'resumeSession')).toEqual([
       expect.objectContaining({ roleId: 'icebreaker-miner', uid: actor.uid, generation: 2, hydration: 1 }),
     ]);
-    const { sessionSnapshotAuthorityFor, memberSessionResumeBlocksFreshness } = await import('@/lib/firestore');
+    const { sessionSnapshotAuthorityFor, memberSessionResumeBlocksFreshness } = await import('@/lib/sessionSnapshotAuthority');
     // Characterize the unchanged production seam before the behavioral assertion:
     // this gateway call has no normal sessionService pending-resume token.
     expect(memberSessionResumeBlocksFreshness(sessionSnapshotAuthorityFor(sessionId, actor.uid))).toBe(false);
@@ -304,7 +304,7 @@ describe('real demo presence recovery while the original Miner member read is pe
     await mount(); await deliverPlayer();
     const recovering = service.connectAutomatically(); await advance();
     expect(resumeReplies).toHaveLength(1);
-    const { sessionSnapshotAuthorityFor, memberSessionResumeBlocksFreshness } = await import('@/lib/firestore');
+    const { sessionSnapshotAuthorityFor, memberSessionResumeBlocksFreshness } = await import('@/lib/sessionSnapshotAuthority');
     expect(memberSessionResumeBlocksFreshness(sessionSnapshotAuthorityFor(sessionId, actor.uid))).toBe(true);
     actor = { ...actor, connectionGeneration: 3 };
     await deliverPlayer(); await deliverMember(memberResponses.length - 1);
