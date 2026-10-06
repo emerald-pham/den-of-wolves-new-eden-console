@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import { createContext, SourceTextModule, SyntheticModule } from 'node:vm';
 import ts from 'typescript';
 
@@ -27,7 +28,10 @@ replaceExactlyOnce('const browser = createContext({});',
 replaceExactlyOnce('observe: async () => ({ ...(isGm ? gmActor : crewActor()) }),',
   'observe: async () => { nativeDiagnosticCounts.observe++; return { ...(isGm ? gmActor : crewActor()) }; },');
 replaceExactlyOnce("report = JSON.parse(text);", "nativeDiagnosticCounts.saves++; report = JSON.parse(text);");
+replaceExactlyOnce("{ combat: 'current', deduction: false, requiredBranches: [] });",
+  "{ combat: 'current', deduction: false, requiredBranches: [], ...nativeDiagnosticOptions });");
 fixtureText += '\nexport const nativeDiagnosticCounts = { metadata: 0, observe: 0, saves: 0 };\n' +
+  'export const nativeDiagnosticOptions = {};\n' +
   'export { nativeFixture, currentView, clickBoundary, cleanup };\n';
 const context = createContext({ URL, console, structuredClone, globalThis, setTimeout });
 const module = new SourceTextModule(fixtureText, { context, identifier: fixtureUrl.href,
@@ -48,7 +52,8 @@ await module.link(async specifier => {
 });
 await module.evaluate();
 for (const key of ['window','document','HTMLElement','Node','Event','navigator']) context[key] = globalThis[key];
-const { nativeFixture, currentView, clickBoundary, cleanup, nativeDiagnosticCounts: counts } = module.namespace;
+const { nativeFixture, currentView, clickBoundary, cleanup, nativeDiagnosticCounts: counts,
+  nativeDiagnosticOptions: options } = module.namespace;
 function resetCounts() { for (const key of Object.keys(counts)) counts[key] = 0; }
 function diagnostics(f) {
   return f.report().observations.filter(row => row.stage === 'range target checkpoint diagnostics')
@@ -123,4 +128,18 @@ test('original deadline expiry while saving the certificate cannot get a new sam
   const rows = diagnostics(f); assert.equal(rows.length, 1); assert.equal(rows[0].samples.length, 11);
   assert.equal(rows[0].originalDeadlineAt, f.deadline()); assert.equal(f.reads.length, 1);
   assert.equal(counts.saves, 4); noPrivateValues(rows); cleanup();
+});
+
+test('public Base labels the original SDK fingerprint separately from optional planner-only priority metadata', async () => {
+  resetCounts(); const originalView = view();
+  options.protectedShipPriority = ['aegis'];
+  try {
+    const f = nativeFixture({ view: originalView });
+    await assert.rejects(f.run(), error => error === clickBoundary);
+    const rows = diagnostics(f); assert.equal(rows.length, 1);
+    assert.equal(rows[0].originalSDKSourceFingerprint,
+      createHash('sha256').update(JSON.stringify(originalView)).digest('hex'));
+    assert.equal(f.selected.length, 2); assert.equal(f.reads.length, 1); assert.equal(counts.metadata, 14);
+    assert.equal(counts.observe, 40); assert.equal(counts.saves, 4); noPrivateValues(rows);
+  } finally { delete options.protectedShipPriority; cleanup(); }
 });
