@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { useSessionStore } from '@/store/useSessionStore';
-import type * as FirestoreModule from '@/lib/firestore';
 
 vi.mock('firebase/auth', () => ({ signInAnonymously: vi.fn().mockResolvedValue(undefined) }));
 vi.mock('firebase/functions', () => ({ httpsCallable: vi.fn() }));
@@ -80,6 +79,17 @@ it('retains one exact request in the existing outbox after an ambiguous transpor
   expect(useSessionStore.getState().connection).toBe('offline');
 });
 
+it('does not let an older receipt roll back a newer accepted session snapshot', async () => {
+  useSessionStore.getState().setMe({ ...useSessionStore.getState().me!, shipPreferenceId: 'aegis' } as never);
+  useSessionStore.getState().setSession({ ...useSessionStore.getState().session!, setupRevision: 9 } as never);
+  const callable = callableReturning({ data: { sessionId: 's1', setupRevision: 8 } });
+  vi.mocked(httpsCallable).mockReturnValue(callable as never);
+
+  await expect(submit('dione')).rejects.toThrow(/changed|current server state/i);
+  expect(useSessionStore.getState().me?.shipPreferenceId).toBe('aegis');
+  expect(useSessionStore.getState().session?.setupRevision).toBe(9);
+});
+
 it.each([
   ['a stale cached connection', { connection: 'offline', freshness: 'cache' }, 'Reconnect'],
   ['a phase outside the casting window', { phase: 'active' }, 'casting'],
@@ -125,4 +135,3 @@ it.each(['actor', 'role', 'casting state'] as const)(
     expect(useSessionStore.getState().session?.setupRevision).toBe(7);
   },
 );
-

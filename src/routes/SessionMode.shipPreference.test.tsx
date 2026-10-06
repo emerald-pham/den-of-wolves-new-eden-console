@@ -6,10 +6,10 @@ import { useSessionStore } from '@/store/useSessionStore';
 import SessionMode from './SessionMode';
 
 const mocks = vi.hoisted(() => ({ submitShipPreference: vi.fn() }));
-vi.mock('@/lib/sessionService', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/sessionService')>()),
-  submitShipPreference: mocks.submitShipPreference,
-}));
+vi.mock('@/lib/sessionService', async (importOriginal) => {
+  const original = await importOriginal() as Record<string, unknown>;
+  return { ...original, submitShipPreference: mocks.submitShipPreference };
+});
 
 function renderRoster() {
   return render(
@@ -53,7 +53,7 @@ it('lets a live member submit an optional nonbinding preference from the exact a
 
   const choice = within(panel).getByRole('combobox', { name: 'Preferred ship' });
   expect(within(choice).getByRole('option', { name: 'AEGIS' })).toBeInTheDocument();
-  expect(within(choice).getByRole('option', { name: 'DIONE' })).toBeInTheDocument();
+  expect(within(choice).getByRole('option', { name: 'Dione' })).toBeInTheDocument();
   expect(within(choice).queryByRole('option', { name: 'SHEPHERD' })).not.toBeInTheDocument();
 
   await user.selectOptions(choice, 'dione');
@@ -103,4 +103,3 @@ it('shows the current advisory choice but does not let a GM or assigned roster c
   expect(within(panel).getByText(/your current preference is AEGIS.*GM decides/i)).toBeVisible();
   expect(within(panel).queryByRole('button', { name: /assign|claim|station|GM/i })).not.toBeInTheDocument();
 });
-
