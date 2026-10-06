@@ -63,12 +63,12 @@ export function candidateGeometrySnapshot(element) {
     researchTrackEnabledCount: researchInputs.filter(input => enabled(input)).length,
     commitResearchButtonCount: researchGroups.length === 1 &&
       [...researchGroups[0].querySelectorAll('button')].filter(visible).filter(button =>
-        button.innerText.trim() === 'Commit chosen research').length,
+        button.textContent.replace(/\s+/g, ' ').trim() === 'Commit chosen research').length,
     ringButtons: [...element.querySelectorAll('button')].filter(visible).map(button => ({
-      name: button.innerText.trim(), enabled: enabled(button) && !button.disabled,
+      name: button.textContent.replace(/\s+/g, ' ').trim(), enabled: enabled(button) && !button.disabled,
     })).filter(button => button.name.startsWith('Cross Ring // ')),
     nebulaJumpButtons: [...element.querySelectorAll('button')].filter(visible).map(button => ({
-      name: button.innerText.trim(), enabled: enabled(button) && !button.disabled,
+      name: button.textContent.replace(/\s+/g, ' ').trim(), enabled: enabled(button) && !button.disabled,
     })).filter(button => button.name.startsWith('Long jump into Nebula // ')),
     fleetGroupSelectorCount: fleetGroupSelectors.length,
     selectedFleetGroup: fleetGroupSelectors.length === 1 ? fleetGroupSelectors[0].value : null,
