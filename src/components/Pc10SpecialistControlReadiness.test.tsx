@@ -165,12 +165,12 @@ function fixture({ beforeCapture, beforeClick, afterFill, duringSecondSelection,
     isVisible: async () => query().length === 1 && !query()[0].hidden,
     isEnabled: async () => query().length === 1 && !query()[0].matches(':disabled'),
     first() { return this; },
-    evaluateAll: async (callback: (nodes: HTMLElement[]) => unknown) => {
+    evaluateAll: async (callback: (nodes: HTMLElement[], argument?: unknown) => unknown, argument?: unknown) => {
       const nodes = query();
       // jsdom supplies no layout. Only this inert native DOM boundary models
       // current visible layout; actual source predicates execute unchanged.
       for (const node of nodes) node.getClientRects = () => [{ width: 1, height: 1 }] as unknown as DOMRectList;
-      return new Script(`(${callback.toString()})(nodes)`).runInNewContext({ nodes,
+      return new Script(`(${callback.toString()})(nodes, argument)`).runInNewContext({ nodes, argument,
         getComputedStyle: (node: Element) => document.defaultView!.getComputedStyle(node) });
     },
     waitFor: async () => { expect(query()).toHaveLength(1); },
