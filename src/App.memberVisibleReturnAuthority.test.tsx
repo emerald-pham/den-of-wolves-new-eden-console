@@ -150,6 +150,7 @@ async function mountReadyOriginalMiner() {
     throw new Error(`Unexpected callable ${endpoint}`);
   });
   const { sessionFrom } = await import('@/lib/firestore');
+  await import('@/routes/DemoActorManager');
   const { default: App } = await import('./App');
   unmount = render(<App />).unmount;
   await advance();
@@ -251,7 +252,11 @@ describe('original member short visibility return composition', () => {
     expect(useSessionStore.getState()).toMatchObject({ identityHydrationRevision: 1,
       me: { uid: actor.uid, sessionId, connectionGeneration: 3 }, sessionSnapshotFreshness: 'cache' });
     expect(useSessionStore.getState().connection).not.toBe('live');
-    expect(useSessionStore.getState().session?.currentActorBerthAuthority).toBeNull();
+    // The real current-member read may render its field in cache. It cannot
+    // authorize that field while the original resume token/freshness blocks it.
+    expect(useSessionStore.getState().session?.currentActorBerthAuthority).toMatchObject({
+      actorUid: actor.uid, connectionGeneration: 3, shipId: 'icebreaker',
+    });
     expect(callCount('resumeSession')).toBe(1); expect(sdk.signIn).not.toHaveBeenCalled(); expect(sdk.fetch).not.toHaveBeenCalled();
   });
 });
