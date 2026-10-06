@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
 import ts from 'typescript';
 import { StrictMode, useState } from 'react';
@@ -195,3 +195,76 @@ it('snapshots the sole original first checkbox event before a supported deferred
   expect(checks).toEqual([0, 1]); expect(paints).toHaveLength(2); expect(updateCount).toBe(2);
   expect(callbacks).not.toHaveBeenCalled(); expect(io.call).toHaveBeenCalledTimes(1);
 });
+
+it('retains the deliberate unchecked event when the controlled DOM still contains the prior checked value', async () => {
+  const f = connectedFixture();
+  const view = await getWolfRangeActionChoice();
+  if (view.type !== 'wolf-range-action-choice-view') throw new Error('The actual entitled service DTO is required.');
+  let applyChange!: () => void;
+  const mutations = vi.fn();
+  function DeferredUncheck() {
+    const [actionIds, setActionIds] = useState<readonly string[]>([view.type === 'wolf-range-action-choice-view'
+      ? view.eligibleActions[0]!.actionId : '']);
+    return <WolfRangeActionPanelView view={view as WolfRangeActionChoiceView} onUseActions={mutations}
+      onPass={mutations} onAssignTargets={mutations} actionSelection={{ actionIds,
+        update: change => { applyChange = () => setActionIds(change); } }} />;
+  }
+  render(<DeferredUncheck />);
+  const first = screen.getByRole('checkbox', { name: 'Missile launchers' });
+  expect(first).toBeChecked();
+  act(() => fireEvent.click(first));
+  expect(first).toBeChecked(); // React's prior controlled value; no direct DOM edits.
+  act(applyChange);
+  expect(first).not.toBeChecked();
+  expect(screen.getByRole('button', { name: 'Use selected actions' })).toBeDisabled();
+  expect(mutations).not.toHaveBeenCalled(); expect(io.call).toHaveBeenCalledTimes(1);
+});
+
+it.each(['uid', 'sessionId', 'activeConsoleRoleId', 'assignedRoleId', 'seatId', 'fleetGroupId',
+  'connectionGeneration', 'connected', 'identityHydrationRevision', 'freshness', 'connection', 'discovery', 'phase'] as const)(
+  'a genuine original %s withdrawal still retires the whole wrapper and its in-flight SDK reply without restoring a draft', async field => {
+    const f = await mountFixture();
+    await act(async () => fireEvent.click(f.boxes()[0]!));
+    expect(f.boxes()[0]).toBeChecked();
+    let finish!: (value: { data: unknown }) => void;
+    io.call.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    const originalCallback = callbacks.at(-1)!;
+    act(() => originalCallback({ ...f.member }));
+    await waitFor(() => expect(io.call).toHaveBeenCalledTimes(2));
+    act(() => {
+      if (field === 'identityHydrationRevision') useSessionStore.setState({ identityHydrationRevision: 2 });
+      else if (field === 'freshness') useSessionStore.getState().setSessionSnapshotFreshness('cache');
+      else if (field === 'connection') useSessionStore.getState().setConnection('offline');
+      else if (field === 'discovery') useSessionStore.getState().setSession({ ...f.session,
+        playerDiscovery: { ...f.session.playerDiscovery!, revision: 2 } });
+      else if (field === 'phase') useSessionStore.getState().setSession({ ...f.session, phase: 'closed' });
+      else useSessionStore.getState().setMe({ ...f.player, [field]: field === 'connectionGeneration' ? 9
+        : field === 'connected' ? false : field === 'activeConsoleRoleId' ? null : 'foreign-current-authority' } as Player);
+    });
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+    await act(async () => {
+      originalCallback({ ...f.member });
+      finish({ data: structuredClone(f.view) });
+    });
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Use selected actions' })).not.toBeInTheDocument();
+    expect(io.call.mock.calls.map(call => call[0])).toEqual(['getWolfRangeActionChoice', 'getWolfRangeActionChoice']);
+    expect(wolfAttackChoiceAuthorityIsCurrent('executive-officer', f.originalAuthorityKey, f.session.id)).toBe(false);
+  },
+);
+
+it.each(['extra-private-field', 'duplicate-action', 'wrong-revision', 'foreign-session'] as const)(
+  'the real private-safe parser/current controller never displays malformed or mismatched %s', async reason => {
+    const f = connectedFixture();
+    const dto = reason === 'extra-private-field' ? { ...f.view, composition: ['private'] }
+      : reason === 'duplicate-action' ? { ...f.view, eligibleActions: [...f.view.eligibleActions, f.view.eligibleActions[0]] }
+        : reason === 'wrong-revision' ? { ...f.view, revision: 18 } : { ...f.view, sessionId: 'foreign-session' };
+    io.call.mockResolvedValue({ data: dto });
+    render(<WolfRangeActionPanel />);
+    act(() => callbacks.at(-1)?.(f.member));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Refresh attack choice' })).toBeInTheDocument());
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Use selected actions' })).not.toBeInTheDocument();
+    expect(io.call).toHaveBeenCalledTimes(1);
+  },
+);
