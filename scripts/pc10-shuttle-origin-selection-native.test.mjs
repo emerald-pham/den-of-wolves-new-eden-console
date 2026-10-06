@@ -307,6 +307,19 @@ test('an arrival witness that disagrees with the original holder authority remai
   assert.equal(offered.offered, false);
 });
 
+test('a valid retarget witness can carry the same original authority into the arrival-only factory', async () => {
+  const witness = makeArrivalWitness({ uid: CORE_UID, roleId: CORE_ROLE, shuttleId: CORE_SHUTTLE,
+    groupId: GROUP_ID, controlRevision: CONTROL_REVISION, sourceAuthority: currentAuthority() });
+  const harness = makeHarness({ origin: null, witness });
+  const recipe = createPendingProcedureDefaultSteps()['core:completeShuttleArrival'];
+  const prepared = await recipe({ context: harness.context, game: harness.game });
+  assert.equal(prepared.expected.shuttleId, CORE_SHUTTLE);
+  assert.equal(prepared.expected.roleId, CORE_ROLE);
+  assert.deepEqual(harness.sourceSelections.filter(row => row.roleId !== 'gm'), [
+    { roleId: CORE_ROLE, options: { enter: false } },
+  ]);
+});
+
 test('Press movement is explicitly pending because its current member scope has no core berth or vessel map', async () => {
   const pressOrigin = {
     sessionId: SESSION_ID, uidHash: uidHash(PRESS_UID), shuttleId: PRESS_SHUTTLE,
