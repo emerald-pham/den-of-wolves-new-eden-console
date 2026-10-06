@@ -390,6 +390,16 @@ it('cannot use the recorded Scout branch to waive another specialist endpoint re
   expect(capybaraStageOutcome(wrong).status).toBe('pending');
 });
 
+it('cannot use a Scout request notice as another endpoint result even with numeric revision fields', async () => {
+  const f = fixture({ capy: true }), outcome = await f.runCapy();
+  const surface = f.game.context.crew, actor = await surface.observe();
+  const driver = createSpecialistGameplayDriver(f.game, { timeoutMs: 0 });
+  await expect(driver.waitForCommit({ surface, actor, endpoint: 'recycleWithBoa',
+    inspect: async () => ({ ready: true, gmRevision: 999, crewRevision: 999,
+      renderedStatusCode: outcome.evidence.projection.renderedStatus }) }))
+    .rejects.toThrow(/actual rendered result/);
+});
+
 it.each([
   ['UID', () => useSessionStore.getState().setMe({ ...useSessionStore.getState().me!, uid: 'foreign-uid' })],
   ['SID', () => useSessionStore.getState().setSession({ ...useSessionStore.getState().session!, id: 'foreign-sid' })],
