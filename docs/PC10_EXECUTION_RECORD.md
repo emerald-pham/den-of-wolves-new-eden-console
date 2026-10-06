@@ -213,11 +213,32 @@ budget to the full-game surface's existing 60-second deadline and captures
 readiness and original PRIMARY identity in the same read-only source sample.
 Core8 binds the original host from the ordinary member's actual docking before
 departure; Press4 preserves its original caller guards. They have not run.
-Passive foreground roster renewal and adjacent Core nonmovement recipes remain
-bounded source repairs; complete fresh families and Gate 2 stay open.
+The foreground presence repair is integrated with 12 new and 77 retained
+native cases. Its foreground pulse uses ordinary `refreshPresence`; background
+recovery retains its own identity/cancellation checks. The three adjacent Core
+nonmovement recipes and printed-owner control transfer are also integrated.
+Their ten-file native slice passed 159 cases after one separately committed
+original-host fixture completion; all nine original route assertions and two
+titles remain exact. The initial 158/159 log and earlier meaningful RED/setup
+failures are retained. These source/native checks grant no actual credit.
 
-After GM21 browser closure and exact-owned-session cleanup, Root offered the
-parent's requested next bounded heavy window for Chain Scanner final checks.
+Miner2 then ran at `07c262e0` with eight ordinary Core actors, GM and
+controller in two automated Chrome processes/contexts. Actual GM manual
+cycle 0→1 occurred, but the first Miner selection failed at the unchanged
+original generation check (3 versus 2). Both browsers closed before exact
+owned-session deletion, all three owned gameplay scopes returned to zero,
+and complete source/compiled-runtime bindings remained unchanged. No
+selection, recovery, movement or ending is accepted. A distinct whole-App
+native reproduction shows a short visible-tab return starting same-document
+resume despite current live/server authority. Root authorized a narrow
+visibility-handler repair with actual Auth/UID/session/hydration and pending
+resume checks; implementation/integration and fresh qualification remain open.
+The initiating historical Miner2 event/reply is still unproved. Complete fresh
+families and Gate 2 stay open.
+
+After the parent explicitly returned its earlier windows and Miner2 browser
+closure/exact-owned-session cleanup completed, Root offered the requested
+combined Chain Scanner narrow qualifier and final browser window.
 Root's reserved servers remain idle; source/native work continues while heavy
 proofs await explicit return. This environment has no outgoing thread-message
 capability, so the offer is recorded without inventing parent acknowledgement.

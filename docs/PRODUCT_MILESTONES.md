@@ -651,8 +651,11 @@ cloud data/deployment stay intact, and no cloud/offline synchronization is
 implied. PC12 uses local identity/privacy/persistence/recovery, no runtime
 internet dependencies, WAN-disconnected multi-client proof, and local QR for
 user-entered Wi-Fi details and server URL. No credentials enter Git/reports,
-and no unauthorized network-security setting change is allowed. Licensing
-remains unresolved with the parent; notices/assets remain unchanged.
+and no unauthorized network-security setting change is allowed. The subsequent
+owner authorization applies CC0 only to her own rights and contributions;
+third-party/game material, dependencies, other contributors and assets with
+unconfirmed provenance are excluded. Existing asset bytes and third-party
+notices remain unchanged.
 
 ## October 10 deadline and sequential PC11 handoff
 
