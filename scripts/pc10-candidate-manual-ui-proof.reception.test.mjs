@@ -41,6 +41,13 @@ export async function receptionFixture({ initialNetworkMs = 18, initialComponent
   const css = `${await readFile(resolve(ROOT, 'src/styles/cic.css'), 'utf8')}\n${await readFile(resolve(ROOT, 'src/components/CandidatePreparationPanel.css'), 'utf8')}`;
   const dom = new JSDOM(`<!doctype html><html><head><style>${css}</style></head><body><main id="source-root"></main></body></html>`, { pretendToBeVisual: true });
   const { window } = dom;
+  // Static source CSS is unchanged during these cases; live hidden/disabled DOM guards remain uncached.
+  const computeStyle = window.getComputedStyle.bind(window), styles = new WeakMap();
+  window.getComputedStyle = node => {
+    const key = `${node.className}|${node.getAttribute('style') ?? ''}`, cached = styles.get(node);
+    if (cached?.key === key) return cached.value;
+    const value = computeStyle(node); styles.set(node, { key, value }); return value;
+  };
   const saved = Object.fromEntries(['window', 'document', 'navigator'].map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
   for (const key of Object.keys(saved)) Object.defineProperty(globalThis, key, { configurable: true, value: window[key] ?? window });
   const block = new Set(['MAIN', 'SECTION', 'DIV', 'P', 'H2', 'H3', 'ARTICLE', 'FIELDSET', 'LEGEND', 'LABEL', 'UL', 'LI']);
