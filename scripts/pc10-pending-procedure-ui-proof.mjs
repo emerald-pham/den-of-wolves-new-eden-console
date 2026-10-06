@@ -1128,6 +1128,7 @@ async function runCasesAtCheckpoint({ family, cases, checkpoint, context, steps,
           leaseDiagnostic: {
             restorePresent: Boolean(restore),
             enabledProjectionPresent: deferredGrant.afterEnable?.projection?.enabled === true,
+            durableRevokedProjectionPresent: deferredGrant.afterReload?.projection?.enabled === false,
             projectionClaimMatches: typeof grantClaim === 'string' &&
               typeof deferredGrant.afterReload?.projection?.claimedAtHash === 'string'
               ? deferredGrant.afterReload.projection.claimedAtHash === hash(grantClaim) : null,

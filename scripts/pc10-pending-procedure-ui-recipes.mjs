@@ -817,7 +817,16 @@ async function enableMountedGmGrant(surface, expected, claimedAt, operation) {
 }
 
 async function revokeMountedGmGrant(surface, expected, claimedAt, operation) {
-  await goToShipObserver(surface, operation);
+  await verifyGmOperation(surface, operation);
+  // A cleanup receipt must come from the still-mounted original observer.
+  // Returning to that route could mount a new cleanup lifecycle and is not
+  // the explicit same-document UI revoke certified by this procedure.
+  if (new URL(surface.page.url()).hash !== '#/ships/aegis/observer') return null;
+  const mount = await inspectLifecycleObserverMount(surface);
+  await verifyGmOperation(surface, operation);
+  if (mount.routePath !== '/ships/aegis/observer' || mount.observerMainCount !== 1 ||
+      mount.shipId !== 'aegis' || mount.observerMode !== 'write' || mount.roleControlCount !== 1 ||
+      !mount.selectedRoleId || mount.selectedRoleValid !== true || mount.loading || mount.failed) return null;
   const before = await readCertifiedWriteGrant(surface, expected, operation).catch(() => null);
   if (!before?.projection.enabled || before.claimedAt !== claimedAt) return null;
   const access = surface.page.getByRole('button', { name: 'GM ship console read write access', exact: true });
