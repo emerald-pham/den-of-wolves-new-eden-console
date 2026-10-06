@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHash, webcrypto } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { constants, createContext, Script, SyntheticModule } from 'node:vm';
@@ -14,9 +15,11 @@ import { commandError } from '../../functions/src/commandErrors';
 import { fleetGroupRecord, ordinaryFleetCommunicationGroup } from '../../functions/src/fleetGroups';
 import { requirePursuitEmergencyWindowAbsent } from '../../functions/src/pursuitEmergencyWindow';
 import { isPresenceStale } from '../../functions/src/sessionLifecycle';
-import { HttpsError } from 'firebase-functions/v2/https';
-import { Timestamp } from 'firebase-admin/firestore';
 import PdfNewsRelayPanel from './PdfNewsRelayPanel';
+
+const functionsRequire = createRequire(resolve(process.cwd(), 'functions/package.json'));
+const { HttpsError } = functionsRequire('firebase-functions/v2/https');
+const { Timestamp } = functionsRequire('firebase-admin/firestore');
 
 // Real React control, fleetGroupService/parser, Zustand, serialized generic and
 // rich selectors, specialist phase/driver and complete current Capy caller run.
