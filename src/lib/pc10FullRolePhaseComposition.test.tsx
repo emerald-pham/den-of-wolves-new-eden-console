@@ -157,7 +157,7 @@ const makeReply = new Function('result', 'command', 'currentCycle', 'before', 'a
 
 const sid = 'native-original-c1', uid = 'native-original-scientist';
 const me: Player = { uid, sessionId: sid, displayName: 'Scientist', role: 'player', joinedAt: '',
-  connected: true, assignedRoleId: 'shepherd-scientist', activeConsoleRoleId: 'shepherd-scientist',
+  connected: true, seatId: null, assignedRoleId: 'shepherd-scientist', activeConsoleRoleId: 'shepherd-scientist',
   fleetGroupId: 'fleet-1', connectionGeneration: 3, replacementStatus: null };
 const session: GameSession = { id: sid, name: 'Native source composition', joinCode: 'NATIVE', ownerUid: 'native-gm',
   createdAt: '', updatedAt: '', phase: 'active', currentTurn: 1, activeRoleIds: ['shepherd-scientist'],
@@ -275,7 +275,7 @@ function fixture() {
 }
 beforeEach(() => {
   transport.callable.mockReset(); transport.invoke.mockReset(); useSessionStore.getState().reset();
-  useSessionStore.getState().setIdentity(structuredClone(session), structuredClone(me), 'console');
+  useSessionStore.getState().setIdentity(structuredClone(session), structuredClone(me));
   useSessionStore.setState({ connection: 'live', sessionSnapshotFreshness: 'server' });
 });
 
