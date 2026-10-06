@@ -1258,7 +1258,7 @@ export async function runCapybaraFullGameGameplay(context, options = {}) {
     await runSpecialist('explorer-harvest', 'explorer-scout', { roleId: 'quellon-explorer', targetCoordinate: '1413' },
       { roleId: 'quellon-explorer', cost: { resource: 'printed Hummingbird sortie fuel' } });
     await runSpecialist('pdf-group-relay', 'pdf-group-relay', { roleId: 'refinery-124-pdf-colonel',
-      message: 'Training relay: the current group has acknowledged its live route.' },
+      message: 'Training relay: Cycle 2 current group has acknowledged its live route.' },
     { roleId: 'refinery-124-pdf-colonel' });
     const harvestRoll = await runSpecialist('explorer-harvest', 'explorer-harvest-roll',
       { roleId: 'quellon-explorer' }, { roleId: 'quellon-explorer', record: false });
