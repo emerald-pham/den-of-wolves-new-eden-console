@@ -332,8 +332,10 @@ describe('real demo presence recovery while the original Miner member read is pe
     expect(useSessionStore.getState().connection).not.toBe('live');
     const projection = await readMember();
     const { sessionFrom } = await import('@/lib/firestore');
+    const player = { ...actor }; delete player.connected;
+    expect(Object.hasOwn(player, 'connected')).toBe(false);
     await act(async () => {
-      resumeReplies[0]!.resolve({ data: { session: sessionFrom(sessionId, projection.session as Record<string, unknown>), player: actor } });
+      resumeReplies[0]!.resolve({ data: { session: sessionFrom(sessionId, projection.session as Record<string, unknown>), player } });
       await recovering;
     });
     await advance();
