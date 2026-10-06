@@ -63,6 +63,22 @@ function nativeCounterFixture(options = {}) {
           return stale;
         }
       }
+      if (browser.__readMode === 'lifecycle' && options.lifecycleMutation &&
+          (options.lifecycleMutationRead ?? 1) === lifecycleReads) {
+        const lifecycle = clone(raw);
+        switch (options.lifecycleMutation) {
+          case 'uid': lifecycle.me.uid = 'native-foreign-gm'; break;
+          case 'generation': lifecycle.me.connectionGeneration += 1; break;
+          case 'hydration': lifecycle.identityHydrationRevision += 1; break;
+          case 'claimedAt': lifecycle.gmInstance.claimedAt = '2026-10-06T06:01:00.000Z'; break;
+          case 'phase': lifecycle.session.phase = 'closed'; break;
+          case 'cycle': lifecycle.session.currentTurn += 1; break;
+          case 'partial': delete lifecycle.me.connectionGeneration; break;
+          case 'malformed': lifecycle.me.connectionGeneration = '7'; break;
+          default: throw new Error(`Unknown native lifecycle mutation ${options.lifecycleMutation}`);
+        }
+        return lifecycle;
+      }
       return raw;
     },
   };
@@ -273,6 +289,20 @@ test('default GM counter recipe obtains its strict lifecycle tuple when the actu
     'The existing lifecycle observer must supply and recheck the tuple before capture and after receipt.');
   assert.deepEqual(fixture.actions, ['write-mode', 'counter:aegis']);
   assert.equal(fixture.replayCalls, 1);
+
+  for (const [label, lifecycleMutation] of [
+    ['foreign UID', 'uid'], ['changed generation', 'generation'],
+    ['changed hydration revision', 'hydration'], ['changed claim timestamp', 'claimedAt'],
+    ['changed phase', 'phase'], ['changed cycle', 'cycle'],
+    ['partial lifecycle tuple', 'partial'], ['malformed lifecycle tuple', 'malformed'],
+  ]) {
+    const changed = nativeCounterFixture({ fullGameDemoActor: true,
+      lifecycleMutation, lifecycleMutationRead: 2 });
+    const { row: changedRow } = await changed.run();
+    assert.notEqual(changedRow.status, 'completed', label);
+    assert.deepEqual(changed.actions, ['write-mode'], `${label}: no resource counter is clicked after the strict source recheck fails.`);
+    assert.equal(changed.replayCalls, 0, `${label}: no request is captured or replayed.`);
+  }
 });
 
 test('default GM counter capture waits for its exact live source revision after UI receipt and replay', async () => {

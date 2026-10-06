@@ -120,7 +120,19 @@ function makeMountedSourceFixture({ wingCounts = {
         (name === undefined || (exact ? node.name === name : roleMatches(name, node.name))));
       return locatorFor(matches, record);
     },
-    evaluate: async () => ({
+    evaluate: async callback => callback.toString().includes('privateKeys = Object.keys(s)') ? ({
+      hasAuth: true, sameActor: true, sessionId: SESSION_ID, uidHash: GM_UID_HASH,
+      connection: 'live', freshness: 'server', privateAudienceMatches: true, foreignPendingCount: 0,
+      generation: actor.connectionGeneration, hydrationRevision: actor.hydrationRevision,
+      playerRole: 'gm', profileRoleId: null, assignedRoleId: null, activeConsoleRoleId: null,
+      instanceId: GM_INSTANCE_ID, claimedAt: CLAIMED_AT, gmInstanceOwned: true,
+      phase: 'active', cycle: 1, privateCount: 0, pendingCount: 0,
+      briefingPresent: false, transmissionPresent: false, phaseProgression: null,
+      progression: null, airspace: null, timerPause: null, teamEndsAt: null,
+      openEndsAt: null, announcementRevision: 0, localReplayToken: null,
+      singlePlayerDemo: null, fullGameDemo: null, debriefMode: null, debriefSnapshot: null,
+      pursuitEmergency: false, attackLocked: null,
+    }) : ({
       live: true,
       sessionId: SESSION_ID,
       cycle: 1,
