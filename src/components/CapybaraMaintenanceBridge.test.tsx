@@ -11,7 +11,7 @@ import { runMaintenance } from '@/lib/maintenanceService';
 import { useSessionStore } from '@/store/useSessionStore';
 import capybara from '@/data/vessels/capybara';
 import type { GameSession, Player } from '@/types/game';
-import { advanceMaintenance, chargeableConsoleIds, emptyMaintenanceCycle, type MaintenanceInput } from '../../functions/src/maintenance';
+import { advanceMaintenance, chargeableConsoleIds, emptyMaintenanceCycle, parseMaintenanceCycle, type MaintenanceInput } from '../../functions/src/maintenance';
 import { requireMaintenanceRequest } from '../../functions/src/requestGuards';
 import { buildVesselActionEnvelope } from '../../functions/src/vesselActionEnvelope';
 
@@ -95,7 +95,7 @@ const baseSession: GameSession = {
 
 function mountPanel() {
   render(<ConsoleAccessContext.Provider value={{ writable: true, roleId }}>
-    <MaintenanceSystems name="Capybara" shipId="capybara" systems={capybara.systems}
+    <MaintenanceSystems name="Capybara" shipId="capybara" systems={capybara.systems!}
       renderSystem={() => null} rations={null} />
   </ConsoleAccessContext.Provider>);
 }
@@ -119,8 +119,10 @@ function installTransport() {
       return { data: mutateReplay(structuredClone(prior.result)) };
     }
     const state = useSessionStore.getState(), session = state.session!;
+    const cycle = parseMaintenanceCycle(session.maintenanceCycles!.capybara);
+    assert.ok(cycle, 'The current server parser must accept the unchanged member cycle DTO.');
     const input: MaintenanceInput = {
-      ...data, currentTurn: session.currentTurn!, cycle: session.maintenanceCycles!.capybara!,
+      ...data, currentTurn: session.currentTurn!, cycle,
       resources: session.shipResources!.capybara!, damage: session.shipDamage!.capybara!,
       population: session.shipSurvivors!.capybara!, unrest: session.shipUnrest!.capybara!,
       dockings: [], cargo: {}, fuelled: {}, rolls: [], entropy: 0, now,
@@ -235,8 +237,8 @@ beforeEach(() => {
 
 it('real normal Begin request has no cycle field and actual receipt supplies both current turn fields', async () => {
   const io = installTransport(); mountPanel();
-  await userEvent.click(screen.getByRole('button', { name: 'Begin Maintenance Cycle: Cycle 1', exact: true }));
-  await userEvent.click(screen.getByRole('button', { name: 'ARE YOU SURE?', exact: true }));
+  await userEvent.click(screen.getByRole('button', { name: 'Begin Maintenance Cycle: Cycle 1' }));
+  await userEvent.click(screen.getByRole('button', { name: 'ARE YOU SURE?' }));
   const captured = io.captured[0]!;
   expect(captured.request).toMatchObject({ sessionId: sid, shipId: 'capybara', action: 'begin',
     expectedRevision: 0, consoleRoleId: roleId, requestId: expect.any(String) });
@@ -263,10 +265,10 @@ it('the actual Capy production loop touches only offered production controls, th
   } } } });
   installTransport(); mountPanel();
   const group = screen.getByRole('group', { name: 'Capybara production consoles' });
-  expect(within(group).getByRole('button', { name: 'Run Scrap Refinery', exact: true })).toBeEnabled();
-  expect(within(group).queryByRole('button', { name: 'Run Jump Drive', exact: true })).toBeNull();
-  expect(within(group).queryByRole('button', { name: 'Run Shuttle Bay', exact: true })).toBeNull();
-  expect(screen.getByRole('combobox', { name: 'Shuttle Bay refuelling', exact: true })).toBeInTheDocument();
+  expect(within(group).getByRole('button', { name: 'Run Scrap Refinery' })).toBeEnabled();
+  expect(within(group).queryByRole('button', { name: 'Run Jump Drive' })).toBeNull();
+  expect(within(group).queryByRole('button', { name: 'Run Shuttle Bay' })).toBeNull();
+  expect(screen.getByRole('combobox', { name: 'Shuttle Bay refuelling' })).toBeInTheDocument();
   const loop = findNode(helper, (node): node is ts.ForOfStatement =>
     ts.isForOfStatement(node) && node.statement.getText(capySource).includes('production.getByRole'));
   const execute = async (button: ReturnType<typeof domLocator>) => { await button.click(); };
@@ -284,7 +286,7 @@ it('the real reactor selection excludes a non-chargeable Shuttle Bay and preserv
   expect(chargeableConsoleIds('capybara')).not.toContain('shuttle-bay');
   expect(screen.queryByRole('checkbox', { name: /^Shuttle Bay(?: \/\/ Charged)?$/i })).toBeNull();
   expect(() => advanceMaintenance({ shipId: 'capybara', action: 'reactor', expectedRevision: 5,
-    cycle: useSessionStore.getState().session!.maintenanceCycles!.capybara!, currentTurn: 1,
+    cycle: parseMaintenanceCycle(useSessionStore.getState().session!.maintenanceCycles!.capybara)!, currentTurn: 1,
     resources: { ...capybara.resources }, damage: { damagedSystemIds: [], destroyed: false },
     unrest: 0, population: capybara.initialSurvivors, dockings: [], cargo: {}, fuelled: {},
     rolls: [], entropy: 0, now, consoles: ['shuttle-bay'] })).toThrow(/invalid or damaged console/i);
@@ -292,8 +294,8 @@ it('the real reactor selection excludes a non-chargeable Shuttle Bay and preserv
     ts.isForOfStatement(node) && node.statement.getText(capySource).includes("getByRole('checkbox'"));
   const runLoop = new Function('panel', `return (async () => { ${loop.getText(capySource)} })();`);
   await runLoop(domLocator('region', 'Capybara maintenance cycle'));
-  expect(screen.getByRole('checkbox', { name: 'Jump Drive', exact: true })).toBeChecked();
-  expect(screen.getByRole('checkbox', { name: 'Scrap Refinery', exact: true })).toBeChecked();
+  expect(screen.getByRole('checkbox', { name: 'Jump Drive' })).toBeChecked();
+  expect(screen.getByRole('checkbox', { name: 'Scrap Refinery' })).toBeChecked();
   expect(screen.getAllByRole('checkbox').filter(node => (node as HTMLInputElement).checked)).toHaveLength(2);
   expect(transport.invoke).not.toHaveBeenCalled();
 });
@@ -303,10 +305,10 @@ it('normal reactor UI commits the exact two valid source console IDs and charges
     ...emptyMaintenanceCycle(), turn: 1, step: 5, revision: 5,
   } } } });
   const io = installTransport(); mountPanel();
-  await userEvent.click(screen.getByRole('checkbox', { name: 'Jump Drive', exact: true }));
-  await userEvent.click(screen.getByRole('checkbox', { name: 'Scrap Refinery', exact: true }));
-  await userEvent.click(screen.getByRole('button', { name: 'Power up reactor', exact: true }));
-  await userEvent.click(screen.getByRole('button', { name: 'ARE YOU SURE?', exact: true }));
+  await userEvent.click(screen.getByRole('checkbox', { name: 'Jump Drive' }));
+  await userEvent.click(screen.getByRole('checkbox', { name: 'Scrap Refinery' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Power up reactor' }));
+  await userEvent.click(screen.getByRole('button', { name: 'ARE YOU SURE?' }));
   expect(io.captured[0]!.request).toMatchObject({ action: 'reactor', expectedRevision: 5,
     consoles: ['jump-drive', 'scrap-refinery'] });
   expect(io.captured[0]!.result).toMatchObject({ action: 'reactor', currentTurn: 1,
