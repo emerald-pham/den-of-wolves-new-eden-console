@@ -203,6 +203,17 @@ test('the original GM keeps valid nullable profile fields with source document i
 
 test('missing, foreign or drifted source document origins fail the new Base identity binding', async () => {
   const actor = sourceActor();
+  const missingOrigin = await observeBasePostCombatActor(mountedSurface(actor, { exactOrigin: null }));
+  assert.equal(missingOrigin.sameActor, false,
+    'The actual exact source callback cannot bind when its current document origin is missing.');
+  const foreignOrigin = await observeBasePostCombatActor(mountedSurface(actor, { exactOrigin: timeOrigin + 1 }));
+  assert.equal(foreignOrigin.sameActor, false,
+    'The actual exact source callback cannot join a different document origin to the mounted generic view.');
+  const held = await observeBasePostCombatActor(mountedSurface(actor));
+  assert.throws(() => assertBasePostCombatActorIdentity(
+    { ...held, documentTimeOrigin: timeOrigin + 1 }, held), /documentTimeOrigin/,
+  'The actual held mission identity must reject document drift through receipt and replay.');
+
   const generic = await runSerializedCallback(await extractActualGenericObserverCallback(), actor);
   const exact = exactTuple(actor);
   const rich = { ...generic, fleetGroupId: actor.me.fleetGroupId,
@@ -217,7 +228,8 @@ test('missing, foreign or drifted source document origins fail the new Base iden
   assert.equal(composeBasePostCombatActorObservation(completeGeneric,
     { ...completeRich, documentTimeOrigin: timeOrigin + 1 }, completeExact).sameActor, false,
   'A rich source from another document cannot bind.');
-  assert.throws(() => assertBasePostCombatActorIdentity(
-    { ...completeExact, documentTimeOrigin: timeOrigin + 1 }, completeExact), /documentTimeOrigin/,
-  'The same held mission actor must retain one source document through receipt and replay.');
+  const richWithoutOrigin = { ...completeRich };
+  delete richWithoutOrigin.documentTimeOrigin;
+  assert.equal(composeBasePostCombatActorObservation(completeGeneric, richWithoutOrigin, completeExact).sameActor, true,
+    'An older rich view without this field may bind only when generic and exact current origins agree.');
 });

@@ -33,7 +33,8 @@ function sourceActor(uid, roleId, overrides = {}) {
 
 async function runSerializedObserver(callback, moduleUrl, actorSource, { crypto: cryptoSource = webcrypto } = {}) {
   const getActor = typeof actorSource === 'function' ? actorSource : () => actorSource;
-  const context = createContext({ input: moduleUrl, crypto: cryptoSource, TextEncoder, Uint8Array });
+  const context = createContext({ input: moduleUrl, crypto: cryptoSource, TextEncoder, Uint8Array,
+    performance: { timeOrigin: 12345 } });
   const exports = {
     '/src/store/useSessionStore.ts': ['useSessionStore', {
       getState: () => {
