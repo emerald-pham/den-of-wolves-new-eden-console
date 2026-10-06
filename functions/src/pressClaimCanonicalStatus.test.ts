@@ -282,6 +282,7 @@ vi.mock('firebase-functions/v2/scheduler', () => ({
 
 import { joinSession, refreshPresence, resumeSession } from './index';
 import { recommendedRoleIds } from './roleConfiguration';
+import { canonicalSessionSetup, normalizeSessionConfiguration } from './gameSetup';
 const NOW = new Date('2026-10-06T10:00:00.000Z');
 const UID = 'native-new-press';
 function request<T extends StoredDocument>(data: T, uid = UID) {
@@ -305,8 +306,11 @@ beforeEach(() => {
   mock.setBeforeTransaction(undefined); mock.setAfterReadOnlyTransaction(undefined);
   mock.setRejectQueryLeaseWrites(false); mock.setRejectReadsAfterWrite(false);
   mock.documents.set('joinCodes/482109', { sessionId: 's1' });
+  const setup = canonicalSessionSetup(normalizeSessionConfiguration({
+    playerCount: 20, chartId: 'A', expansion: 'capybara', turnLimit: 6,
+  }), recommendedRoleIds(20));
   mock.documents.set('sessions/s1', { name: 'Native', joinCode: '482109', phase: 'lobby', currentTurn: 0,
-    ownerUid: 'native-gm', pressEnabled: true, activeRoleIds: recommendedRoleIds(20), setupRevision: 0,
+    ...setup, setup, ownerUid: 'native-gm', pressEnabled: true, setupRevision: 0,
     deleteAfter: null });
 });
 afterEach(() => vi.useRealTimers());
