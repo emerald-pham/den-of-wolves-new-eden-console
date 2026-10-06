@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GameSession, Player } from '@/types/game';
 import type { useSessionStore as SessionStore } from '@/store/useSessionStore';
 import type { sessionFrom as ParseSession } from '@/lib/firestore';
+import type * as SessionService from '@/lib/sessionService';
 
 const sdk = vi.hoisted(() => ({
   auth: { currentUser: null as { uid: string } | null, authStateReady: vi.fn() },
@@ -63,10 +64,10 @@ let sessionId: string;
 let actor: Player;
 let sessionData: Record<string, unknown>;
 let listeners: Listener[];
-let resumes: ReturnType<typeof deferred<ResumeReply>>[];
+let resumes: [ReturnType<typeof deferred<ResumeReply>>, ReturnType<typeof deferred<ResumeReply>>, ReturnType<typeof deferred<ResumeReply>>];
 let useSessionStore: typeof SessionStore;
 let sessionFrom: typeof ParseSession;
-let service: typeof import('@/lib/sessionService');
+let service: typeof SessionService;
 let unmount: (() => void) | undefined;
 let legacy: boolean;
 const rootPath = () => `sessions/${sessionId}`;
@@ -103,6 +104,12 @@ async function advance(ms = 100) {
   }
 }
 function publishPlayer(value: Player = actor) {
+  if (value === actor && actor.replacementStatus === 'awaiting-re-role') {
+    // index.ts replacement withdrawal and playerFrom both clear these three
+    // station fields; an awaiting actor never keeps a held replacement berth.
+    actor = { ...actor, activeConsoleRoleId: null, replacementRoleId: null, seatId: null };
+    value = actor;
+  }
   const reader = listeners.filter(listener => listener.active && listener.path === actorPath()).at(-1);
   expect(reader).toBeDefined();
   act(() => reader!.next(snapshot(actorPath(), { ...value })));
@@ -118,7 +125,9 @@ function commitResume(): ResumeReply {
   return { data: { session: currentSession(), player } };
 }
 async function deliverResume(index: number, reply = commitResume()) {
-  resumes[index].resolve(reply);
+  const pending = resumes[index];
+  if (!pending) throw new Error('Unexpected fixture resume index.');
+  pending.resolve(reply);
   await advance(300);
 }
 async function reconnect() {
@@ -160,7 +169,23 @@ async function mount(options: { press?: boolean; gm?: boolean; legacy?: boolean;
     state: { session: currentSession(), me: actor, mode: 'console', pendingCommands: [], lastRoute: '/console' } }));
   await useSessionStore.persist.rehydrate();
   sdk.listen.mockImplementation((reference, _options, next, error) => {
-    const listener: Listener = { path: reference.path, next, error, active: true };
+    const denyPrivateBrief = () => {
+      // Rules isMember/isAssignedRoleBrief revoke this independent private
+      // reader as well. Deliver its actual permission error, rather than
+      // inventing a synchronous player-to-brief clearing requirement in App.
+      listeners.filter(reader => reader.active && reader.path === `${rootPath()}/roleBriefs/${actor.uid}`)
+        .forEach(reader => reader.error({ code: 'permission-denied' }));
+    };
+    const listener: Listener = { path: reference.path, active: true,
+      next: value => {
+        next(value);
+        if (reference.path === actorPath() && (!value.exists() || value.get('connected') === false)) denyPrivateBrief();
+      },
+      error: cause => {
+        error(cause);
+        if (reference.path === actorPath() && ['permission-denied', 'not-found'].includes(cause.code)) denyPrivateBrief();
+      },
+    };
     listeners.push(listener);
     const data = reference.path === actorPath() ? { ...actor }
       : reference.path === rootPath() && actor.role === 'gm' ? sessionData
@@ -175,7 +200,9 @@ async function mount(options: { press?: boolean; gm?: boolean; legacy?: boolean;
   });
   sdk.call.mockImplementation(async (name, data) => {
     if (name === 'resumeSession') {
-      const pending = deferred<ResumeReply>(); resumes.push(pending); return pending.promise;
+      const pending = resumes[callCount('resumeSession') - 1];
+      if (!pending) throw new Error('Unexpected extra normal resume request.');
+      return pending.promise;
     }
     if (name === 'getCurrentMemberSession') {
       if (sdk.auth.currentUser?.uid !== actor.uid || data.sessionId !== sessionId) {
@@ -207,7 +234,7 @@ beforeEach(() => {
   vi.resetModules(); vi.useFakeTimers(); vi.setSystemTime('2026-10-06T07:00:00.000Z'); localStorage.clear();
   localStorage.setItem('dow-new-eden-motion-safety', JSON.stringify({ acknowledgedAt: Date.now(), choice: 'reduce' }));
   localStorage.setItem('dow-new-eden-session-waiver', String(Date.now()));
-  sessionId = `member-resume-${++serial}`; listeners = []; resumes = []; legacy = false;
+  sessionId = `member-resume-${++serial}`; listeners = []; resumes = [deferred(), deferred(), deferred()]; legacy = false;
   sessionData = { name: 'Member resume fixture', joinCode: '123456', phase: 'active', currentTurn: 1,
     playerCount: 18, fullGameDemo: { status: 'active', progression: 'manual' },
     createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
