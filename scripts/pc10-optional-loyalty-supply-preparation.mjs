@@ -64,6 +64,12 @@ export async function prepareWolfSupplyCargo(context, actor) {
   assert.equal((await holdGm()).airspace, 'lifted');
   const game = createTwoBrowserGameplay(context);
   await game.select(ROLE, { deadlineAt });
+  const originalCrew = await observeLifecycleActor(crew, initial.sessionId);
+  assertOriginalActor(originalCrew, originalCrew);
+  assert.equal(originalCrew.uidHash, actor.uidHash); assert.equal(originalCrew.sessionId, initial.sessionId);
+  assert.equal(originalCrew.playerRole, 'player'); assert.equal(originalCrew.profileRoleId, ROLE);
+  assert.equal(originalCrew.assignedRoleId, ROLE); assert.equal(originalCrew.activeConsoleRoleId, ROLE);
+  assert.ok(Number.isSafeInteger(originalCrew.hydrationRevision) && originalCrew.hydrationRevision >= 1);
   const wolfBefore = await readWolfActor(crew);
   const wolfFence = assertLiveWolfActorFence(wolfBefore, { sessionId: initial.sessionId,
     uidHash: actor.uidHash, roleId: ROLE, cycle: 1 });
@@ -73,6 +79,8 @@ export async function prepareWolfSupplyCargo(context, actor) {
   assert.equal(authority.uidHash, actor.uidHash); assert.equal(authority.roleId, ROLE);
   assert.equal(authority.sessionId, initial.sessionId); assert.equal(authority.groupId, wolfBefore.fleetGroupId);
   assert.equal(authority.shuttleAuthorized, true);
+  assert.equal(authority.connectionGeneration, originalCrew.generation);
+  assert.equal(authority.identityHydrationRevision, originalCrew.hydrationRevision);
   const control = before.shuttleControl?.[SHUTTLE];
   const docking = before.shuttleDockings?.filter(row => row.shuttleId === SHUTTLE);
   if (!control || control.shuttleId !== SHUTTLE || control.ownerRoleId !== ROLE ||
@@ -93,6 +101,7 @@ export async function prepareWolfSupplyCargo(context, actor) {
   }
   async function holdCrew({ afterLoad = false } = {}) {
     remaining(60_000); await holdGm();
+    assertLateReplyAuthority(originalCrew, await observeLifecycleActor(crew, initial.sessionId));
     assertSameWolfActorFence(wolfFence, await readWolfActor(crew));
     const state = await readActionState(crew, SHUTTLE);
     assert.equal(state?.live, true); assert.equal(state.sessionId, initial.sessionId);
