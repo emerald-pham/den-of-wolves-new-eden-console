@@ -117,6 +117,10 @@ function fixture({ initial = 'pending', subsequent = 'ready', deadlineAt = Date.
     inputValue: async () => selectedValue,
   };
   const panel = { isVisible: async () => true,
+    locator: sourceId => {
+      assert.ok(['#arrest-posse-target', '#arrest-posse-adjustment'].includes(sourceId));
+      return { sourceId };
+    },
     getByLabel: label => {
       if (label === 'Target player') return targetSelect;
       if (label === 'Defenders') return { fill: async value => { counts.fields.push([label, value]); } };
@@ -125,6 +129,17 @@ function fixture({ initial = 'pending', subsequent = 'ready', deadlineAt = Date.
     },
     getByText: () => ({ isVisible: async () => false }),
     getByRole: (role, options) => {
+      if (role === 'combobox') {
+        assert.equal(options.exact, true);
+        assert.ok(['Target player', 'Optional adjustment'].includes(options.name));
+        return { and: locator => {
+          const sourceId = options.name === 'Target player' ? '#arrest-posse-target' : '#arrest-posse-adjustment';
+          assert.equal(locator.sourceId, sourceId, 'The exact accessible control must also match its source ID.');
+          return options.name === 'Target player' ? targetSelect : {
+            selectOption: async value => { counts.fields.push(['Optional adjustment', value]); },
+          };
+        } };
+      }
       assert.equal(role, 'button'); assert.equal(options.name, 'Calculate required players');
       return { isEnabled: async () => false, click: async () => { counts.gameplayCalls++; assert.fail('Native regression never mutates gameplay.'); } };
     },
