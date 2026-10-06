@@ -570,7 +570,10 @@ for (const [name, mutation] of [
 ]) test(`public reload retains hard original authority loss for ${name}`, async () => {
   const f = await fixture({ preResumeSnapshot: true, ...mutation });
   try {
-    await assert.rejects(() => f.run(endpoint));
+    const result = await f.run(endpoint), row = rowFor(result, endpoint);
+    assert.equal(row.status, 'pending');
+    assert.equal(row.reason, 'mounted-GM-control-action-did-not-return-a-verifiable-receipt');
+    assert.equal(result.observedProcedureCount, 0);
     assertOneRuling(f);
   } finally { await f.close(); }
 });
