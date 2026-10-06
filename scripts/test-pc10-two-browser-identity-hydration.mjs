@@ -11,17 +11,18 @@ const roleId = 'executive-officer', sessionId = 'native-identity-session';
 const uidFor = role => `private-original-${role}`;
 const hash = uid => createHash('sha256').update(uid).digest('hex').slice(0, 16);
 const plain = value => JSON.parse(JSON.stringify(value));
-const rolePath = `#/ships/aegis/roles/${roleId}`;
 
-function fixture({ pending = false, startRole = roleId, route = rolePath,
-  sourceChange = {}, genericChange = {}, onClick = () => {} } = {}) {
+function fixture({ pending = false, actorRoleId = roleId, startRole = actorRoleId,
+  route = actorRoleId === 'press-officer' ? '#/press' : `#/ships/aegis/roles/${actorRoleId}`,
+  sourceChange = {}, memberChange = {}, genericChange = {}, onClick = () => {}, onMetadata = () => {} } = {}) {
   let currentRole = startRole, path = route, documentTimeOrigin = 1000;
+  const targetPath = actorRoleId === 'press-officer' ? '#/press' : `#/ships/aegis/roles/${actorRoleId}`;
   const calls = [], callbacks = [], timeouts = [], accepted = [];
   const f = { calls, callbacks, timeouts, accepted, sdkCalls: 0, metadataReads: 0 };
   const member = role => ({ uid: uidFor(role), role: 'player', sessionId,
     assignedRoleId: role, activeConsoleRoleId: role, fleetGroupId: 'native-fleet',
     seatId: `native-seat-${role}`, connectionGeneration: pending ? 12 : 13,
-    connected: true, replacementRoleId: null, replacementStatus: null });
+    connected: true, replacementRoleId: null, replacementStatus: null, ...memberChange });
   f.store = { session: { id: sessionId, phase: 'active', currentTurn: 1,
     turnPhase: { airspace: { state: 'restricted' }, progression: 'manual' },
     turnState: { phase: 'team' } }, me: member(startRole),
@@ -67,7 +68,7 @@ function fixture({ pending = false, startRole = roleId, route = rolePath,
     });
     const value = plain(await script.runInContext(browser));
     assert.equal(JSON.stringify(value).includes('private-original-'), false, 'Return only the existing private UID hash.');
-    callbacks.push(value); return value;
+    callbacks.push(value); onMetadata(f, callbacks.length); return value;
   };
   const link = (name, target) => ({
     isVisible: async () => true,
@@ -91,10 +92,11 @@ function fixture({ pending = false, startRole = roleId, route = rolePath,
     getByRole: (_kind, { name }) => {
       if (name === "Enter this actor's stations") return link(name, '#/console');
       if (name === 'Back to stations') return link(name, '#/console');
+      if (name === 'Press Officer') return link(name, '#/press');
       throw new Error(`Unexpected control ${String(name)}`);
     },
     locator: selector => {
-      assert.equal(selector, `a[href$="/roles/${roleId}"]`); return link('original-role-chooser', rolePath);
+      assert.equal(selector, `a[href$="/roles/${actorRoleId}"]`); return link('original-role-chooser', targetPath);
     },
   };
   const crew = { page, observe, storeModuleUrl: () => '/src/store/useSessionStore.ts',
@@ -103,9 +105,9 @@ function fixture({ pending = false, startRole = roleId, route = rolePath,
     }, callable: async () => { f.sdkCalls += 1; assert.fail('No SDK invocation for selection readiness.'); } };
   const gm = { observe: async () => ({ playerRole: 'gm' }) };
   const adapter = createTwoBrowserGameplay({ gm, crew, initial: { sessionId, joinCode: 'NATIVE' },
-    roster: [{ roleId, uidHash: hash(uidFor(roleId)) }], directory: '/tmp/native-unused' });
+    roster: [{ roleId: actorRoleId, uidHash: hash(uidFor(actorRoleId)) }], directory: '/tmp/native-unused' });
   f.crew = crew; f.adapter = adapter;
-  f.run = options => adapter.select(roleId, { deadlineAt: Date.now() + 2500, ...options });
+  f.run = options => adapter.select(actorRoleId, { deadlineAt: Date.now() + 2500, ...options });
   return f;
 }
 
@@ -211,4 +213,80 @@ test('accepted normal resume DTO may omit connected while explicit disconnected 
   assert.equal(f.sdkCalls, 0);
   const disconnected = fixture(); disconnected.store.me.connected = false;
   await assert.rejects(disconnected.run({ enter: false }));
+});
+
+test('the original normally selected Press station uses its active console with no core primary assignment or seat', async () => {
+  const f = fixture({ actorRoleId: 'press-officer',
+    memberChange: { assignedRoleId: null, seatId: null, activeConsoleRoleId: 'press-officer' } });
+  await f.run();
+  assert.equal(f.calls.length, 0); assert.equal(f.sdkCalls, 0);
+  assert.ok(f.callbacks.some(value => value.assignedRoleId === null && value.activeConsoleRoleId === 'press-officer'));
+});
+
+test('Press account read mode can select its original released station without claiming Press', async () => {
+  const f = fixture({ actorRoleId: 'press-officer', route: '#/brief',
+    memberChange: { assignedRoleId: null, seatId: null, activeConsoleRoleId: null } });
+  await f.run({ enter: false });
+  assert.equal(f.calls.length, 0); assert.equal(f.sdkCalls, 0);
+});
+
+for (const assignment of ['executive-officer', 'press-officer']) {
+  test(`a Press label cannot grant a held Press station with wrong primary assignment ${assignment}`, async () => {
+    const f = fixture({ actorRoleId: 'press-officer',
+      memberChange: { assignedRoleId: assignment, seatId: null, activeConsoleRoleId: 'press-officer' } });
+    await assert.rejects(f.run()); assert.equal(f.calls.length, 0); assert.equal(f.sdkCalls, 0);
+  });
+}
+
+test('an active Press label cannot grant that station to an original account holding a core seat', async () => {
+  const f = fixture({ actorRoleId: 'press-officer',
+    memberChange: { assignedRoleId: null, seatId: 'executive-officer', activeConsoleRoleId: 'press-officer' } });
+  await assert.rejects(f.run()); assert.equal(f.calls.length, 0); assert.equal(f.sdkCalls, 0);
+});
+
+test('a normally admitted original core account with no assigned station remains available for an account read', async () => {
+  const f = fixture({ route: '#/brief', memberChange: { assignedRoleId: null, activeConsoleRoleId: null, seatId: null } });
+  await f.run({ enter: false });
+  assert.equal(f.calls.length, 0); assert.equal(f.sdkCalls, 0);
+  assert.ok(f.callbacks.some(value => value.assignedRoleId === null));
+});
+
+test('account read selection cannot manufacture a held core station from a null primary assignment', async () => {
+  const f = fixture({ memberChange: { assignedRoleId: null, activeConsoleRoleId: roleId, seatId: null } });
+  await assert.rejects(f.run()); assert.equal(f.calls.length, 0); assert.equal(f.sdkCalls, 0);
+});
+
+for (const [name, memberChange] of [
+  ['current Comms replacement', { assignedRoleId: null, activeConsoleRoleId: null, seatId: null,
+    replacementRoleId: 'comms-officer', replacementStatus: null }],
+  ['awaiting reassignment', { assignedRoleId: null, activeConsoleRoleId: null, seatId: null,
+    replacementStatus: 'awaiting-re-role' }],
+  ['destroyed-ship escape', { assignedRoleId: null, activeConsoleRoleId: null, seatId: null,
+    escapeState: { status: 'pending', shipId: 'aegis', revision: 1, destructionEventId: 'native-destruction' } }],
+]) test(`${name} permits original-account selection for an entitled read without primary-role credit`, async () => {
+  const f = fixture({ route: '#/brief', memberChange });
+  await f.run({ enter: false });
+  assert.equal(f.calls.length, 0); assert.equal(f.sdkCalls, 0);
+});
+
+for (const [name, memberChange] of [
+  ['current replacement', { replacementRoleId: 'comms-officer' }],
+  ['awaiting reassignment', { replacementStatus: 'awaiting-re-role' }],
+  ['destroyed-ship escape', { escapeState: { status: 'pending', shipId: 'aegis', revision: 1,
+    destructionEventId: 'native-destruction' } }],
+]) test(`${name} cannot acquire a historical printed console through a matching cached primary/active label`, async () => {
+  const f = fixture({ memberChange });
+  await assert.rejects(f.run()); assert.equal(f.calls.length, 0); assert.equal(f.sdkCalls, 0);
+});
+
+for (const [field, mutate] of [
+  ['connectionGeneration', f => { f.store.me.connectionGeneration = 14; }],
+  ['identityHydrationRevision', f => { f.store.identityHydrationRevision = 2; }],
+  ['fleetGroupId', f => { f.store.me.fleetGroupId = 'foreign-fleet'; }],
+  ['assignedRoleId', f => { f.store.me.assignedRoleId = 'wing-commander'; }],
+]) test(`unassigned account read mode still rejects original ${field} drift`, async () => {
+  const f = fixture({ memberChange: { assignedRoleId: null, activeConsoleRoleId: null, seatId: null },
+    onMetadata: (value, count) => { if (count === 1) mutate(value); } });
+  await assert.rejects(f.run({ enter: false }), /changed|original|Original/i);
+  assert.equal(f.calls.length, 0); assert.equal(f.sdkCalls, 0);
 });
