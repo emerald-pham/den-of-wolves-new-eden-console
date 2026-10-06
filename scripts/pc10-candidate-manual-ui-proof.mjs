@@ -585,6 +585,7 @@ export function candidateGameplayTools(context) {
     const initialReadiness = await waitForReadySource();
     const previous = surface.page.viewportSize();
     const viewports = [];
+    const keyboardDiagnostics = [];
     try {
       for (const size of [{ width: 320, height: 844 }, { width: 844, height: 390 }, { width: 1440, height: 900 }]) {
         await withinBudget(() => surface.page.setViewportSize(size));
@@ -594,6 +595,19 @@ export function candidateGameplayTools(context) {
         const intendedTargets = [...geometry.tabStopKeys];
         const tabPressLimit = geometry.documentTabStopCount + 1;
         const visitedTargets = new Set();
+        const targetOrdinal = key => {
+          const ordinal = key == null ? -1 : intendedTargets.indexOf(key);
+          return ordinal < 0 ? null : ordinal;
+        };
+        const diagnosticSample = snapshot => ({ activeTargetOrdinal: targetOrdinal(snapshot.activeTargetKey),
+          documentTabStopCount: Number.isSafeInteger(snapshot.documentTabStopCount) ? snapshot.documentTabStopCount : null });
+        // Retain only already-returned samples if this operation later fails.
+        // Initial focus is informational; only the original post-Tab Set earns credit.
+        const keyboardDiagnostic = { targets: intendedTargets.map((key, ordinal) => {
+          const [tag, type] = key.split('|');
+          return { ordinal, tag, type, keySha256: createHash('sha256').update(key).digest('hex') };
+        }), initial: diagnosticSample(geometry), pressTrace: [], visitedTargetOrdinals: [],
+        missingTargetOrdinals: [], afterTraversal: null, afterScreenshot: null };
         let tabPresses = 0;
         while (visitedTargets.size < intendedTargets.length && tabPresses < tabPressLimit) {
           await withinBudget(() => surface.page.keyboard.press('Tab'));
@@ -601,6 +615,7 @@ export function candidateGameplayTools(context) {
           const snapshot = await withinBudget(() => panel.evaluate(candidateGeometrySnapshot));
           assert.deepEqual(snapshot.tabStopKeys, intendedTargets,
             'The current enabled panel tab stops must stay stable during native keyboard traversal.');
+          keyboardDiagnostic.pressTrace.push({ pressOrdinal: tabPresses, ...diagnosticSample(snapshot) });
           if (snapshot.activeTargetKey) visitedTargets.add(snapshot.activeTargetKey);
         }
         const keyboardTraversal = summarizeCandidateKeyboardTraversal({
@@ -610,15 +625,21 @@ export function candidateGameplayTools(context) {
         const afterTraversal = await waitForReadySource();
         assert.deepEqual(afterTraversal.decision, initialReadiness.decision,
           'The same original actor, current cycle, source revision, and native path must remain mounted through Tab traversal.');
+        keyboardDiagnostic.afterTraversal = { ...diagnosticSample(afterTraversal.rendered), sourceCheckpointAccepted: true };
+        intendedTargets.forEach((key, ordinal) => {
+          (visitedTargets.has(key) ? keyboardDiagnostic.visitedTargetOrdinals : keyboardDiagnostic.missingTargetOrdinals).push(ordinal);
+        });
         viewports.push({ ...size,
           noHorizontalOverflow: geometry.noHorizontalOverflow, controls: geometry.controls,
           checkboxTargets: geometry.checkboxTargets, text: geometry.text, reducedMotion: geometry.reducedMotion,
           readiness: afterTraversal.decision, keyboardFocusReached: keyboardTraversal.allEnabledTargetsReached,
           keyboardTraversal });
+        keyboardDiagnostics.push(keyboardDiagnostic);
         await withinBudget(() => surface.page.screenshot({ path: `${directory}/${code}-${stage}-${size.width}x${size.height}.png`, timeout: remaining() }));
         const afterScreenshot = await waitForReadySource();
         assert.deepEqual(afterScreenshot.decision, initialReadiness.decision,
           'Source actor, cycle, report revision, and candidate path must still match after capture.');
+        keyboardDiagnostic.afterScreenshot = { ...diagnosticSample(afterScreenshot.rendered), sourceCheckpointAccepted: true };
       }
       assert.ok(viewports.every(value => value.noHorizontalOverflow && value.keyboardFocusReached), 'Actual candidate choices must fit and be keyboard reachable.');
       assert.ok(viewports.every(value => [...value.controls, ...value.checkboxTargets].every(control => control.height >= 43.99)), 'Actual candidate controls and research activation targets must retain their mandatory 44px targets.');
@@ -628,9 +649,10 @@ export function candidateGameplayTools(context) {
       if (viewports.length) await writeFile(`${directory}/${code}-${stage}-geometry-uncredited.json`, `${JSON.stringify({
         status: 'failed-uncredited', candidateCode: code, stage,
         failureCategory: error?.name === 'AssertionError' ? 'assertion' : 'operation-failed',
-        viewports: viewports.map(viewport => ({ width: viewport.width, height: viewport.height,
+        viewports: viewports.map((viewport, index) => ({ width: viewport.width, height: viewport.height,
           noHorizontalOverflow: viewport.noHorizontalOverflow, keyboardFocusReached: viewport.keyboardFocusReached,
           keyboardTraversal: viewport.keyboardTraversal,
+          keyboardDiagnostic: keyboardDiagnostics[index],
           controlTargetShortfallCount: viewport.controls.filter(control => control.height < 43.99).length,
           checkboxTargetShortfallCount: viewport.checkboxTargets.filter(target => target.height < 43.99).length,
         })),
