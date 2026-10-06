@@ -23,6 +23,7 @@ import {
 import { captureCallableResponse, currentConsoleVisitProofStatus, readWolfActor,
   runWolfSupplySabotageUiFlow } from './pc10-private-actions-ui-proof.mjs';
 import { prepareWolfSupplyCargo } from './pc10-optional-loyalty-supply-preparation.mjs';
+import { authorArbourVisionUi, assertArbourRecipientReceipt } from './pc10-arbour-vision-ui-proof.mjs';
 
 const MODES = ['wolf-cult', 'universal-arbour'];
 const VIEWPORTS = [
@@ -414,7 +415,7 @@ async function waitForPrivateProjection(crew, predicate, description, timeoutMs 
   throw new Error(`${description} did not arrive in the entitled actor projection.`);
 }
 
-async function deliverFacilitatorScenarioCall({ mode, gm, directory }) {
+async function deliverFacilitatorScenarioCall({ mode, gm, directory, initial, started, roster }) {
   if (mode === 'wolf-cult') {
     const form = gm.page.getByRole('region', { name: 'Wolf Cult intelligence delivery', exact: true });
     await form.waitFor({ state: 'visible' });
@@ -431,15 +432,11 @@ async function deliverFacilitatorScenarioCall({ mode, gm, directory }) {
       recipientAudience: 'current entitled Wolf Cult holder and facilitator', privateTextOrIdentityRecorded: false }, null, 2)}\n`);
     return { privateFacilitatorDelivery: true };
   }
-  const form = gm.page.getByRole('region', { name: 'Universal Arbour facilitator call', exact: true });
-  await form.waitFor({ state: 'visible' });
-  await form.locator('#arbour-vision-kind').selectOption('danger');
-  await form.locator('#arbour-vision-text').fill('Training exercise // facilitator call; no new location is selected.');
-  await form.getByRole('button', { name: 'Publish private call', exact: true }).click();
-  await form.getByRole('status').filter({ hasText: 'FACILITATOR CALL' }).waitFor();
+  const authored = await authorArbourVisionUi({ gm, initial, started, roster });
   await writeFile(`${directory}/facilitator-private-action.json`, `${JSON.stringify({ mode, delivered: true,
-    recipientAudience: 'current entitled Universal Arbour holder', privateTextOrIdentityRecorded: false }, null, 2)}\n`);
-  return { privateFacilitatorDelivery: true };
+    recipientAudience: 'current entitled Universal Arbour holder', privateTextOrIdentityRecorded: false,
+    authorArbourVision: authored.evidence }, null, 2)}\n`);
+  return { privateFacilitatorDelivery: true, authorArbourVision: authored.evidence, arbourVisionReceipt: authored.receipt };
 }
 
 async function performWolfCycleAction({ crew, actor, sessionId, expectedKind, action }) {
@@ -579,7 +576,7 @@ async function exerciseWolfCycleActions({ mode, crew, gm, initial, started, rost
 }
 
 async function exerciseCurrentScenarioActors({ mode, gm, crew, initial, started, roster, plan, directory,
-  projectId, privateActionRecipe }) {
+  projectId, privateActionRecipe, arbourVisionReceipt }) {
   assert.equal(started.cycle, 1);
   assert.equal(started.phase, 'active');
   assert.equal(started.fullGameDemo?.status, 'active');
@@ -636,6 +633,7 @@ async function exerciseCurrentScenarioActors({ mode, gm, crew, initial, started,
         'Facilitator call');
       const delivered = await actorState(crew, 'universal-arbour');
       assert.equal(delivered.expectedPrivateKind, true);
+      await assertArbourRecipientReceipt({ crew, actor, sessionId: initial.sessionId, receipt: arbourVisionReceipt });
       privateFunctions.arbourCallReachedEntitledHolder = true;
     }
     assert.equal(projection.noAndroidProofOnOtherCard, true);
@@ -725,9 +723,10 @@ async function runScenario(mode, options = {}) {
       assert.equal(current.phase, 'active');
       assert.equal(current.fullGameDemo?.status, 'active');
       assert.equal(current.phaseProgression, 'manual');
-      const facilitator = await deliverFacilitatorScenarioCall({ mode, gm, directory });
+      const { arbourVisionReceipt, ...facilitator } = await deliverFacilitatorScenarioCall({ mode, gm, directory,
+        initial, started, roster });
       const actions = await exerciseCurrentScenarioActors({ mode, gm, crew, initial, started, roster,
-        plan, directory, projectId, privateActionRecipe: options.privateActionRecipe });
+        plan, directory, projectId, privateActionRecipe: options.privateActionRecipe, arbourVisionReceipt });
       privateFunctions = { ...facilitator, ...actions };
     },
   };
