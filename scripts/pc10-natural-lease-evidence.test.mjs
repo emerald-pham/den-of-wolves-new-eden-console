@@ -2,9 +2,10 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import childProcess from 'node:child_process';
 import { syncBuiltinESMExports } from 'node:module';
-import { mkdir, readFile } from 'node:fs/promises';
+import fsPromises, { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { createFixtureHeartbeatController } from './fixture-heartbeats.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
@@ -73,8 +74,8 @@ function fixtureTable(onExpiredSnapshot) {
 }
 
 async function fullHelperFailure(t, name, change, expectedError, { pendingProducer = false } = {}) {
-  const reportRoot = process.env.PC10_NATIVE_LEASE_REPORT_ROOT;
-  assert.ok(reportRoot, 'Retain each native failure report in the separate RED/GREEN evidence directory.');
+  const reportRoot = process.env.PC10_NATIVE_LEASE_REPORT_ROOT ?? await mkdtemp(join(tmpdir(), 'pc10-native-lease-'));
+  if (!process.env.PC10_NATIVE_LEASE_REPORT_ROOT) t.after(() => rm(reportRoot, { recursive: true, force: true }));
   const directory = join(reportRoot, name);
   await mkdir(directory, { recursive: true });
   t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now });
@@ -89,6 +90,11 @@ async function fullHelperFailure(t, name, change, expectedError, { pendingProduc
     callback(schedulerBoundary, '', '');
   };
   assert.equal(childProcess.execFile[Symbol.for('nodejs.util.promisify.custom')], undefined);
+  // Keep native I/O independent of the owner's reserved runtime configuration.
+  const originalReadFile = fsPromises.readFile;
+  fsPromises.readFile = (path, options) => path === join(root, 'firebase.local.json')
+    ? Promise.resolve(JSON.stringify({ emulators: { auth: { port: 19009 }, functions: { port: 15011 }, firestore: { port: 18090 } } }))
+    : originalReadFile(path, options);
   syncBuiltinESMExports();
   const item = fixtureTable(change);
   const waiting = deferred(), stopping = deferred(), producer = deferred();
@@ -161,7 +167,7 @@ async function fullHelperFailure(t, name, change, expectedError, { pendingProduc
     if (controller) await controller.stop();
     if (proof) await proof.catch(() => {});
     t.mock.timers.reset(); t.mock.restoreAll();
-    childProcess.execFile = originalExecFile; syncBuiltinESMExports();
+    childProcess.execFile = originalExecFile; fsPromises.readFile = originalReadFile; syncBuiltinESMExports();
   }
 }
 
