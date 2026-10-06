@@ -315,13 +315,15 @@ describe('PC10 public mission caller mapping through real lifecycle, projection,
       const bridge = nativeBridge(); await bridge.prepareResolution();
       expect((await bridge.capy(choice, reclaimed)).stages[0]?.status).toBe('pending');
     });
-  it.each(['missing-reward', 'wrong-reward-branch', 'missing-drop', 'foreign-holder', 'delivery-reward-drift'] as const)(
+  it.each(['missing-reward', 'wrong-reward-branch', 'non-boa-resource', 'missing-drop', 'foreign-holder',
+    'delivery-reward-drift'] as const)(
     'withholds completion for a parsed public %s counterexample', async kind => {
       const bridge = nativeBridge(); await bridge.prepareResolution();
       bridge.mutate((type, reply) => {
         const state = structuredClone(reply.publicState) as unknown as Row;
         if (kind === 'missing-reward') state.rewards = (state.rewards as Row[]).filter(row => row.opportunityId !== 'D-1');
         if (kind === 'wrong-reward-branch') (state.rewards as Row[])[0]!.branch = 'none';
+        if (kind === 'non-boa-resource') (state.rewards as Row[])[0]!.resources = { food: 10 };
         if (type === 'dropOff' && kind === 'missing-drop') state.custody = { status: 'mission-leader', holderUid: wing, shipId: null };
         if (type === 'dropOff' && kind === 'foreign-holder') (state.custody as Row).holderUid = 'foreign-holder';
         if (type === 'dropOff' && kind === 'delivery-reward-drift') (state.rewards as Row[])[0]!.resources = { scrap: 2 };
@@ -354,17 +356,19 @@ describe('PC10 public mission caller mapping through real lifecycle, projection,
       expect((await bridge.extra())[0]?.status).toBe('pending');
       expect(bridge.record().rewards?.[0]?.bulkHaulageApplied).toBe(false);
     });
-  it.each(['unrelated-opportunity', 'missing-reward', 'missing-outcome', 'failure-outcome', 'no-resource', 'not-resolved'] as const)(
+  it.each(['unrelated-opportunity', 'missing-reward', 'missing-outcome', 'failure-outcome', 'no-resource',
+    'wrong-reward-branch', 'not-resolved'] as const)(
     'withholds Bulk Haulage credit for a parsed public %s counterexample', async kind => {
       const bridge = nativeBridge({ bulk: true });
       bridge.mutate((type, reply) => {
         if (type !== 'resolve') return reply;
         const state = structuredClone(reply.publicState) as unknown as Row;
-        if (kind === 'unrelated-opportunity') (state.rewards as Row[])[0]!.opportunityId = 'D-2';
+        if (kind === 'unrelated-opportunity') state.rewards = [{ ...(state.rewards as Row[])[0], opportunityId: 'D-2' }];
         if (kind === 'missing-reward') state.rewards = [];
         if (kind === 'missing-outcome') state.outcomes = [];
         if (kind === 'failure-outcome') (state.outcomes as Row[])[0]!.outcome = 'failure';
         if (kind === 'no-resource') (state.rewards as Row[])[0]!.resources = {};
+        if (kind === 'wrong-reward-branch') (state.rewards as Row[])[0]!.branch = 'none';
         if (kind === 'not-resolved') { state.status = 'complete'; state.phase = 'complete'; }
         expect(parseAwayMissionLifecyclePublicState(state, bridge.missionId)).not.toBeNull();
         return { ...reply, publicState: state as unknown as AwayMissionLifecycleCallableReply['publicState'] };
@@ -375,6 +379,32 @@ describe('PC10 public mission caller mapping through real lifecycle, projection,
     const record = fixture(); const state = projectAwayMissionPublicState(record);
     expect(parseAwayMissionLifecyclePublicState(state, 'foreign-mission')).toBeNull();
     expect(parseAwayMissionLifecyclePublicState({ ...state, rewardResults: [] }, record.lifecycle.missionId)).toBeNull();
+  });
+  it.each(['foreign-mission', 'private-outcome-field'] as const)(
+    'retains real service rejection for a %s in the current producer reply', async kind => {
+      const bridge = nativeBridge(); await bridge.prepareResolution();
+      bridge.mutate((_type, reply) => {
+        const state = structuredClone(reply.publicState) as unknown as Row;
+        if (kind === 'foreign-mission') state.missionId = 'foreign-mission';
+        else (state.outcomes as Row[])[0]!.rewardBranch = 'critical';
+        return { ...reply, publicState: state as unknown as AwayMissionLifecycleCallableReply['publicState'] };
+      });
+      const service = createCurrentAwayMissionLifecycleActions(() => ({ missionId: bridge.missionId,
+        missionLeaderUid: wing, revision: bridge.record().revision }), sid, gm);
+      await expect(service.resolve()).rejects.toThrow(/invalid away-mission lifecycle/);
+      expect(bridge.requests).toHaveLength(1); expect(bridge.actions).toHaveLength(0);
+    });
+  it('retains the real service original-identity fence after the actual command response', async () => {
+    const bridge = nativeBridge(); await bridge.prepareResolution();
+    bridge.mutate((_type, reply) => {
+      const state = useSessionStore.getState();
+      useSessionStore.setState({ session: { ...state.session!, id: 'foreign-session' } });
+      return reply;
+    });
+    const service = createCurrentAwayMissionLifecycleActions(() => ({ missionId: bridge.missionId,
+      missionLeaderUid: wing, revision: bridge.record().revision }), sid, gm);
+    await expect(service.resolve()).rejects.toThrow(/earlier session identity/);
+    expect(bridge.requests).toHaveLength(1); expect(bridge.actions).toHaveLength(0);
   });
   it.each(['foreign-auth', 'cache', 'foreign-session'] as const)('retains real client-service %s authority rejection before command', async kind => {
     const bridge = nativeBridge(); await bridge.prepareResolution();
