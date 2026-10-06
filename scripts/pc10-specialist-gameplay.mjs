@@ -201,11 +201,20 @@ export function validateCurrentGroupMessageRecord({ request, result, actor, befo
       actor.playerRole !== 'player' || actor.profileRoleId !== roleId || actor.activeConsoleRoleId !== roleId ||
       actor.assignedRoleId !== roleId || actor.connection !== 'live' || actor.freshness !== 'server' ||
       typeof actor.uidHash !== 'string' || !/^[a-f0-9]{16}$/.test(actor.uidHash)) return null;
-  for (const state of [before, gmState, crewState]) {
+  for (const state of [before, gmState]) {
     if (state?.live !== true || state.sessionId !== sessionId || state.cycle !== cycle || state.phase !== 'active' ||
         !Array.isArray(state.activeVesselIds) || !state.activeVesselIds.includes('refinery-124') ||
         state.shipFleetGroupIds?.['refinery-124'] !== request.expectedGroupId) return null;
   }
+  // Ordinary member projections deliberately omit the facilitator's ship/group
+  // map. Require the independently accepted own member witness instead.
+  const member = crewState?.currentMemberGroupAuthority;
+  if (crewState?.live !== true || crewState.sessionId !== sessionId || crewState.cycle !== cycle || crewState.phase !== 'active' ||
+      !Array.isArray(crewState.activeVesselIds) || !crewState.activeVesselIds.includes('refinery-124') ||
+      !isRecord(member) || member.groupId !== request.expectedGroupId || member.scopePresent !== true ||
+      member.scopeMatches !== true || member.berthPresent !== true || member.berthMatches !== true ||
+      member.shipId !== 'refinery-124' || member.documentHydrated !== true ||
+      crewState.shipFleetGroupIds !== undefined && crewState.shipFleetGroupIds?.['refinery-124'] !== request.expectedGroupId) return null;
   if (crewState.player?.role !== 'player' || crewState.player.assignedRoleId !== roleId ||
       crewState.player.activeConsoleRoleId !== roleId || crewState.player.replacementRoleId != null) return null;
   return { type: 'current-group-message-recorded', requestId: request.requestId, messageId: result.messageId,

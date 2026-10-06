@@ -160,6 +160,26 @@ export function createTwoBrowserGameplay(context) {
       const { useSessionStore } = await import(moduleUrl);
       const s = useSessionStore.getState();
       const session = s.session;
+      const me = s.me, scope = session?.memberSessionScope, berth = session?.currentActorBerthAuthority;
+      const wireId = value => typeof value === 'string' && value.length > 0 && value.length <= 1_500 && !value.includes('/');
+      const nullableRole = id => id === null || wireId(id);
+      const berthKeys = ['sessionId', 'actorUid', 'groupId', 'role', 'connectionGeneration',
+        'assignedRoleId', 'activeConsoleRoleId', 'replacementRoleId', 'replacementStatus', 'shipId'];
+      const scopeMatches = Boolean(scope && typeof scope.groupId === 'string' && /^fleet-[1-9][0-9]*$/.test(scope.groupId) &&
+        scope.groupId === me?.fleetGroupId && Array.isArray(scope.vesselIds));
+      const berthMatches = Boolean(session && berth && typeof berth === 'object' && !Array.isArray(berth) &&
+        Object.keys(berth).length === berthKeys.length && Object.keys(berth).every(key => berthKeys.includes(key)) &&
+        wireId(berth.sessionId) && wireId(berth.actorUid) && wireId(berth.shipId) &&
+        typeof berth.groupId === 'string' && /^fleet-[1-9][0-9]*$/.test(berth.groupId) && berth.role === 'player' &&
+        Number.isSafeInteger(berth.connectionGeneration) && berth.connectionGeneration >= 1 &&
+        nullableRole(berth.assignedRoleId) && nullableRole(berth.activeConsoleRoleId) && nullableRole(berth.replacementRoleId) &&
+        berth.replacementStatus === null && session.phase !== 'closed' &&
+        me?.role === 'player' && me.connected === true && me.replacementStatus == null &&
+        berth.sessionId === session.id && me.sessionId === session.id && berth.actorUid === me.uid &&
+        scopeMatches && berth.groupId === scope.groupId && scope.vesselIds.includes(berth.shipId) &&
+        berth.connectionGeneration === (me.connectionGeneration ?? 1) &&
+        berth.assignedRoleId === (me.assignedRoleId ?? null) && berth.activeConsoleRoleId === (me.activeConsoleRoleId ?? null) &&
+        berth.replacementRoleId === (me.replacementRoleId ?? null));
       return { sessionId: session?.id, cycle: session?.currentTurn, phase: session?.phase,
         turnLimit: session?.turnLimit, turnPhase: session?.turnPhase,
         fullGameDemo: session?.fullGameDemo, shipResources: session?.shipResources,
@@ -172,6 +192,11 @@ export function createTwoBrowserGameplay(context) {
         shipFleetGroupIds: session?.shipFleetGroupIds,
         vesselActionRevisions: session?.vesselActionRevisions, gameOutcome: session?.gameOutcome,
         debriefSnapshot: session?.debriefSnapshot,
+        currentMemberGroupAuthority: { groupId: me?.fleetGroupId ?? null,
+          scopePresent: !!session && Object.hasOwn(session, 'memberSessionScope'), scopeMatches,
+          berthPresent: !!session && Object.hasOwn(session, 'currentActorBerthAuthority'), berthMatches,
+          shipId: berthMatches ? berth.shipId : null,
+          documentHydrated: Number.isSafeInteger(s.identityHydrationRevision) && s.identityHydrationRevision > 0 },
         player: { role: s.me?.role, assignedRoleId: s.me?.assignedRoleId,
           activeConsoleRoleId: s.me?.activeConsoleRoleId, replacementRoleId: s.me?.replacementRoleId },
         live: s.connection === 'live' && s.sessionSnapshotFreshness === 'server' };
