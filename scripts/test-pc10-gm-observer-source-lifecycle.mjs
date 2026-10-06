@@ -224,6 +224,7 @@ async function fixture(options = {}) {
   let authUid = uid, url = `http://localhost:5174/${options.route ?? '#/console'}`, mounted = true;
   let remainingGmMountReads = options.gmMountReads ?? 0, gmMountReads = 0;
   let gmMounted = remainingGmMountReads === 0;
+  let remainingStationMountReads = options.stationMountReads ?? 0;
   let mountReads = 0, remainingMountReads = options.mountReads ?? 0;
   let reloads = 0, lists = 0, lifecycleReads = 0;
   const fields = { 'Question or ambiguity': '', 'Source or reference': '', Decision: '',
@@ -261,6 +262,7 @@ async function fixture(options = {}) {
       if (!sourceIsGm(raw)) return 0;
       const routes = { 'GM Console': '#/console', '← Change role': '#/ships/aegis/observer', 'Back to fleet': '#/ships/aegis/roles' };
       if (route() !== routes[name]) return 0;
+      if (name === 'GM Console' && remainingStationMountReads > 0) return 0;
     }
     if ((Object.hasOwn(fields, name) || ['Facilitator rule call', 'Private loyalty census', 'Record rule call', 'Save note'].includes(name)) &&
         (route() !== '#/gm' || !gmMounted)) return 0;
@@ -366,9 +368,13 @@ async function fixture(options = {}) {
           options.onMountRead?.({ raw, mountReads });
           return mounted && route() === '#/ships/aegis/observer' ? [main] : [];
         }
-        if (selector === '[role="status"]') return route() === '#/gm' && !gmMounted
-          ? [{ textContent: 'Opening GM console…' }]
-          : route() === '#/ships/aegis/observer' && !mounted ? [{ textContent: 'Opening ship console…' }] : [];
+        if (selector === '[role="status"]') {
+          if (route() === '#/console' && remainingStationMountReads > 0) {
+            remainingStationMountReads -= 1; return [{ textContent: 'Opening stations…' }];
+          }
+          return route() === '#/gm' && !gmMounted ? [{ textContent: 'Opening GM console…' }]
+            : route() === '#/ships/aegis/observer' && !mounted ? [{ textContent: 'Opening ship console…' }] : [];
+        }
         return [];
       } };
   }
@@ -548,6 +554,16 @@ test('public GM form keeps an already mounted GM route without an additional nav
     const result = await callbackFor(f, ['authorFacilitatorRuleCall']).onStarted(f.context);
     assert.equal(rowFor(result, 'authorFacilitatorRuleCall').status, 'completed', rowFor(result, 'authorFacilitatorRuleCall').reason);
     assert.deepEqual(f.navigations, []); assert.equal(f.writes.length, 1);
+  } finally { f.close(); }
+});
+
+test('public GM form consumes the existing readiness budget while its exact normal stations link is still lazy mounting', async () => {
+  const f = await fixture({ stationMountReads: 1 });
+  try {
+    const result = await callbackFor(f, ['authorFacilitatorRuleCall']).onStarted(f.context);
+    assert.equal(rowFor(result, 'authorFacilitatorRuleCall').status, 'completed', rowFor(result, 'authorFacilitatorRuleCall').reason);
+    assert.deepEqual(f.navigations, ['GM Console']); assert.equal(f.writes.length, 1);
+    assert.ok(f.operationBudgets.every(timeout => timeout > 0 && timeout <= 60_000));
   } finally { f.close(); }
 });
 
