@@ -22,6 +22,7 @@ import {
 } from './pc10-private-actions-proof-contracts.mjs';
 import { captureCallableResponse, currentConsoleVisitProofStatus, readWolfActor,
   runWolfSupplySabotageUiFlow } from './pc10-private-actions-ui-proof.mjs';
+import { prepareWolfSupplyCargo } from './pc10-optional-loyalty-supply-preparation.mjs';
 
 const MODES = ['wolf-cult', 'universal-arbour'];
 const VIEWPORTS = [
@@ -373,6 +374,12 @@ async function exerciseActorRecoveryAndRepeat({ crew, initial, roster, byRole })
   const lastActor = roster.at(-1);
   const firstActor = roster[0];
   assert.ok(firstActor && lastActor);
+  const lastExpected = byRole.get(lastActor.roleId);
+  await enterActorStation({ crew, actor: lastActor, sessionId: initial.sessionId,
+    expectedKind: lastExpected.kind, expectedPartnerRoleId: lastExpected.partnerRoleId });
+  const beforeReload = await crew.observe();
+  assertSelectedActor(beforeReload, { ...lastActor, sessionId: initial.sessionId });
+  assert.equal(beforeReload.pendingCommandCount, 0, 'The selected original actor must have no queued work before reload.');
   await crew.page.reload();
   const recovered = await crew.until('Original admitted actor recovered through normal Auth and server projection', state =>
     state.sameActor && state.profileRoleId === lastActor.roleId && state.sessionId === initial.sessionId &&
@@ -482,7 +489,7 @@ async function performWolfCycleAction({ crew, actor, sessionId, expectedKind, ac
   return { actorProjection, action, completed: true, receipt };
 }
 
-async function exerciseWolfCycleActions({ mode, crew, gm, initial, roster, byRole, directory, privateActionRecipe }) {
+async function exerciseWolfCycleActions({ mode, crew, gm, initial, started, roster, byRole, directory, privateActionRecipe }) {
   const actors = roster.filter(actor => ['wolf-agent', 'wolf-cult'].includes(byRole.get(actor.roleId)?.kind))
     .map(actor => ({ ...actor, kind: byRole.get(actor.roleId).kind }));
   const plan = buildWolfCycleActionPlan(mode, actors);
@@ -490,9 +497,20 @@ async function exerciseWolfCycleActions({ mode, crew, gm, initial, roster, byRol
   let supplyActorRoleId = null;
   let supplyOutcome = { status: 'not-run', credited: false,
     reason: 'The opt-in supply-sabotage recipe was not requested for this fresh game.' };
+  let cargoPreparation = null;
   if (privateActionRecipe !== undefined) {
     assert.equal(privateActionRecipe, 'supply-sabotage', 'Only the explicit normal-UI supply recipe is supported.');
+    const cargoActor = actors.find(actor => actor.roleId === 'executive-officer');
+    if (cargoActor) {
+      await enterActorStation({ crew, actor: cargoActor, sessionId: initial.sessionId, expectedKind: cargoActor.kind });
+      cargoPreparation = await prepareWolfSupplyCargo({ crew, gm, initial, started, roster, directory }, cargoActor);
+    } else cargoPreparation = { status: 'blocked', normalCargoLoadObserved: false,
+      reason: 'The original optional roster has no entitled Wolf EO for the normal Pallas cargo preparation.' };
     for (const planned of plan) {
+      if (cargoPreparation.status !== 'committed') {
+        supplyOutcome = { status: 'blocked', credited: false, reason: cargoPreparation.reason };
+        break;
+      }
       const actor = roster.find(candidate => candidate.roleId === planned.roleId);
       assert.ok(actor);
       await enterActorStation({ crew, actor, sessionId: initial.sessionId, expectedKind: planned.kind });
@@ -532,7 +550,8 @@ async function exerciseWolfCycleActions({ mode, crew, gm, initial, roster, byRol
       uiRequestAndReplyCaptured: supplyOutcome.normalUiRequestCaptured === true && supplyOutcome.exactUiReplyValidated === true,
       exactSdkReplay: supplyOutcome.sameAuthenticatedSdkReplay === true,
       actorAndGroupAuthorityStayedStable: supplyOutcome.actorAndGroupAuthorityStayedStable === true,
-      connectionGenerationStayedStable: supplyOutcome.connectionGenerationStayedStable === true,
+      connectionGenerationRevalidatedAfterReconnect: supplyOutcome.connectionGenerationRevalidatedAfterReconnect === true,
+      normalCargoPreparation: cargoPreparation,
       suspicionIncreaseValidated: supplyOutcome.suspicionIncreaseValidated === 2,
       floorHalfLossValidated: supplyOutcome.floorHalfLossValidated === true,
       gmAcknowledgementUiAndExactReplay: supplyOutcome.gmAcknowledgementUiAndExactReplay === true,
@@ -622,7 +641,7 @@ async function exerciseCurrentScenarioActors({ mode, gm, crew, initial, started,
     assert.equal(projection.noAndroidProofOnOtherCard, true);
   }
   privateFunctions.reciprocalFriendPairReadByBothHolders = friendHoldersRead === 2;
-  Object.assign(privateFunctions, await exerciseWolfCycleActions({ mode, gm, crew, initial, roster, byRole,
+  Object.assign(privateFunctions, await exerciseWolfCycleActions({ mode, gm, crew, initial, started, roster, byRole,
     directory, privateActionRecipe }));
   if (mode === 'wolf-cult') {
     const cultActor = roster.find(actor => byRole.get(actor.roleId)?.kind === 'wolf-cult');
