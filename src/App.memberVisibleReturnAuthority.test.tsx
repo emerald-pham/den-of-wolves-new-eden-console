@@ -247,7 +247,7 @@ describe('original member short visibility return composition', () => {
 
   it('normal same-profile manager Link changes only the hash, preserving the accepted document without resume', async () => {
     await mountReadyOriginalMiner(); const original = performance.timeOrigin;
-    act(() => fireEvent.click(screen.getByRole('link', { name: "Enter this actor's stations", exact: true })));
+    act(() => fireEvent.click(screen.getByRole('link', { name: /^Enter this actor's stations$/ })));
     await advance(300);
     expect(window.location.hash).toBe('#/console'); expect(performance.timeOrigin).toBe(original);
     expect(useSessionStore.getState()).toMatchObject({ connection: 'live', sessionSnapshotFreshness: 'server',
