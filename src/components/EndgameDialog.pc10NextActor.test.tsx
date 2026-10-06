@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { useSessionStore } from '@/store/useSessionStore';
@@ -15,7 +15,7 @@ beforeEach(() => {
   service.close.mockReset().mockResolvedValue({ phase: 'closed', committed: true, cycle: 2, result: 'failure' });
   service.read.mockReset().mockResolvedValue(undefined);
 });
-afterEach(() => useSessionStore.getState().reset());
+afterEach(() => { cleanup(); useSessionStore.getState().reset(); });
 
 function identity(phase: GameSession['phase'], gm = false, ownsClaim = false) {
   const outcome = { type: 'game-outcome', result: 'failure', cause: 'pursuit-limit', cycle: 2,

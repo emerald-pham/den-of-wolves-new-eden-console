@@ -1,4 +1,4 @@
-import { act, render, screen, within } from '@testing-library/react';
+import { act, cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { useSessionStore } from '@/store/useSessionStore';
@@ -26,7 +26,7 @@ beforeEach(() => {
   useSessionStore.getState().setSessionSnapshotFreshness('server');
   useSessionStore.getState().setPrivateLoyalty({ kind: 'wolf-cult', suspicion: 0 });
 });
-afterEach(() => useSessionStore.getState().reset());
+afterEach(() => { cleanup(); useSessionStore.getState().reset(); });
 
 function wolf() { return within(screen.getByRole('region', { name: 'Private Wolf action' })); }
 function untouched() {
@@ -50,6 +50,10 @@ it('uses the real EO/Pallas cargo configuration to direct its entitled holder to
 it('points a current Dione Engineer only to its real load-capable Philia instead of foreign Starlight or non-cargo Maliades', () => {
   useSessionStore.getState().setMe({ ...useSessionStore.getState().me!, assignedRoleId: 'dione-engineer',
     activeConsoleRoleId: 'dione-engineer' });
+  // The actual store invalidates the prior role's private card. This fresh
+  // rendering fixture delivers the current same-UID card after that boundary.
+  expect(useSessionStore.getState().privateLoyalty).toBeNull();
+  useSessionStore.getState().setPrivateLoyalty({ kind: 'wolf-cult', suspicion: 0 });
   expect(SHUTTLECRAFT.find(craft => craft.id === 'philia')?.cargoTransferTypes).toContain('food');
   expect(SHUTTLECRAFT.find(craft => craft.id === 'maliades')?.cargoTransferTypes).toBeUndefined();
   render(<PrivateLoyaltyPanel />); const view = wolf();
@@ -78,7 +82,6 @@ it('does not advertise a cargo loader after the cover role is removed from the a
 
 it.each([
   { activeConsoleRoleId: 'wing-commander' },
-  { replacementRoleId: 'doctor' },
   { escapeState: { shipId: 'aegis', status: 'pending', destructionEventId: 'destroyed-aegis', revision: 1 } },
 ] satisfies Partial<Player>[])('does not turn a lost current cover-role entitlement %j into cargo-loading guidance', patch => {
   useSessionStore.getState().setMe({ ...useSessionStore.getState().me!, ...patch });
@@ -89,6 +92,7 @@ it.each([
 
 it.each([
   { role: 'gm' as const }, { sessionId: 'foreign-session' }, { replacementStatus: 'awaiting-re-role' as const },
+  { replacementRoleId: 'doctor' },
 ] satisfies Partial<Player>[])('preserves the original private-card audience loss %j without exposing a named cargo handoff', patch => {
   useSessionStore.getState().setMe({ ...useSessionStore.getState().me!, ...patch });
   render(<PrivateLoyaltyPanel />);

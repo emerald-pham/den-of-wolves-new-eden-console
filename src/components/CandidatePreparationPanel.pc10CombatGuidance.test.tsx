@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react';
+import { act, cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { candidateWorkspace, type CandidateAuthority } from '../../functions/src/candidatePaths';
@@ -39,7 +39,7 @@ beforeEach(() => {
   service.create.mockImplementation(choice => ({ sessionId: 'guidance-session', requestId: 'original-request', ...choice }));
   service.execute.mockResolvedValue({ status: 'committed', summary: 'Original Reactor contribution committed.' });
 });
-afterEach(() => useSessionStore.getState().reset());
+afterEach(() => { cleanup(); useSessionStore.getState().reset(); });
 
 it('directs an occupied-P ordinary battle crew to its existing assigned combat console while preserving the server blocker', async () => {
   render(<CandidatePreparationPanel />);

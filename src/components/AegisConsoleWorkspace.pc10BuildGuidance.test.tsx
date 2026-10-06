@@ -1,4 +1,4 @@
-import { act, render, screen, within } from '@testing-library/react';
+import { act, cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
@@ -33,7 +33,7 @@ beforeEach(() => {
   useSessionStore.getState().setConnection('live');
   useSessionStore.getState().setSessionSnapshotFreshness('server');
 });
-afterEach(() => useSessionStore.getState().reset());
+afterEach(() => { cleanup(); useSessionStore.getState().reset(); });
 
 function patchSession(patch: Partial<GameSession>) {
   useSessionStore.getState().setSession({ ...useSessionStore.getState().session!, ...patch });
