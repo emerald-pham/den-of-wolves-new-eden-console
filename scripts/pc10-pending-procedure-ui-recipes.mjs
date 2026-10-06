@@ -1485,6 +1485,23 @@ function counterGmActorMatches(before, current, context, shipId) {
     current.hydrationRevision === before.hydrationRevision && typeof shipId === 'string' && shipId.length > 0;
 }
 
+function counterGmLifecycleMatches(actor, lifecycle, source, sessionId) {
+  return actor?.sameActor === true && lifecycle?.sameActor === true &&
+    actor.sessionId === sessionId && lifecycle.sessionId === sessionId &&
+    actor.uidHash === lifecycle.uidHash && actor.playerRole === lifecycle.playerRole &&
+    actor.instanceId === lifecycle.instanceId && actor.gmInstanceOwned === lifecycle.gmInstanceOwned &&
+    actor.connection === lifecycle.connection && actor.freshness === lifecycle.freshness &&
+    typeof lifecycle.claimedAt === 'string' && lifecycle.claimedAt.length > 0 &&
+    Number.isSafeInteger(lifecycle.generation) && lifecycle.generation >= 1 &&
+    Number.isSafeInteger(lifecycle.hydrationRevision) && lifecycle.hydrationRevision >= 1 &&
+    source?.sessionId === sessionId && source.phase === lifecycle.phase && source.cycle === lifecycle.cycle;
+}
+
+function counterGmActorProjection(actor, lifecycle, source) {
+  return { ...actor, claimedAt: lifecycle?.claimedAt, connectionGeneration: lifecycle?.generation,
+    hydrationRevision: lifecycle?.hydrationRevision, phase: source?.phase, cycle: source?.cycle };
+}
+
 function currentShip(state, roleId) {
   const preferred = SHIP_FOR_ROLE[roleId];
   if (preferred && state?.activeVesselIds?.includes(preferred)) return preferred;
@@ -2524,8 +2541,11 @@ async function planFor({ spec, surface, actor, state, context, target, gmOperati
       const currentActor = await surface.observe();
       const latest = await readActionState(surface);
       remainingGmOperation(gmOperation);
-      const currentCounterActor = { ...currentActor, phase: latest?.phase, cycle: latest?.cycle };
-      if (!counterGmActorMatches(target.counterActorBefore, currentCounterActor, context, target.shipId) ||
+      const currentLifecycle = await observeLifecycleActor(surface, context.initial.sessionId).catch(() => null);
+      remainingGmOperation(gmOperation);
+      const currentCounterActor = counterGmActorProjection(currentActor, currentLifecycle, latest);
+      if (!counterGmLifecycleMatches(currentActor, currentLifecycle, latest, context.initial.sessionId) ||
+          !counterGmActorMatches(target.counterActorBefore, currentCounterActor, context, target.shipId) ||
           !liveState(latest, context.initial.sessionId) || latest.cycle !== sourceBefore.cycle ||
           !latest.activeVesselIds?.includes(target.shipId) ||
           latest.vesselActionRevisions?.[target.shipId] !== sourceBefore.revision ||
@@ -2880,6 +2900,12 @@ async function recipeFor({ context, game, spec }) {
       'completeShuttleArrival'].includes(spec.endpoint);
   const initialSurface = gmOperation ? await game.select('gm', { deadlineAt: gmOperation.deadlineAt })
     : preserveMountedShuttleRoute ? await game.select(roleToUse, { enter: false }) : await game.select(roleToUse);
+  let initialCounterLifecycle = null;
+  if (COUNTER_SOURCE_WAIT_ENDPOINTS.has(spec.endpoint)) {
+    remainingGmOperation(gmOperation);
+    initialCounterLifecycle = await observeLifecycleActor(initialSurface, context.initial.sessionId).catch(() => null);
+    remainingGmOperation(gmOperation);
+  }
   const actor = await initialSurface.observe();
   if (actor?.sessionId !== context.initial.sessionId || actor.sameActor !== true || actor.connection !== 'live' || actor.freshness !== 'server') {
     const refuse = async () => ({ offered: false, reason: 'the original actor/session is not currently live from a server snapshot' });
@@ -2891,9 +2917,11 @@ async function recipeFor({ context, game, spec }) {
   }
   const documentAuthorityShuttleId = ['requestShuttleDeparture', 'beginShuttleTransit', 'retargetShuttleTransit',
     'completeShuttleArrival'].includes(spec.endpoint) ? holderTarget.shuttleId : undefined;
+  if (COUNTER_SOURCE_WAIT_ENDPOINTS.has(spec.endpoint)) remainingGmOperation(gmOperation);
   const state = context.shuttleSourceDiagnosticOnly === true
     ? await readActionState(initialSurface, documentAuthorityShuttleId, { diagnosticOnly: true })
     : await readActionState(initialSurface, documentAuthorityShuttleId);
+  if (COUNTER_SOURCE_WAIT_ENDPOINTS.has(spec.endpoint)) remainingGmOperation(gmOperation);
   if (!liveState(state, context.initial.sessionId)) {
     const refuse = async () => ({ offered: false, reason: 'the required current server session projection is unavailable' });
     return { expected: {}, prepare: refuse, inspect: async () => ({}) };
@@ -2915,7 +2943,12 @@ async function recipeFor({ context, game, spec }) {
   }
   const resolved = mountedTarget(spec, actor, state, { roleId: roleToUse, target: holderTarget });
   if (COUNTER_SOURCE_WAIT_ENDPOINTS.has(spec.endpoint)) {
-    resolved.target.counterActorBefore = { ...actor, phase: state.phase, cycle: state.cycle };
+    const counterActorBefore = counterGmActorProjection(actor, initialCounterLifecycle, state);
+    if (!counterGmLifecycleMatches(actor, initialCounterLifecycle, state, context.initial.sessionId) ||
+        !counterGmActorMatches(counterActorBefore, counterActorBefore, context, resolved.target.shipId)) {
+      return refuse('the original GM lifecycle tuple does not match the current source phase and cycle');
+    }
+    resolved.target.counterActorBefore = counterActorBefore;
   }
   const roleId = resolved.roleId;
   const uidHash = actorUidHash(actor);
@@ -3013,16 +3046,23 @@ async function recipeFor({ context, game, spec }) {
       }
       const movementEndpoint = ['requestShuttleDeparture', 'beginShuttleTransit', 'retargetShuttleTransit',
         'completeShuttleArrival'].includes(spec.endpoint);
-      if (COUNTER_SOURCE_WAIT_ENDPOINTS.has(spec.endpoint)) remainingGmOperation(gmOperation);
+      let currentCounterLifecycle = null;
+      if (COUNTER_SOURCE_WAIT_ENDPOINTS.has(spec.endpoint)) {
+        remainingGmOperation(gmOperation);
+        currentCounterLifecycle = await observeLifecycleActor(surface, context.initial.sessionId).catch(() => null);
+        remainingGmOperation(gmOperation);
+      }
       const latest = context.shuttleSourceDiagnosticOnly === true
         ? await readActionState(surface, movementEndpoint ? resolved.target.shuttleId : undefined, { diagnosticOnly: true })
         : await readActionState(surface, movementEndpoint ? resolved.target.shuttleId : undefined);
+      if (COUNTER_SOURCE_WAIT_ENDPOINTS.has(spec.endpoint)) remainingGmOperation(gmOperation);
       if (!liveState(latest, expected.sessionId)) return { offered: false, reason: 'current server projection became stale before action' };
       const latestRevision = revisionFor(spec.endpoint, latest, resolved.target, auxiliary);
       if (isRevision(latestRevision) && latestRevision !== expected.sourceRevision) return { offered: false, reason: 'source revision changed before action' };
       if (COUNTER_SOURCE_WAIT_ENDPOINTS.has(spec.endpoint)) {
-        const currentCounterActor = { ...currentActor, phase: latest.phase, cycle: latest.cycle };
-        if (!counterGmActorMatches(resolved.target.counterActorBefore, currentCounterActor, context, expected.shipId) ||
+        const currentCounterActor = counterGmActorProjection(currentActor, currentCounterLifecycle, latest);
+        if (!counterGmLifecycleMatches(currentActor, currentCounterLifecycle, latest, context.initial.sessionId) ||
+            !counterGmActorMatches(resolved.target.counterActorBefore, currentCounterActor, context, expected.shipId) ||
             !isRevision(expected.sourceRevision) || typeof expected.groupId !== 'string' || !expected.groupId ||
             expected.shipId !== resolved.target.shipId || latest.cycle !== expected.cycle ||
             !latest.activeVesselIds?.includes(expected.shipId) ||
