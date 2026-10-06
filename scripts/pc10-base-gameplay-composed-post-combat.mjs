@@ -90,14 +90,16 @@ export function createBaseGameplayDriverOptions({
 }
 
 export const BASE_COMPOSED_SOURCE_BINDING = Object.freeze({
+  // Historical extracted Base origin; current candidate is bound by the owner runner.
   frozenRootCommit: '060237c5c1f2d9a5700742dd2641e743984b72b8',
+  integratedDependencySourceCommit: '5d7b626d2705afdfea453f442a923fa5f380a2b0',
   untouchedOriginalRunner: Object.freeze({
     path: '/tmp/dow-pc10-evidence/proof-draft/pc10-base-gameplay.mjs',
     sha256: 'd3ce4d1cf80316943fa27e4f7bb0d09e4de41aa95948012e09765efda7b6d040',
   }),
   functionsIndexSha256: 'd300cdda14395a122f78f2436dd590edbaf303fc9f21cdf0f1053d05d5273484',
   compositionSources: Object.freeze({
-    coreAndGm: '32599cca317358f46aadc7fda2ed38408fda51ba2324d671697e8453b6d64e42',
+    coreAndGm: '1714253b23051189b29167ef906897064e0d95d25789591fea384522b1420351',
     politicsCrisisArrest: 'b65d9175ee82b6acb80581c5de62efb6b52e8f7bb7203be3b18e702707d769ec',
     c4CrisisLifecycle: '8e075e10914c81e21c06b96e08cf341932c55d177210ff66f095cb43bdf2fbfe',
   }),
