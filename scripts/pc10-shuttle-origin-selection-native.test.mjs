@@ -19,8 +19,7 @@ function uidHash(uid) {
   return createHash('sha256').update(uid).digest('hex').slice(0, 16);
 }
 
-function currentAuthority({ uid = CORE_UID, roleId = CORE_ROLE, shuttleId = CORE_SHUTTLE,
-  groupId = GROUP_ID } = {}) {
+function currentAuthority({ uid = CORE_UID, roleId = CORE_ROLE, groupId = GROUP_ID } = {}) {
   return {
     sessionId: SESSION_ID, uidHash: uidHash(uid), groupId, roleId,
     connectionGeneration: 3, identityHydrationRevision: 5, documentTimeOrigin: 1_760_000_000_000,
@@ -101,7 +100,7 @@ function makeHarness({ origin = originAuthority(), witness, movement = null,
 
   const destinationSelect = {
     count: async () => 1, isVisible: async () => true, isEnabled: async () => true,
-    locator: selector => ({
+    locator: () => ({
       evaluateAll: async fn => fn([
         { value: '', textContent: 'Choose local ship', disabled: false },
         { value: 'icebreaker', textContent: 'Icebreaker', disabled: false },
