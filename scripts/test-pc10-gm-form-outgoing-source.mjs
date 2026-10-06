@@ -47,7 +47,7 @@ dom.window.setTimeout = (callback, timeout, ...args) => nativeSetTimeout(() => {
   React.act(() => { callback(...args); });
 }, timeout);
 const { createRoot } = requireNative('react-dom/client');
-const { queryAllByRole, queryAllByLabelText, isInaccessible, fireEvent } = requireNative('@testing-library/dom');
+const { queryAllByRole, queryAllByLabelText, isInaccessible } = requireNative('@testing-library/dom');
 after(() => {
   dom.window.close();
   for (const [key, descriptor] of previous) {
@@ -223,7 +223,7 @@ async function fixture(options = {}) {
   const modules = new Map();
   for (const [path, values] of [
     ['/src/store/useSessionStore.ts', { useSessionStore }],
-    ['/src/lib/firebase.ts', { auth: () => ({ currentUser: { uid } }) }],
+    ['/src/lib/firebase.ts', { auth: () => ({ currentUser: options.authUser === undefined ? { uid } : options.authUser }) }],
     ['/src/lib/demoActorContext.ts', { activeDemoActorProfile: null }],
   ]) {
     const module = new SyntheticModule(Object.keys(values), function () {
@@ -240,7 +240,9 @@ async function fixture(options = {}) {
         // Flush only work already queued by real React/source timers. No timer
         // or clock is advanced, and source authority is never manufactured.
         await React.act(async () => {});
-        if (callback.toString().includes('main.gm-console')) options.onMountRead?.({ container, useSessionStore });
+        if (callback.toString().includes('main.gm-console')) React.act(() => {
+          options.onMountRead?.({ container, useSessionStore });
+        });
         browser.input = input;
         const result = await new Script(`(${callback.toString()})(input)`, {
           importModuleDynamically: async path => { assert.ok(modules.has(path)); return modules.get(path); },
@@ -338,3 +340,108 @@ for(const endpoint of ['authorFacilitatorRuleCall','setFacilitatorCensusNote']){
     }finally{await f.close();}
   });
 }
+
+
+// Denial stimuli mutate only NEW native fixture DOM after the real source
+// observer return. A broad crossing retry would later accept the real GM form
+// and fail these public-callback cases. There is no synthetic successful mount.
+const overview=container=>container.querySelector('main.session-mode.ship-role-select');
+const backToFleet=container=>overview(container).querySelector('a.session-mode__back.cic-text-button');
+const observerLink=container=>overview(container).querySelector('a[aria-label="View ship consoles"]');
+const sourceFlag=container=>overview(container).querySelector('.ship-role-select__flag');
+for(const [name,mutate] of [
+  ['missing overview selector',container=>overview(container).className='session-mode unrelated-overview'],
+  ['wrong outgoing source screen',container=>overview(container).className='unrelated-screen'],
+  ['ambiguous overview mains',container=>overview(container).parentNode.append(overview(container).cloneNode(true))],
+  ['missing AEGIS flag',container=>sourceFlag(container).remove()],
+  ['foreign ship flag',container=>{sourceFlag(container).dataset.sharedFlag='capybara';}],
+  ['wrong flag selector',container=>{sourceFlag(container).className='unrelated-flag';}],
+  ['ambiguous AEGIS flags',container=>sourceFlag(container).parentNode.append(sourceFlag(container).cloneNode(true))],
+  ['missing Back to fleet link',container=>backToFleet(container).remove()],
+  ['foreign Back to fleet href',container=>backToFleet(container).setAttribute('href','#/foreign-return')],
+  ['wrong Back to fleet label',container=>{backToFleet(container).textContent='Foreign return';}],
+  ['ambiguous Back to fleet links',container=>backToFleet(container).parentNode.append(backToFleet(container).cloneNode(true))],
+  ['missing View ship consoles link',container=>observerLink(container).remove()],
+  ['foreign observer href',container=>observerLink(container).setAttribute('href','#/ships/capybara/observer')],
+  ['wrong observer label',container=>observerLink(container).setAttribute('aria-label','Foreign observer')],
+  ['ambiguous observer links',container=>observerLink(container).parentNode.append(observerLink(container).cloneNode(true))],
+  ['missing source content',container=>{container.querySelector('.screen-fade__content').className='unrelated-content';}],
+  ['ambiguous source content',container=>container.querySelector('.screen-fade').append(container.querySelector('.screen-fade__content').cloneNode(false))],
+  ['overview outside source content',container=>{const node=overview(container),parent=node.parentNode,next=node.nextSibling;
+    container.querySelector('.screen-fade').append(node);return()=>parent.insertBefore(node,next);}],
+  ['empty outgoing content',container=>{const content=container.querySelector('.screen-fade__content'),nodes=[...content.childNodes];
+    content.replaceChildren();return()=>content.append(...nodes);}],
+  ['ambiguous fade roots',container=>container.append(container.querySelector('.screen-fade').cloneNode(true))],
+  ['missing crossing marker',container=>container.querySelector('.screen-fade').removeAttribute('data-crossing')],
+  ['noncrossing outgoing overview',container=>{container.querySelector('.screen-fade').dataset.crossing='false';}],
+  ['incoming overview phase',container=>{container.querySelector('.screen-fade').dataset.phase='in';}],
+]){
+  test(`public AEGIS return remains pending for ${name}`,async()=>{
+    const f=await fixture();let restore;
+    try{
+      await existingOwnerReturn(f);const undo=mutate(f.container);restore=typeof undo==='function'?undo:null;
+      const result=await callbackFor('authorFacilitatorRuleCall').onStarted(f.context);
+      const row=rowFor(result,'authorFacilitatorRuleCall');
+      assert.equal(row.status,'pending');
+      assert.equal(row.reason,'the actual source rule-call form is not mounted and writable');
+      assert.equal(f.reads.length,1,'No arbitrary crossing wait may adopt the later source form.');
+      assert.equal(result.observedProcedureCount,0);assert.equal(result.familyAcceptanceClaimed,false);
+      assert.equal(f.requestListeners.size,0);assert.deepEqual(f.clicks,[]);assert.equal(f.nativeCleanupCalls.length,1);
+      assert.doesNotMatch(JSON.stringify(row),/native-route|2026-10-05|0000|Foreign/);
+      restore?.();restore=null;
+      await f.settle();assert.equal(f.container.querySelectorAll('main.gm-console').length,1);
+    }finally{restore?.();await f.close();}
+  });
+}
+
+for(const [name,change] of [
+  ['UID',state=>({me:{...state.me,uid:'native-foreign-gm'}})],
+  ['session',state=>({session:{...state.session,id:'native-foreign-session'}})],
+  ['GM instance',state=>({gmInstance:{...state.gmInstance,id:'native-foreign-instance'}})],
+  ['GM claim',state=>({gmInstance:{...state.gmInstance,claimedAt:'2026-10-05T11:00:00.000Z'}})],
+  ['GM ownership',state=>({gmInstance:{...state.gmInstance,uid:'native-foreign-gm'}})],
+  ['document generation',state=>({me:{...state.me,connectionGeneration:2}})],
+  ['accepted hydration',()=>({identityHydrationRevision:3})],
+  ['live authority',()=>({connection:'offline'})],
+  ['server freshness',()=>({sessionSnapshotFreshness:'cache'})],
+  ['private audience',()=>({roleBrief:{assignmentUid:'native-foreign-member'}})],
+  ['cycle',state=>({session:{...state.session,currentTurn:2}})],
+  ['phase',state=>({session:{...state.session,phase:'closed'}})],
+]){
+  test(`source AEGIS return cannot adopt changed original ${name}`,async()=>{
+    const f=await fixture({onMountRead:({useSessionStore:store})=>store.setState(change(store.getState()))});
+    try{
+      await existingOwnerReturn(f);
+      const result=await callbackFor('authorFacilitatorRuleCall').onStarted(f.context);
+      assert.equal(rowFor(result,'authorFacilitatorRuleCall').status,'pending');
+      assert.equal(result.observedProcedureCount,0);assert.equal(result.familyAcceptanceClaimed,false);
+      assert.equal(f.reads.length,1);assert.equal(f.requestListeners.size,0);assert.deepEqual(f.clicks,[]);
+      assert.equal(f.nativeCleanupCalls.length,1);
+    }finally{await f.close();}
+  });
+}
+
+test('source AEGIS return rejects lost original Auth during its first mount sample',async()=>{
+  const options={};options.onMountRead=()=>{options.authUser=null;};
+  const f=await fixture(options);
+  try{
+    await existingOwnerReturn(f);
+    const result=await callbackFor('authorFacilitatorRuleCall').onStarted(f.context);
+    assert.equal(rowFor(result,'authorFacilitatorRuleCall').status,'pending');
+    assert.equal(result.observedProcedureCount,0);assert.equal(f.reads.length,1);
+    assert.deepEqual(f.clicks,[]);assert.equal(f.requestListeners.size,0);assert.equal(f.nativeCleanupCalls.length,1);
+  }finally{await f.close();}
+});
+
+test('source AEGIS return rejects a foreign route under the original live GM',async()=>{
+  const f=await fixture({onMountRead:()=>dom.window.history.replaceState(null,'','#/foreign-route')});
+  try{
+    await existingOwnerReturn(f);
+    const result=await callbackFor('authorFacilitatorRuleCall').onStarted(f.context);
+    const row=rowFor(result,'authorFacilitatorRuleCall');
+    assert.equal(row.status,'pending');assert.equal(row.formDiagnostic.route,'other');
+    assert.equal(result.observedProcedureCount,0);assert.equal(f.reads.length,1);
+    assert.deepEqual(f.clicks,[]);assert.equal(f.requestListeners.size,0);assert.equal(f.nativeCleanupCalls.length,1);
+    assert.doesNotMatch(JSON.stringify(row),/native-route|foreign-route|0000|2026-10-05/);
+  }finally{await f.close();}
+});
