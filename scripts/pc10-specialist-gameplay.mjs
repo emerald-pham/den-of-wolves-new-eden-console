@@ -42,7 +42,7 @@ const RESULT_FIELDS = Object.freeze({
   rollHummingbirdHarvest: ['status', 'revision', 'currentRevision'],
   allocateHummingbirdHarvest: ['status', 'revision', 'currentRevision'],
   buildFighter: ['status', 'revision', 'currentRevision', 'fighterWingRevision', 'wingId', 'count', 'materials'],
-  requestScout: ['status', 'revision', 'currentRevision', 'targetCoordinate'],
+  requestScout: ['status', 'requestId', 'cycle', 'entitlementId', 'source', 'ownerRoleId', 'anchorShipId', 'receivingShipId', 'resolution', 'targetCoordinate'],
   advanceEndeavourResearchTrack: ['status', 'revision', 'currentRevision', 'trackId', 'funding'],
   activateEndeavourEcmDevice: ['status', 'revision', 'currentRevision', 'deviceStatus'],
   upgradeEndeavourFieldTargets: ['status', 'revision', 'currentRevision', 'upgradeRevision'],
@@ -61,6 +61,7 @@ const RESULT_FIELDS = Object.freeze({
 const RENDERED_STATUS_CODES = new Set([
   'public-result-visible', 'private-result-visible', 'current-group-note-visible',
   'mission-choice-visible', 'post-attack-scrap-visible',
+  'scout-request-recorded-visible',
 ]);
 const PRIVATE_CHOICE_FIELDS = new Set([
   'targetCoordinate', 'trackId', 'missionOpportunityId', 'taskOpportunityId',
@@ -101,6 +102,75 @@ export const SPECIALIST_ACTION_MAP = Object.freeze([
 
 function isRecord(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+// The three ordinary craft Scout actions registered in the current phase map.
+// Their reply is a request record, not a revisioned private-report delivery.
+const SCOUT_IDENTITIES = Object.freeze({
+  starlight: ['wing-commander', 'aegis'], hummingbird: ['quellon-explorer', 'quellon'],
+  endeavour: ['shepherd-scientist', 'shepherd'],
+});
+const SCOUT_RECORD_FIELDS = ['type', 'requestId', 'sessionIdHash', 'cycle', 'entitlementId',
+  'source', 'ownerRoleId', 'anchorShipId', 'receivingShipId', 'targetCoordinateHash', 'resolution'];
+const exactKeys = (value, fields) => isRecord(value) && Object.keys(value).length === fields.length &&
+  fields.every(key => Object.hasOwn(value, key));
+function isScoutRecord(record) {
+  const identity = Object.hasOwn(SCOUT_IDENTITIES, record?.entitlementId) ? SCOUT_IDENTITIES[record.entitlementId] : null;
+  return exactKeys(record, SCOUT_RECORD_FIELDS) && identity && record.type === 'scout-request-recorded' &&
+    typeof record.requestId === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(record.requestId) && Number.isSafeInteger(record.cycle) && record.cycle >= 1 &&
+    /^[a-f0-9]{64}$/.test(record.sessionIdHash) && /^[a-f0-9]{64}$/.test(record.targetCoordinateHash) &&
+    record.source === 'craft' && record.ownerRoleId === identity[0] && record.anchorShipId === identity[1] &&
+    typeof record.receivingShipId === 'string' && record.receivingShipId.length > 0 && record.resolution === 'pending';
+}
+
+/** Bind the exact revision-less reply to the original choice and current source. */
+export function validateScoutRequestRecord({ request, result, actor, choice, before, gmState, crewState }) {
+  const identity = Object.hasOwn(SCOUT_IDENTITIES, choice?.entitlementId) ? SCOUT_IDENTITIES[choice.entitlementId] : null;
+  const cycle = before?.cycle, sessionId = before?.sessionId;
+  if (!identity || !exactKeys(request, ['sessionId', 'requestId', 'entitlementId', 'targetCoordinate']) ||
+      !exactKeys(result, ['status', 'resolution', 'requestId', 'sessionId', 'cycle', 'entitlementId',
+        'source', 'ownerRoleId', 'anchorShipId', 'receivingShipId', 'targetCoordinate']) ||
+      typeof sessionId !== 'string' || !sessionId || !Number.isSafeInteger(cycle) || cycle < 1 ||
+      actor?.sameActor !== true || actor.sessionId !== sessionId || actor.profileRoleId !== identity[0] ||
+      actor.activeConsoleRoleId !== identity[0] || actor.connection !== 'live' || actor.freshness !== 'server' ||
+      choice.ownerRoleId !== identity[0] || typeof choice.targetCoordinate !== 'string' || !/^\d{4}$/.test(choice.targetCoordinate) ||
+      request.sessionId !== sessionId || typeof request.requestId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(request.requestId) ||
+      request.entitlementId !== choice.entitlementId || request.targetCoordinate !== choice.targetCoordinate ||
+      !['requested', 'replayed'].includes(result.status) || result.resolution !== 'pending' ||
+      result.requestId !== request.requestId || result.sessionId !== sessionId || result.cycle !== cycle ||
+      result.entitlementId !== choice.entitlementId || result.source !== 'craft' ||
+      result.ownerRoleId !== identity[0] || result.anchorShipId !== identity[1] ||
+      result.targetCoordinate !== choice.targetCoordinate) return null;
+  let receivingShipId;
+  for (const state of [before, gmState, crewState]) {
+    if (state?.live !== true || state.sessionId !== sessionId || state.cycle !== cycle || state.phase !== 'active' ||
+        state.turnPhase?.airspace?.state !== 'lifted' || !Array.isArray(state.activeVesselIds) ||
+        !state.activeVesselIds.includes(identity[1]) || !Array.isArray(state.shuttleDockings)) return null;
+    const dockings = state.shuttleDockings.filter(entry => entry?.shuttleId === choice.entitlementId);
+    if (dockings.length !== 1 || typeof dockings[0].shipId !== 'string' ||
+        !state.activeVesselIds.includes(dockings[0].shipId) ||
+        receivingShipId !== undefined && dockings[0].shipId !== receivingShipId) return null;
+    receivingShipId = dockings[0].shipId;
+  }
+  if (result.receivingShipId !== receivingShipId) return null;
+  return { type: 'scout-request-recorded', requestId: request.requestId, sessionIdHash: hash(sessionId), cycle,
+    entitlementId: choice.entitlementId, source: 'craft', ownerRoleId: identity[0], anchorShipId: identity[1],
+    receivingShipId, targetCoordinateHash: hash(choice.targetCoordinate), resolution: 'pending' };
+}
+
+/** A recorded request never attests private delivery or supplies a made-up revision. */
+export function isRecordedScoutRequestEvidence({ roleId, actor, request, response, projection }) {
+  const record = projection?.scoutRequest;
+  return isScoutRecord(record) && record.ownerRoleId === roleId && actor?.sessionIdHash === record.sessionIdHash &&
+    request?.requestId === record.requestId && request.entitlementId === record.entitlementId &&
+    request.targetCoordinateHash === record.targetCoordinateHash && response?.httpStatus === 200 &&
+    ['requested', 'replayed'].includes(response.resultStatus) && response.replayStatus === 'replayed' &&
+    response.exactReplay === true && response.revision === null && response.replayRevision === null &&
+    response.projectionRevision === null && ['requestId', 'cycle', 'entitlementId', 'source', 'ownerRoleId',
+      'anchorShipId', 'receivingShipId', 'targetCoordinateHash', 'resolution'].every(key => response[key] === record[key]) &&
+    ['gm', 'crew'].every(key => projection[key]?.source === 'server' && projection[key].cycle === record.cycle &&
+      projection[key].status === 'request-recorded' && !Object.hasOwn(projection[key], 'revision')) &&
+    projection.renderedStatus === 'scout-request-recorded-visible' && !Object.hasOwn(projection, 'privateActorStatus');
 }
 
 function allowlisted(source, fields) {
@@ -181,6 +251,8 @@ export function projectSpecialistActionEvidence({
     ...(RENDERED_STATUS_CODES.has(projection.renderedStatus) ? { renderedStatus: projection.renderedStatus } : {}),
     ...(projection.privateActorStatus === 'private-result-visible'
       ? { privateActorStatus: 'private-result-visible' } : {}),
+    ...(endpoint === 'requestScout' && isScoutRecord(projection.scoutRequest)
+      ? { scoutRequest: { ...projection.scoutRequest } } : {}),
   } : {};
   const requested = allowlisted(request, requestFields);
   const summarized = allowlisted(actualResult, resultFields);
@@ -311,7 +383,7 @@ export function createSpecialistGameplayDriver(game, {
   assert.equal(typeof now, 'function');
   assert.equal(typeof wait, 'function');
 
-  async function waitForCommit({ surface, actor, inspect, timeoutMs: callTimeout = timeoutMs }) {
+  async function waitForCommit({ surface, actor, inspect, endpoint, timeoutMs: callTimeout = timeoutMs }) {
     assert.equal(typeof surface?.observe, 'function');
     assert.equal(typeof inspect, 'function');
     assert.ok(Number.isSafeInteger(callTimeout) && callTimeout >= 0);
@@ -335,6 +407,19 @@ export function createSpecialistGameplayDriver(game, {
           currentActor?.freshness === 'server') {
         const observed = await inspect({ game, surface, actor: currentActor, gmState, crewState });
         if (observed?.ready === true) {
+          if (endpoint === 'requestScout' && observed.scoutRequest !== undefined) {
+            assert.ok(isScoutRecord(observed.scoutRequest) &&
+              observed.scoutRequest.sessionIdHash === hash(sessionId) && observed.scoutRequest.cycle === gmState.cycle &&
+              observed.scoutRequest.ownerRoleId === currentActor.profileRoleId &&
+              observed.renderedStatusCode === 'scout-request-recorded-visible' &&
+              observed.privateResultVisible === undefined && observed.gmRevision === undefined && observed.crewRevision === undefined,
+            'Confirm only the exact current recorded Scout request; private delivery remains separate.');
+            return {
+              gm: { source: 'server', cycle: gmState.cycle, status: 'request-recorded' },
+              crew: { source: 'server', cycle: crewState.cycle, status: 'request-recorded' },
+              scoutRequest: observed.scoutRequest, renderedStatus: observed.renderedStatusCode,
+            };
+          }
           assert.ok(Number.isSafeInteger(observed.gmRevision) && observed.gmRevision >= 0,
             'Capture the actual GM-visible source revision.');
           assert.ok(Number.isSafeInteger(observed.crewRevision) && observed.crewRevision >= 0,
@@ -366,7 +451,7 @@ export function createSpecialistGameplayDriver(game, {
     assert.equal(typeof inspect, 'function', 'Inspect source projections and the actual rendered result.');
     return captureSpecialistUiAction({ game, roleId, endpoint, click, prepare, originalActor, cost, requireConsole,
       waitForProjection: ({ surface, actor, request, result, replay }) => waitForCommit({
-        surface, actor, timeoutMs: callTimeout,
+        surface, actor, endpoint, timeoutMs: callTimeout,
         inspect: context => inspect({ ...context, request, result, replay }),
       }),
     });

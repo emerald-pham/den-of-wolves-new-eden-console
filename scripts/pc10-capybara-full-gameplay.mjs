@@ -7,7 +7,8 @@ import { candidateGameplayTools } from './pc10-candidate-manual-ui-proof.mjs';
 import { advanceBaseDetectorResearch, runBaseCombatAndDeduction } from './pc10-base-combat-deduction-ui-proof.mjs';
 import { completeOfferedTurnAdvance } from './pc10-full-game-demo-proof-helpers.mjs';
 import { PC10_SPECIALIST_ACTIONS, runPc10SpecialistAction } from './pc10-specialist-phases.mjs';
-import { createSpecialistGameplayDriver, sameActionReceipt } from './pc10-specialist-gameplay.mjs';
+import { createSpecialistGameplayDriver, sameActionReceipt, validateScoutRequestRecord,
+  isRecordedScoutRequestEvidence } from './pc10-specialist-gameplay.mjs';
 import { runPursuitLimitEnding } from './pc10-full-game-cycle-ending.mjs';
 
 const SUCCESS_RESULT_STATUSES = new Set([
@@ -102,6 +103,15 @@ export function capybaraStageOutcome(outcome) {
   const evidence = outcome?.evidence, actor = evidence?.actor, response = evidence?.response, projection = evidence?.projection;
   const currentRole = typeof outcome?.roleId === 'string' && actor?.activeConsoleRoleId === outcome.roleId;
   const actionCaptured = outcome?.status === 'captured' && outcome.failed !== true;
+  if (evidence?.endpoint === 'requestScout') {
+    if (!actionCaptured || outcome.endpoint !== 'requestScout' || !currentRole || typeof actor?.uidHash !== 'string' ||
+        actor.connection !== 'live' || actor.freshness !== 'server' ||
+        !isRecordedScoutRequestEvidence({ roleId: outcome.roleId, actor, request: evidence.request, response, projection })) {
+      return { status: 'pending', reason: 'original-scout-request-record-and-visible-current-source-not-confirmed' };
+    }
+    return { status: 'completed', endpoint: 'requestScout', roleId: outcome.roleId, cost: safeCost(evidence.cost),
+      cycle: projection.scoutRequest.cycle, scope: 'request-recorded' };
+  }
   const exactUiAndReplay = response?.httpStatus === 200 && SUCCESS_RESULT_STATUSES.has(response.resultStatus) &&
     response.exactReplay === true && Number.isSafeInteger(response.revision) &&
     response.replayRevision === response.revision;
@@ -230,6 +240,7 @@ export function projectCapybaraEvidence(report) {
       ...(safeCost(stage.cost) ? { cost: safeCost(stage.cost) } : {}),
       ...(Number.isSafeInteger(stage.cycle) ? { cycle: stage.cycle } : {}),
       ...(Number.isSafeInteger(stage.sourceRevision) ? { sourceRevision: stage.sourceRevision } : {}),
+      ...(stage.endpoint === 'requestScout' && stage.scope === 'request-recorded' ? { scope: stage.scope } : {}),
       ...(stage.status === 'completed' ? {} : { reason: typeof stage.reason === 'string' ? stage.reason.slice(0, 120) : 'source-action-not-confirmed' }),
     };
   }
@@ -518,11 +529,13 @@ export async function runCapybaraFullGameGameplay(context, options = {}) {
       ...(next.roleId ? { roleId: next.roleId } : {}), ...(next.endpoint ? { endpoint: next.endpoint } : {}),
       ...(next.cost ? { cost: safeCost(next.cost) } : {}), ...(Number.isSafeInteger(next.cycle) ? { cycle: next.cycle } : {}),
       ...(Number.isSafeInteger(next.sourceRevision) ? { sourceRevision: next.sourceRevision } : {}),
+      ...(next.endpoint === 'requestScout' && next.scope === 'request-recorded' ? { scope: next.scope } : {}),
       ...(next.status === 'completed' ? {} : { reason: next.reason ?? 'current-source-control-or-outcome-not-confirmed' }) };
     capybaraObservations.push({ id, status: capybaraStages[id].status,
       ...(next.roleId ? { roleId: next.roleId } : {}), ...(next.endpoint ? { endpoint: next.endpoint } : {}),
       ...(Number.isSafeInteger(next.cycle) ? { cycle: next.cycle } : {}),
       ...(Number.isSafeInteger(next.sourceRevision) ? { sourceRevision: next.sourceRevision } : {}),
+      ...(next.endpoint === 'requestScout' && next.scope === 'request-recorded' ? { scope: next.scope } : {}),
       ...(next.status === 'completed' && next.cost ? { cost: safeCost(next.cost) } : {}),
       ...(next.status === 'completed' ? {} : { reason: next.reason ?? 'current-source-control-or-outcome-not-confirmed' }) });
     await writeFile(`${directory}/capybara-gameplay-progress.json`, `${JSON.stringify(projectCapybaraEvidence({
@@ -571,6 +584,11 @@ export async function runCapybaraFullGameGameplay(context, options = {}) {
       ...inputs, enterConsole, inspect: async context => {
         const source = await verify({ ...context, before, game: a });
         if (source?.ready !== true) return { ready: false };
+        const scoutChoice = PC10_SPECIALIST_ACTIONS[actionId]?.endpoint === 'requestScout' ? {
+          entitlementId: PC10_SPECIALIST_ACTIONS[actionId].shuttleId, ownerRoleId: specRole,
+          targetCoordinate: inputs.targetCoordinate,
+        } : null;
+        const scoutRequest = scoutChoice ? validateScoutRequestRecord({ ...context, before, choice: scoutChoice }) : null;
         const responseRevision = [context.result?.revision, context.result?.repairRevision,
           context.result?.choiceRevision, context.result?.upgradeRevision, context.result?.wingRevision,
           context.result?.fighterWingRevision, context.result?.currentRevision].find(value => Number.isSafeInteger(value) && value >= 0);
@@ -578,6 +596,11 @@ export async function runCapybaraFullGameGameplay(context, options = {}) {
         const rendered = panel ? await panel.getByRole('status').evaluateAll(nodes =>
           nodes.some(node => /committed|recorded|recycled|collected|applied|launched|built|requested|harvest|selected|repair|choice/i.test(node.textContent ?? '')))
           : await context.surface.page.getByRole('status').evaluateAll(nodes => nodes.length > 0);
+        if (scoutChoice) {
+          if (!scoutRequest || !rendered || !sameActionReceipt(scoutRequest, source.scoutRequest) ||
+              source.renderedStatusCode !== 'scout-request-recorded-visible') return { ready: false };
+          return { ready: true, scoutRequest, renderedStatusCode: source.renderedStatusCode };
+        }
         if (!Number.isSafeInteger(responseRevision) || !rendered) return { ready: false };
         return { ready: true, gmRevision: source.gmRevision ?? responseRevision,
           crewRevision: source.crewRevision ?? responseRevision,
@@ -597,6 +620,10 @@ export async function runCapybaraFullGameGameplay(context, options = {}) {
       regionName: spec.regionName,
       resultStatuses: [...SUCCESS_RESULT_STATUSES],
       renderedStatusCode: ['boa-reclamation'].includes(actionId) ? 'mission-choice-visible' : 'public-result-visible',
+      ...(spec.endpoint === 'requestScout' ? { scoutChoice: {
+        entitlementId: spec.shuttleId, ownerRoleId: roleId ?? inputs.roleId ?? spec.roleId,
+        targetCoordinate: inputs.targetCoordinate,
+      } } : {}),
     }) : null);
     if (typeof projectionVerifier !== 'function') {
       if (record) await updateCapybaraStage(id, { status: 'pending', reason: 'ordinary-source-action-not-in-proof-catalog' });
@@ -604,15 +631,23 @@ export async function runCapybaraFullGameGameplay(context, options = {}) {
     }
     return attemptSpecialist(id, actionId, inputs, { roleId, cost, record, verify: projectionVerifier });
   }
-  function inspectRenderedAction({ regionName, resultStatuses, renderedStatusCode = 'public-result-visible', check }) {
-    return async ({ surface, result, gmState, crewState }) => {
+  function inspectRenderedAction({ regionName, resultStatuses, renderedStatusCode = 'public-result-visible', check, scoutChoice }) {
+    return async ({ surface, result, gmState, crewState, request, actor, before }) => {
       if (!result || !resultStatuses.includes(result.status) || check && !check(result, { gmState, crewState }))
         return { ready: false };
       const panel = regionName ? surface.page.getByRole('region', { name: regionName, exact: true }) : surface.page;
-      const rendered = await panel.getByRole('status').evaluateAll(nodes => nodes.some(node =>
+      const scoutRequest = scoutChoice ? validateScoutRequestRecord({ request, result, actor, before, gmState, crewState,
+        choice: scoutChoice }) : null;
+      if (scoutChoice && !scoutRequest) return { ready: false };
+      const rendered = await panel.getByRole('status').evaluateAll((nodes, scout) => scout
+        ? nodes.filter(node => node.matches('.scout-request__notice') && node.getClientRects().length > 0 &&
+          getComputedStyle(node).visibility !== 'hidden' && (node.textContent ?? '').trim() ===
+          'Request recorded. Your private scouting report will arrive automatically.').length === 1
+        : nodes.some(node =>
         node.getClientRects().length > 0 && getComputedStyle(node).visibility !== 'hidden' &&
-        (node.textContent ?? '').trim().length > 0));
+        (node.textContent ?? '').trim().length > 0), Boolean(scoutChoice));
       if (!rendered) return { ready: false };
+      if (scoutChoice) return { ready: true, regionName, scoutRequest, renderedStatusCode: 'scout-request-recorded-visible' };
       const resultRevision = [result.revision, result.repairRevision, result.choiceRevision,
         result.upgradeRevision, result.wingRevision, result.fighterWingRevision, result.currentRevision]
         .find(value => Number.isSafeInteger(value) && value >= 0);
