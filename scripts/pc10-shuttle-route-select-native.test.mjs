@@ -100,7 +100,7 @@ function makeCanonicalSelectHarness({ route = '#/shuttles/starlight', activeCons
     },
     state: async () => structuredClone(state),
   };
-  const context = { initial: { sessionId: SESSION }, gm,
+  const context = { initial: { sessionId: SESSION }, gm, shuttleOriginHostShipId: 'quellon',
     roster: [{ roleId: ROLE_ID, uidHash: UID_HASH }],
     shuttleOriginAuthority: { sessionId: SESSION, uidHash: UID_HASH, shuttleId: SHUTTLE_ID,
       groupId: 'fleet-1', cycle: 2, controlRevision: 4, sourceAuthority: originAuthority } };
