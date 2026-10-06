@@ -238,7 +238,7 @@ function remainingLifecycleOperation(deadlineAt, maximum = 60_000) {
   return remaining;
 }
 
-async function inspectLifecycleObserverMount(surface) {
+export async function inspectLifecycleObserverMount(surface) {
   return surface.page.evaluate(() => {
     const mains = Array.from(document.querySelectorAll('main.ship-console[data-observer-mode]'));
     const main = mains.length === 1 ? mains[0] : null;

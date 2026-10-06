@@ -1,6 +1,8 @@
 import { createHash } from 'node:crypto';
 import { observeUiReceipt } from './pc10-browser-ui-receipt.mjs';
 import { CORE_CRAFT_PROCEDURES, GM_RULING_COUNTER_PROCEDURES } from './pc10-pending-procedure-ui-proof.mjs';
+import { observeLifecycleActor, inspectLifecycleObserverMount, recordLifecycleAffordance } from './pc10-member-gm-lifecycle-ui-proof.mjs';
+import { assertOriginalActor, assertLateReplyAuthority } from './pc10-member-gm-lifecycle-contracts.mjs';
 
 const RESOURCE_COSTS = Object.freeze({ food: 6, water: 6, ore: 6, fuel: 6, materials: 3 });
 const SHIP_FOR_ROLE = Object.freeze({
@@ -308,7 +310,7 @@ export async function positiveRenderedStatus(surface, endpoint, result) {
   return { visible: joined.length > 0 && matches, resultStatus: result?.status ?? 'committed' };
 }
 
-async function goToShipObserver(surface, sessionId, uidHash, instanceId) {
+async function goToShipObserver(surface, original) {
   const page = surface.page;
   const routeHash = '#/ships/aegis/observer';
   if (new URL(page.url()).hash !== routeHash) {
@@ -316,12 +318,22 @@ async function goToShipObserver(surface, sessionId, uidHash, instanceId) {
     route.hash = routeHash;
     await page.goto(route.href, { waitUntil: 'domcontentloaded' });
   }
-  const actor = await surface.until('Original owned GM on the AEGIS observer route', value =>
-    value.sameActor === true && value.sessionId === sessionId && value.uidHash === uidHash &&
-    value.playerRole === 'gm' && value.instanceId === instanceId && value.gmInstanceOwned === true &&
+  // Authority and lazy mount share the original twenty-second readiness wait.
+  const deadlineAt = Date.now() + 20_000;
+  await surface.until('Original owned GM on the AEGIS observer route', value =>
+    value.sameActor === true && value.sessionId === original.sessionId && value.uidHash === original.uidHash &&
+    value.playerRole === 'gm' && value.instanceId === original.instanceId && value.gmInstanceOwned === true &&
     value.connection === 'live' && value.freshness === 'server' &&
-    new URL(page.url()).hash === routeHash, 20_000);
-  return actor;
+    new URL(page.url()).hash === routeHash, Math.max(1, deadlineAt - Date.now()));
+  const affordance = await recordLifecycleAffordance(page.getByRole('button', {
+    name: 'GM ship console read write access', exact: true,
+  }), { original, shipId: 'aegis', deadlineAt,
+    inspectActor: async () => {
+      const current = await observeLifecycleActor(surface, original.sessionId);
+      assertLateReplyAuthority(original, current); return current;
+    }, inspectMount: () => inspectLifecycleObserverMount(surface) });
+  if (!affordance.offered) throw new Error(`Original AEGIS observer is unavailable: ${affordance.mountStatus}.`);
+  return observeLifecycleActor(surface, original.sessionId);
 }
 
 async function readCurrentWriteGrant(surface, expected) {
@@ -378,11 +390,20 @@ async function waitForActionState(surface, predicate, timeoutMs = 15_000) {
   return null;
 }
 
-function censusProjection(state, targetUid, expected) {
+async function censusProjection(state, targetUid, expected, surface, original) {
+  const current = await observeLifecycleActor(surface, expected.sessionId);
+  // This call follows the existing genuine reload protocol. Certify its newly
+  // accepted document; its generation/hydration need not equal the old page's.
+  assertOriginalActor(current, current, { gm: true });
+  if (current.uidHash !== original.uidHash || current.sessionId !== original.sessionId ||
+      current.instanceId !== original.instanceId || current.claimedAt !== original.claimedAt ||
+      !Number.isSafeInteger(current.hydrationRevision) || current.hydrationRevision < 1 ||
+      current.phase !== 'active' || current.cycle !== expected.cycle) return null;
   const entry = state?.gmLoyaltyCensus?.entries?.find(value => value.uid === targetUid);
-  if (!entry || !state.gmLoyaltyCensus) return null;
-  return { kind: 'facilitator-census', live: state.live === true,
-    sessionId: state.gmLoyaltyCensus.sessionId, cycle: state.cycle, uidHash: expected.uidHash,
+  if (!entry || state.gmLoyaltyCensusStatus !== 'present' || !isRevision(state.gmLoyaltyCensus?.revision) ||
+      !liveState(state, expected.sessionId) || state.cycle !== expected.cycle) return null;
+  return { kind: 'facilitator-census', live: true,
+    sessionId: state.sessionId, cycle: state.cycle, uidHash: expected.uidHash,
     instanceId: expected.instanceId, revision: state.gmLoyaltyCensus.revision,
     targetUidHash: hashUid(targetUid), noteHash: proofHash(entry.note ?? '') };
 }
@@ -483,6 +504,29 @@ async function planFor({ spec, surface, actor, state, context, target }) {
   };
   if (UNVERIFIABLE_GM_CHOICES.has(endpoint)) return block('requires an explicit live GM-authored choice and a source receipt not safely verifiable by this finite recipe');
   if (UNVERIFIABLE_SHUTTLE_RECEIPTS.has(endpoint)) return block('the current UI reply/projection has no source-bound monotonic receipt this validator can verify; no movement or cargo mutation is attempted');
+  let originalGm;
+  if (['setGmShipConsoleWriteGrant', 'setShipConsoleLock', 'setFacilitatorCensusNote',
+    'authorFacilitatorRuleCall'].includes(endpoint)) {
+    try {
+      originalGm = await observeLifecycleActor(surface, context.initial.sessionId);
+      assertOriginalActor(originalGm, originalGm, { gm: true });
+      if (originalGm.uidHash !== context.initial.uidHash || originalGm.uidHash !== context.started?.uidHash ||
+          originalGm.instanceId !== context.started?.instanceId ||
+          originalGm.uidHash !== actor.uidHash || originalGm.sessionId !== context.initial.sessionId ||
+          originalGm.instanceId !== actor.instanceId || originalGm.phase !== 'active' || originalGm.cycle !== state.cycle ||
+          !Number.isSafeInteger(originalGm.hydrationRevision) || originalGm.hydrationRevision < 1 ||
+          typeof originalGm.claimedAt !== 'string' || !Number.isFinite(Date.parse(originalGm.claimedAt))) {
+        return block('the original current GM document, claim or private audience is not verified');
+      }
+    } catch { return block('the original current GM document, claim or private audience is not verified'); }
+    target.gmRecipeAuthority = originalGm;
+  }
+  const verifyGmDocument = async () => {
+    const current = await observeLifecycleActor(surface, context.initial.sessionId);
+    assertLateReplyAuthority(originalGm, current);
+    if (current.phase !== originalGm.phase || current.cycle !== originalGm.cycle)
+      throw new Error('The original GM phase or cycle changed before the mounted action.');
+  };
   if (target.shuttleId && new URL(page.url()).hash !== `#/shuttles/${target.shuttleId}`) {
     const route = page.locator(`a[href$="/shuttles/${target.shuttleId}"]`);
     const offeredRoute = await one(route);
@@ -501,7 +545,7 @@ async function planFor({ spec, surface, actor, state, context, target }) {
     }
     const gmExpected = { sessionId: context.initial.sessionId, uidHash: actor.uidHash,
       instanceId: actor.instanceId, cycle: state.cycle };
-    const onRouteActor = await goToShipObserver(surface, gmExpected.sessionId, gmExpected.uidHash, gmExpected.instanceId)
+    const onRouteActor = await goToShipObserver(surface, originalGm)
       .catch(() => null);
     if (!onRouteActor || onRouteActor.playerRole !== 'gm') return block('the original owned GM could not reach the mounted AEGIS observer UI');
     const grant = await readCurrentWriteGrant(surface, gmExpected).catch(() => null);
@@ -520,6 +564,7 @@ async function planFor({ spec, surface, actor, state, context, target }) {
       const control = await one(page.getByRole('button', { name: 'GM ship console read write access', exact: true }));
       if (!control || await control.getAttribute('aria-pressed') !== 'false') return block('the actual AEGIS observer access control is not visibly read-only');
       return { offered: true, beforeProjection: grant.projection, click: async () => {
+        await verifyGmDocument();
         const latestGrant = await readCurrentWriteGrant(surface, gmExpected);
         const currentState = await readActionState(surface);
         if (!latestGrant || latestGrant.projection.enabled || latestGrant.claimedAt !== target.gmClaimedAt ||
@@ -533,6 +578,7 @@ async function planFor({ spec, surface, actor, state, context, target }) {
         const dialog = page.getByRole('alertdialog', { name: 'Are you sure?', exact: true });
         const confirm = await one(dialog.getByRole('button', { name: 'ARE YOU SURE?', exact: true }));
         if (!confirm) throw new Error('The visible source confirmation for AEGIS write access is unavailable.');
+        await verifyGmDocument();
         await confirm.click();
         target.gmGrantEnableAttempted = true;
       } };
@@ -550,6 +596,7 @@ async function planFor({ spec, surface, actor, state, context, target }) {
     const release = await one(releaseControl);
     if (!release) return block('the actual AEGIS release-lock control is absent, disabled, or ambiguous');
     return { offered: true, click: async () => {
+      await verifyGmDocument();
       const latestGrant = await readCurrentWriteGrant(surface, gmExpected);
       const currentState = await readActionState(surface);
       if (!latestGrant?.projection.enabled || currentState.shipConsoleLocks?.aegis !== true ||
@@ -564,8 +611,8 @@ async function planFor({ spec, surface, actor, state, context, target }) {
 
   if (endpoint === 'setFacilitatorCensusNote') {
     const census = state.gmLoyaltyCensus;
-    if (state.gmLoyaltyCensusStatus !== 'present' || census?.sessionId !== context.initial.sessionId ||
-        !isRevision(census.revision) || !Array.isArray(census.entries)) {
+    if (!liveState(state, context.initial.sessionId) || state.gmLoyaltyCensusStatus !== 'present' ||
+        !isRevision(census?.revision) || !Array.isArray(census.entries)) {
       return block('the current facilitator census and revision are not source-projected');
     }
     const entry = census.entries.find(value => typeof value?.uid === 'string' && value.uid.length > 0);
@@ -578,16 +625,25 @@ async function planFor({ spec, surface, actor, state, context, target }) {
     const noteField = page.getByLabel(`Facilitator note for ${entry.uid}`, { exact: true });
     const row = noteField.locator('xpath=ancestor::tr');
     const save = await one(row.getByRole('button', { name: 'Save note', exact: true }));
-    if (!save || !await noteField.isVisible() || !await save.isEnabled()) return block('the actual current census row note control is not offered');
+    if (!save || !await one(noteField)) return block('the actual current census row note control is not offered');
     return { offered: true, click: async () => {
+      await verifyGmDocument();
       const latest = await readActionState(surface);
       const liveEntry = latest.gmLoyaltyCensus?.entries?.find(value => value.uid === target.censusUid);
       if (!liveState(latest, context.initial.sessionId) || latest.cycle !== state.cycle ||
-          latest.gmLoyaltyCensus?.revision !== census.revision || !liveEntry ||
+          latest.gmLoyaltyCensusStatus !== 'present' || latest.gmLoyaltyCensus?.revision !== census.revision || !liveEntry ||
           await noteField.isEnabled() !== true) {
         throw new Error('The actual census target or source revision changed before saving the note.');
       }
       await noteField.fill(target.censusNote);
+      await verifyGmDocument();
+      const afterInput = await readActionState(surface);
+      if (!liveState(afterInput, context.initial.sessionId) || afterInput.cycle !== state.cycle ||
+          afterInput.gmLoyaltyCensusStatus !== 'present' || afterInput.gmLoyaltyCensus?.revision !== census.revision ||
+          !afterInput.gmLoyaltyCensus.entries.some(value => value.uid === target.censusUid)) {
+        throw new Error('The actual census source changed while filling the mounted note.');
+      }
+      if (!await one(save)) throw new Error('The actual census save control is no longer enabled.');
       await save.click();
     } };
   }
@@ -608,14 +664,17 @@ async function planFor({ spec, surface, actor, state, context, target }) {
     const decision = panel.getByLabel('Decision', { exact: true });
     const audience = panel.getByLabel('Audience', { exact: true });
     const supersedes = panel.getByLabel('Supersedes call ID (optional)', { exact: true });
-    const record = await one(panel.getByRole('button', { name: 'Record rule call', exact: true }));
-    if (!record || !await ambiguity.isVisible() || !await source.isVisible() || !await decision.isVisible() ||
-        !await audience.isVisible() || !await supersedes.isVisible()) return block('the actual source rule-call form is not mounted');
+    const record = panel.getByRole('button', { name: 'Record rule call', exact: true });
+    if (!await one(panel) || await record.count() !== 1 || !await record.isVisible() ||
+        !await one(ambiguity) || !await one(source) || !await one(decision) ||
+        !await one(audience) || !await one(supersedes)) return block('the actual source rule-call form is not mounted and writable');
     return { offered: true, click: async () => {
+      await verifyGmDocument();
       const latest = await readActionState(surface);
       const latestRule = latest.gmFacilitatorRuleCall;
       if (!liveState(latest, context.initial.sessionId) || latest.cycle !== state.cycle ||
-          (latestRule?.revision ?? 0) !== target.ruleCallRevision) {
+          (latestRule?.revision ?? 0) !== target.ruleCallRevision ||
+          latestRule && latestRule.sessionId !== context.initial.sessionId) {
         throw new Error('The facilitator rule-call revision changed before recording the mounted decision.');
       }
       await ambiguity.fill(target.ruleCallInput.ambiguity);
@@ -623,6 +682,14 @@ async function planFor({ spec, surface, actor, state, context, target }) {
       await decision.fill(target.ruleCallInput.decision);
       await audience.selectOption('gm-only');
       await supersedes.fill('');
+      await verifyGmDocument();
+      const afterInput = await readActionState(surface), afterRule = afterInput.gmFacilitatorRuleCall;
+      if (!liveState(afterInput, context.initial.sessionId) || afterInput.cycle !== state.cycle ||
+          (afterRule?.revision ?? 0) !== target.ruleCallRevision ||
+          afterRule && afterRule.sessionId !== context.initial.sessionId) {
+        throw new Error('The facilitator rule-call source changed while filling the mounted decision.');
+      }
+      if (!await one(record)) throw new Error('The filled source rule-call form does not enable Record rule call.');
       await record.click();
     } };
   }
@@ -1130,7 +1197,7 @@ async function inspectMountedGmControl({ context, surface, request, result, spec
     const fieldValue = await field.count() === 1 ? await field.inputValue() : null;
     const visible = fieldValue === target.censusNote && await field.isVisible();
     const reloaded = await reloadMountedGm(surface, expected);
-    const projection = censusProjection(reloaded.state, target.censusUid, expected);
+    const projection = await censusProjection(reloaded.state, target.censusUid, expected, surface, target.gmRecipeAuthority);
     return {
       sourceAfter: { live: savedState !== null && reloaded.state?.live === true && projection?.live === true,
         sessionId: reloaded.state?.sessionId, cycle: reloaded.state?.cycle,
