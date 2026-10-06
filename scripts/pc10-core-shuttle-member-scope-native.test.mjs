@@ -150,7 +150,7 @@ async function makeHarness({ memberSequence, options } = {}) {
     groupId: GROUP_ID, cycle: CYCLE, controlRevision: CONTROL_REVISION,
     sourceAuthority: baseline.currentDocumentAuthority };
   const context = { initial: { sessionId: SESSION_ID }, roster: [{ roleId: ROLE_ID, uidHash: actorHash }],
-    shuttleOriginAuthority: originAuthority };
+    shuttleOriginAuthority: originAuthority, shuttleOriginHostShipId: 'aegis' };
   return { memberPage, memberSurface, gmSurface, game, context, actor, memberUi, selections,
     baseline, getMember: () => activeMember, setMember: value => { activeMember = value; },
     setAuthUid: value => { authUid = value; }, memberSource: baseline };

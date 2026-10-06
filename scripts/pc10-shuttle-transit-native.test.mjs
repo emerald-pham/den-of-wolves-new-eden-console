@@ -171,7 +171,8 @@ function makeMountedRetargetHarness({ originOverrides = {}, currentAuthorityOver
   const origin = { sessionId: SESSION, uidHash: UID_HASH, shuttleId: 'starlight', groupId: 'fleet-1',
     cycle: 2, controlRevision: 4, sourceAuthority: currentDocumentAuthority(), ...originOverrides };
   const context = { initial: { sessionId: SESSION }, gm,
-    roster: [{ roleId: 'quellon-explorer', uidHash: UID_HASH }], shuttleOriginAuthority: origin };
+    roster: [{ roleId: 'quellon-explorer', uidHash: UID_HASH }], shuttleOriginAuthority: origin,
+    shuttleOriginHostShipId: 'quellon' };
   return { context, game, player, state, movement, clickCount: () => clickCount };
 }
 

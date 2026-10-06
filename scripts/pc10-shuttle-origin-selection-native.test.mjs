@@ -160,6 +160,7 @@ function makeHarness({ origin = originAuthority(), witness, movement = null,
   if (duplicateCoreUid) roster.push({ roleId: 'dione-captain', uidHash: uidHash(CORE_UID) });
   const context = {
     initial: { sessionId: SESSION_ID }, roster, shuttleOriginAuthority: origin,
+    shuttleOriginHostShipId: state.shuttleDockings.find(row => row.shuttleId === CORE_SHUTTLE)?.shipId,
     ...(witness ? { shuttleArrivalWitness: witness } : {}),
   };
   return {
