@@ -188,7 +188,7 @@ test('the original serialized document authority and member audience remain requ
     const prepared = await recipe.prepare({ surface: harness.player, actor: await harness.player.observe(),
       source: { live: true, sessionId: SESSION, cycle: CYCLE, phase: 'active', revision: recipe.expected.sourceRevision } });
     harness.setState(rawState('transferShuttleCargoCommand', patch));
-    await assert.rejects(prepared.click(), /current member scope|source authority|changed before the mounted action/i);
+    await assert.rejects(prepared.click(), /group|source authority|changed before/i);
     assert.equal(harness.clickCount(), 0);
   });
 });
