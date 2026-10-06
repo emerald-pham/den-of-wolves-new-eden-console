@@ -445,3 +445,27 @@ test('source AEGIS return rejects a foreign route under the original live GM',as
     assert.doesNotMatch(JSON.stringify(row),/native-route|foreign-route|0000|2026-10-05/);
   }finally{await f.close();}
 });
+
+
+for(const [name,change] of [
+  ['UID',state=>({me:{...state.me,uid:'native-late-foreign-gm'}})],
+  ['GM claim',state=>({gmInstance:{...state.gmInstance,claimedAt:'2026-10-05T12:00:00.000Z'}})],
+  ['document generation',state=>({me:{...state.me,connectionGeneration:2}})],
+  ['accepted hydration',()=>({identityHydrationRevision:3})],
+  ['private audience',()=>({roleBrief:{assignmentUid:'native-late-foreign-member'}})],
+]){
+  test(`source AEGIS wait rejects later original ${name} loss after one accepted crossing sample`,async()=>{
+    let mountSamples=0;
+    const f=await fixture({onMountRead:({useSessionStore:store})=>{
+      if(++mountSamples===2)store.setState(change(store.getState()));
+    }});
+    try{
+      await existingOwnerReturn(f);
+      const result=await callbackFor('authorFacilitatorRuleCall').onStarted(f.context);
+      assert.equal(rowFor(result,'authorFacilitatorRuleCall').status,'pending');
+      assert.equal(result.observedProcedureCount,0);assert.equal(result.familyAcceptanceClaimed,false);
+      assert.equal(f.reads.length,2,'The original accepted tuple must still hold at the next source mount sample.');
+      assert.deepEqual(f.clicks,[]);assert.equal(f.requestListeners.size,0);assert.equal(f.nativeCleanupCalls.length,1);
+    }finally{await f.close();}
+  });
+}
