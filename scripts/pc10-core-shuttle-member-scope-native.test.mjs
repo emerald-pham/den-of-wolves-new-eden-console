@@ -219,7 +219,7 @@ test('the exact same public callback blocks when scope, docking host, destinatio
     ['destination absent from current member scope', state => { state.session.memberSessionScope.vesselIds = ['aegis']; }],
     ['offline cached member projection', state => { state.connection = 'offline'; state.sessionSnapshotFreshness = 'cache'; }],
     ['changed actor UID', state => { state.me.uid = 'different-member-uid'; state.session.currentActorBerthAuthority.actorUid = 'different-member-uid'; }],
-    ['changed Auth UID', state => {}, 'different-auth-uid'],
+    ['changed Auth UID', () => {}, 'different-auth-uid'],
     ['changed generation', state => { state.me.connectionGeneration++; state.session.currentActorBerthAuthority.connectionGeneration++; }],
     ['changed hydration revision', state => { state.identityHydrationRevision++; }],
     ['changed control revision', state => { state.session.shuttleControl[SHUTTLE_ID].revision++; }],
@@ -249,7 +249,7 @@ test('changed same-group host or no-longer-active destination blocks at the exis
       const before = memberStore();
       const after = changeMember(mutate);
       let memberActionReads = 0;
-      const harness = await makeHarness({ memberSequence: (index, current) => {
+      const harness = await makeHarness({ memberSequence: () => {
         memberActionReads++;
         return memberActionReads === 1 ? before : after;
       } });
