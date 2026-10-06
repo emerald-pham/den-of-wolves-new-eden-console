@@ -173,24 +173,32 @@ test('serialized current-member projection authorizes each mounted shuttle craft
   });
 });
 
-test('the original serialized document authority and member audience remain required before the mounted click', async t => {
-  for (const [label, patch] of [
+test('the original serialized document authority and member audience remain required before each mounted click', async t => {
+  const invalidProjections = [
     ['group changed', { session: { memberSessionScope: { groupId: 'foreign-fleet', vesselIds: [HOST, DESTINATION], craftIds: [SHUTTLE] } } }],
     ['craft omitted', { session: { memberSessionScope: { groupId: GROUP, vesselIds: [HOST, DESTINATION], craftIds: [] } } }],
     ['host omitted', { session: { memberSessionScope: { groupId: GROUP, vesselIds: [DESTINATION], craftIds: [SHUTTLE] } } }],
-    ['destination omitted', { session: { memberSessionScope: { groupId: GROUP, vesselIds: [HOST], craftIds: [SHUTTLE] } } }],
     ['document generation changed', { me: { connectionGeneration: 7 } }],
     ['document hydration changed', { identityHydrationRevision: 12 }],
     ['authenticated UID changed', { me: { uid: 'foreign-auth-uid' } }],
-  ]) await t.test(label, async () => {
-    const harness = memberHarness('transferShuttleCargoCommand');
-    const recipe = await createPendingProcedureDefaultSteps()['core:transferShuttleCargoCommand'](harness);
-    const prepared = await recipe.prepare({ surface: harness.player, actor: await harness.player.observe(),
-      source: { live: true, sessionId: SESSION, cycle: CYCLE, phase: 'active', revision: recipe.expected.sourceRevision } });
-    harness.setState(rawState('transferShuttleCargoCommand', patch));
-    await assert.rejects(prepared.click(), /group|source authority|changed before/i);
-    assert.equal(harness.clickCount(), 0);
-  });
+  ];
+  for (const endpoint of ENDPOINTS) {
+    const variants = endpoint === 'evacuateShuttleSurvivorsCommand'
+      ? [...invalidProjections, ['destination omitted', { session: {
+        memberSessionScope: { groupId: GROUP, vesselIds: [HOST], craftIds: [SHUTTLE] },
+      } }]]
+      : invalidProjections;
+    for (const [label, patch] of variants) await t.test(`${endpoint}: ${label}`, async () => {
+      const harness = memberHarness(endpoint);
+      const recipe = await createPendingProcedureDefaultSteps()[`core:${endpoint}`](harness);
+      const prepared = await recipe.prepare({ surface: harness.player, actor: await harness.player.observe(),
+        source: { live: true, sessionId: SESSION, cycle: CYCLE, phase: 'active', revision: recipe.expected.sourceRevision } });
+      assert.equal(prepared.offered, true, prepared.reason);
+      harness.setState(rawState(endpoint, patch));
+      await assert.rejects(prepared.click(), /group|source authority|changed before/i);
+      assert.equal(harness.clickCount(), 0);
+    });
+  }
 });
 
 test('post-action cargo receipt carries the actual current member group and unchanged document authority', async () => {
@@ -220,4 +228,85 @@ test('post-action cargo receipt carries the actual current member group and unch
     transitionAfter: inspected.transitionAfter, request, response: { httpStatus: 200, result, exactReplay: true },
     replay: { result: { ...result, status: 'replayed' } }, rendered: { visible: true, resultStatus: result.status } }).status,
   'completed');
+});
+
+function committedSourceState(endpoint) {
+  const after = rawState(endpoint);
+  if (endpoint === 'evacuateShuttleSurvivorsCommand') {
+    after.session.shipSurvivors[HOST] = 900;
+    after.session.shipSurvivors[DESTINATION] = 600;
+    after.session.shuttleEvacuations[SHUTTLE] = { cycle: CYCLE, moved: 100, revision: 4 };
+  } else if (endpoint === 'rechargeHostConsoleFromShuttle') {
+    after.session.serviceShuttleRecharges[SHUTTLE] = { cycle: CYCLE, revision: 4 };
+  } else {
+    after.session.shipResources[HOST].food = 4;
+    after.session.shuttleCargo[SHUTTLE].food = 1;
+  }
+  return after;
+}
+
+async function evaluateMemberCapture(endpoint, harness, recipe, prepared, inspected, request, result) {
+  return evaluateProcedureCapture({ caseId: `core:${endpoint}`, expected: recipe.expected,
+    offered: true, mountedUi: true, actorBefore: await harness.player.observe(), actorAfter: await harness.player.observe(),
+    sourceBefore: { live: true, sessionId: SESSION, cycle: CYCLE,
+      revision: recipe.expected.sourceRevision, groupId: GROUP },
+    sourceAfter: inspected.sourceAfter, transitionBefore: prepared.transitionBefore,
+    transitionAfter: inspected.transitionAfter,
+    request, response: { httpStatus: 200, result, exactReplay: true },
+    replay: { result: { ...result, status: 'replayed' } }, rendered: inspected.rendered });
+}
+
+test('post-inspect member source and command receipts stay bound for all three mounted craft recipes', async t => {
+  for (const endpoint of ENDPOINTS) await t.test(endpoint, async () => {
+    const harness = memberHarness(endpoint);
+    const sourceBefore = await readActionState(harness.player, SHUTTLE);
+    const recipe = await createPendingProcedureDefaultSteps()[`core:${endpoint}`](harness);
+    const prepared = await recipe.prepare({ surface: harness.player, actor: await harness.player.observe(),
+      source: { live: true, sessionId: SESSION, cycle: CYCLE, phase: 'active', revision: recipe.expected.sourceRevision } });
+    assert.equal(prepared.offered, true, prepared.reason);
+    assert.equal(prepared.sourceAuthorityBefore?.authorityHash, sourceBefore.currentDocumentAuthority.authorityHash);
+    await prepared.click();
+
+    harness.setState(committedSourceState(endpoint));
+    const { request, result } = resultAndRequest(endpoint, recipe.expected, prepared.transitionBefore);
+    harness.setVisibleStatus(endpoint === 'evacuateShuttleSurvivorsCommand' ? 'Moved 100 survivors.'
+      : endpoint === 'rechargeHostConsoleFromShuttle' ? 'Host console recharged.' : 'Cargo loaded.');
+    const inspected = await recipe.inspect({ surface: harness.player, result, request });
+    assert.equal(inspected.sourceAfter.live, true);
+    assert.equal(inspected.sourceAfter.groupId, GROUP);
+    assert.equal(inspected.sourceAuthorityAfter?.authorityHash, sourceBefore.currentDocumentAuthority.authorityHash);
+    if (endpoint !== 'rechargeHostConsoleFromShuttle') {
+      assert.equal(inspected.transitionAfter?.groupId, GROUP,
+        'the command witness must use the actual same-sample member group');
+    }
+    const capture = await evaluateMemberCapture(endpoint, harness, recipe, prepared, inspected, request, result);
+    assert.equal(capture.status, 'completed', capture.reason);
+    assert.equal(capture.exactSdkRetry, 'same-original-request-receipt-confirmed');
+  });
+});
+
+test('post-inspect member-scope or document-authority drift remains pending for each mounted craft command', async t => {
+  for (const endpoint of ENDPOINTS) for (const [label, patch] of [
+    ['member group changed', { session: { memberSessionScope: {
+      groupId: 'foreign-fleet', vesselIds: [HOST, DESTINATION], craftIds: [SHUTTLE],
+    } } }],
+    ['document hydration changed', { identityHydrationRevision: 12 }],
+  ]) await t.test(`${endpoint}: ${label}`, async () => {
+    const harness = memberHarness(endpoint);
+    const recipe = await createPendingProcedureDefaultSteps()[`core:${endpoint}`](harness);
+    const prepared = await recipe.prepare({ surface: harness.player, actor: await harness.player.observe(),
+      source: { live: true, sessionId: SESSION, cycle: CYCLE, phase: 'active', revision: recipe.expected.sourceRevision } });
+    assert.equal(prepared.offered, true, prepared.reason);
+    await prepared.click();
+
+    harness.setState(rawState(endpoint, patch));
+    const { request, result } = resultAndRequest(endpoint, recipe.expected, prepared.transitionBefore);
+    harness.setVisibleStatus(endpoint === 'evacuateShuttleSurvivorsCommand' ? 'Moved 100 survivors.'
+      : endpoint === 'rechargeHostConsoleFromShuttle' ? 'Host console recharged.' : 'Cargo loaded.');
+    const inspected = await recipe.inspect({ surface: harness.player, result, request });
+    assert.equal(inspected.sourceAfter.live, false);
+    assert.notEqual(inspected.sourceAuthorityAfter?.authorityHash, recipe.expected.sourceAuthority.authorityHash);
+    const capture = await evaluateMemberCapture(endpoint, harness, recipe, prepared, inspected, request, result);
+    assert.equal(capture.status, 'pending');
+  });
 });
