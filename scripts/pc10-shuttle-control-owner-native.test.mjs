@@ -66,7 +66,7 @@ function makeLocator({ count = 1, options = [], onClick, onSelect } = {}) {
 function serializedSurface({ uid, roleId, currentControl = control(), isGm = false,
   ownerActionVisible = true, handoffVisible = ownerActionVisible,
   reclaimVisible = ownerActionVisible && currentControl.holderUid !== currentControl.ownerUid,
-  offeredTargets = [RECIPIENT_UID], selectedTargets = [], clickLog = [] } = {}) {
+  offeredTargets = [RECIPIENT_UID], recipientId = SHUTTLE_ID, selectedTargets = [], clickLog = [] } = {}) {
   let authUid = uid;
   let projectedControl = currentControl;
   let projectedTargets = [...offeredTargets];
@@ -83,7 +83,7 @@ function serializedSurface({ uid, roleId, currentControl = control(), isGm = fal
     ? { value: target, textContent: target }
     : { value: target.value, textContent: target.textContent ?? target.value, disabled: target.disabled }),
   onSelect: value => selectedTargets.push(value) });
-  recipient.getAttribute = async name => name === 'id' ? `shuttle-recipient-${SHUTTLE_ID}` : null;
+  recipient.getAttribute = async name => name === 'id' ? `shuttle-recipient-${recipientId}` : null;
   const handoff = makeLocator({ count: handoffVisible ? 1 : 0,
     onClick: async () => { clickLog.push('Hand off control'); } });
   const reclaim = makeLocator({ count: reclaimVisible ? 1 : 0,
@@ -152,14 +152,14 @@ function serializedSurface({ uid, roleId, currentControl = control(), isGm = fal
 }
 
 function makeHarness({ currentControl = control(), roster, ownerActionVisible = true,
-  handoffVisible = ownerActionVisible, reclaimVisible = ownerActionVisible &&
+  handoffVisible = ownerActionVisible, recipientId = SHUTTLE_ID, reclaimVisible = ownerActionVisible &&
     currentControl.holderUid !== currentControl.ownerUid, offeredTargets = [RECIPIENT_UID] } = {}) {
   const selectedRoles = [];
   const selectedTargets = [];
   const clickLog = [];
   const gmSurface = serializedSurface({ uid: 'owned-gm-auth-uid', isGm: true, currentControl });
   const ownerSurface = serializedSurface({ uid: OWNER_UID, roleId: OWNER_ROLE, currentControl,
-    ownerActionVisible, handoffVisible, reclaimVisible, offeredTargets, selectedTargets, clickLog });
+    ownerActionVisible, handoffVisible, recipientId, reclaimVisible, offeredTargets, selectedTargets, clickLog });
   const holderSurface = serializedSurface({ uid: HOLDER_UID, roleId: HOLDER_ROLE, currentControl,
     ownerActionVisible: false, selectedTargets, clickLog });
   const byRole = new Map([[OWNER_ROLE, ownerSurface], [HOLDER_ROLE, holderSurface]]);
@@ -238,6 +238,18 @@ test('missing, duplicate, or inconsistent printed-owner admission never falls ba
   }
 });
 
+test('printed-owner recipe refuses a mounted selector for a different shuttle', async () => {
+  const harness = makeHarness({ recipientId: 'dione' });
+  const recipe = createPendingProcedureDefaultSteps()['core:transferShuttleControlCommand'];
+  const plan = await recipe({ context: harness.context, game: harness.game });
+  const action = await plan.prepare({ surface: harness.ownerSurface,
+    actor: await harness.ownerSurface.observe(), source: await harness.ownerSurface.state() });
+
+  assert.equal(plan.expected.shuttleId, SHUTTLE_ID);
+  assert.equal(action.offered, false);
+  assert.deepEqual(harness.clickLog, []);
+});
+
 test('the mounted owner plan blocks control, document, target, and current-role drift immediately before click', async t => {
   const cases = [
     ['owner identity changed', harness => harness.ownerSurface.setControl(control({ ownerUid: 'foreign-owner-uid' }))],
@@ -302,6 +314,33 @@ test('reclaim is used only when it is the actual enabled source path; a stale ha
     assert.equal(action.offered, false);
     assert.deepEqual(harness.clickLog, []);
   });
+});
+
+test('post-observation rejects a handoff receipt outside the original control tuple', async t => {
+  const cases = [
+    ['wrong owner', { ownerUid: 'foreign-owner-uid' }],
+    ['wrong previous holder', { previousHolderUid: 'foreign-holder-uid' }],
+    ['wrong next holder', { holderUid: 'foreign-recipient-uid' }],
+    ['wrong control revision', { revision: CONTROL_REVISION + 2 }],
+  ];
+  for (const [name, resultPatch] of cases) {
+    await t.test(name, async () => {
+      const harness = makeHarness();
+      const plan = await createPendingProcedureDefaultSteps()['core:transferShuttleControlCommand']({
+        context: harness.context, game: harness.game,
+      });
+      harness.ownerSurface.setControl(control({ holderUid: RECIPIENT_UID, revision: CONTROL_REVISION + 1 }));
+      const inspected = await plan.inspect({ surface: harness.ownerSurface,
+        actor: await harness.ownerSurface.observe(), actorAfter: await harness.ownerSurface.observe(),
+        request: { sessionId: SESSION_ID, requestId: 'native-handoff-request', shuttleId: SHUTTLE_ID,
+          action: 'handoff', targetUid: RECIPIENT_UID, expectedRevision: CONTROL_REVISION },
+        result: { status: 'committed', sessionId: SESSION_ID, requestId: 'native-handoff-request',
+          action: 'handoff', shuttleId: SHUTTLE_ID, ownerUid: OWNER_UID,
+          previousHolderUid: HOLDER_UID, holderUid: RECIPIENT_UID, revision: CONTROL_REVISION + 1,
+          ...resultPatch } });
+      assert.equal(inspected.sourceAfter.live, false);
+    });
+  }
 });
 
 test('public capture reselects the source owner and stops if the owner/holder control tuple is stale', async () => {
