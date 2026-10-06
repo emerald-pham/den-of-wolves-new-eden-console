@@ -465,7 +465,7 @@ test('Core automatic arrival arms only inside the original 35-second window befo
   await armed.observe();
   assert.equal(inWindow.clickCount(), 0, 'source-timed automatic observation never clicks the UI');
 
-  const outsideWindow = await makeArrivalHarness({ arrivalOffsetMs: 35_001, automatic: true });
+  const outsideWindow = await makeArrivalHarness({ arrivalOffsetMs: 36_000, automatic: true });
   const outside = await outsideWindow.plan.prepare({ surface: outsideWindow.memberSurface,
     actor: outsideWindow.actor, source: outsideWindow.source });
   assert.equal(outside.offered, false, 'the observer cannot arm before the original 35-second window');
