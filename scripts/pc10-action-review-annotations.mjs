@@ -844,8 +844,17 @@ for (const row of reviewed) {
 }
 for (const row of [...endingSourceReviews, ...workspaceSourceReviews, ...demoSourceReviews]) {
   const scan = clientReferenceScans.get(row.exportName);
-  const uiReferences = [...scan.identifierOccurrences, ...scan.quotedOccurrences]
-    .filter(reference => /^(?:src\/components|src\/routes)\//.test(reference.path));
+  const uiReferences = [];
+  for (const reference of [...scan.identifierOccurrences, ...scan.quotedOccurrences]) {
+    if (!/^(?:src\/components|src\/routes)\//.test(reference.path)) continue;
+    if (row.exportName === 'setGmControlsLocked' && reference.path === 'src/routes/GmConsole.tsx') {
+      const source = await readFile(resolve(productSourceRoot, reference.path), 'utf8');
+      const line = source.split(/\r?\n/)[reference.line - 1] ?? '';
+      // This switch arm labels an already-pending command; it is not a mounted writer control.
+      if (/^\s*case 'setGmControlsLocked': return 'GM registration lock pending';\s*$/.test(line)) continue;
+    }
+    uiReferences.push(reference);
+  }
   row.clientCallTrace = {
     status: row.classification === 'served-ui-path' && uiReferences.length ? 'source-service-and-component-route-references' :
       row.classification === 'served-ui-path' ? 'service-path-source-reviewed; component-reference-unverified' :
