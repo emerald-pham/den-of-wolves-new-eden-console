@@ -121,7 +121,8 @@ function browserFixture(source) {
     return window.getComputedStyle(this).textTransform === 'uppercase' ? content.toUpperCase() : content;
   } });
   window.HTMLElement.prototype.getClientRects = function () {
-    for (let node = this; node; node = node.parentElement) {
+    if (window.getComputedStyle(this).display === 'none') return [];
+    for (let node = this.parentElement; node; node = node.parentElement) {
       if (window.getComputedStyle(node).display === 'none') return [];
     }
     return [this.getBoundingClientRect()];
