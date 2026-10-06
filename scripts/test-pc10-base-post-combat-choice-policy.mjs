@@ -37,7 +37,8 @@ function eligible(roleId, groupId = 'fleet-1') {
   return { ...assessLiveBaseAction({ sessionId, expectedCycle: 2, shipId: baseShipForRole(roleId), roleId,
     expectedGroupId: groupId, sourceGm: gm, originalGm: gm, currentSession: session,
     ship: { ...session.ship, shipId: baseShipForRole(roleId) }, originalActor: roster.find(value => value.roleId === roleId),
-    currentActor: actor(roleId, { fleetGroupId: groupId }) }), cycle: 2, fleetGroupId: groupId };
+    currentActor: actor(roleId, { fleetGroupId: groupId }) }), cycle: 2, fleetGroupId: groupId,
+    actorUidHash: roster.find(value => value.roleId === roleId).uidHash };
 }
 
 test('maps only current Base source roles to their printed owning ship', () => {
@@ -121,7 +122,8 @@ test('mission team choices come only from the mounted group roster and live orig
   const blocked = selectBaseMissionTeam({
     opportunity: { groupId: 'fleet-9' }, mountedParticipantLabels: ['Sera // shepherd-scientist'], roster,
     activeRoleIds: session.activeRoleIds,
-    readinessByRoleId: { 'shepherd-scientist': { ...eligible('shepherd-scientist'), fleetGroupId: 'fleet-1' } },
+    readinessByRoleId: { 'shepherd-scientist': { ...eligible('shepherd-scientist'), fleetGroupId: 'fleet-1',
+      actorUidHash: roster.find(value => value.roleId === 'shepherd-scientist').uidHash } },
   });
   assert.equal(blocked.status, 'pending');
   assert.deepEqual(blocked.participantRoleIds, []);
@@ -140,7 +142,7 @@ test('mission carrier and participant acceptance requires the exact server sourc
     groupId: opportunity.groupId, chart: opportunity.chart, coordinate: opportunity.coordinate, siteCode: opportunity.siteCode,
     sourceShipId: opportunity.sourceShipId, sourceTransitionId: opportunity.sourceTransitionId, sourceCycle: opportunity.sourceCycle,
     missionLeader: { uid: 'private-leader-uid', roleId: 'wing-commander' },
-    inputs: { availableCarrierCraftIds: ['endeavour', 'hummingbird'],
+    inputs: { missionLeaderUid: 'private-leader-uid', availableCarrierCraftIds: ['endeavour', 'hummingbird'],
       participantSnapshots: [
         { uid: 'private-leader-uid', roleId: 'wing-commander' },
         { uid: 'private-scientist-uid', roleId: 'shepherd-scientist' },
