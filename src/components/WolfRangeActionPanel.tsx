@@ -162,9 +162,12 @@ export function WolfRangeActionPanelView({
                   <input
                     type="checkbox"
                     checked={selectedActions.includes(action.actionId)}
-                    onChange={(event) => setSelectedActions((previous) => event.target.checked
-                      ? [...previous, action.actionId]
-                      : previous.filter((id) => id !== action.actionId))}
+                    onChange={(event) => {
+                      const checked = event.currentTarget.checked;
+                      setSelectedActions((previous) => checked
+                        ? [...previous, action.actionId]
+                        : previous.filter((id) => id !== action.actionId));
+                    }}
                   />
                   <span>{actionLabel(action.sourceId)}</span>
                 </label>
