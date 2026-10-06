@@ -1,6 +1,8 @@
 import { act, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GameSession, Player } from '@/types/game';
+import type { useSessionStore as SessionStore } from '@/store/useSessionStore';
+import type { sessionFrom as ParseSession } from '@/lib/firestore';
 
 const sdk = vi.hoisted(() => ({
   auth: { currentUser: null as { uid: string } | null, authStateReady: vi.fn() },
@@ -69,8 +71,8 @@ let sessionData: Record<string, unknown>;
 let listeners: Listener[];
 let authReady: ReturnType<typeof deferred<void>>;
 let resumeReply: ReturnType<typeof deferred<{ data: { session: GameSession; player: Player } }>>;
-let useSessionStore: typeof import('@/store/useSessionStore').useSessionStore;
-let sessionFrom: typeof import('@/lib/firestore').sessionFrom;
+let useSessionStore: typeof SessionStore;
+let sessionFrom: typeof ParseSession;
 let unmount: (() => void) | undefined;
 let watches: (() => void)[];
 let legacyProjection: boolean;
@@ -111,8 +113,8 @@ async function mount(options: { demo?: boolean; role?: Player['role']; press?: b
   const context = await import('@/lib/demoActorContext');
   legacyProjection = options.demo === false;
   if (legacyProjection) {
-    const { fullGameDemo: _marker, ...legacySession } = sessionData;
-    sessionData = legacySession;
+    sessionData = { ...sessionData };
+    delete sessionData.fullGameDemo;
   }
   actor = { ...actor, role: options.role ?? 'player',
     assignedRoleId: options.role === 'gm' || options.press ? null : roleId,
