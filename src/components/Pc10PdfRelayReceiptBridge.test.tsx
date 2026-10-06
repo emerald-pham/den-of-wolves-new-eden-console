@@ -157,6 +157,7 @@ function fixture({ replyChange, noteChange, afterSend, beforeSecondSelect, durin
     mutationRequest?: (request: Row) => void } = {}) {
   let authUid = uid, timeOrigin = 1000, resolveResponse: (value: unknown) => void, issuedReply: Row;
   let notes: Row[] = [], saved: unknown, selects = 0, fills = 0, clicks = 0, observers = 0;
+  let stateCalls = 0, domScans = 0;
   let richSamples = 0;
   const calls: { name: string; payload: Row }[] = [], replays: Row[] = [];
   const backend = actualHandlers();
@@ -184,6 +185,7 @@ function fixture({ replyChange, noteChange, afterSend, beforeSecondSelect, durin
     isVisible: async () => query().length === 1 && !query()[0]!.hidden,
     isEnabled: async () => query().length === 1 && !query()[0]!.matches(':disabled'),
     evaluateAll: async (callback: (nodes: HTMLElement[], argument?: unknown) => unknown, argument?: unknown) => {
+      domScans++;
       await act(async () => { beforeRender?.(); });
       const nodes = query();
       for (const node of document.querySelectorAll<HTMLElement>('*')) node.getClientRects = () =>
@@ -243,7 +245,8 @@ function fixture({ replyChange, noteChange, afterSend, beforeSecondSelect, durin
   const game = { ...actual, select: async (selectedRole: string) => {
     selects++; if (selects === 2) await act(async () => { beforeSecondSelect?.(); });
     return actual.select(selectedRole, { deadlineAt: Date.now() + 500 });
-  }, save: async (_name: string, value: unknown) => { saved = value; } };
+  }, state: async (surface: unknown) => { stateCalls++; return actual.state(surface); },
+  save: async (_name: string, value: unknown) => { saved = value; } };
   const driver = specialist.createSpecialistGameplayDriver(game, { timeoutMs: 0, intervalMs: 0 });
   const runSpecialist = new Script(`${capyDeclarations.map(node => node.getText(capyFile)).join('\n')}\nrunSpecialist`)
     .runInNewContext({ assert, URL, PC10_SPECIALIST_ACTIONS, runPc10SpecialistAction, capybaraStageOutcome,
@@ -254,8 +257,9 @@ function fixture({ replyChange, noteChange, afterSend, beforeSecondSelect, durin
     await act(async () => { await vi.waitFor(() => expect(calls).toHaveLength(1)); }); };
   const run = async () => { await mount(); return runSpecialist('pdf-group-relay', 'pdf-group-relay',
     { roleId, message: privateText }, { roleId, record: false }); };
-  return { run, mount, game, calls, replays, backend, reply: () => issuedReply!, saved: () => saved,
-    counts: () => ({ selects, fills, clicks, observers }), changeAuth: () => { authUid = 'foreign-native'; },
+  return { run, mount, game, driver, calls, replays, backend, reply: () => issuedReply!, saved: () => saved,
+    counts: () => ({ selects, fills, clicks, observers }), samples: () => ({ stateCalls, domScans }),
+    changeAuth: () => { authUid = 'foreign-native'; },
     replaceDocument: () => { timeOrigin += 1000; } };
 }
 
@@ -361,4 +365,62 @@ it.each(['Auth', 'document', 'generation', 'hydration', 'assignment'] as const)
 it('keeps the exact original complete SDK replay receipt equality', async () => {
   const f = fixture({ replayChange: reply => { reply.messageId = 'different-replayed-note'; } });
   await expect(f.run()).rejects.toThrow(/exact same-actor replay/);
+});
+
+it('uses only original source/DOM checkpoints and one exact replay without duplicating the real handler note', async () => {
+  const f = fixture(); await f.run();
+  expect(f.samples()).toEqual({ stateCalls: 3, domScans: 2 });
+  expect(f.backend.noteWrites()).toBe(1); expect(f.backend.notes()).toHaveLength(1);
+  const post = f.calls.find(call => call.name === 'sendFleetGroupMessage')!.payload;
+  expect(f.backend.notes()[0]!.id).toBe(post.requestId);
+  expect(f.replays).toEqual([post]);
+});
+
+it('permits other legitimate rendered group notes while binding only one current own matching-text witness', async () => {
+  const f = fixture({ noteChange: notes => { notes.push({ ...notes[0], id: 'prior-other-note',
+    actorUid: 'previous-member', text: 'A different current group note.' }); } });
+  const outcome = await f.run();
+  expect(capybaraStageOutcome({ ...outcome, roleId }).status).toBe('completed');
+});
+
+it.each([
+  ['different captured text', (request: Row) => { request.text = 'Not the original chosen message.'; }],
+  ['missing original text', (request: Row) => { delete request.text; }],
+  ['unsupported request revision', (request: Row) => { request.expectedRevision = 1; }],
+  ['different original session', (request: Row) => { request.sessionId = 'foreign-session'; }],
+] as const)('does not qualify a request with %s', async (_label, mutationRequest) => {
+  const f = fixture({ mutationRequest }); await expect(f.run()).rejects.toThrow();
+});
+
+it.each([
+  ['missing source group map', () => { useSessionStore.setState(state => ({ session: { ...state.session!, shipFleetGroupIds: undefined } })); }],
+  ['missing active original host', () => { useSessionStore.setState(state => ({ session: { ...state.session!, activeVesselIds: [] } })); }],
+  ['closed current source', () => { useSessionStore.setState(state => ({ session: { ...state.session!, phase: 'closed' } })); }],
+] as const)('does not qualify a %s after the UI receipt', async (_label, afterSend) => {
+  const f = fixture({ afterSend }); await expect(f.run()).rejects.toThrow();
+});
+
+it('keeps unrelated specialist numeric revision predicates despite a current-group rendered code', async () => {
+  const f = fixture(); await f.mount();
+  const actor = await f.game.context.crew.observe();
+  await expect(f.driver.waitForCommit({ surface: f.game.context.crew, actor, endpoint: 'buildFighter',
+    inspect: async () => ({ ready: true, renderedStatusCode: 'current-group-note-visible',
+      groupMessage: { type: 'current-group-message-recorded' } }) })).rejects.toThrow(/actual GM-visible source revision/);
+});
+
+it.each([
+  ['original request identity', (evidence: Row) => { (evidence.request as Row).requestId = 'other-command'; }],
+  ['current group', (evidence: Row) => { (evidence.request as Row).expectedGroupId = 'fleet-2'; }],
+  ['original text hash', (evidence: Row) => { (evidence.request as Row).textHash = hash('other-text'); }],
+  ['original message identity', (evidence: Row) => { (evidence.response as Row).messageId = 'other-message'; }],
+  ['full replay equality', (evidence: Row) => { (evidence.response as Row).exactReplay = false; }],
+  ['invented numeric revision', (evidence: Row) => { (evidence.response as Row).revision = 99; }],
+  ['GM note entitlement', (evidence: Row) => { ((evidence.projection as Row).gm as Row).status = 'current-group-note-visible'; }],
+  ['hidden private result', (evidence: Row) => { (evidence.projection as Row).privateActorStatus = 'private-result-visible'; }],
+  ['inferred rendered ID', (evidence: Row) => { ((evidence.projection as Row).groupMessage as Row).domNoteIdentity = 'exact-note-id'; }],
+  ['extra raw private field', (evidence: Row) => { ((evidence.projection as Row).groupMessage as Row).rawText = privateText; }],
+] as const)('keeps the completed relay stage bound against changed %s', async (_label, mutate) => {
+  const f = fixture(); const outcome = await f.run();
+  const evidence = plain(outcome.evidence); mutate(evidence);
+  expect(capybaraStageOutcome({ ...outcome, roleId, evidence }).status).toBe('pending');
 });
