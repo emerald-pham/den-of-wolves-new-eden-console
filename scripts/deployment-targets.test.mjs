@@ -1042,7 +1042,7 @@ test('maps each exact Maliades event field and envelope pair to its exported cal
   }
 
   const indexSource = readFileSync(new URL('../functions/src/index.ts', import.meta.url), 'utf8');
-  assert.match(indexSource, /export const launchDioneMaliades\s*=\s*onCall/);
+  assert.match(indexSource, /export const launchDioneMaliades\s*=\s*auditedOnCall<[\s\S]*?>\('launchDioneMaliades',/);
   assert.match(indexSource, /export\s*\{\s*repairMaliades,\s*resolveMaliadesMedium,\s*resolveMaliadesShort,\s*\}\s*from '\.\/maliadesCallable';/s);
 });
 
