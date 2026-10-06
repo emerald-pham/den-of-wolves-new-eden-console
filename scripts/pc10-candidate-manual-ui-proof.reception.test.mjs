@@ -94,7 +94,7 @@ export async function receptionFixture({ initialNetworkMs = 18, initialComponent
     schedule(() => { emit('request', request); events.push({ kind: 'request', ordinal, fromRefresh });
       if (extraRefreshRead && fromRefresh) emit('request', { ...request }); }, fromRefresh ? refreshNetworkMs : initialNetworkMs);
     schedule(() => { emit('response', response); events.push({ kind: 'response', ordinal, fromRefresh }); },
-      fromRefresh ? refreshNetworkMs + 3 : initialComponentMs - 3);
+      fromRefresh ? refreshNetworkMs + 3 : Math.max(0, initialComponentMs - 3));
     schedule(() => resolveReport(report), fromRefresh ? refreshComponentMs : initialComponentMs);
   });
   const pending = recoveredPending ? { sessionId: store.session.id, requestId: 'source-original-pending', expectedGroupId: 'fleet-1' } : undefined;
@@ -220,7 +220,7 @@ for (const kind of ['pending-mutation', 'transmitting', 'missing', 'duplicate', 
     const g = await geometry(t, f, 95);
     const element = f.window.document.querySelector('[aria-label="Candidate preparation and actions"]');
     if (kind === 'transmitting') { const status = f.window.document.createElement('p'); status.textContent = 'Transmitting candidate choice…'; element.append(status); }
-    if (kind === 'missing') element.remove();
+    if (kind === 'missing') element.removeAttribute('aria-label');
     if (kind === 'duplicate') element.after(element.cloneNode(true));
     if (kind === 'hidden') element.hidden = true;
     if (kind === 'missing-refresh') element.querySelector('.candidate-preparation__header button').remove();
