@@ -15,6 +15,7 @@ const hashValue = value => hash(JSON.stringify(value));
 const nativeDocumentHash = value => hash(`pc10-native-durable-document\0${value}`);
 const validHash = value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
 const normalizeCode = value => typeof value === 'string' ? value.replace(/^functions\//, '').toLowerCase().replaceAll('_', '-') : null;
+const EXPECTED_DENIAL_HTTP_STATUS = Object.freeze({ 'permission-denied': 403, 'failed-precondition': 400 });
 const codeOf = reply => normalizeCode(reply?.code ?? reply?.error?.code ?? reply?.error?.status);
 const time = value => Number.isSafeInteger(value) && value >= 0;
 const generation = value => Number.isSafeInteger(value) && value >= 1;
@@ -256,6 +257,7 @@ export function assessPc10FunctionalTransport({ commands = [], observations = []
     if (observation.status !== 200 && observation.status != null) {
       const classifiedDenial = commands.some(command => command.roleId === observation.roleId && command.name === observation.name
         && command.expectedDenial && codeOf(command.reply) === command.expectedDenial
+        && observation.status === EXPECTED_DENIAL_HTTP_STATUS[command.expectedDenial]
         && normalizeCode(observation.denialCode) === command.expectedDenial
         && (command.data.requestId ? observation.requestHash === createPc10CallableTrace({ name: command.name, data: command.data,
           actorUid: command.original.uid, transport: 'independent-browser-SDK', startedAt: 0 }).requestHash
