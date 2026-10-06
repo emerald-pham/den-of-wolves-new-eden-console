@@ -50,7 +50,10 @@ await module.evaluate();
 for (const key of ['window','document','HTMLElement','Node','Event','navigator']) context[key] = globalThis[key];
 const { nativeFixture, currentView, clickBoundary, cleanup, nativeDiagnosticCounts: counts } = module.namespace;
 function resetCounts() { for (const key of Object.keys(counts)) counts[key] = 0; }
-function diagnostics(f) { return f.report().observations.filter(row => row.stage === 'range target checkpoint diagnostics'); }
+function diagnostics(f) {
+  return f.report().observations.filter(row => row.stage === 'range target checkpoint diagnostics')
+    .map(row => structuredClone(row)); // Actual page/report serialization into the native assertion realm.
+}
 function view() {
   return currentView({ currentStep: 'medium-range', range: 'medium-range',
     eligibleActions: [{ actionId: 'native-missiles', sourceId: 'aegis-missile-launchers', range: 'medium-range' }],

@@ -224,6 +224,45 @@ test('the actual browser callback has only its original awaited store import', a
     ts.forEachChild(node, visit);
   };
   visit(found.node); assert.equal(callbacks.length, 1);
-  const countAwait = node => { if (ts.isAwaitExpression(node)) awaits.push(node.getText(found.file)); ts.forEachChild(node, countAwait); };
-  countAwait(callbacks[0]); assert.deepEqual(awaits, ['await import(moduleUrl)']);
+  const branches = ts.isConditionalExpression(callbacks[0]) ? [callbacks[0].whenTrue, callbacks[0].whenFalse] : callbacks;
+  for (const branch of branches) {
+    awaits.length = 0;
+    const countAwait = node => { if (ts.isAwaitExpression(node)) awaits.push(node.getText(found.file)); ts.forEachChild(node, countAwait); };
+    countAwait(branch); assert.deepEqual(awaits, ['await import(moduleUrl)']);
+  }
+});
+
+test('the default observer keeps its original actor result without diagnostic payload or additional samples', async () => {
+  const f = fixture(), result = await observeWolfChoiceActor(f.surface);
+  assert.equal(result.connectionGeneration, 8); assert.equal(result.identityHydrationRevision, 1);
+  assert.equal(Object.hasOwn(result, 'targetDiagnosticSample'), false); assert.equal(f.diagnostics.length, 0);
+  assert.deepEqual(f.counts(), { observeCount: 2, metadataCount: 1, storeReads: 3 });
+});
+
+test('original SDK form fingerprints match the exact production rangeDraftKey and do not pretend to sample later React state', async () => {
+  const { createWolfTargetDiagnosticBuffer } = await import('./pc10-combat-target-diagnostics.mjs');
+  const componentText = await readFile(new URL('../src/components/WolfRangeActionPanel.tsx', import.meta.url), 'utf8');
+  const actual = astFunction(componentText, 'rangeDraftKey', ts.ScriptKind.TSX);
+  const code = ts.transpileModule(actual.node.getText(actual.file), { compilerOptions: {
+    target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022,
+  } }).outputText;
+  const view = { sessionId: privateSid, turn: 1, revision: 14, currentStep: 'medium-range', range: 'medium-range',
+    choiceStatus: 'targets-required', deadlineAt: 'private-original-deadline',
+    eligibleActions: [{ actionId: 'private-action', sourceId: 'aegis-missile-launchers', range: 'medium-range' }],
+    hitSlots: [{ actionId: 'private-action', count: 2, damagePerHit: 1 }],
+    contacts: [{ contactId: 'private-contact', targetShipId: 'shepherd', available: true, requiredCoverageDamage: null }] };
+  const runtime = createContext({ view });
+  new Script(code).runInContext(runtime);
+  const expected = hash(JSON.parse(new Script('rangeDraftKey(view)').runInContext(runtime)));
+  const buffer = createWolfTargetDiagnosticBuffer({ view, expected: { attackId: 'private-attack' }, originalActor: {}, deadlineAt: 1234 });
+  buffer.capture('selection')({ diagnosticSampleAvailable: false });
+  const rows = []; buffer.attach(rows); buffer.attach(rows);
+  assert.equal(rows.length, 1); assert.equal(rows[0].originalSDKFormFingerprint, expected);
+  assert.equal(rows[0].reactFormKeyObserved, false); assert.equal(rows[0].samples[0].diagnosticSampleAvailable, false);
+  assert.equal(JSON.stringify(rows).includes('private-'), false);
+  const changedDeadline = createWolfTargetDiagnosticBuffer({ view: { ...view, deadlineAt: 'private-new-deadline' },
+    expected: {}, originalActor: {}, deadlineAt: 1234 });
+  changedDeadline.capture('selection')({}); const changedRows = []; changedDeadline.attach(changedRows);
+  assert.equal(changedRows[0].originalSDKFormFingerprint, expected, 'The real draft key excludes deadline; the full original SDK source hash remains separate.');
+  assert.notEqual(changedRows[0].originalSDKSourceFingerprint, rows[0].originalSDKSourceFingerprint);
 });
