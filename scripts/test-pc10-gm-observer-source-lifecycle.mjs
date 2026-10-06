@@ -230,7 +230,7 @@ async function fixture(options = {}) {
   const fields = { 'Question or ambiguity': '', 'Source or reference': '', Decision: '',
     Audience: 'gm-only', 'Supersedes call ID (optional)': '', [`Facilitator note for ${targetUid}`]: '' };
   const writes = [], fills = [], uiEvents = [], waiting = [], requestListeners = new Set();
-  const listsAtHydration = [], operationBudgets = [], navigations = [];
+  const listsAtHydration = [], operationBudgets = [], navigations = [], gotos = [];
   const counts = options.counts ?? {}, disabled = new Set(options.disabled ?? []);
   const route = () => new URL(url).hash;
   const actor = () => ({ hasAuth: !!authUid, sameActor: authUid === raw.me?.uid,
@@ -244,7 +244,9 @@ async function fixture(options = {}) {
     const data = { sessionId, instanceId: raw.gmInstance.id, ...extra };
     const request = { method: () => 'POST', url: () => `http://localhost:5011/demo-native/us-central1/${endpoint}`,
       postDataJSON: () => ({ data }) };
-    const response = { request: () => request, url: request.url, status: () => 200,
+    options.onNativeReply?.({ endpoint, result });
+    const response = { request: () => request, url: request.url,
+      status: () => options.httpStatus?.[endpoint] ?? 200,
       ok: () => true, json: async () => ({ result }) };
     writes.push({ endpoint, data, result });
     for (const listener of requestListeners) listener(request);
@@ -386,7 +388,10 @@ async function fixture(options = {}) {
   for (const [path, exports] of [
     ['/src/store/useSessionStore.ts', { useSessionStore: { getState: () => raw } }],
     ['/src/lib/sessionService.ts', { reconcileGmAuthority: async () => {},
-      listGmInstances: async () => { lists += 1; listsAtHydration.push(raw.identityHydrationRevision); return [raw.gmInstance]; } }],
+      listGmInstances: async () => {
+        lists += 1; listsAtHydration.push(raw.identityHydrationRevision);
+        options.onList?.({ raw, reloads, lists }); return [raw.gmInstance];
+      } }],
     ['/src/lib/firebase.ts', { auth: () => ({ currentUser: authUid ? { uid: authUid } : null }) }],
     ['/src/lib/demoActorContext.ts', { activeDemoActorProfile: null }],
   ]) {
@@ -404,6 +409,7 @@ async function fixture(options = {}) {
     page: { url: () => url, goto: async (next, input = {}) => {
         if (input.timeout !== undefined) { assert.ok(input.timeout > 0 && input.timeout <= 35_000); operationBudgets.push(input.timeout); }
         url = next; mounted = remainingMountReads === 0; options.onGoto?.({ raw });
+        gotos.push(next);
       },
       reload: async () => {
         uiEvents.push('reload');
@@ -459,10 +465,10 @@ async function fixture(options = {}) {
     const inspected = await recipe.inspect({ surface, result: request.result, request: request.data });
     return { recipe, inspected };
   };
-  return { raw, surface, context, game, getRecipe, prepare, run, writes, fills, uiEvents, listsAtHydration, operationBudgets, navigations,
+  return { raw, surface, context, game, getRecipe, prepare, run, writes, fills, uiEvents, listsAtHydration, operationBudgets, navigations, gotos,
     gmMountReads: () => gmMountReads,
     lists: () => lists, reloads: () => reloads, mountReads: () => mountReads,
-    setAuth: value => { authUid = value; }, close: () => {
+    setAuth: value => { authUid = value; }, setRoute: value => { url = new URL(value, url).href; }, close: () => {
       for (const observer of waiting.splice(0)) observer.reject(new Error('Native fixture closed.'));
     } };
 }
@@ -547,6 +553,62 @@ test('public GM form rejects changed accepted document generation during the nor
     const result = await callbackFor(f, ['authorFacilitatorRuleCall']).onStarted(f.context);
     assert.equal(rowFor(result, 'authorFacilitatorRuleCall').status, 'pending');
     assert.equal(f.fills.length, 0); assert.equal(f.writes.length, 0);
+  } finally { f.close(); }
+});
+
+test('public grant cleanup cannot navigate back into an observer that left its original mounted route', async () => {
+  const f = await fixture({ route: '#/gm', onReceipt: ({ endpoint }) => {
+    if (endpoint === 'setGmShipConsoleWriteGrant') f.setRoute('#/console');
+  } });
+  try {
+    const result = await callbackFor(f, ['setGmShipConsoleWriteGrant']).onStarted(f.context);
+    assert.equal(rowFor(result, 'setGmShipConsoleWriteGrant').status, 'pending');
+    assert.equal(f.writes.length, 1); assert.equal(f.reloads(), 0);
+    assert.equal(f.gotos.length, 1, 'Only the original normal preparation may enter the observer.');
+  } finally { f.close(); }
+});
+
+for (const endpoint of ['setGmShipConsoleWriteGrant', 'setShipConsoleLock']) {
+  for (const [name, change] of [
+    ['generation', raw => { raw.me.connectionGeneration += 1; }],
+    ['hydration', raw => { raw.identityHydrationRevision += 1; }],
+  ]) test(`public ${endpoint} pins accepted new document ${name} throughout the post-reload private SDK read`, async () => {
+    const f = await fixture({ route: '#/gm', onList: ({ raw, reloads }) => {
+      if (reloads > 0) change(raw);
+    } });
+    try {
+      const result = await callbackFor(f, [endpoint]).onStarted(f.context);
+      assert.equal(rowFor(result, endpoint).status, 'pending');
+      assert.equal(f.reloads(), 1);
+      assert.equal(f.writes.filter(write => write.endpoint === 'setGmShipConsoleWriteGrant' && write.data.enabled).length, 1);
+    } finally { f.close(); }
+  });
+}
+
+test('explicit revoke cannot reset the original sixty-second operation before the genuine reload', async t => {
+  let now = Date.now(); t.mock.method(Date, 'now', () => now);
+  const f = await fixture({ route: '#/gm', onReceipt: ({ raw, endpoint }) => {
+    if (endpoint === 'setGmShipConsoleWriteGrant' && !raw.gmInstance.shipConsoleWriteGrant) now += 60_001;
+  } });
+  try {
+    const result = await callbackFor(f, ['setGmShipConsoleWriteGrant']).onStarted(f.context);
+    assert.equal(rowFor(result, 'setGmShipConsoleWriteGrant').status, 'pending');
+    assert.equal(f.writes.length, 2); assert.equal(f.reloads(), 0);
+  } finally { f.close(); }
+});
+
+for (const [name, options] of [
+  ['denied HTTP receipt', { httpStatus: { setGmShipConsoleWriteGrant: 403 } }],
+  ['false enable receipt', { onNativeReply: ({ endpoint, result }) => {
+    if (endpoint === 'setGmShipConsoleWriteGrant') { result.enabled = false; delete result.shipId; }
+  } }],
+]) test(`public lock refuses its own ${name} without release, replay or reload`, async () => {
+  const f = await fixture({ ...options, route: '#/gm' });
+  try {
+    const result = await callbackFor(f, ['setShipConsoleLock']).onStarted(f.context);
+    assert.equal(rowFor(result, 'setShipConsoleLock').status, 'pending');
+    assert.equal(f.writes.length, 1); assert.equal(f.writes[0].data.enabled, true);
+    assert.equal(f.reloads(), 0); assert.ok(!f.uiEvents.includes('replay:setShipConsoleLock'));
   } finally { f.close(); }
 });
 
@@ -662,6 +724,8 @@ for (const endpoint of ['setGmShipConsoleWriteGrant', 'setShipConsoleLock']) {
     try {
       const result = await callbackFor(f, [endpoint]).onStarted(f.context);
       assert.equal(rowFor(result, endpoint).status, 'pending');
+      if (endpoint === 'setGmShipConsoleWriteGrant')
+        assert.equal(rowFor(result, endpoint).leaseDiagnostic.durableRevokedProjectionPresent, false);
       assert.equal(f.writes.filter(write => write.endpoint === 'setGmShipConsoleWriteGrant' && write.data.enabled).length, 1);
       assert.equal(f.reloads(), 1); assert.equal(result.observedProcedureCount, 0);
     } finally { f.close(); }
