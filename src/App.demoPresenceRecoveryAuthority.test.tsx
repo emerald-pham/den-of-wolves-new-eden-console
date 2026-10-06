@@ -247,6 +247,13 @@ beforeEach(() => {
   sdk.signIn.mockReset().mockRejectedValue(new Error('The original account cannot be replaced.'));
 });
 afterEach(async () => {
+  const current = useSessionStore.getState();
+  console.info(JSON.stringify({ kind: 'native-original-source-witness', test: expect.getState().currentTestName,
+    calls: ledger, frames, current: { connection: current.connection, freshness: current.sessionSnapshotFreshness,
+      hydration: current.identityHydrationRevision, generation: current.me?.connectionGeneration,
+      sdkUidMatches: sdk.auth.currentUser?.uid === current.me?.uid, sameSession: current.me?.sessionId === current.session?.id,
+      berthGeneration: current.session?.currentActorBerthAuthority?.connectionGeneration,
+      privateLoyaltyPresent: current.privateLoyalty != null, roleBriefPresent: current.roleBrief != null } }));
   watch?.(); watch = undefined;
   if (unmount) act(unmount); unmount = undefined;
   // Retired SDK callbacks must not publish on the next case; settle every
@@ -292,7 +299,12 @@ describe('real demo presence recovery while the original Miner member read is pe
     actor = { ...actor, connectionGeneration: 3 };
     await deliverPlayer();
     expect(useSessionStore.getState().identityHydrationRevision).toBe(1);
-    await deliverMember(memberResponses.length - 1);
+    await deliverMember(0);
+    expect(memberResponses).toHaveLength(2);
+    await deliverMember(1);
+    expect(useSessionStore.getState().session?.currentActorBerthAuthority).toMatchObject({
+      actorUid: actor.uid, sessionId, connectionGeneration: 3, assignedRoleId: 'icebreaker-miner', activeConsoleRoleId: null,
+    });
     expect(useSessionStore.getState().me?.connectionGeneration).toBe(3);
     expect(useSessionStore.getState().identityHydrationRevision).toBe(1);
     expect(resumeReplies).toHaveLength(1);
@@ -307,14 +319,22 @@ describe('real demo presence recovery while the original Miner member read is pe
     const { sessionSnapshotAuthorityFor, memberSessionResumeBlocksFreshness } = await import('@/lib/sessionSnapshotAuthority');
     expect(memberSessionResumeBlocksFreshness(sessionSnapshotAuthorityFor(sessionId, actor.uid))).toBe(true);
     actor = { ...actor, connectionGeneration: 3 };
-    await deliverPlayer(); await deliverMember(memberResponses.length - 1);
+    await deliverPlayer(); await deliverMember(0);
+    expect(memberResponses).toHaveLength(2);
+    await deliverMember(1);
+    expect(useSessionStore.getState().session?.currentActorBerthAuthority).toMatchObject({
+      actorUid: actor.uid, sessionId, connectionGeneration: 3, assignedRoleId: 'icebreaker-miner', activeConsoleRoleId: null,
+    });
     expect(useSessionStore.getState()).toMatchObject({ identityHydrationRevision: 1, sessionSnapshotFreshness: 'cache',
       me: { uid: actor.uid, connectionGeneration: 3 } });
     expect(useSessionStore.getState().connection).not.toBe('live');
     const projection = await readMember();
     const { sessionFrom } = await import('@/lib/firestore');
-    resumeReplies[0]!.resolve({ data: { session: sessionFrom(sessionId, projection.session as Record<string, unknown>), player: actor } });
-    await recovering; await advance();
+    await act(async () => {
+      resumeReplies[0]!.resolve({ data: { session: sessionFrom(sessionId, projection.session as Record<string, unknown>), player: actor } });
+      await recovering;
+    });
+    await advance();
     expect(useSessionStore.getState()).toMatchObject({ identityHydrationRevision: 2,
       me: { uid: actor.uid, sessionId, connectionGeneration: 3 } });
     expect(callCount('resumeSession')).toBe(1);
