@@ -179,7 +179,10 @@ async function harness(mode, { selectedRole = ROLE, cargo = {}, stock = 9, airsp
         await reloadPatch?.(session);
       },
       waitForURL: async predicate => assert.equal(predicate(new URL(page.url())), true),
-      waitForResponse: predicate => new Promise(resolve => waiters.push({ predicate, resolve })),
+      waitForResponse: (predicate, options) => {
+        assert.ok(options.timeout > 0 && options.timeout <= 60_000);
+        return new Promise(resolve => waiters.push({ predicate, resolve }));
+      },
       waitForFunction: async () => true,
       evaluate: async (callback, input) => {
         const fixtureImport = async moduleUrl => {
@@ -513,6 +516,25 @@ test('each existing input await retains the original EO document, custody, group
     await assert.rejects(() => prepareWolfSupplyCargo(h, h.roster.find(actor => actor.roleId === ROLE)));
     assert.equal(h.events.some(event => event.endpoint === 'transferShuttleCargoCommand'), false);
   });
+  for (const name of ['genuine new document', 'genuine resume generation', 'hydration changed', 'current private audience lost', 'GM claim changed']) {
+    await t.test(name, async () => {
+      let filled = false;
+      let h;
+      const options = { afterAmountFill: async () => {
+        filled = true;
+        if (name === 'genuine new document') await h.crew.page.goto(h.crew.page.url());
+        if (name === 'genuine resume generation') await h.crew.page.reload();
+      }, patchCrew: state => {
+        if (filled && name === 'hydration changed') state.identityHydrationRevision += 1;
+        if (filled && name === 'current private audience lost') state.session.memberSessionScope.craftIds = [];
+      }, patchGm: state => {
+        if (filled && name === 'GM claim changed') state.gmInstance.claimedAt = '2026-10-06T10:01:00.000Z';
+      } };
+      h = await harness('wolf-cult', options);
+      await assert.rejects(() => prepareWolfSupplyCargo(h, h.roster.find(actor => actor.roleId === ROLE)));
+      assert.equal(h.events.some(event => event.endpoint === 'transferShuttleCargoCommand'), false);
+    });
+  }
 });
 
 test('an original mounted load with a malformed or changed result cannot earn preparation or sabotage credit', async t => {
