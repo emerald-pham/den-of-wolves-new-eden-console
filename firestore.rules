@@ -312,6 +312,66 @@ service cloud.firestore {
           || (currentGroup.mergedGroupIds is list && historyGroupId in currentGroup.mergedGroupIds));
     }
 
+    // An exact get of a not-yet-created departure document is useful only to
+    // the connected current holder that could request it. Keep the absent
+    // case bound to the live control entry and the holder's server berth; once
+    // a route exists, the separate group-audience rule below applies.
+    function isCurrentShuttleAbsenceHolder(sessionId, shuttleId) {
+      let player = get(
+        /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
+      ).data;
+      let session = get(/databases/$(database)/documents/sessions/$(sessionId)).data;
+      return isMember(sessionId)
+        && player.role == 'player'
+        && playerHasCurrentRoleAuthority(player)
+        && (!('kickedAt' in player) || player.kickedAt == null)
+        && (!('escapeState' in player) || player.escapeState == null)
+        && player.fleetGroupId is string
+        && isCurrentFleetGroupHistoryReader(sessionId, player.fleetGroupId)
+        && get(
+          /databases/$(database)/documents/sessions/$(sessionId)/fleetGroups/$(player.fleetGroupId)
+        ).data.vesselIds is list
+        && get(
+          /databases/$(database)/documents/sessions/$(sessionId)/fleetGroups/$(player.fleetGroupId)
+        ).data.memberShipIds is map
+        && uid() in get(
+          /databases/$(database)/documents/sessions/$(sessionId)/fleetGroups/$(player.fleetGroupId)
+        ).data.memberShipIds
+        && get(
+          /databases/$(database)/documents/sessions/$(sessionId)/fleetGroups/$(player.fleetGroupId)
+        ).data.memberShipIds[uid()] is string
+        && get(
+          /databases/$(database)/documents/sessions/$(sessionId)/fleetGroups/$(player.fleetGroupId)
+        ).data.memberShipIds[uid()] in get(
+          /databases/$(database)/documents/sessions/$(sessionId)/fleetGroups/$(player.fleetGroupId)
+        ).data.vesselIds
+        && session.phase == 'active'
+        && session.activeRoleIds is list
+        && session.activeVesselIds is list
+        && get(
+          /databases/$(database)/documents/sessions/$(sessionId)/fleetGroups/$(player.fleetGroupId)
+        ).data.memberShipIds[uid()] in session.activeVesselIds
+        && session.shuttleControl is map
+        && shuttleId in session.shuttleControl
+        && session.shuttleControl[shuttleId] is map
+        && session.shuttleControl[shuttleId].keys().hasAll([
+          'shuttleId', 'ownerRoleId', 'ownerUid', 'holderUid', 'revision'
+        ])
+        && session.shuttleControl[shuttleId].keys().hasOnly([
+          'shuttleId', 'ownerRoleId', 'ownerUid', 'holderUid', 'revision'
+        ])
+        && session.shuttleControl[shuttleId].shuttleId == shuttleId
+        && session.shuttleControl[shuttleId].ownerRoleId is string
+        && session.shuttleControl[shuttleId].ownerRoleId.size() > 0
+        && session.shuttleControl[shuttleId].ownerRoleId in session.activeRoleIds
+        && session.shuttleControl[shuttleId].ownerUid is string
+        && session.shuttleControl[shuttleId].ownerUid.size() > 0
+        && session.shuttleControl[shuttleId].holderUid == uid()
+        && session.shuttleControl[shuttleId].revision is int
+        && session.shuttleControl[shuttleId].revision >= 0
+        && session.shuttleControl[shuttleId].revision <= 9007199254740991;
+    }
+
     function isCurrentSameTableTradePlayer(sessionId) {
       let player = get(
         /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
@@ -715,9 +775,11 @@ service cloud.firestore {
 
       // Pending shuttle routes contain group-local origin and destination data.
       // The server is the only writer; connected members may read one exact
-      // route only while their live group pointer matches its audience.
+      // route only while their live group pointer matches its audience. An
+      // absent exact route is visible only to its current active shuttle holder.
       match /shuttleDepartures/{shuttleId} {
         allow get: if isGm(sessionId)
+          || (resource == null && isCurrentShuttleAbsenceHolder(sessionId, shuttleId))
           || (isMember(sessionId)
             && resource.data.status in ['requested', 'in-transit']
             && resource.data.shuttleId == shuttleId
