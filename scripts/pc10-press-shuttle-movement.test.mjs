@@ -10,12 +10,16 @@ const SESSION_ID = 'press-session';
 const UID = 'private-press-holder';
 const UID_HASH = createHash('sha256').update(UID).digest('hex').slice(0, 16);
 const GROUP_ID = 'fleet-press';
+const hashJson = value => createHash('sha256').update(JSON.stringify(value)).digest('hex');
+const PRESS_GROUP_AUTHORITY = Object.freeze({ groupId: GROUP_ID,
+  fleetGroupVesselIds: ['aegis', 'dione', 'icebreaker'], revision: 12 });
 const SOURCE_AUTHORITY = Object.freeze({
   kind: 'press-shuttle-current-document', sessionId: SESSION_ID, uidHash: UID_HASH, groupId: GROUP_ID,
   activeConsoleRoleId: 'press-officer', assignedRoleId: null,
   connectionGeneration: 5, identityHydrationRevision: 9, documentTimeOrigin: 1_760_000_000_000,
-  audienceHash: 'a'.repeat(64), authorityHash: 'b'.repeat(64), discoveryRevision: 12,
-  discoveryVesselsHash: 'c'.repeat(64), shuttleAuthorized: true,
+  audienceHash: hashJson({ groupId: GROUP_ID, vesselIds: [], craftIds: [PRESS_SHUTTLE_ID] }),
+  authorityHash: 'b'.repeat(64), discoveryRevision: 12,
+  discoveryVesselsHash: hashJson(PRESS_GROUP_AUTHORITY.fleetGroupVesselIds), shuttleAuthorized: true,
 });
 const ORIGIN = Object.freeze({
   kind: 'press-shuttle-origin', sessionId: SESSION_ID, uidHash: UID_HASH, shuttleId: PRESS_SHUTTLE_ID,
@@ -33,7 +37,8 @@ function memberStore(overrides = {}) {
       turnPhase: { turn: 3, progression: 'manual', airspace: { state: 'lifted' } },
       memberSessionScope: { groupId: GROUP_ID, vesselIds: [], craftIds: [PRESS_SHUTTLE_ID] },
       playerDiscovery: { groupId: GROUP_ID, fleetGroupVesselIds: ['aegis', 'icebreaker', 'dione'], revision: 12 },
-      shuttleControl: { [PRESS_SHUTTLE_ID]: { shuttleId: PRESS_SHUTTLE_ID, holderUid: UID, revision: 7 } },
+      shuttleControl: { [PRESS_SHUTTLE_ID]: { shuttleId: PRESS_SHUTTLE_ID, ownerRoleId: 'press-officer',
+        holderUid: UID, revision: 7 } },
       shuttleDockings: [{ shuttleId: PRESS_SHUTTLE_ID, shipId: 'aegis' }], shuttleVisitLog: [],
       shipResources: {}, shipFleetGroupIds: {},
     },
@@ -74,6 +79,22 @@ function pressActor() {
   return { sameActor: true, sessionId: SESSION_ID, uidHash: UID_HASH, playerRole: 'player',
     profileRoleId: 'press-officer', activeConsoleRoleId: 'press-officer', assignedRoleId: null,
     connection: 'live', freshness: 'server' };
+}
+
+function departureWitness() {
+  return { kind: 'press-shuttle-departure-witness', status: 'completed', endpoint: 'requestShuttleDeparture',
+    sessionId: SESSION_ID, roleId: 'press-officer', uidHash: UID_HASH, shuttleId: PRESS_SHUTTLE_ID,
+    groupId: GROUP_ID, cycle: 3, controlRevision: 7, originShipId: 'aegis', destinationShipId: 'icebreaker',
+    departureRequestId: 'departure-1', requestedAt: '2026-10-06T10:00:00.000Z', sourceAuthority: SOURCE_AUTHORITY };
+}
+
+function transitWitness() {
+  return { kind: 'press-shuttle-transit-witness', status: 'completed', endpoint: 'beginShuttleTransit',
+    sessionId: SESSION_ID, roleId: 'press-officer', uidHash: UID_HASH, shuttleId: PRESS_SHUTTLE_ID,
+    groupId: GROUP_ID, cycle: 3, controlRevision: 7, originShipId: 'aegis', destinationShipId: 'icebreaker',
+    departureRequestId: 'departure-1', transitRequestId: 'transit-1', transitRevision: 1,
+    requestedAt: '2026-10-06T10:00:00.000Z', departedAt: '2026-10-06T10:00:10.000Z',
+    arrivesAt: '2026-10-06T10:01:10.000Z', sourceAuthority: SOURCE_AUTHORITY };
 }
 
 function browserLocator({ options = [], onClick = () => {}, onSelect = () => {} } = {}) {
@@ -126,10 +147,10 @@ function pressRecipeHarness({ state = memberStore(), origin = ORIGIN, destinatio
     selectedDestination: () => selectedDestination, gmSelections: () => gmSelections };
 }
 
-function movementInput(endpoint) {
+function movementInput(endpoint, { priorDeparture = departureWitness(), priorTransit = transitWitness() } = {}) {
   const expected = { sessionId: SESSION_ID, uidHash: UID_HASH, roleId: 'press-officer', shuttleId: PRESS_SHUTTLE_ID,
     groupId: GROUP_ID, cycle: 3, controlRevision: 7, sourceRevision: 7,
-    sourceAuthority: SOURCE_AUTHORITY, pressOriginAuthority: ORIGIN };
+    sourceAuthority: SOURCE_AUTHORITY, pressOriginAuthority: ORIGIN, originShipId: 'aegis' };
   let transitionBefore, transitionAfter, request, result, destinationShipId;
   if (endpoint === 'requestShuttleDeparture') {
     destinationShipId = 'icebreaker';
@@ -169,9 +190,9 @@ function movementInput(endpoint) {
       transitRequestId: 'transit-1', destinationShipId, expectedControlRevision: 7, expectedCycle: 3 };
     result = { status: 'in-transit', sessionId: SESSION_ID, requestId: 'departure-1', transitRequestId: 'transit-1',
       shuttleId: PRESS_SHUTTLE_ID, holderUid: UID, fleetGroupId: GROUP_ID, destinationShipId, cycle: 3,
-      controlRevision: 7, requestedAt: '2026-10-06T10:00:30.000Z', revision: 2,
+      controlRevision: 7, requestedAt: '2026-10-06T10:00:00.000Z', revision: 2,
       currentPosition: { x: 1, y: 2, z: 3 }, destinationPosition: { x: 7, y: 8, z: 9 },
-      velocity: { x: 1, y: 1, z: 1 }, departedAt: '2026-10-06T10:00:10.000Z',
+      velocity: { x: 1, y: 1, z: 1 }, departedAt: '2026-10-06T10:00:30.000Z',
       arrivesAt: '2026-10-06T10:01:30.000Z' };
   }
   expected.destinationShipId = destinationShipId;
@@ -182,8 +203,19 @@ function movementInput(endpoint) {
     actorBefore: actor, actorAfter: { ...actor }, sourceBefore: { live: true, sessionId: SESSION_ID, cycle: 3, phase: 'active', revision: 7, groupId: GROUP_ID },
     sourceAfter: { live: true, sessionId: SESSION_ID, cycle: 3, phase: 'active', revision: 7, groupId: GROUP_ID },
     transitionBefore, transitionAfter, pressOriginAuthority: ORIGIN,
+    pressSourceAuthorityBefore: SOURCE_AUTHORITY, pressSourceAuthorityAfter: { ...SOURCE_AUTHORITY },
+    pressGroupAuthorityBefore: PRESS_GROUP_AUTHORITY, pressGroupAuthorityAfter: PRESS_GROUP_AUTHORITY,
+    pressDockingBefore: { kind: 'press-shuttle-docking', shuttleId: PRESS_SHUTTLE_ID,
+      dockingCount: endpoint === 'requestShuttleDeparture' || endpoint === 'beginShuttleTransit' ? 1 : 0,
+      originShipId: endpoint === 'requestShuttleDeparture' || endpoint === 'beginShuttleTransit' ? 'aegis' : null },
+    pressDockingAfter: { kind: 'press-shuttle-docking', shuttleId: PRESS_SHUTTLE_ID,
+      dockingCount: endpoint === 'requestShuttleDeparture' ? 1 : 0,
+      originShipId: endpoint === 'requestShuttleDeparture' ? 'aegis' : null },
+    ...(endpoint === 'beginShuttleTransit' ? { pressShuttleDepartureWitness: priorDeparture } : {}),
+    ...(endpoint === 'retargetShuttleTransit' ? { pressShuttleTransitWitness: priorTransit } : {}),
     sourceAuthorityBefore: SOURCE_AUTHORITY, sourceAuthorityAfter: { ...SOURCE_AUTHORITY },
-    request, response: { httpStatus: 200, result, exactReplay: true }, replay: structuredClone(result),
+    request, response: { httpStatus: 200, result, exactReplay: true },
+    replay: { status: 'committed', result: structuredClone(result) },
     rendered: { visible: true, resultStatus: result.status } };
 }
 
@@ -226,14 +258,12 @@ test('serialized member reader emits strict Press-only source authority without 
   assert.match(authority.discoveryVesselsHash, /^[0-9a-f]{64}$/);
   assert.equal(authority.shuttleAuthorized, true);
   assert.deepEqual(state.pressGroupAuthority, { groupId: GROUP_ID,
-    fleetGroupVesselIds: ['aegis', 'icebreaker', 'dione'], revision: 12 });
+    fleetGroupVesselIds: ['aegis', 'dione', 'icebreaker'], revision: 12 });
   assert.doesNotMatch(JSON.stringify(state), new RegExp(UID));
 
   const drifts = [
     { me: { activeConsoleRoleId: 'icebreaker-miner' } },
     { me: { assignedRoleId: 'press-officer' } },
-    { me: { connectionGeneration: 6 } },
-    { identityHydrationRevision: 10 },
     { me: { fleetGroupId: 'foreign-group' } },
     { session: { memberSessionScope: { groupId: GROUP_ID, vesselIds: ['aegis'], craftIds: [PRESS_SHUTTLE_ID] } } },
     { session: { memberSessionScope: { groupId: GROUP_ID, vesselIds: [], craftIds: [] } } },
@@ -245,6 +275,13 @@ test('serialized member reader emits strict Press-only source authority without 
   for (const drift of drifts) {
     const changed = await readActionState(serializedSurface(memberStore(drift)), PRESS_SHUTTLE_ID);
     assert.equal(changed.pressDocumentAuthority, null, JSON.stringify(drift));
+  }
+
+  for (const drift of [{ me: { connectionGeneration: 6 } }, { identityHydrationRevision: 10 }]) {
+    const changed = await readActionState(serializedSurface(memberStore(drift)), PRESS_SHUTTLE_ID);
+    assert.ok(changed.pressDocumentAuthority, 'the changed generation or hydration is current when sampled');
+    assert.notEqual(changed.pressDocumentAuthority.authorityHash, authority.authorityHash,
+      'the changed current document cannot reuse a stale captured authority');
   }
 });
 
@@ -270,20 +307,35 @@ test('default Press request keeps the original UID on #/press and selects only a
 });
 
 test('Press Request, Begin, and Retarget receipts need the same strict current source tuple and exact SDK replay', () => {
-  for (const endpoint of ['requestShuttleDeparture', 'beginShuttleTransit', 'retargetShuttleTransit']) {
-    const input = movementInput(endpoint);
-    const accepted = evaluateProcedureCapture(input);
-    assert.equal(accepted.status, 'completed', `${endpoint}: ${accepted.reason}`);
-    assert.equal(accepted.actorRoleId, 'press-officer');
-    assert.equal(accepted.exactSdkRetry, 'same-original-request-receipt-confirmed');
+  const request = movementInput('requestShuttleDeparture');
+  const requested = evaluateProcedureCapture(request);
+  assert.equal(requested.status, 'completed', requested.reason);
+  assert.equal(requested.exactSdkRetry, 'same-original-request-receipt-confirmed');
+  assert.equal(requested.pressShuttleDepartureWitness.originShipId, 'aegis');
 
+  const begin = movementInput('beginShuttleTransit', { priorDeparture: requested.pressShuttleDepartureWitness });
+  const transit = evaluateProcedureCapture(begin);
+  assert.equal(transit.status, 'completed', transit.reason);
+  assert.equal(transit.pressShuttleTransitWitness.departureRequestId,
+    requested.pressShuttleDepartureWitness.departureRequestId);
+  assert.equal(transit.pressShuttleTransitWitness.originShipId, 'aegis');
+
+  const retarget = movementInput('retargetShuttleTransit', { priorTransit: transit.pressShuttleTransitWitness });
+  const retargeted = evaluateProcedureCapture(retarget);
+  assert.equal(retargeted.status, 'completed', retargeted.reason);
+  assert.equal(retargeted.exactSdkRetry, 'same-original-request-receipt-confirmed');
+  assert.equal(retargeted.pressShuttleArrivalWitness.transitRevision, 2);
+  assert.equal(retargeted.pressShuttleArrivalWitness.originShipId, 'aegis');
+
+  for (const [endpoint, input] of [['requestShuttleDeparture', request], ['beginShuttleTransit', begin],
+    ['retargetShuttleTransit', retarget]]) {
     assert.equal(evaluateProcedureCapture({ ...input, pressOriginAuthority: undefined }).status, 'pending',
       `${endpoint} missing original Press source witness`);
     assert.equal(evaluateProcedureCapture({ ...input,
       pressOriginAuthority: { ...ORIGIN, groupId: 'foreign-group' } }).status, 'pending',
     `${endpoint} foreign group`);
     assert.equal(evaluateProcedureCapture({ ...input,
-      sourceAuthorityAfter: { ...SOURCE_AUTHORITY, identityHydrationRevision: 10 } }).status, 'pending',
+      pressSourceAuthorityAfter: { ...SOURCE_AUTHORITY, identityHydrationRevision: 10 } }).status, 'pending',
     `${endpoint} changed document hydration`);
     assert.equal(evaluateProcedureCapture({ ...input, actorAfter: { ...input.actorAfter,
       activeConsoleRoleId: 'icebreaker-miner', profileRoleId: 'icebreaker-miner' } }).status, 'pending',
@@ -291,10 +343,22 @@ test('Press Request, Begin, and Retarget receipts need the same strict current s
     assert.equal(evaluateProcedureCapture({ ...input, response: { ...input.response, exactReplay: false } }).status, 'pending',
     `${endpoint} no exact SDK retry`);
   }
+  assert.equal(evaluateProcedureCapture({ ...begin, pressShuttleDepartureWitness: undefined }).status, 'pending',
+    'Begin must bind the source accepted Request witness');
+  assert.equal(evaluateProcedureCapture({ ...retarget, pressShuttleTransitWitness: undefined }).status, 'pending',
+    'Retarget must bind the source accepted Begin witness');
+  assert.equal(evaluateProcedureCapture({ ...request,
+    response: { ...request.response, result: { ...request.response.result, originShipId: 'dione' } } }).status, 'pending',
+  'request result must preserve the actual original docking');
+  assert.equal(evaluateProcedureCapture({ ...begin,
+    pressShuttleDepartureWitness: { ...begin.pressShuttleDepartureWitness, groupId: 'foreign-group' } }).status, 'pending',
+  'Begin rejects a foreign prior request tuple');
 });
 
 test('Press automatic arrival binds the exact source-timed transit and own visit projection without core ship balances', () => {
-  const input = pressArrivalInput();
+  const retarget = evaluateProcedureCapture(movementInput('retargetShuttleTransit'));
+  assert.equal(retarget.status, 'completed', retarget.reason);
+  const input = pressArrivalInput(retarget.pressShuttleArrivalWitness);
   const accepted = evaluateProcedureCapture(input);
   assert.equal(accepted.status, 'completed', accepted.reason);
   assert.equal(accepted.arrivalMode, 'automatic-source-effect');
@@ -304,6 +368,10 @@ test('Press automatic arrival binds the exact source-timed transit and own visit
     arrival: { ...input.arrival, automaticObservation: { ...input.arrival.automaticObservation, remainingMs: 35_001 } } }).status, 'pending',
   'the unchanged 35-second arming ceiling is enforced');
   assert.equal(evaluateProcedureCapture({ ...input,
+    arrival: { ...input.arrival, automaticObservation: { ...input.arrival.automaticObservation,
+      responseObservedAt: '2026-10-06T10:01:29.000Z' } } }).status, 'pending',
+  'an automatic arrival response observed before source arrivesAt is not credited');
+  assert.equal(evaluateProcedureCapture({ ...input,
     arrival: { ...input.arrival, authorityAfter: { ...SOURCE_AUTHORITY, connectionGeneration: 6 } } }).status, 'pending',
   'arrival rejects document generation drift');
   assert.equal(evaluateProcedureCapture({ ...input,
@@ -312,26 +380,28 @@ test('Press automatic arrival binds the exact source-timed transit and own visit
   'arrival needs the exact departure and docking visits');
 });
 
-function pressArrivalInput() {
-  const arrivedAt = '2026-10-06T10:02:10.000Z';
+function pressArrivalInput(retargetWitness) {
+  const arrivedAt = '2026-10-06T10:01:30.000Z';
   const before = { kind: 'press-shuttle-arrival-before', status: 'in-transit', sessionId: SESSION_ID,
     departureRequestId: 'departure-1', transitRequestId: 'transit-1', shuttleId: PRESS_SHUTTLE_ID,
     holderUidHash: UID_HASH, groupId: GROUP_ID, originShipId: 'aegis', destinationShipId: 'dione',
     controlRevision: 7, cycle: 3, transitRevision: 2,
-    requestedAt: '2026-10-06T10:00:10.000Z', departedAt: '2026-10-06T10:01:10.000Z',
+    requestedAt: '2026-10-06T10:00:00.000Z', departedAt: '2026-10-06T10:00:30.000Z',
     arrivesAt: arrivedAt };
   const baseProjection = { kind: 'press-shuttle-arrival-projection', live: true, sessionId: SESSION_ID, cycle: 3,
     phase: 'active', turn: 3, progression: 'manual', airspaceState: 'lifted', pressAccess: null, timerPaused: false,
     holderUidHash: UID_HASH, controlRevision: 7, groupId: GROUP_ID, originShipId: 'aegis',
     destinationShipId: 'dione', destinationActive: true, destinationInGroup: true };
-  const priorWitness = { kind: 'press-shuttle-arrival-witness', status: 'completed', endpoint: 'retargetShuttleTransit',
+  const priorWitness = retargetWitness ?? { kind: 'press-shuttle-arrival-witness', status: 'completed', endpoint: 'retargetShuttleTransit',
     sessionId: SESSION_ID, roleId: 'press-officer', uidHash: UID_HASH, shuttleId: PRESS_SHUTTLE_ID,
     groupId: GROUP_ID, cycle: 3, controlRevision: 7, originShipId: 'aegis', departureRequestId: 'departure-1',
-    transitRequestId: 'transit-1', destinationShipId: 'dione', transitRevision: 2, sourceAuthority: SOURCE_AUTHORITY };
+    transitRequestId: 'transit-1', destinationShipId: 'dione', transitRevision: 2,
+    requestedAt: before.requestedAt, departedAt: before.departedAt, arrivesAt: before.arrivesAt,
+    sourceAuthority: SOURCE_AUTHORITY };
   const afterProjection = { ...baseProjection, movementAbsent: true,
     dockings: [{ shuttleId: PRESS_SHUTTLE_ID, shipId: 'dione', dockedAt: arrivedAt }],
     visits: [
-      { id: 'shuttle-arrival-transit-1-departed', shuttleId: PRESS_SHUTTLE_ID, shipId: 'aegis', action: 'departed', occurredAt: '2026-10-06T10:01:10.000Z' },
+      { id: 'shuttle-arrival-transit-1-departed', shuttleId: PRESS_SHUTTLE_ID, shipId: 'aegis', action: 'departed', occurredAt: '2026-10-06T10:00:10.000Z' },
       { id: 'shuttle-arrival-transit-1-docked', shuttleId: PRESS_SHUTTLE_ID, shipId: 'dione', action: 'docked', occurredAt: arrivedAt },
     ], observedAt: '2026-10-06T10:02:11.000Z' };
   const result = { status: 'arrived', sessionId: SESSION_ID, requestId: 'arrival-transit-1',
@@ -341,8 +411,9 @@ function pressArrivalInput() {
   return { caseId: 'core:completeShuttleArrival', expected: { sessionId: SESSION_ID, uidHash: UID_HASH,
     roleId: 'press-officer', shuttleId: PRESS_SHUTTLE_ID, groupId: GROUP_ID, cycle: 3, controlRevision: 7,
     departureRequestId: 'departure-1', transitRequestId: 'transit-1', destinationShipId: 'dione',
-    transitRevision: 2, pressOriginAuthority: ORIGIN }, offered: true, mountedUi: true,
+    transitRevision: 2, sourceAuthority: SOURCE_AUTHORITY, pressOriginAuthority: ORIGIN }, offered: true, mountedUi: true,
     actorBefore: actor, actorAfter: { ...actor }, pressOriginAuthority: ORIGIN,
+    pressGroupAuthorityBefore: PRESS_GROUP_AUTHORITY, pressGroupAuthorityAfter: PRESS_GROUP_AUTHORITY,
     sourceBefore: { live: true, sessionId: SESSION_ID, cycle: 3, phase: 'active', groupId: GROUP_ID },
     sourceAfter: { live: true, sessionId: SESSION_ID, cycle: 3, phase: 'active', groupId: GROUP_ID },
     request: { sessionId: SESSION_ID, requestId: 'arrival-transit-1', shuttleId: PRESS_SHUTTLE_ID,
@@ -351,8 +422,9 @@ function pressArrivalInput() {
     rendered: { visible: true, resultStatus: 'arrived' },
     arrival: { captureMode: 'automatic-source-effect', priorWitness, authorityBefore: SOURCE_AUTHORITY,
       authorityAfter: SOURCE_AUTHORITY,
+      groupAuthorityBefore: PRESS_GROUP_AUTHORITY, groupAuthorityAfter: PRESS_GROUP_AUTHORITY,
       automaticObservation: { kind: 'source-useEffect', panel: 'Shuttle departure',
-        armedAt: '2026-10-06T10:01:40.000Z', arrivesAt: arrivedAt, remainingMs: 30_000,
-        responseObservedAt: '2026-10-06T10:02:10.000Z' },
+      armedAt: '2026-10-06T10:01:00.000Z', arrivesAt: arrivedAt, remainingMs: 30_000,
+        responseObservedAt: '2026-10-06T10:01:30.000Z' },
       before, beforeProjection: { ...baseProjection, dockingCount: 0 }, afterProjection } };
 }
