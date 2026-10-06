@@ -116,7 +116,7 @@ function fixture({ beforeCapture, beforeClick, afterFill, duringSecondSelection,
         clicks++; events.push('click');
       } else events.push('normal-route-link');
       await act(async () => { fireEvent.click(node); });
-      if (node.tagName === 'BUTTON') await vi.waitFor(() => expect(posts).toHaveLength(1));
+      if (node.tagName === 'BUTTON') await act(async () => { await vi.waitFor(() => expect(posts).toHaveLength(1)); });
     },
     fill: async (value: string) => {
       fills++; events.push('fill'); const node = query()[0]; expect(node).toBeTruthy();
