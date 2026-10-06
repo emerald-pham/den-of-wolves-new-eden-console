@@ -156,18 +156,32 @@ function responseFor(request: Row, result: Row) {
     request: () => ({ method: () => 'POST', postDataJSON: () => ({ data: request }) }) };
 }
 
-function domLocator(role: string, name: string | RegExp, root: () => HTMLElement = () => document.body) {
+interface NativeLocator {
+  first: () => NativeLocator;
+  or: (other: NativeLocator) => NativeLocator;
+  waitFor: () => Promise<void>;
+  isVisible: () => Promise<boolean>;
+  isEnabled: () => Promise<boolean>;
+  click: () => Promise<void>;
+  getByRole: (role: string, options?: { name?: string | RegExp }) => NativeLocator;
+  evaluateAll: (callback: (nodes: HTMLElement[]) => unknown) => Promise<unknown>;
+}
+
+function domLocator(role: string, name?: string | RegExp, root: () => HTMLElement = () => document.body): NativeLocator {
+  const query = () => within(root()).queryByRole(role, name === undefined ? {} : { name });
   const get = () => {
-    const element = within(root()).queryByRole(role, { name });
+    const element = query();
     assert.ok(element, `The real current component must offer ${String(name)}.`);
     return element;
   };
   return {
-    first() { return this; }, or() { return this; },
-    waitFor: async () => { get(); }, isVisible: async () => !!get(),
+    first() { return this; },
+    or(other) { return { ...this, waitFor: async () => { if (!query()) await other.waitFor(); } }; },
+    waitFor: async () => { get(); }, isVisible: async () => !!query(),
     isEnabled: async () => !(get() as HTMLButtonElement).disabled,
     click: async () => { await userEvent.click(get()); },
-    getByRole: (childRole: string, options: { name: string | RegExp }) => domLocator(childRole, options.name, get),
+    getByRole: (childRole, options = {}) => domLocator(childRole, options.name, get),
+    evaluateAll: async callback => callback(within(root()).queryAllByRole(role, name === undefined ? {} : { name })),
   };
 }
 
