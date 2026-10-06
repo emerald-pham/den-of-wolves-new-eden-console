@@ -493,6 +493,8 @@ test('supply preparation cannot replace original GM authority, current crew iden
     ['GM private audience', { patchGm: state => { state.roleBrief = { assignmentUid: 'another-reader' }; } }],
     ['crew foreign Auth binding', { patchCrew: state => { state.me.uid = 'another-reader'; } }],
     ['crew no current craft audience', { patchCrew: state => { state.session.memberSessionScope.craftIds = []; } }],
+    ['crew foreign brief audience', { patchCrew: state => { state.roleBrief.assignmentUid = 'another-reader'; } }],
+    ['crew foreign pending command', { patchCrew: state => { state.pendingCommands = [{ payload: { sessionId: 'another-session' } }]; } }],
     ['crew reassigned', { patchCrew: state => { state.me.assignedRoleId = 'admiral'; } }],
     ['crew disconnected', { patchCrew: state => { state.me.connected = false; } }],
   ];
@@ -516,7 +518,8 @@ test('each existing input await retains the original EO document, custody, group
     await assert.rejects(() => prepareWolfSupplyCargo(h, h.roster.find(actor => actor.roleId === ROLE)));
     assert.equal(h.events.some(event => event.endpoint === 'transferShuttleCargoCommand'), false);
   });
-  for (const name of ['genuine new document', 'genuine resume generation', 'hydration changed', 'current private audience lost', 'GM claim changed']) {
+  for (const name of ['genuine new document', 'genuine resume generation', 'hydration changed', 'current private audience lost',
+    'foreign brief after input', 'foreign pending command after input', 'GM claim changed']) {
     await t.test(name, async () => {
       let filled = false;
       let h;
@@ -527,6 +530,8 @@ test('each existing input await retains the original EO document, custody, group
       }, patchCrew: state => {
         if (filled && name === 'hydration changed') state.identityHydrationRevision += 1;
         if (filled && name === 'current private audience lost') state.session.memberSessionScope.craftIds = [];
+        if (filled && name === 'foreign brief after input') state.roleBrief.assignmentUid = 'another-reader';
+        if (filled && name === 'foreign pending command after input') state.pendingCommands = [{ payload: { sessionId: 'another-session' } }];
       }, patchGm: state => {
         if (filled && name === 'GM claim changed') state.gmInstance.claimedAt = '2026-10-06T10:01:00.000Z';
       } };
