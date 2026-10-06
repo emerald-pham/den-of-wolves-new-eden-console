@@ -205,7 +205,7 @@ async function fixture(options = {}) {
       const exact = writes.find(write => write.endpoint === endpoint && JSON.stringify(write.data) === JSON.stringify(data));
       assert.ok(exact); return { status: 'committed', result: exact.result };
     } };
-  const context = { initial: { sessionId, uidHash: hash(uid) }, gm: surface,
+  const context = { initial: { sessionId, uidHash: hash(uid) }, started: actor(), gm: surface,
     roster: [{ roleId: 'admiral', uidHash: hash(targetUid) }] };
   const game = { select: async role => { assert.equal(role, 'gm'); return surface; },
     state: async () => ({ ...raw.session, sessionId: raw.session.id, cycle: raw.session.currentTurn,
@@ -265,6 +265,22 @@ test('actual public grant/lock recipes wait for lazy observer role/control witho
   assert.equal(lock.inspected.rendered.locked, false);
   assert.equal(f.raw.gmInstance.shipConsoleWriteGrant, null);
   f.close();
+});
+
+for (const [reason, change] of [
+  ['a replacement live same-session Auth/owned GM', f => {
+    f.setAuth('native-replacement-gm'); f.raw.me.uid = 'native-replacement-gm';
+    f.raw.gmInstance.uid = 'native-replacement-gm'; f.raw.gmInstance.id = 'native-replacement-instance';
+  }],
+  ['a replacement owned instance for the same original Auth', f => {
+    f.raw.gmInstance.id = 'native-replacement-instance';
+  }],
+  ['an absent actual started snapshot', f => { delete f.context.started; }],
+]) test(`public GM preparation never adopts ${reason}`, async () => {
+  const f = await fixture(); change(f);
+  const recipe = await f.getRecipe('setGmShipConsoleWriteGrant');
+  assert.equal((await f.prepare(recipe)).offered, false);
+  assert.equal(f.writes.length, 0); assert.equal(f.fills.length, 0); f.close();
 });
 
 for (const [label, change] of [
