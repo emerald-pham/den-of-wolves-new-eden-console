@@ -20,7 +20,9 @@ export async function resolveLiveWolfAttack(context, { tools = candidateGameplay
   const replays = [];
   assert.ok(timeoutMs > 0 && timeoutMs <= 8 * 60_000, 'Keep the existing maximum eight-minute combat budget.');
   const originalGm = await gm.observe();
-  let deadline, stageDeadline, stageKey;
+  const originalReadGm = typeof gm.storeModuleUrl === 'function' ? await observeWolfChoiceActor(gm) : null;
+  if (originalReadGm) assertOriginalBaseActor(originalReadGm, originalGm);
+  let deadline, stageDeadline, stageKey, nextAttack, closedProgress;
   const readySources = new WeakMap();
   let sourceWait;
   async function waitChoice(surface, current, spec) {
@@ -66,13 +68,105 @@ export async function resolveLiveWolfAttack(context, { tools = candidateGameplay
     return result;
   }
   const attack = () => tools.read('gm', 'wolfAttackState/current');
-  async function afterChoice(previous, reason = 'Real Wolf choice did not commit') {
+  async function afterChoice(previous, reason = 'Real Wolf choice did not commit', boardingSourceClosed) {
     const consequenceDeadline = Math.min(Date.now() + 60_000, deadline, stageDeadline); let current;
+    let heldActor, heldGm, actorWindow, gmWindow;
+    const budget = () => assert.ok(Date.now() < consequenceDeadline,
+      'Original boarding source progress deadline expired; no new choice, mutation or credit.');
+    function authority(currentActor, originalActor, priorWindow) {
+      const unchanged = currentActor.airspace === originalActor.airspace && currentActor.turnStatePhase === originalActor.turnStatePhase;
+      const restored = originalActor.airspace === 'restricted' && currentActor.airspace === 'lifted' &&
+        ['team', 'coordination'].includes(originalActor.turnStatePhase) && currentActor.turnStatePhase === 'coordination';
+      assert.ok(unchanged || restored, 'Original boarding source wait has no proven full forward restoration.');
+      if (priorWindow.airspace === 'lifted') {
+        assert.equal(currentActor.airspace, 'lifted'); assert.equal(currentActor.turnStatePhase, 'coordination');
+      }
+      assertWolfChoiceActor({ ...currentActor, airspace: originalActor.airspace,
+        turnStatePhase: originalActor.turnStatePhase }, originalActor);
+      assert.equal(currentActor.entitledShipId, originalActor.entitledShipId);
+      assert.deepEqual(currentActor.discoveryAuthority, originalActor.discoveryAuthority,
+        'Original boarding source wait discovery authority changed.');
+      return { airspace: currentActor.airspace, turnStatePhase: currentActor.turnStatePhase };
+    }
+    async function heldAuthority() {
+      budget(); const actor = await observeWolfChoiceActor(boardingSourceClosed.surface); budget();
+      actorWindow = authority(actor, heldActor, actorWindow);
+      const facilitator = await observeWolfChoiceActor(gm); budget();
+      gmWindow = authority(facilitator, heldGm, gmWindow);
+      return { actor, facilitator };
+    }
+    if (boardingSourceClosed) {
+      budget(); const ready = boardingSourceClosed.readiness;
+      assert.equal(ready.status, 'source-excluded'); assert.equal(ready.reason, 'no-special-choice');
+      assert.equal(ready.choice?.type, 'wolf-boarding-special-choice-unavailable');
+      assert.equal(ready.choice.sessionId, context.initial.sessionId);
+      assert.equal(ready.choice.reason, 'no-special-choice');
+      for (const key of ['attackId', 'turn', 'revision', 'currentStep', 'status']) assert.equal(ready.expected[key], previous[key]);
+      assert.equal(previous.status, 'declared'); assert.equal(previous.currentStep, 'boarding');
+      assert.equal(previous.airspaceLocked, true);
+      heldActor = ready.originalActor;
+      assert.equal(heldActor?.playerRole, 'player');
+      assert.ok(roster.some(actor => actor.roleId === heldActor.profileRoleId && actor.uidHash === heldActor.uidHash));
+      const facilitator = await observeWolfChoiceActor(gm); budget();
+      assertOriginalBaseActor(facilitator, originalGm);
+      // The richer observer supplies the real GM lease/audience fields omitted
+      // by the generic driver. No member seat/group/generation is invented.
+      assert.ok(originalReadGm, 'Original GM store authority is required before the boarding choice read.');
+      heldGm = originalReadGm;
+      for (const key of ['sessionId', 'uidHash', 'profileRoleId', 'assignedRoleId', 'activeConsoleRoleId', 'playerRole',
+        'phase', 'cycle', 'fleetGroupId', 'connectionGeneration', 'identityHydrationRevision', 'replacementRoleId',
+        'replacementStatus', 'seatId', 'discoveryAuthority', 'entitledShipId', 'phaseProgression']) {
+        for (const actor of [heldActor, heldGm]) assert.ok(Object.hasOwn(actor, key) && actor[key] !== undefined,
+          `Original boarding source wait requires ${key} evidence.`);
+        if (Object.hasOwn(originalGm, key)) assert.deepEqual(heldGm[key], originalGm[key], `Original GM ${key} changed before source waiting.`);
+      }
+      for (const actor of [heldActor, heldGm]) {
+        assert.equal(actor.sessionId, context.initial.sessionId); assert.equal(actor.cycle, previous.turn);
+        assert.equal(actor.phase, 'active'); assert.equal(actor.phaseProgression, 'manual');
+        assert.equal(actor.airspace, 'restricted'); assert.ok(['team', 'coordination'].includes(actor.turnStatePhase));
+        assert.ok(Number.isSafeInteger(actor.connectionGeneration) && actor.connectionGeneration >= 0);
+        assert.ok(Number.isSafeInteger(actor.identityHydrationRevision) && actor.identityHydrationRevision > 0);
+      }
+      assert.equal(heldGm.playerRole, 'gm');
+      actorWindow = heldActor; gmWindow = facilitator;
+      await heldAuthority();
+    }
     while (Date.now() < consequenceDeadline) {
+      if (boardingSourceClosed) await heldAuthority();
       current = await attack();
+      if (boardingSourceClosed) {
+        budget();
+        assert.ok(current && (!Object.hasOwn(current, 'sessionId') || current.sessionId === context.initial.sessionId));
+        assert.equal(current.attackId, previous.attackId, 'Original boarding source wait attack changed.');
+        assert.equal(current.turn, previous.turn, 'Original boarding source wait cycle changed.');
+        assert.ok(Number.isSafeInteger(current.revision) && current.revision >= previous.revision,
+          'Original boarding source wait revision is missing or stale.');
+        const held = await heldAuthority();
+        if (current.revision > previous.revision) {
+          if (current.status === 'resolved') {
+            assert.equal(current.currentStep, 'resolved'); assert.equal(current.airspaceLocked, false);
+            nextAttack = closedProgress = current; return current;
+          }
+          // Normal finalization can first request the actual Commander ruling
+          // after locked rolls. Only that exact new source control can continue.
+          assert.equal(current.status, 'declared'); assert.equal(current.currentStep, 'boarding');
+          assert.equal(current.airspaceLocked, true);
+          const target = current.boardingCommanderRulingRequiredTarget;
+          assert.ok(typeof target === 'string' && target && previous.boardingCommanderRulingRequiredTarget === undefined &&
+            target === previous.boardingCommanderChoice?.targetShipId && current.boardingCommanderRuling === undefined,
+          'Only the actual new pending Commander ruling may continue declared boarding.');
+          assert.deepEqual(current.boardingCommanderChoice, previous.boardingCommanderChoice);
+          assertWolfChoiceActor(held.actor, heldActor); assertWolfChoiceActor(held.facilitator, heldGm);
+          nextAttack = closedProgress = current; return current;
+        }
+        assert.equal(current.status, 'declared'); assert.equal(current.currentStep, 'boarding');
+        assert.equal(current.airspaceLocked, true);
+        await delay(200); continue;
+      }
       if (current?.revision > previous.revision || current?.attackId !== previous.attackId) return current;
       await delay(200);
     }
+    if (boardingSourceClosed) budget();
     throw new Error(`${reason}: ${JSON.stringify(attackSummary(current))}`);
   }
   async function commanderRole(current) {
@@ -217,6 +311,10 @@ export async function resolveLiveWolfAttack(context, { tools = candidateGameplay
       const actor = await select(roleId);
       const specialReady = await waitChoice(actor, current, { kind: 'boarding-special' });
       if (specialReady.status === 'source-changed') return;
+      if (specialReady.status === 'source-excluded' && specialReady.reason === 'no-special-choice') {
+        await afterChoice(current, 'Source boarding choices are complete; normal source finalization did not progress',
+          { surface: actor, readiness: specialReady }); return;
+      }
       const special = actor.page.getByRole('region', { name: 'Current boarding special choice', exact: true });
       if (specialReady.status === 'eligible') {
         const stay = special.getByRole('button', { name: /^Stay at / });
@@ -266,7 +364,15 @@ export async function resolveLiveWolfAttack(context, { tools = candidateGameplay
   deadline = Date.now() + timeoutMs;
   sourceWait = createWolfChoiceWaiter(context, { tools, originalGm, deadlineAt: deadline });
   while (Date.now() < deadline) {
-    current = await attack();
+    current = nextAttack ?? await attack(); nextAttack = undefined;
+    if (closedProgress) {
+      assert.equal(current?.attackId, closedProgress.attackId, 'Original boarding continuation attack changed.');
+      assert.equal(current.turn, closedProgress.turn, 'Original boarding continuation cycle changed.');
+      assert.ok(Number.isSafeInteger(current.revision) && current.revision >= closedProgress.revision,
+        'Original boarding continuation source revision regressed.');
+      if (current.revision === closedProgress.revision)
+        for (const key of ['status', 'currentStep', 'airspaceLocked']) assert.equal(current[key], closedProgress[key]);
+    }
     assert.equal((await tools.state()).phase, 'active');
     if (current.status === 'resolved') break;
     const key = JSON.stringify([current.attackId, current.turn, current.revision, current.currentStep]);
@@ -275,7 +381,7 @@ export async function resolveLiveWolfAttack(context, { tools = candidateGameplay
     if (chooseNext) {
       const chosen = await chooseNext(current, { waitChoice, deadlineAt: stageDeadline });
       if (chosen?.status === 'current-ui-blocked') {
-        await afterChoice(current, chosen.reason); continue;
+        await afterChoice(current, chosen.reason, chosen.boardingSourceClosed); continue;
       }
       if (chosen) continue;
     }

@@ -427,21 +427,33 @@ export async function runBaseCombatAndDeduction(context, options = {}) {
         const role = originalRoleForUid(commanderUid, roster), surface = await chooseActor(role, { brief: true });
         const ready = await paint(surface, 'boarding-special');
         if (ready.status === 'source-changed') return true;
+        if (ready.status === 'source-excluded' && ready.reason === 'no-special-choice')
+          return { status: 'current-ui-blocked', reason: 'The current source boarding choices are complete; wait for normal finalization or its explicit Commander ruling.',
+            boardingSourceClosed: { surface, readiness: ready } };
         const pass = surface.page.getByRole('button', { name: 'Do not lead', exact: true });
         if (ready.status === 'eligible' && await pass.isVisible() && await pass.isEnabled()) {
           await receiptForAttack(surface, 'commitWolfBoardingSpecialChoice', () => pass.click()); return true;
         }
       }
-      const surface = await chooseActor('gm');
-      const gmReady = await paint(surface, 'boarding-special');
-      if (gmReady.status === 'source-changed') return true;
-      const panel = surface.page.getByRole('region', { name: 'Facilitator ruling for destroyed Commander-led parties', exact: true });
-      if (gmReady.status === 'eligible' && gmReady.choice.choice?.kind === 'commander-ruling') {
-        await guidance('gm', panel, 'commander-consequence');
-        assert.ok(typeof options.commanderRuling === 'string' && options.commanderRuling.trim(),
-          'An actual required Commander consequence needs the caller’s explicit GM ruling; no invented ruling.');
-        await panel.getByRole('textbox', { name: 'Facilitator ruling', exact: true }).fill(options.commanderRuling);
-        await receiptForAttack(surface, 'commitWolfBoardingSpecialChoice', () => panel.getByRole('button', { name: BASE_COMBAT_CONTROL_LABELS.commanderRuling, exact: true }).click()); return true;
+      const rulingTarget = current.boardingCommanderRulingRequiredTarget;
+      if (rulingTarget !== undefined) {
+        assert.ok(typeof rulingTarget === 'string' && rulingTarget,
+          'Only an explicit current source-requested Commander ruling may select the GM.');
+        assert.equal(rulingTarget, current.boardingCommanderChoice?.targetShipId);
+        if (current.boardingCommanderRuling === undefined) {
+          const surface = await chooseActor('gm');
+          const gmReady = await paint(surface, 'boarding-special');
+          if (gmReady.status === 'source-changed') return true;
+          const panel = surface.page.getByRole('region', { name: 'Facilitator ruling for destroyed Commander-led parties', exact: true });
+          if (gmReady.status === 'eligible' && gmReady.choice.choice?.kind === 'commander-ruling') {
+            assert.equal(gmReady.choice.choice.targetShipId, rulingTarget);
+            await guidance('gm', panel, 'commander-consequence');
+            assert.ok(typeof options.commanderRuling === 'string' && options.commanderRuling.trim(),
+              'An actual required Commander consequence needs the caller’s explicit GM ruling; no invented ruling.');
+            await panel.getByRole('textbox', { name: 'Facilitator ruling', exact: true }).fill(options.commanderRuling);
+            await receiptForAttack(surface, 'commitWolfBoardingSpecialChoice', () => panel.getByRole('button', { name: BASE_COMBAT_CONTROL_LABELS.commanderRuling, exact: true }).click()); return true;
+          }
+        }
       }
       const roles = [...new Set(['executive-officer', 'refinery-124-pdf-colonel', ...roster.map(actor => actor.roleId)])]
         .filter(role => role !== 'press-officer' && roster.some(actor => actor.roleId === role));
@@ -449,6 +461,9 @@ export async function runBaseCombatAndDeduction(context, options = {}) {
         const currentActor = await chooseActor(role), special = currentActor.page.getByRole('region', { name: 'Current boarding special choice', exact: true });
         const specialReady = await paint(currentActor, 'boarding-special');
         if (specialReady.status === 'source-changed') return true;
+        if (specialReady.status === 'source-excluded' && specialReady.reason === 'no-special-choice')
+          return { status: 'current-ui-blocked', reason: 'The current source boarding choices are complete; wait for normal finalization or its explicit Commander ruling.',
+            boardingSourceClosed: { surface: currentActor, readiness: specialReady } };
         if (specialReady.status === 'eligible') {
           await guidance(role, special, 'source-boarding-special');
           const stay = special.getByRole('button', { name: /^Stay at / });
