@@ -399,4 +399,45 @@ describe('ordinary station activation waits only for its owned current member re
     expect(useSessionStore.getState().session?.playerDiscovery).toMatchObject({ shipId: 'refinery-124', revision: 3 });
     expect(useSessionStore.getState()).toMatchObject({ identityHydrationRevision: 1, me: { connectionGeneration: 3 } });
   });
+
+  it.each(['listener error', 'browser offline'] as const)(
+    'does not acquire pending ownership after genuine %s before the activation player callback', async kind => {
+      await joined();
+      await act(async () => { await service.selectConsoleRole('refinery-124-pdf-colonel'); });
+      act(() => {
+        if (kind === 'listener error') currentPlayerReader().error({ code: 'unavailable' });
+        else window.dispatchEvent(new Event('offline'));
+      });
+      expect(useSessionStore.getState().connection).not.toBe('live');
+      actor = { ...actor, activeConsoleRoleId: 'refinery-124-pdf-colonel' };
+      await deliverPlayer(); await advance(2_200);
+      expect(callCount('resumeSession')).toBe(1);
+      expectReadOnlyOriginal();
+    },
+  );
+
+  it('preserves normal recovery when the exact original activation member SDK rejects', async () => {
+    await activate();
+    memberResponses[2]!.reject(new Error('Original member transport rejected.'));
+    await advance(); await advance(2_200);
+    expect(callCount('resumeSession')).toBe(1);
+    expectReadOnlyOriginal();
+  });
+
+  it('does not deduplicate a connected actor that selects an unrelated primary station', async () => {
+    await joined();
+    actor = { ...actor, activeConsoleRoleId: 'admiral' };
+    await deliverPlayer(); await advance(2_200);
+    expect(callCount('resumeSession')).toBe(1);
+    expectReadOnlyOriginal();
+  });
+
+  it('ignores a delayed cached disconnect without granting private freshness or losing current serialized-read ownership', async () => {
+    await activate(); await deliverPlayer({ ...actor, connected: false }, true); await advance(2_200);
+    expect(callCount('resumeSession')).toBe(0);
+    expectReadOnlyOriginal();
+    await deliverMember(2);
+    expect(useSessionStore.getState()).toMatchObject({ identityHydrationRevision: 1,
+      me: { connectionGeneration: 3, connected: true }, connection: 'live', sessionSnapshotFreshness: 'server' });
+  });
 });
