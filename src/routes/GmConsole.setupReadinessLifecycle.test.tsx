@@ -65,7 +65,7 @@ const local: GmInstance = {
   deviceLabel: 'native mounted fixture', claimedAt: '2026-10-06T00:00:00.000Z', responsibilities: [],
 };
 const gm: Player = {
-  uid: local.uid, sessionId, displayName: 'Original GM', role: 'gm', connected: true,
+  uid: local.uid, sessionId, displayName: 'Original GM', role: 'gm', seatId: null, connected: true,
   joinedAt: '2026-10-06T00:00:00.000Z',
 };
 let raw: Record<string, unknown>;
