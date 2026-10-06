@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
 import ts from 'typescript';
+import { StrictMode, useState } from 'react';
 import { aegisWolfRangeActions } from '../../functions/src/wolfAttackLifecycle';
 import { wolfRangeLegalTargetInstanceIds } from '../../functions/src/wolfCombatMath';
 import { useSessionStore } from '@/store/useSessionStore';
@@ -10,7 +11,8 @@ import { wolfAttackChoiceAuthorityIsCurrent, useWolfAttackChoiceAuthority } from
 import type { GameSession, Player, WolfAttackMemberView, WolfRangeActionChoiceView } from '@/types/game';
 // @ts-expect-error The unchanged native proof helper has no TypeScript declaration.
 import { selectAndCertifyBaseRangeActionControls } from '../../scripts/pc10-base-range-action-controls.mjs';
-import WolfRangeActionPanel from './WolfRangeActionPanel';
+import WolfRangeActionPanel, { WolfRangeActionPanelView } from './WolfRangeActionPanel';
+import { getWolfRangeActionChoice } from '@/lib/sessionService';
 
 const io = vi.hoisted(() => ({ subscribe: vi.fn(), call: vi.fn(), uid: 'original-eo', auth: { currentUser: { uid: 'original-eo' } } }));
 vi.mock('firebase/auth', () => ({ signInAnonymously: vi.fn() }));
@@ -24,7 +26,7 @@ vi.mock('@/lib/firestore', async importOriginal => ({
 // Actual server projection and pure weapon/contact policy. Only document and
 // Firebase transport I/O are inert; the real service parser/controller/store
 // and complete production wrapper receive the resulting public DTO.
-const indexSource = ts.createSourceFile('index.ts', readFileSync(new URL('../../functions/src/index.ts', import.meta.url), 'utf8'),
+const indexSource = ts.createSourceFile('index.ts', readFileSync('functions/src/index.ts', 'utf8'),
   ts.ScriptTarget.Latest, true);
 const names = ['isRecord', 'wolfRangeContactId', 'wolfRangeContacts', 'wolfRangeDecisionValue', 'safeWolfRangeLock', 'wolfRangeChoiceView'];
 const declarations = names.map(name => {
@@ -79,7 +81,7 @@ async function mountFixture() {
     const current = useWolfAttackChoiceAuthority('executive-officer'); originalAuthorityKey ||= current.key;
     return <span>{current.key === originalAuthorityKey ? 'same original authority' : 'changed authority'}</span>;
   }
-  render(<><Authority /><WolfRangeActionPanel /></>);
+  render(<StrictMode><Authority /><WolfRangeActionPanel /></StrictMode>);
   act(() => callbacks.at(-1)?.(fixture.member));
   await screen.findByRole('checkbox', { name: 'Missile launchers' });
   const boxes = () => screen.getAllByRole('checkbox') as HTMLInputElement[];
@@ -135,4 +137,61 @@ it('retains both original Medium action checks through a same-actor member callb
   expect(f.boxes().map(box => box.checked)).toEqual([true, true]);
   expect(io.call.mock.calls.map(call => call[0])).toEqual(['getWolfRangeActionChoice', 'getWolfRangeActionChoice']);
   expect(f.certificates).toHaveLength(1); expect(result.gameplayCredit).toBe(false);
+});
+
+it('snapshots the sole original first checkbox event before a supported deferred functional selection update reads the controlled DOM', async () => {
+  const f = connectedFixture();
+  const view = await getWolfRangeActionChoice();
+  expect(view).toEqual(f.view);
+  if (view.type !== 'wolf-range-action-choice-view') throw new Error('The real service must yield the original pending view.');
+  let applyFirst!: () => void;
+  let updateCount = 0;
+  const callbacks = vi.fn();
+  function DeferredControlledView() {
+    const [actionIds, setActionIds] = useState<readonly string[]>([]);
+    return <WolfRangeActionPanelView view={view as WolfRangeActionChoiceView} onUseActions={callbacks}
+      onPass={callbacks} onAssignTargets={callbacks} actionSelection={{ actionIds,
+        update: change => {
+          updateCount++;
+          if (updateCount === 1) applyFirst = () => setActionIds(change);
+          else setActionIds(change);
+        } }} />;
+  }
+  // This explicit inert scheduling seam exercises the exported controlled
+  // view's functional-update contract. It does NOT claim the production
+  // wrapper defers this way, nor that Capy6 retained such an event ordering.
+  render(<DeferredControlledView />);
+  const boxes = () => screen.getAllByRole('checkbox') as HTMLInputElement[];
+  const checks: number[] = [], paints: unknown[] = [], certificates: Record<string, unknown>[] = [];
+  const panel = {
+    count: async () => screen.queryAllByRole('region', { name: 'Wolf range actions' }).length,
+    getByRole: (role: string) => {
+      expect(role).toBe('checkbox'); return { all: async () => boxes().map((_box, index) => ({ check: async () => {
+        checks.push(index);
+        act(() => fireEvent.click(boxes()[index]!));
+        if (index === 0) {
+          // React itself restores the original controlled DOM value while
+          // the functional updater is pending; no fixture edits a checkbox.
+          expect(boxes()[0]).not.toBeChecked();
+          act(applyFirst);
+        }
+      } })) };
+    },
+    evaluate: async (callback: (element: HTMLElement) => unknown) => {
+      const value = callback(screen.getByRole('region', { name: 'Wolf range actions' })); paints.push(value); return value;
+    },
+  };
+  const result = await selectAndCertifyBaseRangeActionControls({ panel, view, expected: { sessionId: f.session.id,
+    attackId: f.member.attackId, turn: 1, revision: 17, status: 'declared', currentStep: 'medium-range' },
+    deadlineAt: Date.now() + 35_000, checkpoint: async () => {
+      expect(useSessionStore.getState().me).toEqual(f.player);
+      expect(useSessionStore.getState().identityHydrationRevision).toBe(1);
+    }, record: (row: Record<string, unknown>) => certificates.push(row) }).catch((cause: unknown) => {
+      console.info('Deferred contract certificate (native-only, not historical cause):', JSON.stringify(certificates[0]));
+      throw cause;
+    });
+  expect(result.matched).toBe(true); expect(result.checkedCount).toBe(2); expect(result.formReadCount).toBe(2);
+  expect(boxes().map(box => box.checked)).toEqual([true, true]);
+  expect(checks).toEqual([0, 1]); expect(paints).toHaveLength(2); expect(updateCount).toBe(2);
+  expect(callbacks).not.toHaveBeenCalled(); expect(io.call).toHaveBeenCalledTimes(1);
 });
