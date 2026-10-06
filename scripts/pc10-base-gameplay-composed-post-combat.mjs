@@ -92,14 +92,14 @@ export function createBaseGameplayDriverOptions({
 export const BASE_COMPOSED_SOURCE_BINDING = Object.freeze({
   // Historical extracted Base origin; current candidate is bound by the owner runner.
   frozenRootCommit: '060237c5c1f2d9a5700742dd2641e743984b72b8',
-  integratedDependencySourceCommit: '5d7b626d2705afdfea453f442a923fa5f380a2b0',
+  integratedDependencySourceCommit: '10959e5e7d4310cbf2dab81dc1e0aad5d9f31911',
   untouchedOriginalRunner: Object.freeze({
     path: '/tmp/dow-pc10-evidence/proof-draft/pc10-base-gameplay.mjs',
     sha256: 'd3ce4d1cf80316943fa27e4f7bb0d09e4de41aa95948012e09765efda7b6d040',
   }),
-  functionsIndexSha256: 'd300cdda14395a122f78f2436dd590edbaf303fc9f21cdf0f1053d05d5273484',
+  functionsIndexSha256: '9a3a68277e8e531405afee32f2aecd28e8f84ac365b4d65a7c9cd1b4552fc8ac',
   compositionSources: Object.freeze({
-    coreAndGm: '1714253b23051189b29167ef906897064e0d95d25789591fea384522b1420351',
+    coreAndGm: 'd9c50508f371543f33196bbb7fb4903dfd0f8b6a0b8f332837450c37fd2491bc',
     politicsCrisisArrest: 'b65d9175ee82b6acb80581c5de62efb6b52e8f7bb7203be3b18e702707d769ec',
     c4CrisisLifecycle: '8e075e10914c81e21c06b96e08cf341932c55d177210ff66f095cb43bdf2fbfe',
   }),
