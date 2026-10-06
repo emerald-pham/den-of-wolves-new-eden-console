@@ -29,7 +29,7 @@ replaceExactlyOnce('observe: async () => ({ ...(isGm ? gmActor : crewActor()) })
 replaceExactlyOnce("report = JSON.parse(text);", "nativeDiagnosticCounts.saves++; report = JSON.parse(text);");
 fixtureText += '\nexport const nativeDiagnosticCounts = { metadata: 0, observe: 0, saves: 0 };\n' +
   'export { nativeFixture, currentView, clickBoundary, cleanup };\n';
-const context = createContext({ URL, console, structuredClone, globalThis });
+const context = createContext({ URL, console, structuredClone, globalThis, setTimeout });
 const module = new SourceTextModule(fixtureText, { context, identifier: fixtureUrl.href,
   initializeImportMeta: meta => { meta.url = fixtureUrl.href; },
   importModuleDynamically: async specifier => {
