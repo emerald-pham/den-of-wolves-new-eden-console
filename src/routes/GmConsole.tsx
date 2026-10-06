@@ -472,6 +472,7 @@ export default function GmConsole() {
   const pendingCommands = useSessionStore((state) => state.pendingCommands);
   const connection = useSessionStore((state) => state.connection);
   const sessionSnapshotFreshness = useSessionStore((state) => state.sessionSnapshotFreshness);
+  const identityHydrationRevision = useSessionStore((state) => state.identityHydrationRevision);
   const seats = useSessionStore((state) => state.seats);
   const liveSetupAuthority = Boolean(session && me?.role === 'gm' && me.sessionId === session.id &&
     local?.sessionId === session.id && local.uid === me.uid &&
@@ -1455,6 +1456,9 @@ export default function GmConsole() {
   }, [
     advanceArrestPosseCalculationGeneration,
     clearArrestPosseCalculation,
+    // Accepted identity hydration clears private stores even for the same GM
+    // claim. Rebind their listeners so unchanged current documents refill them.
+    identityHydrationRevision,
     isGm,
     local?.id,
     local?.uid,
