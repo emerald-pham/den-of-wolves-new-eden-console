@@ -555,3 +555,44 @@ test('the separate automatic arrival observer arms before natural source time an
   assert.equal(harness.sdkCalls(), 0, 'arrival is never retried through an SDK call');
   assert.equal(result.arrivalMode, 'automatic-source-effect');
 });
+
+test('capture preserves the legacy source-before shape outside shuttle arrival', async () => {
+  const requestData = { sessionId: SESSION, requestId: 'highwall-request-1', expectedCycle: 2,
+    expectedRevision: 7, shipId: 'icebreaker', action: 'ore' };
+  const receipt = { status: 'committed', revision: 8, amount: 3 };
+  let resolveResponse;
+  const response = { ok: () => true, status: () => 200, json: async () => ({ result: receipt }),
+    request: () => ({ method: () => 'POST', url: () => 'http://localhost/us-central1/runHighwallMining',
+      postDataJSON: () => ({ data: requestData }) }) };
+  const page = { on: () => {}, off: () => {}, waitForResponse: () => new Promise(resolve => { resolveResponse = resolve; }) };
+  const actor = { uidHash: UID_HASH, sessionId: SESSION, profileRoleId: 'icebreaker-miner',
+    activeConsoleRoleId: 'icebreaker-miner', sameActor: true, connection: 'live', freshness: 'server' };
+  const sourceBefore = { live: true, sessionId: SESSION, phase: 'active', cycle: 2,
+    vesselActionRevisions: { icebreaker: 7 }, shipFleetGroupIds: { icebreaker: 'fleet-1' } };
+  const surface = { page, observe: async () => actor,
+    callable: async () => ({ status: 'committed', result: receipt }) };
+  const context = { initial: { sessionId: SESSION }, roster: [{ roleId: 'icebreaker-miner', uidHash: UID_HASH }] };
+  const game = { select: async () => surface, state: async () => sourceBefore };
+  const captured = await captureMountedProcedureAction({ context, game, caseId: 'core:runHighwallMining',
+    expected: { sessionId: SESSION, uidHash: UID_HASH, roleId: 'icebreaker-miner', cycle: 2,
+      sourceRevision: 7, groupId: 'fleet-1', shipId: 'icebreaker' },
+    prepare: async () => ({ offered: true, click: async () => resolveResponse(response) }),
+    inspect: async () => ({ sourceAfter: { live: true, sessionId: SESSION, cycle: 2, revision: 8, groupId: 'fleet-1' },
+      rendered: { visible: true, resultStatus: 'committed' } }), deferEvaluation: true });
+  const captureInputSymbol = Object.getOwnPropertySymbols(captured)[0];
+  assert.ok(captureInputSymbol, 'the capture seam exposes its deferred proof input to the native regression');
+  assert.deepEqual(captured[captureInputSymbol].sourceBefore,
+    { live: true, sessionId: SESSION, cycle: 2, revision: 7, groupId: 'fleet-1' },
+    'non-arrival capture retains the original legacy projection shape');
+
+  const arrival = makeMountedArrivalHarness();
+  const arrivalStep = createPendingProcedureDefaultSteps()['core:completeShuttleArrival'];
+  const arrivalPlan = await arrivalStep({ context: arrival.context, game: arrival.game });
+  const arrivalCapture = await captureMountedProcedureAction({ context: arrival.context, game: arrival.game,
+    caseId: 'core:completeShuttleArrival', timeoutMs: 1000, deferEvaluation: true, ...arrivalPlan });
+  const arrivalInputSymbol = Object.getOwnPropertySymbols(arrivalCapture)[0];
+  assert.ok(arrivalInputSymbol);
+  assert.deepEqual(arrivalCapture[arrivalInputSymbol].sourceBefore,
+    { live: true, sessionId: SESSION, cycle: 2, phase: 'active', groupId: 'fleet-1' },
+    'arrival alone keeps the required phase in its source-before proof');
+});
