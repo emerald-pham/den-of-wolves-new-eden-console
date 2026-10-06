@@ -29,7 +29,7 @@ const { createTwoBrowserGameplay } = await nativeImport('pc10-two-browser-gamepl
 const specialistModule = await nativeImport('pc10-specialist-gameplay.mjs');
 const { createSpecialistGameplayDriver } = specialistModule;
 const { runPc10SpecialistAction, PC10_SPECIALIST_ACTIONS } = await nativeImport('pc10-specialist-phases.mjs');
-const { capybaraStageOutcome } = await nativeImport('pc10-capybara-full-gameplay.mjs');
+const { capybaraStageOutcome, projectCapybaraEvidence } = await nativeImport('pc10-capybara-full-gameplay.mjs');
 // Bind the generic surface to its actual production callback rather than
 // supplying fixture-only generation/HY/berth fields it does not return.
 const observerFile = ts.createSourceFile('full-game-proof.mjs', readFileSync(resolve(process.cwd(),
@@ -360,10 +360,31 @@ it('binds the Capy recorded-request stage to all public receipt and current visi
     (value: typeof outcome) => { value.evidence.actor.sessionIdHash = 'foreign'; },
     (value: typeof outcome) => { value.evidence.response.exactReplay = false; },
     (value: typeof outcome) => { value.evidence.response.replayStatus = 'committed'; },
+    (value: typeof outcome) => { value.endpoint = 'recycleWithBoa'; },
   ]) {
     const wrong = plain(outcome); change(wrong);
     expect(capybaraStageOutcome({ ...wrong, roleId }).status).toBe('pending');
   }
+});
+
+it('retains the request-recorded scope in the Capy summary without asserting private Scout delivery', async () => {
+  const f = fixture({ capy: true }), outcome = await f.runCapy();
+  const stage = capybaraStageOutcome({ ...outcome, roleId });
+  const report = projectCapybaraEvidence({ stages: { 'wing-scout': stage } });
+  expect(report.stages['wing-scout'].scope).toBe('request-recorded');
+  expect(report.stages['wing-scout'].sourceRevision).toBeUndefined();
+  expect(report.status).toBe('pending'); expect(report.terminalObserved).toBe(false);
+});
+
+it('cannot use the recorded Scout branch to waive another specialist endpoint revision fence', async () => {
+  const f = fixture({ capy: true }), outcome = await f.runCapy();
+  const surface = f.game.context.crew, actor = await surface.observe();
+  const driver = createSpecialistGameplayDriver(f.game, { timeoutMs: 0 });
+  await expect(driver.waitForCommit({ surface, actor, endpoint: 'recycleWithBoa',
+    inspect: async () => ({ ready: true, scoutRequest: outcome.evidence.projection.scoutRequest,
+      renderedStatusCode: 'scout-request-recorded-visible' }) })).rejects.toThrow(/actual GM-visible source revision/);
+  const wrong = plain(outcome); wrong.evidence.endpoint = 'recycleWithBoa'; wrong.endpoint = 'recycleWithBoa';
+  expect(capybaraStageOutcome(wrong).status).toBe('pending');
 });
 
 it.each([
