@@ -348,7 +348,9 @@ async function originalCurrentPressTable() {
   await refreshPresence.run(request(pressUid, { sessionId: sid, activeConsoleRoleId: 'press-officer' }));
   put(`sessions/${sid}/secrets/foreign-native-private`, { uid: 'foreign-player', privateMarker: 'FOREIGN_PRIVATE_DATA' });
   const current = await getCurrentMemberSession.run(request(pressUid, { sessionId: sid }));
-  expect(current.player).toMatchObject({ uid: pressUid, sessionId: sid, connectionGeneration: 3,
+  expect(current).toMatchObject({ actorUid: pressUid, sessionId: sid, connectionGeneration: 3,
+    assignedRoleId: null, activeConsoleRoleId: 'press-officer' });
+  expect(read(playerPath)).toMatchObject({ uid: pressUid, sessionId: sid, connectionGeneration: 3,
     assignedRoleId: null, activeConsoleRoleId: 'press-officer', seatId: null, replacementStatus: null });
   expect(current.session.memberSessionScope).toMatchObject({ vesselIds: [], craftIds: ['snn-press-shuttle'] });
   expect(read(sessionPath)?.pressHolderUid).toBe(pressUid);
