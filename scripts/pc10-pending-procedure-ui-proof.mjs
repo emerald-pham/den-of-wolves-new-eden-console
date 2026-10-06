@@ -152,6 +152,19 @@ function pending(spec, reason, fields = {}) {
     reason: String(reason ?? spec.unavailableReason).slice(0, 160), ...fields };
 }
 
+function safeGmFormFailureDiagnostic(value) {
+  if (!value || !['mount', 'writable'].includes(value.stage)) return null;
+  const keys = ['stage', 'route', 'gmMainCount', 'loading', 'screenFadeCount', 'crossingOut',
+    'outgoingStationsCount', 'formCount', 'formVisible', 'formEnabled'];
+  if (value.stage === 'writable') keys.push('controlsWritable');
+  if (!exactKeys(value, keys) || !['gm', 'stations', 'other'].includes(value.route) ||
+      ['gmMainCount', 'screenFadeCount', 'outgoingStationsCount', 'formCount'].some(key =>
+        !Number.isSafeInteger(value[key]) || value[key] < 0 || value[key] > 2) ||
+      ['loading', 'crossingOut', 'formVisible', 'formEnabled'].some(key => typeof value[key] !== 'boolean') ||
+      value.stage === 'writable' && value.controlsWritable !== false) return null;
+  return Object.fromEntries(keys.map(key => [key, value[key]]));
+}
+
 function hash(value) {
   return createHash('sha256').update(JSON.stringify(value ?? null)).digest('hex').slice(0, 20);
 }
@@ -1030,7 +1043,9 @@ export async function captureMountedProcedureAction({ context, game, caseId, exp
   }
   if (preClickActionRequest) return pending(spec, 'matching-action-callable-post-preceded-the-mounted-control-click');
   if (action?.offered !== true || typeof action.click !== 'function' && typeof action.observe !== 'function') {
-    return pending(spec, action?.reason ?? spec.unavailableReason);
+    const formDiagnostic = ['authorFacilitatorRuleCall', 'setFacilitatorCensusNote'].includes(spec.endpoint)
+      ? safeGmFormFailureDiagnostic(action?.formDiagnostic) : null;
+    return pending(spec, action?.reason ?? spec.unavailableReason, formDiagnostic ? { formDiagnostic } : {});
   }
   const displayedCost = action.cost ?? null;
   const result = await observeUiReceipt({

@@ -587,19 +587,39 @@ async function waitForMountedGmForm(surface, panel, operation) {
   const deadlineAt = operation.readinessDeadlineAt;
   while (Date.now() < deadlineAt) {
     await verifyGmOperation(surface, operation);
-    const mount = await surface.page.evaluate(() => ({
-      routePath: window.location.hash.slice(1).split('?')[0],
-      mainCount: document.querySelectorAll('main.gm-console').length,
-      loading: Array.from(document.querySelectorAll('[role="status"]')).some(element =>
-        element.textContent?.trim() === 'Opening GM console…'),
-    }));
+    const mount = await surface.page.evaluate(() => {
+      const fades = document.querySelectorAll('.screen-fade');
+      const fade = fades.length === 1 ? fades[0] : null;
+      return {
+        routePath: window.location.hash.slice(1).split('?')[0],
+        mainCount: document.querySelectorAll('main.gm-console').length,
+        loading: Array.from(document.querySelectorAll('[role="status"]')).some(element =>
+          element.textContent?.trim() === 'Opening GM console…'),
+        fadeCount: fades.length,
+        crossingOut: fade?.getAttribute('data-crossing') === 'true' && fade?.getAttribute('data-phase') === 'out',
+        contentCount: fade?.querySelectorAll('.screen-fade__content').length ?? 0,
+        stationsCount: fade?.querySelectorAll('.screen-fade__content main.fleet-roster').length ?? 0,
+      };
+    });
     const count = await panel.count(), visible = count === 1 && await panel.isVisible();
+    const enabled = count === 1 && await panel.isEnabled();
     await verifyGmOperation(surface, operation);
+    // Retain only finite mount observations, emitted only on a pending form.
+    operation.formObservation = { stage: 'mount',
+      route: mount.routePath === '/gm' ? 'gm' : mount.routePath === '/console' ? 'stations' : 'other',
+      gmMainCount: Math.min(2, mount.mainCount), loading: mount.loading,
+      screenFadeCount: Math.min(2, mount.fadeCount), crossingOut: mount.crossingOut,
+      outgoingStationsCount: Math.min(2, mount.stationsCount),
+      formCount: Math.min(2, count), formVisible: visible, formEnabled: enabled };
     if (Date.now() >= deadlineAt || mount.routePath !== '/gm') return false;
     if (visible) return true;
-    // Only the exact source lazy fallback may wait. Mounted absent/ambiguous
-    // forms remain unavailable; this never retries a disabled UI action.
-    if (count > 1 || mount.mainCount !== 0 || !mount.loading) return false;
+    // ScreenFade retains the outgoing Stations DOM after the normal GM link
+    // changes the hash, before the GM route or its lazy fallback can mount.
+    const sourceStationsCrossing = count === 0 && mount.fadeCount === 1 && mount.crossingOut &&
+      mount.contentCount === 1 && mount.stationsCount === 1;
+    // Mounted absent/hidden/ambiguous forms remain unavailable. Only these two
+    // exact source mount states share the original readiness budget.
+    if (count > 1 || mount.mainCount !== 0 || !mount.loading && !sourceStationsCrossing) return false;
     await new Promise(resolve => setTimeout(resolve, Math.min(200, deadlineAt - Date.now())));
   }
   return false;
@@ -912,6 +932,9 @@ async function planFor({ spec, surface, actor, state, context, target, gmOperati
   const page = surface.page;
   const endpoint = spec.endpoint;
   const block = reason => ({ offered: false, reason });
+  const unavailableGmForm = (reason, stage = 'mount') => ({ ...block(reason),
+    ...(gmOperation?.formObservation ? { formDiagnostic: { ...gmOperation.formObservation, stage,
+      ...(stage === 'writable' ? { controlsWritable: false } : {}) } } : {}) });
   const click = async locator => {
     const actual = await one(locator);
     if (!actual) return block('the exact source-rendered control is absent, disabled, or ambiguous');
@@ -1042,10 +1065,10 @@ async function planFor({ spec, surface, actor, state, context, target, gmOperati
       targetUidHash: hashUid(entry.uid), entryPresent: true };
     if (!await goToGmFormRoute(surface, gmOperation)) return block('the original GM has no exact mounted normal route to the census form');
     const noteField = page.getByLabel(`Facilitator note for ${entry.uid}`, { exact: true });
-    if (!await waitForMountedGmForm(surface, noteField, gmOperation)) return block('the actual current census row note control is not offered');
+    if (!await waitForMountedGmForm(surface, noteField, gmOperation)) return unavailableGmForm('the actual current census row note control is not offered');
     const row = noteField.locator('xpath=ancestor::tr');
     const save = await one(row.getByRole('button', { name: 'Save note', exact: true }));
-    if (!save || !await one(noteField)) return block('the actual current census row note control is not offered');
+    if (!save || !await one(noteField)) return unavailableGmForm('the actual current census row note control is not offered', 'writable');
     return { offered: true, click: async () => {
       await verifyGmDocument();
       const latest = await readActionState(surface);
@@ -1080,7 +1103,7 @@ async function planFor({ spec, surface, actor, state, context, target, gmOperati
       audience: 'gm-only' };
     if (!await goToGmFormRoute(surface, gmOperation)) return block('the original GM has no exact mounted normal route to the rule-call form');
     const panel = page.getByRole('region', { name: 'Facilitator rule call', exact: true });
-    if (!await waitForMountedGmForm(surface, panel, gmOperation)) return block('the actual source rule-call form is not mounted and writable');
+    if (!await waitForMountedGmForm(surface, panel, gmOperation)) return unavailableGmForm('the actual source rule-call form is not mounted and writable');
     const ambiguity = panel.getByLabel('Question or ambiguity', { exact: true });
     const source = panel.getByLabel('Source or reference', { exact: true });
     const decision = panel.getByLabel('Decision', { exact: true });
@@ -1089,7 +1112,7 @@ async function planFor({ spec, surface, actor, state, context, target, gmOperati
     const record = panel.getByRole('button', { name: 'Record rule call', exact: true });
     if (!await one(panel) || await record.count() !== 1 || !await record.isVisible() ||
         !await one(ambiguity) || !await one(source) || !await one(decision) ||
-        !await one(audience) || !await one(supersedes)) return block('the actual source rule-call form is not mounted and writable');
+        !await one(audience) || !await one(supersedes)) return unavailableGmForm('the actual source rule-call form is not mounted and writable', 'writable');
     return { offered: true, click: async () => {
       await verifyGmDocument();
       const latest = await readActionState(surface);
