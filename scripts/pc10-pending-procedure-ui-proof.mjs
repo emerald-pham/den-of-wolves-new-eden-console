@@ -152,6 +152,37 @@ function pending(spec, reason, fields = {}) {
     reason: String(reason ?? spec.unavailableReason).slice(0, 160), ...fields };
 }
 
+const SHUTTLE_SOURCE_DIAGNOSTIC_KEYS = Object.freeze(['kind', 'zeroCredit', 'preparedPlanOffered',
+  'preparedPlanReasonPresent', 'preparedPlanReason', 'transitionBeforePresent', 'originGuardPassed',
+  'secondMovementRead', 'movementReadErrorCode', 'movementWitnessPresent',
+  'movementWitnessMatchesTransitionBefore']);
+const SHUTTLE_SOURCE_DIAGNOSTIC_CODES = new Set(['aborted', 'cancelled', 'deadline-exceeded',
+  'failed-precondition', 'not-found', 'permission-denied', 'resource-exhausted', 'unauthenticated',
+  'unavailable', 'unknown']);
+
+function safeShuttleSourceDiagnostic(value) {
+  if (!exactKeys(value, SHUTTLE_SOURCE_DIAGNOSTIC_KEYS) ||
+      value.kind !== 'pc10-shuttle-prepare-diagnostic-v1' || value.zeroCredit !== true ||
+      typeof value.preparedPlanOffered !== 'boolean' ||
+      typeof value.preparedPlanReasonPresent !== 'boolean' ||
+      value.preparedPlanReason !== null && (typeof value.preparedPlanReason !== 'string' ||
+        !/^[A-Za-z][A-Za-z .,'-]{0,180}$/.test(value.preparedPlanReason)) ||
+      typeof value.transitionBeforePresent !== 'boolean' ||
+      value.originGuardPassed !== null && typeof value.originGuardPassed !== 'boolean' ||
+      !['not-read', 'unreadable', 'missing', 'record'].includes(value.secondMovementRead) ||
+      value.movementReadErrorCode !== null && !SHUTTLE_SOURCE_DIAGNOSTIC_CODES.has(value.movementReadErrorCode) ||
+      typeof value.movementWitnessPresent !== 'boolean' ||
+      value.movementWitnessMatchesTransitionBefore !== null &&
+        typeof value.movementWitnessMatchesTransitionBefore !== 'boolean') return null;
+  return Object.fromEntries(SHUTTLE_SOURCE_DIAGNOSTIC_KEYS.map(key => [key, value[key]]));
+}
+
+function appendShuttleSourceDiagnostic(outcome, value) {
+  const diagnostic = safeShuttleSourceDiagnostic(value);
+  if (diagnostic) outcome.sourceDiagnosticOnly = diagnostic;
+  return outcome;
+}
+
 function safeGmFormFailureDiagnostic(value) {
   if (!value || !['mount', 'writable'].includes(value.stage)) return null;
   const keys = ['stage', 'route', 'gmMainCount', 'loading', 'screenFadeCount', 'crossingOut',
@@ -1558,11 +1589,14 @@ export async function captureMountedProcedureAction({ context, game, caseId, exp
   } finally {
     surface.page.off('request', beforeMountedClick);
   }
-  if (preClickActionRequest) return pending(spec, 'matching-action-callable-post-preceded-the-mounted-control-click');
+  const keepSourceDiagnostic = outcome => appendShuttleSourceDiagnostic(outcome, action?.sourceDiagnosticOnly);
+  if (preClickActionRequest) return keepSourceDiagnostic(pending(spec,
+    'matching-action-callable-post-preceded-the-mounted-control-click'));
   if (action?.offered !== true || typeof action.click !== 'function' && typeof action.observe !== 'function') {
     const formDiagnostic = ['authorFacilitatorRuleCall', 'setFacilitatorCensusNote'].includes(spec.endpoint)
       ? safeGmFormFailureDiagnostic(action?.formDiagnostic) : null;
-    return pending(spec, action?.reason ?? spec.unavailableReason, formDiagnostic ? { formDiagnostic } : {});
+    return keepSourceDiagnostic(pending(spec, action?.reason ?? spec.unavailableReason,
+      formDiagnostic ? { formDiagnostic } : {}));
   }
   const displayedCost = action.cost ?? null;
   const result = await observeUiReceipt({
@@ -1578,15 +1612,16 @@ export async function captureMountedProcedureAction({ context, game, caseId, exp
   const request = result.request().postDataJSON()?.data;
   const actualResult = body?.result;
   if (!result.ok() || !actualResult || request?.sessionId !== context.initial.sessionId) {
-    return pending(spec, 'mounted-ui-action-did-not-return-a-current-success-receipt');
+    return keepSourceDiagnostic(pending(spec, 'mounted-ui-action-did-not-return-a-current-success-receipt'));
   }
   const actorAfter = await observeCaptureActor(surface);
-  if (!matchesActor(actorAfter, normalizedExpected, isGm)) return pending(spec, 'original-actor-or-GM-instance-changed-during-action');
+  if (!matchesActor(actorAfter, normalizedExpected, isGm)) return keepSourceDiagnostic(pending(spec,
+    'original-actor-or-GM-instance-changed-during-action'));
   let replay = null;
   let exactReplay = false;
   if (spec.replayPolicy === 'exact-request-id') {
     const key = request.requestId ?? request.idempotencyKey;
-    if (typeof key !== 'string' || !key) return pending(spec, 'source-request-has-no-exact-retry-key');
+    if (typeof key !== 'string' || !key) return keepSourceDiagnostic(pending(spec, 'source-request-has-no-exact-retry-key'));
     replay = await surface.callable(spec.endpoint, request);
     if (certifiedGm) await observeCaptureActor(surface);
     exactReplay = replay?.status === 'committed' && sameActionReceipt(actualResult, replay.result);
@@ -1643,11 +1678,11 @@ export async function captureMountedProcedureAction({ context, game, caseId, exp
   if (deferEvaluation) {
     const deferred = pending(spec, 'single-shot-write-grant-awaits-the-mounted-lock-and-ui-revoke');
     Object.defineProperty(deferred, PRIVATE_CAPTURE_INPUT, { value: proofInput });
-    return deferred;
+    return keepSourceDiagnostic(deferred);
   }
   const proof = evaluateProcedureCapture(proofInput);
   if (spec.endpoint === 'setShipConsoleLock') Object.defineProperty(proof, PRIVATE_CAPTURE_INPUT, { value: proofInput });
-  return proof;
+  return keepSourceDiagnostic(proof);
 }
 
 async function runCasesAtCheckpoint({ family, cases, checkpoint, context, steps, gameFactory, directory,

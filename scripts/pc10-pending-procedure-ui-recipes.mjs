@@ -48,6 +48,35 @@ const PRESS_ARRIVAL_WITNESS_KEYS = Object.freeze(['kind', 'status', 'endpoint', 
   'transitRequestId', 'destinationShipId', 'transitRevision', 'requestedAt', 'departedAt', 'arrivesAt',
   'sourceAuthority']);
 const PRESS_SHUTTLE_ID = 'snn-press-shuttle';
+const SAFE_SHUTTLE_MOVEMENT_DIAGNOSTIC_CODES = new Set(['aborted', 'cancelled', 'deadline-exceeded',
+  'failed-precondition', 'not-found', 'permission-denied', 'resource-exhausted', 'unauthenticated',
+  'unavailable', 'unknown']);
+
+function safeShuttleMovementDiagnosticCode(error) {
+  const value = typeof error?.code === 'string' ? error.code.replace(/^firestore\//, '') : '';
+  return SAFE_SHUTTLE_MOVEMENT_DIAGNOSTIC_CODES.has(value) ? value : null;
+}
+
+function shuttlePrepareSourceDiagnostic(context, preparedPlan, { originGuardPassed = null,
+  movementRead = 'not-read', movementReadErrorCode = null, movementWitnessPresent = false,
+  movementWitnessMatchesTransitionBefore = null } = {}) {
+  if (context.shuttleSourceDiagnosticOnly !== true) return {};
+  const reason = typeof preparedPlan?.reason === 'string' &&
+    /^[A-Za-z][A-Za-z .,'-]{0,180}$/.test(preparedPlan.reason) ? preparedPlan.reason : null;
+  return { sourceDiagnosticOnly: {
+    kind: 'pc10-shuttle-prepare-diagnostic-v1', zeroCredit: true,
+    preparedPlanOffered: preparedPlan?.offered === true,
+    preparedPlanReasonPresent: typeof preparedPlan?.reason === 'string',
+    preparedPlanReason: reason,
+    transitionBeforePresent: Object.hasOwn(preparedPlan ?? {}, 'transitionBefore'),
+    originGuardPassed,
+    secondMovementRead: movementRead,
+    movementReadErrorCode: SAFE_SHUTTLE_MOVEMENT_DIAGNOSTIC_CODES.has(movementReadErrorCode)
+      ? movementReadErrorCode : null,
+    movementWitnessPresent,
+    movementWitnessMatchesTransitionBefore,
+  } };
+}
 
 function isRevision(value) { return Number.isSafeInteger(value) && value >= 0; }
 function hashUid(uid) { return typeof uid === 'string' && uid ? createHash('sha256').update(uid).digest('hex').slice(0, 16) : null; }
@@ -266,8 +295,11 @@ export function chooseOfferedAffordableOption(options, budget) {
   return eligible[0] ?? null;
 }
 
-export async function readActionState(surface, shuttleId) {
-  return surface.page.evaluate(async ({ moduleUrl, shuttleId }) => {
+export async function readActionState(surface, shuttleId, options = {}) {
+  const diagnosticOnly = options?.diagnosticOnly === true;
+  const input = { moduleUrl: surface.storeModuleUrl(), shuttleId };
+  if (diagnosticOnly) input.diagnosticOnly = true;
+  return surface.page.evaluate(async ({ moduleUrl, shuttleId, diagnosticOnly = false }) => {
     const { useSessionStore } = await import(moduleUrl);
     const current = useSessionStore.getState();
     const session = current.session;
@@ -275,6 +307,7 @@ export async function readActionState(surface, shuttleId) {
     let currentDocumentAuthority;
     let pressDocumentAuthority = null;
     let pressGroupAuthority = null;
+    let sourceDiagnosticOnly = null;
     if (typeof shuttleId === 'string' && shuttleId) {
       currentDocumentAuthority = null;
       const me = current.me;
@@ -394,6 +427,86 @@ export async function readActionState(surface, shuttleId) {
           session.pressEnabled !== false && Number.isSafeInteger(generation) && generation >= 1 &&
           Number.isSafeInteger(hydrationRevision) && hydrationRevision >= 1 &&
           Number.isFinite(documentTimeOrigin) && documentTimeOrigin > 0;
+        if (diagnosticOnly) {
+          const fieldState = (value, key) => {
+            const present = record(value) && Object.hasOwn(value, key);
+            return { present, isNull: present && value[key] === null };
+          };
+          const arrayFieldState = (value, key) => ({ ...fieldState(value, key),
+            isArray: Array.isArray(value?.[key]) });
+          sourceDiagnosticOnly = {
+            kind: 'pc10-press-document-source-diagnostic-v1', zeroCredit: true,
+            actorCurrent: pressActorCurrent,
+            predicate: {
+              userPresent: !!user, profilePresent: !!me, pressScopeValid, discoveryValid, controlValid,
+              liveConnection: current.connection === 'live', serverSnapshot: current.sessionSnapshotFreshness === 'server',
+              playerRole: me?.role === 'player', connected: me?.connected === true,
+              replacementStatusNull: me?.replacementStatus === null, sessionNotClosed: session.phase !== 'closed',
+              sessionMatchesProfile: session.id === me?.sessionId, authMatchesProfile: user?.uid === me?.uid,
+              pressActiveRole: me?.activeConsoleRoleId === 'press-officer', unassigned: me?.assignedRoleId === null,
+              scopeGroupMatchesProfile: scope?.groupId === me?.fleetGroupId,
+              discoveryGroupMatchesProfile: discovery?.groupId === me?.fleetGroupId,
+              pressEnabled: session.pressEnabled !== false,
+              generationValid: Number.isSafeInteger(generation) && generation >= 1,
+              hydrationRevisionValid: Number.isSafeInteger(hydrationRevision) && hydrationRevision >= 1,
+              documentTimeOriginValid: Number.isFinite(documentTimeOrigin) && documentTimeOrigin > 0,
+            },
+            subpredicate: {
+              scopeRecord: record(scope), scopeExactKeys: scopeValid,
+              scopeGroupMatchesProfile: scope?.groupId === me?.fleetGroupId,
+              pressVesselScopeEmpty: Array.isArray(scope?.vesselIds) && scope.vesselIds.length === 0,
+              pressCraftScopeExact: Array.isArray(scope?.craftIds) && scope.craftIds.length === 1 &&
+                scope.craftIds[0] === shuttleId,
+              discoveryRecord: record(discovery), discoveryGroupMatchesScope: discovery?.groupId === scope?.groupId,
+              discoveryRevisionValid: Number.isSafeInteger(discovery?.revision) && discovery.revision >= 0,
+              discoveryVesselsNonempty: Array.isArray(discoveryIds) && discoveryIds.length > 0,
+              discoveryVesselsValid: Array.isArray(discoveryIds) &&
+                discoveryIds.every(value => typeof value === 'string' && value.length > 0),
+              discoveryVesselsUnique: Array.isArray(discoveryIds) && new Set(discoveryIds).size === discoveryIds.length,
+              controlRecord: record(control), controlCraftMatches: control?.shuttleId === shuttleId,
+              controlOwnerRoleMatches: control?.ownerRoleId === 'press-officer',
+              controlHolderMatchesAuth: control?.holderUid === user?.uid,
+              controlRevisionValid: Number.isSafeInteger(control?.revision) && control.revision >= 0,
+            },
+            fields: {
+              currentUser: { present: !!user, isNull: user === null },
+              profile: fieldState(current, 'me'),
+              currentActorBerthAuthority: fieldState(session, 'currentActorBerthAuthority'),
+              memberSessionScope: { ...fieldState(session, 'memberSessionScope'),
+                groupIdPresent: fieldState(scope, 'groupId').present,
+                groupIdIsNull: fieldState(scope, 'groupId').isNull,
+                vesselIdsPresent: fieldState(scope, 'vesselIds').present,
+                vesselIdsIsNull: fieldState(scope, 'vesselIds').isNull,
+                vesselIdsArray: arrayFieldState(scope, 'vesselIds').isArray,
+                craftIdsPresent: fieldState(scope, 'craftIds').present,
+                craftIdsIsNull: fieldState(scope, 'craftIds').isNull,
+                craftIdsArray: arrayFieldState(scope, 'craftIds').isArray },
+              playerDiscovery: { ...fieldState(session, 'playerDiscovery'),
+                groupIdPresent: fieldState(discovery, 'groupId').present,
+                groupIdIsNull: fieldState(discovery, 'groupId').isNull,
+                revisionPresent: fieldState(discovery, 'revision').present,
+                revisionIsNull: fieldState(discovery, 'revision').isNull,
+                fleetGroupVesselIdsPresent: fieldState(discovery, 'fleetGroupVesselIds').present,
+                fleetGroupVesselIdsIsNull: fieldState(discovery, 'fleetGroupVesselIds').isNull,
+                fleetGroupVesselIdsArray: arrayFieldState(discovery, 'fleetGroupVesselIds').isArray },
+              shuttleControl: { mapPresent: record(session.shuttleControl),
+                controlPresent: record(session.shuttleControl) && Object.hasOwn(session.shuttleControl, shuttleId),
+                controlIsNull: record(session.shuttleControl) && Object.hasOwn(session.shuttleControl, shuttleId) &&
+                  session.shuttleControl[shuttleId] === null,
+                shuttleIdPresent: fieldState(control, 'shuttleId').present,
+                ownerRoleIdPresent: fieldState(control, 'ownerRoleId').present,
+                holderUidPresent: fieldState(control, 'holderUid').present,
+                revisionPresent: fieldState(control, 'revision').present,
+                revisionIsNull: fieldState(control, 'revision').isNull },
+              connectionGeneration: fieldState(me, 'connectionGeneration'),
+              identityHydrationRevision: fieldState(current, 'identityHydrationRevision'),
+              pressEnabled: fieldState(session, 'pressEnabled'),
+            },
+            postDigestInputMatches: null,
+            pressDocumentAuthority: { keyPresent: true, isNull: pressDocumentAuthority === null },
+            pressGroupAuthority: { keyPresent: true, isNull: pressGroupAuthority === null },
+          };
+        }
         if (pressActorCurrent) {
           const originalPressInput = pressInputSnapshot(current, user.uid);
           const uidHash = await hashUid(user.uid);
@@ -421,13 +534,19 @@ export async function readActionState(surface, shuttleId) {
           const afterDigest = useSessionStore.getState();
           const afterAuthUid = auth().currentUser?.uid;
           if (JSON.stringify(originalPressInput) !== JSON.stringify(pressInputSnapshot(afterDigest, afterAuthUid))) {
+            if (diagnosticOnly) sourceDiagnosticOnly.postDigestInputMatches = false;
             pressDocumentAuthority = null;
             pressGroupAuthority = null;
           }
+          if (diagnosticOnly && pressDocumentAuthority !== null) sourceDiagnosticOnly.postDigestInputMatches = true;
+        }
+        if (diagnosticOnly) {
+          sourceDiagnosticOnly.pressDocumentAuthority.isNull = pressDocumentAuthority === null;
+          sourceDiagnosticOnly.pressGroupAuthority.isNull = pressGroupAuthority === null;
         }
       }
     }
-    return {
+    const result = {
       live: current.connection === 'live' && current.sessionSnapshotFreshness === 'server',
       sessionId: session.id, cycle: session.currentTurn, phase: session.phase, turnPhase: session.turnPhase,
       holderGroupId: session.playerDiscovery?.groupId,
@@ -455,7 +574,9 @@ export async function readActionState(surface, shuttleId) {
       shuttleVisitLog: session.shuttleVisitLog,
       gameOutcome: session.gameOutcome,
     };
-  }, { moduleUrl: surface.storeModuleUrl(), shuttleId });
+    if (diagnosticOnly && sourceDiagnosticOnly) result.sourceDiagnosticOnly = sourceDiagnosticOnly;
+    return result;
+  }, input);
 }
 
 async function readHarvest(surface) {
@@ -2689,7 +2810,9 @@ async function recipeFor({ context, game, spec }) {
   }
   const documentAuthorityShuttleId = ['requestShuttleDeparture', 'beginShuttleTransit', 'retargetShuttleTransit',
     'completeShuttleArrival'].includes(spec.endpoint) ? holderTarget.shuttleId : undefined;
-  const state = await readActionState(initialSurface, documentAuthorityShuttleId);
+  const state = context.shuttleSourceDiagnosticOnly === true
+    ? await readActionState(initialSurface, documentAuthorityShuttleId, { diagnosticOnly: true })
+    : await readActionState(initialSurface, documentAuthorityShuttleId);
   if (!liveState(state, context.initial.sessionId)) {
     const refuse = async () => ({ offered: false, reason: 'the required current server session projection is unavailable' });
     return { expected: {}, prepare: refuse, inspect: async () => ({}) };
@@ -2806,7 +2929,9 @@ async function recipeFor({ context, game, spec }) {
       }
       const movementEndpoint = ['requestShuttleDeparture', 'beginShuttleTransit', 'retargetShuttleTransit',
         'completeShuttleArrival'].includes(spec.endpoint);
-      const latest = await readActionState(surface, movementEndpoint ? resolved.target.shuttleId : undefined);
+      const latest = context.shuttleSourceDiagnosticOnly === true
+        ? await readActionState(surface, movementEndpoint ? resolved.target.shuttleId : undefined, { diagnosticOnly: true })
+        : await readActionState(surface, movementEndpoint ? resolved.target.shuttleId : undefined);
       if (!liveState(latest, expected.sessionId)) return { offered: false, reason: 'current server projection became stale before action' };
       const latestRevision = revisionFor(spec.endpoint, latest, resolved.target, auxiliary);
       if (isRevision(latestRevision) && latestRevision !== expected.sourceRevision) return { offered: false, reason: 'source revision changed before action' };
@@ -2882,14 +3007,33 @@ async function recipeFor({ context, game, spec }) {
           groupId: context.shuttleOriginAuthority?.groupId, cycle: expected.cycle,
           controlRevision: context.shuttleOriginAuthority?.controlRevision,
         }, resolved.target.shuttleId) || expected.groupId !== context.shuttleOriginAuthority?.groupId) {
-          return { offered: false, reason: 'the original pre-departure group or same-document holder authority changed before the movement action' };
+          return { offered: false, reason: 'the original pre-departure group or same-document holder authority changed before the movement action',
+            ...shuttlePrepareSourceDiagnostic(context, preparedPlan, { originGuardPassed: false }) };
         }
-        const movement = await readShuttleMovement(surface, expected.sessionId, resolved.target.shuttleId).catch(() => undefined);
+        let movementReadErrorCode = null;
+        const movement = context.shuttleSourceDiagnosticOnly === true
+          ? await readShuttleMovement(surface, expected.sessionId, resolved.target.shuttleId).catch(error => {
+            movementReadErrorCode = safeShuttleMovementDiagnosticCode(error);
+            return undefined;
+          })
+          : await readShuttleMovement(surface, expected.sessionId, resolved.target.shuttleId).catch(() => undefined);
         const witness = shuttleMovementWitness(expected.sessionId, resolved.target.shuttleId, uidHash,
           context.shuttleOriginAuthority.groupId, latest.shuttleControl?.[resolved.target.shuttleId]?.revision,
           latest.cycle, movement);
         if (!witness || JSON.stringify(witness) !== JSON.stringify(preparedPlan.transitionBefore)) {
-          return { offered: false, reason: 'source shuttle movement changed before the mounted action' };
+          return { offered: false, reason: 'source shuttle movement changed before the mounted action',
+            ...shuttlePrepareSourceDiagnostic(context, preparedPlan, {
+              originGuardPassed: true, movementRead: movement === null ? 'missing' : movement === undefined ? 'unreadable' : 'record',
+              movementReadErrorCode, movementWitnessPresent: !!witness,
+              movementWitnessMatchesTransitionBefore: witness ? false : null,
+            }) };
+        }
+        if (context.shuttleSourceDiagnosticOnly === true) {
+          preparedPlan.sourceDiagnosticOnly = shuttlePrepareSourceDiagnostic(context, preparedPlan, {
+            originGuardPassed: true, movementRead: movement === null ? 'missing' : movement === undefined ? 'unreadable' : 'record',
+            movementReadErrorCode, movementWitnessPresent: true,
+            movementWitnessMatchesTransitionBefore: true,
+          }).sourceDiagnosticOnly;
         }
       }
       if (spec.endpoint === 'completeShuttleArrival' && !pressMovementEndpoint) {
