@@ -6,7 +6,7 @@ import { observeBasePostCombatActor } from './pc10-base-post-combat-actor-observ
 
 const sessionId = 'session-original';
 const roleId = 'shepherd-engineer';
-const uidHash = 'engineer-original-hash';
+const uidHash = '0123456789abcdef';
 const gm = { sessionId, uidHash: 'gm-original-hash', instanceId: 'owned-gm-instance',
   gmInstanceOwned: true, playerRole: 'gm', phase: 'active', cycle: 2, connection: 'live', freshness: 'server' };
 const currentSession = { sessionId, phase: 'active', currentTurn: 2, live: true,
@@ -16,9 +16,10 @@ const originalActor = { roleId, uidHash };
 
 // This is JSON serialized using the exact public fields returned by the mounted
 // generic observer. The absent source-member fields are the defect under test.
-const genericObservation = JSON.parse('{"hasAuth":true,"sameActor":true,"uidHash":"engineer-original-hash",' +
+const genericObservation = JSON.parse('{"hasAuth":true,"sameActor":true,"uidHash":"0123456789abcdef",' +
   '"sessionId":"session-original","cycle":2,"phase":"active","playerRole":"player",' +
-  '"profileRoleId":"shepherd-engineer","assignedRoleId":"shepherd-engineer",' +
+  '"profileSessionId":"session-original","profileRoleId":"shepherd-engineer",' +
+  '"assignedRoleId":"shepherd-engineer",' +
   '"activeConsoleRoleId":"shepherd-engineer","connection":"live","freshness":"server"}');
 
 const richActorRead = JSON.parse('{"sessionId":"session-original","fleetGroupId":"fleet-1",' +
@@ -27,6 +28,11 @@ const richActorRead = JSON.parse('{"sessionId":"session-original","fleetGroupId"
 
 function exactMemberRead(overrides = {}) {
   return JSON.parse(JSON.stringify({ sessionId, sameActor: true, meSessionId: sessionId,
+    authUidHash: genericObservation.uidHash, memberUidHash: genericObservation.uidHash,
+    memberDocumentIdHash: genericObservation.uidHash, profileRoleId: roleId,
+    profileSessionId: sessionId, playerRole: 'player', assignedRoleId: roleId,
+    activeConsoleRoleId: roleId, fleetGroupId: 'fleet-1', connectionGeneration: 7,
+    identityHydrationRevision: 3,
     connected: true, escapeLocked: false, ...overrides }));
 }
 

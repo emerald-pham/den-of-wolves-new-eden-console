@@ -13,7 +13,8 @@ import { BASE_MISSION_ROLE_PRIORITY, assessLiveBaseAction, baseShipForRole, base
   chooseAvailableBaseShipRole, selectBaseMissionTeam, selectCurrentBaseMissionCarriers,
   recheckChosenBaseShipRole, validateBaseMissionStartReceipt, validateBaseScoutRequestReceipt
 } from './pc10-base-post-combat-choice-policy.mjs';
-import { observeBasePostCombatActor } from './pc10-base-post-combat-actor-observation.mjs';
+import { assertBasePostCombatActorIdentity, observeBasePostCombatActor } from './pc10-base-post-combat-actor-observation.mjs';
+import { assertWolfChoiceActor } from './pc10-combat-choice-readiness.mjs';
 
 function sequenceCallbacks(callbacks, label) {
   const ordered = callbacks.filter(callback => callback !== undefined);
@@ -507,6 +508,12 @@ export async function runBaseGameplay(context, integration) {
     await panel.waitFor();
     return { surface, panel };
   }
+  async function assertMissionActorHeld(surface, expectedActor) {
+    const current = await observeBasePostCombatActor(surface);
+    assertWolfChoiceActor(current, expectedActor);
+    assertBasePostCombatActorIdentity(current, expectedActor);
+    return current;
+  }
   async function missionUi(role, missionId, choose, { expectedGroupId, offered } = {}) {
     const expectedCycle = (await a.state()).cycle;
     const readyBefore = role === 'gm'
@@ -528,6 +535,18 @@ export async function runBaseGameplay(context, integration) {
         { roleId: role, groupId: expectedGroupId, cycle: expectedCycle });
       return null;
     }
+    let heldActor;
+    if (role === 'gm') {
+      heldActor = await observeBasePostCombatActor(surface);
+      for (const field of ['sessionId', 'uidHash', 'instanceId', 'playerRole', 'phase', 'cycle',
+        'connection', 'freshness', 'gmInstanceOwned'])
+        assert.ok(heldActor[field] === readyAfter.sourceGm[field], `Original mission GM ${field} changed before the UI choice.`);
+      assertWolfChoiceActor(heldActor, heldActor);
+      assertBasePostCombatActorIdentity(heldActor, heldActor);
+    } else {
+      heldActor = readyAfter.actor;
+      await assertMissionActorHeld(surface, heldActor);
+    }
     if (offered && !(await offered(panel))) {
       pending(`mission-${role}-${missionId}`, ['mounted-current-lifecycle-action-unavailable'],
         { roleId: role, groupId: expectedGroupId, cycle: expectedCycle });
@@ -536,15 +555,21 @@ export async function runBaseGameplay(context, integration) {
     const response = await observeUiReceipt({
       waitForResponse: () => surface.page.waitForResponse(response =>
         new URL(response.url()).pathname.endsWith('/us-central1/commitAwayMissionLifecycleCommand') && response.request().method() === 'POST'),
-      choose: () => choose(panel),
+      choose: () => choose(panel, async action => {
+        await assertMissionActorHeld(surface, heldActor);
+        return action();
+      }),
     });
     const body = await response.json();
+    await assertMissionActorHeld(surface, heldActor);
     assert.equal(response.ok(), true, `Actual mission UI: ${body.error?.message ?? response.status()}`);
     const request = response.request().postDataJSON()?.data;
+    await assertMissionActorHeld(surface, heldActor);
     const replay = await surface.callable('commitAwayMissionLifecycleCommand', request);
     assert.equal(replay.status, 'committed');
     assert.equal(replay.result.revision, body.result.revision);
     assert.deepEqual(replay.result.publicState, body.result.publicState);
+    await assertMissionActorHeld(surface, heldActor);
     a.actions.push({ roleId: role, name: 'commitAwayMissionLifecycleCommand', actionType: request.type,
       transport: 'actual connected UI control', exactBrowserSdkReplay: true, revision: body.result.revision,
       privateCardContentsRecorded: false });
@@ -724,7 +749,8 @@ export async function runBaseGameplay(context, integration) {
         let complete = true;
         for (const roleId of mission.participantRoleIds) {
           const result = await missionUi(roleId, mission.id,
-            panel => panel.getByRole('button', { name: 'Request extra cards privately', exact: true }).click(),
+            (panel, commit) => commit(() =>
+              panel.getByRole('button', { name: 'Request extra cards privately', exact: true }).click()),
             { expectedGroupId: mission.groupId, offered: async panel => {
               const button = panel.getByRole('button', { name: 'Request extra cards privately', exact: true });
               return await button.count() === 1 && await button.isVisible() && await button.isEnabled();
@@ -732,7 +758,7 @@ export async function runBaseGameplay(context, integration) {
           if (!result) { complete = false; break; }
         }
         if (complete) for (const recipientRoleId of mission.participantRoleIds) {
-          const result = await missionUi(mission.missionLeaderRoleId, mission.id, async panel => {
+          const result = await missionUi(mission.missionLeaderRoleId, mission.id, async (panel, commit) => {
             const recipient = panel.getByRole('combobox', { name: 'Participant for extra card', exact: true });
             const recipients = await recipient.locator('option').evaluateAll(nodes => nodes
               .filter(node => node.value && !node.disabled).map(node => node.value));
@@ -747,7 +773,7 @@ export async function runBaseGameplay(context, integration) {
               .filter(node => node.value && !node.disabled).map(node => node.value));
             assert.ok(offered.length > 0, 'Use only an actual blind extra-card opportunity.');
             await opportunity.selectOption(offered[0]);
-            await panel.getByRole('button', { name: 'Distribute one card blindly', exact: true }).click();
+            await commit(() => panel.getByRole('button', { name: 'Distribute one card blindly', exact: true }).click());
           }, { expectedGroupId: mission.groupId, offered: async panel => {
             const recipient = panel.getByRole('combobox', { name: 'Participant for extra card', exact: true });
             const recipientRole = roster.find(actor => actor.roleId === recipientRoleId);
@@ -767,7 +793,8 @@ export async function runBaseGameplay(context, integration) {
         }
         if (complete) {
           const open = await missionUi('gm', mission.id,
-            panel => panel.getByRole('button', { name: 'Open private discards', exact: true }).click(),
+            (panel, commit) => commit(() =>
+              panel.getByRole('button', { name: 'Open private discards', exact: true }).click()),
             { offered: async panel => {
               const button = panel.getByRole('button', { name: 'Open private discards', exact: true });
               return await button.count() === 1 && await button.isVisible() && await button.isEnabled();
@@ -776,7 +803,7 @@ export async function runBaseGameplay(context, integration) {
         }
         if (complete) for (const roleId of mission.participantRoleIds) {
           const result = await missionUi(roleId, mission.id,
-            panel => panel.getByRole('button', { name: /^Discard .* secretly$/ }).first().click(),
+            (panel, commit) => commit(() => panel.getByRole('button', { name: /^Discard .* secretly$/ }).first().click()),
             { expectedGroupId: mission.groupId, offered: async panel => {
               const button = panel.getByRole('button', { name: /^Discard .* secretly$/ }).first();
               return await button.count() > 0 && await button.isVisible() && await button.isEnabled();
@@ -784,7 +811,7 @@ export async function runBaseGameplay(context, integration) {
           if (!result) { complete = false; break; }
         }
         if (complete) for (const roleId of mission.participantRoleIds) {
-          const result = await missionUi(roleId, mission.id, async panel => {
+          const result = await missionUi(roleId, mission.id, async (panel, commit) => {
             const choices = await panel.getByRole('combobox', { name: /^Opportunity for / }).all();
             const used = new Set();
             for (const choice of choices) {
@@ -793,7 +820,7 @@ export async function runBaseGameplay(context, integration) {
               const selected = offered.find(value => !used.has(value));
               if (selected) { await choice.selectOption(selected); used.add(selected); }
             }
-            await panel.getByRole('button', { name: 'Submit mission assignments', exact: true }).click();
+            await commit(() => panel.getByRole('button', { name: 'Submit mission assignments', exact: true }).click());
           }, { expectedGroupId: mission.groupId, offered: async panel => {
             const button = panel.getByRole('button', { name: 'Submit mission assignments', exact: true });
             return await button.count() === 1 && await button.isVisible() && await button.isEnabled();
@@ -815,21 +842,24 @@ export async function runBaseGameplay(context, integration) {
     await advance();
     if (mission && missionPrivateComplete) {
       const facilitatorCards = await missionUi('gm', mission.id,
-        panel => panel.getByRole('button', { name: 'Add facilitator cards', exact: true }).click(),
+        (panel, commit) => commit(() =>
+          panel.getByRole('button', { name: 'Add facilitator cards', exact: true }).click()),
         { offered: async panel => {
           const button = panel.getByRole('button', { name: 'Add facilitator cards', exact: true });
           return await button.count() === 1 && await button.isVisible() && await button.isEnabled();
         } });
       if (facilitatorCards) {
         const resolved = await missionUi('gm', mission.id,
-          panel => panel.getByRole('button', { name: 'Resolve away mission', exact: true }).click(),
+          (panel, commit) => commit(() =>
+            panel.getByRole('button', { name: 'Resolve away mission', exact: true }).click()),
           { offered: async panel => {
             const button = panel.getByRole('button', { name: 'Resolve away mission', exact: true });
             return await button.count() === 1 && await button.isVisible() && await button.isEnabled();
           } });
         if (resolved?.publicState.status === 'resolved') {
           delivered = await missionUi(mission.missionLeaderRoleId, mission.id,
-            panel => panel.getByRole('button', { name: 'Drop mission rewards at selected ship', exact: true }).click(),
+            (panel, commit) => commit(() =>
+              panel.getByRole('button', { name: 'Drop mission rewards at selected ship', exact: true }).click()),
             { expectedGroupId: mission.groupId, offered: async panel => {
               const button = panel.getByRole('button', { name: 'Drop mission rewards at selected ship', exact: true });
               return await button.count() === 1 && await button.isVisible() && await button.isEnabled();
