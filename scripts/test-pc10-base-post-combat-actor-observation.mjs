@@ -17,7 +17,7 @@ const originalActor = { roleId, uidHash };
 // This is JSON serialized using the exact public fields returned by the mounted
 // generic observer. The absent source-member fields are the defect under test.
 const genericObservation = JSON.parse('{"hasAuth":true,"sameActor":true,"uidHash":"0123456789abcdef",' +
-  '"sessionId":"session-original","cycle":2,"phase":"active","playerRole":"player",' +
+  '"sessionId":"session-original","documentTimeOrigin":12345,"cycle":2,"phase":"active","playerRole":"player",' +
   '"profileSessionId":"session-original","profileRoleId":"shepherd-engineer",' +
   '"assignedRoleId":"shepherd-engineer",' +
   '"activeConsoleRoleId":"shepherd-engineer","connection":"live","freshness":"server"}');
@@ -27,7 +27,7 @@ const richActorRead = JSON.parse('{"sessionId":"session-original","fleetGroupId"
   '"replacementStatus":null,"seatId":"seat-original","connected":true,"discoveryAuthority":null}');
 
 function exactMemberRead(overrides = {}) {
-  return JSON.parse(JSON.stringify({ sessionId, sameActor: true, meSessionId: sessionId,
+  return JSON.parse(JSON.stringify({ sessionId, documentTimeOrigin: 12345, sameActor: true, meSessionId: sessionId,
     authUidHash: genericObservation.uidHash, memberUidHash: genericObservation.uidHash,
     memberDocumentIdHash: genericObservation.uidHash, profileRoleId: roleId,
     profileSessionId: sessionId, playerRole: 'player', assignedRoleId: roleId,
