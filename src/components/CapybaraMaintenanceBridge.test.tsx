@@ -11,7 +11,7 @@ import { runMaintenance } from '@/lib/maintenanceService';
 import { useSessionStore } from '@/store/useSessionStore';
 import capybara from '@/data/vessels/capybara';
 import type { GameSession, Player } from '@/types/game';
-import { advanceMaintenance, emptyMaintenanceCycle, type MaintenanceInput } from '../../functions/src/maintenance';
+import { advanceMaintenance, chargeableConsoleIds, emptyMaintenanceCycle, type MaintenanceInput } from '../../functions/src/maintenance';
 import { requireMaintenanceRequest } from '../../functions/src/requestGuards';
 import { buildVesselActionEnvelope } from '../../functions/src/vesselActionEnvelope';
 
@@ -108,6 +108,7 @@ function installTransport() {
   let deliver: ((response: ReturnType<typeof responseFor>) => void) | undefined;
   let mutateRequest = (request: Row) => request;
   let mutateReply = (result: Row) => result;
+  let mutateReplay = (result: Row) => result;
   const receipts = new Map<string, { request: Row; result: Row }>();
   transport.invoke.mockImplementation(async (raw: Row) => {
     validateRequestShape(raw, Error);
@@ -115,7 +116,7 @@ function installTransport() {
     const prior = receipts.get(data.requestId);
     if (prior) {
       assert.deepEqual(raw, prior.request, 'Only the exact original request can replay.');
-      return { data: structuredClone(prior.result) };
+      return { data: mutateReplay(structuredClone(prior.result)) };
     }
     const state = useSessionStore.getState(), session = state.session!;
     const input: MaintenanceInput = {
@@ -124,6 +125,7 @@ function installTransport() {
       population: session.shipSurvivors!.capybara!, unrest: session.shipUnrest!.capybara!,
       dockings: [], cargo: {}, fuelled: {}, rolls: [], entropy: 0, now,
       ...(raw.productionConsoleId === undefined ? {} : { productionConsoleId: raw.productionConsoleId as string }),
+      ...(raw.consoles === undefined ? {} : { consoles: raw.consoles as string[] }),
     };
     const result = advanceMaintenance(input);
     const emitted = makeReply(result, { ...data, consoleRoleId: raw.consoleRoleId }, session.currentTurn!, now,
@@ -147,6 +149,7 @@ function installTransport() {
     waitForResponse: () => new Promise<ReturnType<typeof responseFor>>(resolve => { deliver = resolve; }),
     mutateRequest: (mutate: typeof mutateRequest) => { mutateRequest = mutate; },
     mutateReply: (mutate: typeof mutateReply) => { mutateReply = mutate; },
+    mutateReplay: (mutate: typeof mutateReplay) => { mutateReplay = mutate; },
   };
 }
 
@@ -163,6 +166,7 @@ interface NativeLocator {
   isVisible: () => Promise<boolean>;
   isEnabled: () => Promise<boolean>;
   click: () => Promise<void>;
+  check: () => Promise<void>;
   getByRole: (role: string, options?: { name?: string | RegExp }) => NativeLocator;
   evaluateAll: (callback: (nodes: HTMLElement[]) => unknown) => Promise<unknown>;
 }
@@ -180,6 +184,7 @@ function domLocator(role: string, name?: string | RegExp, root: () => HTMLElemen
     waitFor: async () => { get(); }, isVisible: async () => !!query(),
     isEnabled: async () => !(get() as HTMLButtonElement).disabled,
     click: async () => { await userEvent.click(get()); },
+    check: async () => { if (!(get() as HTMLInputElement).checked) await userEvent.click(get()); },
     getByRole: (childRole, options = {}) => domLocator(childRole, options.name, get),
     evaluateAll: async callback => callback(within(root()).queryAllByRole(role, name === undefined ? {} : { name })),
   };
@@ -271,6 +276,44 @@ it('the actual Capy production loop touches only offered production controls, th
   expect(transport.invoke.mock.calls[0]![0]).toMatchObject({ action: 'production', productionConsoleId: 'scrap-refinery' });
 });
 
+it('the real reactor selection excludes a non-chargeable Shuttle Bay and preserves its separate refuelling control', async () => {
+  useSessionStore.setState({ session: { ...baseSession, maintenanceCycles: { capybara: {
+    ...emptyMaintenanceCycle(), turn: 1, step: 5, revision: 5,
+  } } } });
+  mountPanel();
+  expect(chargeableConsoleIds('capybara')).not.toContain('shuttle-bay');
+  expect(screen.queryByRole('checkbox', { name: /^Shuttle Bay(?: \/\/ Charged)?$/i })).toBeNull();
+  expect(() => advanceMaintenance({ shipId: 'capybara', action: 'reactor', expectedRevision: 5,
+    cycle: useSessionStore.getState().session!.maintenanceCycles!.capybara!, currentTurn: 1,
+    resources: { ...capybara.resources }, damage: { damagedSystemIds: [], destroyed: false },
+    unrest: 0, population: capybara.initialSurvivors, dockings: [], cargo: {}, fuelled: {},
+    rolls: [], entropy: 0, now, consoles: ['shuttle-bay'] })).toThrow(/invalid or damaged console/i);
+  const loop = findNode(helper, (node): node is ts.ForOfStatement =>
+    ts.isForOfStatement(node) && node.statement.getText(capySource).includes("getByRole('checkbox'"));
+  const runLoop = new Function('panel', `return (async () => { ${loop.getText(capySource)} })();`);
+  await runLoop(domLocator('region', 'Capybara maintenance cycle'));
+  expect(screen.getByRole('checkbox', { name: 'Jump Drive', exact: true })).toBeChecked();
+  expect(screen.getByRole('checkbox', { name: 'Scrap Refinery', exact: true })).toBeChecked();
+  expect(screen.getAllByRole('checkbox').filter(node => (node as HTMLInputElement).checked)).toHaveLength(2);
+  expect(transport.invoke).not.toHaveBeenCalled();
+});
+
+it('normal reactor UI commits the exact two valid source console IDs and charges', async () => {
+  useSessionStore.setState({ session: { ...baseSession, maintenanceCycles: { capybara: {
+    ...emptyMaintenanceCycle(), turn: 1, step: 5, revision: 5,
+  } } } });
+  const io = installTransport(); mountPanel();
+  await userEvent.click(screen.getByRole('checkbox', { name: 'Jump Drive', exact: true }));
+  await userEvent.click(screen.getByRole('checkbox', { name: 'Scrap Refinery', exact: true }));
+  await userEvent.click(screen.getByRole('button', { name: 'Power up reactor', exact: true }));
+  await userEvent.click(screen.getByRole('button', { name: 'ARE YOU SURE?', exact: true }));
+  expect(io.captured[0]!.request).toMatchObject({ action: 'reactor', expectedRevision: 5,
+    consoles: ['jump-drive', 'scrap-refinery'] });
+  expect(io.captured[0]!.result).toMatchObject({ action: 'reactor', currentTurn: 1,
+    cycle: { turn: 1, step: 6, revision: 6, charges: ['jump-drive', 'scrap-refinery'] } });
+  expect(transport.invoke).toHaveBeenCalledTimes(1);
+});
+
 it('original pre-source cycle mismatch rejects before a UI command or replay', async () => {
   const io = installTransport(); mountPanel();
   await expect(firstReceiptBridge(io).run(2)).rejects.toThrow();
@@ -287,4 +330,47 @@ it('cached authority cannot send the normal maintenance SDK request', async () =
   installTransport(); useSessionStore.setState({ sessionSnapshotFreshness: 'cache' });
   await expect(runMaintenance('capybara', 'begin', 0, {}, roleId)).rejects.toThrow(/live session state/i);
   expect(transport.callable).not.toHaveBeenCalled();
+});
+
+it.each([
+  ['currentTurn', (result: Row) => ({ ...result, currentTurn: 2 }), /currentTurn/],
+  ['cycle.turn', (result: Row) => ({ ...result, cycle: { ...(result.cycle as Row), turn: 2 } }), /cycle.turn/],
+  ['cycle revision', (result: Row) => ({ ...result, cycle: { ...(result.cycle as Row), revision: 3 } }), /revision/],
+  ['requestId echo', (result: Row) => ({ ...result, requestId: 'foreign-command' }), /requestId/],
+  ['sessionId echo', (result: Row) => ({ ...result, sessionId: 'foreign-session' }), /sessionId/],
+  ['shipId echo', (result: Row) => ({ ...result, shipId: 'dione' }), /shipId/],
+  ['action echo', (result: Row) => ({ ...result, action: 'reactor' }), /action/],
+  ['expectedRevision echo', (result: Row) => ({ ...result, expectedRevision: 7 }), /expectedRevision/],
+  ['committedRevision', (result: Row) => ({ ...result, committedRevision: 7 }), /committedRevision/],
+] as const)('wrong %s receipt rejects before an exact SDK replay', async (_label, mutate, message) => {
+  const io = installTransport(); io.mutateReply(mutate); mountPanel();
+  await expect(firstReceiptBridge(io).run()).rejects.toThrow(message);
+  expect(transport.invoke).toHaveBeenCalledTimes(1);
+});
+
+it('a request with a different revision cannot be qualified using the later receipt revision', async () => {
+  const io = installTransport(); io.mutateRequest(request => ({ ...request, expectedRevision: 4 })); mountPanel();
+  await expect(firstReceiptBridge(io).run()).rejects.toThrow(/expectedRevision/);
+  expect(transport.invoke).toHaveBeenCalledTimes(1);
+});
+
+it('a noncommitted reply never receives replay or maintenance credit', async () => {
+  const io = installTransport(); io.mutateReply(result => ({ ...result, status: 'stale' })); mountPanel();
+  await expect(firstReceiptBridge(io).run()).rejects.toThrow(/committed/);
+  expect(transport.invoke).toHaveBeenCalledTimes(1);
+});
+
+it('foreign current actor after the original UI response still fails before SDK replay', async () => {
+  const io = installTransport(); io.mutateReply(result => {
+    act(() => useSessionStore.getState().setMe({ ...me, uid: 'native-foreign-actor' }));
+    return result;
+  }); mountPanel();
+  await expect(firstReceiptBridge(io).run()).rejects.toThrow(/native-foreign-hash/);
+  expect(transport.invoke).toHaveBeenCalledTimes(1);
+});
+
+it('an unequal original SDK replay stays rejected by the unchanged deep equality guard', async () => {
+  const io = installTransport(); io.mutateReplay(result => ({ ...result, currentTurn: 2 })); mountPanel();
+  await expect(firstReceiptBridge(io).run()).rejects.toThrow(/receipt must replay exactly/);
+  expect(transport.invoke).toHaveBeenCalledTimes(2);
 });
