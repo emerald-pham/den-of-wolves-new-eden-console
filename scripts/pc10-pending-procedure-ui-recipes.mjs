@@ -3856,7 +3856,9 @@ async function recipeFor({ context, game, spec }) {
         movementAfter = await readShuttleMovement(surface, expected.sessionId, resolved.target.shuttleId).catch(() => undefined);
       }
       const latest = await readActionState(surface, movementEndpoint || memberScopedShuttleCommandEndpoint || printedOwnerControlEndpoint
-        ? resolved.target.shuttleId : undefined, coreShuttleMovementEndpoint ? { confirmMemberProjection: true } : {});
+        ? resolved.target.shuttleId : undefined, coreShuttleMovementEndpoint ||
+          coreShuttleArrivalEndpoint && context.shuttleArrivalCaptureMode === 'automatic-source-effect'
+          ? { confirmMemberProjection: true } : {});
       if (printedOwnerControlEndpoint) {
         const action = resolved.target.controlTransferAction;
         const targetUid = resolved.target.controlTransferTargetUid;
