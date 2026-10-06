@@ -73,29 +73,30 @@ Prepared presentation, native tests, normal authenticated emulator HTTP/UI/rules
 
 ## October 6 accepted and open finite families
 
-The latest closed actual boundary is Combat29 at source
-`e037c7b1d13c50aaf28e202cceddf096b57f1899`. The GM counter lifecycle repair
-is integrated at `fb5add8a7274ad8a270bb3eb93ba33247c570f6f` with focused
-native evidence only. All 48 catalog closures and the release remain pending.
+The latest closed actual boundary is the minimal Miner selection qualifier at
+source `a27a795ffa3ebd62bc3eb98c52dd897e9916f6e4`. Core7, Press3 and GM20
+also closed at that exact source with their failed evidence and cleanup retained.
+The mounted casting-preference review correction is integrated separately;
+it grants no gameplay credit. All 48 catalog closures and the release remain pending.
 Accepted subsystem checks do not establish an entire family or every function.
 
 | Existing scenario family | Accepted evidence | Exact open behavior |
 |---|---|---|
 | Ordinary Settings QR | Fresh normal admission and actual GM manual start; four unchanged pixel captures decoded to the exact ordinary join payload; accessible link/code and responsive presentation. | Final current-source/release reconciliation; no physical-device scan is claimed. |
-| Member and GM lifecycle / GM recipes | GM17 completed four mounted recipes, ordinary Pursuit ending, immutable debrief/closure and entitled crew reload across two browsers. GM19 independently completed the fighter-count recipe but failed the resource-counter case. | Browser qualification of the repaired resource-counter lifecycle/source checks and the ordinary primary casting preference; remaining mounted member/GM functions and interrupted/repeated recovery. The intentionally unmounted registration-lock writer earns no UI credit. |
-| Full Base / combat / politics / crisis / arrest | Combat29 committed nine paid maintenance actions and its opening combat choices before failure. | The original Miner document changed generation during first pre-selection; its initiating callback is unretained. Complete stable role selection, range/aftermath and subsequent ordinary Base actions through ending. |
-| Core and Press shuttle transit | Core6 retained the original current member berth/control witness. Press2 confirmed canonical null replacement status and its own SNN scope/control. Neither run accepted departure. | Core departure must use the authentic member scope omitted by its recipe; App must retain fresh group-only Press discovery without a capital berth. Natural transit/retarget/arrival and reload remain open after the native repairs are reconciled. |
+| Member and GM lifecycle / GM recipes | GM17 completed four mounted recipes, ordinary Pursuit ending, immutable debrief/closure and entitled crew reload across two browsers. GM19 independently completed the fighter-count recipe but failed the resource-counter case. | Browser qualification of the repaired resource-counter lifecycle/source checks and ordinary primary casting preference. GM20 failed before start because its caller incorrectly required a new consent dialog despite the actual controller’s valid browser-global 72-hour acknowledgement; the new caller must validate that retained consent. Remaining mounted member/GM functions and interrupted/repeated recovery. The intentionally unmounted registration-lock writer earns no UI credit. |
+| Full Base / combat / politics / crisis / arrest | Combat29 committed nine paid maintenance actions and its opening combat choices before failure. | Both Combat29 and the separate eight-core minimal Miner qualifier changed the original pre-selection generation before station acceptance; initiating callback attribution is unretained. The minimal qualifier ran without the maintenance/combat prefix. Complete stable role selection, release/reselection/reload, range/aftermath and subsequent ordinary Base actions through ending. |
+| Core and Press shuttle transit | Core7 retained the original current member berth/control witness and received Request UI/exact-replay 200 responses, but its source evaluator did not accept the result. Press2 confirmed canonical null replacement status and its own SNN scope/control; Press3 failed before departure with source readiness predicates incomplete. | Reconcile Core pre/post movement source checks against authentic member scope and the independently observed original docking host. The Press selector must await its real own-player and applicable modern member reads inside the original deadline. Natural transit/retarget/arrival and reload remain open; incomplete predicates do not identify an exclusive historical callback cause. |
 | N/O/P candidate games | CandidatePanel6 completed four ordinary cycles and twenty Scientist choices; phone/landscape targets and all viewport overflow/target-size checks passed. | Desktop native Tab reached seven of eight targets within the unchanged 48-Tab cap; all three distinct candidate outcomes and endings remain open. |
 | Capybara, sparse joint engineering and replacement-role families | Current implementation and focused native checks are retained. | Fresh appropriate-role connected functions, source costs, replay/recovery/privacy and their existing normal endings. |
 | Gate 2 independent sessions | Functional3 completed all 21 ordinary browser joins and consent. | Original GM start returned 500 before the functional/privacy commands; no concurrency acceptance. Complete the original finite overlap/reconnect/retry/privacy contract after source reconciliation. |
 | Gate 3 usability / final release | Existing action/source annotations and subsystem screenshots are retained. | Reconcile available actions, costs, blockers, committed results and next actor; one independent review, final local checks, exact candidate/main CI and deployment. |
 
-The parent requested a short Chain Scanner browser runtime window after the
-frozen Combat29 proof closed. Its browsers are closed, its evidence is retained,
-and all three owned gameplay scopes were verified empty. The reserved PC10
-servers remain idle. Further actual/browser proofs and broad checks are parked
-until the parent explicitly returns the runtime slot; isolated code and small
-native repairs continue. This pause earns no acceptance or release credit.
+The parent explicitly returned the short Chain Scanner runtime window after
+that task closed its own browsers, servers and emulators. Root resumed serialized
+PC10 proofs after ownership/source/compiled-runtime and empty-scope checks.
+Each closed actual retained its own failure evidence, closed browsers before
+exact-owned-session deletion, and returned all three owned gameplay scopes to
+zero. No other task’s reservation or runtime was changed.
 
 The critical path is to finish independent source-coupled repairs using existing
 fixtures, reconcile once, qualify the affected live slices, then finish the

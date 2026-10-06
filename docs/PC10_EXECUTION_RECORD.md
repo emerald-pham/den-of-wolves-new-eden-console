@@ -183,6 +183,20 @@ unsupported pre-LIVE premise. The final report must disclose test-only fixture
 API completions separately from source repairs, including the unchanged
 assertions and the two rejected, unapplied GM actor-guard fallback proposals.
 
+The closed a27 fresh slices retain explicit failure boundaries: Core7 Request
+UI/replay both returned 200 before an unaccepted source-revision/group result;
+Press3 lacked the complete modern own-player/member readiness before departure;
+GM20 expected a new consent dialog despite the browser's genuine global 72-hour
+acknowledgement; and the eight-core minimal Miner qualifier changed its original
+pre-selection generation from 2 to 3 without a maintenance/combat prefix. None
+is a completed family or an exclusively attributed callback/lock failure.
+The source-backed casting annotation repair corrects only the stale current
+manual-only row and alias/mount anchors. Its separate test commit preserves
+the original test bytes and historical row, replaces that specifically obsolete
+expectation with a stronger mounted-path assertion, and leaves the other
+manual-only assertions and canonical 232/241 artifacts intact. Root owns all
+remaining actual acceptance and the one reconciled review/release.
+
 The following restore diagnosis is retained historical evidence; it does not
 replace the current finite-family checklist.
 
