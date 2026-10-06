@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { createCurrentMemberSessionReader as CreateMemberReader } from '../functions/src/memberSessionCallable';
 import type { GameSession, Player } from '@/types/game';
 import type { useSessionStore as SessionStore } from '@/store/useSessionStore';
+import type * as SessionService from '@/lib/sessionService';
 
 const sdk = vi.hoisted(() => ({
   auth: { currentUser: null as { uid: string } | null, authStateReady: vi.fn() },
@@ -67,6 +68,8 @@ let join: ReturnType<typeof deferred<IdentityReply>>;
 let memberReplies: ReturnType<typeof deferred<{ data: Record<string, unknown> }>>[];
 let resumes: ReturnType<typeof deferred<IdentityReply>>[];
 let useSessionStore: typeof SessionStore;
+let service: typeof SessionService;
+let automaticConnect: { mock: { calls: unknown[][] }; mockClear: () => void };
 let readMember: () => Promise<Record<string, unknown>>;
 let sourceSession: GameSession;
 let unmount: (() => void) | undefined;
@@ -97,9 +100,11 @@ async function deliverMember(index: number) {
   await advance();
   return data;
 }
-async function mountReadyOriginalMiner() {
+async function mountReadyOriginalMiner({ waitForJoin = true, waitForPlayer = true } = {}) {
   window.history.replaceState({}, '', `/?demoActor=${sessionId}~icebreaker-miner&demoJoin=123456#/demo-actors`);
   ({ useSessionStore } = await import('@/store/useSessionStore'));
+  service = await import('@/lib/sessionService');
+  automaticConnect = vi.spyOn(service, 'connectAutomatically');
   const context = await import('@/lib/demoActorContext');
   context.rememberDemoActorAccount(context.activeDemoActorProfile!, actor.uid);
   localStorage.setItem(context.demoActorRosterStorageKey(sessionId), JSON.stringify([
@@ -155,6 +160,11 @@ async function mountReadyOriginalMiner() {
   unmount = render(<App />).unmount;
   await advance();
   expect(callCount('joinSession')).toBe(1);
+  if (!waitForJoin) {
+    expect(useSessionStore.getState()).toMatchObject({ identityHydrationRevision: 0, session: null });
+    automaticConnect.mockClear();
+    return;
+  }
   const projection = await readMember();
   sourceSession = sessionFrom(sessionId, projection.session as Record<string, unknown>);
   expect(Object.hasOwn(sourceSession, 'currentActorBerthAuthority')).toBe(false);
@@ -163,6 +173,10 @@ async function mountReadyOriginalMiner() {
   await advance(300);
   expect(useSessionStore.getState().identityHydrationRevision).toBe(1);
   expect(Object.hasOwn(useSessionStore.getState().me!, 'connected')).toBe(false);
+  if (!waitForPlayer) {
+    automaticConnect.mockClear();
+    return;
+  }
   await publishPlayer();
   await deliverMember(0);
   // FIRST player queues the existing current refresh while the first getter is
@@ -172,6 +186,7 @@ async function mountReadyOriginalMiner() {
     identityHydrationRevision: 1, me: { uid: actor.uid, sessionId, connected: true, connectionGeneration: 2 },
     session: { currentActorBerthAuthority: { actorUid: actor.uid, connectionGeneration: 2, shipId: 'icebreaker' } } });
   expect(callCount('resumeSession')).toBe(0);
+  automaticConnect.mockClear();
   stopWatch = useSessionStore.subscribe(state => frames.push({ hydration: state.identityHydrationRevision,
     generation: state.me?.connectionGeneration, connection: state.connection, freshness: state.sessionSnapshotFreshness }));
 }
@@ -205,7 +220,8 @@ afterEach(async () => {
   console.info(JSON.stringify({ kind: 'native-member-visible-return', test: expect.getState().currentTestName,
     ledger, frames, current: { documentTimeOrigin: performance.timeOrigin, generation: useSessionStore?.getState().me?.connectionGeneration,
       hydration: useSessionStore?.getState().identityHydrationRevision, connection: useSessionStore?.getState().connection,
-      freshness: useSessionStore?.getState().sessionSnapshotFreshness }, staticVersionFetches: sdk.fetch.mock.calls.length }));
+      freshness: useSessionStore?.getState().sessionSnapshotFreshness }, staticVersionFetches: sdk.fetch.mock.calls.length,
+    automaticConnectCallsAfterInitialJoin: automaticConnect?.mock.calls.length }));
   stopWatch?.(); stopWatch = undefined;
   if (unmount) act(unmount); unmount = undefined;
   memberReplies.forEach(pending => pending.resolve({ data: {} }));
@@ -225,6 +241,7 @@ describe('original member short visibility return composition', () => {
     expect(sdk.auth.currentUser!.uid).toBe(original.uid);
     expect(useSessionStore.getState().me!.connectionGeneration).toBe(original.generation);
     expect(useSessionStore.getState().identityHydrationRevision).toBe(original.hydration);
+    expect(automaticConnect.mock.calls).toHaveLength(0);
     expect(callCount('resumeSession')).toBe(0);
   });
 
@@ -238,9 +255,26 @@ describe('original member short visibility return composition', () => {
     expect(callCount('resumeSession')).toBe(0); expect(sdk.fetch).not.toHaveBeenCalled();
   });
 
-  it('retains the original normal pending-resume fence if a short visible return nevertheless starts recovery', async () => {
+  it('retains the original accepted join when the normal DTO omits connected and FIRST member reads are pending', async () => {
+    await mountReadyOriginalMiner({ waitForPlayer: false }); const original = performance.timeOrigin;
+    expect(useSessionStore.getState()).toMatchObject({ connection: 'live', sessionSnapshotFreshness: 'server',
+      identityHydrationRevision: 1, me: { uid: actor.uid, sessionId, connectionGeneration: 2 } });
+    expect(Object.hasOwn(useSessionStore.getState().me!, 'connected')).toBe(false);
+    expect(memberReplies).toHaveLength(1);
+    await shortVisibleReturn();
+    expect(automaticConnect.mock.calls).toHaveLength(0); expect(callCount('resumeSession')).toBe(0);
+    expect(performance.timeOrigin).toBe(original); expect(useSessionStore.getState().identityHydrationRevision).toBe(1);
+    expect(useSessionStore.getState().session?.currentActorBerthAuthority).toBeUndefined();
+    expect(sdk.signIn).not.toHaveBeenCalled(); expect(sdk.fetch).not.toHaveBeenCalled();
+  });
+
+  it('retains the original normal pending-resume fence during genuine offline/cached visibility recovery', async () => {
     await mountReadyOriginalMiner(); const original = performance.timeOrigin;
+    act(() => window.dispatchEvent(new Event('offline')));
+    expect(useSessionStore.getState()).toMatchObject({ connection: 'offline', sessionSnapshotFreshness: 'cache',
+      identityHydrationRevision: 1, me: { uid: actor.uid, sessionId, connectionGeneration: 2 } });
     await shortVisibleReturn(); expect(resumes).toHaveLength(1);
+    expect(automaticConnect.mock.calls).toHaveLength(1);
     const { sessionSnapshotAuthorityFor, memberSessionResumeBlocksFreshness } = await import('@/lib/sessionSnapshotAuthority');
     expect(memberSessionResumeBlocksFreshness(sessionSnapshotAuthorityFor(sessionId, actor.uid))).toBe(true);
     // Functions resume writes its next generation before the original SDK
@@ -258,5 +292,92 @@ describe('original member short visibility return composition', () => {
       actorUid: actor.uid, connectionGeneration: 3, shipId: 'icebreaker',
     });
     expect(callCount('resumeSession')).toBe(1); expect(sdk.signIn).not.toHaveBeenCalled(); expect(sdk.fetch).not.toHaveBeenCalled();
+  });
+
+  it.each(['foreign', 'missing'])('does not suppress ordinary recovery when actual Auth becomes %s', async kind => {
+    await mountReadyOriginalMiner(); const original = performance.timeOrigin;
+    sdk.auth.currentUser = kind === 'foreign' ? { uid: 'foreign-visible-account' } : null;
+    await shortVisibleReturn();
+    expect(automaticConnect.mock.calls).toHaveLength(1);
+    expect(performance.timeOrigin).toBe(original);
+    expect(useSessionStore.getState()).toMatchObject({ identityHydrationRevision: 1,
+      me: { uid: actor.uid, sessionId, connectionGeneration: 2 }, sessionSnapshotFreshness: 'cache' });
+    expect(useSessionStore.getState().connection).not.toBe('live');
+    expect(callCount('resumeSession')).toBe(0); expect(sdk.signIn).not.toHaveBeenCalled();
+  });
+
+  it('does not suppress ordinary recovery when the stored member belongs to another session', async () => {
+    await mountReadyOriginalMiner(); const original = performance.timeOrigin;
+    // A foreign current input is a denial fixture, never an accepted identity.
+    act(() => useSessionStore.getState().setMe({ ...useSessionStore.getState().me!, sessionId: 'foreign-member-session' }));
+    await shortVisibleReturn();
+    expect(automaticConnect.mock.calls).toHaveLength(1); expect(resumes).toHaveLength(1);
+    expect(performance.timeOrigin).toBe(original);
+    expect(useSessionStore.getState()).toMatchObject({ identityHydrationRevision: 1,
+      me: { uid: actor.uid, sessionId: 'foreign-member-session', connectionGeneration: 2 }, sessionSnapshotFreshness: 'cache' });
+    expect(useSessionStore.getState().connection).not.toBe('live'); expect(sdk.signIn).not.toHaveBeenCalled();
+  });
+
+  it('does not suppress initial document recovery before the ordinary join SDK hydrates identity', async () => {
+    await mountReadyOriginalMiner({ waitForJoin: false }); const original = performance.timeOrigin;
+    await shortVisibleReturn();
+    expect(automaticConnect.mock.calls).toHaveLength(1); expect(callCount('resumeSession')).toBe(0);
+    expect(useSessionStore.getState()).toMatchObject({ identityHydrationRevision: 0, session: null, me: null });
+    expect(useSessionStore.getState().sessionSnapshotFreshness).not.toBe('server');
+    expect(performance.timeOrigin).toBe(original); expect(sdk.auth.currentUser!.uid).toBe(actor.uid);
+    expect(sdk.signIn).not.toHaveBeenCalled();
+  });
+
+  it('does not suppress ordinary recovery after the original own-player confirms disconnected', async () => {
+    await mountReadyOriginalMiner(); const original = performance.timeOrigin;
+    actor = { ...actor, connected: false }; await publishPlayer();
+    expect(useSessionStore.getState().me!.connected).toBe(false);
+    await shortVisibleReturn();
+    expect(automaticConnect.mock.calls).toHaveLength(1); expect(resumes).toHaveLength(1);
+    expect(useSessionStore.getState()).toMatchObject({ identityHydrationRevision: 1,
+      me: { uid: actor.uid, sessionId, connected: false, connectionGeneration: 2 }, sessionSnapshotFreshness: 'cache' });
+    expect(useSessionStore.getState().connection).not.toBe('live'); expect(performance.timeOrigin).toBe(original);
+    expect(sdk.signIn).not.toHaveBeenCalled();
+  });
+
+  it('does not suppress normal visible recovery when the original public member resume is already pending', async () => {
+    await mountReadyOriginalMiner(); const original = performance.timeOrigin;
+    const pendingOriginal = service.resumeSession(sessionId); await advance();
+    expect(resumes).toHaveLength(1);
+    const { sessionSnapshotAuthorityFor, memberSessionResumeBlocksFreshness } = await import('@/lib/sessionSnapshotAuthority');
+    expect(memberSessionResumeBlocksFreshness(sessionSnapshotAuthorityFor(sessionId, actor.uid))).toBe(true);
+    expect(useSessionStore.getState()).toMatchObject({ connection: 'live', sessionSnapshotFreshness: 'server', identityHydrationRevision: 1 });
+    await shortVisibleReturn();
+    expect(automaticConnect.mock.calls).toHaveLength(1); expect(resumes).toHaveLength(2);
+    expect(memberSessionResumeBlocksFreshness(sessionSnapshotAuthorityFor(sessionId, actor.uid))).toBe(true);
+    expect(useSessionStore.getState()).toMatchObject({ identityHydrationRevision: 1,
+      me: { uid: actor.uid, sessionId, connectionGeneration: 2 }, sessionSnapshotFreshness: 'cache' });
+    expect(useSessionStore.getState().connection).not.toBe('live'); expect(performance.timeOrigin).toBe(original);
+    const player = { ...actor }; delete player.connected;
+    await act(async () => { resumes[0]!.resolve({ data: { session: sourceSession, player } }); await pendingOriginal; });
+    expect(memberSessionResumeBlocksFreshness(sessionSnapshotAuthorityFor(sessionId, actor.uid))).toBe(true);
+    expect(useSessionStore.getState().identityHydrationRevision).toBe(1);
+  });
+
+  it('keeps the real minute-stale version monitor recovery even when the original member was previously live', async () => {
+    await mountReadyOriginalMiner(); const original = performance.timeOrigin;
+    visibility = 'hidden'; act(() => document.dispatchEvent(new Event('visibilitychange')));
+    await advance(60_000);
+    visibility = 'visible'; act(() => document.dispatchEvent(new Event('visibilitychange')));
+    await advance();
+    expect(sdk.fetch).toHaveBeenCalledOnce(); expect(automaticConnect.mock.calls).toHaveLength(1);
+    expect(resumes).toHaveLength(1); expect(performance.timeOrigin).toBe(original);
+    expect(useSessionStore.getState()).toMatchObject({ identityHydrationRevision: 1,
+      me: { uid: actor.uid, sessionId, connectionGeneration: 2 }, sessionSnapshotFreshness: 'cache' });
+    expect(useSessionStore.getState().connection).not.toBe('live'); expect(sdk.signIn).not.toHaveBeenCalled();
+  });
+
+  it('keeps the real online callback recovery independent of the immediate visibility optimization', async () => {
+    await mountReadyOriginalMiner(); const original = performance.timeOrigin;
+    act(() => window.dispatchEvent(new Event('online'))); await advance();
+    expect(automaticConnect.mock.calls).toHaveLength(1); expect(resumes).toHaveLength(1);
+    expect(performance.timeOrigin).toBe(original); expect(useSessionStore.getState().identityHydrationRevision).toBe(1);
+    expect(useSessionStore.getState().sessionSnapshotFreshness).toBe('cache');
+    expect(useSessionStore.getState().connection).not.toBe('live'); expect(sdk.signIn).not.toHaveBeenCalled();
   });
 });
