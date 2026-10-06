@@ -5,6 +5,7 @@ import { createTwoBrowserGameplay } from './pc10-two-browser-gameplay.mjs';
 import { resolveLiveWolfAttack } from './pc10-live-wolf-attack-ui-proof.mjs';
 import { assertWolfChoiceActor, observeWolfChoiceActor } from './pc10-combat-choice-readiness.mjs';
 import { certifyBaseRangeTargetControls, selectBaseRangeTargetControls } from './pc10-base-range-target-controls.mjs';
+import { baseRangeActionIds, selectAndCertifyBaseRangeActionControls } from './pc10-base-range-action-controls.mjs';
 import { assertBaseCombatPrerequisites, assertOriginalBaseActor, assertRequiredBaseBranches, baseMemberRowsMatch, baseWolfActionExpectation,
   BASE_COMBAT_CONTROL_LABELS, baseResearchPaintMatches, captureBaseUiReceipt,
   openingWolfCounts, openBaseEndeavourResearchRoute, originalRoleForUid, proofHash, uidHash, validatePrivateDeductionReply,
@@ -398,12 +399,26 @@ export async function runBaseCombatAndDeduction(context, options = {}) {
       const panel = executive.page.getByRole('region', { name: 'Wolf range actions', exact: true });
       if (rangeReady.status === 'eligible') {
         await guidance('executive-officer', panel, `aegis-${range}`);
-        const use = panel.getByRole('button', { name: 'Use selected actions', exact: true });
-        const pass = panel.getByRole('button', { name: 'Pass this range', exact: true });
-        if (await use.isVisible()) {
-          for (const box of await panel.getByRole('checkbox').all()) await box.check();
-          const choose = await use.isEnabled() ? use : pass;
-          await receiptForAttack(executive, 'commitWolfRangeActionChoice', () => choose.click()); return true;
+        if (rangeReady.choice.choiceStatus === 'pending') {
+          const view = rangeReady.choice, currentReadiness = combatReadiness.get(executive);
+          assert.ok(currentReadiness, 'Retain the actual original range action readiness binding.');
+          const actionIds = baseRangeActionIds(view, currentReadiness.expected);
+          // The existing35s interval contains selection, certification and the
+          // single click; capture it once beneath the original stage deadline.
+          const decisionDeadlineAt = Math.min(currentReadiness.deadlineAt, Date.now() + 35_000);
+          await receiptForAttack(executive, 'commitWolfRangeActionChoice', async () => {
+            await selectAndCertifyBaseRangeActionControls({ panel, view, expected: currentReadiness.expected,
+              deadlineAt: decisionDeadlineAt,
+              checkpoint: async () => assertWolfChoiceActor(await observeWolfChoiceActor(executive), currentReadiness.actor),
+              record: async certificate => {
+                report.observations.push({ ...certificate, roleId: currentReadiness.actor.profileRoleId, uidHash: currentReadiness.actor.uidHash });
+                await save();
+              } });
+            const remainingMs = decisionDeadlineAt - Date.now();
+            assert.ok(remainingMs > 0, 'The original range action decision deadline expired before the single UI click.');
+            return panel.getByRole('button', { name: actionIds.length ? 'Use selected actions' : 'Pass this range', exact: true })
+              .click({ timeout: Math.min(35_000, remainingMs) });
+          }, { range: view.range, actionIds }); return true;
         }
         const commit = panel.getByRole('button', { name: 'Commit target assignments', exact: true });
         if (await commit.isVisible()) {
