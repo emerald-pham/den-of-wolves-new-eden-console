@@ -199,7 +199,9 @@ function nativeBridge(options: FixtureOptions = {}) {
       actorUid: uid, isActiveGm: uid === gm, teamPhase: false, currentCycle: 3,
       legalDropOffShipIds: ['aegis'], randomIndex: () => 0,
     });
-    assert.notEqual(applied.status, 'denied'); assert.ok(applied.record); record = applied.record;
+    assert.notEqual(applied.status, 'denied');
+    assert.ok(applied.status === 'committed' || applied.status === 'replayed');
+    assert.ok(applied.record); record = applied.record;
     return mutate(request.type, makeReply(record, applied.status, request, uid));
   }
   transport.callable.mockImplementation((_functions: unknown, name: string) => {
@@ -245,6 +247,7 @@ function nativeBridge(options: FixtureOptions = {}) {
   const missionUi = capyUi(assert, async (role: 'gm' | 'wing-commander', id: string) => {
     assert.equal(id, missionId); return panel(role);
   }, observeUiReceipt, { actions });
+  const currentReply = (): AwayMissionLifecycleCallableReply | undefined => latest;
   return {
     missionId, requests, actions, record: () => record,
     mutate: (change: typeof mutate) => { mutate = change; },
@@ -268,15 +271,15 @@ function nativeBridge(options: FixtureOptions = {}) {
       const workspace = { getByRole: (role: string, query: { name: string }) => panel('gm').panel.getByRole(role, query) };
       await extraAcceptance(workspace, { context: { gm: {} }, ui: async (_surface: unknown,
         _name: string, button: { click: () => Promise<void> }) => {
-        latest = undefined; await button.click(); assert.ok(latest);
-        assert.ok(parseAwayMissionLifecyclePublicState(latest.publicState, missionId));
+        latest = undefined; await button.click(); const reply = currentReply(); assert.ok(reply);
+        assert.ok(parseAwayMissionLifecyclePublicState(reply.publicState, missionId));
         const originalRequest = requests.at(-1); assert.ok(originalRequest);
         const replay = replayMutate(command(originalRequest, gm));
-        assert.equal(replay.revision, latest.revision);
-        assert.deepEqual(replay.publicState, latest.publicState);
-        return { result: latest, receipt: { endpoint: 'commitAwayMissionLifecycleCommand', httpStatus: 200,
+        assert.equal(replay.revision, reply.revision);
+        assert.deepEqual(replay.publicState, reply.publicState);
+        return { result: reply, receipt: { endpoint: 'commitAwayMissionLifecycleCommand', httpStatus: 200,
           logicalStatus: 'committed', identityVerified: true, exactBrowserSdkReplay: true,
-          requestId: latest.requestId, revision: latest.revision } };
+          requestId: reply.requestId, revision: reply.revision } };
       } }, async () => undefined, matrix, recordExtraRoleResult, missionId, {});
       return matrix;
     },
