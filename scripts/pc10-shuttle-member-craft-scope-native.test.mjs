@@ -92,7 +92,9 @@ function memberHarness(endpoint, { initialState = rawState(endpoint), roleId = R
   const makeSurface = isGm => {
     const panel = {
       getByLabel: label => makeLocator({ options: choices[label] ?? [] }),
-      getByRole: (role, options = {}) => role === 'button' && buttonNames.includes(options.name)
+      getByRole: (role, options = {}) => role === 'button' && buttonNames.some(name =>
+        typeof options.name === 'string' ? options.name === name
+          : options.name instanceof RegExp && options.name.test(name))
         ? makeLocator({ onClick: async () => { clicks += 1; } }) : makeLocator({ count: 0 }),
     };
     const page = {
