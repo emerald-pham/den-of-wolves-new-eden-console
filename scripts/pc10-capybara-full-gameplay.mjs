@@ -8,7 +8,8 @@ import { advanceBaseDetectorResearch, runBaseCombatAndDeduction } from './pc10-b
 import { completeOfferedTurnAdvance } from './pc10-full-game-demo-proof-helpers.mjs';
 import { PC10_SPECIALIST_ACTIONS, runPc10SpecialistAction } from './pc10-specialist-phases.mjs';
 import { createSpecialistGameplayDriver, sameActionReceipt, validateScoutRequestRecord,
-  isRecordedScoutRequestEvidence } from './pc10-specialist-gameplay.mjs';
+  isRecordedScoutRequestEvidence, validateCurrentGroupMessageRecord, renderedCurrentGroupMessageMatches,
+  isCurrentGroupMessageEvidence } from './pc10-specialist-gameplay.mjs';
 import { runPursuitLimitEnding } from './pc10-full-game-cycle-ending.mjs';
 
 const SUCCESS_RESULT_STATUSES = new Set([
@@ -103,6 +104,15 @@ export function capybaraStageOutcome(outcome) {
   const evidence = outcome?.evidence, actor = evidence?.actor, response = evidence?.response, projection = evidence?.projection;
   const currentRole = typeof outcome?.roleId === 'string' && actor?.activeConsoleRoleId === outcome.roleId;
   const actionCaptured = outcome?.status === 'captured' && outcome.failed !== true;
+  if (evidence?.endpoint === 'sendFleetGroupMessage') {
+    if (!actionCaptured || outcome.endpoint !== 'sendFleetGroupMessage' || !currentRole ||
+        actor?.connection !== 'live' || actor.freshness !== 'server' ||
+        !isCurrentGroupMessageEvidence({ roleId: outcome.roleId, actor, request: evidence.request, response, projection })) {
+      return { status: 'pending', reason: 'original-current-group-relay-receipt-and-own-visible-note-not-confirmed' };
+    }
+    return { status: 'completed', endpoint: 'sendFleetGroupMessage', roleId: outcome.roleId, cost: safeCost(evidence.cost),
+      cycle: projection.groupMessage.cycle, scope: 'current-group-message-recorded' };
+  }
   if (evidence?.endpoint === 'requestScout') {
     if (!actionCaptured || outcome.endpoint !== 'requestScout' || !currentRole || typeof actor?.uidHash !== 'string' ||
         actor.connection !== 'live' || actor.freshness !== 'server' ||
@@ -241,6 +251,7 @@ export function projectCapybaraEvidence(report) {
       ...(Number.isSafeInteger(stage.cycle) ? { cycle: stage.cycle } : {}),
       ...(Number.isSafeInteger(stage.sourceRevision) ? { sourceRevision: stage.sourceRevision } : {}),
       ...(stage.endpoint === 'requestScout' && stage.scope === 'request-recorded' ? { scope: stage.scope } : {}),
+      ...(stage.endpoint === 'sendFleetGroupMessage' && stage.scope === 'current-group-message-recorded' ? { scope: stage.scope } : {}),
       ...(stage.status === 'completed' ? {} : { reason: typeof stage.reason === 'string' ? stage.reason.slice(0, 120) : 'source-action-not-confirmed' }),
     };
   }
@@ -530,12 +541,14 @@ export async function runCapybaraFullGameGameplay(context, options = {}) {
       ...(next.cost ? { cost: safeCost(next.cost) } : {}), ...(Number.isSafeInteger(next.cycle) ? { cycle: next.cycle } : {}),
       ...(Number.isSafeInteger(next.sourceRevision) ? { sourceRevision: next.sourceRevision } : {}),
       ...(next.endpoint === 'requestScout' && next.scope === 'request-recorded' ? { scope: next.scope } : {}),
+      ...(next.endpoint === 'sendFleetGroupMessage' && next.scope === 'current-group-message-recorded' ? { scope: next.scope } : {}),
       ...(next.status === 'completed' ? {} : { reason: next.reason ?? 'current-source-control-or-outcome-not-confirmed' }) };
     capybaraObservations.push({ id, status: capybaraStages[id].status,
       ...(next.roleId ? { roleId: next.roleId } : {}), ...(next.endpoint ? { endpoint: next.endpoint } : {}),
       ...(Number.isSafeInteger(next.cycle) ? { cycle: next.cycle } : {}),
       ...(Number.isSafeInteger(next.sourceRevision) ? { sourceRevision: next.sourceRevision } : {}),
       ...(next.endpoint === 'requestScout' && next.scope === 'request-recorded' ? { scope: next.scope } : {}),
+      ...(next.endpoint === 'sendFleetGroupMessage' && next.scope === 'current-group-message-recorded' ? { scope: next.scope } : {}),
       ...(next.status === 'completed' && next.cost ? { cost: safeCost(next.cost) } : {}),
       ...(next.status === 'completed' ? {} : { reason: next.reason ?? 'current-source-control-or-outcome-not-confirmed' }) });
     await writeFile(`${directory}/capybara-gameplay-progress.json`, `${JSON.stringify(projectCapybaraEvidence({
@@ -589,13 +602,21 @@ export async function runCapybaraFullGameGameplay(context, options = {}) {
           targetCoordinate: inputs.targetCoordinate,
         } : null;
         const scoutRequest = scoutChoice ? validateScoutRequestRecord({ ...context, before, choice: scoutChoice }) : null;
+        const groupRelay = PC10_SPECIALIST_ACTIONS[actionId]?.endpoint === 'sendFleetGroupMessage';
+        const groupMessage = groupRelay ? validateCurrentGroupMessageRecord({ ...context, before, message: inputs.message }) : null;
         const responseRevision = [context.result?.revision, context.result?.repairRevision,
           context.result?.choiceRevision, context.result?.upgradeRevision, context.result?.wingRevision,
           context.result?.fighterWingRevision, context.result?.currentRevision].find(value => Number.isSafeInteger(value) && value >= 0);
         const panel = source.regionName ? context.surface.page.getByRole('region', { name: source.regionName, exact: true }) : null;
-        const rendered = panel ? await panel.getByRole('status').evaluateAll(nodes =>
+        const rendered = panel ? groupRelay ? await panel.getByRole('status').evaluateAll(renderedCurrentGroupMessageMatches, inputs.message.trim())
+          : await panel.getByRole('status').evaluateAll(nodes =>
           nodes.some(node => /committed|recorded|recycled|collected|applied|launched|built|requested|harvest|selected|repair|choice/i.test(node.textContent ?? '')))
           : await context.surface.page.getByRole('status').evaluateAll(nodes => nodes.length > 0);
+        if (groupRelay) {
+          if (!groupMessage || !rendered || !sameActionReceipt(groupMessage, source.groupMessage) ||
+              source.renderedStatusCode !== 'current-group-note-visible') return { ready: false };
+          return { ready: true, groupMessage, renderedStatusCode: source.renderedStatusCode };
+        }
         if (scoutChoice) {
           if (!scoutRequest || !rendered || !sameActionReceipt(scoutRequest, source.scoutRequest) ||
               source.renderedStatusCode !== 'scout-request-recorded-visible') return { ready: false };
@@ -624,6 +645,7 @@ export async function runCapybaraFullGameGameplay(context, options = {}) {
         entitlementId: spec.shuttleId, ownerRoleId: roleId ?? inputs.roleId ?? spec.roleId,
         targetCoordinate: inputs.targetCoordinate,
       } } : {}),
+      ...(spec.endpoint === 'sendFleetGroupMessage' ? { groupMessageChoice: inputs.message } : {}),
     }) : null);
     if (typeof projectionVerifier !== 'function') {
       if (record) await updateCapybaraStage(id, { status: 'pending', reason: 'ordinary-source-action-not-in-proof-catalog' });
@@ -631,7 +653,7 @@ export async function runCapybaraFullGameGameplay(context, options = {}) {
     }
     return attemptSpecialist(id, actionId, inputs, { roleId, cost, record, verify: projectionVerifier });
   }
-  function inspectRenderedAction({ regionName, resultStatuses, renderedStatusCode = 'public-result-visible', check, scoutChoice }) {
+  function inspectRenderedAction({ regionName, resultStatuses, renderedStatusCode = 'public-result-visible', check, scoutChoice, groupMessageChoice }) {
     return async ({ surface, result, gmState, crewState, request, actor, before }) => {
       if (!result || !resultStatuses.includes(result.status) || check && !check(result, { gmState, crewState }))
         return { ready: false };
@@ -639,7 +661,12 @@ export async function runCapybaraFullGameGameplay(context, options = {}) {
       const scoutRequest = scoutChoice ? validateScoutRequestRecord({ request, result, actor, before, gmState, crewState,
         choice: scoutChoice }) : null;
       if (scoutChoice && !scoutRequest) return { ready: false };
-      const rendered = await panel.getByRole('status').evaluateAll((nodes, scout) => scout
+      const groupMessage = groupMessageChoice !== undefined ? validateCurrentGroupMessageRecord({
+        request, result, actor, before, gmState, crewState, message: groupMessageChoice }) : null;
+      if (groupMessageChoice !== undefined && !groupMessage) return { ready: false };
+      const rendered = groupMessageChoice !== undefined
+        ? await panel.getByRole('status').evaluateAll(renderedCurrentGroupMessageMatches, groupMessageChoice.trim())
+        : await panel.getByRole('status').evaluateAll((nodes, scout) => scout
         ? nodes.filter(node => node.matches('.scout-request__notice') && node.getClientRects().length > 0 &&
           getComputedStyle(node).visibility !== 'hidden' && (node.textContent ?? '').trim() ===
           'Request recorded. Your private scouting report will arrive automatically.').length === 1
@@ -647,6 +674,8 @@ export async function runCapybaraFullGameGameplay(context, options = {}) {
         node.getClientRects().length > 0 && getComputedStyle(node).visibility !== 'hidden' &&
         (node.textContent ?? '').trim().length > 0), Boolean(scoutChoice));
       if (!rendered) return { ready: false };
+      if (groupMessageChoice !== undefined) return { ready: true, regionName, groupMessage,
+        renderedStatusCode: 'current-group-note-visible' };
       if (scoutChoice) return { ready: true, regionName, scoutRequest, renderedStatusCode: 'scout-request-recorded-visible' };
       const resultRevision = [result.revision, result.repairRevision, result.choiceRevision,
         result.upgradeRevision, result.wingRevision, result.fighterWingRevision, result.currentRevision]

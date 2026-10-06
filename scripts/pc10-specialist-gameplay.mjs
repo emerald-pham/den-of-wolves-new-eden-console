@@ -48,7 +48,7 @@ const RESULT_FIELDS = Object.freeze({
   upgradeEndeavourFieldTargets: ['status', 'revision', 'currentRevision', 'upgradeRevision'],
   launchAegisFighterWing: ['status', 'revision', 'wingRevision', 'launched', 'wingId'],
   launchPdfEscortWing: ['status', 'revision', 'wingRevision', 'launched'],
-  sendFleetGroupMessage: ['status', 'revision', 'groupId'],
+  sendFleetGroupMessage: ['status', 'groupId', 'messageId'],
   commitAwayMissionLifecycleCommand: ['status', 'revision', 'expectedRevision', 'currentRevision'],
   commitWolfBoardingDefenceChoice: ['status', 'revision', 'choiceStatus'],
   commitWolfFighterRangeActionChoice: ['status', 'revision', 'choiceStatus'],
@@ -172,6 +172,79 @@ export function isRecordedScoutRequestEvidence({ roleId, actor, request, respons
     projection.renderedStatus === 'scout-request-recorded-visible' && !Object.hasOwn(projection, 'privateActorStatus');
 }
 
+function isCurrentGroupMessageRecord(value) {
+  const keys = ['type', 'requestId', 'messageId', 'sessionIdHash', 'cycle', 'roleId', 'groupId',
+    'actorUidHash', 'textHash', 'textLength', 'domNoteIdentity'];
+  return isRecord(value) && Object.keys(value).length === keys.length && keys.every(key => Object.hasOwn(value, key)) &&
+    value.type === 'current-group-message-recorded' && value.roleId === 'refinery-124-pdf-colonel' &&
+    typeof value.requestId === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(value.requestId) &&
+    value.messageId === value.requestId && typeof value.groupId === 'string' && /^fleet-[1-9][0-9]*$/.test(value.groupId) &&
+    typeof value.actorUidHash === 'string' && /^[a-f0-9]{16}$/.test(value.actorUidHash) &&
+    ['sessionIdHash', 'textHash'].every(key => typeof value[key] === 'string' && /^[a-f0-9]{64}$/.test(value[key])) &&
+    Number.isSafeInteger(value.cycle) && value.cycle >= 1 && Number.isSafeInteger(value.textLength) &&
+    value.textLength >= 1 && value.textLength <= 240 && value.domNoteIdentity === 'own-matching-text';
+}
+
+/** A committed relay receipt has no revision; the visible row does not expose its React key. */
+export function validateCurrentGroupMessageRecord({ request, result, actor, before, gmState, crewState, message }) {
+  const roleId = 'refinery-124-pdf-colonel', sessionId = before?.sessionId, cycle = before?.cycle;
+  if (typeof message !== 'string' || !message.trim() || message.length > 240 ||
+      typeof sessionId !== 'string' || !sessionId || !Number.isSafeInteger(cycle) || cycle < 1 ||
+      !isRecord(request) || Object.keys(request).length !== 4 ||
+      !['sessionId', 'requestId', 'expectedGroupId', 'text'].every(key => Object.hasOwn(request, key)) ||
+      request.sessionId !== sessionId || typeof request.requestId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(request.requestId) ||
+      request.text !== message.trim() || typeof request.expectedGroupId !== 'string' || !/^fleet-[1-9][0-9]*$/.test(request.expectedGroupId) ||
+      !isRecord(result) || Object.keys(result).length !== 3 ||
+      !['status', 'groupId', 'messageId'].every(key => Object.hasOwn(result, key)) ||
+      result.status !== 'committed' || result.groupId !== request.expectedGroupId || result.messageId !== request.requestId ||
+      actor?.sameActor !== true || actor.sessionId !== sessionId || actor.cycle !== cycle ||
+      actor.playerRole !== 'player' || actor.profileRoleId !== roleId || actor.activeConsoleRoleId !== roleId ||
+      actor.assignedRoleId !== roleId || actor.connection !== 'live' || actor.freshness !== 'server' ||
+      typeof actor.uidHash !== 'string' || !/^[a-f0-9]{16}$/.test(actor.uidHash)) return null;
+  for (const state of [before, gmState, crewState]) {
+    if (state?.live !== true || state.sessionId !== sessionId || state.cycle !== cycle || state.phase !== 'active' ||
+        !Array.isArray(state.activeVesselIds) || !state.activeVesselIds.includes('refinery-124') ||
+        state.shipFleetGroupIds?.['refinery-124'] !== request.expectedGroupId) return null;
+  }
+  if (crewState.player?.role !== 'player' || crewState.player.assignedRoleId !== roleId ||
+      crewState.player.activeConsoleRoleId !== roleId || crewState.player.replacementRoleId != null) return null;
+  return { type: 'current-group-message-recorded', requestId: request.requestId, messageId: result.messageId,
+    sessionIdHash: hash(sessionId), cycle, roleId, groupId: result.groupId, actorUidHash: actor.uidHash,
+    textHash: hash(request.text), textLength: request.text.length, domNoteIdentity: 'own-matching-text' };
+}
+
+/** Serialized into the existing DOM scans; raw text stays within this current page/run. */
+export function renderedCurrentGroupMessageMatches(nodes, text) {
+  const visible = node => node?.getClientRects().length > 0 && getComputedStyle(node).visibility !== 'hidden';
+  const notices = nodes.filter(node => visible(node) &&
+    (node.textContent ?? '').trim() === 'Message sent to your current fleet group.' &&
+    node.closest('.pdf-news-relay[aria-label="PDF Colonel group news relay"]'));
+  if (notices.length !== 1 || typeof text !== 'string' || !text.trim()) return false;
+  const panel = notices[0].closest('.pdf-news-relay');
+  const list = panel?.querySelector('ul[aria-label="Current fleet group messages"]');
+  if (!visible(panel) || !visible(list)) return false;
+  return [...list.querySelectorAll(':scope > li')].filter(row => {
+    const copy = row.querySelector('p'), author = row.querySelector('small');
+    return visible(row) && visible(copy) && visible(author) &&
+      (copy.textContent ?? '').trim() === text && (author.textContent ?? '').startsWith('You // ');
+  }).length === 1;
+}
+
+/** GM corroborates current session/cycle only; ordinary notes are not a GM projection. */
+export function isCurrentGroupMessageEvidence({ roleId, actor, request, response, projection }) {
+  const record = projection?.groupMessage;
+  return isCurrentGroupMessageRecord(record) && roleId === record.roleId && actor?.uidHash === record.actorUidHash &&
+    actor.sessionIdHash === record.sessionIdHash && request?.requestId === record.requestId &&
+    request.expectedGroupId === record.groupId && request.textHash === record.textHash && request.textLength === record.textLength &&
+    response?.httpStatus === 200 && response.resultStatus === 'committed' && response.replayStatus === 'committed' &&
+    response.exactReplay === true && response.groupId === record.groupId && response.messageId === record.messageId &&
+    response.revision === null && response.replayRevision === null && response.projectionRevision === null &&
+    projection.gm?.source === 'server' && projection.gm.cycle === record.cycle && projection.gm.status === 'current-session' &&
+    projection.crew?.source === 'server' && projection.crew.cycle === record.cycle && projection.crew.status === 'current-group-note-visible' &&
+    !Object.hasOwn(projection.gm, 'revision') && !Object.hasOwn(projection.crew, 'revision') &&
+    projection.renderedStatus === 'current-group-note-visible' && !Object.hasOwn(projection, 'privateActorStatus');
+}
+
 function allowlisted(source, fields) {
   if (!isRecord(source)) return {};
   const result = {};
@@ -254,6 +327,8 @@ export function projectSpecialistActionEvidence({
       ? { privateActorStatus: 'private-result-visible' } : {}),
     ...(endpoint === 'requestScout' && isScoutRecord(projection.scoutRequest)
       ? { scoutRequest: { ...projection.scoutRequest } } : {}),
+    ...(endpoint === 'sendFleetGroupMessage' && isCurrentGroupMessageRecord(projection.groupMessage)
+      ? { groupMessage: { ...projection.groupMessage } } : {}),
   } : {};
   const requested = allowlisted(request, requestFields);
   const summarized = allowlisted(actualResult, resultFields);
@@ -408,6 +483,17 @@ export function createSpecialistGameplayDriver(game, {
           currentActor?.freshness === 'server') {
         const observed = await inspect({ game, surface, actor: currentActor, gmState, crewState });
         if (observed?.ready === true) {
+          if (endpoint === 'sendFleetGroupMessage' && observed.groupMessage !== undefined) {
+            assert.ok(isCurrentGroupMessageRecord(observed.groupMessage) &&
+              observed.groupMessage.sessionIdHash === hash(sessionId) && observed.groupMessage.cycle === gmState.cycle &&
+              observed.groupMessage.actorUidHash === currentActor.uidHash && observed.groupMessage.roleId === currentActor.profileRoleId &&
+              observed.renderedStatusCode === 'current-group-note-visible' && observed.privateResultVisible === undefined &&
+              observed.gmRevision === undefined && observed.crewRevision === undefined,
+            'Confirm only the exact current group relay receipt and own matching-text DOM witness.');
+            return { gm: { source: 'server', cycle: gmState.cycle, status: 'current-session' },
+              crew: { source: 'server', cycle: crewState.cycle, status: 'current-group-note-visible' },
+              groupMessage: observed.groupMessage, renderedStatus: observed.renderedStatusCode };
+          }
           if (endpoint === 'requestScout' && observed.scoutRequest !== undefined) {
             assert.ok(isScoutRecord(observed.scoutRequest) &&
               observed.scoutRequest.sessionIdHash === hash(sessionId) && observed.scoutRequest.cycle === gmState.cycle &&
