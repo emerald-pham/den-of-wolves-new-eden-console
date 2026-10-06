@@ -383,4 +383,43 @@ describe('ordinary original Press receives only current own group metadata', () 
     act(() => retired.next(snapshot(retired.path, { groupId: 'fleet-1', fleetGroupVesselIds: ['refinery-124'], revision: 4 })));
     await advance(); expect(useSessionStore.getState().session).toBeNull();
   });
+
+  it.each([
+    ['capital scope', { groupId: 'fleet-1', vesselIds: ['refinery-124'], craftIds: ['snn-press-shuttle'] }],
+    ['missing SNN scope', { groupId: 'fleet-1', vesselIds: [], craftIds: [] }],
+    ['foreign craft', { groupId: 'fleet-1', vesselIds: [], craftIds: ['starlight'] }],
+    ['foreign group', { groupId: 'fleet-2', vesselIds: [], craftIds: ['snn-press-shuttle'] }],
+  ] as const)('rejects a %s current member envelope without reusing prior group metadata', async (_label, scope) => {
+    await joinedPress(); await sourceDiscovery(); await deliverPlayer();
+    const source = await readMember();
+    await deliverMember(2, { session: { ...(source.session as Record<string, unknown>), memberSessionScope: scope } });
+    await sourceDiscovery(); expectWithdrawn();
+  });
+
+  it('withdraws the old group metadata on a same-holder control revision change before any new protected delivery', async () => {
+    await joinedPress(); await sourceDiscovery();
+    const control = (sessionData.shuttleControl as Record<string, Record<string, unknown>>)['snn-press-shuttle'];
+    sessionData = { ...sessionData, shuttleControl: { 'snn-press-shuttle': { ...control, revision: 1 } } };
+    await deliverPlayer(); await deliverMember(2); expectWithdrawn();
+  });
+
+  it('rejects a foreign SID current member response and cannot restore the prior discovery', async () => {
+    await joinedPress(); await sourceDiscovery(); await deliverPlayer();
+    await deliverMember(2, { sessionId: 'foreign-session' }); await sourceDiscovery(); expectWithdrawn();
+  });
+
+  it('does not transfer group metadata across actual normal resume hydration or accept its retired callback', async () => {
+    await joinedPress(); await sourceDiscovery();
+    const retired = listeners.filter(value => value.active && value.path === `${rootPath()}/playerDiscoveries/${actor.uid}`).at(-1)!;
+    act(() => window.dispatchEvent(new Event('online'))); await advance();
+    expect(callCount('resumeSession')).toBe(1);
+    const source = await readMember();
+    const { sessionFrom } = await import('@/lib/firestore');
+    actor = { ...actor, connectionGeneration: 4 };
+    resumeReplies[0]!.resolve({ data: { session: sessionFrom(sessionId, source.session as Record<string, unknown>), player: { ...actor } } });
+    await advance();
+    expect(useSessionStore.getState().identityHydrationRevision).toBe(2);
+    expect(useSessionStore.getState().me?.connectionGeneration).toBe(4);
+    await sourceDiscovery({}, retired); expectWithdrawn();
+  });
 });
