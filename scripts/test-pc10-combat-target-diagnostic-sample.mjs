@@ -126,7 +126,7 @@ function fixture({ afterBefore, afterMetadata } = {}) {
     surface: { storeModuleUrl: () => storeUrl,
       observe: async () => {
         observeCount++; const result = await run(actualGenericCallback, storeUrl, false);
-        if (observeCount === 1) afterBefore?.(f); return result;
+        if (observeCount % 2 === 1) afterBefore?.(f); return result;
       }, page: { evaluate: async (callback, input) => { metadataCount++; return run(callback, input, true); } } },
     sample: () => observeWolfChoiceActor(f.surface, sample => diagnostics.push(sample)),
   };
@@ -200,14 +200,19 @@ for (const kind of ['absent','null','malformed']) test(`real ${kind} berth/disco
   assert.equal(JSON.stringify(f.diagnostics).includes('malformed-private-value'), false);
 });
 
-for (const name of ['Auth','SID','hydration','assignment','generation']) test(`original ${name} drift inside the sample still rejects after retaining the observed tuple`, async () => {
-  const f = fixture({ afterMetadata: f => {
+for (const name of ['Auth','SID','hydration','assignment','generation']) test(`original ${name} drift still rejects at its existing identity or next held guard`, async () => {
+  let drift = false;
+  const f = fixture({ afterBefore: f => {
+    if (drift && ['hydration','generation'].includes(name)) f.store.setState(sourceChanges[name](f.store.getState()));
+  }, afterMetadata: f => {
+    if (!drift || ['hydration','generation'].includes(name)) return;
     if (name === 'Auth') f.setAuth('private-foreign-auth');
     else f.store.setState(sourceChanges[name === 'SID' ? 'session' : name](f.store.getState()));
   } });
-  await assert.rejects(f.sample(), /Original combat|sameActor/);
-  assert.equal(f.diagnostics.length, 1, 'Retain only the sample actually observed before the original after-check rejection.');
-  assert.deepEqual(f.counts(), { observeCount: 2, metadataCount: 1, storeReads: 3 });
+  const original = await f.sample(); drift = true;
+  await assert.rejects(f.sample().then(current => assertWolfChoiceActor(current, original)), /Original combat|sameActor/);
+  assert.equal(f.diagnostics.length, 2, 'Retain only the tuples actually observed at the two existing checkpoints.');
+  assert.deepEqual(f.counts(), { observeCount: 4, metadataCount: 2, storeReads: 6 });
 });
 
 test('the actual browser callback has only its original awaited store import', async () => {

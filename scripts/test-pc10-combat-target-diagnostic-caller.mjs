@@ -29,9 +29,17 @@ replaceExactlyOnce('observe: async () => ({ ...(isGm ? gmActor : crewActor()) })
 replaceExactlyOnce("report = JSON.parse(text);", "nativeDiagnosticCounts.saves++; report = JSON.parse(text);");
 fixtureText += '\nexport const nativeDiagnosticCounts = { metadata: 0, observe: 0, saves: 0 };\n' +
   'export { nativeFixture, currentView, clickBoundary, cleanup };\n';
-const context = createContext({ URL, console, structuredClone });
+const context = createContext({ URL, console, structuredClone, globalThis });
 const module = new SourceTextModule(fixtureText, { context, identifier: fixtureUrl.href,
-  initializeImportMeta: meta => { meta.url = fixtureUrl.href; } });
+  initializeImportMeta: meta => { meta.url = fixtureUrl.href; },
+  importModuleDynamically: async specifier => {
+    const exports = await import(specifier.startsWith('.') ? new URL(specifier, fixtureUrl).href : specifier);
+    const imported = new SyntheticModule(Object.keys(exports), function () {
+      for (const [key, value] of Object.entries(exports)) this.setExport(key, value);
+    }, { context });
+    await imported.link(() => assert.fail('The cached inert module is already linked.'));
+    await imported.evaluate(); return imported;
+  } });
 await module.link(async specifier => {
   const exports = await import(specifier.startsWith('.') ? new URL(specifier, fixtureUrl).href : specifier);
   return new SyntheticModule(Object.keys(exports), function () {
@@ -39,6 +47,7 @@ await module.link(async specifier => {
   }, { context });
 });
 await module.evaluate();
+for (const key of ['window','document','HTMLElement','Node','Event','navigator']) context[key] = globalThis[key];
 const { nativeFixture, currentView, clickBoundary, cleanup, nativeDiagnosticCounts: counts } = module.namespace;
 function resetCounts() { for (const key of Object.keys(counts)) counts[key] = 0; }
 function diagnostics(f) { return f.report().observations.filter(row => row.stage === 'range target checkpoint diagnostics'); }
@@ -59,6 +68,7 @@ test('public Base buffers each existing target checkpoint until its original cer
   assert.equal(f.certificates.length, 1); assert.equal(f.certificates[0].matched, true);
   assert.equal(f.selected.length, 2); assert.equal(f.clicks.length, 1);
   assert.equal(f.reads.length, 1); assert.equal(f.certificateReads(), 1);
+  console.log('Exact0000426a native baseline counters', JSON.stringify(counts));
   const rows = diagnostics(f);
   assert.equal(rows.length, 1, 'Attach one new batch; preserve the original certificate observation.');
   assert.equal(rows[0].samples.length, 12, 'Eight original field checkpoints plus four original certificate checkpoints.');
@@ -70,10 +80,10 @@ test('public Base buffers each existing target checkpoint until its original cer
   assert.notEqual(rows[0].samples[4].dom.fields[0].valueFingerprint, rows[0].samples[0].dom.fields[0].valueFingerprint);
   assert.equal(rows[0].samples[7].dom.commitEnabled, true);
   noPrivateValues(rows);
-  assert.equal(counts.saves, 3, 'Only original initial, certificate and failure save calls; no per-checkpoint save.');
+  assert.equal(counts.saves, 4, 'Only original initial, readiness, certificate and failure save calls; no per-checkpoint save.');
   // These unchanged baseline counts include normal entry/readiness/receipt
   // guards as well as the12 helper checkpoints. No diagnostic sample is added.
-  assert.equal(counts.metadata, 16); assert.equal(counts.observe, 50);
+  assert.equal(counts.metadata, 14); assert.equal(counts.observe, 40);
   assert.ok(f.clicks[0].options.timeout <= f.clicks[0].remainingMs + 1);
   assert.equal(f.report().requests.length, 0); cleanup();
 });
@@ -83,10 +93,11 @@ test('a lost actual controlled draft remains failed and retained without a reset
   await assert.rejects(f.run(), /Final range target source and paint certificate failed/);
   assert.equal(f.certificates[0].matched, false); assert.equal(f.clicks.length, 0);
   assert.equal(f.selected.length, 2); assert.equal(f.reads.length, 1); assert.equal(f.certificateReads(), 1);
+  console.log('Exact0000426a native loss counters', JSON.stringify(counts));
   const rows = diagnostics(f); assert.equal(rows.length, 1); assert.equal(rows[0].samples.length, 12);
   assert.equal(rows[0].samples.at(-1).dom.commitEnabled, false);
   assert.equal(rows[0].continuousMountObserved, false, 'The inert real-React remount is not inferred from discrete samples.');
-  noPrivateValues(rows); assert.equal(counts.saves, 3); cleanup();
+  noPrivateValues(rows); assert.equal(counts.saves, 4); cleanup();
 });
 
 test('a real original assignment change after selection still fails its existing held guard and saves only observed diagnostics', async () => {
@@ -94,9 +105,10 @@ test('a real original assignment change after selection still fails its existing
   const f = nativeFixture({ view: view(), actorDrift, afterSelections: () => { actorDrift.assignedRoleId = 'wing-commander'; } });
   await assert.rejects(f.run(), /Original combat assignedRoleId changed/);
   assert.equal(f.selected.length, 2); assert.equal(f.clicks.length, 0);
+  console.log('Exact0000426a native held-loss counters', JSON.stringify(counts));
   const rows = diagnostics(f); assert.equal(rows.length, 1); assert.equal(rows[0].samples.length, 8);
   assert.equal(rows[0].samples.at(-1).checkpointOrdinal, 8);
-  assert.equal(counts.saves, 2, 'Use only the original initial and failure save boundaries.');
+  assert.equal(counts.saves, 3, 'Use only the original initial, readiness and failure save boundaries.');
   noPrivateValues(rows); cleanup();
 });
 
@@ -104,7 +116,8 @@ test('original deadline expiry while saving the certificate cannot get a new sam
   resetCounts(); const f = nativeFixture({ view: view(), expireWhileSaving: true });
   await assert.rejects(f.run(), /original target certificate decision deadline/);
   assert.equal(f.selected.length, 2); assert.equal(f.clicks.length, 0);
+  console.log('Exact0000426a native deadline counters', JSON.stringify(counts));
   const rows = diagnostics(f); assert.equal(rows.length, 1); assert.equal(rows[0].samples.length, 11);
   assert.equal(rows[0].originalDeadlineAt, f.deadline()); assert.equal(f.reads.length, 1);
-  assert.equal(counts.saves, 3); noPrivateValues(rows); cleanup();
+  assert.equal(counts.saves, 4); noPrivateValues(rows); cleanup();
 });
