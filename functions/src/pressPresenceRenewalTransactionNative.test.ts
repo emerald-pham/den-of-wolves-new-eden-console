@@ -430,6 +430,10 @@ describe('current original Press lease uses read-only exclusivity plus atomic po
 
   it.each([
     ['generation', () => change(playerPath, { connectionGeneration: 4 })],
+    ['UID tuple', () => change(playerPath, { uid: 'foreign-player' })],
+    ['SID tuple', () => change(playerPath, { sessionId: 'foreign-session' })],
+    ['escape marker', () => change(playerPath, { escapeState: { status: 'required' } })],
+    ['closed phase', () => change(sessionPath, { phase: 'closed' })],
     ['disconnected', () => change(playerPath, { connected: false })],
     ['kick', () => change(playerPath, { kickedAt: mock.Timestamp.now() })],
     ['replacement', () => change(playerPath, { replacementStatus: 'pending' })],
@@ -455,6 +459,28 @@ describe('current original Press lease uses read-only exclusivity plus atomic po
     if (kind === 'missing-membership') mock.documents.delete(membershipPath);
     expect(await renew()).toEqual({ sessionId: sid }); assertFullReconciliation();
     expect(mock.transactionTraces.filter(t => !t.readOnly && t.writes.includes(playerPath)).length).toBe(1);
+  });
+
+  it('does not renew an expired legacy actor after fallback queries', async () => {
+    await originalCurrentPressTable(); const actor = { ...read(playerPath) }; delete actor.connectionGeneration; put(playerPath, actor);
+    mock.setAfterPlayerQuery(() => vi.setSystemTime(completedAtMs));
+    await expect(renew()).rejects.toMatchObject({ code: 'permission-denied' }); assertNoRenewal();
+  });
+
+  it('retains canonical exclusivity when another ordinary actor attempts Press during preflight', async () => {
+    await originalCurrentPressTable(); const uid = 'native-competing-press';
+    mock.setAfterReadOnlyTransaction(async () => {
+      put(`sessions/${sid}/players/${uid}`, { uid, sessionId: sid, displayName: uid, role: 'player',
+        connected: true, connectionGeneration: 1, activeConsoleRoleId: null, assignedRoleId: null,
+        seatId: null, replacementStatus: null, lastSeenAt: mock.Timestamp.now() });
+      put(`activeMemberships/${uid}`, { sessionId: sid, connectedAt: mock.Timestamp.now() });
+      await expect(refreshPresence.run(request(uid, { sessionId: sid, activeConsoleRoleId: 'press-officer' })))
+        .rejects.toMatchObject({ code: 'already-exists' });
+    });
+    expect(await renew()).toEqual({ sessionId: sid }); assertPointRenewal();
+    expect(read(sessionPath)?.pressHolderUid).toBe(pressUid);
+    expect(read(`sessions/${sid}/players/${uid}`)?.activeConsoleRoleId).toBe(null);
+    expect(read(`sessions/${sid}/secrets/foreign-native-private`)?.privateMarker).toBe('FOREIGN_PRIVATE_DATA');
   });
 
   it('keeps duplicate current Press markers on original authority cleanup', async () => {
