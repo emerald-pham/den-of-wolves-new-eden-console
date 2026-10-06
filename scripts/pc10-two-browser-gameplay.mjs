@@ -45,9 +45,13 @@ export function createTwoBrowserGameplay(context) {
         const { useSessionStore } = await import(moduleUrl);
         const { auth } = await import('/src/lib/firebase.ts');
         const { activeDemoActorProfile } = await import('/src/lib/demoActorContext.ts');
+        const originalUser = auth().currentUser, originalUid = originalUser?.uid;
+        const uidHash = originalUser ? Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',
+          new TextEncoder().encode(originalUid)))).map(byte => byte.toString(16).padStart(2, '0')).join('').slice(0, 16) : null;
+        // The digest yields. Sample current member readiness afterward, and
+        // never pair a changed Auth identity with the original private hash.
         const snapshot = useSessionStore.getState(), me = snapshot.me, user = auth().currentUser;
-        const uidHash = user ? Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',
-          new TextEncoder().encode(user.uid)))).map(byte => byte.toString(16).padStart(2, '0')).join('').slice(0, 16) : null;
+        if (user?.uid !== originalUid) throw new Error('Original Auth UID changed during role navigation observation.');
         return { documentTimeOrigin: performance.timeOrigin,
           hasAuth: !!user, sameActor: !!user && user.uid === me?.uid, uidHash,
           profileRoleId: activeDemoActorProfile?.roleId ?? null,

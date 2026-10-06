@@ -98,10 +98,14 @@ export async function runFreshFullGameDemoUi(options = {}) {
         const { auth } = await import('/src/lib/firebase.ts');
         const { activeDemoActorProfile } = await import('/src/lib/demoActorContext.ts');
         const { useSessionStore } = await import(moduleUrl);
-        const state = useSessionStore.getState(), user = auth().currentUser;
+        const originalUid = auth().currentUser?.uid;
         const hash = async value => value ? Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))))
           .map(byte => byte.toString(16).padStart(2, '0')).join('').slice(0, 16) : null;
-        return { hasAuth: !!user, sameActor: !!user && state.me?.uid === user.uid, uidHash: await hash(user?.uid),
+        const uidHash = await hash(originalUid);
+        // Digest first so this observation's store and Auth tuple is current.
+        const state = useSessionStore.getState(), user = auth().currentUser;
+        if (user?.uid !== originalUid) throw new Error('Original Auth UID changed during full-game actor observation.');
+        return { hasAuth: !!user, sameActor: !!user && state.me?.uid === user.uid, uidHash,
           sessionId: state.session?.id ?? null, joinCode: state.session?.joinCode ?? null,
           cycle: state.session?.currentTurn ?? null, phase: state.session?.phase ?? null,
           announcementTurn: state.session?.turnStartAnnouncement?.turn ?? null,
