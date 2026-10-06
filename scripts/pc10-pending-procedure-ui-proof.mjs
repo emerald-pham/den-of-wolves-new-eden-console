@@ -177,9 +177,90 @@ function safeShuttleSourceDiagnostic(value) {
   return Object.fromEntries(SHUTTLE_SOURCE_DIAGNOSTIC_KEYS.map(key => [key, value[key]]));
 }
 
-function appendShuttleSourceDiagnostic(outcome, value) {
+function appendShuttleSourceDiagnostic(outcome, value, input) {
   const diagnostic = safeShuttleSourceDiagnostic(value);
-  if (diagnostic) outcome.sourceDiagnosticOnly = diagnostic;
+  if (diagnostic) {
+    if (input) appendShuttleCaptureTuple(outcome, diagnostic, input);
+    outcome.sourceDiagnosticOnly = diagnostic;
+  }
+  return outcome;
+}
+
+const SHUTTLE_CAPTURE_DIAGNOSTIC_ENDPOINTS = new Set(['requestShuttleDeparture', 'beginShuttleTransit',
+  'retargetShuttleTransit', 'completeShuttleArrival']);
+const SHUTTLE_CAPTURE_DIAGNOSTIC_STATES = new Set(['requested', 'in-transit', 'arrived']);
+
+function diagnosticRecord(value) {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function diagnosticRevision(value) {
+  return Number.isSafeInteger(value) && value >= 0 ? value : null;
+}
+
+function diagnosticIdHash(value) {
+  return typeof value === 'string' && value ? hashUid(value) : null;
+}
+
+function safeShuttleCaptureSource(value) {
+  const source = diagnosticRecord(value) ? value : null;
+  return { present: source !== null, isNull: value === null,
+    live: typeof source?.live === 'boolean' ? source.live : null,
+    sessionHash: diagnosticIdHash(source?.sessionId), cycle: diagnosticRevision(source?.cycle),
+    revision: diagnosticRevision(source?.revision), groupHash: diagnosticIdHash(source?.groupId) };
+}
+
+function safeShuttleCaptureAuthority(value) {
+  const authority = diagnosticRecord(value) ? value : null;
+  return { present: authority !== null, isNull: value === null,
+    uidHash: /^[0-9a-f]{16}$/.test(authority?.uidHash ?? '') ? authority.uidHash : null,
+    groupHash: diagnosticIdHash(authority?.groupId), roleHash: diagnosticIdHash(authority?.roleId),
+    connectionGeneration: diagnosticRevision(authority?.connectionGeneration),
+    identityHydrationRevision: diagnosticRevision(authority?.identityHydrationRevision),
+    documentTimeOriginHash: Number.isFinite(authority?.documentTimeOrigin) && authority.documentTimeOrigin > 0
+      ? hash(authority.documentTimeOrigin) : null,
+    audienceHash: /^[0-9a-f]{64}$/.test(authority?.audienceHash ?? '') ? authority.audienceHash : null,
+    authorityHash: /^[0-9a-f]{64}$/.test(authority?.authorityHash ?? '') ? authority.authorityHash : null,
+    shuttleAuthorized: typeof authority?.shuttleAuthorized === 'boolean' ? authority.shuttleAuthorized : null };
+}
+
+function safeShuttleCaptureMovement(value) {
+  const movement = diagnosticRecord(value) ? value : null;
+  return { present: movement !== null, isNull: value === null,
+    exists: typeof movement?.exists === 'boolean' ? movement.exists : null,
+    state: SHUTTLE_CAPTURE_DIAGNOSTIC_STATES.has(movement?.status) ? movement.status : null,
+    sessionHash: diagnosticIdHash(movement?.sessionId), requestHash: diagnosticIdHash(movement?.requestId),
+    transitRequestHash: diagnosticIdHash(movement?.transitRequestId), shuttleHash: diagnosticIdHash(movement?.shuttleId),
+    holderUidHash: /^[0-9a-f]{16}$/.test(movement?.holderUidHash ?? '') ? movement.holderUidHash : null,
+    groupHash: diagnosticIdHash(movement?.groupId), destinationHash: diagnosticIdHash(movement?.destinationShipId),
+    cycle: diagnosticRevision(movement?.cycle), controlRevision: diagnosticRevision(movement?.controlRevision),
+    revision: diagnosticRevision(movement?.revision) };
+}
+
+function safeShuttleCaptureTuple(input) {
+  const endpoint = typeof input?.caseId === 'string' && input.caseId.startsWith('core:')
+    ? input.caseId.slice('core:'.length) : null;
+  if (!SHUTTLE_CAPTURE_DIAGNOSTIC_ENDPOINTS.has(endpoint) ||
+      input.expected?.shuttleId === PRESS_SHUTTLE_ID) return null;
+  const arrival = endpoint === 'completeShuttleArrival';
+  return { kind: 'pc10-shuttle-capture-tuple-v1', zeroCredit: true,
+    before: {
+      source: safeShuttleCaptureSource(input.sourceBefore),
+      documentAuthority: safeShuttleCaptureAuthority(input.sourceAuthorityBefore ??
+        (arrival ? input.arrival?.authorityBefore : undefined)),
+      movement: safeShuttleCaptureMovement(input.transitionBefore ?? (arrival ? input.arrival?.before : undefined)),
+    },
+    after: {
+      source: safeShuttleCaptureSource(input.sourceAfter),
+      documentAuthority: safeShuttleCaptureAuthority(input.sourceAuthorityAfter ??
+        (arrival ? input.arrival?.authorityAfter : undefined)),
+      movement: safeShuttleCaptureMovement(input.transitionAfter ?? (arrival ? input.response?.result : undefined)),
+    } };
+}
+
+function appendShuttleCaptureTuple(outcome, diagnostic, input) {
+  const tuple = safeShuttleCaptureTuple(input);
+  if (diagnostic && tuple) diagnostic.captureTuple = tuple;
   return outcome;
 }
 
@@ -1645,7 +1726,8 @@ export async function captureMountedProcedureAction({ context, game, caseId, exp
   } finally {
     surface.page.off('request', beforeMountedClick);
   }
-  const keepSourceDiagnostic = outcome => appendShuttleSourceDiagnostic(outcome, action?.sourceDiagnosticOnly);
+  const keepSourceDiagnostic = (outcome, input) => appendShuttleSourceDiagnostic(outcome,
+    action?.sourceDiagnosticOnly, input);
   if (preClickActionRequest) return keepSourceDiagnostic(pending(spec,
     'matching-action-callable-post-preceded-the-mounted-control-click'));
   if (action?.offered !== true || typeof action.click !== 'function' && typeof action.observe !== 'function') {
@@ -1734,11 +1816,11 @@ export async function captureMountedProcedureAction({ context, game, caseId, exp
   if (deferEvaluation) {
     const deferred = pending(spec, 'single-shot-write-grant-awaits-the-mounted-lock-and-ui-revoke');
     Object.defineProperty(deferred, PRIVATE_CAPTURE_INPUT, { value: proofInput });
-    return keepSourceDiagnostic(deferred);
+    return keepSourceDiagnostic(deferred, proofInput);
   }
   const proof = evaluateProcedureCapture(proofInput);
   if (spec.endpoint === 'setShipConsoleLock') Object.defineProperty(proof, PRIVATE_CAPTURE_INPUT, { value: proofInput });
-  return keepSourceDiagnostic(proof);
+  return keepSourceDiagnostic(proof, proofInput);
 }
 
 async function runCasesAtCheckpoint({ family, cases, checkpoint, context, steps, gameFactory, directory,
