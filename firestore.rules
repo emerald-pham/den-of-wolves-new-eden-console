@@ -984,7 +984,8 @@ service cloud.firestore {
       // selected-player projections. They never enter the public event feed.
       match /facilitatorRuleCalls/{documentId} {
         allow get: if documentId == 'gm-current' && isGm(sessionId) &&
-          resource.data.type == 'facilitator-rule-call' && resource.data.sessionId == sessionId
+          (resource == null ||
+            (resource.data.type == 'facilitator-rule-call' && resource.data.sessionId == sessionId))
           || (documentId == 'recipient-' + uid() &&
             ((resource == null && isEligibleFacilitatorRuleRecipient(sessionId, uid())) ||
               isCurrentFacilitatorRuleCall(sessionId, uid())))
