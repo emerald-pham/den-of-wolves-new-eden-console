@@ -132,7 +132,7 @@ function memberHarness(endpoint, { initialState = rawState(endpoint), roleId = R
     clickCount: () => clicks };
 }
 
-function resultAndRequest(endpoint, expected, transitionBefore, transitionAfter) {
+function resultAndRequest(endpoint) {
   const requestId = `${endpoint}-request`;
   if (endpoint === 'evacuateShuttleSurvivorsCommand') {
     const request = { sessionId: SESSION, requestId, shuttleId: SHUTTLE, destinationShipId: DESTINATION,
@@ -216,7 +216,7 @@ test('post-action cargo receipt carries the actual current member group and unch
   after.session.shipResources[HOST].food = 4;
   after.session.shuttleCargo[SHUTTLE].food = 1;
   harness.setState(after);
-  const { request, result } = resultAndRequest(endpoint, recipe.expected, prepared.transitionBefore);
+  const { request, result } = resultAndRequest(endpoint);
   harness.setVisibleStatus('Cargo loaded.');
   const inspected = await recipe.inspect({ surface: harness.player, result, request });
   assert.equal(inspected.sourceAfter.live, true);
@@ -270,7 +270,7 @@ test('post-inspect member source and command receipts stay bound for all three m
     await prepared.click();
 
     harness.setState(committedSourceState(endpoint));
-    const { request, result } = resultAndRequest(endpoint, recipe.expected, prepared.transitionBefore);
+    const { request, result } = resultAndRequest(endpoint);
     harness.setVisibleStatus(endpoint === 'evacuateShuttleSurvivorsCommand' ? 'Moved 100 survivors.'
       : endpoint === 'rechargeHostConsoleFromShuttle' ? 'Host console recharged.' : 'Cargo loaded.');
     const inspected = await recipe.inspect({ surface: harness.player, result, request });
@@ -302,7 +302,7 @@ test('post-inspect member-scope or document-authority drift remains pending for 
     await prepared.click();
 
     harness.setState(rawState(endpoint, patch));
-    const { request, result } = resultAndRequest(endpoint, recipe.expected, prepared.transitionBefore);
+    const { request, result } = resultAndRequest(endpoint);
     harness.setVisibleStatus(endpoint === 'evacuateShuttleSurvivorsCommand' ? 'Moved 100 survivors.'
       : endpoint === 'rechargeHostConsoleFromShuttle' ? 'Host console recharged.' : 'Cargo loaded.');
     const inspected = await recipe.inspect({ surface: harness.player, result, request });
