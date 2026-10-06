@@ -377,6 +377,7 @@ it('a legacy already-active stable Press heartbeat is not a new claim or optiona
 
 it('an ordinary core claim does not acquire the Press-only canonical status write', async () => {
   await join(); Object.assign(actor(), { assignedRoleId: 'admiral', seatId: 'admiral' });
+  Object.assign(mock.documents.get('sessions/s1/seats/admiral')!, { status: 'claimed', holderUid: UID });
   await expect(refreshPresence.run(request({ sessionId: 's1', activeConsoleRoleId: 'admiral' })))
     .resolves.toEqual({ sessionId: 's1' });
   expect(actor().activeConsoleRoleId).toBe('admiral');
