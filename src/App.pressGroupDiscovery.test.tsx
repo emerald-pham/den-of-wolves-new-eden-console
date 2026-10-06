@@ -262,14 +262,14 @@ async function joinedPress() {
     session: { currentActorBerthAuthority: null,
       memberSessionScope: { groupId: 'fleet-1', vesselIds: [], craftIds: ['snn-press-shuttle'] } } });
 }
-async function sourceDiscovery(change: Record<string, unknown> = {}) {
+async function sourceDiscovery(change: Record<string, unknown> = {}, retiredReader?: Listener) {
   const { playerDiscoveryProjection } = await import('../functions/src/navigationProjection');
   const projection = playerDiscoveryProjection({ get: (key: string) => actor[key as keyof Player] }, {
     shipGalacticCoordinates: { 'refinery-124': '1413' }, shipNavigationLogs: {}, pursuitGroups: { 'fleet-1': 2 },
   }, 4, ['refinery-124']);
   expect(projection).not.toHaveProperty('shipId');
   expect(projection).not.toHaveProperty('currentCoordinate');
-  const reader = listeners.filter(value => value.active && value.path === `${rootPath()}/playerDiscoveries/${actor.uid}`).at(-1)!;
+  const reader = retiredReader ?? listeners.filter(value => value.active && value.path === `${rootPath()}/playerDiscoveries/${actor.uid}`).at(-1)!;
   act(() => reader.next(snapshot(reader.path, { ...projection, ...change })));
   await advance();
 }
@@ -348,7 +348,8 @@ describe('ordinary original Press receives only current own group metadata', () 
     ['disconnected', { connected: false }], ['kicked', { kickedAt: 'now' }],
   ] as const)('withdraws a prior group projection on current actor %s', async (_label, change) => {
     await joinedPress(); await sourceDiscovery();
-    await deliverPlayer({ ...actor, ...change }); await sourceDiscovery(); expectWithdrawn();
+    const reader = listeners.filter(value => value.active && value.path === `${rootPath()}/playerDiscoveries/${actor.uid}`).at(-1)!;
+    await deliverPlayer({ ...actor, ...change }); await sourceDiscovery({}, _label === 'kicked' ? reader : undefined); expectWithdrawn();
   });
 
   it.each(['foreign', 'missing'] as const)('cannot retain or accept under %s original Auth', async kind => {
@@ -383,4 +384,3 @@ describe('ordinary original Press receives only current own group metadata', () 
     await advance(); expect(useSessionStore.getState().session).toBeNull();
   });
 });
-
