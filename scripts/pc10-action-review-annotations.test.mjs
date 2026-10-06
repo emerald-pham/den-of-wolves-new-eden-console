@@ -101,7 +101,7 @@ test('review annotations preserve the canonical matrix and anchor each concrete 
       assert.equal(byName.get(name).classification, 'legacy/deprecated-internal-compatibility');
       assert.equal(byName.get(name).productPath.servedAlternative.callable, 'commitWolfEscortRangeActionChoice');
     }
-    for (const name of ['setShipPreference', 'elevateToGm', 'rollDice']) {
+    for (const name of ['elevateToGm', 'rollDice']) {
       assert.equal(byName.get(name).classification, 'external/manual-only');
       assert.equal(byName.get(name).clientCallTrace.status, 'no-current-client-call-found');
     }
@@ -114,6 +114,82 @@ test('review annotations preserve the canonical matrix and anchor each concrete 
     assert.equal(canonical.accounting.roles, 42);
     assert.ok(canonical.actions.every(row => row.roleEligibility.every(cell => cell.status === 'unresolved')));
     assert.ok(canonical.actions.every(row => row.evidence.currentFreshGameProof === 'pending'));
+  } finally {
+    rmSync(temporaryDirectory, { recursive: true, force: true });
+  }
+});
+
+test('historical snapshot retains the prior ship preference classification for audit', () => {
+  const historicalPath = join(repositoryDirectory,
+    'docs/history/PC10_ACTION_REVIEW_ANNOTATIONS_20_reviewed_rows_212_unreviewed.json');
+  const historical = JSON.parse(readFileSync(historicalPath, 'utf8'));
+  const row = historical.annotations.find((annotation) =>
+    annotation.exportName === 'setShipPreference');
+
+  assert.equal(row.classification, 'external/manual-only');
+  assert.equal(row.clientCallTrace.status, 'no-current-client-call-found');
+  assert.equal(row.productPath.status, 'no-current-client-control-found');
+});
+
+test('current ship preference review follows its mounted casting panel and adapter', () => {
+  const temporaryDirectory = mkdtempSync(join(tmpdir(), 'pc10-ship-preference-review-'));
+  try {
+    const outputPath = join(temporaryDirectory, 'annotations.json');
+    const generated = spawnSync(process.execPath, [
+      join(repositoryDirectory, 'scripts/pc10-action-review-annotations.mjs'), outputPath,
+    ], { cwd: repositoryDirectory, encoding: 'utf8' });
+    assert.equal(generated.status, 0, generated.stderr || generated.stdout);
+
+    const artifact = JSON.parse(readFileSync(outputPath, 'utf8'));
+    const row = artifact.annotations.find((annotation) =>
+      annotation.exportName === 'setShipPreference');
+    const anchors = new Map(artifact.sourceAnchors.map((anchor) => [anchor.id, anchor]));
+    const references = row.clientCallTrace.clientSourceReferences;
+    const classification = artifact.exportClassification.rows.find((entry) =>
+      entry.exportName === 'setShipPreference');
+
+    assert.equal(row.classification, 'served-ui-path');
+    assert.equal(row.productPath.status, 'served-ui-path');
+    assert.equal(row.productPath.currentSurface,
+      'SessionMode CastingPreferencePanel optional nonbinding ship preference');
+    assert.equal(row.productPath.currentMount,
+      'src/App.tsx → SessionMode → CastingPreferencePanel');
+    assert.equal(row.productPath.invocation,
+      'CastingPreferencePanel → submitShipPreference → setShipPreference callable');
+    assert.match(row.actor.family, /current connected active player.*lobby or casting/i);
+    assert.match(row.requirements.summary, /lobby or casting/i);
+    assert.match(row.requirements.summary, /active.roster vessel/i);
+    assert.match(row.requirements.summary, /fresh server snapshot/i);
+    assert.match(row.costs.summary, /no game resource or action slot/i);
+    assert.match(row.consequences.summary, /nonbinding shipPreferenceId/i);
+    assert.match(row.consequences.summary, /does not assign a vessel/i);
+    assert.match(row.blockers.summary, /disconnected player/i);
+    assert.match(row.blockers.summary, /locked setup/i);
+    assert.match(row.blockers.summary, /active roster/i);
+    assert.match(row.nextActor.summary, /GM decides assignments and any tie-breaks/i);
+    assert.equal(row.clientCallTrace.status, 'current-ui-service-call');
+    assert.ok(row.clientCallTrace.identifierReferenceCount > 0);
+    assert.ok(row.clientCallTrace.exactQuotedReferenceCount > 0);
+    assert.ok(references.identifierOccurrences.some((reference) =>
+      reference.path === 'src/components/CastingPreferencePanel.tsx' &&
+      reference.matchedSymbol === 'submitShipPreference'));
+    assert.ok(references.quotedOccurrences.some((reference) =>
+      reference.path === 'src/lib/sessionService.ts'));
+    assert.equal(row.guidance.status, 'current-casting-preference-guidance');
+    assert.match(row.guidance.summary, /optional, nonbinding/i);
+    assert.match(row.guidance.summary, /GM decides assignments and any tie-breaks/i);
+    assert.ok(classification.clientTrace.importChainsToApp.some((chain) =>
+      chain.join(' → ') ===
+        'src/components/CastingPreferencePanel.tsx → src/routes/SessionMode.tsx → src/App.tsx'));
+    assert.equal(anchors.get('preference.handler').symbol, 'setShipPreference');
+    assert.equal(anchors.get('preference.client').symbol, 'submitShipPreference');
+    assert.equal(anchors.get('preference.ui').path, 'src/components/CastingPreferencePanel.tsx');
+    assert.equal(anchors.get('preference.route').path, 'src/routes/SessionMode.tsx');
+    assert.equal(anchors.get('preference.appMount').symbol, 'AppRoutes');
+    assert.equal(classification.sourceClassification, 'served-ui-path');
+    assert.equal(artifact.coverageAccounting.callableRoleCellsReviewed, 0);
+    assert.equal(artifact.coverageAccounting.gameplayAcceptanceCredit, 0);
+    assert.equal(artifact.sourceBinding.runtimeChecks, 'not run');
   } finally {
     rmSync(temporaryDirectory, { recursive: true, force: true });
   }
