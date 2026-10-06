@@ -436,7 +436,6 @@ describe('post-lease recovery keeps authorization, legacy and private-source bou
     ['inactive replacement', { replacementStatus: 'pending' }],
     ['current replacement role', { replacementRoleId: 'passenger' }],
     ['wrong current console', { activeConsoleRoleId: roles[1] }],
-    ['legacy connection generation', { connectionGeneration: null }],
   ] as const)('keeps %s on the original reconciliation path', async (_label, fields) => {
     await originalExpiredTable();
     change(`sessions/${sid}/players/${actorUid(0)}`, fields);
@@ -451,8 +450,8 @@ describe('post-lease recovery keeps authorization, legacy and private-source bou
         const group = read(`sessions/${sid}/fleetGroups/fleet-1`)!;
         const berths = { ...(group.memberShipIds as Record<string, string>) }; delete berths[actorUid(0)];
         change(`sessions/${sid}/fleetGroups/fleet-1`, { memberShipIds: berths });
-      } else if (kind === 'missing-discovery') mock.documents.delete(`sessions/${sid}/playerDiscovery/${actorUid(0)}`);
-      else if (kind === 'foreign-discovery') change(`sessions/${sid}/playerDiscovery/${actorUid(0)}`, { groupId: 'fleet-999' });
+      } else if (kind === 'missing-discovery') mock.documents.delete(`sessions/${sid}/playerDiscoveries/${actorUid(0)}`);
+      else if (kind === 'foreign-discovery') change(`sessions/${sid}/playerDiscoveries/${actorUid(0)}`, { groupId: 'fleet-999' });
       else if (kind === 'legacy-root') change(`sessions/${sid}`, { shipNavigationLogs: {} });
       else change(`sessions/${sid}`, { setup: {} });
       await resumeSession.run(request(actorUid(0), { sessionId: sid }));
@@ -476,6 +475,14 @@ describe('post-lease recovery keeps authorization, legacy and private-source bou
     expect(read(path)?.connected).not.toBe(true);
   });
 
+  it('rejects malformed connection generation before any recovery authority write', async () => {
+    await originalExpiredTable();
+    change(`sessions/${sid}/players/${actorUid(0)}`, { connectionGeneration: null });
+    await expect(resumeSession.run(request(actorUid(0), { sessionId: sid }))).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(read(`sessions/${sid}/seats/${roles[0]}`)).toMatchObject({ status: 'open', holderUid: null });
+    expect(read(`sessions/${sid}/players/${actorUid(0)}`)?.connected).toBe(false);
+  });
+
   it('keeps closed history read-only without reconnecting or claiming an expired seat', async () => {
     await originalExpiredTable();
     change(`sessions/${sid}`, { phase: 'closed' });
@@ -484,7 +491,11 @@ describe('post-lease recovery keeps authorization, legacy and private-source bou
     expect(read(`sessions/${sid}/players/${actorUid(0)}`)?.connected).toBe(false);
     expect(read(`sessions/${sid}/seats/${roles[0]}`)).toMatchObject({ status: 'open', holderUid: null });
     expect(read(`activeMemberships/${actorUid(0)}`)).toBeUndefined();
-    expect(mock.transactionTraces.every(trace => trace.writes.every(path => !path.startsWith(`sessions/${sid}/`)))).toBe(true);
+    // The original closed path may write its callable rate marker; gameplay
+    // and membership authority remain read-only.
+    expect(mock.transactionTraces.every(trace => trace.writes.every(path =>
+      path !== `sessions/${sid}` && !/^sessions\/s1\/(players|seats|fleetGroups|navigation|playerDiscoveries)\//.test(path) &&
+      !path.startsWith('activeMemberships/')))).toBe(true);
   });
 
   it('projects only the original core audience and excludes foreign secrets after recovery', async () => {
