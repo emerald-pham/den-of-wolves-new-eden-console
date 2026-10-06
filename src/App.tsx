@@ -430,6 +430,48 @@ function AppRoutes() {
     let playerProjectionFresh = false;
     let pendingPlayerDiscovery: PlayerDiscoveryProjection | null | undefined;
     let retainedGroupCandidateProjection: CurrentGroupCandidateRevealProjection | undefined;
+    const isPressAudience = (player: Player | null | undefined) =>
+      initialMember?.activeConsoleRoleId === 'press-officer' || player?.activeConsoleRoleId === 'press-officer';
+    const currentPressGroupDiscoveryMatches = (
+      current: GameSession, player: Player | null | undefined, projection: PlayerDiscoveryProjection,
+      requirePlayerFresh = true,
+    ) => {
+      const store = useSessionStore.getState();
+      const scope = current.memberSessionScope;
+      const control = current.shuttleControl?.['snn-press-shuttle'];
+      const controlKeys = ['shuttleId', 'ownerRoleId', 'ownerUid', 'holderUid', 'revision'];
+      return Boolean(callbackCurrent() && auth().currentUser?.uid === playerUid &&
+        store.identityHydrationRevision === identityHydrationRevision && identityHydrationRevision > 0 &&
+        store.session?.id === sessionId && current.id === sessionId && current.phase === 'active' &&
+        store.connection === 'live' && store.sessionSnapshotFreshness === 'server' &&
+        (!requirePlayerFresh || playerProjectionFresh) && initialMember?.uid === playerUid &&
+        initialMember.sessionId === sessionId && initialMember.role === 'player' &&
+        Number.isSafeInteger(initialMember.connectionGeneration) && (initialMember.connectionGeneration ?? 0) > 0 &&
+        player?.uid === playerUid && player.sessionId === sessionId && player.role === 'player' && player.connected === true &&
+        player.connectionGeneration === initialMember.connectionGeneration && player.fleetGroupId === initialMember.fleetGroupId &&
+        player.activeConsoleRoleId === 'press-officer' && player.assignedRoleId === null && player.seatId === null &&
+        player.replacementRoleId == null && player.replacementStatus == null && player.escapeState == null &&
+        Object.hasOwn(current, 'currentActorBerthAuthority') && current.currentActorBerthAuthority === null &&
+        current.pressEnabled !== false &&
+        scope && typeof scope.groupId === 'string' && /^fleet-[1-9][0-9]*$/.test(scope.groupId) &&
+        scope.groupId === player.fleetGroupId && scope.groupId === projection.groupId &&
+        Array.isArray(scope.vesselIds) && scope.vesselIds.length === 0 &&
+        Array.isArray(scope.craftIds) && scope.craftIds.length === 1 && scope.craftIds[0] === 'snn-press-shuttle' &&
+        control && Object.keys(control).length === controlKeys.length && Object.keys(control).every(key => controlKeys.includes(key)) &&
+        control.shuttleId === 'snn-press-shuttle' && control.ownerRoleId === 'press-officer' &&
+        control.ownerUid === playerUid && control.holderUid === playerUid &&
+        Number.isSafeInteger(control.revision) && control.revision >= 0 &&
+        projection.shipId === undefined && projection.currentCoordinate === undefined && projection.systemHistory === undefined &&
+        Number.isSafeInteger(projection.revision) && projection.revision >= 0 &&
+        Array.isArray(projection.fleetGroupVesselIds) &&
+        new Set(projection.fleetGroupVesselIds).size === projection.fleetGroupVesselIds.length);
+    };
+    // Press has no capital-ship berth. Its protected document supplies only
+    // current group metadata here; chart and candidate fields stay withheld.
+    const pressGroupMetadata = (projection: PlayerDiscoveryProjection): PlayerDiscoveryProjection => ({
+      groupId: projection.groupId, fleetGroupVesselIds: projection.fleetGroupVesselIds, revision: projection.revision,
+      knownCoordinates: [], knownSystems: {}, pursuitDistance: 0, navigationLogs: [],
+    });
     const withdrawCurrentActorBerth = () => {
       const store = useSessionStore.getState();
       const current = store.session;
@@ -563,6 +605,17 @@ function AppRoutes() {
         return;
       }
       const projection = pendingPlayerDiscovery;
+      if (isPressAudience(store.me)) {
+        retainedGroupCandidateProjection = undefined;
+        const next = stripNavigationProjection(current);
+        if (currentPressGroupDiscoveryMatches(current, store.me, projection)) {
+          store.setSession({ ...next, playerDiscovery: pressGroupMetadata(projection) });
+        } else {
+          pendingPlayerDiscovery = undefined;
+          store.setSession(next);
+        }
+        return;
+      }
       const requiresCandidateAuthority = projection.candidateReveals !== undefined;
       const hasCurrentBerthAuthority = Object.hasOwn(current, 'currentActorBerthAuthority');
       // Navigation remains an own-ship projection. Group candidate names need
@@ -613,6 +666,15 @@ function AppRoutes() {
       });
     };
     const unsubscribeAuthorityFreshness = useSessionStore.subscribe((state, previousState) => {
+      const pressDiscovery = state.session?.playerDiscovery;
+      if (callbackCurrent() && state.session && pressDiscovery && isPressAudience(state.me) &&
+          (!currentPressGroupDiscoveryMatches(state.session, state.me, pressDiscovery, false) ||
+            previousState.session?.playerDiscovery &&
+              previousState.session.shuttleControl?.['snn-press-shuttle']?.revision !== state.session.shuttleControl?.['snn-press-shuttle']?.revision)) {
+        pendingPlayerDiscovery = undefined;
+        retainedGroupCandidateProjection = undefined;
+        state.setSession(stripNavigationProjection(state.session));
+      }
       const wasFresh = previousState.connection === 'live' &&
         previousState.sessionSnapshotFreshness === 'server';
       const isFresh = state.connection === 'live' && state.sessionSnapshotFreshness === 'server';
@@ -854,7 +916,13 @@ function AppRoutes() {
             ? playerProjectionFresh && store.connection === 'live' && store.sessionSnapshotFreshness === 'server' &&
               current.playerDiscovery && currentActorBerthDiscoveryMatches(next, store.me, current.playerDiscovery)
             : !Object.hasOwn(current, 'currentActorBerthAuthority');
-          const ownNavigation = keepOwnNavigation ? current : stripOwnPlayerNavigation(current);
+          const keepPressGroup = isPressAudience(store.me) && current.playerDiscovery &&
+            currentPressGroupDiscoveryMatches(next, store.me, current.playerDiscovery) &&
+            current.shuttleControl?.['snn-press-shuttle']?.revision === next.shuttleControl?.['snn-press-shuttle']?.revision;
+          if (isPressAudience(store.me) && !keepPressGroup) pendingPlayerDiscovery = undefined;
+          const ownNavigation = keepPressGroup && current.playerDiscovery
+            ? { ...stripNavigationProjection(current), playerDiscovery: pressGroupMetadata(current.playerDiscovery) }
+            : keepOwnNavigation ? current : stripOwnPlayerNavigation(current);
           const composed = {
             ...next,
             ...(ownNavigation.playerDiscovery ? { playerDiscovery: ownNavigation.playerDiscovery } : {}),
@@ -966,6 +1034,8 @@ function AppRoutes() {
           if (playerAuthorityKey(next) !== listenerAuthorityKey) {
             store.setFacilitatorRuleCall(null);
           }
+          const keepPressGroup = store.session?.playerDiscovery && isPressAudience(previousPlayer) &&
+            currentPressGroupDiscoveryMatches(store.session, next, store.session.playerDiscovery);
           playerProjectionFresh = false;
           const currentCandidateProjection = store.session?.id === sessionId
             ? store.session.currentGroupCandidateReveals ?? retainedGroupCandidateProjection
@@ -976,7 +1046,7 @@ function AppRoutes() {
             ? currentCandidateProjection : undefined;
           hideCurrentGroupCandidateReveals();
           store.setMe(next);
-          if (store.session && !currentActorBerthMatches(store.session, next)) withdrawCurrentActorBerth();
+          if (!keepPressGroup && store.session && !currentActorBerthMatches(store.session, next)) withdrawCurrentActorBerth();
           if (previousWolfCultIdentity !== nextWolfCultIdentity || next.role !== 'player') {
             clearWolfCultIntelligence();
           }
