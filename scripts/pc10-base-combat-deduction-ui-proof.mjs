@@ -4,7 +4,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { createTwoBrowserGameplay } from './pc10-two-browser-gameplay.mjs';
 import { resolveLiveWolfAttack } from './pc10-live-wolf-attack-ui-proof.mjs';
 import { assertWolfChoiceActor, observeWolfChoiceActor } from './pc10-combat-choice-readiness.mjs';
-import { selectBaseRangeTargetControls } from './pc10-base-range-target-controls.mjs';
+import { certifyBaseRangeTargetControls, selectBaseRangeTargetControls } from './pc10-base-range-target-controls.mjs';
 import { assertBaseCombatPrerequisites, assertOriginalBaseActor, assertRequiredBaseBranches, baseMemberRowsMatch, baseWolfActionExpectation,
   BASE_COMBAT_CONTROL_LABELS, baseResearchPaintMatches, captureBaseUiReceipt,
   openingWolfCounts, openBaseEndeavourResearchRoute, originalRoleForUid, proofHash, uidHash, validatePrivateDeductionReply,
@@ -417,7 +417,17 @@ export async function runBaseCombatAndDeduction(context, options = {}) {
             deadlineAt: currentReadiness.deadlineAt,
             checkpoint: async () => assertWolfChoiceActor(await observeWolfChoiceActor(executive), currentReadiness.actor),
           });
-          await receiptForAttack(executive, 'assignWolfRangeTargets', () => commit.click(), { assignments }); return true;
+          await receiptForAttack(executive, 'assignWolfRangeTargets', async () => {
+            await certifyBaseRangeTargetControls({ panel, view, assignments, expected: currentReadiness.expected,
+              deadlineAt: currentReadiness.deadlineAt,
+              checkpoint: async () => assertWolfChoiceActor(await observeWolfChoiceActor(executive), currentReadiness.actor),
+              record: async certificate => { report.observations.push({ ...certificate,
+                roleId: currentReadiness.actor.profileRoleId, uidHash: currentReadiness.actor.uidHash }); await save(); },
+            });
+            const remainingMs = currentReadiness.deadlineAt - Date.now();
+            assert.ok(remainingMs > 0, 'Keep the original target certificate decision deadline before the single click.');
+            return commit.click({ timeout: Math.min(35_000, remainingMs) });
+          }, { assignments }); return true;
         }
       }
     }
