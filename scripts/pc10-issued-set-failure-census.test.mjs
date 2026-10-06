@@ -137,7 +137,7 @@ test('real whole transition retains the failed body gap but completes every orig
   const drain = f.harness.drains[0]; assert.equal(drain.outcome, 'failed'); assert.equal(drain.functionalQualification.allowed, true);
   const result = f.harness.assessment(); assert.equal(result.functionalStatus, 'PASSED'); assert.equal(result.strictTransportStatus, 'INCOMPLETE');
   assert.equal(result.instrumentationLimits[0].wireBodyStatus, 'UNINSPECTED');
-  assert.equal(f.client.observedCalls[0].bodyHash, null); assert.equal(f.client.callableObservationFailures.length, 1);
+  assert.equal(f.client.observedCalls[0].bodyCompletedAt, null); assert.equal(Object.hasOwn(f.client.observedCalls[0], 'bodyHash'), false); assert.equal(f.client.callableObservationFailures.length, 1);
   const native = f.client.callableObservationBoundaries.find(x => x.kind === 'issued-native-durable-drain');
   assert.equal(native.issuedNativeTransports, 2); assert.equal(native.outcome, 'failed'); assert.equal(native.completedAt - native.startedAt, 500);
   assert.ok(f.timerDurations.every(ms => ms === 10000));
