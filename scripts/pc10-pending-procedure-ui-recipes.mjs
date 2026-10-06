@@ -2484,9 +2484,20 @@ async function inspectMountedGmControl({ surface, request, result, spec, expecte
       state.gmFacilitatorRuleCall?.revision === expected.sourceRevision + 1, gmOperation);
     const reloaded = await reloadMountedGm(surface, expected, gmOperation);
     const panel = surface.page.getByRole('region', { name: 'Facilitator rule call', exact: true });
+    let reloadFormMounted = null;
+    let privateSourceObservation = null;
     if (await waitForMountedGmForm(surface, panel, gmOperation)) {
+      reloadFormMounted = true;
       reloaded.state = await waitForGmPrivateFeed(surface, gmOperation, state => {
         const call = state.gmFacilitatorRuleCall;
+        privateSourceObservation = {
+          privateCallPresent: call != null,
+          receiptIdentityMatches: call ? ['sessionId', 'callId', 'revision', 'audience', 'actorUid', 'label']
+            .every(key => call[key] === result[key]) && call.sessionId === expected.sessionId &&
+            call.callId === request.requestId && call.revision === expected.sourceRevision + 1 : null,
+          receiptBodyMatches: call ? ['ambiguity', 'source', 'decision'].every(key => call[key] === result[key]) : null,
+          sourceTimestampValid: call ? typeof call.createdAt === 'string' && Number.isFinite(Date.parse(call.createdAt)) : null,
+        };
         if (call === null) return 'loading';
         // The reply samples committedAt before the transaction; the stored
         // source independently resolves FieldValue.serverTimestamp().
@@ -2497,7 +2508,10 @@ async function inspectMountedGmControl({ surface, request, result, spec, expecte
           call.sessionId === expected.sessionId && call.callId === request.requestId &&
           call.revision === expected.sourceRevision + 1 ? 'ready' : 'invalid';
       });
-    } else reloaded.state = null;
+    } else {
+      reloadFormMounted = false;
+      reloaded.state = null;
+    }
     const projection = ruleCallProjection(reloaded.state, expected);
     await verifyGmOperation(surface, gmOperation);
     return {
@@ -2506,6 +2520,19 @@ async function inspectMountedGmControl({ surface, request, result, spec, expecte
         revision: reloaded.state?.gmFacilitatorRuleCall?.revision },
       rendered,
       afterReload: { actor: reloaded.actor, projection },
+      ...(committedState !== null && reloaded.state?.live === true && projection?.live === true ? {} : {
+        rulingFailureDiagnostic: {
+          committedStateObserved: committedState !== null,
+          reloadFormMounted,
+          reloadSourceAccepted: reloaded.state !== null,
+          privateSourceSampled: privateSourceObservation !== null,
+          privateCallPresent: privateSourceObservation?.privateCallPresent ?? null,
+          receiptIdentityMatches: privateSourceObservation?.receiptIdentityMatches ?? null,
+          receiptBodyMatches: privateSourceObservation?.receiptBodyMatches ?? null,
+          sourceTimestampValid: privateSourceObservation?.sourceTimestampValid ?? null,
+          replyTimestampValid: typeof result.createdAt === 'string' && Number.isFinite(Date.parse(result.createdAt)),
+        },
+      }),
     };
   }
   return {};
