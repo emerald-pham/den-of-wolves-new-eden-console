@@ -152,7 +152,7 @@ async function mount(options: { demo?: boolean; press?: boolean; gm?: boolean; l
         : serverSnapshot(ref.path, values[ref.path]) });
     } };
   const reader = createCurrentMemberSessionReader({ db: db as unknown as Parameters<typeof CreateMemberReader>[0]['db'],
-    projectSession: source => source.data() as Record<string, unknown> });
+    projectSession: (source, currentSid) => ({ ...source.data(), id: currentSid }) });
   readMember = () => reader({ ...(sdk.auth.currentUser ? { auth: sdk.auth.currentUser } : {}), data: { sessionId } });
   sdk.read.mockImplementation(ref => Promise.resolve(snapshot(ref.path, sessionData)));
   sdk.listen.mockImplementation((ref, _options, next, error) => {
@@ -213,7 +213,6 @@ async function mount(options: { demo?: boolean; press?: boolean; gm?: boolean; l
   expect(callCount('joinSession')).toBe(1);
   expect(useSessionStore.getState().session).toBeNull();
   const projection = await readMember();
-  const { sessionFrom } = await import('@/lib/firestore');
   const reply = await actualJoinReply();
   expect(reply.player).not.toHaveProperty('connected');
   expect(Object.hasOwn(projection.session as object, 'currentActorBerthAuthority')).toBe(false);
@@ -260,9 +259,8 @@ afterEach(async () => {
   vi.useRealTimers();
 });
 
-const sourceRoot = new URL('../', import.meta.url);
 const parsed = async (path: string) => ts.createSourceFile(path,
-  await readFile(new URL(path, sourceRoot), 'utf8'), ts.ScriptTarget.Latest, true,
+  await readFile(`${process.cwd()}/${path}`, 'utf8'), ts.ScriptTarget.Latest, true,
   path.endsWith('tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
 function only(source: ts.SourceFile, predicate: (node: ts.Node) => boolean, within: ts.Node = source) {
   const found: ts.Node[] = [];
