@@ -3,7 +3,7 @@ import { createHash, webcrypto } from 'node:crypto';
 import { createContext, Script, SyntheticModule } from 'node:vm';
 import test from 'node:test';
 import { createPendingProcedureDefaultSteps } from './pc10-pending-procedure-ui-recipes.mjs';
-import { GM_RULING_COUNTER_PROCEDURES } from './pc10-pending-procedure-ui-proof.mjs';
+import { GM_RULING_COUNTER_PROCEDURES, createPendingGmRulingsCountersCallbacks } from './pc10-pending-procedure-ui-proof.mjs';
 
 const steps = createPendingProcedureDefaultSteps();
 const specs = Object.fromEntries(GM_RULING_COUNTER_PROCEDURES.map(row => [row.endpoint, row]));
@@ -107,17 +107,18 @@ async function fixture(options = {}) {
           const note = fields[`Facilitator note for ${targetUid}`];
           raw.gmLoyaltyCensus.revision += 1; raw.gmLoyaltyCensus.entries[0].note = note;
           emit('setFacilitatorCensusNote', { requestId: 'native-census-receipt', targetUid, note,
-            expectedRevision: raw.gmLoyaltyCensus.revision - 1 }, { status: 'committed', sessionId,
-            requestId: 'native-census-receipt', targetUid, revision: raw.gmLoyaltyCensus.revision });
+            expectedRevision: raw.gmLoyaltyCensus.revision - 1 }, { sessionId,
+            targetUid, revision: raw.gmLoyaltyCensus.revision, note });
         } else if (name === 'Record rule call') {
           const revision = (raw.gmFacilitatorRuleCall?.revision ?? 0) + 1;
           raw.gmFacilitatorRuleCall = { sessionId, revision, callId: 'native-rule-receipt', actorUid: uid,
-            label: 'Facilitator rule call', ambiguity: fields['Question or ambiguity'],
-            source: fields['Source or reference'], decision: fields.Decision, audience: fields.Audience };
+            label: 'FACILITATOR RULE CALL', ambiguity: fields['Question or ambiguity'],
+            source: fields['Source or reference'], decision: fields.Decision, audience: fields.Audience,
+            createdAt: '2026-10-05T10:00:01.000Z' };
           emit('authorFacilitatorRuleCall', { requestId: 'native-rule-receipt', expectedRevision: revision - 1,
             ambiguity: fields['Question or ambiguity'], source: fields['Source or reference'],
-            decision: fields.Decision, audience: fields.Audience }, { status: 'committed', sessionId,
-            requestId: 'native-rule-receipt', revision, callId: 'native-rule-receipt' });
+            decision: fields.Decision, audience: fields.Audience }, { status: 'committed',
+            ...raw.gmFacilitatorRuleCall });
         } else if (name === 'ARE YOU SURE?') {
           raw.gmInstance.shipConsoleWriteGrant = { shipId: 'aegis' };
           emit('setGmShipConsoleWriteGrant', { shipId: 'aegis', enabled: true, claimedAt },
@@ -125,11 +126,13 @@ async function fixture(options = {}) {
         } else if (name === 'GM ship console read write access' && raw.gmInstance.shipConsoleWriteGrant) {
           raw.gmInstance.shipConsoleWriteGrant = null;
           emit('setGmShipConsoleWriteGrant', { shipId: 'aegis', enabled: false, claimedAt },
-            { shipId: 'aegis', enabled: false });
+            { enabled: false });
         } else if (name === 'Release ICN console lock') {
           raw.session.shipConsoleLocks.aegis = false; raw.session.vesselActionRevisions.aegis += 1;
           emit('setShipConsoleLock', { shipId: 'aegis', locked: false, expectedRevision: 3,
-            requestId: 'native-lock-receipt' }, { shipId: 'aegis', locked: false, revision: 4 });
+            requestId: 'native-lock-receipt' }, { shipId: 'aegis', locked: false, actorUid: uid,
+            actorRoleId: null, vesselId: 'aegis', turn: 1, phase: 'active', revision: 4,
+            idempotencyKey: 'native-lock-receipt', auditId: 'console-lock-native-lock-receipt' });
         }
       } };
   }
@@ -194,7 +197,8 @@ async function fixture(options = {}) {
       },
       on: (_event, listener) => requestListeners.add(listener), off: (_event, listener) => requestListeners.delete(listener),
       waitForResponse: (predicate, input) => {
-        assert.ok(input.timeout > 0 && input.timeout <= 20_000);
+        // Model the unchanged public collector default; surface.until still enforces twenty seconds above.
+        assert.ok(input.timeout > 0 && input.timeout <= 60_000);
         return new Promise((resolve, reject) => waiting.push({ predicate, resolve, reject }));
       } },
     callable: async (endpoint, data) => {
@@ -203,7 +207,9 @@ async function fixture(options = {}) {
     } };
   const context = { initial: { sessionId, uidHash: hash(uid) }, gm: surface,
     roster: [{ roleId: 'admiral', uidHash: hash(targetUid) }] };
-  const game = { select: async role => { assert.equal(role, 'gm'); return surface; } };
+  const game = { select: async role => { assert.equal(role, 'gm'); return surface; },
+    state: async () => ({ ...raw.session, sessionId: raw.session.id, cycle: raw.session.currentTurn,
+      live: raw.connection === 'live' && raw.sessionSnapshotFreshness === 'server' }) };
   const getRecipe = async endpoint => steps[specs[endpoint].id]({ context, game, spec: specs[endpoint] });
   const state = async () => ({ live: raw.connection === 'live' && raw.sessionSnapshotFreshness === 'server',
     sessionId: raw.session.id, cycle: raw.session.currentTurn, phase: raw.session.phase });
@@ -355,4 +361,23 @@ for (const [reason, change] of [
     assert.equal(error.name, 'AssertionError');
   }
   assert.equal(f.writes.length, 1, 'Only the original pre-reload authorized note was written.'); f.close();
+});
+
+test('public four-recipe callback preserves exact receipts, deferred grant/revoke and private evidence limits', async () => {
+  const f = await fixture({ mountReads: 1 });
+  const endpoints = ['authorFacilitatorRuleCall', 'setFacilitatorCensusNote',
+    'setGmShipConsoleWriteGrant', 'setShipConsoleLock'];
+  const selected = Object.fromEntries(endpoints.map(endpoint => [specs[endpoint].id, steps[specs[endpoint].id]]));
+  const hooks = createPendingGmRulingsCountersCallbacks({ steps: selected, gameFactory: () => f.game });
+  const result = await hooks.onStarted(f.context);
+  for (const endpoint of endpoints) {
+    const row = result.evidence.cases.find(row => row.endpoint === endpoint);
+    assert.equal(row.status, 'completed', `${endpoint}: ${row.reason}`);
+  }
+  assert.equal(result.observedProcedureCount, 4); assert.equal(result.familyAcceptanceClaimed, false);
+  assert.equal(result.evidence.privateTextPersisted, false);
+  assert.doesNotMatch(JSON.stringify(result), /native-original-gm|native-original-member|Automated virtual personas/);
+  assert.equal(f.raw.gmInstance.shipConsoleWriteGrant, null);
+  assert.equal(f.raw.session.shipConsoleLocks.aegis, false);
+  f.close();
 });
