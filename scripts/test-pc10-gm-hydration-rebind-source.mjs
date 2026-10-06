@@ -14,7 +14,7 @@ import { createPendingProcedureDefaultSteps } from './pc10-pending-procedure-ui-
 import { GM_RULING_COUNTER_PROCEDURES, createPendingGmRulingsCountersCallbacks } from './pc10-pending-procedure-ui-proof.mjs';
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
-const dependencies = '/private/tmp/dow-pc09-execution-20261004/node_modules';
+const dependencies = join(root, 'node_modules');
 const requireNative = createRequire(join(dependencies, '../package.json'));
 const { build } = requireNative('esbuild');
 const ts = requireNative('typescript');
