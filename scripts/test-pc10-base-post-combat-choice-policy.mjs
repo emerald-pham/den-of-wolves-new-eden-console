@@ -9,6 +9,7 @@ import {
   baseShipRoleCandidates,
   chooseAvailableBaseShipRole,
   selectBaseMissionTeam,
+  validateBaseScoutRequestReceipt,
   validateBaseMissionStartReceipt,
 } from './pc10-base-post-combat-choice-policy.mjs';
 
@@ -161,6 +162,34 @@ test('mission carrier and participant acceptance requires the exact server sourc
     participantRoleIds: BASE_MISSION_ROLE_PRIORITY, missionLeaderRoleId: 'wing-commander' }), /carrier/i);
   assert.throws(() => validateBaseMissionStartReceipt({ receipt, opportunity: { ...opportunity, groupId: 'fleet-2' },
     sessionId, roster, participantRoleIds: BASE_MISSION_ROLE_PRIORITY, missionLeaderRoleId: 'wing-commander' }), /opportunity/i);
+});
+
+test('scout request credit requires the exact current original craft-owner receipt', () => {
+  const receipt = { status: 'requested', resolution: 'pending', requestId: 'scout-request-1',
+    sessionId, cycle: 2, entitlementId: 'hummingbird', source: 'craft', ownerRoleId: 'quellon-explorer',
+    anchorShipId: 'quellon', receivingShipId: 'quellon', targetCoordinate: '1413' };
+  assert.deepEqual(validateBaseScoutRequestReceipt({ receipt, sessionId, expectedCycle: 2,
+    roleId: 'quellon-explorer', targetCoordinate: '1413' }), {
+    status: 'committed', requestId: 'scout-request-1', cycle: 2, roleId: 'quellon-explorer',
+    entitlementId: 'hummingbird', anchorShipId: 'quellon', targetCoordinate: '1413',
+  });
+  assert.deepEqual(validateBaseScoutRequestReceipt({ receipt: { ...receipt, status: 'replayed' }, sessionId,
+    expectedCycle: 2, roleId: 'quellon-explorer', targetCoordinate: '1413' }).status, 'committed');
+  for (const changed of [
+    { requestId: '' },
+    { sessionId: 'another-session' },
+    { cycle: 1 },
+    { entitlementId: 'starlight' },
+    { ownerRoleId: 'shepherd-scientist' },
+    { anchorShipId: 'shepherd' },
+    { targetCoordinate: '1414' },
+    { resolution: 'complete' },
+    { status: 'pending' },
+    { receivingShipId: '' },
+  ]) {
+    assert.throws(() => validateBaseScoutRequestReceipt({ receipt: { ...receipt, ...changed }, sessionId,
+      expectedCycle: 2, roleId: 'quellon-explorer', targetCoordinate: '1413' }), /scout request receipt/i);
+  }
 });
 
 test('selection policy is tied to mounted and server source contracts', async () => {
