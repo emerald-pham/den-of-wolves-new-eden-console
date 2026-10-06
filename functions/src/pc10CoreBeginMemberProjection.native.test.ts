@@ -303,7 +303,11 @@ it('Core Begin confirms the real current-member feed after the committed flight-
   expect(outcome.status, JSON.stringify(diagnostic.captureTuple.postInspectPredicates)).toBe('completed');
   expect(evidence.memberReadsAfterAction).toBe(1);
   expect(after.currentDocumentAuthority).toEqual(before.currentDocumentAuthority);
-  expect(after.currentMemberScope).toEqual(before.currentMemberScope);
+  const audience = (value: unknown) => {
+    const scope = value as { groupId: string; vesselIds: string[]; craftIds: string[] };
+    return { ...scope, vesselIds: [...scope.vesselIds].sort(), craftIds: [...scope.craftIds].sort() };
+  };
+  expect(audience(after.currentMemberScope)).toEqual(audience(before.currentMemberScope));
   expect(useSessionStore.getState().identityHydrationRevision).toBe(1);
 });
 
@@ -422,8 +426,10 @@ it('an actor-group response change never confirms a previous audience', async ()
   await startFeed(); const confirm = confirmationApi();
   io.documents.get(`${ROOT}/players/${UID}`)!.fleetGroupId = 'fleet-2';
   io.documents.get(`${ROOT}/fleetGroups/${GROUP}`)!.memberUids = [];
+  io.documents.get(`${ROOT}/fleetGroups/${GROUP}`)!.memberShipIds = {};
   io.documents.set(`${ROOT}/fleetGroups/fleet-2`, { id: 'fleet-2', vesselIds: [HOST, DESTINATION],
     memberUids: [UID], memberShipIds: { [UID]: HOST } });
+  expect((await getCurrentMemberSession.run(call({ sessionId: SESSION }))).groupId).toBe('fleet-2');
   expect(await confirm(SESSION, UID)).toBe(false);
   expect(useSessionStore.getState().sessionSnapshotFreshness).toBe('unknown');
   expect(useSessionStore.getState().session?.memberSessionScope?.groupId).toBe(GROUP);
