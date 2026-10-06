@@ -3837,6 +3837,10 @@ async function recipeFor({ context, game, spec }) {
       }
       const movementEndpoint = ['requestShuttleDeparture', 'beginShuttleTransit', 'retargetShuttleTransit',
         'completeShuttleArrival'].includes(spec.endpoint);
+      let movementAfter;
+      if (coreShuttleMovementEndpoint) {
+        movementAfter = await readShuttleMovement(surface, expected.sessionId, resolved.target.shuttleId).catch(() => undefined);
+      }
       const latest = await readActionState(surface, movementEndpoint || memberScopedShuttleCommandEndpoint || printedOwnerControlEndpoint
         ? resolved.target.shuttleId : undefined);
       if (printedOwnerControlEndpoint) {
@@ -3985,8 +3989,8 @@ async function recipeFor({ context, game, spec }) {
           arrivalAfter, authorityAfter: latest?.currentDocumentAuthority,
         };
       }
-      let movementAfter;
-      if (['requestShuttleDeparture', 'beginShuttleTransit', 'retargetShuttleTransit'].includes(spec.endpoint)) {
+      if (!coreShuttleMovementEndpoint &&
+          ['requestShuttleDeparture', 'beginShuttleTransit', 'retargetShuttleTransit'].includes(spec.endpoint)) {
         movementAfter = await readShuttleMovement(surface, expected.sessionId, resolved.target.shuttleId).catch(() => undefined);
       }
       let afterAuxiliary = null;
