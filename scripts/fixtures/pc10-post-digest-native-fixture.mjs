@@ -19,6 +19,7 @@ const full = await parsed('scripts/pc10-full-game-demo-ui-proof.mjs');
 const service = await parsed('src/lib/sessionService.ts');
 const firestore = await parsed('src/lib/firestore.ts');
 const app = await parsed('src/App.tsx');
+const identifiers = await parsed('src/types/identifiers.ts');
 function only(source, predicate) {
   const values = [];
   function visit(node) { if (predicate(node)) values.push(node); ts.forEachChild(node, visit); }
@@ -34,6 +35,7 @@ const playerSource = only(firestore, node => ts.isCallExpression(node) && node.e
   .arguments[2].getText(firestore);
 const fingerprintSource = only(firestore, node => ts.isVariableDeclaration(node) && node.name.getText(firestore) === 'actorFingerprint').initializer.getText(firestore);
 const berthSource = only(app, node => ts.isFunctionDeclaration(node) && node.name?.text === 'currentActorBerthMatches').getText(app);
+const wireSource = only(identifiers, node => ts.isFunctionDeclaration(node) && node.name?.text === 'isWireSafeEntityId').getText(identifiers);
 const javascript = source => ts.transpileModule(source, { compilerOptions: {
   target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022,
 } }).outputText;
@@ -46,9 +48,10 @@ const gmActor = { hasAuth: true, sameActor: true, sessionId: SID, uidHash: sha('
   gmInstanceOwned: true, instanceId: 'native-original-instance' };
 export const choiceBoundary = new Error('Native source fixture reached the existing Wing choice boundary.');
 
-export function fixture({ onDigest, released = false, afterSelected, beforeUntil, onReturned } = {}) {
-  const initialMember = { uid: UID, sessionId: SID, role: 'player', assignedRoleId: ROLE,
-    activeConsoleRoleId: released ? null : ROLE, seatId: ROLE, fleetGroupId: 'fleet-1',
+export function fixture({ onDigest, released = false, afterSelected, beforeUntil, onReturned, actorRoleId = ROLE } = {}) {
+  const selectedRole = actorRoleId, press = selectedRole === 'press-officer';
+  const initialMember = { uid: UID, sessionId: SID, role: 'player', assignedRoleId: press ? null : selectedRole,
+    activeConsoleRoleId: released ? null : selectedRole, seatId: press ? null : selectedRole, fleetGroupId: 'fleet-1',
     connectionGeneration: 3, connected: true, replacementRoleId: null, replacementStatus: null };
   const store = createStore(() => ({ session: { id: SID, phase: 'active', currentTurn: 1,
     turnPhase: { progression: 'manual', airspace: { state: 'restricted' } }, turnState: { phase: 'team' },
@@ -56,10 +59,10 @@ export function fixture({ onDigest, released = false, afterSelected, beforeUntil
     // it before the normal claim and rejects it after local role publication.
     memberSessionScope: { groupId: 'fleet-1', vesselIds: ['aegis'] },
     currentActorBerthAuthority: { sessionId: SID, actorUid: UID, groupId: 'fleet-1', role: 'player',
-      connectionGeneration: 3, assignedRoleId: ROLE, activeConsoleRoleId: initialMember.activeConsoleRoleId,
+      connectionGeneration: 3, assignedRoleId: initialMember.assignedRoleId, activeConsoleRoleId: initialMember.activeConsoleRoleId,
       replacementRoleId: null, replacementStatus: null, shipId: 'aegis' } },
     me: initialMember, identityHydrationRevision: 1, connection: 'live', sessionSnapshotFreshness: 'server',
-    pendingCommands: [], seats: [{ id: ROLE, roleId: ROLE, status: 'claimed', holderUid: UID }] }));
+    pendingCommands: [], seats: press ? [] : [{ id: selectedRole, roleId: selectedRole, status: 'claimed', holderUid: UID }] }));
   const counters = { richReads: 0, genericReads: 0, sdkCalls: 0, navigationCalls: 0, sourcePresence: 0, sourceFreshness: [], reads: [] };
   const callbackRows = [];
   const f = { store, counters, callbackRows, authUid: UID };
@@ -78,7 +81,7 @@ export function fixture({ onDigest, released = false, afterSelected, beforeUntil
     const exports = new Map([
       ['/src/store/useSessionStore.ts', { useSessionStore: { getState: store.getState } }],
       ['/src/lib/firebase.ts', { auth: () => ({ currentUser: f.authUid ? { uid: f.authUid } : null }) }],
-      ['/src/lib/demoActorContext.ts', { activeDemoActorProfile: { roleId: ROLE, sessionId: SID } }],
+      ['/src/lib/demoActorContext.ts', { activeDemoActorProfile: { roleId: selectedRole, sessionId: SID } }],
     ]);
     const modules = new Map();
     for (const [name, values] of exports) {
@@ -100,7 +103,7 @@ export function fixture({ onDigest, released = false, afterSelected, beforeUntil
     },
     storeModuleUrl: () => '/src/store/useSessionStore.ts',
     callable: async () => { counters.sdkCalls++; assert.fail('No SDK call is authorized in this native source audit.'); },
-    page: { url: () => `http://native.invalid/#/ships/aegis/roles/${ROLE}`,
+    page: { url: () => press ? 'http://native.invalid/#/press' : `http://native.invalid/#/ships/aegis/roles/${selectedRole}`,
       evaluate: (callback, moduleUrl) => evaluate(callback.toString(), moduleUrl, 'rich'),
       goto: async () => { counters.navigationCalls++; assert.fail('Already-held fixture must not navigate.'); },
       getByRole: () => { counters.choiceControlOpened = true; return {}; } },
@@ -108,9 +111,9 @@ export function fixture({ onDigest, released = false, afterSelected, beforeUntil
   const gm = { observe: async () => ({ ...gmActor }) };
   const context = { crew, gm, initial: { sessionId: SID, joinCode: 'NATIVE' },
     started: { uidHash: gmActor.uidHash, instanceId: gmActor.instanceId },
-    roster: [{ roleId: ROLE, uidHash: sha(UID) }], directory: '/native-no-files' };
+    roster: [{ roleId: selectedRole, uidHash: sha(UID) }], directory: '/native-no-files' };
   const adapter = createTwoBrowserGameplay(context);
-  f.select = options => adapter.select(ROLE, { deadlineAt: Date.now() + 1000, ...options });
+  f.select = options => adapter.select(selectedRole, { deadlineAt: Date.now() + 1000, ...options });
   f.crew = crew;
   f.publishCurrentWitness = () => {
     const current = store.getState(), me = current.me;
@@ -121,7 +124,8 @@ export function fixture({ onDigest, released = false, afterSelected, beforeUntil
       replacementStatus: me.replacementStatus ?? null, shipId: 'aegis',
     } }, connection: 'live', sessionSnapshotFreshness: 'server' });
   };
-  const berthContext = createContext({ isWireSafeEntityId: value => typeof value === 'string' && /^[a-z0-9-]+$/.test(value) });
+  const berthContext = createContext({});
+  new Script(javascript(wireSource).replace(/^export\s+/m, '')).runInContext(berthContext);
   const berthMatches = new Script(`${javascript(berthSource)}\ncurrentActorBerthMatches;`).runInContext(berthContext);
   f.berthMatches = () => berthMatches(store.getState().session, store.getState().me);
   f.normalClaim = async () => {
@@ -129,9 +133,9 @@ export function fixture({ onDigest, released = false, afterSelected, beforeUntil
       sessionAuthorityUid: state => state.me.uid,
       sessionAuthorityCheckpoint: (sessionId, uid) => ({ sessionId, uid }),
       authorityCheckpointIsCurrent: checkpoint => checkpoint.sessionId === SID && checkpoint.uid === f.authUid,
-      refreshPresence: async role => { assert.equal(role, ROLE); counters.sourcePresence++; },
+      refreshPresence: async role => { assert.equal(role, selectedRole); counters.sourcePresence++; },
     });
-    await new Script(`${javascript(roleSource).replace(/^export\s+/m, '')}\nselectConsoleRole("${ROLE}");`).runInContext(sourceContext);
+    await new Script(`${javascript(roleSource).replace(/^export\s+/m, '')}\nselectConsoleRole(${JSON.stringify(selectedRole)});`).runInContext(sourceContext);
   };
   const sourceContext = createContext({ subscribed: true, currentSessionSubscriptionToken: 1, subscriptionToken: 1,
     sessionSnapshotAuthority: { hasServerSessionAuthority: true }, sessionId: SID, uid: UID,
