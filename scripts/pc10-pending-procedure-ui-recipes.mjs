@@ -86,7 +86,7 @@ export function chooseOfferedAffordableOption(options, budget) {
   return eligible[0] ?? null;
 }
 
-async function readActionState(surface, shuttleId) {
+export async function readActionState(surface, shuttleId) {
   return surface.page.evaluate(async ({ moduleUrl, shuttleId }) => {
     const { useSessionStore } = await import(moduleUrl);
     const current = useSessionStore.getState();
