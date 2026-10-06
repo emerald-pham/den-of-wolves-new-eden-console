@@ -27,7 +27,7 @@ function deferred() {
  * HTTP, Admin, app or gameplay runs. Only NEW child counterexamples use a local Node process and inert terminal timers. */
 function startupFixture({ postAssignment = false, successful = false, closeGate,
   closeFails = false, diagnosticFails = false, observerThrows = false,
-  writeFailures = [], deletionFails = false, terminalDelayMs = 0, closeUnreferenced = false, lifecycleRealTimers = false } = {}) {
+  writeFailures = [], deletionFails = false, stopFails = false, terminalDelayMs = 0, closeUnreferenced = false, lifecycleRealTimers = false } = {}) {
   const roles = Array.from({ length: 20 }, (_, index) => `native-core-${index}`);
   const sessionId = 'native-own-startup-session';
   const primary = new Error(postAssignment ? 'original post-assignment identity failure' :
@@ -35,6 +35,7 @@ function startupFixture({ postAssignment = false, successful = false, closeGate,
   const closeError = new Error('original browser close failure');
   const diagnosticError = new Error('original diagnostic failure');
   const deletionError = new Error('original own fixture cleanup failure');
+  const stopError = new Error('original pending fixture heartbeat failure');
   const events = [], commands = [], joins = [], deletions = [], writes = [], writeAttempts = [];
   const timerHandles = new Set();
   const closeStarted = deferred();
@@ -110,6 +111,7 @@ function startupFixture({ postAssignment = false, successful = false, closeGate,
       });
       return { ...controller, stop: async () => {
         events.push('heartbeats-stop'); await controller.stop();
+        if (stopFails) throw stopError;
       } };
     },
   };
@@ -185,7 +187,7 @@ function startupFixture({ postAssignment = false, successful = false, closeGate,
   });
   const create = () => createTable({ baseUrl: 'http://localhost:5174',
     directory: '/native-no-filesystem-write', captureMode: 'native-durable' });
-  return { create, primary, closeError, diagnosticError, deletionError, roles, sessionId,
+  return { create, primary, closeError, diagnosticError, deletionError, stopError, roles, sessionId,
     events, commands, joins, deletions, clients, writes, writeAttempts, timerHandles, closeStarted,
     state: () => ({ authCount, closeCalls, browserClosed, fixtureAssigned }) };
 }
@@ -196,6 +198,7 @@ if (process.env.PC10_CLEANUP_NATIVE_CHILD) {
     terminalDelayMs: kind === 'deletion' ? 15 : 0, closeUnreferenced: kind === 'close' });
   const table = await fixture.create();
   console.log(JSON.stringify({ nativeTableAssigned: true, kind }));
+  await table.fixture.stopHeartbeats();
   await table.cleanup();
   assert.equal(fixture.timerHandles.size, 0);
   console.log(JSON.stringify({ nativeCleanupFulfilled: true, closeCalls: fixture.state().closeCalls,
@@ -209,6 +212,16 @@ if (process.env.PC10_CLEANUP_NATIVE_CHILD) {
     assert.equal(fixture.state().closeCalls, 1);
     assert.equal(fixture.commands.length, commandCount);
     assert.equal(fixture.timerHandles.size, 0);
+  });
+
+  test('completed-table cleanup retains both original close and pending-heartbeat failures without deletion', async () => {
+    const fixture = startupFixture({ successful: true, closeFails: true, stopFails: true });
+    const table = await fixture.create();
+    await assert.rejects(table.cleanup(), error => error === fixture.closeError &&
+      error.pc07CleanupHeartbeatStopUnavailable === true && error.pc07CleanupHeartbeatStopError === fixture.stopError);
+    assert.deepEqual(fixture.deletions, []);
+    assert.equal(fixture.timerHandles.size, 0);
+    assert.equal(fixture.state().closeCalls, 1);
   });
 
   test('completed-table cleanup retains a deferred original browser close before exact own deletion', async () => {
