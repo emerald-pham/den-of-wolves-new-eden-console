@@ -33,7 +33,7 @@ export function createTwoBrowserGameplay(context) {
       state.sameActor && state.sessionId === initial.sessionId && state.connection === 'live' &&
       state.freshness === 'server' && (surface !== gm || state.gmInstanceOwned), Math.max(1, Math.min(60_000, deadlineAt - Date.now())));
   }
-  async function acceptedMember(actor, deadlineAt, { original, held = false } = {}) {
+  async function acceptedMember(actor, deadlineAt, { original, held = false, station = false } = {}) {
     const budget = () => assert.ok(Number.isFinite(deadlineAt) && Date.now() < deadlineAt,
       'Original role navigation deadline expired.');
     budget();
@@ -55,6 +55,8 @@ export function createTwoBrowserGameplay(context) {
           sessionId: snapshot.session?.id ?? null, meSessionId: me?.sessionId ?? null,
           playerRole: me?.role ?? null, assignedRoleId: me?.assignedRoleId ?? null,
           activeConsoleRoleId: me?.activeConsoleRoleId ?? null, fleetGroupId: me?.fleetGroupId ?? null,
+          seatId: me?.seatId ?? null, replacementRoleId: me?.replacementRoleId ?? null,
+          replacementStatus: me?.replacementStatus ?? null, escapeLocked: me?.escapeState != null,
           connectionGeneration: me?.connectionGeneration ?? null,
           identityHydrationRevision: snapshot.identityHydrationRevision ?? null,
           connected: me?.connected !== false,
@@ -78,7 +80,19 @@ export function createTwoBrowserGameplay(context) {
         assert.equal(current.profileRoleId, actor.roleId);
         assert.equal(current.profileSessionId, initial.sessionId); assert.equal(current.sessionId, initial.sessionId);
         assert.equal(current.meSessionId, initial.sessionId); assert.equal(current.playerRole, 'player');
-        assert.equal(current.assignedRoleId, actor.roleId); assert.equal(current.connected, true);
+        assert.equal(current.connected, true);
+        // Account reads bind the current nullable assignment; they grant no
+        // station capability. Press has an exclusive active console, no primary
+        // core assignment/seat. Escaped/reassigned actors cannot enter old roles.
+        if (station) {
+          assert.equal(current.escapeLocked, false, 'An escaped original account cannot enter its historical station.');
+          assert.equal(current.replacementRoleId, null, 'A reassigned original account cannot enter its historical station.');
+          assert.equal(current.replacementStatus, null, 'The original account awaits station reassignment.');
+          if (actor.roleId === 'press-officer') {
+            assert.equal(current.assignedRoleId, null, 'The original Press station has no primary assignment.');
+            assert.equal(current.seatId, null, 'The original Press station has no core seat.');
+          } else assert.equal(current.assignedRoleId, actor.roleId, 'The original station must remain currently assigned.');
+        }
         assert.ok(typeof current.fleetGroupId === 'string' && current.fleetGroupId.length > 0,
           'The current original member fleet group is required.');
         if (current.connection === 'live' && current.freshness === 'server' &&
@@ -138,7 +152,7 @@ export function createTwoBrowserGameplay(context) {
       url.hash = '/demo-actors';
       await crew.page.goto(url.href, { timeout: navigationTimeout() });
     }
-    const actual = await acceptedMember(actor, deadlineAt);
+    const actual = await acceptedMember(actor, deadlineAt, { station: enter });
     assert.equal(actual.profileRoleId, roleId);
     assert.equal(actual.uidHash, actor.uidHash, 'Select the original role account, never manufacture another identity.');
     const onRoleRoute = () => {
@@ -151,7 +165,7 @@ export function createTwoBrowserGameplay(context) {
       const current = await crew.observe();
       assert.equal(current.uidHash, actor.uidHash); assert.equal(current.profileRoleId, roleId);
       assert.equal(current.sessionId, initial.sessionId); assert.equal(current.hasAuth, true); assert.equal(current.sameActor, true);
-      await acceptedMember(actor, deadlineAt, { original: actual, held });
+      await acceptedMember(actor, deadlineAt, { original: actual, held, station: enter });
     }
     if (enter && (actual.activeConsoleRoleId !== roleId || !onRoleRoute())) {
       for (let hop = 0; hop < 4 && !onRoleRoute(); hop++) {
