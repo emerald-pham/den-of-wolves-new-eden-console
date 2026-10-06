@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { createRequire } from 'node:module';
-import test from 'node:test';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import test, { after } from 'node:test';
 import { createContext, Script, SyntheticModule } from 'node:vm';
 import { webcrypto } from 'node:crypto';
 import { createBaseGameplayDriverOptions } from './pc10-base-gameplay-composed-post-combat.mjs';
@@ -33,11 +35,17 @@ const observeReturn = observe.body.body.find(node => node.type === 'ReturnStatem
 const observeCallback = observeReturn.argument.arguments[0];
 const serializedObserver = source.slice(observeCallback.start, observeCallback.end);
 const plain = value => value === undefined ? value : JSON.parse(JSON.stringify(value));
+const fixtureDirectories = [];
+after(async () => {
+  for (const directory of fixtureDirectories) await rm(directory, { recursive: true });
+});
 
 // This runs the real producer's exact callback expression, the real composed
 // Base hooks and default pending-GM factory/recipe/capture. Browser I/O alone
 // is inert: no browser, Auth account, gameplay SDK or server fixture exists.
 async function fixture({ actorChange = {}, storeChange = {} } = {}) {
+  const directory = await mkdtemp(join(tmpdir(), 'pc10-native-pre-admission-'));
+  fixtureDirectories.push(directory);
   const sessionId = 'native-pre-admission-session', uid = 'private-original-setup-uid';
   const raw = { session: { id: sessionId, joinCode: 'native-join', phase: 'lobby', currentTurn: 0,
     setupRevision: 2, setupConfirmed: false }, me: { uid, sessionId, role: 'gm' },
@@ -87,9 +95,9 @@ async function fixture({ actorChange = {}, storeChange = {} } = {}) {
   raw.gmInstance = { id: 'native-owned-gm-instance', uid, sessionId };
   Object.assign(raw, storeChange);
   const crew = new Proxy({}, { get() { counts.crewAccess += 1; assert.fail('Crew has not been admitted.'); } });
-  const context = { gm, crew, initial, directory: undefined };
+  const context = { gm, crew, initial, directory };
   const produce = async options => {
-    const environment = createContext({ options, gm, crew, initial, directory: undefined });
+    const environment = createContext({ options, gm, crew, initial, directory });
     return new Script(`(async () => { ${source.slice(setupCall.start, setupCall.end)}; })()`)
       .runInContext(environment);
   };
