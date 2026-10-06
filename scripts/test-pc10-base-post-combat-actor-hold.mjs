@@ -31,15 +31,19 @@ function sourceActor(uid, roleId, overrides = {}) {
   };
 }
 
-async function runSerializedObserver(callback, moduleUrl, actor) {
-  const context = createContext({ input: moduleUrl, crypto: webcrypto, TextEncoder, Uint8Array });
+async function runSerializedObserver(callback, moduleUrl, actorSource, { crypto: cryptoSource = webcrypto } = {}) {
+  const getActor = typeof actorSource === 'function' ? actorSource : () => actorSource;
+  const context = createContext({ input: moduleUrl, crypto: cryptoSource, TextEncoder, Uint8Array });
   const exports = {
     '/src/store/useSessionStore.ts': ['useSessionStore', {
-      getState: () => ({ session: { id: actor.sessionId }, me: actor.me,
-        identityHydrationRevision: actor.identityHydrationRevision }),
+      getState: () => {
+        const actor = getActor();
+        return { session: { id: actor.sessionId }, me: actor.me,
+          identityHydrationRevision: actor.identityHydrationRevision };
+      },
     }],
-    '/src/lib/firebase.ts': ['auth', () => ({ currentUser: { uid: actor.uid } })],
-    '/src/lib/demoActorContext.ts': ['activeDemoActorProfile', actor.profile],
+    '/src/lib/firebase.ts': ['auth', () => ({ currentUser: { uid: getActor().uid } })],
+    '/src/lib/demoActorContext.ts': ['activeDemoActorProfile', getActor().profile],
   };
   const modules = new Map();
   for (const [name, [key, value]] of Object.entries(exports)) {
@@ -57,18 +61,42 @@ async function runSerializedObserver(callback, moduleUrl, actor) {
   return script.runInContext(context);
 }
 
-function mountedSurface({ exactActor = sourceActor(foreignUid, foreignRole) } = {}) {
+function mountedSurface({ exactActor = sourceActor(foreignUid, foreignRole), hashRace = false } = {}) {
   let sourceReadIndex = 0;
+  let currentExactActor = exactActor;
+  let changedDuringDigest = false;
+  const racingCrypto = {
+    subtle: {
+      digest: async (...args) => {
+        if (!changedDuringDigest) {
+          changedDuringDigest = true;
+          currentExactActor = sourceActor(foreignUid, foreignRole, {
+            me: { ...exactActor.me, uid: foreignUid, role: 'player', assignedRoleId: foreignRole,
+              activeConsoleRoleId: foreignRole, connected: false, escapeState: { status: 'locked' },
+              connectionGeneration: 8 },
+            identityHydrationRevision: 4,
+            profile: { roleId: foreignRole, sessionId },
+          });
+        }
+        return webcrypto.subtle.digest(...args);
+      },
+    },
+  };
   return {
     storeModuleUrl: () => '/src/store/useSessionStore.ts',
     observe: async () => ({ ...originalGeneric }),
+    currentExactActor: () => currentExactActor,
+    changedDuringDigest: () => changedDuringDigest,
     page: { evaluate: (callback, moduleUrl) => {
       assert.equal(moduleUrl, '/src/store/useSessionStore.ts');
       // The established rich observer saw the original view. Before the exact
       // member callback, the store/Auth may have changed to another actor in
       // the same session. Each callback below is executed from its real source.
-      const actor = sourceReadIndex++ === 0 ? sourceActor(originalUid, originalRole) : exactActor;
-      return runSerializedObserver(callback, moduleUrl, actor);
+      const isRichRead = sourceReadIndex++ === 0;
+      if (isRichRead) return runSerializedObserver(callback, moduleUrl, sourceActor(originalUid, originalRole));
+      if (hashRace) return runSerializedObserver(callback, moduleUrl, () => currentExactActor,
+        { crypto: racingCrypto });
+      return runSerializedObserver(callback, moduleUrl, exactActor);
     } },
   };
 }
@@ -109,6 +137,28 @@ test('the serialized source join fails closed when a required identity field is 
     const actor = await observeBasePostCombatActor(mountedSurface({ exactActor }));
     assert.equal(actor.sameActor, false, 'Missing original identity evidence cannot compose into a live actor.');
   }
+});
+
+test('the serialized exact member read cannot publish its pre-digest Auth/store tuple after it changes during hashing', async () => {
+  const surface = mountedSurface({ exactActor: sourceActor(originalUid, originalRole), hashRace: true });
+  const actor = await observeBasePostCombatActor(surface);
+  const current = surface.currentExactActor();
+  assert.equal(surface.changedDuringDigest(), true, 'The source tuple changes while the real serialized callback awaits UID digests.');
+  assert.equal(current.uid === foreignUid && current.me.uid === foreignUid, true,
+    'The post-digest Auth/member source is a different current account.');
+  assert.deepEqual({
+    sameActor: actor.sameActor,
+    connected: actor.connected,
+    escapeLocked: actor.escapeLocked,
+    connectionGeneration: actor.connectionGeneration,
+    identityHydrationRevision: actor.identityHydrationRevision,
+  }, {
+    sameActor: false,
+    connected: false,
+    escapeLocked: true,
+    connectionGeneration: current.me.connectionGeneration,
+    identityHydrationRevision: current.identityHydrationRevision,
+  }, 'The composed actor must fail closed and expose the current post-digest member tuple, not the stale pre-await snapshot.');
 });
 
 test('the exact source tuple can bind the original GM when source role fields are explicitly null', () => {
