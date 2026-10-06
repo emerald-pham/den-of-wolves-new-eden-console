@@ -47,6 +47,7 @@ async function fixture({ actorChange = {}, storeChange = {} } = {}) {
   const directory = await mkdtemp(join(tmpdir(), 'pc10-native-pre-admission-'));
   fixtureDirectories.push(directory);
   const sessionId = 'native-pre-admission-session', uid = 'private-original-setup-uid';
+  let authUid = uid;
   const raw = { session: { id: sessionId, joinCode: 'native-join', phase: 'lobby', currentTurn: 0,
     setupRevision: 2, setupConfirmed: false }, me: { uid, sessionId, role: 'gm' },
     connection: 'live', sessionSnapshotFreshness: 'server', pendingCommands: [], gmInstance: null };
@@ -59,7 +60,7 @@ async function fixture({ actorChange = {}, storeChange = {} } = {}) {
   const modules = new Map();
   for (const [path, exports] of [
     ['/src/store/useSessionStore.ts', { useSessionStore: { getState: () => raw } }],
-    ['/src/lib/firebase.ts', { auth: () => ({ currentUser: { uid } }) }],
+    ['/src/lib/firebase.ts', { auth: () => ({ currentUser: authUid ? { uid: authUid } : null }) }],
     ['/src/lib/demoActorContext.ts', { activeDemoActorProfile: null }],
   ]) {
     const module = new SyntheticModule(Object.keys(exports), function () {
@@ -101,7 +102,9 @@ async function fixture({ actorChange = {}, storeChange = {} } = {}) {
     return new Script(`(async () => { ${source.slice(setupCall.start, setupCall.end)}; })()`)
       .runInContext(environment);
   };
-  return { raw, gm, crew, initial, context, counts, labels, timeouts, produce };
+  return { raw, gm, crew, initial, context, counts, labels, timeouts, produce,
+    setAuthUid: value => { authUid = value; },
+    setDocumentTimeOrigin: value => { browser.performance.timeOrigin = value; } };
 }
 
 function driver(options = {}) {
@@ -201,4 +204,81 @@ test('later active-game callbacks never use the pre-admission path when the admi
   const f = await fixture(); f.raw.session.currentTurn = 1; f.raw.session.phase = 'active';
   await assert.rejects(createPendingGmRulingsCountersCallbacks().onStarted(f.context));
   assert.equal(f.counts.selects, 0); assert.equal(f.counts.sdk, 0); assert.equal(f.counts.crewAccess, 0);
+});
+
+async function setupGame(f) {
+  let game;
+  const callbacks = createPendingGmRulingsCountersCallbacks({ steps: {
+    setFacilitatorResponsibility: async input => { game = input.game; return null; },
+  } });
+  const result = await callbacks.onSetup(f.context);
+  assert.equal(result.observedProcedureCount, 0);
+  assert.ok(game);
+  return game;
+}
+
+test('the same real GM selection pins its accepted instance and cannot adopt another owned instance', async () => {
+  const f = await fixture(), game = await setupGame(f);
+  assert.equal(await game.select('gm'), f.gm);
+  f.raw.gmInstance.id = 'another-owned-instance';
+  await assert.rejects(game.select('gm'), /another-owned-instance/);
+  assert.equal(f.counts.sdk, 0); assert.equal(f.counts.crewAccess, 0);
+});
+
+for (const change of ['foreign-current-auth', 'missing-current-auth', 'foreign-current-document']) {
+  test(`the actual serialized observer cannot release original setup authority for ${change}`, async () => {
+    const f = await fixture(), game = await setupGame(f);
+    assert.equal(await game.select('gm'), f.gm);
+    if (change === 'foreign-current-auth') {
+      f.setAuthUid('foreign-current-uid');
+      f.raw.me.uid = 'foreign-current-uid'; f.raw.gmInstance.uid = 'foreign-current-uid';
+    } else if (change === 'missing-current-auth') f.setAuthUid(null);
+    else f.setDocumentTimeOrigin(456_000);
+    await assert.rejects(game.select('gm'));
+    assert.equal(f.counts.sdk, 0); assert.equal(f.counts.ui, 0); assert.equal(f.counts.crewAccess, 0);
+  });
+}
+
+test('the pre-admission surface cannot start an expired operation or expose independent SDK/navigation helpers', async () => {
+  const f = await fixture(), game = await setupGame(f);
+  assert.deepEqual(Object.keys(game).sort(), ['actions', 'context', 'select', 'state']);
+  const samples = f.counts.evaluates;
+  await assert.rejects(game.select('gm', { deadlineAt: Date.now() - 1 }), /deadline/i);
+  assert.equal(f.counts.evaluates, samples); assert.equal(f.counts.sdk, 0); assert.equal(f.counts.ui, 0);
+});
+
+for (const [label, change] of Object.entries({ foreignSession: { id: 'foreign-session' },
+  startedCycle: { currentTurn: 1 }, closed: { phase: 'closed' } })) {
+  test(`the existing GM store reader rejects pre-admission ${label} source drift`, async () => {
+    const f = await fixture(), game = await setupGame(f);
+    await game.select('gm'); Object.assign(f.raw.session, change);
+    await assert.rejects(game.state());
+    assert.equal(f.counts.sdk, 0); assert.equal(f.counts.ui, 0); assert.equal(f.counts.crewAccess, 0);
+  });
+}
+
+test('the pre-admission mode cannot receive later-phase context or any invented roster', async () => {
+  const f = await fixture();
+  for (const change of [{ roster: [] }, { roster: [{ roleId: 'executive-officer', uidHash: 'fixture-only' }] },
+    { confirmed: {} }, { prepared: {} }, { started: {} },
+    { initial: { ...f.initial, uidHash: null } }, { initial: { ...f.initial, documentTimeOrigin: null } }]) {
+    assert.throws(() => createTwoBrowserGameplay({ ...f.context, ...change }, { preAdmissionGmOnly: true }),
+      /pre-admission.*context|invented roster/i);
+  }
+  assert.equal(f.counts.sdk, 0); assert.equal(f.counts.crewAccess, 0);
+});
+
+test('the real pending case keeps identical original observation and zero mutation counts', async () => {
+  const before = await fixture(), after = await fixture();
+  const callbacks = createPendingGmRulingsCountersCallbacks();
+  // The admitted-path constructor still applies when a caller already has a
+  // roster. These inert rows establish no actual account/admission acceptance.
+  const admittedContext = { ...before.context,
+    roster: [{ roleId: 'executive-officer', uidHash: 'native-admitted-contract' }] };
+  const prior = await callbacks.onSetup(admittedContext), current = await callbacks.onSetup(after.context);
+  assert.equal(prior.observedProcedureCount, 0); assert.equal(current.observedProcedureCount, 0);
+  assert.deepEqual(after.counts, before.counts);
+  assert.equal(after.counts.selects, 2); assert.equal(after.counts.evaluates, 7);
+  assert.equal(after.counts.sdk, 0); assert.equal(after.counts.ui, 0);
+  assert.equal(after.counts.responseObservers, 0); assert.equal(after.counts.crewAccess, 0);
 });
