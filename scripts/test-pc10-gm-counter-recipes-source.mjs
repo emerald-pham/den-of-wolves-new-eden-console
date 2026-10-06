@@ -64,8 +64,8 @@ function locatorFor(nodes, onRead = () => {}) {
   return locator;
 }
 
-function element(role, name, { attributes = {}, children = [], enabled = true, value } = {}) {
-  return { role, name, attributes, children, enabled, value };
+function element(role, name, { attributes = {}, children = [], enabled = true, value, click } = {}) {
+  return { role, name, attributes, children, enabled, value, click };
 }
 
 function makeMountedSourceFixture({ wingCounts = {
