@@ -51,6 +51,8 @@ for (const [label, changes] of [
   ['different invocation document', { invocation: { startedAt: 11, completedAt: 12, nativeDocumentHash: '4'.repeat(64) } }],
   ['foreign source seat holder', { afterSource: source({ seatHolderUid: 'another-uid' }) }],
   ['changed cycle', { afterSource: source({ currentTurn: 2 }) }],
+  ['stale after-source witness', { afterSource: source({ checkedAt: 10 }) }],
+  ['source point taken after original issue', { beforeSource: source({ checkedAt: 14 }) }],
   ['unclassified non-200 command', { reply: { status: 429, error: { status: 'RESOURCE_EXHAUSTED' } } }],
   ['unchecked original outcome', { validation: { passed: false } }],
 ]) test(`${label} cannot silently pass`, () => assert.throws(() => assertPc10FunctionalCommand(command(changes))));
@@ -120,11 +122,13 @@ test('historical strict failure packet is preserved, never accepted as a new fun
 });
 
 test('one functional command issues exactly one original SDK invocation and records original awaited reply', async () => {
-  const ledger = [], seen = [];
+  const ledger = [], seen = []; let sourcePoints = 0, identityPoints = 0;
   const client = { callable: async (...args) => { seen.push(args); return member(); },
     sdkInvocationForReply: () => ({ startedAt: 11, completedAt: 12, nativeDocumentHash: documentHash }) };
   const issue = createPc10FunctionalCommand({ ledger, originals: new Map([[original.roleId, original]]),
-    clients: new Map([[original.roleId, client]]), observeBinding: async () => binding(), captureAuthority: async () => source(),
+    clients: new Map([[original.roleId, client]]),
+    observeBinding: async () => binding({ observedAt: identityPoints++ ? 13 : 10 }),
+    captureAuthority: async () => source({ checkedAt: sourcePoints++ ? 13 : 10 }),
     clock: (() => { let at = 10; return () => at++; })(), validateReply: () => ({ passed: true }) });
   const reply = await issue(original.roleId, 'getCurrentMemberSession');
   assert.equal(reply.status, 200); assert.equal(seen.length, 1);
