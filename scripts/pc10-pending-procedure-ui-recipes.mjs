@@ -2456,10 +2456,17 @@ async function planFor({ spec, surface, actor, state, context, target, gmOperati
   }
 
   if (endpoint === 'applyShipCounterSteps') {
+    const mode = await one(page.getByRole('button', { name: 'Ship numbers write mode', exact: true }));
+    if (!mode) return block('the actual fleet ship-number write-mode control is not currently available');
+    if (await mode.getAttribute('aria-pressed') !== 'true') {
+      await mode.click();
+      if (await mode.getAttribute('aria-pressed') !== 'true') {
+        return block('the actual fleet ship-number control did not enter write mode');
+      }
+    }
     const groups = page.getByRole('group', { name: / resource controls$/i });
     for (let index = 0; index < await groups.count(); index++) {
-      const group = groups.nth(index), mode = group.getByRole('button', { name: 'Ship numbers write mode', exact: true });
-      if (await mode.count() && await mode.getAttribute('aria-pressed') !== 'true') await mode.click();
+      const group = groups.nth(index);
       const buttons = group.getByRole('button', { name: /^(?:Increase|Decrease) / });
       const action = await one(buttons.first());
       if (action) return { offered: true, targetShipName: await group.getAttribute('aria-label'), click: () => action.click(), trainingChoice: 'gm-training:deliberate-choice' };
@@ -2479,17 +2486,26 @@ async function planFor({ spec, surface, actor, state, context, target, gmOperati
   }
 
   if (endpoint === 'setFighterWingCount') {
+    const mode = await one(page.getByRole('button', { name: 'Ship numbers write mode', exact: true }));
+    if (!mode) return block('the actual fleet ship-number write-mode control is not currently available');
+    if (await mode.getAttribute('aria-pressed') !== 'true') {
+      await mode.click();
+      if (await mode.getAttribute('aria-pressed') !== 'true') {
+        return block('the actual fleet ship-number control did not enter write mode');
+      }
+    }
     const groups = page.getByRole('group', { name: / resource controls$/i });
     for (let index = 0; index < await groups.count(); index++) {
       const group = groups.nth(index), fields = group.getByRole('spinbutton', { name: /^Set .* fighter count$/ });
-      if (!await fields.count()) continue;
-      const input = fields.first();
-      const wingName = await input.getAttribute('aria-label');
-      target.wingId = String(wingName ?? '').replace(/^Set\s+/, '').replace(/\s+fighter count$/i, '');
-      const current = Number(await input.inputValue()), max = Number(await input.getAttribute('max'));
-      if (!Number.isSafeInteger(current) || !Number.isSafeInteger(max) || current >= max || !await input.isEnabled()) continue;
-      const button = await one(group.getByRole('button', { name: /^Apply .* fighter count$/ }));
-      if (button) return { offered: true, click: async () => { await input.fill(String(current + 1)); await button.click(); }, trainingChoice: 'gm-training:deliberate-choice' };
+      for (let fieldIndex = 0; fieldIndex < await fields.count(); fieldIndex++) {
+        const input = fields.nth(fieldIndex);
+        const wingName = await input.getAttribute('aria-label');
+        target.wingId = String(wingName ?? '').replace(/^Set\s+/, '').replace(/\s+fighter count$/i, '');
+        const current = Number(await input.inputValue()), max = Number(await input.getAttribute('max'));
+        if (!Number.isSafeInteger(current) || !Number.isSafeInteger(max) || current >= max || !await input.isEnabled()) continue;
+        const button = await one(group.getByRole('button', { name: `Apply ${target.wingId} fighter count`, exact: true }));
+        if (button) return { offered: true, click: async () => { await input.fill(String(current + 1)); await button.click(); }, trainingChoice: 'gm-training:deliberate-choice' };
+      }
     }
     return block('AEGIS has no source-projected available fighter construction capacity');
   }
