@@ -34,7 +34,7 @@ export function createTwoBrowserGameplay(context) {
       state.sameActor && state.sessionId === initial.sessionId && state.connection === 'live' &&
       state.freshness === 'server' && (surface !== gm || state.gmInstanceOwned), Math.max(1, Math.min(60_000, deadlineAt - Date.now())));
   }
-  async function acceptedMember(actor, deadlineAt, { original, held = false, station = false, requireCurrentBerth = false } = {}) {
+  async function acceptedMember(actor, deadlineAt, { original, held = false, station = false, requireCurrentBerth = false, requireCurrentPressMember = false } = {}) {
     let waitingOriginal;
     const budget = () => assert.ok(Number.isFinite(deadlineAt) && Date.now() < deadlineAt,
       'Original role navigation deadline expired.');
@@ -76,6 +76,12 @@ export function createTwoBrowserGameplay(context) {
           berth.connectionGeneration === (me.connectionGeneration ?? 1) &&
           berth.assignedRoleId === (me.assignedRoleId ?? null) && berth.activeConsoleRoleId === (me.activeConsoleRoleId ?? null) &&
           berth.replacementRoleId === (me.replacementRoleId ?? null));
+        // The ordinary join/resume reply omits the member envelope and own
+        // connected flag. Modern Press confirms membership without a ship berth.
+        const currentPressMemberMatches = Boolean(session && currentMemberBerthPresent && berth === null &&
+          session.phase !== 'closed' && me?.role === 'player' && me.sessionId === session.id &&
+          me.fleetGroupId === session.memberSessionScope?.groupId &&
+          Array.isArray(session.memberSessionScope?.vesselIds) && session.memberSessionScope.vesselIds.length === 0);
         return { documentTimeOrigin: performance.timeOrigin,
           hasAuth: !!user, sameActor: !!user && user.uid === me?.uid, uidHash,
           profileRoleId: activeDemoActorProfile?.roleId ?? null,
@@ -89,6 +95,7 @@ export function createTwoBrowserGameplay(context) {
           identityHydrationRevision: snapshot.identityHydrationRevision ?? null,
           connected: me?.connected !== false,
           currentMemberBerthPresent, currentMemberBerthMatches,
+          currentOwnPlayerConfirmed: me?.connected === true, currentPressMemberMatches,
           connection: snapshot.connection, freshness: snapshot.sessionSnapshotFreshness };
       }, crew.storeModuleUrl());
       budget();
@@ -134,9 +141,12 @@ export function createTwoBrowserGameplay(context) {
         // Normal fresh core hydration omits the transaction's envelope witness.
         // Hold this document's accepted identity while its existing feed lands;
         // absence here cannot pin the genuine legacy path prematurely.
-        if (requireCurrentBerth && !waitingOriginal) waitingOriginal = current;
+        if (requireCurrentPressMember && current.currentMemberBerthPresent) assert.equal(current.currentPressMemberMatches,
+          true, 'Current original Press member confirmation is required.');
+        if ((requireCurrentBerth || requireCurrentPressMember) && !waitingOriginal) waitingOriginal = current;
         if (current.connection === 'live' && current.freshness === 'server' &&
             (!requireCurrentBerth || current.currentMemberBerthPresent) &&
+            (!requireCurrentPressMember || current.currentOwnPlayerConfirmed && current.currentMemberBerthPresent && current.currentPressMemberMatches) &&
             (!station || actor.roleId === 'press-officer' || !current.currentMemberBerthPresent || current.currentMemberBerthMatches) &&
             (!held || current.activeConsoleRoleId === actor.roleId)) return current;
       }
@@ -198,7 +208,8 @@ export function createTwoBrowserGameplay(context) {
     const freshManualDemo = marker && typeof marker === 'object' && !Array.isArray(marker) &&
       Object.keys(marker).length === 2 && marker.status === 'active' && marker.progression === 'manual';
     const requireCurrentBerth = Boolean(enter && freshManualDemo && normalMemberRoleRequiresBerth(roleId));
-    const actual = await acceptedMember(actor, deadlineAt, { station: enter, requireCurrentBerth });
+    const requireCurrentPressMember = Boolean(enter && freshManualDemo && roleId === 'press-officer');
+    const actual = await acceptedMember(actor, deadlineAt, { station: enter, requireCurrentBerth, requireCurrentPressMember });
     assert.equal(actual.profileRoleId, roleId);
     assert.equal(actual.uidHash, actor.uidHash, 'Select the original role account, never manufacture another identity.');
     const onRoleRoute = () => {
@@ -211,7 +222,7 @@ export function createTwoBrowserGameplay(context) {
       const current = await crew.observe();
       assert.equal(current.uidHash, actor.uidHash); assert.equal(current.profileRoleId, roleId);
       assert.equal(current.sessionId, initial.sessionId); assert.equal(current.hasAuth, true); assert.equal(current.sameActor, true);
-      await acceptedMember(actor, deadlineAt, { original: actual, held, station: enter });
+      await acceptedMember(actor, deadlineAt, { original: actual, held, station: enter, requireCurrentPressMember });
     }
     if (enter && (actual.activeConsoleRoleId !== roleId || !onRoleRoute())) {
       for (let hop = 0; hop < 4 && !onRoleRoute(); hop++) {
