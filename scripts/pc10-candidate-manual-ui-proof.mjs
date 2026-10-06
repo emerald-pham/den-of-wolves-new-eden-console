@@ -102,6 +102,9 @@ async function readCandidateSourceState(surface) {
     const session = current.session, me = current.me, instance = current.gmInstance;
     return { sourceKind: 'candidate-workspace-current-source', sessionId: session?.id ?? null,
       cycle: session?.currentTurn ?? null, phase: session?.phase ?? null,
+      sessionUpdatedAt: session?.updatedAt ?? null, documentTimeOrigin: performance.timeOrigin,
+      connectionGeneration: me?.connectionGeneration ?? null,
+      identityHydrationRevision: current.identityHydrationRevision ?? null,
       groupId: me?.fleetGroupId ?? null, shipFleetGroupIds: session?.shipFleetGroupIds ?? {},
       playerRole: me?.role ?? null, instanceId: instance?.id ?? null,
       instanceClaimedAt: instance?.claimedAt ?? null,
@@ -392,10 +395,22 @@ export function candidateGameplayTools(context) {
   }
   async function candidateGeometry(surface, code, stage, { readinessTimeoutMs = 30_000 } = {}) {
     assert.ok(Number.isSafeInteger(readinessTimeoutMs) && readinessTimeoutMs > 0);
+    const deadlineAt = Date.now() + readinessTimeoutMs;
+    const deadlineError = () => new Error('Candidate workspace source report did not finish rendering: original readiness deadline expired.');
+    const remaining = () => { const timeout = deadlineAt - Date.now(); if (timeout <= 0) throw deadlineError(); return timeout; };
+    async function withinBudget(operation) {
+      const timeout = remaining(); let timer;
+      try {
+        const result = await Promise.race([operation(), new Promise((resolve, reject) => {
+          timer = setTimeout(() => reject(deadlineError()), timeout);
+        })]);
+        remaining(); return result;
+      } finally { clearTimeout(timer); }
+    }
     const panel = surface.page.getByRole('region', { name: 'Candidate preparation and actions', exact: true });
-    await panel.waitFor();
-    const observedActor = await surface.observe();
-    const originalSource = await readCandidateSourceState(surface);
+    await withinBudget(() => panel.waitFor({ state: 'visible', timeout: remaining() }));
+    const observedActor = await withinBudget(() => surface.observe());
+    const originalSource = await withinBudget(() => readCandidateSourceState(surface));
     const expectedActor = { ...observedActor, instanceClaimedAt: originalSource.instanceClaimedAt };
     assert.equal(expectedActor.hasAuth, true, 'Candidate geometry requires the current authenticated browser actor.');
     assert.equal(expectedActor.sameActor, true, 'Candidate geometry must retain the actor in its live session store.');
@@ -410,18 +425,18 @@ export function candidateGameplayTools(context) {
       assert.equal(expectedActor.uidHash, originalAccount.uidHash, 'Use the original named member account.');
     }
     const groupSelector = panel.getByRole('combobox', { name: 'Fleet group', exact: true });
-    const groupSelectorCount = await groupSelector.count();
+    const groupSelectorCount = await withinBudget(() => groupSelector.count());
     const expectedGroupId = groupSelectorCount === 1
-      ? await groupSelector.inputValue()
+      ? await withinBudget(() => groupSelector.inputValue())
       : expectedActor.playerRole === 'player'
         ? originalSource.groupId
         : originalSource.groupId || [...new Set(Object.values(originalSource.shipFleetGroupIds ?? {}))][0] || 'fleet-1';
     assert.equal(typeof expectedGroupId, 'string');
     assert.ok(expectedGroupId.length > 0, 'The current mounted candidate group must be explicit.');
     const refresh = panel.getByRole('button', { name: 'Refresh candidate operations', exact: true });
-    assert.equal(await refresh.count(), 1, 'One mounted current-report refresh control is required.');
-    assert.equal(await refresh.isVisible(), true);
-    assert.equal(await refresh.isEnabled(), true, 'The live actor must be able to request the current report.');
+    assert.equal(await withinBudget(() => refresh.count()), 1, 'One mounted current-report refresh control is required.');
+    assert.equal(await withinBudget(() => refresh.isVisible()), true);
+    assert.equal(await withinBudget(() => refresh.isEnabled()), true, 'The live actor must be able to request the current report.');
     const projectId = context.projectId;
     const functionsPort = context.ports?.functions;
     assert.match(projectId ?? '', /^demo-[a-z0-9-]+$/, 'Candidate refresh must use the configured local Firebase project.');
@@ -444,6 +459,64 @@ export function candidateGameplayTools(context) {
         payload.sessionId === expectedActor.sessionId && payload.expectedGroupId === expectedGroupId &&
         (expectedActor.playerRole === 'gm' ? payload.instanceId === expectedActor.instanceId : true);
     }
+    function assertHeldSource(currentActor, currentSource) {
+      assert.equal(currentActor.hasAuth, true); assert.equal(currentActor.sameActor, true);
+      assert.equal(currentActor.connection, 'live'); assert.equal(currentActor.freshness, 'server');
+      for (const key of ['uidHash', 'sessionId', 'playerRole', 'profileRoleId', 'assignedRoleId', 'activeConsoleRoleId', 'instanceId'])
+        assert.equal(currentActor[key], expectedActor[key], `Candidate workspace original actor ${key} changed.`);
+      assert.equal(currentSource.live, true);
+      for (const key of ['sessionId', 'cycle', 'phase', 'playerRole', 'instanceId', 'instanceClaimedAt', 'gmInstanceOwned',
+        'documentTimeOrigin', 'connectionGeneration', 'identityHydrationRevision'])
+        assert.equal(currentSource[key], originalSource[key], `Candidate workspace original source ${key} changed.`);
+    }
+    const currentGroup = (snapshot, source) => snapshot.fleetGroupSelectorCount === 1 ? snapshot.selectedFleetGroup :
+      source.groupId || [...new Set(Object.values(source.shipFleetGroupIds ?? {}))][0] || 'fleet-1';
+    const mountedReception = () => withinBudget(() => surface.page.evaluate(() => {
+      // candidate-workspace-mounted-reception: inspect the source DOM, never synthesize a native report.
+      const panels = [...document.querySelectorAll('[aria-label="Candidate preparation and actions"]')];
+      const element = panels.length === 1 ? panels[0] : null;
+      const visible = !!element && element.isConnected && element.ownerDocument === document &&
+        !!element.getClientRects().length && getComputedStyle(element).visibility !== 'hidden' &&
+        !element.closest('[aria-hidden="true"], [inert]');
+      return { panelCount: panels.length, panelVisible: visible,
+        pendingMutation: !!element && [...element.querySelectorAll('button')].some(button =>
+          button.textContent.replace(/\s+/g, ' ').trim() === 'Retry original candidate request'),
+        transmitting: !!element && element.textContent.includes('Transmitting candidate choice…') };
+    }));
+    let previousReception = null, qualifiedSourceKey;
+    while (Date.now() < deadlineAt) {
+      const painted = await withinBudget(() => surface.page.evaluate(timeout => new Promise(resolvePaint => {
+        // candidate-workspace-source-paint: one actual RAF between each source qualification.
+        let frame;
+        const finish = painted => { clearTimeout(timer); cancelAnimationFrame(frame); resolvePaint(painted); };
+        const timer = setTimeout(() => finish(false), timeout);
+        frame = requestAnimationFrame(() => finish(true));
+      }), remaining()));
+      assert.equal(painted, true, 'Candidate workspace source report did not finish rendering: original document paint unavailable.');
+      const currentActor = await withinBudget(() => surface.observe());
+      const currentSource = await withinBudget(() => readCandidateSourceState(surface));
+      assertHeldSource(currentActor, currentSource);
+      const mounted = await mountedReception();
+      let reception = null;
+      if (mounted?.panelCount === 1 && mounted.panelVisible === true && !mounted.pendingMutation && !mounted.transmitting &&
+          Number.isFinite(originalSource.documentTimeOrigin) && originalSource.documentTimeOrigin > 0 &&
+          Number.isSafeInteger(originalSource.identityHydrationRevision) && originalSource.identityHydrationRevision > 0 &&
+          originalSource.phase === 'active' && Number.isSafeInteger(originalSource.cycle) && originalSource.cycle > 0) {
+        const snapshot = await withinBudget(() => panel.evaluate(candidateGeometrySnapshot));
+        if (snapshot.receiving === false && snapshot.headerCount === 1 && snapshot.cycle === originalSource.cycle &&
+            Number.isSafeInteger(snapshot.revision) && snapshot.revision >= 0 &&
+            currentGroup(snapshot, currentSource) === expectedGroupId && [0, 1].includes(snapshot.fleetGroupSelectorCount) &&
+            await withinBudget(() => refresh.count()) === 1 && await withinBudget(() => refresh.isVisible()) &&
+            await withinBudget(() => refresh.isEnabled())) {
+          reception = JSON.stringify([currentSource.sessionUpdatedAt, snapshot.cycle, snapshot.revision, expectedGroupId]);
+        }
+      }
+      if (reception && reception === previousReception) { qualifiedSourceKey = currentSource.sessionUpdatedAt; break; }
+      previousReception = reception;
+    }
+    assert.ok(previousReception && qualifiedSourceKey !== undefined,
+      'Candidate workspace source report did not finish rendering: initial reception needs two current source paints.');
+    remaining();
     const refreshRequests = new Set();
     let refreshStarted = false;
     const rememberRefreshRequest = request => {
@@ -454,9 +527,9 @@ export function candidateGameplayTools(context) {
     try {
       const responsePromise = surface.page.waitForResponse(value =>
         refreshRequests.has(value.request()) && isCurrentWorkspaceRequest(value.request()),
-      { timeout: readinessTimeoutMs });
+      { timeout: remaining() });
       refreshStarted = true;
-      [response] = await Promise.all([responsePromise, refresh.click({ timeout: readinessTimeoutMs })]);
+      [response] = await Promise.all([responsePromise, withinBudget(() => refresh.click({ timeout: remaining() }))]);
     } finally {
       refreshStarted = false;
       surface.page.off('request', rememberRefreshRequest);
@@ -465,7 +538,7 @@ export function candidateGameplayTools(context) {
     assert.strictEqual(response.request(), [...refreshRequests][0],
       'The accepted native response must belong to the unique request initiated by the mounted refresh.');
     assert.equal(response.status(), 200, 'The mounted current-workspace read must return a successful native response.');
-    const envelope = await response.json();
+    const envelope = await withinBudget(() => response.json());
     const report = envelope?.result;
     const request = response.request().postDataJSON()?.data;
     assert.deepEqual(Object.keys(request ?? {}).sort(), expectedRequestKeys,
@@ -477,12 +550,12 @@ export function candidateGameplayTools(context) {
       instanceId: source.instanceId, instanceClaimedAt: source.instanceClaimedAt,
       gmInstanceOwned: source.gmInstanceOwned });
     async function observeReadiness() {
-      const currentActor = await surface.observe();
-      const currentSource = await readCandidateSourceState(surface);
-      const snapshot = await panel.evaluate(candidateGeometrySnapshot);
-      const currentGroupId = snapshot.fleetGroupSelectorCount === 1
-        ? snapshot.selectedFleetGroup
-        : currentSource.groupId || [...new Set(Object.values(currentSource.shipFleetGroupIds ?? {}))][0] || 'fleet-1';
+      const currentActor = await withinBudget(() => surface.observe());
+      const currentSource = await withinBudget(() => readCandidateSourceState(surface));
+      assertHeldSource(currentActor, currentSource);
+      assert.equal(currentSource.sessionUpdatedAt, qualifiedSourceKey, 'Candidate workspace original qualified source key changed after refresh.');
+      const snapshot = await withinBudget(() => panel.evaluate(candidateGeometrySnapshot));
+      const currentGroupId = currentGroup(snapshot, currentSource);
       const rendered = { ...snapshot, currentGroupId };
       const decision = projectCandidateWorkspaceReadiness({ expectedActor,
         currentActor: { ...currentActor, instanceClaimedAt: currentSource.instanceClaimedAt },
@@ -490,7 +563,6 @@ export function candidateGameplayTools(context) {
       return { decision, rendered, currentSource };
     }
     async function waitForReadySource() {
-      const deadline = Date.now() + readinessTimeoutMs;
       let last;
       do {
         last = await observeReadiness();
@@ -498,8 +570,8 @@ export function candidateGameplayTools(context) {
         if (last.decision.state === 'blocked') {
           throw new Error(`Candidate workspace source readiness blocked: ${last.decision.reason}`);
         }
-        if (Date.now() < deadline) await delay(Math.min(100, deadline - Date.now()));
-      } while (Date.now() < deadline);
+        if (Date.now() < deadlineAt) await delay(Math.min(100, remaining()));
+      } while (Date.now() < deadlineAt);
       throw new Error(`Candidate workspace source report did not finish rendering: ${last?.decision.reason ?? 'timeout'}`);
     }
     const initialReadiness = await waitForReadySource();
@@ -507,8 +579,8 @@ export function candidateGameplayTools(context) {
     const viewports = [];
     try {
       for (const size of [{ width: 320, height: 844 }, { width: 844, height: 390 }, { width: 1440, height: 900 }]) {
-        await surface.page.setViewportSize(size);
-        await panel.scrollIntoViewIfNeeded();
+        await withinBudget(() => surface.page.setViewportSize(size));
+        await withinBudget(() => panel.scrollIntoViewIfNeeded({ timeout: remaining() }));
         const beforeTraversal = await waitForReadySource();
         const geometry = beforeTraversal.rendered;
         const intendedTargets = [...geometry.tabStopKeys];
@@ -516,9 +588,9 @@ export function candidateGameplayTools(context) {
         const visitedTargets = new Set();
         let tabPresses = 0;
         while (visitedTargets.size < intendedTargets.length && tabPresses < tabPressLimit) {
-          await surface.page.keyboard.press('Tab');
+          await withinBudget(() => surface.page.keyboard.press('Tab'));
           tabPresses++;
-          const snapshot = await panel.evaluate(candidateGeometrySnapshot);
+          const snapshot = await withinBudget(() => panel.evaluate(candidateGeometrySnapshot));
           assert.deepEqual(snapshot.tabStopKeys, intendedTargets,
             'The current enabled panel tab stops must stay stable during native keyboard traversal.');
           if (snapshot.activeTargetKey) visitedTargets.add(snapshot.activeTargetKey);
@@ -535,17 +607,19 @@ export function candidateGameplayTools(context) {
           checkboxTargets: geometry.checkboxTargets, text: geometry.text, reducedMotion: geometry.reducedMotion,
           readiness: afterTraversal.decision, keyboardFocusReached: keyboardTraversal.allEnabledTargetsReached,
           keyboardTraversal });
-        await surface.page.screenshot({ path: `${directory}/${code}-${stage}-${size.width}x${size.height}.png` });
+        await withinBudget(() => surface.page.screenshot({ path: `${directory}/${code}-${stage}-${size.width}x${size.height}.png`, timeout: remaining() }));
         const afterScreenshot = await waitForReadySource();
         assert.deepEqual(afterScreenshot.decision, initialReadiness.decision,
           'Source actor, cycle, report revision, and candidate path must still match after capture.');
       }
       assert.ok(viewports.every(value => value.noHorizontalOverflow && value.keyboardFocusReached), 'Actual candidate choices must fit and be keyboard reachable.');
       assert.ok(viewports.every(value => [...value.controls, ...value.checkboxTargets].every(control => control.height >= 43.99)), 'Actual candidate controls and research activation targets must retain their mandatory 44px targets.');
+      remaining();
       await writeFile(`${directory}/${code}-${stage}-geometry.json`, `${JSON.stringify(viewports, null, 2)}\n`);
     } finally {
       if (previous) await surface.page.setViewportSize(previous);
     }
+    remaining();
     await record('actual candidate controls/costs/blockers/next actor at three viewports', { candidateCode: code, stage,
       sourceReadiness: initialReadiness.decision,
       checkboxTargetShortfalls: viewports.flatMap(value => value.checkboxTargets.filter(target => target.height < 43.99).map(target => ({ width: value.width, name: target.name, height: target.height }))) });
