@@ -77,9 +77,18 @@ const MALIADE_REPAIR_STALE_REPLY_TYPE = `export interface MaliadesRepairCallable
 const MALIADE_CALLABLE_MARKERS = Object.freeze([
   // One file owns three exported Functions, so path-only selection is too broad.
   // The content-aware selector below deploys one isolated export and rejects mixed diffs.
-  ['resolveMaliadesMedium', 'export const resolveMaliadesMedium = onCall(CALLABLE_RUNTIME_OPTIONS, async request =>\n'],
-  ['resolveMaliadesShort', 'export const resolveMaliadesShort = onCall(CALLABLE_RUNTIME_OPTIONS, async request =>\n'],
-  ['repairMaliades', 'export const repairMaliades = onCall(CALLABLE_RUNTIME_OPTIONS, async request => {'],
+  ['resolveMaliadesMedium', [
+    'export const resolveMaliadesMedium = onCall(CALLABLE_RUNTIME_OPTIONS, async request =>\n',
+    "export const resolveMaliadesMedium = auditedOnCall('resolveMaliadesMedium', CALLABLE_RUNTIME_OPTIONS, async request =>\n",
+  ]],
+  ['resolveMaliadesShort', [
+    'export const resolveMaliadesShort = onCall(CALLABLE_RUNTIME_OPTIONS, async request =>\n',
+    "export const resolveMaliadesShort = auditedOnCall('resolveMaliadesShort', CALLABLE_RUNTIME_OPTIONS, async request =>\n",
+  ]],
+  ['repairMaliades', [
+    'export const repairMaliades = onCall(CALLABLE_RUNTIME_OPTIONS, async request => {',
+    "export const repairMaliades = auditedOnCall('repairMaliades', CALLABLE_RUNTIME_OPTIONS, async request => {",
+  ]],
 ]);
 const MALIADE_REPAIR_REQUEST_ADDITIONS = Object.freeze([
   [
@@ -1236,17 +1245,20 @@ function canonicalMaliadesRepairPrefix(prefix) {
 
 function maliadesCallableSections(source) {
   if (typeof source !== 'string') throw new Error('Cannot safely map Maliades callable changes without source at both revisions.');
-  const positions = MALIADE_CALLABLE_MARKERS.map(([name, marker]) => {
-    const first = source.indexOf(marker);
-    if (first < 0 || source.indexOf(marker, first + marker.length) >= 0) {
+  const positions = MALIADE_CALLABLE_MARKERS.map(([name, markers]) => {
+    const matches = markers.flatMap((marker) => {
+      const first = source.indexOf(marker);
+      return first < 0 || source.indexOf(marker, first + marker.length) >= 0 ? [] : [[first, marker]];
+    });
+    if (matches.length !== 1) {
       throw new Error(`Cannot safely map Maliades callable changes without one ${name} export.`);
     }
-    return [name, first];
+    return [name, matches[0][0]];
   });
   if (positions.some(([, position], index) => index > 0 && position <= positions[index - 1][1])) {
     throw new Error('Cannot safely map Maliades callable changes after export order changed.');
   }
-  const exports = [...source.matchAll(/export const (\w+) = onCall\b/g)].map((match) => match[1]);
+  const exports = [...source.matchAll(/export const (\w+) = (?:auditedOnCall|onCall)\b/g)].map((match) => match[1]);
   if (exports.join('|') !== MALIADE_CALLABLE_MARKERS.map(([name]) => name).join('|') || !/\}\);\n?$/.test(source)) {
     throw new Error('Cannot safely map Maliades callable changes after the export surface changed.');
   }
