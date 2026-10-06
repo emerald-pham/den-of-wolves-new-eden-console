@@ -548,9 +548,9 @@ export function createSpecialistGameplayDriver(game, {
       crewCycle: latest?.crewState?.cycle, actorUidHash: latest?.currentActor?.uidHash,
       activeConsoleRoleId: latest?.currentActor?.activeConsoleRoleId,
     })}`);
-    if (endpoint === 'requestScout') error[scoutConvergenceTimeout] = {
-      latest, before: scoutBefore, timeoutMs: callTimeout, intervalMs,
-    };
+    if (endpoint === 'requestScout') Object.defineProperty(error, scoutConvergenceTimeout, {
+      value: { latest, before: scoutBefore, timeoutMs: callTimeout, intervalMs },
+    });
     throw error;
   }
 
