@@ -432,4 +432,29 @@ describe('ordinary original Press receives only current own group metadata', () 
     expect(useSessionStore.getState().me?.connectionGeneration).toBe(4);
     await sourceDiscovery({}, retired); expectWithdrawn();
   });
+
+  it('does not infer a modern Press audience from cached HY0 identity while ordinary resume is pending', async () => {
+    await mount({ cold: true });
+    expect(useSessionStore.getState().identityHydrationRevision).toBe(0);
+    expect(useSessionStore.getState().sessionSnapshotFreshness).not.toBe('server');
+    expect(callCount('getCurrentMemberSession')).toBe(0);
+    expect(listeners.some(value => value.active && value.path.includes('/playerDiscoveries/'))).toBe(false);
+    expectWithdrawn();
+  });
+
+  it('does not manufacture a modern null berth for a genuinely absent legacy transaction witness', async () => {
+    await mount({ legacy: true });
+    presenceReplies.forEach(reply => reply.resolve({ data: { sessionId } }));
+    await deliverMember(0); await deliverPlayer(); await deliverMember(1);
+    expect(useSessionStore.getState().session).not.toHaveProperty('currentActorBerthAuthority');
+    await sourceDiscovery(); expectWithdrawn();
+  });
+
+  it('withdraws the group-only view on the normal source escape-state transition', async () => {
+    await joinedPress(); await sourceDiscovery();
+    await deliverPlayer({ ...actor, escapeState: { status: 'pending', shipId: 'refinery-124',
+      destructionEventId: 'press-destruction', revision: 1 } });
+    expect(useSessionStore.getState().me?.escapeState?.status).toBe('pending');
+    await sourceDiscovery(); expectWithdrawn();
+  });
 });
