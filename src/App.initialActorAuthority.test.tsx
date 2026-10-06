@@ -100,7 +100,7 @@ async function deliverPlayer(value: Record<string, unknown> = { ...actor }, from
   await advance();
 }
 
-async function mount(options: { demo?: boolean; press?: boolean; gm?: boolean; legacy?: boolean } = {}) {
+async function mount(options: { demo?: boolean; press?: boolean; gm?: boolean; legacy?: boolean; cold?: boolean } = {}) {
   const roleId = options.press ? 'press-officer' : 'executive-officer';
   window.history.replaceState({}, '', options.demo === false || options.gm ? '/#/console'
     : `/?demoActor=${sessionId}~${roleId}&demoJoin=123456#/demo-actors`);
@@ -175,10 +175,20 @@ async function mount(options: { demo?: boolean; press?: boolean; gm?: boolean; l
     }
     throw new Error(`Unexpected callable ${name}`);
   });
+  if (options.cold) {
+    const { SESSION_STORAGE_KEY } = await import('@/store/useSessionStore');
+    const { sessionFrom } = await import('@/lib/firestore');
+    const projected = await readMember();
+    localStorage.setItem(context.demoActorSessionStorageKey(SESSION_STORAGE_KEY), JSON.stringify({ version: 1,
+      state: { session: sessionFrom(sessionId, projected.session as Record<string, unknown>), me: actor,
+        mode: 'console', pendingCommands: [], lastRoute: '/demo-actors' } }));
+    await useSessionStore.persist.rehydrate();
+  }
   await import('@/routes/DemoActorManager');
   const { default: App } = await import('./App');
   unmount = render(<App />).unmount;
   await advance();
+  if (options.cold) return;
   if (options.demo === false || options.gm) {
     // The ordinary public service is the same manager's join action.
     void service.joinSession('123456'); await advance();
@@ -364,5 +374,54 @@ describe('initial accepted actor confirmation before a slow member transaction',
     expect(callCount('resumeSession')).toBe(0);
     expect(useSessionStore.getState()).toMatchObject({ connection: 'live', sessionSnapshotFreshness: 'server',
       identityHydrationRevision: 1, me: { role: 'gm', connectionGeneration: 2 } });
+  });
+
+  it('does not initialize member authority from a persisted HY0 actor while the original normal resume is pending', async () => {
+    await mount({ cold: true });
+    expect(useSessionStore.getState().identityHydrationRevision).toBe(0);
+    expect(callCount('resumeSession')).toBe(1);
+    expect(callCount('joinSession')).toBe(0);
+    expect(callCount('getCurrentMemberSession')).toBe(0);
+    expect(listeners.some(reader => reader.path === playerPath())).toBe(false);
+    expect(useSessionStore.getState().connection).not.toBe('live');
+    expect(useSessionStore.getState().sessionSnapshotFreshness).toBe('cache');
+  });
+
+  it('does not initialize FIRST matching player after the original Auth UID disappears', async () => {
+    await mount(); sdk.auth.currentUser = null;
+    const reader = currentPlayerReader();
+    act(() => reader.next(snapshot(playerPath(), { ...actor })));
+    expect(frames.some(frame => frame.connection === 'offline' && frame.freshness === 'cache')).toBe(true);
+    expect(useSessionStore.getState().identityHydrationRevision).toBe(1);
+  });
+
+  it.each([
+    ['awaiting replacement', { replacementStatus: 'awaiting-re-role' }],
+    ['replacement role', { replacementRoleId: 'commissar' }],
+    ['escape', { escapeState: { status: 'pending', shipId: 'aegis', destructionEventId: 'original-destruction', revision: 1 } }],
+  ] as const)('does not treat FIRST %s as unrevoked initial core authority', async (_name, change) => {
+    await mount(); const reader = currentPlayerReader();
+    act(() => reader.next(snapshot(playerPath(), { ...actor, ...change })));
+    expect(frames.some(frame => frame.connection === 'offline' && frame.freshness === 'cache')).toBe(true);
+  });
+
+  it('does not preserve initial operational freshness when the accepted join is already terminal debrief', async () => {
+    sessionData = { ...sessionData, phase: 'debrief', fullGameDemo: { status: 'complete', progression: 'manual' } };
+    await mount(); await deliverPlayer();
+    expect(useSessionStore.getState()).toMatchObject({ connection: 'offline', sessionSnapshotFreshness: 'cache' });
+  });
+
+  it('keeps early private discovery buffered through FIRST initialization until the original transaction independently confirms', async () => {
+    await mount();
+    const reader = listeners.filter(value => value.active && value.path === `${rootPath()}/playerDiscoveries/${actor.uid}`).at(-1)!;
+    const discovery = { groupId: 'fleet-1', shipId: 'aegis', fleetGroupVesselIds: ['aegis'],
+      currentCoordinate: '1413', knownCoordinates: ['1413'], knownSystems: {}, pursuitDistance: 1,
+      navigationLogs: [], revision: 2 };
+    act(() => reader.next(snapshot(reader.path, discovery)));
+    await deliverPlayer();
+    expect(useSessionStore.getState().session?.playerDiscovery).toBeUndefined();
+    await deliverMember(0); await deliverMember(1);
+    expect(useSessionStore.getState().session?.playerDiscovery).toMatchObject({ shipId: 'aegis', revision: 2 });
+    expect(useSessionStore.getState()).toMatchObject({ identityHydrationRevision: 1, me: { connectionGeneration: 2 } });
   });
 });
