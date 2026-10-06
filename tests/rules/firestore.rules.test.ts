@@ -2764,6 +2764,7 @@ describe('shuttle departure privacy', () => {
     await deniedAfter(async (db) => {
       await updateDoc(doc(db, pressPath), { kickedAt: null, replacementStatus: 'replaced' });
     });
+    await deniedAfter((db) => updateDoc(doc(db, pressPath), { replacementStatus: deleteField() }));
     await deniedAfter(async (db) => {
       await updateDoc(doc(db, pressPath), { replacementStatus: null, activeConsoleRoleId: 'wing-commander' });
     });
