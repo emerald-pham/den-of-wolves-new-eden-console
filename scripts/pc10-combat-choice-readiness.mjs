@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { setTimeout as delay } from 'node:timers/promises';
+import { summarizeWolfTargetDiagnosticSample } from './pc10-combat-target-diagnostics.mjs';
 
 const identityKeys = ['sessionId', 'uidHash', 'profileRoleId', 'assignedRoleId', 'activeConsoleRoleId', 'playerRole', 'phase', 'cycle',
   'fleetGroupId', 'connectionGeneration', 'identityHydrationRevision', 'replacementRoleId', 'replacementStatus', 'seatId',
@@ -68,9 +69,79 @@ function assertClosedReadAuthority(current, original, expected) {
 }
 
 /** Extra read-only fields bind the mounted controller's current audience/lease, without changing the generic driver. */
-export async function observeWolfChoiceActor(surface) {
+export async function observeWolfChoiceActor(surface, recordTargetDiagnostic) {
   const before = await surface.observe();
-  const authority = await surface.page.evaluate(async moduleUrl => {
+  const sampled = await surface.page.evaluate(recordTargetDiagnostic ? async moduleUrl => {
+    const { useSessionStore } = await import(moduleUrl);
+    const snapshot = useSessionStore.getState(), me = snapshot.me;
+    const discovery = snapshot.session?.playerDiscovery;
+    const session = snapshot.session, gm = snapshot.gmInstance;
+    const stateOf = (object, key) => !object || !Object.hasOwn(object, key) ? 'absent'
+      : object[key] === null ? 'null' : typeof object[key] === 'object' && !Array.isArray(object[key]) ? 'object' : 'malformed';
+    const projection = (key, keys) => {
+      const value = session?.[key], state = stateOf(session, key);
+      return { state, keys: state === 'object' ? Object.keys(value).sort() : [],
+        values: keys.map(field => [field, state === 'object' && Object.hasOwn(value, field),
+          state === 'object' ? value[field] ?? null : null]) };
+    };
+    const hasDom = typeof document !== 'undefined' && typeof document.querySelectorAll === 'function';
+    const hasVisibility = hasDom && typeof window !== 'undefined' && typeof window.getComputedStyle === 'function';
+    const text = node => node?.textContent?.replace(/\s+/g, ' ').trim() ?? null;
+    const visible = node => {
+      if (!hasVisibility || !node?.isConnected || node.getClientRects().length === 0) return false;
+      for (let parent = node; parent; parent = parent.parentElement) {
+        const style = window.getComputedStyle(parent);
+        if (parent.hidden || parent.getAttribute('aria-hidden') === 'true' || style.display === 'none' ||
+            style.visibility === 'hidden' || style.visibility === 'collapse') return false;
+      }
+      return true;
+    };
+    const panels = hasDom ? [...document.querySelectorAll('[aria-label="Wolf range actions"]')].map(panel => ({
+      label: panel.getAttribute('aria-label'), visible: visible(panel), cycle: text(panel.querySelector('.eyebrow')),
+      range: text(panel.querySelector('h2')), status: text(panel.querySelector('.wolf-range-action__status')),
+      deadlines: [...panel.querySelectorAll('time')].map(node => [node.getAttribute('datetime'), text(node)]),
+      fields: [...panel.querySelectorAll('select')].map(node => ({ label: node.getAttribute('aria-label'),
+        value: node.value, selectedValues: [...node.selectedOptions].map(option => option.value),
+        options: [...node.options].map(option => ({ value: option.value, text: text(option), disabled: option.disabled })),
+        connected: node.isConnected, visible: visible(node), enabled: !node.matches(':disabled'), multiple: node.multiple })),
+      commits: [...panel.querySelectorAll('button')].filter(node => text(node) === 'Commit target assignments')
+        .map(node => ({ visible: visible(node), enabled: !node.matches(':disabled') })),
+    })) : [];
+    const craft = [session?.smallShipStates?.gorgoneion?.hostShipId ?? null,
+      session?.smallShipStates?.gorgoneion?.dockingRevision ?? null];
+    const phase = [session?.phase ?? null, session?.currentTurn ?? null, session?.turnState?.currentTurn ?? null,
+      session?.turnState?.phase ?? null, session?.turnState?.phaseRevision ?? null, session?.turnPhase?.turn ?? null,
+      session?.turnPhase?.airspace?.state ?? null, session?.turnPhase?.airspace?.pressAccess ?? null,
+      session?.turnPhase?.timerPause ?? null, session?.pursuitEmergencyWindow ?? null];
+    const member = [me?.sessionId ?? null, me?.uid ?? null, me?.connectionGeneration ?? null, me?.role ?? null,
+      me?.connected ?? null, me?.replacementRoleId ?? null, me?.replacementStatus ?? null, me?.assignedRoleId ?? null,
+      me?.activeConsoleRoleId ?? null, me?.seatId ?? null, me?.fleetGroupId ?? null, snapshot.identityHydrationRevision];
+    const targetDiagnosticSample = { wallClockMs: Date.now(),
+      documentTimeOrigin: typeof performance === 'undefined' ? null : performance.timeOrigin ?? null,
+      monotonicMs: typeof performance !== 'undefined' && typeof performance.now === 'function' ? performance.now() : null,
+      // Exact EO controller inputs; no current hook/member-view/form state is
+      // accessible here and no diagnostic input grants authority to submit.
+      controllerAuthorityInput: ['executive-officer', session?.id ?? null, session?.id ?? null, ...phase, ...member,
+        gm?.sessionId ?? null, gm?.uid ?? null, gm?.id ?? null, discovery?.groupId ?? null,
+        discovery?.shipId ?? null, discovery?.revision ?? null, discovery?.fleetGroupVesselIds ?? [], ...craft,
+        snapshot.connection, snapshot.sessionSnapshotFreshness, typeof navigator === 'undefined' || navigator.onLine, true],
+      member, phase, craft,
+      discovery: projection('playerDiscovery', ['groupId', 'shipId', 'revision', 'fleetGroupVesselIds']),
+      berth: projection('currentActorBerthAuthority', ['sessionId', 'actorUid', 'groupId', 'role', 'connectionGeneration',
+        'assignedRoleId', 'activeConsoleRoleId', 'replacementRoleId', 'replacementStatus', 'shipId']),
+      memberScope: projection('memberSessionScope', ['groupId', 'vesselIds']),
+      dom: { available: hasDom, visibilityAvailable: hasVisibility, panels } };
+    return { sessionId: snapshot.session?.id ?? null, fleetGroupId: me?.fleetGroupId ?? null,
+      connectionGeneration: me?.connectionGeneration ?? null,
+      identityHydrationRevision: snapshot.identityHydrationRevision ?? null,
+      replacementRoleId: me?.replacementRoleId ?? null, replacementStatus: me?.replacementStatus ?? null,
+      seatId: me?.seatId ?? null, connected: me?.connected !== false,
+      // Only the audience tuple used by the source controller; no coordinates,
+      // systems, candidate names, navigation logs, cards or private contacts.
+      discoveryAuthority: discovery ? { groupId: discovery.groupId, shipId: discovery.shipId ?? null,
+        revision: discovery.revision, fleetGroupVesselIds: [...(discovery.fleetGroupVesselIds ?? [])] } : null,
+      targetDiagnosticSample };
+  } : async moduleUrl => {
     const { useSessionStore } = await import(moduleUrl);
     const snapshot = useSessionStore.getState(), me = snapshot.me;
     const discovery = snapshot.session?.playerDiscovery;
@@ -84,6 +155,8 @@ export async function observeWolfChoiceActor(surface) {
       discoveryAuthority: discovery ? { groupId: discovery.groupId, shipId: discovery.shipId ?? null,
         revision: discovery.revision, fleetGroupVesselIds: [...(discovery.fleetGroupVesselIds ?? [])] } : null };
   }, surface.storeModuleUrl());
+  const { targetDiagnosticSample, ...authority } = sampled;
+  if (recordTargetDiagnostic) recordTargetDiagnostic(summarizeWolfTargetDiagnosticSample(targetDiagnosticSample));
   const after = await surface.observe(); originalIdentity(after, before);
   assert.equal(authority.sessionId, before.sessionId); assert.equal(authority.connected, true);
   // Protected discovery uses the server's current member berth, not the role

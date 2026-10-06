@@ -6,6 +6,7 @@ import { resolveLiveWolfAttack } from './pc10-live-wolf-attack-ui-proof.mjs';
 import { assertWolfChoiceActor, observeWolfChoiceActor } from './pc10-combat-choice-readiness.mjs';
 import { certifyBaseRangeTargetControls, selectBaseRangeTargetControls } from './pc10-base-range-target-controls.mjs';
 import { baseRangeActionIds, selectAndCertifyBaseRangeActionControls } from './pc10-base-range-action-controls.mjs';
+import { createWolfTargetDiagnosticBuffer } from './pc10-combat-target-diagnostics.mjs';
 import { assertBaseCombatPrerequisites, assertOriginalBaseActor, assertRequiredBaseBranches, baseMemberRowsMatch, baseWolfActionExpectation,
   BASE_COMBAT_CONTROL_LABELS, baseResearchPaintMatches, captureBaseUiReceipt,
   openingWolfCounts, openBaseEndeavourResearchRoute, originalRoleForUid, proofHash, uidHash, validatePrivateDeductionReply,
@@ -89,6 +90,8 @@ export async function runBaseCombatAndDeduction(context, options = {}) {
   const save = () => writeFile(`${directory}/${evidenceName}`, `${JSON.stringify(report, null, 2)}\n`);
   const recordRequest = async entry => { report.requests.push(entry); await save(); };
   const combatReadiness = new WeakMap();
+  const targetDiagnosticBuffers = [];
+  const attachTargetDiagnostics = () => targetDiagnosticBuffers.forEach(buffer => buffer.attach(report.observations));
   const branch = (id, value) => { report.branches[id] = value; };
   const blocked = (id, blocker, nextActor) => branch(id, { status: 'blocked', credited: false, blocker, nextActor });
   const committed = (id, details = {}) => branch(id, { status: 'committed', ...details });
@@ -428,16 +431,21 @@ export async function runBaseCombatAndDeduction(context, options = {}) {
           assert.equal(view.turn, current.turn); assert.equal(view.revision, current.revision); assert.equal(view.currentStep, current.currentStep);
           const currentReadiness = combatReadiness.get(executive);
           assert.ok(currentReadiness, 'The current original actor and decision budget are required.');
+          const diagnostic = createWolfTargetDiagnosticBuffer({ view, expected: currentReadiness.expected,
+            originalActor: currentReadiness.actor, deadlineAt: currentReadiness.deadlineAt });
+          targetDiagnosticBuffers.push(diagnostic);
           const assignments = await selectBaseRangeTargetControls({ panel, view,
             deadlineAt: currentReadiness.deadlineAt,
-            checkpoint: async () => assertWolfChoiceActor(await observeWolfChoiceActor(executive), currentReadiness.actor),
+            checkpoint: async () => assertWolfChoiceActor(await observeWolfChoiceActor(executive,
+              diagnostic.capture('selection')), currentReadiness.actor),
           });
           await receiptForAttack(executive, 'assignWolfRangeTargets', async () => {
             await certifyBaseRangeTargetControls({ panel, view, assignments, expected: currentReadiness.expected,
               deadlineAt: currentReadiness.deadlineAt,
-              checkpoint: async () => assertWolfChoiceActor(await observeWolfChoiceActor(executive), currentReadiness.actor),
+              checkpoint: async () => assertWolfChoiceActor(await observeWolfChoiceActor(executive,
+                diagnostic.capture('certificate')), currentReadiness.actor),
               record: async certificate => { report.observations.push({ ...certificate,
-                roleId: currentReadiness.actor.profileRoleId, uidHash: currentReadiness.actor.uidHash }); await save(); },
+                roleId: currentReadiness.actor.profileRoleId, uidHash: currentReadiness.actor.uidHash }); attachTargetDiagnostics(); await save(); },
             });
             const remainingMs = currentReadiness.deadlineAt - Date.now();
             assert.ok(remainingMs > 0, 'Keep the original target certificate decision deadline before the single click.');
@@ -706,6 +714,7 @@ export async function runBaseCombatAndDeduction(context, options = {}) {
     await save(); return report;
   } catch (error) {
     report.status = 'failed-or-incomplete'; report.failure = { message: error.message, nextActor: 'Caller/root; preserve current source state and normal authority.' };
+    attachTargetDiagnostics();
     await save(); throw error;
   }
 }
