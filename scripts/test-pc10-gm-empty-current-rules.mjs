@@ -213,12 +213,15 @@ for (const patch of [{ role: 'player' }, { connected: false }]) {
   });
 }
 
-test('the real occupied source subscription still clears on genuine GM role revocation', async () => {
+test('the real occupied source subscription clears when the next ruling is published after GM role revocation', async () => {
   await writeCurrent(current()); const listener = listenFromCurrentSource(as(gmUid));
   try {
     await listener.until(() => listener.errors.length > 0 || listener.values.at(-1)?.revision === 1);
     assert.deepEqual(listener.errors, []);
     await server(admin => updateDoc(doc(admin, `${sessionPath}/players/${gmUid}`), { role: 'player' }));
+    // A watched source publication exercises the real SDK's denied delivery;
+    // the native emulator did not emit on the dependency-only player update.
+    await writeCurrent(current(2));
     await listener.until(() => listener.errors.length > 0);
     assert.deepEqual(listener.errors, ['permission-denied']); assert.equal(listener.values.at(-1), null);
     assert.equal(listener.subscriptions(), 1);
