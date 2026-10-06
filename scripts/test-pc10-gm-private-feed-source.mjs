@@ -359,9 +359,9 @@ async function fixture(options = {}) {
           serverCensus, serverRule,
           setAuth: value => { authUid = value; } });
         schedule(() => {
-          React.act(() => { options.beforeReloadFeed?.({ container, store: useSessionStore, emit, schedule,
+          options.beforeReloadFeed?.({ container, store: useSessionStore, emit, schedule,
             serverCensus, serverRule,
-            setAuth: value => { authUid = value; } }); });
+            setAuth: value => { authUid = value; } });
           emit('/loyaltyCensus/current', options.reloadCensus ?? serverCensus, options.reloadSnapshot);
           emit('/facilitatorRuleCalls/gm-current', options.reloadRule ?? serverRule, options.reloadSnapshot);
         }, options.reloadDelay ?? 75);
@@ -519,7 +519,9 @@ for (const [name, mutate] of [
   ['original cycle', state => ({ session: { ...state.session, currentTurn: 2 } })],
 ]) for (const endpoint of ['authorFacilitatorRuleCall', 'setFacilitatorCensusNote']) {
   test(`private postreload ${endpoint} completion rejects loss of ${name} before its late source callback`, async () => {
-    const f = await fixture({ beforeReloadFeed: ({ store }) => store.setState(mutate(store.getState())) });
+    const f = await fixture({ beforeReloadFeed: ({ store }) => {
+      React.act(() => { store.setState(mutate(store.getState())); });
+    } });
     try {
       const result = await f.run(endpoint), row = rowFor(result, endpoint);
       assert.equal(row.status, 'pending'); assert.equal(result.observedProcedureCount, 0);
@@ -611,3 +613,27 @@ test('an actual GM private reader failure remains uncredited rather than being t
     assert.equal(f.writes.length, 1); assert.equal(f.replays.length, 1); assert.equal(f.reloads(), 1);
   } finally { await f.close(); }
 });
+
+for (const endpoint of ['authorFacilitatorRuleCall', 'setFacilitatorCensusNote']) {
+  test(`public ${endpoint} holds its mounted control after the current private source reader returns`, async () => {
+    let invalidated = false;
+    const f = await fixture({ afterRead: ({ callback, reloads, container, store }) => {
+      if (invalidated || reloads !== 1 || !callback.toString().includes('gmLoyaltyCensus:') ||
+          store.getState().gmLoyaltyCensusStatus !== 'present') return;
+      const state = store.getState();
+      if (endpoint === 'authorFacilitatorRuleCall' && !state.gmFacilitatorRuleCall) return;
+      const control = endpoint === 'authorFacilitatorRuleCall'
+        ? queryAllByRole(container, 'region', { name: 'Facilitator rule call', exact: true })[0]
+        : queryAllByLabelText(container, `Facilitator note for ${targetUid}`, { exact: true })[0];
+      assert.ok(control); invalidated = true;
+      if (endpoint === 'authorFacilitatorRuleCall') control.style.display = 'none';
+      else control.disabled = true;
+    } });
+    try {
+      const result = await f.run(endpoint), row = rowFor(result, endpoint);
+      assert.equal(invalidated, true, 'The public capture must actually read its delivered current private source.');
+      assert.equal(row.status, 'pending'); assert.equal(result.observedProcedureCount, 0);
+      assert.equal(f.writes.length, 1); assert.equal(f.replays.length, 1); assert.equal(f.reloads(), 1);
+    } finally { await f.close(); }
+  });
+}
