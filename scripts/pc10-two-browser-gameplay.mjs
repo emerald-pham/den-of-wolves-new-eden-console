@@ -33,6 +33,62 @@ export function createTwoBrowserGameplay(context) {
       state.sameActor && state.sessionId === initial.sessionId && state.connection === 'live' &&
       state.freshness === 'server' && (surface !== gm || state.gmInstanceOwned), Math.max(1, Math.min(60_000, deadlineAt - Date.now())));
   }
+  async function acceptedMember(actor, deadlineAt, { original, held = false } = {}) {
+    const budget = () => assert.ok(Number.isFinite(deadlineAt) && Date.now() < deadlineAt,
+      'Original role navigation deadline expired.');
+    budget();
+    while (Date.now() < deadlineAt) {
+      budget();
+      // Session listeners can become live before this document's initial resume
+      // accepts identity. This counter is runtime-only and setIdentity-owned.
+      const current = await crew.page.evaluate(async moduleUrl => {
+        const { useSessionStore } = await import(moduleUrl);
+        const { auth } = await import('/src/lib/firebase.ts');
+        const { activeDemoActorProfile } = await import('/src/lib/demoActorContext.ts');
+        const snapshot = useSessionStore.getState(), me = snapshot.me, user = auth().currentUser;
+        const uidHash = user ? Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',
+          new TextEncoder().encode(user.uid)))).map(byte => byte.toString(16).padStart(2, '0')).join('').slice(0, 16) : null;
+        return { documentTimeOrigin: performance.timeOrigin,
+          hasAuth: !!user, sameActor: !!user && user.uid === me?.uid, uidHash,
+          profileRoleId: activeDemoActorProfile?.roleId ?? null,
+          profileSessionId: activeDemoActorProfile?.sessionId ?? null,
+          sessionId: snapshot.session?.id ?? null, meSessionId: me?.sessionId ?? null,
+          playerRole: me?.role ?? null, assignedRoleId: me?.assignedRoleId ?? null,
+          activeConsoleRoleId: me?.activeConsoleRoleId ?? null, fleetGroupId: me?.fleetGroupId ?? null,
+          connectionGeneration: me?.connectionGeneration ?? null,
+          identityHydrationRevision: snapshot.identityHydrationRevision ?? null,
+          connected: me?.connected !== false,
+          connection: snapshot.connection, freshness: snapshot.sessionSnapshotFreshness };
+      }, crew.storeModuleUrl());
+      budget();
+      assert.ok(Number.isSafeInteger(current.identityHydrationRevision) && current.identityHydrationRevision >= 0,
+        'Current document identityHydrationRevision evidence is required.');
+      if (original) {
+        for (const key of ['documentTimeOrigin', 'uidHash', 'profileRoleId', 'profileSessionId', 'sessionId',
+          'meSessionId', 'playerRole', 'assignedRoleId', 'fleetGroupId', 'connectionGeneration', 'identityHydrationRevision'])
+          assert.equal(current[key], original[key], `Original role navigation ${key} changed.`);
+      }
+      if (current.identityHydrationRevision > 0) {
+        assert.ok(Number.isFinite(current.documentTimeOrigin) && current.documentTimeOrigin > 0,
+          'Current document identity evidence is required.');
+        assert.ok(Number.isSafeInteger(current.connectionGeneration) && current.connectionGeneration >= 0,
+          'Current member connectionGeneration evidence is required.');
+        assert.equal(current.hasAuth, true); assert.equal(current.sameActor, true);
+        assert.equal(current.uidHash, actor.uidHash, 'Select the original role account, never manufacture another identity.');
+        assert.equal(current.profileRoleId, actor.roleId);
+        assert.equal(current.profileSessionId, initial.sessionId); assert.equal(current.sessionId, initial.sessionId);
+        assert.equal(current.meSessionId, initial.sessionId); assert.equal(current.playerRole, 'player');
+        assert.equal(current.assignedRoleId, actor.roleId); assert.equal(current.connected, true);
+        assert.ok(typeof current.fleetGroupId === 'string' && current.fleetGroupId.length > 0,
+          'The current original member fleet group is required.');
+        if (current.connection === 'live' && current.freshness === 'server' &&
+            (!held || current.activeConsoleRoleId === actor.roleId)) return current;
+      }
+      budget();
+      await delay(Math.min(250, deadlineAt - Date.now()));
+    }
+    throw new Error('Original role navigation deadline expired.');
+  }
   async function state(surface = gm) {
     return surface.page.evaluate(async moduleUrl => {
       const { useSessionStore } = await import(moduleUrl);
@@ -66,7 +122,10 @@ export function createTwoBrowserGameplay(context) {
     }, { moduleUrl: surface.storeModuleUrl(), shipId });
   }
   async function select(roleId, { enter = true, deadlineAt = Date.now() + 60_000 } = {}) {
-    const navigationTimeout = () => Math.max(1, Math.min(35_000, deadlineAt - Date.now()));
+    const navigationTimeout = () => {
+      assert.ok(Number.isFinite(deadlineAt) && Date.now() < deadlineAt, 'Original role navigation deadline expired.');
+      return Math.max(1, Math.min(35_000, deadlineAt - Date.now()));
+    };
     if (roleId === 'gm') { await live(gm, deadlineAt); return gm; }
     const actor = roster.find(value => value.roleId === roleId);
     assert.ok(actor, `${roleId} must be a genuinely admitted account in this fresh roster.`);
@@ -79,7 +138,7 @@ export function createTwoBrowserGameplay(context) {
       url.hash = '/demo-actors';
       await crew.page.goto(url.href, { timeout: navigationTimeout() });
     }
-    const actual = await live(crew, deadlineAt);
+    const actual = await acceptedMember(actor, deadlineAt);
     assert.equal(actual.profileRoleId, roleId);
     assert.equal(actual.uidHash, actor.uidHash, 'Select the original role account, never manufacture another identity.');
     const onRoleRoute = () => {
@@ -87,11 +146,12 @@ export function createTwoBrowserGameplay(context) {
       return roleId === 'press-officer' ? path === '#/press'
         : /^#\/(?:ships\/[^/]+|union)\/roles\//.test(path) && path.endsWith(`/roles/${roleId}`);
     };
-    async function originalAccount() {
+    async function originalAccount({ held = false } = {}) {
       assert.ok(Date.now() < deadlineAt, 'Original role navigation deadline expired.');
       const current = await crew.observe();
       assert.equal(current.uidHash, actor.uidHash); assert.equal(current.profileRoleId, roleId);
       assert.equal(current.sessionId, initial.sessionId); assert.equal(current.hasAuth, true); assert.equal(current.sameActor, true);
+      await acceptedMember(actor, deadlineAt, { original: actual, held });
     }
     if (enter && (actual.activeConsoleRoleId !== roleId || !onRoleRoute())) {
       for (let hop = 0; hop < 4 && !onRoleRoute(); hop++) {
@@ -118,6 +178,7 @@ export function createTwoBrowserGameplay(context) {
       Math.max(1, deadlineAt - Date.now()));
       await originalAccount();
     }
+    await originalAccount({ held: enter });
     return crew;
   }
   async function command(roleId, name, fields = {}, { instance = roleId === 'gm' } = {}) {
