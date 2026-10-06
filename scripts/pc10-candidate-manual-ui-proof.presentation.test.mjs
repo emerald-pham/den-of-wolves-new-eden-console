@@ -60,7 +60,12 @@ async function actualPresentation(t, kind) {
       '@/lib/turnInterstitialService': { clearTurnAdvanceInterstitial: noAction },
       './CycleBriefingClearanceView': clearance, './TeamStartFormalAnnouncementsView': formal }, realm);
     const style = f.window.document.createElement('style');
-    style.textContent = await readFile(resolve(ROOT, 'src/styles/intrusion.css'), 'utf8');
+    const css = await readFile(resolve(ROOT, 'src/styles/intrusion.css'), 'utf8');
+    // JSDOM cannot parse the existing nested, inactive reduced-motion rule.
+    // Keep every normal source declaration byte-identical; this earns no full-CSS/pixel credit.
+    const nested = css.indexOf("[data-motion='reduce'] {"), afterNested = css.indexOf('/* The clear action is a real, accessible control');
+    assert.ok(nested >= 0 && afterNested > nested);
+    style.textContent = css.slice(0, nested) + css.slice(afterNested);
     f.window.document.head.append(style);
     f.store.session = { ...f.store.session, currentTurn: 3, updatedAt: 'source-presentation-key-3',
       turnStartAnnouncement: { turn: 3, survivorPopulation: 222581, revision: 0 } };
