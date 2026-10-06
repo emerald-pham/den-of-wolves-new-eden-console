@@ -20,6 +20,7 @@ function candidateReadResponse({
 
 function candidateRefreshSurface({ refreshResponse, pendingResponse } = {}) {
   let screenshotCount = 0;
+  let refreshed = false;
   const listeners = new Map();
   const on = (event, listener) => {
     const values = listeners.get(event) ?? new Set(); values.add(listener); listeners.set(event, values);
@@ -29,6 +30,7 @@ function candidateRefreshSurface({ refreshResponse, pendingResponse } = {}) {
   const emptyLocator = { count: async () => 0 };
   const button = { count: async () => 1, isVisible: async () => true, isEnabled: async () => true,
     scrollIntoViewIfNeeded: async () => {}, click: async () => {
+      refreshed = true;
       if (pendingResponse) emit('response', pendingResponse);
       emit('request', refreshResponse.request());
       emit('response', refreshResponse);
@@ -36,11 +38,13 @@ function candidateRefreshSurface({ refreshResponse, pendingResponse } = {}) {
   const panel = {
     waitFor: async () => {}, scrollIntoViewIfNeeded: async () => {},
     getByRole: (role, options) => role === 'button' && options?.name === 'Refresh candidate operations' ? button : emptyLocator,
-    evaluate: async () => ({ receiving: true, headerCount: 0, cycle: null, revision: null,
+    evaluate: async () => refreshed ? ({ receiving: true, headerCount: 0, cycle: null, revision: null,
       pathHeadings: [], researchGroupVisible: false, researchTrackNames: [], researchTrackEnabledCount: 0,
       commitResearchButtonCount: 0, ringButtons: [], nebulaJumpButtons: [], fleetGroupSelectorCount: 0,
       tabStopKeys: [], documentTabStopCount: 1, noHorizontalOverflow: true, controls: [],
-      checkboxTargets: [], text: 'Receiving current candidate operations…', reducedMotion: false }),
+      checkboxTargets: [], text: 'Receiving current candidate operations…', reducedMotion: false }) :
+      ({ receiving: false, headerCount: 1, cycle: 4, revision: 3, pathHeadings: ['New Eden'],
+        fleetGroupSelectorCount: 0, selectedFleetGroup: null }),
   };
   const surface = { page: {
     getByRole: role => role === 'region' ? panel : emptyLocator,
@@ -55,10 +59,14 @@ function candidateRefreshSurface({ refreshResponse, pendingResponse } = {}) {
     }),
     keyboard: { press: async () => {} }, screenshot: async () => { screenshotCount++; },
     evaluate: async callback => {
+      if (String(callback).includes('candidate-workspace-source-paint')) return true;
+      if (String(callback).includes('candidate-workspace-mounted-reception')) return {
+        panelCount: 1, panelVisible: true, pendingMutation: false, transmitting: false };
       if (String(callback).includes('candidate-workspace-current-source')) return {
         sessionId: 'session-test', cycle: 4, phase: 'active', groupId: 'fleet-1', shipFleetGroupIds: {},
         playerRole: 'gm', instanceId: 'owned-instance', instanceClaimedAt: 'lease-1',
-        gmInstanceOwned: true, live: true };
+        gmInstanceOwned: true, live: true, documentTimeOrigin: 1000,
+        connectionGeneration: 3, identityHydrationRevision: 1, sessionUpdatedAt: 'source-key-0' };
       return undefined;
     },
   }, observe: async () => ({ hasAuth: true, sameActor: true, uidHash: 'actor-hash', sessionId: 'session-test',
