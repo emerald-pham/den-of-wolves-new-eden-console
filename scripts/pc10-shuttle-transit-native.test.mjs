@@ -19,17 +19,10 @@ const ACTOR = { uidHash: UID_HASH, sessionId: SESSION, profileRoleId: 'quellon-e
   activeConsoleRoleId: 'quellon-explorer', sameActor: true, connection: 'live', freshness: 'server' };
 
 function currentDocumentAuthority(overrides = {}) {
-  return { sessionId: SESSION, meSessionId: SESSION, berthSessionId: SESSION,
-    actualAuthUidHash: UID_HASH, meUidHash: UID_HASH, berthUidHash: UID_HASH,
-    scopeGroupId: 'fleet-1', berthGroupId: 'fleet-1',
-    audienceHash: 'a'.repeat(64), berthHash: 'b'.repeat(64),
-    connectionGeneration: 4, berthConnectionGeneration: 4, identityHydrationRevision: 3,
+  return { sessionId: SESSION, uidHash: UID_HASH, groupId: 'fleet-1', roleId: 'quellon-explorer',
+    connectionGeneration: 4, identityHydrationRevision: 3,
     documentTimeOrigin: 1_760_000_000_000,
-    assignedRoleId: 'quellon-explorer', activeConsoleRoleId: 'quellon-explorer',
-    berthAssignedRoleId: 'quellon-explorer', berthActiveConsoleRoleId: 'quellon-explorer',
-    playerRole: 'player', berthRole: 'player', connected: true, freshness: 'server',
-    replacementStatus: null, berthReplacementStatus: null,
-    berthVesselAuthorized: true, shuttleAudienceAuthorized: true,
+    audienceHash: 'a'.repeat(64), authorityHash: 'b'.repeat(64), shuttleAuthorized: true,
     ...overrides };
 }
 
@@ -129,6 +122,48 @@ function validRetargetCapture() {
     response: { httpStatus: 200, exactReplay: true, result }, replay: { status: 'committed', result },
     rendered: { visible: true, resultStatus: 'in-transit' },
   };
+}
+
+function makeMountedRetargetHarness({ originOverrides = {}, currentAuthorityOverrides = {} } = {}) {
+  const state = { live: true, sessionId: SESSION, phase: 'active', cycle: 2,
+    playerDiscovery: { groupId: 'fleet-1' }, holderGroupId: 'fleet-1',
+    activeVesselIds: ['quellon', 'dione', 'icebreaker'],
+    shipFleetGroupIds: { quellon: 'fleet-1', dione: 'fleet-1', icebreaker: 'fleet-1' },
+    shuttleControl: { starlight: { shuttleId: 'starlight', holderUid: UID, revision: 4 } },
+    shuttleDockings: [],
+    currentDocumentAuthority: currentDocumentAuthority(currentAuthorityOverrides) };
+  const movement = { status: 'in-transit', requestId: 'departure-1', transitRequestId: 'transit-1',
+    shuttleId: 'starlight', holderUid: UID, holderUidHash: UID_HASH, groupId: 'fleet-1',
+    destinationShipId: 'dione', controlRevision: 4, cycle: 2, revision: 1,
+    requestedAt: new Date(Date.now() - 20_000).toISOString(),
+    departedAt: new Date(Date.now() - 10_000).toISOString(),
+    arrivesAt: new Date(Date.now() + 50_000).toISOString() };
+  let clickCount = 0;
+  const action = { count: async () => 1, isVisible: async () => true, isEnabled: async () => true,
+    click: async () => { clickCount += 1; } };
+  const select = { count: async () => 1, isVisible: async () => true, isEnabled: async () => true,
+    locator: () => ({ evaluateAll: async () => [
+      { value: 'dione', text: 'Dione', offered: true, enabled: true },
+      { value: 'icebreaker', text: 'Icebreaker', offered: true, enabled: true },
+    ] }), selectOption: async () => {} };
+  const panel = { getByLabel: () => select, getByRole: () => action };
+  const page = { url: () => 'http://localhost:5174/#/shuttles/starlight',
+    evaluate: async (_fn, input) => input && typeof input === 'object'
+      ? structuredClone(movement) : structuredClone(state),
+    getByRole: (role, options = {}) => role === 'region' && options.name === 'Shuttle departure'
+      ? panel : action };
+  const player = { page, storeModuleUrl: () => '/src/store/useSessionStore.ts',
+    observe: async () => ACTOR };
+  const gm = { page, storeModuleUrl: () => '/src/store/useSessionStore.ts',
+    observe: async () => ({ uidHash: 'gm-hash', sessionId: SESSION, playerRole: 'gm', instanceId: 'gm-instance',
+      gmInstanceOwned: true, sameActor: true, connection: 'live', freshness: 'server' }) };
+  const game = { select: async role => role === 'gm' ? gm : player,
+    state: async surface => surface.page.evaluate(() => null, '/src/store/useSessionStore.ts') };
+  const origin = { sessionId: SESSION, uidHash: UID_HASH, shuttleId: 'starlight', groupId: 'fleet-1',
+    cycle: 2, controlRevision: 4, sourceAuthority: currentDocumentAuthority(), ...originOverrides };
+  const context = { initial: { sessionId: SESSION }, gm,
+    roster: [{ roleId: 'quellon-explorer', uidHash: UID_HASH }], shuttleOriginAuthority: origin };
+  return { context, game, player, state, movement, clickCount: () => clickCount };
 }
 
 function makeMountedArrivalHarness({ retryCount = 0, completeCount = 1, completeEnabled = true,
@@ -421,17 +456,27 @@ test('the default arrival recipe captures one ready mounted action without SDK r
   assert.equal(changedHolder.clickCount(), 0, 'a new holder cannot submit the stale prepared arrival');
 });
 
+test('the public retarget recipe carries the pre-departure group across undocking', async () => {
+  const harness = makeMountedRetargetHarness();
+  const step = createPendingProcedureDefaultSteps()['core:retargetShuttleTransit'];
+  const prepared = await step({ context: harness.context, game: harness.game });
+  assert.equal(prepared.expected.groupId, 'fleet-1', 'retarget uses caller-bound origin group after docking is gone');
+  const action = await prepared.prepare({ surface: harness.player, actor: ACTOR, source: harness.state });
+  assert.equal(action.offered, true, action.reason);
+  assert.equal(action.transitionBefore.groupId, 'fleet-1');
+  await action.click();
+  assert.equal(harness.clickCount(), 1);
+});
+
 test('the public arrival recipe blocks missing or drifted same-document holder authority after retarget', async () => {
   const step = createPendingProcedureDefaultSteps()['core:completeShuttleArrival'];
   const mutations = [
     harness => harness.removeCurrentDocumentAuthority(),
-    harness => harness.changeCurrentDocumentAuthority(value => ({ ...value, actualAuthUidHash: 'foreign-holder' })),
-    harness => harness.changeCurrentDocumentAuthority(value => ({ ...value, meUidHash: 'foreign-holder' })),
-    harness => harness.changeCurrentDocumentAuthority(value => ({ ...value, berthUidHash: 'foreign-holder' })),
-    harness => harness.changeCurrentDocumentAuthority(value => ({ ...value, meSessionId: 'other-session' })),
-    harness => harness.changeCurrentDocumentAuthority(value => ({ ...value, scopeGroupId: 'fleet-2' })),
-    harness => harness.changeCurrentDocumentAuthority(value => ({ ...value, audienceHash: 'b'.repeat(64) })),
-    harness => harness.changeCurrentDocumentAuthority(value => ({ ...value, shuttleAudienceAuthorized: false })),
+    harness => harness.changeCurrentDocumentAuthority(value => ({ ...value, uidHash: 'foreign-holder' })),
+    harness => harness.changeCurrentDocumentAuthority(value => ({ ...value, sessionId: 'other-session' })),
+    harness => harness.changeCurrentDocumentAuthority(value => ({ ...value, groupId: 'fleet-2' })),
+    harness => harness.changeCurrentDocumentAuthority(value => ({ ...value, audienceHash: 'c'.repeat(64) })),
+    harness => harness.changeCurrentDocumentAuthority(value => ({ ...value, shuttleAuthorized: false })),
     harness => harness.changeCurrentDocumentAuthority(value => ({ ...value, connectionGeneration: value.connectionGeneration + 1 })),
     harness => harness.changeCurrentDocumentAuthority(value => ({ ...value, identityHydrationRevision: value.identityHydrationRevision + 1 })),
     harness => harness.changeCurrentDocumentAuthority(value => ({ ...value, documentTimeOrigin: value.documentTimeOrigin + 1 })),
