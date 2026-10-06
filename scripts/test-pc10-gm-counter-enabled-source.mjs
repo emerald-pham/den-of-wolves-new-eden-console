@@ -24,6 +24,9 @@ function locatorFor(nodes) {
     count: async () => nodes.length,
     nth: index => locatorFor(nodes.slice(index, index + 1)),
     first: () => locatorFor(nodes.slice(0, 1)),
+    locator(selector) {
+      return locatorFor(nodes.flatMap(node => descendants(node)).filter(node => node.tag === selector));
+    },
     getByRole(role, { name, exact = false } = {}) {
       return locatorFor(nodes.flatMap(node => descendants(node)).filter(node => node.role === role &&
         (name === undefined || (exact ? node.name === name : matches(name, node.name)))));
@@ -40,6 +43,9 @@ function locatorFor(nodes) {
       assert.equal(nodes.length, 1, 'Expected one fixture node before checking enablement.');
       return typeof nodes[0].enabled === 'function' ? nodes[0].enabled() : nodes[0].enabled !== false;
     },
+    async innerText() {
+      return nodes[0].text ?? nodes[0].name;
+    },
     async click() {
       assert.equal(nodes.length, 1, 'Expected one source control before clicking it.');
       assert.equal(await locator.isVisible(), true);
@@ -50,8 +56,8 @@ function locatorFor(nodes) {
   return locator;
 }
 
-function element(role, name, { attributes = {}, children = [], enabled = true, click } = {}) {
-  return { role, name, attributes, children, enabled, click };
+function element(role, name, { attributes = {}, children = [], enabled = true, click, tag, text } = {}) {
+  return { role, name, attributes, children, enabled, click, tag, text };
 }
 
 function makeFixture({ aegisFood = 0, aegisDecreaseEnabled = false, aegisIncreaseEnabled = true,
@@ -67,6 +73,7 @@ function makeFixture({ aegisFood = 0, aegisDecreaseEnabled = false, aegisIncreas
     },
   });
   const counter = (shipId, direction, enabledInSource, currentAmount) => element('button', `${direction} Food`, {
+    attributes: { 'aria-label': `${direction} Food` },
     enabled: () => writeMode && enabledInSource && (direction !== 'Decrease' || currentAmount > 0),
     click() { actions.push(`${shipId}:${direction}:Food`); },
   });
@@ -75,8 +82,10 @@ function makeFixture({ aegisFood = 0, aegisDecreaseEnabled = false, aegisIncreas
   const shipGroup = (shipId, shipName, currentAmount, decreaseEnabled, increaseEnabled) => element('group', `${shipName} resource controls`, {
     attributes: { 'aria-label': `${shipName} resource controls` },
     children: [
-      element('list', 'Resource stores', { children: [element('listitem', `Food: ${currentAmount}`, { children: [
-        counter(shipId, 'Decrease', decreaseEnabled, currentAmount), element('generic', String(currentAmount)),
+      element('list', 'Resource stores', { children: [element('listitem', `Food: ${currentAmount}`, {
+        attributes: { 'aria-label': `Food: ${currentAmount}` }, children: [
+        counter(shipId, 'Decrease', decreaseEnabled, currentAmount),
+        element('generic', String(currentAmount), { tag: 'strong', text: String(currentAmount) }),
         counter(shipId, 'Increase', increaseEnabled, currentAmount),
       ] })] }),
       element('list', 'Survivor population', { children: [element('listitem', 'Survivor Population', { children: [
@@ -106,7 +115,7 @@ function makeFixture({ aegisFood = 0, aegisDecreaseEnabled = false, aegisIncreas
     sameActor: true, sessionId: SESSION_ID, uidHash: GM_UID_HASH, playerRole: 'gm',
     connection: 'live', freshness: 'server', gmInstanceOwned: true, instanceId: INSTANCE_ID,
     claimedAt: CLAIMED_AT, connectionGeneration: 7, hydrationRevision: 11,
-    phase: 'active', cycle: 1,
+    activeConsoleRoleId: null, phase: 'active', cycle: 1,
   };
   const page = {
     url: () => 'http://localhost:5174/#/gm',
@@ -122,6 +131,8 @@ function makeFixture({ aegisFood = 0, aegisDecreaseEnabled = false, aegisIncreas
           playerRole: actor.playerRole, instanceId: actor.instanceId, gmInstanceOwned: actor.gmInstanceOwned,
           connection: actor.connection, freshness: actor.freshness, claimedAt: actor.claimedAt,
           generation: actor.connectionGeneration, hydrationRevision: actor.hydrationRevision,
+          hasAuth: true, profileRoleId: null, assignedRoleId: null,
+          activeConsoleRoleId: actor.activeConsoleRoleId,
           phase: state.phase, cycle: state.cycle,
         };
       }

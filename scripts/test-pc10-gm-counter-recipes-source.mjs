@@ -25,6 +25,9 @@ function locatorFor(nodes, onRead = () => {}) {
     count: async () => nodes.length,
     nth: index => locatorFor(nodes.slice(index, index + 1), onRead),
     first: () => locatorFor(nodes.slice(0, 1), onRead),
+    locator(selector) {
+      return locatorFor(nodes.flatMap(node => descendants(node)).filter(node => node.tag === selector), onRead);
+    },
     getByRole(role, { name, exact = false } = {}) {
       const matches = nodes.flatMap(node => descendants(node)).filter(node => node.role === role &&
         (name === undefined || (exact ? node.name === name : roleMatches(name, node.name))));
@@ -38,6 +41,9 @@ function locatorFor(nodes, onRead = () => {}) {
     async isVisible() {
       assert.equal(nodes.length, 1, 'Expected one fixture element before checking visibility.');
       return nodes[0].visible !== false;
+    },
+    async innerText() {
+      return nodes[0].text ?? nodes[0].name;
     },
     async isEnabled() {
       assert.equal(nodes.length, 1, 'Expected one fixture element before checking enablement.');
@@ -64,8 +70,8 @@ function locatorFor(nodes, onRead = () => {}) {
   return locator;
 }
 
-function element(role, name, { attributes = {}, children = [], enabled = true, value, click } = {}) {
-  return { role, name, attributes, children, enabled, value, click };
+function element(role, name, { attributes = {}, children = [], enabled = true, value, click, tag, text } = {}) {
+  return { role, name, attributes, children, enabled, value, click, tag, text };
 }
 
 function makeMountedSourceFixture({ wingCounts = {
@@ -82,8 +88,9 @@ function makeMountedSourceFixture({ wingCounts = {
       actions.push('write-mode');
     },
   });
-  const counter = (name, direction) => element('button', `${direction} ${name}`, {
-    enabled: () => shipNumberWrite,
+  const counter = (name, direction, currentAmount = 0) => element('button', `${direction} ${name}`, {
+    attributes: { 'aria-label': `${direction} ${name}` },
+    enabled: () => shipNumberWrite && (direction !== 'Decrease' || currentAmount > 0),
     click() { actions.push(`${direction}:${name}`); },
   });
   const fighterWing = wingId => element('listitem', `${wingId} fighter count ${wingCounts[wingId].count}`, {
@@ -98,12 +105,20 @@ function makeMountedSourceFixture({ wingCounts = {
       }),
     ],
   });
+  const materialRow = (amount) => element('listitem', `Materials: ${amount}`, {
+    attributes: { 'aria-label': `Materials: ${amount}` },
+    children: [counter('Materials', 'Decrease', amount),
+      element('generic', String(amount), { tag: 'strong', text: String(amount) }),
+      counter('Materials', 'Increase', amount)],
+  });
   const aegis = element('group', 'Aegis resource controls', {
-    children: [counter('Materials', 'Increase'), counter('Materials', 'Decrease'),
+    attributes: { 'aria-label': 'Aegis resource controls' },
+    children: [element('list', 'Resource stores', { children: [materialRow(0)] }),
       fighterWing('fighter-wing-alpha'), fighterWing('fighter-wing-bravo')],
   });
   const quellon = element('group', 'Quellon resource controls', {
-    children: [counter('Materials', 'Increase'), counter('Materials', 'Decrease')],
+    attributes: { 'aria-label': 'Quellon resource controls' },
+    children: [element('list', 'Resource stores', { children: [materialRow(1)] })],
   });
   const fleet = element('region', 'Fleet resource controls', {
     children: [
@@ -140,7 +155,7 @@ function makeMountedSourceFixture({ wingCounts = {
       activeVesselIds: ['aegis'],
       vesselActionRevisions: { aegis: 14 },
       shipFleetGroupIds: { aegis: 'native-fleet' },
-      shipResources: { aegis: { materials: 4 } },
+      shipResources: { aegis: { materials: 0 } },
       fighterWingCounts: Object.fromEntries(Object.entries(wingCounts).map(([wingId, current]) =>
         [wingId, { count: current.count, revision: current.revision }])),
     }),
