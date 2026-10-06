@@ -243,9 +243,9 @@ afterEach(async () => {
 });
 
 describe('initial accepted actor confirmation before a slow member transaction', () => {
-  it.each([
+  it.each<[string, { demo?: boolean; legacy?: boolean; press?: boolean }]>([
     ['demo core', {}], ['ordinary legacy', { demo: false, legacy: true }], ['Press', { press: true }],
-  ] as const)('keeps the accepted %s join generation through normal presence, FIRST matching player and pending member read', async (_name, options) => {
+  ])('keeps the accepted %s join generation through normal presence, FIRST matching player and pending member read', async (_name, options) => {
     await mount(options);
     if (options.demo !== false) {
       expect(presenceReplies).toHaveLength(1);
