@@ -284,7 +284,7 @@ async function fixture(options = {}) {
         React.act(() => { fireEvent.change(current()[0], { target: { value } }); }); await flush(); },
       selectOption: async value => { assert.equal(current().length, 1);
         React.act(() => { fireEvent.change(current()[0], { target: { value } }); }); await flush(); },
-      click: async () => { assert.equal(current().length, 1); assert.equal(current()[0].disabled, false);
+      click: async () => { assert.equal(current().length, 1); assert.notEqual(current()[0].disabled, true);
         clicks.push(current()[0].getAttribute('href') ?? current()[0].textContent.trim());
         await React.act(async () => { fireEvent.click(current()[0]); }); await flush(); },
       allTextContents: async () => current().map(node => node.textContent),
@@ -359,9 +359,9 @@ async function fixture(options = {}) {
           serverCensus, serverRule,
           setAuth: value => { authUid = value; } });
         schedule(() => {
-          options.beforeReloadFeed?.({ container, store: useSessionStore, emit, schedule,
+          React.act(() => { options.beforeReloadFeed?.({ container, store: useSessionStore, emit, schedule,
             serverCensus, serverRule,
-            setAuth: value => { authUid = value; } });
+            setAuth: value => { authUid = value; } }); });
           emit('/loyaltyCensus/current', options.reloadCensus ?? serverCensus, options.reloadSnapshot);
           emit('/facilitatorRuleCalls/gm-current', options.reloadRule ?? serverRule, options.reloadSnapshot);
         }, options.reloadDelay ?? 75);
@@ -455,7 +455,11 @@ for (const endpoint of ['authorFacilitatorRuleCall', 'setFacilitatorCensusNote']
 
 for (const [name, mutate] of [
   ['disabled census note', field => { field.disabled = true; }],
-  ['ambiguous census note', field => field.parentNode.append(field.cloneNode(true))],
+  ['ambiguous census note', field => {
+    const duplicate = field.cloneNode(true); duplicate.id = 'native-feed-duplicate-note';
+    duplicate.setAttribute('aria-label', `Facilitator note for ${targetUid}`);
+    field.parentNode.append(duplicate);
+  }],
 ]) test(`public census committed source cannot restore credit with a ${name}`, async () => {
   const f = await fixture({ beforeReloadFeed: ({ container, emit, serverCensus }) => {
     emit('/loyaltyCensus/current', serverCensus);
