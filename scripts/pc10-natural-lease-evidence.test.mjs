@@ -27,10 +27,10 @@ function fixtureTable(onExpiredSnapshot) {
     sessionId: originalSessionId, connected: true, lastSeenAt: now };
   const calls = [], offlineCalls = [];
   let snapshotCount = 0;
-  const snapshot = (id, value) => {
+  const snapshot = (id, value, collection = 'players') => {
     const data = { ...value };
     if (typeof data.lastSeenAt === 'number') { const milliseconds = data.lastSeenAt; data.lastSeenAt = { toMillis: () => milliseconds }; }
-    return { id, exists: true, ref: { path: `sessions/${originalSessionId}/players/${id}` }, get: field => data[field] };
+    return { id, exists: true, ref: { path: `sessions/${originalSessionId}/${collection}/${id}` }, get: field => data[field] };
   };
   const fixture = {
     project: 'demo-native-natural-lease', config: { firestorePort: 18090 },
@@ -50,7 +50,7 @@ function fixtureTable(onExpiredSnapshot) {
           return { docs: [...source].map(([uid, value]) => snapshot(uid, value)) };
         }
         assert.equal(name, 'gmInstances');
-        return { docs: [snapshot(instance.id, instance)] };
+        return { docs: [snapshot(instance.id, instance, 'gmInstances')] };
       } }),
     },
     db: { getAll: () => assert.fail('No recovery or Admin write/read seam may run after this deliberately failed candidate.') },
@@ -146,13 +146,16 @@ async function fullHelperFailure(t, name, change, expectedError, { pendingProduc
     for (const entry of report.leaseCandidates.players) {
       assert.equal(entry.sessionId, originalSessionId);
       assert.equal(entry.originalActorUid, entry.actorUid);
+      assert.equal(entry.sourcePath, `sessions/${originalSessionId}/players/${entry.actorUid}`);
       assert.equal(entry.connected, true);
       assert.ok(item.source.has(entry.actorUid));
     }
     const gm = report.leaseCandidates.gmInstances[0];
     assert.equal(gm.instanceId, item.instance.id);
     assert.equal(gm.actorUid, item.table.fixture.gm.localId);
+    assert.equal(gm.originalActorUid, item.table.fixture.gm.localId);
     assert.equal(gm.sessionId, originalSessionId);
+    assert.equal(gm.sourcePath, `sessions/${originalSessionId}/gmInstances/${gm.instanceId}`);
     return { report, item };
   } finally {
     if (controller) await controller.stop();
