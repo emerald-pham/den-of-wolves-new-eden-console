@@ -288,3 +288,8 @@ export function validateBaseMissionStartReceipt({ receipt, opportunity, sessionI
     sourceCycle: receipt.sourceCycle, carrierCraftIds: [...carrierCraftIds].sort(),
     participantRoleIds: [...snapshotRoleIds], missionLeaderRoleId };
 }
+
+/** Baseline seam for the shared-surface original-role reselection regression. */
+export async function recheckChosenBaseShipRole({ selection } = {}) {
+  return selection;
+}
