@@ -29,6 +29,7 @@ function nativeCounterFixture(options = {}) {
   let mode = false;
   let sourceReads = 0;
   let replayCalls = 0;
+  let lifecycleReads = 0;
   let lastRequest = null;
   let lastResult = null;
   const actions = [];
@@ -88,6 +89,27 @@ function nativeCounterFixture(options = {}) {
       claimedAt: raw.gmInstance?.claimedAt ?? null, phase: raw.session?.phase ?? null,
       cycle: raw.session?.currentTurn ?? null, connectionGeneration: raw.me?.connectionGeneration ?? null,
       hydrationRevision: raw.identityHydrationRevision ?? null };
+  }
+  function fullGameDemoActor() {
+    const current = actor();
+    return { hasAuth: !!authUid, sameActor: current.sameActor, uidHash: current.uidHash,
+      documentTimeOrigin: 1_728_182_400_000, sessionId: current.sessionId, joinCode: null,
+      cycle: raw.session?.currentTurn ?? null, phase: raw.session?.phase ?? null,
+      announcementTurn: null, announcementRevision: null, naturalTransmissionMounted: false,
+      ordinaryBriefingMounted: false, ordinaryBriefingHeld: false,
+      playerRole: current.playerRole, profileRoleId: current.profileRoleId,
+      profileSessionId: null, assignedRoleId: current.assignedRoleId,
+      activeConsoleRoleId: current.activeConsoleRoleId, connection: current.connection,
+      freshness: current.freshness, communicationError: null,
+      setupUi: { confirmEnabled: false, rosterStatus: '', authorityStatus: '' },
+      gmInstanceOwned: current.gmInstanceOwned, instanceId: current.instanceId,
+      setupConfirmed: false, setupRevision: null, activeRoleIds: ['admiral'],
+      activeVesselIds: ['aegis', 'quellon'], pressEnabled: true, capybaraEnabled: true,
+      fullGameDemo: null, phaseProgression: null, airspace: null, turnStatePhase: null,
+      gameOutcomeCause: null, debriefType: null, debriefVersion: null, debriefSource: null,
+      debriefResult: null, debriefCause: null, debriefCycle: null,
+      privateLoyaltyPresent: false, briefRoleId: null, briefMatchesActor: false,
+      pendingCommandCount: 0 };
   }
   const tree = { role: 'region', name: 'Fleet resource controls', children: [] };
   const modeButton = { role: 'button', name: 'Ship numbers write mode', attributes: { 'aria-pressed': 'false' },
@@ -174,6 +196,7 @@ function nativeCounterFixture(options = {}) {
       const callbackText = callback.toString();
       const readMode = callbackText.includes('currentDocumentAuthority = null') ? 'action-state'
         : callbackText.includes('privateKeys = Object.keys(s)') ? 'lifecycle' : 'other';
+      if (readMode === 'lifecycle') lifecycleReads += 1;
       browser.__readMode = readMode;
       browser.input = input;
       try {
@@ -192,7 +215,8 @@ function nativeCounterFixture(options = {}) {
       return new Promise((resolve, reject) => waiters.push({ predicate, resolve, reject }));
     },
   };
-  const surface = { page, storeModuleUrl: () => '/src/store/useSessionStore.ts', observe: async () => actor(),
+  const surface = { page, storeModuleUrl: () => '/src/store/useSessionStore.ts',
+    observe: async () => options.fullGameDemoActor === true ? fullGameDemoActor() : actor(),
     callable: async (endpoint, data) => {
       assert.equal(endpoint, 'applyShipCounterSteps'); replayCalls += 1;
       assert.deepEqual(data, lastRequest, 'Replay must use the exact original UI payload.');
@@ -203,7 +227,8 @@ function nativeCounterFixture(options = {}) {
     state: async () => ({ ...clone(raw.session), sessionId: raw.session.id, cycle: raw.session.currentTurn,
       live: raw.connection === 'live' && raw.sessionSnapshotFreshness === 'server' }) };
   return { raw, actions, context, game, surface, get sourceReads() { return sourceReads; },
-    get replayCalls() { return replayCalls; }, get lastRequest() { return lastRequest; },
+    get replayCalls() { return replayCalls; }, get lifecycleReads() { return lifecycleReads; },
+    get lastRequest() { return lastRequest; },
     async run() {
       const callbacks = createPendingGmRulingsCountersCallbacks({
         steps: { [spec.id]: steps[spec.id] }, gameFactory: () => game,
@@ -225,6 +250,29 @@ test('mounted GM source couples the parent fleet toggle, named AEGIS group, and 
   assert.ok(fleet >= 0 && mode > fleet && ships > mode && group > ships);
   assert.match(gmSource.slice(group, group + 800), /aria-label=\{`\$\{ship\.name\} resource controls`\}/);
   assert.ok(button > group, 'The actual one-step counter is mounted inside its named ship group.');
+});
+
+test('default GM counter recipe obtains its strict lifecycle tuple when the actual generic observer omits it', async () => {
+  const proofSource = await readFile(new URL('./pc10-full-game-demo-ui-proof.mjs', import.meta.url), 'utf8');
+  const observeStart = proofSource.indexOf('async function observe()');
+  const observeEnd = proofSource.indexOf('async function until(', observeStart);
+  assert.ok(observeStart >= 0 && observeEnd > observeStart);
+  const genericObserver = proofSource.slice(observeStart, observeEnd);
+  assert.match(genericObserver, /hasAuth: !!user/);
+  assert.doesNotMatch(genericObserver, /claimedAt|connectionGeneration|hydrationRevision/);
+
+  const fixture = nativeCounterFixture({ fullGameDemoActor: true, staleProjectionReads: 2, wrongGroupFirst: true });
+  const genericActor = await fixture.surface.observe();
+  assert.equal(genericActor.claimedAt, undefined);
+  assert.equal(genericActor.connectionGeneration, undefined);
+  assert.equal(genericActor.hydrationRevision, undefined);
+  const { row } = await fixture.run();
+  assert.equal(row.status, 'completed', row.reason);
+  assert.equal(row.revision, 15);
+  assert.ok(fixture.lifecycleReads >= 4,
+    'The existing lifecycle observer must supply and recheck the tuple before capture and after receipt.');
+  assert.deepEqual(fixture.actions, ['write-mode', 'counter:aegis']);
+  assert.equal(fixture.replayCalls, 1);
 });
 
 test('default GM counter capture waits for its exact live source revision after UI receipt and replay', async () => {
