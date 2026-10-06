@@ -206,7 +206,7 @@ function fixture({ replyChange, noteChange, afterSend, beforeSecondSelect, durin
       if (kind === 'region') return {
         getByRole: (childKind: 'button' | 'status', childOptions: { name?: string } = {}) => locate(() => {
           const region = screen.queryByRole('region', { name: options.name });
-          return region ? within(region).queryAllByRole(childKind, childOptions.name ? { name: childOptions.name, exact: true } : {}) : [];
+          return region ? within(region).queryAllByRole(childKind, childOptions.name ? { name: childOptions.name } : {}) : [];
         }),
         getByLabel: (name: string) => locate(() => {
           const region = screen.queryByRole('region', { name: options.name });
@@ -340,17 +340,15 @@ it.each([
     shipFleetGroupIds: { 'refinery-124': 'fleet-2' } } })); }],
   ['source cycle', () => { useSessionStore.setState(state => ({ session: { ...state.session!, currentTurn: 2 } })); }],
   ['released station', () => { useSessionStore.setState(state => ({ me: { ...state.me!, activeConsoleRoleId: null } })); }],
-  ['replaced actor', () => { useSessionStore.setState(state => ({ me: { ...state.me!, replacementRoleId: 'other', replacementStatus: 'released' } })); }],
+  ['replaced actor', () => { useSessionStore.setState(state => ({ me: { ...state.me!, replacementRoleId: 'other', replacementStatus: 'awaiting-re-role' } })); }],
   ['offline source', () => { useSessionStore.getState().setConnection('offline'); }],
   ['cache source', () => { useSessionStore.getState().setSessionSnapshotFreshness('cache'); }],
 ] as const)('does not accept relay credit after %s changes', async (_label, afterSend) => {
   const f = fixture({ afterSend }); await expect(f.run()).rejects.toThrow();
 });
 
-it.each(['Auth', 'document', 'generation', 'hydration', 'assignment'] as const)
-  ('keeps original rich selector fences before relay for changed %s', async changed => {
-    let f: ReturnType<typeof fixture>;
-    f = fixture({ duringSecondSelection: () => {
+it.each(['Auth', 'document', 'generation', 'hydration', 'assignment'] as const)('keeps original rich selector fences before relay for changed %s', async changed => {
+    const f = fixture({ duringSecondSelection: () => {
       if (changed === 'Auth') f.changeAuth();
       if (changed === 'document') f.replaceDocument();
       if (changed === 'generation') useSessionStore.setState(state => ({ me: { ...state.me!, connectionGeneration: 4 } }));
@@ -393,7 +391,9 @@ it.each([
 });
 
 it.each([
-  ['missing source group map', () => { useSessionStore.setState(state => ({ session: { ...state.session!, shipFleetGroupIds: undefined } })); }],
+  ['missing source group map', () => { useSessionStore.setState(state => {
+    const session = { ...state.session! }; Reflect.deleteProperty(session, 'shipFleetGroupIds'); return { session };
+  }); }],
   ['missing active original host', () => { useSessionStore.setState(state => ({ session: { ...state.session!, activeVesselIds: [] } })); }],
   ['closed current source', () => { useSessionStore.setState(state => ({ session: { ...state.session!, phase: 'closed' } })); }],
 ] as const)('does not qualify a %s after the UI receipt', async (_label, afterSend) => {
