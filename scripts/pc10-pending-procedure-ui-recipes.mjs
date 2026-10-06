@@ -31,6 +31,7 @@ const MEMBER_SCOPE_SHUTTLE_COMMAND_ENDPOINTS = new Set(['evacuateShuttleSurvivor
   'rechargeHostConsoleFromShuttle', 'transferShuttleCargoCommand']);
 const GM_COUNTER_SHIP_NAMES = Object.freeze({ aegis: 'AEGIS', dione: 'Dione', icebreaker: 'Icebreaker',
   capybara: 'Capybara', shepherd: 'Shepherd', quellon: 'Quellon', 'refinery-124': 'Refinery 124' });
+const GM_RESOURCE_COUNTER_BUTTON = /^(?:Increase|Decrease) (?:Strytium Ore|Strytium Fuel|Food|Water|Materials|Security Teams|Scrap)$/;
 const CURRENT_DOCUMENT_AUTHORITY_KEYS = Object.freeze(['sessionId', 'uidHash', 'groupId', 'roleId',
   'connectionGeneration', 'identityHydrationRevision', 'documentTimeOrigin', 'audienceHash', 'authorityHash',
   'shuttleAuthorized']);
@@ -2763,8 +2764,12 @@ async function planFor({ spec, surface, actor, state, context, target, gmOperati
     }
     const group = page.getByRole('group', { name: new RegExp(`^${shipName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} resource controls$`, 'i') });
     if (await group.count() !== 1) return block('the exact selected ship resource group is absent or ambiguous');
-    const buttons = group.getByRole('button', { name: /^(?:Increase|Decrease) / });
-    const action = await one(buttons.first());
+    const buttons = group.getByRole('button', { name: GM_RESOURCE_COUNTER_BUTTON });
+    let action = null;
+    for (let index = 0, count = await buttons.count(); index < count; index += 1) {
+      action = await one(buttons.nth(index));
+      if (action) break;
+    }
     if (!action) return block('the selected ship has no actual one-step GM resource control currently enabled');
     const sourceBefore = { cycle: state.cycle, revision: state.vesselActionRevisions[target.shipId],
       groupId: state.shipFleetGroupIds[target.shipId] };
