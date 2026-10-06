@@ -77,6 +77,7 @@ function sourceState() {
       { shuttleId: CORE_SHUTTLE, shipId: 'icebreaker', dockedAt: '2026-10-06T12:00:00.000Z' },
     ],
     currentDocumentAuthority: currentAuthority(),
+    currentMemberScope: { groupId: GROUP_ID, vesselIds: ['icebreaker', 'dione'], craftIds: [CORE_SHUTTLE] },
   };
 }
 

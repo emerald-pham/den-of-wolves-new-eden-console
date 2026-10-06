@@ -40,7 +40,8 @@ function makeCanonicalSelectHarness({ route = '#/shuttles/starlight', activeCons
     shuttleControl: { [SHUTTLE_ID]: { shuttleId: SHUTTLE_ID, holderUid: UID, revision: 4 } },
     shuttleDockings: [{ shuttleId: SHUTTLE_ID, shipId: 'quellon' }],
     shipFleetGroupIds: { quellon: 'fleet-1', dione: 'fleet-1', icebreaker: 'fleet-1' },
-    currentDocumentAuthority: currentDocumentAuthority() };
+    currentDocumentAuthority: currentDocumentAuthority(),
+    currentMemberScope: { groupId: 'fleet-1', vesselIds: ['quellon', 'dione', 'icebreaker'], craftIds: [SHUTTLE_ID] } };
   const gmActor = { uidHash: 'gm-route-select', sessionId: SESSION, playerRole: 'gm',
     instanceId: 'gm-route-select', gmInstanceOwned: true, sameActor: true,
     connection: 'live', freshness: 'server' };
