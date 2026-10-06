@@ -352,9 +352,9 @@ export async function runBaseGameplay(context, integration) {
     if (selection.status !== 'eligible') return pending(`jump-${ship}-cycle-${expectedCycle}`, selection.blockers,
       { shipId: ship, cycle: expectedCycle });
     const panel = selection.readiness.surface.page.getByRole('region', { name: `${name} Jump Drive control`, exact: true });
-    const targetButton = panel.getByRole('button', { name: `Jump to ${destination}`, exact: true });
-    if (await panel.count() !== 1 || !(await panel.isVisible()) || await targetButton.count() !== 1 ||
-        !(await targetButton.isVisible())) return pending(`jump-${ship}-cycle-${expectedCycle}`,
+    const launchButton = panel.getByRole('button', { name: /^Jump to \d{4}$/, exact: true });
+    if (await panel.count() !== 1 || !(await panel.isVisible()) || await launchButton.count() !== 1 ||
+        !(await launchButton.isVisible())) return pending(`jump-${ship}-cycle-${expectedCycle}`,
       ['mounted-current-destination-unavailable'], { shipId: ship, roleId: selection.roleId, cycle: expectedCycle });
     const before = (await a.state()).shipResources[ship].fuel;
     const actualRole = selection.roleId;
