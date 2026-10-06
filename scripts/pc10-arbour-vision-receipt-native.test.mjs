@@ -88,7 +88,8 @@ async function loadProof(factory = () => { throw new Error('No fresh-game factor
 }
 
 async function fixture({ uiResult = value => value, replayResult = value => value,
-  uiStatus = 200, beforeFill, afterUi, afterReplay, control = {} } = {}) {
+  uiStatus = 200, beforeFill, afterUi, afterReplay, control = {}, initialPatch,
+  currentRevision = null } = {}) {
   const directory = await mkdtemp(join(tmpdir(), 'pc10-arbour-vision-native-'));
   const server = await originalServer(), events = [], waiters = [];
   let user = GM, documentOrigin = 50, kind = 'location', text = '', published = false;
@@ -102,12 +103,19 @@ async function fixture({ uiResult = value => value, replayResult = value => valu
     gmLoyaltyCensus: { revision: 21, entries: [{ uid: TARGET, kind: 'universal-arbour', suspicion: null }] },
     gmArbourVision: null,
   };
+  if (currentRevision !== null) {
+    const previous = { type: 'arbour-visions', sessionId: SID, recipientUid: TARGET, revision: currentRevision,
+      kind: 'location', text: 'Previous source call', label: 'FACILITATOR CALL' };
+    server.documents.set(`sessions/${SID}/arbourVisions/current`, previous);
+    state.gmArbourVision = server.gmArbourVision(previous, SID);
+  }
   const request = () => ({ sessionId: state.session.id, instanceId: state.gmInstance?.id,
     requestId: 'original-vision-request', expectedRevision: state.gmArbourVision?.revision ?? 0,
     targetUid: TARGET, kind, text });
   const mutate = patch => { if (patch.user !== undefined) user = patch.user;
     if (patch.documentOrigin !== undefined) documentOrigin = patch.documentOrigin;
     if (patch.state) Object.assign(state, patch.state); };
+  await initialPatch?.(mutate, state);
   const item = (name, extra = {}) => ({
     count: async () => control[name]?.count ?? 1,
     isVisible: async () => control[name]?.visible !== false,
@@ -169,9 +177,9 @@ async function fixture({ uiResult = value => value, replayResult = value => valu
     },
   };
   const context = { mode: 'universal-arbour', gm, directory,
-    initial: { sessionId: SID, uidHash: hash(GM) },
+    initial: { sessionId: SID, uidHash: hash(GM), documentTimeOrigin: 50 },
     started: { sessionId: SID, uidHash: hash(GM), instanceId: INSTANCE, cycle: 1, phase: 'active',
-      fullGameDemo: { status: 'active', progression: 'manual' }, phaseProgression: 'manual' },
+      fullGameDemo: { status: 'active', progression: 'manual' }, phaseProgression: 'manual', documentTimeOrigin: 50 },
     roster: [{ roleId: 'admiral', uidHash: hash(TARGET) }],
   };
   return { context, server, state, events, mutate, cleanup: () => rm(directory, { recursive: true, force: true }) };
@@ -232,4 +240,109 @@ test('public optional onStarted callback captures Arbour receipt before unrelate
     // traversal remains rejected; no factory/pre-start/ending credit follows.
     assert.equal(f.events.filter(event => event.kind === 'sdk-replay').length, 1);
   } finally { await f.cleanup(); }
+});
+
+test('normal Arbour authoring uses the actual current revision rather than inventing the first revision', async () => {
+  const f = await fixture({ currentRevision: 4 });
+  try {
+    const proof = await loadProof(), result = await proof.deliverFacilitatorScenarioCall(f.context);
+    assert.equal(result.arbourVisionReceipt.revision, 5);
+    assert.equal(f.events.find(event => event.kind === 'sdk-replay').request.expectedRevision, 4);
+  } finally { await f.cleanup(); }
+});
+
+for (const [name, uiResult] of [
+  ['foreign session', value => ({ ...value, sessionId: 'foreign-session' })],
+  ['wrong category', value => ({ ...value, kind: 'location' })],
+  ['changed text', value => ({ ...value, text: 'Different private call' })],
+  ['unsafe revision', value => ({ ...value, revision: Number.MAX_SAFE_INTEGER + 1 })],
+  ['zero revision', value => ({ ...value, revision: 0 })],
+  ['unknown field', value => ({ ...value, actorUid: GM })],
+  ['noncommitted status', value => ({ ...value, status: 'queued' })],
+]) test(`Arbour capture rejects a published DTO with ${name}`, async () => {
+  const f = await fixture({ uiResult });
+  try { const proof = await loadProof(); await assert.rejects(proof.deliverFacilitatorScenarioCall(f.context)); }
+  finally { await f.cleanup(); }
+});
+
+for (const [name, initialPatch] of [
+  ['missing Auth', mutate => mutate({ user: null })],
+  ['foreign Auth', mutate => mutate({ user: 'foreign-gm' })],
+  ['foreign player session', (_mutate, state) => { state.me.sessionId = 'foreign-session'; }],
+  ['demoted actor', (_mutate, state) => { state.me.role = 'player'; }],
+  ['offline connection', (_mutate, state) => { state.connection = 'offline'; }],
+  ['cached projection', (_mutate, state) => { state.sessionSnapshotFreshness = 'cache'; }],
+  ['unhydrated document', (_mutate, state) => { state.identityHydrationRevision = 0; }],
+  ['disconnected actor', (_mutate, state) => { state.me.connected = false; }],
+  ['missing original claim', (_mutate, state) => { state.gmInstance.claimedAt = null; }],
+  ['foreign private audience', (_mutate, state) => { state.roleBrief = { assignmentUid: 'foreign-gm' }; }],
+  ['foreign outbox', (_mutate, state) => { state.pendingCommands = [{ payload: { sessionId: 'foreign-session' } }]; }],
+  ['debrief phase', (_mutate, state) => { state.session.phase = 'debrief'; }],
+  ['next cycle', (_mutate, state) => { state.session.currentTurn = 2; }],
+  ['foreign original document', mutate => mutate({ documentOrigin: 51 })],
+  ['missing current source property', (_mutate, state) => { delete state.gmArbourVision; }],
+  ['malformed present current call', (_mutate, state) => { state.gmArbourVision = { revision: 0 }; }],
+  ['no entitled current holder', (_mutate, state) => { state.gmLoyaltyCensus.entries = []; }],
+  ['ambiguous entitled holders', (_mutate, state) => { state.gmLoyaltyCensus.entries.push({ uid: 'other-holder', kind: 'universal-arbour' }); }],
+]) test(`normal Arbour authoring denies ${name} before its mounted click`, async () => {
+  const f = await fixture({ initialPatch });
+  try {
+    const proof = await loadProof(); await assert.rejects(proof.deliverFacilitatorScenarioCall(f.context));
+    assert.equal(f.events.filter(event => event.kind === 'ui-click').length, 0);
+  } finally { await f.cleanup(); }
+});
+
+for (const [name, change] of [
+  ['original claim', (_mutate, state) => { state.gmInstance.claimedAt = '2026-10-06T10:00:01.000Z'; }],
+  ['generation', (_mutate, state) => { state.me.connectionGeneration += 1; }],
+  ['hydration', (_mutate, state) => { state.identityHydrationRevision += 1; }],
+  ['current document', mutate => mutate({ documentOrigin: 51 })],
+  ['original UID', mutate => mutate({ user: 'foreign-gm' })],
+]) test(`changed ${name} during Arbour input cannot issue the normal UI request`, async () => {
+  const f = await fixture({ beforeFill: change });
+  try {
+    const proof = await loadProof(); await assert.rejects(proof.deliverFacilitatorScenarioCall(f.context));
+    assert.equal(f.events.filter(event => event.kind === 'ui-click').length, 0);
+  } finally { await f.cleanup(); }
+});
+
+for (const [name, change] of [
+  ['claim loss', (_mutate, state) => { state.gmInstance = null; }],
+  ['document replacement', mutate => mutate({ documentOrigin: 51 })],
+  ['private reader loss', (_mutate, state) => { state.roleBrief = { assignmentUid: TARGET }; }],
+]) test(`late Arbour UI reply after ${name} cannot dispatch SDK replay`, async () => {
+  const f = await fixture({ afterUi: change });
+  try {
+    const proof = await loadProof(); await assert.rejects(proof.deliverFacilitatorScenarioCall(f.context));
+    assert.equal(f.events.filter(event => event.kind === 'sdk-replay').length, 0);
+  } finally { await f.cleanup(); }
+});
+
+for (const [name, change] of [
+  ['generation loss', (_mutate, state) => { state.me.connectionGeneration += 1; }],
+  ['new document', mutate => mutate({ documentOrigin: 51 })],
+  ['wrong private current receipt', (_mutate, state) => { state.gmArbourVision.text = 'Unrelated current call'; }],
+]) test(`Arbour SDK completion after ${name} stays uncredited`, async () => {
+  const f = await fixture({ afterReplay: change });
+  try { const proof = await loadProof(); await assert.rejects(proof.deliverFacilitatorScenarioCall(f.context)); }
+  finally { await f.cleanup(); }
+});
+
+for (const [name, control] of [
+  ['absent form', { form: { count: 0 } }], ['ambiguous form', { form: { count: 2 } }],
+  ['hidden form', { form: { visible: false } }], ['disabled call category', { kind: { enabled: false } }],
+  ['disabled text field', { text: { enabled: false } }], ['missing recipient', { recipient: { count: 0 } }],
+  ['disabled publish after inputs', { publish: { enabled: false } }],
+]) test(`Arbour ${name} cannot issue a UI mutation`, async () => {
+  const f = await fixture({ control });
+  try {
+    const proof = await loadProof(); await assert.rejects(proof.deliverFacilitatorScenarioCall(f.context));
+    assert.equal(f.events.filter(event => event.kind === 'ui-click').length, 0);
+  } finally { await f.cleanup(); }
+});
+
+test('HTTP rejection is not converted into an Arbour success by a visible status', async () => {
+  const f = await fixture({ uiStatus: 403 });
+  try { const proof = await loadProof(); await assert.rejects(proof.deliverFacilitatorScenarioCall(f.context)); }
+  finally { await f.cleanup(); }
 });
