@@ -195,7 +195,8 @@ function serializedPage({ getState, getMovement, currentUser, endpoint, click })
     setStatus: value => { visibleStatus = value; } };
 }
 
-async function makeCaptureHarness(endpoint, { postMutation, includeOriginHost = true } = {}) {
+async function makeCaptureHarness(endpoint, { postMutation, includeOriginHost = true,
+  originHostShipId = HOST } = {}) {
   let currentMember = memberState(endpoint);
   let currentMovement = initialMovement(endpoint);
   let result = null;
@@ -237,7 +238,7 @@ async function makeCaptureHarness(endpoint, { postMutation, includeOriginHost = 
     cycle: CYCLE, controlRevision: CONTROL_REVISION, sourceAuthority: initial.currentDocumentAuthority };
   const context = { initial: { sessionId: SESSION, uidHash: UID_HASH },
     roster: [{ roleId: ROLE, uidHash: UID_HASH }], shuttleOriginAuthority: origin,
-    ...(includeOriginHost ? { shuttleOriginHostShipId: HOST } : {}) };
+    ...(includeOriginHost ? { shuttleOriginHostShipId: originHostShipId } : {}) };
   const plan = await createPendingProcedureDefaultSteps()[`core:${endpoint}`]({ context, game });
   const captured = await captureMountedProcedureAction({ context, game, caseId: `core:${endpoint}`,
     expected: plan.expected, prepare: plan.prepare, inspect: plan.inspect, timeoutMs: 1000 });
@@ -253,6 +254,28 @@ test('Core Request, Begin, and Retarget post-inspect captures validate the actua
       assert.equal(harness.clickCount, 1, 'the exact mounted action is captured once');
       assert.equal(harness.captured.endpoint, endpoint);
     });
+  }
+});
+
+test('post-inspect scope drift blocks an inactive original host and an unexpected later docking', async t => {
+  for (const endpoint of ['requestShuttleDeparture', 'beginShuttleTransit', 'retargetShuttleTransit']) {
+    await t.test(`${endpoint} blocks an inactive origin host`, async () => {
+      const harness = await makeCaptureHarness(endpoint, { postMutation: state => {
+        state.session.activeVesselIds = state.session.activeVesselIds.filter(id => id !== HOST);
+      } });
+      assert.equal(harness.captured.status, 'pending');
+      assert.equal(harness.clickCount, 1, 'the poststate is checked after one ordinary mounted action');
+    });
+    if (endpoint !== 'requestShuttleDeparture') {
+      await t.test(`${endpoint} blocks a reappearing docking after undocking`, async () => {
+        const harness = await makeCaptureHarness(endpoint, { postMutation: state => {
+          state.session.shuttleDockings = [{ shuttleId: SHUTTLE,
+            shipId: DEPARTURE_DESTINATION, dockedAt: '2026-10-06T11:59:59.000Z' }];
+        } });
+        assert.equal(harness.captured.status, 'pending');
+        assert.equal(harness.clickCount, 1);
+      });
+    }
   }
 });
 
@@ -278,4 +301,7 @@ test('Core Begin and Retarget require the caller-bound original host and normal 
       assert.equal(harness.clickCount, 0, 'missing origin-host witness blocks before the mounted control');
     });
   }
+  const foreignHost = await makeCaptureHarness('retargetShuttleTransit', { originHostShipId: 'foreign-host' });
+  assert.equal(foreignHost.captured.status, 'pending');
+  assert.equal(foreignHost.clickCount, 0, 'a host outside the actual current scope cannot be inferred or substituted');
 });
