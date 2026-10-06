@@ -335,6 +335,21 @@ function validShuttleArrivalWitness(witness) {
       uidHash: witness.uidHash, groupId: witness.groupId, roleId: witness.roleId, shuttleId: witness.shuttleId });
 }
 
+function shuttleOriginAuthorityFromArrivalWitness(witness) {
+  if (!validShuttleArrivalWitness(witness)) return null;
+  return {
+    sessionId: witness.sessionId, uidHash: witness.uidHash, shuttleId: witness.shuttleId,
+    groupId: witness.groupId, cycle: witness.cycle, controlRevision: witness.controlRevision,
+    sourceAuthority: witness.sourceAuthority,
+  };
+}
+
+function sameShuttleOriginAuthority(left, right) {
+  return exactKeys(left, SHUTTLE_ORIGIN_AUTHORITY_KEYS) && exactKeys(right, SHUTTLE_ORIGIN_AUTHORITY_KEYS) &&
+    SHUTTLE_ORIGIN_AUTHORITY_KEYS.every(key => key === 'sourceAuthority'
+      ? sameCurrentDocumentAuthority(left[key], right[key]) : left[key] === right[key]);
+}
+
 function priorWitnessMatchesTransit(witness, state, movement, sessionId, shuttleId, holderUidHash, roleId,
   originAuthority) {
   return validShuttleArrivalWitness(witness) && witness.sessionId === sessionId &&
@@ -1747,6 +1762,42 @@ async function recipeFor({ context, game, spec }) {
   // The existing sixty-second capture operation includes GM preparation and
   // navigation; every phase consumes this same absolute remaining budget.
   const gmOperation = CERTIFIED_GM_RECIPES.has(spec.endpoint) ? { deadlineAt: Date.now() + 60_000 } : null;
+  const movementEndpoints = ['requestShuttleDeparture', 'beginShuttleTransit', 'retargetShuttleTransit',
+    'completeShuttleArrival'];
+  const movementEndpoint = movementEndpoints.includes(spec.endpoint);
+  const refuse = reason => {
+    const pending = async () => ({ offered: false, reason });
+    return { expected: {}, prepare: pending, inspect: async () => ({}) };
+  };
+  let movementOrigin = context.shuttleOriginAuthority;
+  if (movementEndpoint) {
+    const witness = context.shuttleArrivalWitness;
+    const witnessOrigin = spec.endpoint === 'completeShuttleArrival'
+      ? shuttleOriginAuthorityFromArrivalWitness(witness) : null;
+    if (spec.endpoint === 'completeShuttleArrival' && witness !== undefined && !witnessOrigin) {
+      return refuse('the original retarget witness is invalid for the current holder, group, or document authority');
+    }
+    if (movementOrigin !== undefined && movementOrigin !== null &&
+        !validShuttleOriginAuthority(movementOrigin, {
+          sessionId: context.initial.sessionId, uidHash: movementOrigin.uidHash,
+          roleId: movementOrigin.sourceAuthority?.roleId, groupId: movementOrigin.groupId,
+          cycle: movementOrigin.cycle, controlRevision: movementOrigin.controlRevision,
+          shuttleId: movementOrigin.shuttleId,
+        })) {
+      const admitted = context.roster.filter(candidate => candidate.uidHash === movementOrigin.uidHash);
+      if (movementOrigin.shuttleId === 'snn-press-shuttle' && admitted.length === 1 &&
+          admitted[0].roleId === 'press-officer') {
+        return refuse('Press movement remains pending: no current berth or vessel scope is available in its member projection.');
+      }
+      return refuse('the original shuttle holder authority is missing, malformed, or no longer admitted');
+    }
+    if (movementOrigin && witnessOrigin && !sameShuttleOriginAuthority(movementOrigin, witnessOrigin)) {
+      return refuse('the original holder authority disagrees with the completed retarget witness');
+    }
+    movementOrigin ??= witnessOrigin;
+    if (!movementOrigin) return refuse('the exact original shuttle holder authority is missing; no holder fallback is allowed');
+    context = { ...context, shuttleOriginAuthority: movementOrigin };
+  }
   let roleToUse = spec.actorRoleId;
   let holderTarget = {};
   if (spec.family === 'pending-core-craft-actions' &&
@@ -1763,14 +1814,42 @@ async function recipeFor({ context, game, spec }) {
       return { expected: {}, prepare: refuse, inspect: async () => ({}) };
     }
     const entries = Object.entries(sourceState.shuttleControl ?? {});
-    const selected = spec.actorRoleId === 'current-ally-holder'
-      ? entries.filter(([id]) => id === 'ally')
-      : entries;
-    const holders = selected.flatMap(([shuttleId, control]) => {
-      const uidHash = hashUid(control?.holderUid);
-      const matches = context.roster.filter(candidate => candidate.uidHash === uidHash);
-      return matches.length === 1 ? [{ shuttleId, roleId: matches[0].roleId, uidHash }] : [];
-    });
+    let holders;
+    if (movementEndpoint) {
+      const origin = context.shuttleOriginAuthority;
+      const control = sourceState.shuttleControl?.[origin.shuttleId];
+      const admitted = context.roster.filter(candidate => candidate.uidHash === origin.uidHash);
+      const roleId = origin.sourceAuthority.roleId;
+      if (origin.shuttleId === 'snn-press-shuttle' && admitted.length === 1 &&
+          admitted[0].roleId === 'press-officer') {
+        return refuse('Press movement remains pending: no current berth or vessel scope is available in its member projection.');
+      }
+      if (!validShuttleOriginAuthority(origin, { sessionId: context.initial.sessionId,
+        uidHash: origin.uidHash, roleId, groupId: origin.groupId, cycle: origin.cycle,
+        controlRevision: origin.controlRevision, shuttleId: origin.shuttleId }) ||
+          sourceState.sessionId !== context.initial.sessionId || sourceState.phase !== 'active' ||
+          sourceState.cycle !== origin.cycle || control?.shuttleId !== origin.shuttleId ||
+          hashUid(control?.holderUid) !== origin.uidHash || control?.revision !== origin.controlRevision ||
+          admitted.length !== 1 || admitted[0].roleId !== roleId) {
+        return refuse('the exact original shuttle holder, admitted role, cycle, or control revision is stale or ambiguous');
+      }
+      if (spec.endpoint === 'requestShuttleDeparture') {
+        const dockings = sourceState.shuttleDockings?.filter(row => row.shuttleId === origin.shuttleId) ?? [];
+        if (dockings.length !== 1 || sourceState.shipFleetGroupIds?.[dockings[0].shipId] !== origin.groupId) {
+          return refuse('the original shuttle holder has no unique same-group pre-departure docking');
+        }
+      }
+      holders = [{ shuttleId: origin.shuttleId, roleId, uidHash: origin.uidHash }];
+    } else {
+      const selected = spec.actorRoleId === 'current-ally-holder'
+        ? entries.filter(([id]) => id === 'ally')
+        : entries;
+      holders = selected.flatMap(([shuttleId, control]) => {
+        const uidHash = hashUid(control?.holderUid);
+        const matches = context.roster.filter(candidate => candidate.uidHash === uidHash);
+        return matches.length === 1 ? [{ shuttleId, roleId: matches[0].roleId, uidHash }] : [];
+      });
+    }
     if (!holders.length) {
       const refuse = async () => ({ offered: false, reason: 'no uniquely admitted current shuttle-holder profile is source-projected' });
       return { expected: {}, prepare: refuse, inspect: async () => ({}) };
