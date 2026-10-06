@@ -2517,7 +2517,9 @@ async function planFor({ spec, surface, actor, state, context, target, gmOperati
       target.transitRequestId = transit.transitRequestId;
       target.movementRevision = transit.revision;
       const select = panel.getByLabel('New destination ship', { exact: true });
-      const option = await selectActualOption(select, candidate => candidate.offered && candidate.enabled && candidate.value !== transit.destinationShipId);
+      const option = await selectActualOption(select, candidate => candidate.offered && candidate.enabled &&
+        candidate.value !== transit.destinationShipId && (target.shuttleId === PRESS_SHUTTLE_ID ||
+          candidate.value !== context.shuttleOriginHostShipId));
       if (!option) return block('no different source-legal destination is currently offered for retargeting');
       target.destinationShipId = option.value;
       const action = await one(panel.getByRole('button', { name: 'Retarget shuttle', exact: true }));
