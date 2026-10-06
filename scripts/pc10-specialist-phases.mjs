@@ -304,13 +304,16 @@ export async function runPc10SpecialistAction({
   const regionName = inputs.regionName ?? spec.regionName ?? (actionId === 'pdf-boarding-defense'
     ? `${shipLabel(inputs.targetShipId)} boarding defence` : undefined);
   const region = regionFor(surface.page, regionName);
-  const prepared = await prepareActionUi(actionId, spec, inputs, surface.page, region);
+  // The driver's last rich select navigates back from a shuttle. Defer the
+  // Scout form's sole fill until that navigation completes; never refill it.
+  const prepareScout = spec.endpoint === 'requestScout';
+  const prepared = prepareScout || await prepareActionUi(actionId, spec, inputs, surface.page, region);
   if (!prepared) return uncredited(actionId, 'explicit-choice-not-currently-offered');
   const name = inputs.buttonName ?? buttonNameFor(actionId, spec, inputs);
   if (!name && actionId !== 'wing-build') return uncredited(actionId, 'source-button-selector-required');
   const control = buttonFor(region, actionId, inputs, name);
   if (!control) return uncredited(actionId, 'source-button-selector-required');
-  if (!(await control.isVisible()) || !(await control.isEnabled())) {
+  if (!prepareScout && (!(await control.isVisible()) || !(await control.isEnabled()))) {
     return uncredited(actionId, 'control-not-currently-offered');
   }
   const selectedCost = cost ?? inputs.cost ?? spec.cost ?? (actionId === 'boa-recycle'
@@ -321,19 +324,31 @@ export async function runPc10SpecialistAction({
       : actionId === 'macaw-salvage-apply' || actionId === 'macaw-scrap-collection' || actionId === 'boa-scrap-collection'
         ? { result: '1 Scrap' }
         : null);
+  async function currentControl(page) {
+    const clickRegion = regionFor(page, regionName);
+    const clickControl = buttonFor(clickRegion, actionId, inputs, name);
+    assert.equal(await clickControl.isVisible(), true, `The ordinary ${actionId} control remains visible before click.`);
+    assert.equal(await clickControl.isEnabled(), true, `The ordinary ${actionId} control is enabled before click.`);
+    return clickControl;
+  }
   const captured = await driver.capture({
     roleId,
     endpoint: spec.endpoint,
+    originalActor: actor,
     cost: selectedCost,
     inspect,
-    click: async page => {
+    prepare: async page => {
       if (!(await enterActionConsole(page, actionId, spec, { ...inputs, roleId }))) {
         throw new Error(`The ordinary ${actionId} shuttle console link is no longer available.`);
       }
-      const clickRegion = regionFor(page, regionName);
-      const clickControl = buttonFor(clickRegion, actionId, inputs, name);
-      assert.equal(await clickControl.isVisible(), true, `The ordinary ${actionId} control remains visible before click.`);
-      assert.equal(await clickControl.isEnabled(), true, `The ordinary ${actionId} control is enabled before click.`);
+      if (prepareScout) assert.equal(await prepareActionUi(actionId, spec, inputs, page, regionFor(page, regionName)), true,
+        `The explicit ${actionId} source choice is ready before observation.`);
+      await currentControl(page);
+    },
+    click: async page => {
+      if (spec.shuttleId) assert.equal(new URL(page.url()).hash.endsWith(`/shuttles/${spec.shuttleId}`), true,
+        `The original ${actionId} shuttle console remains current before click.`);
+      const clickControl = await currentControl(page);
       await clickControl.click();
     },
   });

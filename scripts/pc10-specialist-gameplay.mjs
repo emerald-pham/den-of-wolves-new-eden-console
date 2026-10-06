@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
+import { observeUiReceipt } from './pc10-browser-ui-receipt.mjs';
 
 const hash = value => createHash('sha256').update(String(value ?? '')).digest('hex');
 
@@ -224,13 +225,17 @@ export function projectSpecialistActionEvidence({
  * control; `waitForProjection` must confirm its real server-owned result before return.
  */
 export async function captureSpecialistUiAction({
-  game, roleId, endpoint, click, waitForProjection, cost = null, requireConsole = true,
+  game, roleId, endpoint, click, prepare, originalActor, waitForProjection, cost = null, requireConsole = true,
 }) {
   assert.ok(game?.context?.initial?.sessionId, 'Use the current fresh full-game demo context.');
   assert.equal(typeof click, 'function');
   assert.equal(typeof waitForProjection, 'function', 'Wait for source projections and visible server result.');
+  if (prepare !== undefined) assert.equal(typeof prepare, 'function');
   if (!REQUEST_FIELDS[endpoint]) throw new Error(`Specialist action endpoint is unmapped: ${String(endpoint)}`);
   const surface = await game.select(roleId);
+  // Finish the current control's preparation after normal rich selection and
+  // before the mutation observer. Navigation can unmount a shuttle form.
+  await prepare?.(surface.page);
   const before = await surface.observe();
   assert.equal(before.sameActor, true, 'Only the normally authenticated current actor can act.');
   assert.equal(before.sessionId, game.context.initial.sessionId);
@@ -238,13 +243,18 @@ export async function captureSpecialistUiAction({
   assert.equal(before.freshness, 'server');
   assert.equal(before.profileRoleId, roleId);
   if (requireConsole) assert.equal(before.activeConsoleRoleId, roleId, 'Enter the current role-bound station first.');
+  if (originalActor) for (const key of ['uidHash', 'sessionId', 'profileRoleId', 'activeConsoleRoleId',
+    'documentTimeOrigin', 'profileSessionId', 'playerRole', 'assignedRoleId']) {
+    assert.equal(before[key], originalActor[key], `The original ${roleId} actor remains bound through preparation.`);
+  }
 
-  const responsePromise = surface.page.waitForResponse(response => {
-    const url = new URL(response.url());
-    return url.pathname.endsWith(`/us-central1/${endpoint}`) && response.request().method() === 'POST';
+  const response = await observeUiReceipt({
+    waitForResponse: () => surface.page.waitForResponse(response => {
+      const url = new URL(response.url());
+      return url.pathname.endsWith(`/us-central1/${endpoint}`) && response.request().method() === 'POST';
+    }),
+    choose: () => click(surface.page),
   });
-  await click(surface.page);
-  const response = await responsePromise;
   let body;
   try { body = await response.json(); } catch { body = {}; }
   const request = response.request().postDataJSON()?.data;
@@ -351,10 +361,10 @@ export function createSpecialistGameplayDriver(game, {
     })}`);
   }
 
-  async function capture({ roleId, endpoint, click, inspect, cost = null, requireConsole = true,
+  async function capture({ roleId, endpoint, click, prepare, originalActor, inspect, cost = null, requireConsole = true,
     timeoutMs: callTimeout = timeoutMs }) {
     assert.equal(typeof inspect, 'function', 'Inspect source projections and the actual rendered result.');
-    return captureSpecialistUiAction({ game, roleId, endpoint, click, cost, requireConsole,
+    return captureSpecialistUiAction({ game, roleId, endpoint, click, prepare, originalActor, cost, requireConsole,
       waitForProjection: ({ surface, actor, request, result, replay }) => waitForCommit({
         surface, actor, timeoutMs: callTimeout,
         inspect: context => inspect({ ...context, request, result, replay }),
