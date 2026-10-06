@@ -177,7 +177,8 @@ export function createNavigationScoutProof(initialContext, { requiredBranches = 
       inspectPaint: async () => {
         if (await panel.count() !== 1 || !await panel.isVisible()) return { mounted: false };
         const text = await panel.innerText();
-        const current = !groupPanel || text.includes(`Fleet group // ${original.groupId}`);
+        const heading = panel.getByRole('heading', { name: `Fleet group // ${original.groupId}`, exact: true });
+        const current = !groupPanel || await heading.count() === 1 && await heading.isVisible();
         if (!current) return { mounted: true, current: false };
         for (const [phrase, reason] of blockers) if (text.includes(phrase)) return { mounted: true, current, eligible: false, blocker: reason };
         return { mounted: true, current, eligible: await button.count() === 1 && await button.isVisible() && await button.isEnabled() };
@@ -600,8 +601,14 @@ export function createNavigationScoutProof(initialContext, { requiredBranches = 
     const result = await readService(surface, original, '/src/lib/scoutResultService.ts', 'readPrivateScoutResult', [record.reply.requestId]);
     const note = await readService(surface, original, '/src/lib/scoutResultService.ts', 'readMyScoutDiscoveryNote', [report.noteId]);
     const bundle = validateScoutBundle({ report, result, note }, { actor: original, reply: record.reply });
-    const text = await reportPanel.innerText();
-    assert.ok(text.includes(result.systemFact.title) && text.includes(`Site ${result.systemFact.code}`), 'Show the exact actual private fact and saved note.');
+    for (const [selector, expectedText] of [['.scout-result-panel__code', `Site ${result.systemFact.code}`],
+      ['.scout-result-panel__title', result.systemFact.title]]) {
+      const fact = reportPanel.locator(selector);
+      assert.equal(await fact.count(), 1, 'Show one exact actual private fact field.');
+      assert.equal(await fact.isVisible(), true, 'The actual private fact must be visible.');
+      assert.equal((await fact.textContent()).replace(/\s+/g, ' ').trim(), expectedText,
+        'Show the exact actual private fact and saved note.');
+    }
     record.bundle = bundle;
     add({ branch, status: 'observed', roleId: record.plan.roleId, actor: original, endpoint: 'readPrivateScoutResult',
       result: bundle, replay: 'read-only', nextActor: 'caller' }); return { surface, original, bundle };

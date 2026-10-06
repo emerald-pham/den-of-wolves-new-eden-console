@@ -38,6 +38,17 @@ export function candidateGeometrySnapshot(element) {
   const researchNames = researchInputs.map(input => input.closest('label')?.innerText.trim() ?? '');
   const fleetGroupSelectors = [...element.querySelectorAll('select')].filter(select =>
     [...(select.labels ?? [])].some(label => label.innerText.trim().startsWith('Fleet group')));
+  const shipSelection = (root, name) => {
+    const selectors = [...root.querySelectorAll('select')].filter(select => [...(select.labels ?? [])].some(label =>
+      [...label.childNodes].filter(node => node.nodeType === 3).map(node => node.textContent).join('')
+        .replace(/\s+/g, ' ').trim() === name));
+    const select = selectors.length === 1 ? selectors[0] : null;
+    const options = select ? [...select.options] : [];
+    return { count: selectors.length, visible: !!select && visible(select), enabled: !!select && enabled(select),
+      selectedShipId: select?.value ?? null, optionCount: options.length,
+      offeredShipIds: options.filter(option => !option.disabled && !option.hidden &&
+        !option.closest('optgroup:disabled')).map(option => option.value) };
+  };
   const visibleWithin = node => visible(node) && element.contains(node);
   const measure = node => {
     const rect = node.getBoundingClientRect();
@@ -70,6 +81,13 @@ export function candidateGeometrySnapshot(element) {
     nebulaJumpButtons: [...element.querySelectorAll('button')].filter(visible).map(button => ({
       name: button.textContent.replace(/\s+/g, ' ').trim(), enabled: enabled(button) && !button.disabled,
     })).filter(button => button.name.startsWith('Long jump into Nebula // ')),
+    reactorButtons: [...element.querySelectorAll('button')].filter(visible).map(button => ({
+      name: button.textContent.replace(/\s+/g, ' ').trim(), enabled: enabled(button) && !button.disabled,
+    })).filter(button => button.name.startsWith('Cannibalise Reactor // ')),
+    pathShipSelections: [...element.querySelectorAll('article')].filter(visible).map(article => ({
+      title: article.querySelector('h3')?.innerText.trim() ?? '', actingShip: shipSelection(article, 'Acting ship'),
+    })),
+    gmShipSelection: shipSelection(element, 'GM candidate vessel'),
     fleetGroupSelectorCount: fleetGroupSelectors.length,
     selectedFleetGroup: fleetGroupSelectors.length === 1 ? fleetGroupSelectors[0].value : null,
     tabStopKeys: panelTargets.map(targetKey), documentTabStopCount: documentTabStops.length,

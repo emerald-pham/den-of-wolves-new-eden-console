@@ -10,7 +10,7 @@ function liveActor(actor) {
     ['gm', 'player'].includes(actor.playerRole);
 }
 
-const STAGE_CODE = Object.freeze({ 'research-choice': 'N', repaired: 'N', 'paid-loss-choice': 'O' });
+const STAGE_CODE = Object.freeze({ 'research-choice': 'N', repaired: 'N', 'paid-loss-choice': 'O', 'reactor-choice': 'P' });
 
 function enabledShips(path) {
   return Array.isArray(path?.ships) ? path.ships.filter(ship => ship?.canAct === true) : [];
@@ -69,6 +69,20 @@ export function projectCandidateWorkspaceReadiness({
   if (stage === 'paid-loss-choice' && enabledShips(path).length < 1) {
     return blocked('current-candidate-report-does-not-offer-an-acting-nebula-ship');
   }
+  const actingShips = enabledShips(path);
+  if (stage !== 'research-choice' && (!Array.isArray(path.ships) ||
+      path.ships.some(ship => typeof ship?.shipId !== 'string' || !ship.shipId) ||
+      new Set(path.ships.map(ship => ship.shipId)).size !== path.ships.length ||
+      expectedActor.playerRole === 'player' && actingShips.length !== 1)) {
+    return blocked('native-candidate-report-does-not-offer-distinct-actor-ship-authority');
+  }
+  if (stage === 'reactor-choice' && (path.liberated !== true || path.completed === true || path.activated === true ||
+      !Array.isArray(path.reactorShipIds) || path.reactorShipIds.some(shipId => typeof shipId !== 'string' || !shipId) ||
+      new Set(path.reactorShipIds).size !== path.reactorShipIds.length ||
+      !actingShips.some(ship => Number.isSafeInteger(ship.reactorCapacity) && ship.reactorCapacity > 0 &&
+        !path.reactorShipIds.includes(ship.shipId)))) {
+    return blocked('current-candidate-report-does-not-offer-an-available-liberated-reactor');
+  }
   if (!rendered || rendered.receiving === true || rendered.headerCount !== 1 ||
       rendered.cycle !== sourceState.cycle || rendered.revision !== report.revision ||
       rendered.currentGroupId !== expectedGroupId || ![0, 1].includes(rendered.fleetGroupSelectorCount) ||
@@ -85,16 +99,45 @@ export function projectCandidateWorkspaceReadiness({
       return pending('current-research-controls-do-not-match-the-native-candidate-report');
     }
   }
-  const actualButtons = stage === 'repaired' ? rendered.ringButtons :
-    stage === 'paid-loss-choice' ? rendered.nebulaJumpButtons : null;
-  if (actualButtons) {
-    const expectedNames = stage === 'repaired'
-      ? enabledShips(path).map(ship => `Cross Ring // ${ship.shipId} // five fuel`)
-      : enabledShips(path).map(ship => `Long jump into Nebula // ${ship.shipId} // ${ship.fuelCost} fuel`);
-    const matched = actualButtons.filter(button => expectedNames.includes(button?.name));
-    if (!expectedNames.length || matched.length !== expectedNames.length || !matched.some(button => button.enabled === true)) {
-      return pending(stage === 'repaired' ? 'repaired-candidate-path-has-no-mounted-passage-control'
-        : 'native-nebula-ship-choices-do-not-match-mounted-controls');
+  let actingShip;
+  if (stage !== 'research-choice') {
+    const selections = Array.isArray(rendered.pathShipSelections)
+      ? rendered.pathShipSelections.filter(selection => selection?.title === path.title) : [];
+    if (expectedActor.playerRole === 'gm') {
+      if (selections.length !== 1 || actingShips.length === 1 && selections[0].actingShip?.count !== 0) {
+        return pending('native-acting-ship-has-no-unique-mounted-source-selection');
+      }
+      const selection = actingShips.length > 1 ? selections[0].actingShip : rendered.gmShipSelection;
+      const expectedIds = actingShips.length > 1 ? actingShips.map(ship => ship.shipId) :
+        [...new Set(report.paths.flatMap(value => enabledShips(value).map(ship => ship.shipId)))];
+      if (selection?.count !== 1 || selection.visible !== true || selection.enabled !== true ||
+          !Array.isArray(selection.offeredShipIds) || selection.optionCount !== expectedIds.length ||
+          new Set(selection.offeredShipIds).size !== expectedIds.length ||
+          JSON.stringify([...selection.offeredShipIds].sort()) !== JSON.stringify([...expectedIds].sort())) {
+        return pending('native-acting-ship-has-no-unique-mounted-source-selection');
+      }
+      actingShip = actingShips.find(ship => ship.shipId === selection.selectedShipId);
+      if (!actingShip) return pending('mounted-selected-ship-is-not-current-native-actor-authority');
+    } else {
+      if (selections.some(selection => selection.actingShip?.count !== 0)) {
+        return pending('member-native-ship-authority-has-an-unexpected-source-selection');
+      }
+      actingShip = actingShips[0];
+    }
+    if (stage === 'paid-loss-choice' && (!Number.isSafeInteger(actingShip.fuelCost) || actingShip.fuelCost < 0)) {
+      return blocked('native-selected-nebula-ship-has-no-exact-fuel-cost');
+    }
+    if (stage === 'reactor-choice' && (!Number.isSafeInteger(actingShip.reactorCapacity) ||
+        actingShip.reactorCapacity < 1 || path.reactorShipIds.includes(actingShip.shipId))) {
+      return blocked('native-selected-reactor-is-not-currently-available');
+    }
+    const expectedName = stage === 'repaired' ? `Cross Ring // ${actingShip.shipId} // five fuel` :
+      stage === 'paid-loss-choice' ? `Long jump into Nebula // ${actingShip.shipId} // ${actingShip.fuelCost} fuel` :
+        `Cannibalise Reactor // ${actingShip.shipId} // ${actingShip.reactorCapacity} capacity`;
+    const buttons = stage === 'repaired' ? rendered.ringButtons : stage === 'paid-loss-choice'
+      ? rendered.nebulaJumpButtons : rendered.reactorButtons;
+    if (!Array.isArray(buttons) || buttons.length !== 1 || buttons[0]?.name !== expectedName || buttons[0].enabled !== true) {
+      return pending('selected-native-ship-action-does-not-match-one-enabled-mounted-control');
     }
   }
   return {
@@ -105,6 +148,8 @@ export function projectCandidateWorkspaceReadiness({
     candidateCode: code, stage, candidateTitle: path.title,
     researchChoiceCount: Array.isArray(path.researchChoices) ? path.researchChoices.length : 0,
     repaired: path.repaired === true, renderedPathCount: rendered.pathHeadings.length,
+    ...(actingShip ? { actingShipId: actingShip.shipId, ...(stage === 'reactor-choice'
+      ? { reactorCapacity: actingShip.reactorCapacity } : { fuelCost: stage === 'repaired' ? 5 : actingShip.fuelCost }) } : {}),
   };
 }
 
