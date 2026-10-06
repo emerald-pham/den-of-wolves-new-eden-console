@@ -668,7 +668,10 @@ async function publicPressArrivalPlan({ captureMode, arrivalOffsetMs }) {
         : browserLocator(),
   };
   harness.surface.page.getByRole = () => panel;
-  const context = { ...harness.context, ...chain,
+  const context = { ...harness.context,
+    pressShuttleDepartureWitness: chain.departureWitness,
+    pressShuttleTransitWitness: chain.transitWitness,
+    pressShuttleArrivalWitness: chain.retargetWitness,
     pressShuttleArrivalCaptureMode: captureMode,
   };
   const recipe = await createPendingProcedureDefaultSteps()['core:completeShuttleArrival']({
