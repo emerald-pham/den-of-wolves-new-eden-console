@@ -220,11 +220,11 @@ export function assertPc10CommandedMemberProjection({ reply, original, before, a
 
 export function assessPc10FunctionalTransport({ commands = [], observations = [], failures = [], drains = [],
   transitions = [], historicalRecord, originals = new Map() } = {}) {
-  const hardFailures = [], instrumentationLimits = [];
+  const hardFailures = [], instrumentationLimits = [], verifiedCommands = new Set();
   if (historicalRecord) hardFailures.push({ category: 'historical-run-is-not-new-functional-evidence' });
   if (!commands.length) hardFailures.push({ category: 'no-original-command-evidence' });
   for (const command of commands) {
-    try { assertPc10FunctionalCommand(command); }
+    try { assertPc10FunctionalCommand(command); verifiedCommands.add(command); }
     catch (error) { hardFailures.push({ commandId: command.commandId, roleId: command.roleId, category: 'unverified-original-command', message: error.message }); }
   }
   const cancellation = observation => ['cancelled-during-planned-offline', 'cancelled-during-planned-navigation'].includes(observation.observationDisposition)
@@ -238,6 +238,75 @@ export function assessPc10FunctionalTransport({ commands = [], observations = []
     (observation.bodyFailureStage == null || observation.bodyFailureStage === 'native-get-response-body'
       && ['body-unavailable', 'resource-not-found', 'content-evicted'].includes(observation.bodyReadFailureReason)) &&
     ['nativeDocumentHash', 'nativeContextHash', 'nativeFrameHash', 'nativeLoaderHash', 'actorHash', 'sessionHash'].every(key => validHash(observation[key]));
+  // An unread native denial is qualified only by one COMPLETE original SDK
+  // invocation and its original Auth/source/document interval. This records
+  // semantic denial evidence, never a replacement native body or denial code.
+  const expectedDenialGapCommand = observation => {
+    if (observation.captureMode !== 'native-durable' || observation.transport !== 'independent-browser-SDK'
+      || ![403, 400].includes(observation.status) || observation.requestFailedAt != null || observation.transportError != null
+      || observation.observationDisposition != null || observation.bodyCompletedAt != null || observation.bodyHash != null
+      || observation.denialCode !== null || !['completedAt', 'bodyObservedAt', 'byteLength', 'resultActorHash',
+        'resultSessionHash', 'resultRequestHash', 'resultGroupHash', 'httpOutcome', 'resultStatus', 'revision',
+        'connectionGeneration'].every(key => observation[key] == null)
+      || observation.bodyFailureStage !== 'native-get-response-body' || observation.bodyReadFailureReason !== 'body-unavailable'
+      || observation.failureCategory !== 'response-observation-unavailable'
+      || !['protocolRequestHash', 'nativeDocumentHash', 'nativeContextHash', 'nativeFrameHash', 'nativeLoaderHash',
+        'actorHash', 'sessionHash', 'projectHash'].every(key => validHash(observation[key]))
+      || ![observation.issuedAt, observation.headersReceivedAt, observation.requestFinishedAt,
+        observation.bodyObservationFailedAt, observation.nativeDocumentWitnessObservedAt].every(time)
+      || observation.startedAt !== observation.issuedAt || observation.nativeRequestObservedAt !== observation.issuedAt
+      || observation.nativeDocumentWitnessObservedAt > observation.issuedAt
+      || observation.headersReceivedAt < observation.issuedAt || observation.requestFinishedAt < observation.headersReceivedAt
+      || observation.bodyObservationFailedAt < observation.requestFinishedAt
+      || observations.filter(value => value.protocolRequestHash === observation.protocolRequestHash).length !== 1) return null;
+    const candidates = commands.filter(command => command.roleId === observation.roleId && command.name === observation.name
+      && time(command.invocation?.startedAt) && time(command.invocation?.completedAt)
+      && observation.issuedAt >= command.invocation.startedAt && observation.issuedAt <= command.invocation.completedAt);
+    if (candidates.length !== 1) return null;
+    const command = candidates[0], original = originals.get(observation.roleId);
+    if (!original || !verifiedCommands.has(command) || command.roleId !== original.roleId
+      || command.kind !== 'original-functional-proof-command' || !isRecord(original.scope)
+      || typeof original.scope.groupId !== 'string' || !Array.isArray(original.scope.vesselIds) || !Array.isArray(original.scope.craftIds)
+      || command.original.uid !== original.uid || command.original.sessionId !== original.sessionId
+      || command.original.contextHash !== original.contextHash || !validHash(original.contextHash)
+      || command.invocation.kind !== 'explicit-sdk-invocation' || command.invocation.roleId !== command.roleId
+      || command.invocation.name !== command.name || command.invocation.nativeDocumentHash !== observation.nativeDocumentHash
+      || observation.requestFinishedAt > command.invocation.completedAt
+      || observation.status !== EXPECTED_DENIAL_HTTP_STATUS[command.expectedDenial]
+      || codeOf(command.reply) !== command.expectedDenial
+      || command.registeredEndpoint !== command.name
+      || command.registeredRequestFingerprint !== hashValue({ name: command.name, actorUid: original.uid, data: command.data })
+      || command.trace?.transport !== 'independent-browser-SDK' || command.trace.name !== command.name
+      || command.trace.issuedAt !== command.issuedAt || command.trace.completedAt !== command.completedAt
+      || command.trace.status !== 'denied' || normalizeCode(command.trace.denialCode) !== command.expectedDenial
+      || observations.filter(value => value.roleId === command.roleId && value.name === command.name
+        && value.issuedAt >= command.invocation.startedAt && value.issuedAt <= command.invocation.completedAt).length !== 1) return null;
+    const trace = createPc10CallableTrace({ name: command.name, data: command.data, actorUid: original.uid,
+      transport: 'independent-browser-SDK', startedAt: command.issuedAt });
+    if (!trace || !['actorHash', 'sessionHash', 'requestHash'].every(key => observation[key] === trace[key] && command.trace[key] === trace[key])) return null;
+    try {
+      assertBinding(command.beforeBinding, original); assertBinding(command.afterBinding, original);
+      assertSource(command.beforeSource, original); assertSource(command.afterSource, original);
+    } catch { return null; }
+    if (![command.beforeSource, command.afterSource].every(source => validHash(source.sourceHash)
+      && source.presence?.actorHash === observation.actorHash && source.presence.sessionHash === observation.sessionHash
+      && source.presence.projectHash === observation.projectHash && source.presence.roleId === command.roleId
+      && source.presence.originalUidMatches === true && source.presence.sameSessionMembership === true
+      && time(source.presence.checkedAt) && source.presence.checkedAt <= source.checkedAt)) return null;
+    if (command.afterSource.presence.checkedAt < command.completedAt) return null;
+    const matchingFailures = failures.filter(failure => failure.protocolRequestHash === observation.protocolRequestHash && failure.roleId === observation.roleId);
+    if (matchingFailures.length !== 1 || matchingFailures[0].category !== 'response-observation-unavailable'
+      || !['name', 'status', 'requestHash', 'nativeDocumentHash', 'nativeContextHash', 'nativeFrameHash', 'nativeLoaderHash',
+        'nativeRequestObservedAt', 'bodyFailureStage', 'bodyReadFailureReason'].every(key => matchingFailures[0][key] === observation[key])) return null;
+    return command;
+  };
+  const expectedDenialGaps = new Map(observations.map(observation => [observation, expectedDenialGapCommand(observation)]).filter(([, command]) => command));
+  const recordedGap = observation => bodyGap(observation) || expectedDenialGaps.has(observation);
+  const nativeFailure = (observation, category) => ({ category, roleId: observation.roleId, name: observation.name,
+    protocolRequestHash: observation.protocolRequestHash, issuedAt: observation.issuedAt,
+    nativeRequestObservedAt: observation.nativeRequestObservedAt, nativeDocumentHash: observation.nativeDocumentHash,
+    actorHash: observation.actorHash, sessionHash: observation.sessionHash, status: observation.status,
+    requestFinishedAt: observation.requestFinishedAt, requestFailedAt: observation.requestFailedAt });
   for (const observation of observations) {
     const original = originals.get(observation.roleId);
     if (original) {
@@ -251,11 +320,12 @@ export function assessPc10FunctionalTransport({ commands = [], observations = []
     } else if (originals.size) hardFailures.push({ roleId: observation.roleId, category: 'unknown-native-original-actor' });
     if (cancellation(observation)) continue;
     if (observation.requestFinishedAt == null && observation.requestFailedAt == null) {
-      hardFailures.push({ category: 'unfinished-native-terminal-outcome', roleId: observation.roleId, name: observation.name });
+      hardFailures.push(nativeFailure(observation, 'unfinished-native-terminal-outcome'));
     }
     if (observation.requestFailedAt != null) hardFailures.push({ category: 'unexpected-native-transport-failure', roleId: observation.roleId });
     if (observation.status !== 200 && observation.status != null) {
-      const classifiedDenial = commands.some(command => command.roleId === observation.roleId && command.name === observation.name
+      const classifiedDenial = expectedDenialGaps.has(observation) || commands.some(command => verifiedCommands.has(command)
+        && command.roleId === observation.roleId && command.name === observation.name
         && command.expectedDenial && codeOf(command.reply) === command.expectedDenial
         && observation.status === EXPECTED_DENIAL_HTTP_STATUS[command.expectedDenial]
         && normalizeCode(observation.denialCode) === command.expectedDenial
@@ -265,20 +335,24 @@ export function assessPc10FunctionalTransport({ commands = [], observations = []
       if (!classifiedDenial) hardFailures.push({ category: 'unclassified-native-http-outcome', roleId: observation.roleId,
         name: observation.name, status: observation.status });
     }
-    if (bodyGap(observation)) instrumentationLimits.push({ roleId: observation.roleId, name: observation.name,
+    const expectedDenial = expectedDenialGaps.get(observation);
+    if (recordedGap(observation)) instrumentationLimits.push({ roleId: observation.roleId, name: observation.name,
       protocolRequestHash: observation.protocolRequestHash, category: 'original-native-body-remains-uninspected',
       originalReplyKnown: false, commandedReplySubstitution: false, passivePrivacyStatus:
-        observation.name === 'getCurrentMemberSession' || observation.name === 'resumeSession' ? 'UNINSPECTED' : 'NOT_INSPECTED' });
-    if (observation.status == null && observation.requestFailedAt == null) hardFailures.push({ category: 'unfinished-native-http-outcome', roleId: observation.roleId });
+        expectedDenial || observation.name === 'getCurrentMemberSession' || observation.name === 'resumeSession' ? 'UNINSPECTED' : 'NOT_INSPECTED',
+      ...(expectedDenial ? { wireBodyStatus: 'UNINSPECTED', semanticExpectedDenial: {
+        commandId: expectedDenial.commandId, code: expectedDenial.expectedDenial, httpStatus: observation.status } } : {}) });
+    if (observation.status == null && observation.requestFailedAt == null) hardFailures.push(nativeFailure(observation, 'unfinished-native-http-outcome'));
   }
   for (const failure of failures) {
     const candidates = observations.filter(observation => failure.protocolRequestHash && observation.protocolRequestHash === failure.protocolRequestHash
       && observation.roleId === failure.roleId);
     const observation = candidates.length === 1 ? candidates[0] : null;
-    const capturedGap = observation && bodyGap(observation) && ['response-observation-unavailable', 'native-body-incomplete', 'observation-drain-timeout'].includes(failure.category);
+    const capturedGap = observation && (bodyGap(observation) && ['response-observation-unavailable', 'native-body-incomplete', 'observation-drain-timeout'].includes(failure.category)
+      || expectedDenialGaps.has(observation) && failure.category === 'response-observation-unavailable');
     const plannedCancellation = observation && cancellation(observation) && ['unexpected-request-failure', 'response-observation-unavailable'].includes(failure.category);
     if (!capturedGap && !plannedCancellation && !(failure.category === 'observation-drain-timeout' && drains.some(entry => entry.roleId === failure.roleId && entry.outcome === 'failed')
-      && observations.some(value => value.roleId === failure.roleId && bodyGap(value)))) hardFailures.push({ ...failure, category: failure.category ?? 'unclassified-native-failure' });
+      && observations.some(value => value.roleId === failure.roleId && recordedGap(value)))) hardFailures.push({ ...failure, category: failure.category ?? 'unclassified-native-failure' });
   }
   const incomplete = failures.length || drains.some(value => value.outcome !== 'completed')
     || observations.some(value => value.status !== 200 || !value.bodyHash || value.requestFailedAt != null || value.bodyCompletedAt == null);
@@ -338,7 +412,8 @@ export function createPc10FunctionalCommand({ ledger, originals, clients, observ
  * qualified passive capture alone. No collector/client API is overwritten. */
 export async function transitionPc10FunctionalBrowser({ roleId, kind, client, original, transitions, drains,
   observeBinding, captureAuthority, qualifyDrainGap, afterTransition = async () => {}, clock = Date.now }) {
-  const record = { roleId, kind, startedAt: clock(), completedAt: null, outcome: 'pending', seam: 'existing-client-transition' };
+  const intentStartedAt = clock();
+  const record = { roleId, kind, intentStartedAt, startedAt: intentStartedAt, completedAt: null, outcome: 'pending', seam: 'existing-client-transition' };
   transitions.push(record);
   try {
     record.beforeBinding = await observeBinding(roleId); record.beforeSource = await captureAuthority(roleId);
@@ -349,8 +424,8 @@ export async function transitionPc10FunctionalBrowser({ roleId, kind, client, or
     let gap;
     try { await client.drainObservedCalls(); drain.outcome = 'completed'; }
     catch (error) { drain.outcome = 'failed'; drain.failure = error.message;
-      gap = await qualifyDrainGap(roleId); assert.equal(gap.allowed, true, 'Only an already recorded passive instrumentation gap permits the public transition seam.');
-      drain.functionalQualification = gap;
+      gap = await qualifyDrainGap(roleId); drain.functionalQualification = gap;
+      assert.equal(gap.allowed, true, 'Only an already recorded passive instrumentation gap permits the public transition seam.');
     } finally { drain.completedAt = clock(); }
     record.apiStartedAt = clock(); record.startedAt = record.apiStartedAt;
     if (kind === 'reload' && gap) {
@@ -604,7 +679,7 @@ export async function createPc10Gate2FunctionalHarness(table, { root, directory 
       transitions, drains, observeBinding, captureAuthority, qualifyDrainGap: async () => {
         const result = assessment();
         return { allowed: result.hardFailures.length === 0 && result.instrumentationLimits.length > 0,
-          strictTransportStatus: result.strictTransportStatus, limitations: result.instrumentationLimits };
+          strictTransportStatus: result.strictTransportStatus, limitations: result.instrumentationLimits, hardFailures: result.hardFailures };
       }, afterTransition: async (role, state) => {
         if (state === 'reload') {
           const { isFreshPc10BrowserRole } = await import('./pc10-browser-session-proof.mjs');
