@@ -73,6 +73,9 @@ import { normalizePressDispatch } from './pressDispatchState';
 import { closedMemberSessionFrom, parseArrestPosseCalculation, parseSessionDebriefProjection } from './firestore';
 import {
   acceptCallableSessionAuthority,
+  beginMemberSessionResume,
+  finishMemberSessionResume,
+  isCurrentMemberSessionResume,
   sessionSnapshotAuthorityFor,
   sessionSnapshotAuthorityVersion,
 } from './sessionSnapshotAuthority';
@@ -2026,12 +2029,47 @@ export async function joinSession(joinCode: string): Promise<void> {
 }
 
 export async function resumeSession(sessionId: string): Promise<boolean> {
+  const original = useSessionStore.getState();
+  const originalUid = auth().currentUser?.uid;
+  const memberResume = original.me?.role === 'player';
+  const authority = memberResume && originalUid ? sessionSnapshotAuthorityFor(sessionId, originalUid) : undefined;
+  const token = authority ? beginMemberSessionResume(authority) : undefined;
+  const memberScope = (member: Player | null) => JSON.stringify([
+    member?.uid, member?.sessionId, member?.role, member?.fleetGroupId,
+    member?.assignedRoleId ?? null, member?.activeConsoleRoleId ?? null, member?.seatId ?? null,
+    member?.replacementRoleId ?? null, member?.replacementStatus ?? null, member?.escapeState ?? null,
+  ]);
+  const originalScope = memberScope(original.me);
+  let accepted = false;
   const call = httpsCallable<{ sessionId: string }, SessionReply>(
     functions(),
     'resumeSession',
   );
-  const reply = await call({ sessionId });
-  return applySession(reply.data, sessionId);
+  try {
+    const reply = await call({ sessionId });
+    if (memberResume) {
+      const current = useSessionStore.getState();
+      if (!authority || !token || !originalUid || auth().currentUser?.uid !== originalUid ||
+          current.session?.id !== sessionId || current.me?.uid !== originalUid || current.me.sessionId !== sessionId ||
+          reply.data?.player?.uid !== originalUid || reply.data.player.sessionId !== sessionId || reply.data.session?.id !== sessionId) return false;
+      // Like a cursor-rejected payload, a superseded matching response can
+      // complete structurally without applying or releasing any authority.
+      if (!isCurrentMemberSessionResume(authority, token)) return true;
+      if (original.session?.id !== sessionId || original.me?.uid !== originalUid || original.me.sessionId !== sessionId ||
+          current.identityHydrationRevision !== original.identityHydrationRevision || memberScope(current.me) !== originalScope ||
+          current.me.connected === false && original.me.connected !== false ||
+          (reply.data.player.connectionGeneration ?? 1) < (current.me.connectionGeneration ?? 1)) return false;
+    }
+    const applied = applySession(reply.data, sessionId);
+    const current = useSessionStore.getState();
+    accepted = applied && current.identityHydrationRevision > original.identityHydrationRevision &&
+      (!memberResume || Boolean(authority && token && isCurrentMemberSessionResume(authority, token) &&
+        auth().currentUser?.uid === originalUid && current.session?.id === sessionId &&
+        current.me?.uid === originalUid && current.me?.sessionId === sessionId));
+    return applied;
+  } finally {
+    if (authority && token) finishMemberSessionResume(authority, token, accepted);
+  }
 }
 
 /** Refetch only the public debrief for an already authenticated, server-confirmed closed member. */

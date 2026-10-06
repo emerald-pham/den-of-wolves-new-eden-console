@@ -46,6 +46,29 @@ export function sessionSnapshotAuthorityVersion(
 
 const sessionSnapshotAuthorities = new Map<string, SessionSnapshotAuthority>();
 
+// A member feed can confirm current content before the normal resume SDK has
+// accepted this document's identity. Failed attempts remain read-only until a
+// matching normal retry succeeds; older replies cannot release a newer fence.
+const memberResumeTokens = new WeakMap<SessionSnapshotAuthority, symbol>();
+
+export function beginMemberSessionResume(authority: SessionSnapshotAuthority): symbol {
+  const token = Symbol('member-resume');
+  memberResumeTokens.set(authority, token);
+  return token;
+}
+
+export function isCurrentMemberSessionResume(authority: SessionSnapshotAuthority, token: symbol): boolean {
+  return memberResumeTokens.get(authority) === token;
+}
+
+export function finishMemberSessionResume(authority: SessionSnapshotAuthority, token: symbol, accepted: boolean): void {
+  if (accepted && isCurrentMemberSessionResume(authority, token)) memberResumeTokens.delete(authority);
+}
+
+export function memberSessionResumeBlocksFreshness(authority: SessionSnapshotAuthority): boolean {
+  return memberResumeTokens.has(authority);
+}
+
 /** One authority object shared by callable hydration and every listener for an identity. */
 export function sessionSnapshotAuthorityFor(
   sessionId: string,

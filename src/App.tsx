@@ -20,6 +20,7 @@ import AppHeader from '@/components/AppHeader';
 import WolfHackingRuntime from '@/components/WolfHackingRuntime';
 import ShipPlot from '@/components/ShipPlot';
 import { useFleetGroupNavigation } from '@/lib/useFleetGroupNavigation';
+import { memberSessionResumeBlocksFreshness } from '@/lib/sessionSnapshotAuthority';
 import ScreenFade from '@/components/ScreenFade';
 import CommunicationError from '@/components/CommunicationError';
 import PopulationAlert from '@/components/PopulationAlert';
@@ -839,6 +840,12 @@ function AppRoutes() {
         onSessionFreshness: (fresh) => {
           if (!callbackCurrent()) return;
           const store = useSessionStore.getState();
+          if (fresh && playerRole === 'player' &&
+              memberSessionResumeBlocksFreshness(sessionSnapshotAuthorityFor(sessionId, playerUid))) {
+            store.setSessionSnapshotFreshness('cache');
+            if (store.connection === 'live') store.setConnection('connecting');
+            return;
+          }
           store.setConnection(fresh ? 'live' : 'offline');
           store.setSessionSnapshotFreshness(fresh ? 'server' : 'cache');
           if (!fresh) {
