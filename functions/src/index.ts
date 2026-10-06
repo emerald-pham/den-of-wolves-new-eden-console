@@ -36296,6 +36296,7 @@ export const refreshPresence = auditedOnCall<{
         if (player.get('assignedRoleId') === 'press-officer') {
           presenceUpdate.assignedRoleId = null;
         }
+        presenceUpdate.replacementStatus = null;
         pressHolderUidUpdate = uid;
       }
       presenceUpdate.activeConsoleRoleId = requestedRoleId;
