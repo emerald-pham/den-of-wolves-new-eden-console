@@ -1,14 +1,14 @@
-import { observeUiReceipt } from '/private/tmp/dow-pc10-execution-20261005/scripts/pc10-browser-ui-receipt.mjs';
+import { observeUiReceipt } from './pc10-browser-ui-receipt.mjs';
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
 import { writeFile } from 'node:fs/promises';
-import { createTwoBrowserGameplay } from '/private/tmp/dow-pc10-execution-20261005/scripts/pc10-two-browser-gameplay.mjs';
-import { candidateGameplayTools } from '/private/tmp/dow-pc10-execution-20261005/scripts/pc10-candidate-manual-ui-proof.mjs';
-import { advanceBaseDetectorResearch, runBaseCombatAndDeduction } from '/private/tmp/dow-pc10-execution-20261005/scripts/pc10-base-combat-deduction-ui-proof.mjs';
-import { completeOfferedTurnAdvance } from '/private/tmp/dow-pc10-execution-20261005/scripts/pc10-full-game-demo-proof-helpers.mjs';
-import { createBasePendingProcedureCallbacks } from '/private/tmp/dow-pc10-execution-20261005/scripts/pc10-base-pending-procedure-composition.mjs';
-import { createBasePendingProcedureComposition } from '/private/tmp/dow-pc10-execution-20261005/scripts/pc10-base-politics-crisis-arrest-composition.mjs';
-import { runBaseC4CustomCrisisLifecycle } from '/private/tmp/dow-pc10-execution-20261005/scripts/pc10-crisis-voyage-proof.mjs';
+import { createTwoBrowserGameplay } from './pc10-two-browser-gameplay.mjs';
+import { candidateGameplayTools } from './pc10-candidate-manual-ui-proof.mjs';
+import { advanceBaseDetectorResearch, runBaseCombatAndDeduction } from './pc10-base-combat-deduction-ui-proof.mjs';
+import { completeOfferedTurnAdvance } from './pc10-full-game-demo-proof-helpers.mjs';
+import { createBasePendingProcedureCallbacks } from './pc10-base-pending-procedure-composition.mjs';
+import { createBasePendingProcedureComposition } from './pc10-base-politics-crisis-arrest-composition.mjs';
+import { runBaseC4CustomCrisisLifecycle } from './pc10-crisis-voyage-proof.mjs';
 import { BASE_MISSION_ROLE_PRIORITY, assessLiveBaseAction, baseShipForRole, baseShipRoleCandidates,
   chooseAvailableBaseShipRole, selectBaseMissionTeam, selectCurrentBaseMissionCarriers,
   recheckChosenBaseShipRole, validateBaseMissionStartReceipt, validateBaseScoutRequestReceipt
