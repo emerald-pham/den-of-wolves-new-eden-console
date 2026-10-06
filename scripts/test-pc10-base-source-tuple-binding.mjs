@@ -201,6 +201,30 @@ test('the original GM keeps valid nullable profile fields with source document i
   assert.doesNotThrow(() => assertBasePostCombatActorIdentity(observed, observed));
 });
 
+test('the public Base composition rejects an actor when every source view omits documentTimeOrigin', async () => {
+  const actor = sourceActor();
+  const generic = await runSerializedCallback(await extractActualGenericObserverCallback(), actor);
+  const exact = exactTuple(actor);
+  const rich = { ...generic, fleetGroupId: actor.me.fleetGroupId,
+    connectionGeneration: actor.me.connectionGeneration,
+    identityHydrationRevision: actor.identityHydrationRevision };
+  delete generic.documentTimeOrigin;
+  delete rich.documentTimeOrigin;
+  delete exact.documentTimeOrigin;
+  assert.equal(composeBasePostCombatActorObservation(generic, rich, exact).sameActor, false,
+    'An actor without positive source document identity must remain unbound.');
+});
+
+test('the held Base mission identity requires documentTimeOrigin on both observations', async () => {
+  const actor = await observeBasePostCombatActor(mountedSurface(sourceActor()));
+  const originlessOriginal = { ...actor };
+  const originlessCurrent = { ...actor };
+  delete originlessOriginal.documentTimeOrigin;
+  delete originlessCurrent.documentTimeOrigin;
+  assert.throws(() => assertBasePostCombatActorIdentity(originlessCurrent, originlessOriginal),
+    /documentTimeOrigin/, 'The held mission actor cannot waive its source document binding.');
+});
+
 test('missing, foreign or drifted source document origins fail the new Base identity binding', async () => {
   const actor = sourceActor();
   const missingOrigin = await observeBasePostCombatActor(mountedSurface(actor, { exactOrigin: null }));
