@@ -268,6 +268,8 @@ export function projectCapybaraEvidence(report) {
 export function capybaraFullGameDemoOptions(options = {}) {
   if (options.runFinalEnding !== undefined) assert.equal(typeof options.runFinalEnding, 'function');
   assert.equal(options.runEnding, undefined, 'Supply a final ending decision, not a competing gameplay runner.');
+  if (options.fullRoleLoop !== undefined) assert.equal(typeof options.fullRoleLoop, 'boolean');
+  const fullRoleLoop = options.fullRoleLoop ?? false;
   let cycleOnePreparation = null;
   return {
     ...options,
@@ -275,7 +277,8 @@ export function capybaraFullGameDemoOptions(options = {}) {
     includePress: true,
     capybaraEnabled: true,
     chartId: options.chartId ?? 'A',
-    gameplayOnly: true,
+    gameplayOnly: !fullRoleLoop,
+    gameplayManagesPhases: fullRoleLoop,
     onStarted: async context => {
       await options.onStarted?.(context);
       cycleOnePreparation = await prepareCycleOneCapybaraFleet(context, options);

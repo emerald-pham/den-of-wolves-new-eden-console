@@ -31,11 +31,17 @@ async function presentationReadinessSourceHashes(root) {
 export async function runFreshFullGameDemoUi(options = {}) {
   const playerCount = options.playerCount ?? 20, includePress = options.includePress ?? true;
   const chartId = options.chartId ?? 'A', gameplayOnly = options.gameplayOnly ?? false;
+  const gameplayManagesPhases = options.gameplayManagesPhases === undefined ? false : options.gameplayManagesPhases;
   assert.ok(Number.isSafeInteger(playerCount) && playerCount >= 8 && playerCount <= 20);
   assert.equal(typeof includePress, 'boolean'); assert.equal(typeof gameplayOnly, 'boolean');
+  assert.equal(typeof gameplayManagesPhases, 'boolean');
   assert.ok(['A', 'B', 'C'].includes(chartId));
   if (options.capybaraEnabled !== undefined) assert.equal(typeof options.capybaraEnabled, 'boolean');
   if (gameplayOnly) assert.equal(typeof options.runEnding, 'function', 'Supply the genuine manual gameplay callback.');
+  if (gameplayManagesPhases) {
+    assert.equal(gameplayOnly, false, 'Keep the ordinary role loop when supplied gameplay owns phase advances.');
+    assert.equal(typeof options.runEnding, 'function', 'Supply the genuine gameplay callback to own manual phase advances.');
+  }
   const baseUrl = options.baseUrl ?? process.env.PC10_UI_URL ?? 'http://127.0.0.1:5174';
   const projectId = options.projectId ?? process.env.PC10_DEMO_PROJECT ?? 'demo-pc10-owner';
   const root = resolve(options.sourceRoot ?? process.env.PC10_SOURCE_ROOT ?? process.cwd());
@@ -53,7 +59,7 @@ export async function runFreshFullGameDemoUi(options = {}) {
     presentationReadinessSourceSha256: presentationSourceHashes,
     actualBrowserProcesses: 2, actualBrowserContexts: 2, actualHumans: 0, physicalAttendanceProof: false,
     callableFixtures: false, adminGameplayWrites: false, acceleratedClock: false, wholeGameProof: false,
-    playerCount, includePress, chartId, gameplayOnly,
+    playerCount, includePress, chartId, gameplayOnly, gameplayManagesPhases,
     protocol: gameplayOnly ? 'Fresh ordinary UI admission; normal consent and real Firebase SDK; no fault or cache probe.' :
       'Fresh ordinary UI admission; normal consent and real Firebase SDK; controlled actual-response interruption disclosed.' };
   let stage = 'launch';
@@ -585,17 +591,23 @@ export async function runFreshFullGameDemoUi(options = {}) {
         }
         console.log(JSON.stringify({ stage: 'confirmed role surface', roleId: actor.roleId }));
       }
-      await mark('manual Team to Coordination through actual GM UI');
+      await mark(gameplayManagesPhases ? 'ordinary role loop retains Team for supplied gameplay' :
+        'manual Team to Coordination through actual GM UI');
       const teamBeforeManualAdvance = await gm.observe();
       assert.equal(teamBeforeManualAdvance.cycle, 1);
       assert.equal(teamBeforeManualAdvance.turnStatePhase, 'team');
       assert.equal(teamBeforeManualAdvance.phaseProgression, 'manual');
       evidence.teamHeldThroughAllRoleSelections = true;
-      await gm.page.getByRole('button', { name: 'Open Coordination manually', exact: true }).click();
-      coordination = await gm.until('Real manual Coordination', state => state.airspace === 'lifted' && state.phaseProgression === 'manual' && state.turnStatePhase === 'coordination');
-      await delay(2_000);
-      assert.equal((await gm.observe()).cycle, 1);
-      assert.equal((await gm.observe()).turnStatePhase, 'coordination');
+      // A composed game performs its original Team work before its own normal
+      // manual Coordination control. The generic role-only flow keeps its
+      // existing advance, delay and assertions.
+      if (!gameplayManagesPhases) {
+        await gm.page.getByRole('button', { name: 'Open Coordination manually', exact: true }).click();
+        coordination = await gm.until('Real manual Coordination', state => state.airspace === 'lifted' && state.phaseProgression === 'manual' && state.turnStatePhase === 'coordination');
+        await delay(2_000);
+        assert.equal((await gm.observe()).cycle, 1);
+        assert.equal((await gm.observe()).turnStatePhase, 'coordination');
+      }
       await crew.page.reload();
       const refreshed = await crew.until('Last actual role refreshed unchanged', state => state.sameActor && state.profileRoleId === roster.at(-1).roleId && state.connection === 'live' && state.freshness === 'server');
       assertSelectedActor(refreshed, { ...roster.at(-1), sessionId: initial.sessionId });
@@ -622,7 +634,7 @@ export async function runFreshFullGameDemoUi(options = {}) {
         evidence.repeatedActorSelections.push({ roleId, uidHash: actor.uidHash, pendingCommandCount: repeated.pendingCommandCount,
           briefMatchesActor: repeated.briefMatchesActor, briefRoleId: repeated.briefRoleId });
       }
-      await gm.page.screenshot({ path: `${directory}/manual-coordination.png` });
+      await gm.page.screenshot({ path: `${directory}/${gameplayManagesPhases ? 'team-before-gameplay' : 'manual-coordination'}.png` });
     }
     if (options.runEnding) {
       await mark('supplied genuine gameplay ending');
