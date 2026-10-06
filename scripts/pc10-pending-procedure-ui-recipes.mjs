@@ -1,3 +1,4 @@
+import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { observeUiReceipt } from './pc10-browser-ui-receipt.mjs';
 import { CORE_CRAFT_PROCEDURES, GM_RULING_COUNTER_PROCEDURES } from './pc10-pending-procedure-ui-proof.mjs';
@@ -25,6 +26,8 @@ const UNVERIFIABLE_SHUTTLE_RECEIPTS = new Set([
   'completeShuttleArrival',
 ]);
 const GM_GRANT_LIFECYCLE = new WeakMap();
+const CERTIFIED_GM_RECIPES = new Set(['setGmShipConsoleWriteGrant', 'setShipConsoleLock',
+  'setFacilitatorCensusNote', 'authorFacilitatorRuleCall']);
 
 function isRevision(value) { return Number.isSafeInteger(value) && value >= 0; }
 function hashUid(uid) { return typeof uid === 'string' && uid ? createHash('sha256').update(uid).digest('hex').slice(0, 16) : null; }
@@ -310,30 +313,70 @@ export async function positiveRenderedStatus(surface, endpoint, result) {
   return { visible: joined.length > 0 && matches, resultStatus: result?.status ?? 'committed' };
 }
 
-async function goToShipObserver(surface, original) {
+function remainingGmOperation(operation, maximum = 60_000) {
+  const remaining = Math.min(maximum, operation.deadlineAt - Date.now());
+  if (!Number.isFinite(remaining) || remaining <= 0) throw new Error('The original GM recipe operation deadline is exhausted.');
+  return remaining;
+}
+
+async function verifyGmOperation(surface, operation) {
+  remainingGmOperation(operation);
+  const current = await observeLifecycleActor(surface, operation.original.sessionId);
+  assertLateReplyAuthority(operation.current, current);
+  if (!Number.isSafeInteger(current.hydrationRevision) || current.hydrationRevision < 1 ||
+      current.phase !== operation.original.phase || current.cycle !== operation.original.cycle) {
+    throw new Error('The accepted original GM document, phase or cycle changed during the recipe.');
+  }
+  remainingGmOperation(operation);
+  return current;
+}
+
+async function waitForMountedGmForm(surface, panel, operation) {
+  const deadlineAt = operation.readinessDeadlineAt;
+  while (Date.now() < deadlineAt) {
+    await verifyGmOperation(surface, operation);
+    const mount = await surface.page.evaluate(() => ({
+      routePath: window.location.hash.slice(1).split('?')[0],
+      mainCount: document.querySelectorAll('main.gm-console').length,
+      loading: Array.from(document.querySelectorAll('[role="status"]')).some(element =>
+        element.textContent?.trim() === 'Opening GM console…'),
+    }));
+    const count = await panel.count(), visible = count === 1 && await panel.isVisible();
+    await verifyGmOperation(surface, operation);
+    if (Date.now() >= deadlineAt || mount.routePath !== '/gm') return false;
+    if (visible) return true;
+    // Only the exact source lazy fallback may wait. Mounted absent/ambiguous
+    // forms remain unavailable; this never retries a disabled UI action.
+    if (count > 1 || mount.mainCount !== 0 || !mount.loading) return false;
+    await new Promise(resolve => setTimeout(resolve, Math.min(200, deadlineAt - Date.now())));
+  }
+  return false;
+}
+
+async function goToShipObserver(surface, operation) {
   const page = surface.page;
+  const original = operation.current;
+  await verifyGmOperation(surface, operation);
   const routeHash = '#/ships/aegis/observer';
   if (new URL(page.url()).hash !== routeHash) {
     const route = new URL(page.url());
     route.hash = routeHash;
-    await page.goto(route.href, { waitUntil: 'domcontentloaded' });
+    await page.goto(route.href, { waitUntil: 'domcontentloaded', timeout: remainingGmOperation(operation, 35_000) });
   }
   // Authority and lazy mount share the original twenty-second readiness wait.
-  const deadlineAt = Date.now() + 20_000;
+  const deadlineAt = operation.readinessDeadlineAt;
   await surface.until('Original owned GM on the AEGIS observer route', value =>
     value.sameActor === true && value.sessionId === original.sessionId && value.uidHash === original.uidHash &&
     value.playerRole === 'gm' && value.instanceId === original.instanceId && value.gmInstanceOwned === true &&
     value.connection === 'live' && value.freshness === 'server' &&
-    new URL(page.url()).hash === routeHash, Math.max(1, deadlineAt - Date.now()));
+    new URL(page.url()).hash === routeHash, remainingGmOperation({ deadlineAt }, 20_000));
   const affordance = await recordLifecycleAffordance(page.getByRole('button', {
     name: 'GM ship console read write access', exact: true,
   }), { original, shipId: 'aegis', deadlineAt,
-    inspectActor: async () => {
-      const current = await observeLifecycleActor(surface, original.sessionId);
-      assertLateReplyAuthority(original, current); return current;
-    }, inspectMount: () => inspectLifecycleObserverMount(surface) });
+    inspectActor: () => verifyGmOperation(surface, operation),
+    inspectMount: () => inspectLifecycleObserverMount(surface) });
   if (!affordance.offered) throw new Error(`Original AEGIS observer is unavailable: ${affordance.mountStatus}.`);
-  return observeLifecycleActor(surface, original.sessionId);
+  return verifyGmOperation(surface, operation);
 }
 
 async function readCurrentWriteGrant(surface, expected) {
@@ -370,35 +413,57 @@ async function readCurrentWriteGrant(surface, expected) {
   }, { moduleUrl: surface.storeModuleUrl(), expected });
 }
 
-async function reloadMountedGm(surface, expected) {
-  await surface.page.reload({ waitUntil: 'domcontentloaded' });
-  const actor = await surface.until('The original authenticated GM has reloaded from the live source', value =>
-    value.sameActor === true && value.sessionId === expected.sessionId && value.uidHash === expected.uidHash &&
-    value.playerRole === 'gm' && value.instanceId === expected.instanceId && value.gmInstanceOwned === true &&
-    value.connection === 'live' && value.freshness === 'server', 20_000);
-  const state = await readActionState(surface);
-  return { actor, state };
+async function readCertifiedWriteGrant(surface, expected, operation) {
+  await verifyGmOperation(surface, operation);
+  const grant = await readCurrentWriteGrant(surface, expected);
+  await verifyGmOperation(surface, operation);
+  return grant?.claimedAt === operation.original.claimedAt ? grant : null;
 }
 
-async function waitForActionState(surface, predicate, timeoutMs = 15_000) {
-  const deadline = Date.now() + timeoutMs;
+async function reloadMountedGm(surface, expected, operation) {
+  await verifyGmOperation(surface, operation);
+  await surface.page.reload({ waitUntil: 'domcontentloaded', timeout: remainingGmOperation(operation, 35_000) });
+  const deadlineAt = Math.min(operation.deadlineAt, Date.now() + 20_000), original = operation.original;
+  operation.readinessDeadlineAt = deadlineAt;
+  while (Date.now() < deadlineAt) {
+    const actor = await observeLifecycleActor(surface, expected.sessionId);
+    if (actor.hasAuth && actor.uidHash !== original.uidHash || actor.sessionId !== null && actor.sessionId !== original.sessionId ||
+        actor.instanceId !== null && actor.instanceId !== original.instanceId ||
+        actor.claimedAt !== null && actor.claimedAt !== original.claimedAt || actor.privateAudienceMatches !== true ||
+        actor.phase !== null && actor.phase !== original.phase || actor.cycle !== null && actor.cycle !== original.cycle) {
+      assert.fail('The genuine GM reload lost its original identity, claim, private audience, phase or cycle.');
+    }
+    if (actor.hasAuth && actor.sameActor && actor.sessionId === original.sessionId &&
+        actor.playerRole === 'gm' && actor.gmInstanceOwned === true && actor.instanceId === original.instanceId &&
+        actor.claimedAt === original.claimedAt && actor.connection === 'live' && actor.freshness === 'server' &&
+        Number.isSafeInteger(actor.hydrationRevision) && actor.hydrationRevision >= 1) {
+      // A genuine reload accepts its new document generation/hydration. Pin
+      // that certificate while retaining the original Auth UID and GM claim.
+      assertOriginalActor(actor, actor, { gm: true });
+      operation.current = actor;
+      const state = await readActionState(surface);
+      await verifyGmOperation(surface, operation);
+      return { actor, state };
+    }
+    await new Promise(resolve => setTimeout(resolve, Math.min(200, deadlineAt - Date.now())));
+  }
+  assert.fail('The genuine GM reload was not accepted within its original remaining operation budget.');
+}
+
+async function waitForActionState(surface, predicate, operation, timeoutMs = 15_000) {
+  const deadline = Math.min(operation.deadlineAt, Date.now() + timeoutMs);
   while (Date.now() < deadline) {
+    await verifyGmOperation(surface, operation);
     const state = await readActionState(surface).catch(() => null);
+    await verifyGmOperation(surface, operation);
     if (state && predicate(state)) return state;
-    await new Promise(resolve => setTimeout(resolve, 100));
+    await new Promise(resolve => setTimeout(resolve, Math.min(100, deadline - Date.now())));
   }
   return null;
 }
 
-async function censusProjection(state, targetUid, expected, surface, original) {
-  const current = await observeLifecycleActor(surface, expected.sessionId);
-  // This call follows the existing genuine reload protocol. Certify its newly
-  // accepted document; its generation/hydration need not equal the old page's.
-  assertOriginalActor(current, current, { gm: true });
-  if (current.uidHash !== original.uidHash || current.sessionId !== original.sessionId ||
-      current.instanceId !== original.instanceId || current.claimedAt !== original.claimedAt ||
-      !Number.isSafeInteger(current.hydrationRevision) || current.hydrationRevision < 1 ||
-      current.phase !== 'active' || current.cycle !== expected.cycle) return null;
+async function censusProjection(state, targetUid, expected, surface, operation) {
+  await verifyGmOperation(surface, operation);
   const entry = state?.gmLoyaltyCensus?.entries?.find(value => value.uid === targetUid);
   if (!entry || state.gmLoyaltyCensusStatus !== 'present' || !isRevision(state.gmLoyaltyCensus?.revision) ||
       !liveState(state, expected.sessionId) || state.cycle !== expected.cycle) return null;
@@ -418,10 +483,10 @@ function ruleCallProjection(state, expected) {
     ambiguityHash: proofHash(call.ambiguity), sourceHash: proofHash(call.source), decisionHash: proofHash(call.decision) };
 }
 
-async function captureMountedUiCallable(surface, endpoint, click) {
+async function captureMountedUiCallable(surface, endpoint, click, operation) {
   const response = await observeUiReceipt({
     waitForResponse: () => surface.page.waitForResponse(value => value.request().method() === 'POST' &&
-      new URL(value.url()).pathname.endsWith(`/us-central1/${endpoint}`), { timeout: 20_000 }),
+      new URL(value.url()).pathname.endsWith(`/us-central1/${endpoint}`), { timeout: remainingGmOperation(operation, 20_000) }),
     choose: click,
   });
   let body = null;
@@ -430,29 +495,33 @@ async function captureMountedUiCallable(surface, endpoint, click) {
     response: { httpStatus: response.status(), result: body?.result } };
 }
 
-async function revokeMountedGmGrant(surface, expected, claimedAt) {
-  const before = await readCurrentWriteGrant(surface, expected).catch(() => null);
+async function revokeMountedGmGrant(surface, expected, claimedAt, operation) {
+  await goToShipObserver(surface, operation);
+  const before = await readCertifiedWriteGrant(surface, expected, operation).catch(() => null);
   if (!before?.projection.enabled || before.claimedAt !== claimedAt) return null;
   const access = surface.page.getByRole('button', { name: 'GM ship console read write access', exact: true });
   const captured = await captureMountedUiCallable(surface, 'setGmShipConsoleWriteGrant', async () => {
+    await verifyGmOperation(surface, operation);
     if (await access.count() !== 1 || !await access.isVisible() || !await access.isEnabled() ||
         await access.getAttribute('aria-pressed') !== 'true' ||
         await surface.page.locator('.ship-console').getAttribute('data-observer-mode') !== 'write') {
       throw new Error('The owned AEGIS write grant is not visible and enabled for revocation.');
     }
-    await access.click();
-  }).catch(() => null);
+    await access.click({ timeout: remainingGmOperation(operation, 35_000) });
+  }, operation).catch(() => null);
   if (!captured) return null;
+  await verifyGmOperation(surface, operation);
   let visible = false;
   for (let attempt = 0; attempt < 40; attempt++) {
+    await verifyGmOperation(surface, operation);
     visible = await access.count() === 1 && await access.isVisible() &&
       await access.getAttribute('aria-pressed') === 'false' &&
       await surface.page.locator('.ship-console').getAttribute('data-observer-mode') === 'read';
     if (visible) break;
-    await new Promise(resolve => setTimeout(resolve, 100));
+    await new Promise(resolve => setTimeout(resolve, remainingGmOperation(operation, 100)));
   }
-  const reloaded = await reloadMountedGm(surface, expected);
-  const after = await readCurrentWriteGrant(surface, expected).catch(() => null);
+  const reloaded = await reloadMountedGm(surface, expected, operation);
+  const after = await readCertifiedWriteGrant(surface, expected, operation).catch(() => null);
   if (!visible || after?.projection.enabled !== false || after.claimedAt !== claimedAt) return null;
   return {
     restore: { request: captured.request, response: captured.response,
@@ -493,7 +562,7 @@ function mountedTarget(spec, actor, state, expectedOverrides = {}) {
   return { target, roleId };
 }
 
-async function planFor({ spec, surface, actor, state, context, target }) {
+async function planFor({ spec, surface, actor, state, context, target, gmOperation }) {
   const page = surface.page;
   const endpoint = spec.endpoint;
   const block = reason => ({ offered: false, reason });
@@ -505,9 +574,9 @@ async function planFor({ spec, surface, actor, state, context, target }) {
   if (UNVERIFIABLE_GM_CHOICES.has(endpoint)) return block('requires an explicit live GM-authored choice and a source receipt not safely verifiable by this finite recipe');
   if (UNVERIFIABLE_SHUTTLE_RECEIPTS.has(endpoint)) return block('the current UI reply/projection has no source-bound monotonic receipt this validator can verify; no movement or cargo mutation is attempted');
   let originalGm;
-  if (['setGmShipConsoleWriteGrant', 'setShipConsoleLock', 'setFacilitatorCensusNote',
-    'authorFacilitatorRuleCall'].includes(endpoint)) {
+  if (CERTIFIED_GM_RECIPES.has(endpoint)) {
     try {
+      remainingGmOperation(gmOperation);
       originalGm = await observeLifecycleActor(surface, context.initial.sessionId);
       assertOriginalActor(originalGm, originalGm, { gm: true });
       if (originalGm.uidHash !== context.initial.uidHash || originalGm.uidHash !== context.started?.uidHash ||
@@ -520,13 +589,11 @@ async function planFor({ spec, surface, actor, state, context, target }) {
       }
     } catch { return block('the original current GM document, claim or private audience is not verified'); }
     target.gmRecipeAuthority = originalGm;
+    gmOperation.original = originalGm;
+    gmOperation.current = originalGm;
+    gmOperation.readinessDeadlineAt = Math.min(gmOperation.deadlineAt, Date.now() + 20_000);
   }
-  const verifyGmDocument = async () => {
-    const current = await observeLifecycleActor(surface, context.initial.sessionId);
-    assertLateReplyAuthority(originalGm, current);
-    if (current.phase !== originalGm.phase || current.cycle !== originalGm.cycle)
-      throw new Error('The original GM phase or cycle changed before the mounted action.');
-  };
+  const verifyGmDocument = () => verifyGmOperation(surface, gmOperation);
   if (target.shuttleId && new URL(page.url()).hash !== `#/shuttles/${target.shuttleId}`) {
     const route = page.locator(`a[href$="/shuttles/${target.shuttleId}"]`);
     const offeredRoute = await one(route);
@@ -545,10 +612,10 @@ async function planFor({ spec, surface, actor, state, context, target }) {
     }
     const gmExpected = { sessionId: context.initial.sessionId, uidHash: actor.uidHash,
       instanceId: actor.instanceId, cycle: state.cycle };
-    const onRouteActor = await goToShipObserver(surface, originalGm)
+    const onRouteActor = await goToShipObserver(surface, gmOperation)
       .catch(() => null);
     if (!onRouteActor || onRouteActor.playerRole !== 'gm') return block('the original owned GM could not reach the mounted AEGIS observer UI');
-    const grant = await readCurrentWriteGrant(surface, gmExpected).catch(() => null);
+    const grant = await readCertifiedWriteGrant(surface, gmExpected, gmOperation).catch(() => null);
     if (!grant || grant.projection.cycle !== state.cycle) return block('the current owned GM lease and AEGIS grant projection could not be verified');
     target.gmGrantBefore = grant.projection;
     target.gmClaimedAt = grant.claimedAt;
@@ -565,7 +632,7 @@ async function planFor({ spec, surface, actor, state, context, target }) {
       if (!control || await control.getAttribute('aria-pressed') !== 'false') return block('the actual AEGIS observer access control is not visibly read-only');
       return { offered: true, beforeProjection: grant.projection, click: async () => {
         await verifyGmDocument();
-        const latestGrant = await readCurrentWriteGrant(surface, gmExpected);
+        const latestGrant = await readCertifiedWriteGrant(surface, gmExpected, gmOperation);
         const currentState = await readActionState(surface);
         if (!latestGrant || latestGrant.projection.enabled || latestGrant.claimedAt !== target.gmClaimedAt ||
             !liveState(currentState, gmExpected.sessionId) || currentState.shipConsoleLocks?.aegis !== true ||
@@ -574,12 +641,12 @@ async function planFor({ spec, surface, actor, state, context, target }) {
             await control.getAttribute('aria-pressed') !== 'false') {
           throw new Error('Current GM lease, AEGIS activity, or source write-grant control changed before the UI confirmation.');
         }
-        await control.click();
+        await control.click({ timeout: remainingGmOperation(gmOperation, 35_000) });
         const dialog = page.getByRole('alertdialog', { name: 'Are you sure?', exact: true });
         const confirm = await one(dialog.getByRole('button', { name: 'ARE YOU SURE?', exact: true }));
         if (!confirm) throw new Error('The visible source confirmation for AEGIS write access is unavailable.');
         await verifyGmDocument();
-        await confirm.click();
+        await confirm.click({ timeout: remainingGmOperation(gmOperation, 35_000) });
         target.gmGrantEnableAttempted = true;
       } };
     }
@@ -597,7 +664,7 @@ async function planFor({ spec, surface, actor, state, context, target }) {
     if (!release) return block('the actual AEGIS release-lock control is absent, disabled, or ambiguous');
     return { offered: true, click: async () => {
       await verifyGmDocument();
-      const latestGrant = await readCurrentWriteGrant(surface, gmExpected);
+      const latestGrant = await readCertifiedWriteGrant(surface, gmExpected, gmOperation);
       const currentState = await readActionState(surface);
       if (!latestGrant?.projection.enabled || currentState.shipConsoleLocks?.aegis !== true ||
           currentState.vesselActionRevisions?.aegis !== lockRevision ||
@@ -605,7 +672,7 @@ async function planFor({ spec, surface, actor, state, context, target }) {
           await release.isEnabled() !== true) {
         throw new Error('The current AEGIS lock, write grant, or vessel revision changed before release.');
       }
-      await release.click();
+      await release.click({ timeout: remainingGmOperation(gmOperation, 35_000) });
     } };
   }
 
@@ -623,6 +690,7 @@ async function planFor({ spec, surface, actor, state, context, target }) {
       cycle: state.cycle, uidHash: actor.uidHash, instanceId: actor.instanceId, revision: census.revision,
       targetUidHash: hashUid(entry.uid), entryPresent: true };
     const noteField = page.getByLabel(`Facilitator note for ${entry.uid}`, { exact: true });
+    if (!await waitForMountedGmForm(surface, noteField, gmOperation)) return block('the actual current census row note control is not offered');
     const row = noteField.locator('xpath=ancestor::tr');
     const save = await one(row.getByRole('button', { name: 'Save note', exact: true }));
     if (!save || !await one(noteField)) return block('the actual current census row note control is not offered');
@@ -635,7 +703,7 @@ async function planFor({ spec, surface, actor, state, context, target }) {
           await noteField.isEnabled() !== true) {
         throw new Error('The actual census target or source revision changed before saving the note.');
       }
-      await noteField.fill(target.censusNote);
+      await noteField.fill(target.censusNote, { timeout: remainingGmOperation(gmOperation, 35_000) });
       await verifyGmDocument();
       const afterInput = await readActionState(surface);
       if (!liveState(afterInput, context.initial.sessionId) || afterInput.cycle !== state.cycle ||
@@ -644,7 +712,7 @@ async function planFor({ spec, surface, actor, state, context, target }) {
         throw new Error('The actual census source changed while filling the mounted note.');
       }
       if (!await one(save)) throw new Error('The actual census save control is no longer enabled.');
-      await save.click();
+      await save.click({ timeout: remainingGmOperation(gmOperation, 35_000) });
     } };
   }
 
@@ -659,6 +727,7 @@ async function planFor({ spec, surface, actor, state, context, target }) {
       decision: 'Only named automated Auth personas are represented; no physical humans or device attendance is proved.',
       audience: 'gm-only' };
     const panel = page.getByRole('region', { name: 'Facilitator rule call', exact: true });
+    if (!await waitForMountedGmForm(surface, panel, gmOperation)) return block('the actual source rule-call form is not mounted and writable');
     const ambiguity = panel.getByLabel('Question or ambiguity', { exact: true });
     const source = panel.getByLabel('Source or reference', { exact: true });
     const decision = panel.getByLabel('Decision', { exact: true });
@@ -677,11 +746,11 @@ async function planFor({ spec, surface, actor, state, context, target }) {
           latestRule && latestRule.sessionId !== context.initial.sessionId) {
         throw new Error('The facilitator rule-call revision changed before recording the mounted decision.');
       }
-      await ambiguity.fill(target.ruleCallInput.ambiguity);
-      await source.fill(target.ruleCallInput.source);
-      await decision.fill(target.ruleCallInput.decision);
-      await audience.selectOption('gm-only');
-      await supersedes.fill('');
+      await ambiguity.fill(target.ruleCallInput.ambiguity, { timeout: remainingGmOperation(gmOperation, 35_000) });
+      await source.fill(target.ruleCallInput.source, { timeout: remainingGmOperation(gmOperation, 35_000) });
+      await decision.fill(target.ruleCallInput.decision, { timeout: remainingGmOperation(gmOperation, 35_000) });
+      await audience.selectOption('gm-only', { timeout: remainingGmOperation(gmOperation, 35_000) });
+      await supersedes.fill('', { timeout: remainingGmOperation(gmOperation, 35_000) });
       await verifyGmDocument();
       const afterInput = await readActionState(surface), afterRule = afterInput.gmFacilitatorRuleCall;
       if (!liveState(afterInput, context.initial.sessionId) || afterInput.cycle !== state.cycle ||
@@ -690,7 +759,7 @@ async function planFor({ spec, surface, actor, state, context, target }) {
         throw new Error('The facilitator rule-call source changed while filling the mounted decision.');
       }
       if (!await one(record)) throw new Error('The filled source rule-call form does not enable Record rule call.');
-      await record.click();
+      await record.click({ timeout: remainingGmOperation(gmOperation, 35_000) });
     } };
   }
 
@@ -1124,14 +1193,15 @@ async function planFor({ spec, surface, actor, state, context, target }) {
   return block('no safe mounted action recipe is available for this endpoint');
 }
 
-async function inspectMountedGmControl({ context, surface, request, result, spec, expected, target }) {
+async function inspectMountedGmControl({ context, surface, request, result, spec, expected, target, gmOperation }) {
+  await verifyGmOperation(surface, gmOperation);
   if (spec.endpoint === 'setGmShipConsoleWriteGrant') {
     const access = surface.page.getByRole('button', { name: 'GM ship console read write access', exact: true });
     const liveUi = await access.count() === 1 && await access.isVisible() &&
       await access.getAttribute('aria-pressed') === 'true' &&
       await surface.page.locator('.ship-console').getAttribute('data-observer-mode') === 'write';
-    const reloaded = await reloadMountedGm(surface, expected);
-    const grant = await readCurrentWriteGrant(surface, expected).catch(() => null);
+    const reloaded = await reloadMountedGm(surface, expected, gmOperation);
+    const grant = await readCertifiedWriteGrant(surface, expected, gmOperation).catch(() => null);
     const leaseMatches = grant?.claimedAt === request.claimedAt &&
       request.sessionId === expected.sessionId && request.instanceId === expected.instanceId &&
       request.shipId === 'aegis' && request.enabled === true && result?.enabled === true && result?.shipId === 'aegis';
@@ -1140,7 +1210,7 @@ async function inspectMountedGmControl({ context, surface, request, result, spec
         instanceId: expected.instanceId, claimedAt: request.claimedAt });
     }
     const cleanupGrant = async () => {
-      try { return (await revokeMountedGmGrant(surface, expected, request.claimedAt))?.restore ?? null; }
+      try { return (await revokeMountedGmGrant(surface, expected, request.claimedAt, gmOperation))?.restore ?? null; }
       finally { GM_GRANT_LIFECYCLE.delete(context); }
     };
     return {
@@ -1162,8 +1232,8 @@ async function inspectMountedGmControl({ context, surface, request, result, spec
     const afterCommit = await waitForActionState(surface, state =>
       state.live && state.sessionId === expected.sessionId && state.cycle === expected.cycle &&
       state.shipConsoleLocks?.aegis === false &&
-      state.vesselActionRevisions?.aegis === expected.sourceRevision + 1);
-    const lockReload = await reloadMountedGm(surface, expected);
+      state.vesselActionRevisions?.aegis === expected.sourceRevision + 1, gmOperation);
+    const lockReload = await reloadMountedGm(surface, expected, gmOperation);
     const lockRevision = lockReload.state?.vesselActionRevisions?.aegis;
     const lockProjection = {
       kind: 'ship-console-lock', live: lockReload.state?.live === true &&
@@ -1172,7 +1242,7 @@ async function inspectMountedGmControl({ context, surface, request, result, spec
       uidHash: expected.uidHash, instanceId: expected.instanceId, shipId: 'aegis',
       locked: lockReload.state?.shipConsoleLocks?.aegis, revision: lockRevision,
     };
-    const revoked = await revokeMountedGmGrant(surface, expected, target.gmClaimedAt).catch(() => null);
+    const revoked = await revokeMountedGmGrant(surface, expected, target.gmClaimedAt, gmOperation).catch(() => null);
     GM_GRANT_LIFECYCLE.delete(context);
     return {
       sourceAfter: { live: afterCommit !== null && lockProjection.live === true &&
@@ -1192,12 +1262,12 @@ async function inspectMountedGmControl({ context, surface, request, result, spec
       const entry = state.gmLoyaltyCensus?.entries?.find(value => value.uid === target.censusUid);
       return state.live && state.sessionId === expected.sessionId && state.cycle === expected.cycle &&
         state.gmLoyaltyCensus?.revision === before.revision + 1 && entry?.note === target.censusNote;
-    });
+    }, gmOperation);
     const field = surface.page.getByLabel(`Facilitator note for ${target.censusUid}`, { exact: true });
     const fieldValue = await field.count() === 1 ? await field.inputValue() : null;
     const visible = fieldValue === target.censusNote && await field.isVisible();
-    const reloaded = await reloadMountedGm(surface, expected);
-    const projection = await censusProjection(reloaded.state, target.censusUid, expected, surface, target.gmRecipeAuthority);
+    const reloaded = await reloadMountedGm(surface, expected, gmOperation);
+    const projection = await censusProjection(reloaded.state, target.censusUid, expected, surface, gmOperation);
     return {
       sourceAfter: { live: savedState !== null && reloaded.state?.live === true && projection?.live === true,
         sessionId: reloaded.state?.sessionId, cycle: reloaded.state?.cycle,
@@ -1212,29 +1282,17 @@ async function inspectMountedGmControl({ context, surface, request, result, spec
   if (spec.endpoint === 'authorFacilitatorRuleCall') {
     let rendered = { visible: false, resultStatus: result?.status ?? 'committed' };
     for (let attempt = 0; attempt < 40; attempt++) {
+      await verifyGmOperation(surface, gmOperation);
       rendered = await positiveRenderedStatus(surface, spec.endpoint, result);
       if (rendered.visible) break;
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise(resolve => setTimeout(resolve, remainingGmOperation(gmOperation, 100)));
     }
     const committedState = await waitForActionState(surface, state =>
       state.gmFacilitatorRuleCall?.callId === request.requestId &&
-      state.gmFacilitatorRuleCall?.revision === expected.sourceRevision + 1);
-    const reloaded = await reloadMountedGm(surface, expected);
-    const current = await observeLifecycleActor(surface, expected.sessionId);
-    // Certify the genuine reload's accepted document, then hold it through inspection.
-    assertOriginalActor(current, current, { gm: true });
-    const original = target.gmRecipeAuthority;
-    if (current.uidHash !== original.uidHash || current.sessionId !== original.sessionId ||
-        current.instanceId !== original.instanceId || current.claimedAt !== original.claimedAt ||
-        !Number.isSafeInteger(current.hydrationRevision) || current.hydrationRevision < 1 ||
-        current.phase !== 'active' || current.cycle !== expected.cycle) {
-      throw new Error('The reloaded rule-call document lacks its original GM claim or accepted authority.');
-    }
+      state.gmFacilitatorRuleCall?.revision === expected.sourceRevision + 1, gmOperation);
+    const reloaded = await reloadMountedGm(surface, expected, gmOperation);
     const projection = ruleCallProjection(reloaded.state, expected);
-    const afterInspection = await observeLifecycleActor(surface, expected.sessionId);
-    assertLateReplyAuthority(current, afterInspection);
-    if (afterInspection.phase !== current.phase || afterInspection.cycle !== current.cycle)
-      throw new Error('The current reloaded GM phase or cycle changed during rule-call inspection.');
+    await verifyGmOperation(surface, gmOperation);
     return {
       sourceAfter: { live: committedState !== null && reloaded.state?.live === true && projection?.live === true,
         sessionId: reloaded.state?.sessionId, cycle: reloaded.state?.cycle,
@@ -1247,6 +1305,9 @@ async function inspectMountedGmControl({ context, surface, request, result, spec
 }
 
 async function recipeFor({ context, game, spec }) {
+  // The existing sixty-second capture operation includes GM preparation and
+  // navigation; every phase consumes this same absolute remaining budget.
+  const gmOperation = CERTIFIED_GM_RECIPES.has(spec.endpoint) ? { deadlineAt: Date.now() + 60_000 } : null;
   let roleToUse = spec.actorRoleId;
   let holderTarget = {};
   if (spec.family === 'pending-core-craft-actions' &&
@@ -1278,7 +1339,7 @@ async function recipeFor({ context, game, spec }) {
     holderTarget = { shuttleId: holders[0].shuttleId };
     roleToUse = holders[0].roleId;
   }
-  const initialSurface = roleToUse === 'gm' ? await game.select('gm') : await game.select(roleToUse);
+  const initialSurface = gmOperation ? await game.select('gm', { deadlineAt: gmOperation.deadlineAt }) : await game.select(roleToUse);
   const actor = await initialSurface.observe();
   if (actor?.sessionId !== context.initial.sessionId || actor.sameActor !== true || actor.connection !== 'live' || actor.freshness !== 'server') {
     const refuse = async () => ({ offered: false, reason: 'the original actor/session is not currently live from a server snapshot' });
@@ -1308,7 +1369,7 @@ async function recipeFor({ context, game, spec }) {
   let auxiliary = null;
   if (spec.endpoint === 'rollHummingbirdHarvest' || spec.endpoint === 'allocateHummingbirdHarvest') auxiliary = await readHarvest(initialSurface).catch(() => null);
   if (spec.endpoint === 'chooseBoaMissionReclamationOpportunity') auxiliary = await readBoaWorkspace(initialSurface, context.initial.sessionId).catch(() => null);
-  const initialPlan = await planFor({ spec, surface: initialSurface, actor, state, context, target: resolved.target });
+  const initialPlan = await planFor({ spec, surface: initialSurface, actor, state, context, target: resolved.target, gmOperation });
   if (resolved.target.shipId && expected.shipId === undefined) expected.shipId = resolved.target.shipId;
   if (resolved.target.hostShipId) expected.groupId = state.shipFleetGroupIds?.[resolved.target.hostShipId];
   if (resolved.target.hostShipId && spec.endpoint === 'rechargeHostConsoleFromShuttle') {
@@ -1334,10 +1395,11 @@ async function recipeFor({ context, game, spec }) {
   const preparedPlan = initialPlan;
   return {
     expected,
+    ...(gmOperation ? { gmOperation } : {}),
     trainingChoice: spec.trainingChoice ? (preparedPlan.trainingChoice ?? 'gm-training:deliberate-choice') : null,
     ...(spec.endpoint === 'setGmShipConsoleWriteGrant' ? { cleanupMountedGmGrant: async () => {
       if (resolved.target.gmGrantEnableAttempted !== true) return null;
-      try { return await revokeMountedGmGrant(initialSurface, expected, resolved.target.gmClaimedAt); }
+      try { return await revokeMountedGmGrant(initialSurface, expected, resolved.target.gmClaimedAt, gmOperation); }
       finally { GM_GRANT_LIFECYCLE.delete(context); }
     } } : {}),
     prepare: async ({ surface, actor: currentActor, source }) => {
@@ -1384,9 +1446,8 @@ async function recipeFor({ context, game, spec }) {
       return preparedPlan;
     },
     inspect: async ({ surface, result, request }) => {
-      if (['setGmShipConsoleWriteGrant', 'setShipConsoleLock', 'setFacilitatorCensusNote',
-        'authorFacilitatorRuleCall'].includes(spec.endpoint)) {
-        return inspectMountedGmControl({ context, surface, request, result, spec, expected, target: resolved.target });
+      if (CERTIFIED_GM_RECIPES.has(spec.endpoint)) {
+        return inspectMountedGmControl({ context, surface, request, result, spec, expected, target: resolved.target, gmOperation });
       }
       const latest = await readActionState(surface);
       let movementAfter;

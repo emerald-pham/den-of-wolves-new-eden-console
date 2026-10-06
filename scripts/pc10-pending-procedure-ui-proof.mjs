@@ -5,6 +5,8 @@ import { resolve } from 'node:path';
 import { observeUiReceipt } from './pc10-browser-ui-receipt.mjs';
 import { createTwoBrowserGameplay } from './pc10-two-browser-gameplay.mjs';
 import { sameActionReceipt } from './pc10-specialist-gameplay.mjs';
+import { observeLifecycleActor } from './pc10-member-gm-lifecycle-ui-proof.mjs';
+import { assertLateReplyAuthority } from './pc10-member-gm-lifecycle-contracts.mjs';
 
 const RESULT_STATUSES = new Set(['committed', 'applied', 'repaired', 'arrived', 'requested', 'replayed', 'resolved', 'in-transit']);
 const STATUSLESS_VESSEL_RESULTS = Object.freeze({
@@ -677,13 +679,38 @@ function acceptedResultStatus(spec, result, request, expected) {
 
 /** Capture one ordinary visible control action; its unmodified SDK request is retried only with its own idempotency key. */
 export async function captureMountedProcedureAction({ context, game, caseId, expected, prepare, inspect,
-  trainingChoice = null, timeoutMs = 60_000, deferEvaluation = false }) {
+  trainingChoice = null, timeoutMs = 60_000, deferEvaluation = false, gmOperation = null }) {
   const spec = CASE_BY_ID.get(caseId);
   if (!spec) throw new Error(`Unknown pending procedure case: ${String(caseId)}`);
   if (spec.replayPolicy === 'not-mounted') return pending(spec, spec.unavailableReason);
   assert.ok(context?.initial?.sessionId && typeof game?.select === 'function', 'Use the fresh connected two-browser game.');
   assert.equal(typeof prepare, 'function');
   assert.equal(typeof inspect, 'function');
+  const certifiedGm = ['setGmShipConsoleWriteGrant', 'setShipConsoleLock',
+    'setFacilitatorCensusNote', 'authorFacilitatorRuleCall'].includes(spec.endpoint);
+  if (certifiedGm && (!gmOperation?.original || !gmOperation.current || !Number.isFinite(gmOperation.deadlineAt))) {
+    return pending(spec, 'original-GM-current-document-certificate-is-unavailable');
+  }
+  const remaining = () => {
+    if (!certifiedGm) return timeoutMs;
+    const value = Math.min(timeoutMs, gmOperation.deadlineAt - Date.now());
+    assert.ok(Number.isFinite(value) && value > 0, 'The original GM capture operation deadline is exhausted.');
+    return value;
+  };
+  const observeCaptureActor = async surface => {
+    if (!certifiedGm) return surface.observe();
+    remaining();
+    const current = await observeLifecycleActor(surface, context.initial.sessionId);
+    assertLateReplyAuthority(gmOperation.current, current);
+    assert.equal(current.uidHash, context.initial.uidHash);
+    assert.equal(current.uidHash, context.started?.uidHash);
+    assert.equal(current.instanceId, context.started?.instanceId);
+    assert.equal(current.claimedAt, gmOperation.original.claimedAt);
+    assert.ok(Number.isSafeInteger(current.hydrationRevision) && current.hydrationRevision >= 1);
+    assert.equal(current.phase, gmOperation.original.phase); assert.equal(current.cycle, gmOperation.original.cycle);
+    remaining();
+    return current;
+  };
   let roleId = expected?.roleId ?? spec.actorRoleId;
   let resolvedHolder = null;
   if (spec.actorRoleId === 'current-shuttle-holder' || spec.actorRoleId === 'current-ally-holder') {
@@ -705,8 +732,8 @@ export async function captureMountedProcedureAction({ context, game, caseId, exp
     if (!resolvedHolder) return pending(spec, 'current-server-holder-is-not-one-unique-admitted-role');
     roleId = resolvedHolder.roleId;
   }
-  const surface = await game.select(roleId);
-  const actorBefore = await surface.observe();
+  const surface = certifiedGm ? await game.select(roleId, { deadlineAt: gmOperation.deadlineAt }) : await game.select(roleId);
+  const actorBefore = await observeCaptureActor(surface);
   const isGm = roleId === 'gm';
   const rosterActor = context.roster?.find(actor => actor.roleId === roleId);
   const normalizedExpected = { ...expected, sessionId: context.initial.sessionId, roleId,
@@ -761,7 +788,7 @@ export async function captureMountedProcedureAction({ context, game, caseId, exp
   const displayedCost = action.cost ?? null;
   const result = await observeUiReceipt({
     waitForResponse: () => surface.page.waitForResponse(response => response.request().method() === 'POST' &&
-      new URL(response.url()).pathname.endsWith(`/us-central1/${spec.endpoint}`), { timeout: timeoutMs }),
+      new URL(response.url()).pathname.endsWith(`/us-central1/${spec.endpoint}`), { timeout: remaining() }),
     choose: action.click,
   });
   let body;
@@ -771,7 +798,7 @@ export async function captureMountedProcedureAction({ context, game, caseId, exp
   if (!result.ok() || !actualResult || request?.sessionId !== context.initial.sessionId) {
     return pending(spec, 'mounted-ui-action-did-not-return-a-current-success-receipt');
   }
-  const actorAfter = await surface.observe();
+  const actorAfter = await observeCaptureActor(surface);
   if (!matchesActor(actorAfter, normalizedExpected, isGm)) return pending(spec, 'original-actor-or-GM-instance-changed-during-action');
   let replay = null;
   let exactReplay = false;
@@ -779,10 +806,12 @@ export async function captureMountedProcedureAction({ context, game, caseId, exp
     const key = request.requestId ?? request.idempotencyKey;
     if (typeof key !== 'string' || !key) return pending(spec, 'source-request-has-no-exact-retry-key');
     replay = await surface.callable(spec.endpoint, request);
+    if (certifiedGm) await observeCaptureActor(surface);
     exactReplay = replay?.status === 'committed' && sameActionReceipt(actualResult, replay.result);
   }
   const observed = await inspect({ context, game, surface, actor: actorBefore, actorAfter,
     sourceBefore, request, result: actualResult, replay: replay?.result ?? null });
+  if (certifiedGm) await observeCaptureActor(surface);
   const sourceAfter = observed?.sourceAfter;
   const proofInput = { caseId, expected: { ...normalizedExpected, cycle: sourceBefore.cycle,
     sourceRevision, groupId, cost: action.expectedCost ?? normalizedExpected.cost,
@@ -830,7 +859,21 @@ async function runCasesAtCheckpoint({ family, cases, checkpoint, context, steps,
       evidence.cases[deferredGrantIndex] = evaluateProcedureCapture(deferredGrant);
     } else {
       evidence.cases[deferredGrantIndex] = pending(CASE_BY_ID.get('gm:setGmShipConsoleWriteGrant'),
-        'single-shot-enable-and-ui-revoke-do-not-share-the-same-live-GM-lease');
+        'single-shot-enable-and-ui-revoke-do-not-share-the-same-live-GM-lease', {
+          leaseDiagnostic: {
+            restorePresent: Boolean(restore),
+            enabledProjectionPresent: deferredGrant.afterReload?.projection?.enabled === true,
+            projectionClaimMatches: typeof grantClaim === 'string' &&
+              typeof deferredGrant.afterReload?.projection?.claimedAtHash === 'string'
+              ? deferredGrant.afterReload.projection.claimedAtHash === hash(grantClaim) : null,
+            restoreClaimMatches: typeof grantClaim === 'string' && typeof restoreClaim === 'string'
+              ? grantClaim === restoreClaim : null,
+            restoreSessionMatches: typeof restore?.request?.sessionId === 'string'
+              ? deferredGrant.expected?.sessionId === restore.request.sessionId : null,
+            restoreInstanceMatches: typeof restore?.request?.instanceId === 'string'
+              ? deferredGrant.expected?.instanceId === restore.request.instanceId : null,
+          },
+        });
     }
     deferredGrant = null;
     deferredGrantIndex = -1;
