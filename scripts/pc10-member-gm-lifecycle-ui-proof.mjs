@@ -558,6 +558,9 @@ export function createMemberGmLifecycleUiProof(options = {}) {
       await perform('gm-ship-grant-lock', context, async () => {
         if (!options.shipId) return blocked('gm-ship-grant-lock', 'Choose a current active source shipId; observer view must be mounted in the normal catalog.');
         const before = await observeLifecycleActor(context.gm), savedGmUrl = context.gm.page.url();
+        // The current source CSS arrow participates in this link's exact name.
+        const leave = context.gm.page.getByRole('link', { name: '←Change role', exact: true })
+          .and(context.gm.page.locator(`a.ship-console__back[href="#/ships/${options.shipId}/roles"]`));
         try {
         const url = new URL(context.gm.page.url()); url.hash = '/console'; await context.gm.page.goto(url.href);
         await context.gm.page.locator(`a[href$="/ships/${options.shipId}/roles"]`).click();
@@ -588,14 +591,13 @@ export function createMemberGmLifecycleUiProof(options = {}) {
         const unlocked = await captureLifecycleUiAction(context.gm, 'setShipConsoleLock', () => lock.getByRole('button', { name: 'Release ICN console lock', exact: true }).click());
         const unlockRecovery = await recoverLifecycleUiAction(context.gm, unlocked);
         const revoke = await captureLifecycleUiAction(context.gm, 'setGmShipConsoleWriteGrant', () =>
-          context.gm.page.getByRole('link', { name: 'Change role', exact: true }).click(), { matches: data => data?.enabled === false });
+          leave.click(), { matches: data => data?.enabled === false });
         await untilLifecycle(context.gm, before, s => s.grantShipId === null, 'Leaving ship view revokes scoped grant', { gm: true });
         url.hash = '/gm'; await context.gm.page.goto(url.href);
         return { grant: publicLifecycleReceipt(grant), grantRepeat, lock: publicLifecycleReceipt(locked), lockRecovery,
           unlock: publicLifecycleReceipt(unlocked), unlockRecovery, revoke: publicLifecycleReceipt(revoke),
           cost: 'Scoped ship grant and travel lock only; neither changes cargo, population or role ownership.', nextActor: 'original GM' };
         } finally {
-          const leave = context.gm.page.getByRole('link', { name: 'Change role', exact: true });
           if (await leave.count() === 1 && await leave.isVisible()) await leave.click();
           if (context.gm.page.url() !== savedGmUrl) await context.gm.page.goto(savedGmUrl);
           await untilLifecycle(context.gm, before, s => s.grantShipId === null, 'Original GM restored without ship grant', { gm: true });
