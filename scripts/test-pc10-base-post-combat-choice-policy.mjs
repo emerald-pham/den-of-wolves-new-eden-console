@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import test from 'node:test';
 import {
   BASE_MISSION_ROLE_PRIORITY,
@@ -12,6 +13,7 @@ import {
 } from './pc10-base-post-combat-choice-policy.mjs';
 
 const sessionId = 'session-original';
+const hashUid = value => createHash('sha256').update(value).digest('hex').slice(0, 16);
 const gm = { sessionId, uidHash: 'gm-hash', instanceId: 'owned-gm-instance', gmInstanceOwned: true,
   playerRole: 'gm', phase: 'active', cycle: 2, connection: 'live', freshness: 'server' };
 const session = { sessionId, phase: 'active', currentTurn: 2, live: true,
@@ -19,11 +21,11 @@ const session = { sessionId, phase: 'active', currentTurn: 2, live: true,
   activeVesselIds: ['shepherd', 'quellon', 'aegis'],
   ship: { shipId: 'shepherd', currentTurn: 2, damage: { destroyed: false } } };
 const roster = [
-  { roleId: 'shepherd-engineer', displayName: 'Mara', uidHash: 'mara-hash' },
-  { roleId: 'shepherd-captain', displayName: 'Rin', uidHash: 'rin-hash' },
-  { roleId: 'shepherd-scientist', displayName: 'Sera', uidHash: 'sera-hash' },
-  { roleId: 'quellon-explorer', displayName: 'Venn', uidHash: 'venn-hash' },
-  { roleId: 'wing-commander', displayName: 'Ivo', uidHash: 'ivo-hash' },
+  { roleId: 'shepherd-engineer', displayName: 'Mara', uidHash: hashUid('private-engineer-uid') },
+  { roleId: 'shepherd-captain', displayName: 'Rin', uidHash: hashUid('private-captain-uid') },
+  { roleId: 'shepherd-scientist', displayName: 'Sera', uidHash: hashUid('private-scientist-uid') },
+  { roleId: 'quellon-explorer', displayName: 'Venn', uidHash: hashUid('private-explorer-uid') },
+  { roleId: 'wing-commander', displayName: 'Ivo', uidHash: hashUid('private-leader-uid') },
 ];
 function actor(roleId, changes = {}) {
   const original = roster.find(value => value.roleId === roleId);
