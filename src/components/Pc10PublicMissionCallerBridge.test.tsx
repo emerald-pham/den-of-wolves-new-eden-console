@@ -192,8 +192,9 @@ function nativeBridge(options: FixtureOptions = {}) {
     gmInstance: uid === gm ? { id: 'native-original-gm-instance' } as never : null });
   }
   function command(request: AwayMissionLifecycleCallablePayload, uid: string) {
-    assert.equal(request.sessionId, sid); assert.equal(request.missionId, missionId);
-    const { sessionId: _sid, missionId: _missionId, instanceId: _instanceId, ...data } = request;
+    const { sessionId, missionId: requestedMissionId, instanceId, ...data } = request;
+    assert.equal(sessionId, sid); assert.equal(requestedMissionId, missionId);
+    assert.equal(instanceId, uid === gm ? 'native-original-gm-instance' : undefined);
     const applied = applyAwayMissionLifecycleCommand(record, data as AwayMissionLifecycleCommand, {
       actorUid: uid, isActiveGm: uid === gm, teamPhase: false, currentCycle: 3,
       legalDropOffShipIds: ['aegis'], randomIndex: () => 0,
