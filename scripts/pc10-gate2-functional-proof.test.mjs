@@ -35,7 +35,8 @@ const observation = (changes = {}) => ({ roleId: original.roleId, name: 'getCurr
   actorHash: 'c'.repeat(64), sessionHash: 'd'.repeat(64), nativeDocumentHash: documentHash,
   nativeContextHash: 'e'.repeat(64), nativeFrameHash: 'f'.repeat(64), nativeLoaderHash: '1'.repeat(64),
   protocolRequestHash: '2'.repeat(64), status: 200, requestFinishedAt: 12, requestFailedAt: null,
-  bodyCompletedAt: 13, bodyHash: '3'.repeat(64), failureCategory: null, httpOutcome: 'result', ...changes });
+  bodyCompletedAt: 13, bodyHash: '3'.repeat(64), failureCategory: null, httpOutcome: 'result',
+  bodyFailureStage: 'native-get-response-body', bodyReadFailureReason: 'body-unavailable', ...changes });
 
 test('original awaited SDK outcome and both original document/source bindings qualify a command', () => {
   assert.doesNotThrow(() => assertPc10FunctionalCommand(command()));
