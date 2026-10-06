@@ -314,6 +314,16 @@ describe('normal original member resume publication', () => {
       connection: 'live', me: { connectionGeneration: 4 } });
   });
 
+  it('cannot restore its transaction lease after the real current player source reports a newer lease', async () => {
+    await acceptedMember(); await reconnect(); const older = commitResume();
+    commitResume(); publishPlayer(); await advance();
+    expect(useSessionStore.getState().me?.connectionGeneration).toBe(4);
+    older.data.session = currentSession();
+    await deliverResume(1, older);
+    expect(useSessionStore.getState()).toMatchObject({ identityHydrationRevision: 1, me: { connectionGeneration: 4 } });
+    expectReadOnly();
+  });
+
   it.each(['disconnected', 'missing', 'permission-denied', 'not-found'])('preserves immediate genuine %s source withdrawal while a resume is pending', async kind => {
     await acceptedMember(); await reconnect();
     const reader = listeners.filter(listener => listener.active && listener.path === actorPath()).at(-1)!;
