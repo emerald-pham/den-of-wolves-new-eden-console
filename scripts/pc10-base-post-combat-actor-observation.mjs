@@ -35,14 +35,12 @@ export function assertBasePostCombatActorIdentity(current, original) {
       `Original Base mission ${field} evidence is required.`);
     assert.ok(current[field] === original[field], `Original Base mission ${field} changed.`);
   }
-  if (Object.hasOwn(original, 'documentTimeOrigin') || Object.hasOwn(current, 'documentTimeOrigin')) {
-    assert.ok(Number.isFinite(original.documentTimeOrigin) && original.documentTimeOrigin > 0,
-      'Original Base mission documentTimeOrigin evidence is required.');
-    assert.ok(Number.isFinite(current.documentTimeOrigin) && current.documentTimeOrigin > 0,
-      'Current Base mission documentTimeOrigin evidence is required.');
-    assert.equal(current.documentTimeOrigin, original.documentTimeOrigin,
-      'Original Base mission documentTimeOrigin changed.');
-  }
+  assert.ok(Number.isFinite(original.documentTimeOrigin) && original.documentTimeOrigin > 0,
+    'Original Base mission documentTimeOrigin evidence is required.');
+  assert.ok(Number.isFinite(current.documentTimeOrigin) && current.documentTimeOrigin > 0,
+    'Current Base mission documentTimeOrigin evidence is required.');
+  assert.equal(current.documentTimeOrigin, original.documentTimeOrigin,
+    'Original Base mission documentTimeOrigin changed.');
   assert.ok(current.hasAuth === true && current.sameActor === true && current.connected === true &&
     current.escapeLocked === false && current.connection === 'live' && current.freshness === 'server',
   'The original Base mission actor must remain authenticated, connected, unescaped and live.');
@@ -52,12 +50,13 @@ export function assertBasePostCombatActorIdentity(current, original) {
 /** Join the generic authenticated view, established rich observer and exact current member identity. */
 export function composeBasePostCombatActorObservation(genericObservation, richObservation, exactMemberRead) {
   const exactDocumentTimeOrigin = exactMemberRead?.documentTimeOrigin;
-  const documentTimeOriginSupplied = [genericObservation, richObservation, exactMemberRead]
-    .some(value => value && Object.hasOwn(value, 'documentTimeOrigin'));
-  const documentTimeOriginMatches = !documentTimeOriginSupplied ||
-    (Number.isFinite(exactDocumentTimeOrigin) && exactDocumentTimeOrigin > 0 &&
-      exactDocumentTimeOrigin === genericObservation?.documentTimeOrigin &&
-      (richObservation?.documentTimeOrigin === undefined ||
+  const documentTimeOriginMatches = Number.isFinite(genericObservation?.documentTimeOrigin) &&
+    genericObservation.documentTimeOrigin > 0 &&
+    Number.isFinite(exactDocumentTimeOrigin) && exactDocumentTimeOrigin > 0 &&
+    exactDocumentTimeOrigin === genericObservation.documentTimeOrigin &&
+    (richObservation?.documentTimeOrigin === undefined ||
+      (Number.isFinite(richObservation.documentTimeOrigin) &&
+        richObservation.documentTimeOrigin > 0 &&
         richObservation.documentTimeOrigin === exactDocumentTimeOrigin));
   const hashesMatch = safeHash(genericObservation?.uidHash) &&
     exactMemberRead?.authUidHash === genericObservation.uidHash &&
