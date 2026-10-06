@@ -439,8 +439,9 @@ describe('actual initial ordinary Press source completion and public selection',
     await mount({ rawOptionalAbsent: true }); await heldPressRoute();
     const selection = await publicPressSelection(async index => {
       if (index === 1) await deliverPlayer({ ...actor, connected: false });
-    });
-    await expect(selection.select()).rejects.toThrow(/false|changed/);
+      else await advance(200);
+    }, { deadlineMs: 500 });
+    await expect(selection.select()).rejects.toThrow('Original role navigation deadline expired.');
     expect(useSessionStore.getState().connection).not.toBe('live');
     expect(callCount('resumeSession')).toBe(0);
   });
@@ -450,7 +451,7 @@ describe('actual initial ordinary Press source completion and public selection',
     const selection = await publicPressSelection(async index => {
       if (index === 1) await deliverPlayer({ ...actor, kickedAt: new Date().toISOString() });
     });
-    await expect(selection.select()).rejects.toThrow(/false|changed/);
+    await expect(selection.select()).rejects.toThrow(`+ null\n- '${sessionId}'`);
     expect(useSessionStore.getState().me).toBeNull();
     expect(callCount('resumeSession')).toBe(0);
   });
