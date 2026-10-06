@@ -632,7 +632,7 @@ function acceptedPressRetargetChain(origin, { requestedAt, beginDepartedAt, reta
   };
 }
 
-async function publicPressArrivalPlan({ captureMode, arrivalOffsetMs }) {
+async function publicPressArrivalPlan({ captureMode, arrivalOffsetMs, mutateRetargetWitness }) {
   const state = memberStore({ session: { shuttleDockings: [] } });
   const authorityState = await readActionState(serializedSurface(state), PRESS_SHUTTLE_ID);
   const origin = { ...ORIGIN, sourceAuthority: authorityState.pressDocumentAuthority };
@@ -646,6 +646,7 @@ async function publicPressArrivalPlan({ captureMode, arrivalOffsetMs }) {
     beginDepartedAt: new Date(beginDepartedAt).toISOString(),
     retargetDepartedAt: new Date(retargetDepartedAt).toISOString(),
   });
+  if (mutateRetargetWitness) mutateRetargetWitness(chain);
   const movement = {
     status: 'in-transit', requestId: chain.departureWitness.departureRequestId,
     shuttleId: PRESS_SHUTTLE_ID, holderUidHash: origin.uidHash, groupId: origin.groupId,
@@ -714,4 +715,40 @@ test('public default Press automatic arrival accepts the distinct source retarge
   await plan.observe();
   assert.ok(plan.arrival.automaticObservation.remainingMs > 0);
   assert.ok(plan.arrival.automaticObservation.remainingMs <= 35_000);
+});
+
+test('public default Press arrival rejects malformed retarget ancestry and timing', async () => {
+  const cases = [
+    { name: 'same Begin and Retarget destination', mutate: chain => {
+      chain.retargetWitness.destinationShipId = chain.transitWitness.destinationShipId;
+    } },
+    { name: 'Retarget revision skips the next source revision', mutate: chain => {
+      chain.retargetWitness.transitRevision += 2;
+    } },
+    { name: 'Retarget changes the original requestedAt', mutate: chain => {
+      chain.retargetWitness.requestedAt =
+        new Date(Date.parse(chain.retargetWitness.requestedAt) + 1_000).toISOString();
+    } },
+    { name: 'Retarget departed before Begin departed', mutate: chain => {
+      chain.retargetWitness.departedAt =
+        new Date(Date.parse(chain.transitWitness.departedAt) - 1_000).toISOString();
+      chain.retargetWitness.arrivesAt =
+        new Date(Date.parse(chain.retargetWitness.departedAt) + 60_000).toISOString();
+    } },
+    { name: 'Retarget departed at or after Begin arrival', mutate: chain => {
+      chain.retargetWitness.departedAt = chain.transitWitness.arrivesAt;
+      chain.retargetWitness.arrivesAt =
+        new Date(Date.parse(chain.retargetWitness.departedAt) + 60_000).toISOString();
+    } },
+    { name: 'Retarget transit does not retain its own sixty-second duration', mutate: chain => {
+      chain.retargetWitness.arrivesAt =
+        new Date(Date.parse(chain.retargetWitness.departedAt) + 59_999).toISOString();
+    } },
+  ];
+  for (const { name, mutate } of cases) {
+    const { plan } = await publicPressArrivalPlan({
+      captureMode: 'manual-control', arrivalOffsetMs: -60_000, mutateRetargetWitness: mutate,
+    });
+    assert.equal(plan.offered, false, name);
+  }
 });
