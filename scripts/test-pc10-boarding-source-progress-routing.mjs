@@ -50,9 +50,10 @@ async function mountedBase(adapter, result) {
 function sourceFixture({ mode = 'base', after = {}, progressAfterReads = 2, neverProgress = false,
   crewDrift = {}, gmDrift = {}, sourceReply = {}, pendingRuling = false, rulingAfter = {},
   initialRuling, commanderTarget, timeoutMs = 1_000, onClosedRead, notYourChoice = false,
-  initialCrew = {}, initialGm = {}, gmGenericOmissions = false, gmDriftWhenClosed = {}, briefCommander = false } = {}) {
+  initialCrew = {}, initialGm = {}, gmGenericOmissions = false, gmDriftWhenClosed = {}, briefCommander = false,
+  oldAfterObservedProgress = false } = {}) {
   const calls = [], selections = [], sources = [], observations = [], result = {};
-  let role = 'executive-officer', closedRead = false, closingReads = 0, changed = false;
+  let role = 'executive-officer', closedRead = false, closingReads = 0, changed = false, observedProgress = false;
   const protocol = {
     attackedTargets: [{ target: 'aegis', boardingParties: 4 }],
     relocations: [{ craftId: 'pallas', holderUid: 'native-executive', fuelled: false, host: 'aegis' }],
@@ -193,7 +194,8 @@ function sourceFixture({ mode = 'base', after = {}, progressAfterReads = 2, neve
         return structuredClone(current);
       }
       if (closedRead && ++closingReads > progressAfterReads && !neverProgress) changed = true;
-      const observed = changed ? pendingRuling ? pending : final : current;
+      const observed = oldAfterObservedProgress && observedProgress ? current : changed ? pendingRuling ? pending : final : current;
+      if (changed) observedProgress = true;
       // Both pending and completed public DTOs are produced by the real source
       // projector; a locked declared revision is never called resolved.
       const canonical = changed ? { ...current, revision: 28, status: pendingRuling ? 'declared' : 'resolved',
@@ -274,6 +276,18 @@ test('the generic GM observation may omit member fields when the actual current 
 test('original GM generation is captured before the crew read even when its generic observer omits it', async () => {
   const f = sourceFixture({ gmGenericOmissions: true, gmDriftWhenClosed: { connectionGeneration: 1 } });
   await assert.rejects(f.run(), error => error !== boundary && /generation|Generation/.test(error.message));
+  assert.equal(f.result.resolved, undefined); assert.equal(f.calls.length, 1);
+});
+
+test('the source wait returns its actually observed final tuple without issuing a second old-choice getter', async () => {
+  const f = sourceFixture({ oldAfterObservedProgress: true });
+  await assert.rejects(f.run(), error => error === boundary);
+  assert.equal(f.result.resolved.revision, 28); assert.equal(f.calls.length, 1);
+});
+
+test('an old projection after an explicit pending ruling cannot cause another closed crew getter', async () => {
+  const f = sourceFixture({ commanderTarget: 'aegis', pendingRuling: true, oldAfterObservedProgress: true });
+  await assert.rejects(f.run(), error => error !== boundary && error !== rulingControl);
   assert.equal(f.result.resolved, undefined); assert.equal(f.calls.length, 1);
 });
 
