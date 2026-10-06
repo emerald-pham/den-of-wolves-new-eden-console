@@ -105,6 +105,7 @@ async function readCandidateSourceState(surface) {
       sessionUpdatedAt: session?.updatedAt ?? null, documentTimeOrigin: performance.timeOrigin,
       connectionGeneration: me?.connectionGeneration ?? null,
       identityHydrationRevision: current.identityHydrationRevision ?? null,
+      ordinaryBriefingHeld: session?.turnPhase?.timerPause?.reason === 'turn-interstitial',
       groupId: me?.fleetGroupId ?? null, shipFleetGroupIds: session?.shipFleetGroupIds ?? {},
       playerRole: me?.role ?? null, instanceId: instance?.id ?? null,
       instanceClaimedAt: instance?.claimedAt ?? null,
@@ -479,6 +480,8 @@ export function candidateGameplayTools(context) {
         !!element.getClientRects().length && getComputedStyle(element).visibility !== 'hidden' &&
         !element.closest('[aria-hidden="true"], [inert]');
       return { panelCount: panels.length, panelVisible: visible,
+        normalPresentationDetached: !document.querySelector('.turn-start-announcement__console, .turn-interstitial-clear, ' +
+          '[role="dialog"][aria-modal="true"], [role="alertdialog"][aria-modal="true"]'),
         pendingMutation: !!element && [...element.querySelectorAll('button')].some(button =>
           button.textContent.replace(/\s+/g, ' ').trim() === 'Retry original candidate request'),
         transmitting: !!element && element.textContent.includes('Transmitting candidate choice…') };
@@ -498,7 +501,8 @@ export function candidateGameplayTools(context) {
       assertHeldSource(currentActor, currentSource);
       const mounted = await mountedReception();
       let reception = null;
-      if (mounted?.panelCount === 1 && mounted.panelVisible === true && !mounted.pendingMutation && !mounted.transmitting &&
+      if (mounted?.panelCount === 1 && mounted.panelVisible === true && mounted.normalPresentationDetached === true &&
+          currentSource.ordinaryBriefingHeld === false && !mounted.pendingMutation && !mounted.transmitting &&
           Number.isFinite(originalSource.documentTimeOrigin) && originalSource.documentTimeOrigin > 0 &&
           Number.isSafeInteger(originalSource.identityHydrationRevision) && originalSource.identityHydrationRevision > 0 &&
           originalSource.phase === 'active' && Number.isSafeInteger(originalSource.cycle) && originalSource.cycle > 0) {
@@ -554,12 +558,16 @@ export function candidateGameplayTools(context) {
       const currentSource = await withinBudget(() => readCandidateSourceState(surface));
       assertHeldSource(currentActor, currentSource);
       assert.equal(currentSource.sessionUpdatedAt, qualifiedSourceKey, 'Candidate workspace original qualified source key changed after refresh.');
+      const mounted = await mountedReception();
       const snapshot = await withinBudget(() => panel.evaluate(candidateGeometrySnapshot));
       const currentGroupId = currentGroup(snapshot, currentSource);
       const rendered = { ...snapshot, currentGroupId };
       const decision = projectCandidateWorkspaceReadiness({ expectedActor,
         currentActor: { ...currentActor, instanceClaimedAt: currentSource.instanceClaimedAt },
         sourceState: projectSourceState(currentSource), request, report, expectedGroupId, code, stage, rendered });
+      if (decision.state === 'ready' && (mounted?.normalPresentationDetached !== true || currentSource.ordinaryBriefingHeld !== false)) {
+        return { decision: { state: 'pending', reason: 'current-candidate-presentation-has-not-naturally-detached' }, rendered, currentSource };
+      }
       return { decision, rendered, currentSource };
     }
     async function waitForReadySource() {
@@ -616,6 +624,18 @@ export function candidateGameplayTools(context) {
       assert.ok(viewports.every(value => [...value.controls, ...value.checkboxTargets].every(control => control.height >= 43.99)), 'Actual candidate controls and research activation targets must retain their mandatory 44px targets.');
       remaining();
       await writeFile(`${directory}/${code}-${stage}-geometry.json`, `${JSON.stringify(viewports, null, 2)}\n`);
+    } catch (error) {
+      if (viewports.length) await writeFile(`${directory}/${code}-${stage}-geometry-uncredited.json`, `${JSON.stringify({
+        status: 'failed-uncredited', candidateCode: code, stage,
+        failureCategory: error?.name === 'AssertionError' ? 'assertion' : 'operation-failed',
+        viewports: viewports.map(viewport => ({ width: viewport.width, height: viewport.height,
+          noHorizontalOverflow: viewport.noHorizontalOverflow, keyboardFocusReached: viewport.keyboardFocusReached,
+          keyboardTraversal: viewport.keyboardTraversal,
+          controlTargetShortfallCount: viewport.controls.filter(control => control.height < 43.99).length,
+          checkboxTargetShortfallCount: viewport.checkboxTargets.filter(target => target.height < 43.99).length,
+        })),
+      }, null, 2)}\n`).catch(() => {});
+      throw error;
     } finally {
       if (previous) await surface.page.setViewportSize(previous);
     }
