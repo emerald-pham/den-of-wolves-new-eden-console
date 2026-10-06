@@ -52,6 +52,28 @@ export function createTwoBrowserGameplay(context) {
         // never pair a changed Auth identity with the original private hash.
         const snapshot = useSessionStore.getState(), me = snapshot.me, user = auth().currentUser;
         if (user?.uid !== originalUid) throw new Error('Original Auth UID changed during role navigation observation.');
+        const session = snapshot.session, berth = session?.currentActorBerthAuthority;
+        const currentMemberBerthPresent = !!session && Object.hasOwn(session, 'currentActorBerthAuthority');
+        // Join the current member transaction witness using App's exact source
+        // contract. Return flags only; the raw witness/UID stays in this page.
+        const keys = ['sessionId', 'actorUid', 'groupId', 'role', 'connectionGeneration',
+          'assignedRoleId', 'activeConsoleRoleId', 'replacementRoleId', 'replacementStatus', 'shipId'];
+        const wireId = value => typeof value === 'string' && value.length > 0 && value.length <= 1_500 && !value.includes('/');
+        const nullableRole = id => id === null || wireId(id);
+        const currentMemberBerthMatches = Boolean(session && berth && typeof berth === 'object' && !Array.isArray(berth) &&
+          Object.keys(berth).length === keys.length && Object.keys(berth).every(key => keys.includes(key)) &&
+          wireId(berth.sessionId) && wireId(berth.actorUid) && wireId(berth.shipId) &&
+          typeof berth.groupId === 'string' && /^fleet-[1-9][0-9]*$/.test(berth.groupId) && berth.role === 'player' &&
+          Number.isSafeInteger(berth.connectionGeneration) && berth.connectionGeneration >= 1 &&
+          nullableRole(berth.assignedRoleId) && nullableRole(berth.activeConsoleRoleId) && nullableRole(berth.replacementRoleId) &&
+          berth.replacementStatus === null && session.phase !== 'closed' &&
+          me?.role === 'player' && me.connected === true && me.replacementStatus == null &&
+          berth.sessionId === session.id && me.sessionId === session.id && berth.actorUid === me.uid &&
+          berth.groupId === me.fleetGroupId && berth.groupId === session.memberSessionScope?.groupId &&
+          Array.isArray(session.memberSessionScope?.vesselIds) && session.memberSessionScope.vesselIds.includes(berth.shipId) &&
+          berth.connectionGeneration === (me.connectionGeneration ?? 1) &&
+          berth.assignedRoleId === (me.assignedRoleId ?? null) && berth.activeConsoleRoleId === (me.activeConsoleRoleId ?? null) &&
+          berth.replacementRoleId === (me.replacementRoleId ?? null));
         return { documentTimeOrigin: performance.timeOrigin,
           hasAuth: !!user, sameActor: !!user && user.uid === me?.uid, uidHash,
           profileRoleId: activeDemoActorProfile?.roleId ?? null,
@@ -64,6 +86,7 @@ export function createTwoBrowserGameplay(context) {
           connectionGeneration: me?.connectionGeneration ?? null,
           identityHydrationRevision: snapshot.identityHydrationRevision ?? null,
           connected: me?.connected !== false,
+          currentMemberBerthPresent, currentMemberBerthMatches,
           connection: snapshot.connection, freshness: snapshot.sessionSnapshotFreshness };
       }, crew.storeModuleUrl());
       budget();
@@ -73,6 +96,8 @@ export function createTwoBrowserGameplay(context) {
         for (const key of ['documentTimeOrigin', 'uidHash', 'profileRoleId', 'profileSessionId', 'sessionId',
           'meSessionId', 'playerRole', 'assignedRoleId', 'fleetGroupId', 'connectionGeneration', 'identityHydrationRevision'])
           assert.equal(current[key], original[key], `Original role navigation ${key} changed.`);
+        if (station && actor.roleId !== 'press-officer') assert.equal(current.currentMemberBerthPresent,
+          original.currentMemberBerthPresent, 'Original current member berth witness applicability changed.');
       }
       if (current.identityHydrationRevision > 0) {
         assert.ok(Number.isFinite(current.documentTimeOrigin) && current.documentTimeOrigin > 0,
@@ -100,6 +125,7 @@ export function createTwoBrowserGameplay(context) {
         assert.ok(typeof current.fleetGroupId === 'string' && current.fleetGroupId.length > 0,
           'The current original member fleet group is required.');
         if (current.connection === 'live' && current.freshness === 'server' &&
+            (!station || actor.roleId === 'press-officer' || !current.currentMemberBerthPresent || current.currentMemberBerthMatches) &&
             (!held || current.activeConsoleRoleId === actor.roleId)) return current;
       }
       budget();
