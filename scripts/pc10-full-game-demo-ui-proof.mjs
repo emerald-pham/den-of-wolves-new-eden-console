@@ -106,6 +106,7 @@ export async function runFreshFullGameDemoUi(options = {}) {
         const state = useSessionStore.getState(), user = auth().currentUser;
         if (user?.uid !== originalUid) throw new Error('Original Auth UID changed during full-game actor observation.');
         return { hasAuth: !!user, sameActor: !!user && state.me?.uid === user.uid, uidHash,
+          documentTimeOrigin: performance.timeOrigin,
           sessionId: state.session?.id ?? null, joinCode: state.session?.joinCode ?? null,
           cycle: state.session?.currentTurn ?? null, phase: state.session?.phase ?? null,
           announcementTurn: state.session?.turnStartAnnouncement?.turn ?? null,
@@ -115,6 +116,7 @@ export async function runFreshFullGameDemoUi(options = {}) {
           ordinaryBriefingMounted: document.querySelector('[aria-label="Cycle briefing clearance"]')?.isConnected === true,
           ordinaryBriefingHeld: state.session?.turnPhase?.timerPause?.reason === 'turn-interstitial',
           playerRole: state.me?.role ?? null, profileRoleId: activeDemoActorProfile?.roleId ?? null,
+          profileSessionId: activeDemoActorProfile?.sessionId ?? null,
           assignedRoleId: state.me?.assignedRoleId ?? null, activeConsoleRoleId: state.me?.activeConsoleRoleId ?? null,
           connection: state.connection, freshness: state.sessionSnapshotFreshness,
           communicationError: state.communicationError ? { code: state.communicationError.code,

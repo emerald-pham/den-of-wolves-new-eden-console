@@ -35,6 +35,14 @@ export function assertBasePostCombatActorIdentity(current, original) {
       `Original Base mission ${field} evidence is required.`);
     assert.ok(current[field] === original[field], `Original Base mission ${field} changed.`);
   }
+  if (Object.hasOwn(original, 'documentTimeOrigin') || Object.hasOwn(current, 'documentTimeOrigin')) {
+    assert.ok(Number.isFinite(original.documentTimeOrigin) && original.documentTimeOrigin > 0,
+      'Original Base mission documentTimeOrigin evidence is required.');
+    assert.ok(Number.isFinite(current.documentTimeOrigin) && current.documentTimeOrigin > 0,
+      'Current Base mission documentTimeOrigin evidence is required.');
+    assert.equal(current.documentTimeOrigin, original.documentTimeOrigin,
+      'Original Base mission documentTimeOrigin changed.');
+  }
   assert.ok(current.hasAuth === true && current.sameActor === true && current.connected === true &&
     current.escapeLocked === false && current.connection === 'live' && current.freshness === 'server',
   'The original Base mission actor must remain authenticated, connected, unescaped and live.');
@@ -43,6 +51,14 @@ export function assertBasePostCombatActorIdentity(current, original) {
 
 /** Join the generic authenticated view, established rich observer and exact current member identity. */
 export function composeBasePostCombatActorObservation(genericObservation, richObservation, exactMemberRead) {
+  const exactDocumentTimeOrigin = exactMemberRead?.documentTimeOrigin;
+  const documentTimeOriginSupplied = [genericObservation, richObservation, exactMemberRead]
+    .some(value => value && Object.hasOwn(value, 'documentTimeOrigin'));
+  const documentTimeOriginMatches = !documentTimeOriginSupplied ||
+    (Number.isFinite(exactDocumentTimeOrigin) && exactDocumentTimeOrigin > 0 &&
+      exactDocumentTimeOrigin === genericObservation?.documentTimeOrigin &&
+      (richObservation?.documentTimeOrigin === undefined ||
+        richObservation.documentTimeOrigin === exactDocumentTimeOrigin));
   const hashesMatch = safeHash(genericObservation?.uidHash) &&
     exactMemberRead?.authUidHash === genericObservation.uidHash &&
     exactMemberRead?.memberUidHash === genericObservation.uidHash &&
@@ -72,18 +88,19 @@ export function composeBasePostCombatActorObservation(genericObservation, richOb
     roleValueComplete(exactMemberRead?.activeConsoleRoleId) &&
     roleValueComplete(exactMemberRead?.fleetGroupId) &&
     Number.isSafeInteger(exactMemberRead?.connectionGeneration) && exactMemberRead.connectionGeneration >= 0 &&
-    Number.isSafeInteger(exactMemberRead?.identityHydrationRevision) && exactMemberRead.identityHydrationRevision >= 0;
+    Number.isSafeInteger(exactMemberRead?.identityHydrationRevision) && exactMemberRead.identityHydrationRevision >= 0 &&
+    documentTimeOriginMatches;
   const actorBound = genericObservation?.sessionId === richObservation?.sessionId &&
     genericObservation?.uidHash === richObservation?.uidHash && genericObservation?.sameActor === true &&
     richObservation?.sameActor === true && exactMemberRead?.sameActor === true &&
     exactMemberRead?.sessionId === genericObservation.sessionId &&
     exactMemberRead?.meSessionId === genericObservation.sessionId &&
-    hashesMatch && rolesMatch && memberViewMatches && identityComplete;
+    hashesMatch && rolesMatch && memberViewMatches && identityComplete && documentTimeOriginMatches;
   return {
     ...genericObservation,
-    fleetGroupId: richObservation?.fleetGroupId,
-    connectionGeneration: richObservation?.connectionGeneration,
-    identityHydrationRevision: richObservation?.identityHydrationRevision,
+    fleetGroupId: exactMemberRead?.fleetGroupId,
+    connectionGeneration: exactMemberRead?.connectionGeneration,
+    identityHydrationRevision: exactMemberRead?.identityHydrationRevision,
     replacementRoleId: richObservation?.replacementRoleId,
     replacementStatus: richObservation?.replacementStatus,
     seatId: richObservation?.seatId,
@@ -101,22 +118,30 @@ export function composeBasePostCombatActorObservation(genericObservation, richOb
 export async function observeBasePostCombatActor(surface) {
   const richObservation = await observeWolfChoiceActor(surface);
   const exactMemberRead = await surface.page.evaluate(async moduleUrl => {
-    const { useSessionStore } = await import(moduleUrl);
-    const { auth } = await import('/src/lib/firebase.ts');
+    const storeModule = await import(moduleUrl);
+    const firebaseModule = await import('/src/lib/firebase.ts');
     const { activeDemoActorProfile } = await import('/src/lib/demoActorContext.ts');
-    const snapshot = useSessionStore.getState(), me = snapshot.me, user = auth().currentUser;
+    const snapshot = storeModule.useSessionStore.getState(), me = snapshot.me,
+      user = firebaseModule.auth().currentUser;
     const hash = async value => typeof value === 'string' && value.length > 0
       ? Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))))
         .map(byte => byte.toString(16).padStart(2, '0')).join('').slice(0, 16)
       : null;
     const [authUidHash, memberUidHash] = await Promise.all([hash(user?.uid), hash(me?.uid)]);
+    // Keep hashes bound to the identities sampled before hashing, then read
+    // the current Auth/member tuple once without yielding again. A change during
+    // crypto cannot join the captured hashes to a different current account.
+    const currentSnapshot = storeModule.useSessionStore.getState();
+    const currentMe = currentSnapshot.me, currentUser = firebaseModule.auth().currentUser;
+    const sameActor = !!user && !!currentUser && user.uid === me?.uid &&
+      currentUser.uid === user.uid && currentMe?.uid === me?.uid;
     // The listener's document key is me.uid, so its safe document hash is the
     // same hash as the source member identity.
     const memberDocumentIdHash = memberUidHash;
     return {
-      sessionId: snapshot.session?.id ?? null,
-      meSessionId: me?.sessionId ?? null,
-      sameActor: !!user && user.uid === me?.uid,
+      sessionId: currentSnapshot.session?.id ?? null,
+      meSessionId: currentMe?.sessionId ?? null,
+      sameActor,
       authUidHash,
       memberUidHash,
       // The mounted players listener reads sessions/{sessionId}/players/{uid};
@@ -124,18 +149,19 @@ export async function observeBasePostCombatActor(surface) {
       memberDocumentIdHash,
       profileRoleId: activeDemoActorProfile?.roleId ?? null,
       profileSessionId: activeDemoActorProfile?.sessionId ?? null,
-      playerRole: me?.role ?? null,
-      assignedRoleId: me?.assignedRoleId ?? null,
-      activeConsoleRoleId: me?.activeConsoleRoleId ?? null,
-      fleetGroupId: me?.fleetGroupId ?? null,
-      connectionGeneration: me?.connectionGeneration ?? null,
-      identityHydrationRevision: snapshot.identityHydrationRevision ?? null,
+      playerRole: currentMe?.role ?? null,
+      assignedRoleId: currentMe?.assignedRoleId ?? null,
+      activeConsoleRoleId: currentMe?.activeConsoleRoleId ?? null,
+      fleetGroupId: currentMe?.fleetGroupId ?? null,
+      connectionGeneration: currentMe?.connectionGeneration ?? null,
+      identityHydrationRevision: currentSnapshot.identityHydrationRevision ?? null,
       // Missing `connected` stays undefined and therefore cannot satisfy the
       // policy's strict true requirement. No connection default is introduced.
-      connected: me?.connected,
+      connected: currentMe?.connected,
       // Player.escapeState is optional in the mounted parser: absence means no
       // current escape record; a parsed record means the actor is escape-locked.
-      escapeLocked: me?.escapeState != null,
+      escapeLocked: currentMe?.escapeState != null,
+      documentTimeOrigin: performance.timeOrigin,
     };
   }, surface.storeModuleUrl());
   const genericObservation = await surface.observe();
