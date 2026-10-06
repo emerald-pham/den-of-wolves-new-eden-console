@@ -25,6 +25,9 @@ const UNVERIFIABLE_GM_CHOICES = new Set([
 ]);
 const CERTIFIED_GM_RECIPES = new Set(['setGmShipConsoleWriteGrant', 'setShipConsoleLock',
   'setFacilitatorCensusNote', 'authorFacilitatorRuleCall']);
+const COUNTER_SOURCE_WAIT_ENDPOINTS = new Set(['applyShipCounterSteps']);
+const GM_COUNTER_SHIP_NAMES = Object.freeze({ aegis: 'AEGIS', dione: 'Dione', icebreaker: 'Icebreaker',
+  capybara: 'Capybara', shepherd: 'Shepherd', quellon: 'Quellon', 'refinery-124': 'Refinery 124' });
 const CURRENT_DOCUMENT_AUTHORITY_KEYS = Object.freeze(['sessionId', 'uidHash', 'groupId', 'roleId',
   'connectionGeneration', 'identityHydrationRevision', 'documentTimeOrigin', 'audienceHash', 'authorityHash',
   'shuttleAuthorized']);
@@ -1289,6 +1292,30 @@ async function waitForActionState(surface, predicate, operation, timeoutMs = 15_
   return null;
 }
 
+async function bindCounterGmOperation(surface, operation, expected, context, actorBefore) {
+  remainingGmOperation(operation);
+  const current = await observeLifecycleActor(surface, expected.sessionId);
+  assertOriginalActor(current, current, { gm: true });
+  assert.equal(current.sessionId, context.initial.sessionId);
+  assert.equal(current.uidHash, expected.uidHash);
+  assert.equal(current.uidHash, context.started?.uidHash);
+  assert.equal(current.instanceId, expected.instanceId);
+  assert.equal(current.instanceId, context.started?.instanceId);
+  assert.equal(current.claimedAt, actorBefore?.claimedAt);
+  assert.ok(Number.isSafeInteger(actorBefore?.connectionGeneration) && actorBefore.connectionGeneration >= 1);
+  assert.equal(current.generation, actorBefore.connectionGeneration);
+  assert.ok(Number.isSafeInteger(actorBefore?.hydrationRevision) && actorBefore.hydrationRevision >= 1);
+  assert.equal(current.hydrationRevision, actorBefore.hydrationRevision);
+  assert.equal(current.phase, actorBefore.phase);
+  assert.equal(current.cycle, actorBefore.cycle);
+  assert.equal(current.phase, 'active');
+  assert.equal(current.cycle, expected.cycle);
+  operation.original = current;
+  operation.current = current;
+  remainingGmOperation(operation);
+  return current;
+}
+
 async function waitForGmPrivateFeed(surface, operation, classify, readyControl) {
   const panel = surface.page.getByRole('region', { name: 'Facilitator rule call', exact: true });
   const normalFormCurrent = async () => {
@@ -1444,6 +1471,18 @@ async function revokeMountedGmGrant(surface, expected, claimedAt, operation) {
     sourceAfter: { live: reloaded.state?.live === true && after.projection.enabled === false, sessionId: reloaded.state?.sessionId,
       cycle: reloaded.state?.cycle, revision: reloaded.state?.vesselActionRevisions?.aegis },
   };
+}
+
+function counterGmActorMatches(before, current, context, shipId) {
+  return before?.sameActor === true && current?.sameActor === true &&
+    current.sessionId === context.initial.sessionId && current.uidHash === before.uidHash &&
+    current.uidHash === context.initial.uidHash && current.uidHash === context.started?.uidHash &&
+    current.playerRole === 'gm' && current.gmInstanceOwned === true &&
+    current.instanceId === before.instanceId && current.instanceId === context.started?.instanceId &&
+    current.claimedAt === before.claimedAt && current.phase === 'active' &&
+    current.cycle === before.cycle && Number.isSafeInteger(before.connectionGeneration) &&
+    current.connectionGeneration === before.connectionGeneration && Number.isSafeInteger(before.hydrationRevision) &&
+    current.hydrationRevision === before.hydrationRevision && typeof shipId === 'string' && shipId.length > 0;
 }
 
 function currentShip(state, roleId) {
@@ -2464,14 +2503,38 @@ async function planFor({ spec, surface, actor, state, context, target, gmOperati
         return block('the actual fleet ship-number control did not enter write mode');
       }
     }
-    const groups = page.getByRole('group', { name: / resource controls$/i });
-    for (let index = 0; index < await groups.count(); index++) {
-      const group = groups.nth(index);
-      const buttons = group.getByRole('button', { name: /^(?:Increase|Decrease) / });
-      const action = await one(buttons.first());
-      if (action) return { offered: true, targetShipName: await group.getAttribute('aria-label'), click: () => action.click(), trainingChoice: 'gm-training:deliberate-choice' };
+    const shipName = GM_COUNTER_SHIP_NAMES[target.shipId];
+    if (!shipName || !state.activeVesselIds?.includes(target.shipId) ||
+        !isRevision(state.vesselActionRevisions?.[target.shipId]) ||
+        typeof state.shipFleetGroupIds?.[target.shipId] !== 'string' || !state.shipFleetGroupIds[target.shipId]) {
+      return block('the exact selected active ship, vessel revision, or fleet group is not source-projected');
     }
-    return block('no actual one-step GM resource control is currently enabled');
+    const group = page.getByRole('group', { name: new RegExp(`^${shipName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} resource controls$`, 'i') });
+    if (await group.count() !== 1) return block('the exact selected ship resource group is absent or ambiguous');
+    const buttons = group.getByRole('button', { name: /^(?:Increase|Decrease) / });
+    const action = await one(buttons.first());
+    if (!action) return block('the selected ship has no actual one-step GM resource control currently enabled');
+    const sourceBefore = { cycle: state.cycle, revision: state.vesselActionRevisions[target.shipId],
+      groupId: state.shipFleetGroupIds[target.shipId] };
+    const targetShipName = await group.getAttribute('aria-label');
+    target.counterSourceBefore = sourceBefore;
+    target.targetShipName = targetShipName;
+    return { offered: true, targetShipName, click: async () => {
+      const currentActor = await surface.observe();
+      if (!counterGmActorMatches(target.counterActorBefore, currentActor, context, target.shipId)) {
+        throw new Error('The original GM UID, instance, connection generation, or hydration changed before the counter click.');
+      }
+      const latest = await readActionState(surface);
+      if (!liveState(latest, context.initial.sessionId) || latest.cycle !== sourceBefore.cycle ||
+          !latest.activeVesselIds?.includes(target.shipId) ||
+          latest.vesselActionRevisions?.[target.shipId] !== sourceBefore.revision ||
+          latest.shipFleetGroupIds?.[target.shipId] !== sourceBefore.groupId ||
+          await group.getAttribute('aria-label') !== target.targetShipName ||
+          await mode.getAttribute('aria-pressed') !== 'true' || !await action.isEnabled()) {
+        throw new Error('The selected source ship, group, revision, or actual mounted counter changed before the click.');
+      }
+      await action.click();
+    }, trainingChoice: 'gm-training:deliberate-choice' };
   }
 
   if (endpoint === 'scavengeDestroyedShipStores') {
@@ -2678,7 +2741,8 @@ async function inspectMountedGmControl({ surface, request, result, spec, expecte
 async function recipeFor({ context, game, spec }) {
   // The existing sixty-second capture operation includes GM preparation and
   // navigation; every phase consumes this same absolute remaining budget.
-  const gmOperation = CERTIFIED_GM_RECIPES.has(spec.endpoint) ? { deadlineAt: Date.now() + 60_000 } : null;
+  const gmOperation = CERTIFIED_GM_RECIPES.has(spec.endpoint) || COUNTER_SOURCE_WAIT_ENDPOINTS.has(spec.endpoint)
+    ? { deadlineAt: Date.now() + 60_000 } : null;
   const movementEndpoints = ['requestShuttleDeparture', 'beginShuttleTransit', 'retargetShuttleTransit',
     'completeShuttleArrival'];
   const movementEndpoint = movementEndpoints.includes(spec.endpoint);
@@ -2849,6 +2913,7 @@ async function recipeFor({ context, game, spec }) {
     }
   }
   const resolved = mountedTarget(spec, actor, state, { roleId: roleToUse, target: holderTarget });
+  if (COUNTER_SOURCE_WAIT_ENDPOINTS.has(spec.endpoint)) resolved.target.counterActorBefore = actor;
   const roleId = resolved.roleId;
   const uidHash = actorUidHash(actor);
   const expected = { sessionId: context.initial.sessionId, roleId, uidHash, cycle: state.cycle,
@@ -2951,6 +3016,15 @@ async function recipeFor({ context, game, spec }) {
       if (!liveState(latest, expected.sessionId)) return { offered: false, reason: 'current server projection became stale before action' };
       const latestRevision = revisionFor(spec.endpoint, latest, resolved.target, auxiliary);
       if (isRevision(latestRevision) && latestRevision !== expected.sourceRevision) return { offered: false, reason: 'source revision changed before action' };
+      if (COUNTER_SOURCE_WAIT_ENDPOINTS.has(spec.endpoint)) {
+        if (!counterGmActorMatches(resolved.target.counterActorBefore, currentActor, context, expected.shipId) ||
+            !isRevision(expected.sourceRevision) || typeof expected.groupId !== 'string' || !expected.groupId ||
+            expected.shipId !== resolved.target.shipId || latest.cycle !== expected.cycle ||
+            !latest.activeVesselIds?.includes(expected.shipId) ||
+            latest.shipFleetGroupIds?.[expected.shipId] !== expected.groupId) {
+          return { offered: false, reason: 'the original GM or exact selected ship source tuple changed before the counter action' };
+        }
+      }
       if (spec.endpoint === 'rechargeHostConsoleFromShuttle') {
         const hostShipId = expected.expectedHostShipId;
         const dockings = latest.shuttleDockings?.filter(row => row.shuttleId === expected.shuttleId) ?? [];
@@ -3074,6 +3148,34 @@ async function recipeFor({ context, game, spec }) {
     inspect: async ({ surface, result, request }) => {
       if (CERTIFIED_GM_RECIPES.has(spec.endpoint)) {
         return inspectMountedGmControl({ context, surface, request, result, spec, expected, target: resolved.target, gmOperation });
+      }
+      if (COUNTER_SOURCE_WAIT_ENDPOINTS.has(spec.endpoint)) {
+        await bindCounterGmOperation(surface, gmOperation, expected, context, resolved.target.counterActorBefore);
+        const sourceCurrent = state => liveState(state, expected.sessionId) && state.cycle === expected.cycle &&
+          state.activeVesselIds?.includes(expected.shipId) === true &&
+          state.shipFleetGroupIds?.[expected.shipId] === expected.groupId;
+        const requestMatches = request?.sessionId === expected.sessionId &&
+          request?.instanceId === expected.instanceId && request?.shipId === expected.shipId &&
+          request?.counter === 'resource' && typeof request?.resourceId === 'string' &&
+          Array.isArray(request?.steps) && request.steps.length === 1 &&
+          (request.steps[0] === 1 || request.steps[0] === -1) &&
+          request?.expectedRevision === expected.sourceRevision &&
+          typeof request?.requestId === 'string' && request.requestId.length > 0;
+        let latest = await readActionState(surface).catch(() => null);
+        const receiptRevision = resultRevision(result);
+        if (requestMatches && sourceCurrent(latest) && isRevision(receiptRevision) &&
+            receiptRevision === expected.sourceRevision + 1 &&
+            latest.vesselActionRevisions?.[expected.shipId] !== receiptRevision) {
+          const committedState = await waitForActionState(surface, state => sourceCurrent(state) &&
+            state.vesselActionRevisions?.[expected.shipId] === receiptRevision, gmOperation);
+          latest = committedState ?? await readActionState(surface).catch(() => null);
+        }
+        await verifyGmOperation(surface, gmOperation);
+        const sourceAfter = { live: requestMatches && sourceCurrent(latest),
+          sessionId: latest?.sessionId, cycle: latest?.cycle,
+          revision: latest?.vesselActionRevisions?.[expected.shipId],
+          groupId: latest?.shipFleetGroupIds?.[expected.shipId] };
+        return { sourceAfter, rendered: await positiveRenderedStatus(surface, spec.endpoint, result) };
       }
       const movementEndpoint = ['requestShuttleDeparture', 'beginShuttleTransit', 'retargetShuttleTransit',
         'completeShuttleArrival'].includes(spec.endpoint);
