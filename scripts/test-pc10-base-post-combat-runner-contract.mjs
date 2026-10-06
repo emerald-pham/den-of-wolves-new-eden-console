@@ -26,3 +26,17 @@ test('mission start binds the current mounted group to a source-verified carrier
   assert.doesNotMatch(source, /const participants = \['wing-commander', 'shepherd-scientist', 'quellon-explorer'\]/);
   assert.match(source, /pendingActions/);
 });
+
+test('scout request checks require the validated current craft-owner receipt and retain exact SDK replay', async () => {
+  const source = await read();
+  assert.ok(/validateBaseScoutRequestReceipt\(\{ receipt: result, sessionId: initial\.sessionId/.test(source),
+    'Validate the actual server scout reply against the originally selected role and coordinate.');
+  assert.ok(/checks\.scoutRequestsAndExactRetries = scoutResults\.every\(result => result\?\.status === 'committed'\)/.test(source),
+    'Credit the scout branch only after every source receipt has been normalized as committed.');
+  assert.ok(!/scoutResults\.every\(result => result\?\.status !== 'pending'\)/.test(source),
+    'A missing or unexpected source reply cannot count as a scout commit.');
+  assert.ok(/assert\.equal\(again\.status, 'committed'/.test(source),
+    'Keep the original exact SDK replay requirement.');
+  assert.ok(/assert\.deepEqual\(clean\(again\.result\), clean\(body\.result\)\)/.test(source),
+    'Keep the exact result comparison across UI and replay receipts.');
+});
