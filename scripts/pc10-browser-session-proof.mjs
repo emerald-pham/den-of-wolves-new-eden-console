@@ -1045,6 +1045,19 @@ export async function createPc10BrowserTable({ baseUrl, directory, expansion = '
       value.roleId === trace.roleId && value.protocolRequestHash === trace.protocolRequestHash);
   };
   let fixture;
+  let startupBrowserClose;
+  let startupBrowserCloseState = 'not-requested';
+  const closeStartupBrowser = () => {
+    // Cache the original close, including rejection. An outer failure handler
+    // cannot quietly retry a failed close and then delete the fixture.
+    if (!startupBrowserClose) {
+      startupBrowserCloseState = 'pending';
+      startupBrowserClose = Promise.resolve().then(() => browser.close()).then(
+        () => { startupBrowserCloseState = 'fulfilled'; },
+        error => { startupBrowserCloseState = 'failed'; throw error; });
+    }
+    return startupBrowserClose;
+  };
   async function diagnoseAuthoritativeFailure(context = fixture) {
     const setupRequests = Object.entries(context.seatClaimRequests ?? {}).map(([roleId, data]) => ({
       name: 'claimSeat', actorUid: context.players[context.roles.indexOf(roleId)].localId, data,
@@ -1102,6 +1115,7 @@ export async function createPc10BrowserTable({ baseUrl, directory, expansion = '
             `${JSON.stringify({ authoritativeFailureSnapshots, diagnosticFailures }, null, 2)}\n`);
         },
       }),
+      beforeFailureDeletion: closeStartupBrowser,
     });
     const actorRoles = new Map(fixture.players.map((actor, index) => [actor.localId, roles[index]]));
     for (const [index, actor] of fixture.players.entries()) clients.get(roles[index]).bindOriginIdentity?.(actor.localId, fixture.sessionId);
@@ -1241,30 +1255,68 @@ export async function createPc10BrowserTable({ baseUrl, directory, expansion = '
       try { await browser.close(); } finally { await fixture.cleanup(); }
     } };
   } catch (error) {
-    await Promise.all([...clients.values()].map(client => client.drainObservedCalls().catch(() => {
-      client.callableObservationFailures.push({ roleId: client.label, category: 'observation-drain-timeout' });
-    })));
-    const runtimeCompiledBindingAtEnd = await compiledFunctionsBinding();
-    await writeFile(`${directory}/startup-failure.json`, `${JSON.stringify({ status: 'failed', captureMode,
-      sourceCommitAtStart, runtimeIndexSha256AtStart, runtimeCompiledTreeSha256AtStart,
-      sourceCommitAtEnd: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
-      runtimeIndexSha256AtEnd: createHash('sha256').update(await readFile('functions/lib/index.js')).digest('hex'),
-      runtimeCompiledTreeSha256AtEnd: runtimeCompiledBindingAtEnd.sha256,
-      runtimeCompiledBindingAtStart, runtimeCompiledBindingAtEnd,
-      stage: 'fresh normal Auth/UI setup', message: error.message, contextsOpened: clients.size,
-      callableTraceAllowlist: Object.keys(PC10_PROOF_CALLABLE_ACTIONS), fixtureCallableIssued,
-      fixtureCallableObservations, observedBrowserCalls: [...clients.values()].flatMap(client => client.observedCalls),
-      identityObservations: [...clients.values()].flatMap(client => client.identityObservations),
-      serverIdentityDiagnostics,
-      rateLimitStateDiagnostics, failureObservationUnavailable: error.pc07FailureObservationUnavailable === true,
-      authoritativeFailureSnapshots, diagnosticFailures: failureDiagnosticFailures,
-      callableObservationFailures: [...clients.values()].flatMap(client => client.callableObservationFailures),
-      callableObservationBoundaries: [...clients.values()].flatMap(client =>
-        client.callableObservationBoundaries.map(boundary => ({ roleId: client.label, ...boundary }))),
-      browserErrors: [...clients.values()].flatMap(client => client.errors.map(message => ({ roleId: client.label, message }))),
-    }, null, 2)}\n`);
-    if (fixture) await fixture.cleanup();
-    await browser.close();
+    try {
+      await Promise.all([...clients.values()].map(client => client.drainObservedCalls().catch(() => {
+        client.callableObservationFailures.push({ roleId: client.label, category: 'observation-drain-timeout' });
+      })));
+      const runtimeCompiledBindingAtEnd = await compiledFunctionsBinding();
+      await writeFile(`${directory}/startup-failure.json`, `${JSON.stringify({ status: 'failed', captureMode,
+        sourceCommitAtStart, runtimeIndexSha256AtStart, runtimeCompiledTreeSha256AtStart,
+        sourceCommitAtEnd: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
+        runtimeIndexSha256AtEnd: createHash('sha256').update(await readFile('functions/lib/index.js')).digest('hex'),
+        runtimeCompiledTreeSha256AtEnd: runtimeCompiledBindingAtEnd.sha256,
+        runtimeCompiledBindingAtStart, runtimeCompiledBindingAtEnd,
+        stage: 'fresh normal Auth/UI setup', message: error.message, contextsOpened: clients.size,
+        callableTraceAllowlist: Object.keys(PC10_PROOF_CALLABLE_ACTIONS), fixtureCallableIssued,
+        fixtureCallableObservations, observedBrowserCalls: [...clients.values()].flatMap(client => client.observedCalls),
+        identityObservations: [...clients.values()].flatMap(client => client.identityObservations),
+        serverIdentityDiagnostics,
+        rateLimitStateDiagnostics, failureObservationUnavailable: error.pc07FailureObservationUnavailable === true,
+        authoritativeFailureSnapshots, diagnosticFailures: failureDiagnosticFailures,
+        callableObservationFailures: [...clients.values()].flatMap(client => client.callableObservationFailures),
+        callableObservationBoundaries: [...clients.values()].flatMap(client =>
+          client.callableObservationBoundaries.map(boundary => ({ roleId: client.label, ...boundary }))),
+        browserErrors: [...clients.values()].flatMap(client => client.errors.map(message => ({ roleId: client.label, message }))),
+      }, null, 2)}\n`);
+    } catch (evidenceError) {
+      error.pc10StartupFailureEvidenceUnavailable = true;
+      error.pc10StartupFailureEvidenceError = evidenceError;
+    }
+    if (fixture) {
+      try { await fixture.stopHeartbeats(); }
+      catch (heartbeatError) {
+        error.pc10StartupHeartbeatStopUnavailable = true;
+        error.pc10StartupHeartbeatStopError = heartbeatError;
+      }
+    }
+    let fixtureCleanup = error.pc07FailureCleanupComplete === true ? 'completed-by-PC07' :
+      error.pc07FailureCleanupUnavailable === true ? 'unavailable-from-PC07' : 'not-requested';
+    try { await closeStartupBrowser(); }
+    catch (closeError) {
+      error.pc10StartupBrowserCloseUnavailable = true;
+      error.pc10StartupBrowserCloseError = closeError;
+      fixtureCleanup = 'blocked-before-deletion';
+    }
+    if (fixture && startupBrowserCloseState === 'fulfilled') {
+      try { await fixture.cleanup(); fixtureCleanup = 'completed'; }
+      catch (cleanupError) {
+        fixtureCleanup = 'unavailable';
+        error.pc10StartupFixtureCleanupUnavailable = true;
+        error.pc10StartupFixtureCleanupError = cleanupError;
+      }
+    }
+    try {
+      await writeFile(`${directory}/startup-cleanup-boundary.json`, `${JSON.stringify({ status: 'failed',
+        browserClose: startupBrowserCloseState, fixtureCleanup, primaryFailurePreserved: true,
+        pc07FailureCleanupComplete: error.pc07FailureCleanupComplete === true,
+        pc07FailureCleanupUnavailable: error.pc07FailureCleanupUnavailable === true,
+        startupFailureEvidenceUnavailable: error.pc10StartupFailureEvidenceUnavailable === true,
+        heartbeatStopUnavailable: error.pc10StartupHeartbeatStopUnavailable === true,
+      }, null, 2)}\n`);
+    } catch (evidenceError) {
+      error.pc10StartupCleanupEvidenceUnavailable = true;
+      error.pc10StartupCleanupEvidenceError = evidenceError;
+    }
     throw error;
   }
 }

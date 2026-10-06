@@ -33,7 +33,9 @@ export function buildFixtureCallableObservation({name,transport,actorUid,session
 export async function finishFailedPc07Fixture(error,{observeFailure,cleanup}) {
  try{if(observeFailure)await observeFailure();}
  catch{error.pc07FailureObservationUnavailable=true;}
- await cleanup();throw error;
+ try{await cleanup();error.pc07FailureCleanupComplete=true;}
+ catch(cleanupError){error.pc07FailureCleanupUnavailable=true;error.pc07FailureCleanupError=cleanupError;}
+ throw error;
 }
 
 /** A native proof request must fail observably instead of waiting indefinitely.
@@ -110,7 +112,7 @@ export async function joinConfiguredBrowserPlayers({roles,players,joinCode,brows
 }
 
 /** Normal local Auth/HTTP setup. Tokens stay in memory and never enter evidence. */
-export async function createPc07AuthenticatedSession(name,playerCount=8,{clearBriefing=true,keepAlive=false,serializeFixtureCalls=false,browserOwnsPresence=false,expansion='base',capybaraEnabled=expansion==='capybara',fullGameManual=false,chartId='A',turnLimit=6,browserRoleId,joinBrowserPlayer,joinBrowserPlayers,joinPressPlayer,activeRoleIdsOverride,unionCraftStartingHosts={},explicitLoyaltySetup,onCallableIssued,onCallableObservation,beforeFailureCleanup}={}) {
+export async function createPc07AuthenticatedSession(name,playerCount=8,{clearBriefing=true,keepAlive=false,serializeFixtureCalls=false,browserOwnsPresence=false,expansion='base',capybaraEnabled=expansion==='capybara',fullGameManual=false,chartId='A',turnLimit=6,browserRoleId,joinBrowserPlayer,joinBrowserPlayers,joinPressPlayer,activeRoleIdsOverride,unionCraftStartingHosts={},explicitLoyaltySetup,onCallableIssued,onCallableObservation,beforeFailureCleanup,beforeFailureDeletion}={}) {
  const env=Object.fromEntries((await readFile('.env.emulators.local','utf8')).trim().split('\n').map(line=>line.split('=')));
  const project=process.env.VITE_FIREBASE_PROJECT_ID;
  const config=localGmAccessConfiguration('serve',{...env,VITE_LOCAL_GM_ACCESS:'1',VITE_FIREBASE_PROJECT_ID:project});
@@ -277,7 +279,13 @@ export async function createPc07AuthenticatedSession(name,playerCount=8,{clearBr
  }catch(error){
   return finishFailedPc07Fixture(error,{
    observeFailure:beforeFailureCleanup&&failureContext?()=>beforeFailureCleanup(failureContext,error):undefined,
-   cleanup:async()=>{await heartbeats.stop();await db.recursiveDelete(session);},
+   cleanup:async()=>{
+    await heartbeats.stop();
+    // This release barrier is independent of the best-effort observer. A
+    // rejected or pending browser close must never authorize SID deletion.
+    if(beforeFailureDeletion)await beforeFailureDeletion();
+    await db.recursiveDelete(session);
+   },
   });
  }
 }
