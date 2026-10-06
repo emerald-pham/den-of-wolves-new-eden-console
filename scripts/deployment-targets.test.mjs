@@ -1610,6 +1610,41 @@ test('fails closed when PC05 shared index code changes beyond the audited candid
   }), /Cannot safely map PC05 shared index changes/);
 });
 
+test('maps an isolated exact auditedOnCall export mutation and retains direct onCall support', () => {
+  const before = [
+    "export const upgradeEndeavourFieldTargets = auditedOnCall<{ sessionId?: unknown }>('upgradeEndeavourFieldTargets', async () => { return 'before'; });",
+    "export const legacyCallable = onCall(async () => { return 'unchanged'; });",
+  ].join('\n');
+  const after = before.replace("return 'before';", "return 'after';");
+  const selected = deploymentSelector({
+    before: 'base', after: 'candidate', files: ['functions/src/index.ts'],
+    targets: ['hosting', 'functions'], isAncestor: () => false,
+    sourceAtRevision: revision => revision === 'base' ? before : after,
+  });
+  assert.deepEqual(selectedFunctions(selected), functionTargets(['upgradeEndeavourFieldTargets']));
+});
+
+test('fails closed when auditedOnCall identity does not match its exported name', () => {
+  const before = "export const upgradeEndeavourFieldTargets = auditedOnCall('upgradeEndeavourFieldTargets', async () => 'before');";
+  const after = before.replace("('upgradeEndeavourFieldTargets',", "('differentCallableIdentity',");
+  assert.notEqual(after, before);
+  assert.throws(() => deploymentSelector({
+    before: 'base', after: 'candidate', files: ['functions/src/index.ts'],
+    targets: ['hosting', 'functions'], isAncestor: () => false,
+    sourceAtRevision: revision => revision === 'base' ? before : after,
+  }), /auditedOnCall callable identity does not match exported name/);
+});
+
+test('fails closed when an exact auditedOnCall mutation is mixed with an untracked index helper', () => {
+  const before = "export const upgradeEndeavourFieldTargets = auditedOnCall<{ sessionId?: unknown }>('upgradeEndeavourFieldTargets', async () => { return 'before'; });";
+  const after = `${before.replace("return 'before';", "return 'after';")}\nfunction untrackedEndeavourHelper() { return 'changed'; }\n`;
+  assert.throws(() => deploymentSelector({
+    before: 'base', after: 'candidate', files: ['functions/src/index.ts'],
+    targets: ['hosting', 'functions'], isAncestor: () => false,
+    sourceAtRevision: revision => revision === 'base' ? before : after,
+  }), /Cannot safely map an Endeavour field-upgrade index change mixed with another callable or untracked source edit/i);
+});
+
 // These gates prove a historical PC06 source transition. New checkpoint code is
 // covered by its own exact current candidate audit; it cannot rewrite history.
 const PC06_RELEASE_SHA = 'bf222fbaf4661ed31c154528a49e8f47344b1846';
