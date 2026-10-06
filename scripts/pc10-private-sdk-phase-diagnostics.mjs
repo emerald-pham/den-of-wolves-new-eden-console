@@ -81,13 +81,40 @@ export function createPc10PrivateSdkPhaseDiagnostics(page, clock = Date.now) {
         event.ordinal === ordinal && event.phase === PHASES[ordinal] && time(event.browserAt) &&
         event.browserAt === state.notes[ordinal].browserAt);
     };
+    const latePhaseTiming = (envelope, at) => {
+      const reject = reason => ({ status: 'REJECTED', reason });
+      if (!value.binding || value.verification === 'INVALID') return reject('late-original-binding-invalid');
+      if (!time(value.dispatchedAt) || !time(value.budgetStartedAt) || !time(value.deadlineAt) || !time(at) ||
+        value.budgetStartedAt < value.dispatchedAt || value.deadlineAt !== value.budgetStartedAt + 15_000 ||
+        at < value.deadlineAt) return reject('late-window-invalid');
+      if (!keys(envelope, ['originalReply', 'phaseWitness'])) return reject('late-envelope-schema-invalid');
+      const witness = envelope.phaseWitness;
+      if (!keys(witness, ['schemaVersion', 'invocationId', 'documentId', 'phases']) || witness.schemaVersion !== 1 ||
+        !Array.isArray(witness.phases) || witness.phases.length !== PHASES.length) return reject('late-witness-schema-invalid');
+      if (witness.invocationId !== value.invocationId) return reject('late-invocation-mismatch');
+      if (!uuid(witness.documentId) || documentHash(witness.documentId) !== value.binding.nativeDocumentHash) {
+        return reject('late-native-document-mismatch');
+      }
+      let last = value.dispatchedAt;
+      for (const [ordinal, event] of witness.phases.entries()) {
+        if (!keys(event, ['ordinal', 'phase', 'browserAt']) || event.ordinal !== ordinal || event.phase !== PHASES[ordinal]) {
+          return reject('late-phase-schema-invalid');
+        }
+        if (!time(event.browserAt) || event.browserAt < last || event.browserAt > at) return reject('late-phase-time-invalid');
+        if (state.notes[ordinal] && event.browserAt !== state.notes[ordinal].browserAt) return reject('late-timely-prefix-mismatch');
+        last = event.browserAt;
+      }
+      // The already returned SAME evaluate supplies timing only. Timely phase
+      // verification, SDK outcome and the timed-out command remain untouched.
+      return { status: 'RECORDED', originallySettledBrowserAt: last };
+    };
     const fulfilled = envelope => {
       const at = clock(); state.settled = true;
       const originalReply = envelope?.originalReply;
       if (value.deadlineExceeded) {
         value.lateSettlement = { kind: 'evaluate-fulfilled', observedAt: at,
           status: ['read', 'denied'].includes(originalReply?.status) ? originalReply.status : null,
-          code: safeCode(originalReply?.code) };
+          code: safeCode(originalReply?.code), phaseTiming: latePhaseTiming(envelope, at) };
       } else {
         value.completedAt = at;
         if (!time(at) || at < value.dispatchedAt || at > value.deadlineAt) invalidate(state, 'phase-outside-original-window');
