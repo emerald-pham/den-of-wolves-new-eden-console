@@ -26,6 +26,8 @@ const UNVERIFIABLE_GM_CHOICES = new Set([
 const CERTIFIED_GM_RECIPES = new Set(['setGmShipConsoleWriteGrant', 'setShipConsoleLock',
   'setFacilitatorCensusNote', 'authorFacilitatorRuleCall']);
 const COUNTER_SOURCE_WAIT_ENDPOINTS = new Set(['applyShipCounterSteps']);
+const MEMBER_SCOPE_SHUTTLE_COMMAND_ENDPOINTS = new Set(['evacuateShuttleSurvivorsCommand',
+  'rechargeHostConsoleFromShuttle', 'transferShuttleCargoCommand']);
 const GM_COUNTER_SHIP_NAMES = Object.freeze({ aegis: 'AEGIS', dione: 'Dione', icebreaker: 'Icebreaker',
   capybara: 'Capybara', shepherd: 'Shepherd', quellon: 'Quellon', 'refinery-124': 'Refinery 124' });
 const CURRENT_DOCUMENT_AUTHORITY_KEYS = Object.freeze(['sessionId', 'uidHash', 'groupId', 'roleId',
@@ -704,6 +706,15 @@ function currentMemberShuttleScopeMatches(state, shuttleId, groupId, { hostShipI
   if (destinationShipId !== undefined && (destinationShipId === hostShipId ||
       !scope.vesselIds.includes(destinationShipId) || !state?.activeVesselIds?.includes(destinationShipId))) return false;
   return true;
+}
+
+function currentMemberShuttleCommandGroupId(state,
+  { sessionId, uidHash, roleId, shuttleId, hostShipId, destinationShipId } = {}) {
+  const groupId = state?.currentMemberScope?.groupId;
+  if (!validCurrentDocumentAuthority(state?.currentDocumentAuthority,
+    { sessionId, uidHash, roleId, shuttleId, groupId }) ||
+      !currentMemberShuttleScopeMatches(state, shuttleId, groupId, { hostShipId, destinationShipId })) return null;
+  return groupId;
 }
 
 function coreShuttleMovementMemberGroupId(state, shuttleId, groupId, originHostShipId,
@@ -2180,6 +2191,7 @@ async function planFor({ spec, surface, actor, state, context, target, gmOperati
 
   if (endpoint === 'rechargeHostConsoleFromShuttle') {
     const panel = page.getByRole('region', { name: 'Service shuttle recharge', exact: true });
+    const memberScoped = target.shuttleId !== PRESS_SHUTTLE_ID;
     const docking = state.shuttleDockings?.filter(row => row.shuttleId === target.shuttleId) ?? [];
     const control = state.shuttleControl?.[target.shuttleId];
     if (docking.length !== 1 || !control || hashUid(control.holderUid) !== actor.uidHash || !isRevision(control.revision)) {
@@ -2189,7 +2201,11 @@ async function planFor({ spec, surface, actor, state, context, target, gmOperati
     const hostMaintenance = state.maintenanceCycles?.[target.hostShipId];
     const serviceLedger = state.serviceShuttleRecharges?.[target.shuttleId];
     const serviceRevision = serviceLedger?.revision ?? 0;
-    const groupId = state.shipFleetGroupIds?.[target.hostShipId];
+    const groupId = memberScoped
+      ? currentMemberShuttleCommandGroupId(state, { sessionId: context.initial.sessionId,
+        uidHash: actor.uidHash, roleId: actor.activeConsoleRoleId, shuttleId: target.shuttleId,
+        hostShipId: target.hostShipId })
+      : state.shipFleetGroupIds?.[target.hostShipId];
     if (!state.activeVesselIds?.includes(target.hostShipId) || typeof groupId !== 'string' ||
         state.turnPhase?.turn !== state.cycle || state.turnPhase?.airspace?.state !== 'lifted' ||
         state.turnPhase?.timerPause !== undefined || state.shuttleFuelled?.[target.shuttleId] !== true ||
@@ -2202,8 +2218,10 @@ async function planFor({ spec, surface, actor, state, context, target, gmOperati
     target.serviceRevision = serviceRevision;
     target.hostGroupId = groupId;
     const select = panel.getByLabel('Host console', { exact: true });
-    return { offered: true, click: async () => {
-      const latest = await readActionState(surface);
+    return { offered: true,
+      ...(memberScoped ? { sourceAuthorityBefore: state.currentDocumentAuthority } : {}),
+      click: async () => {
+      const latest = await readActionState(surface, memberScoped ? target.shuttleId : undefined);
       const currentDockings = latest?.shuttleDockings?.filter(row => row.shuttleId === target.shuttleId) ?? [];
       const currentControl = latest?.shuttleControl?.[target.shuttleId];
       const currentMaintenance = latest?.maintenanceCycles?.[target.hostShipId];
@@ -2213,7 +2231,13 @@ async function planFor({ spec, surface, actor, state, context, target, gmOperati
           latest.turnPhase?.timerPause !== undefined || currentDockings.length !== 1 ||
           currentDockings[0].shipId !== target.hostShipId || hashUid(currentControl?.holderUid) !== actor.uidHash ||
           currentControl?.revision !== control.revision || !latest.activeVesselIds?.includes(target.hostShipId) ||
-          latest.shipFleetGroupIds?.[target.hostShipId] !== groupId || latest.shuttleFuelled?.[target.shuttleId] !== true ||
+          (memberScoped
+            ? currentMemberShuttleCommandGroupId(latest, { sessionId: context.initial.sessionId,
+              uidHash: actor.uidHash, roleId: actor.activeConsoleRoleId, shuttleId: target.shuttleId,
+              hostShipId: target.hostShipId }) !== groupId ||
+              !sameCurrentDocumentAuthority(latest.currentDocumentAuthority, state.currentDocumentAuthority)
+            : latest.shipFleetGroupIds?.[target.hostShipId] !== groupId) ||
+          latest.shuttleFuelled?.[target.shuttleId] !== true ||
           latest.shipDamage?.[target.hostShipId]?.destroyed === true || !currentMaintenance ||
           currentMaintenance.turn !== state.cycle || currentMaintenance.completedAt !== hostMaintenance.completedAt ||
           currentMaintenance.revision !== hostMaintenance.revision ||
@@ -2425,12 +2449,21 @@ async function planFor({ spec, surface, actor, state, context, target, gmOperati
 
   if (endpoint === 'transferShuttleCargoCommand') {
     const panel = page.getByRole('region', { name: 'Shuttle cargo transfer', exact: true });
+    const memberScoped = target.shuttleId !== PRESS_SHUTTLE_ID;
     const select = panel.getByLabel('Resource', { exact: true });
     const host = state.shuttleDockings?.filter(row => row.shuttleId === target.shuttleId) ?? [];
     const control = state.shuttleControl?.[target.shuttleId];
     if (host.length !== 1 || !control || hashUid(control.holderUid) !== actor.uidHash) return block('current shuttle holder and unique host docking are required');
     target.hostShipId = host[0].shipId;
-    if (state.shipFleetGroupIds?.[target.hostShipId] !== expectedGroup(state, target)) return block('the docked host is outside the current actor group');
+    const groupId = memberScoped
+      ? currentMemberShuttleCommandGroupId(state, { sessionId: context.initial.sessionId,
+        uidHash: actor.uidHash, roleId: actor.activeConsoleRoleId, shuttleId: target.shuttleId,
+        hostShipId: target.hostShipId })
+      : expectedGroup(state, target);
+    if (typeof groupId !== 'string' || groupId.length === 0 ||
+        (!memberScoped && state.shipFleetGroupIds?.[target.hostShipId] !== groupId)) {
+      return block('the docked host is outside the current actor group');
+    }
     const options = await select.locator('option').evaluateAll(nodes => nodes.map(node => ({ value: node.value,
       offered: node.value !== '' && !node.disabled, enabled: !node.disabled })));
     const resource = options.find(option => option.offered && option.enabled &&
@@ -2451,14 +2484,24 @@ async function planFor({ spec, surface, actor, state, context, target, gmOperati
     const hostAmount = state.shipResources?.[target.hostShipId]?.[resource.value];
     const shuttleAmount = state.shuttleCargo?.[target.shuttleId]?.[resource.value] ?? 0;
     const transitionBefore = shuttleCargoWitness(state.sessionId, state.cycle, target.shuttleId, actor.uidHash,
-      expectedGroup(state, target), control.revision, target.hostShipId, resource.value, direction, 1, hostAmount, shuttleAmount);
-    return { offered: true, transitionBefore, click: async () => {
-      const latest = await readActionState(surface);
+      groupId, control.revision, target.hostShipId, resource.value, direction, 1, hostAmount, shuttleAmount);
+    return { offered: true, transitionBefore,
+      ...(memberScoped ? { sourceAuthorityBefore: state.currentDocumentAuthority } : {}),
+      click: async () => {
+      const latest = await readActionState(surface, memberScoped ? target.shuttleId : undefined);
       const docking = latest.shuttleDockings?.filter(row => row.shuttleId === target.shuttleId) ?? [];
       const latestControl = latest.shuttleControl?.[target.shuttleId];
+      const latestGroupId = memberScoped
+        ? currentMemberShuttleCommandGroupId(latest, { sessionId: context.initial.sessionId,
+          uidHash: actor.uidHash, roleId: actor.activeConsoleRoleId, shuttleId: target.shuttleId,
+          hostShipId: target.hostShipId })
+        : expectedGroup(latest, target);
       if (!liveState(latest, context.initial.sessionId) || latest.cycle !== state.cycle || docking.length !== 1 ||
           docking[0].shipId !== target.hostShipId || hashUid(latestControl?.holderUid) !== actor.uidHash ||
-          latestControl?.revision !== control.revision || latest.shipFleetGroupIds?.[target.hostShipId] !== expectedGroup(state, target)) {
+          latestControl?.revision !== control.revision || latestGroupId !== groupId ||
+          (memberScoped
+            ? !sameCurrentDocumentAuthority(latest.currentDocumentAuthority, state.currentDocumentAuthority)
+            : latest.shipFleetGroupIds?.[target.hostShipId] !== groupId)) {
         throw new Error('The live holder, group, docking, or control revision changed before cargo transfer.');
       }
       if (latest.shipResources?.[target.hostShipId]?.[target.resourceId] !== hostAmount ||
@@ -2471,20 +2514,30 @@ async function planFor({ spec, surface, actor, state, context, target, gmOperati
 
   if (endpoint === 'evacuateShuttleSurvivorsCommand') {
     const panel = page.getByRole('region', { name: 'Survivor evacuation', exact: true });
+    const memberScoped = target.shuttleId !== PRESS_SHUTTLE_ID;
     const dockings = state.shuttleDockings?.filter(row => row.shuttleId === target.shuttleId) ?? [];
     const control = state.shuttleControl?.[target.shuttleId];
     if (dockings.length !== 1 || !control || hashUid(control.holderUid) !== actor.uidHash ||
         !Number.isSafeInteger(control.revision)) return block('the current actor must hold the shuttle at one unique docked source');
     target.sourceShipId = dockings[0].shipId;
     target.hostShipId = target.sourceShipId;
-    const groupId = expectedGroup(state, target);
-    if (typeof groupId !== 'string' || state.shipFleetGroupIds?.[target.sourceShipId] !== groupId) {
+    const groupId = memberScoped
+      ? currentMemberShuttleCommandGroupId(state, { sessionId: context.initial.sessionId,
+        uidHash: actor.uidHash, roleId: actor.activeConsoleRoleId, shuttleId: target.shuttleId,
+        hostShipId: target.sourceShipId })
+      : expectedGroup(state, target);
+    if (typeof groupId !== 'string' || groupId.length === 0 ||
+        (!memberScoped && state.shipFleetGroupIds?.[target.sourceShipId] !== groupId)) {
       return block('the source shuttle host has no current fleet-group authority');
     }
     const destination = panel.getByLabel('Receiving ship', { exact: true });
     const selectedDestination = await selectActualOption(destination, option => option.offered && option.enabled &&
       option.value !== target.sourceShipId && state.activeVesselIds?.includes(option.value) &&
-      state.shipFleetGroupIds?.[option.value] === groupId &&
+      (memberScoped
+        ? currentMemberShuttleCommandGroupId(state, { sessionId: context.initial.sessionId,
+          uidHash: actor.uidHash, roleId: actor.activeConsoleRoleId, shuttleId: target.shuttleId,
+          hostShipId: target.sourceShipId, destinationShipId: option.value }) === groupId
+        : state.shipFleetGroupIds?.[option.value] === groupId) &&
       Number.isSafeInteger(state.shipSurvivors?.[option.value]));
     if (!selectedDestination) return block('no current same-group receiving ship with a server-projected population is offered');
     target.destinationShipId = selectedDestination.value;
@@ -2502,16 +2555,26 @@ async function planFor({ spec, surface, actor, state, context, target, gmOperati
     }
     const action = await one(panel.getByRole('button', { name: 'Move survivors', exact: true }));
     if (!action) return block('no remaining evacuation capacity is available for the selected source choices');
-    return { offered: true, transitionBefore, click: async () => {
-      const latest = await readActionState(surface);
+    return { offered: true, transitionBefore,
+      ...(memberScoped ? { sourceAuthorityBefore: state.currentDocumentAuthority } : {}),
+      click: async () => {
+      const latest = await readActionState(surface, memberScoped ? target.shuttleId : undefined);
       const latestDockings = latest?.shuttleDockings?.filter(row => row.shuttleId === target.shuttleId) ?? [];
       const latestControl = latest?.shuttleControl?.[target.shuttleId];
       const currentWitness = shuttleEvacuationWitness(latest, target, actor.uidHash, groupId);
+      const latestGroupId = memberScoped
+        ? currentMemberShuttleCommandGroupId(latest, { sessionId: context.initial.sessionId,
+          uidHash: actor.uidHash, roleId: actor.activeConsoleRoleId, shuttleId: target.shuttleId,
+          hostShipId: target.sourceShipId, destinationShipId: target.destinationShipId })
+        : expectedGroup(latest, target);
       if (!liveState(latest, context.initial.sessionId) || latest.cycle !== state.cycle ||
           latestDockings.length !== 1 || latestDockings[0].shipId !== target.sourceShipId ||
           hashUid(latestControl?.holderUid) !== actor.uidHash || latestControl?.revision !== control.revision ||
-          latest.shipFleetGroupIds?.[target.sourceShipId] !== groupId ||
-          latest.shipFleetGroupIds?.[target.destinationShipId] !== groupId ||
+          latestGroupId !== groupId ||
+          (memberScoped
+            ? !sameCurrentDocumentAuthority(latest.currentDocumentAuthority, state.currentDocumentAuthority)
+            : latest.shipFleetGroupIds?.[target.sourceShipId] !== groupId ||
+              latest.shipFleetGroupIds?.[target.destinationShipId] !== groupId) ||
           !currentWitness || JSON.stringify(currentWitness) !== JSON.stringify(transitionBefore) ||
           await destination.inputValue() !== target.destinationShipId ||
           Number(await amounts.inputValue()) !== target.amount) {
@@ -2998,8 +3061,11 @@ async function recipeFor({ context, game, spec }) {
       actor.activeConsoleRoleId !== 'press-officer' || actor.assignedRoleId !== null)) {
     return refuse('the source-mounted Press route no longer belongs to the original Press holder and role');
   }
+  const memberScopedShuttleCommandEndpoint = MEMBER_SCOPE_SHUTTLE_COMMAND_ENDPOINTS.has(spec.endpoint) &&
+    holderTarget.shuttleId !== PRESS_SHUTTLE_ID;
   const documentAuthorityShuttleId = ['requestShuttleDeparture', 'beginShuttleTransit', 'retargetShuttleTransit',
-    'completeShuttleArrival'].includes(spec.endpoint) ? holderTarget.shuttleId : undefined;
+    'completeShuttleArrival'].includes(spec.endpoint) || memberScopedShuttleCommandEndpoint
+    ? holderTarget.shuttleId : undefined;
   if (COUNTER_SOURCE_WAIT_ENDPOINTS.has(spec.endpoint)) remainingGmOperation(gmOperation);
   const state = context.shuttleSourceDiagnosticOnly === true
     ? await readActionState(initialSurface, documentAuthorityShuttleId, { diagnosticOnly: true })
@@ -3060,7 +3126,9 @@ async function recipeFor({ context, game, spec }) {
   if (resolved.target.shipId) expected.groupId = state.shipFleetGroupIds?.[resolved.target.shipId];
   if (resolved.target.shuttleId) {
     const docking = state.shuttleDockings?.filter(row => row.shuttleId === resolved.target.shuttleId) ?? [];
-    if (docking.length === 1) expected.groupId = state.shipFleetGroupIds?.[docking[0].shipId];
+    if (!memberScopedShuttleCommandEndpoint && docking.length === 1) {
+      expected.groupId = state.shipFleetGroupIds?.[docking[0].shipId];
+    }
     const controlRevision = state.shuttleControl?.[resolved.target.shuttleId]?.revision;
     if (isRevision(controlRevision)) expected.controlRevision = controlRevision;
   }
@@ -3095,6 +3163,14 @@ async function recipeFor({ context, game, spec }) {
     expected.groupId = memberGroupId === originGroupId && memberGroupId === arrivalWitness?.groupId
       ? memberGroupId : undefined;
   }
+  if (memberScopedShuttleCommandEndpoint) {
+    const memberGroupId = currentMemberShuttleCommandGroupId(state, { sessionId: context.initial.sessionId,
+      uidHash: actor.uidHash, roleId, shuttleId: resolved.target.shuttleId });
+    if (memberGroupId) {
+      expected.groupId = memberGroupId;
+      expected.sourceAuthority = state.currentDocumentAuthority;
+    }
+  }
   if (spec.endpoint === 'completeShuttleArrival' && pressOrigin &&
       validPressArrivalWitness(context.pressShuttleArrivalWitness)) {
     expected.groupId = context.pressShuttleArrivalWitness.groupId;
@@ -3105,7 +3181,8 @@ async function recipeFor({ context, game, spec }) {
     expected.pressOriginAuthority = pressOrigin;
     expected.sourceAuthority = context.pressShuttleArrivalWitness.sourceAuthority;
   }
-  if (resolved.target.hostShipId && !coreShuttleMovementEndpoint && !coreShuttleArrivalEndpoint) {
+  if (resolved.target.hostShipId && !coreShuttleMovementEndpoint && !coreShuttleArrivalEndpoint &&
+      !memberScopedShuttleCommandEndpoint) {
     expected.groupId = state.shipFleetGroupIds?.[resolved.target.hostShipId];
   }
   let auxiliary = null;
@@ -3121,8 +3198,20 @@ async function recipeFor({ context, game, spec }) {
       return refuse('the original Core shuttle host and movement destination are outside the current same-group member scope');
     }
     expected.groupId = memberGroupId;
-  } else if (resolved.target.hostShipId && !coreShuttleArrivalEndpoint) {
+  } else if (resolved.target.hostShipId && !coreShuttleArrivalEndpoint && !memberScopedShuttleCommandEndpoint) {
     expected.groupId = state.shipFleetGroupIds?.[resolved.target.hostShipId];
+  }
+  if (memberScopedShuttleCommandEndpoint) {
+    const memberGroupId = currentMemberShuttleCommandGroupId(state, { sessionId: context.initial.sessionId,
+      uidHash: actor.uidHash, roleId, shuttleId: resolved.target.shuttleId,
+      hostShipId: resolved.target.hostShipId,
+      destinationShipId: spec.endpoint === 'evacuateShuttleSurvivorsCommand'
+        ? resolved.target.destinationShipId : undefined });
+    if (memberGroupId !== expected.groupId) {
+      return refuse('the source shuttle host or destination is missing from the original current member scope');
+    }
+    expected.groupId = memberGroupId;
+    expected.sourceAuthority = state.currentDocumentAuthority;
   }
   if (resolved.target.hostShipId && spec.endpoint === 'rechargeHostConsoleFromShuttle') {
     expected.expectedHostShipId = resolved.target.hostShipId;
@@ -3176,12 +3265,28 @@ async function recipeFor({ context, game, spec }) {
         remainingGmOperation(gmOperation);
       }
       const latest = context.shuttleSourceDiagnosticOnly === true
-        ? await readActionState(surface, movementEndpoint ? resolved.target.shuttleId : undefined, { diagnosticOnly: true })
-        : await readActionState(surface, movementEndpoint ? resolved.target.shuttleId : undefined);
+        ? await readActionState(surface, movementEndpoint || memberScopedShuttleCommandEndpoint
+          ? resolved.target.shuttleId : undefined, { diagnosticOnly: true })
+        : await readActionState(surface, movementEndpoint || memberScopedShuttleCommandEndpoint
+          ? resolved.target.shuttleId : undefined);
       if (COUNTER_SOURCE_WAIT_ENDPOINTS.has(spec.endpoint)) remainingGmOperation(gmOperation);
       if (!liveState(latest, expected.sessionId)) return { offered: false, reason: 'current server projection became stale before action' };
       const latestRevision = revisionFor(spec.endpoint, latest, resolved.target, auxiliary);
       if (isRevision(latestRevision) && latestRevision !== expected.sourceRevision) return { offered: false, reason: 'source revision changed before action' };
+      if (memberScopedShuttleCommandEndpoint) {
+        const memberGroupId = currentMemberShuttleCommandGroupId(latest, { sessionId: expected.sessionId,
+          uidHash, roleId, shuttleId: resolved.target.shuttleId,
+          hostShipId: resolved.target.hostShipId,
+          destinationShipId: spec.endpoint === 'evacuateShuttleSurvivorsCommand'
+            ? resolved.target.destinationShipId : undefined });
+        const control = latest.shuttleControl?.[resolved.target.shuttleId];
+        if (memberGroupId !== expected.groupId ||
+            !sameCurrentDocumentAuthority(latest.currentDocumentAuthority, expected.sourceAuthority) ||
+            hashUid(control?.holderUid) !== uidHash || control?.revision !== expected.controlRevision ||
+            latest.cycle !== expected.cycle || !latest.activeVesselIds?.includes(resolved.target.hostShipId)) {
+          return { offered: false, reason: 'the original shuttle holder, current document, member scope, host, or custody changed before action' };
+        }
+      }
       if (COUNTER_SOURCE_WAIT_ENDPOINTS.has(spec.endpoint)) {
         const currentCounterActor = counterGmActorProjection(currentActor, currentCounterLifecycle, latest);
         if (!counterGmLifecycleMatches(currentActor, currentCounterLifecycle, latest, context.initial.sessionId) ||
@@ -3203,7 +3308,8 @@ async function recipeFor({ context, game, spec }) {
         const serviceRevision = ledger?.revision ?? 0;
         if (dockings.length !== 1 || dockings[0].shipId !== hostShipId ||
             hashUid(control?.holderUid) !== uidHash || control?.revision !== expected.controlRevision ||
-            !latest.activeVesselIds?.includes(hostShipId) || latest.shipFleetGroupIds?.[hostShipId] !== expected.groupId ||
+            !latest.activeVesselIds?.includes(hostShipId) ||
+            (!memberScopedShuttleCommandEndpoint && latest.shipFleetGroupIds?.[hostShipId] !== expected.groupId) ||
             latest.shuttleFuelled?.[expected.shuttleId] !== true || latest.shipDamage?.[hostShipId]?.destroyed === true ||
             !maintenance || maintenance.turn !== expected.cycle || typeof maintenance.completedAt !== 'string' ||
             maintenance.revision !== expected.maintenanceRevision || !isRevision(serviceRevision) ||
@@ -3353,7 +3459,42 @@ async function recipeFor({ context, game, spec }) {
       }
       const movementEndpoint = ['requestShuttleDeparture', 'beginShuttleTransit', 'retargetShuttleTransit',
         'completeShuttleArrival'].includes(spec.endpoint);
-      const latest = await readActionState(surface, movementEndpoint ? resolved.target.shuttleId : undefined);
+      const latest = await readActionState(surface, movementEndpoint || memberScopedShuttleCommandEndpoint
+        ? resolved.target.shuttleId : undefined);
+      if (memberScopedShuttleCommandEndpoint) {
+        const memberGroupId = currentMemberShuttleCommandGroupId(latest, { sessionId: expected.sessionId,
+          uidHash, roleId, shuttleId: resolved.target.shuttleId,
+          hostShipId: resolved.target.hostShipId,
+          destinationShipId: spec.endpoint === 'evacuateShuttleSurvivorsCommand'
+            ? resolved.target.destinationShipId : undefined });
+        const dockings = latest?.shuttleDockings?.filter(row => row.shuttleId === expected.shuttleId) ?? [];
+        const control = latest?.shuttleControl?.[expected.shuttleId];
+        const scopeAndAuthorityCurrent = memberGroupId === expected.groupId &&
+          sameCurrentDocumentAuthority(latest?.currentDocumentAuthority, expected.sourceAuthority) &&
+          liveState(latest, expected.sessionId) && latest.cycle === expected.cycle && latest.phase === 'active' &&
+          hashUid(control?.holderUid) === uidHash && control?.revision === expected.controlRevision &&
+          dockings.length === 1 && dockings[0].shipId === resolved.target.hostShipId &&
+          latest.activeVesselIds?.includes(resolved.target.hostShipId) === true;
+        const destinationCurrent = spec.endpoint !== 'evacuateShuttleSurvivorsCommand' ||
+          latest.activeVesselIds?.includes(resolved.target.destinationShipId) === true &&
+          latest.shipSurvivors?.[resolved.target.destinationShipId] !== undefined;
+        const sourceAfterLive = scopeAndAuthorityCurrent && destinationCurrent;
+        const sourceAfter = { live: sourceAfterLive, sessionId: latest?.sessionId, cycle: latest?.cycle,
+          revision: afterRevision(spec.endpoint, latest, resolved.target, result, auxiliary),
+          ...(typeof memberGroupId === 'string' ? { groupId: memberGroupId } : {}) };
+        const transitionAfter = sourceAfterLive && spec.endpoint === 'evacuateShuttleSurvivorsCommand'
+          ? shuttleEvacuationWitness(latest, resolved.target, uidHash, memberGroupId)
+          : sourceAfterLive && spec.endpoint === 'transferShuttleCargoCommand'
+            ? shuttleCargoWitness(latest.sessionId, latest.cycle, resolved.target.shuttleId, uidHash,
+              memberGroupId, control.revision, resolved.target.hostShipId, resolved.target.resourceId,
+              resolved.target.direction, resolved.target.amount,
+              latest.shipResources?.[resolved.target.hostShipId]?.[resolved.target.resourceId],
+              latest.shuttleCargo?.[resolved.target.shuttleId]?.[resolved.target.resourceId] ?? 0)
+            : undefined;
+        return { sourceAfter, transitionAfter,
+          sourceAuthorityAfter: latest?.currentDocumentAuthority,
+          rendered: await positiveRenderedStatus(surface, spec.endpoint, result) };
+      }
       if (spec.endpoint === 'completeShuttleArrival' && pressOrigin) {
         const movementAfter = await readShuttleMovement(surface, expected.sessionId, PRESS_SHUTTLE_ID).catch(() => undefined);
         const arrivalAfter = pressArrivalProjection(latest, preparedPlan.arrival.before,
