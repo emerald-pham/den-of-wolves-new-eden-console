@@ -18,7 +18,8 @@ const actor = Object.freeze({ sessionId: 'native-session', uidHash: '0123456789a
 
 // Native transport doubles exercise the public factory. They create no browser,
 // Auth account, server grant, emulator or gameplay evidence. The exact rendered
-// name comes from the owner's harmless current-CSS ariaSnapshot counterexample.
+// name comes from the owner's harmless FULL index CSS ariaSnapshot, including
+// the source link's inline-flex layout rather than only its ::before rule.
 async function fixture(t, options = {}) {
   const directory = await mkdtemp(resolve(tmpdir(), 'pc10-native-observer-return-'));
   const current = { ...actor }, crewActor = { ...actor, uidHash: 'fedcba9876543210',
@@ -61,7 +62,7 @@ async function fixture(t, options = {}) {
     if (route() !== `/ships/${shipId}/observer`) return [];
     return [
       ...Array.from({ length: options.returnCount ?? 1 }, () => ({ role: 'link',
-        name: options.returnName ?? '←Change role', href: options.returnHref ?? roleHref,
+        name: options.returnName ?? '← Change role', href: options.returnHref ?? roleHref,
         className: options.returnClass ?? 'ship-console__back cic-text-button',
         visible: options.returnVisible ?? true,
         click: async function () {
@@ -172,7 +173,7 @@ test('public lifecycle factory captures current source-mounted return and revoca
     generation: actor.generation, instanceId: actor.instanceId, claimedAt: actor.claimedAt,
     hydrationRevision: actor.hydrationRevision });
   assert.equal(f.clicks.length, 1);
-  assert.equal(f.clicks[0].name, '←Change role');
+  assert.equal(f.clicks[0].name, '← Change role');
   assert.equal(f.clicks[0].href, roleHref);
   assert.equal(f.clicks[0].actor.grantShipId, shipId);
   assert.deepEqual(f.current, f.initial);
@@ -197,7 +198,7 @@ for (const [reason, options] of [
   ['foreign ship href', { returnHref: '#/ships/dione/roles' }],
   ['non-source link class', { returnClass: 'unrelated-return' }],
   ['plain name alias', { returnName: 'Change role' }],
-  ['spaced name alias', { returnName: '← Change role' }],
+  ['unspaced partial-style name', { returnName: '←Change role' }],
   ['absent return', { returnCount: 0 }],
   ['ambiguous returns', { returnCount: 2 }],
   ['hidden return', { returnVisible: false }],
