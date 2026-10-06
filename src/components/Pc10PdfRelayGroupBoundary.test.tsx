@@ -17,7 +17,11 @@ import { requirePursuitEmergencyWindowAbsent } from '../../functions/src/pursuit
 import { isPresenceStale } from '../../functions/src/sessionLifecycle';
 import PdfNewsRelayPanel from './PdfNewsRelayPanel';
 import { createCurrentMemberSessionReader } from '../../functions/src/memberSessionCallable';
-import { sessionFrom, playerFrom } from '@/lib/firestore';
+import { sessionFrom } from '@/lib/firestore';
+import { entityId, parseEntityId } from '@/types/identifiers';
+import { normalizeDisplayName } from '@/lib/displayName';
+import { Timestamp as FirestoreTimestamp } from 'firebase/firestore';
+import type { Player } from '@/types/game';
 import { stripGmNavigationProjection } from '@/lib/navigationPrivacy';
 import type { Firestore, DocumentSnapshot } from 'firebase-admin/firestore';
 
@@ -49,6 +53,13 @@ function declarations(file: ts.SourceFile, names: string[]) {
   }
   visit(file); expect(found).toHaveLength(names.length); return found;
 }
+const playerFile = sourceFile('src/lib/firestore.ts');
+const playerSource = ts.transpileModule(`${declarations(playerFile, ['iso', 'optionalIso', 'playerFrom'])
+  .map(node => node.getText(playerFile)).join('\n')}\nplayerFrom;`,
+{ compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
+const actualPlayerFrom = new Script(playerSource).runInNewContext({
+  entityId, parseEntityId, normalizeDisplayName, FirestoreTimestamp,
+}) as (sessionId: string, actorUid: string, data: Record<string, unknown>) => Player;
 const observerFile = sourceFile('scripts/pc10-full-game-demo-ui-proof.mjs');
 const returned = declarations(observerFile, ['observe'])[0]!.body!.statements[0] as ts.ReturnStatement;
 const genericCallback = new Script(`(${(returned.expression as ts.CallExpression).arguments[0]!.getText(observerFile)})`)
@@ -152,7 +163,7 @@ function actualHandlers() {
   const memberRead = createCurrentMemberSessionReader({ db: db as unknown as Firestore,
     projectSession: (source: DocumentSnapshot, id: string) => ({ ...source.data(), id }) });
   return { member: async () => memberRead({ auth: { uid }, data: { sessionId: sid } }),
-    player: () => playerFrom(uid, sid, data.get(`sessions/${sid}/players/${uid}`)!),
+    player: () => actualPlayerFrom(sid, uid, data.get(`sessions/${sid}/players/${uid}`)!),
     gmSession: () => ({ ...sessionFrom(sid, data.get(`sessions/${sid}`)!),
       shipFleetGroupIds: data.get(`sessions/${sid}`)!.shipFleetGroupIds as Record<string, string> }),
     send: async (payload: Row) => plain(await handlers.send({ auth: { uid }, data: payload })) as Row,
