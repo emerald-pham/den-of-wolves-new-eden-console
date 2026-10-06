@@ -1650,8 +1650,10 @@ export default function GmConsole() {
   useEffect(() => {
     const nextServerRoleIds = knownRoleIds(activeRoleIds);
     const nextDraftRoleIds = normalizeRoleDraft(nextServerRoleIds);
+    // The queued updater may run after the ref advances to the new roster.
+    const previousRoleIds = previousServerRoleIds.current;
     setDraftRoleIds((current) =>
-      sameRoleConfiguration(current, previousServerRoleIds.current)
+      sameRoleConfiguration(current, previousRoleIds)
         ? nextDraftRoleIds
         : current);
     previousServerRoleIds.current = nextServerRoleIds;
