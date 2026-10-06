@@ -336,15 +336,15 @@ test('grant reload waits for this document acceptance before private SDK read wi
   assert.equal(f.raw.gmInstance.shipConsoleWriteGrant, null); f.close();
 });
 
-test('future grant-loss evidence distinguishes absent restore and disabled projection without reconstructing a lease tuple', async () => {
-  const f = await fixture({ onReload: ({ raw, reloads }) => { if (reloads === 1) raw.gmInstance.shipConsoleWriteGrant = null; } });
+test('future reappeared-grant evidence distinguishes observed revoke and rejected durable projection without reconstructing a lease tuple', async () => {
+  const f = await fixture({ onReload: ({ raw, reloads }) => { if (reloads === 1) raw.gmInstance.shipConsoleWriteGrant = { shipId: 'aegis' }; } });
   const result = await callbackFor(f, ['setGmShipConsoleWriteGrant', 'setShipConsoleLock']).onStarted(f.context);
   const row = rowFor(result, 'setGmShipConsoleWriteGrant');
   assert.equal(row.status, 'pending'); assert.equal(rowFor(result, 'setShipConsoleLock').status, 'pending');
-  assert.equal(row.leaseDiagnostic.restorePresent, false);
-  assert.equal(row.leaseDiagnostic.enabledProjectionPresent, false);
+  assert.equal(row.leaseDiagnostic.restorePresent, true);
+  assert.equal(row.leaseDiagnostic.enabledProjectionPresent, true);
   assert.equal(row.leaseDiagnostic.projectionClaimMatches, true);
-  assert.equal(row.leaseDiagnostic.restoreClaimMatches, null);
+  assert.equal(row.leaseDiagnostic.restoreClaimMatches, true);
   assert.doesNotMatch(JSON.stringify(result), /native-original-gm|native-original-member|2026-10-05T10:00:00/);
   assert.equal(f.writes.filter(row => row.endpoint === 'setShipConsoleLock').length, 0); f.close();
 });
@@ -365,7 +365,7 @@ test('required reload cannot reset the original GM operation deadline or read pr
   const result = await callbackFor(f, ['setGmShipConsoleWriteGrant']).onStarted(f.context);
   assert.equal(rowFor(result, 'setGmShipConsoleWriteGrant').status, 'pending');
   assert.equal(f.lists(), listsBeforeReload);
-  assert.equal(f.writes.length, 1, 'Only the original authorized enable receipt was captured.'); f.close();
+  assert.equal(f.writes.length, 2, 'The original authorized enable and explicit revoke preceded the required reload.'); f.close();
 });
 
 for (const [name, change] of [
@@ -379,7 +379,7 @@ for (const [name, change] of [
   const f = await fixture({ onReload: ({ raw }) => { listsBeforeReload = f.lists(); change(raw); } });
   const result = await callbackFor(f, ['setGmShipConsoleWriteGrant']).onStarted(f.context);
   assert.equal(rowFor(result, 'setGmShipConsoleWriteGrant').status, 'pending');
-  assert.equal(f.lists(), listsBeforeReload); assert.equal(f.writes.length, 1); f.close();
+  assert.equal(f.lists(), listsBeforeReload); assert.equal(f.writes.length, 2); f.close();
 });
 
 // Denial-only counterexamples: a later acceptable snapshot cannot erase an
@@ -399,7 +399,7 @@ for (const [name, violate, restore] of [
   } });
   const result = await callbackFor(f, ['setGmShipConsoleWriteGrant']).onStarted(f.context);
   assert.equal(rowFor(result, 'setGmShipConsoleWriteGrant').status, 'pending');
-  assert.equal(f.lists(), listsBeforeReload); assert.equal(f.writes.length, 1); f.close();
+  assert.equal(f.lists(), listsBeforeReload); assert.equal(f.writes.length, 2); f.close();
 });
 
 test('exact GM form mount cannot reset its original twenty-second readiness deadline', async t => {

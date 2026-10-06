@@ -304,6 +304,12 @@ test('mounted AEGIS console lock requires its original vessel receipt, exact rep
     sourceSpecificBefore: { kind: 'ship-console-lock', live: true, sessionId: 'session-1', cycle: 2,
       uidHash, instanceId: 'gm-instance', shipId: 'aegis', locked: true, revision: 7,
       grantEnabled: true },
+    enableGrant: { request: { sessionId: 'session-1', instanceId: 'gm-instance', shipId: 'aegis', enabled: true, claimedAt },
+      response: { httpStatus: 200, result: { enabled: true, shipId: 'aegis' } },
+      rendered: { visible: true, controlPressed: true, observerMode: 'write' },
+      afterEnable: { actor: gmActor, projection: { kind: 'gm-ship-console-write-grant', live: true,
+        sessionId: 'session-1', cycle: 2, uidHash, instanceId: 'gm-instance', shipId: 'aegis',
+        targetShipId: 'aegis', enabled: true, claimedAtHash: pc10ProofHash(claimedAt) } } },
     request, response: { httpStatus: 200, result: receipt, exactReplay: true },
     replay: { status: 'committed', result: { ...receipt } },
     rendered: { visible: true, locked: false, lockLabel: 'ICN console lock // clear' },
@@ -343,6 +349,12 @@ test('mounted census note requires the exact private receipt, replay, and matchi
     sourceAfter: { live: true, sessionId: 'session-1', cycle: 2, revision: 5 },
     sourceSpecificBefore: { kind: 'facilitator-census', live: true, sessionId: 'session-1', cycle: 2,
       uidHash, instanceId: 'gm-instance', revision: 4, targetUidHash: pc10UidHash(targetUid), entryPresent: true },
+    enableGrant: { request: { sessionId: 'session-1', instanceId: 'gm-instance', shipId: 'aegis', enabled: true, claimedAt },
+      response: { httpStatus: 200, result: { enabled: true, shipId: 'aegis' } },
+      rendered: { visible: true, controlPressed: true, observerMode: 'write' },
+      afterEnable: { actor: gmActor, projection: { kind: 'gm-ship-console-write-grant', live: true,
+        sessionId: 'session-1', cycle: 2, uidHash, instanceId: 'gm-instance', shipId: 'aegis',
+        targetShipId: 'aegis', enabled: true, claimedAtHash: pc10ProofHash(claimedAt) } } },
     request, response: { httpStatus: 200, result: receipt, exactReplay: true },
     replay: { status: 'committed', result: { ...receipt } },
     rendered: { visible: true, targetUidHash: pc10UidHash(targetUid),
@@ -363,7 +375,7 @@ test('mounted census note requires the exact private receipt, replay, and matchi
     result: { ...receipt, targetUid: 'foreign-census-uid' } } }).status, 'pending');
 });
 
-test('mounted write grant is verified as a single-shot enable, same-instance reload, and UI revoke', () => {
+test('mounted write grant is verified as a single-shot enable, same-document UI revoke, and revoked reload', () => {
   const uidHash = pc10UidHash('gm-auth-uid');
   const gmActor = { uidHash, sessionId: 'session-1', playerRole: 'gm', instanceId: 'gm-instance',
     gmInstanceOwned: true, sameActor: true, connection: 'live', freshness: 'server' };
@@ -380,7 +392,8 @@ test('mounted write grant is verified as a single-shot enable, same-instance rel
     request, response: { httpStatus: 200, result: { enabled: true, shipId: 'aegis' } },
     replay: null, rendered: { visible: true, resultStatus: 'committed', controlPressed: true, observerMode: 'write' },
     beforeProjection: grantProjection(false),
-    afterReload: { actor: gmActor, projection: grantProjection(true) },
+    afterEnable: { actor: gmActor, projection: grantProjection(true) },
+    afterReload: { actor: gmActor, projection: grantProjection(false) },
     restore: { request: { ...request, enabled: false },
       response: { httpStatus: 200, result: { enabled: false } },
       rendered: { visible: true, resultStatus: 'committed', enabled: false, controlPressed: false, observerMode: 'read' },
@@ -393,7 +406,7 @@ test('mounted write grant is verified as a single-shot enable, same-instance rel
   for (const changes of [
     { request: { ...request, requestId: 'invented-replay-key' } },
     { response: { ...proof.response, result: { enabled: true, shipId: 'dione' } } },
-    { afterReload: { ...proof.afterReload, projection: grantProjection(false) } },
+    { afterReload: { ...proof.afterReload, projection: grantProjection(true) } },
     { restore: undefined },
     { restore: { ...proof.restore, response: { httpStatus: 200, result: { enabled: true, shipId: 'aegis' } } } },
     { response: { ...proof.response, exactReplay: true } },
