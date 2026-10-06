@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
+import { inspect as inspectError } from 'node:util';
 import test from 'node:test';
 import { createSpecialistGameplayDriver, validateScoutRequestRecord } from './pc10-specialist-gameplay.mjs';
 
@@ -12,7 +13,8 @@ test('the original held Scout before survives a timeout whose existing fresh gua
     activeConsoleRoleId: 'wing-commander', connection: 'live', freshness: 'server' };
   const before = { sessionId, live: true, cycle: 1, phase: 'active',
     turnPhase: { turn: 1, airspace: { state: 'lifted' } }, activeVesselIds: ['aegis'],
-    shuttleDockings: [{ shuttleId: 'starlight', shipId: 'aegis' }] };
+    shuttleDockings: [{ shuttleId: 'starlight', shipId: 'aegis' }],
+    privateReport: 'native-held-before-private-body-must-not-log' };
   assert.ok(validateScoutRequestRecord({ request, result, actor, before, gmState: before, crewState: before,
     choice: { entitlementId: 'starlight', ownerRoleId: 'wing-commander', targetCoordinate: '1413' } }),
   'The held original operands match the exact current Source validator.');
@@ -35,7 +37,12 @@ test('the original held Scout before survives a timeout whose existing fresh gua
   const driver = createSpecialistGameplayDriver(game, { now: () => now,
     wait: async milliseconds => { assert.equal(milliseconds, 250); now += milliseconds; } });
   await assert.rejects(driver.capture({ roleId: 'wing-commander', endpoint: 'requestScout', inspect,
-    click: async () => { clicks++; } }), /Fresh specialist projections and a rendered result did not converge:/);
+    click: async () => { clicks++; } }), error => {
+      assert.match(error.message, /Fresh specialist projections and a rendered result did not converge:/);
+      assert.equal(inspectError(error, { depth: 7 }).includes(before.privateReport), false,
+        'Ordinary logging of the original error must not expose its held private inputs.');
+      return true;
+    });
   assert.equal(writes.length, 1);
   assert.equal(writes[0].name, 'specialist-scout-timeout-diagnostic.json');
   const diagnostic = writes[0].details.scoutTimeout;
