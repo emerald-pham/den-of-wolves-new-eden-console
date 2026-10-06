@@ -2529,7 +2529,7 @@ it('hydrates the known facilitator census only from server authority and allowli
 
 it('distinguishes an authorized server-confirmed empty loyalty census from malformed and failed reads', () => {
   const { callbacks, errors } = captureSessionListener();
-  const onCensus = vi.fn((_census: unknown, _status?: string) => undefined);
+  const onCensus = vi.fn((_census: unknown, _status?: string) => { void _census; void _status; });
   subscribeLoyaltyCensus('s1', onCensus);
 
   callbacks[0]?.({ metadata: { fromCache: true }, exists: () => false, data: () => undefined });

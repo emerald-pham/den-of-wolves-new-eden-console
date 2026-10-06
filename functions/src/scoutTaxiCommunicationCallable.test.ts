@@ -8,6 +8,7 @@ const mock = vi.hoisted(() => {
     data: () => documents.get(path), get: (field: string) => documents.get(path)?.[field] });
   const writes = vi.fn();
   const runTransaction = vi.fn(async (callback: (tx: unknown) => Promise<unknown>, _options?: { readOnly?: boolean }) => {
+    void _options;
     const queued: Array<[string, Fields]> = [];
     const result = await callback({ get: async (target: { path: string; collection?: boolean }) => {
       if (queued.length) throw new Error('Native Firestore forbids reads after writes');

@@ -322,6 +322,7 @@ function sessionPhase(snapshot: DocumentSnapshot): LifecyclePhase {
 
 function comparable(value: SessionDebriefSnapshot): string {
   const { committedAt: _committedAt, ...rest } = value;
+  void _committedAt;
   return JSON.stringify(rest);
 }
 
@@ -462,7 +463,7 @@ export function sessionDebriefProjection(
             .map(({ id, cycle }) => ({ id, cycle })),
           ...(group.path ? { path: group.path.filter(step => gm || step.audience === 'members' &&
             (step.shipId === undefined || allowedShips.has(step.shipId)))
-            .map(({ audience: _audience, ...step }) => step) } : {}),
+            .map(({ audience: _audience, ...step }) => { void _audience; return step; }) } : {}),
         })),
     }
     : undefined;

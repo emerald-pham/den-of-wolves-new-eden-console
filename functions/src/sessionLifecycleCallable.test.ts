@@ -575,6 +575,7 @@ describe('unchanged core presence transaction boundary', () => {
   it('keeps ticker migration on the original authoritative mutation transaction', async () => {
     await stableCorePresence();
     const { fleetTicker: _ticker, ...legacy } = read('sessions/s1')!;
+    void _ticker;
     put('sessions/s1', legacy);
     await expect(refreshPresence.run(request({ sessionId: 's1', activeConsoleRoleId: 'admiral' })))
       .resolves.toEqual({ sessionId: 's1' });
@@ -588,6 +589,7 @@ describe('unchanged core presence transaction boundary', () => {
     await stableCorePresence();
     mock.setAfterReadOnlyTransaction(() => {
       const { fleetTicker: _ticker, ...legacy } = read('sessions/s1')!;
+      void _ticker;
       put('sessions/s1', legacy);
     });
     await expect(refreshPresence.run(request({ sessionId: 's1', activeConsoleRoleId: 'admiral' })))
