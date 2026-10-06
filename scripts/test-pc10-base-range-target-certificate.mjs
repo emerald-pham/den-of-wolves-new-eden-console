@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import { createContext, Script, SourceTextModule, SyntheticModule } from 'node:vm';
 import { JSDOM } from 'jsdom';
 import ts from 'typescript';
@@ -46,6 +47,7 @@ const Panel = component.namespace.WolfRangeActionPanelView;
 const callbackUrl = new URL('./pc10-base-combat-deduction-ui-proof.mjs', import.meta.url);
 const callbackSource = await readFile(callbackUrl, 'utf8');
 const clickBoundary = new Error('Native original single-click boundary; no SDK mutation or receipt.');
+const roleUidHash = role => createHash('sha256').update(`native-real-uid-${role}`).digest('hex').slice(0, 16);
 
 function currentView(overrides = {}) {
   return { type: 'wolf-range-action-choice-view', sessionId: 'native-session', turn: 1, revision: 19,
@@ -63,16 +65,16 @@ function currentView(overrides = {}) {
 function nativeFixture({ view = currentView(), afterSelections, sourceDrift, actorDrift,
   duringCertificate, expireWhileSaving = false } = {}) {
   cleanup();
-  const calls = [], reads = [], selected = [], certificates = [], clicks = [], assigned = [];
+  const calls = [], reads = [], bootstrapReads = [], selected = [], certificates = [], clicks = [], assigned = [];
   let role = 'wing-commander', key = 0, busy = false, renderedView = view, report, certificateReads = 0;
   const base = { hasAuth: true, sameActor: true, sessionId: 'native-session', phase: 'active', cycle: 1,
     connection: 'live', freshness: 'server', phaseProgression: 'manual', airspace: 'restricted', turnStatePhase: 'team',
     fleetGroupId: 'fleet-1', connectionGeneration: 10, identityHydrationRevision: 1,
     seatId: 'native-seat', replacementRoleId: null, replacementStatus: null,
     discoveryAuthority: { groupId: 'fleet-1', shipId: 'aegis', revision: 1, fleetGroupVesselIds: ['aegis'] } };
-  const gmActor = { ...base, uidHash: 'native-gm', profileRoleId: null, assignedRoleId: null,
+  const gmActor = { ...base, uidHash: roleUidHash('gm'), profileRoleId: null, assignedRoleId: null,
     activeConsoleRoleId: null, playerRole: 'gm', instanceId: 'native-instance', gmInstanceOwned: true };
-  const crewActor = () => ({ ...base, uidHash: `native-${role}`, profileRoleId: role, assignedRoleId: role,
+  const crewActor = () => ({ ...base, uidHash: roleUidHash(role), profileRoleId: role, assignedRoleId: role,
     activeConsoleRoleId: role, playerRole: 'player', ...actorDrift });
   function element() {
     return React.createElement(Panel, { key, view: renderedView, busy,
@@ -152,7 +154,7 @@ function nativeFixture({ view = currentView(), afterSelections, sourceDrift, act
   const current = { type: 'wolf-attack-state', attackId: 'native-original-attack', turn: 1, revision: 19,
     status: 'declared', currentStep: view.currentStep, airspaceLocked: true };
   const context = { gm, crew, roster: ['wing-commander', 'executive-officer'].map(roleId =>
-    ({ roleId, uidHash: `native-${roleId}` })), directory: '/native-no-files', initial: { sessionId: 'native-session' },
+    ({ roleId, uidHash: roleUidHash(roleId) })), directory: '/native-no-files', initial: { sessionId: 'native-session' },
     started: { uidHash: gmActor.uidHash, instanceId: gmActor.instanceId } };
   const adapter = { select: async roleId => { role = roleId; return roleId === 'gm' ? gm : crew; },
     read: async (actor, path) => { reads.push({ actor, path }); return { ...current, ...sourceDrift }; } };
@@ -171,6 +173,9 @@ function nativeFixture({ view = currentView(), afterSelections, sourceDrift, act
       } };
       else if (specifier === './pc10-live-wolf-attack-ui-proof.mjs') exports = {
         resolveLiveWolfAttack: async (_context, options) => {
+          // The real Base callback reads its starting attack before entering
+          // the resolver. Preserve it separately from this role's decision.
+          bootstrapReads.push(...reads.splice(0));
           decisionDeadline = Date.now() + (expireWhileSaving ? 250 : 10_000);
           const waitChoice = async (_surface, _source, fields) => {
             calls.push({ kind: fields.kind, role });
@@ -189,7 +194,7 @@ function nativeFixture({ view = currentView(), afterSelections, sourceDrift, act
     await module.evaluate();
     return module.namespace.runBaseCombatAndDeduction(context, { combat: 'current', deduction: false, requiredBranches: [] });
   }
-  return { run, root, effects, selected, certificates, calls, clicks, reads, assigned,
+  return { run, root, effects, selected, certificates, calls, clicks, reads, bootstrapReads, assigned,
     report: () => report, certificateReads: () => certificateReads, deadline: () => decisionDeadline };
 }
 
