@@ -61,7 +61,6 @@ const RESULT_FIELDS = Object.freeze({
 const RENDERED_STATUS_CODES = new Set([
   'public-result-visible', 'private-result-visible', 'current-group-note-visible',
   'mission-choice-visible', 'post-attack-scrap-visible',
-  'scout-request-recorded-visible',
 ]);
 const PRIVATE_CHOICE_FIELDS = new Set([
   'targetCoordinate', 'trackId', 'missionOpportunityId', 'taskOpportunityId',
@@ -248,7 +247,9 @@ export function projectSpecialistActionEvidence({
   const sourceProjection = isRecord(projection) ? {
     ...(isRecord(projection.gm) ? { gm: allowlisted(projection.gm, ['source', 'cycle', 'revision', 'status']) } : {}),
     ...(isRecord(projection.crew) ? { crew: allowlisted(projection.crew, ['source', 'cycle', 'revision', 'status']) } : {}),
-    ...(RENDERED_STATUS_CODES.has(projection.renderedStatus) ? { renderedStatus: projection.renderedStatus } : {}),
+    ...(RENDERED_STATUS_CODES.has(projection.renderedStatus) || endpoint === 'requestScout' &&
+      isScoutRecord(projection.scoutRequest) && projection.renderedStatus === 'scout-request-recorded-visible'
+      ? { renderedStatus: projection.renderedStatus } : {}),
     ...(projection.privateActorStatus === 'private-result-visible'
       ? { privateActorStatus: 'private-result-visible' } : {}),
     ...(endpoint === 'requestScout' && isScoutRecord(projection.scoutRequest)
