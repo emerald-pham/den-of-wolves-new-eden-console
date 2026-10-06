@@ -330,7 +330,9 @@ async function originalExpiredTable() {
   put(`gmAccess/${gmUid}`, { authenticatedAt: mock.Timestamp.now() });
   put(`sessions/${sid}/gmInstances/${instanceId}`, { uid: gmUid, sessionId: sid, connected: true,
     lastSeenAt: mock.Timestamp.now(), claimedAt: mock.Timestamp.now(), name: 'Native facilitator', deviceLabel: 'Native' });
-  // The real producer materializes canonical setup, fleet and discovery state.
+  // The real resume producer materializes canonical setup, fleet and discovery
+  // from all currently connected original members; presence only renews claims.
+  await resumeSession.run(request(gmUid, { sessionId: sid }));
   await refreshPresence.run(request(actorUid(0), { sessionId: sid, activeConsoleRoleId: roles[0] }));
   await refreshPresence.run(request(pressUid, { sessionId: sid, activeConsoleRoleId: 'press-officer' }));
   const scopes = new Map<string, unknown>();
