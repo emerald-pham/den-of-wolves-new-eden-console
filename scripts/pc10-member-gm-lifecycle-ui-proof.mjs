@@ -158,6 +158,7 @@ export function publicLifecycleReceipt(capture) {
 export async function captureLifecycleUiAction(surface, endpoint, choose, options = {}) {
   const before = await observeLifecycleActor(surface);
   assertOriginalActor(before, before, { gm: options.gm ?? before.gmInstanceOwned });
+  if (options.original) assertObserverOperationActor(options.original, before);
   let requestData;
   const response = await observeUiReceipt({
     waitForResponse: () => surface.page.waitForResponse(response => {
@@ -165,16 +166,21 @@ export async function captureLifecycleUiAction(surface, endpoint, choose, option
       const data = response.request().postDataJSON()?.data;
       if (options.matches && !options.matches(data)) return false;
       requestData = data; return true;
-    }, { timeout: options.timeout ?? 60_000 }),
+    }, { timeout: options.deadlineAt === undefined ? options.timeout ?? 60_000 :
+      remainingLifecycleOperation(options.deadlineAt, options.timeout ?? 60_000) }),
     choose: async () => {
       const current = await observeLifecycleActor(surface, before.sessionId);
-      assertLateReplyAuthority(before, current); await choose();
+      assertLateReplyAuthority(before, current);
+      if (options.original) assertObserverOperationActor(options.original, current);
+      if (options.deadlineAt !== undefined) remainingLifecycleOperation(options.deadlineAt);
+      await choose();
     },
   });
   assertCapturedUiRequest(endpoint, requestData, before);
   const body = await response.json();
   assert.ok(response.status() < 400 && !body.error && Object.hasOwn(body, 'result'), `${endpoint}: actual UI request rejected.`);
   assert.ok(!['queued', 'stale', 'denied'].includes(body.result?.status), `${endpoint}: no committed result.`);
+  if (options.original) assertObserverOperationActor(options.original, await observeLifecycleActor(surface, before.sessionId));
   const capture = { endpoint, data: requestData, result: body.result, before, httpStatus: response.status() };
   observedUiCaptures.add(capture); return capture;
 }
@@ -211,13 +217,82 @@ export async function closeLifecycleSettings(dialog) {
 }
 
 async function offered(locator) { return await locator.count() === 1 && await locator.isVisible() && await locator.isEnabled(); }
-export async function recordLifecycleAffordance(locator) {
+async function immediateLifecycleAffordance(locator) {
   if (await locator.count() !== 1) return { offered: false, reason: 'Exact mounted control absent or ambiguous.' };
   return { offered: await locator.isVisible() && await locator.isEnabled(),
     text: await locator.innerText(), title: await locator.getAttribute('title'),
     describedBy: await locator.getAttribute('aria-describedby'),
     blockerText: await locator.evaluate(element => (element.getAttribute('aria-describedby') ?? '').split(/\s+/)
       .filter(Boolean).map(id => document.getElementById(id)?.textContent ?? '').join(' ').trim()) };
+}
+
+function assertObserverOperationActor(original, current) {
+  assertOriginalActor(original, current, { gm: true });
+  assert.equal(current.phase, original.phase, 'Observer operation must retain its original phase.');
+  assert.equal(current.cycle, original.cycle, 'Observer operation must retain its original cycle.');
+}
+
+function remainingLifecycleOperation(deadlineAt, maximum = 60_000) {
+  const remaining = Math.min(maximum, deadlineAt - Date.now());
+  assert.ok(Number.isFinite(remaining) && remaining > 0, 'The original observer operation deadline is exhausted.');
+  return remaining;
+}
+
+async function inspectLifecycleObserverMount(surface) {
+  return surface.page.evaluate(() => {
+    const mains = Array.from(document.querySelectorAll('main.ship-console[data-observer-mode]'));
+    const main = mains.length === 1 ? mains[0] : null;
+    const roles = main ? Array.from(main.querySelectorAll('select[aria-label="View ship console role"]')) : [];
+    const role = roles.length === 1 ? roles[0] : null;
+    return { routePath: window.location.hash.slice(1).split('?')[0], observerMainCount: mains.length,
+      observerMode: main?.getAttribute('data-observer-mode') ?? null,
+      shipId: main?.querySelector('[data-shared-flag]')?.getAttribute('data-shared-flag') ?? null,
+      roleControlCount: roles.length, selectedRoleId: role?.value || null,
+      selectedRoleValid: Boolean(role?.value && Array.from(role.options).filter(option =>
+        option.value === role.value && option.selected && !option.disabled).length === 1),
+      loading: Array.from(document.querySelectorAll('[role="status"]')).some(element =>
+        element.textContent?.trim() === 'Opening ship console…'),
+      failed: Array.from(document.querySelectorAll('[role="alert"]')).some(element =>
+        element.textContent?.trim() === 'Could not open ship console. Reload the console to try again.') };
+  });
+}
+
+/** Wait only for this source observer's lazy mount, never retry a UI action. */
+export async function recordLifecycleAffordance(locator, observer) {
+  if (!observer) return immediateLifecycleAffordance(locator);
+  const { original, shipId, deadlineAt, inspectActor, inspectMount, now = Date.now, wait = delay } = observer;
+  assert.ok(Number.isFinite(deadlineAt), 'Use the original absolute observer operation deadline.');
+  assert.match(shipId, /^[a-z0-9][a-z0-9-]*$/);
+  let mount = null, controlCount = null, mountStatus = 'not-observed-before-deadline';
+  const blocked = () => ({ offered: false, reason: 'Expected observer mount did not become available within the original operation deadline.',
+    mountStatus, mount, controlCount, deadlineReached: true });
+  while (now() < deadlineAt) {
+    assertObserverOperationActor(original, await inspectActor());
+    const observed = await inspectMount();
+    mount = Object.fromEntries(['routePath', 'observerMainCount', 'observerMode', 'shipId',
+      'roleControlCount', 'selectedRoleId', 'selectedRoleValid', 'loading', 'failed']
+      .map(key => [key, observed[key]]));
+    controlCount = await locator.count();
+    const affordance = await immediateLifecycleAffordance(locator);
+    assertObserverOperationActor(original, await inspectActor());
+    if (mount.failed) mountStatus = 'route-load-failed';
+    else if (mount.routePath !== `/ships/${shipId}/observer` || mount.observerMainCount !== 1 ||
+        mount.shipId !== shipId || !['read', 'write'].includes(mount.observerMode)) {
+      mountStatus = mount.loading ? 'still-mounting' : 'expected-observer-absent';
+    } else if (mount.roleControlCount !== 1 || !mount.selectedRoleId || !mount.selectedRoleValid) {
+      mountStatus = 'observer-role-pending';
+    } else {
+      mountStatus = controlCount === 0 ? 'mounted-control-absent' : controlCount !== 1 ? 'mounted-control-ambiguous' :
+        affordance.offered ? 'mounted-offered' : 'mounted-control-unavailable';
+    }
+    if (now() >= deadlineAt) return blocked();
+    if (mountStatus === 'route-load-failed' || mountStatus.startsWith('mounted-')) {
+      return { ...affordance, offered: mountStatus === 'mounted-offered', mountStatus, mount, controlCount,
+        deadlineReached: false, ...(mountStatus === 'route-load-failed' ? { reason: 'The source observer route failed to load.' } : {}) };
+    }
+    await wait(Math.min(200, deadlineAt - now()));
+  }
+  return blocked();
 }
 async function originalMemberJoin(surface, before, joinCode) {
   const input = surface.page.getByRole('textbox', { name: 'Session code', exact: true });
@@ -486,12 +561,23 @@ export function createMemberGmLifecycleUiProof(options = {}) {
         try {
         const url = new URL(context.gm.page.url()); url.hash = '/console'; await context.gm.page.goto(url.href);
         await context.gm.page.locator(`a[href$="/ships/${options.shipId}/roles"]`).click();
-        await context.gm.page.getByRole('link', { name: 'View ship consoles', exact: true }).click();
+        // The view click, lazy mount and first actual grant receipt share the
+        // existing operation budget; mounting never opens another sixty seconds.
+        const deadlineAt = Date.now() + 60_000;
+        await context.gm.page.getByRole('link', { name: 'View ship consoles', exact: true }).click({
+          timeout: remainingLifecycleOperation(deadlineAt),
+        });
         const toggle = context.gm.page.getByRole('button', { name: 'GM ship console read write access', exact: true });
-        const affordance = await recordLifecycleAffordance(toggle);
-        if (!affordance.offered) return blocked('gm-ship-grant-lock', 'Reconnect the same original live GM to use the ship-scoped grant.', affordance);
-        await toggle.click(); const confirm = context.gm.page.getByRole('alertdialog', { name: 'Are you sure?', exact: true });
-        const grant = await captureLifecycleUiAction(context.gm, 'setGmShipConsoleWriteGrant', () => confirm.getByRole('button', { name: 'ARE YOU SURE?', exact: true }).click());
+        const affordance = await recordLifecycleAffordance(toggle, { original: before, shipId: options.shipId, deadlineAt,
+          inspectActor: () => observeLifecycleActor(context.gm, before.sessionId),
+          inspectMount: () => inspectLifecycleObserverMount(context.gm) });
+        if (!affordance.offered) return blocked('gm-ship-grant-lock', 'The original GM observer control is unavailable; retain the mounted or mounting blocker.', affordance);
+        assertObserverOperationActor(before, await observeLifecycleActor(context.gm, before.sessionId));
+        await toggle.click({ timeout: remainingLifecycleOperation(deadlineAt) });
+        const confirm = context.gm.page.getByRole('alertdialog', { name: 'Are you sure?', exact: true });
+        const grant = await captureLifecycleUiAction(context.gm, 'setGmShipConsoleWriteGrant', () => confirm
+          .getByRole('button', { name: 'ARE YOU SURE?', exact: true }).click({ timeout: remainingLifecycleOperation(deadlineAt) }),
+        { gm: true, original: before, deadlineAt });
         assert.equal(grant.result.enabled, true);
         const grantRepeat = await recoverLifecycleUiAction(context.gm, grant, { stateRepeat: true });
         const lock = context.gm.page.getByRole('region', { name: 'ICN console lock', exact: true });
