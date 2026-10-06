@@ -101,7 +101,8 @@ async function runSerializedCallback(callbackText, actorSource, { crypto = webcr
 
 function exactTuple(actor, origin = timeOrigin) {
   const digest = uidHash(actor.uid);
-  return { sessionId, meSessionId: sessionId, sameActor: true, authUidHash: digest,
+  return { hasAuth: true, sameActor: true, uidHash: digest, sessionId, meSessionId: sessionId,
+    authUidHash: digest,
     memberUidHash: digest, memberDocumentIdHash: digest,
     profileRoleId: actor.profile.roleId, profileSessionId: actor.profile.sessionId,
     playerRole: actor.me.role, assignedRoleId: actor.me.assignedRoleId,
@@ -109,6 +110,7 @@ function exactTuple(actor, origin = timeOrigin) {
     connectionGeneration: actor.me.connectionGeneration,
     identityHydrationRevision: actor.identityHydrationRevision,
     connected: actor.me.connected, escapeLocked: actor.me.escapeState != null,
+    connection: 'live', freshness: 'server',
     documentTimeOrigin: origin };
 }
 
