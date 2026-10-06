@@ -389,6 +389,10 @@ function AppRoutes() {
       return;
     }
     if (!sessionId || !playerUid) return;
+    // A restored member stays a read-only cache until normal join/resume
+    // accepts this document's identity. Earlier actor/feed readers can publish
+    // pre-resume authority after that identity has been accepted.
+    if (playerRole === 'player' && !(identityHydrationRevision > 0)) return;
     let active = true;
     const identity = `${sessionId}:${playerUid}`;
     if (
