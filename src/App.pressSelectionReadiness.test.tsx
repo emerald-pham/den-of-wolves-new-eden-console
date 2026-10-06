@@ -340,7 +340,7 @@ async function publicPressSelection(onRich?: (index: number) => Promise<void>) {
   const catalog = createContext({});
   new Script(javascript(`const ROLE_IDS = ${ids.initializer!.getText(roles)}; ${sourceFunction(access, 'shipForRole')}`)).runInContext(catalog);
   const shipForRole = new Script('shipForRole;').runInContext(catalog) as (role: string) => string | undefined;
-  const factory = createContext({ assert, createHash, Date, delay: sourceDelay,
+  const factory = createContext({ assert, createHash, Date, URL, delay: sourceDelay,
     normalMemberRoleRequiresBerth: (role: string) => shipForRole(role) !== undefined });
   new Script(javascript(sourceFunction(source, 'createTwoBrowserGameplay'))).runInContext(factory);
   const create = new Script('createTwoBrowserGameplay;').runInContext(factory) as
