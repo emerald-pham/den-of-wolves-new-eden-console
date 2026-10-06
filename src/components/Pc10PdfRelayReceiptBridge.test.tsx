@@ -51,6 +51,19 @@ const genericCallback = new Script(`(${(returned.expression as ts.CallExpression
   .runInNewContext();
 const capyFile = sourceFile('scripts/pc10-capybara-full-gameplay.mjs');
 const capyDeclarations = declarations(capyFile, ['attemptSpecialist', 'runSpecialist', 'inspectRenderedAction']);
+const plannedRelayMessages: string[] = [];
+function findPlannedRelays(node: ts.Node): void {
+  if (ts.isCallExpression(node) && node.expression.getText(capyFile) === 'runSpecialist' &&
+      node.arguments[0]?.getText(capyFile) === "'pdf-group-relay'") {
+    const inputs = node.arguments[2] as ts.ObjectLiteralExpression;
+    const message = inputs.properties.find(property => ts.isPropertyAssignment(property) &&
+      property.name.getText(capyFile) === 'message') as ts.PropertyAssignment;
+    expect(ts.isStringLiteral(message.initializer)).toBe(true);
+    plannedRelayMessages.push((message.initializer as ts.StringLiteral).text);
+  }
+  ts.forEachChild(node, findPlannedRelays);
+}
+findPlannedRelays(capyFile); expect(plannedRelayMessages).toHaveLength(2);
 
 // Execute the actual Functions request parser, reply predicate, message and
 // receipt expressions. This is DTO/render evidence, not a server transaction or
@@ -255,9 +268,10 @@ function fixture({ replyChange, noteChange, afterSend, beforeSecondSelect, durin
       updateCapybaraStage: () => { throw new Error('No native stage-file write or injected credit.'); } });
   const mount = async () => { render(<PdfNewsRelayPanel enabled />);
     await act(async () => { await vi.waitFor(() => expect(calls).toHaveLength(1)); }); };
-  const run = async () => { await mount(); return runSpecialist('pdf-group-relay', 'pdf-group-relay',
-    { roleId, message: privateText }, { roleId, record: false }); };
-  return { run, mount, game, driver, calls, replays, backend, reply: () => issuedReply!, saved: () => saved,
+  const runAgain = async (message: string) => runSpecialist('pdf-group-relay', 'pdf-group-relay',
+    { roleId, message }, { roleId, record: false });
+  const run = async (message = privateText) => { await mount(); return runAgain(message); };
+  return { run, runAgain, mount, game, driver, calls, replays, backend, reply: () => issuedReply!, saved: () => saved,
     counts: () => ({ selects, fills, clicks, observers }), samples: () => ({ stateCalls, domScans }),
     changeAuth: () => { authUid = 'foreign-native'; },
     replaceDocument: () => { timeOrigin += 1000; } };
@@ -423,4 +437,30 @@ it.each([
   const f = fixture(); const outcome = await f.run();
   const evidence = plain(outcome.evidence); mutate(evidence);
   expect(capybaraStageOutcome({ ...outcome, roleId, evidence }).status).toBe('pending');
+});
+
+it('qualifies both actual planned cycle relay texts as separate ordinary requests with one own witness and one write each', async () => {
+  const f = fixture();
+  const first = await f.run(plannedRelayMessages[0]!);
+  expect(capybaraStageOutcome({ ...first, roleId })).toMatchObject({ status: 'completed', cycle: 1 });
+  await act(async () => { useSessionStore.getState().setSession({ ...useSessionStore.getState().session!, currentTurn: 2 }); });
+  const second = await f.runAgain(plannedRelayMessages[1]!);
+  expect(capybaraStageOutcome({ ...second, roleId })).toMatchObject({ status: 'completed', cycle: 2 });
+  expect(f.backend.notes()).toHaveLength(2); expect(f.backend.noteWrites()).toBe(2);
+  const posts = f.calls.filter(call => call.name === 'sendFleetGroupMessage').map(call => call.payload);
+  expect(posts.map(post => post.text)).toEqual(plannedRelayMessages);
+  expect(posts[0]!.requestId).not.toBe(posts[1]!.requestId); expect(f.replays).toEqual(posts);
+  expect(f.counts()).toEqual({ selects: 4, fills: 2, clicks: 2, observers: 2 });
+  expect(f.samples()).toEqual({ stateCalls: 6, domScans: 4 });
+  expect(f.calls.filter(call => call.name === 'readFleetGroupMessages')).toHaveLength(3);
+});
+
+it('keeps two genuine different commands with duplicate own text uncredited even when both exact replays write once', async () => {
+  const f = fixture(); const first = await f.run();
+  expect(capybaraStageOutcome({ ...first, roleId }).status).toBe('completed');
+  await act(async () => { useSessionStore.getState().setSession({ ...useSessionStore.getState().session!, currentTurn: 2 }); });
+  await expect(f.runAgain(privateText)).rejects.toThrow(/converge/);
+  expect(f.backend.notes()).toHaveLength(2); expect(f.backend.noteWrites()).toBe(2);
+  const posts = f.calls.filter(call => call.name === 'sendFleetGroupMessage').map(call => call.payload);
+  expect(posts[0]!.requestId).not.toBe(posts[1]!.requestId); expect(f.replays).toEqual(posts);
 });
