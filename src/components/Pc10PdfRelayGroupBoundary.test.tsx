@@ -347,3 +347,44 @@ it('qualifies the real member-private group relay through both existing DOM read
   expect(JSON.stringify(outcome.evidence)).not.toContain(privateText);
   expect(JSON.stringify(outcome.evidence)).not.toContain('shipFleetGroupIds');
 });
+
+it.each([
+  ['different GM host group', (f: ReturnType<typeof fixture>) => { f.gmSnapshot.session.shipFleetGroupIds = { 'refinery-124': 'fleet-2' }; }],
+  ['absent GM host map', (f: ReturnType<typeof fixture>) => { Reflect.deleteProperty(f.gmSnapshot.session, 'shipFleetGroupIds'); }],
+  ['different member scope group', () => { useSessionStore.setState(state => ({ session: { ...state.session!,
+    memberSessionScope: { ...state.session!.memberSessionScope!, groupId: 'fleet-2' } } })); }],
+  ['absent member scope', () => { useSessionStore.setState(state => { const session = { ...state.session! };
+    Reflect.deleteProperty(session, 'memberSessionScope'); return { session }; }); }],
+  ['missing entitled original host', () => { useSessionStore.setState(state => ({ session: { ...state.session!,
+    memberSessionScope: { ...state.session!.memberSessionScope!, vesselIds: [] } } })); }],
+  ['withdrawn current member witness', () => { useSessionStore.setState(state => ({ session: { ...state.session!,
+    currentActorBerthAuthority: null } })); }],
+  ['foreign current member witness', () => { useSessionStore.setState(state => ({ session: { ...state.session!,
+    currentActorBerthAuthority: { ...state.session!.currentActorBerthAuthority!, actorUid: 'foreign-native' } } })); }],
+  ['changed current witness generation', () => { useSessionStore.setState(state => ({ session: { ...state.session!,
+    currentActorBerthAuthority: { ...state.session!.currentActorBerthAuthority!, connectionGeneration: 4 } } })); }],
+  ['withdrawn own player', () => { useSessionStore.setState(state => ({ me: { ...state.me!, connected: false } })); }],
+  ['cache member view', () => { useSessionStore.getState().setSessionSnapshotFreshness('cache'); }],
+] as const)('does not credit private member relay after %s', async (_label, change) => {
+  let f: ReturnType<typeof fixture>;
+  f = fixture({ afterSend: () => { change(f); } });
+  await expect(f.run()).rejects.toThrow();
+  expect(f.counts()).toEqual({ selects: 2, fills: 1, clicks: 1, observers: 1 });
+  expect(f.backend.noteWrites()).toBe(1);
+  expect(JSON.stringify(f.saved() ?? null)).not.toContain(uid);
+  expect(JSON.stringify(f.saved() ?? null)).not.toContain(privateText);
+});
+
+it.each([
+  ['foreign author', (notes: Row[]) => { notes[0]!.actorUid = 'another-member'; }],
+  ['genuinely duplicate own text', (notes: Row[]) => { notes.push({ ...notes[0], id: 'other-actual-command' }); }],
+] as const)('keeps %s uncredited through the real current-group read/parser', async (_label, noteChange) => {
+  const f = fixture({ noteChange }); await expect(f.run()).rejects.toThrow(/converge/);
+  expect(f.backend.noteWrites()).toBe(1); expect(f.replays).toHaveLength(1);
+});
+
+it('keeps full exact original SDK replay equality for a genuine private member audience', async () => {
+  const f = fixture({ replayChange: result => { result.messageId = 'foreign-replay-note'; } });
+  await expect(f.run()).rejects.toThrow(/exact same-actor replay/);
+  expect(f.backend.noteWrites()).toBe(1);
+});
