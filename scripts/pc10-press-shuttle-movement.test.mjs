@@ -586,3 +586,126 @@ function pressArrivalInput(retargetWitness) {
         responseObservedAt: '2026-10-06T10:01:30.000Z' },
       before, beforeProjection: { ...baseProjection, dockingCount: 0 }, afterProjection } };
 }
+
+function pressMovementInputForOrigin(endpoint, origin, options) {
+  const input = movementInput(endpoint, options);
+  input.expected = { ...input.expected, sourceAuthority: origin.sourceAuthority,
+    pressOriginAuthority: origin };
+  input.pressOriginAuthority = origin;
+  input.pressSourceAuthorityBefore = origin.sourceAuthority;
+  input.pressSourceAuthorityAfter = origin.sourceAuthority;
+  return input;
+}
+
+function acceptedPressRetargetChain(origin, { requestedAt, beginDepartedAt, retargetDepartedAt }) {
+  const requestInput = pressMovementInputForOrigin('requestShuttleDeparture', origin);
+  requestInput.response.result.requestedAt = requestedAt;
+  const request = evaluateProcedureCapture(requestInput);
+  assert.equal(request.status, 'completed', request.reason);
+
+  const beginInput = pressMovementInputForOrigin('beginShuttleTransit', origin, {
+    priorDeparture: request.pressShuttleDepartureWitness,
+  });
+  Object.assign(beginInput.response.result, {
+    requestedAt, departedAt: beginDepartedAt,
+    arrivesAt: new Date(Date.parse(beginDepartedAt) + 60_000).toISOString(),
+  });
+  const begin = evaluateProcedureCapture(beginInput);
+  assert.equal(begin.status, 'completed', begin.reason);
+
+  const retargetInput = pressMovementInputForOrigin('retargetShuttleTransit', origin, {
+    priorTransit: begin.pressShuttleTransitWitness,
+  });
+  Object.assign(retargetInput.response.result, {
+    requestedAt, departedAt: retargetDepartedAt,
+    arrivesAt: new Date(Date.parse(retargetDepartedAt) + 60_000).toISOString(),
+  });
+  const retarget = evaluateProcedureCapture(retargetInput);
+  assert.equal(retarget.status, 'completed', retarget.reason);
+  return {
+    departureWitness: request.pressShuttleDepartureWitness,
+    transitWitness: begin.pressShuttleTransitWitness,
+    retargetWitness: retarget.pressShuttleArrivalWitness,
+  };
+}
+
+async function publicPressArrivalPlan({ captureMode, arrivalOffsetMs }) {
+  const state = memberStore({ session: { shuttleDockings: [] } });
+  const authorityState = await readActionState(serializedSurface(state), PRESS_SHUTTLE_ID);
+  const origin = { ...ORIGIN, sourceAuthority: authorityState.pressDocumentAuthority };
+  const now = Date.now();
+  const retargetArrivesAt = now + arrivalOffsetMs;
+  const retargetDepartedAt = retargetArrivesAt - 60_000;
+  const beginDepartedAt = retargetDepartedAt - 10_000;
+  const requestedAt = beginDepartedAt - 10_000;
+  const chain = acceptedPressRetargetChain(origin, {
+    requestedAt: new Date(requestedAt).toISOString(),
+    beginDepartedAt: new Date(beginDepartedAt).toISOString(),
+    retargetDepartedAt: new Date(retargetDepartedAt).toISOString(),
+  });
+  const movement = {
+    status: 'in-transit', requestId: chain.departureWitness.departureRequestId,
+    shuttleId: PRESS_SHUTTLE_ID, holderUidHash: origin.uidHash, groupId: origin.groupId,
+    destinationShipId: chain.retargetWitness.destinationShipId,
+    controlRevision: origin.controlRevision, cycle: origin.cycle,
+    transitRequestId: chain.retargetWitness.transitRequestId,
+    revision: chain.retargetWitness.transitRevision,
+    requestedAt: chain.retargetWitness.requestedAt,
+    departedAt: chain.retargetWitness.departedAt, arrivesAt: chain.retargetWitness.arrivesAt,
+  };
+  const harness = pressRecipeHarness({ state, origin, movement });
+  let completedClicks = 0;
+  const completeButton = browserLocator({ onClick: () => { completedClicks += 1; } });
+  const absentControl = { count: async () => 0 };
+  const panel = {
+    getByLabel: () => browserLocator(),
+    getByRole: (_role, options = {}) => options.name === 'Retry arrival' ? absentControl
+      : options.name === 'Complete arrival'
+        ? captureMode === 'automatic-source-effect' ? absentControl : completeButton
+        : browserLocator(),
+  };
+  harness.surface.page.getByRole = () => panel;
+  const context = { ...harness.context, ...chain,
+    pressShuttleArrivalCaptureMode: captureMode,
+  };
+  const recipe = await createPendingProcedureDefaultSteps()['core:completeShuttleArrival']({
+    ...harness, context,
+  });
+  const plan = await recipe.prepare({ surface: harness.surface, actor: pressActor(),
+    source: { cycle: 3, phase: 'active' } });
+  return { plan, chain, movement, completedClicks: () => completedClicks };
+}
+
+test('public default Press manual arrival accepts the distinct source retarget tuple', async () => {
+  const { plan, chain, movement, completedClicks } = await publicPressArrivalPlan({
+    captureMode: 'manual-control', arrivalOffsetMs: -30_000,
+  });
+  assert.equal(chain.retargetWitness.destinationShipId, 'dione');
+  assert.notEqual(chain.retargetWitness.destinationShipId, chain.transitWitness.destinationShipId);
+  assert.equal(chain.retargetWitness.transitRevision, chain.transitWitness.transitRevision + 1);
+  assert.equal(chain.retargetWitness.requestedAt, chain.transitWitness.requestedAt);
+  assert.ok(Date.parse(chain.retargetWitness.departedAt) >= Date.parse(chain.transitWitness.departedAt));
+  assert.ok(Date.parse(chain.retargetWitness.departedAt) < Date.parse(chain.transitWitness.arrivesAt));
+  assert.equal(Date.parse(chain.retargetWitness.arrivesAt) - Date.parse(chain.retargetWitness.departedAt), 60_000);
+  assert.equal(movement.destinationShipId, chain.retargetWitness.destinationShipId);
+  assert.equal(plan.offered, true, plan.reason);
+  assert.equal(plan.arrival.readyControl.label, 'Complete arrival');
+  await plan.click();
+  assert.equal(completedClicks(), 1);
+});
+
+test('public default Press automatic arrival accepts the distinct source retarget tuple', async () => {
+  const { plan, chain, movement } = await publicPressArrivalPlan({
+    captureMode: 'automatic-source-effect', arrivalOffsetMs: 30_000,
+  });
+  assert.notEqual(chain.retargetWitness.destinationShipId, chain.transitWitness.destinationShipId);
+  assert.equal(chain.retargetWitness.transitRevision, chain.transitWitness.transitRevision + 1);
+  assert.equal(chain.retargetWitness.requestedAt, chain.transitWitness.requestedAt);
+  assert.ok(Date.parse(chain.retargetWitness.departedAt) < Date.parse(chain.transitWitness.arrivesAt));
+  assert.equal(movement.transitRequestId, chain.retargetWitness.transitRequestId);
+  assert.equal(plan.offered, true, plan.reason);
+  assert.equal(plan.arrival.captureMode, 'automatic-source-effect');
+  await plan.observe();
+  assert.ok(plan.arrival.automaticObservation.remainingMs > 0);
+  assert.ok(plan.arrival.automaticObservation.remainingMs <= 35_000);
+});
