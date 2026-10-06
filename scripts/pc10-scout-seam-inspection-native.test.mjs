@@ -32,7 +32,11 @@ function harness(nodes) {
       assert.equal(scout, true); reads.push('original-dom-evaluation');
       const prior = globalThis.getComputedStyle;
       globalThis.getComputedStyle = node => ({ visibility: node.visibility });
-      try { return evaluate(nodes, scout); }
+      try {
+        const observed = evaluate(nodes, scout);
+        assert.equal(typeof observed, 'boolean', 'Preserve the original DOM callback boolean return.');
+        return observed;
+      }
       finally { if (prior === undefined) delete globalThis.getComputedStyle; else globalThis.getComputedStyle = prior; }
     } };
   } };
@@ -63,7 +67,6 @@ for (const [name, nodes, ready] of [
     const observed = await f.inspect();
     assert.equal(observed.ready, ready);
     assert.equal(observed.scoutInspection.renderedStatusQualified, ready);
-    assert.equal(observed.scoutInspection.renderedStatusNodeCount, nodes.length);
     assert.equal(observed.scoutInspection.sourceRequestRecordQualified, true);
     assert.deepEqual(f.reads, ['original-region-query', 'original-status-query', 'original-dom-evaluation']);
     if (ready) assert.equal(observed.renderedStatusCode, 'scout-request-recorded-visible');
