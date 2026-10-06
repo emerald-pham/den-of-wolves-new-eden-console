@@ -196,6 +196,15 @@ test('the original deadline also fences an already expired ordinary document nav
   assert.equal(f.calls.length, 0); assert.equal(f.sdkCalls, 0);
 });
 
+test('a legitimate different current primary permits original-account reading without acquiring that console', async () => {
+  const f = fixture({ route: '#/console', memberChange: { assignedRoleId: 'wing-commander',
+    activeConsoleRoleId: 'wing-commander', seatId: 'wing-commander' } });
+  f.store.session.phase = 'casting';
+  await f.run({ enter: false });
+  assert.equal(f.calls.length, 0); assert.equal(f.sdkCalls, 0);
+  assert.ok(f.callbacks.some(value => value.assignedRoleId === 'wing-commander'));
+});
+
 test('selection accepts current initial resume generation but a held combat operation still rejects subsequent generation drift', async () => {
   const f = fixture(); await f.run();
   const original = await observeWolfChoiceActor(f.crew);
