@@ -372,6 +372,67 @@ service cloud.firestore {
         && session.shuttleControl[shuttleId].revision <= 9007199254740991;
     }
 
+    // Press has a current SNN craft audience but intentionally has no capital
+    // berth map. Keep its absent-route listener bound to that server-owned
+    // holder, current group and matching private discovery projection.
+    function isCurrentPressShuttleAbsenceHolder(sessionId, shuttleId) {
+      let player = get(
+        /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
+      ).data;
+      let session = get(/databases/$(database)/documents/sessions/$(sessionId)).data;
+      let groupPath = /databases/$(database)/documents/sessions/$(sessionId)/fleetGroups/$(player.fleetGroupId);
+      let discoveryPath = /databases/$(database)/documents/sessions/$(sessionId)/playerDiscoveries/$(uid());
+      let group = get(groupPath).data;
+      let discovery = get(discoveryPath).data;
+      let control = session.shuttleControl is map
+        && 'snn-press-shuttle' in session.shuttleControl
+        ? session.shuttleControl['snn-press-shuttle'] : null;
+      return shuttleId == 'snn-press-shuttle'
+        && isMember(sessionId)
+        && player.role == 'player'
+        && playerHasCurrentRoleAuthority(player)
+        && 'replacementStatus' in player
+        && player.replacementStatus == null
+        && (!('kickedAt' in player) || player.kickedAt == null)
+        && (!('escapeState' in player) || player.escapeState == null)
+        && player.activeConsoleRoleId == 'press-officer'
+        && (!('assignedRoleId' in player) || player.assignedRoleId == null)
+        && player.fleetGroupId is string
+        && group.id == player.fleetGroupId
+        && group.memberUids is list
+        && uid() in group.memberUids
+        && isCurrentFleetGroupHistoryReader(sessionId, player.fleetGroupId)
+        && group.vesselIds is list
+        && group.vesselIds.size() > 0
+        && exists(discoveryPath)
+        && discovery.groupId == player.fleetGroupId
+        && discovery.revision is int
+        && discovery.revision >= 0
+        && discovery.revision <= 9007199254740991
+        && discovery.fleetGroupVesselIds is list
+        && discovery.fleetGroupVesselIds.size() == group.vesselIds.size()
+        && group.vesselIds.hasAll(discovery.fleetGroupVesselIds)
+        && discovery.fleetGroupVesselIds.hasAll(group.vesselIds)
+        && session.phase == 'active'
+        && session.pressEnabled == true
+        && session.pressHolderUid == uid()
+        && control is map
+        && control.keys().hasAll([
+          'shuttleId', 'ownerRoleId', 'ownerUid', 'holderUid', 'revision'
+        ])
+        && control.keys().hasOnly([
+          'shuttleId', 'ownerRoleId', 'ownerUid', 'holderUid', 'revision'
+        ])
+        && control.shuttleId == shuttleId
+        && control.ownerRoleId == 'press-officer'
+        && control.ownerUid is string
+        && control.ownerUid.size() > 0
+        && control.holderUid == uid()
+        && control.revision is int
+        && control.revision >= 0
+        && control.revision <= 9007199254740991;
+    }
+
     function isCurrentSameTableTradePlayer(sessionId) {
       let player = get(
         /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
@@ -779,6 +840,7 @@ service cloud.firestore {
       // absent exact route is visible only to its current active shuttle holder.
       match /shuttleDepartures/{shuttleId} {
         allow get: if isGm(sessionId)
+          || (resource == null && isCurrentPressShuttleAbsenceHolder(sessionId, shuttleId))
           || (resource == null && isCurrentShuttleAbsenceHolder(sessionId, shuttleId))
           || (isMember(sessionId)
             && resource.data.status in ['requested', 'in-transit']
