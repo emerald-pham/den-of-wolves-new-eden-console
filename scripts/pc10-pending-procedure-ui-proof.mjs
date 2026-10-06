@@ -214,6 +214,24 @@ export function resolveCurrentHolderActor({ shuttleId, control, roster, expected
   return Object.freeze({ roleId: matches[0].roleId, uidHash, shuttleId });
 }
 
+/** Resolve printed-owner transfer authority only from the source control and one admitted owner/holder pair. */
+export function resolveCurrentPrintedOwnerActor({ shuttleId, control, roster } = {}) {
+  if (typeof shuttleId !== 'string' || !shuttleId || control?.shuttleId !== shuttleId ||
+      typeof control?.ownerRoleId !== 'string' || !control.ownerRoleId ||
+      typeof control?.ownerUid !== 'string' || !control.ownerUid ||
+      typeof control?.holderUid !== 'string' || !control.holderUid ||
+      !Number.isSafeInteger(control.revision) || control.revision < 0 || !Array.isArray(roster)) return null;
+  const ownerUidHash = hashUid(control.ownerUid);
+  const holderUidHash = hashUid(control.holderUid);
+  const ownerMatches = roster.filter(actor => actor?.roleId === control.ownerRoleId &&
+    actor?.uidHash === ownerUidHash);
+  const holderMatches = roster.filter(actor => actor?.uidHash === holderUidHash &&
+    typeof actor?.roleId === 'string' && actor.roleId);
+  if (ownerMatches.length !== 1 || holderMatches.length !== 1) return null;
+  return Object.freeze({ roleId: ownerMatches[0].roleId, uidHash: ownerUidHash, shuttleId,
+    ownerUidHash, holderUidHash, controlRevision: control.revision });
+}
+
 function revisionOf(value) {
   for (const key of REVISION_FIELDS) if (Number.isSafeInteger(value?.[key]) && value[key] >= 0) return value[key];
   return null;
@@ -1503,6 +1521,7 @@ export async function captureMountedProcedureAction({ context, game, caseId, exp
   };
   let roleId = expected?.roleId ?? spec.actorRoleId;
   let resolvedHolder = null;
+  let resolvedPrintedOwner = null;
   const pressMovementCapture = spec.actorRoleId === 'current-shuttle-holder' &&
     expected?.pressOriginAuthority?.shuttleId === PRESS_SHUTTLE_ID &&
     expected?.pressOriginAuthority?.uidHash === expected?.uidHash;
@@ -1512,6 +1531,32 @@ export async function captureMountedProcedureAction({ context, game, caseId, exp
       return pending(spec, 'original-Press-holder-is-not-uniquely-admitted-in-the-existing-roster');
     }
     roleId = 'press-officer';
+  } else if (spec.endpoint === 'transferShuttleControlCommand' &&
+      spec.actorRoleId === 'current-shuttle-holder' && expected?.shuttleId !== PRESS_SHUTTLE_ID) {
+    const shuttleId = expected?.shuttleId;
+    if (!shuttleId) return pending(spec, 'source shuttle identity was not supplied');
+    const gmSurface = await game.select('gm');
+    const gmActor = await gmSurface.observe();
+    if (!gmActor.sameActor || gmActor.sessionId !== context.initial.sessionId ||
+        gmActor.connection !== 'live' || gmActor.freshness !== 'server' || gmActor.gmInstanceOwned !== true) {
+      return pending(spec, 'live-owned-GM-source-read-is-not-current');
+    }
+    const gmSource = await game.state(gmSurface);
+    if (!gmSource?.live || gmSource.sessionId !== context.initial.sessionId || gmSource.phase !== 'active' ||
+        expected?.cycle !== undefined && gmSource.cycle !== expected.cycle) {
+      return pending(spec, 'current-server-shuttle-custody-is-not-ready');
+    }
+    resolvedPrintedOwner = resolveCurrentPrintedOwnerActor({ shuttleId,
+      control: gmSource.shuttleControl?.[shuttleId], roster: context.roster });
+    if (!resolvedPrintedOwner || resolvedPrintedOwner.roleId !== expected?.roleId ||
+        resolvedPrintedOwner.uidHash !== expected?.uidHash ||
+        resolvedPrintedOwner.ownerUidHash !== expected?.controlOwnerUidHash ||
+        resolvedPrintedOwner.holderUidHash !== expected?.controlHolderUidHash ||
+        resolvedPrintedOwner.controlRevision !== expected?.controlRevision ||
+        expected?.sourceRevision !== resolvedPrintedOwner.controlRevision) {
+      return pending(spec, 'current printed owner, holder, or shuttle-control revision is not the captured admitted tuple');
+    }
+    roleId = resolvedPrintedOwner.roleId;
   } else if (spec.actorRoleId === 'current-shuttle-holder' || spec.actorRoleId === 'current-ally-holder') {
     const shuttleId = spec.actorRoleId === 'current-ally-holder' ? 'ally' : expected?.shuttleId;
     if (!shuttleId) return pending(spec, 'source shuttle identity was not supplied');
@@ -1558,6 +1603,17 @@ export async function captureMountedProcedureAction({ context, game, caseId, exp
       control: sourceBefore.shuttleControl?.[resolvedHolder.shuttleId], roster: context.roster, expectedRoleId: roleId });
     if (!currentHolder || currentHolder.uidHash !== resolvedHolder.uidHash) {
       return pending(spec, 'source-shuttle-holder-changed-before-action');
+    }
+  }
+  if (resolvedPrintedOwner) {
+    const currentOwner = resolveCurrentPrintedOwnerActor({ shuttleId: resolvedPrintedOwner.shuttleId,
+      control: sourceBefore.shuttleControl?.[resolvedPrintedOwner.shuttleId], roster: context.roster });
+    if (!currentOwner || currentOwner.roleId !== resolvedPrintedOwner.roleId ||
+        currentOwner.uidHash !== resolvedPrintedOwner.uidHash ||
+        currentOwner.ownerUidHash !== resolvedPrintedOwner.ownerUidHash ||
+        currentOwner.holderUidHash !== resolvedPrintedOwner.holderUidHash ||
+        currentOwner.controlRevision !== resolvedPrintedOwner.controlRevision) {
+      return pending(spec, 'source shuttle printed owner, holder, or control revision changed before the mounted action');
     }
   }
   const sourceRevision = spec.endpoint === 'setGmShipConsoleWriteGrant' ? undefined

@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { observeUiReceipt } from './pc10-browser-ui-receipt.mjs';
-import { CORE_CRAFT_PROCEDURES, GM_RULING_COUNTER_PROCEDURES } from './pc10-pending-procedure-ui-proof.mjs';
+import { CORE_CRAFT_PROCEDURES, GM_RULING_COUNTER_PROCEDURES,
+  resolveCurrentPrintedOwnerActor } from './pc10-pending-procedure-ui-proof.mjs';
 import { observeLifecycleActor, inspectLifecycleObserverMount, recordLifecycleAffordance } from './pc10-member-gm-lifecycle-ui-proof.mjs';
 import { assertOriginalActor, assertLateReplyAuthority } from './pc10-member-gm-lifecycle-contracts.mjs';
 
@@ -103,6 +104,27 @@ function validCurrentDocumentAuthority(value, { sessionId, uidHash, groupId, rol
 function sameCurrentDocumentAuthority(left, right) {
   return exactKeys(left, CURRENT_DOCUMENT_AUTHORITY_KEYS) && exactKeys(right, CURRENT_DOCUMENT_AUTHORITY_KEYS) &&
     CURRENT_DOCUMENT_AUTHORITY_KEYS.every(key => left[key] === right[key]);
+}
+
+function currentPrintedOwnerControlMatches(state, actor, expected) {
+  const control = state?.shuttleControl?.[expected?.shuttleId];
+  const groupId = currentMemberShuttleCommandGroupId(state, { sessionId: expected?.sessionId,
+    uidHash: expected?.uidHash, roleId: expected?.roleId, shuttleId: expected?.shuttleId });
+  return expected?.shuttleId !== PRESS_SHUTTLE_ID && liveState(state, expected?.sessionId) &&
+    state.phase === 'active' && state.cycle === expected.cycle &&
+    actor?.sameActor === true && actor.sessionId === expected.sessionId && actor.uidHash === expected.uidHash &&
+    actor.profileRoleId === expected.roleId && actor.activeConsoleRoleId === expected.roleId &&
+    actor.assignedRoleId === expected.roleId &&
+    actor.connection === 'live' && actor.freshness === 'server' &&
+    validCurrentDocumentAuthority(state.currentDocumentAuthority, { sessionId: expected.sessionId,
+      uidHash: expected.uidHash, roleId: expected.roleId, groupId: expected.groupId,
+      shuttleId: expected.shuttleId }) &&
+    sameCurrentDocumentAuthority(state.currentDocumentAuthority, expected.sourceAuthority) &&
+    groupId === expected.groupId &&
+    control?.shuttleId === expected.shuttleId && control.ownerRoleId === expected.roleId &&
+    hashUid(control.ownerUid) === expected.controlOwnerUidHash &&
+    hashUid(control.holderUid) === expected.controlHolderUidHash &&
+    control.revision === expected.controlRevision;
 }
 
 function validPressDocumentAuthority(value, expected = {}) {
@@ -2587,6 +2609,73 @@ async function planFor({ spec, surface, actor, state, context, target, gmOperati
   if (endpoint === 'transferShuttleControlCommand') {
     const panel = page.getByRole('region', { name: 'Shuttle control', exact: true });
     const recipient = panel.getByLabel('Hand off to', { exact: true });
+    if (target.shuttleId !== PRESS_SHUTTLE_ID && target.printedOwnerAuthority) {
+      const original = target.printedOwnerAuthority;
+      if (!currentPrintedOwnerControlMatches(state, actor, original)) {
+        return block('the printed owner, borrowed holder, current member scope, or current document is not current');
+      }
+      if (await panel.count() !== 1 || !await panel.isVisible() ||
+          await recipient.count() !== 1 || !await recipient.isVisible() || !await recipient.isEnabled() ||
+          await recipient.getAttribute('id') !== `shuttle-recipient-${target.shuttleId}`) {
+        return block('the exact current Shuttle control panel and owner selector are not mounted');
+      }
+      const readChoices = async () => recipient.locator('option').evaluateAll(nodes => nodes.map(node => ({
+        value: node.value, offered: !node.disabled && node.value !== '', enabled: !node.disabled,
+      })));
+      const choices = await readChoices();
+      const offeredChoices = choices.filter(choice => choice.offered && choice.enabled);
+      if (offeredChoices.some(choice => typeof choice.value !== 'string' ||
+          !/^[\w-]{1,128}$/.test(choice.value) || hashUid(choice.value) === original.holderUidHash)) {
+        return block('the mounted recipient list is malformed or still offers the current holder');
+      }
+      const selected = offeredChoices[0] ?? null;
+      if (selected) {
+        const action = await one(panel.getByRole('button', { name: 'Hand off control', exact: true }));
+        if (!action || offeredChoices.filter(choice => choice.value === selected.value).length !== 1) {
+          return block('the actual enabled handoff target or button is absent or ambiguous');
+        }
+        await recipient.selectOption(selected.value);
+        target.controlTransferAction = 'handoff';
+        target.controlTransferTargetUid = selected.value;
+        target.controlTransferTargetUidHash = hashUid(selected.value);
+        return { offered: true, click: async () => {
+          const currentActor = await surface.observe();
+          const latest = await readActionState(surface, target.shuttleId);
+          const currentChoices = await readChoices();
+          const matchingChoices = currentChoices.filter(choice => choice.offered && choice.enabled &&
+            choice.value === selected.value);
+          const currentAction = await one(panel.getByRole('button', { name: 'Hand off control', exact: true }));
+          if (!currentPrintedOwnerControlMatches(latest, currentActor, original) ||
+              await recipient.getAttribute('id') !== `shuttle-recipient-${target.shuttleId}` ||
+              matchingChoices.length !== 1 || await recipient.inputValue() !== selected.value || !currentAction) {
+            throw new Error('The original printed owner, holder, document or enabled handoff choice changed before click.');
+          }
+          await currentAction.click();
+        } };
+      }
+      if (original.controlOwnerUidHash === original.controlHolderUidHash) {
+        return block('the printed owner already holds this shuttle and no handoff recipient is offered');
+      }
+      if (await recipient.inputValue() !== '') return block('the mounted reclaim path has a stale recipient selection');
+      const action = await one(panel.getByRole('button', { name: 'Reclaim control', exact: true }));
+      if (!action) return block('the actual enabled reclaim control is absent');
+      target.controlTransferAction = 'reclaim';
+      target.controlTransferTargetUid = null;
+      target.controlTransferTargetUidHash = original.controlOwnerUidHash;
+      return { offered: true, click: async () => {
+        const currentActor = await surface.observe();
+        const latest = await readActionState(surface, target.shuttleId);
+        const currentChoices = await readChoices();
+        const currentAction = await one(panel.getByRole('button', { name: 'Reclaim control', exact: true }));
+        if (!currentPrintedOwnerControlMatches(latest, currentActor, original) ||
+            await recipient.getAttribute('id') !== `shuttle-recipient-${target.shuttleId}` ||
+            currentChoices.some(choice => choice.offered && choice.enabled) ||
+            await recipient.inputValue() !== '' || !currentAction) {
+          throw new Error('The original printed owner, holder, document or enabled reclaim path changed before click.');
+        }
+        await currentAction.click();
+      } };
+    }
     const option = await selectActualOption(recipient, candidate => candidate.offered && candidate.enabled);
     if (option) return click(panel.getByRole('button', { name: 'Hand off control', exact: true }));
     return click(panel.getByRole('button', { name: 'Reclaim control', exact: true }));
@@ -2979,6 +3068,7 @@ async function recipeFor({ context, game, spec }) {
   }
   let roleToUse = spec.actorRoleId;
   let holderTarget = {};
+  let resolvedPrintedOwner = null;
   if (spec.family === 'pending-core-craft-actions' &&
       !['current-shuttle-holder', 'current-ally-holder'].includes(roleToUse) &&
       !context.roster.some(candidate => candidate.roleId === roleToUse)) return null;
@@ -3032,6 +3122,16 @@ async function recipeFor({ context, game, spec }) {
         const matches = context.roster.filter(candidate => candidate.uidHash === uidHash);
         return matches.length === 1 ? [{ shuttleId, roleId: matches[0].roleId, uidHash }] : [];
       });
+      if (spec.endpoint === 'transferShuttleControlCommand' && holders[0]?.shuttleId !== PRESS_SHUTTLE_ID) {
+        const firstHolder = holders[0];
+        const control = sourceState.shuttleControl?.[firstHolder?.shuttleId];
+        resolvedPrintedOwner = firstHolder && resolveCurrentPrintedOwnerActor({ shuttleId: firstHolder.shuttleId,
+          control, roster: context.roster });
+        if (!resolvedPrintedOwner) {
+          return refuse('the exact printed owner and current holder are not uniquely admitted for this shuttle');
+        }
+        holders = [resolvedPrintedOwner];
+      }
     }
     if (!holders.length) {
       const refuse = async () => ({ offered: false, reason: 'no uniquely admitted current shuttle-holder profile is source-projected' });
@@ -3063,8 +3163,10 @@ async function recipeFor({ context, game, spec }) {
   }
   const memberScopedShuttleCommandEndpoint = MEMBER_SCOPE_SHUTTLE_COMMAND_ENDPOINTS.has(spec.endpoint) &&
     holderTarget.shuttleId !== PRESS_SHUTTLE_ID;
+  const printedOwnerControlEndpoint = spec.endpoint === 'transferShuttleControlCommand' &&
+    holderTarget.shuttleId !== PRESS_SHUTTLE_ID;
   const documentAuthorityShuttleId = ['requestShuttleDeparture', 'beginShuttleTransit', 'retargetShuttleTransit',
-    'completeShuttleArrival'].includes(spec.endpoint) || memberScopedShuttleCommandEndpoint
+    'completeShuttleArrival'].includes(spec.endpoint) || memberScopedShuttleCommandEndpoint || printedOwnerControlEndpoint
     ? holderTarget.shuttleId : undefined;
   if (COUNTER_SOURCE_WAIT_ENDPOINTS.has(spec.endpoint)) remainingGmOperation(gmOperation);
   const state = context.shuttleSourceDiagnosticOnly === true
@@ -3081,6 +3183,25 @@ async function recipeFor({ context, game, spec }) {
     sourceAuthority: pressOrigin.sourceAuthority,
   })) {
     return refuse('the original Press UID, current document generation, group membership, control or cycle changed');
+  }
+  if (resolvedPrintedOwner) {
+    const authority = state.currentDocumentAuthority;
+    const groupId = state.currentMemberScope?.groupId;
+    const printedOwnerAuthority = { sessionId: context.initial.sessionId,
+      uidHash: resolvedPrintedOwner.uidHash, roleId: resolvedPrintedOwner.roleId,
+      cycle: state.cycle, shuttleId: resolvedPrintedOwner.shuttleId, groupId,
+      controlOwnerUidHash: resolvedPrintedOwner.ownerUidHash,
+      controlHolderUidHash: resolvedPrintedOwner.holderUidHash,
+      controlRevision: resolvedPrintedOwner.controlRevision, sourceAuthority: authority };
+    if (actor.uidHash !== resolvedPrintedOwner.uidHash || actor.profileRoleId !== resolvedPrintedOwner.roleId ||
+        actor.activeConsoleRoleId !== resolvedPrintedOwner.roleId || actor.assignedRoleId !== resolvedPrintedOwner.roleId ||
+        currentMemberShuttleCommandGroupId(state, { sessionId: context.initial.sessionId,
+          uidHash: resolvedPrintedOwner.uidHash, roleId: resolvedPrintedOwner.roleId,
+          shuttleId: resolvedPrintedOwner.shuttleId }) !== groupId ||
+        !currentPrintedOwnerControlMatches(state, actor, printedOwnerAuthority)) {
+      return refuse('the printed owner, holder, current member craft scope, or current document authority is not current');
+    }
+    holderTarget.printedOwnerAuthority = printedOwnerAuthority;
   }
   if (spec.endpoint === 'requestShuttleDeparture' && pressOrigin) {
     const dockings = state.shuttleDockings?.filter(row => row.shuttleId === PRESS_SHUTTLE_ID) ?? [];
@@ -3131,6 +3252,18 @@ async function recipeFor({ context, game, spec }) {
     }
     const controlRevision = state.shuttleControl?.[resolved.target.shuttleId]?.revision;
     if (isRevision(controlRevision)) expected.controlRevision = controlRevision;
+  }
+  if (printedOwnerControlEndpoint) {
+    const ownerAuthority = resolved.target.printedOwnerAuthority;
+    if (!ownerAuthority || ownerAuthority.shuttleId !== resolved.target.shuttleId ||
+        ownerAuthority.controlRevision !== expected.controlRevision) {
+      return refuse('the original printed-owner control revision is incomplete or changed');
+    }
+    expected.groupId = ownerAuthority.groupId;
+    expected.sourceAuthority = ownerAuthority.sourceAuthority;
+    expected.controlOwnerUidHash = ownerAuthority.controlOwnerUidHash;
+    expected.controlHolderUidHash = ownerAuthority.controlHolderUidHash;
+    expected.controlRevision = ownerAuthority.controlRevision;
   }
   if (pressOrigin) {
     expected.groupId = pressOrigin.groupId;
@@ -3232,6 +3365,9 @@ async function recipeFor({ context, game, spec }) {
     const revision = revisionFor(spec.endpoint, state, resolved.target, auxiliary);
     if (isRevision(revision)) expected.sourceRevision = revision;
   }
+  if (printedOwnerControlEndpoint && expected.sourceRevision !== expected.controlRevision) {
+    return refuse('the original printed-owner control revision is incomplete or changed');
+  }
   if (initialPlan.expectedCost) expected.cost = initialPlan.expectedCost;
   else if (resolved.target.expectedCost) expected.cost = resolved.target.expectedCost;
   if (state.shipFleetGroupIds?.[resolved.target.shipId] && !expected.groupId) expected.groupId = state.shipFleetGroupIds[resolved.target.shipId];
@@ -3265,9 +3401,9 @@ async function recipeFor({ context, game, spec }) {
         remainingGmOperation(gmOperation);
       }
       const latest = context.shuttleSourceDiagnosticOnly === true
-        ? await readActionState(surface, movementEndpoint || memberScopedShuttleCommandEndpoint
+        ? await readActionState(surface, movementEndpoint || memberScopedShuttleCommandEndpoint || printedOwnerControlEndpoint
           ? resolved.target.shuttleId : undefined, { diagnosticOnly: true })
-        : await readActionState(surface, movementEndpoint || memberScopedShuttleCommandEndpoint
+        : await readActionState(surface, movementEndpoint || memberScopedShuttleCommandEndpoint || printedOwnerControlEndpoint
           ? resolved.target.shuttleId : undefined);
       if (COUNTER_SOURCE_WAIT_ENDPOINTS.has(spec.endpoint)) remainingGmOperation(gmOperation);
       if (!liveState(latest, expected.sessionId)) return { offered: false, reason: 'current server projection became stale before action' };
@@ -3286,6 +3422,13 @@ async function recipeFor({ context, game, spec }) {
             latest.cycle !== expected.cycle || !latest.activeVesselIds?.includes(resolved.target.hostShipId)) {
           return { offered: false, reason: 'the original shuttle holder, current document, member scope, host, or custody changed before action' };
         }
+      }
+      if (printedOwnerControlEndpoint &&
+          (!currentPrintedOwnerControlMatches(latest, currentActor, expected) ||
+           currentMemberShuttleCommandGroupId(latest, { sessionId: expected.sessionId,
+             uidHash, roleId, shuttleId: resolved.target.shuttleId }) !== expected.groupId ||
+           expected.controlRevision !== expected.sourceRevision)) {
+        return { offered: false, reason: 'the original printed owner, current holder, member scope, current document or control revision changed before action' };
       }
       if (COUNTER_SOURCE_WAIT_ENDPOINTS.has(spec.endpoint)) {
         const currentCounterActor = counterGmActorProjection(currentActor, currentCounterLifecycle, latest);
@@ -3425,7 +3568,7 @@ async function recipeFor({ context, game, spec }) {
       if (!preparedPlan.offered) return preparedPlan;
       return preparedPlan;
     },
-    inspect: async ({ surface, result, request }) => {
+    inspect: async ({ surface, result, request, actorAfter }) => {
       if (CERTIFIED_GM_RECIPES.has(spec.endpoint)) {
         return inspectMountedGmControl({ context, surface, request, result, spec, expected, target: resolved.target, gmOperation });
       }
@@ -3459,8 +3602,51 @@ async function recipeFor({ context, game, spec }) {
       }
       const movementEndpoint = ['requestShuttleDeparture', 'beginShuttleTransit', 'retargetShuttleTransit',
         'completeShuttleArrival'].includes(spec.endpoint);
-      const latest = await readActionState(surface, movementEndpoint || memberScopedShuttleCommandEndpoint
+      const latest = await readActionState(surface, movementEndpoint || memberScopedShuttleCommandEndpoint || printedOwnerControlEndpoint
         ? resolved.target.shuttleId : undefined);
+      if (printedOwnerControlEndpoint) {
+        const action = resolved.target.controlTransferAction;
+        const targetUid = resolved.target.controlTransferTargetUid;
+        const requestKeys = action === 'handoff'
+          ? ['sessionId', 'requestId', 'shuttleId', 'action', 'targetUid', 'expectedRevision']
+          : ['sessionId', 'requestId', 'shuttleId', 'action', 'expectedRevision'];
+        const requestMatches = exactKeys(request, requestKeys) && request.sessionId === expected.sessionId &&
+          typeof request.requestId === 'string' && request.requestId.length > 0 &&
+          request.shuttleId === expected.shuttleId && request.action === action &&
+          request.expectedRevision === expected.controlRevision &&
+          (action === 'handoff' ? request.targetUid === targetUid &&
+            hashUid(request.targetUid) === resolved.target.controlTransferTargetUidHash
+            : action === 'reclaim' && request.targetUid === undefined);
+        const nextHolderHash = action === 'handoff'
+          ? resolved.target.controlTransferTargetUidHash : expected.controlOwnerUidHash;
+        const resultMatches = exactKeys(result, ['status', 'sessionId', 'requestId', 'action', 'shuttleId',
+          'previousHolderUid', 'holderUid', 'ownerUid', 'revision']) && result.status === 'committed' &&
+          result.sessionId === expected.sessionId && result.requestId === request?.requestId &&
+          result.action === action && result.shuttleId === expected.shuttleId &&
+          hashUid(result.ownerUid) === expected.controlOwnerUidHash &&
+          hashUid(result.previousHolderUid) === expected.controlHolderUidHash &&
+          hashUid(result.holderUid) === nextHolderHash &&
+          result.revision === expected.controlRevision + 1;
+        const afterAuthority = { ...expected, controlHolderUidHash: nextHolderHash,
+          controlRevision: expected.controlRevision + 1 };
+        const afterGroupId = currentMemberShuttleCommandGroupId(latest, { sessionId: expected.sessionId,
+          uidHash, roleId, shuttleId: expected.shuttleId });
+        const currentControl = latest?.shuttleControl?.[expected.shuttleId];
+        const sourceAfterLive = requestMatches && resultMatches && afterGroupId === expected.groupId &&
+          currentPrintedOwnerControlMatches(latest, actorAfter, afterAuthority) &&
+          currentControl?.revision === expected.controlRevision + 1 &&
+          hashUid(currentControl?.holderUid) === nextHolderHash &&
+          latest.cycle === expected.cycle;
+        return { sourceAfter: { live: sourceAfterLive, sessionId: latest?.sessionId,
+          cycle: latest?.cycle, revision: currentControl?.revision,
+          ...(typeof afterGroupId === 'string' ? { groupId: afterGroupId } : {}) },
+        sourceAuthorityAfter: latest?.currentDocumentAuthority,
+        transitionAfter: sourceAfterLive ? { kind: 'shuttle-control-transfer', action,
+          shuttleId: expected.shuttleId, ownerUidHash: expected.controlOwnerUidHash,
+          previousHolderUidHash: expected.controlHolderUidHash, holderUidHash: nextHolderHash,
+          revision: currentControl.revision } : undefined,
+        rendered: await positiveRenderedStatus(surface, spec.endpoint, result) };
+      }
       if (memberScopedShuttleCommandEndpoint) {
         const memberGroupId = currentMemberShuttleCommandGroupId(latest, { sessionId: expected.sessionId,
           uidHash, roleId, shuttleId: resolved.target.shuttleId,
