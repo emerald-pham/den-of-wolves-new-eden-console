@@ -2498,7 +2498,7 @@ async function planFor({ spec, surface, actor, state, context, target, gmOperati
     const mode = await one(page.getByRole('button', { name: 'Ship numbers write mode', exact: true }));
     if (!mode) return block('the actual fleet ship-number write-mode control is not currently available');
     if (await mode.getAttribute('aria-pressed') !== 'true') {
-      await mode.click();
+      await mode.click({ timeout: remainingGmOperation(gmOperation, 35_000) });
       if (await mode.getAttribute('aria-pressed') !== 'true') {
         return block('the actual fleet ship-number control did not enter write mode');
       }
@@ -2520,12 +2520,13 @@ async function planFor({ spec, surface, actor, state, context, target, gmOperati
     target.counterSourceBefore = sourceBefore;
     target.targetShipName = targetShipName;
     return { offered: true, targetShipName, click: async () => {
+      remainingGmOperation(gmOperation);
       const currentActor = await surface.observe();
-      if (!counterGmActorMatches(target.counterActorBefore, currentActor, context, target.shipId)) {
-        throw new Error('The original GM UID, instance, connection generation, or hydration changed before the counter click.');
-      }
       const latest = await readActionState(surface);
-      if (!liveState(latest, context.initial.sessionId) || latest.cycle !== sourceBefore.cycle ||
+      remainingGmOperation(gmOperation);
+      const currentCounterActor = { ...currentActor, phase: latest?.phase, cycle: latest?.cycle };
+      if (!counterGmActorMatches(target.counterActorBefore, currentCounterActor, context, target.shipId) ||
+          !liveState(latest, context.initial.sessionId) || latest.cycle !== sourceBefore.cycle ||
           !latest.activeVesselIds?.includes(target.shipId) ||
           latest.vesselActionRevisions?.[target.shipId] !== sourceBefore.revision ||
           latest.shipFleetGroupIds?.[target.shipId] !== sourceBefore.groupId ||
@@ -2533,7 +2534,7 @@ async function planFor({ spec, surface, actor, state, context, target, gmOperati
           await mode.getAttribute('aria-pressed') !== 'true' || !await action.isEnabled()) {
         throw new Error('The selected source ship, group, revision, or actual mounted counter changed before the click.');
       }
-      await action.click();
+      await action.click({ timeout: remainingGmOperation(gmOperation, 35_000) });
     }, trainingChoice: 'gm-training:deliberate-choice' };
   }
 
@@ -2913,7 +2914,9 @@ async function recipeFor({ context, game, spec }) {
     }
   }
   const resolved = mountedTarget(spec, actor, state, { roleId: roleToUse, target: holderTarget });
-  if (COUNTER_SOURCE_WAIT_ENDPOINTS.has(spec.endpoint)) resolved.target.counterActorBefore = actor;
+  if (COUNTER_SOURCE_WAIT_ENDPOINTS.has(spec.endpoint)) {
+    resolved.target.counterActorBefore = { ...actor, phase: state.phase, cycle: state.cycle };
+  }
   const roleId = resolved.roleId;
   const uidHash = actorUidHash(actor);
   const expected = { sessionId: context.initial.sessionId, roleId, uidHash, cycle: state.cycle,
@@ -3010,6 +3013,7 @@ async function recipeFor({ context, game, spec }) {
       }
       const movementEndpoint = ['requestShuttleDeparture', 'beginShuttleTransit', 'retargetShuttleTransit',
         'completeShuttleArrival'].includes(spec.endpoint);
+      if (COUNTER_SOURCE_WAIT_ENDPOINTS.has(spec.endpoint)) remainingGmOperation(gmOperation);
       const latest = context.shuttleSourceDiagnosticOnly === true
         ? await readActionState(surface, movementEndpoint ? resolved.target.shuttleId : undefined, { diagnosticOnly: true })
         : await readActionState(surface, movementEndpoint ? resolved.target.shuttleId : undefined);
@@ -3017,13 +3021,15 @@ async function recipeFor({ context, game, spec }) {
       const latestRevision = revisionFor(spec.endpoint, latest, resolved.target, auxiliary);
       if (isRevision(latestRevision) && latestRevision !== expected.sourceRevision) return { offered: false, reason: 'source revision changed before action' };
       if (COUNTER_SOURCE_WAIT_ENDPOINTS.has(spec.endpoint)) {
-        if (!counterGmActorMatches(resolved.target.counterActorBefore, currentActor, context, expected.shipId) ||
+        const currentCounterActor = { ...currentActor, phase: latest.phase, cycle: latest.cycle };
+        if (!counterGmActorMatches(resolved.target.counterActorBefore, currentCounterActor, context, expected.shipId) ||
             !isRevision(expected.sourceRevision) || typeof expected.groupId !== 'string' || !expected.groupId ||
             expected.shipId !== resolved.target.shipId || latest.cycle !== expected.cycle ||
             !latest.activeVesselIds?.includes(expected.shipId) ||
             latest.shipFleetGroupIds?.[expected.shipId] !== expected.groupId) {
           return { offered: false, reason: 'the original GM or exact selected ship source tuple changed before the counter action' };
         }
+        remainingGmOperation(gmOperation);
       }
       if (spec.endpoint === 'rechargeHostConsoleFromShuttle') {
         const hostShipId = expected.expectedHostShipId;
