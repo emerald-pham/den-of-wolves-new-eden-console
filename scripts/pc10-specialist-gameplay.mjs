@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { observeUiReceipt } from './pc10-browser-ui-receipt.mjs';
+import { projectScoutTimeoutDiagnostic } from './pc10-scout-timeout-diagnostic.mjs';
 
 const hash = value => createHash('sha256').update(String(value ?? '')).digest('hex');
+const scoutConvergenceTimeout = Symbol('original-scout-convergence-timeout');
 
 const REQUEST_FIELDS = Object.freeze({
   repairConsolesFromMacaw: ['requestId', 'systemIds', 'expectedControlRevision', 'expectedRepairRevision', 'expectedCycle', 'expectedHostShipId'],
@@ -468,7 +470,7 @@ export function createSpecialistGameplayDriver(game, {
   assert.equal(typeof now, 'function');
   assert.equal(typeof wait, 'function');
 
-  async function waitForCommit({ surface, actor, inspect, endpoint, timeoutMs: callTimeout = timeoutMs }) {
+  async function waitForCommit({ surface, actor, inspect, endpoint, timeoutMs: callTimeout = timeoutMs, scoutBefore }) {
     assert.equal(typeof surface?.observe, 'function');
     assert.equal(typeof inspect, 'function');
     assert.ok(Number.isSafeInteger(callTimeout) && callTimeout >= 0);
@@ -480,6 +482,7 @@ export function createSpecialistGameplayDriver(game, {
         game.state(game.context.gm), game.state(surface), surface.observe(),
       ]);
       latest = { gmState, crewState, currentActor };
+      if (endpoint === 'requestScout') latest.scoutInspection = null;
       for (const [name, state] of [['GM', gmState], ['crew', crewState]]) {
         assert.equal(state?.sessionId, sessionId, `${name} view must remain bound to the fresh session.`);
       }
@@ -491,6 +494,11 @@ export function createSpecialistGameplayDriver(game, {
           currentActor?.connection === 'live' &&
           currentActor?.freshness === 'server') {
         const observed = await inspect({ game, surface, actor: currentActor, gmState, crewState });
+        if (endpoint === 'requestScout') {
+          latest.scoutInspection = observed?.scoutInspection ?? {};
+          latest.scoutInspectReady = observed?.ready;
+          scoutBefore ??= observed?.scoutInspection?.before;
+        }
         if (observed?.ready === true) {
           if (endpoint === 'sendFleetGroupMessage' && observed.groupMessage !== undefined) {
             assert.ok(isCurrentGroupMessageRecord(observed.groupMessage) &&
@@ -534,22 +542,44 @@ export function createSpecialistGameplayDriver(game, {
       if (now() >= deadline) break;
       await wait(intervalMs);
     } while (now() <= deadline);
-    throw new Error(`Fresh specialist projections and a rendered result did not converge: ${JSON.stringify({
+    const error = new Error(`Fresh specialist projections and a rendered result did not converge: ${JSON.stringify({
       gmSessionId: latest?.gmState?.sessionId, gmLive: latest?.gmState?.live, gmCycle: latest?.gmState?.cycle,
       crewSessionId: latest?.crewState?.sessionId, crewLive: latest?.crewState?.live,
       crewCycle: latest?.crewState?.cycle, actorUidHash: latest?.currentActor?.uidHash,
       activeConsoleRoleId: latest?.currentActor?.activeConsoleRoleId,
     })}`);
+    if (endpoint === 'requestScout') error[scoutConvergenceTimeout] = {
+      latest, before: scoutBefore, timeoutMs: callTimeout, intervalMs,
+    };
+    throw error;
   }
 
   async function capture({ roleId, endpoint, click, prepare, originalActor, inspect, cost = null, requireConsole = true,
     timeoutMs: callTimeout = timeoutMs }) {
     assert.equal(typeof inspect, 'function', 'Inspect source projections and the actual rendered result.');
     return captureSpecialistUiAction({ game, roleId, endpoint, click, prepare, originalActor, cost, requireConsole,
-      waitForProjection: ({ surface, actor, request, result, replay }) => waitForCommit({
-        surface, actor, endpoint, timeoutMs: callTimeout,
-        inspect: context => inspect({ ...context, request, result, replay }),
-      }),
+      waitForProjection: async ({ surface, actor, request, result, replay }) => {
+        try {
+          return await waitForCommit({
+            surface, actor, endpoint, timeoutMs: callTimeout,
+            inspect: context => inspect({ ...context, request, result, replay }),
+            scoutBefore: endpoint === 'requestScout' ? inspect.scoutBefore : undefined,
+          });
+        } catch (error) {
+          if (endpoint === 'requestScout' && error?.[scoutConvergenceTimeout]) {
+            // The existing captured receipt equality assertion already passed.
+            // Write once, at its original timeout, without reading or retrying.
+            try {
+              await game.save?.('specialist-scout-timeout-diagnostic.json', {
+                status: 'failed', acceptance: 'not-claimed',
+                scoutTimeout: projectScoutTimeoutDiagnostic({ request, result, replay,
+                  ...error[scoutConvergenceTimeout], exactReplay: true }),
+              });
+            } catch { /* Preserve the original convergence error if local retention fails. */ }
+          }
+          throw error;
+        }
+      },
     });
   }
 

@@ -265,6 +265,155 @@ export function projectCapybaraEvidence(report) {
  * callback is deliberately fail-closed: ending successfully is insufficient
  * while a genuine required action remains unavailable or unverified.
  */
+/** The full Capybara loop and a finite owner diagnostic share the original receipt seam. */
+export function createCapybaraSpecialistActionSeam(a, { gm, initial }, {
+  specialistDriver = createSpecialistGameplayDriver(a), updateCapybaraStage,
+}) {
+  assert.equal(typeof updateCapybaraStage, 'function');
+  async function attemptSpecialist(id, actionId, inputs = {}, { roleId, cost, verify, record = true } = {}) {
+    const specRole = roleId ?? inputs.roleId;
+    if (typeof specRole !== 'string' || typeof verify !== 'function') {
+      if (record) await updateCapybaraStage(id, { status: 'pending', reason: 'source-choice-or-projection-verifier-not-supplied' });
+      return null;
+    }
+    const before = await a.state(gm);
+    assert.equal(before.sessionId, initial.sessionId);
+    assert.equal(before.live, true); assert.equal(before.phase, 'active');
+    assert.equal(before.fullGameDemo?.status, 'active');
+    assert.equal(before.fullGameDemo?.progression, 'manual');
+    const enterConsole = async ({ page }) => {
+      const shuttleId = inputs.shuttleId ?? ({
+        'wing-starlight-scout': 'starlight', 'scientist-scout': 'endeavour',
+        'scientist-ecm': 'endeavour', 'scientist-field-upgrade': 'endeavour',
+        'explorer-scout': 'hummingbird', 'explorer-harvest-roll': 'hummingbird',
+        'explorer-harvest-allocation': 'hummingbird', 'boa-recycle': 'boa',
+        'boa-reclamation': 'boa', 'boa-scrap-collection': 'boa',
+        'macaw-repair': 'macaw', 'macaw-salvage-propose': 'macaw',
+        'macaw-salvage-apply': 'macaw', 'macaw-scrap-collection': 'macaw',
+      })[actionId];
+      if (!shuttleId) return true;
+      if (new URL(page.url()).hash.endsWith(`/shuttles/${shuttleId}`)) return true;
+      const label = ({ starlight: 'Starlight', endeavour: 'Endeavour', hummingbird: 'Hummingbird',
+        boa: 'Boa', macaw: 'Macaw' })[shuttleId];
+      const link = page.getByRole('link', { name: `Open ${label} shuttle console`, exact: true });
+      try { await link.waitFor({ state: 'visible', timeout: 15_000 }); }
+      catch { return false; }
+      if (!(await link.isEnabled())) return false;
+      await link.click();
+      try { await page.waitForURL(url => url.hash.endsWith(`/shuttles/${shuttleId}`), { timeout: 15_000 }); }
+      catch { return false; }
+      return true;
+    };
+    const outcome = await runPc10SpecialistAction({ game: a, driver: specialistDriver, actionId,
+      ...inputs, enterConsole, inspect: Object.assign(async context => {
+        const source = await verify({ ...context, before, game: a });
+        if (source?.ready !== true) return { ready: false,
+          ...(PC10_SPECIALIST_ACTIONS[actionId]?.endpoint === 'requestScout' ? {
+            scoutInspection: { before, ...source?.scoutInspection, outerBoundary: 'source-not-ready' },
+          } : {}) };
+        const scoutChoice = PC10_SPECIALIST_ACTIONS[actionId]?.endpoint === 'requestScout' ? {
+          entitlementId: PC10_SPECIALIST_ACTIONS[actionId].shuttleId, ownerRoleId: specRole,
+          targetCoordinate: inputs.targetCoordinate,
+        } : null;
+        const scoutRequest = scoutChoice ? validateScoutRequestRecord({ ...context, before, choice: scoutChoice }) : null;
+        const groupRelay = PC10_SPECIALIST_ACTIONS[actionId]?.endpoint === 'sendFleetGroupMessage';
+        const groupMessage = groupRelay ? validateCurrentGroupMessageRecord({ ...context, before, message: inputs.message }) : null;
+        const responseRevision = [context.result?.revision, context.result?.repairRevision,
+          context.result?.choiceRevision, context.result?.upgradeRevision, context.result?.wingRevision,
+          context.result?.fighterWingRevision, context.result?.currentRevision].find(value => Number.isSafeInteger(value) && value >= 0);
+        const panel = source.regionName ? context.surface.page.getByRole('region', { name: source.regionName, exact: true }) : null;
+        const rendered = panel ? groupRelay ? await panel.getByRole('status').evaluateAll(renderedCurrentGroupMessageMatches, inputs.message.trim())
+          : await panel.getByRole('status').evaluateAll(nodes =>
+          nodes.some(node => /committed|recorded|recycled|collected|applied|launched|built|requested|harvest|selected|repair|choice/i.test(node.textContent ?? '')))
+          : await context.surface.page.getByRole('status').evaluateAll(nodes => nodes.length > 0);
+        if (groupRelay) {
+          if (!groupMessage || !rendered || !sameActionReceipt(groupMessage, source.groupMessage) ||
+              source.renderedStatusCode !== 'current-group-note-visible') return { ready: false };
+          return { ready: true, groupMessage, renderedStatusCode: source.renderedStatusCode };
+        }
+        if (scoutChoice) {
+          const scoutInspection = { before, ...source.scoutInspection,
+            outerRequestRecordQualified: Boolean(scoutRequest), outerRenderedQualified: rendered };
+          if (!scoutRequest || !rendered || !sameActionReceipt(scoutRequest, source.scoutRequest) ||
+              source.renderedStatusCode !== 'scout-request-recorded-visible') return { ready: false,
+                scoutInspection: { ...scoutInspection, outerBoundary: 'scout-guard' } };
+          return { ready: true, scoutRequest, renderedStatusCode: source.renderedStatusCode,
+            scoutInspection: { ...scoutInspection, outerBoundary: 'ready' } };
+        }
+        if (!Number.isSafeInteger(responseRevision) || !rendered) return { ready: false };
+        return { ready: true, gmRevision: source.gmRevision ?? responseRevision,
+          crewRevision: source.crewRevision ?? responseRevision,
+          renderedStatusCode: source.privateResultVisible ? 'private-result-visible' : source.renderedStatusCode ?? 'public-result-visible',
+          ...(source.privateResultVisible ? { privateResultVisible: true } : {}) };
+      }, PC10_SPECIALIST_ACTIONS[actionId]?.endpoint === 'requestScout' ? { scoutBefore: before } : {}), cost });
+    const projected = capybaraStageOutcome({ ...outcome, roleId: specRole,
+      endpoint: outcome?.evidence?.endpoint, status: outcome?.status });
+    if (record) await updateCapybaraStage(id, { ...projected, roleId: specRole, cost: cost ?? outcome?.evidence?.cost,
+      cycle: outcome?.evidence?.projection?.gm?.cycle ?? before.cycle,
+      endpoint: outcome?.evidence?.endpoint });
+    return outcome;
+  }
+  async function runSpecialist(id, actionId, inputs = {}, { roleId, cost, record = true, verify } = {}) {
+    const spec = PC10_SPECIALIST_ACTIONS[actionId];
+    const projectionVerifier = verify ?? (spec ? inspectRenderedAction({
+      regionName: spec.regionName,
+      resultStatuses: [...SUCCESS_RESULT_STATUSES],
+      renderedStatusCode: ['boa-reclamation'].includes(actionId) ? 'mission-choice-visible' : 'public-result-visible',
+      ...(spec.endpoint === 'requestScout' ? { scoutChoice: {
+        entitlementId: spec.shuttleId, ownerRoleId: roleId ?? inputs.roleId ?? spec.roleId,
+        targetCoordinate: inputs.targetCoordinate,
+      } } : {}),
+      ...(spec.endpoint === 'sendFleetGroupMessage' ? { groupMessageChoice: inputs.message } : {}),
+    }) : null);
+    if (typeof projectionVerifier !== 'function') {
+      if (record) await updateCapybaraStage(id, { status: 'pending', reason: 'ordinary-source-action-not-in-proof-catalog' });
+      return null;
+    }
+    return attemptSpecialist(id, actionId, inputs, { roleId, cost, record, verify: projectionVerifier });
+  }
+  function inspectRenderedAction({ regionName, resultStatuses, renderedStatusCode = 'public-result-visible', check, scoutChoice, groupMessageChoice }) {
+    return async ({ surface, result, gmState, crewState, request, actor, before }) => {
+      const scoutInspection = scoutChoice ? { before, choice: scoutChoice } : null;
+      const retainScoutInspection = (value, boundary) => scoutInspection
+        ? { ...value, scoutInspection: { ...scoutInspection, boundary } } : value;
+      if (!result || !resultStatuses.includes(result.status) || check && !check(result, { gmState, crewState }))
+        return retainScoutInspection({ ready: false }, 'result-status');
+      const panel = regionName ? surface.page.getByRole('region', { name: regionName, exact: true }) : surface.page;
+      const scoutRequest = scoutChoice ? validateScoutRequestRecord({ request, result, actor, before, gmState, crewState,
+        choice: scoutChoice }) : null;
+      if (scoutInspection) scoutInspection.sourceRequestRecordQualified = Boolean(scoutRequest);
+      if (scoutChoice && !scoutRequest) return retainScoutInspection({ ready: false }, 'scout-record');
+      const groupMessage = groupMessageChoice !== undefined ? validateCurrentGroupMessageRecord({
+        request, result, actor, before, gmState, crewState, message: groupMessageChoice }) : null;
+      if (groupMessageChoice !== undefined && !groupMessage) return { ready: false };
+      const rendered = groupMessageChoice !== undefined
+        ? await panel.getByRole('status').evaluateAll(renderedCurrentGroupMessageMatches, groupMessageChoice.trim())
+        : await panel.getByRole('status').evaluateAll((nodes, scout) => scout
+        ? nodes.filter(node => node.matches('.scout-request__notice') && node.getClientRects().length > 0 &&
+          getComputedStyle(node).visibility !== 'hidden' && (node.textContent ?? '').trim() ===
+          'Request recorded. Your private scouting report will arrive automatically.').length === 1
+        : nodes.some(node =>
+        node.getClientRects().length > 0 && getComputedStyle(node).visibility !== 'hidden' &&
+        (node.textContent ?? '').trim().length > 0), Boolean(scoutChoice));
+      if (scoutInspection) scoutInspection.renderedStatusQualified = rendered;
+      if (!rendered) return retainScoutInspection({ ready: false }, 'rendered-status');
+      if (groupMessageChoice !== undefined) return { ready: true, regionName, groupMessage,
+        renderedStatusCode: 'current-group-note-visible' };
+      if (scoutChoice) return retainScoutInspection({ ready: true, regionName, scoutRequest,
+        renderedStatusCode: 'scout-request-recorded-visible' }, 'ready');
+      const resultRevision = [result.revision, result.repairRevision, result.choiceRevision,
+        result.upgradeRevision, result.wingRevision, result.fighterWingRevision, result.currentRevision]
+        .find(value => Number.isSafeInteger(value) && value >= 0);
+      if (!Number.isSafeInteger(resultRevision)) return { ready: false };
+      return { ready: true, regionName,
+        gmRevision: gmState?.revision ?? gmState?.setupRevision ?? resultRevision,
+        crewRevision: crewState?.revision ?? crewState?.setupRevision ?? resultRevision,
+        renderedStatusCode };
+    };
+  }
+  return Object.freeze({ attemptSpecialist, runSpecialist, inspectRenderedAction });
+}
+
 export function capybaraFullGameDemoOptions(options = {}) {
   if (options.runFinalEnding !== undefined) assert.equal(typeof options.runFinalEnding, 'function');
   assert.equal(options.runEnding, undefined, 'Supply a final ending decision, not a competing gameplay runner.');
@@ -562,134 +711,8 @@ export async function runCapybaraFullGameGameplay(context, options = {}) {
     if (capybaraStages[id]?.status === 'completed' && next.status !== 'completed') return;
     return updateCapybaraStage(id, next);
   }
-  async function attemptSpecialist(id, actionId, inputs = {}, { roleId, cost, verify, record = true } = {}) {
-    const specRole = roleId ?? inputs.roleId;
-    if (typeof specRole !== 'string' || typeof verify !== 'function') {
-      if (record) await updateCapybaraStage(id, { status: 'pending', reason: 'source-choice-or-projection-verifier-not-supplied' });
-      return null;
-    }
-    const before = await a.state(gm);
-    assert.equal(before.sessionId, initial.sessionId);
-    assert.equal(before.live, true); assert.equal(before.phase, 'active');
-    assert.equal(before.fullGameDemo?.status, 'active');
-    assert.equal(before.fullGameDemo?.progression, 'manual');
-    const enterConsole = async ({ page }) => {
-      const shuttleId = inputs.shuttleId ?? ({
-        'wing-starlight-scout': 'starlight', 'scientist-scout': 'endeavour',
-        'scientist-ecm': 'endeavour', 'scientist-field-upgrade': 'endeavour',
-        'explorer-scout': 'hummingbird', 'explorer-harvest-roll': 'hummingbird',
-        'explorer-harvest-allocation': 'hummingbird', 'boa-recycle': 'boa',
-        'boa-reclamation': 'boa', 'boa-scrap-collection': 'boa',
-        'macaw-repair': 'macaw', 'macaw-salvage-propose': 'macaw',
-        'macaw-salvage-apply': 'macaw', 'macaw-scrap-collection': 'macaw',
-      })[actionId];
-      if (!shuttleId) return true;
-      if (new URL(page.url()).hash.endsWith(`/shuttles/${shuttleId}`)) return true;
-      const label = ({ starlight: 'Starlight', endeavour: 'Endeavour', hummingbird: 'Hummingbird',
-        boa: 'Boa', macaw: 'Macaw' })[shuttleId];
-      const link = page.getByRole('link', { name: `Open ${label} shuttle console`, exact: true });
-      try { await link.waitFor({ state: 'visible', timeout: 15_000 }); }
-      catch { return false; }
-      if (!(await link.isEnabled())) return false;
-      await link.click();
-      try { await page.waitForURL(url => url.hash.endsWith(`/shuttles/${shuttleId}`), { timeout: 15_000 }); }
-      catch { return false; }
-      return true;
-    };
-    const outcome = await runPc10SpecialistAction({ game: a, driver: specialistDriver, actionId,
-      ...inputs, enterConsole, inspect: async context => {
-        const source = await verify({ ...context, before, game: a });
-        if (source?.ready !== true) return { ready: false };
-        const scoutChoice = PC10_SPECIALIST_ACTIONS[actionId]?.endpoint === 'requestScout' ? {
-          entitlementId: PC10_SPECIALIST_ACTIONS[actionId].shuttleId, ownerRoleId: specRole,
-          targetCoordinate: inputs.targetCoordinate,
-        } : null;
-        const scoutRequest = scoutChoice ? validateScoutRequestRecord({ ...context, before, choice: scoutChoice }) : null;
-        const groupRelay = PC10_SPECIALIST_ACTIONS[actionId]?.endpoint === 'sendFleetGroupMessage';
-        const groupMessage = groupRelay ? validateCurrentGroupMessageRecord({ ...context, before, message: inputs.message }) : null;
-        const responseRevision = [context.result?.revision, context.result?.repairRevision,
-          context.result?.choiceRevision, context.result?.upgradeRevision, context.result?.wingRevision,
-          context.result?.fighterWingRevision, context.result?.currentRevision].find(value => Number.isSafeInteger(value) && value >= 0);
-        const panel = source.regionName ? context.surface.page.getByRole('region', { name: source.regionName, exact: true }) : null;
-        const rendered = panel ? groupRelay ? await panel.getByRole('status').evaluateAll(renderedCurrentGroupMessageMatches, inputs.message.trim())
-          : await panel.getByRole('status').evaluateAll(nodes =>
-          nodes.some(node => /committed|recorded|recycled|collected|applied|launched|built|requested|harvest|selected|repair|choice/i.test(node.textContent ?? '')))
-          : await context.surface.page.getByRole('status').evaluateAll(nodes => nodes.length > 0);
-        if (groupRelay) {
-          if (!groupMessage || !rendered || !sameActionReceipt(groupMessage, source.groupMessage) ||
-              source.renderedStatusCode !== 'current-group-note-visible') return { ready: false };
-          return { ready: true, groupMessage, renderedStatusCode: source.renderedStatusCode };
-        }
-        if (scoutChoice) {
-          if (!scoutRequest || !rendered || !sameActionReceipt(scoutRequest, source.scoutRequest) ||
-              source.renderedStatusCode !== 'scout-request-recorded-visible') return { ready: false };
-          return { ready: true, scoutRequest, renderedStatusCode: source.renderedStatusCode };
-        }
-        if (!Number.isSafeInteger(responseRevision) || !rendered) return { ready: false };
-        return { ready: true, gmRevision: source.gmRevision ?? responseRevision,
-          crewRevision: source.crewRevision ?? responseRevision,
-          renderedStatusCode: source.privateResultVisible ? 'private-result-visible' : source.renderedStatusCode ?? 'public-result-visible',
-          ...(source.privateResultVisible ? { privateResultVisible: true } : {}) };
-      }, cost });
-    const projected = capybaraStageOutcome({ ...outcome, roleId: specRole,
-      endpoint: outcome?.evidence?.endpoint, status: outcome?.status });
-    if (record) await updateCapybaraStage(id, { ...projected, roleId: specRole, cost: cost ?? outcome?.evidence?.cost,
-      cycle: outcome?.evidence?.projection?.gm?.cycle ?? before.cycle,
-      endpoint: outcome?.evidence?.endpoint });
-    return outcome;
-  }
-  async function runSpecialist(id, actionId, inputs = {}, { roleId, cost, record = true, verify } = {}) {
-    const spec = PC10_SPECIALIST_ACTIONS[actionId];
-    const projectionVerifier = verify ?? (spec ? inspectRenderedAction({
-      regionName: spec.regionName,
-      resultStatuses: [...SUCCESS_RESULT_STATUSES],
-      renderedStatusCode: ['boa-reclamation'].includes(actionId) ? 'mission-choice-visible' : 'public-result-visible',
-      ...(spec.endpoint === 'requestScout' ? { scoutChoice: {
-        entitlementId: spec.shuttleId, ownerRoleId: roleId ?? inputs.roleId ?? spec.roleId,
-        targetCoordinate: inputs.targetCoordinate,
-      } } : {}),
-      ...(spec.endpoint === 'sendFleetGroupMessage' ? { groupMessageChoice: inputs.message } : {}),
-    }) : null);
-    if (typeof projectionVerifier !== 'function') {
-      if (record) await updateCapybaraStage(id, { status: 'pending', reason: 'ordinary-source-action-not-in-proof-catalog' });
-      return null;
-    }
-    return attemptSpecialist(id, actionId, inputs, { roleId, cost, record, verify: projectionVerifier });
-  }
-  function inspectRenderedAction({ regionName, resultStatuses, renderedStatusCode = 'public-result-visible', check, scoutChoice, groupMessageChoice }) {
-    return async ({ surface, result, gmState, crewState, request, actor, before }) => {
-      if (!result || !resultStatuses.includes(result.status) || check && !check(result, { gmState, crewState }))
-        return { ready: false };
-      const panel = regionName ? surface.page.getByRole('region', { name: regionName, exact: true }) : surface.page;
-      const scoutRequest = scoutChoice ? validateScoutRequestRecord({ request, result, actor, before, gmState, crewState,
-        choice: scoutChoice }) : null;
-      if (scoutChoice && !scoutRequest) return { ready: false };
-      const groupMessage = groupMessageChoice !== undefined ? validateCurrentGroupMessageRecord({
-        request, result, actor, before, gmState, crewState, message: groupMessageChoice }) : null;
-      if (groupMessageChoice !== undefined && !groupMessage) return { ready: false };
-      const rendered = groupMessageChoice !== undefined
-        ? await panel.getByRole('status').evaluateAll(renderedCurrentGroupMessageMatches, groupMessageChoice.trim())
-        : await panel.getByRole('status').evaluateAll((nodes, scout) => scout
-        ? nodes.filter(node => node.matches('.scout-request__notice') && node.getClientRects().length > 0 &&
-          getComputedStyle(node).visibility !== 'hidden' && (node.textContent ?? '').trim() ===
-          'Request recorded. Your private scouting report will arrive automatically.').length === 1
-        : nodes.some(node =>
-        node.getClientRects().length > 0 && getComputedStyle(node).visibility !== 'hidden' &&
-        (node.textContent ?? '').trim().length > 0), Boolean(scoutChoice));
-      if (!rendered) return { ready: false };
-      if (groupMessageChoice !== undefined) return { ready: true, regionName, groupMessage,
-        renderedStatusCode: 'current-group-note-visible' };
-      if (scoutChoice) return { ready: true, regionName, scoutRequest, renderedStatusCode: 'scout-request-recorded-visible' };
-      const resultRevision = [result.revision, result.repairRevision, result.choiceRevision,
-        result.upgradeRevision, result.wingRevision, result.fighterWingRevision, result.currentRevision]
-        .find(value => Number.isSafeInteger(value) && value >= 0);
-      if (!Number.isSafeInteger(resultRevision)) return { ready: false };
-      return { ready: true, regionName,
-        gmRevision: gmState?.revision ?? gmState?.setupRevision ?? resultRevision,
-        crewRevision: crewState?.revision ?? crewState?.setupRevision ?? resultRevision,
-        renderedStatusCode };
-    };
-  }
+  const { attemptSpecialist, runSpecialist, inspectRenderedAction } = createCapybaraSpecialistActionSeam(a, context,
+    { specialistDriver, updateCapybaraStage });
   async function captureOrdinaryUiMutation({ roleId, endpoint, regionName, expectedStatus,
     renderedStatus, prepare, sourceCheck, automatic = false, timeoutMs = 30_000 }) {
     const surface = await a.select(roleId);
