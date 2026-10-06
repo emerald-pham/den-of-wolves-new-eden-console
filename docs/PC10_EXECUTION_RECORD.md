@@ -212,7 +212,8 @@ The separately prepared GM22 caller corrects its predecessor's NEW 30-second
 budget to the full-game surface's existing 60-second deadline and captures
 readiness and original PRIMARY identity in the same read-only source sample.
 Core8 binds the original host from the ordinary member's actual docking before
-departure; Press4 preserves its original caller guards. They have not run.
+departure; Press4 preserves its original caller guards. At that preparation
+boundary neither had run; Core8's later closed result is recorded below.
 The foreground presence repair is integrated with 12 new and 77 retained
 native cases. Its foreground pulse uses ordinary `refreshPresence`; background
 recovery retains its own identity/cancellation checks. The three adjacent Core
@@ -258,10 +259,69 @@ source/compiled-runtime bindings. No human or physical-device play is claimed.
 After the parent's explicit runtime return and Miner3's clean boundary,
 Root released the requested next window for Chain Scanner's single final
 seven-minute sequence. No active PC10 proof was interrupted.
-Root's reserved servers remain idle; source/native work continues while heavy
-proofs await explicit return. This environment has no outgoing thread-message
+During that window Root's reserved servers remained idle and source/native
+work continued. The parent subsequently returned it, and later returned its
+last lightweight smoke window after Core8. No parent hold remains.
+This environment has no outgoing thread-message
 capability, so the release is recorded without inventing delivered acknowledgement.
 No unrelated task's files, services, browser tabs or reservations were changed.
+
+### October 6 GM and Core reconciliation after Miner3
+
+A new mounted native case reproduced a distinct GM draft defect: the queued
+state updater read the previous server-role reference after it had already
+advanced. The narrow repair captures the previous IDs before queuing the
+update. Twelve new cases cover normal and Strict-mode roster replacement,
+unchanged-role refresh, a real local edit and authority loss; the 172 existing
+GM tests remain unchanged. The clean RED was four intended failures/eight
+passes, followed by 184 green focused cases, valid application types and lint
+with only existing warnings. Earlier setup/fixture/type failures are retained.
+This does not prove an exclusive cause for Miner3's historical disabled Start.
+
+GM22 then failed before first role assignment and its owned cleanup encountered
+a verified Java heap failure. The raw emulator/journal evidence and failed
+cleanup are retained; the original assignment-400 cause is unproved. Root
+stopped only its verified emulator process group and restored the same pinned
+emulator/configuration/project and compiled bytes. The fresh restored runtime
+was empty. No heap, deadline, authority or production setting was changed.
+
+GM23 completed all 18 role assignments but its NEW caller lookup used an exact
+label matcher that missed the nested select. A bounded current-HTML browser
+probe confirmed the existing accessible combobox name; the caller alone was
+corrected. GM24/25 then qualified genuine ordinary PRIMARY join and consent,
+casting preference UI/receipt/exact replay, same-UID reload, ordinary GM denial
+and disconnect. Both made actual authenticated GM manual cycle 0→1 and
+completed the fighter-count recipe. Responsive captures retain the current
+fonts, keyboard operation, minimum targets and zero overflow at all three sizes.
+Each run used 22 Auth identities, two Chrome processes/contexts and zero humans.
+
+GM24 exposed the default counter recipe selecting only the first resource
+button. A new native fixture binds the current GM control order: disabled
+Decrease Food at zero, later enabled Increase Food in the same pinned group.
+The repair scans only the seven current resource labels in that original
+group. Five new cases cover this success, foreign-ship exclusion, population/
+unrest exclusion and original actor/source drift; all 20 selected old native
+cases remain unchanged. Four test-only commits precede the source-only repair;
+25 focused cases pass. Earlier syntax/harness failures and distinct RED test
+versions remain recorded without claiming byte identity across refinements.
+
+GM25 at `f47c217e` now dispatched the actual counter and exact SDK retry, both
+200, but its request/result mapping remained unqualified. All 173 intents have
+replies; the raw capture tuple was not retained and its exclusive cause remains
+unproved. The two-counter family did not reach its ending. Core8 at `dbca2978`
+separately qualified original Wing Commander/Starlight departure; Begin and
+exact replay returned 200 but failed the post-source check. No retarget,
+natural arrival, adjacent craft action or ending is credited. Both runs closed
+their two browsers before exact own-session deletion and retained unchanged
+complete source/runtime bindings, with all owned gameplay scopes zero.
+
+The source-only family/taxonomy audits cover all 233 retained callable names,
+42 roles and 842 resolved declaration anchors without editing canonical history
+or generating a final matrix. Source labels, native cases, SDK 200 replies and
+successful prefixes do not establish a complete game, role/function acceptance,
+concurrency or usability. Bounded native workers own the GM mapping and Core
+diagnostic-fidelity gaps; Root continues the existing fresh finite families.
+All 48 catalog closures, one independent final review and release remain open.
 
 The following restore diagnosis is retained historical evidence; it does not
 replace the current finite-family checklist.
