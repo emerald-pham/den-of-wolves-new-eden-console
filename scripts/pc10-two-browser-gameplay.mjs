@@ -24,12 +24,35 @@ export function unwrapBrowserFirestoreReadOutcome(outcome) {
 }
 
 /** Compose genuine UI-selected crew accounts; no token, Admin write or store setter. */
-export function createTwoBrowserGameplay(context) {
+export function createTwoBrowserGameplay(context, { preAdmissionGmOnly = false } = {}) {
   const { gm, crew, initial, roster, directory } = context;
-  assert.ok(initial.sessionId && initial.joinCode && roster.length);
+  if (preAdmissionGmOnly) {
+    assert.ok(initial.sessionId && initial.joinCode && initial.uidHash &&
+      Number.isFinite(initial.documentTimeOrigin) && initial.documentTimeOrigin > 0 &&
+      roster === undefined && context.confirmed === undefined && context.prepared === undefined && context.started === undefined,
+    'Use the original pre-admission GM setup context; never supply an invented roster.');
+  } else assert.ok(initial.sessionId && initial.joinCode && roster.length);
   const actions = [], snapshots = [];
   const hash = value => createHash('sha256').update(JSON.stringify(value ?? null)).digest('hex');
+  let setupGmInstanceId;
   async function live(surface, deadlineAt = Date.now() + 60_000) {
+    if (preAdmissionGmOnly) {
+      assert.ok(Number.isFinite(deadlineAt) && Date.now() < deadlineAt, 'Original GM setup selection deadline expired.');
+      const current = await surface.until('The original pre-admission GM is live', state =>
+        state.sameActor && state.sessionId === initial.sessionId && state.connection === 'live' &&
+        state.freshness === 'server' && state.gmInstanceOwned,
+      Math.max(1, Math.min(60_000, deadlineAt - Date.now())));
+      assert.equal(current.hasAuth, true); assert.equal(current.playerRole, 'gm');
+      assert.equal(current.uidHash, initial.uidHash); assert.equal(current.documentTimeOrigin, initial.documentTimeOrigin);
+      assert.equal(current.phase, 'lobby'); assert.equal(current.cycle, 0);
+      assert.ok(typeof current.instanceId === 'string' && current.instanceId.length > 0);
+      // initial was captured before the named GM joined; bind that real owned
+      // instance on first selection, and retain it for every later selection.
+      setupGmInstanceId ??= current.instanceId;
+      assert.equal(current.instanceId, setupGmInstanceId);
+      assert.ok(Date.now() < deadlineAt, 'Original GM setup selection deadline expired.');
+      return current;
+    }
     return surface.until('The current normally admitted actor is live', state =>
       state.sameActor && state.sessionId === initial.sessionId && state.connection === 'live' &&
       state.freshness === 'server' && (surface !== gm || state.gmInstanceOwned), Math.max(1, Math.min(60_000, deadlineAt - Date.now())));
@@ -459,6 +482,20 @@ export function createTwoBrowserGameplay(context) {
         'No function or full-game acceptance follows from the adapter itself.'],
       actions, snapshots, ...details }), null, 2)}\n`);
   }
+  // The setup producer has not confirmed or admitted crew yet. Keep its real
+  // GM-only callback in Cycle 0 without enabling any crew/SDK gameplay helper.
+  if (preAdmissionGmOnly) return { context, actions,
+    select: async (roleId, options) => {
+      assert.equal(roleId, 'gm', 'The pre-admission adapter permits only the original GM.');
+      return select(roleId, options);
+    },
+    state: async (surface = gm) => {
+      assert.equal(surface, gm, 'The pre-admission adapter reads only the original GM.');
+      const current = await state(surface);
+      assert.equal(current.live, true); assert.equal(current.sessionId, initial.sessionId);
+      assert.equal(current.phase, 'lobby'); assert.equal(current.cycle, 0); assert.equal(current.player.role, 'gm');
+      return current;
+    } };
   return { context, actions, state, shipState, select, command,
     read: (roleId, suffix, options) => options?.serverOnly === true
       ? readCurrentWolfAttackFromServer(roleId, suffix, options) : read(roleId, suffix, options),

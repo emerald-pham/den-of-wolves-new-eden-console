@@ -2084,8 +2084,13 @@ export function createPendingCoreCraftActionsCallback({ steps = {}, gameFactory 
 
 /** Prestart facilitator setup and source-offered live rulings/counters; this never owns the root runner's phases. */
 export function createPendingGmRulingsCountersCallbacks({ steps = {}, gameFactory = createTwoBrowserGameplay } = {}) {
+  const setupGameFactory = gameFactory === createTwoBrowserGameplay
+    ? context => context.roster === undefined
+      ? createTwoBrowserGameplay(context, { preAdmissionGmOnly: true }) : gameFactory(context)
+    : gameFactory;
   const run = checkpoint => context => runCasesAtCheckpoint({ family: G, cases: GM_RULING_COUNTER_PROCEDURES,
-    checkpoint, context, steps, gameFactory, directory: context.directory });
+    checkpoint, context, steps, gameFactory: checkpoint === 'on-setup' ? setupGameFactory : gameFactory,
+    directory: context.directory });
   return Object.freeze({ onSetup: run('on-setup'), onStarted: run('on-started'),
     onMaintenance: run('maintenance'), onEligibleAlert: run('eligible-alert'),
     onEligibleMutiny: run('eligible-mutiny'), onEligibleDestruction: run('eligible-destruction'),
