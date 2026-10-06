@@ -241,6 +241,17 @@ describe('initial ordinary join/member/player confirmation ordering', () => {
     expect(sdk.signIn).not.toHaveBeenCalled();
     if ('press' in options) expect(useSessionStore.getState().me).toMatchObject({ assignedRoleId: null, seatId: null });
     if ('legacy' in options) expect(Object.hasOwn(useSessionStore.getState().session!, 'currentActorBerthAuthority')).toBe(false);
+    if (_name === 'demo core') {
+      // The initial transaction was parsed before the independent player.
+      // App must keep its berth withdrawn until the existing refresh confirms
+      // both; avoiding a spurious reconnect cannot restore private authority.
+      expect(useSessionStore.getState().session?.currentActorBerthAuthority).toBeNull();
+    }
+    await deliverMember(1);
+    expect(callCount('getCurrentMemberSession')).toBe(2);
+    expect(useSessionStore.getState().identityHydrationRevision).toBe(1);
+    if (_name === 'demo core') expect(useSessionStore.getState().session?.currentActorBerthAuthority)
+      .toMatchObject({ actorUid: actor.uid, sessionId, connectionGeneration: 3 });
   });
 
   it('accepts the reverse legal ordering without applying the pre-player pending transaction', async () => {
@@ -258,6 +269,15 @@ describe('initial ordinary join/member/player confirmation ordering', () => {
     expect(callCount('resumeSession')).toBe(0);
     expect(useSessionStore.getState()).toMatchObject({ connection: 'live', sessionSnapshotFreshness: 'server',
       identityHydrationRevision: 1, me: { role: 'gm', connectionGeneration: 3 } });
+  });
+
+  it('does not treat a FIRST role change as the original ordinary player confirmation', async () => {
+    await mount(); await deliverMember(0);
+    const reader = currentPlayerReader();
+    act(() => reader.next(snapshot(playerPath(), { ...actor, role: 'gm' })));
+    // Inspect the original member callback before React starts its distinct GM
+    // audience. A later normal root reader is not the earlier member authority.
+    expect(frames.some(frame => frame.connection === 'offline' && frame.freshness === 'cache')).toBe(true);
   });
 
   it.each([
@@ -323,7 +343,41 @@ describe('initial ordinary join/member/player confirmation ordering', () => {
     await deliverMember(0);
     act(() => retired.next(snapshot(playerPath(), { ...actor })));
     await advance();
-    expect(useSessionStore.getState()).toMatchObject({ session: null, me: null, connection: 'offline' });
+    // Sessionless landing may be connected to Firebase. A retired listener
+    // must not restore a member, private projection or server session marker.
+    expect(useSessionStore.getState()).toMatchObject({ session: null, me: null,
+      sessionSnapshotFreshness: 'unknown', roleBrief: null });
+    expect(callCount('resumeSession')).toBe(0);
+  });
+
+  it('keeps an early private discovery buffered until the current player AND berth confirm', async () => {
+    await mount();
+    const reader = listeners.filter(value => value.active && value.path === `${rootPath()}/playerDiscoveries/${actor.uid}`).at(-1)!;
+    const discovery = { groupId: 'fleet-1', shipId: 'aegis', fleetGroupVesselIds: ['aegis'],
+      currentCoordinate: '1413', knownCoordinates: ['1413'], knownSystems: {}, pursuitDistance: 1,
+      navigationLogs: [], revision: 3 };
+    act(() => reader.next(snapshot(reader.path, discovery)));
+    await deliverMember(0);
+    expect(useSessionStore.getState().session?.playerDiscovery).toBeUndefined();
+    await deliverPlayer();
+    expect(useSessionStore.getState().session?.playerDiscovery).toBeUndefined();
+    await deliverMember(1);
+    expect(useSessionStore.getState().session?.playerDiscovery).toMatchObject({ shipId: 'aegis', revision: 3 });
+    expect(useSessionStore.getState()).toMatchObject({ identityHydrationRevision: 1, me: { connectionGeneration: 3 } });
+    expect(callCount('resumeSession')).toBe(0);
+  });
+
+  it('terminates operational initial confirmation when the member transaction closes the session', async () => {
+    await mount(); const retired = currentPlayerReader();
+    sessionData = { ...sessionData, phase: 'closed', fullGameDemo: { status: 'complete', progression: 'manual' } };
+    await deliverMember(0);
+    expect(useSessionStore.getState().session?.phase).toBe('closed');
+    const calls = callCount('getCurrentMemberSession');
+    act(() => retired.next(snapshot(playerPath(), { ...actor })));
+    await advance(2_200);
+    expect(useSessionStore.getState().session?.phase).toBe('closed');
+    expect(useSessionStore.getState().me?.connected).toBe(false);
+    expect(callCount('getCurrentMemberSession')).toBe(calls);
     expect(callCount('resumeSession')).toBe(0);
   });
 });
