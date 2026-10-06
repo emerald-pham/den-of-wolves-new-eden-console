@@ -379,3 +379,28 @@ replay; neither lock absent or a string value still fails closed. Separate red
 tests reproduced both automatic and GM recovery failures, followed by 62 green
 focused tests. Repaired authenticated scout/restore gameplay remains pending;
 the historical lock holder is not inferred from this later state.
+
+## Current verified boundary after counter and predicate integration
+
+GM26 at `3813d5d9dba1b1a36000542364ea0e4df7cabefe` qualified both mounted
+GM counters, their exact retries and an ordinary Pursuit ending through closure
+and entitled reload after ordinary PRIMARY casting/admission/consent. Its 22
+Auth identities used two automated browsers/contexts and zero humans. All owned
+gameplay scopes returned to zero; complete source/runtime bindings were unchanged.
+Core10 at that same source isolated a rejected docking/member-group predicate
+while raw live state, original authority and movement predicates all passed.
+Its cause and remaining movement/ending are open, with the original guards kept.
+
+Gate2 attempt 4 retained 273/340 issued commands and 63/84 privacy checks across
+three states, then failed natural lease expiry before scheduler/resume. No
+post-wait per-actor tuple was retained. Its issued subset passes, while the
+original four-state, 340-command, 84-check contract remains open. Twenty-one
+independent contexts in one Chrome process are automated evidence, not human
+device playtesting. Its source/runtime and exact-owned cleanup qualified.
+
+The current counter, public-mission and opt-in predicate integration passes 132
+distinct focused owner cases. Native repairs and accepted subsystems do not
+complete the 48 catalog rows or the three whole-checkpoint gates. Finish the
+existing fresh families, required privacy/recovery/usability, one reconciled
+independent review and exact-candidate/main release checks before handoff.
+PC11 and PC12 remain unstarted here.

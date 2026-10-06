@@ -58,9 +58,12 @@ final PC10 release and handoff before implementation.
 
 ## Current measured limits, before final PC10 qualification
 
-The latest closed October 6 actual snapshot is
-`43a9342ae51e624ccc94c03b68868a80464dfafa` (Core9, after Capybara2). All 48 catalog closures and release remain
-pending. The [current finite-family checklist](PC10_ACCEPTANCE_MATRIX.md#october-6-accepted-and-open-finite-families)
+The latest closed October 6 actual snapshot is GM26 at
+`3813d5d9dba1b1a36000542364ea0e4df7cabefe`. Its ordinary PRIMARY casting,
+manual start, both mounted GM counters with exact retry, ordinary Pursuit
+ending, debrief, closure and entitled reload qualified with 22 authenticated
+identities in two automated Chrome processes/contexts and zero humans.
+All 48 catalog closures and release remain pending. The [current finite-family checklist](PC10_ACCEPTANCE_MATRIX.md#october-6-accepted-and-open-finite-families)
 records accepted subsystem evidence separately from open games and gates.
 
 The ordinary primary Settings QR qualified with actual normal admission, manual
@@ -102,9 +105,11 @@ Capybara2 retained real manual start, 23 authenticated identities, 662 normal GM
 counter preparation receipts and 60 qualified maintenance step receipts through
 six ship sequence ends. Its seventh Capybara response was 200 before a missing-
 field assertion; complete maintenance, missions and ending remain unqualified.
-Core9 retained the exact redacted post-capture tuple: source live became false
-while the complete original document authority and source identity fields
-remained fixed. A source-specific native reader diagnosis remains open.
+Core9 retained a false combined source-acceptance sentinel, rather than a raw
+reader live flag. Core10 now retains raw latestLive=true, matching original
+authority/scope and the exact transit record, but one remaining docking entry
+and a failed docking/member-group predicate. Its source cause remains under
+bounded native investigation; Retarget, arrival and ending are unqualified.
 Before another long setup, the parent requested a finite audit of existing
 caller/validator DTO accesses, with narrow contract cases and no new framework.
 Reuse accepted source-bound setup slices only within their actual scope;
@@ -173,3 +178,28 @@ require the same game behavior with no internet runtime dependencies. Local QR
 must cover user-entered Wi-Fi details and server IP/URL without committing
 credentials or changing network security settings. No cloud/offline state sync
 is implied. PC10 does not start this work.
+
+## Current verified boundary after counter and predicate integration
+
+GM26 at `3813d5d9dba1b1a36000542364ea0e4df7cabefe` qualified both mounted
+GM counters, their exact retries and an ordinary Pursuit ending through closure
+and entitled reload after ordinary PRIMARY casting/admission/consent. Its 22
+Auth identities used two automated browsers/contexts and zero humans. All owned
+gameplay scopes returned to zero; complete source/runtime bindings were unchanged.
+Core10 at that same source isolated a rejected docking/member-group predicate
+while raw live state, original authority and movement predicates all passed.
+Its cause and remaining movement/ending are open, with the original guards kept.
+
+Gate2 attempt 4 retained 273/340 issued commands and 63/84 privacy checks across
+three states, then failed natural lease expiry before scheduler/resume. No
+post-wait per-actor tuple was retained. Its issued subset passes, while the
+original four-state, 340-command, 84-check contract remains open. Twenty-one
+independent contexts in one Chrome process are automated evidence, not human
+device playtesting. Its source/runtime and exact-owned cleanup qualified.
+
+The current counter, public-mission and opt-in predicate integration passes 132
+distinct focused owner cases. Native repairs and accepted subsystems do not
+complete the 48 catalog rows or the three whole-checkpoint gates. Finish the
+existing fresh families, required privacy/recovery/usability, one reconciled
+independent review and exact-candidate/main release checks before handoff.
+PC11 and PC12 remain unstarted here.

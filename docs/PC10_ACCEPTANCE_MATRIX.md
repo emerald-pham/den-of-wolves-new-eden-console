@@ -79,57 +79,73 @@ Prepared presentation, native tests, normal authenticated emulator HTTP/UI/rules
 
 ## October 6 accepted and open finite families
 
-The latest closed actual boundary is Core9 at
-`43a9342ae51e624ccc94c03b68868a80464dfafa`: 18 Core actors, Press, GM and
-controller in two automated Chrome processes/contexts, with zero humans.
-Original-holder departure qualified. Begin and exact SDK replay returned 200,
-but its source check remained pending. The new redacted diagnostic now records
-`sourceAfter.live=false`; session, cycle, source revision, group and the complete
-original document-authority tuple remained unchanged, while movement changed
-from requested to in-transit at revision 1. The underlying reader reason is
-unproved. Retarget, natural arrival, adjacent actions and ending were not reached.
-Of 172 request intents, 171 replies were retained; the final ordinary GM reader
-intent had no reply before shutdown. No transport count supplies acceptance.
+The latest closed actual boundary is GM26 at
+`3813d5d9dba1b1a36000542364ea0e4df7cabefe`. Its ordinary PRIMARY admission,
+existing consent, casting preference, exact retry, same-UID reload, GM denial
+and disconnect qualified. Both mounted GM resource and fighter counters then
+qualified with exact replay, followed by an ordinary Pursuit ending, debrief,
+closure and entitled crew reload. It used 22 authenticated identities in two
+automated Chrome processes/contexts, with zero humans. Its unchanged complete
+source/runtime binding and exact-owned cleanup leave all three gameplay scopes
+at zero. The four other qualified GM controls and QR pixel captures remain
+separate evidence; no all-role or whole-game claim follows from this family.
 
-Capybara2 at the same source made real manual GM cycle 0→1 with 23 authenticated
-identities (20 Core, Press, GM and controller), two Chrome processes/contexts and
-zero humans. Its 4,833 intents all have replies. Normal GM preparation used 23
-explicit counter choices and 662 actual counter receipts. The maintenance log
-retains 60 qualified step receipts through six ship sequence ends, plus five
-full ship snapshots. Capybara's seventh-ship response was 200 before a missing-
-field caller assertion; its raw request/result tuple was not retained, so it
-receives no maintenance acceptance or exclusive-cause attribution. The entire
-seven-host sequence, missions and ending remain open. The earlier short failure
-summary understated this retained six-ship maintenance evidence.
+Core10 at that source retained the original holder's departure, then rejected
+Begin despite a current live reader, unchanged complete document authority and
+the exact in-transit movement at revision 1. The opt-in predicate capture shows
+one remaining docking entry, a false docking-state predicate and no derived
+member group. All other source, authority, scope and movement predicates passed.
+The earlier Core9 `sourceAfter.live=false` was a combined acceptance sentinel,
+not the raw reader's live flag. Core10 does not establish a timing or product
+cause; a bounded source/native investigation owns that question. Retarget,
+natural arrival, adjacent actions and ending remain open. Its cleanup and full
+source/runtime preservation qualified, with no gameplay backfill.
 
-GM24/25 retain ordinary PRIMARY admission/consent/preference/exact replay,
-same-UID reload, ordinary GM denial and disconnect, real manual start and the
-fighter-count recipe. GM25's mounted resource counter and exact retry returned
-200 but remained unqualified; its raw tuple and exclusive cause are unproved.
-GM24/25, Capybara2 and Core9 each retain unchanged complete source/runtime
-bindings and all three owned gameplay scopes at zero. The latest focused native slice passes
-81 cases; repeats add no distinct cases. The diagnostic fixture completion adds
-only its existing own-host input, preserving all 75 old assertion expressions
-and eight titles. The GM draft repair passes 12 new plus 172 untouched cases;
-the earlier App visibility repair passes 12 new plus 202 untouched cases.
-All 48 catalog closures and the release remain pending.
-Accepted subsystem checks do not establish an entire family or every function.
+Capybara2 retains 23 authenticated identities, 4,833 intents/replies, 23 explicit
+GM preparation choices and 662 mounted counter receipts. Sixty maintenance
+step receipts qualified through six ship sequence ends, with five full ship
+snapshots. The seventh response was 200 before a missing-field assertion; its
+raw tuple was not retained. The current maintenance caller now matches the
+source's revision, cost and chargeable-console contract, and Boa/Bulk callers
+use public rewards and original mission/custody identity. Those repairs have
+native evidence, while the complete fresh Capybara sequence and ending await
+actual qualification. No exclusive historical cause is assigned.
+
+Gate2 attempt 4 at `90d9039525fd1eea4519f252994a274d46e21b24` admitted all 21
+ordinary browser actors plus a separate authenticated GM. It issued 273 of the
+original 340 commands and 63 of 84 privacy checks across initial-resume, online
+and reload. The issued subset passed its functional/commanded-privacy checks;
+actual natural lease expiry failed before scheduler/resume. The post-wait
+per-actor timestamps were not retained, so no late writer or failing actor is
+identified. This attempt used 21 independent browser contexts in one Chrome
+process and zero humans; it does not complete Gate2 or replace its original
+340-command/four-state/84-check target. Cleanup and source/runtime preservation
+qualified, returning all owned scopes to zero.
+
+The integrated counter, public-mission and opt-in shuttle packets pass 132
+distinct focused checks (101 Node and 31 rendered component cases), with the
+nine old counter test bodies/titles and 77 assertions preserved. The separate
+maintenance packet passed 22 new rendered cases and 214 worker-focused cases;
+the mission packet passed 110 worker-focused cases. These sets overlap with
+owner verification and are not summed as new gameplay evidence. The retained
+GM draft and App visibility repairs preserve their disclosed native scope.
+All 48 catalog closures, the three complete gates and release remain pending.
 
 | Existing scenario family | Accepted evidence | Exact open behavior |
 |---|---|---|
 | Ordinary Settings QR | Fresh normal admission and actual GM manual start; four unchanged pixel captures decoded to the exact ordinary join payload; accessible link/code and responsive presentation. | Final current-source/release reconciliation; no physical-device scan is claimed. |
-| Member and GM lifecycle / GM recipes | GM17 completed four mounted recipes, ordinary Pursuit ending, immutable debrief/closure and entitled crew reload across two browsers. GM24/25 qualified an ordinary PRIMARY casting preference and real manual GM start; their fighter-count recipe completed. | GM25's mounted resource counter and exact retry returned 200, but request/result correspondence remains unqualified. A bounded full-mapping native investigation is open; no ending or exclusive historical cause is claimed. GM22's verified local JVM heap failure is retained separately; only the owned emulator was restored with unchanged version, configuration and compiled bytes. GM23's caller label lookup was corrected using the existing accessible combobox name. Remaining mounted member/GM functions and interrupted/repeated recovery stay open. The intentionally unmounted registration-lock writer earns no UI credit. |
+| Member and GM lifecycle / GM recipes | GM17 completed four mounted recipes, ordinary Pursuit ending, immutable debrief/closure and entitled crew reload across two browsers. GM26 qualified ordinary PRIMARY casting, real manual start, both mounted counters with exact retries, ordinary Pursuit ending, debrief, closure and entitled crew reload. | The current resource-counter mapping qualified in GM26; GM25's failed evidence and missing historical tuple remain unchanged. Remaining mounted member/GM functions and full-game recovery are separately tracked. GM22's verified local JVM heap failure is retained separately; only the owned emulator was restored with unchanged version, configuration and compiled bytes. GM23's caller label lookup was corrected using the existing accessible combobox name. Remaining mounted member/GM functions and interrupted/repeated recovery stay open. The intentionally unmounted registration-lock writer earns no UI credit. |
 | Full Base / combat / politics / crisis / arrest | Combat29 committed nine paid maintenance actions and its opening combat choices before failure. | Combat29 and the separate eight-core Miner1/Miner2 qualifiers changed the original pre-selection generation before station acceptance; initiating callback attribution is unretained. Miner2 still failed after the independently valid foreground presence repair (12 new plus 77 retained native cases). A separate whole-App native counterexample shows a short visible-tab return starting same-document resume despite live/server authority; the current-identity visibility repair is integrated with 12 new and 202 retained client cases. Neither counterexample supplies an exclusive historical cause. Miner3 stopped before a start request at the disabled GM control. A distinct queued GM draft defect is repaired and current fresh manual starts work; its historical cause and stable full-role recovery remain unproved. Complete stable role selection, release/reselection/reload, range/aftermath and subsequent ordinary Base actions through ending. |
-| Core and Press shuttle transit | Core8 qualified Request departure for the original Wing Commander/Starlight holder, retaining its original host, group, generation, hydration and document. Begin and exact replay returned 200 but failed source qualification. Press2 confirmed canonical null replacement status and its own SNN scope/control; Press3 failed before departure. | Core movement, natural arrival, adjacent commands, printed-owner handoff/reclaim and reload through ending remain open. The existing ten-file native slice passes 159 cases with disclosed fixture completions; all original route assertions/titles remain exact. Press selection passes 14 new and 94 unchanged checks. A full default Begin mapping characterization passes without changing any acceptance guard. Core9 now retains the exact redacted post source: live is false despite unchanged original authority. A bounded real-reader native diagnosis is open; no live guard is relaxed. No native total or SDK 200 establishes completed transit or an exclusive historical cause. |
+| Core and Press shuttle transit | Core8 qualified Request departure for the original Wing Commander/Starlight holder, retaining its original host, group, generation, hydration and document. Begin and exact replay returned 200 but failed source qualification. Press2 confirmed canonical null replacement status and its own SNN scope/control; Press3 failed before departure. | Core movement, natural arrival, adjacent commands, printed-owner handoff/reclaim and reload through ending remain open. The existing ten-file native slice passes 159 cases with disclosed fixture completions; all original route assertions/titles remain exact. Press selection passes 14 new and 94 unchanged checks. A full default Begin mapping characterization passes without changing any acceptance guard. Core10 retains raw latestLive=true and matching original authority/movement, with dockingCount1 and a rejected docking/member-group predicate. A bounded source-coupled investigation is open; no live or authority guard is relaxed. No native total or SDK 200 establishes completed transit or an exclusive historical cause. |
 | N/O/P candidate games | CandidatePanel6 completed four ordinary cycles and twenty Scientist choices; phone/landscape targets and all viewport overflow/target-size checks passed. | Desktop native Tab reached seven of eight targets within the unchanged 48-Tab cap; all three distinct candidate outcomes and endings remain open. |
 | Capybara, sparse joint engineering and replacement-role families | Capybara2 retains real manual start, 662 normal GM resource preparation receipts and 60 qualified maintenance step receipts through six ship sequence ends. | The seventh Capybara maintenance response remains unqualified, followed by all missions and the existing ordinary ending. Sparse joint/replacement functions, costs, replay/recovery/privacy and endings remain open. |
-| Gate 2 independent sessions | Functional3 completed all 21 ordinary browser joins and consent. | Original GM start returned 500 before the functional/privacy commands; no concurrency acceptance. Complete the original finite overlap/reconnect/retry/privacy contract after source reconciliation. |
+| Gate 2 independent sessions | Attempt4 completed all 21 browser joins/consent and the first three commanded privacy states; its 273 issued commands/63 checks passed the issued-subset contract. | Natural lease expiry failed before scheduler/resume, without per-actor post-wait timestamps. Complete the unchanged 340-command/four-state/84-privacy-check contract; no concurrency acceptance or historical cause is inferred. |
 | Gate 3 usability / final release | Existing action/source annotations and subsystem screenshots are retained. | Reconcile available actions, costs, blockers, committed results and next actor; one independent review, final local checks, exact candidate/main CI and deployment. |
 
 The parent explicitly returned the earlier Chain Scanner runtime windows,
 including its final lightweight live-site smoke after Core8. Both Chain
 browsers were reported closed; no parent runtime hold remains. Root subsequently
-ran GM25, Capybara2 and Core9 after fresh source/ownership/zero-scope preflights
+ran GM25, Capybara2, Core9/10, Gate2 attempt 4 and GM26 after fresh source/ownership/zero-scope preflights
 and continues the existing finite families serially while isolated native
 workers finish.
 No unrelated files, services, tabs or reservations were changed.
