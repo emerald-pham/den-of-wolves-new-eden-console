@@ -4265,6 +4265,7 @@ export function subscribeSessionState(
   let memberActorAvailable: boolean | undefined;
   let memberPlayer: Player | undefined;
   let memberSessionConfirmed = false;
+  let confirmedMemberActorFingerprint: string | undefined;
   let pendingMemberDiscovery: PlayerDiscoveryProjection | undefined;
   const publishPendingMemberDiscovery = () => {
     if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken ||
@@ -4342,6 +4343,7 @@ export function subscribeSessionState(
             if (acceptServerSessionAuthority(sessionSnapshotAuthority, session, undefined, false, true)) {
               handlers.onSession(session);
               memberSessionConfirmed = true;
+              confirmedMemberActorFingerprint = fingerprint;
               handlers.onSessionFreshness?.(true);
               if (session.phase === 'closed') stopForClosedHistory();
               else publishPendingMemberDiscovery();
@@ -4476,6 +4478,11 @@ export function subscribeSessionState(
         if (!fromCache && handlers.sessionReadAudience === 'member') {
           const nextFingerprint = actorFingerprint(player);
           if (memberActorAvailable !== true || nextFingerprint !== memberActorFingerprint) {
+            // The authenticated transaction can finish before the FIRST own
+            // player listener. Matching that confirmed actor is initialization,
+            // not a lease change that should trigger ordinary resume recovery.
+            const firstConfirmedPlayer = memberActorAvailable === undefined && player.role === 'player' &&
+              memberSessionConfirmed && nextFingerprint === confirmedMemberActorFingerprint;
             if (memberActorFingerprint !== undefined) {
               pendingMemberDiscovery = undefined;
               rebindDiscovery = true;
@@ -4483,8 +4490,10 @@ export function subscribeSessionState(
             memberActorAvailable = true;
             memberSessionConfirmed = false;
             memberActorFingerprint = nextFingerprint;
-            memberActorEpoch += 1;
-            handlers.onSessionFreshness?.(false);
+            if (!firstConfirmedPlayer) {
+              memberActorEpoch += 1;
+              handlers.onSessionFreshness?.(false);
+            }
           }
         }
         memberPlayer = player;
