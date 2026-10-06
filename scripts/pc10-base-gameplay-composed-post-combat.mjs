@@ -12,6 +12,7 @@ import { runBaseC4CustomCrisisLifecycle } from '/private/tmp/dow-pc10-execution-
 import { BASE_MISSION_ROLE_PRIORITY, assessLiveBaseAction, baseShipForRole, baseShipRoleCandidates,
   chooseAvailableBaseShipRole, selectBaseMissionTeam, selectCurrentBaseMissionCarriers,
   validateBaseMissionStartReceipt, validateBaseScoutRequestReceipt } from './pc10-base-post-combat-choice-policy.mjs';
+import { observeBasePostCombatActor } from './pc10-base-post-combat-actor-observation.mjs';
 
 function sequenceCallbacks(callbacks, label) {
   const ordered = callbacks.filter(callback => callback !== undefined);
@@ -157,7 +158,7 @@ export async function runBaseGameplay(context, integration) {
     }
     const inspect = async (surface, requireConsole) => {
       const [gmReady, current, ship, actor] = await Promise.all([
-        currentGmReadiness(expectedCycle), a.state(), a.shipState(shipId, gm), surface.observe(),
+        currentGmReadiness(expectedCycle), a.state(), a.shipState(shipId, gm), observeBasePostCombatActor(surface),
       ]);
       const currentSession = { ...current, sessionId: current.sessionId, currentTurn: current.cycle,
         phase: current.phase, live: current.live };
