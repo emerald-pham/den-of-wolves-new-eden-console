@@ -83,7 +83,8 @@ function locator({ count = 1, enabled = true, click, select, fill, options = [],
 
 async function harness(mode, { selectedRole = ROLE, cargo = {}, stock = 9, airspace = 'restricted',
   patchCrew, patchGm, beforeCargoClick, afterCargoReply, malformedReceipt = false,
-  options = [{ value: 'securityTeams', label: 'Security teams' }], loadCount = 1, loadEnabled = true } = {}) {
+  afterAmountFill, afterCargoReplay, reloadPatch,
+  options = [{ value: 'securityTeams', label: 'Security Teams' }], loadCount = 1, loadEnabled = true } = {}) {
   const roles = ['admiral', ROLE, 'wing-commander', 'aegis-comms', 'aegis-engineer',
     ...Array.from({ length: 15 }, (_, index) => `remaining-role-${index}`), 'press-officer'];
   const roster = roles.map(roleId => ({ roleId, uidHash: hash(`original-${roleId}`) }));
@@ -175,6 +176,7 @@ async function harness(mode, { selectedRole = ROLE, cargo = {}, stock = 9, airsp
       reload: async () => {
         events.push({ kind: 'reload', roleId: selected });
         documentId += 1; generation += 1; hydration += 1; reloaded = true;
+        await reloadPatch?.(session);
       },
       waitForURL: async predicate => assert.equal(predicate(new URL(page.url())), true),
       waitForResponse: predicate => new Promise(resolve => waiters.push({ predicate, resolve })),
@@ -298,6 +300,7 @@ async function harness(mode, { selectedRole = ROLE, cargo = {}, stock = 9, airsp
           status: 'denied', code: 'functions/failed-precondition' };
         const result = receipts.get(JSON.stringify(request));
         assert.ok(result, 'Replay must use exactly an already captured original request.');
+        if (endpoint === 'transferShuttleCargoCommand') await afterCargoReplay?.(session);
         return { status: 'committed', result: { ...structuredClone(result),
           ...(endpoint === 'transferShuttleCargoCommand' ? { status: 'replayed' } : {}) } };
       },
@@ -308,7 +311,7 @@ async function harness(mode, { selectedRole = ROLE, cargo = {}, stock = 9, airsp
     count: async () => 1, isVisible: async () => true,
     waitFor: async () => undefined,
     getByLabel: name => name === 'Resource' ? locator({ options, select: resource => { draftResource = resource; } })
-      : locator({ fill: value => { draftAmount = Number(value); } }),
+      : locator({ fill: async value => { draftAmount = Number(value); await afterAmountFill?.(session); } }),
     getByRole: (role, { name } = {}) => role === 'button' && name === 'Load shuttle'
       ? locator({ count: loadCount, enabled: loadEnabled, click: async () => {
         await beforeCargoClick?.(session);
@@ -412,4 +415,132 @@ test('the unchanged public source reader retains strict member audience and curr
   const { readActionState } = await import('./pc10-pending-procedure-ui-recipes.mjs');
   const h = await harness('wolf-cult', { patchCrew: state => { state.session.memberSessionScope.craftIds = []; } });
   assert.equal((await readActionState(h.crew, 'pallas')).currentDocumentAuthority, null);
+});
+
+test('Arbour requested supply uses the same normal EO load and leaves the other Wolf its one slot', async () => {
+  const composition = await loadComposition(), h = await harness('universal-arbour');
+  const directory = await mkdtemp(join(tmpdir(), 'pc10-optional-native-'));
+  try {
+    const result = await composition.exerciseWolfCycleActions({ ...h, directory, privateActionRecipe: 'supply-sabotage' });
+    assert.equal(result.wolfSupplySabotage.status, 'committed');
+    assert.equal(result.wolfIntelligenceAction, true);
+    assert.equal(result.actionsCompletedByDistinctOriginalActors, true);
+    assert.equal(h.events.filter(event => event.kind === 'ui' && event.endpoint === 'transferShuttleCargoCommand').length, 1);
+    assert.equal(h.events.filter(event => event.kind === 'ui' && event.endpoint === 'submitWolfSupplySabotage').length, 1);
+    assert.equal(h.events.filter(event => event.kind === 'ui' && event.endpoint === 'submitWolfIntelligence').length, 1);
+    assert.equal(h.currentRole(), 'wing-commander');
+  } finally { await rm(directory, { recursive: true }); }
+});
+
+test('a blocked normal load retains uncredited sabotage without substituting regular Wolf action coverage', async () => {
+  const composition = await loadComposition(), h = await harness('wolf-cult', { stock: 1 });
+  const directory = await mkdtemp(join(tmpdir(), 'pc10-optional-native-'));
+  try {
+    const result = await composition.exerciseWolfCycleActions({ ...h, directory, privateActionRecipe: 'supply-sabotage' });
+    assert.equal(result.wolfSupplySabotage.status, 'blocked'); assert.equal(result.wolfSupplySabotage.credited, false);
+    assert.equal(result.wolfSupplySabotage.normalCargoPreparation.normalCargoLoadObserved, false);
+    assert.equal(h.events.some(event => event.endpoint === 'transferShuttleCargoCommand' || event.endpoint === 'submitWolfSupplySabotage'), false);
+    assert.equal(h.session.shipResources.aegis.securityTeams, 1);
+    assert.equal(result.wolfBeaconAction, true); assert.equal(result.wolfIntelligenceAction, true);
+    const saved = JSON.parse(await readFile(join(directory, 'private-wolf-actions.json'), 'utf8'));
+    assert.equal(saved.status, 'blocked'); assert.equal(saved.safeResult.credited, false);
+    assert.equal(saved.privateMappingsOrTextPersisted, false);
+  } finally { await rm(directory, { recursive: true }); }
+});
+
+test('normal supply preparation refuses current unavailable stock, dock, custody, printed permission and control', async t => {
+  const { prepareWolfSupplyCargo } = await import('./pc10-optional-loyalty-supply-preparation.mjs');
+  const cases = [
+    ['stock too small', { stock: 1 }],
+    ['capacity overflow', { cargo: { pallas: { securityTeams: Number.MAX_SAFE_INTEGER } } }],
+    ['malformed inventory', { patchCrew: state => { state.session.shipResources.aegis.securityTeams = -1; } }],
+    ['missing source stock', { patchCrew: state => { delete state.session.shipResources.aegis.securityTeams; } }],
+    ['malformed cargo', { cargo: { pallas: { securityTeams: null } } }],
+    ['ambiguous docking', { patchCrew: state => { state.session.shuttleDockings.push({ shuttleId: 'pallas', shipId: 'aegis' }); } }],
+    ['foreign host', { patchCrew: state => { state.session.shuttleDockings[0].shipId = 'dione'; } }],
+    ['foreign holder', { patchCrew: state => { state.session.shuttleControl.pallas.holderUid = 'another-holder'; } }],
+    ['foreign owner', { patchCrew: state => { state.session.shuttleControl.pallas.ownerUid = 'another-owner'; } }],
+    ['wrong printed role', { patchCrew: state => { state.session.shuttleControl.pallas.ownerRoleId = 'admiral'; } }],
+    ['invalid revision', { patchCrew: state => { state.session.shuttleControl.pallas.revision = null; } }],
+    ['no source permission', { options: [] }],
+    ['impermissible resource', { options: [{ value: 'ore' }] }],
+    ['ambiguous permission', { options: [{ value: 'securityTeams' }, { value: 'securityTeams' }] }],
+    ['disabled source permission', { options: [{ value: 'securityTeams', disabled: true }] }],
+    ['ambiguous mounted load', { loadCount: 2 }],
+    ['disabled mounted load', { loadEnabled: false }],
+  ];
+  for (const [name, options] of cases) await t.test(name, async () => {
+    const h = await harness('wolf-cult', options);
+    const result = await prepareWolfSupplyCargo(h, h.roster.find(actor => actor.roleId === ROLE));
+    assert.equal(result.status, 'blocked'); assert.equal(result.normalCargoLoadObserved, false);
+    assert.equal(h.events.some(event => event.endpoint === 'transferShuttleCargoCommand'), false);
+  });
+});
+
+test('supply preparation cannot replace original GM authority, current crew identity or private craft audience', async t => {
+  const { prepareWolfSupplyCargo } = await import('./pc10-optional-loyalty-supply-preparation.mjs');
+  const cases = [
+    ['GM demoted', { patchGm: state => { state.me.role = 'player'; } }],
+    ['GM foreign UID', { patchGm: state => { state.me.uid = 'foreign-gm'; } }],
+    ['GM foreign session', { patchGm: state => { state.session.id = 'another-session'; } }],
+    ['GM unowned instance', { patchGm: state => { state.gmInstance.uid = 'foreign-gm'; } }],
+    ['GM unhydrated', { patchGm: state => { state.identityHydrationRevision = 0; } }],
+    ['GM cache', { patchGm: state => { state.sessionSnapshotFreshness = 'cache'; } }],
+    ['GM offline', { patchGm: state => { state.connection = 'offline'; } }],
+    ['GM private audience', { patchGm: state => { state.roleBrief = { assignmentUid: 'another-reader' }; } }],
+    ['crew foreign Auth binding', { patchCrew: state => { state.me.uid = 'another-reader'; } }],
+    ['crew no current craft audience', { patchCrew: state => { state.session.memberSessionScope.craftIds = []; } }],
+    ['crew reassigned', { patchCrew: state => { state.me.assignedRoleId = 'admiral'; } }],
+    ['crew disconnected', { patchCrew: state => { state.me.connected = false; } }],
+  ];
+  for (const [name, options] of cases) await t.test(name, async () => {
+    const h = await harness('wolf-cult', options);
+    await assert.rejects(() => prepareWolfSupplyCargo(h, h.roster.find(actor => actor.roleId === ROLE)));
+    assert.equal(h.events.some(event => event.endpoint === 'transferShuttleCargoCommand'), false);
+  });
+});
+
+test('each existing input await retains the original EO document, custody, group, inventory and GM claim before one load', async t => {
+  const { prepareWolfSupplyCargo } = await import('./pc10-optional-loyalty-supply-preparation.mjs');
+  const cases = [
+    ['stock changed', { afterAmountFill: session => { session.shipResources.aegis.securityTeams = 8; } }],
+    ['cargo changed', { afterAmountFill: session => { session.shuttleCargo.pallas = { securityTeams: 1 }; } }],
+    ['control changed', { afterAmountFill: session => { session.shuttleControl.pallas.revision = 2; } }],
+    ['dock changed', { afterAmountFill: session => { session.shuttleDockings[0].shipId = 'dione'; } }],
+  ];
+  for (const [name, options] of cases) await t.test(name, async () => {
+    const h = await harness('wolf-cult', options);
+    await assert.rejects(() => prepareWolfSupplyCargo(h, h.roster.find(actor => actor.roleId === ROLE)));
+    assert.equal(h.events.some(event => event.endpoint === 'transferShuttleCargoCommand'), false);
+  });
+});
+
+test('an original mounted load with a malformed or changed result cannot earn preparation or sabotage credit', async t => {
+  const { prepareWolfSupplyCargo } = await import('./pc10-optional-loyalty-supply-preparation.mjs');
+  const cases = [
+    ['malformed receipt', { malformedReceipt: true }],
+    ['custody changed after response', { afterCargoReply: session => { session.shuttleControl.pallas.revision = 2; } }],
+    ['group lost after exact replay', { afterCargoReplay: session => { session.currentTurn = 2; } }],
+  ];
+  for (const [name, options] of cases) await t.test(name, async () => {
+    const h = await harness('wolf-cult', options);
+    await assert.rejects(() => prepareWolfSupplyCargo(h, h.roster.find(actor => actor.roleId === ROLE)));
+    assert.equal(h.events.filter(event => event.kind === 'ui' && event.endpoint === 'transferShuttleCargoCommand').length, 1);
+    assert.equal(h.events.some(event => event.endpoint === 'submitWolfSupplySabotage'), false);
+  });
+});
+
+test('Press restoration still rejects wrong UID, foreign session, wrong private card and queued foreign work', async t => {
+  const composition = await loadComposition();
+  const cases = [
+    ['wrong UID', state => { state.me.uid = 'another-actor'; }],
+    ['foreign session', state => { state.session.id = 'another-session'; }],
+    ['wrong private card', state => { state.privateLoyalty.kind = 'wolf-agent'; }],
+    ['pending foreign work', state => { state.pendingCommands = [{ payload: { sessionId: 'another-session' } }]; }],
+  ];
+  for (const [name, patchCrew] of cases) await t.test(name, async () => {
+    const h = await harness('wolf-cult', { patchCrew });
+    await assert.rejects(() => composition.exerciseActorRecoveryAndRepeat(h));
+    assert.equal(h.events.some(event => event.kind === 'reload'), false);
+  });
 });
