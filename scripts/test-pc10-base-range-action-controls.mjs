@@ -72,7 +72,8 @@ function currentView(overrides = {}, weaponOverrides = {}) {
 }
 
 function nativeFixture({ view = currentView(), rendered = view, duringReceiptRead, afterSelections,
-  sourceDrift, actorDrift, duringCertificate, expireWhileSaving = false, disabledBeforeSelection = false } = {}) {
+  sourceDrift, actorDrift, duringCertificate, expireWhileSaving = false, disabledBeforeSelection = false,
+  decisionBudgetMs = 10_000 } = {}) {
   cleanup();
   const reads = [], bootstrapReads = [], checks = [], certificates = [], clicks = [], payloads = [], expectations = [];
   let role = 'wing-commander', key = 0, busy = disabledBeforeSelection, renderedView = rendered, report, certificateReads = 0;
@@ -101,7 +102,7 @@ function nativeFixture({ view = currentView(), rendered = view, duringReceiptRea
     setBusy: async () => { busy = true; await rerender(); },
     clearFirst: async () => { await act(async () => fireEvent.click(root().querySelector('input'))); },
   };
-  let decisionDeadline;
+  let decisionDeadline, receiptStartedAt;
   function locator(kind, name, index) {
     const nodes = () => {
       if (role !== 'executive-officer') return [];
@@ -121,7 +122,7 @@ function nativeFixture({ view = currentView(), rendered = view, duringReceiptRea
       },
       click: async options => {
         const node = nodes()[0]; assert.ok(node);
-        clicks.push({ options, button: name, enabled: !node.matches(':disabled'), remainingMs: decisionDeadline - Date.now() });
+        clicks.push({ options, button: name, enabled: !node.matches(':disabled'), remainingMs: decisionDeadline - Date.now(), at: Date.now() });
         assert.equal(node.matches(':disabled'), false, 'Native attempted disabled original Use action.');
         await act(async () => fireEvent.click(node));
         throw clickBoundary;
@@ -183,7 +184,7 @@ function nativeFixture({ view = currentView(), rendered = view, duringReceiptRea
       else if (specifier === './pc10-live-wolf-attack-ui-proof.mjs') exports = {
         resolveLiveWolfAttack: async (_context, options) => {
           bootstrapReads.push(...reads.splice(0));
-          decisionDeadline = Date.now() + (expireWhileSaving ? 250 : 10_000);
+          decisionDeadline = Date.now() + (expireWhileSaving ? 250 : decisionBudgetMs);
           const waitChoice = async (_surface, _source, fields) => fields.kind !== 'range-actions'
             ? { status: 'source-excluded', reason: 'already-committed' }
             : { status: 'eligible', choice: view, expected: { ...current, sessionId: 'native-session' },
@@ -196,6 +197,7 @@ function nativeFixture({ view = currentView(), rendered = view, duringReceiptRea
         if (specifier === './pc10-base-combat-deduction-contracts.mjs') {
           const actualCapture = exports.captureBaseUiReceipt;
           exports = { ...exports, captureBaseUiReceipt: input => {
+            receiptStartedAt = Date.now();
             expectations.push(structuredClone(input.expectedRequest)); return actualCapture(input);
           } };
         }
@@ -208,7 +210,8 @@ function nativeFixture({ view = currentView(), rendered = view, duringReceiptRea
     return module.namespace.runBaseCombatAndDeduction(context, { combat: 'current', deduction: false, requiredBranches: [] });
   }
   return { run, root, effects, view, reads, bootstrapReads, checks, certificates, clicks, payloads, expectations,
-    report: () => report, certificateReads: () => certificateReads, deadline: () => decisionDeadline };
+    report: () => report, certificateReads: () => certificateReads, deadline: () => decisionDeadline,
+    receiptStartedAt: () => receiptStartedAt };
 }
 
 async function expectCertified(f) {
@@ -329,4 +332,15 @@ test('foreign actor after the final DOM observation remains a hard held-actor fa
   } });
   await assert.rejects(f.run(), /Original combat connectionGeneration/);
   assert.equal(f.clicks.length, 0); assert.equal(f.checks.length, 1);
+});
+
+test('final certificate time consumes the existing35s receipt window without fresh single-click time', async () => {
+  const f = nativeFixture({ decisionBudgetMs: 60_000, duringCertificate: async (_effect, read) => {
+    if (read === 2) await new Promise(resolve => setTimeout(resolve, 40));
+  } });
+  await expectCertified(f);
+  const spentMs = f.clicks[0].at - f.receiptStartedAt();
+  assert.ok(spentMs >= 40, 'The real awaited final serialized observation consumed receipt time.');
+  assert.ok(f.clicks[0].options.timeout <= 35_000 - spentMs + 2,
+    'The original receipt35s also caps the complete selection/certificate/single-click callback.');
 });
