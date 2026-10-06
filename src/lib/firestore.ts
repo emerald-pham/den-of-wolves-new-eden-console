@@ -18,6 +18,7 @@ import {
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { app, auth, functions } from './firebase';
+import { sessionSubscriptionOwner, type MemberProjectionConfirmation } from './sessionSubscriptionOwner';
 import { emulatorPorts, useEmulators } from './firebaseConfig';
 import { parsePdfEscortWingMemberView } from './pdfEscortWingProjection';
 import { parsePresidentialElectionProjection, parsePresidentialOfficesProjection } from './presidentialElectionProjection';
@@ -4015,22 +4016,9 @@ export interface SessionStateHandlers {
   readonly onError: () => void;
 }
 
-// App owns one session identity at a time. Keep a generation so an older
-// listener's cleanup cannot clear private state that a replacement listener
-// has already hydrated.
-let currentSessionSubscriptionToken: symbol | undefined;
-interface MemberProjectionConfirmation {
-  readonly sessionId: string;
-  readonly uid: string;
-  readonly subscriptionToken: symbol;
-  readonly confirm: (current: () => boolean) => Promise<boolean>;
-  readonly cancel: () => void;
-}
-let currentMemberProjectionConfirmation: MemberProjectionConfirmation | undefined;
-
 /** Confirm content through the active member feed with a read started after this intent. */
 export async function confirmCurrentMemberSessionProjection(sessionId: string, uid: string): Promise<boolean> {
-  const feed = currentMemberProjectionConfirmation;
+  const feed = sessionSubscriptionOwner.memberProjectionConfirmation;
   const identity = () => {
     const store = useSessionStore.getState();
     const me = store.me;
@@ -4045,9 +4033,9 @@ export async function confirmCurrentMemberSessionProjection(sessionId: string, u
   };
   const originalIdentity = identity();
   if (!feed || feed.sessionId !== sessionId || feed.uid !== uid || originalIdentity === undefined ||
-      currentSessionSubscriptionToken !== feed.subscriptionToken) return false;
-  const current = () => currentMemberProjectionConfirmation === feed &&
-    currentSessionSubscriptionToken === feed.subscriptionToken && identity() === originalIdentity;
+      sessionSubscriptionOwner.token !== feed.subscriptionToken) return false;
+  const current = () => sessionSubscriptionOwner.memberProjectionConfirmation === feed &&
+    sessionSubscriptionOwner.token === feed.subscriptionToken && identity() === originalIdentity;
   return await feed.confirm(current) && current();
 }
 
@@ -4100,9 +4088,9 @@ export function subscribeSessionState(
   let subscribed = true;
   const subscriptionToken = Symbol('session-subscription');
   let gmDiscoveryTerminated = false;
-  currentMemberProjectionConfirmation?.cancel();
-  currentMemberProjectionConfirmation = undefined;
-  currentSessionSubscriptionToken = subscriptionToken;
+  sessionSubscriptionOwner.memberProjectionConfirmation?.cancel();
+  sessionSubscriptionOwner.memberProjectionConfirmation = undefined;
+  sessionSubscriptionOwner.token = subscriptionToken;
   const sessionDocument = handlers.sessionReadAudience === 'member'
     ? undefined : doc(database, `sessions/${sessionId}`);
   const sessionSnapshotAuthority =
@@ -4123,7 +4111,7 @@ export function subscribeSessionState(
   let unsubscribeAwayMissionHands: Unsubscribe[] = [];
   let awayMissionHandListenerGeneration = 0;
   const onError = () => {
-    if (subscribed && currentSessionSubscriptionToken === subscriptionToken) handlers.onError();
+    if (subscribed && sessionSubscriptionOwner.token === subscriptionToken) handlers.onError();
   };
   let sessionConfirmationInFlight = false;
   let sessionConfirmationWanted = false;
@@ -4140,14 +4128,14 @@ export function subscribeSessionState(
     sessionConfirmationInFlight = true;
     void (async () => {
       while (sessionConfirmationWanted && subscribed &&
-          currentSessionSubscriptionToken === subscriptionToken) {
+          sessionSubscriptionOwner.token === subscriptionToken) {
         sessionConfirmationWanted = false;
         const startingVersion = sessionSnapshotAuthorityVersion(sessionSnapshotAuthority);
         let confirmed;
         try {
           confirmed = await getDocFromServer(sessionDocument);
         } catch {
-          if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) break;
+          if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken) break;
           if (sessionConfirmationWanted ||
               sessionSnapshotAuthorityVersion(sessionSnapshotAuthority) !== startingVersion) {
             sessionConfirmationWanted = true;
@@ -4156,7 +4144,7 @@ export function subscribeSessionState(
           onError();
           break;
         }
-        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) break;
+        if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken) break;
         if (sessionConfirmationWanted ||
             sessionSnapshotAuthorityVersion(sessionSnapshotAuthority) !== startingVersion) {
           sessionConfirmationWanted = true;
@@ -4221,7 +4209,7 @@ export function subscribeSessionState(
         doc(database, `sessions/${sessionId}/awayMissionHands/${pointer.handId}`),
         { includeMetadataChanges: true },
         (snapshot) => {
-          if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken ||
+          if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken ||
               generation !== awayMissionHandListenerGeneration) return;
           if (snapshot.metadata?.fromCache === true) return;
           const hand = snapshot.exists() ? awayMissionHand(snapshot.data(), sessionId, uid) : null;
@@ -4230,7 +4218,7 @@ export function subscribeSessionState(
           publishHands();
         },
         (error: { readonly code?: string }) => {
-          if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken ||
+          if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken ||
               generation !== awayMissionHandListenerGeneration) return;
           if (error.code === 'permission-denied' || error.code === 'not-found') {
             hands.delete(pointer.handId);
@@ -4275,7 +4263,7 @@ export function subscribeSessionState(
     memberSessionConfirmed = false;
     pendingMemberDiscovery = undefined;
     memberFeedRefresh = () => undefined;
-    if (currentSessionSubscriptionToken === subscriptionToken) currentSessionSubscriptionToken = undefined;
+    if (sessionSubscriptionOwner.token === subscriptionToken) sessionSubscriptionOwner.token = undefined;
     unsubscribeSessionListeners();
     handlers.onPlayerDiscovery?.(null);
     handlers.onGmDiscovery?.(null);
@@ -4306,7 +4294,7 @@ export function subscribeSessionState(
   let confirmedMemberActorFingerprint: string | undefined;
   let pendingMemberDiscovery: PlayerDiscoveryProjection | undefined;
   const publishPendingMemberDiscovery = () => {
-    if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken ||
+    if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken ||
         !memberSessionConfirmed || memberActorAvailable !== true || !pendingMemberDiscovery) return;
     const projection = pendingMemberDiscovery;
     pendingMemberDiscovery = undefined;
@@ -4345,7 +4333,7 @@ export function subscribeSessionState(
       }
     };
     const cancelConfirmations = () => settleConfirmations(confirmationRevision, false);
-    const current = () => !stopped && subscribed && currentSessionSubscriptionToken === subscriptionToken &&
+    const current = () => !stopped && subscribed && sessionSubscriptionOwner.token === subscriptionToken &&
       memberActorAvailable !== false;
     memberRefreshPending = () => pending && current();
     const refresh = () => {
@@ -4433,14 +4421,14 @@ export function subscribeSessionState(
         refresh();
       }),
     };
-    currentMemberProjectionConfirmation = confirmationFeed;
+    sessionSubscriptionOwner.memberProjectionConfirmation = confirmationFeed;
     memberFeedRefresh = refresh;
     refresh();
     return () => {
       stopped = true;
       cancelConfirmations();
       if (timer) clearTimeout(timer);
-      if (currentMemberProjectionConfirmation === confirmationFeed) currentMemberProjectionConfirmation = undefined;
+      if (sessionSubscriptionOwner.memberProjectionConfirmation === confirmationFeed) sessionSubscriptionOwner.memberProjectionConfirmation = undefined;
       memberFeedRefresh = () => undefined;
     };
   };
@@ -4457,7 +4445,7 @@ export function subscribeSessionState(
       doc(database, `sessions/${sessionId}/playerDiscoveries/${uid}`),
       { includeMetadataChanges: true },
       (snapshot) => {
-        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken ||
+        if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken ||
             generation !== playerDiscoveryListenerGeneration) return;
         if (handlers.sessionReadAudience === 'member') {
           // A resumed member's discovery can arrive before the actor/feed that
@@ -4476,7 +4464,7 @@ export function subscribeSessionState(
           : projection);
       },
       (error: { readonly code?: string }) => {
-        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken ||
+        if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken ||
             generation !== playerDiscoveryListenerGeneration) return;
         pendingMemberDiscovery = undefined;
         if (error.code === 'permission-denied' || error.code === 'not-found') {
@@ -4490,7 +4478,7 @@ export function subscribeSessionState(
   };
   unsubscribes = [
     sessionDocument ? onSnapshot(sessionDocument, { includeMetadataChanges: true }, (snapshot) => {
-      if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
+      if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken) return;
       if (snapshot.exists()) {
         const fromCache = snapshot.metadata?.fromCache === true;
         // A cache callback can arrive after Firestore has delivered a newer
@@ -4540,7 +4528,7 @@ export function subscribeSessionState(
       else onError();
     }, onError) : startMemberSessionFeed(),
     onSnapshot(doc(database, `sessions/${sessionId}/players/${uid}`), { includeMetadataChanges: true }, (snapshot) => {
-      if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
+      if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken) return;
       const fromCache = snapshot.metadata?.fromCache === true;
       // Player role/seat projections are part of the same reconnect identity.
       // Once the session cursor is server-authoritative, a delayed cached
@@ -4621,7 +4609,7 @@ export function subscribeSessionState(
         onError();
       }
     }, (error: { readonly code?: string }) => {
-      if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
+      if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken) return;
       if (error.code === 'permission-denied' || error.code === 'not-found') revokeMemberActor();
       onError();
     }),
@@ -4630,7 +4618,7 @@ export function subscribeSessionState(
       doc(database, `sessions/${sessionId}/gmDiscovery/current`),
       { includeMetadataChanges: true },
       (snapshot) => {
-        if (!subscribed || gmDiscoveryTerminated || currentSessionSubscriptionToken !== subscriptionToken) return;
+        if (!subscribed || gmDiscoveryTerminated || sessionSubscriptionOwner.token !== subscriptionToken) return;
         // A cached chart is not a fresh privilege check. Clear it immediately,
         // then wait for the server listener to reauthorize the current GM.
         if (snapshot.metadata?.fromCache === true) {
@@ -4642,7 +4630,7 @@ export function subscribeSessionState(
           : null);
       },
       (error: { readonly code?: string }) => {
-        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
+        if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken) return;
         if (error.code === 'permission-denied' || error.code === 'not-found') {
           gmDiscoveryTerminated = true;
           handlers.onGmDiscovery?.(null);
@@ -4652,7 +4640,7 @@ export function subscribeSessionState(
       },
     )] : []),
     onSnapshot(collection(database, `sessions/${sessionId}/seats`), { includeMetadataChanges: true }, (snapshot) => {
-      if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
+      if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken) return;
       if (snapshot.metadata?.fromCache === true && sessionSnapshotAuthority.hasServerSessionAuthority) return;
       handlers.onSeats(snapshot.docs
         .map((seat) => seatFrom(sessionId, seat.id, seat.data()))
@@ -4663,7 +4651,7 @@ export function subscribeSessionState(
       doc(database, `sessions/${sessionId}/secrets/loyalty-${uid}`),
       { includeMetadataChanges: true },
       (snapshot) => {
-        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
+        if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken) return;
         if (privateLoyaltyListenerGeneration !== 1) return;
         if (snapshot.metadata?.fromCache === true) return;
         privateLoyaltyListenerBroken = false;
@@ -4687,7 +4675,7 @@ export function subscribeSessionState(
         handlers.onPrivateLoyalty?.(next);
       },
       (error: { readonly code?: string }) => {
-        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
+        if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken) return;
         if (error.code === 'permission-denied' || error.code === 'not-found') {
           privateLoyaltyListenerBroken = true;
           unsubscribeWolfCult();
@@ -4709,14 +4697,14 @@ export function subscribeSessionState(
       doc(database, `sessions/${sessionId}/roleBriefs/${uid}`),
       { includeMetadataChanges: true },
       (snapshot) => {
-        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
+        if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken) return;
         if (snapshot.metadata?.fromCache === true) return;
         handlers.onRoleBrief?.(
           snapshot.exists() ? roleBrief(snapshot.data(), sessionId, uid) : null,
         );
       },
       (error: { readonly code?: string }) => {
-        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
+        if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken) return;
         if (error.code === 'permission-denied' || error.code === 'not-found') {
           handlers.onRoleBrief?.(null);
         }
@@ -4727,14 +4715,14 @@ export function subscribeSessionState(
       doc(database, `sessions/${sessionId}/commissarPurgeAuthority/${uid}`),
       { includeMetadataChanges: true },
       (snapshot) => {
-        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
+        if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken) return;
         if (snapshot.metadata?.fromCache === true) return;
         handlers.onCommissarPurgeAuthority?.(
           snapshot.exists() ? commissarPurgeAuthority(snapshot.data(), sessionId) : null,
         );
       },
       (error: { readonly code?: string }) => {
-        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
+        if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken) return;
         if (error.code === 'permission-denied' || error.code === 'not-found') {
           handlers.onCommissarPurgeAuthority?.(null);
           return;
@@ -4746,14 +4734,14 @@ export function subscribeSessionState(
       doc(database, `sessions/${sessionId}/facilitatorRuleCalls/recipient-${uid}`),
       { includeMetadataChanges: true },
       (snapshot) => {
-        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
+        if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken) return;
         if (snapshot.metadata?.fromCache === true) return;
         handlers.onFacilitatorRuleCall?.(
           snapshot.exists() ? facilitatorRuleCall(snapshot.data(), sessionId, uid) : null,
         );
       },
       (error: { readonly code?: string }) => {
-        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
+        if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken) return;
         if (error.code === 'permission-denied' || error.code === 'not-found') {
           handlers.onFacilitatorRuleCall?.(null);
           return;
@@ -4770,7 +4758,7 @@ export function subscribeSessionState(
       ),
       { includeMetadataChanges: true },
       (snapshot) => {
-        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
+        if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken) return;
         if (snapshot.metadata?.fromCache === true) return;
         const pointers = snapshot.docs
           .map((entry) => awayMissionHandPointer(entry.data(), sessionId, uid))
@@ -4780,7 +4768,7 @@ export function subscribeSessionState(
         startAwayMissionHandListeners(pointers);
       },
       (error: { readonly code?: string }) => {
-        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
+        if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken) return;
         if (error.code === 'permission-denied' || error.code === 'not-found') {
           handlers.onAwayMissionHandPointers?.([]);
           handlers.onAwayMissionHandPointer?.(null);
@@ -4797,7 +4785,7 @@ export function subscribeSessionState(
       ),
       { includeMetadataChanges: true },
       (snapshot) => {
-        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
+        if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken) return;
         if (snapshot.metadata?.fromCache === true) return;
         handlers.onGmAwayMissionHandPointers?.(
           snapshot.docs
@@ -4806,7 +4794,7 @@ export function subscribeSessionState(
         );
       },
       (error: { readonly code?: string }) => {
-        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
+        if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken) return;
         if (error.code === 'permission-denied' || error.code === 'not-found') {
           handlers.onGmAwayMissionHandPointers?.([]);
           return;
@@ -4821,7 +4809,7 @@ export function subscribeSessionState(
       ),
       { includeMetadataChanges: true },
       (snapshot) => {
-        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken) return;
+        if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken) return;
         if (snapshot.metadata?.fromCache === true) return;
         const latest = snapshot.docs
           .map((secret) => setupReceipt(secret.get('payload')))
@@ -4845,7 +4833,7 @@ export function subscribeSessionState(
       doc(database, `sessions/${sessionId}/wolfCultIntelligence/${uid}`),
       { includeMetadataChanges: true },
       (snapshot) => {
-        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken ||
+        if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken ||
             generation !== wolfCultListenerGeneration) return;
         if (snapshot.metadata?.fromCache === true) return;
         const intelligence = snapshot.exists()
@@ -4855,7 +4843,7 @@ export function subscribeSessionState(
         handlers.onWolfCultIntelligence?.(intelligence);
       },
       (error: { readonly code?: string }) => {
-        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken ||
+        if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken ||
             generation !== wolfCultListenerGeneration) return;
         if (error.code === 'permission-denied' || error.code === 'not-found') {
           handlers.onWolfCultIntelligence?.(null);
@@ -4875,7 +4863,7 @@ export function subscribeSessionState(
       doc(database, `sessions/${sessionId}/arbourVisions/${uid}`),
       { includeMetadataChanges: true },
       (snapshot) => {
-        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken ||
+        if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken ||
             generation !== arbourVisionListenerGeneration) return;
         if (snapshot.metadata?.fromCache === true) return;
         const vision = snapshot.exists() ? arbourVision(snapshot.data(), sessionId, uid) : null;
@@ -4883,7 +4871,7 @@ export function subscribeSessionState(
         handlers.onArbourVision?.(vision);
       },
       (error: { readonly code?: string }) => {
-        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken ||
+        if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken ||
             generation !== arbourVisionListenerGeneration) return;
         if (error.code === 'permission-denied' || error.code === 'not-found') {
           handlers.onArbourVision?.(null);
@@ -4902,7 +4890,7 @@ export function subscribeSessionState(
       doc(database, `sessions/${sessionId}/secrets/loyalty-${uid}`),
       { includeMetadataChanges: true },
       (snapshot) => {
-        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken ||
+        if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken ||
             generation !== privateLoyaltyListenerGeneration) return;
         if (snapshot.metadata?.fromCache === true) return;
         const next = snapshot.exists() ? privateLoyalty(snapshot.get('payload'), uid) : null;
@@ -4925,7 +4913,7 @@ export function subscribeSessionState(
         handlers.onPrivateLoyalty?.(next);
       },
       (error: { readonly code?: string }) => {
-        if (!subscribed || currentSessionSubscriptionToken !== subscriptionToken ||
+        if (!subscribed || sessionSubscriptionOwner.token !== subscriptionToken ||
             generation !== privateLoyaltyListenerGeneration) return;
         if (error.code === 'permission-denied' || error.code === 'not-found') {
           privateLoyaltyListenerBroken = true;
@@ -4949,8 +4937,8 @@ export function subscribeSessionState(
     subscribed = false;
     memberFeedRefresh = () => undefined;
     unsubscribeSessionListeners();
-    if (currentSessionSubscriptionToken === subscriptionToken) {
-      currentSessionSubscriptionToken = undefined;
+    if (sessionSubscriptionOwner.token === subscriptionToken) {
+      sessionSubscriptionOwner.token = undefined;
       // Private projections belong to this exact session/UID listener. Clear
       // them before a replacement subscription can hydrate a different
       // assignment, so the old player's loyalty or setup receipt cannot remain
