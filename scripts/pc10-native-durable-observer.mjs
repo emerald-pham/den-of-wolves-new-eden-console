@@ -164,7 +164,9 @@ export function createPc10NativeDurableObservationLedger({ label, projectId, fun
     boundary.boundaries.push(entry); activeSnapshot = entry;
     let timer, instrumentationLimitations = 0;
     try {
-      await Promise.race([Promise.all(targets.map(async state => {
+      // A known body gap still fails strict transport, but cannot end this
+      // SAME issued-set census before its other original targets settle.
+      const outcomes = await Promise.race([Promise.allSettled(targets.map(async state => {
         await state.terminal.promise; await state.lifecycle.body;
         if (!state.bodyAccepted && !incompleteCancellation(state) && typeof presenceInstrumentationLimitation !== 'function') {
           throw new Error('Native durable actual bytes are unavailable.');
@@ -185,6 +187,8 @@ export function createPc10NativeDurableObservationLedger({ label, projectId, fun
         for (const state of targets) report(state, 'observation-drain-timeout');
         throw new Error('Native durable issued-set census exceeded the observation budget.');
       }
+      const rejected = outcomes.find(outcome => outcome.status === 'rejected');
+      if (rejected) throw rejected.reason;
       entry.outcome = instrumentationLimitations ? 'completed-with-instrumentation-limitations' : 'completed';
       if (instrumentationLimitations) entry.instrumentationLimitations = instrumentationLimitations;
     } catch { entry.outcome = 'failed'; throw new Error('Native durable issued-set evidence is unavailable.'); }

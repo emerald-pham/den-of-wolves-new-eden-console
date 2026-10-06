@@ -351,8 +351,9 @@ export function assessPc10FunctionalTransport({ commands = [], observations = []
     const capturedGap = observation && (bodyGap(observation) && ['response-observation-unavailable', 'native-body-incomplete', 'observation-drain-timeout'].includes(failure.category)
       || expectedDenialGaps.has(observation) && failure.category === 'response-observation-unavailable');
     const plannedCancellation = observation && cancellation(observation) && ['unexpected-request-failure', 'response-observation-unavailable'].includes(failure.category);
-    if (!capturedGap && !plannedCancellation && !(failure.category === 'observation-drain-timeout' && drains.some(entry => entry.roleId === failure.roleId && entry.outcome === 'failed')
-      && observations.some(value => value.roleId === failure.roleId && recordedGap(value)))) hardFailures.push({ ...failure, category: failure.category ?? 'unclassified-native-failure' });
+    // A gap on another protocol request cannot excuse this request's actual
+    // census deadline. Only the exact matched gap/cancellation above qualifies.
+    if (!capturedGap && !plannedCancellation) hardFailures.push({ ...failure, category: failure.category ?? 'unclassified-native-failure' });
   }
   const incomplete = failures.length || drains.some(value => value.outcome !== 'completed')
     || observations.some(value => value.status !== 200 || !value.bodyHash || value.requestFailedAt != null || value.bodyCompletedAt == null);
