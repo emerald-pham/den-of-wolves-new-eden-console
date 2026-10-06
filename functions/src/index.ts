@@ -4083,6 +4083,7 @@ type ReturningSeat = Readonly<{
   claimSeat: boolean;
   clearActiveConsoleRole: boolean;
   stationSelectionRequired: boolean;
+  canonicalOpenSeat?: boolean;
 }>;
 
 /**
@@ -4181,6 +4182,7 @@ async function reconcileReturningSeat(
     return {
       seatId: storedSeatId, clearPointer: false, claimSeat: true,
       clearActiveConsoleRole: false, stationSelectionRequired: false,
+      canonicalOpenSeat: seat.get('roleId') === storedSeatId && canonicalSeatIds.includes(storedSeatId),
     };
   }
   return {
@@ -18929,17 +18931,22 @@ export const resumeSession = auditedOnCall<{ sessionId?: string }>('resumeSessio
     const partitioned = hasFleetPartition(currentSession);
     const canonicalSetup = canonicalSetupForSession(currentSession, sessionActiveRoleIds(currentSession));
     const currentGroup = storedGroup.exists ? fleetGroupRecord(storedGroup.data()) : undefined;
-    // A live actor whose server-owned setup, berth, seat and protected view are
-    // already current needs a new connection generation, not fleet migration.
-    // Legacy, disconnected, partitioned and candidate recovery retain
-    // the full reconciliation below.
+    // An expired current core actor can reclaim its already-read canonical
+    // open seat without fleet migration. Its setup, berth and protected view
+    // must satisfy the same current-source guards as a live member. Missing
+    // seats, Press, legacy, partitioned and candidate recovery reconcile below.
     const stablePress = hasStablePressAuthority(currentSession, currentPlayer, uid);
-    const stableMember = isActivePlayer(currentPlayer) && membershipActive &&
-      membership.get('sessionId') === sessionId &&
+    const returningCurrentCore = currentSession.get('phase') === 'active' &&
+      currentPlayer.get('role') === 'player' && currentPlayer.get('connected') === false &&
+      currentPlayer.get('lastSeenAt') instanceof Timestamp && returningSeat.canonicalOpenSeat === true &&
+      currentPlayer.get('assignedRoleId') === returningSeat.seatId &&
+      currentPlayer.get('activeConsoleRoleId') === returningSeat.seatId;
+    const stableMember = (isActivePlayer(currentPlayer) && membershipActive &&
+      membership.get('sessionId') === sessionId || returningCurrentCore) &&
       !partitioned && (!hasPressState(currentPlayer) || stablePress) && !playerEscapeState(currentPlayer) &&
       currentPlayer.get('replacementStatus') == null &&
       typeof currentPlayer.get('replacementRoleId') !== 'string' &&
-      !returningSeat.claimSeat && !returningSeat.clearPointer &&
+      (!returningSeat.claimSeat || returningCurrentCore) && !returningSeat.clearPointer &&
       !returningSeat.clearActiveConsoleRole && !returningSeat.stationSelectionRequired &&
       isDeepStrictEqual(currentSession.get('setup'), canonicalSetup) &&
       isDeepStrictEqual(currentSession.get('activeVesselIds'), canonicalSetup.activeVesselIds) &&
@@ -18971,6 +18978,11 @@ export const resumeSession = auditedOnCall<{ sessionId?: string }>('resumeSessio
           ? await tx.get(playersRef.where('activeConsoleRoleId', '==', 'press-officer')) : undefined;
         if (discovery.exists && emptyCandidates && isDeepStrictEqual(view, expectedView) &&
             (!pressHolders || isSolePressHolder(pressHolders.docs, uid))) {
+          if (returningCurrentCore && returningSeat.seatId) {
+            tx.update(db.doc(`sessions/${sessionId}/seats/${returningSeat.seatId}`), {
+              status: 'claimed', holderUid: uid, claimedAt: FieldValue.serverTimestamp(),
+            });
+          }
           ensureFleetTickerBaseline(tx, sessionRef, currentSession, new Date().toISOString());
           reconcilePresenceTimer(tx, sessionRef, currentSession, attackState, true);
           tx.update(playerRef, {
