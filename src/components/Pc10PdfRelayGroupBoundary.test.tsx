@@ -355,6 +355,8 @@ it.each([
     memberSessionScope: { ...state.session!.memberSessionScope!, groupId: 'fleet-2' } } })); }],
   ['absent member scope', () => { useSessionStore.setState(state => { const session = { ...state.session! };
     Reflect.deleteProperty(session, 'memberSessionScope'); return { session }; }); }],
+  ['malformed member scope', () => { useSessionStore.setState(state => ({ session: { ...state.session!,
+    memberSessionScope: { ...state.session!.memberSessionScope!, vesselIds: null as never } } })); }],
   ['missing entitled original host', () => { useSessionStore.setState(state => ({ session: { ...state.session!,
     memberSessionScope: { ...state.session!.memberSessionScope!, vesselIds: [] } } })); }],
   ['withdrawn current member witness', () => { useSessionStore.setState(state => ({ session: { ...state.session!,
@@ -363,6 +365,17 @@ it.each([
     currentActorBerthAuthority: { ...state.session!.currentActorBerthAuthority!, actorUid: 'foreign-native' } } })); }],
   ['changed current witness generation', () => { useSessionStore.setState(state => ({ session: { ...state.session!,
     currentActorBerthAuthority: { ...state.session!.currentActorBerthAuthority!, connectionGeneration: 4 } } })); }],
+  ['foreign current witness session', () => { useSessionStore.setState(state => ({ session: { ...state.session!,
+    currentActorBerthAuthority: { ...state.session!.currentActorBerthAuthority!, sessionId: 'foreign-session' as never } } })); }],
+  ['malformed current witness', () => { useSessionStore.setState(state => { const berth = { ...state.session!.currentActorBerthAuthority! };
+    Reflect.deleteProperty(berth, 'shipId'); return { session: { ...state.session!, currentActorBerthAuthority: berth } }; }); }],
+  ['different current member group', () => { useSessionStore.setState(state => ({ me: { ...state.me!, fleetGroupId: 'fleet-2' as never } })); }],
+  ['wrong current primary', () => { useSessionStore.setState(state => ({ me: { ...state.me!, assignedRoleId: 'wing-commander' as never } })); }],
+  ['replaced current member', () => { useSessionStore.setState(state => ({ me: { ...state.me!, replacementRoleId: 'wing-commander' as never,
+    replacementStatus: 'awaiting-re-role' } })); }],
+  ['closed current member session', () => { useSessionStore.setState(state => ({ session: { ...state.session!, phase: 'closed' } })); }],
+  ['stale forbidden player map', () => { useSessionStore.setState(state => ({ session: { ...state.session!,
+    shipFleetGroupIds: { 'refinery-124': 'fleet-2' } } })); }],
   ['withdrawn own player', () => { useSessionStore.setState(state => ({ me: { ...state.me!, connected: false } })); }],
   ['cache member view', () => { useSessionStore.getState().setSessionSnapshotFreshness('cache'); }],
 ] as const)('does not credit private member relay after %s', async (_label, change) => {
