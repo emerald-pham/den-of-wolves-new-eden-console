@@ -82,6 +82,16 @@ for (const [label, mutate] of [
   ['requestFailed alongside HTTP403', s => { s.observations[0].requestFailedAt = s.observations[0].requestFinishedAt; }],
   ['network error alongside HTTP403', s => { s.observations[0].transportError = 'aborted'; }],
   ['missing original actor registration', s => { s.originals = new Map(); }],
+  ['missing original audience scope', s => { delete s.commands[0].original.scope; delete s.originals.get(s.commands[0].roleId).scope; }],
+  ['guessed command provenance kind', s => { s.commands[0].kind = 'guessed-sdk-command'; }],
+  ['contradictory native completed timestamp', s => { s.observations[0].completedAt = s.observations[0].requestFinishedAt; }],
+  ['contradictory native byte length', s => { s.observations[0].byteLength = 1; }],
+  ['contradictory native result actor', s => { s.observations[0].resultActorHash = digest('actor', 'foreign'); }],
+  ['contradictory native result SID', s => { s.observations[0].resultSessionHash = digest('session', 'foreign'); }],
+  ['parsed native code with no captured body', s => { s.observations[0].denialCode = 'PERMISSION_DENIED'; }],
+  ['native started/issued clock mismatch', s => { s.observations[0].startedAt++; }],
+  ['stale after-source presence witness', s => { s.commands[0].afterSource.presence.checkedAt = s.commands[0].completedAt - 1; }],
+  ['late before-source presence witness', s => { s.commands[0].beforeSource.presence.checkedAt = s.commands[0].issuedAt + 1; }],
   ['wrong native Auth UID', s => { s.observations[0].actorHash = digest('actor', 'different-original'); }],
   ['wrong native SID', s => { s.observations[0].sessionHash = digest('session', 'different-session'); }],
   ['missing native SID hash', s => { s.observations[0].sessionHash = null; }],
@@ -136,10 +146,15 @@ test('a successful commanded member response with a private field remains hard f
   c.reply = { status: 200, result: { type: 'current-member-session', actorUid: c.original.uid,
     sessionId: c.original.sessionId, groupId: c.afterSource.groupId, connectionGeneration: c.afterSource.generation,
     assignedRoleId: c.afterSource.assignedRoleId, activeConsoleRoleId: c.afterSource.activeConsoleRoleId,
-    currentActorBerthAuthority: null, session: { id: c.original.sessionId, phase: 'active', currentTurn: 1,
+    currentActorBerthAuthority: { sessionId: c.original.sessionId, actorUid: c.original.uid,
+      groupId: c.afterSource.groupId, role: 'player', connectionGeneration: c.afterSource.generation,
+      assignedRoleId: c.afterSource.assignedRoleId, activeConsoleRoleId: c.afterSource.activeConsoleRoleId,
+      replacementRoleId: null, replacementStatus: null, shipId: c.afterSource.berthShipId },
+    session: { id: c.original.sessionId, phase: 'active', currentTurn: 1,
       memberSessionScope: c.original.scope, loyaltyAssignments: { foreign: 'private' } } } };
   c.validation = { passed: true }; sample.commands.push(c);
-  assert.ok(deny(sample).hardFailures.some(f => f.category === 'unverified-original-command'));
+  assert.ok(deny(sample).hardFailures.some(f => f.category === 'unverified-original-command'
+    && /unlisted session\/private field|server-only field/.test(f.message)), 'The fixture reaches the actual private-field check.');
 });
 test('retained final Wing Commander passive getter stays unfinished and hard; completed SDK denials cannot backfill it', () => {
   const sample = input(1); sample.observations.push(structuredClone(RETAINED_UNFINISHED_GETTER));
