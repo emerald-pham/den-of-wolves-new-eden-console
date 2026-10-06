@@ -103,9 +103,11 @@ function sourceFixture({ mode = 'base', after = {}, progressAfterReads = 2, neve
       this.setExport('useSessionStore', { getState: () => store });
     }, { context: browser });
     await module.link(() => {}); await module.evaluate();
-    return new Script(`(${callback.toString()})("/native-store")`, {
+    const observed = await new Script(`(${callback.toString()})("/native-store")`, {
       importModuleDynamically: async () => module,
     }).runInContext(browser);
+    // page.evaluate serializes the browser result into the Node caller's realm.
+    return structuredClone(observed);
   }
   function widget(kind, name, isGm) {
     return {
