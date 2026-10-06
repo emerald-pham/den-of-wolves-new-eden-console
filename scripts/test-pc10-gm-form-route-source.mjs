@@ -43,8 +43,8 @@ const React = requireNative('react');
 const nativeSetTimeout = dom.window.setTimeout.bind(dom.window);
 // Keep the actual source delays and real clock. Act only flushes their React
 // render callbacks; it does not advance, replace or shorten any timer.
-dom.window.setTimeout = (callback, timeout, ...args) => nativeSetTimeout(() => {
-  React.act(() => callback(...args));
+dom.window.setTimeout = (callback, timeout, ...args) => nativeSetTimeout(async () => {
+  await React.act(async () => { callback(...args); });
 }, timeout);
 const { createRoot } = requireNative('react-dom/client');
 const { queryAllByRole, queryAllByLabelText, isInaccessible, fireEvent } = requireNative('@testing-library/dom');
@@ -202,6 +202,9 @@ async function fixture(options = {}) {
       const current = actor(); assert.ok(predicate(current)); return current; },
     page: { url: () => dom.window.location.href,
       evaluate: async (callback, input) => {
+        // Flush only work already queued by real React/source timers. No timer
+        // or clock is advanced, and source authority is never manufactured.
+        await React.act(async () => {});
         if (callback.toString().includes('main.gm-console')) options.onMountRead?.({ container, useSessionStore });
         browser.input = input;
         const result = await new Script(`(${callback.toString()})(input)`, {
@@ -416,9 +419,12 @@ for (const endpoint of ['authorFacilitatorRuleCall', 'setFacilitatorCensusNote']
       const result = await callbackFor(f, endpoint).onStarted(f.context), row = rowFor(result, endpoint);
       assert.equal(row.status, 'pending'); assert.equal(result.observedProcedureCount, 0);
       assert.equal(result.familyAcceptanceClaimed, false);
+      // Role locators exclude the source-hidden rule region; label locators
+      // still find the hidden census textarea. Preserve the actual distinction.
       assert.deepEqual(row.formDiagnostic, { stage: 'mount', route: 'gm', gmMainCount: 1,
         loading: false, screenFadeCount: 1, crossingOut: false, outgoingStationsCount: 0,
-        formCount: 1, formVisible: false, formEnabled: true });
+        formCount: endpoint === 'authorFacilitatorRuleCall' ? 0 : 1,
+        formVisible: false, formEnabled: endpoint === 'setFacilitatorCensusNote' });
       assert.doesNotMatch(JSON.stringify(row), /native-route|2026-10-05|0000|Question or ambiguity|Facilitator note for/);
       assert.deepEqual(f.clicks, []); assert.equal(f.requestListeners.size, 0);
     } finally { await f.close(); }
