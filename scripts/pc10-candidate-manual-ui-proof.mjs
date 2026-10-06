@@ -18,7 +18,7 @@ import { CANDIDATE_PROOF_SHIPS as SHIPS, candidateShipRole, candidateProofOption
 
 const TRACKS = ['reactor', 'jump-drive', 'hydroponics', 'water-reclamation', 'advanced-hydroponics'];
 
-function candidateGeometrySnapshot(element) {
+export function candidateGeometrySnapshot(element) {
   const visible = node => !!node.getClientRects().length && getComputedStyle(node).visibility !== 'hidden' &&
     !node.closest('[aria-hidden="true"], [inert]');
   const enabled = node => !node.matches(':disabled') && !node.closest('fieldset:disabled');
