@@ -181,7 +181,7 @@ for (const [field, value] of [
 ]) test(`serialized current member ${field} cannot be hidden by a matching generic observation`, async () => {
   const f = fixture({ genericChange: { hasAuth: true, sameActor: true, assignedRoleId: roleId, playerRole: 'player' } });
   f.store.me[field] = value;
-  await assert.rejects(f.run({ enter: false })); assert.equal(f.sdkCalls, 0); assert.equal(f.calls.length, 0);
+  await assert.rejects(f.run({ enter: field === 'assignedRoleId' })); assert.equal(f.sdkCalls, 0); assert.equal(f.calls.length, 0);
 });
 
 test('a generic held-console projection cannot release a different actual station', async () => {
