@@ -368,9 +368,17 @@ describe('initial ordinary join/member/player confirmation ordering', () => {
   });
 
   it('terminates operational initial confirmation when the member transaction closes the session', async () => {
+    // The existing lifecycle cursor requires the actual debrief -> closed
+    // edge; an active -> closed fixture is correctly rejected by that guard.
+    sessionData = { ...sessionData, phase: 'debrief', fullGameDemo: { status: 'complete', progression: 'manual' } };
     await mount(); const retired = currentPlayerReader();
+    await deliverPlayer();
     sessionData = { ...sessionData, phase: 'closed', fullGameDemo: { status: 'complete', progression: 'manual' } };
+    const envelope = await readMember();
+    const { closedMemberSessionFrom } = await import('@/lib/firestore');
+    expect(() => closedMemberSessionFrom(sessionId, envelope, envelope.session as Record<string, unknown>)).not.toThrow();
     await deliverMember(0);
+    await deliverMember(1);
     expect(useSessionStore.getState().session?.phase).toBe('closed');
     const calls = callCount('getCurrentMemberSession');
     act(() => retired.next(snapshot(playerPath(), { ...actor })));
