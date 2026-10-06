@@ -59,7 +59,7 @@ final PC10 release and handoff before implementation.
 ## Current measured limits, before final PC10 qualification
 
 The latest closed October 6 actual snapshot is
-`aa681e72491f8d09b12b8fcb86c367a6b846783b` (Miner3). All 48 catalog closures and release remain
+`43a9342ae51e624ccc94c03b68868a80464dfafa` (Core9, after Capybara2). All 48 catalog closures and release remain
 pending. The [current finite-family checklist](PC10_ACCEPTANCE_MATRIX.md#october-6-accepted-and-open-finite-families)
 records accepted subsystem evidence separately from open games and gates.
 
@@ -82,8 +82,10 @@ A separate whole-App native counterexample and narrow visibility repair passed
 12 new and 202 retained client cases, without proving its historic initiator.
 Miner3 then completed ordinary admission/casting but stopped at the disabled
 real GM Start control before any `startGame` request. Its exact disable/player
-tuple was not retained. A bounded mounted native/source investigation is open;
-no start, role selection or ending credit is added. GM21 likewise retained
+tuple was not retained. A distinct queued GM draft defect was reproduced and
+repaired, passing 12 new plus 172 untouched cases; subsequent current fresh
+runs made real manual GM start. That does not backfill Miner3's exclusive cause,
+role selection or ending. GM21 likewise retained
 genuine consent but failed before start without a current casting sample.
 Core transfer/cargo/evacuation/recharge repairs passed the reconciled 159-case
 native slice; old route assertions/titles and separate fixture completion
@@ -95,6 +97,18 @@ remaining fresh families remain open. Functional3 completed 21 browser joins
 and consent, then original GM start returned 500 before the finite functional
 and privacy commands. The transaction-expiry stack identifies a rejecting
 secrets query, without proving the first blocked read or lock holder.
+
+Capybara2 retained real manual start, 23 authenticated identities, 662 normal GM
+counter preparation receipts and 60 qualified maintenance step receipts through
+six ship sequence ends. Its seventh Capybara response was 200 before a missing-
+field assertion; complete maintenance, missions and ending remain unqualified.
+Core9 retained the exact redacted post-capture tuple: source live became false
+while the complete original document authority and source identity fields
+remained fixed. A source-specific native reader diagnosis remains open.
+Before another long setup, the parent requested a finite audit of existing
+caller/validator DTO accesses, with narrow contract cases and no new framework.
+Reuse accepted source-bound setup slices only within their actual scope;
+required fresh-game ending acceptance remains unchanged.
 
 Preserve all failed raw evidence. Source counterexamples and repairs must use
 existing fixtures and keep original authority/privacy/keyboard guards and

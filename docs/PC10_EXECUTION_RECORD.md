@@ -323,6 +323,44 @@ concurrency or usability. Bounded native workers own the GM mapping and Core
 diagnostic-fidelity gaps; Root continues the existing fresh finite families.
 All 48 catalog closures, one independent final review and release remain open.
 
+### October 6 current capture and finite caller-contract audit
+
+At `43a9342a`, the opt-in Core diagnostic records redacted before/after source,
+document authority and movement tuples using already captured inputs. It adds
+no reads, acceptance fallback or guard change. Final same-byte new cases failed
+at the missing diagnostic before the source-only change. The shared old fixture
+then received only its independent original-host input in a separate test-only
+commit; all 75 assertion expressions/eight titles remained exact. The focused
+Core/counter slice passed 81 cases without gameplay credit.
+
+Capybara2 closed failed at this source after real authenticated manual start,
+23 identities, 4,833 intents/replies and 662 normal mounted GM counter preparation
+receipts. Its separate maintenance log retains 60 qualified step receipts through
+six ship sequence ends and five full ship snapshots. Capybara's seventh response
+returned 200 before the caller required a missing field. Its raw tuple was not
+retained; no seventh-ship, full seven-host sequence, mission, ending or exclusive
+historical cause is credited. This corrects the narrower initial failure summary.
+
+Core9 then closed failed at the same source after original-holder departure
+qualified. Begin and exact replay returned 200. Its new diagnostic records the
+post-source live flag false while the session/cycle/revision/group and entire
+original document-authority tuple stayed fixed; movement was in-transit at
+revision 1. The reader reason remains unproved. It retained 172 intents/171 replies,
+with one ordinary GM reader still unanswered at shutdown. Retarget, natural
+arrival, adjacent actions and ending remain open. Both actuals closed their
+browsers before deleting only their own session; exact source/runtime and all
+three zero-scope checks passed. The owned emulator remains available.
+
+The parent requested a finite audit of remaining already-planned caller and
+validator field accesses before repeating the long Capybara setup. Bounded
+workers compare current mounted controls, service DTOs, Functions return shapes
+and retained replies, with narrow new native counterexamples. The audit does
+not create a framework or substitute old setup for required fresh-game proof.
+Source-proven leads include the statusless GM counter result, Capybara's absent
+request expectedCycle field, and production-versus-bays control placement.
+Final repairs and fresh acceptance remain pending; old tests and failed evidence
+are preserved. One final independent review has not been dispatched.
+
 The following restore diagnosis is retained historical evidence; it does not
 replace the current finite-family checklist.
 
