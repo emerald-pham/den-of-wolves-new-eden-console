@@ -49,3 +49,8 @@ test('source points must bracket the original invocation and cannot be later cle
     { invocation: { startedAt: 10, completedAt: 12 } },
   ]) assert.throws(() => assertPc10FunctionalSourceOrder({ ...valid, ...changes }));
 });
+test('HTTP 200 headers without a real terminal outcome cannot hide an unfinished native action', () => {
+  const raw = observation({ requestFinishedAt: null });
+  const result = assess({ observations: [raw] });
+  assert.ok(result.hardFailures.some(value => value.category === 'unfinished-native-terminal-outcome'));
+});
