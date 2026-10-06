@@ -263,6 +263,37 @@ test('missing, stale, foreign, duplicate, and unknown original tuples block with
   assert.equal(prepared.expected.shuttleId, undefined);
 });
 
+test('all four public movement recipes retain the same supplied holder without selecting the first roster entry', async () => {
+  const matchingArrival = makeArrivalWitness({ uid: CORE_UID, roleId: CORE_ROLE, shuttleId: CORE_SHUTTLE,
+    groupId: GROUP_ID, controlRevision: CONTROL_REVISION, sourceAuthority: currentAuthority() });
+  const cases = [
+    { endpoint: 'requestShuttleDeparture', movement: null },
+    { endpoint: 'beginShuttleTransit', movement: { status: 'requested', sessionId: SESSION_ID,
+      requestId: 'departure-original-0001', shuttleId: CORE_SHUTTLE, holderUidHash: uidHash(CORE_UID),
+      groupId: GROUP_ID, destinationShipId: 'dione', controlRevision: CONTROL_REVISION, cycle: CYCLE } },
+    { endpoint: 'retargetShuttleTransit', movement: { status: 'in-transit', sessionId: SESSION_ID,
+      requestId: 'departure-original-0001', transitRequestId: 'transit-original-0001', shuttleId: CORE_SHUTTLE,
+      holderUidHash: uidHash(CORE_UID), groupId: GROUP_ID, destinationShipId: 'dione',
+      controlRevision: CONTROL_REVISION, cycle: CYCLE, revision: 2 } },
+    { endpoint: 'completeShuttleArrival', movement: { status: 'in-transit', sessionId: SESSION_ID,
+      requestId: matchingArrival.departureRequestId, transitRequestId: matchingArrival.transitRequestId,
+      shuttleId: CORE_SHUTTLE, holderUidHash: uidHash(CORE_UID), groupId: GROUP_ID,
+      destinationShipId: matchingArrival.destinationShipId, controlRevision: CONTROL_REVISION,
+      cycle: CYCLE, revision: matchingArrival.transitRevision, arrivesAt: '2026-10-06T12:00:00.000Z' },
+      witness: matchingArrival },
+  ];
+  for (const item of cases) {
+    const harness = makeHarness({ movement: item.movement, witness: item.witness });
+    const recipe = createPendingProcedureDefaultSteps()[`core:${item.endpoint}`];
+    const prepared = await recipe({ context: harness.context, game: harness.game });
+    assert.equal(prepared.expected.shuttleId, CORE_SHUTTLE, item.endpoint);
+    assert.equal(prepared.expected.roleId, CORE_ROLE, item.endpoint);
+    assert.deepEqual(harness.sourceSelections.filter(row => row.roleId !== 'gm'), [
+      { roleId: CORE_ROLE, options: { enter: false } },
+    ], item.endpoint + ': original admitted holder only');
+  }
+});
+
 test('an arrival witness that disagrees with the original holder authority remains pending with no fallback', async () => {
   const harness = makeHarness({
     origin: originAuthority(),
