@@ -194,7 +194,7 @@ async function prepareActionUi(actionId, spec, inputs, page, region) {
       if (!(await location.isVisible()) || !(await location.isEnabled())) return false;
       await location.click();
       const task = region.getByRole('radio', {
-        name: new RegExp(`^${escapeRegExp(inputs.taskOpportunityId)} \/\/`),
+        name: new RegExp(`^${escapeRegExp(inputs.taskOpportunityId)} //`),
       });
       if (!(await task.isVisible()) || !(await task.isEnabled())) return false;
       await task.check();

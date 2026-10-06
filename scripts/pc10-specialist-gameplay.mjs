@@ -261,7 +261,7 @@ export function projectSpecialistActionEvidence({
     : endpoint === 'completeShuttleArrival' && typeof actualResult?.hostShipId === 'string' &&
       Number.isFinite(Date.parse(actualResult.arrivedAt)) ? 'arrived' : null;
   const resultSummary = Object.fromEntries(Object.entries(summarized).filter(([key]) => key !== 'status'));
-  const replaySummary = Object.fromEntries(Object.entries(summarizedReplay).filter(([key]) => key !== 'status'));
+  Object.fromEntries(Object.entries(summarizedReplay).filter(([key]) => key !== 'status'));
   const projectionRevision = sourceProjection.gm?.revision ?? sourceProjection.crew?.revision ?? null;
   return {
     schemaVersion: 1,
