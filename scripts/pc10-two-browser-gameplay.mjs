@@ -64,67 +64,79 @@ export function createTwoBrowserGameplay(context, { preAdmissionGmOnly = false }
     let waitingOriginal, current;
     const budget = () => assert.ok(Number.isFinite(deadlineAt) && Date.now() < deadlineAt,
       'Original role navigation deadline expired.');
+    const observeCurrent = (includeAcceptance = false) => crew.page.evaluate(async input => {
+      const moduleUrl = typeof input === 'string' ? input : input.moduleUrl;
+      const acceptanceAuthority = typeof input === 'object' ? await import('/src/lib/sessionSnapshotAuthority.ts') : null;
+      const { useSessionStore } = await import(moduleUrl);
+      const { auth } = await import('/src/lib/firebase.ts');
+      const { activeDemoActorProfile } = await import('/src/lib/demoActorContext.ts');
+      const originalUser = auth().currentUser, originalUid = originalUser?.uid;
+      const uidHash = originalUser ? Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',
+        new TextEncoder().encode(originalUid)))).map(byte => byte.toString(16).padStart(2, '0')).join('').slice(0, 16) : null;
+      // The digest yields. Sample current member readiness afterward, and
+      // never pair a changed Auth identity with the original private hash.
+      const snapshot = useSessionStore.getState(), me = snapshot.me, user = auth().currentUser;
+      if (user?.uid !== originalUid) throw new Error('Original Auth UID changed during role navigation observation.');
+      const session = snapshot.session, berth = session?.currentActorBerthAuthority;
+      const currentMemberBerthPresent = !!session && Object.hasOwn(session, 'currentActorBerthAuthority');
+      // Join the current member transaction witness using App's exact source
+      // contract. Return flags only; the raw witness/UID stays in this page.
+      const keys = ['sessionId', 'actorUid', 'groupId', 'role', 'connectionGeneration',
+        'assignedRoleId', 'activeConsoleRoleId', 'replacementRoleId', 'replacementStatus', 'shipId'];
+      const wireId = value => typeof value === 'string' && value.length > 0 && value.length <= 1_500 && !value.includes('/');
+      const nullableRole = id => id === null || wireId(id);
+      const currentMemberBerthMatches = Boolean(session && berth && typeof berth === 'object' && !Array.isArray(berth) &&
+        Object.keys(berth).length === keys.length && Object.keys(berth).every(key => keys.includes(key)) &&
+        wireId(berth.sessionId) && wireId(berth.actorUid) && wireId(berth.shipId) &&
+        typeof berth.groupId === 'string' && /^fleet-[1-9][0-9]*$/.test(berth.groupId) && berth.role === 'player' &&
+        Number.isSafeInteger(berth.connectionGeneration) && berth.connectionGeneration >= 1 &&
+        nullableRole(berth.assignedRoleId) && nullableRole(berth.activeConsoleRoleId) && nullableRole(berth.replacementRoleId) &&
+        berth.replacementStatus === null && session.phase !== 'closed' &&
+        me?.role === 'player' && me.connected === true && me.replacementStatus == null &&
+        berth.sessionId === session.id && me.sessionId === session.id && berth.actorUid === me.uid &&
+        berth.groupId === me.fleetGroupId && berth.groupId === session.memberSessionScope?.groupId &&
+        Array.isArray(session.memberSessionScope?.vesselIds) && session.memberSessionScope.vesselIds.includes(berth.shipId) &&
+        berth.connectionGeneration === (me.connectionGeneration ?? 1) &&
+        berth.assignedRoleId === (me.assignedRoleId ?? null) && berth.activeConsoleRoleId === (me.activeConsoleRoleId ?? null) &&
+        berth.replacementRoleId === (me.replacementRoleId ?? null));
+      // The ordinary join/resume reply omits the member envelope and own
+      // connected flag. Modern Press confirms membership without a ship berth.
+      const currentPressMemberMatches = Boolean(session && currentMemberBerthPresent && berth === null &&
+        session.phase !== 'closed' && me?.role === 'player' && me.sessionId === session.id &&
+        me.fleetGroupId === session.memberSessionScope?.groupId &&
+        Array.isArray(session.memberSessionScope?.vesselIds) && session.memberSessionScope.vesselIds.length === 0);
+      return { documentTimeOrigin: performance.timeOrigin,
+        hasAuth: !!user, sameActor: !!user && user.uid === me?.uid, uidHash,
+        profileRoleId: activeDemoActorProfile?.roleId ?? null,
+        profileSessionId: activeDemoActorProfile?.sessionId ?? null,
+        sessionId: snapshot.session?.id ?? null, meSessionId: me?.sessionId ?? null,
+        playerRole: me?.role ?? null, assignedRoleId: me?.assignedRoleId ?? null,
+        activeConsoleRoleId: me?.activeConsoleRoleId ?? null, fleetGroupId: me?.fleetGroupId ?? null,
+        seatId: me?.seatId ?? null, replacementRoleId: me?.replacementRoleId ?? null,
+        replacementStatus: me?.replacementStatus ?? null, escapeLocked: me?.escapeState != null,
+        connectionGeneration: me?.connectionGeneration ?? null,
+        identityHydrationRevision: snapshot.identityHydrationRevision ?? null,
+        connected: me?.connected !== false,
+        currentMemberBerthPresent, currentMemberBerthMatches,
+        currentOwnPlayerConfirmed: me?.connected === true, currentPressMemberMatches,
+        connection: snapshot.connection, freshness: snapshot.sessionSnapshotFreshness,
+        ...(acceptanceAuthority ? {
+          currentCanonicalSeatOwned: snapshot.seats.some(seat => seat.id === me?.assignedRoleId &&
+            (seat.roleId ?? seat.id) === me.assignedRoleId && seat.status === 'claimed' && seat.holderUid === me.uid),
+          clientAcceptance: (() => {
+            const authority = originalUid && session?.id ? acceptanceAuthority.sessionSnapshotAuthorityFor(session.id, originalUid) : null;
+            return { hasServerAuthority: authority?.hasServerSessionAuthority === true,
+              resumePending: authority ? acceptanceAuthority.memberSessionResumeBlocksFreshness(authority) : true };
+          })(),
+        } : {}) };
+    }, includeAcceptance ? { moduleUrl: crew.storeModuleUrl() } : crew.storeModuleUrl());
     try {
       budget();
       while (Date.now() < deadlineAt) {
         budget();
         // Session listeners can become live before this document's initial resume
         // accepts identity. This counter is runtime-only and setIdentity-owned.
-        current = await crew.page.evaluate(async moduleUrl => {
-          const { useSessionStore } = await import(moduleUrl);
-          const { auth } = await import('/src/lib/firebase.ts');
-          const { activeDemoActorProfile } = await import('/src/lib/demoActorContext.ts');
-          const originalUser = auth().currentUser, originalUid = originalUser?.uid;
-          const uidHash = originalUser ? Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',
-            new TextEncoder().encode(originalUid)))).map(byte => byte.toString(16).padStart(2, '0')).join('').slice(0, 16) : null;
-          // The digest yields. Sample current member readiness afterward, and
-          // never pair a changed Auth identity with the original private hash.
-          const snapshot = useSessionStore.getState(), me = snapshot.me, user = auth().currentUser;
-          if (user?.uid !== originalUid) throw new Error('Original Auth UID changed during role navigation observation.');
-          const session = snapshot.session, berth = session?.currentActorBerthAuthority;
-          const currentMemberBerthPresent = !!session && Object.hasOwn(session, 'currentActorBerthAuthority');
-          // Join the current member transaction witness using App's exact source
-          // contract. Return flags only; the raw witness/UID stays in this page.
-          const keys = ['sessionId', 'actorUid', 'groupId', 'role', 'connectionGeneration',
-            'assignedRoleId', 'activeConsoleRoleId', 'replacementRoleId', 'replacementStatus', 'shipId'];
-          const wireId = value => typeof value === 'string' && value.length > 0 && value.length <= 1_500 && !value.includes('/');
-          const nullableRole = id => id === null || wireId(id);
-          const currentMemberBerthMatches = Boolean(session && berth && typeof berth === 'object' && !Array.isArray(berth) &&
-            Object.keys(berth).length === keys.length && Object.keys(berth).every(key => keys.includes(key)) &&
-            wireId(berth.sessionId) && wireId(berth.actorUid) && wireId(berth.shipId) &&
-            typeof berth.groupId === 'string' && /^fleet-[1-9][0-9]*$/.test(berth.groupId) && berth.role === 'player' &&
-            Number.isSafeInteger(berth.connectionGeneration) && berth.connectionGeneration >= 1 &&
-            nullableRole(berth.assignedRoleId) && nullableRole(berth.activeConsoleRoleId) && nullableRole(berth.replacementRoleId) &&
-            berth.replacementStatus === null && session.phase !== 'closed' &&
-            me?.role === 'player' && me.connected === true && me.replacementStatus == null &&
-            berth.sessionId === session.id && me.sessionId === session.id && berth.actorUid === me.uid &&
-            berth.groupId === me.fleetGroupId && berth.groupId === session.memberSessionScope?.groupId &&
-            Array.isArray(session.memberSessionScope?.vesselIds) && session.memberSessionScope.vesselIds.includes(berth.shipId) &&
-            berth.connectionGeneration === (me.connectionGeneration ?? 1) &&
-            berth.assignedRoleId === (me.assignedRoleId ?? null) && berth.activeConsoleRoleId === (me.activeConsoleRoleId ?? null) &&
-            berth.replacementRoleId === (me.replacementRoleId ?? null));
-          // The ordinary join/resume reply omits the member envelope and own
-          // connected flag. Modern Press confirms membership without a ship berth.
-          const currentPressMemberMatches = Boolean(session && currentMemberBerthPresent && berth === null &&
-            session.phase !== 'closed' && me?.role === 'player' && me.sessionId === session.id &&
-            me.fleetGroupId === session.memberSessionScope?.groupId &&
-            Array.isArray(session.memberSessionScope?.vesselIds) && session.memberSessionScope.vesselIds.length === 0);
-          return { documentTimeOrigin: performance.timeOrigin,
-            hasAuth: !!user, sameActor: !!user && user.uid === me?.uid, uidHash,
-            profileRoleId: activeDemoActorProfile?.roleId ?? null,
-            profileSessionId: activeDemoActorProfile?.sessionId ?? null,
-            sessionId: snapshot.session?.id ?? null, meSessionId: me?.sessionId ?? null,
-            playerRole: me?.role ?? null, assignedRoleId: me?.assignedRoleId ?? null,
-            activeConsoleRoleId: me?.activeConsoleRoleId ?? null, fleetGroupId: me?.fleetGroupId ?? null,
-            seatId: me?.seatId ?? null, replacementRoleId: me?.replacementRoleId ?? null,
-            replacementStatus: me?.replacementStatus ?? null, escapeLocked: me?.escapeState != null,
-            connectionGeneration: me?.connectionGeneration ?? null,
-            identityHydrationRevision: snapshot.identityHydrationRevision ?? null,
-            connected: me?.connected !== false,
-            currentMemberBerthPresent, currentMemberBerthMatches,
-            currentOwnPlayerConfirmed: me?.connected === true, currentPressMemberMatches,
-            connection: snapshot.connection, freshness: snapshot.sessionSnapshotFreshness };
-        }, crew.storeModuleUrl());
+        current = await observeCurrent();
         budget();
         navigation?.sample(current);
         assert.ok(Number.isSafeInteger(current.identityHydrationRevision) && current.identityHydrationRevision >= 0,
@@ -145,9 +157,11 @@ export function createTwoBrowserGameplay(context, { preAdmissionGmOnly = false }
               current.identityHydrationRevision !== original.identityHydrationRevision) {
             assert.ok(navigation && station && normalMemberRoleRequiresBerth(actor.roleId) && original.currentMemberBerthPresent,
               'Original role navigation epoch changed without a witnessed normal station resume.');
-            if (!await navigation.accept(original, current, crew.storeModuleUrl())) {
+            const acceptedCurrent = await navigation.accept(original, current, () => observeCurrent(true));
+            if (!acceptedCurrent) {
               budget(); await delay(Math.min(250, deadlineAt - Date.now())); continue;
             }
+            current = acceptedCurrent;
           }
           if (station && actor.roleId !== 'press-officer') assert.equal(current.currentMemberBerthPresent,
             original.currentMemberBerthPresent, 'Original current member berth witness applicability changed.');

@@ -154,6 +154,7 @@ export async function stationNavigationResumeFixture(options = {}) {
     const exports = new Map([
       ['/src/store/useSessionStore.ts', { useSessionStore: { getState: f.store.getState } }],
       ['/src/lib/firebase.ts', { auth: () => ({ currentUser: { uid: f.authUid } }) }],
+      ['/src/lib/demoActorContext.ts', { activeDemoActorProfile: { roleId, sessionId: sid } }],
       ['/src/lib/sessionSnapshotAuthority.ts', authorityFns],
     ]);
     const modules = new Map();

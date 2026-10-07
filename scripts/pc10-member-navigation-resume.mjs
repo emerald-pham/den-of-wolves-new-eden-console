@@ -6,6 +6,37 @@ import { resolve } from 'node:path';
 const memberFields = ['sessionId', 'role', 'fleetGroupId', 'assignedRoleId', 'activeConsoleRoleId',
   'seatId', 'replacementRoleId', 'replacementStatus'];
 const observationField = { role: 'playerRole' };
+const stableMemberFields = memberFields.filter(key => !['seatId', 'activeConsoleRoleId'].includes(key));
+const stableObservationFields = ['documentTimeOrigin', 'uidHash', 'profileRoleId', 'profileSessionId', 'sessionId',
+  'meSessionId', 'playerRole', 'assignedRoleId', 'fleetGroupId', 'replacementRoleId', 'replacementStatus', 'escapeLocked'];
+const wireId = value => typeof value === 'string' && value.length > 0 && value.length <= 1500 && !value.includes('/');
+const safeId = value => wireId(value) ? value : null;
+const safeBoolean = value => typeof value === 'boolean' ? value : null;
+const safeGeneration = value => Number.isSafeInteger(value) && value >= 0 ? value : null;
+const safeError = (error, category) => ({ category, name: ['Error', 'AssertionError', 'SyntaxError', 'TypeError'].includes(error?.name) ? error.name : 'Error' });
+function observation(current) {
+  const result = {};
+  for (const key of ['profileRoleId', 'profileSessionId', 'sessionId', 'meSessionId', 'playerRole', 'assignedRoleId',
+    'activeConsoleRoleId', 'fleetGroupId', 'seatId', 'replacementRoleId', 'replacementStatus']) result[key] = safeId(current?.[key]);
+  for (const key of ['hasAuth', 'sameActor', 'escapeLocked', 'connected', 'currentMemberBerthPresent',
+    'currentMemberBerthMatches', 'currentOwnPlayerConfirmed', 'currentPressMemberMatches', 'currentCanonicalSeatOwned']) result[key] = safeBoolean(current?.[key]);
+  result.uidHash = typeof current?.uidHash === 'string' && /^[a-f0-9]{16}$/.test(current.uidHash) ? current.uidHash : null;
+  result.documentTimeOrigin = Number.isFinite(current?.documentTimeOrigin) && current.documentTimeOrigin > 0 ? current.documentTimeOrigin : null;
+  for (const key of ['connectionGeneration', 'identityHydrationRevision']) result[key] = safeGeneration(current?.[key]);
+  result.connection = ['live', 'offline', 'connecting', 'disconnected'].includes(current?.connection) ? current.connection : null;
+  result.freshness = ['server', 'cache'].includes(current?.freshness) ? current.freshness : null;
+  if (current?.clientAcceptance) result.clientAcceptance = { hasServerAuthority: safeBoolean(current.clientAcceptance.hasServerAuthority), resumePending: safeBoolean(current.clientAcceptance.resumePending) };
+  return result;
+}
+function stationPointersMatch(player, current, roleId) {
+  const pointers = ['seatId', 'activeConsoleRoleId'];
+  if (!pointers.every(key => [null, roleId].includes(player[key]) && [null, roleId].includes(current[key]) &&
+    (player[key] === current[key] || player[key] === null && current[key] === roleId))) return false;
+  // A nullable resume pointer is only a phase snapshot. Its later canonical
+  // claim must have both the fresh member witness and actual own seat holder.
+  return !pointers.some(key => player[key] !== current[key]) ||
+    current.seatId === roleId && current.activeConsoleRoleId === roleId && current.currentCanonicalSeatOwned === true;
+}
 const watchedEndpoints = new Set(['resumeSession', 'getCurrentMemberSession', 'refreshPresence']);
 async function beforeDeadline(promise, deadlineAt) {
   assert.ok(Date.now() < deadlineAt, 'Original role navigation deadline expired.');
@@ -25,7 +56,10 @@ function endpoint(request) {
 }
 function resumeReply(body) {
   const result = body?.result, player = result?.player;
-  if (!result || body.error || !player || typeof player.uid !== 'string') return null;
+  if (!result || body.error || !player || !wireId(player.uid) || !wireId(result.session?.id) ||
+      !Number.isSafeInteger(player.connectionGeneration) || player.connectionGeneration < 1 ||
+      memberFields.some(key => player[key] != null && !wireId(player[key])) ||
+      Object.hasOwn(player, 'connected') && typeof player.connected !== 'boolean') return null;
   // The full callable reply remains private to this parser. Never retain raw
   // UIDs, Auth headers/tokens, private role data, or the session payload.
   return { sessionId: result.session?.id,
@@ -59,7 +93,7 @@ export function createMemberNavigationResumeObserver(page, { directory, roleId, 
   function append(event) {
     if (closed) return;
     record.events.push({ at: new Date().toISOString(), ...event });
-    void persist().catch(error => { (record.writeErrors ??= []).push({ name: error.name, message: error.message }); });
+    void persist().catch(error => { (record.writeErrors ??= []).push(safeError(error, 'evidence-write-failed')); });
   }
   const on = (name, callback) => { page.on(name, callback); listeners.push([name, callback]); };
   on('request', request => {
@@ -67,44 +101,46 @@ export function createMemberNavigationResumeObserver(page, { directory, roleId, 
       const name = endpoint(request); if (!watchedEndpoints.has(name)) return;
       const data = request.postDataJSON()?.data;
       const detail = { kind: 'request', endpoint: name, route: safeRoute(request.url()),
-        requestSessionId: data?.sessionId ?? null,
-        ...(name === 'refreshPresence' ? { activeConsoleRoleId: data?.activeConsoleRoleId ?? null } : {}) };
+        requestSessionId: safeId(data?.sessionId),
+        ...(name === 'refreshPresence' ? { activeConsoleRoleId: safeId(data?.activeConsoleRoleId) } : {}) };
       append(detail);
       if (name === 'resumeSession' && baseline && Date.now() < deadlineAt) {
-        requests.set(request, { requestedAt: new Date().toISOString(), baseline: { ...baseline },
-          requestSessionId: data?.sessionId,
-          requestMatches: !!data && Object.keys(data).length === 1 && Object.hasOwn(data, 'sessionId'),
+        requests.set(request, { requestedAt: new Date().toISOString(), baseline: observation(baseline),
+          requestSessionId: safeId(data?.sessionId),
+          requestMatches: !!data && Object.keys(data).length === 1 && Object.hasOwn(data, 'sessionId') && wireId(data.sessionId),
           endpoint: name });
       }
-    } catch (error) { append({ kind: 'request-read-error', name: error.name, message: error.message }); }
+    } catch (error) { append({ kind: 'request-read-error', error: safeError(error, 'request-read-failed') }); }
   });
   on('response', response => {
     try {
       const request = response.request(), name = endpoint(request); if (!watchedEndpoints.has(name)) return;
-      append({ kind: 'response', endpoint: name, httpStatus: response.status(), route: safeRoute(response.url()) });
+      const httpStatus = response.status();
+      const safeStatus = Number.isInteger(httpStatus) && httpStatus >= 100 && httpStatus <= 599 ? httpStatus : null;
+      append({ kind: 'response', endpoint: name, httpStatus: safeStatus, route: safeRoute(response.url()) });
       const receipt = requests.get(request); if (!receipt) return;
-      receipt.httpStatus = response.status(); receipt.respondedAt = new Date().toISOString();
+      receipt.httpStatus = safeStatus; receipt.respondedAt = new Date().toISOString();
       receipt.bodyStatus = 'reading';
       receipt.parsed = response.json().then(body => { receipt.reply = resumeReply(body); receipt.bodyStatus = 'parsed'; }).catch(error => {
-        receipt.bodyStatus = 'read-failed'; receipt.parseError = { name: error.name, message: error.message };
+        receipt.bodyStatus = 'read-failed'; receipt.parseError = safeError(error, 'response-body-read-failed');
       });
-    } catch (error) { append({ kind: 'response-read-error', name: error.name, message: error.message }); }
+    } catch (error) { append({ kind: 'response-read-error', error: safeError(error, 'response-read-failed') }); }
   });
   on('requestfailed', request => {
     try { const name = endpoint(request); if (watchedEndpoints.has(name)) append({ kind: 'requestfailed', endpoint: name }); }
-    catch (error) { append({ kind: 'requestfailed-read-error', message: error.message }); }
+    catch (error) { append({ kind: 'requestfailed-read-error', error: safeError(error, 'requestfailure-read-failed') }); }
   });
   on('framenavigated', frame => append({ kind: 'framenavigated', route: safeRoute(frame.url()),
     mainFrame: typeof page.mainFrame === 'function' ? frame === page.mainFrame() : null }));
   return {
     path,
-    sample(current) { record.samples.push({ at: new Date().toISOString(), route: safeRoute(page.url()), current: { ...current } }); },
-    bind(current) { baseline = { ...current }; record.currentBinding = baseline; },
+    sample(current) { record.samples.push({ at: new Date().toISOString(), route: safeRoute(page.url()), current: observation(current) }); },
+    bind(current) { baseline = observation(current); record.currentBinding = baseline; },
     async prepare(current) {
-      baseline = { ...current }; record.originalBinding = baseline; record.currentBinding = baseline;
+      baseline = observation(current); record.originalBinding = baseline; record.currentBinding = baseline;
       record.preparedAt = new Date().toISOString(); record.status = 'bound-before-navigation'; await persist();
     },
-    async accept(original, current, storeModuleUrl) {
+    async accept(original, current, readAcceptedCurrent) {
       assert.ok(Date.now() < deadlineAt, 'Original role navigation deadline expired.');
       const candidates = [...requests.values()].filter(row => row.baseline.documentTimeOrigin === original.documentTimeOrigin &&
         row.baseline.uidHash === original.uidHash && row.baseline.sessionId === original.sessionId &&
@@ -117,7 +153,7 @@ export function createMemberNavigationResumeObserver(page, { directory, roleId, 
         row.reply.connectionGeneration === original.connectionGeneration + 1 &&
         row.reply.connectionGeneration === current.connectionGeneration &&
         (row.reply.connected === true || !row.reply.connectedFieldPresent && row.reply.connected === null) && !row.reply.escapeLocked &&
-        memberFields.every(key => row.reply.player[key] === current[observationField[key] ?? key]) &&
+        stableMemberFields.every(key => row.reply.player[key] === current[observationField[key] ?? key]) &&
         row.reply.player.role === 'player');
       assert.ok(receipt && current.identityHydrationRevision === original.identityHydrationRevision + 1,
         'Original role navigation epoch changed without its matching normal resume receipt and accepted hydration.');
@@ -127,35 +163,30 @@ export function createMemberNavigationResumeObserver(page, { directory, roleId, 
       // SDK finish fence land within the caller's original finite deadline.
       if (current.connection !== 'live' || current.freshness !== 'server' || !current.currentMemberBerthPresent || !current.currentMemberBerthMatches ||
           !current.currentOwnPlayerConfirmed) return false;
-      const accepted = await page.evaluate(async ({ moduleUrl, expected }) => {
-        const { useSessionStore } = await import(moduleUrl);
-        const { auth } = await import('/src/lib/firebase.ts');
-        const { sessionSnapshotAuthorityFor, memberSessionResumeBlocksFreshness } = await import('/src/lib/sessionSnapshotAuthority.ts');
-        const uid = auth().currentUser?.uid;
-        const uidHash = uid ? Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',
-          new TextEncoder().encode(uid)))).map(byte => byte.toString(16).padStart(2, '0')).join('').slice(0, 16) : null;
-        const state = useSessionStore.getState(), me = state.me;
-        const identityMatches = auth().currentUser?.uid === uid && uidHash === expected.uidHash && me?.uid === uid &&
-          state.session?.id === expected.sessionId && me?.sessionId === expected.meSessionId && me?.role === expected.playerRole &&
-          performance.timeOrigin === expected.documentTimeOrigin &&
-          me?.connectionGeneration === expected.connectionGeneration && state.identityHydrationRevision === expected.identityHydrationRevision &&
-          me?.fleetGroupId === expected.fleetGroupId && (me?.assignedRoleId ?? null) === expected.assignedRoleId &&
-          (me?.activeConsoleRoleId ?? null) === expected.activeConsoleRoleId && (me?.seatId ?? null) === expected.seatId &&
-          (me?.replacementRoleId ?? null) === expected.replacementRoleId && (me?.replacementStatus ?? null) === expected.replacementStatus &&
-          (me?.escapeState != null) === expected.escapeLocked && me?.connected === true &&
-          state.connection === 'live' && state.sessionSnapshotFreshness === 'server';
-        const authority = uid && state.session?.id ? sessionSnapshotAuthorityFor(state.session.id, uid) : null;
-        return { identityMatches, hasServerAuthority: authority?.hasServerSessionAuthority === true,
-          resumePending: authority ? memberSessionResumeBlocksFreshness(authority) : true };
-      }, { moduleUrl: storeModuleUrl, expected: current });
+      // Reuse the exact post-digest original-member observation. Identity,
+      // seat ownership, transaction witness and SDK fence are sampled together
+      // after the async yield, inside the caller's original deadline.
+      const settled = await beforeDeadline(readAcceptedCurrent(), deadlineAt);
       assert.ok(Date.now() < deadlineAt, 'Original role navigation deadline expired.');
-      assert.equal(accepted.identityMatches, true, 'Original resumed identity changed during client acceptance observation.');
-      if (!accepted.hasServerAuthority || accepted.resumePending) return false;
+      for (const key of stableObservationFields) assert.equal(settled[key], original[key],
+        `Original resumed ${key} changed during client acceptance observation.`);
+      assert.equal(settled.hasAuth, true); assert.equal(settled.sameActor, true);
+      assert.equal(settled.connectionGeneration, receipt.reply.connectionGeneration);
+      assert.equal(settled.identityHydrationRevision, original.identityHydrationRevision + 1);
+      assert.ok(stableMemberFields.every(key => receipt.reply.player[key] === settled[observationField[key] ?? key]),
+        'Original resumed member scope changed during client acceptance observation.');
+      const accepted = settled.clientAcceptance;
+      if (settled.connection !== 'live' || settled.freshness !== 'server' || !settled.currentMemberBerthPresent ||
+          !settled.currentMemberBerthMatches || !settled.currentOwnPlayerConfirmed ||
+          accepted?.hasServerAuthority !== true || accepted.resumePending !== false) return false;
+      assert.ok(stationPointersMatch(receipt.reply.player, settled, roleId),
+        'Original resumed station pointers require canonical current ownership.');
+      current = settled;
       record.transitions.push({ status: 'accepted-normal-resume-bound', at: new Date().toISOString(),
-        before: { ...original }, current: { ...current }, receipt: {
+        before: observation(original), current: observation(current), receipt: {
           requestedAt: receipt.requestedAt, respondedAt: receipt.respondedAt, requestSessionId: receipt.requestSessionId,
-          httpStatus: receipt.httpStatus, reply: receipt.reply }, clientAcceptance: accepted });
-      baseline = { ...current }; record.currentBinding = baseline; await persist(); return true;
+          httpStatus: receipt.httpStatus, reply: receipt.reply }, clientAcceptance: observation(current).clientAcceptance });
+      baseline = observation(current); record.currentBinding = baseline; await persist(); return current;
     },
     async finish(error) {
       closed = true;
@@ -164,7 +195,7 @@ export function createMemberNavigationResumeObserver(page, { directory, roleId, 
       // cannot extend the primary deadline or delay removal of own listeners.
       record.status = error ? 'failed' : 'selected-current-original-member';
       record.receipts = [...requests.values()].map(({ parsed, ...row }) => row);
-      if (error) record.originalError = { name: error.name, message: error.message, stack: error.stack };
+      if (error) record.originalError = safeError(error, 'original-selection-failed');
       record.closedAt = new Date().toISOString(); await persist();
     },
   };
