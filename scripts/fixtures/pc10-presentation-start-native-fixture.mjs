@@ -34,7 +34,7 @@ const identity = only('src/store/useSessionStore.ts', (node, source) => ts.isPro
 const reply = only('functions/src/index.ts', (node, source) => ts.isVariableDeclaration(node) && node.name.getText(source) === 'reply' &&
   node.initializer?.getText(source).includes('connectionGeneration: resumeResult.connectionGeneration'));
 
-export async function presentationStartFixture({ roleId = 'press-officer', held = false, publish = true, onDigest } = {}) {
+export async function presentationStartFixture({ roleId = 'press-officer', held = false, publish = true, onDigest, separateBareAuthorityModule = false } = {}) {
   const f = projectionFixture({ actorRoleId: roleId, freshDemo: false, released: !held });
   if (roleId === 'press-officer') f.memberGroup = { id: 'fleet-1', vesselIds: ['aegis'],
     memberUids: [f.store.getState().me.uid], memberShipIds: {} };
@@ -50,13 +50,17 @@ export async function presentationStartFixture({ roleId = 'press-officer', held 
   const identityContext = createContext({ set: update => f.store.setState(update(f.store.getState())),
     clearVoyageMovement: session => session, samePrivateAssignment: () => false });
   f.store.setState({ setIdentity: new Script(js(`(${sourceIdentity})`)).runInContext(identityContext) });
-  const authorityContext = createContext({});
-  new Script(js('const sessionSnapshotAuthorities = new Map(); const memberResumeTokens = new WeakMap();\n' +
+  function authorityModule() {
+    const authorityContext = createContext({});
+    new Script(js('const sessionSnapshotAuthorities = new Map(); const memberResumeTokens = new WeakMap();\n' +
     ['createSessionSnapshotAuthority', 'beginMemberSessionResume', 'isCurrentMemberSessionResume', 'finishMemberSessionResume',
       'memberSessionResumeBlocksFreshness', 'sessionSnapshotAuthorityFor'].map(name => fn('src/lib/sessionSnapshotAuthority.ts', name)).join('\n')))
     .runInContext(authorityContext);
-  const authorityFns = new Script('({beginMemberSessionResume,isCurrentMemberSessionResume,finishMemberSessionResume,memberSessionResumeBlocksFreshness,sessionSnapshotAuthorityFor})')
+    return new Script('({beginMemberSessionResume,isCurrentMemberSessionResume,finishMemberSessionResume,memberSessionResumeBlocksFreshness,sessionSnapshotAuthorityFor})')
     .runInContext(authorityContext);
+  }
+  const authorityFns = authorityModule();
+  const bareAuthorityFns = separateBareAuthorityModule ? authorityModule() : authorityFns;
   const authority = authorityFns.sessionSnapshotAuthorityFor(sid, uid); authority.hasServerSessionAuthority = true;
   const leaseContext = createContext({ HttpsError: class extends Error {} });
   new Script(js(fn('functions/src/index.ts', 'nextConnectionGeneration'))).runInContext(leaseContext);
@@ -124,7 +128,8 @@ export async function presentationStartFixture({ roleId = 'press-officer', held 
       ['/src/store/useSessionStore.ts', { useSessionStore: { getState: f.store.getState } }],
       ['/src/lib/firebase.ts', { auth: () => ({ currentUser: f.authUid ? { uid: f.authUid } : null }) }],
       ['/src/lib/demoActorContext.ts', { activeDemoActorProfile: { roleId, sessionId: sid } }],
-      ['/src/lib/sessionSnapshotAuthority.ts', authorityFns],
+      ['/src/lib/sessionSnapshotAuthority.ts', bareAuthorityFns],
+      ['/src/lib/sessionSnapshotAuthority.ts?t=1234567890000', authorityFns],
     ]);
     const modules = new Map();
     for (const [name, values] of exports) {
@@ -138,6 +143,8 @@ export async function presentationStartFixture({ roleId = 'press-officer', held 
     } }).runInContext(browser));
     f.presentationRows.push(result); return result;
   };
+  f.crew.sessionAuthorityModuleUrl = () => separateBareAuthorityModule
+    ? '/src/lib/sessionSnapshotAuthority.ts?t=1234567890000' : '/src/lib/sessionSnapshotAuthority.ts';
   f.presentationRows = []; f.sdkCalls = sdkCalls; f.resumeReplies = replies;
   f.actorOptions = { sessionId: sid, controller: { sessionId: sid, uidHash: sha('native-controller') },
     roster: [{ roleId, uidHash: sha(uid) }], confirmedRoleIds: roleId === 'press-officer' ? ['admiral'] : [roleId], pressIncluded: true };

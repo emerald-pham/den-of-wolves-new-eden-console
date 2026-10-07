@@ -209,3 +209,26 @@ for (const [name, roleId, mutate] of [
   assert.equal(changed, true); assert.deepEqual(f.sdkCalls, ['resumeSession']);
   assert.equal(f.events.listenerCount('request'), 0); assert.equal(f.events.listenerCount('response'), 0);
 });
+
+// Vite gives the mounted App/SDK a timestamped ESM authority module. A bare
+// import of the same source creates another map and another resume WeakMap.
+test('presentation reads the mounted App SDK authority module rather than the bare URL decoy', async () => {
+  const f = await presentationStartFixture({ held: true, separateBareAuthorityModule: true });
+  const row = await helpers.observeFullGameDemoPresentationMember(f.crew, { knownRoleIds: ['press-officer'] });
+  assert.equal(row.sdkHasServerAuthority, true); assert.equal(row.sdkResumePending, false);
+  const result = await wait(f); assert.equal(result.actor.uidHash, f.actorOptions.roster[0].uidHash);
+  assert.deepEqual(f.sdkCalls, []); assert.deepEqual(f.uiChoices, []);
+});
+test('the mounted SDK pending-resume fence cannot be read from the bare URL empty WeakMap', async () => {
+  const f = await presentationStartFixture({ held: true, separateBareAuthorityModule: true }); f.beginNewerResume();
+  const row = await helpers.observeFullGameDemoPresentationMember(f.crew, { knownRoleIds: ['press-officer'] });
+  assert.equal(row.sdkHasServerAuthority, true); assert.equal(row.sdkResumePending, true);
+  await assert.rejects(wait(f, { deadlineAt: Date.now() + 80 }), /deadline|Deadline/);
+  assert.deepEqual(f.sdkCalls, []); assert.deepEqual(f.uiChoices, []);
+});
+for (const [name, url] of [['absent mounted module URL', null], ['foreign module origin', 'https://foreign.invalid/src/lib/sessionSnapshotAuthority.ts?t=123']])
+  test('presentation has no authority fallback for ' + name, async () => {
+    const f = await presentationStartFixture({ held: true }); f.crew.sessionAuthorityModuleUrl = () => url;
+    await assert.rejects(helpers.observeFullGameDemoPresentationMember(f.crew, { knownRoleIds: ['press-officer'] }));
+    assert.deepEqual(f.sdkCalls, []); assert.deepEqual(f.uiChoices, []);
+  });
