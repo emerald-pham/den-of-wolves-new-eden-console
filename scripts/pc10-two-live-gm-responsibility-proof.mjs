@@ -566,12 +566,15 @@ export function createTwoLiveGmResponsibilityProof({ sourceRoot, expectedSourceB
 
       stage = 'original controller manager, roster and casting restoration';
       failure.guard = 'restored-controller.original-manager-member-and-zero-private-payload';
-      await context.crew.page.goto(savedCrewUrl);
+      const managerNavigation = await context.crew.page.goto(savedCrewUrl);
+      evidence.managerNavigation = { sameDocument: managerNavigation === null, releasedGeneration: released.generation };
+      // A hash route retains this member; a document reconnect must advance its generation.
       const restored = await untilLifecycle(context.crew, released, value => value.profileRoleId === 'controller' &&
         value.playerRole === 'player' && !value.gmInstanceOwned && !value.gmAccessCached &&
         value.privatePayloadCount === 0 && value.pendingCount === 0 && value.seatId === null &&
         value.assignedRoleId === null && value.activeConsoleRoleId === null && value.setupRevision === revision + 3,
-      'Original legitimate controller manager restored', { rejoined: true });
+      'Original legitimate controller manager restored', { rejoined: managerNavigation !== null });
+      evidence.managerNavigation.restoredGeneration = restored.generation;
       failure.held.restored = restored;
       failure.guard = 'restored-controller.exact-original-controller-and-gm-routes';
       assert.ok(context.crew.page.url() === savedCrewUrl && context.gm.page.url() === savedGmUrl,
