@@ -24,7 +24,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     version: APP_VERSION,
     implementationProgress: {
       completed: 703, total: 751, percentage: '93.61%',
-      done: 703, partial: 6, active: 0, missing: 42, blocked: 0,
+      done: 703, partial: 10, active: 0, missing: 38, blocked: 0,
     },
     changes: [
       'Press Officers can open their shuttle route after normal admission, including before their first departure.',
