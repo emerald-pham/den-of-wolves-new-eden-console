@@ -160,3 +160,27 @@ for (const [name, mutate] of [
   assert.doesNotMatch(packet, /PRIVATE_CONSUMED_CANARY|synthetic-raw-uid|private-native-/);
   assert.equal(f.events.listenerCount('request'), 0); assert.equal(f.events.listenerCount('response'), 0);
 });
+
+for (const [name, mutate] of [
+  ['missing request', f => { f.hideRequest = true; }],
+  ['missing response', f => { f.hideResponse = true; }],
+  ['denied observed receipt', f => { f.responseStatus = 403; }],
+  ['pending reply body', f => { f.responseBodyPending = true; }],
+]) test('accepted Source SDK flags cannot substitute for passive normal recovery evidence: ' + name, async () => {
+  const f = await presentationStartFixture({ held: true }); f.setOffline(); mutate(f); let retried = false;
+  const start = Date.now();
+  await assert.rejects(wait(f, { deadlineAt: start + 150, onSample: async () => {
+    if (!retried) { retried = true; await f.automaticRetry(); }
+  } }));
+  assert.deepEqual(f.sdkCalls, ['resumeSession']); assert.ok(Date.now() - start < 600);
+  assert.equal(f.events.listenerCount('request'), 0); assert.equal(f.events.listenerCount('response'), 0);
+});
+for (const field of ['uid', 'seatId', 'activeConsoleRoleId']) test('a malformed passive reply stays private in the complete recovery packet: ' + field, async () => {
+  const f = await presentationStartFixture({ held: true }); f.setOffline(); let retried = false, error;
+  f.mutateEvidenceReply = reply => { reply.player[field] = { privatePayload: 'PRIVATE_REPLY_CANARY', uid: 'synthetic-reply-raw-uid' }; return reply; };
+  await assert.rejects(wait(f, { onSample: async () => { if (!retried) { retried = true; await f.automaticRetry(); } } }), value => { error = value; return true; });
+  const packet = JSON.stringify({ rows: f.presentationRows, failure: originalProofError(error) });
+  assert.doesNotMatch(packet, /PRIVATE_REPLY_CANARY|synthetic-reply-raw-uid|private-native-/);
+  assert.match(packet, /invalid-reply/); assert.equal(f.events.listenerCount('request'), 0);
+  assert.equal(f.events.listenerCount('response'), 0);
+});

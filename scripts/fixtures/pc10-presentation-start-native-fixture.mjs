@@ -88,8 +88,10 @@ export async function presentationStartFixture({ roleId = 'press-officer', held 
       const request = { method: () => 'POST', url: () => 'http://127.0.0.1:5011/demo-native/us-central1/resumeSession',
         postDataJSON: () => ({ data: { sessionId: sid } }),
         headers: () => assert.fail('No headers'), allHeaders: () => assert.fail('No headers') };
-      events.emit('request', request);
-      events.emit('response', { request: () => request, status: () => 200, url: request.url, json: async () => actualReply });
+      if (!f.hideRequest) events.emit('request', request);
+      if (!f.hideResponse) events.emit('response', { request: () => request, status: () => f.responseStatus ?? 200, url: request.url,
+        json: async () => f.responseBodyPending ? new Promise(() => {}) :
+          ({ result: f.mutateEvidenceReply ? f.mutateEvidenceReply(plain(actualReply)) : actualReply }) });
       replies.push(actualReply); return { data: actualReply };
     },
   });
