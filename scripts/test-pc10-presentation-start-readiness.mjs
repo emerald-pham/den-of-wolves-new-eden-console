@@ -117,3 +117,46 @@ test('a core persona still needs its original assigned and selected console', as
   const ready = await wait(f); assert.equal(ready.actor.activeConsoleRoleId, 'dione-engineer');
   f.store.setState({ me: { ...f.store.getState().me, activeConsoleRoleId: null } }); await assert.rejects(wait(f));
 });
+
+// Reconciled independent-review discriminators; actual Source reader/feed and
+// callback paths remain in use. Counterexamples are Native, not Base23 cause.
+for (const [name, mutate] of [
+  ['generation-only', f => f.store.setState({ me: { ...f.store.getState().me, connectionGeneration: 4 } })],
+  ['hydration-only', f => f.store.setState({ identityHydrationRevision: 2 })],
+]) test('a matching member feed cannot certify an epoch without this document normal accepted resume: ' + name, async () => {
+  const f = await presentationStartFixture({ held: true }); f.setOffline(); let changed = false;
+  await assert.rejects(wait(f, { onSample: async () => {
+    if (!changed) { changed = true; mutate(f); await f.receiveMemberProjection(); }
+  } }));
+  assert.deepEqual(f.sdkCalls, []);
+  assert.equal(f.events.listenerCount('request'), 0); assert.equal(f.events.listenerCount('response'), 0);
+});
+for (const [name, mutate] of [
+  ['Auth', f => { f.authUid = 'private-callback-foreign-auth'; }],
+  ['disconnect', f => f.store.setState({ me: { ...f.store.getState().me, connected: false } })],
+  ['newer SDK resume', f => f.beginNewerResume()],
+  ['lease-only', f => f.store.setState({ me: { ...f.store.getState().me, connectionGeneration: 4 } })],
+]) test('async observation callback cannot return the preceding ready tuple after ' + name, async () => {
+  const f = await presentationStartFixture({ held: true }); let changed = false;
+  await assert.rejects(wait(f, { deadlineAt: Date.now() + 100, onSample: async () => {
+    await Promise.resolve(); if (!changed) { changed = true; mutate(f); }
+  } }));
+  assert.equal(f.events.listenerCount('request'), 0); assert.equal(f.events.listenerCount('response'), 0);
+});
+for (const [name, mutate] of [
+  ['seat object', (f, secret) => f.store.setState({ me: { ...f.store.getState().me, seatId: secret } })],
+  ['role object', (f, secret) => f.store.setState({ me: { ...f.store.getState().me, assignedRoleId: secret } })],
+  ['lease object', (f, secret) => f.store.setState({ me: { ...f.store.getState().me, connectionGeneration: secret } })],
+  ['hydration object', (f, secret) => f.store.setState({ identityHydrationRevision: secret })],
+  ['marker status object', (f, secret) => f.store.setState({ session: { ...f.store.getState().session,
+    fullGameDemo: { status: secret, progression: 'manual' } } })],
+  ['marker progression object', (f, secret) => f.store.setState({ session: { ...f.store.getState().session,
+    fullGameDemo: { status: 'preparing', progression: secret } } })],
+]) test('complete browser return, samples and failure packet exclude malformed private consumed data: ' + name, async () => {
+  const f = await presentationStartFixture({ held: true }); const secret = { privatePayload: 'PRIVATE_CONSUMED_CANARY', uid: 'synthetic-raw-uid' };
+  mutate(f, secret); let error;
+  await assert.rejects(wait(f), value => { error = value; return true; });
+  const packet = JSON.stringify({ rows: f.presentationRows, original: originalProofError(error) });
+  assert.doesNotMatch(packet, /PRIVATE_CONSUMED_CANARY|synthetic-raw-uid|private-native-/);
+  assert.equal(f.events.listenerCount('request'), 0); assert.equal(f.events.listenerCount('response'), 0);
+});

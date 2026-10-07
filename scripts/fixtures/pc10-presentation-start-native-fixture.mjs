@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { createHash, webcrypto } from 'node:crypto';
+import { EventEmitter } from 'node:events';
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { createContext, Script, SyntheticModule } from 'node:vm';
@@ -60,7 +61,10 @@ export async function presentationStartFixture({ roleId = 'press-officer', held 
   const leaseContext = createContext({ HttpsError: class extends Error {} });
   new Script(js(fn('functions/src/index.ts', 'nextConnectionGeneration'))).runInContext(leaseContext);
   const nextGeneration = new Script('nextConnectionGeneration').runInContext(leaseContext);
-  const sdkCalls = [], replies = []; let serverPlayer;
+  const sdkCalls = [], replies = [], events = new EventEmitter(); let serverPlayer;
+  f.crew.page.on = (...args) => { events.on(...args); return f.crew.page; };
+  f.crew.page.off = (...args) => { events.off(...args); return f.crew.page; };
+  f.events = events;
   const client = createContext({ ...authorityFns, useSessionStore: { getState: f.store.getState },
     auth: () => ({ currentUser: { uid: f.authUid } }), functions: () => ({}),
     window: { navigator: { onLine: true } }, ensureSignedIn: async () => assert.equal(f.authUid, uid),
@@ -81,6 +85,11 @@ export async function presentationStartFixture({ roleId = 'press-officer', held 
         cleanName: value => value ?? 'Native Press', isoOf: () => undefined, playerEscapeState: () => undefined });
       const actualReply = plain(new Script(js(`(function () { ${reply} return reply; })()`)).runInContext(server));
       actualReply.session = { ...before.session }; delete actualReply.session.currentActorBerthAuthority;
+      const request = { method: () => 'POST', url: () => 'http://127.0.0.1:5011/demo-native/us-central1/resumeSession',
+        postDataJSON: () => ({ data: { sessionId: sid } }),
+        headers: () => assert.fail('No headers'), allHeaders: () => assert.fail('No headers') };
+      events.emit('request', request);
+      events.emit('response', { request: () => request, status: () => 200, url: request.url, json: async () => actualReply });
       replies.push(actualReply); return { data: actualReply };
     },
   });
