@@ -1,50 +1,55 @@
 import assert from 'node:assert/strict';
+import { rememberProofFailure } from './pc10-proof-failure-evidence.mjs';
 import { observeWolfChoiceActor } from './pc10-combat-choice-readiness.mjs';
 
 const safeHash = value => typeof value === 'string' && /^[a-f0-9]{16}$/.test(value);
 
 /** Keep the exact authenticated member, document, role and hydrated identity held across one mission receipt. */
 export function assertBasePostCombatActorIdentity(current, original) {
-  assert.ok(current && original, 'The original Base mission actor identity is required.');
-  assert.ok(original.hasAuth === true && original.sameActor === true && original.connected === true &&
-    original.escapeLocked === false && original.connection === 'live' && original.freshness === 'server',
-  'The held Base mission actor must begin authenticated, connected, unescaped and live.');
-  for (const field of ['uidHash', 'authUidHash', 'memberUidHash', 'memberDocumentIdHash']) {
-    assert.ok(safeHash(original[field]), `Original Base mission ${field} evidence is required.`);
-    assert.ok(current[field] === original[field], `Original Base mission ${field} changed.`);
+  try {
+    assert.ok(current && original, 'The original Base mission actor identity is required.');
+    assert.ok(original.hasAuth === true && original.sameActor === true && original.connected === true &&
+      original.escapeLocked === false && original.connection === 'live' && original.freshness === 'server',
+    'The held Base mission actor must begin authenticated, connected, unescaped and live.');
+    for (const field of ['uidHash', 'authUidHash', 'memberUidHash', 'memberDocumentIdHash']) {
+      assert.ok(safeHash(original[field]), `Original Base mission ${field} evidence is required.`);
+      assert.ok(current[field] === original[field], `Original Base mission ${field} changed.`);
+    }
+    assert.ok(original.authUidHash === original.uidHash && original.memberUidHash === original.uidHash &&
+      original.memberDocumentIdHash === original.uidHash,
+    'Original Base mission Auth, member and document hashes must identify the same source account.');
+    for (const field of ['sessionId', 'meSessionId', 'profileSessionId', 'profileRoleId', 'playerRole',
+      'assignedRoleId', 'activeConsoleRoleId', 'fleetGroupId']) {
+      const nullableGmField = original.playerRole === 'gm' &&
+        ['profileSessionId', 'profileRoleId', 'assignedRoleId', 'activeConsoleRoleId', 'fleetGroupId'].includes(field);
+      const present = typeof original[field] === 'string' && original[field].length > 0 ||
+        (nullableGmField && original[field] === null);
+      assert.ok(present, `Original Base mission ${field} evidence is required.`);
+      assert.ok(current[field] === original[field], `Original Base mission ${field} changed.`);
+    }
+    assert.ok(original.sessionId === original.meSessionId &&
+      (original.playerRole === 'gm'
+        ? original.profileSessionId === null || original.profileSessionId === original.sessionId
+        : original.profileSessionId === original.sessionId),
+    'Original Base mission Auth/member/profile session identities must agree.');
+    for (const field of ['connectionGeneration', 'identityHydrationRevision']) {
+      assert.ok(Number.isSafeInteger(original[field]) && original[field] >= 0,
+        `Original Base mission ${field} evidence is required.`);
+      assert.ok(current[field] === original[field], `Original Base mission ${field} changed.`);
+    }
+    assert.ok(Number.isFinite(original.documentTimeOrigin) && original.documentTimeOrigin > 0,
+      'Original Base mission documentTimeOrigin evidence is required.');
+    assert.ok(Number.isFinite(current.documentTimeOrigin) && current.documentTimeOrigin > 0,
+      'Current Base mission documentTimeOrigin evidence is required.');
+    assert.equal(current.documentTimeOrigin, original.documentTimeOrigin,
+      'Original Base mission documentTimeOrigin changed.');
+    assert.ok(current.hasAuth === true && current.sameActor === true && current.connected === true &&
+      current.escapeLocked === false && current.connection === 'live' && current.freshness === 'server',
+    'The original Base mission actor must remain authenticated, connected, unescaped and live.');
+    return current;
+  } catch (error) {
+    rememberProofFailure(error, { operation: 'assertBasePostCombatActorIdentity', current, original }); throw error;
   }
-  assert.ok(original.authUidHash === original.uidHash && original.memberUidHash === original.uidHash &&
-    original.memberDocumentIdHash === original.uidHash,
-  'Original Base mission Auth, member and document hashes must identify the same source account.');
-  for (const field of ['sessionId', 'meSessionId', 'profileSessionId', 'profileRoleId', 'playerRole',
-    'assignedRoleId', 'activeConsoleRoleId', 'fleetGroupId']) {
-    const nullableGmField = original.playerRole === 'gm' &&
-      ['profileSessionId', 'profileRoleId', 'assignedRoleId', 'activeConsoleRoleId', 'fleetGroupId'].includes(field);
-    const present = typeof original[field] === 'string' && original[field].length > 0 ||
-      (nullableGmField && original[field] === null);
-    assert.ok(present, `Original Base mission ${field} evidence is required.`);
-    assert.ok(current[field] === original[field], `Original Base mission ${field} changed.`);
-  }
-  assert.ok(original.sessionId === original.meSessionId &&
-    (original.playerRole === 'gm'
-      ? original.profileSessionId === null || original.profileSessionId === original.sessionId
-      : original.profileSessionId === original.sessionId),
-  'Original Base mission Auth/member/profile session identities must agree.');
-  for (const field of ['connectionGeneration', 'identityHydrationRevision']) {
-    assert.ok(Number.isSafeInteger(original[field]) && original[field] >= 0,
-      `Original Base mission ${field} evidence is required.`);
-    assert.ok(current[field] === original[field], `Original Base mission ${field} changed.`);
-  }
-  assert.ok(Number.isFinite(original.documentTimeOrigin) && original.documentTimeOrigin > 0,
-    'Original Base mission documentTimeOrigin evidence is required.');
-  assert.ok(Number.isFinite(current.documentTimeOrigin) && current.documentTimeOrigin > 0,
-    'Current Base mission documentTimeOrigin evidence is required.');
-  assert.equal(current.documentTimeOrigin, original.documentTimeOrigin,
-    'Original Base mission documentTimeOrigin changed.');
-  assert.ok(current.hasAuth === true && current.sameActor === true && current.connected === true &&
-    current.escapeLocked === false && current.connection === 'live' && current.freshness === 'server',
-  'The original Base mission actor must remain authenticated, connected, unescaped and live.');
-  return current;
 }
 
 /** Join the generic authenticated view, established rich observer and exact current member identity. */
@@ -84,7 +89,8 @@ export function composeBasePostCombatActorObservation(genericObservation, richOb
     typeof exactMemberRead?.playerRole === 'string' && exactMemberRead.playerRole.length > 0 &&
     roleValueComplete(exactMemberRead?.profileRoleId) &&
     roleValueComplete(exactMemberRead?.assignedRoleId) &&
-    roleValueComplete(exactMemberRead?.activeConsoleRoleId) &&
+    (roleValueComplete(exactMemberRead?.activeConsoleRoleId) ||
+      (exactMemberRead?.activeConsoleRoleId === null && exactMemberRead?.activeConsoleFieldPresent === true)) &&
     roleValueComplete(exactMemberRead?.fleetGroupId) &&
     Number.isSafeInteger(exactMemberRead?.connectionGeneration) && exactMemberRead.connectionGeneration >= 0 &&
     Number.isSafeInteger(exactMemberRead?.identityHydrationRevision) && exactMemberRead.identityHydrationRevision >= 0 &&
@@ -103,6 +109,7 @@ export function composeBasePostCombatActorObservation(genericObservation, richOb
     replacementRoleId: richObservation?.replacementRoleId,
     replacementStatus: richObservation?.replacementStatus,
     seatId: richObservation?.seatId,
+    activeConsoleFieldPresent: exactMemberRead?.activeConsoleFieldPresent,
     meSessionId: exactMemberRead?.meSessionId,
     authUidHash: exactMemberRead?.authUidHash,
     memberUidHash: exactMemberRead?.memberUidHash,
@@ -151,6 +158,7 @@ export async function observeBasePostCombatActor(surface) {
       playerRole: currentMe?.role ?? null,
       assignedRoleId: currentMe?.assignedRoleId ?? null,
       activeConsoleRoleId: currentMe?.activeConsoleRoleId ?? null,
+      activeConsoleFieldPresent: !!currentMe && Object.hasOwn(currentMe, 'activeConsoleRoleId'),
       fleetGroupId: currentMe?.fleetGroupId ?? null,
       connectionGeneration: currentMe?.connectionGeneration ?? null,
       identityHydrationRevision: currentSnapshot.identityHydrationRevision ?? null,

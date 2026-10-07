@@ -1,3 +1,4 @@
+import { rememberProofFailure, retainProofFailure } from './pc10-proof-failure-evidence.mjs';
 import { observeUiReceipt } from './pc10-browser-ui-receipt.mjs';
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
@@ -950,8 +951,15 @@ export async function runBaseGameplay(context, integration) {
       ending: (await gm.observe()).phase, pendingActions,
       missionOutcomes: delivered?.publicState.outcomes?.map(({ outcome }) => outcome) });
   } catch (error) {
-    await a.save('base-gameplay-actions.json', { status: 'failed-or-incomplete', stages, checks, costs,
-      composedStages, pendingActions, compositionPending: governance.pending, message: error.message });
+    rememberProofFailure(error, { operation: 'runBaseGameplay', consumedObservations: a.consumedObservations?.(),
+      stages, checks, costs, composedStages, pendingActions, compositionPending: governance.pending });
+    await retainProofFailure(directory, 'base-composed', error);
+    try {
+      await a.save('base-gameplay-actions.json', { status: 'failed-or-incomplete', stages, checks, costs,
+        composedStages, pendingActions, compositionPending: governance.pending, message: error.message });
+    } catch (reportError) {
+      await retainProofFailure(directory, 'base-composed-report', reportError, { primaryError: error });
+    }
     throw error;
   }
 }
