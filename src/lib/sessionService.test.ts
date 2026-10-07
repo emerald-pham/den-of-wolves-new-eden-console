@@ -5427,8 +5427,9 @@ describe('GM recovery reconciliation', () => {
   it('uses the existing server claim for the exact original actor and lease after natural suspension', async () => {
     const recovered = { ...remembered, claimedAt: '2026-02-01T00:00:00.000Z', shipConsoleWriteGrant: undefined };
     const claim = callableReturning({ data: { instance: recovered } });
-    vi.mocked(httpsCallable).mockImplementation((_, name) => name === 'listGmInstances'
-      ? callableReturning({ data: { instances: [] } }) : claim);
+    const manifest = Object.assign(vi.fn().mockResolvedValueOnce({ data: { instances: [] } })
+      .mockResolvedValue({ data: { instances: [recovered] } }), { stream: vi.fn() });
+    vi.mocked(httpsCallable).mockImplementation((_, name) => name === 'listGmInstances' ? manifest as never : claim);
     await reconcileGmAuthority();
     expect(claim).toHaveBeenCalledWith({ sessionId: 's1', instanceId: remembered.id,
       name: remembered.name, deviceLabel: remembered.deviceLabel,
@@ -5460,6 +5461,38 @@ describe('GM recovery reconciliation', () => {
     finish({ data: { instance: { ...remembered, claimedAt: '2026-03-01T00:00:00.000Z' } } });
     await pending;
     expect(useSessionStore.getState().gmInstance).toEqual(next);
+  });
+
+  it.each(['fresh-demotion', 'removed-member', 'same-identity-hydration', 'mode-change'])(
+    'does not expose recovered authority after a newer %s while its committed reply is delayed', async (kind) => {
+      let finish!: (value: unknown) => void;
+      const recovered = { ...remembered, claimedAt: '2026-02-01T00:00:00.000Z', shipConsoleWriteGrant: undefined };
+      const claim = Object.assign(vi.fn(() => new Promise((resolve) => { finish = resolve; })), { stream: vi.fn() });
+      const manifest = Object.assign(vi.fn().mockResolvedValueOnce({ data: { instances: [] } })
+        .mockResolvedValue({ data: { instances: [recovered] } }), { stream: vi.fn() });
+      vi.mocked(httpsCallable).mockImplementation((_, name) => name === 'listGmInstances' ? manifest as never : claim as never);
+      const pending = reconcileGmAuthority(); await vi.waitFor(() => expect(claim).toHaveBeenCalled());
+      const current = useSessionStore.getState();
+      // Fresh SDK callbacks call setMe even when provisional role=player already matches.
+      if (kind === 'fresh-demotion') current.setMe({ ...current.me!, role: 'player' });
+      if (kind === 'removed-member') current.setMe({ ...current.me!, connected: false, role: 'player' });
+      if (kind === 'same-identity-hydration') current.setIdentity(session, { ...current.me!, role: 'player' });
+      if (kind === 'mode-change') { current.setMode('console'); current.setLastRoute('/console'); }
+      finish({ data: { instance: recovered } }); await pending;
+      expect(useSessionStore.getState().me?.role).toBe('player');
+      expect(useSessionStore.getState().gmInstance?.claimedAt).toBe(remembered.claimedAt);
+      if (kind === 'mode-change') expect(useSessionStore.getState().mode).toBe('console');
+      else expect(useSessionStore.getState().gmRecoveryPending).toBe(true);
+    },
+  );
+
+  it('keeps controls held when a successful reply is no longer confirmed by the live member/claim manifest', async () => {
+    const recovered = { ...remembered, claimedAt: '2026-02-01T00:00:00.000Z', shipConsoleWriteGrant: undefined };
+    vi.mocked(httpsCallable).mockImplementation((_, name) => name === 'listGmInstances'
+      ? callableReturning({ data: { instances: [] } }) : callableReturning({ data: { instance: recovered } }));
+    await reconcileGmAuthority();
+    expect(useSessionStore.getState().me?.role).toBe('player');
+    expect(useSessionStore.getState().gmInstance).toBeNull();
   });
 
   it('rejects malformed or foreign recovery replies', async () => {

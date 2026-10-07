@@ -4755,3 +4755,29 @@ it('holds the facilitator route without private controls while the server recove
   expect(screen.queryByRole('region', { name: 'Crisis state machine' })).not.toBeInTheDocument();
   expect(subscribeGmCrisisState).not.toHaveBeenCalled();
 });
+
+
+it('closes expanded DRADIS during recovery, releases scroll, and rebinds keyboard focus after reopening', async () => {
+  const user = userEvent.setup();
+  const priorOverflow = document.body.style.overflow;
+  useSessionStore.getState().setGmInstance(local); streamInstances([local]); renderConsole();
+  await screen.findByRole('region', { name: /fleet dradis/i });
+  await user.click(screen.getByRole('button', { name: /zoom into dradis panel/i }));
+  expect(document.body.style.overflow).toBe('hidden');
+  act(() => useSessionStore.getState().setGmRecoveryPending(true));
+  expect(screen.getByRole('status', { name: 'GM connection recovery' })).toBeVisible();
+  expect(screen.queryByRole('dialog', { name: /fleet dradis/i })).toBeNull();
+  expect(document.body.style.overflow).toBe(priorOverflow);
+  act(() => useSessionStore.getState().setGmRecoveryPending(false));
+  await screen.findByRole('region', { name: /fleet dradis/i });
+  expect(screen.queryByRole('dialog', { name: /fleet dradis/i })).toBeNull();
+  await user.click(screen.getByRole('button', { name: /zoom into dradis panel/i }));
+  const dialog = screen.getByRole('dialog', { name: /fleet dradis/i });
+  expect(screen.getByRole('button', { name: /close dradis/i })).toHaveFocus();
+  await user.keyboard('{Shift>}{Tab}{/Shift}');
+  expect(dialog.contains(document.activeElement)).toBe(true);
+  await user.keyboard('{Escape}');
+  expect(screen.queryByRole('dialog', { name: /fleet dradis/i })).toBeNull();
+  expect(document.body.style.overflow).toBe(priorOverflow);
+  expect(screen.getByRole('button', { name: /zoom into dradis panel/i })).toHaveFocus();
+});

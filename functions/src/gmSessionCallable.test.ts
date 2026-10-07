@@ -1334,6 +1334,46 @@ describe('natural GM presence recovery', () => {
     },
   );
 
+  it.each(['fresh-browser', 'stale-browser', 'stale-member'])('never turns explicit demotion into recovery during %s cleanup', async (kind) => {
+    session();
+    const staleAt = Date.now() - PRESENCE_LEASE_MS - 1;
+    player('u1', { role: 'player', ...(kind === 'stale-member' ? { lastSeenAt: { toMillis: () => staleAt } } : {}) });
+    instance('bridge', 'u1', { ...(kind === 'stale-browser' ? { lastSeenAt: new Date(staleAt).toISOString() } : {}),
+      shipConsoleWriteGrant: { shipId: 'aegis', grantedAt: DEFAULT_GM_LEASE } });
+    await login();
+    await expireStalePlayers.run({});
+    expect(read('sessions/s1/gmInstances/bridge')).toBeUndefined();
+    expect(read('sessions/s1/gmInstances/bridge/private/shipConsoleWriteGrant')).toBeUndefined();
+    // A stale member may rejoin as an ordinary player; that cannot restore a removed claim.
+    player('u1');
+    await expect(claimGmInstance.run(request(recovery))).rejects.toMatchObject({ code: 'permission-denied' });
+    expect(read('sessions/s1/players/u1')).toMatchObject({ role: 'player' });
+  });
+
+  it('retains both genuinely expired sibling claims before demoting their shared member', async () => {
+    session(); player('u1', { role: 'gm' });
+    const expiredAt = new Date(Date.now() - PRESENCE_LEASE_MS - 1).toISOString();
+    for (const id of ['bridge', 'old-tab']) instance(id, 'u1', { lastSeenAt: expiredAt,
+      responsibilities: ['main'], shipConsoleWriteGrant: { shipId: 'aegis', grantedAt: DEFAULT_GM_LEASE } });
+    await expireStalePlayers.run({});
+    for (const id of ['bridge', 'old-tab']) {
+      expect(read('sessions/s1/gmInstances/' + id)).toMatchObject({ connected: false,
+        expirationCause: 'presence-expired', claimedAt: DEFAULT_GM_LEASE, responsibilities: [] });
+      expect(read('sessions/s1/gmInstances/' + id + '/private/shipConsoleWriteGrant')).toBeUndefined();
+    }
+    expect(read('sessions/s1/players/u1')).toMatchObject({ role: 'player' });
+    await expect(listGmInstances.run(request({ sessionId: 's1' }))).resolves.toEqual({ instances: [] });
+    await login();
+    await expect(claimGmInstance.run(request(recovery))).resolves.toMatchObject({ instance: { id: 'bridge' } });
+    await expect(claimGmInstance.run(request({ ...recovery, instanceId: 'old-tab' })))
+      .resolves.toMatchObject({ instance: { id: 'old-tab' } });
+  });
+
+  it.each(['invalid', '2999-01-01T00:00:00.000Z'])('does not classify an unverifiable browser lease %s as natural expiry', async (lastSeenAt) => {
+    session(); player('u1', { role: 'gm' }); instance('bridge', 'u1', { lastSeenAt }); await login();
+    await expect(claimGmInstance.run(request(recovery))).rejects.toMatchObject({ code: 'permission-denied' });
+  });
+
   it('keeps natural expiry inactive and recoverable while removing scoped grants and occupied lanes', async () => {
     session(); player('u1', { role: 'gm' });
     instance('bridge', 'u1', { lastSeenAt: new Date(Date.now() - PRESENCE_LEASE_MS - 1).toISOString(),
