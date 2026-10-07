@@ -70,7 +70,7 @@ anchors; that coverage does not establish an enabled control or gameplay.
 | Addition / gate | Acceptance | Evidence |
 |---|---|---|
 | PC10-A01 | Joined primary Settings ordinary join QR/link/code; ordinary admission/Auth/consent/privacy | Scoped QR payload/pixel and ordinary admission evidence accepted below; final current-source rendering/release pending. |
-| PC10-A02 | Actual authenticated GM, fresh cycle 0→1, unlimited/manual full-game demo beside existing cycle demo | Actual ordinary GM/manual 0→1 accepted; complete fresh solo manual demo and every-role/function ending remain pending. |
+| PC10-A02 | Actual authenticated GM, fresh cycle 0→1, unlimited/manual full-game demo beside existing cycle demo | Actual ordinary GM and three-actor fresh training/manual 0→1/Coordination retry accepted within their scopes; complete fresh solo demo and every-role/function ending remain pending. |
 | Gate 1 | Every role/function in fresh full game through ending across two browsers | pending; function inventory to be reconciled |
 | Gate 2 | Claim-based overlap/reconnect/retry/privacy with the smallest sufficient cohort; 21 accounts only for a justified scale claim | pending; record actual Auth actors, browser contexts, cohort reason and regression scope separately |
 | Gate 3 | Available actions, costs, blockers and next actor can be understood in app | pending; broader PC11 guidance is future work |
@@ -141,7 +141,7 @@ remain scoped evidence, not complete-game acceptance.
 
 | Existing family / assigned IDs | Remaining behavior | Required dependency and smallest claim-based cohort |
 |---|---|---|
-| Shared member/GM lifecycle and PC10-A02; 618, 620 | Fresh protected training preparation, unlimited/manual controls beside single-cycle demo; every remaining member/GM function, genuine interrupted/repeated recovery and complete solo dress rehearsal through ending. Original Icebreaker authority remains unqualified. | Use the qualified normal setup and current own member feed. GM plus the affected role; add a distinct peer only for privacy or handoff. Demo preparation must precede ordinary joins. No full crew preparation for a one-role slice. |
+| Shared member/GM lifecycle and PC10-A02; 618, 620 | Fresh three-actor protected training preparation/start/manual Coordination retry is scoped evidence below. Remaining unlimited/manual role flows, member/GM functions, interrupted/repeated recovery and complete solo dress rehearsal through ending stay open. Original Icebreaker authority remains unqualified. | Use the qualified normal setup and current own member feed. GM plus the affected role; add a distinct peer only for privacy or handoff. Demo preparation must precede ordinary joins. No full crew preparation for a one-role slice. |
 | Core/Press shuttle and adjacent craft controls | Original Request/Begin/Retarget/natural arrival; printed-owner control transfer/reclaim, cargo/evacuation/recharge/repair, reload and ending. Press publication/dismissal/newspaper signal are separate unique controls. | Current holder, allowed host/group, server-authored movement, proper phase/fuel/cost and receipt. Press next slice uses GM+Press+ordinary Captain peer. Core handoff adds only its legitimate receiving controller. Core10's rejected docking/group predicate stays unproved. |
 | Specialist workspaces; 181, 215b, 223b, 233b | Every connected Wing Commander, Scientist, Explorer and PDF Colonel function, costs, phase blockers, output/handoff, recovery and ending. | Each original role's ordinary assignment/berth plus its real recipient or required phase actor. Reuse the 20 actual Scientist research choices within their original scope; do not claim N/O/P outcomes from them. |
 | Base combat, politics, crisis, arrest and ordinary fleet actions; 641 | Remaining ordered maintenance, construction/navigation/mission/combat range/aftermath, elections/directives, crisis choices and actual posse/arrest/private outcomes through a fresh ending. Stable representative core selection and affected recovery remain open. | Qualify each changed action family from real resources, roles and phase. Two competitors/entitled peers plus GM where required; justify any larger attendance or loyalty census from that specific rule. Failed Combat29/Miner/Base runs remain failed. |
@@ -155,12 +155,55 @@ remain scoped evidence, not complete-game acceptance.
 | Gate 2 and cross-path recovery; 618–620, 629 | Targeted natural lease expiry/resume, interrupted/repeated requests, conflicting/stale authority, per-actor timestamps and private boundaries/overlap. | Two affected competitors/peers plus GM only if needed. Existing 273-command/63-check subset stays scoped; 340/84 remains opt-in and incomplete. 21-account capacity requires an impossible-with-fewer scale claim. |
 | Gate 3 and release; 651 | Available action/cost/blocker/result/next actor for changed PC10 flows; accepted joined rendering, keyboard/Back, fonts/ticker; final function inventory, 48 earned closures, one final reconciled risk review, exact candidate/main CI and deployment. | Complete required affected gameplay and negatives first. One actor per UI configuration. Broader PC11 manual-free guidance remains future work; no release while required acceptance is open. |
 
-### Authorized bounded gameplay-to-ending family — runtime not yet launched
+### Bounded three-actor actual 1 — first failure, closed cleanup
+
+The one authorized runtime at `278347c60cfd17c4350dc5ab0a8faa8f265ce8b8`
+finished with exit 1 after 69,334 ms including cleanup. It used three ordinary
+Auth accounts (GM, Quellon Captain, Press), two automated Chrome
+processes/contexts and two mounted surfaces, zero humans, and 14 configured
+roles. The successful prelaunch freeze writer exited 0 before actual launch.
+No Request, Begin, Retarget, arrival or ending command was issued or accepted.
+
+Canonical result: `/tmp/dow-pc10-evidence/three-actor-press-ending-1/OWNER_RESULT.json`,
+SHA-256 `641f953ffa8408746ee08e665eaae09b2f56aa36ba3c87b597c8b58f8dd3abfa`.
+The immutable failed-run/cleanup report is
+`/tmp/dow-pc10-evidence/OWNER_PRESS_ENDING_1_BOUNDED_FAILED_ACTUAL_AND_CLEANUP_REPORT_20261007.json`,
+SHA-256 `5659fe6c173298a3462b4f4a3429cf80b4ba0f17459a8b4a1a3c29ff94971044`;
+its failed-not-passed seal is retained beside it. Earlier failed reports and the
+accepted setup5 22 claims remain unchanged.
+
+| Actual boundary | Evidence and limit |
+|---|---|
+| Twelve result claims | Ordinary authenticated GM/create/consent, named instance, confirmed sparse roster/starting hosts, real full-demo preparation before ordinary joins, Captain admission/assignment/station authority, independent Press admission/legal null-seat SNN authority, actual `fullGameDemo: true` manual 0→1. These overlap prior setup evidence; they are not twelve new catalog closures. |
+| Additional completed phase state | Owned GM used **Open Coordination manually**. The exact original request replay returned `replayed`, with all other result fields identical, original GM authority held and phase unchanged. The actual phase was Cycle 1, manual, lifted, with no `timerPause` property. |
+| First unexplained failure | Before Request, `readActionState` returned `pressDocumentAuthority: null` and `pressGroupAuthority: null`; the consumed return omitted `holderGroupId`. Original Press UID/document, generation 1/hydration 1, live/server own-player/member-SDK authority, legal null berth, zero vessel scope, one SNN craft and owned SNN control revision 0 were separately observed. The exact failed subpredicate/raw discovery input was not captured; exclusive cause remains unproved. |
+| Presentation limit | The Press presentation helper returned while its snapshot was still Cycle 0/casting. Its real Cycle 1 transmission was still mounted in the failure screenshot/current state. No completed Press Cycle 1 presentation or joined visual clearance is credited. GM transmission observation completed. |
+| Exact cleanup/preservation | Two owned browsers closed before deleting only the owned session/join code, three membership pointers and three fresh Auth identities. Cleanup errors zero; scope 0 sessions/0 connected players/0 GM instances. Exact before/after source binding, 434 compiled files/217 JavaScript files, registry/reservations and original dirty checkout are preserved. |
+
+A source-only fixture using the existing serialized `readActionState` boundary
+reproduces two distinct failures: an absent `replacementStatus` is accepted by
+normal admission/parser/product confirmation but rejected by the proof reader
+(which requires explicit null); and an absent discovery yields null authority
+and no returned holder group. Both preserve the other current identity/scope/
+control inputs. This is discriminating diagnosis, not proof of either exclusive
+actual cause. The packet is
+`/tmp/dow-pc10-evidence/OWNER_PRESS_ENDING_1_SOURCE_READER_DISCREPANCIES_20261007.json`.
+No product guard, proof reader or failed actual record was changed.
+
+The bounded flight/ending family remains pending. Its next source task is the
+ordinary Press discovery/document predicate and real Cycle 1 presentation
+boundary, retaining original UID/session/feed/group/privacy/deadline checks and
+actual per-subpredicate diagnostics. No second runtime is authorized at this
+returned boundary; no cohort expansion, external release or checkpoint advance
+is claimed. All 48 fixed closures and complete PC10 gates remain open.
+
+### Retained flight-to-ending scenario — first authorization consumed
 
 The parent explicitly authorized one bounded run of this family after source
-prerequisite checks, without another planning-only handoff. Source stays frozen
-through the run and exact cleanup; unrelated rendered release gates remain
-pending unless a concrete visual failure blocks the actual controls.
+prerequisite checks. That authorization was consumed by the failed actual above.
+The retained plan states the intended uncompleted acceptance and is not a new
+launch authorization. Source was frozen through runtime/exact cleanup; unrelated
+rendered release gates remain pending.
 
 **Press natural transit → genuine Pursuit ending**, three ordinary Auth actors
 (GM, Press, Quellon Captain), two browser processes/contexts and two mounted
@@ -227,9 +270,9 @@ Press dispatch/confetti, all roles/functions, other candidate endings, complete
 manual-free usability, fixed catalog closures or release. The scoped CSS also
 requires the existing ticker browser and typography browser gates. They are
 separate pending release checks. Final exact-SHA CI/deployment remains later.
-The current authorization covers one finite three-actor flight/ending run and
-exact cleanup; it does not authorize a 21-account replay, external release or
-checkpoint advancement at this boundary.
+The single three-actor authorization has been consumed; actual1 is stopped
+and fully cleaned up. It does not authorize another replay, a 21-account run,
+external release or checkpoint advancement at this returned boundary.
 
 ## October 6 accepted and open finite families
 

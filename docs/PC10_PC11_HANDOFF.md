@@ -29,9 +29,12 @@ records unchanged historical reuse, exact remaining dependencies, and the
 minimal Press transit-to-ending family. The source-only arrival/layout
 reconciliation is complete at `50c07860`; the parent explicitly authorized one
 bounded three-actor Press flight through natural arrival and the normal GM
-Pursuit ending/debrief/closure/entitled reload. Source remains frozen during
-runtime and exact cleanup. This scope does not accept wider rendered gates,
-all PC10 functions, external release or checkpoint advancement.
+Pursuit ending/debrief/closure/entitled reload. That one actual at `278347c6`
+completed manual training/start/Coordination, then stopped before Request on
+null Press document/group authority. Exact cleanup/postflight are complete;
+its failed report and source-only reader/presentation gaps are in the matrix.
+No second run was launched. Wider rendered gates, all PC10 functions, external
+release and checkpoint advancement remain open.
 
 PC11 defaults to one actor per distinct control/guidance configuration and a
 second only for an actual handoff. Test changed action availability, costs,

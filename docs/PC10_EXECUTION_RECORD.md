@@ -214,6 +214,38 @@ Unrelated rendering checks remain pending unless they block the scenario.
 No 21-account run, push, merge, deployment, checkpoint advancement or later
 roadmap work occurs at this boundary.
 
+## Bounded runtime handback — October 7
+
+The one authorized three-actor actual ran Source-frozen at `278347c6` after a
+successful prelaunch freeze writer. Twelve recorded setup/training claims plus
+the real manual Coordination/exact-phase replay state completed; the family
+stopped before Request when the Press reader returned null document/group
+authority. No flight, arrival, Pursuit ending or full-game acceptance is credited.
+The actual took 69,334 ms including exact-owned cleanup, below the eight-minute
+cap: three ordinary Auth actors, two automated browser processes/contexts, zero
+humans. No second actual was launched.
+
+Original failure, consumed projection/member tuple, receipts, both screenshots
+and exact-owned raw diagnostic are sealed in
+`/tmp/dow-pc10-evidence/OWNER_PRESS_ENDING_1_BOUNDED_FAILED_ACTUAL_AND_CLEANUP_REPORT_20261007.json`.
+The result SHA is `641f953ffa8408746ee08e665eaae09b2f56aa36ba3c87b597c8b58f8dd3abfa`.
+Both browsers closed before the exact session/join-code/three membership and
+three fresh Auth deletions. Errors zero; fresh closed postflight scope 0/0/0.
+Exact source/compiled/reservations/registry and original dirty checkout are
+preserved, as bound by `OWNER_PRESS_ENDING_1_CLOSED_PRESERVATION_20261007.json`.
+Source unfreezes only after that closed postflight for this docs reconciliation.
+
+The initial Press presentation observation occurred while its snapshot was
+still Cycle 0; the actual Cycle 1 transmission remained mounted at failure.
+The consumed source omitted `holderGroupId`; raw discovery/replacement-status
+inputs and per-subpredicate details were not captured, so exclusive cause is
+unproved. A source-only discriminating fixture reproduces the reader rejecting
+normal absent `replacementStatus` and separately absent discovery. These
+fixtures do not replace actual evidence, and no product/helper repair is claimed.
+The existing matrix records the precise next source diagnosis and remaining
+acceptance. The bounded authorization is consumed; no further runtime, external
+release or checkpoint advancement occurs at this handback.
+
 ## Historical October 6 state
 
 Planning and scoped implementation are present; complete reconciled acceptance,

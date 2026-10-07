@@ -23,6 +23,13 @@ Each matrix source binding records the generated commit, Functions and client so
 
 The artifact preserves the fixed 48 prompt closures, A01 QR credit at zero, A02 demo credit at zero, and PC11/PC12 as not executed. The generated whole-role/fresh-game proof fields remain pending. The authoritative PC10 acceptance matrix separately records the 22 accepted lifecycle/setup/privacy claims and scoped valid historical evidence; those partial claims do not complete a role or endpoint. PC11 is the authorized follow-up for concise action-adjacent hints and longer contextual guidance. PC12 remains unexecuted as recorded. See the [PC10 acceptance matrix](./PC10_ACCEPTANCE_MATRIX.md) for the authoritative release gate.
 
+The subsequent three-actor manual-training actual at `278347c6` completed its
+scoped admission/preparation/start/Coordination prefix, then stopped before
+Request on null Press document/group authority. It is sealed failed with exact
+cleanup and earns no flight, ending, whole-role or fixed prompt closure. Its
+reader/presentation diagnosis and current recovery gaps live in the same
+acceptance matrix; the generated complete-proof fields are unchanged.
+
 Regenerate after building Functions:
 
 ```sh
