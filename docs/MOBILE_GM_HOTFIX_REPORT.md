@@ -131,6 +131,22 @@ contract tests pass. Accepted metrics, thresholds, cases, exact reference
 source and CI/deployment requirements are unchanged. Independent review of
 this fixture and the narrow modal repair passed a63c5efc without findings.
 
+Candidate d0069de3 was pushed once and opened as PR #14. Its automatic push CI
+37694731814 and PR CI 37694764432 both failed before the longer checks:
+the unconditional release contract imported TypeScript before CI installed its
+locked dependencies. The failure logs remain retained. Test-only 617d9ee9
+adds two bootstrap/checkout contracts; its reconciled red run passes twelve
+and fails the ordering assertion. Source c9f20746 moves the existing root
+`npm ci` to one unconditional step before the same contract. Functions install
+conditions, all gates, thresholds, permissions and WIF remain unchanged.
+All 29 focused tooling contracts pass, including thirteen typography release
+contracts. Independent bounded Source review passes c9f20746 without findings.
+The initial head-only PR checkout proposal was rejected by that review; only
+its new, uncommitted test was corrected, with the original patch and two-red
+log retained. PR synthetic merge coverage and trusted exact-main input priority
+remain intact. Product and browser-harness bytes are identical to a63c5efc;
+the repaired candidate needs fresh hosted CI before merge.
+
 All review reports are retained under /tmp/dow-pc10-evidence as
 OWNER_MOBILE_GM_HOTFIX_RECONCILED_REVIEW_20261007.json,
 OWNER_MOBILE_GM_HOTFIX_F134_RECONCILED_FOLLOWUP_REVIEW_20261007.json,
@@ -140,6 +156,8 @@ and OWNER_MOBILE_GM_HOTFIX_OFFLINE_MODAL_TYPOGRAPHY_TARGETED_REVIEW_20261007.jso
 These reviews are source-only and never upgrade failed native runs. The separate
 OWNER_MOBILE_GM_HOTFIX_NATIVE8_EVIDENCE_REVIEW_20261007.json passes a bounded,
 read-only audit of the latest authenticated runner and its retained result.
+The bootstrap follow-up is recorded in
+OWNER_MOBILE_GM_HOTFIX_CI_BOOTSTRAP_TARGETED_REVIEW_20261007.json.
 
 Other test fixture corrections remain traceable: normal mocked GM readiness
 is explicitly live/server; startup negatives override it. Cycle 3 is scoped to
@@ -157,8 +175,9 @@ The initial affected eleven client files passed 589 tests. Final focused suites
 passed GM 158, service 238, store 28 and font 62, across separate runs rather than
 one full-project count. Affected Functions passed 283, and Rules passed 164 in
 four files using the separate dow-new-eden-rules-test project on the reserved
-emulator. Deployment contracts passed 149 and typography release contracts
-passed 11. Web/Functions builds, lint (zero errors and sixteen existing warnings),
+emulator. Deployment contracts passed 149. Typography release contracts passed
+eleven at a63c5efc and thirteen after the CI bootstrap repair. Web/Functions
+builds, lint (zero errors and sixteen existing warnings),
 bundle, documentation, roadmap and player-copy checks passed. Computed typography
 passes 56 PC01 comparisons plus eight Voyage metadata renders
 across four viewports and both motion modes, with zero comparison/audit issues.
