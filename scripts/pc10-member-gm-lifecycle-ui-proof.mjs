@@ -428,9 +428,16 @@ export function createMemberGmLifecycleUiProof(options = {}) {
         await untilLifecycle(context.crew, before, s => s.assignedRoleId === null && s.seatId === null,
           'Original role and reciprocal station released');
         const assignment = await castRestore(context, row); await context.crew.page.reload();
-        await untilLifecycle(context.crew, before, s => s.assignedRoleId === row.roleId && s.seatId === row.roleId && s.privateAudienceMatches,
-          'Same original casting audience restored');
+        // Assignment restores the private role brief; normal station entry owns the seat CAS.
+        const restorationDeadlineAt = Date.now() + 60_000;
+        await createTwoBrowserGameplay(context).select(row.roleId, { deadlineAt: restorationDeadlineAt });
+        const restorationRemaining = restorationDeadlineAt - Date.now();
+        assert.ok(restorationRemaining > 0, 'The original casting restoration deadline expired.');
+        const restored = await untilLifecycle(context.crew, before,
+          s => s.assignedRoleId === row.roleId && s.seatId === row.roleId && s.privateAudienceMatches,
+          'Same original casting audience restored', { rejoined: true, timeout: Math.min(60_000, restorationRemaining) });
         return { release: publicLifecycleReceipt(release), recovery: recovered, ...assignment,
+          stationRestored: true, restoredConnectionGeneration: restored.generation,
           cost: 'Canonical seat and original loyalty/brief are released; normal reassignment issues source-authorized replacement private records.', nextActor: row.roleId };
       });
       await perform('stale-seat-clear', context, async () => {
