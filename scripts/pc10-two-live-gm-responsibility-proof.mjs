@@ -397,8 +397,14 @@ export function createTwoLiveGmResponsibilityProof({ sourceRoot, expectedSourceB
 
       stage = 'normal local authorization';
       failure.guard = 'local-authorization.normal-settings-button-offered';
+      // Settings opens before its opted-in lazy LocalGmAccess child mounts.
+      // Both share the existing page readiness budget; authority stays below.
+      const authorizationReadyBy = Date.now() + 35_000;
       let dialog = await openLifecycleSettings(context.crew);
       const authorize = dialog.getByRole('button', { name: 'Authorize local emulator GM', exact: true });
+      const authorizationReadyRemaining = authorizationReadyBy - Date.now();
+      assert.ok(authorizationReadyRemaining > 0, 'The original Settings readiness budget expired.');
+      await authorize.waitFor({ state: 'visible', timeout: authorizationReadyRemaining });
       assert.ok(await authorize.count() === 1 && await authorize.isVisible() && await authorize.isEnabled(),
         'Normal opted-in local emulator authorization must be offered.');
       const localResponse = await ui.observeUiReceipt({ waitForResponse: () => context.crew.page.waitForResponse(response =>
