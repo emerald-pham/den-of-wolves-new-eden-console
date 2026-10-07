@@ -28,7 +28,7 @@ const js = code => ts.transpileModule(code, { compilerOptions: { target: ts.Scri
 const sha = uid => createHash('sha256').update(uid).digest('hex').slice(0, 16);
 const plain = value => JSON.parse(JSON.stringify(value));
 
-async function fixture(options = {}) {
+export async function stationNavigationResumeFixture(options = {}) {
   const roleId = 'icebreaker-captain', f = projectionFixture({ actorRoleId: roleId, freshDemo: true });
   f.store.setState({ me: { ...f.store.getState().me, connectionGeneration: 2 } });
   await f.resumeSessionOnly(); await f.receiveMemberProjection();
@@ -67,7 +67,8 @@ async function fixture(options = {}) {
         allHeaders: () => assert.fail('No request headers'), headers: () => assert.fail('No request headers') };
       if (!options.hideRequest) events.emit('request', request);
       const response = { request: () => request, url: request.url, status: () => options.httpStatus ?? 200,
-        json: async () => options.responseError ? { error: { status: 'PERMISSION_DENIED' } } : { result: reply } };
+        json: async () => options.responseBodyPending ? new Promise(() => {}) :
+          options.responseError ? { error: { status: 'PERMISSION_DENIED' } } : { result: reply } };
       if (!options.hideResponse) events.emit('response', response);
       return { data: reply };
     },
@@ -111,6 +112,7 @@ async function fixture(options = {}) {
       }
       options.mutateAfter?.(f);
       if (!options.noFreshMember) await f.receiveMemberProjection();
+      else if (options.feedAfterMs !== undefined) setTimeout(() => void f.receiveMemberProjection(), options.feedAfterMs);
       if (options.pendingNewerResume) authorityFns.beginMemberSessionResume(authority);
     };
     return link;
@@ -124,7 +126,7 @@ async function fixture(options = {}) {
 }
 
 test('ordinary Icebreaker station entry binds one actual accepted resume and fresh original member before returning', async () => {
-  const f = await fixture();
+  const f = await stationNavigationResumeFixture();
   try {
     assert.equal(await f.run(), f.crew);
     assert.deepEqual(f.sdkRequests, ['resumeSession']); assert.equal(f.application.length, 1);
@@ -157,7 +159,7 @@ for (const [label, options] of [
   ['hydration advanced twice', { mutateAfter: f => f.store.setState({ identityHydrationRevision: 3 }) }],
   ['missing fresh original member witness', { noFreshMember: true, shortDeadline: true }],
 ]) test(`station entry rejects ${label} without reaching gameplay`, async () => {
-  const f = await fixture(options);
+  const f = await stationNavigationResumeFixture(options);
   try {
     await assert.rejects(f.run()); assert.equal(f.counters.sdkCalls, 0);
     assert.equal(f.events.eventNames().length, 0, 'Own listeners removed on rejection.');
