@@ -1,3 +1,4 @@
+import { observeUiReceipt } from './pc10-browser-ui-receipt.mjs';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
@@ -106,13 +107,14 @@ export async function captureCallableResponse(page, endpoint, choose) {
 }
 
 export async function captureCallableAttempt(page, endpoint, choose) {
-  const responsePromise = page.waitForResponse(response => {
-    const url = new URL(response.url());
-    return response.request().method() === 'POST' &&
-      url.pathname.endsWith(`/us-central1/${endpoint}`);
-  }, { timeout: 60_000 });
-  await choose();
-  const response = await responsePromise;
+  const response = await observeUiReceipt({ page, consumed: { endpoint },
+    waitForResponse: () => page.waitForResponse(response => {
+      const url = new URL(response.url());
+      return response.request().method() === 'POST' &&
+        url.pathname.endsWith(`/us-central1/${endpoint}`);
+    }, { timeout: 60_000 }),
+    choose,
+  });
   const envelope = response.request().postDataJSON();
   assert.ok(envelope && envelope.data && typeof envelope.data === 'object');
   return { status: response.status(), requestData: envelope.data, body: await response.json() };

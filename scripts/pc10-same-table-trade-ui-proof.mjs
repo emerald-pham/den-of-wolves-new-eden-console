@@ -182,7 +182,7 @@ async function waitForLocator(locator, label) {
 }
 
 function endpointResponse(surface, endpoint, choose) {
-  return observeUiReceipt({
+  return observeUiReceipt({ page: surface.page,
     waitForResponse: () => surface.page.waitForResponse((response) => {
       const url = new URL(response.url());
       return response.request().method() === 'POST' &&

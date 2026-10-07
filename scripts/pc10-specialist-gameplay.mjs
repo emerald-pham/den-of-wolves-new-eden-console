@@ -407,7 +407,7 @@ export async function captureSpecialistUiAction({
     assert.equal(before[key], originalActor[key], `The original ${roleId} actor remains bound through preparation.`);
   }
 
-  const response = await observeUiReceipt({
+  const response = await observeUiReceipt({ page: surface.page,
     waitForResponse: () => surface.page.waitForResponse(response => {
       const url = new URL(response.url());
       return url.pathname.endsWith(`/us-central1/${endpoint}`) && response.request().method() === 'POST';

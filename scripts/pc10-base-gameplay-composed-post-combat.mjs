@@ -236,7 +236,7 @@ export async function runBaseGameplay(context, integration) {
       : await currentRoleReadiness(baseShipForRole(role), role, cycle, { expectedGroupId, enterConsole: true });
     if (readiness.status !== 'eligible') return { status: 'pending', currentSourceBlocked: true,
       blockerCodes: readiness.blockers };
-    const response = await observeUiReceipt({
+    const response = await observeUiReceipt({ page: surface.page,
       waitForResponse: () => surface.page.waitForResponse(response =>
         new URL(response.url()).pathname.endsWith(`/us-central1/${name}`) && response.request().method() === 'POST'),
       choose: () => choose(surface.page),
@@ -555,7 +555,7 @@ export async function runBaseGameplay(context, integration) {
         { roleId: role, groupId: expectedGroupId, cycle: expectedCycle });
       return null;
     }
-    const response = await observeUiReceipt({
+    const response = await observeUiReceipt({ page: surface.page,
       waitForResponse: () => surface.page.waitForResponse(response =>
         new URL(response.url()).pathname.endsWith('/us-central1/commitAwayMissionLifecycleCommand') && response.request().method() === 'POST'),
       choose: () => choose(panel, async action => {

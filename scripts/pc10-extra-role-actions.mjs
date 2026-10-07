@@ -1,3 +1,4 @@
+import { observeUiReceipt } from './pc10-browser-ui-receipt.mjs';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -204,10 +205,11 @@ export class ExtraRoleActions {
     await prepare?.();
     let data, result;
     const receipt = await guardExtraRoleCommand({ inspect, perform: async () => {
-      const pending = surface.page.waitForResponse(response => new URL(response.url()).pathname.endsWith(`/us-central1/${endpoint}`)
-        && response.request().method() === 'POST', { timeout: 45_000 });
-      await locator.click();
-      const response = await pending;
+      const response = await observeUiReceipt({ page: surface.page, consumed: { endpoint },
+        waitForResponse: () => surface.page.waitForResponse(response => new URL(response.url()).pathname.endsWith(`/us-central1/${endpoint}`)
+          && response.request().method() === 'POST', { timeout: 45_000 }),
+        choose: () => locator.click(),
+      });
       const body = await response.json();
       data = response.request().postDataJSON()?.data;
       result = body.result;

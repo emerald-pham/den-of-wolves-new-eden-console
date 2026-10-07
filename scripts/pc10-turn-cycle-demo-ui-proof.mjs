@@ -117,8 +117,12 @@ export function createTurnCycleDemoUiProof(options = {}) {
             const remaining = Date.parse(before.teamEndsAt) - Date.now();
             if (!Number.isFinite(remaining) || remaining < 0 || remaining >= 60_000) return blocked(id,
               'Observe in a separate ordinary timed game within 60 seconds of the real Team deadline; no clock acceleration or early SDK handoff.');
-            const response = await gm.page.waitForResponse(r => new URL(r.url()).pathname.endsWith('/us-central1/beginOpenAirspacePhase') &&
-              r.request().method() === 'POST', { timeout: 60_000 });
+            const response = await observeUiReceipt({ page: gm.page,
+              consumed: { endpoint: 'beginOpenAirspacePhase', before, automatic: true },
+              waitForResponse: () => gm.page.waitForResponse(r => new URL(r.url()).pathname.endsWith('/us-central1/beginOpenAirspacePhase') &&
+                r.request().method() === 'POST', { timeout: 60_000 }),
+              choose: async () => {},
+            });
             const data = response.request().postDataJSON()?.data;
             assertNaturalOpenRequest(before, data, Date.now()); const body = await response.json();
             assert.ok(response.status() < 400 && !body.error);
@@ -287,7 +291,7 @@ export async function runFreshSolePlayerCycleDemo({ member, directory }, options
   assert.equal(url.searchParams.has('demoActor'), false, 'Use a fresh normal default document, not a full-game persona document.');
   const old = await observeLifecycleActor(member); assert.equal(old.sessionId, null);
   try {
-    const create = await observeUiReceipt({ waitForResponse: () => member.page.waitForResponse(r =>
+    const create = await observeUiReceipt({ page: member.page, waitForResponse: () => member.page.waitForResponse(r =>
       new URL(r.url()).pathname.endsWith('/us-central1/createSession') && r.request().method() === 'POST'),
     choose: () => member.page.getByRole('button', { name: 'Create a session', exact: true }).click() });
     assert.ok(create.status() < 400 && !(await create.json()).error);

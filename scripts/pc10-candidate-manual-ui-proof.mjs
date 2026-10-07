@@ -149,7 +149,7 @@ export function candidateGameplayTools(context) {
       if (deadlineAt !== undefined) assert.ok(now() < deadlineAt, 'Current candidate choice readiness deadline expired before its original UI receipt.');
     };
     budget();
-    const actual = await observeUiReceipt({
+    const actual = await observeUiReceipt({ page: surface.page,
       waitForResponse: () => surface.page.waitForResponse(value => value.request().method() === 'POST' &&
         new URL(value.url()).pathname.endsWith(`/us-central1/${endpoint}`),
       ...(deadlineAt === undefined ? [] : [{ timeout: deadlineAt - now() }])),
@@ -529,11 +529,12 @@ export function candidateGameplayTools(context) {
     surface.page.on('request', rememberRefreshRequest);
     let response;
     try {
-      const responsePromise = surface.page.waitForResponse(value =>
-        refreshRequests.has(value.request()) && isCurrentWorkspaceRequest(value.request()),
-      { timeout: remaining() });
-      refreshStarted = true;
-      [response] = await Promise.all([responsePromise, withinBudget(() => refresh.click({ timeout: remaining() }))]);
+      response = await observeUiReceipt({ page: surface.page,
+        waitForResponse: () => surface.page.waitForResponse(value =>
+          refreshRequests.has(value.request()) && isCurrentWorkspaceRequest(value.request()),
+        { timeout: remaining() }),
+        choose: async () => { refreshStarted = true; await withinBudget(() => refresh.click({ timeout: remaining() })); },
+      });
     } finally {
       refreshStarted = false;
       surface.page.off('request', rememberRefreshRequest);

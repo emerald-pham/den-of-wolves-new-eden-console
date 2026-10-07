@@ -104,7 +104,7 @@ export async function authorArbourVisionUi({ gm, initial, started, roster }) {
     assert.equal(await recipient.inputValue(), targetUid); assert.equal(await kind.inputValue(), KIND);
     assert.equal(await text.inputValue(), TEXT); await assertMounted(publish, true);
   }
-  const response = await observeUiReceipt({
+  const response = await observeUiReceipt({ page: gm.page,
     waitForResponse: () => gm.page.waitForResponse(response => response.request().method() === 'POST' &&
       new URL(response.url()).pathname.endsWith('/us-central1/authorArbourVision'), { timeout: remaining(60_000) }),
     choose: async () => { await readyToClick(); await publish.click({ timeout: remaining(35_000) }); },

@@ -438,7 +438,7 @@ export function createTwoLiveGmResponsibilityProof({ sourceRoot, expectedSourceB
       await authorize.waitFor({ state: 'visible', timeout: authorizationReadyRemaining });
       assert.ok(await authorize.count() === 1 && await authorize.isVisible() && await authorize.isEnabled(),
         'Normal opted-in local emulator authorization must be offered.');
-      const localResponse = await ui.observeUiReceipt({ waitForResponse: () => context.crew.page.waitForResponse(response =>
+      const localResponse = await ui.observeUiReceipt({ page: context.crew.page, waitForResponse: () => context.crew.page.waitForResponse(response =>
         new URL(response.url()).origin === savedUrl.origin && new URL(response.url()).pathname === '/__local-gm-access' &&
         response.request().method() === 'POST', { timeout: 60_000 }), choose: () => authorize.click() });
       failure.guard = 'local-authorization.actual-local-response-authorized';
@@ -475,7 +475,7 @@ export function createTwoLiveGmResponsibilityProof({ sourceRoot, expectedSourceB
         (claim.result.instance?.responsibilities ?? []).length === 0,
       'The controller must claim its own new unassigned live GM lease.');
       await context.crew.page.getByRole('button', { name: /^Open station catalog/ }).click();
-      const mountResponse = await ui.observeUiReceipt({ waitForResponse: () => context.crew.page.waitForResponse(response =>
+      const mountResponse = await ui.observeUiReceipt({ page: context.crew.page, waitForResponse: () => context.crew.page.waitForResponse(response =>
         response.request().method() === 'POST' && new URL(response.url()).pathname.endsWith('/us-central1/listGmInstances'),
       { timeout: 60_000 }), choose: () => context.crew.page.getByRole('link', { name: 'GM Console', exact: true }).click() });
       assert.ok(mountResponse.status() === 200, 'The normal GM Console manifest response failed.');
@@ -522,7 +522,7 @@ export function createTwoLiveGmResponsibilityProof({ sourceRoot, expectedSourceB
       failure.guard = 'controller-gm.normal-own-release-and-live-manifest';
       dialog = await openLifecycleSettings(context.crew);
       let release;
-      const releasedManifest = await ui.observeUiReceipt({ waitForResponse: () => context.gm.page.waitForResponse(async response => {
+      const releasedManifest = await ui.observeUiReceipt({ page: context.gm.page, waitForResponse: () => context.gm.page.waitForResponse(async response => {
         if (response.request().method() !== 'POST' || !new URL(response.url()).pathname.endsWith('/us-central1/listGmInstances')) return false;
         return (await response.json()).result?.instances?.length === 1;
       }, { timeout: 60_000 }), choose: async () => { release = await captureLifecycleUiAction(context.crew,

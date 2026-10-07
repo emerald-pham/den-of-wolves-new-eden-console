@@ -342,7 +342,7 @@ export function assertRequiredBaseBranches(branches, required) {
 export async function captureBaseUiReceipt({ surface, endpoint, expectedActor,
   expectedRequest = {}, decision, record, verifyReplay = true }) {
   assertOriginalBaseActor(await surface.observe(), expectedActor);
-  const response = await observeUiReceipt({
+  const response = await observeUiReceipt({ page: surface.page,
     waitForResponse: () => surface.page.waitForResponse(value => value.request().method() === 'POST' &&
       new URL(value.url()).pathname.endsWith(`/us-central1/${endpoint}`)), choose: decision,
   });

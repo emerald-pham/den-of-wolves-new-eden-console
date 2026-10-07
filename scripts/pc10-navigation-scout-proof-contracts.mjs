@@ -337,7 +337,7 @@ export async function captureNavigationScoutUiReceipt({ surface, endpoint, origi
   const withinBudget = () => assert.ok(now() < deadline, 'Original source UI receipt deadline expired.');
   assertNavigationScoutActor(await inspect(), original);
   withinBudget();
-  const response = await observeUiReceipt({ waitForResponse: waitForResponse ?? (() => surface.page.waitForResponse(
+  const response = await observeUiReceipt({ page: surface.page, waitForResponse: waitForResponse ?? (() => surface.page.waitForResponse(
     response => response.request().method() === 'POST' && new URL(response.url()).pathname.endsWith(`/us-central1/${endpoint}`),
     { timeout: timeoutMs })), choose });
   const body = await response.json(); const request = structuredClone(response.request().postDataJSON()?.data);

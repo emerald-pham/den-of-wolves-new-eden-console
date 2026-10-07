@@ -1,4 +1,4 @@
-import { observeUiReceipt } from './pc10-browser-ui-receipt.mjs';
+import { observeUiReceipt, attachUiReceiptDiagnostics } from './pc10-browser-ui-receipt.mjs';
 import { originalProofError, retainProofFailure } from './pc10-proof-failure-evidence.mjs';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
@@ -26,6 +26,44 @@ async function presentationReadinessSourceHashes(root) {
     path, createHash('sha256').update(await readFile(resolve(root, path))).digest('hex'),
   ]));
   return Object.fromEntries(entries);
+}
+
+/** Diagnostic-only samples stay separate from the established generic actor
+ * projection. Both reads are passive; unknown values stay unknown and neither
+ * sample grants authority or changes the caller's original response deadline. */
+export async function observeFullGameCallableDiagnostics(surface) {
+  const ordinaryActor = await surface.observe();
+  const runtimeState = await surface.page.evaluate(async moduleUrl => {
+    const { auth } = await import('/src/lib/firebase.ts');
+    const { useSessionStore } = await import(moduleUrl);
+    const originalUid = auth().currentUser?.uid;
+    const uidHash = originalUid ? Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',
+      new TextEncoder().encode(originalUid)))).map(byte => byte.toString(16).padStart(2, '0')).join('').slice(0, 16) : null;
+    const state = useSessionStore.getState(), user = auth().currentUser;
+    if (user?.uid !== originalUid) throw new Error('Original Auth UID changed during callable diagnostic observation.');
+    return { hasAuth: !!user, sameActor: !!user && state.me?.uid === user.uid, uidHash,
+      sessionId: state.session?.id ?? null, documentTimeOrigin: performance.timeOrigin,
+      connection: state.connection, freshness: state.sessionSnapshotFreshness,
+      navigatorOnline: globalThis.navigator?.onLine,
+      connectionGeneration: state.me?.connectionGeneration,
+      identityHydrationRevision: state.identityHydrationRevision,
+      gmAccessCached: state.gmAccessAuthenticatedAt === undefined ? undefined : state.gmAccessAuthenticatedAt !== null,
+      gmInstanceOwned: !!state.gmInstance && state.gmInstance.uid === user?.uid && state.gmInstance.sessionId === state.session?.id,
+      communicationError: state.communicationError ? { code: state.communicationError.code,
+        kind: state.communicationError.kind ?? null } : null,
+      pendingCommandCount: state.pendingCommands.length,
+      pendingCommandDetails: state.pendingCommands.map(command => ({
+        id: command.id, kind: command.kind, createdAt: command.createdAt,
+        queuedWithServerAuthority: command.queuedWithServerAuthority,
+        actorMatchesCurrentAuth: command.actorUid === undefined ? undefined : command.actorUid === user?.uid,
+        payloadFields: Object.keys(command.payload ?? {}),
+        payloadAuthorityContext: Object.fromEntries(['sessionId', 'instanceId', 'requestId', 'roleId',
+          'targetInstanceId', 'expectedCycle', 'expectedTurn', 'expectedRevision', 'connectionGeneration',
+          'expectedSetupRevision'].filter(key => Object.hasOwn(command.payload ?? {}, key))
+          .map(key => [key, command.payload[key]])),
+      })) };
+  }, surface.storeModuleUrl());
+  return { ordinaryActor, runtimeState };
 }
 
 /** Real UI/SDK driver. Callbacks may compose later genuine game decisions. */
@@ -196,6 +234,7 @@ export async function runFreshFullGameDemoUi(options = {}) {
     }
     const result = { label, page, context, observe, until, consent, callable, reducedMotion, paintTwoFrames,
       storeModuleUrl: () => storeUrl };
+    attachUiReceiptDiagnostics(page, { directory, label, inspectState: () => observeFullGameCallableDiagnostics(result) });
     surfaces.push(result); return result;
   }
 
@@ -464,7 +503,7 @@ export async function runFreshFullGameDemoUi(options = {}) {
     };
     await mark('GM UI actual manual Cycle 0 to 1');
     const startIdentity = await gm.observe();
-    const startResponse = await observeUiReceipt({
+    const startResponse = await observeUiReceipt({ page: gm.page,
       waitForResponse: () => gm.page.waitForResponse(response =>
         new URL(response.url()).pathname.endsWith('/us-central1/startGame') && response.request().method() === 'POST'),
       choose: async () => {

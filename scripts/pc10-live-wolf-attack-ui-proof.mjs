@@ -43,7 +43,7 @@ export async function resolveLiveWolfAttack(context, { tools = candidateGameplay
       assert.ok(Date.now() < stageDeadline && Date.now() < deadline, 'Current choice must stay within its original stage budget.');
     }
     let result;
-    const response = await observeUiReceipt({
+    const response = await observeUiReceipt({ page: surface.page,
       waitForResponse: () => surface.page.waitForResponse(response => response.request().method() === 'POST' &&
         new URL(response.url()).pathname.endsWith(`/us-central1/${endpoint}`)),
       choose: async () => { result = await tools.receipt(surface, endpoint, decision); },

@@ -1625,7 +1625,7 @@ function ruleCallProjection(state, expected) {
 }
 
 async function captureMountedUiCallable(surface, endpoint, click, operation) {
-  const response = await observeUiReceipt({
+  const response = await observeUiReceipt({ page: surface.page,
     waitForResponse: () => surface.page.waitForResponse(value => value.request().method() === 'POST' &&
       new URL(value.url()).pathname.endsWith(`/us-central1/${endpoint}`), { timeout: remainingGmOperation(operation, 20_000) }),
     choose: click,

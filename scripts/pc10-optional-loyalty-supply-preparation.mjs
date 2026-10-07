@@ -145,7 +145,7 @@ export async function prepareWolfSupplyCargo(context, actor) {
   await amount.fill(String(AMOUNT), { timeout: remaining(35_000) });
   const load = panel.getByRole('button', { name: 'Load shuttle', exact: true });
   if (await load.count() !== 1 || !await load.isVisible() || !await load.isEnabled()) return blocked('The source two-team load is not currently enabled.');
-  const response = await observeUiReceipt({
+  const response = await observeUiReceipt({ page: crew.page,
     waitForResponse: () => crew.page.waitForResponse(value => value.request().method() === 'POST' &&
       new URL(value.url()).pathname.endsWith('/us-central1/transferShuttleCargoCommand'), { timeout: remaining(60_000) }),
     choose: async () => {

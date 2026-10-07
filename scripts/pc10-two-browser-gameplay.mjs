@@ -415,7 +415,7 @@ export function createTwoBrowserGameplay(context, { preAdmissionGmOnly = false }
     const originalActor = await surface.observe();
     assert.equal(before.turnPhase.airspace.state, 'restricted');
     async function execute(button) {
-      const response = await observeUiReceipt({
+      const response = await observeUiReceipt({ page: surface.page,
         waitForResponse: () => surface.page.waitForResponse(response => response.request().method() === 'POST' &&
           new URL(response.url()).pathname.endsWith('/us-central1/runMaintenance')),
         choose: () => button.click(),

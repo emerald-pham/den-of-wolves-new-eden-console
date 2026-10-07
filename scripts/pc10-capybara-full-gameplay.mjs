@@ -472,7 +472,7 @@ async function runCapybaraMaintenanceWithExactReplay(context, cycle, { refuelBoa
   let productionReceipt = null;
 
   async function execute(button, actionName) {
-    const response = await observeUiReceipt({
+    const response = await observeUiReceipt({ page: surface.page,
       waitForResponse: () => surface.page.waitForResponse(value => value.request().method() === 'POST' &&
         new URL(value.url()).pathname.endsWith('/us-central1/runMaintenance')),
       choose: () => button.click(),
@@ -729,16 +729,17 @@ export async function runCapybaraFullGameGameplay(context, options = {}) {
       if (action === false || (!automatic && typeof action !== 'function')) {
         return { confirmed: false, reason: 'ordinary-source-control-not-currently-offered' };
       }
-      const observed = surface.page.waitForResponse(response => response.request().method() === 'POST' &&
-        new URL(response.url()).pathname.endsWith(`/us-central1/${endpoint}`), { timeout: timeoutMs }).then(
-          response => ({ response }), error => ({ error }));
-      if (!automatic) {
-        try { await action(); }
-        catch { return { confirmed: false, reason: 'ordinary-source-control-click-did-not-complete' }; }
+      let choiceCompleted = automatic, response;
+      try {
+        response = await observeUiReceipt({ page: surface.page, consumed: { endpoint, actor, automatic },
+          waitForResponse: () => surface.page.waitForResponse(response => response.request().method() === 'POST' &&
+            new URL(response.url()).pathname.endsWith(`/us-central1/${endpoint}`), { timeout: timeoutMs }),
+          choose: async () => { if (!automatic) { await action(); choiceCompleted = true; } },
+        });
+      } catch {
+        return { confirmed: false, reason: choiceCompleted ? 'ordinary-source-response-not-observed'
+          : 'ordinary-source-control-click-did-not-complete' };
       }
-      const settled = await observed;
-      if (settled.error) return { confirmed: false, reason: 'ordinary-source-response-not-observed' };
-      const response = settled.response;
       let body;
       try { body = await response.json(); } catch { body = {}; }
       if (!response.ok() || !body?.result || body.result.status !== expectedStatus) {
@@ -965,7 +966,7 @@ export async function runCapybaraFullGameGameplay(context, options = {}) {
   async function uiRpc(role, name, choose, { replay = true } = {}) {
     const surface = await a.select(role);
     const before = await surface.observe();
-    const response = await observeUiReceipt({
+    const response = await observeUiReceipt({ page: surface.page,
       waitForResponse: () => surface.page.waitForResponse(response =>
         new URL(response.url()).pathname.endsWith(`/us-central1/${name}`) && response.request().method() === 'POST'),
       choose: () => choose(surface.page),
@@ -1054,7 +1055,7 @@ export async function runCapybaraFullGameGameplay(context, options = {}) {
   }
   async function missionUi(role, missionId, choose) {
     const { surface, panel } = await missionPanel(role, missionId);
-    const response = await observeUiReceipt({
+    const response = await observeUiReceipt({ page: surface.page,
       waitForResponse: () => surface.page.waitForResponse(response =>
         new URL(response.url()).pathname.endsWith('/us-central1/commitAwayMissionLifecycleCommand') && response.request().method() === 'POST'),
       choose: () => choose(panel),

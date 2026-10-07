@@ -1,3 +1,4 @@
+import { observeUiReceipt } from './pc10-browser-ui-receipt.mjs';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -143,10 +144,13 @@ export function createExtraRoleCallbacks({ scenario = 'joint', variant = 'coordi
         value.cycle === 0 && value.connection === 'live' && value.freshness === 'server');
       const panel = gm.page.getByRole('region', { name: `${craft} starting host`, exact: true });
       await panel.getByLabel(`${craft} starting host`, { exact: true }).selectOption(host);
-      const pending = gm.page.waitForResponse(response => new URL(response.url()).pathname.endsWith('/us-central1/setUnionCraftStartingHost')
-        && response.request().method() === 'POST');
-      await panel.getByRole('button', { name: `Save ${craft} starting host`, exact: true }).click();
-      const response = await pending, data = response.request().postDataJSON()?.data;
+      const response = await observeUiReceipt({ page: gm.page,
+        consumed: { endpoint: 'setUnionCraftStartingHost', before },
+        waitForResponse: () => gm.page.waitForResponse(response => new URL(response.url()).pathname.endsWith('/us-central1/setUnionCraftStartingHost')
+          && response.request().method() === 'POST'),
+        choose: () => panel.getByRole('button', { name: `Save ${craft} starting host`, exact: true }).click(),
+      });
+      const data = response.request().postDataJSON()?.data;
       assert.equal(response.status(), 200); assert.equal(data?.sessionId, context.initial.sessionId);
       assert.equal((await gm.callable('setUnionCraftStartingHost', data)).status, 'committed');
       const after = await gm.observe(); assert.equal(after.uidHash, before.uidHash);

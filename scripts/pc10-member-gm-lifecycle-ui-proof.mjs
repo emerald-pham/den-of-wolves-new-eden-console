@@ -4,7 +4,7 @@ import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
-import { observeUiReceipt } from './pc10-browser-ui-receipt.mjs';
+import { observeUiReceipt, retainUiReceiptContext } from './pc10-browser-ui-receipt.mjs';
 import { rememberProofFailure, retainProofFailure } from './pc10-proof-failure-evidence.mjs';
 import { createTwoBrowserGameplay } from './pc10-two-browser-gameplay.mjs';
 import { proofRuntimeFromViteSource, validateProofRuntime } from './pc10-full-game-demo-proof-helpers.mjs';
@@ -181,33 +181,48 @@ export function publicLifecycleReceipt(capture) {
 }
 
 export async function captureLifecycleUiAction(surface, endpoint, choose, options = {}) {
-  const before = await observeLifecycleActor(surface);
-  assertOriginalActor(before, before, { gm: options.gm ?? before.gmInstanceOwned });
-  if (options.original) assertObserverOperationActor(options.original, before);
-  let requestData;
-  const response = await observeUiReceipt({
-    waitForResponse: () => surface.page.waitForResponse(response => {
-      if (!new URL(response.url()).pathname.endsWith(`/us-central1/${endpoint}`) || response.request().method() !== 'POST') return false;
-      const data = response.request().postDataJSON()?.data;
-      if (options.matches && !options.matches(data)) return false;
-      requestData = data; return true;
-    }, { timeout: options.deadlineAt === undefined ? options.timeout ?? 60_000 :
-      remainingLifecycleOperation(options.deadlineAt, options.timeout ?? 60_000) }),
-    choose: async () => {
-      const current = await observeLifecycleActor(surface, before.sessionId);
-      assertLateReplyAuthority(before, current);
-      if (options.original) assertObserverOperationActor(options.original, current);
-      if (options.deadlineAt !== undefined) remainingLifecycleOperation(options.deadlineAt);
-      await choose();
-    },
-  });
-  assertCapturedUiRequest(endpoint, requestData, before);
-  const body = await response.json();
-  assert.ok(response.status() < 400 && !body.error && Object.hasOwn(body, 'result'), `${endpoint}: actual UI request rejected.`);
-  assert.ok(!['queued', 'stale', 'denied'].includes(body.result?.status), `${endpoint}: no committed result.`);
-  if (options.original) assertObserverOperationActor(options.original, await observeLifecycleActor(surface, before.sessionId));
-  const capture = { endpoint, data: requestData, result: body.result, before, httpStatus: response.status() };
-  observedUiCaptures.add(capture); return capture;
+  let before, current, requestData, body, response, httpStatus;
+  const consumed = { endpoint, deadlineAt: options.deadlineAt, originalTimeoutMs: options.timeout ?? 60_000,
+    original: options.original, gm: options.gm };
+  try {
+    before = await observeLifecycleActor(surface);
+    consumed.before = before;
+    assertOriginalActor(before, before, { gm: options.gm ?? before.gmInstanceOwned });
+    if (options.original) assertObserverOperationActor(options.original, before);
+    response = await observeUiReceipt({ page: surface.page, consumed,
+      waitForResponse: () => {
+        consumed.responseObserverTimeoutMs = options.deadlineAt === undefined ? options.timeout ?? 60_000 :
+          remainingLifecycleOperation(options.deadlineAt, options.timeout ?? 60_000);
+        return surface.page.waitForResponse(response => {
+          if (!new URL(response.url()).pathname.endsWith(`/us-central1/${endpoint}`) || response.request().method() !== 'POST') return false;
+          const data = response.request().postDataJSON()?.data;
+          if (options.matches && !options.matches(data)) return false;
+          requestData = data; return true;
+        }, { timeout: consumed.responseObserverTimeoutMs });
+      },
+      choose: async () => {
+        current = await observeLifecycleActor(surface, before.sessionId);
+        consumed.current = current;
+        assertLateReplyAuthority(before, current);
+        if (options.original) assertObserverOperationActor(options.original, current);
+        await retainUiReceiptContext(surface.page, consumed);
+        if (options.deadlineAt !== undefined) remainingLifecycleOperation(options.deadlineAt);
+        await choose();
+      },
+    });
+    assertCapturedUiRequest(endpoint, requestData, before);
+    httpStatus = response.status();
+    body = await response.json();
+    assert.ok(response.status() < 400 && !body.error && Object.hasOwn(body, 'result'), `${endpoint}: actual UI request rejected.`);
+    assert.ok(!['queued', 'stale', 'denied'].includes(body.result?.status), `${endpoint}: no committed result.`);
+    if (options.original) assertObserverOperationActor(options.original, await observeLifecycleActor(surface, before.sessionId));
+    const capture = { endpoint, data: requestData, result: body.result, before, httpStatus: response.status() };
+    observedUiCaptures.add(capture); return capture;
+  } catch (error) {
+    rememberProofFailure(error, { operation: 'captureLifecycleUiAction', ...consumed, before, current,
+      requestData, body, httpStatus });
+    throw error;
+  }
 }
 
 /** Only a request already sent by the real UI can enter this recovery path. */
@@ -338,7 +353,7 @@ async function originalMemberJoin(surface, before, joinCode) {
 }
 async function captureLifecycleUiActionAfterDisconnect(surface, before, choose) {
   assertClearedPrivateState(before, await observeLifecycleActor(surface, before.sessionId));
-  const response = await observeUiReceipt({ waitForResponse: () => surface.page.waitForResponse(r =>
+  const response = await observeUiReceipt({ page: surface.page, waitForResponse: () => surface.page.waitForResponse(r =>
     new URL(r.url()).pathname.endsWith('/us-central1/joinSession') && r.request().method() === 'POST', { timeout: 60_000 }), choose });
   const body = await response.json(); assert.ok(response.status() < 400 && !body.error);
   return { endpoint: 'joinSession', before, data: response.request().postDataJSON()?.data,
@@ -658,7 +673,7 @@ export function createMemberGmLifecycleUiProof(options = {}) {
         await context.crew.until('Kicked original UID cannot restore this session', s => s.hasAuth && s.uidHash === target.uidHash && s.sessionId === null);
         assertClearedPrivateState(target, await observeLifecycleActor(context.crew, target.sessionId));
         const input = context.crew.page.getByRole('textbox', { name: 'Session code', exact: true }); await input.fill(context.initial.joinCode);
-        const response = await observeUiReceipt({ waitForResponse: () => context.crew.page.waitForResponse(r =>
+        const response = await observeUiReceipt({ page: context.crew.page, waitForResponse: () => context.crew.page.waitForResponse(r =>
           new URL(r.url()).pathname.endsWith('/us-central1/joinSession') && r.request().method() === 'POST'),
         choose: () => context.crew.page.getByRole('button', { name: 'Join a session', exact: true }).click() });
         assert.ok(response.status() >= 400 && (await response.json()).error);

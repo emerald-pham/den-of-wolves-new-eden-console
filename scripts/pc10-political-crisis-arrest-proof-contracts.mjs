@@ -1,3 +1,4 @@
+import { observeUiReceipt } from './pc10-browser-ui-receipt.mjs';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 
@@ -144,12 +145,13 @@ export async function captureMountedUiAction({ surface, endpoint, expectedActor,
   const before = await surface.observe();
   if (expectedActor.actorKind === 'gm') assertGmInstanceFence(before, expectedActor);
   else assertPlayerActorFence(before, expectedActor);
-  const responseWait = surface.page.waitForResponse(response => {
-    const url = new URL(response.url());
-    return url.pathname.endsWith(`/us-central1/${endpoint}`) && response.request().method() === 'POST';
+  const response = await observeUiReceipt({ page: surface.page, consumed: { endpoint, before, expectedActor },
+    waitForResponse: () => surface.page.waitForResponse(response => {
+      const url = new URL(response.url());
+      return url.pathname.endsWith(`/us-central1/${endpoint}`) && response.request().method() === 'POST';
+    }),
+    choose: executeUi,
   });
-  await executeUi();
-  const response = await responseWait;
   assert.equal(response.ok(), true, `The source-mounted ${endpoint} control must commit through the real browser SDK.`);
   const envelope = await response.json();
   const request = response.request().postDataJSON()?.data;

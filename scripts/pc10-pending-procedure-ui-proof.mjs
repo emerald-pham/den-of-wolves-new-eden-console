@@ -1872,7 +1872,7 @@ export async function captureMountedProcedureAction({ context, game, caseId, exp
     return keepSourceDiagnostic(pending(spec, 'the original selected GM resource counter changed before the mounted click'));
   }
   const displayedCost = action.cost ?? null;
-  const result = await observeUiReceipt({
+  const result = await observeUiReceipt({ page: surface.page,
     waitForResponse: () => surface.page.waitForResponse(response => response.request().method() === 'POST' &&
       new URL(response.url()).pathname.endsWith(`/us-central1/${spec.endpoint}`), { timeout: remaining() }),
     choose: action.observe ?? action.click,
