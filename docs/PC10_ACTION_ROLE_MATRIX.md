@@ -82,3 +82,15 @@ npm run build --prefix functions
 node scripts/pc10-function-inventory.mjs docs/PC10_FUNCTION_ROLE_MATRIX.json
 node scripts/pc10-action-role-matrix.mjs docs/PC10_ACTION_ROLE_MATRIX.json
 ```
+
+
+The bounded candidate discovery/preparation family passed at `84dc3c4e`: real
+normal GM plus ordinary Shepherd Scientist, two Auth/two automated browsers and
+zero humans. Its 20 overlapping assertions qualify N/O/P scout discovery and
+own report recovery, distinct preparation guidance, active Cycle 6 private GM
+checkpoint/outbox recovery and populated server-private denials. P541–543 and P593
+remain partial; full 619 outcomes and requester-peer/foreign-group/private bonus
+audiences stay open. Exact cleanup returned0/0/0. See the
+[qualified family](PC10_ACCEPTANCE_MATRIX.md#qualified-candidate-discoverypreparation-and-active-cycle-6--bounded-family).
+The unchanged generated inventory's complete-proof/eligibility fields are not
+promoted; this bounded family does not prove every function/role or usability.

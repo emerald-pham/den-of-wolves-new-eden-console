@@ -22,9 +22,9 @@ anchors; that coverage does not establish an enabled control or gameplay.
 | 215b | Complete the Scientist workspace. | pending | pending | pending |
 | 223b | Complete the Explorer workspace. | pending | pending | pending |
 | 233b | Complete the PDF Colonel workspace. | pending | pending | pending |
-| 541 | Reveal a New Eden candidate. | pending | pending | pending |
-| 542 | Make candidate discovery retry-safe. | pending | pending | pending |
-| 543 | Track candidate plans by Cycle 6. | pending | pending | pending |
+| 541 | Reveal a New Eden candidate. | Connected Endeavour scout-derived current-group reveal. | Partial: actual N/O/P discovery, original own reports/reload and current-group reveal accepted; foreign-group/requester-peer withholding remains open. | 74 Functions + 74 client focused tests, 35 runner contracts and bounded Sol review pass; final review/render/CI/deployment pending |
+| 542 | Make candidate discovery retry-safe. | Connected original scouting identity and durable result/audit/note. | Partial: interrupted original N reply, same-cycle UI retry, cold reload and SDK replay preserve one effect; other discovery producers open. | focused tests/contracts and bounded Sol review pass; final release pending |
+| 543 | Track candidate plans by Cycle 6. | Connected real GM active Cycle 6 checkpoint and player encouragement. | Partial: plan-present save, original outbox/reload/exact receipt recovery, early denial and populated private/borrowed-authority denial accepted; other status/audience criteria open. | focused tests/contracts and bounded Sol review pass; final release pending |
 | 544 | Validate Ancient Jump Ring prerequisites. | pending | pending | pending |
 | 545 | Repair the Ancient Jump Ring. | pending | pending | pending |
 | 546 | Prevent duplicate Ring contributions. | pending | pending | pending |
@@ -50,9 +50,9 @@ anchors; that coverage does not establish an enabled control or gameplay.
 | 581 | Create post-damage Scrap pickups. | pending | pending | pending |
 | 584 | Run the Capybara vertical scenario. | pending | pending | pending |
 | 585 | Run the base/expansion isolation scenario. | pending | pending | pending |
-| 593 | Show candidate preparation help. | pending | pending | pending |
+| 593 | Show candidate preparation help. | Mounted current-group N/O/P preparation. | Partial: distinct costs/blockers/next actor and Cycle 6 reload accepted; hidden bonus/Wolf/private calculation and foreign-group/requester-peer audiences remain open. | focused tests/contracts and bounded Sol review pass; final rendered usability/release pending |
 | 618 | Reconnect every live projection. | Connected current member/SDK recovery. | Partial: Captain/Press lifecycle, same-UID Press arrival/reload and current narrow closed Captain return/reload accepted; other roles/projections/dropout paths open. | pending |
-| 619 | Make candidate retries survive reconnect. | pending | pending | pending |
+| 619 | Make candidate retries survive reconnect. | Related scout discovery/report recovery only. | Missing: no N/O/P fuel, roll, loss, contribution or outcome action ran; discovery recovery does not prove this acceptance. | pending |
 | 620 | Recover from stale revisions. | Connected phase confirmation and exact retry. | Partial: phase/flight/arrival recovery and both competing GMs' exact freeze/close recovery accepted; other stale/conflicting role retries open. | pending |
 | 629 | Protect private projections comprehensively. | Tested current scoped private readers. | Partial: own/peer/wrong-holder controls, populated mission deck/organiser/debrief-receipt denials and borrowed GM-instance/receipt denials accepted; other Wolf/chart/mission/hidden-roll/notes audiences open. | pending |
 | 630 | Prove server-owned randomness. | pending | pending | pending |
@@ -682,3 +682,94 @@ integration failure, retain its original evidence, close owned browsers and
 delete only the fresh owned session/pointers/Auth identities before diagnosis.
 No fixed catalog closure, checkpoint acceptance or external release is earned
 by this plan or by Source/native tests alone.
+
+
+### Qualified candidate discovery/preparation and active Cycle 6 — bounded family
+
+Actual 6 at `84dc3c4e8a8b5a7882349836c026a1c357379759` (0.5.72) passed
+20 overlapping scoped assertions in 154,816 ms including exact cleanup. Native
+session `15474`, initial chunk `957e7c`, terminal `9d8c1d`, exit 0. Two independent
+ordinary Auth actors used two automated Chrome processes/contexts; zero humans.
+The legal configured roster had 14 roles with other seats open. The GM provides
+legitimate manual preparation/progression and the private checkpoint; the
+Scientist provides ordinary printed Endeavour scouting and private boundary
+checks. No additional actor is needed for these claims. Requester-peer and
+foreign-group denial remain separate unproved criteria.
+
+The normal GM created/consented/authorized a named live instance, configured and
+confirmed the real roster, selected ordinary starting hosts, prepared unlimited
+manual full-game training before the Scientist joined, assigned the normal
+Shepherd Scientist, and started the fresh game from Cycle 0 to 1. Through
+actual Endeavour controls, N/O/P were discovered in Cycles 1/2/3, one automatic
+result/audit/own note per request. Current-group cards showed distinct costs,
+blockers and next actor. The original N acknowledgement was deliberately lost
+after its durable witness; the original normal UI retry, same-UID cold reload
+and same-cycle captured SDK replay preserved request identity and all original
+effects. Old reports were recovered through their ordinary readers, without
+out-of-cycle scouting resubmission.
+
+At Cycles 1 and 3, the panel actually offered its existing authority-change
+refresh. One normal read retry per occurrence retained the exact original
+document/UID/session/role/seat/group/generation/hydration and current SDK/own
+player/canonical-seat authority, inside the original 35-second UI window.
+Ready cards never suppress an unexplained status error. No deadline was renewed,
+service bypassed or gameplay mutation substituted. N costs, O's per-ship long
+jump and private scouting wording, and P's combat/18-capacity prerequisites were
+checked again after normal Scientist reload at active Cycle 6.
+
+The mounted GM starmap relocated Aegis to printed noncandidate 2580 at Cycle 4
+Coordination, committing Pursuit 8→3 through its actual original receipt.
+Shepherd stayed at 0000; later Pursuit 5/7 let legitimate manual progression
+reach active Cycle 6. This proves only the existing GM relocation and printed
+Pursuit effect; no ordinary jump, fuel or candidate-arrival credit is earned.
+
+At ordinary active Cycle 6, a real GM plan-present save lost its acknowledgement
+after the durable original receipt. Persisted original outbox intent recovered
+through normal same-instance reload and actual HTTP 200 original receipt,
+checkedAt and revision. The normal-resume witness permits only Source's
+navigation/GM updatedAt refresh and own member projection revision catching up
+to the original checkpoint; every other field/effect stays exact. A subsequent
+explicit replay preserves full hashes. Cycle 1's mounted checkpoint was locked
+and the actual fresh early SDK attempt denied without mutation. Ordinary
+Scientist gets player encouragement only. Five **populated** GM discovery,
+navigation, original scout audit, checkpoint receipt and Nebula marker records
+denied actual SDK reads, as did direct session-root get and borrowed GM authority.
+The original current-member allowlist and workspace omit checkpoint/private
+calculations/organiser fields. Omission earns no populated private-calculation,
+hidden bonus or Wolf-state denial credit.
+
+Actuals 1–5 remain failed at their first original stops: callback-return ordering,
+an overstrict raw resume metadata witness, detached screenshot target, an
+incorrect ordinary-root permission expectation, and undriven Source-offered
+read refresh. Their evidence and prefix claims are retained without backfill or
+summing. Actual 1's teardown rethrew its retained primary handler error even
+though owned resources were removed; its cleanup status is not rewritten.
+These were finite outside-repo runner corrections; product source/version,
+Rules and compiled Functions stayed unchanged. Source-coupled meaningful red
+counterexamples qualify the substantive runner fixes; final 35 contracts pass.
+Focused unchanged product checks pass 74 Functions and 74 client cases. The
+bounded Sol 6.1 review resolved only material runner findings and passed the
+final ready-error fix; it is not the final checkpoint review.
+
+Evidence: `/tmp/dow-pc10-evidence/two-actor-candidate-discovery-preparation-6/OWNER_RESULT.json`
+(SHA `18efdfed4d6bc099d5c6ef9c0c8db25a45f3be5440c5393a7bfb747ba5290efc`),
+runner SHA `5751e29ef87377681d9713432e5af608f05e060788dfda5aa84b0ff62010adc4`,
+prelaunch freeze SHA `ca4d0963c9bb366f81df9045d17b183e634f5e874b0b10c9fb5d65e56c88e75a`,
+and `OWNER_CANDIDATE_DISCOVERY_PREPARATION_6_FINAL_READY_ERROR_REVIEW_20261007.json`.
+The actual Cycle 6 desktop panel capture was inspected: visible Station
+requirements/next actor are legible, but lower cards are clipped in that
+capture. It grants no complete rendered/usability gate or mobile/keyboard proof.
+Postflight retained all 2,003 tracked files/251 PC10 scripts, 434 compiled files,
+217 JavaScript files, the original dirty checkout/PC09 worktree/reservations,
+and 12 free slots. Both browsers closed; the exact fresh session/join pointer,
+two membership pointers and two Auth identities were removed. Session/player/GM
+scope is 0/0/0 with no cleanup errors. No other task or production state changed.
+
+P542, P543 and P593 move missing→partial under the catalog's real-seam definition;
+P541 stays partial and P619 stays missing. PC10 now has **13 partial/35 missing**,
+all 48 closures open, 703/751 overall and 245/293 campaign unchanged. The 20
+assertions overlap setup and prior families and are not a unique-function total.
+Full 619 action/outcome recovery, candidate success/endings, every-role/function
+fresh rehearsal, remaining privacy/audiences, human/21-account capacity,
+manual-free usability, final review/render/CI/deployment and PC10 release remain
+open. No next family, external release, post-PC10, PC11 or PC12 ran here.

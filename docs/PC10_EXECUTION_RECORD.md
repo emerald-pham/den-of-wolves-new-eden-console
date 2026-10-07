@@ -703,3 +703,21 @@ integration failure, retain its original evidence, close owned browsers and
 delete only the fresh owned session/pointers/Auth identities before diagnosis.
 No fixed catalog closure, checkpoint acceptance or external release is earned
 by this plan or by Source/native tests alone.
+
+
+### Candidate discovery/preparation family closed locally
+
+Actual 6 at `84dc3c4e` (0.5.72) passed 20 overlapping scoped assertions in 154,816 ms:
+two ordinary Auth actors, two automated browsers/contexts, zero humans. Real
+manual 0→1, N/O/P Endeavour discovery/preparation, original scout retry/reload,
+active Cycle 6 private GM checkpoint/outbox recovery and populated private denials
+qualified. Final 35 runner contracts, 74 Functions + 74 client tests and bounded Sol 6.1
+review pass. Five earlier actuals retain their first failures; Source-only
+runner corrections do not backfill them. Product code/version stayed unchanged.
+See the [qualified family](PC10_ACCEPTANCE_MATRIX.md#qualified-candidate-discoverypreparation-and-active-cycle-6--bounded-family)
+for exact Source/Native/hash bindings, metadata allowances and unproved criteria.
+Runtime/original/PC09 preservation and exact-owned cleanup passed with 0/0/0.
+P542/P543/P593 are now partial; P541 remains partial, P619 missing. All 48 closures remain
+open (13 partial/35 missing), 703/751 overall and 245/293 campaign unchanged. No
+capacity/human/manual-free/whole-game/candidate outcome or final release credit.
+The family returns a closed local handoff before any next family or checkpoint.

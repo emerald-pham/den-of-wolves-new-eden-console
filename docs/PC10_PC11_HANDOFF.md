@@ -289,3 +289,21 @@ complete the 48 catalog rows or the three whole-checkpoint gates. Finish the
 existing fresh families, required privacy/recovery/usability, one reconciled
 independent review and exact-candidate/main release checks before handoff.
 PC11 and PC12 remain unstarted here.
+
+
+The next selected candidate discovery/preparation family is now locally closed:
+actual 6 at `84dc3c4e` passed 20 overlapping assertions with 2 ordinary Auth actors,
+2 automated browsers/contexts and 0 humans in 154,816 ms including exact cleanup.
+N/O/P scout discovery, original scout retry/cold reload, distinct preparation,
+active Cycle 6 GM private checkpoint/outbox recovery and populated server-private
+denials qualified. Source-offered normal read refresh was driven within its
+original window; Source/product/version remain unchanged. Five failed actuals
+stay failed; final 35 contracts, 74 Functions + 74 client tests and bounded Sol review
+pass. See the [qualified family](PC10_ACCEPTANCE_MATRIX.md#qualified-candidate-discoverypreparation-and-active-cycle-6--bounded-family).
+P542/P543/P593 are partial, P541 stays partial and full 619 stays missing:
+13 partial/35 missing, all 48 closures open, 703/751 overall and 245/293 campaign.
+Remaining work includes full candidate action/outcome/ending recovery, distinct
+private audiences and existing core/Explorer criteria, then final affected
+rehearsal/usability/review/CI/deployment. No next family or external release ran.
+Return this closed family to the parent; later authorized post-PC10 work, PC11
+guidance and conditional PC12 remain unexecuted here.

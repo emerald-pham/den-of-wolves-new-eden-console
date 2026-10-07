@@ -6496,6 +6496,13 @@
       "language": "Actual2 atd9664a41 passed19 overlapping scoped claims with3normal Auth actors,2automated browser processes/contexts and0humans in99436ms including exact cleanup. Two live owned GMs competed through unaltered actual UI freeze/close: one effect per race, four actor-bound receipts total, exact original/late-freeze recovery and immutable Pursuit history. Original Captain normal closed return/reload preserves UID/stable server generation, null seat/station, narrow entitled history and settled SDK authority. Three populated mission-deck/organiser/debrief-receipt SDK denies and wrong-role/borrowed GM-instance/actor-receipt denials passed; own loyalty follows existing policy, absent peer loyalty earns no populated-target credit. Actual1 remains failed after17prefix claims; observed extra keys were unretained and not inferred. Source-only diagnosis independently reproduced normal resume pollution;7separate test-first cases fail then501affected tests, typecheck/lint and bounded Sol6.1 review pass. Rules/server/compiled Functions and active normalization remain unchanged. Exact cleanup/postflight0/0/0 and original/PC09/source/runtime preservation passed. Claims overlap prior22/27records and are not summed. Candidate success/other endings, other private audiences/notes/standardized audits, every-role/function rehearsal, rendered usability, human/capacity, final CI/deployment and release remain open. All48 fixed closures remain unresolved;703/751 and245/293 accounting unchanged.",
       "source": "docs/PC10_ACCEPTANCE_MATRIX.md; external /tmp/dow-pc10-evidence/three-actor-ending-concurrency-2/OWNER_RESULT.json; external /tmp/dow-pc10-evidence/OWNER_ENDING_CONCURRENCY_2_CLOSED_RESUME_REVIEW_20261007.json; external /tmp/dow-pc10-evidence/OWNER_ENDING_CONCURRENCY_2_CLOSED_FAMILY_HANDOFF_20261007.json",
       "type": "evidence / local-gameplay / scoped-partial-acceptance"
+    },
+    {
+      "direction": "Qualified candidate discovery/preparation family -> scoped P541-543;593; related discovery-only P619",
+      "id": "E-PC10-CANDIDATE-DISCOVERY-PREPARATION-SUBCRITERIA-20261007",
+      "language": "Actual 6 at 84dc3c4e passed 20 overlapping scoped assertions with 2 ordinary Auth actors, 2 automated Chrome processes/contexts and 0 humans in 154,816 ms including exact cleanup. Real protected manual preparation and 0→1, legitimate Endeavour N/O/P scouting in Cycles 1/2/3, one automatic result/audit/own note each, current-group preparation costs/blockers/next actor, original lost scout acknowledgement/UI retry/cold reload/same-cycle SDK replay and original historical readers passed. Source-offered normal read refresh ran once each in Cycles 1 and 3 under unchanged document/UID/role/seat/group/generation/hydration and original 35s UI budget. Real Cycle 4 mounted GM Aegis relocation to noncandidate 2580 applies printed Pursuit 8→3; no normal ship-jump/fuel/arrival credit. Actual active Cycle 6 private GM plan-present checkpoint/lost-ack/persisted outbox/normal same-instance reload recovery preserves exact receipt/checkedAt/revision; only Source resume updatedAt and own projection revision catch-up are allowed in that resume witness, then explicit replay retains full hashes. Scientist denies five populated GM/server records, direct session-root get and borrowed GM checkpoint; original current-member allowlist/entitled workspace exclude private fields and players get encouragement only. Five earlier actuals remain failed at their original stops; no backfill or sum. Source-only finite runner fixes, 35 contracts, 74 Functions + 74 client focused tests and bounded Sol 6.1 review qualify the run; product code/version unchanged. Original dirty checkout/PC09/registry/source/compiled runtime preserved; cleanup 0/0/0. P542/P543/P593 move missing→partial because a real production-path seam is now proved; zero done/closure change, 703/751 and 245/293 remain. Foreign-group/requester-peer and populated private calculation/Wolf/bonus audiences, full 619 actions/outcomes/candidate success, whole-game/every-role/function, human/capacity/manual-free and final render/review/CI/deployment remain open.",
+      "source": "docs/PC10_ACCEPTANCE_MATRIX.md; external /tmp/dow-pc10-evidence/two-actor-candidate-discovery-preparation-6/OWNER_RESULT.json; external /tmp/dow-pc10-evidence/OWNER_CANDIDATE_DISCOVERY_PREPARATION_6_FINAL_READY_ERROR_REVIEW_20261007.json; external /tmp/dow-pc10-evidence/OWNER_CANDIDATE_DISCOVERY_PREPARATION_6_CLOSED_FAMILY_HANDOFF_20261007.json",
+      "type": "evidence / local-gameplay / scoped-partial-acceptance"
     }
   ],
   "plan": {
@@ -21153,8 +21160,8 @@
         "acceptance": "an entitled discovery exposes N, O, or P to the correct group without leaking organiser-chart facts. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately. Apply the October 5 PC10 owner revision in docs/PC10_EXECUTION_RECORD.md within this assigned scope; preserve actual GM authority, fresh-game evidence, unlimited manual demo progression, interrupted/repeated/recovery flows, real admission and entitled privacy. New join-QR and full-game-demo additions are separately accounted and earn no fixed catalog closures. Apply the October 7 risk-based verification policy in docs/AGENT_EXECUTION_POLICY.md within this scope: use meaningful test-first regressions for authority/privacy and durable-state risk, small claim-based mounted cohorts, direct checks for low-risk changes, and valid unaffected evidence. Blanket 21-account/full-census replays are superseded; justify any scale run by a claim impossible with fewer or a reproduced scale-dependent bug. Preserve actual functional/privacy and required review/CI/deployment gates; untested capacity stays unclaimed.",
         "title": "Reveal a New Eden candidate."
       },
-      "description": "Arrival-derived candidate codes and names are projected to the current fleet group with chart details withheld; scout-derived reveal and normal authenticated local/emulator gameplay proof remain outstanding.",
-      "evidenceIds": "E-AUDIT-541;E-541-ARRIVAL-GROUP-REVEAL",
+      "description": "Arrival-derived reveal is retained. Actual 6 at 84dc3c4e proves ordinary Endeavour scouting of N/O/P in Cycles 1/2/3, automatic original result/audit/own note, current-group reveal and recovery without organiser fields. Two Auth actors/two automated browsers/zero humans. Foreign-group withholding and other audiences, final review/render/CI/deployment and fixed closure remain open.",
+      "evidenceIds": "E-AUDIT-541;E-541-ARRIVAL-GROUP-REVEAL;E-PC10-CANDIDATE-DISCOVERY-PREPARATION-SUBCRITERIA-20261007",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "318;525",
@@ -21178,8 +21185,8 @@
         "acceptance": "repeated submissions return one record without duplicate pursuit, mission, or event effects. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately. Apply the October 5 PC10 owner revision in docs/PC10_EXECUTION_RECORD.md within this assigned scope; preserve actual GM authority, fresh-game evidence, unlimited manual demo progression, interrupted/repeated/recovery flows, real admission and entitled privacy. New join-QR and full-game-demo additions are separately accounted and earn no fixed catalog closures. Apply the October 7 risk-based verification policy in docs/AGENT_EXECUTION_POLICY.md within this scope: use meaningful test-first regressions for authority/privacy and durable-state risk, small claim-based mounted cohorts, direct checks for low-risk changes, and valid unaffected evidence. Blanket 21-account/full-census replays are superseded; justify any scale run by a claim impossible with fewer or a reproduced scale-dependent bug. Preserve actual functional/privacy and required review/CI/deployment gates; untested capacity stays unclaimed.",
         "title": "Make candidate discovery retry-safe."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-542",
+      "description": "Actual 6 at 84dc3c4e proves interrupted original N scout acknowledgement, same-cycle original UI retry, normal same-UID Scientist document reload and captured original SDK replay with one result/audit/note and unchanged discovery/Pursuit/mission/navigation effects. Other discovery producers and final checkpoint review/render/CI/deployment remain open; partial only, no fixed closure.",
+      "evidenceIds": "E-AUDIT-542;E-PC10-CANDIDATE-DISCOVERY-PREPARATION-SUBCRITERIA-20261007",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "541",
@@ -21190,7 +21197,7 @@
       "releases": [],
       "section": "Crises, catastrophe, candidates, and Capybara integration (Prompts 525–585)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "NEW"
     },
     {
@@ -21201,8 +21208,8 @@
         "acceptance": "facilitators see plan status and players receive only the agreed summary or encouragement. Use Cycle 6 in visible preparation/status copy and preserve current CIC typography; internal turn fields and printed-source citations need no rename. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately. Apply the October 5 PC10 owner revision in docs/PC10_EXECUTION_RECORD.md within this assigned scope; preserve actual GM authority, fresh-game evidence, unlimited manual demo progression, interrupted/repeated/recovery flows, real admission and entitled privacy. New join-QR and full-game-demo additions are separately accounted and earn no fixed catalog closures. Apply the October 7 risk-based verification policy in docs/AGENT_EXECUTION_POLICY.md within this scope: use meaningful test-first regressions for authority/privacy and durable-state risk, small claim-based mounted cohorts, direct checks for low-risk changes, and valid unaffected evidence. Blanket 21-account/full-census replays are superseded; justify any scale run by a claim impossible with fewer or a reproduced scale-dependent bug. Preserve actual functional/privacy and required review/CI/deployment gates; untested capacity stays unclaimed.",
         "title": "Track candidate plans by Cycle 6."
       },
-      "description": "Planned [NEW] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-543",
+      "description": "Actual 6 at 84dc3c4e proves the ordinary active Cycle 6 GM plan-present checkpoint, original persisted outbox recovery after a lost acknowledgement, exact receipt/checkedAt/revision on replay, locked Cycle 1 UI and mutation-free early denial. Ordinary Scientist receives encouragement only; populated private checkpoint receipt/navigation reads and borrowed GM authority deny. Other plan-status/audience criteria and final review/render/CI/deployment remain open; partial only.",
+      "evidenceIds": "E-AUDIT-543;E-PC10-CANDIDATE-DISCOVERY-PREPARATION-SUBCRITERIA-20261007",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "541;319",
@@ -21213,7 +21220,7 @@
       "releases": [],
       "section": "Crises, catastrophe, candidates, and Capybara integration (Prompts 525–585)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "NEW"
     },
     {
@@ -22429,8 +22436,8 @@
         "acceptance": "N, O, and P requirements remain distinct and no hidden location, bonus, or Wolf state leaks. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately. Apply the October 5 PC10 owner revision in docs/PC10_EXECUTION_RECORD.md within this assigned scope; preserve actual GM authority, fresh-game evidence, unlimited manual demo progression, interrupted/repeated/recovery flows, real admission and entitled privacy. New join-QR and full-game-demo additions are separately accounted and earn no fixed catalog closures. Apply the October 7 risk-based verification policy in docs/AGENT_EXECUTION_POLICY.md within this scope: use meaningful test-first regressions for authority/privacy and durable-state risk, small claim-based mounted cohorts, direct checks for low-risk changes, and valid unaffected evidence. Blanket 21-account/full-census replays are superseded; justify any scale run by a claim impossible with fewer or a reproduced scale-dependent bug. Preserve actual functional/privacy and required review/CI/deployment gates; untested capacity stays unclaimed.",
         "title": "Show candidate preparation help."
       },
-      "description": "Planned [EXTEND] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-593",
+      "description": "Actual 6 at 84dc3c4e mounts current-group N/O/P preparation through normal Scientist controls and shows distinct costs, blockers and next actor in Cycles 1/2/3 and after Cycle 6 reload. Current member/workspace excludes organiser/checkpoint/private calculation fields; populated GM/server records deny. Hidden bonus/Wolf and foreign-group/requester-peer audiences and final rendered usability/review/CI/deployment remain open; partial only.",
+      "evidenceIds": "E-AUDIT-593;E-PC10-CANDIDATE-DISCOVERY-PREPARATION-SUBCRITERIA-20261007",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "541",
@@ -22441,7 +22448,7 @@
       "releases": [],
       "section": "Onboarding, help, settings, and operational truth (Prompts 586–600)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "EXTEND"
     },
     {
@@ -23194,8 +23201,8 @@
         "acceptance": "N/O/P actions return original fuel, roll, loss, contribution, and outcome results without duplicates. Apply the PC07–PC10 operating and presentation contract in docs/PC07_PC10_ALIGNMENT.md within this prompt's own scope; preserve its source rules, explicit choices, audiences and existing prerequisites. Prove this gameplay through normal authenticated local/emulator handlers, HTTP/UI and Firestore rules as appropriate under the October 2 repository-wide verification decision in docs/PRODUCT_MILESTONES.md. Prepared review scenes alone do not prove behavior; retain independent risk review, CI and production deployment and label each evidence class accurately. Apply the October 5 PC10 owner revision in docs/PC10_EXECUTION_RECORD.md within this assigned scope; preserve actual GM authority, fresh-game evidence, unlimited manual demo progression, interrupted/repeated/recovery flows, real admission and entitled privacy. New join-QR and full-game-demo additions are separately accounted and earn no fixed catalog closures. Apply the October 7 risk-based verification policy in docs/AGENT_EXECUTION_POLICY.md within this scope: use meaningful test-first regressions for authority/privacy and durable-state risk, small claim-based mounted cohorts, direct checks for low-risk changes, and valid unaffected evidence. Blanket 21-account/full-census replays are superseded; justify any scale run by a claim impossible with fewer or a reproduced scale-dependent bug. Preserve actual functional/privacy and required review/CI/deployment gates; untested capacity stays unclaimed.",
         "title": "Make candidate retries survive reconnect."
       },
-      "description": "Planned [EXTEND] prompt; no accepted gameplay proof has been recorded yet.",
-      "evidenceIds": "E-AUDIT-619",
+      "description": "Actual 6 at 84dc3c4e qualifies original scouting discovery and report/preparation recovery only, recorded as related evidence. No N/O/P fuel, roll, loss, contribution or outcome action ran; the complete candidate outcome reconnect/retry acceptance remains missing. Native coverage and discovery recovery grant no 619 closure.",
+      "evidenceIds": "E-AUDIT-619;E-PC10-CANDIDATE-DISCOVERY-PREPARATION-SUBCRITERIA-20261007",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "542;612",
