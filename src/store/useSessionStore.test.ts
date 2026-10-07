@@ -460,3 +460,12 @@ it('remembers GM access for seven days without extending the live browser lease'
   expect(selectGmAccessAuthenticated(useSessionStore.getState(), stamp - 1)).toBe(false);
   expect(useSessionStore.getState().gmInstance).toBeNull();
 });
+
+it('keeps GM recovery pending local and clears it on identity reset', () => {
+  useSessionStore.getState().setGmRecoveryPending(true);
+  expect(useSessionStore.getState().gmRecoveryPending).toBe(true);
+  expect(JSON.parse(localStorage.getItem(SESSION_STORAGE_KEY) ?? '{}').state)
+    .not.toHaveProperty('gmRecoveryPending');
+  useSessionStore.getState().reset();
+  expect(useSessionStore.getState().gmRecoveryPending).toBe(false);
+});

@@ -4739,3 +4739,14 @@ it('mounts the genuine private boarding ruling for the current live facilitator'
   act(() => useSessionStore.getState().setSessionSnapshotFreshness('cache'));
   expect(screen.queryByRole('textbox', {name: 'Facilitator ruling'})).toBeNull();
 });
+
+it('holds the facilitator route without private controls while the server recovers the original claim', () => {
+  useSessionStore.getState().setGmInstance(local);
+  useSessionStore.getState().setGmRecoveryPending(true);
+  useSessionStore.getState().setMe({ ...useSessionStore.getState().me!, role: 'player' });
+  renderConsole();
+  expect(screen.getByRole('status', { name: 'GM connection recovery' })).toBeVisible();
+  expect(screen.queryByText('Role selection route')).not.toBeInTheDocument();
+  expect(screen.queryByRole('region', { name: 'Crisis state machine' })).not.toBeInTheDocument();
+  expect(subscribeGmCrisisState).not.toHaveBeenCalled();
+});

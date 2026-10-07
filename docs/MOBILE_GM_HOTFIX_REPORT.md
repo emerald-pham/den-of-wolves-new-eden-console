@@ -42,7 +42,12 @@ requested freeze did not suspend its heartbeat, so it provides no suspension
 proof. This is not evidence of the cause on the owner's physical iPhone. The
 source separately shows that live-list absence or listener failure discards the
 remembered claim, while natural lease cleanup deletes the claim altogether.
-A real network interruption is the next native reproduction.
+A real 55-second browser network interruption then reproduced loss of the same
+GM instance after reconnect in `/tmp/dow-pc10-evidence/mobile-gm-base-presence-6/`.
+Its normal foreground heartbeat remained valid first; the outage aged the lease
+beyond 45 seconds. All owned browser/session/identity resources were removed.
+This proves a local recovery defect, not the exclusive cause of the reported
+iPhone event. The runner-only aborted network launch is retained separately.
 
 ## Test changes
 
@@ -62,7 +67,11 @@ freshness and private crisis data while retaining the remembered descriptor for
 server reconciliation. Late private callbacks remain rejected. Existing explicit
 role-demotion, no-claim, private rules, and server revocation expectations remain.
 The waiting-state test now expects the owner's red token with the same accessible
-copy. No tests are skipped or deleted.
+copy. An additional ephemeral recovery-state test ensures it is never persisted and
+resets on identity reset. A mounted recovery hold keeps private controls absent
+while the original claim is checked. An explicit server role-demotion negative
+prevents automatic promotion of a fresh demoted claim. No tests are skipped or
+deleted; test-name selection is reported separately from full-file validation.
 
 ## Release plan
 

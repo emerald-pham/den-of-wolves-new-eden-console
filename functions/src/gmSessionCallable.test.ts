@@ -1312,7 +1312,7 @@ describe('natural GM presence recovery', () => {
     expect(read('sessions/s1/gmInstances/other')).toMatchObject({ responsibilities: ['main', 'assistant'] });
   });
 
-  it.each(['missing', 'foreign', 'changed-lease', 'explicit-disconnect', 'revoked', 'expired', 'kicked', 'closed', 'core-seat'])(
+  it.each(['missing', 'foreign', 'changed-lease', 'explicit-disconnect', 'revoked', 'expired', 'kicked', 'closed', 'core-seat', 'manual-demotion'])(
     'does not recover %s authority or perform a write', async (kind) => {
       session(); player('u1');
       instance('bridge', 'u1', { connected: false, expirationCause: 'presence-expired' });
@@ -1325,6 +1325,7 @@ describe('natural GM presence recovery', () => {
       if (kind === 'expired') put('gmAccess/u1', { authenticatedAt: Date.now() - 7 * 24 * 60 * 60 * 1000 });
       if (kind === 'kicked') player('u1', { kickedAt: 'server-time' });
       if (kind === 'closed') session({ phase: 'closed' });
+      if (kind === 'manual-demotion') instance('bridge', 'u1');
       if (kind === 'core-seat') player('u1', { seatId: 'dione-engineer' });
       const before = new Map(mock.documents); mock.set.mockClear(); mock.update.mockClear(); mock.remove.mockClear();
       await expect(claimGmInstance.run(request(recovery))).rejects.toMatchObject({ code: expect.any(String) });
