@@ -592,7 +592,7 @@ export default function AppHeader() {
               {gmAccessAuthenticated ? (
                 <>
                   <p className="settings-dialog__gm-access-status">
-                    🔓 GM access remains authorized on this device for 24 hours.
+                    🔓 GM access remains authorized on this device for seven days.
                   </p>
                   <button
                     className="settings-dialog__gm-access-button cic-action-button"

@@ -435,24 +435,25 @@ section with readable bone-white copy, a cyan mail link, and a small lock emoji
 that makes the logged-out or logged-in state immediately legible. The password
 field belongs here rather than on the role-claim card; the browser may remember
 only the login timestamp, never the password. Show the explicit logout control
-and the 24-hour safety timeout in the normal document flow so both remain
+and the seven-day safety timeout in the normal document flow so both remain
 reachable on short screens.
 
 ### Session waiver / code of conduct
 
-The first session entry in a 24-hour browser window opens a required full-screen
-code-of-conduct instrument. It borrows the reference layout's centered heading,
-stacked acknowledgement rows and single continue action, while remaining in the
-CIC profile: square `cic-frame` rules, amber structure, cyan acknowledged
-status, bone-white copy, and no depth shadow. Keep every regulation visible in
-one bounded scrolling panel so players can review the complete table convention,
-in-world information-security rule, and human-on-the-other-side debrief reminder
-before the acknowledgement control. Each row has a real, keyboard-reachable
+The first session entry in a seven-day browser window opens a required
+full-screen code-of-conduct instrument. It borrows the reference layout's
+centered heading, stacked acknowledgement rows and single continue action,
+while remaining in the CIC profile: square `cic-frame` rules, amber structure,
+cyan acknowledged status, bone-white copy, and no depth shadow. Keep every
+regulation visible in one bounded scrolling panel so players can review the
+complete table convention, in-world information-security rule, and
+human-on-the-other-side debrief reminder before the acknowledgement control.
+Each row has a real, keyboard-reachable
 checkbox; the final confirmation stays
 disabled until every row is checked and the ten-second review lock has elapsed.
 Show the remaining seconds in the same ruled instrument so the delay is legible,
 not mysterious. The acknowledgement is browser-local and global to the window
-rather than keyed to a session, so switching tables within 24 hours does not
+rather than keyed to a session, so switching tables within seven days does not
 repeat the prompt. Authenticated GM access may reset that local completion from
 the GM Console, which reopens the full instrument.
 

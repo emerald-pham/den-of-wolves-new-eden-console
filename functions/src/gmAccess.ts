@@ -1,6 +1,6 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 
-export const GM_ACCESS_TIMEOUT_MS = 24 * 60 * 60 * 1000;
+export const GM_ACCESS_TIMEOUT_MS = 7 * 24 * 60 * 60 * 1000;
 
 // Keep the shared GM password out of the deployed source while still making
 // the callable authoritative. This digest is intentionally checked server-side
