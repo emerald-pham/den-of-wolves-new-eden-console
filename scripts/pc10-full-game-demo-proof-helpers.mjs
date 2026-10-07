@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { setTimeout as delay } from 'node:timers/promises';
+import { rememberProofFailure } from './pc10-proof-failure-evidence.mjs';
 
 /** Compare real UI/SDK receipts; this helper neither invokes nor seeds a game. */
 export function assertExactFullGameStartRecovery({ payload, original, replay, expected }) {
@@ -102,7 +103,8 @@ export function captureFullGameDemoPresentationActor(current, options) {
     assert.equal(pressIncluded, true, 'Press must have been included in the explicitly prepared roster.');
     assert.equal(current.pressEnabled, true, 'The server-confirmed session must still enable its Press actor.');
     assert.equal(current.assignedRoleId ?? null, null, 'Press has no core-seat assignment pointer.');
-    assert.equal(current.activeConsoleRoleId, 'press-officer', 'The original Press persona must hold its ordinary current console.');
+    assert.ok(current.activeConsoleRoleId === null || current.activeConsoleRoleId === 'press-officer',
+      'The original Press account may have no console or its current ordinary Press console.');
   } else {
     assert.ok(confirmedRoleIds.includes(selected.roleId), 'The persona must be among the setup-confirmed core roles.');
     assert.equal(current.assignedRoleId, selected.roleId, 'The original persona must still hold its normal GM assignment.');
@@ -121,6 +123,168 @@ export function captureFullGameDemoPresentationActor(current, options) {
     instanceId: current.instanceId ?? null,
     gmInstanceOwned: false,
   });
+}
+
+/** Read only the current post-digest member/SDK tuple. Private source objects,
+ * raw UIDs, credentials and private documents never leave the browser. */
+export async function observeFullGameDemoPresentationMember(surface) {
+  return surface.page.evaluate(async moduleUrl => {
+    const { auth } = await import('/src/lib/firebase.ts');
+    const { activeDemoActorProfile } = await import('/src/lib/demoActorContext.ts');
+    const { useSessionStore } = await import(moduleUrl);
+    const { sessionSnapshotAuthorityFor, memberSessionResumeBlocksFreshness } =
+      await import('/src/lib/sessionSnapshotAuthority.ts');
+    const originalUid = auth().currentUser?.uid;
+    const uidHash = originalUid ? Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',
+      new TextEncoder().encode(originalUid)))).map(byte => byte.toString(16).padStart(2, '0')).join('').slice(0, 16) : null;
+    const state = useSessionStore.getState(), user = auth().currentUser, session = state.session, me = state.me;
+    if (user?.uid !== originalUid) throw new Error('Original Auth UID changed during presentation readiness observation.');
+    const scope = session?.memberSessionScope, berth = session?.currentActorBerthAuthority;
+    const authority = originalUid && session?.id ? sessionSnapshotAuthorityFor(session.id, originalUid) : null;
+    const marker = session?.fullGameDemo;
+    const currentMemberBerthPresent = !!session && Object.hasOwn(session, 'currentActorBerthAuthority');
+    const wireId = value => typeof value === 'string' && value.length > 0 && value.length <= 1_500 && !value.includes('/');
+    const nullableRole = value => value === null || wireId(value);
+    const keys = ['sessionId', 'actorUid', 'groupId', 'role', 'connectionGeneration',
+      'assignedRoleId', 'activeConsoleRoleId', 'replacementRoleId', 'replacementStatus', 'shipId'];
+    const memberScopeMatches = Boolean(scope && typeof scope.groupId === 'string' && /^fleet-[1-9][0-9]*$/.test(scope.groupId) &&
+      scope.groupId === me?.fleetGroupId && Array.isArray(scope.vesselIds) && Array.isArray(scope.craftIds));
+    const currentMemberBerthMatches = Boolean(session && berth && typeof berth === 'object' && !Array.isArray(berth) &&
+      Object.keys(berth).length === keys.length && Object.keys(berth).every(key => keys.includes(key)) &&
+      wireId(berth.sessionId) && wireId(berth.actorUid) && wireId(berth.shipId) &&
+      berth.role === 'player' && Number.isSafeInteger(berth.connectionGeneration) && berth.connectionGeneration >= 1 &&
+      nullableRole(berth.assignedRoleId) && nullableRole(berth.activeConsoleRoleId) && nullableRole(berth.replacementRoleId) &&
+      berth.replacementStatus === null && me?.role === 'player' && me.connected === true && me.replacementStatus == null &&
+      berth.sessionId === session.id && me.sessionId === session.id && berth.actorUid === me.uid &&
+      memberScopeMatches && berth.groupId === scope.groupId && scope.vesselIds.includes(berth.shipId) &&
+      berth.connectionGeneration === (me.connectionGeneration ?? 1) && berth.assignedRoleId === (me.assignedRoleId ?? null) &&
+      berth.activeConsoleRoleId === (me.activeConsoleRoleId ?? null) && berth.replacementRoleId === (me.replacementRoleId ?? null));
+    const snn = session?.shuttleControl?.['snn-press-shuttle'];
+    const controlKeys = ['shuttleId', 'ownerRoleId', 'ownerUid', 'holderUid', 'revision'];
+    const pressCraftScopeMatches = Boolean(memberScopeMatches && (scope.craftIds.length === 0 ||
+      scope.craftIds.length === 1 && scope.craftIds[0] === 'snn-press-shuttle' && snn &&
+      Object.keys(snn).length === controlKeys.length && Object.keys(snn).every(key => controlKeys.includes(key)) &&
+      snn.shuttleId === 'snn-press-shuttle' && snn.ownerRoleId === 'press-officer' &&
+      snn.ownerUid === originalUid && snn.holderUid === originalUid && Number.isSafeInteger(snn.revision) && snn.revision >= 0));
+    const safeCode = code => ['permission-denied', 'unauthenticated', 'unavailable', 'failed-precondition',
+      'not-found', 'resource-exhausted', 'deadline-exceeded'].includes(code) ? code : 'other';
+    const safeKind = kind => ['station-selection-required', 'rate-limited', 'unavailable-service',
+      'malformed-input', 'stale-revision'].includes(kind) ? kind : 'other';
+    return { hasAuth: !!user, sameActor: !!user && user.uid === me?.uid, uidHash,
+      documentTimeOrigin: performance.timeOrigin, sessionId: session?.id ?? null, meSessionId: me?.sessionId ?? null,
+      profileRoleId: activeDemoActorProfile?.roleId ?? null, profileSessionId: activeDemoActorProfile?.sessionId ?? null,
+      playerRole: me?.role ?? null, assignedRoleId: me?.assignedRoleId ?? null,
+      activeConsoleRoleId: me?.activeConsoleRoleId ?? null, seatId: me?.seatId ?? null, fleetGroupId: me?.fleetGroupId ?? null,
+      replacementRoleId: me?.replacementRoleId ?? null, replacementStatus: me?.replacementStatus ?? null,
+      escapeLocked: me?.escapeState != null, kicked: me?.kickedAt != null, connected: me?.connected !== false,
+      currentOwnPlayerConfirmed: me?.connected === true, connectionGeneration: me?.connectionGeneration ?? null,
+      identityHydrationRevision: state.identityHydrationRevision ?? null,
+      connection: state.connection, freshness: state.sessionSnapshotFreshness,
+      cycle: session?.currentTurn ?? null, phase: session?.phase ?? null, setupConfirmed: session?.setupConfirmed === true,
+      fullGameDemo: marker ? { status: marker.status, progression: marker.progression } : null,
+      fullGameDemoExact: !!marker && typeof marker === 'object' && !Array.isArray(marker) &&
+        Object.keys(marker).length === 2 && Object.hasOwn(marker, 'status') && Object.hasOwn(marker, 'progression'),
+      pressEnabled: session?.pressEnabled !== false,
+      instanceId: state.gmInstance?.id ?? null,
+      gmInstanceOwned: !!state.gmInstance && state.gmInstance.uid === user?.uid && state.gmInstance.sessionId === session?.id,
+      currentMemberBerthPresent, currentMemberBerthNull: currentMemberBerthPresent && berth === null,
+      currentMemberBerthMatches, memberScopeMatches,
+      memberVesselCount: Array.isArray(scope?.vesselIds) ? scope.vesselIds.length : null,
+      memberCraftCount: Array.isArray(scope?.craftIds) ? scope.craftIds.length : null,
+      pressCraftScopeMatches,
+      currentCanonicalSeatOwned: state.seats.some(seat => seat.id === me?.assignedRoleId &&
+        (seat.roleId ?? seat.id) === me.assignedRoleId && seat.status === 'claimed' && seat.holderUid === me.uid),
+      sdkHasServerAuthority: authority?.hasServerSessionAuthority === true,
+      sdkResumePending: authority ? memberSessionResumeBlocksFreshness(authority) : true,
+      communicationError: state.communicationError ? { code: safeCode(state.communicationError.code),
+        kind: safeKind(state.communicationError.kind) } : null };
+  }, surface.storeModuleUrl());
+}
+
+/** Await the existing App recovery before freezing presentation identity. This
+ * grants no station action and issues no navigation, SDK mutation or retry. */
+export async function waitForFullGameDemoPresentationActor(options) {
+  const { surface, deadlineAt, onSample } = options;
+  const now = options.now ?? Date.now;
+  const wait = options.wait ?? (milliseconds => delay(milliseconds));
+  let initial, current, previous, sampleCount = 0;
+  const samples = [];
+  const budget = () => assert.ok(Number.isFinite(deadlineAt) && now() < deadlineAt,
+    'Original presentation start readiness deadline expired.');
+  async function withinBudget(operation) {
+    budget(); let timer;
+    try {
+      const value = await Promise.race([Promise.resolve().then(operation), new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error('Original presentation start readiness deadline expired.')), Math.max(1, deadlineAt - now()));
+      })]);
+      budget(); return value;
+    } finally { clearTimeout(timer); }
+  }
+  try {
+    while (true) {
+      current = await withinBudget(() => observeFullGameDemoPresentationMember(surface)); sampleCount++;
+      if (samples.length < 256) samples.push(current);
+      initial ??= current;
+      assert.equal(current.hasAuth, true); assert.equal(current.sameActor, true);
+      assert.equal(current.sessionId, options.sessionId); assert.equal(current.meSessionId, options.sessionId);
+      assert.equal(current.profileSessionId, options.sessionId); assert.equal(current.playerRole, 'player');
+      const known = [{ roleId: 'controller', uidHash: options.controller?.uidHash }, ...options.roster];
+      assert.equal(known.filter(actor => actor.roleId === current.profileRoleId && actor.uidHash === current.uidHash).length, 1,
+        'Presentation must retain an exact original admitted identity.');
+      for (const key of ['documentTimeOrigin', 'uidHash', 'profileRoleId', 'profileSessionId', 'sessionId', 'meSessionId',
+        'playerRole', 'fleetGroupId', 'assignedRoleId']) assert.equal(current[key], initial[key], `Original presentation ${key} changed.`);
+      assert.ok(Number.isFinite(current.documentTimeOrigin) && current.documentTimeOrigin > 0);
+      assert.ok(Number.isSafeInteger(current.connectionGeneration) && current.connectionGeneration >= 1);
+      assert.ok(Number.isSafeInteger(current.identityHydrationRevision) && current.identityHydrationRevision >= 1);
+      if (previous) {
+        assert.ok(current.connectionGeneration >= previous.connectionGeneration, 'Current presentation lease regressed.');
+        assert.ok(current.identityHydrationRevision >= previous.identityHydrationRevision, 'Current presentation hydration regressed.');
+      }
+      previous = current;
+      assert.equal(current.connected, true); assert.equal(current.kicked, false);
+      assert.equal(current.escapeLocked, false); assert.equal(current.replacementRoleId, null); assert.equal(current.replacementStatus, null);
+      assert.equal(current.instanceId, null); assert.equal(current.gmInstanceOwned, false);
+      assert.equal(current.cycle, 0); assert.ok(['lobby', 'casting'].includes(current.phase));
+      assert.equal(current.setupConfirmed, true); assert.equal(current.fullGameDemoExact, true);
+      assert.deepEqual(current.fullGameDemo, { status: 'preparing', progression: 'manual' });
+      const press = current.profileRoleId === 'press-officer';
+      if (press) {
+        assert.equal(options.pressIncluded, true); assert.equal(current.pressEnabled, true);
+        assert.equal(current.assignedRoleId, null); assert.equal(current.seatId, null);
+        assert.ok(current.activeConsoleRoleId === null || current.activeConsoleRoleId === 'press-officer');
+        if (current.currentMemberBerthPresent) assert.equal(current.currentMemberBerthNull, true, 'Press cannot acquire a capital-ship berth.');
+        if (current.memberVesselCount !== null) {
+          assert.equal(current.memberScopeMatches, true, 'The Press account must retain its current fleet member scope.');
+          // A withdrawn console is an ordinary unassigned account. Its normal
+          // server fleet public projection confers no Press station capability.
+          if (current.activeConsoleRoleId === 'press-officer') {
+            assert.equal(current.memberVesselCount, 0, 'Held Press has no capital-vessel audience.');
+            assert.equal(current.pressCraftScopeMatches, true, 'Held Press can retain only its own SNN craft scope.');
+          }
+        }
+      } else if (current.profileRoleId === 'controller') {
+        assert.equal(current.assignedRoleId, null); assert.equal(current.activeConsoleRoleId, null);
+      } else {
+        assert.ok(options.confirmedRoleIds.includes(current.profileRoleId));
+        assert.equal(current.assignedRoleId, current.profileRoleId); assert.equal(current.activeConsoleRoleId, current.profileRoleId);
+        assert.equal(current.currentCanonicalSeatOwned, true);
+        if (current.currentMemberBerthPresent) assert.equal(current.currentMemberBerthMatches, true);
+      }
+      const ready = current.connection === 'live' && current.freshness === 'server' && current.currentOwnPlayerConfirmed &&
+        current.sdkHasServerAuthority && !current.sdkResumePending &&
+        (!press || current.currentMemberBerthPresent && current.currentMemberBerthNull && current.memberScopeMatches);
+      await withinBudget(() => onSample?.(current));
+      if (ready) {
+        return { actor: captureFullGameDemoPresentationActor(current, options), initial, current, sampleCount, deadlineAt,
+          observation: 'Passive original account/member/SDK readiness; no station entry or extra SDK retry.',
+          stationNavigationEpochAcceptanceClaimed: false };
+      }
+      await withinBudget(() => wait(Math.max(1, Math.min(250, deadlineAt - now()))));
+    }
+  } catch (error) {
+    rememberProofFailure(error, { operation: 'presentation-start-readiness', deadlineAt, initial, current, sampleCount, samples });
+    throw error;
+  }
 }
 
 /** Drives only the manager's disclosed ordinary retry, never replacing an identity. */

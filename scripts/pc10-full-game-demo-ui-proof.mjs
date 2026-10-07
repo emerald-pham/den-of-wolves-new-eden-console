@@ -8,7 +8,7 @@ import { resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { pathToFileURL } from 'node:url';
 import { chromium } from 'playwright';
-import { proofRuntimeFromViteSource, validateProofRuntime, assertSelectedActor, captureFullGameDemoPresentationActor, completePreparedCrew, confirmPreparedSetup, isObservedGameEnding, assertExactFullGameStartRecovery, waitForFullGamePresentationReady } from './pc10-full-game-demo-proof-helpers.mjs';
+import { proofRuntimeFromViteSource, validateProofRuntime, assertSelectedActor, waitForFullGameDemoPresentationActor, completePreparedCrew, confirmPreparedSetup, isObservedGameEnding, assertExactFullGameStartRecovery, waitForFullGamePresentationReady } from './pc10-full-game-demo-proof-helpers.mjs';
 
 const PRESENTATION_READINESS_SOURCE_FILES = Object.freeze([
   'scripts/pc10-full-game-demo-proof-helpers.mjs',
@@ -488,13 +488,20 @@ export async function runFreshFullGameDemoUi(options = {}) {
       await casting.getByRole('button', { name: `Release role from ${name}`, exact: true }).waitFor();
     }
     await options.onBeforeStart?.({ gm, crew, initial, confirmed, prepared, roster, directory });
-    const presentationCrew = captureFullGameDemoPresentationActor(await crew.observe(), {
-      sessionId: initial.sessionId,
-      controller,
-      roster,
-      confirmedRoleIds: confirmed.activeRoleIds,
-      pressIncluded: includePress,
+    await mark('current Browser B account readiness before actual Cycle 1');
+    const presentationDeadlineAt = Date.now() + 60_000;
+    evidence.presentationStartReadiness = { status: 'pending', deadlineAt: presentationDeadlineAt, samples: [] };
+    const presentationReady = await waitForFullGameDemoPresentationActor({ surface: crew,
+      sessionId: initial.sessionId, controller, roster,
+      confirmedRoleIds: confirmed.activeRoleIds, pressIncluded: includePress,
+      deadlineAt: presentationDeadlineAt,
+      onSample: current => {
+        const samples = evidence.presentationStartReadiness.samples;
+        if (samples.length < 256) samples.push(current);
+      },
     });
+    evidence.presentationStartReadiness = { ...evidence.presentationStartReadiness, ...presentationReady, status: 'ready' };
+    const presentationCrew = presentationReady.actor;
     evidence.presentationStartCrewIdentity = {
       profileRoleId: presentationCrew.profileRoleId,
       uidHash: presentationCrew.uidHash,
