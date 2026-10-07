@@ -961,7 +961,8 @@ export default function GmConsole() {
       : (role.vesselId === undefined || replacementVesselIds.has(role.vesselId)),
   );
 
-  const dradisModalOpen = Boolean(dradisExpanded && session && me && isGm && local && !gmRecoveryPending);
+  const dradisModalOpen = Boolean(dradisExpanded && session && me && isGm && local &&
+    !gmRecoveryPending && connection === 'live' && sessionSnapshotFreshness === 'server');
   useLayoutEffect(() => {
     if (!dradisExpanded || dradisModalOpen) return;
     dradisAnimation.current?.cancel();
