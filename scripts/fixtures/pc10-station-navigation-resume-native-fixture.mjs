@@ -36,7 +36,7 @@ const sha = uid => createHash('sha256').update(uid).digest('hex').slice(0, 16);
 const plain = value => JSON.parse(JSON.stringify(value));
 
 export async function stationNavigationResumeFixture(options = {}) {
-  const roleId = 'icebreaker-captain', f = projectionFixture({ actorRoleId: roleId, freshDemo: true });
+  const roleId = options.roleId ?? 'icebreaker-captain', f = projectionFixture({ actorRoleId: roleId, freshDemo: true });
   f.store.setState({ me: { ...f.store.getState().me, connectionGeneration: 2,
     ...(options.initialSeatNull ? { seatId: null } : {}) },
     ...(options.initialSeatNull ? { seats: [{ id: roleId, roleId, status: 'open', holderUid: null }] } : {}) });
@@ -78,6 +78,24 @@ export async function stationNavigationResumeFixture(options = {}) {
       .map(name => sourceFunction('src/lib/sessionSnapshotAuthority.ts', name)).join('\n'))).runInContext(authorityContext);
   const authorityFns = new Script('({beginMemberSessionResume,isCurrentMemberSessionResume,finishMemberSessionResume,memberSessionResumeBlocksFreshness,sessionSnapshotAuthorityFor})').runInContext(authorityContext);
   const authority = authorityFns.sessionSnapshotAuthorityFor(sid, uid); authority.hasServerSessionAuthority = true;
+  // A Vite query-qualified mounted module and a later bare import can own
+  // different module maps/WeakMaps. Evaluate the same actual Source functions
+  // in a second module closure; only the mounted closure is used by normal SDK
+  // resume below. This is Native-only, with no browser or transport acceptance.
+  const mountedAuthorityUrl = '/src/lib/sessionSnapshotAuthority.ts?t=native-mounted-app';
+  let bareAuthorityFns = authorityFns;
+  if (options.distinctMountedAuthority) {
+    const bareContext = createContext({});
+    new Script(js('const sessionSnapshotAuthorities = new Map(); const memberResumeTokens = new WeakMap();\n' +
+      ['createSessionSnapshotAuthority', 'beginMemberSessionResume', 'isCurrentMemberSessionResume',
+        'finishMemberSessionResume', 'memberSessionResumeBlocksFreshness', 'sessionSnapshotAuthorityFor']
+        .map(name => sourceFunction('src/lib/sessionSnapshotAuthority.ts', name)).join('\n'))).runInContext(bareContext);
+    bareAuthorityFns = new Script('({beginMemberSessionResume,isCurrentMemberSessionResume,finishMemberSessionResume,memberSessionResumeBlocksFreshness,sessionSnapshotAuthorityFor})').runInContext(bareContext);
+    if (options.bareDecoyAccepted) bareAuthorityFns.sessionSnapshotAuthorityFor(sid, uid).hasServerSessionAuthority = true;
+  }
+  const authorityImports = [];
+  f.crew.sessionAuthorityModuleUrl = () => Object.hasOwn(options, 'capturedAuthorityModuleUrl')
+    ? options.capturedAuthorityModuleUrl : mountedAuthorityUrl;
   const leaseContext = createContext({ HttpsError: class extends Error {} });
   new Script(js(sourceFunction('functions/src/index.ts', 'nextConnectionGeneration'))).runInContext(leaseContext);
   const nextGeneration = new Script('nextConnectionGeneration').runInContext(leaseContext);
@@ -155,7 +173,8 @@ export async function stationNavigationResumeFixture(options = {}) {
       ['/src/store/useSessionStore.ts', { useSessionStore: { getState: f.store.getState } }],
       ['/src/lib/firebase.ts', { auth: () => ({ currentUser: { uid: f.authUid } }) }],
       ['/src/lib/demoActorContext.ts', { activeDemoActorProfile: { roleId, sessionId: sid } }],
-      ['/src/lib/sessionSnapshotAuthority.ts', authorityFns],
+      ['/src/lib/sessionSnapshotAuthority.ts', bareAuthorityFns],
+      [mountedAuthorityUrl, authorityFns],
     ]);
     const modules = new Map();
     for (const [name, values] of exports) {
@@ -165,7 +184,9 @@ export async function stationNavigationResumeFixture(options = {}) {
       await module.link(() => assert.fail('No extra transport')); await module.evaluate(); modules.set(name, module);
     }
     return plain(await new Script(`(${callback.toString()})(input)`, { importModuleDynamically: async name => {
-      assert.ok(modules.has(name), name); return modules.get(name);
+      assert.ok(modules.has(name), name);
+      if (name.includes('sessionSnapshotAuthority.ts')) authorityImports.push(name);
+      return modules.get(name);
     } }).runInContext(browser));
   };
   f.crew.page.on = (...args) => { events.on(...args); return f.crew.page; };
@@ -209,6 +230,13 @@ export async function stationNavigationResumeFixture(options = {}) {
     started: { fullGameDemo: { status: 'active', progression: 'manual' } },
     roster: [{ roleId, uidHash: sha(uid) }], directory });
   return { ...f, sdkRequests, application, seatClaims, lifecycleCommands, clientJoin, clientAssignRole, clientReleaseRole, directory, events, adapter,
+    authorityImports, mountedAuthorityUrl, authorityBinding: () => {
+      const bare = bareAuthorityFns.sessionSnapshotAuthorityFor(sid, uid);
+      return { sameObject: bare === authority, mountedHasServerAuthority: authority.hasServerSessionAuthority,
+        bareHasServerAuthority: bare.hasServerSessionAuthority,
+        mountedResumePending: authorityFns.memberSessionResumeBlocksFreshness(authority),
+        bareResumePending: bareAuthorityFns.memberSessionResumeBlocksFreshness(bare) };
+    },
     run: () => adapter.select(roleId, { deadlineAt: Date.now() + (options.shortDeadline ? 120 : 1500) }),
     cleanup: () => rm(directory, { recursive: true, force: true }) };
 }
