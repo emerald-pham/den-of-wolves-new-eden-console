@@ -2672,7 +2672,7 @@ it('eases the GM DRADIS through both expansion and collapse', async () => {
     .mockReturnValueOnce(expanded)
     .mockReturnValueOnce(expanded)
     .mockReturnValueOnce(compact);
-  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function () {
+  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
     return this.matches('.gm-dradis, .gm-dradis-modal') ? measure() : originalMeasure.call(this);
   });
   const cancel = vi.fn();

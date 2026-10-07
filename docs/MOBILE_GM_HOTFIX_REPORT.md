@@ -73,7 +73,10 @@ The waiting-state test now expects the owner's red token with the same accessibl
 copy. An additional ephemeral recovery-state test ensures it is never persisted and
 resets on identity reset. A mounted recovery hold keeps private controls absent
 while the original claim is checked. An explicit server role-demotion negative
-prevents automatic promotion of a fresh demoted claim. No tests are skipped or
+prevents automatic promotion of a fresh demoted claim. The existing same-UID sibling lifecycle assertion now checks an inactive
+natural-expiry descriptor instead of deletion, while preserving live sibling,
+player role and membership assertions and asserting no stale private grant.
+No tests are skipped or
 deleted; test-name selection is reported separately from full-file validation.
 
 ## Release plan
