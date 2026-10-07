@@ -31,7 +31,9 @@ function resumeReply(body) {
   return { sessionId: result.session?.id,
     uidHash: createHash('sha256').update(player.uid).digest('hex').slice(0, 16),
     player: Object.fromEntries(memberFields.map(key => [key, player[key] ?? null])),
-    connectionGeneration: player.connectionGeneration, connected: player.connected === true,
+    connectionGeneration: player.connectionGeneration,
+    connectedFieldPresent: Object.hasOwn(player, 'connected'),
+    connected: Object.hasOwn(player, 'connected') ? player.connected : null,
     escapeLocked: player.escapeState != null };
 }
 
@@ -113,11 +115,14 @@ export function createMemberNavigationResumeObserver(page, { directory, roleId, 
       const receipt = candidates.find(row => row.requestMatches && row.requestSessionId === original.sessionId &&
         row.httpStatus === 200 && row.reply?.sessionId === original.sessionId && row.reply.uidHash === original.uidHash &&
         row.reply.connectionGeneration === original.connectionGeneration + 1 &&
-        row.reply.connectionGeneration === current.connectionGeneration && row.reply.connected && !row.reply.escapeLocked &&
+        row.reply.connectionGeneration === current.connectionGeneration &&
+        (row.reply.connected === true || !row.reply.connectedFieldPresent && row.reply.connected === null) && !row.reply.escapeLocked &&
         memberFields.every(key => row.reply.player[key] === current[observationField[key] ?? key]) &&
         row.reply.player.role === 'player');
       assert.ok(receipt && current.identityHydrationRevision === original.identityHydrationRevision + 1,
         'Original role navigation epoch changed without its matching normal resume receipt and accepted hydration.');
+      // The actual normal DTO omits connected. Current own-player confirmation
+      // below supplies that authority; explicit false/malformed reply flags fail.
       // applySession clears the old member envelope. Let the existing feed and
       // SDK finish fence land within the caller's original finite deadline.
       if (current.connection !== 'live' || current.freshness !== 'server' || !current.currentMemberBerthPresent || !current.currentMemberBerthMatches ||
