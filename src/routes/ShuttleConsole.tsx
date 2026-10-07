@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import ShuttleConsoleTemplate from '@/components/ShuttleConsoleTemplate';
 import { activeFleetShipIds, DEFAULT_ACTIVE_ROLE_IDS, findConsoleRole } from '@/data/roles';
@@ -72,18 +72,27 @@ export default function ShuttleConsole({ shuttleId: providedShuttleId }: { shutt
   const hasPlayerAuthority = isGm || me?.replacementStatus == null;
   const isControlHolder = hasPlayerAuthority && control?.holderUid === me?.uid;
   const isPrintedOwner = hasPlayerAuthority && control?.ownerUid === me?.uid;
+  const pressEntryRequested = useRef(isPressShuttle && me?.activeConsoleRoleId === shuttle?.captainRoleId);
+  const canReenterOwnedPressRole = Boolean(
+    isPressShuttle && !isGm && me?.role === 'player' && me.sessionId === session?.id &&
+    connection === 'live' && sessionSnapshotFreshness === 'server' &&
+    isControlHolder && isPrintedOwner && !me.activeConsoleRoleId,
+  );
   const canClaimCaptainRole = Boolean(
     session && me && shuttle && (mode === 'console' || mode === 'press') &&
     hasPlayerAuthority &&
     shuttleEnabled &&
-    (!isPressShuttle || !isGm) && !isControlHolder &&
+    (!isPressShuttle || !isGm) && (!isControlHolder || canReenterOwnedPressRole) &&
     (isGm || !me.activeConsoleRoleId || me.activeConsoleRoleId === shuttle.captainRoleId),
   );
 
   useEffect(() => {
     if (!shuttle || !canClaimCaptainRole) return;
+    // A committed release may arrive before its reply; select only on a new Press entry.
+    if (isPressShuttle && pressEntryRequested.current) return;
+    if (isPressShuttle) pressEntryRequested.current = true;
     void selectConsoleRole(shuttle.captainRoleId).catch(() => undefined);
-  }, [canClaimCaptainRole, shuttle]);
+  }, [canClaimCaptainRole, isPressShuttle, shuttle]);
 
   if (!session || !me) return <Navigate to="/" replace />;
   if (!isGm && me.replacementStatus != null) return <Navigate to="/console" replace />;
