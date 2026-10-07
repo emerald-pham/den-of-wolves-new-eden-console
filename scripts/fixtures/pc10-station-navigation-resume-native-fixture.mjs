@@ -43,7 +43,8 @@ export async function stationNavigationResumeFixture(options = {}) {
   await f.resumeSessionOnly(); await f.receiveMemberProjection();
   const start = f.store.getState(), uid = start.me.uid, sid = start.session.id;
   const directory = await mkdtemp(join(tmpdir(), 'pc10-native-navigation-'));
-  const events = new EventEmitter(), sdkRequests = [], application = [], seatClaims = [];
+  const events = new EventEmitter(), sdkRequests = [], application = [], seatClaims = [], lifecycleCommands = [];
+  let actualNormalClaim, acceptanceClaims = 0;
   let resumedServerPlayer;
   if (options.initialSeatNull) {
     // Actual normal client selection/claimSeat with inert Native receipt
@@ -67,7 +68,8 @@ export async function stationNavigationResumeFixture(options = {}) {
     });
     new Script(js(sourceFunction('src/lib/sessionService.ts', 'claimSeat') + '\n' +
       sourceFunction('src/lib/sessionService.ts', 'selectConsoleRole'))).runInContext(claimContext);
-    f.normalClaim = () => new Script(`selectConsoleRole(${JSON.stringify(roleId)})`).runInContext(claimContext);
+    actualNormalClaim = () => new Script(`selectConsoleRole(${JSON.stringify(roleId)})`).runInContext(claimContext);
+    f.normalClaim = () => options.claimDuringAcceptance ? undefined : actualNormalClaim();
   }
   const authorityContext = createContext({});
   new Script(js('const sessionSnapshotAuthorities = new Map(); const memberResumeTokens = new WeakMap();\n' +
@@ -81,19 +83,20 @@ export async function stationNavigationResumeFixture(options = {}) {
   const nextGeneration = new Script('nextConnectionGeneration').runInContext(leaseContext);
   const sourceResumeContext = createContext({ ...authorityFns,
     useSessionStore: { getState: f.store.getState }, auth: () => ({ currentUser: { uid: f.authUid } }),
-    functions: () => ({}),
+    functions: () => ({}), ensureSignedIn: async () => assert.equal(f.authUid, uid),
     applySession: reply => {
       if (options.rejectApply) return false;
       const current = f.store.getState();
-      application.push({ beforeGeneration: current.me.connectionGeneration, replyGeneration: reply.player.connectionGeneration });
+      application.push({ beforeGeneration: current.me?.connectionGeneration ?? null, replyGeneration: reply.player.connectionGeneration });
       f.store.setState({ me: plain(reply.player), session: plain(reply.session),
         identityHydrationRevision: current.identityHydrationRevision + 1 }); return true;
     },
     httpsCallable: (_runtime, endpoint) => async data => {
-      assert.equal(endpoint, 'resumeSession'); sdkRequests.push(endpoint);
+      assert.ok(['joinSession', 'resumeSession'].includes(endpoint)); sdkRequests.push(endpoint);
       const before = f.store.getState();
-      const player = { ...before.me, connectionGeneration: nextGeneration({ get: key => before.me[key] }) };
-      let reply = { player, session: { ...before.session } };
+      const player = endpoint === 'joinSession' ? { ...start.me, assignedRoleId: null, activeConsoleRoleId: null, seatId: null, connectionGeneration: 1 }
+        : { ...before.me, connectionGeneration: nextGeneration({ get: key => before.me[key] }) };
+      let reply = { player, session: { ...(endpoint === 'joinSession' ? start.session : before.session) } };
       if (options.sourceResumeReply) {
         resumedServerPlayer = { ...player };
         const server = createContext({ uid, sessionId: sid,
@@ -102,10 +105,11 @@ export async function stationNavigationResumeFixture(options = {}) {
           isoOf: () => undefined, playerEscapeState: () => undefined });
         reply = plain(new Script(js(`(${resumeReplySource})`)).runInContext(server));
         assert.equal(Object.hasOwn(reply.player, 'connected'), false, 'Use the exact current server DTO, not an invented connected flag.');
-        reply.session = { ...before.session };
+        reply.session = { ...(endpoint === 'joinSession' ? start.session : before.session) };
       }
       delete reply.session.currentActorBerthAuthority;
       options.mutateReply?.(reply);
+      if (endpoint === 'joinSession') { assert.equal(data.joinCode, 'NATIVE'); return { data: reply }; }
       const request = { method: () => 'POST', url: () => 'http://127.0.0.1:5011/demo-native/us-central1/resumeSession',
         postDataJSON: () => ({ data: { sessionId: options.requestSession ?? data.sessionId } }),
         allHeaders: () => assert.fail('No request headers'), headers: () => assert.fail('No request headers') };
@@ -117,12 +121,36 @@ export async function stationNavigationResumeFixture(options = {}) {
       return { data: reply };
     },
   });
-  new Script(js(sourceFunction('src/lib/sessionService.ts', 'resumeSession'))).runInContext(sourceResumeContext);
+  new Script(js(sourceFunction('src/lib/sessionService.ts', 'resumeSession') + '\n' + sourceFunction('src/lib/sessionService.ts', 'joinSession'))).runInContext(sourceResumeContext);
   const resume = new Script('resumeSession').runInContext(sourceResumeContext);
+  const joinSession = new Script('joinSession').runInContext(sourceResumeContext);
+  const gmContext = createContext({ useSessionStore: { getState: () => ({ session: { id: sid }, gmInstance: { id: 'native-owned-gm' } }) },
+    commandId: () => 'native-lifecycle-command', sendOrQueue: async command => {
+      lifecycleCommands.push(plain(command)); assert.equal(command.payload.sessionId, sid); assert.equal(command.payload.targetUid, uid);
+      const current = f.store.getState();
+      if (command.kind === 'assignRole') { assert.equal(command.payload.roleId, roleId); f.store.setState({ me: { ...current.me, assignedRoleId: roleId } }); }
+      else { assert.equal(command.kind, 'releaseRole'); f.store.setState({ me: { ...current.me, assignedRoleId: null, activeConsoleRoleId: null, seatId: null },
+        seats: current.seats.map(seat => ({ ...seat, status: 'open', holderUid: null })) }); }
+      return 'applied';
+    } });
+  new Script(js(sourceFunction('src/lib/sessionService.ts', 'assignRole') + '\n' + sourceFunction('src/lib/sessionService.ts', 'releaseRole'))).runInContext(gmContext);
+  const clientAssignRole = async () => { await new Script(`assignRole(${JSON.stringify(uid)},${JSON.stringify(roleId)})`).runInContext(gmContext); await f.receiveMemberProjection(); };
+  const clientReleaseRole = async () => { await new Script(`releaseRole(${JSON.stringify(uid)})`).runInContext(gmContext); await f.receiveMemberProjection(); };
+  const clientJoin = async () => { f.store.setState({ session: null, me: null, identityHydrationRevision: 0 }); await joinSession('NATIVE'); await f.receiveMemberProjection(); };
   const originalEvaluate = f.crew.page.evaluate;
   f.crew.page.evaluate = async (callback, input) => {
     if (typeof input === 'string') return originalEvaluate(callback, input);
-    const browser = createContext({ input, crypto: webcrypto, TextEncoder, performance: { timeOrigin: options.newDocument ? 2000 : 1000 } });
+    if (options.acceptanceObservationPending) return new Promise(() => {});
+    const crypto = { subtle: { digest: async (algorithm, bytes) => {
+      const digest = await webcrypto.subtle.digest(algorithm, bytes);
+      if (options.claimDuringAcceptance && acceptanceClaims++ === 0) {
+        await actualNormalClaim();
+        options.afterAcceptanceClaim?.(f);
+        if (!options.staleAfterAcceptanceClaim) await f.receiveMemberProjection();
+      }
+      return digest;
+    } } };
+    const browser = createContext({ input, crypto, TextEncoder, performance: { timeOrigin: options.newDocument ? 2000 : 1000 } });
     const exports = new Map([
       ['/src/store/useSessionStore.ts', { useSessionStore: { getState: f.store.getState } }],
       ['/src/lib/firebase.ts', { auth: () => ({ currentUser: { uid: f.authUid } }) }],
@@ -149,14 +177,21 @@ export async function stationNavigationResumeFixture(options = {}) {
     }
     return receiveMemberProjection();
   };
+  let forcedRoute; const originalUrl = f.crew.page.url;
+  f.crew.page.url = () => forcedRoute ? originalUrl().replace(/#.*/, `#${forcedRoute}`) : originalUrl();
+  f.setActorRoute = () => { forcedRoute = '/demo-actors'; };
+  const originalGetByRole = f.crew.page.getByRole;
+  f.crew.page.getByRole = (...args) => { const link = originalGetByRole(...args), click = link.click; link.click = async () => { forcedRoute = undefined; await click(); }; return link; };
   const originalLocator = f.crew.page.locator;
   f.crew.page.locator = selector => {
     const link = originalLocator(selector), click = link.click;
     link.click = async () => {
+      forcedRoute = undefined;
+      if (options.resumeBeforeClaim && !options.skipResume) await resume(sid);
       await click();
       if (options.unwitnessed) {
         const current = f.store.getState(); f.store.setState({ me: { ...current.me, connectionGeneration: current.me.connectionGeneration + 1 }, identityHydrationRevision: 2 });
-      } else if (!options.skipResume) {
+      } else if (!options.skipResume && !options.resumeBeforeClaim) {
         await resume(sid);
         if (options.forgeAfterRejected) {
           const current = f.store.getState(); f.store.setState({ me: { ...current.me, connectionGeneration: current.me.connectionGeneration + 1 }, identityHydrationRevision: 2 });
@@ -172,7 +207,7 @@ export async function stationNavigationResumeFixture(options = {}) {
   const adapter = createTwoBrowserGameplay({ gm: {}, crew: f.crew, initial: { sessionId: sid, joinCode: 'NATIVE' },
     started: { fullGameDemo: { status: 'active', progression: 'manual' } },
     roster: [{ roleId, uidHash: sha(uid) }], directory });
-  return { ...f, sdkRequests, application, seatClaims, directory, events, adapter,
+  return { ...f, sdkRequests, application, seatClaims, lifecycleCommands, clientJoin, clientAssignRole, clientReleaseRole, directory, events, adapter,
     run: () => adapter.select(roleId, { deadlineAt: Date.now() + (options.shortDeadline ? 120 : 1500) }),
     cleanup: () => rm(directory, { recursive: true, force: true }) };
 }
