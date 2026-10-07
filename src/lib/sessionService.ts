@@ -2906,8 +2906,10 @@ export async function reconcileGmAuthority(): Promise<void> {
   store.setConnection('connecting');
   // The saved descriptor locates the original claim. It carries no live
   // privilege while the server decides whether natural recovery is allowed.
-  store.setGmInstance({ ...remembered, shipConsoleWriteGrant: undefined,
-    responsibilities: [], responsibility: undefined });
+  const descriptor = { ...remembered, responsibilities: [] };
+  delete descriptor.shipConsoleWriteGrant;
+  delete descriptor.responsibility;
+  store.setGmInstance(descriptor);
   if (store.me) store.setMe({ ...store.me, role: 'player' });
   const call = httpsCallable<{
     sessionId: string; instanceId: string; name: string; deviceLabel: string;

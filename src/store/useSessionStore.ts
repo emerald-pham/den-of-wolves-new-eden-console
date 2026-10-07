@@ -571,7 +571,7 @@ const initial = {
   identityHydrationRevision: 0,
 } satisfies Pick<
   SessionState,
-  'session' | 'seats' | 'me' | 'gmInstance' | 'gmAccessAuthenticatedAt' | 'turnStartReplay' | 'pendingCommands' |
+  'session' | 'seats' | 'me' | 'gmInstance' | 'gmRecoveryPending' | 'gmAccessAuthenticatedAt' | 'turnStartReplay' | 'pendingCommands' |
   'privateLoyalty' | 'roleBrief' | 'roleBriefLoading' | 'awayMissionHandPointer' | 'awayMissionHand' | 'awayMissionHandPointers' | 'awayMissionHands' | 'gmAwayMissionHandPointers' | 'gmLoyaltyCensus' | 'wolfCultIntelligence' | 'gmWolfCultIntelligence' | 'arbourVision' | 'gmArbourVision' | 'facilitatorRuleCall' | 'gmFacilitatorRuleCall' | 'gmCrisisState' | 'gmZealotryResponse' | 'gmCivilUnrestResolution' | 'gmSetupReceipt' | 'commissarPurgeAuthority' | 'communicationError' | 'mode' | 'lastRoute' | 'connection' |
   'sessionSnapshotFreshness' | 'voyage33MovementProjectionFresh' |
   'persistedSessionSnapshot' | 'identityHydrationRevision'
