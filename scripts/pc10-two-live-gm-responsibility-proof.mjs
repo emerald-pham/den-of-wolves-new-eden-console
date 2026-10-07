@@ -76,8 +76,39 @@ function safeHeldLifecycleActor(value) {
     sessionHash: fingerprint('sessionId'), instanceHash: fingerprint('instanceId'), claimedAtHash: fingerprint('claimedAt') };
 }
 
+// Capture only primitive assert comparisons and an owned file name/line.
+// The original exception and its raw stack/message remain in memory.
+function safeResponsibilityFailureComparison(error) {
+  const primitive = value => typeof value === 'boolean' ? { kind: 'boolean', value }
+    : Number.isSafeInteger(value) && value >= 0 ? { kind: 'safe-nonnegative-integer', value }
+      : { kind: 'not-emitted', value: null };
+  const operators = ['==', '===', 'strictEqual', 'deepStrictEqual'];
+  let sourceFrame = null;
+  const frames = typeof error?.stack === 'string' ? error.stack.slice(0, 8192).split('\n').slice(1, 17) : [];
+  for (const frame of frames) {
+    const match = frame.match(/\/(pc10-member-gm-lifecycle-contracts\.mjs|pc10-two-live-gm-responsibility-proof\.mjs):(\d{1,9}):(\d{1,9})(?:\)|\s|$)/);
+    if (match) {
+      const line = Number(match[2]), column = Number(match[3]);
+      if (Number.isSafeInteger(line) && line > 0 && Number.isSafeInteger(column) && column > 0) {
+        sourceFrame = { file: match[1], line, column };
+        break;
+      }
+    }
+  }
+  return { operator: operators.includes(error?.operator) ? error.operator : null,
+    actual: primitive(error?.actual), expected: primitive(error?.expected), sourceFrame };
+}
+
 function safeHeldFailureObservations(held) {
   const result = {};
+  const checkpointParts = ['original-gm-current-revision', 'controller-gm-current-revision',
+    'rendered-lane-projection', 'offered-own-control', 'native-responsibility-ui-receipt',
+    'result-revision-and-coverage', 'rendered-after-move'];
+  if (Number.isInteger(held.responsibilityCheckpoint?.step) && held.responsibilityCheckpoint.step >= 0 &&
+    held.responsibilityCheckpoint.step < 3 && checkpointParts.includes(held.responsibilityCheckpoint.part)) {
+    result.responsibilityCheckpoint = { step: held.responsibilityCheckpoint.step,
+      part: held.responsibilityCheckpoint.part };
+  }
   for (const key of ['settledGm', 'settledController', 'originalA', 'controller', 'authorized', 'originalB', 'released', 'restored', 'finalA']) {
     if (held[key]) result[key] = safeHeldLifecycleActor(held[key]);
   }
@@ -462,20 +493,27 @@ export function createTwoLiveGmResponsibilityProof({ sourceRoot, expectedSourceB
         const surface = step === 2 ? context.crew : context.gm;
         const lanesA = step === 2 ? ['main'] : ['main', 'assistant'];
         const lanesB = step === 0 ? [] : ['assistant'];
+        failure.held.responsibilityCheckpoint = { step, part: 'original-gm-current-revision' };
         await untilLifecycle(context.gm, originalA, value => value.setupRevision === revision + step && value.pendingCount === 0,
           'Original GM current Responsibility revision', { gm: true });
+        failure.held.responsibilityCheckpoint = { step, part: 'controller-gm-current-revision' };
         await untilLifecycle(context.crew, originalB, value => value.setupRevision === revision + step && value.pendingCount === 0,
           'Original controller GM current Responsibility revision', { gm: true });
+        failure.held.responsibilityCheckpoint = { step, part: 'rendered-lane-projection' };
         const board = await renderedLanes(surface, nameA, nameB, step === 2 ? nameB : nameA, lanesA, lanesB);
+        failure.held.responsibilityCheckpoint = { step, part: 'offered-own-control' };
         const control = board.getByRole('button', { name: CONTROLS[step], exact: true });
         assert.ok(await control.count() === 1 && await control.isVisible() && await control.isEnabled(),
           'The exact own held-lane Responsibility control must be rendered and offered.');
+        failure.held.responsibilityCheckpoint = { step, part: 'native-responsibility-ui-receipt' };
         const capture = await captureLifecycleUiAction(surface, 'setFacilitatorResponsibility', () => control.click());
         failure.guard = `responsibility.move-${step + 1}.fresh-ui-request-id`;
         assert.ok(!requestIds.has(capture.data.requestId), 'Every normal Responsibility move must have its own fresh UI request ID.');
         requestIds.add(capture.data.requestId);
+        failure.held.responsibilityCheckpoint = { step, part: 'result-revision-and-coverage' };
         evidence.moves.push(assertTwoLiveGmResponsibilityMove({ step, capture, originalA, originalB, expectedRevision: revision + step }));
         const afterA = step === 1 ? ['main'] : ['main', 'assistant'], afterB = step === 2 ? [] : ['assistant'];
+        failure.held.responsibilityCheckpoint = { step, part: 'rendered-after-move' };
         for (const [view, own] of [[context.gm, nameA], [context.crew, nameB]])
           await renderedLanes(view, nameA, nameB, own, afterA, afterB);
       }
@@ -580,6 +618,7 @@ export function createTwoLiveGmResponsibilityProof({ sourceRoot, expectedSourceB
     } catch (error) {
       Object.assign(evidence, { stage, errorName: error?.name ?? 'Error', errorCode: error?.code ?? null,
         failureGuard: error?.proofGuard ?? failure.guard,
+        failureComparison: safeResponsibilityFailureComparison(error),
         heldObservations: safeHeldFailureObservations(failure.held),
         responsibilityHeldObservations: error?.safeHeldObservations ?? null,
         failure: 'The original actor, Source, current native receipt, rendered projection or restoration contract failed.',
