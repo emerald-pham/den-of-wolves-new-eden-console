@@ -4915,9 +4915,9 @@ it.each(['offline', 'cache'] as const)(
     expect(useSessionStore.getState().gmRecoveryPending).toBe(false);
     expect(useSessionStore.getState().gmInstance).toEqual(local);
     expect(useSessionStore.getState().gmCrisisState).toBeNull();
-    expect(screen.getByRole('status', { name: 'GM connection recovery' })).toBeVisible();
+    // Offline keeps the established reconnect readout without inventing a recovery claim.
+    expect(screen.queryByRole('status', { name: 'GM connection recovery' })).toBeNull();
     expect(screen.queryByRole('dialog', { name: /fleet dradis/i })).toBeNull();
-    expect(screen.queryByRole('region', { name: 'Crisis state machine' })).toBeNull();
     expect(screen.queryByText('Role selection route')).not.toBeInTheDocument();
     expect(document.body.style.overflow).toBe(priorOverflow);
     act(() => {
