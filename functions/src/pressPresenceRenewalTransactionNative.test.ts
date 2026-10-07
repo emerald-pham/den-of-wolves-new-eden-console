@@ -398,6 +398,24 @@ describe('current original Press lease uses read-only exclusivity plus atomic po
     expect(JSON.stringify(after)).not.toContain('FOREIGN_PRIVATE_DATA');
   });
 
+  it('keeps the configuration-race denial and recovers the same Press identity through the ordinary server resume', async () => {
+    const before = await originalCurrentPressTable();
+    mock.setAfterReadOnlyTransaction(() => change(sessionPath, { setupRevision: 43 }));
+    await expect(renew()).rejects.toMatchObject({ code: 'permission-denied', details: { commandError: 'station-selection-required' } });
+    expect(mock.update).not.toHaveBeenCalled(); expect(mock.set).not.toHaveBeenCalled();
+    mock.setAfterReadOnlyTransaction(undefined); clearTraces();
+    const resumed = await resumeSession.run(request(pressUid, { sessionId: sid }));
+    expect(resumed.player).toMatchObject({ uid: pressUid, sessionId: sid, role: 'player',
+      connectionGeneration: 4, assignedRoleId: null, activeConsoleRoleId: 'press-officer', seatId: null });
+    const current = await getCurrentMemberSession.run(request(pressUid, { sessionId: sid }));
+    expect(current).toMatchObject({ actorUid: pressUid, sessionId: sid, connectionGeneration: 4,
+      assignedRoleId: null, activeConsoleRoleId: 'press-officer', currentActorBerthAuthority: null });
+    expect(current.session.memberSessionScope).toEqual(before.session.memberSessionScope);
+    expect(JSON.stringify(current)).not.toContain('FOREIGN_PRIVATE_DATA');
+    expect(read(sessionPath)?.pressHolderUid).toBe(pressUid);
+    expect(read(sessionPath)?.setupRevision).toBe(43);
+  });
+
   it('preserves the original omitted-role Press heartbeat transaction and current authority', async () => {
     await originalCurrentPressTable();
     expect(await refreshPresence.run(request(pressUid, { sessionId: sid }))).toEqual({ sessionId: sid });

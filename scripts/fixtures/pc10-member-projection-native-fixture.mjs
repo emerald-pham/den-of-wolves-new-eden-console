@@ -45,7 +45,7 @@ export function projectionFixture({ legacy = false, freshDemo = true, actorRoleI
   const records = () => {
     const current = f.store.getState();
     return { [`sessions/${sid}`]: { ...current.session }, [`sessions/${sid}/players/${uid}`]: { ...current.me },
-      [`sessions/${sid}/fleetGroups/fleet-1`]: { id: 'fleet-1', vesselIds: ['aegis'], memberUids: [uid],
+      [`sessions/${sid}/fleetGroups/fleet-1`]: f.memberGroup ?? { id: 'fleet-1', vesselIds: ['aegis'], memberUids: [uid],
         ...(f.legacy ? {} : { memberShipIds: { [uid]: 'aegis' } }) } };
   };
   f.legacy = legacy;
