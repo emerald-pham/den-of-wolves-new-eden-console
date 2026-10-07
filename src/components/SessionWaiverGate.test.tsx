@@ -26,7 +26,7 @@ afterEach(() => {
 });
 
 it('reopens all three regulations at the seven-day boundary in an active tab', () => {
-  localStorage.setItem(acknowledgeSessionWaiver, String(now));
+  acknowledgeSessionWaiver(localStorage, now);
   render(<SessionWaiverGate />);
   expect(screen.queryByRole('dialog', { name: /code of conduct/i })).toBeNull();
 
@@ -38,7 +38,7 @@ it('reopens all three regulations at the seven-day boundary in an active tab', (
 });
 
 it('rechecks an expired acknowledgement when a suspended tab becomes visible', () => {
-  localStorage.setItem(acknowledgeSessionWaiver, String(now));
+  acknowledgeSessionWaiver(localStorage, now);
   render(<SessionWaiverGate />);
   expect(screen.queryByRole('dialog', { name: /code of conduct/i })).toBeNull();
 
