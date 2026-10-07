@@ -184,3 +184,28 @@ for (const field of ['uid', 'seatId', 'activeConsoleRoleId']) test('a malformed 
   assert.match(packet, /invalid-reply/); assert.equal(f.events.listenerCount('request'), 0);
   assert.equal(f.events.listenerCount('response'), 0);
 });
+
+for (const [name, roleId, mutate] of [
+  ['held Press vessel audience', 'press-officer', f => f.store.setState({ session: { ...f.store.getState().session,
+    memberSessionScope: { ...f.store.getState().session.memberSessionScope, vesselIds: ['aegis'] } } })],
+  ['held Press foreign craft audience', 'press-officer', f => f.store.setState({ session: { ...f.store.getState().session,
+    memberSessionScope: { ...f.store.getState().session.memberSessionScope, craftIds: ['foreign-craft'] } } })],
+  ['held Press foreign SNN owner', 'press-officer', f => f.store.setState({ session: { ...f.store.getState().session,
+    memberSessionScope: { ...f.store.getState().session.memberSessionScope, craftIds: ['snn-press-shuttle'] },
+    shuttleControl: { 'snn-press-shuttle': { shuttleId: 'snn-press-shuttle', ownerRoleId: 'press-officer',
+      ownerUid: 'private-foreign-owner', holderUid: 'private-foreign-owner', revision: 0 } } } })],
+  ['core foreign canonical holder', 'dione-engineer', f => f.store.setState({ seats: f.store.getState().seats.map(seat =>
+    ({ ...seat, holderUid: 'private-foreign-holder' })) })],
+  ['core mismatched final berth', 'dione-engineer', f => f.store.setState({ session: { ...f.store.getState().session,
+    currentActorBerthAuthority: { ...f.store.getState().session.currentActorBerthAuthority, actorUid: 'private-foreign-member' } } })],
+]) test('the acceptance reread must repeat complete role/scope ownership checks: ' + name, async () => {
+  let changed = false, retried = false;
+  const f = await presentationStartFixture({ roleId, held: true, onDigest: (current, index) => {
+    if (index === 3) { changed = true; mutate(current); }
+  } });
+  f.setOffline(); await assert.rejects(wait(f, { onSample: async () => {
+    if (!retried) { retried = true; await f.automaticRetry(); }
+  } }));
+  assert.equal(changed, true); assert.deepEqual(f.sdkCalls, ['resumeSession']);
+  assert.equal(f.events.listenerCount('request'), 0); assert.equal(f.events.listenerCount('response'), 0);
+});
