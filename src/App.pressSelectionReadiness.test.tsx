@@ -10,6 +10,10 @@ import type { createCurrentMemberSessionReader as CreateMemberReader } from '../
 import type { GameSession, Player } from '@/types/game';
 import type { useSessionStore as SessionStore } from '@/store/useSessionStore';
 import type * as SessionService from '@/lib/sessionService';
+// @ts-expect-error The existing native proof dependencies are intentionally plain JavaScript.
+import { rememberProofFailure } from '../scripts/pc10-proof-failure-evidence.mjs';
+// @ts-expect-error The passive native navigation observer has no TypeScript declaration.
+import { createMemberNavigationResumeObserver } from '../scripts/pc10-member-navigation-resume.mjs';
 
 const sdk = vi.hoisted(() => ({
   auth: { currentUser: null as { uid: string } | null, authStateReady: vi.fn() },
@@ -341,7 +345,10 @@ async function publicPressSelection(onRich?: (index: number) => Promise<void>, o
   const catalog = createContext({});
   new Script(javascript(`const ROLE_IDS = ${ids.initializer!.getText(roles)}; ${sourceFunction(access, 'shipForRole')}`)).runInContext(catalog);
   const shipForRole = new Script('shipForRole;').runInContext(catalog) as (role: string) => string | undefined;
+  // Bind the unchanged factory's real imported dependencies. Native held-route
+  // pages do not advertise listeners, so the passive observer creates no files.
   const factory = createContext({ assert, createHash, Date, URL, delay: sourceDelay,
+    rememberProofFailure, createMemberNavigationResumeObserver,
     normalMemberRoleRequiresBerth: (role: string) => shipForRole(role) !== undefined });
   new Script(javascript(sourceFunction(source, 'createTwoBrowserGameplay'))).runInContext(factory);
   const create = new Script('createTwoBrowserGameplay;').runInContext(factory) as
