@@ -24,7 +24,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     version: APP_VERSION,
     implementationProgress: {
       completed: 703, total: 751, percentage: '93.61%',
-      done: 703, partial: 10, active: 0, missing: 38, blocked: 0,
+      done: 703, partial: 13, active: 0, missing: 35, blocked: 0,
     },
     changes: [
       'Returning to a closed game keeps its debrief available without restoring live shuttle or Press controls.',

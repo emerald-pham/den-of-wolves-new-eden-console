@@ -804,3 +804,21 @@ pass; the full progress gate is not relabeled passed. Evidence:
 `/tmp/dow-pc10-evidence/OWNER_CORE_CUSTODY_CARGO_4_FULL_PROGRESS_VALIDATION_20261007.log`
 (exit1) and `OWNER_CORE_CUSTODY_CARGO_4_PROGRESS_BASELINE_COMPARISON_20261007.json`
 SHA256 `2d207d32694acbc4beb95d2473ebe6a0d3626483fe8276983a902126e3b5c20f`.
+
+
+### October7 parent continuation — settled cargo and service recharge
+
+The closed custody/cargo handoff at45b94ded was accepted. Its actual functional
+proof is retained. The next bounded local assignment closes the visible cargo
+balance-after-transfer/reload gap, then reuses the same three normal actors and
+fresh game for Shepherd maintenance/refuel and Black Sheep Water Reclamation
+recharge. The pre-runtime criteria, minimum cohort, original deadlines, targeted
+checks/review and explicit limits are in the current acceptance matrix's
+“Selected settled cargo display and service recharge” section. No external
+release or later checkpoint is in this assignment.
+
+Reconcile only the current0.5.72 release summary to the actual catalog:
+703done/13partial/35missing. The accepted candidate family already supplied
+P542/P543/P593 partial subcriteria; no fixed closure is invented. Historical
+0.5.71 and all old failed progress logs are preserved. This metadata/docs-only
+correction does not change game behavior or require a new application version.

@@ -935,3 +935,63 @@ pass; the full progress gate is not relabeled passed. Evidence:
 `/tmp/dow-pc10-evidence/OWNER_CORE_CUSTODY_CARGO_4_FULL_PROGRESS_VALIDATION_20261007.log`
 (exit1) and `OWNER_CORE_CUSTODY_CARGO_4_PROGRESS_BASELINE_COMPARISON_20261007.json`
 SHA256 `2d207d32694acbc4beb95d2473ebe6a0d3626483fe8276983a902126e3b5c20f`.
+
+
+### Selected settled cargo display and service recharge — bounded continuation
+
+Parent accepted the closed Black Sheep custody/cargo family at `45b94ded` and
+requested only its remaining settled-display gap plus one next small family.
+Preserve Actual4 and its functional/privacy/retry evidence without replaying
+those assertions. First use its existing normal three-actor prefix and one
+handoff/food transfer to inspect the current Captain's cargo panel after server
+publication and after ordinary cold reload. Select Food through the normal
+control after reload, because that document's resource draft begins empty.
+Require visible Host9/Shuttle1, current original UID/role/seat/group/SDK authority,
+two painted frames and matching durable balances before retaining captures.
+This qualifies a desktop cargo display only, not final responsive/keyboard or
+manual-free usability.
+
+The next uncovered family is Black Sheep host-console recharge, a distinct
+once-per-cycle charge/immediate-production/recovery risk. Reuse that same game,
+GM, Engineer and Captain: three independent normal Auth identities and three
+automated Chrome processes, zero humans, legal16 with other seats open. The
+Engineer owns maintenance; the transferred Captain supplies current-holder
+recharge and the former holder supplies a real authority negative. The GM is
+needed for authentic manual progression and any explicitly recorded ordinary
+resource/damage preparation. No full roster, prepared crew, Admin gameplay
+writes, entropy injection or accelerated clock is used.
+
+After the cargo display is qualified in Cycle1 Coordination, use the existing
+manual GM next-cycle control and actual presentation clearance. Complete only
+Shepherd's printed maintenance through its ordinary Engineer UI, including
+explicit affordable rations, reactor choice and Black Sheep refuelling with
+one fuel debit. Record any normal GM preparation separately; it is not an
+ordinary-player resource-generation or damage-repair claim. Open Cycle2
+Coordination through the served GM Cycle controls and wait for actual member
+publication within the original operation deadline.
+
+Required recharge criteria: current dock/holder/group/role/maintenance/fuel and
+console eligibility; one offered Water Reclamation recharge and immediate
+water+2 with no second fuel debit; one bound receipt/event/standardized audit;
+a real committed acknowledgement interruption followed by the offered exact
+UI retry; the same UID/role/seat/group/current-holder state on normal reload
+and captured original SDK replay without another effect; fresh wrong-holder
+and second-same-cycle requests denied without gameplay/receipt/event/audit
+changes; the visible used-this-cycle blocker. Same-cycle stale recovery,
+cross-cycle reset/recharge, other hosts/consoles/craft, movement, foreign private
+audiences and endings remain outside this slice.
+
+Reuse unchanged focused custody/cargo tests and reviewed observer guards.
+Run focused recharge domain/callable/client and relevant mounted checks, and a
+finite discriminating contract for the existing interruption adapter's recharge
+receipt shape. Obtain one targeted reconciled review of material proof changes.
+Stop at the first unexplained failure, preserve each earned claim, close only
+owned browsers/session/join pointer/memberships/fresh Auth identities, and
+verify unchanged runtime/reservations/original checkout. No external release,
+post-PC10, PC11, PC12 or fixed catalog closure is authorized by this continuation.
+
+The current0.5.72 release summary now reflects existing catalog statuses:
+703done/13partial/35missing. P542/P543/P593 had already moved missing→partial
+with accepted discovery/preparation subcriteria. No prompt becomes done and no
+new gameplay credit follows from this accounting correction. The historical
+0.5.71 summary remains10/38; prior failed validator evidence is retained.
