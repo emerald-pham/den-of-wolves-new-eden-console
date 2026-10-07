@@ -155,7 +155,12 @@ remain scoped evidence, not complete-game acceptance.
 | Gate 2 and cross-path recovery; 618–620, 629 | Targeted natural lease expiry/resume, interrupted/repeated requests, conflicting/stale authority, per-actor timestamps and private boundaries/overlap. | Two affected competitors/peers plus GM only if needed. Existing 273-command/63-check subset stays scoped; 340/84 remains opt-in and incomplete. 21-account capacity requires an impossible-with-fewer scale claim. |
 | Gate 3 and release; 651 | Available action/cost/blocker/result/next actor for changed PC10 flows; accepted joined rendering, keyboard/Back, fonts/ticker; final function inventory, 48 earned closures, one final reconciled risk review, exact candidate/main CI and deployment. | Complete required affected gameplay and negatives first. One actor per UI configuration. Broader PC11 manual-free guidance remains future work; no release while required acceptance is open. |
 
-### Proposed next minimal gameplay-to-ending family — not launched
+### Authorized bounded gameplay-to-ending family — runtime not yet launched
+
+The parent explicitly authorized one bounded run of this family after source
+prerequisite checks, without another planning-only handoff. Source stays frozen
+through the run and exact cleanup; unrelated rendered release gates remain
+pending unless a concrete visual failure blocks the actual controls.
 
 **Press natural transit → genuine Pursuit ending**, three ordinary Auth actors
 (GM, Press, Quellon Captain), two browser processes/contexts and two mounted
@@ -174,16 +179,21 @@ claim without full-census or virtual-crew preparation. It is not simultaneous
    game is converted. Admit/assign the same two ordinary role families, retaining
    normal consent, reciprocal seats and independent per-origin Auth persistence.
 2. Start via **Start full-game demo // Advance to Cycle 1**, capturing its actual
-   `fullGameDemo: true` request/receipt and manual phase. Clear the actual offered
-   ordinary Press briefing. The changed training prerequisite is qualified here;
+   `fullGameDemo: true` request/receipt and manual phase. Observe the real cycle
+   transmission through completion. Manual `turnPhase` omits `timerPause`, so
+   the ordinary timed briefing-clearance control is not offered; source and
+   actual observations must agree. The training prerequisite is qualified here;
    do not repeat the 22-claim release/reassignment tour. Start readiness uses the
    same real sparse-seat checks as production, not helper >=14/full-crew limits.
-3. In the joined Press state, inspect the CSS correction at 320/390 phone,
+3. Separate pending rendered release follow-up: inspect the CSS correction
+   in the joined Press state at 320/390 phone,
    844×390 landscape and 1440×900 desktop with compact DRADIS. Workspace heading,
    copy, textarea, controls and focus must clear both fixed instruments; no
    horizontal overflow or ticker/header clipping. Preserve fonts, reduced
    motion, scrolling and the visible keyboard-accessible parent return. A return
    below the fold alone is not failure. No visual pass is inferred from source.
+   This follow-up does not delay the authorized flight/ending run unless a
+   concrete overlap or control failure blocks that scenario.
 4. Open Coordination through the actual GM manual control; retain exact receipt
    recovery. Press uses only currently offered same-group destinations for
    Request, Begin and one genuine Retarget. Observe the full raw current
@@ -215,11 +225,11 @@ Success earns only this mounted Press flight/manual-training/current-ending
 family and its stated negatives. It does not establish Core handoff/cargo,
 Press dispatch/confetti, all roles/functions, other candidate endings, complete
 manual-free usability, fixed catalog closures or release. The scoped CSS also
-requires the existing ticker browser and typography browser gates; return these
-bounded render runs to the parent with this proposal before launching them.
-Final exact-SHA CI/deployment remains later. This phase performs source/native
-checks only; the parent receives the minimal scenario and success/stop conditions
-before any next browser/emulator/gameplay run.
+requires the existing ticker browser and typography browser gates. They are
+separate pending release checks. Final exact-SHA CI/deployment remains later.
+The current authorization covers one finite three-actor flight/ending run and
+exact cleanup; it does not authorize a 21-account replay, external release or
+checkpoint advancement at this boundary.
 
 ## October 6 accepted and open finite families
 

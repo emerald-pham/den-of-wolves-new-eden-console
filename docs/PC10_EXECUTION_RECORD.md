@@ -167,7 +167,7 @@ transit-to-Pursuit-ending family. Do not repeat setup qualification by default.
 All 48 catalog closures, complete gameplay gates and exact-candidate/main
 CI/deployment remain pending. Base26 has never run and is not the default plan.
 
-The present continuation is expressly source-only and parallel:
+The completed source-only continuation used the following bounded owners:
 
 | Owner | Exact files / bounded task | Result / dependency |
 |---|---|---|
@@ -201,12 +201,18 @@ remain scoped current-validation dependencies; native/source equality is not
 whole-game evidence. The 982 Native / 45 Functions result and independent
 bounded review at `2b0db022` retain their original scope.
 
-Return the matrix's proposed fresh training/Press flight/ending scenario,
-minimal actual actors, original success/stop budgets and exact cleanup to the
-parent before launching any browser/emulator/gameplay follow-up. Source-only
-focused checks and one bounded independent delta review finish this continuation.
-No push, merge, deployment, checkpoint advancement or later-roadmap work occurs
-at this boundary.
+The source reconciliation is committed at `50c07860`; focused checks and one
+bounded independent delta review pass with rendered release gates pending.
+The parent then expressly authorized one finite fresh three-actor Press
+Request/Begin/Retarget/natural-arrival and normal Pursuit ending/closure/reload
+run. Use the qualified ordinary admission primitives without repeating its
+22-claim tour. Manual training omits `timerPause`; observe its real transmission
+without expecting the ordinary timed briefing-clearance control. Freeze source
+before launch, preserve original action deadlines, cap the run at eight minutes
+including exact-owned cleanup, and stop at the first unexplained failure.
+Unrelated rendering checks remain pending unless they block the scenario.
+No 21-account run, push, merge, deployment, checkpoint advancement or later
+roadmap work occurs at this boundary.
 
 ## Historical October 6 state
 

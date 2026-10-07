@@ -26,9 +26,12 @@ replays are superseded. Keep historical failed evidence and actual product rules
 PC10's three-actor lifecycle/setup qualification has 22 accepted scoped claims.
 The [current acceptance matrix](PC10_ACCEPTANCE_MATRIX.md#current-verification-plan--october-7)
 records unchanged historical reuse, exact remaining dependencies, and the
-proposed minimal Press transit-to-ending family. The current continuation is
-source-only arrival/layout reconciliation; no next runtime launches before that
-bounded scenario and its success/stop conditions are returned to the parent.
+minimal Press transit-to-ending family. The source-only arrival/layout
+reconciliation is complete at `50c07860`; the parent explicitly authorized one
+bounded three-actor Press flight through natural arrival and the normal GM
+Pursuit ending/debrief/closure/entitled reload. Source remains frozen during
+runtime and exact cleanup. This scope does not accept wider rendered gates,
+all PC10 functions, external release or checkpoint advancement.
 
 PC11 defaults to one actor per distinct control/guidance configuration and a
 second only for an actual handoff. Test changed action availability, costs,
