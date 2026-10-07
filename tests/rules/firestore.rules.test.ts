@@ -2737,13 +2737,17 @@ describe('shuttle departure privacy', () => {
       });
     });
 
-    const ownAbsent = await assertSucceeds(getDoc(doc(as('press'), path)));
+    const ownAbsent = await assertSucceeds(getDoc(doc(as('press'), path))).catch((error: unknown) => {
+      throw new Error(`Explicit-null current Press absent-route read failed: ${String(error)}`);
+    });
     expect(ownAbsent.exists()).toBe(false);
     await assertSucceeds(getDoc(doc(as('press'), discoveryPath)));
     await env.withSecurityRulesDisabled(async (ctx) => {
       await updateDoc(doc(ctx.firestore(), pressPath), { replacementStatus: deleteField() });
     });
-    const ordinaryAbsent = await assertSucceeds(getDocFromServer(doc(as('press'), path)));
+    const ordinaryAbsent = await assertSucceeds(getDocFromServer(doc(as('press'), path))).catch((error: unknown) => {
+      throw new Error(`Ordinary omitted replacement status Press absent-route read failed: ${String(error)}`);
+    });
     expect(ordinaryAbsent.exists()).toBe(false);
     await assertSucceeds(getDocFromServer(doc(as('press'), discoveryPath)));
 
