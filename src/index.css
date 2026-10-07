@@ -881,6 +881,7 @@ body {
 }
 .indicator[data-status='awaiting-cic'] {
   --dot: var(--cic-red);
+  color: var(--cic-red);
 }
 
 .session-snapshot-status {
