@@ -27,6 +27,17 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       done: 703, partial: 6, active: 0, missing: 42, blocked: 0,
     },
     changes: [
+      'Press Officers can open their shuttle route after normal admission, including before their first departure.',
+      '703 of 751 planned items are complete in the catalog snapshot used to build this release (93.61%).',
+    ],
+  },
+  {
+    version: '0.5.70',
+    implementationProgress: {
+      completed: 703, total: 751, percentage: '93.61%',
+      done: 703, partial: 6, active: 0, missing: 42, blocked: 0,
+    },
+    changes: [
       'The Fleet Group panel clears the joined header and compact DRADIS so its text and controls can be read.',
       '703 of 751 planned items are complete in the catalog snapshot used to build this release (93.61%).',
     ],

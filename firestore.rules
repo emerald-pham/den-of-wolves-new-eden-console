@@ -391,8 +391,6 @@ service cloud.firestore {
         && isMember(sessionId)
         && player.role == 'player'
         && playerHasCurrentRoleAuthority(player)
-        && 'replacementStatus' in player
-        && player.replacementStatus == null
         && (!('kickedAt' in player) || player.kickedAt == null)
         && (!('escapeState' in player) || player.escapeState == null)
         && player.activeConsoleRoleId == 'press-officer'

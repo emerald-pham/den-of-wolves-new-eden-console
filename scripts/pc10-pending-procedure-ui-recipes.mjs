@@ -474,7 +474,7 @@ export async function readActionState(surface, shuttleId, options = {}) {
       };
       const pressActorCurrent = !!user && !!me && pressScopeValid && discoveryValid && controlValid &&
           current.connection === 'live' && current.sessionSnapshotFreshness === 'server' &&
-          me.role === 'player' && me.connected === true && me.replacementStatus === null &&
+          me.role === 'player' && me.connected === true && me.replacementStatus == null &&
           session.phase !== 'closed' && session.id === me.sessionId && user.uid === me.uid &&
           me.activeConsoleRoleId === 'press-officer' && me.assignedRoleId === null &&
           scope.groupId === me.fleetGroupId && discovery.groupId === me.fleetGroupId &&
@@ -495,7 +495,7 @@ export async function readActionState(surface, shuttleId, options = {}) {
               userPresent: !!user, profilePresent: !!me, pressScopeValid, discoveryValid, controlValid,
               liveConnection: current.connection === 'live', serverSnapshot: current.sessionSnapshotFreshness === 'server',
               playerRole: me?.role === 'player', connected: me?.connected === true,
-              replacementStatusNull: me?.replacementStatus === null, sessionNotClosed: session.phase !== 'closed',
+              replacementStatusNull: me?.replacementStatus == null, sessionNotClosed: session.phase !== 'closed',
               sessionMatchesProfile: session.id === me?.sessionId, authMatchesProfile: user?.uid === me?.uid,
               pressActiveRole: me?.activeConsoleRoleId === 'press-officer', unassigned: me?.assignedRoleId === null,
               scopeGroupMatchesProfile: scope?.groupId === me?.fleetGroupId,
