@@ -46,7 +46,8 @@ function fixture({ readyAfter = 0, restored = {}, foreignSeat = false, unavailab
   const calls = { sequence: [], originalSelect: [], nativeEntry: [], until: [], seatClaims: 0, presence: 0, reloads: 0 };
   const store = { session: { id: sid }, me: { uid, sessionId: sid, role: 'player', assignedRoleId: roleId, seatId: roleId },
     seats: [{ id: roleId, roleId, status: 'claimed', holderUid: uid }], communicationError: null,
-    setMe(value) { this.me = value; observation.activeConsoleRoleId = value.activeConsoleRoleId ?? null; } };
+    setMe(value) { this.me = value; observation.activeConsoleRoleId = value.activeConsoleRoleId ?? null; },
+    setCommunicationError(value) { this.communicationError = value; } };
   const clientScope = vm.createContext({ useSessionStore: { getState: () => store },
     sessionAuthorityCheckpoint: () => ({ uid, sessionId: sid }), sessionAuthorityUid: s => s.me.uid,
     authorityCheckpointIsCurrent: c => c.uid === store.me.uid && c.sessionId === store.session.id,
@@ -70,7 +71,7 @@ function fixture({ readyAfter = 0, restored = {}, foreignSeat = false, unavailab
       calls.nativeEntry.push({ roleId: id, options: { ...opts }, at: now }); calls.sequence.push('normal-station-entry');
       assert.equal(id, roleId); assert.equal(observation.uidHash, actor.uidHash); assert.equal(observation.sessionId, sid);
       assert.equal(observation.freshness, 'server'); assert.equal(observation.privateAudienceMatches, true);
-      now += readyAfter; await enterNormalStation(); return context.crew;
+      now += readyAfter; await enterNormalStation(id); return context.crew;
     } }; } });
   const invoke = new vm.Script('(async function(context,options,perform,select,observeLifecycleActor,blocked,captureLifecycleUiAction,recoverLifecycleUiAction,untilLifecycle,castRestore,publicLifecycleReceipt) {\n' + body + '\n})')
     .runInContext(scope);
