@@ -19,6 +19,8 @@ for (const [name, options] of [
 
 for (const [name, options] of [
   ['foreign seat following accepted resume', { resumeBeforeClaim: true, foreignSeat: true }],
+  ['foreign canonical seat holder following accepted resume', { resumeBeforeClaim: true, mutateAfter: f => {
+    const s = f.store.getState(); f.store.setState({ seats: s.seats.map(seat => ({ ...seat, holderUid: 'foreign-holder' })) }); } }],
   ['foreign console following accepted resume', { resumeBeforeClaim: true, mutateAfter: f => {
     const s = f.store.getState(); f.store.setState({ me: { ...s.me, activeConsoleRoleId: 'foreign-console' } }); } }],
   ['stale pre-claim witness during acceptance yield', { claimDuringAcceptance: true, staleAfterAcceptanceClaim: true, shortDeadline: true }],
