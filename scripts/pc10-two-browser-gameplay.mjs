@@ -64,9 +64,21 @@ export function createTwoBrowserGameplay(context, { preAdmissionGmOnly = false }
     let waitingOriginal, current;
     const budget = () => assert.ok(Number.isFinite(deadlineAt) && Date.now() < deadlineAt,
       'Original role navigation deadline expired.');
-    const observeCurrent = (includeAcceptance = false) => crew.page.evaluate(async input => {
+    const observeCurrent = (includeAcceptance = false) => {
+      const moduleUrl = crew.storeModuleUrl();
+      let authorityModuleUrl;
+      if (includeAcceptance) {
+        authorityModuleUrl = crew.sessionAuthorityModuleUrl?.();
+        assert.ok(typeof authorityModuleUrl === 'string' && authorityModuleUrl.length > 0,
+          'The mounted App SDK authority module must be observed before station resume acceptance.');
+        const storeUrl = new URL(moduleUrl, 'http://127.0.0.1');
+        const authorityUrl = new URL(authorityModuleUrl, storeUrl);
+        assert.equal(authorityUrl.origin, storeUrl.origin, 'Authority must come from the mounted App origin.');
+        assert.equal(authorityUrl.pathname, '/src/lib/sessionSnapshotAuthority.ts');
+      }
+      return crew.page.evaluate(async input => {
       const moduleUrl = typeof input === 'string' ? input : input.moduleUrl;
-      const acceptanceAuthority = typeof input === 'object' ? await import('/src/lib/sessionSnapshotAuthority.ts') : null;
+      const acceptanceAuthority = typeof input === 'object' ? await import(input.authorityModuleUrl) : null;
       const { useSessionStore } = await import(moduleUrl);
       const { auth } = await import('/src/lib/firebase.ts');
       const { activeDemoActorProfile } = await import('/src/lib/demoActorContext.ts');
@@ -129,7 +141,8 @@ export function createTwoBrowserGameplay(context, { preAdmissionGmOnly = false }
               resumePending: authority ? acceptanceAuthority.memberSessionResumeBlocksFreshness(authority) : true };
           })(),
         } : {}) };
-    }, includeAcceptance ? { moduleUrl: crew.storeModuleUrl() } : crew.storeModuleUrl());
+      }, includeAcceptance ? { moduleUrl, authorityModuleUrl } : moduleUrl);
+    };
     try {
       budget();
       while (Date.now() < deadlineAt) {
