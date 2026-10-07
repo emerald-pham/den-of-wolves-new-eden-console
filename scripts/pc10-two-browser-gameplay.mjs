@@ -135,8 +135,11 @@ export function createTwoBrowserGameplay(context, { preAdmissionGmOnly = false }
             assert.equal(current[key], waitingOriginal[key], `Original pre-selection ${key} changed.`);
         }
         if (original) {
+          // Normal entry may acquire the assigned open seat at the same lease.
+          // Fresh member witness and the existing held canonical-seat check
+          // own that capability; seatId is not immutable document identity.
           for (const key of ['documentTimeOrigin', 'uidHash', 'profileRoleId', 'profileSessionId', 'sessionId',
-            'meSessionId', 'playerRole', 'assignedRoleId', 'fleetGroupId', 'seatId', 'replacementRoleId', 'replacementStatus', 'escapeLocked'])
+            'meSessionId', 'playerRole', 'assignedRoleId', 'fleetGroupId', 'replacementRoleId', 'replacementStatus', 'escapeLocked'])
             assert.equal(current[key], original[key], `Original role navigation ${key} changed.`);
           if (current.connectionGeneration !== original.connectionGeneration ||
               current.identityHydrationRevision !== original.identityHydrationRevision) {
