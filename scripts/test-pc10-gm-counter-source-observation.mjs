@@ -377,8 +377,8 @@ for (const [label, options] of [
     `${label}: the actual mounted control was reached before this post-click guard was evaluated.`);
   assert.ok(fixture.lastRequest, `${label}: preserve the actual UI request for discrimination.`);
   assert.equal(fixture.replayCalls,
-    ['cached source after receipt', 'foreign GM instance after receipt', 'later Auth UID after receipt',
-      'foreign Auth UID after receipt'].includes(label) ? 0 : 1,
+    ['source phase change', 'cached source after receipt', 'foreign GM instance after receipt',
+      'later Auth UID after receipt', 'foreign Auth UID after receipt'].includes(label) ? 0 : 1,
     `${label}: only a still-current captured actor may perform exact receipt replay.`);
 });
 
