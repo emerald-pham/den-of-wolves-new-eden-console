@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
+import { sourceBackedMemberGoto } from './fixtures/pc10-member-gm-document-resume-native-fixture.mjs';
 import { createMemberGmLifecycleUiProof } from './pc10-member-gm-lifecycle-ui-proof.mjs';
 
 const sourceRoot = fileURLToPath(new URL('..', import.meta.url));
@@ -127,9 +128,18 @@ async function fullLayoutFixture(t, { sourcePresent = true, deniedEndpoint } = {
       assert.ok(request && !request.rejected, 'Only exact committed UI captures may replay.');
       replays.push(endpoint); return { status: 'committed', result: request.result };
     } };
-  const crewUrl = 'http://127.0.0.1:5173/#/ships/aegis/admiral';
+  let crewUrl = 'http://127.0.0.1:5173/#/ships/aegis/admiral';
+  const crewNavigations = [], crewNavigationResponses = [];
   const crew = { storeModuleUrl: gm.storeModuleUrl, page: { url: () => crewUrl,
-    goto: async next => { assert.equal(next, crewUrl); return null; },
+    goto: async next => {
+      const navigation = await sourceBackedMemberGoto({ sourceRoot, fromUrl: crewUrl,
+        toUrl: next, actor: crewActor });
+      crewUrl = navigation.url;
+      Object.assign(crewActor, navigation.actor);
+      crewNavigations.push(navigation.navigation);
+      crewNavigationResponses.push(navigation.response);
+      return navigation.response;
+    },
     evaluate: async (_fn, argument) => argument?.moduleUrl ? { ...crewActor } : runtime } };
   const proof = createMemberGmLifecycleUiProof({ sourceRoot, projectId, shipId, cases: ['gm-ship-grant-lock'] });
   const context = { gm, crew, directory, initial: { sessionId: original.sessionId,
@@ -139,7 +149,8 @@ async function fullLayoutFixture(t, { sourcePresent = true, deniedEndpoint } = {
     for (const observer of observers.splice(0)) observer.reject(new Error('Native layout fixture closed.'));
     await rm(directory, { recursive: true });
   });
-  return { run: () => proof.onStarted(context), evidence: proof.evidence, selected, actor, requests, replays };
+  return { run: () => proof.onStarted(context), evidence: proof.evidence, selected, actor, requests, replays,
+    crewNavigations, crewNavigationResponses, crew, get returnedCrewActor() { return { ...crewActor }; } };
 }
 
 test('public factory captures the full-layout return while an unspaced partial-style decoy coexists', async t => {
@@ -158,6 +169,8 @@ test('public factory captures the full-layout return while an unspaced partial-s
   }, 'Identical-URL page.goto is a document navigation backed by the actual Source resume lease.');
   assert.equal(f.returnedCrewActor.generation, original.generation + 1);
   assert.equal(f.returnedCrewActor.hydrationRevision, original.hydrationRevision + 1);
+  assert.equal(f.crewNavigationResponses.at(-1).status(), 200);
+  assert.equal(f.crewNavigationResponses.at(-1).url(), f.crew.page.url());
   assert.equal(f.evidence.actualRuntimeRuns, 0); assert.equal(f.evidence.nativeChecksAreGameplayProof, false);
 });
 
@@ -167,6 +180,7 @@ test('full-layout crew navigation returns null only when the destination differs
   target.hash = `${target.hash}-hash-only`;
   const response = await f.crew.page.goto(target.href);
   assert.equal(response, null);
+  assert.equal(f.crewNavigationResponses.at(-1), null);
   assert.deepEqual(f.crewNavigations.at(-1), {
     kind: 'same-document-null', beforeGeneration: before.generation, afterGeneration: before.generation,
     beforeHydrationRevision: before.hydrationRevision, afterHydrationRevision: before.hydrationRevision,

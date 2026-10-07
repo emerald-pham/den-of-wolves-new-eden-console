@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
+import { sourceBackedMemberGoto } from './fixtures/pc10-member-gm-document-resume-native-fixture.mjs';
 import { createMemberGmLifecycleUiProof } from './pc10-member-gm-lifecycle-ui-proof.mjs';
 
 const sourceRoot = fileURLToPath(new URL('..', import.meta.url));
@@ -28,7 +29,7 @@ async function fixture(t, options = {}) {
   let gmUrl = 'http://127.0.0.1:5173/#/console';
   let crewUrl = 'http://127.0.0.1:5173/#/ships/aegis/admiral';
   let locked = false;
-  const pending = [], requests = [], clicks = [], replays = [], crewNavigations = [];
+  const pending = [], requests = [], clicks = [], replays = [], crewNavigations = [], crewNavigationResponses = [];
   const runtimeSource = `import.meta.env = ${JSON.stringify({
     VITE_FIREBASE_PROJECT_ID: projectId, VITE_USE_EMULATORS: '1',
     VITE_FIREBASE_AUTH_EMULATOR_PORT: '9109', VITE_FIREBASE_FUNCTIONS_EMULATOR_PORT: '5011',
@@ -147,19 +148,14 @@ async function fixture(t, options = {}) {
     } };
   const crew = { storeModuleUrl: gm.storeModuleUrl,
     page: { url: () => crewUrl, goto: async url => {
-      assert.equal(url, crewUrl, 'This lifecycle restore targets the saved crew document.');
-      const beforeGeneration = crewActor.generation;
-      if (options.crewNavigation === 'document-response-stale') {
-        // A Response models a new document. The source observer still reports
-        // the old server generation, so restore must reject this stale lease.
-        const response = { url: () => url, status: () => 200 };
-        crewNavigations.push({ kind: 'document-response-stale', beforeGeneration,
-          afterGeneration: crewActor.generation });
-        return response;
-      }
-      crewNavigations.push({ kind: 'same-document-null', beforeGeneration,
-        afterGeneration: crewActor.generation });
-      return null;
+      const navigation = await sourceBackedMemberGoto({ sourceRoot, fromUrl: crewUrl,
+        toUrl: url, actor: crewActor,
+        staleResponse: options.crewNavigation === 'document-response-stale' });
+      crewUrl = navigation.url;
+      Object.assign(crewActor, navigation.actor);
+      crewNavigations.push(navigation.navigation);
+      crewNavigationResponses.push(navigation.response);
+      return navigation.response;
     },
       evaluate: async (_fn, argument) => argument?.moduleUrl ? { ...crewActor } : runtimeSource } };
   const context = { gm, crew, directory, initial: { sessionId: actor.sessionId,
@@ -172,7 +168,9 @@ async function fixture(t, options = {}) {
     await rm(directory, { recursive: true });
   });
   return { run: () => proof.onStarted(context), evidence: proof.evidence,
-    requests, clicks, replays, current, initial: { ...actor }, crewNavigations };
+    requests, clicks, replays, current, initial: { ...actor }, crewNavigations, crew,
+    crewNavigationResponses,
+    get returnedCrewActor() { return { ...crewActor }; } };
 }
 
 test('public lifecycle factory captures current source-mounted return and revocation for the original ship', async t => {
@@ -202,6 +200,8 @@ test('public lifecycle factory captures current source-mounted return and revoca
   }, 'Identical-URL page.goto returns a document Response and applies the actual Source resume lease.');
   assert.equal(f.returnedCrewActor.generation, actor.generation + 1);
   assert.equal(f.returnedCrewActor.hydrationRevision, actor.hydrationRevision + 1);
+  assert.equal(f.crewNavigationResponses.at(-1).status(), 200);
+  assert.equal(f.crewNavigationResponses.at(-1).url(), f.crew.page.url());
 });
 
 test('public lifecycle factory returns null for a hash-only same-document goto', async t => {
@@ -210,6 +210,7 @@ test('public lifecycle factory returns null for a hash-only same-document goto',
   target.hash = `${target.hash}-hash-only`;
   const response = await sameDocument.crew.page.goto(target.href);
   assert.equal(response, null);
+  assert.equal(sameDocument.crewNavigationResponses.at(-1), null);
   assert.deepEqual(sameDocument.crewNavigations.at(-1), {
     kind: 'same-document-null', beforeGeneration: before.generation, afterGeneration: before.generation,
     beforeHydrationRevision: before.hydrationRevision, afterHydrationRevision: before.hydrationRevision,
@@ -223,6 +224,7 @@ test('public lifecycle factory rejects a stale non-null full-document response',
     assert.match(error.message, /current\.generation > expected\.generation/);
     return true;
   });
+  assert.equal(staleDocument.crewNavigationResponses.at(-1).status(), 200);
   assert.deepEqual(staleDocument.crewNavigations.at(-1), {
     kind: 'document-response-stale', beforeGeneration: actor.generation, afterGeneration: actor.generation,
     beforeHydrationRevision: actor.hydrationRevision, afterHydrationRevision: actor.hydrationRevision,
