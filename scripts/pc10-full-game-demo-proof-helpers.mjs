@@ -236,9 +236,13 @@ export async function waitForFullGameDemoPresentationActor(options) {
     } finally { clearTimeout(timer); }
   }
   try {
-    async function inspect() {
+    async function observeMember() {
       current = await withinBudget(() => observeFullGameDemoPresentationMember(surface, { knownRoleIds })); sampleCount++;
       if (samples.length < 256) samples.push(current);
+      return current;
+    }
+    function validateTuple(value) {
+      current = value;
       assert.deepEqual(current.invalidFields, [], 'Malformed presentation tuple is not authority.');
       initial ??= current; acceptedEpoch ??= current;
       assert.equal(current.hasAuth, true); assert.equal(current.sameActor, true);
@@ -286,16 +290,23 @@ export async function waitForFullGameDemoPresentationActor(options) {
         assert.equal(current.currentCanonicalSeatOwned, true);
         if (current.currentMemberBerthPresent) assert.equal(current.currentMemberBerthMatches, true);
       }
-      let ready = current.connection === 'live' && current.freshness === 'server' && current.currentOwnPlayerConfirmed &&
+      return current.connection === 'live' && current.freshness === 'server' && current.currentOwnPlayerConfirmed &&
         current.sdkHasServerAuthority && !current.sdkResumePending &&
         (!press || current.currentMemberBerthPresent && current.currentMemberBerthNull && current.memberScopeMatches);
+    }
+    async function inspect() {
+      let ready = validateTuple(await observeMember());
       if (ready && (current.connectionGeneration !== acceptedEpoch.connectionGeneration ||
           current.identityHydrationRevision !== acceptedEpoch.identityHydrationRevision)) {
         assert.ok(resume, 'Presentation epoch changed without passive normal SDK evidence.');
-        const settled = await withinBudget(() => resume.accept(acceptedEpoch, current,
-          () => withinBudget(() => observeFullGameDemoPresentationMember(surface, { knownRoleIds }))));
-        if (settled) { current = settled; acceptedEpoch = settled; }
-        else ready = false;
+        const settled = await withinBudget(() => resume.accept(acceptedEpoch, current, async () => {
+          const value = await observeMember();
+          // The receipt reread can yield too. Validate its complete role and
+          // scope tuple before the observer credits an accepted transition.
+          validateTuple(value); return value;
+        }));
+        ready = settled !== null && validateTuple(settled);
+        if (ready) acceptedEpoch = settled;
       }
       resume?.bind(current); return ready;
     }

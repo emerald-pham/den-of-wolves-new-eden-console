@@ -12,6 +12,7 @@ import { proofRuntimeFromViteSource, validateProofRuntime, assertSelectedActor, 
 
 const PRESENTATION_READINESS_SOURCE_FILES = Object.freeze([
   'scripts/pc10-full-game-demo-proof-helpers.mjs',
+  'scripts/pc10-presentation-member-resume.mjs',
   'scripts/pc10-full-game-demo-ui-proof.mjs',
   'src/components/TurnStartAnnouncement.tsx',
   'src/components/Intrusion.tsx',
