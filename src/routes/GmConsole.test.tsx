@@ -3524,7 +3524,7 @@ it('requires a deliberate second GM advance while either phase timer is active',
   vi.mocked(advanceTurn).mockResolvedValue(undefined);
   renderConsole();
 
-  expect(screen.getByText('Cycle 3')).toBeVisible();
+  expect(within(screen.getByRole('region', { name: 'Cycle controls' })).getByText('Cycle 3')).toBeVisible();
   await user.click(screen.getByRole('button', { name: 'Advance to Cycle 4' }));
   expect(advanceTurn).not.toHaveBeenCalled();
   expect(screen.getByRole('button', { name: 'ARE YOU SURE? // Advance to Cycle 4' })).toBeVisible();
@@ -4863,3 +4863,31 @@ it('withdraws current live GM authority when its verified private listener fails
   expect(useSessionStore.getState().sessionSnapshotFreshness).toBe('cache');
   expect(useSessionStore.getState().communicationError?.code).toBe('gm-crisis-link');
 });
+
+it.each(['cache', 'offline'] as const)(
+  'ignores an in-flight GM manifest error after authority changes to %s',
+  async (nextAuthority) => {
+    let fail: (() => void) | undefined;
+    vi.mocked(subscribeGmCrisisState).mockImplementation((_sessionId, onState) => {
+      onState(liveCrisis);
+      return vi.fn();
+    });
+    vi.mocked(subscribeGmInstances).mockImplementation((_sessionId, onInstances, onError) => {
+      fail = onError;
+      onInstances([local]);
+      return vi.fn();
+    });
+    useSessionStore.getState().setGmInstance(local);
+    renderConsole();
+    await waitFor(() => expect(useSessionStore.getState().gmCrisisState).toEqual(liveCrisis));
+    act(() => {
+      if (nextAuthority === 'cache') useSessionStore.getState().setSessionSnapshotFreshness('cache');
+      else useSessionStore.getState().setConnection('offline');
+      fail?.();
+    });
+    expect(useSessionStore.getState().gmRecoveryPending).toBe(false);
+    expect(useSessionStore.getState().communicationError).toBeNull();
+    expect(useSessionStore.getState().gmInstance).toEqual(local);
+    expect(useSessionStore.getState().gmCrisisState).toBeNull();
+  },
+);
