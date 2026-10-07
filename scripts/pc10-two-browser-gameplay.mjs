@@ -6,6 +6,7 @@ import { writeFile } from 'node:fs/promises';
 import { setTimeout as delay } from 'node:timers/promises';
 import { candidateEvidenceEnvelope, waitForMaintenanceReceipt } from './pc10-candidate-proof-helpers.mjs';
 import { normalMemberRoleRequiresBerth } from './pc10-normal-member-projection-contract.mjs';
+import { createMemberNavigationResumeObserver } from './pc10-member-navigation-resume.mjs';
 
 function hasExactKeys(value, expected) {
   return typeof value === 'object' && value !== null && !Array.isArray(value) &&
@@ -59,7 +60,7 @@ export function createTwoBrowserGameplay(context, { preAdmissionGmOnly = false }
       state.sameActor && state.sessionId === initial.sessionId && state.connection === 'live' &&
       state.freshness === 'server' && (surface !== gm || state.gmInstanceOwned), Math.max(1, Math.min(60_000, deadlineAt - Date.now())));
   }
-  async function acceptedMember(actor, deadlineAt, { original, held = false, station = false, requireCurrentBerth = false, requireCurrentPressMember = false } = {}) {
+  async function acceptedMember(actor, deadlineAt, { original, held = false, station = false, requireCurrentBerth = false, requireCurrentPressMember = false, navigation } = {}) {
     let waitingOriginal, current;
     const budget = () => assert.ok(Number.isFinite(deadlineAt) && Date.now() < deadlineAt,
       'Original role navigation deadline expired.');
@@ -125,6 +126,7 @@ export function createTwoBrowserGameplay(context, { preAdmissionGmOnly = false }
             connection: snapshot.connection, freshness: snapshot.sessionSnapshotFreshness };
         }, crew.storeModuleUrl());
         budget();
+        navigation?.sample(current);
         assert.ok(Number.isSafeInteger(current.identityHydrationRevision) && current.identityHydrationRevision >= 0,
           'Current document identityHydrationRevision evidence is required.');
         if (waitingOriginal) {
@@ -134,8 +136,16 @@ export function createTwoBrowserGameplay(context, { preAdmissionGmOnly = false }
         }
         if (original) {
           for (const key of ['documentTimeOrigin', 'uidHash', 'profileRoleId', 'profileSessionId', 'sessionId',
-            'meSessionId', 'playerRole', 'assignedRoleId', 'fleetGroupId', 'connectionGeneration', 'identityHydrationRevision'])
+            'meSessionId', 'playerRole', 'assignedRoleId', 'fleetGroupId', 'seatId', 'replacementRoleId', 'replacementStatus', 'escapeLocked'])
             assert.equal(current[key], original[key], `Original role navigation ${key} changed.`);
+          if (current.connectionGeneration !== original.connectionGeneration ||
+              current.identityHydrationRevision !== original.identityHydrationRevision) {
+            assert.ok(navigation && station && normalMemberRoleRequiresBerth(actor.roleId) && original.currentMemberBerthPresent,
+              'Original role navigation epoch changed without a witnessed normal station resume.');
+            if (!await navigation.accept(original, current, crew.storeModuleUrl())) {
+              budget(); await delay(Math.min(250, deadlineAt - Date.now())); continue;
+            }
+          }
           if (station && actor.roleId !== 'press-officer') assert.equal(current.currentMemberBerthPresent,
             original.currentMemberBerthPresent, 'Original current member berth witness applicability changed.');
         }
@@ -252,6 +262,9 @@ export function createTwoBrowserGameplay(context, { preAdmissionGmOnly = false }
   async function select(roleId, { enter = true, deadlineAt = Date.now() + 60_000 } = {}) {
     consumed.selection = { roleId, enter, deadlineAt, sessionId: initial.sessionId,
       started: context.started, prepared: context.prepared };
+    const navigation = roleId !== 'gm' && enter && normalMemberRoleRequiresBerth(roleId)
+      ? createMemberNavigationResumeObserver(crew.page, { directory, roleId, deadlineAt }) : null;
+    let selectionError;
     try {
       const navigationTimeout = () => {
         assert.ok(Number.isFinite(deadlineAt) && Date.now() < deadlineAt, 'Original role navigation deadline expired.');
@@ -276,7 +289,9 @@ export function createTwoBrowserGameplay(context, { preAdmissionGmOnly = false }
         Object.keys(marker).length === 2 && ['preparing', 'active'].includes(marker.status) && marker.progression === 'manual';
       const requireCurrentBerth = Boolean(enter && freshManualDemo && normalMemberRoleRequiresBerth(roleId));
       const requireCurrentPressMember = Boolean(enter && freshManualDemo && roleId === 'press-officer');
-      const actual = await acceptedMember(actor, deadlineAt, { station: enter, requireCurrentBerth, requireCurrentPressMember });
+      let actual = await acceptedMember(actor, deadlineAt, { station: enter, requireCurrentBerth, requireCurrentPressMember, navigation });
+      await navigation?.prepare(actual);
+      consumed.selection.navigationEvidencePath = navigation?.path;
       consumed.selection.originalMember = actual;
       assert.equal(actual.profileRoleId, roleId);
       assert.equal(actual.uidHash, actor.uidHash, 'Select the original role account, never manufacture another identity.');
@@ -291,8 +306,9 @@ export function createTwoBrowserGameplay(context, { preAdmissionGmOnly = false }
         consumed.selection.currentGeneric = current;
         assert.equal(current.uidHash, actor.uidHash); assert.equal(current.profileRoleId, roleId);
         assert.equal(current.sessionId, initial.sessionId); assert.equal(current.hasAuth, true); assert.equal(current.sameActor, true);
-        const member = await acceptedMember(actor, deadlineAt, { original: actual, held, station: enter, requireCurrentPressMember });
+        const member = await acceptedMember(actor, deadlineAt, { original: actual, held, station: enter, requireCurrentPressMember, navigation });
         consumed.selection.currentMember = member;
+        actual = member; navigation?.bind(member);
       }
       if (enter && (actual.activeConsoleRoleId !== roleId || !onRoleRoute())) {
         for (let hop = 0; hop < 4 && !onRoleRoute(); hop++) {
@@ -322,7 +338,13 @@ export function createTwoBrowserGameplay(context, { preAdmissionGmOnly = false }
       await originalAccount({ held: enter });
       return crew;
     } catch (error) {
-      rememberProofFailure(error, { operation: 'select', ...consumed }); throw error;
+      selectionError = error; rememberProofFailure(error, { operation: 'select', ...consumed }); throw error;
+    } finally {
+      try { await navigation?.finish(selectionError); }
+      catch (error) {
+        if (!selectionError) throw error;
+        rememberProofFailure(selectionError, { operation: 'member-navigation-evidence', error });
+      }
     }
   }
   async function command(roleId, name, fields = {}, { instance = roleId === 'gm' } = {}) {
