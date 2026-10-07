@@ -464,6 +464,7 @@ export default function GmConsole() {
   const local = useSessionStore((state) => state.gmInstance);
   const isGm = useSessionStore(selectIsGm);
   const pendingCommands = useSessionStore((state) => state.pendingCommands);
+  const gmRecoveryPending = useSessionStore((state) => state.gmRecoveryPending);
   const connection = useSessionStore((state) => state.connection);
   const sessionSnapshotFreshness = useSessionStore((state) => state.sessionSnapshotFreshness);
   const setupReceipt = useSessionStore((state) => state.gmSetupReceipt);
@@ -987,7 +988,7 @@ export default function GmConsole() {
   };
 
   useEffect(() => {
-    if (!isGm || !sessionId) return;
+    if (!isGm || !sessionId || gmRecoveryPending) return;
     const localInstanceId = local?.id;
     const generation = crisisAuthorityGeneration.current + 1;
     crisisAuthorityGeneration.current = generation;
@@ -1056,9 +1057,11 @@ export default function GmConsole() {
         store.session?.id === sessionId &&
         store.gmInstance?.id === localInstanceId
       ) {
-        store.setGmInstance(null);
-        store.setMode(null);
-        store.setLastRoute('/roles');
+        // A missing live manifest is not proof of explicit removal. Preserve
+        // only the descriptor; reconnect must ask the server about its lease.
+        store.setGmRecoveryPending(true);
+        store.setSessionSnapshotFreshness('cache');
+        store.setConnection('offline');
       }
     };
     void import('@/lib/firestore').then(({
@@ -1418,6 +1421,7 @@ export default function GmConsole() {
     advanceArrestPosseCalculationGeneration,
     clearArrestPosseCalculation,
     isGm,
+    gmRecoveryPending,
     local?.id,
     local?.uid,
     me?.fleetGroupId,
@@ -1732,6 +1736,13 @@ export default function GmConsole() {
   });
 
   if (!session || !me) return <Navigate to="/" replace />;
+  if (gmRecoveryPending && local?.sessionId === session.id && local.uid === me.uid) {
+    return <main className="role-select">
+      <p role="status" aria-label="GM connection recovery">
+        Recovering the original GM connection // awaiting current server authority.
+      </p>
+    </main>;
+  }
   if (!isGm || !local) return <Navigate to="/console" replace />;
 
   function castingRoleLabel(roleId: string): string {

@@ -330,7 +330,7 @@ export default function AppHeader() {
     ? ['GM', secondaryRole].filter(Boolean).join(' / ')
     : (secondaryRole ?? null);
   const singlePlayerDemoAvailable = currentTurn === 0 && connectedPlayers === 1;
-  const indicatorStatus = displayStatus === 'green' && currentTurn === 0 ? 'blue' : displayStatus;
+  const indicatorStatus = displayStatus === 'green' && currentTurn === 0 ? 'awaiting-cic' : displayStatus;
 
   function openSettings(): void {
     setChangelogOpen(false);

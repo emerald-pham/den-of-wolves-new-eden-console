@@ -879,8 +879,8 @@ body {
 .indicator[data-status='green'] {
   --dot: #5fbf7a;
 }
-.indicator[data-status='blue'] {
-  --dot: var(--cic-cyan-hot);
+.indicator[data-status='awaiting-cic'] {
+  --dot: var(--cic-red);
 }
 
 .session-snapshot-status {
@@ -7276,3 +7276,9 @@ body {
 .president-workspace li { padding: 0.65rem; border-left: 2px solid var(--cic-cyan); background: color-mix(in srgb, var(--cic-void) 90%, var(--cic-cyan)); }
 .president-workspace li p { margin: 0 0 0.3rem; color: var(--cic-muted); font-size: 0.65rem; letter-spacing: 0.08em; text-transform: uppercase; }
 .president-workspace li strong { display: block; overflow-wrap: anywhere; color: var(--cic-ink); font: 0.78rem/1.45 var(--cic-mono); }
+
+.pursuit-tracker__countdown strong[data-awaiting-cic='true'],
+.press-event-log__status[data-awaiting-cic='true'] {
+  color: var(--cic-red);
+  text-shadow: none;
+}

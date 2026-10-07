@@ -453,6 +453,8 @@ interface SessionState {
   seats: readonly Seat[];
   me: Player | null;
   gmInstance: GmInstance | null;
+  /** Ephemeral holding state; never a source of GM authority. */
+  gmRecoveryPending: boolean;
   gmAccessAuthenticatedAt: number | null;
   turnStartReplay: TurnStartReplay | null;
   privateLoyalty: PrivateLoyalty | null;
@@ -494,6 +496,7 @@ interface SessionState {
   setSeats: (seats: readonly Seat[]) => void;
   setMe: (me: Player | null) => void;
   setGmInstance: (instance: GmInstance | null) => void;
+  setGmRecoveryPending: (pending: boolean) => void;
   setGmAccessAuthenticatedAt: (authenticatedAt: number | null) => void;
   clearGmAccess: () => void;
   setTurnStartReplay: (replay: TurnStartReplay | null) => void;
@@ -534,6 +537,7 @@ const initial = {
   seats: [] as readonly Seat[],
   me: null,
   gmInstance: null,
+  gmRecoveryPending: false,
   gmAccessAuthenticatedAt: null,
   turnStartReplay: null,
   privateLoyalty: null,
@@ -628,6 +632,7 @@ export const useSessionStore = create<SessionState>()(
         };
       }),
       setIdentity: (session, me) => set((state) => ({
+        ...(state.session?.id !== session.id || state.me?.uid !== me.uid ? { gmRecoveryPending: false } : {}),
         session: clearVoyageMovement(session), me, roleBrief: null, awayMissionHandPointer: null, awayMissionHand: null,
         roleBriefLoading: me.role === 'player',
         privateLoyalty: samePrivateAssignment(state.me, me) ? state.privateLoyalty : null,
@@ -664,12 +669,14 @@ export const useSessionStore = create<SessionState>()(
           gmInstance.sessionId === state.session?.id && gmInstance.uid === state.me.uid;
         return {
           gmInstance,
+          ...(!gmInstance || !sameClaim ? { gmRecoveryPending: false } : {}),
           ...(!sameClaim || !claimMatchesCurrentGm ? {
             session: clearVoyageMovement(state.session),
             voyage33MovementProjectionFresh: false,
           } : {}),
         };
       }),
+      setGmRecoveryPending: (gmRecoveryPending) => set({ gmRecoveryPending }),
       setGmAccessAuthenticatedAt: (gmAccessAuthenticatedAt) => set({ gmAccessAuthenticatedAt }),
       clearGmAccess: () => set({ gmAccessAuthenticatedAt: null }),
       setTurnStartReplay: (turnStartReplay) => set({ turnStartReplay }),
@@ -755,6 +762,7 @@ export const useSessionStore = create<SessionState>()(
           seats: [],
           me: null,
           gmInstance: null,
+          gmRecoveryPending: false,
           turnStartReplay: null,
           privateLoyalty: null,
           roleBrief: null,
