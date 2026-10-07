@@ -21,6 +21,7 @@ const SOURCE_FILES = Object.freeze([
   'src/routes/SessionMode.tsx', 'src/routes/DemoActorManager.tsx', 'src/lib/demoActorContext.ts',
   'src/lib/demoActorProfiles.ts', 'src/lib/sessionWaiver.ts', 'src/lib/sessionService.ts',
   'src/lib/firestore.ts', 'src/lib/firebase.ts', 'src/lib/firebaseConfig.ts', 'src/store/useSessionStore.ts', 'src/App.tsx', 'functions/src/index.ts',
+  'src/components/GmLoyaltySetupPanel.tsx', 'src/lib/gmLoyaltySetup.ts',
 ]);
 
 /** Source only. Root separately binds its served and compiled runtime. */
@@ -107,6 +108,19 @@ function safeHeldFailureObservations(held) {
       activeRoleCount: Array.isArray(value.activeRoleIds) ? value.activeRoleIds.length : null,
       activeVesselCount: Array.isArray(value.activeVesselIds) ? value.activeVesselIds.length : null,
       pressEnabled: value.pressEnabled === true, pressHolderPresent: value.pressHolderUidHash !== null,
+      pressControl: value.pressControl ? {
+        occupancyOwnBoolean: value.pressControl.occupancyOwnBoolean === true,
+        occupancyTrue: value.pressControl.occupancyTrue === true,
+        panelCount: Number.isSafeInteger(value.pressControl.panelCount) ? value.pressControl.panelCount : null,
+        panelMounted: value.pressControl.panelMounted === true,
+        selectCount: Number.isSafeInteger(value.pressControl.selectCount) ? value.pressControl.selectCount : null,
+        selectMounted: value.pressControl.selectMounted === true,
+        selectEnabled: value.pressControl.selectEnabled === true,
+        optionCount: Number.isSafeInteger(value.pressControl.optionCount) ? value.pressControl.optionCount : null,
+        optionMounted: value.pressControl.optionMounted === true,
+        optionEnabled: value.pressControl.optionEnabled === true,
+        uidValid: value.pressControl.uidValid === true,
+      } : null,
       castingFingerprint: hash(value) };
   }
   return result;
@@ -188,6 +202,41 @@ async function readOriginalCasting(context, failure) {
       return { roleId, status: seat?.status ?? null, holderUidHash: await digest(seat?.holderUid),
         claimedAtHash: await digest(JSON.stringify(seat?.claimedAt ?? null)) };
     }));
+    // The public Session deliberately exposes occupancy without the private
+    // holder UID. Bind identity to the existing normal GM control in this same
+    // observation; neither a roster guess nor an unavailable Session pointer
+    // can substitute for a current, unique, connected holder option.
+    const pressEnabled = session?.pressEnabled !== false;
+    const pressControl = {
+      occupancyOwnBoolean: !!session && Object.hasOwn(session, 'pressClaimed') && typeof session.pressClaimed === 'boolean',
+      occupancyTrue: session?.pressClaimed === true,
+      panelCount: null, panelMounted: false, selectCount: null,
+      selectMounted: false, selectEnabled: false, optionCount: null,
+      optionMounted: false, optionEnabled: false, uidValid: false,
+    };
+    let pressHolderUidHash = null;
+    if (pressEnabled) {
+      const panels = Array.from(document.querySelectorAll('[aria-label="Explicit loyalty setup"]'));
+      pressControl.panelCount = panels.length;
+      pressControl.panelMounted = panels.length === 1 && panels[0].isConnected === true;
+      if (pressControl.panelMounted) {
+        const selects = Array.from(panels[0].querySelectorAll('select[aria-label="Loyalty holder"]'));
+        pressControl.selectCount = selects.length;
+        pressControl.selectMounted = selects.length === 1 && selects[0].isConnected === true;
+        pressControl.selectEnabled = pressControl.selectMounted && selects[0].disabled === false;
+        if (pressControl.selectMounted) {
+          const options = Array.from(selects[0].options).filter(option =>
+            typeof option.textContent === 'string' && option.textContent.startsWith('Press Officer — '));
+          pressControl.optionCount = options.length;
+          pressControl.optionMounted = options.length === 1 && options[0].isConnected === true;
+          pressControl.optionEnabled = pressControl.optionMounted && options[0].disabled === false;
+          const holderUid = options.length === 1 ? options[0].value : null;
+          pressControl.uidValid = typeof holderUid === 'string' && /^[^\s/\u0000-\u001f\u007f]{1,128}$/.test(holderUid);
+          if (pressControl.occupancyOwnBoolean && pressControl.occupancyTrue && pressControl.selectEnabled &&
+            pressControl.optionEnabled && pressControl.uidValid) pressHolderUidHash = await digest(holderUid);
+        }
+      }
+    }
     if (auth().currentUser?.uid !== uid || useSessionStore.getState().me?.uid !== uid) {
       throw new Error('The original GM Auth identity changed during casting observation.');
     }
@@ -195,8 +244,8 @@ async function readOriginalCasting(context, failure) {
       fresh: state.connection === 'live' && state.sessionSnapshotFreshness === 'server',
       setupConfirmed: session?.setupConfirmed === true, configurationLocked: session?.configurationLocked === true,
       fullGameDemo: session?.fullGameDemo, activeRoleIds: session?.activeRoleIds,
-      activeVesselIds: session?.activeVesselIds, pressEnabled: session?.pressEnabled !== false,
-      pressHolderUidHash: await digest(session?.pressHolderUid), seats };
+      activeVesselIds: session?.activeVesselIds, pressEnabled, pressControl,
+      pressHolderUidHash, seats };
   }, { moduleUrl: context.gm.storeModuleUrl(), core });
   failure.held.casting = current;
   failure.guard = 'original-casting.fresh-confirmed-unlocked-preparing-manual-source';
@@ -211,6 +260,12 @@ async function readOriginalCasting(context, failure) {
     assert.ok(seat.status === 'claimed' && seat.holderUidHash === roster.find(row => row.roleId === seat.roleId)?.uidHash,
       'A canonical core seat or original roster UID changed.');
   }
+  failure.guard = 'original-casting.own-true-public-press-occupancy-and-current-control';
+  assert.ok(!current.pressEnabled || (current.pressControl.occupancyOwnBoolean && current.pressControl.occupancyTrue &&
+    current.pressControl.panelCount === 1 && current.pressControl.panelMounted &&
+    current.pressControl.selectCount === 1 && current.pressControl.selectMounted && current.pressControl.selectEnabled &&
+    current.pressControl.optionCount === 1 && current.pressControl.optionMounted && current.pressControl.optionEnabled &&
+    current.pressControl.uidValid), 'The public Press occupancy or unique current GM holder control is unavailable.');
   const press = roster.filter(row => row.roleId === 'press-officer');
   failure.guard = 'original-casting.original-press-holder';
   assert.ok(press.length === (current.pressEnabled ? 1 : 0) &&
