@@ -65,8 +65,11 @@ fresh-game scenarios.
 ## Bounded behavior groups and handoffs
 
 Workers read their own exact catalog rows, routed private sources and relevant
-workflow/aesthetic instructions. New behavior receives a separate failing-test
-commit before implementation. They own ordinary repairs and focused validation,
+workflow/aesthetic instructions. Apply the October 7
+[risk-based verification policy](AGENT_EXECUTION_POLICY.md#risk-based-verification-for-remaining-checkpoints):
+meaningful test-first commits for authority/privacy and durable-state risk,
+focused mounted integration slices, and direct checks for low-risk changes.
+They own ordinary repairs and focused validation,
 return exact local commits/evidence/gaps, and do not push or start CI. The
 orchestrator owns roadmap/release metadata and reconciles additive shared-file
 exports, types, service adapters and rules. Each worker first identifies exact
@@ -94,14 +97,19 @@ extend current shared shells, fonts, tokens and visible parent navigation.
    GM mode and a real cycle 0→1. In a new ordinary game, operate every role and
    every function across two browsers with unlimited time and manual
    advancement. A traceable role/function matrix records actions, costs,
-   authority, outcomes, interruptions, repeated requests and recovery. Full
-   base and expansion table scenarios and all three candidate/failure paths
-   remain required; prepared-state tours alone supply presentation evidence.
-2. **Independent session concurrency.** About 21 independent authenticated
-   sessions perform overlapping actions with retries, reconnects, private
-   audiences and optional-GM races. Record actor clients, independent Auth
-   sessions, actual browser contexts and overlapping scheduling separately.
-   Automated clients or browsers do not establish human/device playtesting.
+   authority, outcomes, interruptions, repeated requests and recovery. Cover
+   shared role families and each unique mechanic through legitimate assignments;
+   complete Base/expansion behavior and all three candidate/failure paths remain
+   required. Prepared-state tours alone supply presentation evidence.
+2. **Claim-based independent sessions.** Use two or three relevant actors for
+   authority/privacy and two competitors for contention/retries/reconnect;
+   add a GM or other participant only when the mechanic needs one. Justify
+   larger cohorts by the exact claim. A 21-account run is reserved for a
+   simultaneous scale claim impossible with fewer or a reproduced scale bug,
+   not routine setup, UI or proof-adapter repairs. Record actual Auth actors,
+   browser contexts and overlapping scheduling separately. Unclaimed capacity
+   does not block unrelated behavior. Automated clients or browsers do not
+   establish human/device playtesting.
 3. **Usability without manual consultation.** Check that the player can
    identify available actions, costs, blockers, committed results and next
    actor. Record each gap in the current matrix. PC10 must explain its changed
@@ -146,7 +154,25 @@ third-party/game material, dependencies, other contributors and assets with
 unconfirmed provenance. Existing asset bytes and third-party notices are retained.
 No email, HEY or inbox action is part of this task.
 
-## Current state
+## Current plan — October 7 process correction
+
+The October 7 policy above governs execution; the October 6 snapshots below
+are historical evidence, not current replay instructions. The earlier proposed
+19-account recovery and blanket 21-account/340-command/84-check/full-census
+plans are superseded. Existing drivers and failed assertions remain intact as
+opt-in scenarios for justified claims. The next qualification is the three-actor
+mounted lifecycle slice in [the acceptance matrix](PC10_ACCEPTANCE_MATRIX.md#current-verification-plan--october-7).
+It separates setup/navigation from full loyalty-census composition and claims
+no whole-game, ending or capacity acceptance.
+
+At source `2b0db0221a8fd91aa5d2c76b9127e317913b7105`, the mounted station-authority
+repair and five Native fixture corrections have independent Sol review PASS
+and focused 982 Native / 45 Functions passes. Those bounded results are retained;
+Base26 has never run. All 48 closures, complete gameplay gates and exact-candidate/
+main CI/deployment remain pending. This process-only revision runs documentation
+consistency and focused independent review, with no gameplay or Native replay.
+
+## Historical October 6 state
 
 Planning and scoped implementation are present; complete reconciled acceptance,
 independent final review, CI and release verification remain pending. The Mac
@@ -380,7 +406,7 @@ tests reproduced both automatic and GM recovery failures, followed by 62 green
 focused tests. Repaired authenticated scout/restore gameplay remains pending;
 the historical lock holder is not inferred from this later state.
 
-## Current verified boundary after counter and predicate integration
+## Historical October 6 boundary after counter and predicate integration
 
 GM26 at `3813d5d9dba1b1a36000542364ea0e4df7cabefe` qualified both mounted
 GM counters, their exact retries and an ordinary Pursuit ending through closure
@@ -394,7 +420,8 @@ Its cause and remaining movement/ending are open, with the original guards kept.
 Gate2 attempt 4 retained 273/340 issued commands and 63/84 privacy checks across
 three states, then failed natural lease expiry before scheduler/resume. No
 post-wait per-actor tuple was retained. Its issued subset passes, while the
-original four-state, 340-command, 84-check contract remains open. Twenty-one
+original four-state, 340-command, 84-check scenario remains incomplete; it is
+an opt-in claim-specific fixture under the October 7 policy. Twenty-one
 independent contexts in one Chrome process are automated evidence, not human
 device playtesting. Its source/runtime and exact-owned cleanup qualified.
 

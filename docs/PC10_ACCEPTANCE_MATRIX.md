@@ -72,12 +72,64 @@ anchors; that coverage does not establish an enabled control or gameplay.
 | PC10-A01 | Joined primary Settings ordinary join QR/link/code; ordinary admission/Auth/consent/privacy | pending |
 | PC10-A02 | Actual authenticated GM, fresh cycle 0→1, unlimited/manual full-game demo beside existing cycle demo | pending |
 | Gate 1 | Every role/function in fresh full game through ending across two browsers | pending; function inventory to be reconciled |
-| Gate 2 | About 21 independent authenticated sessions with overlapping actions/reconnect/retries/privacy | pending; record actor sessions and actual browser contexts separately |
+| Gate 2 | Claim-based overlap/reconnect/retry/privacy with the smallest sufficient cohort; 21 accounts only for a justified scale claim | pending; record actual Auth actors, browser contexts, cohort reason and regression scope separately |
 | Gate 3 | Available actions, costs, blockers and next actor can be understood in app | pending; broader PC11 guidance is future work |
 
 Prepared presentation, native tests, normal authenticated emulator HTTP/UI/rules, automated concurrent browsers, human/device playtesting, CI and production deployment are separate evidence classes. No unavailable evidence earns closure credit.
 
+## Current verification plan — October 7
+
+The [risk-based execution policy](AGENT_EXECUTION_POLICY.md#risk-based-verification-for-remaining-checkpoints)
+governs PC10, subsequent PC11 and conditional PC12. The earlier 19-account
+recovery proposal and blanket 21-account/full-census/340-command/84-check
+requirements are superseded. Historical failed runs below stay failed; existing
+script assertions and evidence remain intact. All 48 rows and complete gates
+remain pending. Valid unchanged subsystem evidence is reused within its scope.
+
+For each existing family row/report, state its claim, smallest sufficient actual
+cohort and reason, affected regression scope, reusable evidence and stop condition.
+PC10 uses representative shared role families plus every unique mechanic/role;
+PC11 starts with one actor per control family and a second for an actual handoff;
+conditional PC12 starts with one host and two clients, adding a third client only
+for a distinct private group. Strict authority/privacy and duplicate/data-loss
+negatives, required review, CI/platform checks and deployment remain required.
+
+**Exact next small qualification:** one normally authenticated GM, one ordinary
+Quellon Captain and one independent Press account, across two mounted browser
+surfaces. Use ordinary PRIMARY admission, consent and reciprocal casting,
+manual GM cycle 0→1, then Captain station entry, console release/reselection
+and reload;
+qualify Press's legal null-seat/null-berth station entry and entitled/private
+boundaries. Record actual source/SDK/receipt authority and generation/hydration
+at the original observation boundaries; retain original deadlines and negatives.
+Three actors distinguish GM control, a seat holder and non-seat Press authority.
+Use the legal 14-role configuration containing Captain, with unused seats left
+open under normal server readiness; 14 configured roles means three admitted
+Auth actors here. Console release and canonical-seat release are distinct;
+Back alone grants no release acceptance and canonical-seat changes need their
+own normal authorized action.
+`readinessForSetup` in `functions/src/gameSetup.ts` permits valid sparse seat-backed
+casting. The full-demo helper's 8–20 range and deduction helper's >=14 full-census
+assertions do not set this slice's participant count. Do not use complete crew
+preparation or alter product prerequisites to satisfy a helper.
+
+Use existing normal admission and portable observer/receipt primitives, not new
+generic infrastructure. Target six minutes, cap eight including normal cleanup;
+keep operation deadlines unchanged and stop at the first unexplained failure.
+Close owned browsers and delete only exact-owned session/Auth data using the
+existing cleanup contract. Reuse the source-only review and 982/45 focused result
+at `2b0db022`; add no suite rerun for this process-only change. This slice claims
+only mounted lifecycle/setup/privacy, not full census, ending, 21-account
+capacity or whole-game completion. Original Icebreaker 2/1→3/2 authority remains
+unqualified and needs its own small affected slice. A specific full loyalty-census
+case is separate, with actor count justified from that mechanic's actual rules.
+No runtime is authorized during this process revision; the parent owns resumption.
+
 ## October 6 accepted and open finite families
+
+This section is a retained historical snapshot. The October 7 plan above owns
+current execution; its old full-cohort defaults and runtime-window instructions
+are not launch authority.
 
 The latest closed actual boundary is GM26 at
 `3813d5d9dba1b1a36000542364ea0e4df7cabefe`. Its ordinary PRIMARY admission,
@@ -118,9 +170,9 @@ and reload. The issued subset passed its functional/commanded-privacy checks;
 actual natural lease expiry failed before scheduler/resume. The post-wait
 per-actor timestamps were not retained, so no late writer or failing actor is
 identified. This attempt used 21 independent browser contexts in one Chrome
-process and zero humans; it does not complete Gate2 or replace its original
-340-command/four-state/84-check target. Cleanup and source/runtime preservation
-qualified, returning all owned scopes to zero.
+process and zero humans; it does not complete its historical
+340-command/four-state/84-check scenario or earn current Gate 2 acceptance.
+Cleanup and source/runtime preservation qualified, returning all owned scopes to zero.
 
 The integrated counter, public-mission and opt-in shuttle packets pass 132
 distinct focused checks (101 Node and 31 rendered component cases), with the
@@ -139,7 +191,7 @@ All 48 catalog closures, the three complete gates and release remain pending.
 | Core and Press shuttle transit | Core8 qualified Request departure for the original Wing Commander/Starlight holder, retaining its original host, group, generation, hydration and document. Begin and exact replay returned 200 but failed source qualification. Press2 confirmed canonical null replacement status and its own SNN scope/control; Press3 failed before departure. | Core movement, natural arrival, adjacent commands, printed-owner handoff/reclaim and reload through ending remain open. The existing ten-file native slice passes 159 cases with disclosed fixture completions; all original route assertions/titles remain exact. Press selection passes 14 new and 94 unchanged checks. A full default Begin mapping characterization passes without changing any acceptance guard. Core10 retains raw latestLive=true and matching original authority/movement, with dockingCount1 and a rejected docking/member-group predicate. A bounded source-coupled investigation is open; no live or authority guard is relaxed. No native total or SDK 200 establishes completed transit or an exclusive historical cause. |
 | N/O/P candidate games | CandidatePanel6 completed four ordinary cycles and twenty Scientist choices; phone/landscape targets and all viewport overflow/target-size checks passed. | Desktop native Tab reached seven of eight targets within the unchanged 48-Tab cap; all three distinct candidate outcomes and endings remain open. |
 | Capybara, sparse joint engineering and replacement-role families | Capybara2 retains real manual start, 662 normal GM resource preparation receipts and 60 qualified maintenance step receipts through six ship sequence ends. | The seventh Capybara maintenance response remains unqualified, followed by all missions and the existing ordinary ending. Sparse joint/replacement functions, costs, replay/recovery/privacy and endings remain open. |
-| Gate 2 independent sessions | Attempt4 completed all 21 browser joins/consent and the first three commanded privacy states; its 273 issued commands/63 checks passed the issued-subset contract. | Natural lease expiry failed before scheduler/resume, without per-actor post-wait timestamps. Complete the unchanged 340-command/four-state/84-privacy-check contract; no concurrency acceptance or historical cause is inferred. |
+| Gate 2 independent sessions | Attempt4 completed all 21 browser joins/consent and the first three commanded privacy states; its 273 issued commands/63 checks passed the issued-subset contract. | Natural lease expiry failed before scheduler/resume, without per-actor post-wait timestamps. Qualify the affected expiry/reconnect/privacy claim with justified actors under the October 7 plan; the historical 340/84 fixture remains incomplete and opt-in. No concurrency acceptance or historical cause is inferred. |
 | Gate 3 usability / final release | Existing action/source annotations and subsystem screenshots are retained. | Reconcile available actions, costs, blockers, committed results and next actor; one independent review, final local checks, exact candidate/main CI and deployment. |
 
 The parent explicitly returned the earlier Chain Scanner runtime windows,

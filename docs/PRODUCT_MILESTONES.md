@@ -56,8 +56,12 @@ is optional once the owner explicitly authorizes the checkpoint. The scene is
 for judging presentation, not evidence that multiplayer gameplay works. Agents
 prove the real authorized paths and relevant multi-client behavior separately
 before claiming the affected gameplay prompts complete.
-The final game-completion gate includes the full-table twenty-player proof;
-the owner is never responsible for recruiting or operating that table.
+The final game-completion gate covers the complete game's role/function
+behavior. The October 7 risk-based execution policy supersedes a blanket
+simultaneous twenty-player proof: use legitimate configurations and only the
+actors needed for each claim. The owner is never responsible for recruiting
+or operating a test cohort. Historical checkpoint test-first plans below remain
+historical; the current policy governs remaining work.
 
 The [catalog](implementation-prompts.json) owns current prompt definitions,
 dependencies, decisions and status. The [completion plan](CHECKPOINT_COMPLETION_PLAN.md)
@@ -297,9 +301,14 @@ make, even when the shaped UI passed.
    prevents a shaped acceptance check from passing is part of that check;
    unrelated discoveries and extra features go to the candidate list. Keep
    technical exit fixtures, authority/privacy/reconnect coverage, rendered QA,
-   and release evidence as internal gates. For new behavior, commit a failing
-   test on the task branch **before** the implementation commit. Never weaken,
-   skip, or delete an existing test to make the build pass. If an existing test
+   and release evidence as internal gates. Apply the October 7
+   [risk-based execution policy](AGENT_EXECUTION_POLICY.md#risk-based-verification-for-remaining-checkpoints):
+   new or changed authority/privacy and durable-state behavior needs a meaningful
+   failing regression before implementation in separate commits; integration
+   uses a focused affected test/mounted slice, and low-risk documentation/copy
+   uses direct checks. Choose actual actor count by the claim and reuse valid
+   unaffected evidence. Never weaken, skip, or delete an existing test to make
+   the build pass. If an existing test
    appears wrong, leave it intact and flag it. Never modify an existing test
    in the same commit as the code it covers. If a later shape or cooldown
    establishes a correction, make it a separate test-only commit and record
@@ -635,9 +644,14 @@ The separate PC10 dispatch authorizes the revised shape and execution in
 [PC10 execution record](PC10_EXECUTION_RECORD.md). Keep its fixed 48 assigned
 closures and 751/751 endpoint, with real authenticated GM cycle 0→1, an
 unlimited manually advanced full-game demo beside the existing single-cycle
-demo, fresh-game every-role/function acceptance across two browsers, about
-21 independent authenticated sessions with overlapping/reconnect/retry/privacy
-checks, and explicit action/cost/blocker/next-actor usability evidence.
+demo, fresh-game every-role/function acceptance across two browsers,
+claim-based overlapping/reconnect/retry/privacy checks, and explicit
+action/cost/blocker/next-actor usability evidence. The October 7 owner correction
+in [the execution policy](AGENT_EXECUTION_POLICY.md#risk-based-verification-for-remaining-checkpoints)
+supersedes the blanket test-first and about-21-session defaults: use the
+smallest legitimate cohort for the specific claim and reuse unaffected evidence.
+A 21-account run needs an explicit scale claim impossible with fewer or a
+reproduced scale-dependent bug; untested capacity remains unclaimed.
 Prepared scenes alone are insufficient. The primary Firebase Settings join QR
 and full-game demo are explicit additions with zero fixed-catalog credit.
 Preserve Cycle 0 AWAITING CIC HANDSHAKE and its Settings GM-start explanation.

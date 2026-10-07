@@ -49,8 +49,9 @@ gap, and owns the single release. This does not add child coordinators.
 
 Obtain independent Sol review of the reconciled shared-state and authority
 changes under the risk rules in `CLAUDE.md`. Review findings return to the
-responsible implementation owner. Preserve test-first commits, exact-candidate
-validation, authenticated local/emulator gameplay proof, and the fixed completion target.
+responsible implementation owner. Preserve existing test-first evidence and
+apply the risk-based verification below, exact-candidate validation, authenticated
+local/emulator gameplay proof, and the fixed completion target.
 The October 2 owner correction makes this the future repository-wide standard;
 production-GM gameplay is not a closure dependency. Retain functional checks,
 independent review, CI and production deployment; prepared scenes alone do not
@@ -128,6 +129,73 @@ one current acceptance matrix with implemented, connected, tested, reviewed,
 deployed, and live-proof gaps; reuse ordinary task documentation, not a new
 measurement system or universal gate. Record ownership transfer, preserve all
 work, and give the successor exact remaining seams and active worker boundaries.
+
+## Risk-based verification for remaining checkpoints
+
+**Owner correction, 2026-10-07:** apply risk-based TDD and claim-based actor
+cohorts to remaining PC10, existing post-PC10 work, PC11 and conditional PC12.
+This supersedes blanket failing-test-first, 19/21-account, full-census and
+340-command/84-cell replay defaults. Preserve prior evidence and assertions;
+this correction neither marks a failed run passed nor waives actual behavior.
+PC10's fixed 48 IDs, fresh two-browser solo game through an ending, every role
+and game function, genuine GM authority, manual progression and privacy remain.
+Trace shared role families and each unique mechanic without an endpoint-by-role
+Cartesian product; rotate actors through legitimate assignments where allowed.
+
+Choose verification from the changed behavior and credible failure risk:
+
+- **Authority, privacy and durable state:** write the smallest meaningful
+  failing regression before implementing or repairing authorization, transaction/replay,
+  conflicting writes, persistence, recovery or data-loss behavior; retain
+  separate test-first commits. Keep entitled, wrong/foreign/revoked actor,
+  stale/conflicting authority and duplicate-effect negatives that apply.
+- **Navigation and integration:** use a focused behavioral test or mounted-app
+  probe for the changed route, control, authority binding or handoff. A
+  proof-adapter repair needs its discriminating contract check and affected
+  mounted slice, not a new whole-game replay for each guard.
+- **Documentation, copy and presentation without logic changes:** use document
+  consistency checks or rendered inspection of affected configurations. Do not
+  invent red tests or run Native/Functions/browser suites for a docs-only edit.
+
+Record the claim, actual cohort and why fewer actors cannot prove it, affected
+regression scope, evidence reused and stop condition in the existing checkpoint
+matrix or report. No new generic framework, per-guard ledger or universal gate.
+
+| Claim | Default smallest sufficient cohort |
+|---|---|
+| Rendering, navigation or guidance | One actor per distinct configuration; a second only for an actual handoff. |
+| Authorization or private audiences | Two or three relevant actors: entitled, peer and foreign/wrong role as required. |
+| Contention, retries or reconnect | Two competitors; add a GM only when the mechanic needs one. |
+| Progression and ending | Minimum legitimate playable setup for that mechanic; cover representative shared families and every unique function/role. |
+| PC11 guidance | One actor per control family, plus a second for a real handoff; reuse unchanged PC10 gameplay evidence. |
+| Conditional PC12 offline mode | One Mac host plus two clients; a third client only for a distinct private group. Separately verify identity, persistence/recovery, conflicts and WAN-disconnected operation. |
+
+Twenty-one independent authenticated accounts are justified only for a specific
+simultaneous capacity/concurrency/privacy claim impossible with fewer, or a
+reproduced scale-dependent bug. State that reason before running it. Untested
+21-account capacity stays unclaimed and does not block unrelated behavior.
+Existing full-census and 340/84 drivers are opt-in scenarios for their specific
+claims, not defaults for UI, lifecycle, setup or single-role repairs. Distinguish
+configured roster size, actual admitted Auth actors, browser concurrency and
+human-device play. Inspect product/server prerequisites separately from helper
+limits; preserve legitimate casting, consent, seat, loyalty and privacy rules.
+A full loyalty-census composition may remain one justified targeted case.
+
+Reuse valid evidence when its behavior, dependencies and runtime contract are
+unchanged; bind it to the reconciled candidate and explain the affected scope.
+Qualify composed setup once, then exercise changed families without repeatedly
+paying for the same admission/research prefix. A process-only commit does not
+invalidate unchanged source/runtime evidence. Material changes or unresolved
+failures require focused requalification; tests never backfill gameplay.
+
+Stop the bounded slice at its first unexplained integration failure, retain its
+original evidence and cleanup, and diagnose only that behavior before expanding.
+Do not automatically replay the whole game or scale the cohort after one guard
+repair. Keep the existing two-substantive-failed-repair escalation rule above.
+Unresolved required behavior, authority/privacy/data-loss defects, failed required
+gates or unverified deployment stop the affected acceptance/release. Independent
+risk review, required CI/platform/rendered gates and exact-candidate/exact-main
+deployment verification remain intact; this policy adds no approval pause.
 
 ## Batched PC releases
 

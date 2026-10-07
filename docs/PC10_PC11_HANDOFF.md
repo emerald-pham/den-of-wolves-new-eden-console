@@ -17,6 +17,25 @@ production verification. Firebase remains the primary/default application.
 The existing post-prompt Wolf-alert review retains its real-play trigger in
 [the post-prompt list](POST_PROMPT_COMPLETION_TASKS.md).
 
+## Current verification policy — October 7
+
+Apply [risk-based verification](AGENT_EXECUTION_POLICY.md#risk-based-verification-for-remaining-checkpoints)
+to remaining PC10, existing post-PC10 work, PC11 and conditional PC12. The earlier
+19-account recovery proposal and blanket 21-account/340-command/84-cell/full-census
+replays are superseded. Keep historical failed evidence and actual product rules.
+PC10's exact next three-actor lifecycle/setup slice is in
+[the current acceptance matrix](PC10_ACCEPTANCE_MATRIX.md#current-verification-plan--october-7);
+no runtime is part of this process revision.
+
+PC11 defaults to one actor per distinct control/guidance configuration and a
+second only for an actual handoff. Test changed action availability, costs,
+blockers and next-actor guidance; reuse unaffected PC10 authority/gameplay
+proof. Expansion depends on changed mechanics or a concrete failed claim, not
+actor-count ceremony. Preserve meaningful authority/privacy and durable-state
+regressions, stop at the first unexplained integration failure, and use the
+existing escalation/review/release policy. The measured snapshots below are
+historical and must not be read as current runtime instructions.
+
 ## Required PC11 implementation lessons
 
 1. **Audit mounted actions before writing guidance.** Map each source mechanic
@@ -133,10 +152,12 @@ fresh prefixes: initial member authority ordering, absent own shuttle-route
 privacy, desktop keyboard reachability and reader load. Reconcile source fixes
 once and qualify the affected exact-role live slices. Then use the existing
 finite Base, Capybara, N/O/P, sparse/replacement and terminal compositions
-through their ordinary endings, followed by the original independent-session
-contract and scoped usability pass. No added test framework or reduced
-role/function/security coverage is authorized. Heavy fresh browser proofs stay
-serial on the reserved Mac runtime.
+through their ordinary endings, with claim-based overlap/privacy/recovery
+checks and scoped usability. Qualify composed setup once and reuse unaffected
+evidence. The historical 340/84 driver is opt-in for its particular claim;
+21 accounts require the policy's scale justification. No added test framework
+or reduced role/function/security coverage is authorized. Heavy fresh browser
+proofs stay serial on the reserved Mac runtime.
 
 After all scoped acceptance is complete, obtain the one reconciled independent
 Sol 6.1 review, run final appropriate local checks, and verify exact-candidate
@@ -167,8 +188,13 @@ They are not a qualified LAN identity/privacy product: emulator authentication
 and directly exposed development services must not be treated as production
 security. Local identity, GM authority, private audiences, durable persistence,
 crash/reconnect recovery and WAN-disconnected startup plus multi-client proof
-remain separate required work. A bounded adapter around reused domain logic
-may be economical; its transport, identity and storage design is unvalidated
+remain separate required work. Start with one Mac host and two browser clients;
+add a third client only for a distinct private group. Record each claim/cohort,
+affected regression scope and stop condition in the existing PC12 plan. Verify
+identity/GM/privacy, persistence and recovery, competing writes and disconnected
+startup/play separately; a failed required claim or data-loss/privacy defect
+stops acceptance. No 21-account run is a default offline gate. A bounded adapter
+around reused domain logic may be economical; its transport, identity and storage design is unvalidated
 and no delivery estimate or security claim is made here.
 
 A later owner decision should follow a concrete decomposition of those service

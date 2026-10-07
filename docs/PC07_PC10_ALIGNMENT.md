@@ -78,8 +78,11 @@ when station authority is lost. Preserve unsent input safely without retaining
 or replaying unauthorized actions. Recovered projections replace stale cache;
 resolved actions stay resolved, pending choices remain truthful and committed
 random results never reroll. Cover dropouts across non-GM roles, not just
-ordinary crew, and distinguish a sparse current roster from the full-table
-proof still required at the final checkpoint.
+ordinary crew. Preserve complete configured-role/function behavior at the final
+checkpoint using legitimate rosters and the smallest actual cohort for each
+claim under the October 7 risk-based execution policy. Simultaneous full-table
+capacity needs a separate justified claim; a sparse lifecycle check does not
+prove complete gameplay or capacity.
 
 Apply CIC language and typography to alerts, results, endings and errors as
 well as primary screens. Retain the existing mandatory rendered typography
@@ -217,8 +220,11 @@ authenticated local/emulator native handlers, normal HTTP/UI and rules evidence
 as appropriate. Production-GM gameplay is not required for closure. Functional
 criteria, source/authority/privacy/recovery, fixed counts, independent risk
 review, CI and production deployment are retained. Synthetic review scenes
-remain presentation only. PC10's full-table, end-to-end and actual ending proof
-may use local/emulator clients; version authorization and P605a exclusion stay
+remain presentation only. PC10's complete role/function behavior, fresh end-to-end
+games and actual endings may use local/emulator clients. The October 7
+[risk-based execution policy](AGENT_EXECUTION_POLICY.md#risk-based-verification-for-remaining-checkpoints)
+supersedes blanket full-table actor counts; use legitimate minimum cohorts and
+separate justified scale claims. Version authorization and P605a exclusion stay
 intact. See the current policy in Product Milestones.
 
 ## PC10 owner revision — October 5
@@ -227,9 +233,14 @@ The separate PC10 dispatch authorizes the revised shape and execution in
 [PC10 execution record](PC10_EXECUTION_RECORD.md). Keep its fixed 48 assigned
 closures and 751/751 endpoint, with real authenticated GM cycle 0→1, an
 unlimited manually advanced full-game demo beside the existing single-cycle
-demo, fresh-game every-role/function acceptance across two browsers, about
-21 independent authenticated sessions with overlapping/reconnect/retry/privacy
-checks, and explicit action/cost/blocker/next-actor usability evidence.
+demo, fresh-game every-role/function acceptance across two browsers,
+claim-based overlapping/reconnect/retry/privacy checks, and explicit
+action/cost/blocker/next-actor usability evidence. The October 7 owner correction
+in [the execution policy](AGENT_EXECUTION_POLICY.md#risk-based-verification-for-remaining-checkpoints)
+supersedes the blanket test-first and about-21-session defaults: use the
+smallest legitimate cohort for the specific claim and reuse unaffected evidence.
+A 21-account run needs an explicit scale claim impossible with fewer or a
+reproduced scale-dependent bug; untested capacity remains unclaimed.
 Prepared scenes alone are insufficient. The primary Firebase Settings join QR
 and full-game demo are explicit additions with zero fixed-catalog credit.
 Preserve Cycle 0 AWAITING CIC HANDSHAKE and its Settings GM-start explanation.

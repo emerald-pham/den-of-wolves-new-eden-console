@@ -215,9 +215,14 @@ The separate PC10 dispatch authorizes the revised shape and execution in
 [PC10 execution record](PC10_EXECUTION_RECORD.md). Keep its fixed 48 assigned
 closures and 751/751 endpoint, with real authenticated GM cycle 0→1, an
 unlimited manually advanced full-game demo beside the existing single-cycle
-demo, fresh-game every-role/function acceptance across two browsers, about
-21 independent authenticated sessions with overlapping/reconnect/retry/privacy
-checks, and explicit action/cost/blocker/next-actor usability evidence.
+demo, fresh-game every-role/function acceptance across two browsers,
+claim-based overlapping/reconnect/retry/privacy checks, and explicit
+action/cost/blocker/next-actor usability evidence. The October 7 owner correction
+in [the execution policy](AGENT_EXECUTION_POLICY.md#risk-based-verification-for-remaining-checkpoints)
+supersedes the blanket test-first and about-21-session defaults: use the
+smallest legitimate cohort for the specific claim and reuse unaffected evidence.
+A 21-account run needs an explicit scale claim impossible with fewer or a
+reproduced scale-dependent bug; untested capacity remains unclaimed.
 Prepared scenes alone are insufficient. The primary Firebase Settings join QR
 and full-game demo are explicit additions with zero fixed-catalog credit.
 Preserve Cycle 0 AWAITING CIC HANDSHAKE and its Settings GM-start explanation.

@@ -110,7 +110,7 @@ npm run build
 npm run build --prefix functions
 ```
 
-[CLAUDE.md](CLAUDE.md#testing-and-review) owns test-first, rendered QA and
+[CLAUDE.md](CLAUDE.md#testing-and-review) owns risk-based verification, rendered QA and
 independent-review requirements. Documentation uses `git diff --check` and
 `npm run coordination:docs`; it does not change the product version or player
 changelog. One owner carries implementation, review, repairs, validation,
