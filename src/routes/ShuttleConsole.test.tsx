@@ -7,6 +7,8 @@ import { SHUTTLECRAFT } from '@/data/shuttles';
 import { findConsoleRole } from '@/data/roles';
 import { consoleRoleRoute } from '@/lib/consoleRole';
 import { recommendedRoleIds } from '@/data/rolePresets';
+import { sessionSubscriptionOwner } from '@/lib/sessionSubscriptionOwner';
+import type * as FirebaseModule from '@/lib/firebase';
 import type * as FirestoreModule from '@/lib/firestore';
 import type * as ScoutRequestServiceModule from '@/lib/scoutRequestService';
 import type * as ShuttleEvacuationServiceModule from '@/lib/shuttleEvacuationService';
@@ -18,6 +20,12 @@ const endeavourResearchMocks = vi.hoisted(() => ({ read: vi.fn(), advance: vi.fn
 const endeavourEcmMocks = vi.hoisted(() => ({ read: vi.fn(), activate: vi.fn() }));
 const scoutRequestMock = vi.hoisted(() => ({ request: vi.fn() }));
 const dismantlingPanelMock = vi.hoisted(() => ({ render: vi.fn() }));
+const arrivalAuthorityFixture = vi.hoisted(() => ({ authUid: null as string | null }));
+vi.mock('@/lib/firebase', async (importOriginal) => ({
+  ...(await importOriginal<typeof FirebaseModule>()),
+  auth: () => ({ currentUser: arrivalAuthorityFixture.authUid
+    ? { uid: arrivalAuthorityFixture.authUid } : null }),
+}));
 vi.mock('@/components/PermissionedDismantlingPanel', () => ({
   default: (props: unknown) => {
     dismantlingPanelMock.render(props);
@@ -110,6 +118,7 @@ vi.mock('@/lib/shuttleEvacuationService', async (importOriginal) => ({
 }));
 const { dismissPressDispatch, publishPressDispatch } = await import('@/lib/pressDispatchService');
 const { releaseConsoleRole, selectConsoleRole } = await import('@/lib/sessionService');
+const { confirmCurrentMemberSessionProjection } = await import('@/lib/firestore');
 const { subscribeConnectedPlayers } = await import('@/lib/firestore');
 const { subscribeShuttleDeparture } = await import('@/lib/firestore');
 const { transferShuttleControl } = await import('@/lib/shuttleControlService');
@@ -145,6 +154,39 @@ function reachedTransit(holderUid: string, transitRequestId = 'transit-arrived')
     velocity: { x: 0.004, y: -0.002, z: 0.004 },
     departedAt: '2026-01-01T00:10:01.000Z', arrivesAt: '2026-01-01T00:11:01.000Z',
   };
+}
+
+async function installShuttleArrivalAuthority(sessionId: string, uid: string): Promise<void> {
+  const store = useSessionStore.getState();
+  const session = store.session!;
+  const me = store.me!;
+  const assignedRoleId = me.assignedRoleId ?? 'wing-commander';
+  const activeConsoleRoleId = me.activeConsoleRoleId ?? 'wing-commander';
+  const connectionGeneration = 3;
+  const token = Symbol(`shuttle-arrival:${sessionId}:${uid}`);
+  store.setSession({
+    ...session,
+    memberSessionScope: { groupId: 'fleet-1', vesselIds: ['aegis', 'icebreaker'], craftIds: ['starlight'] },
+    currentActorBerthAuthority: {
+      sessionId, actorUid: uid, groupId: 'fleet-1', role: 'player', connectionGeneration,
+      assignedRoleId, activeConsoleRoleId, replacementRoleId: null, replacementStatus: null, shipId: 'aegis',
+    },
+  });
+  store.setMe({
+    ...me, uid, sessionId, role: 'player', connected: true, fleetGroupId: 'fleet-1', connectionGeneration,
+    assignedRoleId, activeConsoleRoleId, replacementRoleId: null, replacementStatus: null,
+  });
+  store.setConnection('live');
+  store.setSessionSnapshotFreshness('server');
+  arrivalAuthorityFixture.authUid = uid;
+  sessionSubscriptionOwner.token = token;
+  sessionSubscriptionOwner.memberProjectionConfirmation = {
+    sessionId, uid, subscriptionToken: token, cancel: vi.fn(),
+    confirm: async (current) => current(),
+  };
+  if (!await confirmCurrentMemberSessionProjection(sessionId, uid)) {
+    throw new Error('Expected the current member projection to confirm this shuttle arrival fixture.');
+  }
 }
 
 function prepareBlacksmithRepairState() {
@@ -189,6 +231,10 @@ function staleBlacksmithReply(requestId: string) {
 }
 
 beforeEach(() => {
+  sessionSubscriptionOwner.memberProjectionConfirmation?.cancel();
+  sessionSubscriptionOwner.memberProjectionConfirmation = undefined;
+  sessionSubscriptionOwner.token = undefined;
+  arrivalAuthorityFixture.authUid = null;
   dismantlingPanelMock.render.mockClear();
   endeavourResearchMocks.read.mockReset();
   endeavourResearchMocks.advance.mockReset();
@@ -2976,6 +3022,7 @@ it('completes a reached transit automatically and exposes the server-confirmed d
   state.setMe({ ...state.me!, assignedRoleId: 'wing-commander', activeConsoleRoleId: 'wing-commander' });
   state.setConnection('live');
   state.setSessionSnapshotFreshness('server');
+  await installShuttleArrivalAuthority('s1', 'u1');
   vi.mocked(subscribeShuttleDeparture).mockImplementation((_sessionId, _shuttleId, onDeparture) => {
     onDeparture({
       status: 'in-transit', requestId: 'departure-1', transitRequestId: 'transit-arrived',
@@ -3017,6 +3064,7 @@ it.each(['success', 'error'] as const)(
     state.setMe({ ...state.me!, assignedRoleId: 'wing-commander', activeConsoleRoleId: 'wing-commander' });
     state.setConnection('live');
     state.setSessionSnapshotFreshness('server');
+    await installShuttleArrivalAuthority('s1', 'u1');
     vi.mocked(subscribeShuttleDeparture).mockImplementation((sessionId, _shuttleId, onDeparture) => {
       onDeparture(reachedTransit(sessionId === 's2' ? 'u2' : 'u1'));
       return vi.fn();
@@ -3037,7 +3085,10 @@ it.each(['success', 'error'] as const)(
       },
     };
     const nextMember = { ...current.me!, uid: 'u2', sessionId: 's2', displayName: 'Member two' };
-    act(() => useSessionStore.getState().setIdentity(nextSession, nextMember));
+    await act(async () => {
+      useSessionStore.getState().setIdentity(nextSession, nextMember);
+      await installShuttleArrivalAuthority('s2', 'u2');
+    });
     view.rerender(<MemoryRouter initialEntries={['/shuttles/starlight']}><Routes>
       <Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} />
     </Routes></MemoryRouter>);
@@ -3083,6 +3134,7 @@ it('ignores a deferred manual retry after identity changes and preserves the new
   state.setMe({ ...state.me!, assignedRoleId: 'wing-commander', activeConsoleRoleId: 'wing-commander' });
   state.setConnection('live');
   state.setSessionSnapshotFreshness('server');
+  await installShuttleArrivalAuthority('s1', 'u1');
   vi.mocked(subscribeShuttleDeparture).mockImplementation((sessionId, _shuttleId, onDeparture) => {
     onDeparture(reachedTransit(sessionId === 's2' ? 'u2' : 'u1'));
     return vi.fn();
@@ -3108,7 +3160,10 @@ it('ignores a deferred manual retry after identity changes and preserves the new
     },
   };
   const nextMember = { ...current.me!, uid: 'u2', sessionId: 's2', displayName: 'Member two' };
-  act(() => useSessionStore.getState().setIdentity(nextSession, nextMember));
+  await act(async () => {
+    useSessionStore.getState().setIdentity(nextSession, nextMember);
+    await installShuttleArrivalAuthority('s2', 'u2');
+  });
   view.rerender(<MemoryRouter initialEntries={['/shuttles/starlight']}><Routes>
     <Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} />
   </Routes></MemoryRouter>);
