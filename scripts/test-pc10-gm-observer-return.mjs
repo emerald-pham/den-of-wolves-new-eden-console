@@ -194,7 +194,8 @@ test('public lifecycle factory distinguishes same-document null from a stale ful
   });
 
   const staleDocument = await fixture(t, { crewNavigation: 'document-response-stale' });
-  await assert.rejects(staleDocument.run(), /Original selected actor restored/);
+  await assert.rejects(staleDocument.run(), error =>
+    assert.match(error.message, /current\.generation > expected\.generation/));
   assert.deepEqual(staleDocument.crewNavigations.at(-1), {
     kind: 'document-response-stale', beforeGeneration: actor.generation, afterGeneration: actor.generation,
   }, 'A Response means rejoin; without a newer source generation the old authority is rejected.');
