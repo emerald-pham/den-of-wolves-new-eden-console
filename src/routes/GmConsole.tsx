@@ -1009,7 +1009,8 @@ export default function GmConsole() {
   };
 
   useEffect(() => {
-    if (!isGm || !sessionId || gmRecoveryPending) return;
+    if (!isGm || !sessionId || gmRecoveryPending ||
+        connection !== 'live' || sessionSnapshotFreshness !== 'server') return;
     const localInstanceId = local?.id;
     const generation = crisisAuthorityGeneration.current + 1;
     crisisAuthorityGeneration.current = generation;
@@ -1036,6 +1037,8 @@ export default function GmConsole() {
       if (
         !active || authorityInvalidated ||
         crisisAuthorityGeneration.current !== generation ||
+        current.gmRecoveryPending || current.connection !== 'live' ||
+        current.sessionSnapshotFreshness !== 'server' ||
         current.session?.id !== sessionId || current.me?.role !== 'gm' ||
         !currentInstance || !currentUid ||
         currentUid !== currentInstance.uid ||
@@ -1108,11 +1111,11 @@ export default function GmConsole() {
       subscribeGmArrestPosseCalculation,
       subscribeSessionEvents,
     }) => {
-      if (!active) return;
+      if (!currentAuthorityKey()) return;
       stopInstances = subscribeGmInstances(
         sessionId,
         (next) => {
-          if (!active || authorityInvalidated) return;
+          if (!currentAuthorityKey()) return;
           setInstances(next);
           setLoading(false);
           const store = useSessionStore.getState();
@@ -1269,7 +1272,7 @@ export default function GmConsole() {
             : () => undefined;
         },
         () => {
-          if (!active || authorityInvalidated) return;
+          if (!currentAuthorityKey()) return;
           setLoading(false);
           useSessionStore.getState().setCommunicationError({
             code: 'gm-manifest-link',
@@ -1278,7 +1281,7 @@ export default function GmConsole() {
           revokeAuthority();
         },
       );
-      if (!active || authorityInvalidated) {
+      if (!currentAuthorityKey()) {
         stopInstances();
         stopInstances = () => undefined;
         return;
@@ -1443,6 +1446,8 @@ export default function GmConsole() {
     clearArrestPosseCalculation,
     isGm,
     gmRecoveryPending,
+    connection,
+    sessionSnapshotFreshness,
     local?.id,
     local?.uid,
     me?.fleetGroupId,
