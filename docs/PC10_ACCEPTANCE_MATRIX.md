@@ -70,7 +70,7 @@ anchors; that coverage does not establish an enabled control or gameplay.
 | Addition / gate | Acceptance | Evidence |
 |---|---|---|
 | PC10-A01 | Joined primary Settings ordinary join QR/link/code; ordinary admission/Auth/consent/privacy | Scoped QR payload/pixel and ordinary admission evidence accepted below; final current-source rendering/release pending. |
-| PC10-A02 | Actual authenticated GM, fresh cycle 0→1, unlimited/manual full-game demo beside existing cycle demo | Actual ordinary GM and three-actor fresh training/manual 0→1/Coordination retry accepted within their scopes; complete fresh solo demo and every-role/function ending remain pending. |
+| PC10-A02 | Actual authenticated GM, fresh cycle 0→1, unlimited/manual full-game demo beside existing cycle demo | Actual ordinary GM, fresh manual 0→1/Coordination retry and actual current Cycle 1 Press transmission accepted within their scopes; complete fresh solo demo and every-role/function ending remain pending. |
 | Gate 1 | Every role/function in fresh full game through ending across two browsers | pending; function inventory to be reconciled |
 | Gate 2 | Claim-based overlap/reconnect/retry/privacy with the smallest sufficient cohort; 21 accounts only for a justified scale claim | pending; record actual Auth actors, browser contexts, cohort reason and regression scope separately |
 | Gate 3 | Available actions, costs, blockers and next actor can be understood in app | pending; broader PC11 guidance is future work |
@@ -235,7 +235,7 @@ checks and matching server-owned holder/group/control/movement state. Private,
 wrong-role, foreign-session, stale-authority and duplicate-effect negatives
 remain separate required evidence.
 
-The minimal next runtime proposal is a **flight-only** fresh manual-training
+The closed targeted handoff proposed a **flight-only** fresh manual-training
 slice, reusing the proven ordinary setup: GM, Press and Captain across two
 automated browser contexts and normal origin persistence. GM supplies legitimate
 setup/progression, Press owns the flight, and Captain supplies the wrong-holder
@@ -256,13 +256,88 @@ The Source-only risk review is
 the closed correction/contract handoff is
 `/tmp/dow-pc10-evidence/OWNER_PRESS_OBSERVER_TARGETED_HANDOFF_20261007.json`.
 Only the verified Native Rules `sessions/s1` subtree was removed from its
-separate local test namespace. Primary gameplay stays idle; no production,
-release, fixed closure, PC11/PC12 or license change is credited.
+separate local test namespace. Primary gameplay was idle at that closed
+Source-only boundary; no production, release, fixed closure, PC11/PC12 or
+license change is credited. The later parent-authorized actual below is separate.
+
+### Bounded three-actor actual 2 — phase projection failure, closed cleanup
+
+The parent subsequently authorized one flight and, only if healthy, the existing
+same-session Pursuit ending. Actual 2 ran frozen at `25ee6b15`, on explicitly
+installed current owned-emulator Rules, after the bounded independent Sol 6.1
+runner review and successful prelaunch freeze writer. The cap was 12 minutes
+including 60 seconds for exact-owned cleanup; original 35-second UI and
+60-second operation deadlines remained. It stopped at the first failure in
+68,249 ms including cleanup. This authorization is consumed; no third actual,
+whole-Base replay, cohort expansion or external release is authorized here.
+
+Three ordinary authenticated GM/Captain/Press actors used two automated browser
+processes/contexts, two mounted surfaces and normal per-origin persistence.
+Fourteen roles were configured; zero humans or physical devices participated.
+The result records 13 scoped prefix claims, overlapping existing setup credit,
+including genuine authenticated full-game manual 0→1 and the actual **current
+Cycle 1 Press transmission** completed through the existing presentation helper.
+There was no timed briefing hold or injected presentation completion. This run's
+GM helper did not itself observe the transmission; its paint-ready result earns
+no new GM-transmission observation. The ordinary GM **Open Coordination manually**
+also committed HTTP 200; exact original SDK replay returned `replayed`, with
+normalized result equality, original GM identity/instance/generation/hydration
+held and phase unchanged. These are partial claims, not 13 additional catalog
+closures or a complete role/function.
+
+Before Request, `flightSource` immediately required lifted Press airspace and
+failed on actual `restricted` versus expected `lifted`. The contemporaneous GM
+snapshot and committed/replayed phase result showed `lifted`. Both browser
+snapshots were live/server in manual Cycle 1, with no transmission or briefing
+mounted. The original Press document, UID, generation 1, hydration 1, own-player
+and SDK authority, legal null core berth, own SNN scope and revision-0 control
+were retained. Private discovery was actually absent; derived group/document
+authority stayed null and was never granted. The owned raw diagnostic retains
+initial docking/visit, no movement, no event or arrival receipt; it does not
+capture the root `turnPhase`. No Request, Begin, Retarget, arrival, ending,
+debrief or closure command was issued. Actual wrong-holder/private SDK negatives,
+entitled reload and complete usability/rendering acceptance were not reached.
+
+The Source-only diagnosis identifies a concrete wrapper synchronization gap:
+`readActionState` at `scripts/pc10-pending-procedure-ui-recipes.mjs:336` suppresses
+`confirmMemberProjection` when `diagnosticOnly` is true. Actual 2 supplied both
+flags, so its positive phase assertion skipped the existing production
+post-intent member projection confirmation. The serialized native member feed
+in `src/lib/firestore.ts:4339` polls every five seconds; live/server and SDK
+readiness can describe an accepted earlier phase. That is compatible with this
+failure, but exclusive runtime causation and an App/SDK/Rules defect are not
+established. Diagnostic output earns zero authority credit. There is no new
+exclusive-cause prerequisite for a narrow repair and no product source change
+after this actual.
+
+The smallest next Source proposal uses existing production projection
+confirmation for positive phase/control reads and keeps diagnostic-only reads
+separate. Await the actual Press phase and normal enabled control within the
+original deadlines; retain original identity, SDK, stale/privacy and exact-retry
+guards. Use the focused discriminating adapter/mounted contract for accepted
+prior-phase readiness versus post-GM confirmation. This is a repair proposal,
+not another gameplay launch or authority relaxation.
+
+The sealed failed report is
+`/tmp/dow-pc10-evidence/OWNER_PRESS_ENDING_2_BOUNDED_FAILED_ACTUAL_AND_CLEANUP_REPORT_20261007.json`,
+with result SHA
+`9963f2cd209102b9db602d51271fc2e1a3b09ceb348dc4a844b018210a23ebea`.
+Both browsers closed before deleting only the captured session/join code,
+three member pointers and three fresh Auth identities. Cleanup errors zero;
+closed postflight scope 0/0/0. Complete source, compiled Functions, owned
+reservations/configuration, registry bytes, original dirty checkout, PC09
+worktree and previous failed/targeted evidence are preserved in
+`OWNER_PRESS_ENDING_2_CLOSED_PRESERVATION_20261007.json`; 12 slots remain free.
+No flight, ending, whole-game, capacity, release or fixed closure credit is
+earned. PC10 remains open at 703/751 overall and 245/293 campaign; all 48 fixed
+rows remain pending. Post-PC10, PC11, PC12, licensing/assets and unrelated
+Chain Scanner work remain unexecuted here.
 
 ### Retained flight-to-ending scenario — first authorization consumed
 
-The parent explicitly authorized one bounded run of this family after source
-prerequisite checks. That authorization was consumed by the failed actual above.
+The parent first authorized one bounded run of this family after source
+prerequisite checks. That first authorization was consumed by actual 1. The
+separate actual 2 authorization above is also consumed.
 The retained plan states the intended uncompleted acceptance and is not a new
 launch authorization. Source was frozen through runtime/exact cleanup; unrelated
 rendered release gates remain pending.

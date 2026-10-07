@@ -32,8 +32,21 @@ acceptance matrix. The subsequent targeted normal-admission reader/Rules
 correction at `a06c5856` passes focused Native checks and independent Source
 review; missing discovery still grants no group authority. The matrix records
 the separate current UI/SDK receipt/server ownership contract and minimal
-flight-only proposal. No new game ran; generated complete-proof fields,
-function eligibility cells and all48 fixed closure statuses are unchanged.
+flight-only proposal. No new game ran within that closed targeted correction.
+
+The separate parent-authorized actual 2 at `25ee6b15` completed actual current
+Cycle 1 Press transmission and the ordinary manual Coordination/exact SDK
+retry prefix, then stopped before Request on restricted Press phase versus
+lifted GM phase. Its 13 prefix claims overlap prior setup; no flight, actual
+private-negative check, ending, whole-role/function or rendered acceptance is
+credited. Three Auth actors used two automated browsers and zero humans.
+Diagnostic-only reads skipped the existing production projection confirmation;
+the concrete wrapper gap and smallest Source proposal are recorded in the
+[acceptance matrix](PC10_ACCEPTANCE_MATRIX.md#bounded-three-actor-actual-2--phase-projection-failure-closed-cleanup).
+Exact-owned cleanup, 0/0/0 postflight and complete preservation passed. The
+failed actual is sealed; no new launch or external release is authorized here.
+Generated complete-proof fields, function eligibility cells and all48 fixed
+closure statuses are unchanged.
 
 Regenerate after building Functions:
 

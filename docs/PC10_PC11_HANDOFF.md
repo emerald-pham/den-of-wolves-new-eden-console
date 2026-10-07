@@ -33,13 +33,27 @@ Pursuit ending/debrief/closure/entitled reload. That one actual at `278347c6`
 completed manual training/start/Coordination, then stopped before Request on
 null Press document/group authority. Exact cleanup/postflight are complete;
 its failed report and source-only reader/presentation gaps are in the matrix.
-No second run was launched. The subsequent targeted normal-admission
+At that first handback no second run had been launched. The subsequent targeted normal-admission
 reader/Rules repair at `a06c5856` passes focused checks and independent Sol 6.1
 Source review. Missing private discovery still grants no group authority;
 movement can qualify separately through current enabled UI, its authenticated
 SDK receipt and matching server-owned state. The matrix records the bounded
-flight-only proposal and real Cycle 1 presentation prerequisite. Wider rendered
-gates, all PC10 functions, external release and checkpoint advance remain open.
+flight-only proposal and real Cycle 1 presentation prerequisite.
+
+The parent then authorized actual 2 on reviewed `25ee6b15`, with a 12-minute cap
+and same-session ending conditional on healthy flight. It completed the real
+current Cycle 1 Press transmission and manual Coordination/exact SDK retry,
+then stopped before Request on restricted Press phase while GM phase/receipts
+showed lifted. Three Auth actors used two automated browsers and zero humans;
+13 prefix claims overlap setup and earn no flight, privacy-negative, ending or
+whole-role/function credit. Exact-owned cleanup and complete preservation passed;
+elapsed including cleanup was 68,249 ms and closed scope 0/0/0. The wrapper's
+diagnostic-only flag suppressed production post-intent projection confirmation;
+SDK-ready prior phase alone is insufficient. Exclusive cause/product failure
+is unproved. The matrix records the focused existing-confirmation repair
+proposal; the authorization is consumed and no third run is authorized here.
+Wider rendered gates, all PC10 functions, complete usability, external release
+and checkpoint advance remain open. PC11 and PC12 have not started.
 
 PC11 defaults to one actor per distinct control/guidance configuration and a
 second only for an actual handoff. Test changed action availability, costs,

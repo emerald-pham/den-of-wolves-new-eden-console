@@ -223,7 +223,7 @@ stopped before Request when the Press reader returned null document/group
 authority. No flight, arrival, Pursuit ending or full-game acceptance is credited.
 The actual took 69,334 ms including exact-owned cleanup, below the eight-minute
 cap: three ordinary Auth actors, two automated browser processes/contexts, zero
-humans. No second actual was launched.
+humans. At that handback no second actual had been launched.
 
 Original failure, consumed projection/member tuple, receipts, both screenshots
 and exact-owned raw diagnostic are sealed in
@@ -244,7 +244,8 @@ normal absent `replacementStatus` and separately absent discovery. These
 fixtures do not replace actual evidence. At that closed-run handback no
 product/helper repair had occurred. The subsequent targeted source correction
 below leaves the failed report intact. The bounded runtime authorization is
-consumed; no further game, external release or checkpoint advance occurred.
+consumed; at that handback no further game, external release or checkpoint
+advance had occurred.
 
 ### Targeted Press observer correction
 
@@ -271,12 +272,59 @@ Missing discovery still grants no derived group/document authority. The
 records the separate current mounted action/authenticated SDK receipt/server
 ownership contract and proposed three-actor, two-browser flight-only slice.
 Cycle 1 must be current before its real Press transmission is observed. No
-live diagnostic was needed to settle the source defect; no game was launched.
+live diagnostic was needed to settle the source defect; no game was launched
+within that closed targeted correction.
 The exact Native Rules test session cleanup and complete current Source/
 compiled/owned-runtime/original preservation are recorded in
 `/tmp/dow-pc10-evidence/OWNER_PRESS_OBSERVER_TARGETED_HANDOFF_20261007.json`.
 Complete PC10, rendering/recovery/ending acceptance, release and all48 closures
 remain open. No catalog, endpoint inventory, PC11/PC12, license or asset changes.
+
+### Actual 2 — current Press presentation qualified; phase assertion failed
+
+The parent authorized one reviewed `25ee6b15` flight with conditional same-session
+ending, using current installed owned-emulator Rules and ordinary Cycle 1 UI.
+The independent external-runner review and prelaunch freeze writer passed.
+Native actual session `99913` exited 1 at terminal chunk `68c229`; elapsed
+68,249 ms includes cleanup and meets the 12-minute cap. Original action
+deadlines and the first-unexplained-failure stop rule remained. Three ordinary
+Auth actors used two automated browsers/contexts; zero human/device proof.
+
+Thirteen result claims cover the reused normal setup/manual 0→1 prefix and
+the actual current Cycle 1 Press transmission completed through existing UI.
+The GM manually opened Coordination; its HTTP 200 result and exact captured
+SDK replay held original GM authority and normalized result equality. This
+run's GM presentation helper did not observe transmission itself. Before any
+Request, the Press positive source assertion failed `restricted` versus
+`lifted`, while the current GM snapshot/phase receipts showed `lifted`. Original
+Press live/server/SDK/identity scope was retained; absent private discovery
+still supplied no derived group authority. The diagnostic captures initial
+SNN docking/control and no movement/event/arrival receipt, without root phase.
+No flight, privacy-negative flight checks, natural arrival, ending, debrief,
+closure or entitled reload was reached; no whole-role/function or visual pass.
+
+Source inspection shows the wrapper combined `diagnosticOnly` and
+`confirmMemberProjection`, which skips production post-intent projection
+confirmation. The existing member feed polls every five seconds; accepted
+live/SDK readiness does not establish the newest semantic phase. This concrete
+wrapper gap supports a narrow existing-confirmation repair, preserving original
+guards and deadlines, with a focused adapter/mounted contract. Exclusive cause
+or product App/SDK/Rules failure is unproved and is not a new repair gate. No
+Source repair or further gameplay launch occurred after this actual.
+
+The failure/consumed tuple/screenshots/receipts are sealed in
+`/tmp/dow-pc10-evidence/OWNER_PRESS_ENDING_2_BOUNDED_FAILED_ACTUAL_AND_CLEANUP_REPORT_20261007.json`.
+Canonical result SHA is
+`9963f2cd209102b9db602d51271fc2e1a3b09ceb348dc4a844b018210a23ebea`.
+Both owned browsers closed before exact session/join-code/three member-pointer
+and three fresh Auth deletions; errors zero and postflight scope 0/0/0.
+Complete source/compiled/runtime/reservation/registry/original/PC09 and prior
+failed evidence preservation passed before docs reconciliation. The source
+remains version `0.5.71`; 81 prior focused Native cases retain their scoped
+evidence. Only the four existing records are updated at closeout, with document,
+generated-view and whitespace checks. Actual 2 authorization is consumed;
+PC10/all48 closures, release and complete recovery/ending/rendered acceptance
+remain open. No PC11/PC12/post-PC10/license/asset/Chain Scanner work was executed.
 
 ## Historical October 6 state
 
