@@ -11,6 +11,7 @@ import { FIGHTER_WING_IDS } from '@/data/aegisConsoles';
 import { STAR_CHART_SYSTEMS as LEGACY_SYSTEMS, siteForCoordinate } from '@/data/starChart';
 import { acceptCallableSessionAuthority } from '@/lib/sessionSnapshotAuthority';
 import {
+  acknowledgeSessionWaiver,
   SESSION_WAIVER_RESET_EVENT,
   SESSION_WAIVER_STORAGE_KEY,
 } from '@/lib/sessionWaiver';
@@ -1175,9 +1176,11 @@ it('withholds the private crisis stream until the fresh manifest confirms this i
   streamInstances([]);
   renderConsole();
 
-  expect(await screen.findByText('Role selection route')).toBeInTheDocument();
+  expect(screen.queryByText('Role selection route')).not.toBeInTheDocument();
   expect(crisisSubscribe).not.toHaveBeenCalled();
-  expect(useSessionStore.getState().gmInstance).toBeNull();
+  expect(useSessionStore.getState().gmInstance).toEqual(local);
+  expect(useSessionStore.getState().sessionSnapshotFreshness).toBe('cache');
+  expect(useSessionStore.getState().connection).toBe('offline');
   expect(useSessionStore.getState().gmCrisisState).toBeNull();
 });
 
@@ -1201,9 +1204,11 @@ it('invalidates the crisis stream when the same GM is replaced by another instan
   act(() => publish?.([{ ...local, id: 'replacement-1' }]));
   act(() => crisisPublish?.(liveCrisis));
 
-  expect(useSessionStore.getState().gmInstance).toBeNull();
+  expect(useSessionStore.getState().gmInstance).toEqual(local);
+  expect(useSessionStore.getState().sessionSnapshotFreshness).toBe('cache');
+  expect(useSessionStore.getState().connection).toBe('offline');
   expect(useSessionStore.getState().gmCrisisState).toBeNull();
-  expect(await screen.findByText('Role selection route')).toBeInTheDocument();
+  expect(screen.queryByText('Role selection route')).not.toBeInTheDocument();
 });
 
 it('clears demoted GM crisis state and ignores late listener callbacks', async () => {
@@ -1267,7 +1272,7 @@ it('returns to role selection', async () => {
 it('lets the active GM reset the code of conduct checklist from the GM Console', async () => {
   const user = userEvent.setup();
   const resetEvent = vi.fn();
-  localStorage.setItem(SESSION_WAIVER_STORAGE_KEY, String(Date.now()));
+  acknowledgeSessionWaiver(localStorage, Date.now());
   window.addEventListener(SESSION_WAIVER_RESET_EVENT, resetEvent);
   useSessionStore.getState().setGmInstance(local);
   streamInstances([local]);
@@ -1425,9 +1430,11 @@ it('revokes the local GM authority when the manifest listener fails', async () =
   act(() => fail?.());
   act(() => crisisPublish?.(liveCrisis));
   expect(useSessionStore.getState().communicationError?.code).toBe('gm-manifest-link');
-  expect(useSessionStore.getState().gmInstance).toBeNull();
+  expect(useSessionStore.getState().gmInstance).toEqual(local);
+  expect(useSessionStore.getState().sessionSnapshotFreshness).toBe('cache');
+  expect(useSessionStore.getState().connection).toBe('offline');
   expect(useSessionStore.getState().gmCrisisState).toBeNull();
-  expect(await screen.findByText('Role selection route')).toBeInTheDocument();
+  expect(screen.queryByText('Role selection route')).not.toBeInTheDocument();
   act(() => publish?.([local, other]));
   expect(screen.queryByText('Tablet')).not.toBeInTheDocument();
 });
@@ -2580,8 +2587,14 @@ it('starts with a compact DRADIS and expands it on demand', async () => {
     .not.toBeInTheDocument();
   await user.click(screen.getByRole('button', { name: /zoom into dradis panel/i }));
 
-  expect(dradis).toHaveAttribute('data-expanded', 'true');
+  const expandedDialog = screen.getByRole('dialog', { name: /fleet dradis/i });
+  expect(expandedDialog).toHaveAttribute('data-expanded', 'true');
+  expect(expandedDialog.parentElement).toBe(document.body);
+  expect(screen.getByRole('button', { name: /close dradis/i })).toHaveFocus();
   expect(screen.getByRole('button', { name: /close dradis/i })).toBeInTheDocument();
+  await user.keyboard('{Escape}');
+  expect(screen.queryByRole('dialog', { name: /fleet dradis/i })).toBeNull();
+  expect(screen.getByRole('button', { name: /zoom into dradis panel/i })).toHaveFocus();
   expect(screen.queryByRole('complementary', { name: 'Combat range bands' }))
     .not.toBeInTheDocument();
 });
@@ -2652,14 +2665,15 @@ it('eases the GM DRADIS through both expansion and collapse', async () => {
   const dradis = await screen.findByRole('region', { name: /fleet dradis/i });
   const compact = { left: 600, top: 180, width: 320, height: 420 } as DOMRect;
   const expanded = { left: 0, top: 0, width: 1200, height: 800 } as DOMRect;
-  const measure = vi.spyOn(dradis, 'getBoundingClientRect')
+  const measure = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect')
     .mockReturnValueOnce(compact)
     .mockReturnValueOnce(expanded)
     .mockReturnValueOnce(expanded)
     .mockReturnValueOnce(compact);
   const cancel = vi.fn();
   const animate = vi.fn(() => ({ cancel }) as unknown as Animation);
-  Object.defineProperty(dradis, 'animate', { configurable: true, value: animate });
+  const priorAnimate = HTMLElement.prototype.animate;
+  HTMLElement.prototype.animate = animate;
 
   await user.click(screen.getByRole('button', { name: /zoom into dradis panel/i }));
 
@@ -2676,6 +2690,7 @@ it('eases the GM DRADIS through both expansion and collapse', async () => {
     { transform: 'none' },
   ], { duration: 200, easing: 'ease-in-out' });
   expect(measure).toHaveBeenCalledTimes(4);
+  HTMLElement.prototype.animate = priorAnimate;
 });
 
 it('keeps Capybara convoy setup under a GM Console Setup subsection', async () => {

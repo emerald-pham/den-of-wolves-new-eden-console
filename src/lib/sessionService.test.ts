@@ -5409,3 +5409,64 @@ describe('GM fighter-wing stale recovery', () => {
     },
   );
 });
+
+
+describe('GM recovery reconciliation', () => {
+  const remembered = { id: 'instance-1', sessionId: 's1', uid: 'u1', name: 'Bridge',
+    deviceLabel: 'Browser', claimedAt: '2026-01-01T00:00:00.000Z',
+    shipConsoleWriteGrant: { shipId: 'aegis', grantedAt: '2026-01-01T00:00:00.000Z' } };
+  beforeEach(() => {
+    useSessionStore.getState().reset(); useSessionStore.getState().setIdentity(session, player);
+    useSessionStore.getState().setGmInstance(remembered);
+    useSessionStore.getState().setMode('gm'); useSessionStore.getState().setLastRoute('/gm');
+    useSessionStore.getState().setConnection('live'); useSessionStore.getState().setSessionSnapshotFreshness('server');
+    useSessionStore.getState().setGmAccessAuthenticatedAt(Date.now());
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  it('uses the existing server claim for the exact original actor and lease after natural suspension', async () => {
+    const recovered = { ...remembered, claimedAt: '2026-02-01T00:00:00.000Z', shipConsoleWriteGrant: undefined };
+    const claim = callableReturning({ data: { instance: recovered } });
+    vi.mocked(httpsCallable).mockImplementation((_, name) => name === 'listGmInstances'
+      ? callableReturning({ data: { instances: [] } }) : claim);
+    await reconcileGmAuthority();
+    expect(claim).toHaveBeenCalledWith({ sessionId: 's1', instanceId: remembered.id,
+      name: remembered.name, deviceLabel: remembered.deviceLabel,
+      resume: true, expectedClaimedAt: remembered.claimedAt });
+    expect(useSessionStore.getState().gmInstance).toEqual(recovered);
+    expect(useSessionStore.getState().me?.role).toBe('gm');
+    expect(useSessionStore.getState().mode).toBe('gm');
+    expect(useSessionStore.getState().pendingCommands).toEqual([]);
+  });
+
+  it('honors explicit removal without manufacturing a replacement claim', async () => {
+    const denied = callableRejecting(Object.assign(new Error('Original claim no longer exists'), { code: 'functions/permission-denied' }));
+    vi.mocked(httpsCallable).mockImplementation((_, name) => name === 'listGmInstances'
+      ? callableReturning({ data: { instances: [] } }) : denied);
+    await reconcileGmAuthority();
+    expect(useSessionStore.getState().gmInstance).toBeNull();
+    expect(useSessionStore.getState().lastRoute).toBe('/roles');
+    expect(denied).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not apply a delayed recovery to a different displayed session or changed claim', async () => {
+    let finish!: (value: unknown) => void;
+    const claim = Object.assign(vi.fn(() => new Promise((resolve) => { finish = resolve; })), { stream: vi.fn() });
+    vi.mocked(httpsCallable).mockImplementation((_, name) => name === 'listGmInstances'
+      ? callableReturning({ data: { instances: [] } }) : claim as never);
+    const pending = reconcileGmAuthority(); await vi.waitFor(() => expect(claim).toHaveBeenCalled());
+    const next = { ...remembered, id: 'new-claim', claimedAt: '2026-02-01T00:00:00.000Z' };
+    useSessionStore.getState().setGmInstance(next);
+    finish({ data: { instance: { ...remembered, claimedAt: '2026-03-01T00:00:00.000Z' } } });
+    await pending;
+    expect(useSessionStore.getState().gmInstance).toEqual(next);
+  });
+
+  it('rejects malformed or foreign recovery replies', async () => {
+    const claim = callableReturning({ data: { instance: { ...remembered, uid: 'foreign' } } });
+    vi.mocked(httpsCallable).mockImplementation((_, name) => name === 'listGmInstances'
+      ? callableReturning({ data: { instances: [] } }) : claim);
+    await expect(reconcileGmAuthority()).rejects.toThrow(/recovery.*response/i);
+    expect(useSessionStore.getState().gmInstance).toBeNull();
+  });
+});

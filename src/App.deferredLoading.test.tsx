@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
 import { useSessionStore } from '@/store/useSessionStore';
 import type { GameSession, GmInstance, Player, WolfAttackMemberView } from '@/types/game';
-import { SESSION_WAIVER_STORAGE_KEY } from '@/lib/sessionWaiver';
+import { acknowledgeSessionWaiver, SESSION_WAIVER_STORAGE_KEY } from '@/lib/sessionWaiver';
 import { MOTION_SAFETY_STORAGE_KEY } from '@/lib/motionSafety';
 
 vi.mock('@/lib/sessionService', () => ({
@@ -141,7 +141,7 @@ beforeEach(() => {
   useSessionStore.getState().reset();
   localStorage.clear();
   localStorage.setItem(MOTION_SAFETY_STORAGE_KEY, JSON.stringify({ acknowledgedAt: Date.now(), choice: 'reduce' }));
-  localStorage.setItem(SESSION_WAIVER_STORAGE_KEY, String(Date.now()));
+  acknowledgeSessionWaiver(localStorage, Date.now());
   useSessionStore.getState().setIdentity(session, player);
   useSessionStore.getState().setMode('console');
 });

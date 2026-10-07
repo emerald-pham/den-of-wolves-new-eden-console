@@ -1,6 +1,6 @@
 import { act, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { SESSION_WAIVER_STORAGE_KEY, SESSION_WAIVER_TTL_MS } from '@/lib/sessionWaiver';
+import { acknowledgeSessionWaiver, SESSION_WAIVER_TTL_MS } from '@/lib/sessionWaiver';
 import { useSessionStore } from '@/store/useSessionStore';
 import SessionWaiverGate from './SessionWaiverGate';
 
@@ -25,8 +25,8 @@ afterEach(() => {
   localStorage.clear();
 });
 
-it('reopens all three regulations at the 72-hour boundary in an active tab', () => {
-  localStorage.setItem(SESSION_WAIVER_STORAGE_KEY, String(now));
+it('reopens all three regulations at the seven-day boundary in an active tab', () => {
+  localStorage.setItem(acknowledgeSessionWaiver, String(now));
   render(<SessionWaiverGate />);
   expect(screen.queryByRole('dialog', { name: /code of conduct/i })).toBeNull();
 
@@ -38,7 +38,7 @@ it('reopens all three regulations at the 72-hour boundary in an active tab', () 
 });
 
 it('rechecks an expired acknowledgement when a suspended tab becomes visible', () => {
-  localStorage.setItem(SESSION_WAIVER_STORAGE_KEY, String(now));
+  localStorage.setItem(acknowledgeSessionWaiver, String(now));
   render(<SessionWaiverGate />);
   expect(screen.queryByRole('dialog', { name: /code of conduct/i })).toBeNull();
 

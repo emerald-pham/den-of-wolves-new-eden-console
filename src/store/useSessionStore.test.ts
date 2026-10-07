@@ -449,3 +449,14 @@ it('drops a stale private card when a reconnect reply changes the authorized rol
 
   expect(useSessionStore.getState().privateLoyalty).toBeNull();
 });
+
+
+it('remembers GM access for seven days without extending the live browser lease', () => {
+  const stamp = Date.parse('2026-10-01T00:00:00.000Z');
+  useSessionStore.getState().setGmAccessAuthenticatedAt(stamp);
+  expect(GM_ACCESS_TIMEOUT_MS).toBe(7 * 24 * 60 * 60 * 1000);
+  expect(selectGmAccessAuthenticated(useSessionStore.getState(), stamp + 6 * 24 * 60 * 60 * 1000)).toBe(true);
+  expect(selectGmAccessAuthenticated(useSessionStore.getState(), stamp + 7 * 24 * 60 * 60 * 1000)).toBe(false);
+  expect(selectGmAccessAuthenticated(useSessionStore.getState(), stamp - 1)).toBe(false);
+  expect(useSessionStore.getState().gmInstance).toBeNull();
+});
