@@ -7,6 +7,16 @@ const memberFields = ['sessionId', 'role', 'fleetGroupId', 'assignedRoleId', 'ac
   'seatId', 'replacementRoleId', 'replacementStatus'];
 const observationField = { role: 'playerRole' };
 const watchedEndpoints = new Set(['resumeSession', 'getCurrentMemberSession', 'refreshPresence']);
+async function beforeDeadline(promise, deadlineAt) {
+  assert.ok(Date.now() < deadlineAt, 'Original role navigation deadline expired.');
+  let timer;
+  try {
+    return await Promise.race([promise, new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error('Original role navigation deadline expired.')),
+        Math.max(1, deadlineAt - Date.now()));
+    })]);
+  } finally { clearTimeout(timer); }
+}
 const safeRoute = value => { const url = new URL(value); return { origin: url.origin, pathname: url.pathname, hash: url.hash }; };
 function endpoint(request) {
   const url = new URL(request.url());
@@ -72,8 +82,9 @@ export function createMemberNavigationResumeObserver(page, { directory, roleId, 
       append({ kind: 'response', endpoint: name, httpStatus: response.status(), route: safeRoute(response.url()) });
       const receipt = requests.get(request); if (!receipt) return;
       receipt.httpStatus = response.status(); receipt.respondedAt = new Date().toISOString();
-      receipt.parsed = response.json().then(body => { receipt.reply = resumeReply(body); }).catch(error => {
-        receipt.parseError = { name: error.name, message: error.message };
+      receipt.bodyStatus = 'reading';
+      receipt.parsed = response.json().then(body => { receipt.reply = resumeReply(body); receipt.bodyStatus = 'parsed'; }).catch(error => {
+        receipt.bodyStatus = 'read-failed'; receipt.parseError = { name: error.name, message: error.message };
       });
     } catch (error) { append({ kind: 'response-read-error', name: error.name, message: error.message }); }
   });
@@ -97,7 +108,7 @@ export function createMemberNavigationResumeObserver(page, { directory, roleId, 
         row.baseline.uidHash === original.uidHash && row.baseline.sessionId === original.sessionId &&
         row.baseline.connectionGeneration === original.connectionGeneration &&
         row.baseline.identityHydrationRevision === original.identityHydrationRevision);
-      await Promise.all(candidates.map(row => row.parsed));
+      await beforeDeadline(Promise.all(candidates.map(row => row.parsed)), deadlineAt);
       assert.ok(Date.now() < deadlineAt, 'Original role navigation deadline expired.');
       const receipt = candidates.find(row => row.requestMatches && row.requestSessionId === original.sessionId &&
         row.httpStatus === 200 && row.reply?.sessionId === original.sessionId && row.reply.uidHash === original.uidHash &&
@@ -107,10 +118,9 @@ export function createMemberNavigationResumeObserver(page, { directory, roleId, 
         row.reply.player.role === 'player');
       assert.ok(receipt && current.identityHydrationRevision === original.identityHydrationRevision + 1,
         'Original role navigation epoch changed without its matching normal resume receipt and accepted hydration.');
-      assert.equal(current.currentMemberBerthPresent, true, 'Original resumed station requires the current member witness.');
       // applySession clears the old member envelope. Let the existing feed and
       // SDK finish fence land within the caller's original finite deadline.
-      if (current.connection !== 'live' || current.freshness !== 'server' || !current.currentMemberBerthMatches ||
+      if (current.connection !== 'live' || current.freshness !== 'server' || !current.currentMemberBerthPresent || !current.currentMemberBerthMatches ||
           !current.currentOwnPlayerConfirmed) return false;
       const accepted = await page.evaluate(async ({ moduleUrl, expected }) => {
         const { useSessionStore } = await import(moduleUrl);
@@ -145,7 +155,8 @@ export function createMemberNavigationResumeObserver(page, { directory, roleId, 
     async finish(error) {
       closed = true;
       for (const [name, callback] of listeners) page.off(name, callback);
-      await Promise.all([...requests.values()].map(row => row.parsed));
+      // An unfinished body remains explicitly unfinished in the packet. It
+      // cannot extend the primary deadline or delay removal of own listeners.
       record.status = error ? 'failed' : 'selected-current-original-member';
       record.receipts = [...requests.values()].map(({ parsed, ...row }) => row);
       if (error) record.originalError = { name: error.name, message: error.message, stack: error.stack };
