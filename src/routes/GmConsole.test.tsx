@@ -4891,3 +4891,46 @@ it.each(['cache', 'offline'] as const)(
     expect(useSessionStore.getState().gmCrisisState).toBeNull();
   },
 );
+
+
+it.each(['offline', 'cache'] as const)(
+  'closes expanded DRADIS when verified GM connectivity becomes %s without a recovery flag',
+  async (nextAuthority) => {
+    const user = userEvent.setup();
+    const priorOverflow = document.body.style.overflow;
+    vi.mocked(subscribeGmCrisisState).mockImplementation((_sessionId, onState) => {
+      onState(liveCrisis);
+      return vi.fn();
+    });
+    useSessionStore.getState().setGmInstance(local);
+    streamInstances([local]);
+    renderConsole();
+    await waitFor(() => expect(useSessionStore.getState().gmCrisisState).toEqual(liveCrisis));
+    await user.click(screen.getByRole('button', { name: /zoom into dradis panel/i }));
+    expect(document.body.style.overflow).toBe('hidden');
+    act(() => {
+      if (nextAuthority === 'offline') useSessionStore.getState().setConnection('offline');
+      else useSessionStore.getState().setSessionSnapshotFreshness('cache');
+    });
+    expect(useSessionStore.getState().gmRecoveryPending).toBe(false);
+    expect(useSessionStore.getState().gmInstance).toEqual(local);
+    expect(useSessionStore.getState().gmCrisisState).toBeNull();
+    expect(screen.getByRole('status', { name: 'GM connection recovery' })).toBeVisible();
+    expect(screen.queryByRole('dialog', { name: /fleet dradis/i })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Crisis state machine' })).toBeNull();
+    expect(screen.queryByText('Role selection route')).not.toBeInTheDocument();
+    expect(document.body.style.overflow).toBe(priorOverflow);
+    act(() => {
+      useSessionStore.getState().setConnection('live');
+      useSessionStore.getState().setSessionSnapshotFreshness('server');
+    });
+    await screen.findByRole('region', { name: /fleet dradis/i });
+    expect(screen.queryByRole('dialog', { name: /fleet dradis/i })).toBeNull();
+    await user.click(screen.getByRole('button', { name: /zoom into dradis panel/i }));
+    expect(screen.getByRole('button', { name: /close dradis/i })).toHaveFocus();
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog', { name: /fleet dradis/i })).toBeNull();
+    expect(document.body.style.overflow).toBe(priorOverflow);
+    expect(screen.getByRole('button', { name: /zoom into dradis panel/i })).toHaveFocus();
+  },
+);
