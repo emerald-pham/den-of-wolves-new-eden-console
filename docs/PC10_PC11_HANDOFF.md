@@ -23,9 +23,12 @@ Apply [risk-based verification](AGENT_EXECUTION_POLICY.md#risk-based-verificatio
 to remaining PC10, existing post-PC10 work, PC11 and conditional PC12. The earlier
 19-account recovery proposal and blanket 21-account/340-command/84-cell/full-census
 replays are superseded. Keep historical failed evidence and actual product rules.
-PC10's exact next three-actor lifecycle/setup slice is in
-[the current acceptance matrix](PC10_ACCEPTANCE_MATRIX.md#current-verification-plan--october-7);
-no runtime is part of this process revision.
+PC10's three-actor lifecycle/setup qualification has 22 accepted scoped claims.
+The [current acceptance matrix](PC10_ACCEPTANCE_MATRIX.md#current-verification-plan--october-7)
+records unchanged historical reuse, exact remaining dependencies, and the
+proposed minimal Press transit-to-ending family. The current continuation is
+source-only arrival/layout reconciliation; no next runtime launches before that
+bounded scenario and its success/stop conditions are returned to the parent.
 
 PC11 defaults to one actor per distinct control/guidance configuration and a
 second only for an actual handoff. Test changed action availability, costs,

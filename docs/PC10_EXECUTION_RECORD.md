@@ -154,23 +154,59 @@ third-party/game material, dependencies, other contributors and assets with
 unconfirmed provenance. Existing asset bytes and third-party notices are retained.
 No email, HEY or inbox action is part of this task.
 
-## Current plan — October 7 process correction
+## Current plan — October 7 bounded source reconciliation
 
-The October 7 policy above governs execution; the October 6 snapshots below
-are historical evidence, not current replay instructions. The earlier proposed
-19-account recovery and blanket 21-account/340-command/84-check/full-census
-plans are superseded. Existing drivers and failed assertions remain intact as
-opt-in scenarios for justified claims. The next qualification is the three-actor
-mounted lifecycle slice in [the acceptance matrix](PC10_ACCEPTANCE_MATRIX.md#current-verification-plan--october-7).
-It separates setup/navigation from full loyalty-census composition and claims
-no whole-game, ending or capacity acceptance.
+The parent accepted the 22 scoped claims from the three-actor actual at
+`7463a7914799093d7bf3fd5692fd3a0c5b3bd53a`: three ordinary authenticated
+identities, two automated browser processes/contexts, zero humans, 46,599 ms,
+exact cleanup and unchanged source/compiled/reservations. The
+[current acceptance matrix](PC10_ACCEPTANCE_MATRIX.md#current-verification-plan--october-7)
+is the single current plan. It maps every accepted claim, valid historical reuse,
+exact open behavior groups/dependencies, and the proposed minimal Press
+transit-to-Pursuit-ending family. Do not repeat setup qualification by default.
+All 48 catalog closures, complete gameplay gates and exact-candidate/main
+CI/deployment remain pending. Base26 has never run and is not the default plan.
 
-At source `2b0db0221a8fd91aa5d2c76b9127e317913b7105`, the mounted station-authority
-repair and five Native fixture corrections have independent Sol review PASS
-and focused 982 Native / 45 Functions passes. Those bounded results are retained;
-Base26 has never run. All 48 closures, complete gameplay gates and exact-candidate/
-main CI/deployment remain pending. This process-only revision runs documentation
-consistency and focused independent review, with no gameplay or Native replay.
+The present continuation is expressly source-only and parallel:
+
+| Owner | Exact files / bounded task | Result / dependency |
+|---|---|---|
+| Luna 6 Max arrival worker | `src/routes/ShuttleConsole.test.tsx`; four retained arrival failures only | Missing current Auth/member-feed/berth tuple completed using the production confirmation helper. Original async identity/retry and Press assertions retained; four focused tests and the full 95-case route file pass. Test-only; no product/version or gameplay credit. |
+| Luna 6 Max visual worker | `src/index.css`; reproduce fixed-header/DRADIS overlap from the three retained Press screenshots | One shared-panel margin uses the existing measured header/plot variables; no JSX, authority or font/token change. Existing style checks are retained. Rendered acceptance and mandatory ticker/typography browser gates are pending. |
+| Root | Existing acceptance/execution/action-map/PC11-handoff docs, version/changelog, explicit-file integration and bounded review | Prepared CSS change follows the player-facing version rule as 0.5.70; the preceding 0.5.69 Press note and PC09 0.5.68 entry are preserved. No invented closure, generic ledger/harness, new runtime or external release. |
+
+Arrival cause is `ShuttleControl.arrivalReceiptAuthority`: stale fixtures lacked
+matching Auth UID, connected generation, member scope/current berth and owned
+member-feed confirmation, so no completion attempt began. The four titles are:
+“completes a reached transit automatically and exposes the server-confirmed
+destination”; “ignores a deferred old-session automatic arrival success and
+lets the new identity arrive”; the corresponding “error” case; and “ignores a
+deferred manual retry after identity changes and preserves the new arrival
+pending state”. Only fixture inputs change; authority gates and expectations
+remain intact. This does not backfill any historical automatic-arrival proof.
+
+The Fleet Group panel is an earlier sibling than the route inside ScreenFade;
+the fixed AppHeader and compact plot are outside it. Existing route padding
+therefore cannot protect the panel. The correction clears the shared panel
+using `--console-plot-top + --ship-plot-widget-size + 1rem`. The worker's new,
+uncommitted source-string assertion was not integrated because it mirrored this
+CSS-only edit; every prior style assertion remains byte-identical. Existing
+focused checks and the required rendered follow-up provide proportionate
+verification. A below-fold parent return is not automatically a product defect.
+
+The read-only historical comparison retains QR payload/pixel evidence, four
+GM17 recipe contracts, both GM26 counter contracts and genuine Pursuit/debrief
+state contracts. Changed shared member-reader/recovery and endgame presentation
+remain scoped current-validation dependencies; native/source equality is not
+whole-game evidence. The 982 Native / 45 Functions result and independent
+bounded review at `2b0db022` retain their original scope.
+
+Return the matrix's proposed fresh training/Press flight/ending scenario,
+minimal actual actors, original success/stop budgets and exact cleanup to the
+parent before launching any browser/emulator/gameplay follow-up. Source-only
+focused checks and one bounded independent delta review finish this continuation.
+No push, merge, deployment, checkpoint advancement or later-roadmap work occurs
+at this boundary.
 
 ## Historical October 6 state
 
