@@ -26,6 +26,21 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       completed: 703, total: 751, percentage: '93.61%',
       done: 703, partial: 6, active: 0, missing: 42, blocked: 0,
     },
+    changes: [
+      'Expanded GM DRADIS stays clear of the header and command summary on phones, with reachable Close and keyboard return controls.',
+      'GM consoles recover their original connection after a temporary outage. Explicit removal and revoked access still apply.',
+      'GM login and Code of Conduct acknowledgement are remembered for seven days on this device. Updated terms require acknowledgement again.',
+      'Awaiting CIC authentication and handshake use the red warning signal; the GM starts the game.',
+      '703 of 751 planned items are complete in the catalog snapshot used to build this release (93.61%).',
+      'This urgent fix adds no catalog closures.',
+    ],
+  },
+  {
+    version: '0.5.68',
+    implementationProgress: {
+      completed: 703, total: 751, percentage: '93.61%',
+      done: 703, partial: 6, active: 0, missing: 42, blocked: 0,
+    },
     implementationPrompts: ['471', '472', '473', '580', '605a', '474', '475', '476', '477', '478', '479', '480', '481', '482', '483', '484', '490', '491', '492', '493', '494', '621', '214', '503a', '506', '508', '513', '514', '516', '517', '519', '520', '521', '521a', '521b', '524', '645', '523b', '523c', '524b', '524c', '524d', '528', '529', '537', '538', '539', '540', '180'],
     changes: [
       'PC09 completes battle results, casualties, salvage, paid repairs and fighter rebuilding. Crews keep their committed choices and costs when they reconnect.',

@@ -1289,3 +1289,101 @@ describe('GM registration lock', () => {
     expect(read('sessions/s1/gmInstances/bridge/private/shipConsoleWriteGrant')).toBeUndefined();
   });
 });
+
+
+describe('natural GM presence recovery', () => {
+  const recovery = {
+    sessionId: 's1', instanceId: 'bridge', name: 'Bridge', deviceLabel: 'Browser',
+    resume: true, expectedClaimedAt: DEFAULT_GM_LEASE,
+  };
+
+  it('recovers only the owned natural-expiry descriptor with a fresh lease and no stale private grant', async () => {
+    session(); player('u1'); player('u2', { role: 'gm' });
+    instance('other', 'u2', { responsibilities: ['main', 'assistant'] });
+    instance('bridge', 'u1', { connected: false, expirationCause: 'presence-expired',
+      responsibilities: [], shipConsoleWriteGrant: { shipId: 'aegis', grantedAt: DEFAULT_GM_LEASE } });
+    await login();
+    await expect(claimGmInstance.run(request(recovery))).resolves.toMatchObject({ instance: { id: 'bridge', uid: 'u1' } });
+    expect(read('sessions/s1/players/u1')).toMatchObject({ role: 'gm' });
+    expect(read('sessions/s1/gmInstances/bridge')).toMatchObject({ connected: true });
+    expect(read('sessions/s1/gmInstances/bridge').claimedAt).not.toEqual(DEFAULT_GM_LEASE);
+    expect(read('sessions/s1/gmInstances/bridge').responsibilities ?? []).toEqual([]);
+    expect(read('sessions/s1/gmInstances/bridge/private/shipConsoleWriteGrant')).toBeUndefined();
+    expect(read('sessions/s1/gmInstances/other')).toMatchObject({ responsibilities: ['main', 'assistant'] });
+  });
+
+  it.each(['missing', 'foreign', 'changed-lease', 'explicit-disconnect', 'revoked', 'expired', 'kicked', 'closed', 'core-seat', 'manual-demotion'])(
+    'does not recover %s authority or perform a write', async (kind) => {
+      session(); player('u1');
+      instance('bridge', 'u1', { connected: false, expirationCause: 'presence-expired' });
+      await login();
+      if (kind === 'missing') mock.documents.delete('sessions/s1/gmInstances/bridge');
+      if (kind === 'foreign') instance('bridge', 'u2', { connected: false, expirationCause: 'presence-expired' });
+      if (kind === 'changed-lease') instance('bridge', 'u1', { claimedAt: '2026-02-01T00:00:00.000Z' });
+      if (kind === 'explicit-disconnect') instance('bridge', 'u1', { connected: false });
+      if (kind === 'revoked') mock.documents.delete('gmAccess/u1');
+      if (kind === 'expired') put('gmAccess/u1', { authenticatedAt: Date.now() - 7 * 24 * 60 * 60 * 1000 });
+      if (kind === 'kicked') player('u1', { kickedAt: 'server-time' });
+      if (kind === 'closed') session({ phase: 'closed' });
+      if (kind === 'manual-demotion') instance('bridge', 'u1');
+      if (kind === 'core-seat') player('u1', { seatId: 'dione-engineer' });
+      const before = new Map(mock.documents); mock.set.mockClear(); mock.update.mockClear(); mock.remove.mockClear();
+      await expect(claimGmInstance.run(request(recovery))).rejects.toMatchObject({ code: expect.any(String) });
+      expect(mock.documents).toEqual(before);
+      expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled(); expect(mock.remove).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(['fresh-browser', 'stale-browser', 'stale-member'])('never turns explicit demotion into recovery during %s cleanup', async (kind) => {
+    session();
+    const staleAt = Date.now() - PRESENCE_LEASE_MS - 1;
+    player('u1', { role: 'player', ...(kind === 'stale-member' ? { lastSeenAt: { toMillis: () => staleAt } } : {}) });
+    instance('bridge', 'u1', { ...(kind === 'stale-browser' ? { lastSeenAt: new Date(staleAt).toISOString() } : {}),
+      shipConsoleWriteGrant: { shipId: 'aegis', grantedAt: DEFAULT_GM_LEASE } });
+    await login();
+    await expireStalePlayers.run({});
+    expect(read('sessions/s1/gmInstances/bridge')).toBeUndefined();
+    expect(read('sessions/s1/gmInstances/bridge/private/shipConsoleWriteGrant')).toBeUndefined();
+    // A stale member may rejoin as an ordinary player; that cannot restore a removed claim.
+    player('u1');
+    await expect(claimGmInstance.run(request(recovery))).rejects.toMatchObject({ code: 'permission-denied' });
+    expect(read('sessions/s1/players/u1')).toMatchObject({ role: 'player' });
+  });
+
+  it('retains both genuinely expired sibling claims before demoting their shared member', async () => {
+    session(); player('u1', { role: 'gm' });
+    const expiredAt = new Date(Date.now() - PRESENCE_LEASE_MS - 1).toISOString();
+    for (const id of ['bridge', 'old-tab']) instance(id, 'u1', { lastSeenAt: expiredAt,
+      responsibilities: ['main'], shipConsoleWriteGrant: { shipId: 'aegis', grantedAt: DEFAULT_GM_LEASE } });
+    await expireStalePlayers.run({});
+    for (const id of ['bridge', 'old-tab']) {
+      expect(read('sessions/s1/gmInstances/' + id)).toMatchObject({ connected: false,
+        expirationCause: 'presence-expired', claimedAt: DEFAULT_GM_LEASE, responsibilities: [] });
+      expect(read('sessions/s1/gmInstances/' + id + '/private/shipConsoleWriteGrant')).toBeUndefined();
+    }
+    expect(read('sessions/s1/players/u1')).toMatchObject({ role: 'player' });
+    await expect(listGmInstances.run(request({ sessionId: 's1' }))).resolves.toEqual({ instances: [] });
+    await login();
+    await expect(claimGmInstance.run(request(recovery))).resolves.toMatchObject({ instance: { id: 'bridge' } });
+    await expect(claimGmInstance.run(request({ ...recovery, instanceId: 'old-tab' })))
+      .resolves.toMatchObject({ instance: { id: 'old-tab' } });
+  });
+
+  it.each(['invalid', '2999-01-01T00:00:00.000Z'])('does not classify an unverifiable browser lease %s as natural expiry', async (lastSeenAt) => {
+    session(); player('u1', { role: 'gm' }); instance('bridge', 'u1', { lastSeenAt }); await login();
+    await expect(claimGmInstance.run(request(recovery))).rejects.toMatchObject({ code: 'permission-denied' });
+  });
+
+  it('keeps natural expiry inactive and recoverable while removing scoped grants and occupied lanes', async () => {
+    session(); player('u1', { role: 'gm' });
+    instance('bridge', 'u1', { lastSeenAt: new Date(Date.now() - PRESENCE_LEASE_MS - 1).toISOString(),
+      responsibilities: ['main'], shipConsoleWriteGrant: { shipId: 'aegis', grantedAt: DEFAULT_GM_LEASE } });
+    await expireStalePlayers.run({});
+    expect(read('sessions/s1/gmInstances/bridge')).toMatchObject({ connected: false,
+      expirationCause: 'presence-expired', claimedAt: DEFAULT_GM_LEASE, responsibilities: [] });
+    expect(read('sessions/s1/gmInstances/bridge/private/shipConsoleWriteGrant')).toBeUndefined();
+    await expect(listGmInstances.run(request({ sessionId: 's1' }))).resolves.toEqual({ instances: [] });
+    await expect(setGmControlsLocked.run(request({ sessionId: 's1', instanceId: 'bridge', locked: true })))
+      .rejects.toMatchObject({ code: 'permission-denied' });
+  });
+});

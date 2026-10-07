@@ -9,7 +9,7 @@ import {
 } from '@/store/useSessionStore';
 import type { ArbourVision, CommissarPurgeAuthority, FacilitatorRuleCall, GameSession, GmInstance, LoyaltyCensus, Player, RoleBrief, SetupReceipt, WolfAttackMemberView, WolfCultIntelligence } from '@/types/game';
 import { SHIP_PLOT_RESIZE_MS } from '@/components/ShipPlot';
-import { SESSION_WAIVER_STORAGE_KEY } from '@/lib/sessionWaiver';
+import { acknowledgeSessionWaiver, SESSION_WAIVER_STORAGE_KEY } from '@/lib/sessionWaiver';
 import { MOTION_SAFETY_STORAGE_KEY } from '@/lib/motionSafety';
 import { recommendedRoleIds } from '@/data/rolePresets';
 import { normalizeCommandError } from '@/lib/commandErrors';
@@ -145,7 +145,7 @@ describe('App', () => {
       acknowledgedAt: Date.now(),
       choice: 'reduce',
     }));
-    localStorage.setItem(SESSION_WAIVER_STORAGE_KEY, String(Date.now()));
+    acknowledgeSessionWaiver(localStorage, Date.now());
     vi.mocked(startVersionUpgradeMonitor).mockClear();
     vi.mocked(subscribeSessionState).mockReset().mockReturnValue(vi.fn());
     vi.mocked(subscribeLoyaltyCensus).mockReset().mockReturnValue(vi.fn());

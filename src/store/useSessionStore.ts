@@ -25,7 +25,7 @@ import { stripPersistedNavigationProjection } from '@/lib/navigationPrivacy';
 import type { CommandErrorKind } from '@/lib/commandErrors';
 
 export const SESSION_STORAGE_KEY = 'dow-new-eden-session';
-export const GM_ACCESS_TIMEOUT_MS = 24 * 60 * 60 * 1000;
+export const GM_ACCESS_TIMEOUT_MS = 7 * 24 * 60 * 60 * 1000;
 export type ConsoleMode = 'gm' | 'console' | 'press';
 
 export type PendingCommand = (
@@ -453,6 +453,10 @@ interface SessionState {
   seats: readonly Seat[];
   me: Player | null;
   gmInstance: GmInstance | null;
+  /** Ephemeral holding state; never a source of GM authority. */
+  gmRecoveryPending: boolean;
+  /** Fences recovery replies against newer own-player callbacks, even identical demotions. */
+  gmRecoveryMemberRevision: number;
   gmAccessAuthenticatedAt: number | null;
   turnStartReplay: TurnStartReplay | null;
   privateLoyalty: PrivateLoyalty | null;
@@ -494,6 +498,7 @@ interface SessionState {
   setSeats: (seats: readonly Seat[]) => void;
   setMe: (me: Player | null) => void;
   setGmInstance: (instance: GmInstance | null) => void;
+  setGmRecoveryPending: (pending: boolean) => void;
   setGmAccessAuthenticatedAt: (authenticatedAt: number | null) => void;
   clearGmAccess: () => void;
   setTurnStartReplay: (replay: TurnStartReplay | null) => void;
@@ -534,6 +539,8 @@ const initial = {
   seats: [] as readonly Seat[],
   me: null,
   gmInstance: null,
+  gmRecoveryPending: false,
+  gmRecoveryMemberRevision: 0,
   gmAccessAuthenticatedAt: null,
   turnStartReplay: null,
   privateLoyalty: null,
@@ -567,7 +574,7 @@ const initial = {
   identityHydrationRevision: 0,
 } satisfies Pick<
   SessionState,
-  'session' | 'seats' | 'me' | 'gmInstance' | 'gmAccessAuthenticatedAt' | 'turnStartReplay' | 'pendingCommands' |
+  'session' | 'seats' | 'me' | 'gmInstance' | 'gmRecoveryPending' | 'gmRecoveryMemberRevision' | 'gmAccessAuthenticatedAt' | 'turnStartReplay' | 'pendingCommands' |
   'privateLoyalty' | 'roleBrief' | 'roleBriefLoading' | 'awayMissionHandPointer' | 'awayMissionHand' | 'awayMissionHandPointers' | 'awayMissionHands' | 'gmAwayMissionHandPointers' | 'gmLoyaltyCensus' | 'wolfCultIntelligence' | 'gmWolfCultIntelligence' | 'arbourVision' | 'gmArbourVision' | 'facilitatorRuleCall' | 'gmFacilitatorRuleCall' | 'gmCrisisState' | 'gmZealotryResponse' | 'gmCivilUnrestResolution' | 'gmSetupReceipt' | 'commissarPurgeAuthority' | 'communicationError' | 'mode' | 'lastRoute' | 'connection' |
   'sessionSnapshotFreshness' | 'voyage33MovementProjectionFresh' |
   'persistedSessionSnapshot' | 'identityHydrationRevision'
@@ -628,6 +635,7 @@ export const useSessionStore = create<SessionState>()(
         };
       }),
       setIdentity: (session, me) => set((state) => ({
+        ...(state.session?.id !== session.id || state.me?.uid !== me.uid ? { gmRecoveryPending: false } : {}),
         session: clearVoyageMovement(session), me, roleBrief: null, awayMissionHandPointer: null, awayMissionHand: null,
         roleBriefLoading: me.role === 'player',
         privateLoyalty: samePrivateAssignment(state.me, me) ? state.privateLoyalty : null,
@@ -643,11 +651,12 @@ export const useSessionStore = create<SessionState>()(
       // the entire UI and serializing the full persisted session in that case.
       setMe: (me) => {
         const previous = get().me;
-        if (!shallow(previous, me)) set((state) => {
+        if (!shallow(previous, me) || get().gmRecoveryPending) set((state) => {
           const losesGmAuthority = me?.role !== 'gm' || me.sessionId !== state.session?.id ||
             me.uid !== state.gmInstance?.uid || state.gmInstance?.sessionId !== state.session?.id;
           return {
             me,
+            ...(state.gmRecoveryPending ? { gmRecoveryMemberRevision: state.gmRecoveryMemberRevision + 1 } : {}),
             ...(!samePrivateAssignment(previous, me) ? { privateLoyalty: null } : {}),
             ...(losesGmAuthority ? {
               session: clearVoyageMovement(state.session),
@@ -664,12 +673,14 @@ export const useSessionStore = create<SessionState>()(
           gmInstance.sessionId === state.session?.id && gmInstance.uid === state.me.uid;
         return {
           gmInstance,
+          ...(!gmInstance || !sameClaim ? { gmRecoveryPending: false } : {}),
           ...(!sameClaim || !claimMatchesCurrentGm ? {
             session: clearVoyageMovement(state.session),
             voyage33MovementProjectionFresh: false,
           } : {}),
         };
       }),
+      setGmRecoveryPending: (gmRecoveryPending) => set({ gmRecoveryPending }),
       setGmAccessAuthenticatedAt: (gmAccessAuthenticatedAt) => set({ gmAccessAuthenticatedAt }),
       clearGmAccess: () => set({ gmAccessAuthenticatedAt: null }),
       setTurnStartReplay: (turnStartReplay) => set({ turnStartReplay }),
@@ -755,6 +766,7 @@ export const useSessionStore = create<SessionState>()(
           seats: [],
           me: null,
           gmInstance: null,
+          gmRecoveryPending: false,
           turnStartReplay: null,
           privateLoyalty: null,
           roleBrief: null,
@@ -819,6 +831,8 @@ export const useSessionStore = create<SessionState>()(
           // Connection and freshness are runtime authority, never persisted
           // input. A restored session is renderable only as a cache snapshot.
           connection: current.connection,
+          gmRecoveryPending: false,
+          gmRecoveryMemberRevision: current.gmRecoveryMemberRevision + 1,
           session: restoredSession,
           sessionSnapshotFreshness: hasRestoredSession && restoredSession
             ? 'cache'

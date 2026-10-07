@@ -3822,6 +3822,17 @@ function gmInstanceLeaseTimestamp(instance: Pick<DocumentSnapshot, 'get'>): stri
   return (value === undefined ? '' : value) as string | number | Date | null | undefined;
 }
 
+/** Only a finite, past lease can establish natural expiry; malformed authority cannot recover. */
+function presenceLeaseExpired(value: unknown): boolean {
+  const seen = toTimestampMillis(value);
+  return seen !== undefined && Number.isFinite(seen) && Date.now() - seen >= PRESENCE_LEASE_MS;
+}
+
+function validPastGmLease(instance: Pick<DocumentSnapshot, 'get'>): boolean {
+  const seen = toTimestampMillis(gmInstanceLeaseTimestamp(instance));
+  return seen !== undefined && Number.isFinite(seen) && seen <= Date.now();
+}
+
 /** Return only GM browser claims that can currently carry facilitator authority. */
 function liveGmInstanceDocs(
   instances: readonly DocumentSnapshot[],
@@ -18477,6 +18488,8 @@ export const claimGmInstance = onCall<{
   instanceId?: string;
   name?: string;
   deviceLabel?: string;
+  resume?: true;
+  expectedClaimedAt?: string;
 }>(async (request) => {
   const uid = requireUid(request.auth);
   const claim = requireGmClaimRequest(request.data ?? {});
@@ -18515,7 +18528,25 @@ export const claimGmInstance = onCall<{
     if (existing.exists && existing.get('uid') !== uid) {
       throw new HttpsError('already-exists', 'That GM instance identifier is already in use.');
     }
-    const replacingStaleInstance = existing.exists && !isLiveGmInstance(existing, player, uid);
+    const liveExisting = isLiveGmInstance(existing, player, uid);
+    if (claim.resume) {
+      // Recovery can renew an original owned lease; it cannot manufacture a
+      // replacement after a kick/release/logout or undo an explicit demotion.
+      const naturallyExpired = existing.get('connected') === false &&
+        existing.get('expirationCause') === 'presence-expired';
+      const expiredOwnedBrowser = existing.get('connected') === true && player.get('role') === 'gm' &&
+        presenceLeaseExpired(gmInstanceLeaseTimestamp(existing));
+      if (!existing.exists || existing.get('uid') !== uid ||
+          existing.get('sessionId') !== claim.sessionId ||
+          gmInstanceClaimedAtToken(existing.get('claimedAt')) !== claim.expectedClaimedAt ||
+          (!naturallyExpired && !expiredOwnedBrowser && (!liveExisting || !validPastGmLease(existing)))) {
+        throw new HttpsError('permission-denied', 'The original GM claim cannot be recovered.');
+      }
+      if (session.get('phase') === 'closed' || session.get('deletingAt')) {
+        throw new HttpsError('failed-precondition', 'That session has closed.');
+      }
+    }
+    const replacingStaleInstance = existing.exists && !liveExisting;
     if (replacingStaleInstance) {
       // A stale browser may reclaim the same human-readable instance name.
       // Its old scoped ship grant must not follow that name into the new lease.
@@ -18540,8 +18571,8 @@ export const claimGmInstance = onCall<{
     tx.set(instanceRef, {
       uid,
       sessionId: claim.sessionId,
-      name: claim.name,
-      deviceLabel: claim.deviceLabel,
+      name: claim.resume ? existing.get('name') : claim.name,
+      deviceLabel: claim.resume ? existing.get('deviceLabel') : claim.deviceLabel,
       connected: true,
       lastSeenAt: FieldValue.serverTimestamp(),
       ...(firstActiveGm
@@ -35689,10 +35720,25 @@ export const expireStalePlayers = onSchedule('* * * * *', async () => {
         !instance.exists || instance.get('uid') !== uid || instance.get('connected') !== true ||
         isLiveGmInstance(instance, player, uid)
       ) return;
-      tx.delete(instanceRef);
-      tx.delete(gmShipConsoleWriteGrantRef(sessionId, instance.id));
-      const liveSibling = ownedInstances.docs.some((sibling) =>
-        sibling.id !== instance.id && isLiveGmInstance(sibling, player, uid));
+      const expiredMember = isConnectedPlayer(player) && presenceLeaseExpired(player.get('lastSeenAt'));
+      const naturalGmMember = isConnectedPlayer(player) && player.get('role') === 'gm' &&
+        (isActivePlayer(player) || expiredMember);
+      // Classify all vanished siblings against the same original member role
+      // before demoting it. A role=player claim is explicit loss, never expiry.
+      for (const sibling of ownedInstances.docs) {
+        if (sibling.get('connected') !== true || isLiveGmInstance(sibling, player, uid)) continue;
+        const naturallyExpired = naturalGmMember &&
+          gmInstanceClaimedAtToken(sibling.get('claimedAt')) && validPastGmLease(sibling) &&
+          (expiredMember || presenceLeaseExpired(gmInstanceLeaseTimestamp(sibling)));
+        if (naturallyExpired) {
+          tx.update(sibling.ref, { connected: false, expirationCause: 'presence-expired',
+            responsibilities: [], responsibility: null });
+        } else {
+          tx.delete(sibling.ref);
+        }
+        tx.delete(gmShipConsoleWriteGrantRef(sessionId, sibling.id));
+      }
+      const liveSibling = ownedInstances.docs.some((sibling) => isLiveGmInstance(sibling, player, uid));
       if (!liveSibling && isActivePlayer(player) && player.get('role') === 'gm') {
         tx.update(playerRef, { role: 'player' });
       }
@@ -35801,7 +35847,17 @@ export const expireStalePlayers = onSchedule('* * * * *', async () => {
         tx.update(seatRef, { status: 'open', holderUid: null, claimedAt: null });
       }
       for (const instance of ownedInstances.docs) {
-        tx.delete(instance.ref);
+        const alreadyNaturallyExpired = instance.get('connected') === false &&
+          instance.get('expirationCause') === 'presence-expired';
+        const naturallyExpiredGm = player.get('role') === 'gm' && instance.get('connected') === true &&
+          validPastGmLease(instance);
+        if (gmInstanceClaimedAtToken(instance.get('claimedAt')) &&
+            (alreadyNaturallyExpired || naturallyExpiredGm)) {
+          tx.update(instance.ref, { connected: false, expirationCause: 'presence-expired',
+            responsibilities: [], responsibility: null });
+        } else {
+          tx.delete(instance.ref);
+        }
         tx.delete(gmShipConsoleWriteGrantRef(sessionId, instance.id));
       }
       if (membership.exists && membership.get('sessionId') === sessionId) {

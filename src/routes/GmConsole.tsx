@@ -2,6 +2,7 @@ import WolfBoardingSpecialChoicePanel from '@/components/WolfBoardingSpecialChoi
 import DiseaseOutbreakFields from '../components/DiseaseOutbreakFields';
 import { populationForShip, populationTrackForShip } from '@/data/shipPopulation';
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, Navigate } from 'react-router-dom';
 import ArrestPosseCalculator from '@/components/ArrestPosseCalculator';
 import GmVipHostVisitControl from '@/components/GmVipHostVisitControl';
@@ -464,6 +465,7 @@ export default function GmConsole() {
   const local = useSessionStore((state) => state.gmInstance);
   const isGm = useSessionStore(selectIsGm);
   const pendingCommands = useSessionStore((state) => state.pendingCommands);
+  const gmRecoveryPending = useSessionStore((state) => state.gmRecoveryPending);
   const connection = useSessionStore((state) => state.connection);
   const sessionSnapshotFreshness = useSessionStore((state) => state.sessionSnapshotFreshness);
   const setupReceipt = useSessionStore((state) => state.gmSetupReceipt);
@@ -670,6 +672,8 @@ export default function GmConsole() {
   const [setupOpen, setSetupOpen] = useState(false);
   const [dradisExpanded, setDradisExpanded] = useState(false);
   const dradisRef = useRef<HTMLElement>(null);
+  const dradisDialogRef = useRef<HTMLElement>(null);
+  const dradisZoomRef = useRef<HTMLButtonElement>(null);
   const dradisPreviousBounds = useRef<DOMRect | null>(null);
   const dradisAnimation = useRef<Animation | null>(null);
   const [viewerId, setViewerId] = useState('aegis');
@@ -957,8 +961,18 @@ export default function GmConsole() {
       : (role.vesselId === undefined || replacementVesselIds.has(role.vesselId)),
   );
 
+  const dradisModalOpen = Boolean(dradisExpanded && session && me && isGm && local &&
+    !gmRecoveryPending && connection === 'live' && sessionSnapshotFreshness === 'server');
   useLayoutEffect(() => {
-    const dradis = dradisRef.current;
+    if (!dradisExpanded || dradisModalOpen) return;
+    dradisAnimation.current?.cancel();
+    dradisAnimation.current = null;
+    dradisPreviousBounds.current = null;
+    setDradisExpanded(false);
+  }, [dradisExpanded, dradisModalOpen]);
+
+  useLayoutEffect(() => {
+    const dradis = dradisExpanded ? dradisDialogRef.current : dradisRef.current;
     const previous = dradisPreviousBounds.current;
     dradisPreviousBounds.current = null;
     if (!dradis || !previous || typeof dradis.animate !== 'function') return;
@@ -978,16 +992,26 @@ export default function GmConsole() {
     });
   }, [dradisExpanded, reducedMotion]);
 
+  useLayoutEffect(() => {
+    if (!dradisModalOpen) return undefined;
+    const priorOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = priorOverflow; };
+  }, [dradisModalOpen]);
+
   const toggleDradis = (nextExpanded?: boolean) => {
-    const dradis = dradisRef.current;
-    if (dradis) dradisPreviousBounds.current = dradis.getBoundingClientRect();
+    const next = nextExpanded ?? !dradisExpanded;
+    if (next === dradisExpanded) return;
+    const source = next ? dradisRef.current : dradisDialogRef.current;
+    dradisPreviousBounds.current = source?.getBoundingClientRect() ?? null;
     dradisAnimation.current?.cancel();
     dradisAnimation.current = null;
-    setDradisExpanded((expanded) => nextExpanded ?? !expanded);
+    setDradisExpanded(next);
   };
 
   useEffect(() => {
-    if (!isGm || !sessionId) return;
+    if (!isGm || !sessionId || gmRecoveryPending ||
+        connection !== 'live' || sessionSnapshotFreshness !== 'server') return;
     const localInstanceId = local?.id;
     const generation = crisisAuthorityGeneration.current + 1;
     crisisAuthorityGeneration.current = generation;
@@ -1014,6 +1038,8 @@ export default function GmConsole() {
       if (
         !active || authorityInvalidated ||
         crisisAuthorityGeneration.current !== generation ||
+        current.gmRecoveryPending || current.connection !== 'live' ||
+        current.sessionSnapshotFreshness !== 'server' ||
         current.session?.id !== sessionId || current.me?.role !== 'gm' ||
         !currentInstance || !currentUid ||
         currentUid !== currentInstance.uid ||
@@ -1056,9 +1082,11 @@ export default function GmConsole() {
         store.session?.id === sessionId &&
         store.gmInstance?.id === localInstanceId
       ) {
-        store.setGmInstance(null);
-        store.setMode(null);
-        store.setLastRoute('/roles');
+        // A missing live manifest is not proof of explicit removal. Preserve
+        // only the descriptor; reconnect must ask the server about its lease.
+        store.setGmRecoveryPending(true);
+        store.setSessionSnapshotFreshness('cache');
+        store.setConnection('offline');
       }
     };
     void import('@/lib/firestore').then(({
@@ -1084,11 +1112,11 @@ export default function GmConsole() {
       subscribeGmArrestPosseCalculation,
       subscribeSessionEvents,
     }) => {
-      if (!active) return;
+      if (!currentAuthorityKey()) return;
       stopInstances = subscribeGmInstances(
         sessionId,
         (next) => {
-          if (!active || authorityInvalidated) return;
+          if (!currentAuthorityKey()) return;
           setInstances(next);
           setLoading(false);
           const store = useSessionStore.getState();
@@ -1245,7 +1273,7 @@ export default function GmConsole() {
             : () => undefined;
         },
         () => {
-          if (!active || authorityInvalidated) return;
+          if (!currentAuthorityKey()) return;
           setLoading(false);
           useSessionStore.getState().setCommunicationError({
             code: 'gm-manifest-link',
@@ -1254,7 +1282,7 @@ export default function GmConsole() {
           revokeAuthority();
         },
       );
-      if (!active || authorityInvalidated) {
+      if (!currentAuthorityKey()) {
         stopInstances();
         stopInstances = () => undefined;
         return;
@@ -1418,6 +1446,9 @@ export default function GmConsole() {
     advanceArrestPosseCalculationGeneration,
     clearArrestPosseCalculation,
     isGm,
+    gmRecoveryPending,
+    connection,
+    sessionSnapshotFreshness,
     local?.id,
     local?.uid,
     me?.fleetGroupId,
@@ -1730,8 +1761,22 @@ export default function GmConsole() {
       },
     dialogKey: activeConfirmation,
   });
+  useDialogFocus({
+    open: dradisModalOpen,
+    dialogRef: dradisDialogRef,
+    restoreRef: dradisZoomRef,
+    onEscape: () => toggleDradis(false),
+    dialogKey: 'gm-dradis',
+  });
 
   if (!session || !me) return <Navigate to="/" replace />;
+  if (gmRecoveryPending && local?.sessionId === session.id && local.uid === me.uid) {
+    return <main className="role-select">
+      <p role="status" aria-label="GM connection recovery">
+        Recovering the original GM connection // awaiting current server authority.
+      </p>
+    </main>;
+  }
   if (!isGm || !local) return <Navigate to="/console" replace />;
 
   function castingRoleLabel(roleId: string): string {
@@ -2965,8 +3010,55 @@ export default function GmConsole() {
   const wolfAftermathView = wolfAttackState
     ? projectWolfAttackGmAftermathView(wolfAttackState, session?.shipDamage) : null;
 
+  const renderGmDradis = (expanded: boolean) => (
+    <ShipPlot
+      layout="gm"
+      hostile={false}
+      aboard
+      viewerId={viewer?.id ?? 'aegis'}
+      requireLocalAuthority={session?.phase === 'active'}
+      localNavigation={localDradisNavigation}
+      expanded={expanded}
+      onExpandedChange={toggleDradis}
+      zoomButtonRef={expanded ? undefined : dradisZoomRef}
+      capybaraEnabled={capybaraEnabled}
+      dioneEnabled={dioneEnabled}
+      shipGalacticCoordinates={session?.shipGalacticCoordinates}
+      shipDamage={session?.shipDamage}
+      shipJumpTransitions={session?.shipJumpTransitions}
+      activeRoleIds={hasUnconfirmedRosterChanges ? draftRoleIds : serverRoleIds}
+      activeVesselIds={hasUnconfirmedRosterChanges ? undefined : session?.activeVesselIds}
+      ambientSession={session ?? undefined}
+      turnPhase={currentPhase}
+    />
+  );
+
+  const renderDradisPerspectives = () => (
+    <div className="gm-dradis__controls">
+      <p className="gm-dradis__perspective">
+        DRADIS perspective // {viewer?.name ?? 'AEGIS'} // GALACTIC COORDINATES // {viewerCoordinate}
+      </p>
+      <div className="gm-dradis__ships" aria-label="DRADIS perspectives">
+        {availableShips.map((ship) => (
+          <button
+            type="button"
+            key={ship.id}
+            aria-label={`View DRADIS from ${ship.name}`}
+            aria-pressed={ship.id === viewer?.id}
+            onClick={() => setViewerId(ship.id)}
+          >
+            {ship.name}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
   return (
-    <main className="ship-console ship-console--gameplay gm-console">
+    <main
+      className="ship-console ship-console--gameplay gm-console"
+      aria-hidden={dradisExpanded || undefined}
+    >
       <section className="ship-console__identity" aria-label="GM command">
         <Link className="ship-console__back cic-text-button" to="/console">
           Back to role selection
@@ -5476,60 +5568,41 @@ export default function GmConsole() {
         </RoleConsoleTemplate>
       </section>
       <aside className="gm-console__instruments" aria-label="GM instruments">
-          <section
-            ref={dradisRef}
-            className="gm-console__module gm-dradis"
-            aria-label="Fleet DRADIS"
-            data-expanded={String(dradisExpanded)}
-          >
-            <ShipPlot
-              layout="gm"
-              hostile={false}
-              aboard
-              viewerId={viewer?.id ?? 'aegis'}
-              requireLocalAuthority={session?.phase === 'active'}
-              localNavigation={localDradisNavigation}
-              expanded={dradisExpanded}
-              onExpandedChange={toggleDradis}
-              capybaraEnabled={capybaraEnabled}
-              dioneEnabled={dioneEnabled}
-              shipGalacticCoordinates={session?.shipGalacticCoordinates}
-              shipDamage={session?.shipDamage}
-              shipJumpTransitions={session?.shipJumpTransitions}
-              activeRoleIds={hasUnconfirmedRosterChanges ? draftRoleIds : serverRoleIds}
-              activeVesselIds={hasUnconfirmedRosterChanges ? undefined : session?.activeVesselIds}
-              ambientSession={session ?? undefined}
-              turnPhase={currentPhase}
-            />
-            <div className="gm-dradis__controls">
-              <p className="gm-dradis__perspective">
-                DRADIS perspective // {viewer?.name ?? 'AEGIS'} // GALACTIC COORDINATES // {viewerCoordinate}
-              </p>
-              <div className="gm-dradis__ships" aria-label="DRADIS perspectives">
-                {availableShips.map((ship) => (
-                  <button
-                    type="button"
-                    key={ship.id}
-                    aria-label={`View DRADIS from ${ship.name}`}
-                    aria-pressed={ship.id === viewer?.id}
-                    onClick={() => setViewerId(ship.id)}
-                  >
-                    {ship.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </section>
-          <JumpFailureAdjudicationPanel key={session?.id} active={Boolean(
-            isGm && local && session?.phase === 'active' &&
-            sessionSnapshotFreshness === 'server' && connection === 'live',
-          )} />
-          <PursuitEmergencyWindowPanel active={Boolean(
-            isGm && local && session?.phase === 'active' &&
-            sessionSnapshotFreshness === 'server' && connection === 'live',
-          )} window={session?.pursuitEmergencyWindowAuthority} />
-
+        <section
+          ref={dradisRef}
+          className="gm-console__module gm-dradis"
+          aria-label="Fleet DRADIS"
+          data-expanded="false"
+        >
+          {renderGmDradis(false)}
+          {renderDradisPerspectives()}
+        </section>
+        <JumpFailureAdjudicationPanel key={session?.id} active={Boolean(
+          isGm && local && session?.phase === 'active' &&
+          sessionSnapshotFreshness === 'server' && connection === 'live',
+        )} />
+        <PursuitEmergencyWindowPanel active={Boolean(
+          isGm && local && session?.phase === 'active' &&
+          sessionSnapshotFreshness === 'server' && connection === 'live',
+        )} window={session?.pursuitEmergencyWindowAuthority} />
       </aside>
+      {dradisModalOpen && createPortal(
+        <>
+          <div className="gm-dradis-modal__backdrop" aria-hidden="true" />
+          <section
+            ref={dradisDialogRef}
+            className="gm-dradis-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Fleet DRADIS"
+            data-expanded="true"
+          >
+            <div className="gm-dradis-modal__plot">{renderGmDradis(true)}</div>
+            {renderDradisPerspectives()}
+          </section>
+        </>,
+        document.body,
+      )}
       {pendingCapybaraEnabled !== null && (
         <div
           className="settings-backdrop"

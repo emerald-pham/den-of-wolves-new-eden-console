@@ -126,7 +126,7 @@ export default function SessionWaiver({ onAcknowledge, inline = false }: Session
           Acknowledge regulations and continue
         </button>
         <p className="session-waiver__retention">
-          Acknowledgement saved for 72 hours on this device.
+          Acknowledgement saved for seven days on this device.
         </p>
       </section>
     </div>

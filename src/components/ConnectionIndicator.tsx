@@ -1,6 +1,6 @@
 import type { ConnectionStatus } from '@/store/useSessionStore';
 
-type IndicatorStatus = ConnectionStatus | 'blue';
+type IndicatorStatus = ConnectionStatus | 'awaiting-cic';
 
 /**
  * The status light in the header.
@@ -15,14 +15,14 @@ const LABELS: Record<IndicatorStatus, string> = {
   red: 'Offline',
   yellow: 'CONNECTED',
   green: 'In session',
-  blue: 'CONNECTED // AWAITING CIC AUTHENTICATION',
+  'awaiting-cic': 'CONNECTED // AWAITING CIC AUTHENTICATION',
 };
 
 const TITLES: Record<IndicatorStatus, string> = {
   red: 'Fleet link offline',
   yellow: 'Fleet link connected // no active session',
   green: 'Fleet link connected // session active',
-  blue: 'Fleet link connected // awaiting CIC authentication',
+  'awaiting-cic': 'Fleet link connected // awaiting CIC authentication',
 };
 
 export default function ConnectionIndicator({

@@ -29,7 +29,7 @@ describe('ConnectionIndicator', () => {
   });
 
   it('explains the pregame CIC authentication state in its label and accessible title', () => {
-    render(<ConnectionIndicator status="blue" />);
+    render(<ConnectionIndicator status="awaiting-cic" />);
     expect(screen.getByRole('status')).toHaveTextContent('CONNECTED // AWAITING CIC AUTHENTICATION');
     expect(screen.getByRole('status')).toHaveAccessibleName('Fleet link connected // awaiting CIC authentication');
     expect(screen.getByRole('status')).toHaveAttribute('title', 'Fleet link connected // awaiting CIC authentication');
@@ -40,11 +40,17 @@ describe('ConnectionIndicator', () => {
     expect(screen.getByRole('status')).toHaveAttribute('data-status', 'green');
   });
 
-  it('uses the CIC blue instrumentation token for the uplink indicator', () => {
+  it('uses the CIC red warning token while waiting for CIC authentication', () => {
     const stylesheet = readFileSync('src/index.css', 'utf8');
+    const tokens = readFileSync('src/styles/cic.css', 'utf8');
+
+    expect(tokens).toMatch(/--cic-danger:\s*#e0392a;/);
 
     expect(stylesheet).toMatch(
-      /\.indicator\[data-status=['"]blue['"]\]\s*\{[^}]*--dot:\s*var\(--cic-cyan-hot\)/,
+      /\.indicator\[data-status=['"]awaiting-cic['"]\]\s*\{[^}]*--dot:\s*var\(--cic-danger\)/,
+    );
+    expect(stylesheet).toMatch(
+      /\.indicator\[data-status=['"]awaiting-cic['"]\]\s*\{[^}]*color:\s*var\(--cic-danger\)/,
     );
   });
 });

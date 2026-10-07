@@ -879,8 +879,9 @@ body {
 .indicator[data-status='green'] {
   --dot: #5fbf7a;
 }
-.indicator[data-status='blue'] {
-  --dot: var(--cic-cyan-hot);
+.indicator[data-status='awaiting-cic'] {
+  --dot: var(--cic-danger);
+  color: var(--cic-danger);
 }
 
 .session-snapshot-status {
@@ -6567,6 +6568,105 @@ body {
   }
 }
 
+.gm-dradis-modal__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 79;
+  background: color-mix(in srgb, var(--cic-void) 97%, transparent);
+  overscroll-behavior: contain;
+  touch-action: none;
+}
+
+.gm-dradis-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  box-sizing: border-box;
+  transform-origin: top left;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(18rem, 24rem);
+  grid-template-rows: minmax(0, 1fr);
+  gap: clamp(0.5rem, 1vw, 1rem);
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  padding: max(0.75rem, env(safe-area-inset-top)) max(0.75rem, env(safe-area-inset-right))
+    max(0.75rem, env(safe-area-inset-bottom)) max(0.75rem, env(safe-area-inset-left));
+  background: transparent;
+  color: var(--cic-ink);
+  font-family: var(--cic-mono);
+  overscroll-behavior: contain;
+}
+
+.gm-dradis-modal__plot {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.gm-dradis-modal .ship-plot--gm[data-aboard='true'][data-expanded='true'] {
+  position: relative;
+  inset: auto;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  aspect-ratio: auto;
+  border-color: transparent;
+  background: transparent;
+}
+
+.gm-dradis-modal .gm-dradis__controls {
+  align-self: stretch;
+  min-width: 0;
+  min-height: 0;
+  max-height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.gm-dradis-modal .gm-dradis__perspective {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 60rem) {
+  .gm-dradis-modal {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(16rem, min(58dvh, 38rem)) auto;
+    align-content: start;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  .gm-dradis-modal__plot {
+    height: min(58dvh, 38rem);
+    min-height: 16rem;
+  }
+
+  .gm-dradis-modal .gm-dradis__controls {
+    max-height: none;
+  }
+}
+
+@media (max-height: 42rem) and (min-width: 42.01rem) {
+  .gm-dradis-modal {
+    grid-template-columns: minmax(0, 1fr) minmax(14rem, 32vw);
+    grid-template-rows: minmax(0, 1fr);
+    align-content: stretch;
+    overflow: hidden;
+  }
+
+  .gm-dradis-modal__plot {
+    height: auto;
+    min-height: 0;
+  }
+
+  .gm-dradis-modal .gm-dradis__controls {
+    max-height: 100%;
+  }
+}
+
 .gm-fleet-resource-ship { container-type: inline-size; }
 @container (max-width: 20rem) {
   .gm-fleet-resource-ship li {
@@ -7276,3 +7376,9 @@ body {
 .president-workspace li { padding: 0.65rem; border-left: 2px solid var(--cic-cyan); background: color-mix(in srgb, var(--cic-void) 90%, var(--cic-cyan)); }
 .president-workspace li p { margin: 0 0 0.3rem; color: var(--cic-muted); font-size: 0.65rem; letter-spacing: 0.08em; text-transform: uppercase; }
 .president-workspace li strong { display: block; overflow-wrap: anywhere; color: var(--cic-ink); font: 0.78rem/1.45 var(--cic-mono); }
+
+.pursuit-tracker__countdown strong[data-awaiting-cic='true'],
+.press-event-log__status[data-awaiting-cic='true'] {
+  color: var(--cic-danger);
+  text-shadow: none;
+}

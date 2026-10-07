@@ -1057,6 +1057,7 @@ describe('disconnect and retention', () => {
     await disconnectFromSession.run(request({ sessionId: 's1', instanceId: 'old-tab' }));
 
     expect(read('sessions/s1/gmInstances/old-tab')).toBeUndefined();
+    expect(read('sessions/s1/gmInstances/old-tab/private/shipConsoleWriteGrant')).toBeUndefined();
     expect(read('sessions/s1/gmInstances/bridge')).toBeDefined();
     expect(read('sessions/s1/players/u1')).toMatchObject({ connected: true, role: 'gm' });
     expect(read('activeMemberships/u1')).toMatchObject({ sessionId: 's1' });
@@ -1534,7 +1535,9 @@ describe('stale-player cleanup', () => {
 
     await expireStalePlayers.run({});
 
-    expect(read('sessions/s1/gmInstances/old-tab')).toBeUndefined();
+    expect(read('sessions/s1/gmInstances/old-tab')).toMatchObject({
+      connected: false, expirationCause: 'presence-expired', responsibilities: [],
+    });
     expect(read('sessions/s1/gmInstances/bridge')).toBeDefined();
     expect(read('sessions/s1/players/u1')).toMatchObject({ connected: true, role: 'gm' });
     expect(read('activeMemberships/u1')).toMatchObject({ sessionId: 's1' });

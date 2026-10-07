@@ -18,3 +18,13 @@ describe('GM access password', () => {
     )).toBe(false);
   });
 });
+
+
+it('remembers server GM authorization for seven days and rejects future or invalid stamps', () => {
+  const stamp = Date.parse('2026-10-01T00:00:00.000Z');
+  expect(GM_ACCESS_TIMEOUT_MS).toBe(7 * 24 * 60 * 60 * 1000);
+  expect(isGmAccessActive(stamp, stamp + 6 * 24 * 60 * 60 * 1000)).toBe(true);
+  expect(isGmAccessActive(stamp, stamp + 7 * 24 * 60 * 60 * 1000)).toBe(false);
+  expect(isGmAccessActive(stamp, stamp - 1)).toBe(false);
+  expect(isGmAccessActive(NaN, stamp)).toBe(false);
+});

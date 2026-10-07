@@ -3,7 +3,7 @@ import { commissarPurgeAuthorityIsCurrent } from './commissarPurgeAuthority';
 import { signInAnonymously } from 'firebase/auth';
 import { httpsCallable } from 'firebase/functions';
 import { auth, functions } from './firebase';
-import { useSessionStore } from '@/store/useSessionStore';
+import { selectGmAccessAuthenticated, useSessionStore } from '@/store/useSessionStore';
 import type { PendingCommand } from '@/store/useSessionStore';
 import type {
   FacilitatorRuleCall,
@@ -1233,6 +1233,10 @@ async function connectWithRetryPolicy(respectRateLimitWait: boolean): Promise<vo
       store.setConnection('offline');
       setConnectRateLimitWait(remainingSeconds);
       return;
+    }
+    if (store.gmInstance && store.gmInstance.uid === attemptedUid &&
+        store.gmInstance.sessionId === store.session?.id) {
+      store.setGmRecoveryPending(true);
     }
     store.setConnection('connecting');
     const rememberedSession = store.session;
@@ -2843,23 +2847,138 @@ export async function releaseConsoleRole(): Promise<void> {
   store.setLastRoute('/console');
 }
 
+let latestGmReconciliationGeneration = 0;
+
 export async function reconcileGmAuthority(): Promise<void> {
   const before = useSessionStore.getState();
   const remembered = before.gmInstance;
   if (!remembered) return;
+  const generation = ++latestGmReconciliationGeneration;
+  const connectionGeneration = latestConnectAttemptGeneration;
+  let memberRevision = before.gmRecoveryMemberRevision;
   const checkpoint = before.session
     ? sessionAuthorityCheckpoint(before.session.id, sessionAuthorityUid(before))
     : undefined;
-  const instances = await listGmInstances();
-  if (!authorityCheckpointIsCurrent(checkpoint, true)) return;
-  const current = instances.find((instance) => instance.id === remembered.id);
-  if (!current) {
-    useSessionStore.getState().setGmInstance(null);
-    useSessionStore.getState().setMode(null);
-    useSessionStore.getState().setLastRoute('/roles');
-  } else {
-    useSessionStore.getState().setGmInstance(current);
+  const sameInputs = (): boolean => {
+    const current = useSessionStore.getState();
+    return generation === latestGmReconciliationGeneration &&
+      connectionGeneration === latestConnectAttemptGeneration &&
+      current.identityHydrationRevision === before.identityHydrationRevision &&
+      current.gmRecoveryMemberRevision === memberRevision &&
+      current.me?.connectionGeneration === before.me?.connectionGeneration &&
+      current.mode === before.mode && current.lastRoute === before.lastRoute &&
+      authorityCheckpointIsCurrent(checkpoint, true) &&
+      auth().currentUser?.uid === remembered.uid && current.me?.uid === remembered.uid &&
+      current.gmInstance?.id === remembered.id &&
+      current.gmInstance.sessionId === remembered.sessionId &&
+      current.gmInstance.uid === remembered.uid &&
+      current.gmInstance.claimedAt === remembered.claimedAt &&
+      current.gmAccessAuthenticatedAt === before.gmAccessAuthenticatedAt;
+  };
+  const clearRemembered = (): void => {
+    const store = useSessionStore.getState();
+    store.setGmInstance(null);
+    store.setGmRecoveryPending(false);
+    store.setMode(null);
+    store.setLastRoute('/roles');
+  };
+  let instances: readonly GmInstance[];
+  try {
+    instances = await listGmInstances();
+  } catch (cause) {
+    if (sameInputs()) {
+      const store = useSessionStore.getState();
+      store.setGmRecoveryPending(true);
+      store.setSessionSnapshotFreshness('cache');
+      store.setConnection('offline');
+    }
+    throw cause;
   }
+  if (!sameInputs()) return;
+  const current = instances.find((instance) => instance.id === remembered.id &&
+    instance.sessionId === remembered.sessionId && instance.uid === remembered.uid);
+  if (current) {
+    const store = useSessionStore.getState();
+    store.setGmInstance(current);
+    // An ordinary list refresh never changes the member's role. A reconnect
+    // remains held until its own member projection also confirms GM authority.
+    store.setGmRecoveryPending(store.gmRecoveryPending && store.me?.role !== 'gm');
+    return;
+  }
+  if (!selectGmAccessAuthenticated(before)) {
+    clearRemembered();
+    return;
+  }
+  const store = useSessionStore.getState();
+  store.setGmRecoveryPending(true);
+  store.setConnection('connecting');
+  // The saved descriptor locates the original claim. It carries no live
+  // privilege while the server decides whether natural recovery is allowed.
+  const descriptor = { ...remembered, responsibilities: [] };
+  delete descriptor.shipConsoleWriteGrant;
+  delete descriptor.responsibility;
+  store.setGmInstance(descriptor);
+  if (store.me) store.setMe({ ...store.me, role: 'player' });
+  // The provisional demotion is local. Subsequent SDK callbacks, including
+  // an identical role=player, are newer authority and invalidate this attempt.
+  memberRevision = useSessionStore.getState().gmRecoveryMemberRevision;
+  const call = httpsCallable<{
+    sessionId: string; instanceId: string; name: string; deviceLabel: string;
+    resume: true; expectedClaimedAt: string;
+  }, { instance: GmInstance }>(functions(), 'claimGmInstance');
+  let reply: { instance: GmInstance };
+  try {
+    reply = (await call({ sessionId: remembered.sessionId, instanceId: remembered.id,
+      name: remembered.name, deviceLabel: remembered.deviceLabel,
+      resume: true, expectedClaimedAt: remembered.claimedAt })).data;
+  } catch (cause) {
+    if (!sameInputs()) return;
+    const code = (errorCode(cause) ?? '').replace(/^functions\//, '');
+    if (['permission-denied', 'not-found', 'failed-precondition', 'already-exists'].includes(code)) {
+      clearRemembered();
+      return;
+    }
+    store.setSessionSnapshotFreshness('cache');
+    store.setConnection('offline');
+    throw cause;
+  }
+  if (!sameInputs()) return;
+  const recovered = reply?.instance;
+  if (!recovered || recovered.id !== remembered.id || recovered.uid !== remembered.uid ||
+      recovered.sessionId !== remembered.sessionId || typeof recovered.name !== 'string' ||
+      typeof recovered.deviceLabel !== 'string' || typeof recovered.claimedAt !== 'string' ||
+      !Number.isFinite(Date.parse(recovered.claimedAt)) ||
+      new Date(recovered.claimedAt).toISOString() !== recovered.claimedAt ||
+      recovered.shipConsoleWriteGrant !== undefined) {
+    clearRemembered();
+    throw new Error('The GM recovery response was malformed or belonged to another actor.');
+  }
+  // The claim can commit before its reply arrives. Re-read the existing live
+  // manifest: it requires a current GM member and this exact browser lease.
+  let confirmed: GmInstance | undefined;
+  try {
+    confirmed = (await listGmInstances()).find((instance) => instance.id === recovered.id &&
+      instance.sessionId === recovered.sessionId && instance.uid === recovered.uid &&
+      instance.claimedAt === recovered.claimedAt);
+  } catch (cause) {
+    if (!sameInputs()) return;
+    const code = (errorCode(cause) ?? '').replace(/^functions\//, '');
+    if (['permission-denied', 'not-found', 'failed-precondition'].includes(code)) {
+      clearRemembered();
+      return;
+    }
+    store.setSessionSnapshotFreshness('cache');
+    store.setConnection('offline');
+    throw cause;
+  }
+  if (!sameInputs()) return;
+  if (!confirmed) { clearRemembered(); return; }
+  const latest = useSessionStore.getState();
+  if (latest.me) latest.setMe({ ...latest.me, role: 'gm' });
+  latest.setGmInstance(confirmed);
+  latest.setGmRecoveryPending(false);
+  latest.setMode(before.mode);
+  latest.setLastRoute(before.lastRoute);
 }
 
 export async function kickGmInstance(targetInstanceId: string): Promise<CommandDisposition> {

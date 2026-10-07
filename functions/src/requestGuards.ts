@@ -902,12 +902,28 @@ export function requireGmClaimRequest(data: {
   instanceId?: unknown;
   name?: unknown;
   deviceLabel?: unknown;
-}): { sessionId: string; instanceId: string; name: string; deviceLabel: string } {
+  resume?: unknown;
+  expectedClaimedAt?: unknown;
+}): { sessionId: string; instanceId: string; name: string; deviceLabel: string;
+  resume?: true; expectedClaimedAt?: string } {
+  const recovering = data.resume !== undefined || data.expectedClaimedAt !== undefined;
+  let expectedClaimedAt: string | undefined;
+  if (recovering) {
+    if (data.resume !== true) {
+      throw new HttpsError('invalid-argument', 'GM recovery requires the original claim.');
+    }
+    expectedClaimedAt = requiredText(data.expectedClaimedAt, 'expectedClaimedAt', 80);
+    const parsed = Date.parse(expectedClaimedAt);
+    if (!Number.isFinite(parsed) || new Date(parsed).toISOString() !== expectedClaimedAt) {
+      throw new HttpsError('invalid-argument', 'expectedClaimedAt must be a canonical lease timestamp.');
+    }
+  }
   return {
     sessionId: requiredId(data.sessionId, 'sessionId'),
     instanceId: requiredId(data.instanceId, 'instanceId'),
     name: requiredText(data.name, 'name', 40),
     deviceLabel: requiredText(data.deviceLabel, 'deviceLabel', 160),
+    ...(recovering ? { resume: true as const, expectedClaimedAt } : {}),
   };
 }
 

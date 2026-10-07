@@ -1299,14 +1299,21 @@ export default function ContactPlot({
 
   useEffect(() => {
     if (!ambientSession) return;
-    const now = Date.now();
-    if (now !== clock) setClock(now);
-    const next = nextAmbientDradisChange(ambientSession, now);
-    if (next === null) return;
-    const refreshAt = ambient ? Math.min(next, now + AMBIENT_RANGE_UPDATE_MS) : next;
-    const timer = window.setTimeout(() => setClock(Date.now()), Math.max(1, refreshAt - now));
+    let timer: number | undefined;
+    const refreshClock = () => {
+      const now = Date.now();
+      setClock(now);
+      const next = nextAmbientDradisChange(ambientSession, now);
+      if (next === null) return;
+      const active = ambientDradisOccurrence(ambientSession, now);
+      const refreshAt = active ? Math.min(next, now + AMBIENT_RANGE_UPDATE_MS) : next;
+      timer = window.setTimeout(refreshClock, Math.max(1, refreshAt - now));
+    };
+    // Synchronize new session/contact input immediately, then advance only
+    // from the scheduled callback. Clock state cannot restart its own effect.
+    refreshClock();
     return () => window.clearTimeout(timer);
-  }, [ambient, ambientSession, clock]);
+  }, [ambientSession]);
 
   useEffect(() => {
     const node = plot.current;

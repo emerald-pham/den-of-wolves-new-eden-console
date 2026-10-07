@@ -330,7 +330,7 @@ export default function AppHeader() {
     ? ['GM', secondaryRole].filter(Boolean).join(' / ')
     : (secondaryRole ?? null);
   const singlePlayerDemoAvailable = currentTurn === 0 && connectedPlayers === 1;
-  const indicatorStatus = displayStatus === 'green' && currentTurn === 0 ? 'blue' : displayStatus;
+  const indicatorStatus = displayStatus === 'green' && currentTurn === 0 ? 'awaiting-cic' : displayStatus;
 
   function openSettings(): void {
     setChangelogOpen(false);
@@ -592,7 +592,7 @@ export default function AppHeader() {
               {gmAccessAuthenticated ? (
                 <>
                   <p className="settings-dialog__gm-access-status">
-                    🔓 GM access remains authorized on this device for 24 hours.
+                    🔓 GM access remains authorized on this device for seven days.
                   </p>
                   <button
                     className="settings-dialog__gm-access-button cic-action-button"
