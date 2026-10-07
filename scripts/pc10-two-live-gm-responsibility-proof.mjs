@@ -109,7 +109,7 @@ function safeHeldFailureObservations(held) {
     result.responsibilityCheckpoint = { step: held.responsibilityCheckpoint.step,
       part: held.responsibilityCheckpoint.part };
   }
-  for (const key of ['settledGm', 'settledController', 'originalA', 'controller', 'authorized', 'originalB', 'released', 'restored', 'finalA']) {
+  for (const key of ['settledGm', 'settledController', 'originalA', 'controller', 'authorized', 'originalB', 'released', 'revokeReady', 'restored', 'finalA']) {
     if (held[key]) result[key] = safeHeldLifecycleActor(held[key]);
   }
   if (held.managerRoute) result.managerRoute = held.managerRoute;
@@ -542,10 +542,22 @@ export function createTwoLiveGmResponsibilityProof({ sourceRoot, expectedSourceB
       evidence.release = { endpoint: 'releaseGmInstance', httpStatus: release.httpStatus,
         actorUidHash: originalB.uidHash, instanceHash: hash(originalB.instanceId),
         requestFingerprint: hash(release.data), resultFingerprint: hash(release.result), sourceLiveManifestCount: 1 };
+      const revocationDeadlineAt = Date.now() + 60_000;
       dialog = await openLifecycleSettings(context.crew);
       failure.guard = 'released-controller.normal-own-gm-access-revoke';
+      const revocationRemaining = revocationDeadlineAt - Date.now();
+      assert.ok(Number.isFinite(revocationRemaining) && revocationRemaining > 0,
+        'Settings and live readiness must stay within the original revoke operation deadline.');
+      failure.held.revokeReady = await untilLifecycle(context.crew, released,
+        value => value.profileRoleId === 'controller' && value.playerRole === 'player' &&
+          !value.gmInstanceOwned && value.gmAccessCached && value.privatePayloadCount === 0 &&
+          value.pendingCount === 0 && value.seatId === null && value.assignedRoleId === null &&
+          value.activeConsoleRoleId === null && value.setupRevision === released.setupRevision,
+        'Original released controller current before normal GM access revoke',
+        { releasedGm: true, timeout: Math.min(60_000, revocationRemaining) });
       const logout = await captureLifecycleUiAction(context.crew, 'logoutGmAccess', () =>
-        dialog.getByRole('button', { name: 'Revoke GM access', exact: true }).click());
+        dialog.getByRole('button', { name: 'Revoke GM access', exact: true }).click(),
+        { deadlineAt: revocationDeadlineAt });
       assert.ok(logout.result?.authenticated === false && logout.data.sessionId === null && logout.data.instanceId === null,
         'Normal GM access revoke must follow own release and remove the local grant.');
       await closeLifecycleSettings(dialog);
@@ -555,11 +567,11 @@ export function createTwoLiveGmResponsibilityProof({ sourceRoot, expectedSourceB
       stage = 'original controller manager, roster and casting restoration';
       failure.guard = 'restored-controller.original-manager-member-and-zero-private-payload';
       await context.crew.page.goto(savedCrewUrl);
-      const restored = await untilLifecycle(context.crew, controller, value => value.profileRoleId === 'controller' &&
+      const restored = await untilLifecycle(context.crew, released, value => value.profileRoleId === 'controller' &&
         value.playerRole === 'player' && !value.gmInstanceOwned && !value.gmAccessCached &&
         value.privatePayloadCount === 0 && value.pendingCount === 0 && value.seatId === null &&
         value.assignedRoleId === null && value.activeConsoleRoleId === null && value.setupRevision === revision + 3,
-      'Original legitimate controller manager restored');
+      'Original legitimate controller manager restored', { rejoined: true });
       failure.held.restored = restored;
       failure.guard = 'restored-controller.exact-original-controller-and-gm-routes';
       assert.ok(context.crew.page.url() === savedCrewUrl && context.gm.page.url() === savedGmUrl,
