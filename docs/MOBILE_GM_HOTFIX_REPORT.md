@@ -144,8 +144,54 @@ contracts. Independent bounded Source review passes c9f20746 without findings.
 The initial head-only PR checkout proposal was rejected by that review; only
 its new, uncommitted test was corrected, with the original patch and two-red
 log retained. PR synthetic merge coverage and trusted exact-main input priority
-remain intact. Product and browser-harness bytes are identical to a63c5efc;
-the repaired candidate needs fresh hosted CI before merge.
+remain intact. At repaired candidate 6b8446eb, product and browser-harness
+bytes were identical to a63c5efc; both automatic hosted runs then exposed
+additional unit failures before merge.
+
+Repaired candidate 6b8446eb passed bootstrap, then push CI 37695738624 failed
+five of 3316 unit tests and full-range PR CI 37695744747 failed ten of 3316.
+Both failure logs are retained. Three failures were a prepared consent scene
+still describing 72 hours, the new waiting-token test still naming undefined
+`--cic-red` after Source had correctly switched to defined `--cic-danger`, and
+the newest changelog shortening the existing canonical progress sentence.
+The scene's real consent gate already used seven days; its prepared copy and
+fixture now match that policy, with additional before-expiry and three-checkbox
+assertions. Only the new token test was corrected, with additional defined-token
+and label-color checks. The existing changelog assertion remains unchanged;
+Source restores its canonical sentence and keeps the zero-closure statement.
+
+The remaining hosted failures were two/seven GM DRADIS test timeouts, with
+186/398 maximum-update-depth warnings in push/PR logs. This was a real shared
+ContactPlot defect: an effect synchronously updated its own clock and reran
+because that clock changed. Test-first ca105ec4 adds a bounded advancing-wall-clock
+regression, existing one-second tick/cancellation checks and a manual-trigger
+preservation case. Its red run passes 97 and fails two. The first Source attempt
+stopped recursion but failed three existing expiry assertions; its patch and
+299-pass/three-fail log remain retained. Source b788c03b advances and reschedules
+from the existing timer callback, and clock state cannot restart that effect.
+All 302 focused tests pass: ContactPlot 83, GM 158, AppHeader 45, PC02 scene nine
+and connection indicator seven, with zero maximum-update-depth warnings.
+No GM test was modified, and no deadline, assertion, mock, authority check or
+render budget was relaxed. Independent bounded review passes b788c03b without findings. Eight prepared
+PC02 browser cases pass seven-day copy, the real three-checkbox gate, computed
+fonts, no horizontal overflow and normal/keyboard forward-return navigation at
+four viewports with normal/reduced motion; eight contexts and the server closed.
+The evidence-only first driver failed before launching any browser because of
+its module import and earns zero render credit; that result remains retained.
+The full client suite then passes all 3318 tests in 319 files, with unchanged
+five-second deadlines and zero maximum-update-depth warnings; local workers
+were limited to two to control Mac load. Fresh typography passes all 56 exact
+PC01 comparisons and eight Voyage metadata renders, with zero issues. Fresh
+sustained-render verification passes unchanged baseline 21, using the completed
+b788c03b production build after unit and typography jobs exited. Ticker
+validation passes all 33 geometry tests, 24 responsive browser cases and both
+normal/reduced physical lifecycle proofs. The parent ran a bounded independent
+PC11 slot 5 scenario during some responsive cases; every unchanged assertion
+passed. Sustained-render measurements completed before that allocation. All
+owned browser-gate contexts and servers closed; the authenticated cohort
+remains cleaned with zero owned session/player/GM scope. Prior a63c5efc browser results
+remain historical evidence; unchanged GM recovery/authority and Functions bytes
+retain their specifically qualified native proof.
 
 All review reports are retained under /tmp/dow-pc10-evidence as
 OWNER_MOBILE_GM_HOTFIX_RECONCILED_REVIEW_20261007.json,
@@ -158,6 +204,8 @@ OWNER_MOBILE_GM_HOTFIX_NATIVE8_EVIDENCE_REVIEW_20261007.json passes a bounded,
 read-only audit of the latest authenticated runner and its retained result.
 The bootstrap follow-up is recorded in
 OWNER_MOBILE_GM_HOTFIX_CI_BOOTSTRAP_TARGETED_REVIEW_20261007.json.
+The clock/copy follow-up passes b788c03b in
+OWNER_MOBILE_GM_HOTFIX_CI_CLOCK_COPY_TARGETED_REVIEW_20261007.json.
 
 Other test fixture corrections remain traceable: normal mocked GM readiness
 is explicitly live/server; startup negatives override it. Cycle 3 is scoped to
@@ -246,11 +294,15 @@ campaign closures remain the accepted main snapshot.
 
 ## Release status and remaining work
 
-Version 0.5.69 is prepared but not released. Latest-source native recovery,
-computed typography, ticker and sustained render are complete. Publish the
-reconciled candidate through its authorized PR and candidate CI. Then land the
-authorized
-candidate, verify exact-main CI and the selected Functions/Hosting deployment,
+Version 0.5.69 is prepared but not released. Native recovery remains qualified
+at a63c5efc with unchanged GM authority/Functions bytes. The new ContactPlot
+clock repair passed bounded review and prepared consent/font/navigation QA;
+the full client suite, fresh typography and sustained-render checks pass after
+explicit parent runtime handback. Fresh ticker validation also passes. All local gates and bounded reviews are
+green; current candidate hosted CI, merge and exact-main release checks remain
+pending. Publish only
+the reconciled candidate through its authorized PR and fresh candidate CI. Then
+land the authorized candidate, verify exact-main CI and selected Functions/Hosting deployment,
 strict revisions, health/IAM and live build version. Record the exact receipts
 before calling the release complete.
 
