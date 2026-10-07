@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, it, vi } from 'vitest';
-import { MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom';
+import { Link, MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom';
 import { useSessionStore } from '@/store/useSessionStore';
 import { SHUTTLECRAFT } from '@/data/shuttles';
 import { findConsoleRole } from '@/data/roles';
@@ -406,6 +406,99 @@ it('keeps a rejected Press claim locked and provides a keyboard return to Indepe
   await user.keyboard('{Enter}');
   expect(screen.getByText('Independent Stations')).toBeInTheDocument();
   expect(releaseConsoleRole).not.toHaveBeenCalled();
+});
+
+function prepareOwnedPressEntry(activeConsoleRoleId: string | null = null) {
+  const state = useSessionStore.getState();
+  state.setSession({
+    ...state.session!, phase: 'active', currentTurn: 1, pressEnabled: true,
+    shuttleControl: {
+      'snn-press-shuttle': {
+        shuttleId: 'snn-press-shuttle', ownerRoleId: 'press-officer',
+        ownerUid: 'u1', holderUid: 'u1', revision: 0,
+      },
+    },
+  });
+  state.setMe({ ...state.me!, role: 'player', assignedRoleId: null,
+    activeConsoleRoleId, replacementStatus: null });
+  state.setConnection('live');
+  state.setSessionSnapshotFreshness('server');
+  return useSessionStore.getState();
+}
+
+function renderPressEntry() {
+  return render(<MemoryRouter initialEntries={['/press']}><Routes>
+    <Route path="/console" element={<><p>Independent Stations chooser</p>
+      <Link to="/press">Press Officer</Link></>} />
+    <Route path="/press" element={<ShuttleConsole shuttleId="snn-press-shuttle" />} />
+  </Routes></MemoryRouter>);
+}
+
+it('re-enters a released owned Press station through normal selection without a local authority grant', async () => {
+  prepareOwnedPressEntry();
+  const selection = deferred<void>();
+  vi.mocked(selectConsoleRole).mockReturnValueOnce(selection.promise);
+  renderPressEntry();
+
+  await waitFor(() => expect(selectConsoleRole).toHaveBeenCalledExactlyOnceWith('press-officer'));
+  expect(useSessionStore.getState().me!.activeConsoleRoleId).toBeNull();
+  expect(useSessionStore.getState().session!.shuttleControl!['snn-press-shuttle']!.holderUid).toBe('u1');
+  await act(async () => selection.resolve());
+});
+
+it('keeps a pending Press release released and selects again only after the visible return and re-entry', async () => {
+  const user = userEvent.setup();
+  const state = prepareOwnedPressEntry('press-officer');
+  const release = deferred<void>();
+  vi.mocked(releaseConsoleRole).mockReturnValueOnce(release.promise);
+  renderPressEntry();
+  expect(selectConsoleRole).not.toHaveBeenCalled();
+
+  const back = screen.getByRole('button', { name: /back to independent stations/i });
+  back.focus();
+  await user.keyboard('{Enter}');
+  await waitFor(() => expect(releaseConsoleRole).toHaveBeenCalledOnce());
+  // The committed presence projection may arrive before the original reply.
+  act(() => state.setMe({ ...useSessionStore.getState().me!, activeConsoleRoleId: null }));
+  await act(async () => { await Promise.resolve(); });
+  expect(selectConsoleRole).not.toHaveBeenCalled();
+  expect(screen.queryByText('Independent Stations chooser')).not.toBeInTheDocument();
+
+  await act(async () => release.resolve());
+  expect(await screen.findByText('Independent Stations chooser')).toBeVisible();
+  expect(selectConsoleRole).not.toHaveBeenCalled();
+  await user.click(screen.getByRole('link', { name: 'Press Officer', exact: true }));
+  await waitFor(() => expect(selectConsoleRole).toHaveBeenCalledExactlyOnceWith('press-officer'));
+});
+
+it.each(['cache snapshot', 'offline connection', 'foreign session member', 'foreign printed owner', 'revoked player'] as const)(
+  'does not reactivate an owned Press entry with %s', async (condition) => {
+    const state = prepareOwnedPressEntry();
+    if (condition === 'cache snapshot') state.setSessionSnapshotFreshness('cache');
+    if (condition === 'offline connection') state.setConnection('offline');
+    if (condition === 'foreign session member') state.setMe({ ...state.me!, sessionId: 'foreign-session' });
+    if (condition === 'revoked player') state.setMe({ ...state.me!, replacementStatus: 'awaiting-re-role' });
+    if (condition === 'foreign printed owner') state.setSession({ ...state.session!, shuttleControl: {
+      'snn-press-shuttle': { ...state.session!.shuttleControl!['snn-press-shuttle']!, ownerUid: 'foreign-owner' },
+    } });
+    renderPressEntry();
+    await act(async () => { await Promise.resolve(); });
+    expect(selectConsoleRole).not.toHaveBeenCalled();
+    expect(useSessionStore.getState().me!.activeConsoleRoleId).toBeNull();
+  },
+);
+
+it('keeps foreign-held Press control locked after the normal selection is denied', async () => {
+  const state = prepareOwnedPressEntry();
+  state.setSession({ ...state.session!, shuttleControl: {
+    'snn-press-shuttle': { ...state.session!.shuttleControl!['snn-press-shuttle']!, holderUid: 'foreign-holder' },
+  } });
+  vi.mocked(selectConsoleRole).mockRejectedValueOnce(new Error('Role already held.'));
+  renderPressEntry();
+  await waitFor(() => expect(selectConsoleRole).toHaveBeenCalledExactlyOnceWith('press-officer'));
+  expect(screen.getByRole('button', { name: /open newspaper confetti cover/i })).toBeDisabled();
+  expect(useSessionStore.getState().me!.activeConsoleRoleId).toBeNull();
+  expect(useSessionStore.getState().session!.shuttleControl!['snn-press-shuttle']!.holderUid).toBe('foreign-holder');
 });
 
 it('does not claim the Press role while another console is held', async () => {
