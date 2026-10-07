@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { setTimeout as delay } from 'node:timers/promises';
-import { stationNavigationResumeFixture } from './pc10-station-navigation-resume.test.mjs';
+import { stationNavigationResumeFixture } from './fixtures/pc10-station-navigation-resume-native-fixture.mjs';
 
 // Supplemental discriminating coverage: the accepted SDK first clears its old
 // member envelope; only the genuine later feed can restore command authority.
