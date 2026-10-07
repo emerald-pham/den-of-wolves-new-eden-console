@@ -181,6 +181,25 @@ test('public lifecycle factory captures current source-mounted return and revoca
   assert.equal(f.evidence.sourceUnchanged, true);
   assert.equal(f.evidence.actualRuntimeRuns, 0);
   assert.equal(f.evidence.nativeChecksAreGameplayProof, false);
+  assert.deepEqual(f.crewNavigations.at(-1), {
+    kind: 'same-document-null', beforeGeneration: actor.generation, afterGeneration: actor.generation,
+  }, 'The unchanged crew document returns Playwright null and preserves the original source lease.');
+});
+
+test('public lifecycle factory distinguishes same-document null from a stale full-document response', async t => {
+  const sameDocument = await fixture(t, { crewNavigation: 'same-document-null' });
+  await sameDocument.run();
+  assert.deepEqual(sameDocument.crewNavigations.at(-1), {
+    kind: 'same-document-null', beforeGeneration: actor.generation, afterGeneration: actor.generation,
+  });
+
+  const staleDocument = await fixture(t, { crewNavigation: 'document-response-stale' });
+  await assert.rejects(staleDocument.run(), /Original selected actor restored/);
+  assert.deepEqual(staleDocument.crewNavigations.at(-1), {
+    kind: 'document-response-stale', beforeGeneration: actor.generation, afterGeneration: actor.generation,
+  }, 'A Response means rejoin; without a newer source generation the old authority is rejected.');
+  assert.equal(staleDocument.evidence.actualRuntimeRuns, 0);
+  assert.equal(staleDocument.evidence.nativeChecksAreGameplayProof, false);
 });
 
 test('public lifecycle factory finally uses the same source return after genuine lock denial without granting credit', async t => {

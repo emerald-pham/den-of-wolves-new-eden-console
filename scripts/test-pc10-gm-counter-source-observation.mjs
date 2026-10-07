@@ -263,9 +263,13 @@ test('mounted GM source couples the parent fleet toggle, named AEGIS group, and 
   const ships = gmSource.indexOf('<div className="gm-fleet-resources__ships">', mode);
   const group = gmSource.indexOf('role="group"', ships);
   const button = gmSource.indexOf('aria-label={`Increase ${resource.label}`}', group);
+  const visibleAmount = gmSource.indexOf('<strong>{visibleAmount}</strong>', group);
+  const accessibleAmount = gmSource.indexOf('aria-label={counter.staged?.stale', group);
   assert.ok(fleet >= 0 && mode > fleet && ships > mode && group > ships);
   assert.match(gmSource.slice(group, group + 800), /aria-label=\{`\$\{ship\.name\} resource controls`\}/);
   assert.ok(button > group, 'The actual one-step counter is mounted inside its named ship group.');
+  assert.ok(accessibleAmount > group && visibleAmount > accessibleAmount,
+    'The mounted resource list item exposes a matching accessible amount and visible strong value.');
 });
 
 test('default GM counter recipe obtains its strict lifecycle tuple when the actual generic observer omits it', async () => {
@@ -311,6 +315,9 @@ test('default GM counter capture waits for its exact live source revision after 
   assert.equal(row.status, 'completed', row.reason);
   assert.equal(row.revision, 15);
   assert.equal(fixture.lastRequest.shipId, 'aegis', 'The mounted choice remains bound to the source-selected AEGIS vessel.');
+  assert.deepEqual(fixture.mountedCounterObservation(), {
+    role: 'listitem', accessibleName: 'Materials: 5', strongText: '5',
+  }, 'The current source projection and mounted accessible/visible amount agree after the click.');
   assert.deepEqual(fixture.actions, ['write-mode', 'counter:aegis']);
   assert.equal(fixture.replayCalls, 1, 'Only the exact UI request is replayed once.');
   assert.ok(fixture.sourceReads >= 4, 'The real source projection is sampled again until revision 15 arrives.');
@@ -331,6 +338,12 @@ for (const [label, options] of [
   const { row } = await fixture.run();
   assert.notEqual(row.status, 'completed');
   assert.equal(row.familyAcceptanceClaimed, undefined);
+  assert.deepEqual(fixture.actions, ['write-mode', 'counter:aegis'],
+    `${label}: the actual mounted control was reached before this post-click guard was evaluated.`);
+  assert.ok(fixture.lastRequest, `${label}: preserve the actual UI request for discrimination.`);
+  assert.equal(fixture.replayCalls,
+    ['cached source after receipt', 'later Auth UID after receipt', 'foreign Auth UID after receipt'].includes(label) ? 0 : 1,
+    `${label}: only a still-current captured actor may perform exact receipt replay.`);
 });
 
 test('default GM counter recipe stays pending when its initial source snapshot is stale', async () => {
@@ -361,14 +374,16 @@ function validCounterCapture() {
 test('counter evaluator rejects wrong source group, stale or reply-only revision, and foreign actor', () => {
   const baseline = validCounterCapture();
   assert.equal(evaluateProcedureCapture(baseline).status, 'completed');
-  for (const mutate of [
-    input => { input.sourceAfter.groupId = 'moved-fleet'; },
-    input => { input.sourceAfter.revision = 14; },
-    input => { input.sourceAfter.revision = 16; },
-    input => { input.actorAfter.uidHash = 'ffffffffffffffff'; },
-    input => { input.sourceAfter.live = false; },
+  for (const [label, mutate, reason] of [
+    ['wrong source group', input => { input.sourceAfter.groupId = 'moved-fleet'; }, 'live-source-cycle-revision-or-group-changed'],
+    ['stale source revision', input => { input.sourceAfter.revision = 14; }, 'live-source-cycle-revision-or-group-changed'],
+    ['reply-only source revision', input => { input.sourceAfter.revision = 16; }, 'live-source-cycle-revision-or-group-changed'],
+    ['foreign actor', input => { input.actorAfter.uidHash = 'ffffffffffffffff'; }, 'original-authenticated-role-or-mounted-control-not-current'],
+    ['non-live source', input => { input.sourceAfter.live = false; }, 'live-source-cycle-revision-or-group-changed'],
   ]) {
     const input = structuredClone(baseline); mutate(input);
-    assert.notEqual(evaluateProcedureCapture(input).status, 'completed');
+    const result = evaluateProcedureCapture(input);
+    assert.equal(result.status, 'pending', label);
+    assert.equal(result.reason, reason, `${label} reaches its intended source or actor discriminator.`);
   }
 });
