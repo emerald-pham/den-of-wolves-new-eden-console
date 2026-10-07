@@ -1200,29 +1200,45 @@ function applySession(reply: SessionReply, expectedDisplayedSessionId: string | 
     displayedSessionId !== expectedDisplayedSessionId ||
     (expectedDisplayedSessionId !== null && reply.session.id !== expectedDisplayedSessionId)
   ) return false;
-  const shuttleManifest = normalizeShuttleManifest(
-    reply.session.shuttleDockings,
-    reply.session.shuttleVisitLog,
-    reply.session.activeRoleIds,
-    reply.session.playerCount,
-    Object.keys(reply.session.retainedShuttles ?? {}),
-    reply.session.memberSessionScope !== undefined,
-  );
-  const acceptedSession: GameSession = {
-    ...reply.session,
-    shuttleDockings: shuttleManifest.dockings,
-    shuttleVisitLog: shuttleManifest.visits,
-    pressEnabled: reply.session.pressEnabled !== false,
-    pressClaimed: reply.session.pressClaimed === true,
-    pressAvailabilityRevision:
-      Number.isSafeInteger(reply.session.pressAvailabilityRevision) &&
-      (reply.session.pressAvailabilityRevision as number) >= 0
-        ? reply.session.pressAvailabilityRevision as number
-        : 0,
-    ...(reply.session.pressDispatch === undefined
-      ? {}
-      : { pressDispatch: normalizePressDispatch(reply.session.pressDispatch) }),
-  };
+  let acceptedSession: GameSession;
+  if (reply.session.phase === 'closed') {
+    try {
+      // Normal resume returns the same entitled history as the member reader.
+      // Validate it before hydration and keep it free of live-session defaults.
+      acceptedSession = closedMemberSessionFrom(reply.session.id, {
+        groupId: reply.player.role === 'gm' ? 'gm' : reply.player.fleetGroupId,
+        connectionGeneration: reply.player.connectionGeneration,
+        assignedRoleId: reply.player.assignedRoleId ?? null,
+        activeConsoleRoleId: reply.player.activeConsoleRoleId ?? null,
+      }, { ...reply.session });
+    } catch {
+      return false;
+    }
+  } else {
+    const shuttleManifest = normalizeShuttleManifest(
+      reply.session.shuttleDockings,
+      reply.session.shuttleVisitLog,
+      reply.session.activeRoleIds,
+      reply.session.playerCount,
+      Object.keys(reply.session.retainedShuttles ?? {}),
+      reply.session.memberSessionScope !== undefined,
+    );
+    acceptedSession = {
+      ...reply.session,
+      shuttleDockings: shuttleManifest.dockings,
+      shuttleVisitLog: shuttleManifest.visits,
+      pressEnabled: reply.session.pressEnabled !== false,
+      pressClaimed: reply.session.pressClaimed === true,
+      pressAvailabilityRevision:
+        Number.isSafeInteger(reply.session.pressAvailabilityRevision) &&
+        (reply.session.pressAvailabilityRevision as number) >= 0
+          ? reply.session.pressAvailabilityRevision as number
+          : 0,
+      ...(reply.session.pressDispatch === undefined
+        ? {}
+        : { pressDispatch: normalizePressDispatch(reply.session.pressDispatch) }),
+    };
+  }
   const acceptedByAuthority = acceptCallableSessionAuthority(acceptedSession, reply.player.uid);
   if (acceptedByAuthority) {
     store.setIdentity(acceptedSession, reply.player);

@@ -27,6 +27,17 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       done: 703, partial: 10, active: 0, missing: 38, blocked: 0,
     },
     changes: [
+      'Returning to a closed game keeps its debrief available without restoring live shuttle or Press controls.',
+      '703 of 751 planned items are complete in the catalog snapshot used to build this release (93.61%).',
+    ],
+  },
+  {
+    version: '0.5.71',
+    implementationProgress: {
+      completed: 703, total: 751, percentage: '93.61%',
+      done: 703, partial: 10, active: 0, missing: 38, blocked: 0,
+    },
+    changes: [
       'Press Officers can open their shuttle route after normal admission, including before their first departure.',
       '703 of 751 planned items are complete in the catalog snapshot used to build this release (93.61%).',
     ],
