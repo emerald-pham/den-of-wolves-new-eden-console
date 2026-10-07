@@ -1177,6 +1177,7 @@ it('withholds the private crisis stream until the fresh manifest confirms this i
   renderConsole();
 
   expect(screen.queryByText('Role selection route')).not.toBeInTheDocument();
+  await waitFor(() => expect(useSessionStore.getState().gmRecoveryPending).toBe(true));
   expect(crisisSubscribe).not.toHaveBeenCalled();
   expect(useSessionStore.getState().gmInstance).toEqual(local);
   expect(useSessionStore.getState().sessionSnapshotFreshness).toBe('cache');
@@ -2662,14 +2663,18 @@ it('eases the GM DRADIS through both expansion and collapse', async () => {
   streamInstances([local]);
   renderConsole();
 
-  const dradis = await screen.findByRole('region', { name: /fleet dradis/i });
+  await screen.findByRole('region', { name: /fleet dradis/i });
   const compact = { left: 600, top: 180, width: 320, height: 420 } as DOMRect;
   const expanded = { left: 0, top: 0, width: 1200, height: 800 } as DOMRect;
-  const measure = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+  const originalMeasure = HTMLElement.prototype.getBoundingClientRect;
+  const measure = vi.fn()
     .mockReturnValueOnce(compact)
     .mockReturnValueOnce(expanded)
     .mockReturnValueOnce(expanded)
     .mockReturnValueOnce(compact);
+  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function () {
+    return this.matches('.gm-dradis, .gm-dradis-modal') ? measure() : originalMeasure.call(this);
+  });
   const cancel = vi.fn();
   const animate = vi.fn(() => ({ cancel }) as unknown as Animation);
   const priorAnimate = HTMLElement.prototype.animate;

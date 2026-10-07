@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
 import { useSessionStore } from '@/store/useSessionStore';
 import type { GameSession, GmInstance, Player, WolfAttackMemberView } from '@/types/game';
-import { acknowledgeSessionWaiver, SESSION_WAIVER_STORAGE_KEY } from '@/lib/sessionWaiver';
+import { acknowledgeSessionWaiver } from '@/lib/sessionWaiver';
 import { MOTION_SAFETY_STORAGE_KEY } from '@/lib/motionSafety';
 
 vi.mock('@/lib/sessionService', () => ({

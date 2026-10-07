@@ -6,7 +6,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { useSessionStore } from '@/store/useSessionStore';
 import { APP_VERSION } from '@/version';
 import { CHANGELOG } from '@/changelog';
-import { acknowledgeSessionWaiver, SESSION_WAIVER_STORAGE_KEY } from '@/lib/sessionWaiver';
+import { acknowledgeSessionWaiver } from '@/lib/sessionWaiver';
 import { markServiceWorkerUpdateAvailable } from '@/pwa';
 import type { GameSession, Player } from '@/types/game';
 import AppHeader from './AppHeader';

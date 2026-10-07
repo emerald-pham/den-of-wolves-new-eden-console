@@ -61,7 +61,10 @@ helper for the new record format; these remain prepared unit/render fixtures,
 not normal-auth gameplay proof.
 
 Existing modal tests inspect the current portalled node instead of the removed
-compact node, preserving expansion/collapse motion assertions. Existing GM
+compact node, preserving expansion/collapse motion assertions. The geometry fixture counts
+only DRADIS source/destination measurements, so ContactPlot reads cannot consume
+its four expected bounds. The missing-manifest assertion waits for the actual
+asynchronous listener event rather than assuming it has already occurred. Existing GM
 manifest-error/missing-instance tests now require immediate removal of live
 freshness and private crisis data while retaining the remembered descriptor for
 server reconciliation. Late private callbacks remain rejected. Existing explicit
