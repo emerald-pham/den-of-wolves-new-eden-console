@@ -89,3 +89,8 @@ PC12, licensing, or unrelated service changes are included.
 
 Implementation, final evidence, independent findings and exact release receipts
 are pending. Do not describe this candidate as released.
+
+A lifecycle fixture correction restores deletion for explicit single-browser
+disconnect and expects an inactive descriptor only for natural lease expiry.
+The first fixture change targeted the wrong repeated assertion; both failed
+runs remain retained. The live same-UID sibling and membership checks remain.
