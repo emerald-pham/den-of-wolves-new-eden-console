@@ -3,7 +3,7 @@ import { httpsCallable } from 'firebase/functions';
 import { useSessionStore } from '@/store/useSessionStore';
 import type { GameSession, Player } from '@/types/game';
 import { acceptCallableSessionAuthority } from './sessionSnapshotAuthority';
-import { readClosedSessionHistory } from './sessionService';
+import { readClosedSessionHistory, resumeSession } from './sessionService';
 
 const identity = vi.hoisted(() => ({ uid: 'u1' as string | null }));
 
@@ -234,4 +234,60 @@ describe('bounded closed-member history service', () => {
       expect(read).not.toHaveBeenCalled();
     },
   );
+});
+
+
+describe('normal closed-session resume application', () => {
+  it.each(['player', 'gm'] as const)(
+    'keeps the original %s history narrow across normal resume and retry', async role => {
+      const fixture = closedHistory(0);
+      const member: Player = { ...fixture.member, role, activeConsoleRoleId: null,
+        ...(role === 'gm' ? { fleetGroupId: null } : {}) };
+      const history = { ...fixture.history, playerCount: 14, turnLimit: 6,
+        fullGameDemo: { status: 'complete', progression: 'manual' } as const };
+      useSessionStore.getState().setIdentity(fixture.before, member);
+      useSessionStore.getState().setSessionSnapshotFreshness('cache');
+      const read = reply({ session: history, player: member });
+
+      await expect(resumeSession(fixture.id)).resolves.toBe(true);
+
+      expect(useSessionStore.getState().session).toEqual(history);
+      expect(useSessionStore.getState().sessionSnapshotFreshness).toBe('server');
+      expect(useSessionStore.getState().me).toEqual(member);
+      expect(useSessionStore.getState().gmInstance).toBeNull();
+      expect(useSessionStore.getState().session?.currentTurn).toBe(0);
+      expect(useSessionStore.getState().me?.connectionGeneration).toBe(4);
+      expect(useSessionStore.getState().me?.seatId).toBeNull();
+      expect(useSessionStore.getState().me?.activeConsoleRoleId).toBeNull();
+
+      await expect(resumeSession(fixture.id)).resolves.toBe(true);
+
+      expect(useSessionStore.getState().session).toEqual(history);
+      expect(useSessionStore.getState().me).toEqual(member);
+      expect(read).toHaveBeenNthCalledWith(1, { sessionId: fixture.id });
+      expect(read).toHaveBeenNthCalledWith(2, { sessionId: fixture.id });
+      expect(httpsCallable).toHaveBeenNthCalledWith(1, expect.anything(), 'resumeSession');
+      expect(httpsCallable).toHaveBeenNthCalledWith(2, expect.anything(), 'resumeSession');
+    },
+  );
+
+  it.each([
+    ['shuttleDockings', [{ shuttleId: 'wobbly', shipId: 'quellon' }]],
+    ['pressClaimed', true],
+    ['memberSessionScope', { groupId: 'fleet-1', vesselIds: ['quellon'], craftIds: [] }],
+    ['gameOutcome', { type: 'game-outcome', result: 'success', privateChoice: 'not-public' }],
+    ['fullGameDemo', { status: 'active', progression: 'manual' }],
+  ] as const)('rejects a closed resume polluted with %s without promoting the cached identity', async (field, value) => {
+    const fixture = closedHistory();
+    useSessionStore.getState().setSessionSnapshotFreshness('cache');
+    const hydrationRevision = useSessionStore.getState().identityHydrationRevision;
+    reply({ session: { ...fixture.history, [field]: value }, player: fixture.member });
+
+    await expect(resumeSession(fixture.id)).resolves.toBe(false);
+
+    expect(useSessionStore.getState().session).toEqual(fixture.before);
+    expect(useSessionStore.getState().me).toEqual(fixture.member);
+    expect(useSessionStore.getState().identityHydrationRevision).toBe(hydrationRevision);
+    expect(useSessionStore.getState().sessionSnapshotFreshness).toBe('cache');
+  });
 });
