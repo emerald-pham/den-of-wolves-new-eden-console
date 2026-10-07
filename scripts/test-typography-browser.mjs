@@ -483,7 +483,10 @@ async function collectSurface(browser, appUrl, surface, viewport, motion, kind) 
   fixture.state.lastRoute = initialRoute;
   await context.addInitScript(({ state, timestamp, motionPreference }) => {
     localStorage.setItem('dow-new-eden-session', JSON.stringify(state));
-    localStorage.setItem('dow-new-eden-session-waiver', String(timestamp));
+    localStorage.setItem('dow-new-eden-session-waiver', JSON.stringify({
+      acknowledgedAt: timestamp,
+      termsVersion: 'code-of-conduct-v1',
+    }));
     localStorage.setItem('dow-new-eden-motion-safety', JSON.stringify({
       acknowledgedAt: timestamp,
       choice: motionPreference,
