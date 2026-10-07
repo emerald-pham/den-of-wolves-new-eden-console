@@ -29,11 +29,37 @@ const plain = value => JSON.parse(JSON.stringify(value));
 
 export async function stationNavigationResumeFixture(options = {}) {
   const roleId = 'icebreaker-captain', f = projectionFixture({ actorRoleId: roleId, freshDemo: true });
-  f.store.setState({ me: { ...f.store.getState().me, connectionGeneration: 2 } });
+  f.store.setState({ me: { ...f.store.getState().me, connectionGeneration: 2,
+    ...(options.initialSeatNull ? { seatId: null } : {}) },
+    ...(options.initialSeatNull ? { seats: [{ id: roleId, roleId, status: 'open', holderUid: null }] } : {}) });
   await f.resumeSessionOnly(); await f.receiveMemberProjection();
   const start = f.store.getState(), uid = start.me.uid, sid = start.session.id;
   const directory = await mkdtemp(join(tmpdir(), 'pc10-native-navigation-'));
-  const events = new EventEmitter(), sdkRequests = [], application = [];
+  const events = new EventEmitter(), sdkRequests = [], application = [], seatClaims = [];
+  if (options.initialSeatNull) {
+    // Actual normal client selection/claimSeat with inert Native receipt
+    // application. Base22 independently records the real server200 claim.
+    const claimContext = createContext({ useSessionStore: { getState: f.store.getState },
+      commandId: () => 'native-seat-receipt', expectedSetupRevision: () => 0,
+      sessionAuthorityUid: state => state.me.uid,
+      sessionAuthorityCheckpoint: (sessionId, actorUid) => ({ sessionId, actorUid }),
+      authorityCheckpointIsCurrent: checkpoint => checkpoint.sessionId === sid && checkpoint.actorUid === f.authUid,
+      requireStationReselection: () => assert.fail('Original open native seat must remain eligible.'),
+      interception: error => ({ code: error.code }),
+      refreshPresence: async selected => { assert.equal(selected, roleId); f.counters.sourcePresence++; },
+      sendOrQueue: async command => {
+        assert.equal(command.kind, 'claimSeat'); assert.equal(command.payload.sessionId, sid);
+        assert.equal(command.payload.seatId, roleId); seatClaims.push(plain(command));
+        const state = f.store.getState();
+        f.store.setState({ me: { ...state.me, seatId: options.foreignSeat ? 'foreign-seat' : roleId },
+          seats: state.seats.map(seat => ({ ...seat, status: 'claimed', holderUid: uid })) });
+        return 'applied';
+      },
+    });
+    new Script(js(sourceFunction('src/lib/sessionService.ts', 'claimSeat') + '\n' +
+      sourceFunction('src/lib/sessionService.ts', 'selectConsoleRole'))).runInContext(claimContext);
+    f.normalClaim = () => new Script(`selectConsoleRole(${JSON.stringify(roleId)})`).runInContext(claimContext);
+  }
   const authorityContext = createContext({});
   new Script(js('const sessionSnapshotAuthorities = new Map(); const memberResumeTokens = new WeakMap();\n' +
     ['createSessionSnapshotAuthority', 'beginMemberSessionResume', 'isCurrentMemberSessionResume',
@@ -103,7 +129,7 @@ export async function stationNavigationResumeFixture(options = {}) {
       await click();
       if (options.unwitnessed) {
         const current = f.store.getState(); f.store.setState({ me: { ...current.me, connectionGeneration: current.me.connectionGeneration + 1 }, identityHydrationRevision: 2 });
-      } else {
+      } else if (!options.skipResume) {
         await resume(sid);
         if (options.forgeAfterRejected) {
           const current = f.store.getState(); f.store.setState({ me: { ...current.me, connectionGeneration: current.me.connectionGeneration + 1 }, identityHydrationRevision: 2 });
@@ -119,7 +145,7 @@ export async function stationNavigationResumeFixture(options = {}) {
   const adapter = createTwoBrowserGameplay({ gm: {}, crew: f.crew, initial: { sessionId: sid, joinCode: 'NATIVE' },
     started: { fullGameDemo: { status: 'active', progression: 'manual' } },
     roster: [{ roleId, uidHash: sha(uid) }], directory });
-  return { ...f, sdkRequests, application, directory, events, adapter,
+  return { ...f, sdkRequests, application, seatClaims, directory, events, adapter,
     run: () => adapter.select(roleId, { deadlineAt: Date.now() + (options.shortDeadline ? 120 : 1500) }),
     cleanup: () => rm(directory, { recursive: true, force: true }) };
 }
