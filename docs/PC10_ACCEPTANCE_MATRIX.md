@@ -51,14 +51,14 @@ anchors; that coverage does not establish an enabled control or gameplay.
 | 584 | Run the Capybara vertical scenario. | pending | pending | pending |
 | 585 | Run the base/expansion isolation scenario. | pending | pending | pending |
 | 593 | Show candidate preparation help. | Mounted current-group N/O/P preparation. | Partial: distinct costs/blockers/next actor and Cycle 6 reload accepted; hidden bonus/Wolf/private calculation and foreign-group/requester-peer audiences remain open. | focused tests/contracts and bounded Sol review pass; final rendered usability/release pending |
-| 618 | Reconnect every live projection. | Connected current member/SDK recovery. | Partial: Captain/Press lifecycle, same-UID Press arrival/reload and current narrow closed Captain return/reload accepted; other roles/projections/dropout paths open. | pending |
+| 618 | Reconnect every live projection. | Connected current member/SDK recovery. | Partial: prior Captain/Press history plus ordinary Black Sheep holder/owner cold reload, original identity/seat/group/SDK authority and durable cargo/control receipt recovery accepted; settled inventory rendering and other projections/dropout paths open. | focused core tests/contracts and bounded Sol review pass; final gates pending |
 | 619 | Make candidate retries survive reconnect. | Related scout discovery/report recovery only. | Missing: no N/O/P fuel, roll, loss, contribution or outcome action ran; discovery recovery does not prove this acceptance. | pending |
-| 620 | Recover from stale revisions. | Connected phase confirmation and exact retry. | Partial: phase/flight/arrival recovery and both competing GMs' exact freeze/close recovery accepted; other stale/conflicting role retries open. | pending |
-| 629 | Protect private projections comprehensively. | Tested current scoped private readers. | Partial: own/peer/wrong-holder controls, populated mission deck/organiser/debrief-receipt denials and borrowed GM-instance/receipt denials accepted; other Wolf/chart/mission/hidden-roll/notes audiences open. | pending |
+| 620 | Recover from stale revisions. | Connected phase confirmation and exact retry. | Partial: prior phase/flight/ending recovery plus cargo lost-ack UI retry/cold reload/SDK replay and historical control receipts after revision2 accepted; other fresh stale/conflicting role requests open. | focused core tests/contracts and bounded Sol review pass; final gates pending |
+| 629 | Protect private projections comprehensively. | Tested current scoped private readers and authority negatives. | Partial: prior populated private/borrowed-GM denials plus fresh Black Sheep nonowner/revoked-holder denial with selected gameplay/receipt/audit hashes unchanged accepted; other private audiences open. | focused core tests/contracts and bounded Sol review pass; final gates pending |
 | 630 | Prove server-owned randomness. | pending | pending | pending |
 | 631 | Rate-limit expensive callables. | pending | pending | pending |
 | 634 | Record security denials privately. | pending | pending | pending |
-| 635 | Standardize action audit records. | Real bound action receipts in accepted family. | Partial: phase/flight/arrival/cycle and competing GM debrief/close exact receipts preserve effects; standardized metadata/query/redaction and unmigrated action paths remain open. | pending |
+| 635 | Standardize action audit records. | Real bound action receipts in accepted family. | Partial: prior action receipts plus one original actor/request-bound shuttle-cargo audit on UI/SDK replay accepted; two dedicated control request/audit pairs stay separate. Metadata/query/redaction and other unmigrated actions open. | focused core tests/contracts and bounded Sol review pass; final gates pending |
 | 641 | Run a complete base-game playthrough. | pending | pending | pending |
 | 642 | Run a complete Capybara playthrough. | pending | pending | pending |
 | 647 | Prove Ancient Jump Ring success. | pending | pending | pending |
@@ -819,3 +819,119 @@ does not erase passed behavior or authorize a whole-route replay. Diagnose or
 qualify only the smallest remaining distinct assertion if needed. No movement,
 flight, charge recharge/repair, every-role/function, capacity/human/manual-free,
 fixed closure, final release or next-checkpoint credit follows from this plan.
+
+
+### Qualified Black Sheep custody and cargo — bounded family
+
+Actual 4 at `5da0593c89b5b5d1d29500a96b714bd858c76b99` (0.5.72) passed
+17 overlapping scoped assertions in 84,983 ms including exact cleanup. Native
+session `74723`, initial chunk `23266f`, terminal `534785`, exit 0. Three
+independent normal Auth actors used three automated Chrome processes/contexts;
+zero humans. The GM legitimately prepares/starts/advances the game, the original
+Shepherd Engineer is Black Sheep's printed owner, and a distinct Shepherd
+Captain is necessary to prove ordinary transferred-holder authority. Legal base
+16 provides those separate roles; other seats remain open. No full crew or
+capacity proof follows from that configured count.
+
+Normal GM preparation/start and manual Coordination qualified with the real
+Cycle0→1 transition. During casting, the ordinary player identity/assigned role,
+canonical seat and SDK authority qualified without asserting an operational
+berth. After the real start, both ordinary actors met the strict current Source
+berth/group/member/SDK guards before gameplay. The printed owner handed Black
+Sheep to the Captain through the actual UI: control revision0→1 and one original
+request/audit, retaining printed-owner identity. Former-holder cargo controls
+were removed and the Captain opened the ordinary assigned shuttle route.
+
+The Captain loaded one food unit through UI, proving host10→9 and shuttle0→1.
+The runner interrupted the unchanged real committed acknowledgement only after
+its original durable receipt/audit and resource witness. The offered exact UI
+retry recovered the full original receipt with `replayed` status and one debit
+and credit. Normal same-UID cold reload retained role/seat/group/current-holder
+and SDK authority; captured original SDK replay preserved the receipt and
+selected substantive state. This proves durable recovery across that reload;
+it does not prove pending cargo intent persists across a cold document.
+
+The original Engineer's normal cold reload and original handoff replay preserved
+revision1. Its real UI reclaim advanced control to revision2 with one separate
+request/audit; the Captain lost cargo/assigned-shuttle authority. Fresh nonowner
+reclaim and former-holder cargo requests before/after reclaim denied without
+changing selected substantive state, including the canonical `shuttleVisitLog`
+and `shuttleTransitChains`, requests, receipts and audits. Both historical
+control receipts still replayed after reclaim without restoring the obsolete
+holder or issuing another control mutation. Control operations refresh Source
+docking timestamps while retaining the Shepherd host; no departure or transit
+was executed. Final counts: two control requests/two dedicated control audits,
+one standardized cargo audit, zero departure/chain documents, and food9/1.
+
+The finite runner reused accepted original deadlines and primary-error-preserving
+teardown, canonical visit/chain witnesses, casting-only station readiness and
+the actual GM Cycle controls/phase-publication wait. Product source and version
+were unchanged; no product repair was made. Source-bound checks passed:
+55 Functions tests (`71078`→`62c9c8`), 111 client tests (`36797`→`6b7cab`) reused
+unchanged, and 28 finite runner contracts (`532ebe`). Discriminating original
+runner reds are retained (`d67c78`, `ec4c29`, `f9a8e3`); construction-only syntax
+failures are not product TDD. One independent Sol reviewer reconciled the initial
+findings and targeted only later unresolved Source predicates/controls/waits.
+
+The first three actuals remain failed at their original stops:
+
+| Actual | Native / terminal | Retained facts | Original stop |
+|---|---|---|---|
+| 1 | `59057` / `3f7a92` | Seven setup/ordinary-admission claims, exact0/0/0 cleanup. | Initial Captain casting station incorrectly required a current operational berth. |
+| 2 | `6232` / `cc2cc3` | Eight setup claims and original real start receipt, exact0/0/0 cleanup. | GM Coordination button incorrectly scoped to the preparation fieldset. |
+| 3 | `39080` / `eeaf0d` | Eight setup claims plus original start and committed Coordination receipts, exact0/0/0 cleanup. | Immediate client phase assertion ran before actual Coordination publication. |
+
+None attempted custody/cargo before stopping. Individual facts remain valid at
+those recorded sources; later fixes grant no retrospective PASS and counts are
+not summed. Actual4 supplies the previously unattempted custody/cargo assertions
+using the minimum fresh legitimate setup after cleanup.
+
+Exact owned cleanup closed three browsers, removed only the fresh session/join
+pointer/three membership pointers/three fresh Auth users and returned scope0/0/0.
+Read-only pre/post evidence matches all2,003 tracked files,251 canonical PC10
+scripts,434 compiled files/217 JS files, registry/reservations/configuration and
+12 free slots. The original dirty checkout and retained PC09 worktree are intact.
+
+Bindings under `/tmp/dow-pc10-evidence/`:
+
+- Actual `three-actor-core-custody-cargo-4/OWNER_RESULT.json`: SHA256
+  `133e5d3b9b89d548ea39e40ee75ad22e531eeb3e3b541c8b9e9f3394797e7c98`.
+- Runner `proof-draft/owner-three-actor-core-custody-cargo-4.mjs`: SHA256
+  `08ccbfde5e71d0832ac57246eb4e5a308bad8465fbab30ce9b2a9e2c78d8d77d`.
+- Before-execution `OWNER_CORE_CUSTODY_CARGO_4_SOURCE_FREEZE_20261007.json`:
+  SHA256 `a3d4f39af88f92f155370bd2e29218adda7cec422155c8caa2246681ad89b931`.
+- Final targeted `OWNER_CORE_CUSTODY_CARGO_4_PHASE_PUBLICATION_REVIEW_20261007.json`:
+  SHA256 `aa3f2c99bb2d7d349dc901a1f5d1f9c8c8d58e62802f786ac9fedceddaea17f4`.
+- `OWNER_CORE_CUSTODY_CARGO_4_RUNTIME_POSTFLIGHT_20261007.json`: Native
+  `30649`, terminal `b6f4c1`, exit0; SHA256
+  `955d5e6eef75e3529d69c6f491c2db6ab9aa12603678937a19109e62f2881f28`.
+- `OWNER_CORE_CUSTODY_CARGO_4_PRESERVATION_POSTFLIGHT_20261007.json`: SHA256
+  `1ab15b26f76a7f7ff01926ade5c42cd3d78ca56723cd7e9dd4f13c23ec5af383`.
+
+Captures were inspected for their limited evidence. The immediate Captain cargo
+capture shows `Loaded 1 Food.` while still displaying the prior host10/shuttle0;
+server witnesses and exact replay prove9/1. Settled projected balance rendering
+was not checked after reload. The Engineer capture shows current custody, and
+the revoked Captain capture is its own private loyalty card rather than a
+complete station view. These captures do not qualify final visual/usability,
+mobile or keyboard gates. No private loyalty action was exercised.
+
+The two function seams qualify only this scoped Black Sheep behavior. Shared
+618/620/629/635 remain partial; all48 fixed closures remain open,
+13partial/35missing,703/751 overall and245/293 campaign unchanged; NEXT181.
+No movement, repair/recharge, other craft/role/private audience, complete fresh
+solo game through ending, human/capacity, every-role/function, manual-free,
+final checkpoint review/render/CI/deployment or release credit is awarded.
+Return this closed local family to the parent before another family, external
+release, post-PC10 work, PC11 or conditional PC12. Licensing/assets stay unchanged.
+
+
+Full `validate-implementation-progress` remains failed on the existing0.5.72
+changelog snapshot: partial10/missing38 versus current ledger13/35. Exact
+comparison with tested source `5da0593c` confirms the same two errors and no new
+errors; `src/changelog.ts` is unchanged. This is an unresolved release metadata
+gate. Documentation guidance, generated catalog views and diff consistency
+pass; the full progress gate is not relabeled passed. Evidence:
+`/tmp/dow-pc10-evidence/OWNER_CORE_CUSTODY_CARGO_4_FULL_PROGRESS_VALIDATION_20261007.log`
+(exit1) and `OWNER_CORE_CUSTODY_CARGO_4_PROGRESS_BASELINE_COMPARISON_20261007.json`
+SHA256 `2d207d32694acbc4beb95d2473ebe6a0d3626483fe8276983a902126e3b5c20f`.

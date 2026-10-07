@@ -307,3 +307,40 @@ private audiences and existing core/Explorer criteria, then final affected
 rehearsal/usability/review/CI/deployment. No next family or external release ran.
 Return this closed family to the parent; later authorized post-PC10 work, PC11
 guidance and conditional PC12 remain unexecuted here.
+
+
+### Core custody/cargo family closed locally
+
+Actual4 at `5da0593c` (0.5.72) passed17 overlapping scoped assertions in84,983ms:
+normal GM plus original Shepherd Engineer and ordinary Shepherd Captain,
+three Auth/automated browsers/contexts and zero humans. Real manual0→1 and
+Coordination, Black Sheep handoff/reclaim, food1 host10→9/shuttle0→1, original
+lost-ack UI retry/cold reload/SDK replay and fresh nonowner/revoked-holder denials
+qualified. Two dedicated control request/audit pairs and one standardized cargo
+audit retain original identities/costs on replay. Strict operational berth/SDK
+authority remains required after normal start. See the [qualified family](PC10_ACCEPTANCE_MATRIX.md#qualified-black-sheep-custody-and-cargo--bounded-family) for exact source,
+Native/hash binding, failed-prefix evidence and scope limits.
+
+55Functions/111client tests reused unchanged,28finite contracts and bounded
+Sol6.1 review pass. Three prior actuals remain failed; their individual setup,
+start/Coordination receipts and exact cleanup are retained without backfill or
+summed counts. Only temporary runner corrections were needed; product/version
+unchanged. Exact cleanup0/0/0 and source/runtime/original/PC09/registry preservation
+pass,12slots free. The immediate cargo capture retains prior displayed10/0;
+durable9/1 is proved and settled balance rendering/final usability unverified.
+Generated whole-function/role proof fields remain pending; the authoritative
+matrix records this scoped acceptance. Shared618/620/629/635 staypartial,
+13partial/35missing/all48open,703/751overall245/293campaign/NEXT181 unchanged.
+No next family, release/push/merge/deploy, post-PC10, PC11/PC12 or license/assets
+change was executed. Return the local closed-family handoff to the parent.
+
+
+Full `validate-implementation-progress` remains failed on the existing0.5.72
+changelog snapshot: partial10/missing38 versus current ledger13/35. Exact
+comparison with tested source `5da0593c` confirms the same two errors and no new
+errors; `src/changelog.ts` is unchanged. This is an unresolved release metadata
+gate. Documentation guidance, generated catalog views and diff consistency
+pass; the full progress gate is not relabeled passed. Evidence:
+`/tmp/dow-pc10-evidence/OWNER_CORE_CUSTODY_CARGO_4_FULL_PROGRESS_VALIDATION_20261007.log`
+(exit1) and `OWNER_CORE_CUSTODY_CARGO_4_PROGRESS_BASELINE_COMPARISON_20261007.json`
+SHA256 `2d207d32694acbc4beb95d2473ebe6a0d3626483fe8276983a902126e3b5c20f`.

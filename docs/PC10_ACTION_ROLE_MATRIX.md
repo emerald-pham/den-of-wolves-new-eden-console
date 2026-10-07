@@ -94,3 +94,29 @@ audiences stay open. Exact cleanup returned0/0/0. See the
 [qualified family](PC10_ACCEPTANCE_MATRIX.md#qualified-candidate-discoverypreparation-and-active-cycle-6--bounded-family).
 The unchanged generated inventory's complete-proof/eligibility fields are not
 promoted; this bounded family does not prove every function/role or usability.
+
+
+### Core custody/cargo family closed locally
+
+Actual4 at `5da0593c` (0.5.72) passed17 overlapping scoped assertions in84,983ms:
+normal GM plus original Shepherd Engineer and ordinary Shepherd Captain,
+three Auth/automated browsers/contexts and zero humans. Real manual0→1 and
+Coordination, Black Sheep handoff/reclaim, food1 host10→9/shuttle0→1, original
+lost-ack UI retry/cold reload/SDK replay and fresh nonowner/revoked-holder denials
+qualified. Two dedicated control request/audit pairs and one standardized cargo
+audit retain original identities/costs on replay. Strict operational berth/SDK
+authority remains required after normal start. See the [qualified family](PC10_ACCEPTANCE_MATRIX.md#qualified-black-sheep-custody-and-cargo--bounded-family) for exact source,
+Native/hash binding, failed-prefix evidence and scope limits.
+
+55Functions/111client tests reused unchanged,28finite contracts and bounded
+Sol6.1 review pass. Three prior actuals remain failed; their individual setup,
+start/Coordination receipts and exact cleanup are retained without backfill or
+summed counts. Only temporary runner corrections were needed; product/version
+unchanged. Exact cleanup0/0/0 and source/runtime/original/PC09/registry preservation
+pass,12slots free. The immediate cargo capture retains prior displayed10/0;
+durable9/1 is proved and settled balance rendering/final usability unverified.
+Generated whole-function/role proof fields remain pending; the authoritative
+matrix records this scoped acceptance. Shared618/620/629/635 staypartial,
+13partial/35missing/all48open,703/751overall245/293campaign/NEXT181 unchanged.
+No next family, release/push/merge/deploy, post-PC10, PC11/PC12 or license/assets
+change was executed. Return the local closed-family handoff to the parent.

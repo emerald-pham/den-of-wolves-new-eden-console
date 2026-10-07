@@ -188,6 +188,13 @@ paying for the same admission/research prefix. A process-only commit does not
 invalidate unchanged source/runtime evidence. Material changes or unresolved
 failures require focused requalification; tests never backfill gameplay.
 
+Finite-runner reuse lesson, 2026-10-07: copy the completed candidate runner's
+original-deadline waits and primary-error-preserving teardown before adapting a
+family. Carry its served GM controls and actual phase-publication wait together.
+Validate the canonical casting station first and current operational berth after
+normal start; use exact Source field/collection names. Reuse these accepted
+patterns without adding a general framework, matrix or replay gate.
+
 Stop the bounded slice at its first unexplained integration failure, retain its
 original evidence and cleanup, and diagnose only that behavior before expanding.
 Do not automatically replay the whole game or scale the cohort after one guard
