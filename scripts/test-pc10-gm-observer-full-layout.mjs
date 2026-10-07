@@ -151,7 +151,26 @@ test('public factory captures the full-layout return while an unspaced partial-s
   assert.equal(result.revoke.httpStatus, 200); assert.equal(result.revoke.shipId, shipId);
   assert.equal(result.revoke.publicResult.enabled, false);
   assert.deepEqual(f.actor, original); assert.equal(f.replays.length, 3);
+  assert.deepEqual(f.crewNavigations.at(-1), {
+    kind: 'document-response-source-resume', beforeGeneration: original.generation,
+    afterGeneration: original.generation + 1, beforeHydrationRevision: original.hydrationRevision,
+    afterHydrationRevision: original.hydrationRevision + 1,
+  }, 'Identical-URL page.goto is a document navigation backed by the actual Source resume lease.');
+  assert.equal(f.returnedCrewActor.generation, original.generation + 1);
+  assert.equal(f.returnedCrewActor.hydrationRevision, original.hydrationRevision + 1);
   assert.equal(f.evidence.actualRuntimeRuns, 0); assert.equal(f.evidence.nativeChecksAreGameplayProof, false);
+});
+
+test('full-layout crew navigation returns null only when the destination differs by hash', async t => {
+  const f = await fullLayoutFixture(t);
+  const before = { ...f.returnedCrewActor }, target = new URL(f.crew.page.url());
+  target.hash = `${target.hash}-hash-only`;
+  const response = await f.crew.page.goto(target.href);
+  assert.equal(response, null);
+  assert.deepEqual(f.crewNavigations.at(-1), {
+    kind: 'same-document-null', beforeGeneration: before.generation, afterGeneration: before.generation,
+    beforeHydrationRevision: before.hydrationRevision, afterHydrationRevision: before.hydrationRevision,
+  });
 });
 
 test('public factory never credits a partial-style decoy when the full-layout source return is absent', async t => {

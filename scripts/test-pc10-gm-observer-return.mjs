@@ -196,22 +196,36 @@ test('public lifecycle factory captures current source-mounted return and revoca
   assert.equal(f.evidence.actualRuntimeRuns, 0);
   assert.equal(f.evidence.nativeChecksAreGameplayProof, false);
   assert.deepEqual(f.crewNavigations.at(-1), {
-    kind: 'same-document-null', beforeGeneration: actor.generation, afterGeneration: actor.generation,
-  }, 'The unchanged crew document returns Playwright null and preserves the original source lease.');
+    kind: 'document-response-source-resume', beforeGeneration: actor.generation,
+    afterGeneration: actor.generation + 1, beforeHydrationRevision: actor.hydrationRevision,
+    afterHydrationRevision: actor.hydrationRevision + 1,
+  }, 'Identical-URL page.goto returns a document Response and applies the actual Source resume lease.');
+  assert.equal(f.returnedCrewActor.generation, actor.generation + 1);
+  assert.equal(f.returnedCrewActor.hydrationRevision, actor.hydrationRevision + 1);
 });
 
-test('public lifecycle factory distinguishes same-document null from a stale full-document response', async t => {
-  const sameDocument = await fixture(t, { crewNavigation: 'same-document-null' });
-  await sameDocument.run();
+test('public lifecycle factory returns null for a hash-only same-document goto', async t => {
+  const sameDocument = await fixture(t);
+  const before = { ...sameDocument.returnedCrewActor }, target = new URL(sameDocument.crew.page.url());
+  target.hash = `${target.hash}-hash-only`;
+  const response = await sameDocument.crew.page.goto(target.href);
+  assert.equal(response, null);
   assert.deepEqual(sameDocument.crewNavigations.at(-1), {
-    kind: 'same-document-null', beforeGeneration: actor.generation, afterGeneration: actor.generation,
+    kind: 'same-document-null', beforeGeneration: before.generation, afterGeneration: before.generation,
+    beforeHydrationRevision: before.hydrationRevision, afterHydrationRevision: before.hydrationRevision,
   });
+  assert.deepEqual(sameDocument.returnedCrewActor, before);
+});
 
+test('public lifecycle factory rejects a stale non-null full-document response', async t => {
   const staleDocument = await fixture(t, { crewNavigation: 'document-response-stale' });
-  await assert.rejects(staleDocument.run(), error =>
-    assert.match(error.message, /current\.generation > expected\.generation/));
+  await assert.rejects(staleDocument.run(), error => {
+    assert.match(error.message, /current\.generation > expected\.generation/);
+    return true;
+  });
   assert.deepEqual(staleDocument.crewNavigations.at(-1), {
     kind: 'document-response-stale', beforeGeneration: actor.generation, afterGeneration: actor.generation,
+    beforeHydrationRevision: actor.hydrationRevision, afterHydrationRevision: actor.hydrationRevision,
   }, 'A Response means rejoin; without a newer source generation the old authority is rejected.');
   assert.equal(staleDocument.evidence.actualRuntimeRuns, 0);
   assert.equal(staleDocument.evidence.nativeChecksAreGameplayProof, false);
