@@ -182,6 +182,7 @@ export function FleetRoster({
         {gmJoinAvailable && (
           <Link
             className="session-mode__back cic-text-button"
+            aria-label="GM join"
             to="/roles"
             state={{ intent: 'gm-join' }}
           >
