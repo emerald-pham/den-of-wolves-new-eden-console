@@ -201,7 +201,7 @@ export async function observeFullGameDemoPresentationMember(surface, { knownRole
       freshness: enumeration('freshness', state.sessionSnapshotFreshness, ['server', 'cache']),
       cycle: number('cycle', session?.currentTurn), phase: enumeration('phase', session?.phase, ['lobby', 'casting', 'briefing', 'active', 'debrief', 'closed']),
       setupConfirmed: session?.setupConfirmed === true,
-      fullGameDemo: marker ? { status: enumeration('demoStatus', marker.status, ['preparing', 'active', 'completed']),
+      fullGameDemo: marker ? { status: enumeration('demoStatus', marker.status, ['preparing', 'active', 'complete']),
         progression: enumeration('demoProgression', marker.progression, ['manual']) } : null,
       fullGameDemoExact: !!marker && typeof marker === 'object' && !Array.isArray(marker) &&
         Object.keys(marker).length === 2 && Object.hasOwn(marker, 'status') && Object.hasOwn(marker, 'progression'),
