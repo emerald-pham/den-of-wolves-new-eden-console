@@ -360,6 +360,7 @@ function routeFixture({ route = '#/brief', changed = {}, entering = true } = {})
       const snapshot = { session: { id: original.sessionId },
         me: { uid, sessionId: original.sessionId, role: original.playerRole,
           assignedRoleId: original.assignedRoleId, activeConsoleRoleId: original.activeConsoleRoleId,
+          seatId: original.activeConsoleRoleId,
           connectionGeneration: original.connectionGeneration, fleetGroupId: 'native-fleet', connected: true },
         identityHydrationRevision: original.identityHydrationRevision,
         connection: original.connection, sessionSnapshotFreshness: original.freshness };
