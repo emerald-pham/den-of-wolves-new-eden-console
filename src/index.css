@@ -104,6 +104,13 @@ body {
   transition: opacity 100ms ease;
 }
 
+/* The shared fleet-group panel precedes each route's own content, so route
+   padding cannot clear the fixed header and compact DRADIS for it. */
+html:has(.ship-plot[data-aboard='true'][data-expanded='false'])
+  .screen-fade__content > .fleet-group-workspace {
+  margin-block-start: calc(var(--console-plot-top) + var(--ship-plot-widget-size) + 1rem);
+}
+
 .screen-fade[data-phase='out'] .screen-fade__content {
   opacity: 0;
 }
