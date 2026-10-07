@@ -430,7 +430,7 @@ test('counter evaluator rejects wrong source group, stale or reply-only revision
   for (const [label, mutate, reason] of [
     ['wrong source group', input => { input.sourceAfter.groupId = 'moved-fleet'; }, 'live-source-cycle-revision-or-group-changed'],
     ['stale source revision', input => { input.sourceAfter.revision = 14; }, 'live-source-cycle-revision-or-group-changed'],
-    ['reply-only source revision', input => { input.sourceAfter.revision = 16; }, 'live-source-cycle-revision-or-group-changed'],
+    ['reply-only source revision', input => { input.sourceAfter.revision = 16; }, 'server-result-and-live-projection-revisions-differ'],
     ['foreign actor', input => { input.actorAfter.uidHash = 'ffffffffffffffff'; }, 'original-authenticated-role-or-mounted-control-not-current'],
     ['non-live source', input => { input.sourceAfter.live = false; }, 'live-source-cycle-revision-or-group-changed'],
   ]) {
