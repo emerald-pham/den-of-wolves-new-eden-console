@@ -218,6 +218,9 @@ beforeEach(() => {
       joinedAt: '2026-01-01T00:00:00.000Z',
     },
   );
+  // This prepared GM fixture represents verified live authority; startup/cache cases opt out explicitly.
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
   vi.mocked(subscribeSessionEvents).mockImplementation((_sessionId, onEvents) => {
     onEvents([]);
     return vi.fn();
@@ -4781,3 +4784,4 @@ it('closes expanded DRADIS during recovery, releases scroll, and rebinds keyboar
   expect(document.body.style.overflow).toBe(priorOverflow);
   expect(screen.getByRole('button', { name: /zoom into dradis panel/i })).toHaveFocus();
 });
+
