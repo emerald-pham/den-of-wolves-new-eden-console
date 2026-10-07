@@ -638,3 +638,47 @@ October 10 is the budget for the whole agreed sequence, including the existing
 post-PC10 work and PC11; PC12 remains conditional. PC10 must finish at the
 earliest safe release boundary and return to the parent first. It does not
 reserve October 10 as its own recovery buffer or execute later checkpoints.
+
+### Selected candidate discovery/preparation family — bounded fresh run
+
+At `57bde287efb87993aef7179a2c42bfa37af7f3fb`, the next authorized family is
+541–543, 593 and the discovery/preparation portion of 619. Required actual
+criteria are Endeavour-derived N/O/P reveal in the Scientist's current group,
+one durable discovery effect after original same-cycle retries and reconnect,
+distinct preparation costs/blockers/next actor, and the ordinary active Cycle 6
+GM plan-presence checkpoint with player-safe encouragement and private fields.
+The complete 619 outcomes and candidate success mechanics remain separate.
+
+Use two independently admitted Auth actors in two automated browser processes:
+a named live GM and an ordinary Shepherd Scientist. The legal configured roster
+has 14 roles with unused seats open. Endeavour has one unlimited-range scan per
+cycle and needs no fuel or maintenance prefix. The GM is required for protected
+manual preparation/start, cycle progression and the private checkpoint; the
+Scientist is required for original printed scouting authority and member
+publication. These two actors cover own reports and ordinary-player denial of
+populated GM/server-only records. Requester-private peer denial and foreign-group
+withholding are not claimed; add an actor only for a separately required claim.
+No human-device playtesting or 21-account capacity credit follows.
+
+Reuse unchanged normal admission/manual setup, the earlier 20 Scientist research
+choices within their original scope, and the accepted Press/competing-ending
+families without replay. In this fresh game, scout N/O/P in Cycles 1/2/3, keep
+craft parked, and use the existing mounted GM starmap relocation at Cycle 4
+Coordination: Chart A, Aegis to noncandidate 2580, printed depth five. Confirm
+its actual current-group Pursuit reduction before advancing to active Cycle 6.
+This is a real GM relocation with its own receipt/audit; it earns no ship-jump,
+fuel or candidate-arrival success credit. No Admin gameplay writes, candidate
+state injection or clock acceleration are allowed.
+
+Retain a deliberately interrupted real scout reply, use the original UI retry
+within that cycle, restore the original normal Scientist document and replay
+its captured original request only within that cycle. Historical report recovery
+uses the ordinary readers. At Cycle 6, retain a deliberately interrupted real
+GM checkpoint reply and verify original durable intent/recovery, unchanged
+receipt/timestamp/revision and no member checkpoint leakage. Use focused scout,
+workspace and checkpoint behavioral/authority tests and one bounded independent
+Sol review of the actual runner and any repairs. Stop at the first unexplained
+integration failure, retain its original evidence, close owned browsers and
+delete only the fresh owned session/pointers/Auth identities before diagnosis.
+No fixed catalog closure, checkpoint acceptance or external release is earned
+by this plan or by Source/native tests alone.
