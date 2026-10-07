@@ -6636,6 +6636,8 @@ export const setFacilitatorResponsibility = auditedOnCall<{
     const nextRevision = responsibility.expectedSetupRevision + 1;
     const nextInstances = liveInstances.map((candidate) => ({
       ...candidate,
+      // Firestore exposes id through a prototype getter, outside object spread.
+      id: candidate.id,
       get: (field: string) => field === 'responsibilities'
         ? nextByInstance.get(candidate.id) ?? []
         : field === 'responsibility'
