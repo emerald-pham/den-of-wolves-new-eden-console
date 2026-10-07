@@ -298,6 +298,38 @@ test('serialized member reader emits strict Press-only source authority without 
   }
 });
 
+test('serialized Press reader accepts the ordinary omitted replacement status supported by App and SDK', async () => {
+  const current = memberStore();
+  delete current.me.replacementStatus;
+  const read = await readActionState(serializedSurface(current), PRESS_SHUTTLE_ID, { diagnosticOnly: true });
+  assert.ok(read.pressDocumentAuthority, 'Ordinary PRIMARY admission omits this optional inactive replacement field.');
+  assert.equal(read.pressDocumentAuthority.uidHash, UID_HASH);
+  assert.equal(read.pressDocumentAuthority.shuttleAuthorized, true);
+  assert.deepEqual(read.pressGroupAuthority, PRESS_GROUP_AUTHORITY);
+  assert.equal(read.currentDocumentAuthority, null, 'No core berth is manufactured for Press.');
+  assert.equal(read.sourceDiagnosticOnly.predicate.replacementStatusNull, true, 'Diagnostic uses the same nullable product contract.');
+});
+
+test('ordinary omitted replacement status preserves Press revoked, stale and private-group negatives', async () => {
+  const drifts = [
+    { me: { connected: false } }, { me: { role: 'gm' } },
+    { me: { replacementStatus: 'awaiting-re-role' } }, { me: { replacementStatus: false } },
+    { me: { activeConsoleRoleId: 'quellon-captain' } }, { me: { assignedRoleId: 'quellon-captain' } },
+    { me: { connectionGeneration: 0 } }, { identityHydrationRevision: 0 },
+    { connection: 'offline' }, { sessionSnapshotFreshness: 'cache' },
+    { session: { memberSessionScope: { groupId: GROUP_ID, vesselIds: ['aegis'], craftIds: [PRESS_SHUTTLE_ID] } } },
+    { session: { playerDiscovery: { groupId: 'foreign-group', fleetGroupVesselIds: ['aegis'], revision: 12 } } },
+    { session: { playerDiscovery: undefined } },
+  ];
+  for (const drift of drifts) {
+    const current = memberStore(drift);
+    if (!Object.hasOwn(drift.me ?? {}, 'replacementStatus')) delete current.me.replacementStatus;
+    const read = await readActionState(serializedSurface(current), PRESS_SHUTTLE_ID);
+    assert.equal(read.pressDocumentAuthority, null, JSON.stringify(drift));
+    assert.equal(read.pressGroupAuthority, null, JSON.stringify(drift));
+  }
+});
+
 test('default Press request keeps the original UID on #/press and selects only a current same-group panel option', async () => {
   const current = memberStore();
   const read = await readActionState(serializedSurface(current), PRESS_SHUTTLE_ID);

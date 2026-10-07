@@ -2740,6 +2740,13 @@ describe('shuttle departure privacy', () => {
     const ownAbsent = await assertSucceeds(getDoc(doc(as('press'), path)));
     expect(ownAbsent.exists()).toBe(false);
     await assertSucceeds(getDoc(doc(as('press'), discoveryPath)));
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), pressPath), { replacementStatus: deleteField() });
+    });
+    const ordinaryAbsent = await assertSucceeds(getDocFromServer(doc(as('press'), path)));
+    expect(ordinaryAbsent.exists()).toBe(false);
+    await assertSucceeds(getDocFromServer(doc(as('press'), discoveryPath)));
+
     await assertFails(getDoc(doc(as('alice'), path)));
     await assertFails(getDoc(doc(as('foreign'), path)));
     await assertFails(getDoc(doc(as('stranger'), path)));
@@ -2764,7 +2771,7 @@ describe('shuttle departure privacy', () => {
     await deniedAfter(async (db) => {
       await updateDoc(doc(db, pressPath), { kickedAt: null, replacementStatus: 'replaced' });
     });
-    await deniedAfter((db) => updateDoc(doc(db, pressPath), { replacementStatus: deleteField() }));
+    await deniedAfter((db) => updateDoc(doc(db, pressPath), { replacementStatus: false }));
     await deniedAfter(async (db) => {
       await updateDoc(doc(db, pressPath), { replacementStatus: null, activeConsoleRoleId: 'wing-commander' });
     });
