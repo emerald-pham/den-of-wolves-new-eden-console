@@ -21,7 +21,7 @@ function fixture({ pending = false, actorRoleId = roleId, startRole = actorRoleI
   const f = { calls, callbacks, timeouts, accepted, sdkCalls: 0, metadataReads: 0 };
   const member = role => ({ uid: uidFor(role), role: 'player', sessionId,
     assignedRoleId: role, activeConsoleRoleId: role, fleetGroupId: 'native-fleet',
-    seatId: `native-seat-${role}`, connectionGeneration: pending ? 12 : 13,
+    seatId: role, connectionGeneration: pending ? 12 : 13,
     connected: true, replacementRoleId: null, replacementStatus: null, ...memberChange });
   f.store = { session: { id: sessionId, phase: 'active', currentTurn: 1,
     turnPhase: { airspace: { state: 'restricted' }, progression: 'manual' },
