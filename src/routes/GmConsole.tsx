@@ -961,6 +961,15 @@ export default function GmConsole() {
       : (role.vesselId === undefined || replacementVesselIds.has(role.vesselId)),
   );
 
+  const dradisModalOpen = Boolean(dradisExpanded && session && me && isGm && local && !gmRecoveryPending);
+  useLayoutEffect(() => {
+    if (!dradisExpanded || dradisModalOpen) return;
+    dradisAnimation.current?.cancel();
+    dradisAnimation.current = null;
+    dradisPreviousBounds.current = null;
+    setDradisExpanded(false);
+  }, [dradisExpanded, dradisModalOpen]);
+
   useLayoutEffect(() => {
     const dradis = dradisExpanded ? dradisDialogRef.current : dradisRef.current;
     const previous = dradisPreviousBounds.current;
@@ -983,11 +992,11 @@ export default function GmConsole() {
   }, [dradisExpanded, reducedMotion]);
 
   useLayoutEffect(() => {
-    if (!dradisExpanded) return undefined;
+    if (!dradisModalOpen) return undefined;
     const priorOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => { document.body.style.overflow = priorOverflow; };
-  }, [dradisExpanded]);
+  }, [dradisModalOpen]);
 
   const toggleDradis = (nextExpanded?: boolean) => {
     const next = nextExpanded ?? !dradisExpanded;
@@ -1747,7 +1756,7 @@ export default function GmConsole() {
     dialogKey: activeConfirmation,
   });
   useDialogFocus({
-    open: dradisExpanded,
+    open: dradisModalOpen,
     dialogRef: dradisDialogRef,
     restoreRef: dradisZoomRef,
     onEscape: () => toggleDradis(false),
@@ -5571,7 +5580,7 @@ export default function GmConsole() {
           sessionSnapshotFreshness === 'server' && connection === 'live',
         )} window={session?.pursuitEmergencyWindowAuthority} />
       </aside>
-      {dradisExpanded && createPortal(
+      {dradisModalOpen && createPortal(
         <>
           <div className="gm-dradis-modal__backdrop" aria-hidden="true" />
           <section

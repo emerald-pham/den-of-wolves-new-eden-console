@@ -2854,12 +2854,19 @@ export async function reconcileGmAuthority(): Promise<void> {
   const remembered = before.gmInstance;
   if (!remembered) return;
   const generation = ++latestGmReconciliationGeneration;
+  const connectionGeneration = latestConnectAttemptGeneration;
+  let memberRevision = before.gmRecoveryMemberRevision;
   const checkpoint = before.session
     ? sessionAuthorityCheckpoint(before.session.id, sessionAuthorityUid(before))
     : undefined;
   const sameInputs = (): boolean => {
     const current = useSessionStore.getState();
     return generation === latestGmReconciliationGeneration &&
+      connectionGeneration === latestConnectAttemptGeneration &&
+      current.identityHydrationRevision === before.identityHydrationRevision &&
+      current.gmRecoveryMemberRevision === memberRevision &&
+      current.me?.connectionGeneration === before.me?.connectionGeneration &&
+      current.mode === before.mode && current.lastRoute === before.lastRoute &&
       authorityCheckpointIsCurrent(checkpoint, true) &&
       auth().currentUser?.uid === remembered.uid && current.me?.uid === remembered.uid &&
       current.gmInstance?.id === remembered.id &&
@@ -2879,8 +2886,7 @@ export async function reconcileGmAuthority(): Promise<void> {
   try {
     instances = await listGmInstances();
   } catch (cause) {
-    if (generation === latestGmReconciliationGeneration &&
-        useSessionStore.getState().gmInstance?.id === remembered.id) {
+    if (sameInputs()) {
       const store = useSessionStore.getState();
       store.setGmRecoveryPending(true);
       store.setSessionSnapshotFreshness('cache');
@@ -2894,7 +2900,9 @@ export async function reconcileGmAuthority(): Promise<void> {
   if (current) {
     const store = useSessionStore.getState();
     store.setGmInstance(current);
-    store.setGmRecoveryPending(false);
+    // An ordinary list refresh never changes the member's role. A reconnect
+    // remains held until its own member projection also confirms GM authority.
+    store.setGmRecoveryPending(store.gmRecoveryPending && store.me?.role !== 'gm');
     return;
   }
   if (!selectGmAccessAuthenticated(before)) {
@@ -2911,6 +2919,9 @@ export async function reconcileGmAuthority(): Promise<void> {
   delete descriptor.responsibility;
   store.setGmInstance(descriptor);
   if (store.me) store.setMe({ ...store.me, role: 'player' });
+  // The provisional demotion is local. Subsequent SDK callbacks, including
+  // an identical role=player, are newer authority and invalidate this attempt.
+  memberRevision = useSessionStore.getState().gmRecoveryMemberRevision;
   const call = httpsCallable<{
     sessionId: string; instanceId: string; name: string; deviceLabel: string;
     resume: true; expectedClaimedAt: string;
@@ -2942,9 +2953,29 @@ export async function reconcileGmAuthority(): Promise<void> {
     clearRemembered();
     throw new Error('The GM recovery response was malformed or belonged to another actor.');
   }
+  // The claim can commit before its reply arrives. Re-read the existing live
+  // manifest: it requires a current GM member and this exact browser lease.
+  let confirmed: GmInstance | undefined;
+  try {
+    confirmed = (await listGmInstances()).find((instance) => instance.id === recovered.id &&
+      instance.sessionId === recovered.sessionId && instance.uid === recovered.uid &&
+      instance.claimedAt === recovered.claimedAt);
+  } catch (cause) {
+    if (!sameInputs()) return;
+    const code = (errorCode(cause) ?? '').replace(/^functions\//, '');
+    if (['permission-denied', 'not-found', 'failed-precondition'].includes(code)) {
+      clearRemembered();
+      return;
+    }
+    store.setSessionSnapshotFreshness('cache');
+    store.setConnection('offline');
+    throw cause;
+  }
+  if (!sameInputs()) return;
+  if (!confirmed) { clearRemembered(); return; }
   const latest = useSessionStore.getState();
   if (latest.me) latest.setMe({ ...latest.me, role: 'gm' });
-  latest.setGmInstance(recovered);
+  latest.setGmInstance(confirmed);
   latest.setGmRecoveryPending(false);
   latest.setMode(before.mode);
   latest.setLastRoute(before.lastRoute);

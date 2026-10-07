@@ -455,6 +455,8 @@ interface SessionState {
   gmInstance: GmInstance | null;
   /** Ephemeral holding state; never a source of GM authority. */
   gmRecoveryPending: boolean;
+  /** Fences recovery replies against newer own-player callbacks, even identical demotions. */
+  gmRecoveryMemberRevision: number;
   gmAccessAuthenticatedAt: number | null;
   turnStartReplay: TurnStartReplay | null;
   privateLoyalty: PrivateLoyalty | null;
@@ -538,6 +540,7 @@ const initial = {
   me: null,
   gmInstance: null,
   gmRecoveryPending: false,
+  gmRecoveryMemberRevision: 0,
   gmAccessAuthenticatedAt: null,
   turnStartReplay: null,
   privateLoyalty: null,
@@ -571,7 +574,7 @@ const initial = {
   identityHydrationRevision: 0,
 } satisfies Pick<
   SessionState,
-  'session' | 'seats' | 'me' | 'gmInstance' | 'gmRecoveryPending' | 'gmAccessAuthenticatedAt' | 'turnStartReplay' | 'pendingCommands' |
+  'session' | 'seats' | 'me' | 'gmInstance' | 'gmRecoveryPending' | 'gmRecoveryMemberRevision' | 'gmAccessAuthenticatedAt' | 'turnStartReplay' | 'pendingCommands' |
   'privateLoyalty' | 'roleBrief' | 'roleBriefLoading' | 'awayMissionHandPointer' | 'awayMissionHand' | 'awayMissionHandPointers' | 'awayMissionHands' | 'gmAwayMissionHandPointers' | 'gmLoyaltyCensus' | 'wolfCultIntelligence' | 'gmWolfCultIntelligence' | 'arbourVision' | 'gmArbourVision' | 'facilitatorRuleCall' | 'gmFacilitatorRuleCall' | 'gmCrisisState' | 'gmZealotryResponse' | 'gmCivilUnrestResolution' | 'gmSetupReceipt' | 'commissarPurgeAuthority' | 'communicationError' | 'mode' | 'lastRoute' | 'connection' |
   'sessionSnapshotFreshness' | 'voyage33MovementProjectionFresh' |
   'persistedSessionSnapshot' | 'identityHydrationRevision'
@@ -648,11 +651,12 @@ export const useSessionStore = create<SessionState>()(
       // the entire UI and serializing the full persisted session in that case.
       setMe: (me) => {
         const previous = get().me;
-        if (!shallow(previous, me)) set((state) => {
+        if (!shallow(previous, me) || get().gmRecoveryPending) set((state) => {
           const losesGmAuthority = me?.role !== 'gm' || me.sessionId !== state.session?.id ||
             me.uid !== state.gmInstance?.uid || state.gmInstance?.sessionId !== state.session?.id;
           return {
             me,
+            ...(state.gmRecoveryPending ? { gmRecoveryMemberRevision: state.gmRecoveryMemberRevision + 1 } : {}),
             ...(!samePrivateAssignment(previous, me) ? { privateLoyalty: null } : {}),
             ...(losesGmAuthority ? {
               session: clearVoyageMovement(state.session),
@@ -827,6 +831,8 @@ export const useSessionStore = create<SessionState>()(
           // Connection and freshness are runtime authority, never persisted
           // input. A restored session is renderable only as a cache snapshot.
           connection: current.connection,
+          gmRecoveryPending: false,
+          gmRecoveryMemberRevision: current.gmRecoveryMemberRevision + 1,
           session: restoredSession,
           sessionSnapshotFreshness: hasRestoredSession && restoredSession
             ? 'cache'
