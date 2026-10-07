@@ -42,9 +42,15 @@ describe('ConnectionIndicator', () => {
 
   it('uses the CIC red warning token while waiting for CIC authentication', () => {
     const stylesheet = readFileSync('src/index.css', 'utf8');
+    const tokens = readFileSync('src/styles/cic.css', 'utf8');
+
+    expect(tokens).toMatch(/--cic-danger:\s*#e0392a;/);
 
     expect(stylesheet).toMatch(
-      /\.indicator\[data-status=['"]awaiting-cic['"]\]\s*\{[^}]*--dot:\s*var\(--cic-red\)/,
+      /\.indicator\[data-status=['"]awaiting-cic['"]\]\s*\{[^}]*--dot:\s*var\(--cic-danger\)/,
+    );
+    expect(stylesheet).toMatch(
+      /\.indicator\[data-status=['"]awaiting-cic['"]\]\s*\{[^}]*color:\s*var\(--cic-danger\)/,
     );
   });
 });

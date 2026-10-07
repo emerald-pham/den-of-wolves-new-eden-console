@@ -58,15 +58,23 @@ it('provides one clearly synthetic six-step PC02 sitting with every requested pe
   expect(screen.queryByRole('region', { name: 'Primary game status' })).toBeNull();
 });
 
-it('shows the real three-check gate at the synthetic 72-hour boundary', async () => {
+it('shows the real three-check gate at the synthetic seven-day boundary', async () => {
   const user = userEvent.setup();
   render(<PC02ReviewScene />);
   await user.click(screen.getByRole('button', { name: /waiver/i }));
-  await user.selectOptions(screen.getByRole('combobox', { name: 'Waiver sample time' }), 'expired');
+  const sampleTime = screen.getByRole('combobox', { name: 'Waiver sample time' });
+  expect(within(sampleTime).getByRole('option', { name: 'Before seven days // accepted' }))
+    .toBeInTheDocument();
+  expect(within(sampleTime).getByRole('option', { name: 'At seven days // checks required again' }))
+    .toBeInTheDocument();
+  await user.selectOptions(sampleTime, 'before-expiry');
+  expect(screen.getByRole('status')).toHaveTextContent('No new checks are required before seven days.');
+  expect(screen.queryByRole('dialog', { name: 'CODE OF CONDUCT' })).toBeNull();
+  await user.selectOptions(sampleTime, 'expired');
 
   const gate = screen.getByRole('dialog', { name: 'CODE OF CONDUCT' });
   expect(within(gate).getAllByRole('checkbox')).toHaveLength(3);
-  expect(gate).toHaveTextContent('72 hours on this device');
+  expect(gate).toHaveTextContent('seven days on this device');
 });
 
 it('uses the real plot for an interactive first-contact and repeat-sweep review', async () => {
