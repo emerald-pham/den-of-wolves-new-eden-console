@@ -28,7 +28,7 @@ async function fixture(t, options = {}) {
   let gmUrl = 'http://127.0.0.1:5173/#/console';
   let crewUrl = 'http://127.0.0.1:5173/#/ships/aegis/admiral';
   let locked = false;
-  const pending = [], requests = [], clicks = [], replays = [];
+  const pending = [], requests = [], clicks = [], replays = [], crewNavigations = [];
   const runtimeSource = `import.meta.env = ${JSON.stringify({
     VITE_FIREBASE_PROJECT_ID: projectId, VITE_USE_EMULATORS: '1',
     VITE_FIREBASE_AUTH_EMULATOR_PORT: '9109', VITE_FIREBASE_FUNCTIONS_EMULATOR_PORT: '5011',
@@ -111,7 +111,7 @@ async function fixture(t, options = {}) {
   }
   const page = {
     url: () => gmUrl,
-    goto: async url => leaveObserver(url),
+    goto: async url => { leaveObserver(url); return null; },
     getByRole: (role, { name, exact }) => {
       assert.equal(exact, true);
       return locator(node => node.role === role && node.name === name);
@@ -146,7 +146,21 @@ async function fixture(t, options = {}) {
       return { status: 'committed', result: observed.body.result };
     } };
   const crew = { storeModuleUrl: gm.storeModuleUrl,
-    page: { url: () => crewUrl, goto: async url => { crewUrl = url; },
+    page: { url: () => crewUrl, goto: async url => {
+      assert.equal(url, crewUrl, 'This lifecycle restore targets the saved crew document.');
+      const beforeGeneration = crewActor.generation;
+      if (options.crewNavigation === 'document-response-stale') {
+        // A Response models a new document. The source observer still reports
+        // the old server generation, so restore must reject this stale lease.
+        const response = { url: () => url, status: () => 200 };
+        crewNavigations.push({ kind: 'document-response-stale', beforeGeneration,
+          afterGeneration: crewActor.generation });
+        return response;
+      }
+      crewNavigations.push({ kind: 'same-document-null', beforeGeneration,
+        afterGeneration: crewActor.generation });
+      return null;
+    },
       evaluate: async (_fn, argument) => argument?.moduleUrl ? { ...crewActor } : runtimeSource } };
   const context = { gm, crew, directory, initial: { sessionId: actor.sessionId,
     joinCode: 'NATIVE', uidHash: actor.uidHash }, started: { instanceId: actor.instanceId },
@@ -158,7 +172,7 @@ async function fixture(t, options = {}) {
     await rm(directory, { recursive: true });
   });
   return { run: () => proof.onStarted(context), evidence: proof.evidence,
-    requests, clicks, replays, current, initial: { ...actor } };
+    requests, clicks, replays, current, initial: { ...actor }, crewNavigations };
 }
 
 test('public lifecycle factory captures current source-mounted return and revocation for the original ship', async t => {

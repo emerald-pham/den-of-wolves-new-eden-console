@@ -131,20 +131,39 @@ function nativeCounterFixture(options = {}) {
   const modeButton = { role: 'button', name: 'Ship numbers write mode', attributes: { 'aria-pressed': 'false' },
     children: [], click() { mode = !mode; this.attributes['aria-pressed'] = String(mode); actions.push('write-mode'); } };
   tree.children.push({ role: 'generic', name: 'Fleet resource access', children: [modeButton] });
+  const mountedCounters = new Map();
   function group(name, shipId) {
-    const button = { role: 'button', name: 'Increase Materials', attributes: {}, children: [],
+    const amount = raw.session.shipResources[shipId].materials;
+    const strong = { tagName: 'strong', text: String(amount), children: [] };
+    const row = { role: 'listitem', name: `Materials: ${amount}`,
+      attributes: { 'aria-label': `Materials: ${amount}` }, children: [strong] };
+    const button = { role: 'button', name: 'Increase Materials',
+      attributes: { 'aria-label': 'Increase Materials' }, children: [],
       isEnabled: () => mode,
       click() {
         actions.push(`counter:${shipId}`);
         const requestShipId = options.requestShipId ?? shipId;
         const before = raw.session.vesselActionRevisions[requestShipId] ?? 0;
+        const beforeAmount = raw.session.shipResources[requestShipId].materials;
         const revision = before + 1;
         raw.session.vesselActionRevisions = { ...raw.session.vesselActionRevisions, [requestShipId]: revision };
         const requestId = `native-counter-${requestShipId}-${revision}`;
         lastRequest = { sessionId: SESSION_ID, instanceId: INSTANCE_ID, shipId: requestShipId,
           counter: 'resource', resourceId: 'materials', steps: [1], requestId, expectedRevision: before };
         const replyRevision = options.replyRevisionAfterReceipt ?? revision;
-        lastResult = { status: 'committed', shipId: requestShipId, counterRevision: replyRevision, revision: replyRevision };
+        const afterAmount = beforeAmount + 1;
+        raw.session.shipResources = { ...raw.session.shipResources,
+          [requestShipId]: { ...raw.session.shipResources[requestShipId], materials: afterAmount } };
+        if (requestShipId === shipId) {
+          row.name = `Materials: ${afterAmount}`;
+          row.attributes['aria-label'] = `Materials: ${afterAmount}`;
+          strong.text = String(afterAmount);
+        }
+        lastResult = { amount: afterAmount, appliedSteps: [1], alertRaised: false,
+          sessionId: SESSION_ID, instanceId: INSTANCE_ID, shipId: requestShipId,
+          counter: 'resource', resourceId: 'materials', requestId, expectedRevision: before,
+          actorUid: UID, actorRoleId: null, vesselId: requestShipId, turn: 1, phase: 'active',
+          revision: replyRevision, idempotencyKey: requestId, auditId: `counter-batch-${requestId}` };
         committed = true;
         if (options.moveGroupAfterReceipt) raw.session.shipFleetGroupIds = {
           ...raw.session.shipFleetGroupIds, aegis: 'moved-fleet' };
@@ -164,9 +183,11 @@ function nativeCounterFixture(options = {}) {
         for (const waiter of [...waiters]) if (waiter.predicate(response)) {
           waiters.splice(waiters.indexOf(waiter), 1); waiter.resolve(response);
         }
-      } };
+    } };
+    row.children.push({ tagName: 'div', children: [button] });
+    mountedCounters.set(shipId, { row, strong });
     return { role: 'group', name: `${name} resource controls`, attributes: { 'aria-label': `${name} resource controls` },
-      children: [button] };
+      children: [{ tagName: 'ul', children: [row] }] };
   }
   const aegis = group('AEGIS', 'aegis'), quellon = group('Quellon', 'quellon');
   tree.children.push({ role: 'generic', name: 'Fleet resource ships',
@@ -182,6 +203,16 @@ function nativeCounterFixture(options = {}) {
         const found = nodes.flatMap(node => descendants(node)).filter(node => node.role === role &&
           (name === undefined || (exact ? node.name === name : matchesName(name, node.name))));
         return locator(found);
+      },
+      locator(selector) {
+        assert.equal(selector, 'strong', 'The counter fixture models the source-visible amount element.');
+        return locator(nodes.flatMap(node => descendants(node)).filter(node => node.tagName === selector));
+      },
+      async innerText() { assert.equal(nodes.length, 1); return nodes[0].text ?? nodes[0].name ?? ''; },
+      async waitFor({ state, timeout }) {
+        assert.equal(state, 'visible'); assert.ok(timeout > 0 && timeout <= 60_000);
+        assert.equal(nodes.length, 1, 'Expected source list item is absent or ambiguous.');
+        assert.notEqual(nodes[0].visible, false);
       },
       async getAttribute(key) {
         assert.equal(nodes.length, 1);
@@ -245,6 +276,10 @@ function nativeCounterFixture(options = {}) {
   return { raw, actions, context, game, surface, get sourceReads() { return sourceReads; },
     get replayCalls() { return replayCalls; }, get lifecycleReads() { return lifecycleReads; },
     get lastRequest() { return lastRequest; },
+    mountedCounterObservation() {
+      const { row, strong } = mountedCounters.get('aegis');
+      return { role: row.role, accessibleName: row.attributes['aria-label'], strongText: strong.text };
+    },
     async run() {
       const callbacks = createPendingGmRulingsCountersCallbacks({
         steps: { [spec.id]: steps[spec.id] }, gameFactory: () => game,
@@ -342,7 +377,8 @@ for (const [label, options] of [
     `${label}: the actual mounted control was reached before this post-click guard was evaluated.`);
   assert.ok(fixture.lastRequest, `${label}: preserve the actual UI request for discrimination.`);
   assert.equal(fixture.replayCalls,
-    ['cached source after receipt', 'later Auth UID after receipt', 'foreign Auth UID after receipt'].includes(label) ? 0 : 1,
+    ['cached source after receipt', 'foreign GM instance after receipt', 'later Auth UID after receipt',
+      'foreign Auth UID after receipt'].includes(label) ? 0 : 1,
     `${label}: only a still-current captured actor may perform exact receipt replay.`);
 });
 
@@ -356,18 +392,35 @@ test('default GM counter recipe stays pending when its initial source snapshot i
 
 function validCounterCapture() {
   const actor = { sameActor: true, sessionId: SESSION_ID, connection: 'live', freshness: 'server',
-    playerRole: 'gm', gmInstanceOwned: true, uidHash: UID_HASH, instanceId: INSTANCE_ID };
+    playerRole: 'gm', gmInstanceOwned: true, uidHash: UID_HASH, instanceId: INSTANCE_ID,
+    activeConsoleRoleId: null };
+  const selection = { kind: 'gm-counter-selection-v1', sessionId: SESSION_ID,
+    instanceId: INSTANCE_ID, uidHash: UID_HASH, claimedAt: CLAIMED_AT,
+    connectionGeneration: 7, hydrationRevision: 11, actorRoleId: null,
+    phase: 'active', cycle: 1, shipId: 'aegis', groupId: 'native-fleet',
+    groupLabel: 'AEGIS resource controls', resourceId: 'materials', resourceLabel: 'Materials',
+    step: 1, beforeAmount: 4, beforeVisibleAmount: 4, beforeRevision: 14 };
   const request = { sessionId: SESSION_ID, instanceId: INSTANCE_ID, shipId: 'aegis', counter: 'resource',
     resourceId: 'materials', steps: [1], requestId: 'native-counter-revision-15', expectedRevision: 14 };
-  const result = { status: 'committed', shipId: 'aegis', counterRevision: 15, revision: 15 };
+  const result = { amount: 5, appliedSteps: [1], alertRaised: false, sessionId: SESSION_ID,
+    instanceId: INSTANCE_ID, shipId: 'aegis', counter: 'resource', resourceId: 'materials',
+    requestId: request.requestId, expectedRevision: 14, actorUid: UID, actorRoleId: null,
+    vesselId: 'aegis', turn: 1, phase: 'active', revision: 15,
+    idempotencyKey: request.requestId, auditId: `counter-batch-${request.requestId}` };
+  const counterSourceWitness = { ...selection, kind: 'gm-counter-source-witness-v1',
+    afterAmount: 5, afterVisibleAmount: 5, afterRevision: 15 };
   return { caseId: spec.id,
     expected: { sessionId: SESSION_ID, roleId: 'gm', uidHash: UID_HASH, instanceId: INSTANCE_ID,
-      cycle: 1, sourceRevision: 14, shipId: 'aegis', groupId: 'native-fleet' },
+      cycle: 1, phase: 'active', sourceRevision: 14, shipId: 'aegis', groupId: 'native-fleet',
+      targetShipName: selection.groupLabel, counterSelection: selection },
     offered: true, mountedUi: true, actorBefore: actor, actorAfter: actor,
     sourceBefore: { live: true, sessionId: SESSION_ID, cycle: 1, revision: 14, groupId: 'native-fleet' },
     sourceAfter: { live: true, sessionId: SESSION_ID, cycle: 1, revision: 15, groupId: 'native-fleet' },
     request, response: { httpStatus: 200, result, exactReplay: true }, replay: { result },
-    rendered: { visible: true, resultStatus: 'committed' }, trainingChoice: 'gm-training:deliberate-choice',
+    counterSourceWitness,
+    rendered: { kind: 'gm-counter-rendered-source-v1', visible: true, resultStatus: 'committed',
+      shipId: 'aegis', groupId: 'native-fleet', resourceId: 'materials', resourceLabel: 'Materials',
+      beforeAmount: 4, amount: 5 }, trainingChoice: 'gm-training:deliberate-choice',
     randomOutcomeForced: false, randomOutcomeRecorded: false };
 }
 

@@ -97,7 +97,7 @@ async function fullLayoutFixture(t, { sourcePresent = true, deniedEndpoint } = {
       } };
   }
   const gm = { storeModuleUrl: () => '/src/store/useSessionStore.ts',
-    page: { url: () => url, goto: async next => navigate(next),
+    page: { url: () => url, goto: async next => { navigate(next); return null; },
       getByRole: (role, { name, exact }) => {
         assert.equal(exact, true); assert.equal(typeof name, 'string');
         return locator(node => node.role === role && node.name === name);
@@ -129,7 +129,7 @@ async function fullLayoutFixture(t, { sourcePresent = true, deniedEndpoint } = {
     } };
   const crewUrl = 'http://127.0.0.1:5173/#/ships/aegis/admiral';
   const crew = { storeModuleUrl: gm.storeModuleUrl, page: { url: () => crewUrl,
-    goto: async next => assert.equal(next, crewUrl),
+    goto: async next => { assert.equal(next, crewUrl); return null; },
     evaluate: async (_fn, argument) => argument?.moduleUrl ? { ...crewActor } : runtime } };
   const proof = createMemberGmLifecycleUiProof({ sourceRoot, projectId, shipId, cases: ['gm-ship-grant-lock'] });
   const context = { gm, crew, directory, initial: { sessionId: original.sessionId,
