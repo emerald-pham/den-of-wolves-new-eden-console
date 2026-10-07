@@ -125,9 +125,14 @@ export async function runFreshFullGameDemoUi(options = {}) {
     const page = await context.newPage();
     page.setDefaultTimeout(35_000); page.setDefaultNavigationTimeout(35_000);
     let storeUrl = '/src/store/useSessionStore.ts', sdkUrl = '/node_modules/.vite/deps/firebase_functions.js';
+    let authorityUrl = null;
     page.on('pageerror', error => errors.push({ surface: label, message: error.message, originalError: originalProofError(error) }));
     page.on('request', request => {
       const url = new URL(request.url());
+      if (request.isNavigationRequest() && request.frame() === page.mainFrame()) authorityUrl = null;
+      // Retain this document's first normal App/SDK import, including Vite's
+      // query. Later bare proof imports must not replace its module identity.
+      if (url.pathname === '/src/lib/sessionSnapshotAuthority.ts' && authorityUrl === null) authorityUrl = url.href;
       if (url.pathname === '/src/store/useSessionStore.ts') storeUrl = url.href;
       if (url.pathname.endsWith('/firebase_functions.js')) sdkUrl = url.href;
       const endpoint = url.pathname.match(/\/us-central1\/([A-Za-z][A-Za-z0-9_]*)$/)?.[1];
@@ -234,7 +239,7 @@ export async function runFreshFullGameDemoUi(options = {}) {
       }));
     }
     const result = { label, page, context, observe, until, consent, callable, reducedMotion, paintTwoFrames,
-      storeModuleUrl: () => storeUrl };
+      storeModuleUrl: () => storeUrl, sessionAuthorityModuleUrl: () => authorityUrl };
     attachUiReceiptDiagnostics(page, { directory, label, inspectState: () => observeFullGameCallableDiagnostics(result) });
     surfaces.push(result); return result;
   }
@@ -491,7 +496,8 @@ export async function runFreshFullGameDemoUi(options = {}) {
     await options.onBeforeStart?.({ gm, crew, initial, confirmed, prepared, roster, directory });
     await mark('current Browser B account readiness before actual Cycle 1');
     const presentationDeadlineAt = Date.now() + 60_000;
-    evidence.presentationStartReadiness = { status: 'pending', deadlineAt: presentationDeadlineAt, samples: [] };
+    evidence.presentationStartReadiness = { status: 'pending', deadlineAt: presentationDeadlineAt,
+      authorityModuleUrl: crew.sessionAuthorityModuleUrl(), samples: [] };
     const presentationReady = await waitForFullGameDemoPresentationActor({ surface: crew,
       sessionId: initial.sessionId, controller, roster,
       confirmedRoleIds: confirmed.activeRoleIds, pressIncluded: includePress,

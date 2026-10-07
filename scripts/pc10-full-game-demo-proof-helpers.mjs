@@ -129,12 +129,19 @@ export function captureFullGameDemoPresentationActor(current, options) {
 /** Read only the current post-digest member/SDK tuple. Private source objects,
  * raw UIDs, credentials and private documents never leave the browser. */
 export async function observeFullGameDemoPresentationMember(surface, { knownRoleIds = [] } = {}) {
-  return surface.page.evaluate(async ({ moduleUrl, knownRoleIds }) => {
+  const authorityModuleUrl = surface.sessionAuthorityModuleUrl?.();
+  assert.ok(typeof authorityModuleUrl === 'string' && authorityModuleUrl.length > 0,
+    'The mounted App SDK authority module must be observed before presentation.');
+  const storeUrl = new URL(surface.storeModuleUrl(), 'http://127.0.0.1');
+  const authorityUrl = new URL(authorityModuleUrl, storeUrl);
+  assert.equal(authorityUrl.origin, storeUrl.origin, 'Authority must come from the mounted App origin.');
+  assert.equal(authorityUrl.pathname, '/src/lib/sessionSnapshotAuthority.ts');
+  return surface.page.evaluate(async ({ moduleUrl, knownRoleIds, authorityModuleUrl }) => {
     const { auth } = await import('/src/lib/firebase.ts');
     const { activeDemoActorProfile } = await import('/src/lib/demoActorContext.ts');
     const { useSessionStore } = await import(moduleUrl);
     const { sessionSnapshotAuthorityFor, memberSessionResumeBlocksFreshness } =
-      await import('/src/lib/sessionSnapshotAuthority.ts');
+      await import(authorityModuleUrl);
     const originalUid = auth().currentUser?.uid;
     const uidHash = originalUid ? Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',
       new TextEncoder().encode(originalUid)))).map(byte => byte.toString(16).padStart(2, '0')).join('').slice(0, 16) : null;
@@ -212,7 +219,7 @@ export async function observeFullGameDemoPresentationMember(surface, { knownRole
       sdkResumePending: authority ? memberSessionResumeBlocksFreshness(authority) : true,
       communicationError: state.communicationError ? { code: safeCode(state.communicationError.code),
         kind: safeKind(state.communicationError.kind) } : null, invalidFields };
-  }, { moduleUrl: surface.storeModuleUrl(), knownRoleIds });
+  }, { moduleUrl: surface.storeModuleUrl(), knownRoleIds, authorityModuleUrl });
 }
 
 /** Await the existing App recovery before freezing presentation identity. This
