@@ -42,29 +42,29 @@ anchors; that coverage does not establish an enabled control or gameplay.
 | 558 | Validate Station Reactor contributions. | pending | pending | pending |
 | 559 | Power New Eden Station. | pending | pending | pending |
 | 563 | Explain candidate results. | pending | pending | pending |
-| 564 | Enter debrief once. | Connected Pursuit failure freeze. | Partial: one immutable Pursuit debrief accepted; competing commands and remaining outcome/privacy branches open. | pending |
-| 565 | Close the session authoritatively. | Connected GM debrief → closed control. | Core Pursuit transition and retained history accepted; focused 27-case debrief/reader slice passes; concurrent close and remaining privacy reconciliation pending. | focused 27 cases and bounded Sol 6.1 Source review pass; final release pending |
-| 566 | Read debrief after closure. | Connected entitled closed-history reader. | Partial: original Press/Captain history and reload accepted; remaining permitted audit/audience/privacy criteria open. | pending |
+| 564 | Enter debrief once. | Connected Pursuit failure freeze. | Partial: immutable Pursuit debrief and competing live-GM freeze/exact retries accepted; other outcomes and private audiences open. | focused 27 debrief cases, 501 affected resume/reader cases and bounded Sol 6.1 review pass; final release pending |
+| 565 | Close the session authoritatively. | Connected GM debrief → closed control. | Core Pursuit retention, competing live-GM close and exact actor-bound recovery accepted; remaining entitled audiences/privacy reconciliation and final release pending. | focused 27 debrief cases, 501 affected resume/reader cases and bounded Sol 6.1 review pass; final release pending |
+| 566 | Read debrief after closure. | Connected entitled closed-history reader. | Partial: original Press/Captain history plus current normal Captain return/reload with narrow history and settled SDK authority accepted; remaining audit/audience/privacy criteria open. | focused 27 debrief cases, 501 affected resume/reader cases and bounded Sol 6.1 review pass; final release pending |
 | 576 | Resolve Macaw salvage dismantling. | pending | pending | pending |
 | 579 | Resolve Boa reclamation. | pending | pending | pending |
 | 581 | Create post-damage Scrap pickups. | pending | pending | pending |
 | 584 | Run the Capybara vertical scenario. | pending | pending | pending |
 | 585 | Run the base/expansion isolation scenario. | pending | pending | pending |
 | 593 | Show candidate preparation help. | pending | pending | pending |
-| 618 | Reconnect every live projection. | Connected current member/SDK recovery. | Partial: tested Captain/Press lifecycle and same-UID Press reload/arrival recovery accepted; other occupied roles/projections/dropout paths open. | pending |
+| 618 | Reconnect every live projection. | Connected current member/SDK recovery. | Partial: Captain/Press lifecycle, same-UID Press arrival/reload and current narrow closed Captain return/reload accepted; other roles/projections/dropout paths open. | pending |
 | 619 | Make candidate retries survive reconnect. | pending | pending | pending |
-| 620 | Recover from stale revisions. | Connected phase confirmation and exact retry. | Partial: current phase convergence and unchanged-request/arrival recovery accepted; stale/conflicting retries across other roles open. | pending |
-| 629 | Protect private projections comprehensively. | Tested current scoped private readers. | Partial: own/peer loyalty, wrong authority and wrong-holder arrival denials accepted; Wolf/chart/mission/hidden-roll/notes audiences remain separate. | pending |
+| 620 | Recover from stale revisions. | Connected phase confirmation and exact retry. | Partial: phase/flight/arrival recovery and both competing GMs' exact freeze/close recovery accepted; other stale/conflicting role retries open. | pending |
+| 629 | Protect private projections comprehensively. | Tested current scoped private readers. | Partial: own/peer/wrong-holder controls, populated mission deck/organiser/debrief-receipt denials and borrowed GM-instance/receipt denials accepted; other Wolf/chart/mission/hidden-roll/notes audiences open. | pending |
 | 630 | Prove server-owned randomness. | pending | pending | pending |
 | 631 | Rate-limit expensive callables. | pending | pending | pending |
 | 634 | Record security denials privately. | pending | pending | pending |
-| 635 | Standardize action audit records. | Real bound action receipts in accepted family. | Partial: phase/flight/arrival/cycle exact receipts preserve effects; standardized metadata/query/redaction and optional GM concurrency remain to reconcile. | pending |
+| 635 | Standardize action audit records. | Real bound action receipts in accepted family. | Partial: phase/flight/arrival/cycle and competing GM debrief/close exact receipts preserve effects; standardized metadata/query/redaction and unmigrated action paths remain open. | pending |
 | 641 | Run a complete base-game playthrough. | pending | pending | pending |
 | 642 | Run a complete Capybara playthrough. | pending | pending | pending |
 | 647 | Prove Ancient Jump Ring success. | pending | pending | pending |
 | 648 | Prove Deep Nebula success and loss. | pending | pending | pending |
 | 649 | Prove Ancient Space Station success. | pending | pending | pending |
-| 650 | Prove authoritative terminal failure and recovery paths. | Server-owned Pursuit failure through debrief/close. | Partial: genuine Pursuit-limit failure/ending/reload accepted; loss/destroyed ship/escape/evacuation/mutiny/arrest/candidate/unresolved-call branches open. | pending |
+| 650 | Prove authoritative terminal failure and recovery paths. | Server-owned Pursuit failure through debrief/close. | Partial: genuine Pursuit failure, competing freeze/close and current narrow history/reload accepted; loss/destroyed ship/escape/evacuation/mutiny/arrest/candidate/unresolved-call branches open. | pending |
 | 651 | Run the final release-readiness audit. | pending | pending | pending |
 
 | Addition / gate | Acceptance | Evidence |
@@ -143,9 +143,12 @@ The parent accepts the 27 scoped claims in actual 4 at `3c279eee`. The individua
 rows above now expose the earned debrief/closure/history, lifecycle/recovery,
 privacy, receipt and Pursuit-failure subcriteria. P565's core debrief → closed
 retention behavior is earned; its focused 27-case slice and bounded independent
-Sol 6.1 Source review pass. Actual overlap and remaining privacy reconciliation
-are explicit next checks. Candidate success and other
-terminal branches are distinct criteria. P564/566/618/620/629/635/650 remain
+Sol 6.1 Source review pass. The subsequent ending-concurrency actual 2 at
+`d9664a41` qualifies competing freeze/close, exact actor-bound recovery and
+normal narrow Captain history return/reload; 501 affected tests and its bounded
+review pass. Remaining audiences/privacy and final release remain open.
+Candidate success and other terminal branches are distinct criteria.
+P564/566/618/620/629/635/650 remain
 partial for the concrete gaps shown, rather than treating unaffected proof as
 missing. PC10-A02 has earned actual training/manual setup and the Press ending;
 complete solo every-role/function use remains open.
@@ -159,23 +162,69 @@ Prompt catalog descriptions/statuses record partial evidence without new fixed
 closures. Final PC10 review, required rendered gates, exact CI/deployment and
 release remain pending.
 
-### Next selected family — competing ending/debrief/close
+### Qualified competing ending/debrief/close — bounded family
 
-Use two normally authenticated GM identities with distinct owned instances and
-one ordinary entitled player across two automated browsers. Reuse the qualified
-minimal admission/manual progression/Pursuit components. Source-valid competing
-terminal, freeze and close requests must yield one immutable outcome/snapshot,
-no duplicate terminal effect, actor-bound exact recovery, permitted closed
-history after same-UID reload, and ordinary-player denials of private GM debrief,
-notes/chart/deck/mission data. No candidate success or full-roster claim.
+Ending-concurrency actual 2 passed **19 scoped claims in 99,436 ms including
+cleanup** at `d9664a4182c3cdfbcd68d0b55870b7dc44dcd0a4`, version **0.5.72**.
+Three normally admitted Auth identities used two automated browser processes,
+contexts and mounted surfaces; zero human devices. Two GMs held distinct live
+owned instances. Fourteen roles were configured; no full crew was prepared.
+This is the smallest cohort for two GM competitors plus an ordinary entitled
+reader and wrong-role privacy control. These 19 claims overlap the earlier
+22/27-claim setup/Press records and are **not summed**.
 
-Preserve current live GM leases, the genuine Pursuit decision and original
-operation deadlines. Stop on the first unexplained integration failure, retain
-its request/receipt/authority/server tuple, and perform exact-owned cleanup
-within a 12-minute run cap. Diagnosed targeted repairs may iterate within this
-family. Explorer harvesting remains a subsequent independent family; it has not
-run. No external release or whole-checkpoint advancement is authorized by this
-bounded plan.
+Real protected fresh preparation and manual Cycle 0→1 preceded actual manual
+progression to the normally offered Cycle-5 Pursuit failure decision. Both
+actual UI freeze requests were captured before release and both released
+before accepting either response; exactly one committed effect and two
+actor-bound receipts resulted. The close race did the same, preserving frozen
+snapshot version 1 and yielding four receipts in total. Each original SDK
+retry returned its original result; late freeze retries after closure changed
+neither snapshot nor receipts. Payloads, responses, clocks, Auth storage and
+gameplay state were not patched.
+
+The original ordinary Captain returned normally and reloaded the closed game
+with the same UID, unchanged server generation, null seat/station, live/server
+history, settled SDK authority, blank join code and the exact permitted frozen
+history digest. It had no operational/member-berth scope or shuttle/Press
+defaults. Populated mission-deck, organiser-discovery and private debrief-receipt
+SDK reads were denied in debrief and after closed reload. Fresh ordinary GM
+read/close and borrowed actor receipt were denied; live GM2 could not borrow
+GM1's instance or receipt. Existing own-loyalty visibility remained allowed
+under its actual connected/current-role policy. The peer GM loyalty target was
+absent and earns **no populated-target privacy claim**. Candidate rolls, GM
+notes and other unique audiences remain separate.
+
+Actual 1 at `2d4ba67f` remains failed: its 17 scoped prefix claims included both
+races, then the strict normal closed-history assertion failed. Its observed
+extra-key list was not retained. Source investigation separately reproduced
+normal `resumeSession` hydration adding operational defaults and accepting
+polluted history; seven test-first cases failed while 46 existing history
+cases passed. Commit `d307de25` preserves those tests; `d9664a41` reuses the
+existing strict history parser only on closed application. All 501 affected
+resume/reader tests, typecheck, lint and bounded independent Sol 6.1 review pass.
+The active normalization path, Rules, server/compiled Functions, original guards
+and prior test assertions are unchanged. Runner 2 only adds safe observation
+retention before the strict assertion. Unchanged 27 debrief product, 89 marker
+observer and 13 race/deadline/teardown contract cases are reused within scope.
+
+Canonical actual 2: `/tmp/dow-pc10-evidence/three-actor-ending-concurrency-2/OWNER_RESULT.json`
+(SHA `7e7b6281a29a11fc3bfa7baea42df33565c2f61d2f161924bc7c1c3f87d54e1b`).
+Native session `58508`, terminal chunk `053bcf`, exit **0**. Both owned browsers
+closed; the exact session/join code, three matching member pointers and three
+Auth identities born during the run were deleted with zero errors. Fresh
+postflight returned **0 sessions / 0 connected players / 0 connected GMs**;
+Source/compiled files, registry/reservations/processes, original dirty checkout,
+retained PC09 and failed actual 1 are preserved. Twelve slots remain free.
+Compact handoff: `/tmp/dow-pc10-evidence/OWNER_ENDING_CONCURRENCY_2_CLOSED_FAMILY_HANDOFF_20261007.json`.
+
+Only these ending-concurrency/history/recovery/privacy subcriteria are earned.
+All 48 fixed closures, full fresh every-role/function solo rehearsal, candidate
+success/other endings, remaining audiences/standardized audits, rendered
+usability, human-device/capacity proof and final CI/deployment/release remain
+open. Explorer harvesting has not run; candidate discovery/preparation, core
+handoff and harvesting remain subsequent independent families. No broader run,
+external release or checkpoint advance occurred in this bounded family.
 
 ### Exact remaining behavior groups and dependencies
 

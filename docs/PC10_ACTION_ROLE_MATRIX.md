@@ -60,6 +60,21 @@ repairs and actual 3's failed reload remain separately recorded in the
 Generated complete-proof/eligibility fields and all48 fixed closure statuses
 remain unchanged; no rendered, every-role/function or release credit is earned.
 
+The subsequent bounded ending-concurrency family passed at actual Source
+`d9664a41` (0.5.72): 19 overlapping scoped claims, three ordinary Auth identities,
+two automated browsers/contexts and zero humans, 99,436 ms including cleanup.
+Two live owned GMs raced actual UI freeze/close, retained one immutable effect
+and four actor-bound receipts, and recovered exact retries. The original
+Captain's normal closed return/reload installed only narrow permitted history;
+populated private deck/organiser/debrief receipts and borrowed GM authority
+were denied. Own loyalty retained its actual policy; absent peer loyalty is not
+populated-target proof. Seven test-first closed-resume cases, 501 affected tests
+and bounded review qualify the focused repair. Actual 1 remains failed and its
+unretained keys are not inferred. Source/runtime/cleanup preservation passed.
+See the [qualified family](PC10_ACCEPTANCE_MATRIX.md#qualified-competing-endingdebriefclose--bounded-family).
+Generated complete-proof and eligibility fields, fixed closure totals and final
+review/render/CI/deployment gates stay open; no whole-role acceptance is earned.
+
 Regenerate after building Functions:
 
 ```sh

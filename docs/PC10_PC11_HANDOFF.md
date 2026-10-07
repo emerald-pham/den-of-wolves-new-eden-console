@@ -70,6 +70,23 @@ records its compact handoff and limits. No every-role/function, rendered,
 manual-free, catalog closure, checkpoint or release completion is claimed.
 PC11/PC12 and the existing post-PC10 sequence remain unexecuted.
 
+The subsequent ending-concurrency family qualified at `d9664a41` (0.5.72):
+19 scoped claims, three normal Auth identities, two automated browsers/contexts,
+zero humans, 99,436 ms including cleanup. Two live owned GMs raced freeze/close
+through actual UI, exact actor retries preserved one effect/four receipts, and
+the ordinary Captain returned/reloaded narrow closed history with strict SDK
+and privacy checks. The reproduced normal-resume defect has a separate failing
+test commit, 501 affected passing tests and bounded independent review. Actual1
+remains failed; its unretained projection keys are not inferred. Closed scope
+is 0/0/0 and original/runtime preservation passed. The
+[qualified family](PC10_ACCEPTANCE_MATRIX.md#qualified-competing-endingdebriefclose--bounded-family)
+records the remaining audience/ending/audit limits. These 19 claims overlap
+prior setup/Press evidence and are not added together. Complete PC10 rehearsal,
+remaining mechanics/usability and final exact-CI/deployment gates stay open.
+Candidate discovery/preparation, core handoff and Explorer harvesting are
+subsequent independent families; harvesting has not run. This handback does
+not start them, post-PC10, PC11/PC12 or external release.
+
 PC11 defaults to one actor per distinct control/guidance configuration and a
 second only for an actual handoff. Test changed action availability, costs,
 blockers and next-actor guidance; reuse unaffected PC10 authority/gameplay

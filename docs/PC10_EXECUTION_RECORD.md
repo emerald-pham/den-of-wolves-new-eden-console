@@ -350,6 +350,56 @@ passed. Only four existing docs change at closeout; product stays `0.5.71`.
 PC10/all48 closures, all-role/function rehearsal, rendering/usability, final
 CI/deployment and release remain open. No broader run or deferred work occurred.
 
+### Competing ending family qualified after targeted closed-resume repair
+
+Actual 1 at `2d4ba67f` qualified 17 scoped prefix claims and both GM UI races,
+then stopped at normal closed Captain return. Its complete original failure,
+unchanged strict projection assertion and exact cleanup remain retained. The
+actual extra-key list was not saved; the later diagnosis does not invent it.
+
+The smallest Source reproduction found that normal resume added shuttle/Press
+defaults to closed history and accepted polluted replies. Separate test-first
+commit `d307de25` adds seven meaningful cases: original player and original GM
+history/retry; rejection of shuttle dockings, Press state, operational member
+scope, a corrupt private outcome, and an unfinished manual demo. Each negative
+checks that cached identity/freshness is not promoted. These seven failed while
+46 prior history cases passed. Two earlier observer cases distinguish the
+server's completed training marker `complete` from obsolete spelling and
+unsupported progression, preventing a false readiness result. Prior test
+assertions/titles are retained; no test was weakened, skipped or deleted.
+
+Repair `d9664a41` uses the existing narrow history parser only for closed normal
+application; active behavior, Rules and server mutations are unchanged. The
+required fresh player-facing version/changelog is **0.5.72**, with 0.5.71 and
+prior entries retained. An initial typecheck found the typed DTO lacked a
+record index signature; a plain-object handoff corrected it, with the failure
+log preserved. Final typecheck, affected lint and 501 focused tests at the exact
+reviewed Source pass. The bounded independent Sol 6.1 review found no unresolved
+material issue. Prior unchanged 27 debrief product, 89 marker observer and 13
+race/deadline/teardown cases are reused; they are not gameplay substitutes.
+Runner 2 only uses unique artifact paths and retains already-safe history facts
+before the original strict assertion. No new framework or acceptance fallback.
+
+Actual 2, Native `58508` / terminal `053bcf` / exit 0, passed **19 scoped claims in
+99,436 ms including cleanup**. Three real Auth identities used two automated
+browser processes/contexts and zero humans; two distinct live GMs competed over
+actual unaltered UI freeze/close requests. One immutable effect per race, four
+actor-bound receipts total, exact retries/late-freeze recovery, the real manual
+Pursuit ending and original Captain narrow closed return/reload passed. Three
+populated private targets and borrowed GM authority/receipts were denied in
+actual SDK/callable paths. Own loyalty followed its existing connected audience;
+the absent peer loyalty target earns no populated-target proof. Candidate
+rolls/notes/audiences remain separate. See the
+[qualified family](PC10_ACCEPTANCE_MATRIX.md#qualified-competing-endingdebriefclose--bounded-family).
+
+Exact-owned cleanup and independent postflight returned 0/0/0; Source/compiled
+Functions, runtime/reservations, original dirty checkout, retained PC09 and
+failed actual 1 are preserved. The 19 claims overlap prior setup/Press records
+and are not summed. Catalog descriptions gain these subcriteria only: statuses
+stay **10 partial / 38 missing**, **703/751** and **245/293**, with no fixed
+closure. Remaining PC10 gameplay/privacy/usability/final release gates are
+open; no post-PC10, PC11/PC12 or external release was executed.
+
 ## Historical October 6 state
 
 Planning and scoped implementation are present; complete reconciled acceptance,
