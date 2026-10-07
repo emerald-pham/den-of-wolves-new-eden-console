@@ -31,7 +31,8 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       'GM consoles recover their original connection after a temporary outage. Explicit removal and revoked access still apply.',
       'GM login and Code of Conduct acknowledgement are remembered for seven days on this device. Updated terms require acknowledgement again.',
       'Awaiting CIC authentication and handshake use the red warning signal; the GM starts the game.',
-      '703 of 751 planned items are complete (93.61%). This urgent fix adds no catalog closures.',
+      '703 of 751 planned items are complete in the catalog snapshot used to build this release (93.61%).',
+      'This urgent fix adds no catalog closures.',
     ],
   },
   {
