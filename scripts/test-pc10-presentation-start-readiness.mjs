@@ -232,3 +232,25 @@ for (const [name, url] of [['absent mounted module URL', null], ['foreign module
     await assert.rejects(helpers.observeFullGameDemoPresentationMember(f.crew, { knownRoleIds: ['press-officer'] }));
     assert.deepEqual(f.sdkCalls, []); assert.deepEqual(f.uiChoices, []);
   });
+
+// The authoritative producer and client parser use complete, including during debrief.
+test('manual training debrief status accepts the actual server complete marker', async () => {
+  const f = await presentationStartFixture(); await f.account();
+  f.store.setState({ session: { ...f.store.getState().session, phase: 'debrief',
+    fullGameDemo: { status: 'complete', progression: 'manual' } } });
+  const row = await helpers.observeFullGameDemoPresentationMember(f.crew, { knownRoleIds: ['press-officer'] });
+  assert.deepEqual(row.fullGameDemo, { status: 'complete', progression: 'manual' });
+  assert.deepEqual(row.invalidFields, []);
+  assert.equal(row.memberScopeMatches, true);
+  assert.equal(row.sdkHasServerAuthority, true);
+});
+test('manual training debrief status rejects a fabricated completed marker', async () => {
+  const f = await presentationStartFixture(); await f.account();
+  f.store.setState({ session: { ...f.store.getState().session, phase: 'debrief',
+    fullGameDemo: { status: 'completed', progression: 'manual' } } });
+  const row = await helpers.observeFullGameDemoPresentationMember(f.crew, { knownRoleIds: ['press-officer'] });
+  assert.equal(row.fullGameDemo.status, null);
+  assert.deepEqual(row.invalidFields, ['demoStatus']);
+  assert.equal(row.memberScopeMatches, true);
+  assert.equal(row.sdkHasServerAuthority, true);
+});
