@@ -24,6 +24,14 @@ function sourceFunction(path, name) {
   visit(sources[path]); assert.equal(matches.length, 1); return matches[0].getText(sources[path]);
 }
 const js = code => ts.transpileModule(code, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText.replace(/^export\s+/gm, '');
+const resumeReplyDeclarations = [];
+function findReply(node) {
+  if (ts.isVariableDeclaration(node) && node.name.getText(sources['functions/src/index.ts']) === 'reply' &&
+      node.initializer?.getText(sources['functions/src/index.ts']).includes('connectionGeneration: resumeResult.connectionGeneration')) resumeReplyDeclarations.push(node);
+  ts.forEachChild(node, findReply);
+}
+findReply(sources['functions/src/index.ts']); assert.equal(resumeReplyDeclarations.length, 1);
+const resumeReplySource = resumeReplyDeclarations[0].initializer.getText(sources['functions/src/index.ts']);
 const sha = uid => createHash('sha256').update(uid).digest('hex').slice(0, 16);
 const plain = value => JSON.parse(JSON.stringify(value));
 
@@ -36,6 +44,7 @@ export async function stationNavigationResumeFixture(options = {}) {
   const start = f.store.getState(), uid = start.me.uid, sid = start.session.id;
   const directory = await mkdtemp(join(tmpdir(), 'pc10-native-navigation-'));
   const events = new EventEmitter(), sdkRequests = [], application = [], seatClaims = [];
+  let resumedServerPlayer;
   if (options.initialSeatNull) {
     // Actual normal client selection/claimSeat with inert Native receipt
     // application. Base22 independently records the real server200 claim.
@@ -84,7 +93,17 @@ export async function stationNavigationResumeFixture(options = {}) {
       assert.equal(endpoint, 'resumeSession'); sdkRequests.push(endpoint);
       const before = f.store.getState();
       const player = { ...before.me, connectionGeneration: nextGeneration({ get: key => before.me[key] }) };
-      const reply = { player, session: { ...before.session } };
+      let reply = { player, session: { ...before.session } };
+      if (options.sourceResumeReply) {
+        resumedServerPlayer = { ...player };
+        const server = createContext({ uid, sessionId: sid,
+          resumeResult: { seatId: player.seatId, connectionGeneration: player.connectionGeneration },
+          playerSnap: { get: key => player[key] }, cleanName: value => value ?? 'Native player',
+          isoOf: () => undefined, playerEscapeState: () => undefined });
+        reply = plain(new Script(js(`(${resumeReplySource})`)).runInContext(server));
+        assert.equal(Object.hasOwn(reply.player, 'connected'), false, 'Use the exact current server DTO, not an invented connected flag.');
+        reply.session = { ...before.session };
+      }
       delete reply.session.currentActorBerthAuthority;
       options.mutateReply?.(reply);
       const request = { method: () => 'POST', url: () => 'http://127.0.0.1:5011/demo-native/us-central1/resumeSession',
@@ -122,6 +141,14 @@ export async function stationNavigationResumeFixture(options = {}) {
   };
   f.crew.page.on = (...args) => { events.on(...args); return f.crew.page; };
   f.crew.page.off = (...args) => { events.off(...args); return f.crew.page; };
+  const receiveMemberProjection = f.receiveMemberProjection;
+  f.receiveMemberProjection = async () => {
+    if (options.sourceResumeReply && resumedServerPlayer) {
+      const current = f.store.getState();
+      f.store.setState({ me: { ...current.me, connected: options.disconnectedMemberFeed ? false : resumedServerPlayer.connected } });
+    }
+    return receiveMemberProjection();
+  };
   const originalLocator = f.crew.page.locator;
   f.crew.page.locator = selector => {
     const link = originalLocator(selector), click = link.click;
