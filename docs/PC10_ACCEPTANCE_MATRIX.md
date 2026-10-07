@@ -773,3 +773,49 @@ Full 619 action/outcome recovery, candidate success/endings, every-role/function
 fresh rehearsal, remaining privacy/audiences, human/21-account capacity,
 manual-free usability, final review/render/CI/deployment and PC10 release remain
 open. No next family, external release, post-PC10, PC11 or PC12 ran here.
+
+
+### Selected core custody and cargo family — bounded fresh run
+
+At `d480a133`, the parent authorizes the next uncovered core craft
+transfer/reclaim plus one representative resource-bearing action. Select Black
+Sheep's printed Shepherd Engineer owner and an ordinary Shepherd Captain
+recipient. The pending function inventory rows are `transferShuttleControlCommand`
+and `transferShuttleCargoCommand`; shared recovery/authority/audit subcriteria
+relate to 618/620/629/635. This does not complete Wing Commander 181 or another
+fixed catalog row. Native or earlier departure evidence supplies no handoff or
+cargo acceptance; preserve each earlier passed claim at its own recorded source.
+
+Use a normal named GM, the original Engineer and a distinct ordinary Captain:
+three independent Auth actors and three automated browser processes/contexts,
+zero humans. The GM legitimately prepares/starts/manual-advances the game; two
+ordinary players are necessary to prove transferred holder authority without
+using a GM recipient or changing the original identity. Configure legal base
+16, which provides separate Shepherd Engineer/Captain roles; leave other seats
+open. Reuse accepted admission/consent/casting/manual-start/member/navigation
+helpers. No complete crew, full-account census, generalized harness, service or
+state bypass is authorized.
+
+Through normal UI, prepare unlimited manual training before ordinary joins,
+assign each role, enter current stations, start Cycle0→1 and open Coordination.
+Keep Black Sheep docked at its real initial Shepherd host. The printed owner
+hands control to the connected same-group Captain, retaining owner identity and
+one revision/request/audit. The former holder loses cargo controls; a fresh
+wrong-holder cargo SDK request denies without changing substantive custody,
+docking or inventory. The recipient loads one permitted food unit through UI,
+proving the host debit and shuttle credit. Interrupt that real acknowledgement
+only after its original durable receipt, use the offered exact UI retry, then
+normal same-UID reload and captured original SDK replay. Preserve one transfer,
+one cost and the original receipt/audit; do not invent a persistent pending
+intent across cold reload. After recovery, the printed owner reclaims through
+UI; exact original control replay/reload preserves the resulting authority,
+and a fresh former-recipient request denies. Native domain/callable/service
+checks and one bounded independent Sol review cover material risk.
+
+Stop at the first unexplained failure, retain individual passed assertions and
+original evidence, and clean only this fresh session/join pointer/three member
+pointers/three fresh Auth identities and owned browsers. Later observer failure
+does not erase passed behavior or authorize a whole-route replay. Diagnose or
+qualify only the smallest remaining distinct assertion if needed. No movement,
+flight, charge recharge/repair, every-role/function, capacity/human/manual-free,
+fixed closure, final release or next-checkpoint credit follows from this plan.
