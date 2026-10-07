@@ -638,10 +638,15 @@ export function createTwoLiveGmResponsibilityProof({ sourceRoot, expectedSourceB
         responsibilityHeldObservations: error?.safeHeldObservations ?? null,
         failure: 'The original actor, Source, current native receipt, rendered projection or restoration contract failed.',
         rawFailureRetainedOnlyInMemory: true });
-      if (context?.directory) await writeFile(resolve(context.directory, 'two-live-gm-responsibility-failure.json'),
-        `${JSON.stringify(evidence, null, 2)}\n`, { flag: 'wx' });
-      throw new Error(`Two-live-GM Responsibility proof failed at ${stage} (guard ${error?.proofGuard ?? failure.guard}); preserve the safe failure receipt and Root-owned cleanup.`,
+      const originalFailure = new Error(`Two-live-GM Responsibility proof failed at ${stage} (guard ${error?.proofGuard ?? failure.guard}); preserve the safe failure receipt and Root-owned cleanup.`,
         { cause: error });
+      try {
+        if (context?.directory) await writeFile(resolve(context.directory, 'two-live-gm-responsibility-failure.json'),
+          `${JSON.stringify(evidence, null, 2)}\n`, { flag: 'wx' });
+      } catch (receiptError) {
+        Object.defineProperty(originalFailure, 'receiptError', { value: receiptError });
+      }
+      throw originalFailure;
     }
   } });
 }

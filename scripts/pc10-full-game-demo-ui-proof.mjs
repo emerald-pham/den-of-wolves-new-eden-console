@@ -1,4 +1,5 @@
 import { observeUiReceipt } from './pc10-browser-ui-receipt.mjs';
+import { originalProofError, retainProofFailure } from './pc10-proof-failure-evidence.mjs';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
@@ -62,7 +63,7 @@ export async function runFreshFullGameDemoUi(options = {}) {
     playerCount, includePress, chartId, gameplayOnly, gameplayManagesPhases,
     protocol: gameplayOnly ? 'Fresh ordinary UI admission; normal consent and real Firebase SDK; no fault or cache probe.' :
       'Fresh ordinary UI admission; normal consent and real Firebase SDK; controlled actual-response interruption disclosed.' };
-  let stage = 'launch';
+  let stage = 'launch', primaryFailure;
   const mark = async name => {
     stage = name; transitions.push({ stage, at: new Date().toISOString() });
     await writeFile(`${directory}/progress.json`, `${JSON.stringify({ sourceCommit, stage, transitions }, null, 2)}\n`);
@@ -85,7 +86,7 @@ export async function runFreshFullGameDemoUi(options = {}) {
     const page = await context.newPage();
     page.setDefaultTimeout(35_000); page.setDefaultNavigationTimeout(35_000);
     let storeUrl = '/src/store/useSessionStore.ts', sdkUrl = '/node_modules/.vite/deps/firebase_functions.js';
-    page.on('pageerror', error => errors.push({ surface: label, message: error.message }));
+    page.on('pageerror', error => errors.push({ surface: label, message: error.message, originalError: originalProofError(error) }));
     page.on('request', request => {
       const url = new URL(request.url());
       if (url.pathname === '/src/store/useSessionStore.ts') storeUrl = url.href;
@@ -658,22 +659,41 @@ export async function runFreshFullGameDemoUi(options = {}) {
     console.log(JSON.stringify({ status: 'passed', sourceCommit, directory, roleSurfaceCount: roleSurfaces.length }));
     return evidence;
   } catch (error) {
-    const states = await Promise.all(surfaces.map(async item => ({ surface: item.label, state: await item.observe().catch(() => null), path: new URL(item.page.url()).hash })));
-    for (const item of surfaces) await item.page.screenshot({ path: `${directory}/${item.label}-failure.png` }).catch(() => undefined);
-    evidence.sourceCommitAtCompletion = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
-    evidence.builtRuntimeIndexSha256AtCompletion = createHash('sha256').update(await readFile(`${root}/functions/lib/index.js`)).digest('hex');
-    evidence.presentationReadinessSourceSha256AtCompletion = await presentationReadinessSourceHashes(root);
-    evidence.presentationReadinessSourceChangedDuringProof = JSON.stringify(evidence.presentationReadinessSourceSha256AtCompletion) !== JSON.stringify(presentationSourceHashes);
-    evidence.sourceChangedDuringProof = evidence.sourceCommitAtCompletion !== sourceCommit ||
-      evidence.builtRuntimeIndexSha256AtCompletion !== builtRuntimeIndexSha256 || evidence.presentationReadinessSourceChangedDuringProof;
-    await writeFile(`${directory}/failure.json`, `${JSON.stringify({ ...evidence, status: 'failed', stage, message: error.message, rolesVisited: roleSurfaces, roleSurfaceCount: roleSurfaces.length, states, transitions, calls, requests, errors, remoteRequests }, null, 2)}\n`);
-    console.error(JSON.stringify({ status: 'failed', stage, message: error.message, directory }));
+    primaryFailure = error;
+    const originalFailure = await retainProofFailure(directory, 'full-game', error, { stage, transitions, errors });
+    try {
+      const states = await Promise.all(surfaces.map(async item => ({ surface: item.label, state: await item.observe().catch(() => null), path: new URL(item.page.url()).hash })));
+      for (const item of surfaces) await item.page.screenshot({ path: `${directory}/${item.label}-failure.png` }).catch(() => undefined);
+      evidence.sourceCommitAtCompletion = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
+      evidence.builtRuntimeIndexSha256AtCompletion = createHash('sha256').update(await readFile(`${root}/functions/lib/index.js`)).digest('hex');
+      evidence.presentationReadinessSourceSha256AtCompletion = await presentationReadinessSourceHashes(root);
+      evidence.presentationReadinessSourceChangedDuringProof = JSON.stringify(evidence.presentationReadinessSourceSha256AtCompletion) !== JSON.stringify(presentationSourceHashes);
+      evidence.sourceChangedDuringProof = evidence.sourceCommitAtCompletion !== sourceCommit ||
+        evidence.builtRuntimeIndexSha256AtCompletion !== builtRuntimeIndexSha256 || evidence.presentationReadinessSourceChangedDuringProof;
+      await writeFile(`${directory}/failure.json`, `${JSON.stringify({ ...evidence, status: 'failed', stage, message: error.message, originalFailure, rolesVisited: roleSurfaces, roleSurfaceCount: roleSurfaces.length, states, transitions, calls, requests, errors, remoteRequests }, null, 2)}\n`, { mode: 0o600 });
+      console.error(JSON.stringify({ status: 'failed', stage, message: error.message, directory }));
+    } catch (reportError) {
+      await retainProofFailure(directory, 'full-game-report', reportError, { stage, primaryError: error });
+    }
     throw error;
-  } finally { for (const browser of browsers) await browser.close(); }
+  } finally {
+    let closeFailure;
+    for (const browser of browsers) {
+      try { await browser.close(); }
+      catch (closeError) {
+        await retainProofFailure(directory, 'browser-close', closeError, { stage, primaryError: primaryFailure });
+        closeFailure ??= closeError;
+      }
+    }
+    if (!primaryFailure && closeFailure) throw closeFailure;
+  }
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   const endingModule = process.env.PC10_DEMO_ENDING_DRIVER;
   const runEnding = endingModule ? (await import(pathToFileURL(resolve(endingModule)).href)).runEnding : undefined;
-  runFreshFullGameDemoUi({ ...(runEnding ? { runEnding } : {}) }).catch(() => { process.exitCode = 1; });
+  runFreshFullGameDemoUi({ ...(runEnding ? { runEnding } : {}) }).catch(async error => {
+    await retainProofFailure(process.env.PC10_EVIDENCE_DIRECTORY ?? '/tmp/dow-pc10-evidence/full-game-demo-ui', 'cli', error);
+    process.exitCode = 1;
+  });
 }

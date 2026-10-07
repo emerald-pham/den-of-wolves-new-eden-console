@@ -5,6 +5,7 @@ import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 import { observeUiReceipt } from './pc10-browser-ui-receipt.mjs';
+import { rememberProofFailure, retainProofFailure } from './pc10-proof-failure-evidence.mjs';
 import { createTwoBrowserGameplay } from './pc10-two-browser-gameplay.mjs';
 import { proofRuntimeFromViteSource, validateProofRuntime } from './pc10-full-game-demo-proof-helpers.mjs';
 import { MEMBER_GM_CASES, MEMBER_TURN_SOURCE_PIN, assertOriginalActor, assertLateReplyAuthority,
@@ -140,16 +141,21 @@ export async function observeLifecycleActor(surface, expectedSessionId) {
 
 export async function untilLifecycle(surface, expected, predicate, description, { timeout = 60_000, ...authority } = {}) {
   const end = Date.now() + timeout; let current;
-  while (Date.now() < end) {
-    current = await observeLifecycleActor(surface, expected.sessionId);
-    if (current.hasAuth && current.uidHash !== expected.uidHash) throw new Error(`${description}: original Auth UID changed.`);
-    if (current.sessionId !== null && current.sessionId !== expected.sessionId) throw new Error(`${description}: foreign session appeared.`);
-    if (current.hasAuth && current.sameActor && current.connection === 'live' && current.freshness === 'server' && predicate(current)) {
-      assertOriginalActor(expected, current, authority); return current;
+  try {
+    while (Date.now() < end) {
+      current = await observeLifecycleActor(surface, expected.sessionId);
+      if (current.hasAuth && current.uidHash !== expected.uidHash) throw new Error(`${description}: original Auth UID changed.`);
+      if (current.sessionId !== null && current.sessionId !== expected.sessionId) throw new Error(`${description}: foreign session appeared.`);
+      if (current.hasAuth && current.sameActor && current.connection === 'live' && current.freshness === 'server' && predicate(current)) {
+        assertOriginalActor(expected, current, authority); return current;
+      }
+      await delay(200);
     }
-    await delay(200);
+    throw new Error(`${description}: ${JSON.stringify(current)}`);
+  } catch (error) {
+    rememberProofFailure(error, { description, expected, current, authority, timeout });
+    throw error;
   }
-  throw new Error(`${description}: ${JSON.stringify(current)}`);
 }
 
 export function publicLifecycleReceipt(capture) {
@@ -366,13 +372,19 @@ export function createMemberGmLifecycleUiProof(options = {}) {
   async function perform(id, context, action) {
     if (!requested.has(id)) return;
     try { const result = await action(); if (result) evidence.cases[id] = { status: 'actual-ui-procedure-observed', ...result }; }
-    catch (error) { evidence.cases[id] = { status: 'failed-uncredited', error: error.message }; await save(context); throw error; }
+    catch (error) {
+      evidence.cases[id] = { status: 'failed-uncredited', error: error.message };
+      await retainProofFailure(context.directory, 'member-case', error, { caseId: id, evidence });
+      try { await save(context); }
+      catch (saveError) { await retainProofFailure(context.directory, 'member-report', saveError, { caseId: id, primaryError: error }); }
+      throw error;
+    }
   }
   async function select(context, roleId, enter = true) { return createTwoBrowserGameplay(context).select(roleId, { enter }); }
   async function restore(context, snapshot, url) {
-    await context.crew.page.goto(url);
+    const navigation = await context.crew.page.goto(url);
     const current = await untilLifecycle(context.crew, snapshot, s => s.sessionId === snapshot.sessionId && s.sameActor &&
-      s.connection === 'live' && s.freshness === 'server', 'Original selected actor restored');
+      s.connection === 'live' && s.freshness === 'server', 'Original selected actor restored', { rejoined: navigation !== null });
     assert.equal(current.privateAudienceMatches, true);
   }
   async function controller(context) {
@@ -467,7 +479,7 @@ export function createMemberGmLifecycleUiProof(options = {}) {
         } finally { await context.crew.context.setOffline(false); }
         const recovery = await recoverLifecycleUiAction(context.gm, cleared);
         await context.crew.page.reload();
-        await untilLifecycle(context.crew, before, s => s.sameActor && s.connection === 'live' && s.freshness === 'server', 'Original naturally disconnected actor restored');
+        await untilLifecycle(context.crew, before, s => s.sameActor && s.connection === 'live' && s.freshness === 'server', 'Original naturally disconnected actor restored', { rejoined: true });
         const gmUrl = new URL(context.gm.page.url()); gmUrl.hash = '/gm'; await context.gm.page.goto(gmUrl.href);
         const assignment = await castRestore(context, row);
         return { naturalNetworkInterruptionMs: leaseMs + 1_000, clockAccelerated: false,
@@ -572,7 +584,7 @@ export function createMemberGmLifecycleUiProof(options = {}) {
         const kickRecovery = await recoverLifecycleUiAction(context.gm, kicked); receipts.push(publicLifecycleReceipt(kicked));
         await context.crew.page.reload();
         await untilLifecycle(context.crew, current, s => !s.gmInstanceOwned && s.playerRole === 'player' && s.privateCount === 0,
-          'Optional GM kick demotes original member/private audience', { releasedGm: true });
+          'Optional GM kick demotes original member/private audience', { releasedGm: true, rejoined: true });
         dialog = await openLifecycleSettings(context.crew);
         const logout = await captureLifecycleUiAction(context.crew, 'logoutGmAccess', () => dialog.getByRole('button', { name: 'Revoke GM access', exact: true }).click());
         receipts.push(publicLifecycleReceipt(logout)); await closeLifecycleSettings(dialog);
