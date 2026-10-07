@@ -467,7 +467,7 @@ it('keeps a pending Press release released and selects again only after the visi
   await act(async () => release.resolve());
   expect(await screen.findByText('Independent Stations chooser')).toBeVisible();
   expect(selectConsoleRole).not.toHaveBeenCalled();
-  await user.click(screen.getByRole('link', { name: 'Press Officer', exact: true }));
+  await user.click(screen.getByRole('link', { name: 'Press Officer' }));
   await waitFor(() => expect(selectConsoleRole).toHaveBeenCalledExactlyOnceWith('press-officer'));
 });
 
