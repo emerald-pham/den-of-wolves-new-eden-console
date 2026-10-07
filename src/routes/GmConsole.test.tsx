@@ -4785,3 +4785,81 @@ it('closes expanded DRADIS during recovery, releases scroll, and rebinds keyboar
   expect(screen.getByRole('button', { name: /zoom into dradis panel/i })).toHaveFocus();
 });
 
+
+it.each([['idle', 'cache'], ['connecting', 'server'], ['live', 'cache']] as const)(
+  'waits for live server authority before private GM subscription during %s/%s startup',
+  async (connection, freshness) => {
+    useSessionStore.getState().setGmInstance(local);
+    streamInstances([local]);
+    useSessionStore.getState().setConnection(connection);
+    useSessionStore.getState().setSessionSnapshotFreshness(freshness);
+    await act(async () => {
+      renderConsole();
+      await import('@/lib/firestore');
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(subscribeGmInstances).not.toHaveBeenCalled();
+    expect(subscribeGmCrisisState).not.toHaveBeenCalled();
+    act(() => {
+      useSessionStore.getState().setConnection('live');
+      useSessionStore.getState().setSessionSnapshotFreshness('server');
+    });
+    await waitFor(() => expect(subscribeGmCrisisState).toHaveBeenCalledTimes(1));
+    expect(useSessionStore.getState().gmInstance).toEqual(local);
+    expect(useSessionStore.getState().gmRecoveryPending).toBe(false);
+  },
+);
+
+it.each(['cache', 'offline'] as const)(
+  'ignores an in-flight private GM callback and error after authority changes to %s',
+  async (nextAuthority) => {
+    let publish: ((state: CrisisStateProjection | null) => void) | undefined;
+    let fail: (() => void) | undefined;
+    vi.mocked(subscribeGmCrisisState).mockImplementation((_sessionId, onState, onError) => {
+      publish = onState;
+      fail = onError;
+      onState(liveCrisis);
+      return vi.fn();
+    });
+    useSessionStore.getState().setGmInstance(local);
+    streamInstances([local]);
+    renderConsole();
+    await waitFor(() => expect(useSessionStore.getState().gmCrisisState).toEqual(liveCrisis));
+    act(() => {
+      if (nextAuthority === 'cache') useSessionStore.getState().setSessionSnapshotFreshness('cache');
+      else useSessionStore.getState().setConnection('offline');
+      // Fire before React effect cleanup, as an already queued SDK callback can.
+      publish?.(liveCrisis);
+      fail?.();
+    });
+    expect(useSessionStore.getState().gmCrisisState).toBeNull();
+    expect(useSessionStore.getState().gmRecoveryPending).toBe(false);
+    expect(useSessionStore.getState().communicationError).toBeNull();
+    expect(useSessionStore.getState().gmInstance).toEqual(local);
+    act(() => {
+      useSessionStore.getState().setConnection('live');
+      useSessionStore.getState().setSessionSnapshotFreshness('server');
+    });
+    await waitFor(() => expect(subscribeGmCrisisState).toHaveBeenCalledTimes(2));
+    expect(useSessionStore.getState().gmCrisisState).toEqual(liveCrisis);
+  },
+);
+
+it('withdraws current live GM authority when its verified private listener fails', async () => {
+  let fail: (() => void) | undefined;
+  vi.mocked(subscribeGmCrisisState).mockImplementation((_sessionId, onState, onError) => {
+    fail = onError;
+    onState(liveCrisis);
+    return vi.fn();
+  });
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  renderConsole();
+  await waitFor(() => expect(useSessionStore.getState().gmCrisisState).toEqual(liveCrisis));
+  act(() => fail?.());
+  expect(useSessionStore.getState().gmRecoveryPending).toBe(true);
+  expect(useSessionStore.getState().gmCrisisState).toBeNull();
+  expect(useSessionStore.getState().connection).toBe('offline');
+  expect(useSessionStore.getState().sessionSnapshotFreshness).toBe('cache');
+  expect(useSessionStore.getState().communicationError?.code).toBe('gm-crisis-link');
+});
