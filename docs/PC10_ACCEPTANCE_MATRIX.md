@@ -70,7 +70,7 @@ anchors; that coverage does not establish an enabled control or gameplay.
 | Addition / gate | Acceptance | Evidence |
 |---|---|---|
 | PC10-A01 | Joined primary Settings ordinary join QR/link/code; ordinary admission/Auth/consent/privacy | Scoped QR payload/pixel and ordinary admission evidence accepted below; final current-source rendering/release pending. |
-| PC10-A02 | Actual authenticated GM, fresh cycle 0→1, unlimited/manual full-game demo beside existing cycle demo | Actual ordinary GM, fresh manual 0→1/Coordination retry and actual current Cycle 1 Press transmission accepted within their scopes; complete fresh solo demo and every-role/function ending remain pending. |
+| PC10-A02 | Actual authenticated GM, fresh cycle 0→1, unlimited/manual full-game demo beside existing cycle demo | Actual ordinary GM, fresh manual 0→1/Coordination retry, current Cycle 1 Press transmission and bounded Press natural flight/Pursuit ending/reload accepted within their scopes; complete fresh solo demo and every-role/function ending remain pending. |
 | Gate 1 | Every role/function in fresh full game through ending across two browsers | pending; function inventory to be reconciled |
 | Gate 2 | Claim-based overlap/reconnect/retry/privacy with the smallest sufficient cohort; 21 accounts only for a justified scale claim | pending; record actual Auth actors, browser contexts, cohort reason and regression scope separately |
 | Gate 3 | Available actions, costs, blockers and next actor can be understood in app | pending; broader PC11 guidance is future work |
@@ -141,8 +141,8 @@ remain scoped evidence, not complete-game acceptance.
 
 | Existing family / assigned IDs | Remaining behavior | Required dependency and smallest claim-based cohort |
 |---|---|---|
-| Shared member/GM lifecycle and PC10-A02; 618, 620 | Fresh three-actor protected training preparation/start/manual Coordination retry is scoped evidence below. Remaining unlimited/manual role flows, member/GM functions, interrupted/repeated recovery and complete solo dress rehearsal through ending stay open. Original Icebreaker authority remains unqualified. | Use the qualified normal setup and current own member feed. GM plus the affected role; add a distinct peer only for privacy or handoff. Demo preparation must precede ordinary joins. No full crew preparation for a one-role slice. |
-| Core/Press shuttle and adjacent craft controls | Original Request/Begin/Retarget/natural arrival; printed-owner control transfer/reclaim, cargo/evacuation/recharge/repair, reload and ending. Press publication/dismissal/newspaper signal are separate unique controls. | Current holder, allowed host/group, server-authored movement, proper phase/fuel/cost and receipt. Press next slice uses GM+Press+ordinary Captain peer. Core handoff adds only its legitimate receiving controller. Core10's rejected docking/group predicate stays unproved. |
+| Shared member/GM lifecycle and PC10-A02; 618, 620 | Fresh three-actor training preparation/start/manual Coordination retry and the bounded Press flight/Pursuit ending/reload are scoped evidence below. Remaining unlimited/manual role flows, member/GM functions, interrupted/repeated recovery and complete solo dress rehearsal through ending stay open. Original Icebreaker authority remains unqualified. | Use the qualified normal setup and current own member feed. GM plus the affected role; add a distinct peer only for privacy or handoff. Demo preparation must precede ordinary joins. No full crew preparation for a one-role slice. |
+| Core/Press shuttle and adjacent craft controls | The bounded Press Request/Begin/Retarget/natural arrival, exact retries, own/peer privacy, same-UID reload and Pursuit ending are qualified below. Core movement, printed-owner transfer/reclaim, cargo/evacuation/recharge/repair and other recovery remain separate. Press publication/dismissal/newspaper signal stay open. | Current holder, allowed host/group, server-authored movement, proper phase/fuel/cost and receipt. The qualified Press slice used GM+Press+ordinary Captain peer. Core handoff adds only its legitimate receiving controller. Core10's rejected docking/group predicate stays unproved. |
 | Specialist workspaces; 181, 215b, 223b, 233b | Every connected Wing Commander, Scientist, Explorer and PDF Colonel function, costs, phase blockers, output/handoff, recovery and ending. | Each original role's ordinary assignment/berth plus its real recipient or required phase actor. Reuse the 20 actual Scientist research choices within their original scope; do not claim N/O/P outcomes from them. |
 | Base combat, politics, crisis, arrest and ordinary fleet actions; 641 | Remaining ordered maintenance, construction/navigation/mission/combat range/aftermath, elections/directives, crisis choices and actual posse/arrest/private outcomes through a fresh ending. Stable representative core selection and affected recovery remain open. | Qualify each changed action family from real resources, roles and phase. Two competitors/entitled peers plus GM where required; justify any larger attendance or loyalty census from that specific rule. Failed Combat29/Miner/Base runs remain failed. |
 | Candidate discovery/preparation; 541–543, 593, 619 | Reveal/retry-safe discovery, Cycle-6 plan checkpoint, intelligible distinct preparation and reconnect/replay. | Real discovery/research/scouting and current candidate reveal/private audience. Research prefix is not permission to inject prepared candidate state. |
@@ -151,7 +151,7 @@ remain scoped evidence, not complete-game acceptance.
 | Ancient Station; 555–559, 649 | Arrival combat, repeated combat while Wolves survive, liberation, reactor contributions and powered New Eden ending. | Discovery/arrival → ordinary combat/finalization → liberated Station → contribution/fuel authority → result/debrief. Minimum actual combat/contribution actors. |
 | Capybara, sparse joint engineering, Macaw/Boa/Scrap and replacements; 576, 579, 581, 584, 585, 642 | Seventh Capybara maintenance step, remaining missions and ending; salvage/reclamation/damage pickups; Base/expansion isolation; sparse/joint/replacement functions and costs/replay/privacy. | Real maintenance/material/custody and mission public reward contracts. Six completed ship sequences do not prove the seventh. `transferWarriorCargo` is a separately accounted added callable, not an invented fixed closure. |
 | Optional/private loyalty and Wolf/Arbour families; 629, 630, 631, 634, 635 | Every unique private action/audience, source-owned random result, expensive-callable limit, private denial and standardized audit; mutually exclusive optional rosters. | Real ordinary loyalty/casting and target/resource conditions. Entitled actor plus peer/wrong role; a full loyalty census is one separately justified mechanic, not a default actor minimum. |
-| Endings; 563–566, 650 | Current changed endgame presentation/reader, all three success paths, final-cycle and actual terminal-failure/recovery branches; immutable freeze/close/entitled history. | Genuine source terminal → GM freeze → debrief → close → entitled reload. Historical Pursuit/debrief state contracts are reused; next Press ending supplies affected current recovery. |
+| Endings; 563–566, 650 | Current changed endgame presentation/reader, all three success paths, final-cycle and actual terminal-failure/recovery branches; immutable freeze/close/entitled history. | Genuine source terminal → GM freeze → debrief → close → entitled reload. Historical Pursuit/debrief state contracts are reused; the bounded current Press ending/reload is qualified below. Other terminal branches and complete role recovery remain open. |
 | Gate 2 and cross-path recovery; 618–620, 629 | Targeted natural lease expiry/resume, interrupted/repeated requests, conflicting/stale authority, per-actor timestamps and private boundaries/overlap. | Two affected competitors/peers plus GM only if needed. Existing 273-command/63-check subset stays scoped; 340/84 remains opt-in and incomplete. 21-account capacity requires an impossible-with-fewer scale claim. |
 | Gate 3 and release; 651 | Available action/cost/blocker/result/next actor for changed PC10 flows; accepted joined rendering, keyboard/Back, fonts/ticker; final function inventory, 48 earned closures, one final reconciled risk review, exact candidate/main CI and deployment. | Complete required affected gameplay and negatives first. One actor per UI configuration. Broader PC11 manual-free guidance remains future work; no release while required acceptance is open. |
 
@@ -310,7 +310,7 @@ established. Diagnostic output earns zero authority credit. There is no new
 exclusive-cause prerequisite for a narrow repair and no product source change
 after this actual.
 
-The smallest next Source proposal uses existing production projection
+At the actual 2 handback, the smallest next Source proposal used existing production projection
 confirmation for positive phase/control reads and keeps diagnostic-only reads
 separate. Await the actual Press phase and normal enabled control within the
 original deadlines; retain original identity, SDK, stale/privacy and exact-retry
@@ -333,14 +333,55 @@ earned. PC10 remains open at 703/751 overall and 245/293 campaign; all 48 fixed
 rows remain pending. Post-PC10, PC11, PC12, licensing/assets and unrelated
 Chain Scanner work remain unexecuted here.
 
-### Retained flight-to-ending scenario — first authorization consumed
+### Qualified Press flight and Pursuit ending — bounded family
 
-The parent first authorized one bounded run of this family after source
-prerequisite checks. That first authorization was consumed by actual 1. The
-separate actual 2 authorization above is also consumed.
-The retained plan states the intended uncompleted acceptance and is not a new
-launch authorization. Source was frozen through runtime/exact cleanup; unrelated
-rendered release gates remain pending.
+After actual 2 closed, the parent authorized diagnosis and targeted iteration
+within this family, preserving each 12-minute cap and first-unexplained-failure
+stop. Product, Rules, App and SDK bytes remained unchanged at actual Source
+`3c279eee621fa3df96689e1191a0932980fcc729`. The external runner now uses the
+existing production post-intent projection confirmation and original deadlines.
+Actual 3 recorded matching GM receipt/root phase revision 2, mounted Press
+revision 1, then confirmed Press revision 2 before flight. This distinguishes
+propagation/readiness in that run without assigning exclusive cause to actual 2.
+
+Actual 3 qualified Request/Begin/Retarget, their exact retries and natural
+arrival, then stopped on a cold reload before Auth hydration. Its failed result
+stays failed. The external restoration observer was corrected to wait for normal
+hydration within the existing deadline, then require the original Auth UID,
+session, role and strict member/SDK authority. Wrong identities still reject.
+Six phase and four restoration Native cases pass; the bounded independent
+Sol 6.1 review passes. No product Auth defect or new gameplay bypass is claimed.
+
+Actual 4 passed 27 scoped claims in **142,577 ms including cleanup**: three
+ordinary Auth identities, two automated browser processes/contexts and mounted
+surfaces, zero humans. It completed real manual 0→1/current Press transmission,
+Request → Begin → Retarget → server-authored 60-second natural arrival, exact
+request/arrival recovery, own/peer private and wrong-holder denials, same-UID
+normal reload, manual GM Pursuit ending through Cycle 5, immutable debrief,
+closure and original Press/Captain entitled history. No clock, Auth storage or
+admin gameplay state was patched.
+
+Both browsers closed; only the exact session/join code, three owned membership
+pointers and three fresh Auth identities were deleted. Cleanup errors zero;
+fresh closed scope 0/0/0. Full source, compiled Functions, registry/reservations,
+original dirty checkout, retained PC09 and prior failed evidence are preserved;
+12 slots remain free. Canonical result:
+`/tmp/dow-pc10-evidence/three-actor-press-ending-4/OWNER_RESULT.json`.
+The compact closed handoff is
+`/tmp/dow-pc10-evidence/OWNER_PRESS_ENDING_4_CLOSED_FAMILY_HANDOFF_20261007.json`.
+
+This completes only the stated Press flight-to-ending family. Every-role/function
+solo rehearsal, other functions/endings, rendered/usability acceptance and final
+CI/deployment remain open. All 48 fixed rows stay pending at 703/751 overall and
+245/293 campaign; no checkpoint/release or PC11/PC12 credit is earned.
+
+### Retained flight-to-ending scenario — bounded family complete
+
+The first two individual authorizations were consumed by their closed runs.
+The subsequent family iteration completed as recorded above. The exact recipe
+below preserves scope and acceptance traceability; it authorizes no broader run.
+Source remained frozen through each actual and cleanup; unrelated rendered
+release gates remain pending.
 
 **Press natural transit → genuine Pursuit ending**, three ordinary Auth actors
 (GM, Press, Quellon Captain), two browser processes/contexts and two mounted

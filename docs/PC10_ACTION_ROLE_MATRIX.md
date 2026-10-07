@@ -44,9 +44,21 @@ Diagnostic-only reads skipped the existing production projection confirmation;
 the concrete wrapper gap and smallest Source proposal are recorded in the
 [acceptance matrix](PC10_ACCEPTANCE_MATRIX.md#bounded-three-actor-actual-2--phase-projection-failure-closed-cleanup).
 Exact-owned cleanup, 0/0/0 postflight and complete preservation passed. The
-failed actual is sealed; no new launch or external release is authorized here.
+failed actual is sealed; at that handback no new launch or external release
+was authorized.
 Generated complete-proof fields, function eligibility cells and all48 fixed
 closure statuses are unchanged.
+
+The subsequent parent-authorized bounded family iteration passed at actual
+Source `3c279eee`: actual 4 qualified Press Request/Begin/Retarget/natural
+arrival, exact retries, scoped privacy/wrong-holder denials, same-original-UID
+reload and GM manual Pursuit ending/debrief/closure/entitled history. Three
+ordinary Auth actors used two automated browsers and zero humans; 27 scoped
+claims took 142,577 ms including exact cleanup. Source-only external observer
+repairs and actual 3's failed reload remain separately recorded in the
+[qualified family](PC10_ACCEPTANCE_MATRIX.md#qualified-press-flight-and-pursuit-ending--bounded-family).
+Generated complete-proof/eligibility fields and all48 fixed closure statuses
+remain unchanged; no rendered, every-role/function or release credit is earned.
 
 Regenerate after building Functions:
 

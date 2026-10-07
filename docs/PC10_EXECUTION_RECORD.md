@@ -310,7 +310,7 @@ live/SDK readiness does not establish the newest semantic phase. This concrete
 wrapper gap supports a narrow existing-confirmation repair, preserving original
 guards and deadlines, with a focused adapter/mounted contract. Exclusive cause
 or product App/SDK/Rules failure is unproved and is not a new repair gate. No
-Source repair or further gameplay launch occurred after this actual.
+Source repair or further gameplay launch occurred within that closed actual 2.
 
 The failure/consumed tuple/screenshots/receipts are sealed in
 `/tmp/dow-pc10-evidence/OWNER_PRESS_ENDING_2_BOUNDED_FAILED_ACTUAL_AND_CLEANUP_REPORT_20261007.json`.
@@ -325,6 +325,30 @@ evidence. Only the four existing records are updated at closeout, with document,
 generated-view and whitespace checks. Actual 2 authorization is consumed;
 PC10/all48 closures, release and complete recovery/ending/rendered acceptance
 remain open. No PC11/PC12/post-PC10/license/asset/Chain Scanner work was executed.
+
+### Bounded Press family completed after targeted diagnostics
+
+The parent's subsequent family authorization allowed diagnosed, finite
+iterations with the original 12-minute cap and exact cleanup. Source remained
+`3c279eee`; only external observers changed. Actual 3 recorded the GM receipt/
+root phase revision and production member confirmation, then qualified real
+Request/Begin/Retarget/exact retries/natural arrival. It stopped before reload
+Auth hydration; no ending was attempted. Its failed result remains intact.
+The restoration observer now waits within the existing deadline, then requires
+the original UID/session and unchanged strict authority. Ten focused external
+phase/restoration Native cases and one bounded independent Sol 6.1 review pass.
+
+Actual 4, Native session `11525`, exited 0 at terminal chunk `484615`:
+**27 scoped claims, 142,577 ms including cleanup**, three ordinary Auth actors,
+two automated browser processes/contexts, zero humans. Real natural Press
+arrival, exact recovery/private negatives, normal reload and the existing GM
+manual Pursuit ending/debrief/closure/original entitled history passed. See the
+[qualified family](PC10_ACCEPTANCE_MATRIX.md#qualified-press-flight-and-pursuit-ending--bounded-family)
+for acceptance limits and the compact closed handoff. Exact cleanup returned
+scope to 0/0/0; source/compiled/runtime/reservations/original/PC09 preservation
+passed. Only four existing docs change at closeout; product stays `0.5.71`.
+PC10/all48 closures, all-role/function rehearsal, rendering/usability, final
+CI/deployment and release remain open. No broader run or deferred work occurred.
 
 ## Historical October 6 state
 

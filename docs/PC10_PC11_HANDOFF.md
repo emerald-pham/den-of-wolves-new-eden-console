@@ -51,9 +51,24 @@ elapsed including cleanup was 68,249 ms and closed scope 0/0/0. The wrapper's
 diagnostic-only flag suppressed production post-intent projection confirmation;
 SDK-ready prior phase alone is insufficient. Exclusive cause/product failure
 is unproved. The matrix records the focused existing-confirmation repair
-proposal; the authorization is consumed and no third run is authorized here.
+proposal; at that handback the authorization was consumed and no third run
+was authorized.
 Wider rendered gates, all PC10 functions, complete usability, external release
 and checkpoint advance remain open. PC11 and PC12 have not started.
+
+The parent subsequently authorized diagnosed iteration within the same finite
+Press family. Product Source remained `3c279eee`; external observers now await
+production phase confirmation and normal Auth hydration within original
+deadlines, preserving strict original identity/authority/privacy checks.
+Actual 3 qualified the flight, then stopped before reload hydration; its failed
+result remains failed. Reviewed actual 4 passed the complete bounded Press
+Request/Begin/Retarget/natural-arrival/reload/Pursuit-ending/debrief/closure/
+entitled-history family: 27 scoped claims, three ordinary Auth actors, two
+automated browsers, zero humans, 142,577 ms including exact cleanup. Closed
+scope is 0/0/0 and preservation passed. The [qualified family](PC10_ACCEPTANCE_MATRIX.md#qualified-press-flight-and-pursuit-ending--bounded-family)
+records its compact handoff and limits. No every-role/function, rendered,
+manual-free, catalog closure, checkpoint or release completion is claimed.
+PC11/PC12 and the existing post-PC10 sequence remain unexecuted.
 
 PC11 defaults to one actor per distinct control/guidance configuration and a
 second only for an actual handoff. Test changed action availability, costs,
