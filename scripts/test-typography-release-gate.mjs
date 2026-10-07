@@ -209,3 +209,20 @@ test('the typography candidate still uses version-bound consent and the referenc
   assert.deepEqual(JSON.parse(candidate), { acknowledgedAt: timestamp, termsVersion: 'code-of-conduct-v1' });
   assert.equal(reference, String(timestamp));
 });
+
+
+test('CI installs locked parser dependencies before the unconditional typography contract', () => {
+  const steps = ci.split(/^      - /m).slice(1);
+  const installIndex = steps.findIndex(step => /^\s*run: npm ci --prefer-offline --no-audit\s*$/m.test(step));
+  const contractIndex = steps.findIndex(step => step.startsWith('name: Typography release-gate contract'));
+  assert.ok(installIndex >= 0 && contractIndex >= 0 && installIndex < contractIndex,
+    'the actual consent-reader parser must be installed before its always-run contract, including clean runners');
+  assert.ok(!/^\s*if:/m.test(steps[installIndex]),
+    'the unconditional contract needs locked dependencies even for documentation-only events');
+});
+
+test('PR verification retains merge integration and trusted reusable verification keeps its exact ref', () => {
+  const checkout = ci.split(/^      - /m).slice(1).find(step => step.startsWith('uses: actions/checkout@'));
+  assert.ok(checkout?.includes('ref: ${{ inputs.ref || github.sha }}'),
+    'PR verification retains its synthetic merge; the trusted exact-main ref takes priority');
+});
