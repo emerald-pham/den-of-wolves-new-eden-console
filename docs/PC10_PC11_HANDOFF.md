@@ -33,8 +33,13 @@ Pursuit ending/debrief/closure/entitled reload. That one actual at `278347c6`
 completed manual training/start/Coordination, then stopped before Request on
 null Press document/group authority. Exact cleanup/postflight are complete;
 its failed report and source-only reader/presentation gaps are in the matrix.
-No second run was launched. Wider rendered gates, all PC10 functions, external
-release and checkpoint advancement remain open.
+No second run was launched. The subsequent targeted normal-admission
+reader/Rules repair at `a06c5856` passes focused checks and independent Sol 6.1
+Source review. Missing private discovery still grants no group authority;
+movement can qualify separately through current enabled UI, its authenticated
+SDK receipt and matching server-owned state. The matrix records the bounded
+flight-only proposal and real Cycle 1 presentation prerequisite. Wider rendered
+gates, all PC10 functions, external release and checkpoint advance remain open.
 
 PC11 defaults to one actor per distinct control/guidance configuration and a
 second only for an actual handoff. Test changed action availability, costs,

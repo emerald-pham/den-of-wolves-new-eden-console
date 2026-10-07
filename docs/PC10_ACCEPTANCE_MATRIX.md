@@ -188,14 +188,76 @@ and no returned holder group. Both preserve the other current identity/scope/
 control inputs. This is discriminating diagnosis, not proof of either exclusive
 actual cause. The packet is
 `/tmp/dow-pc10-evidence/OWNER_PRESS_ENDING_1_SOURCE_READER_DISCREPANCIES_20261007.json`.
-No product guard, proof reader or failed actual record was changed.
+These observations preceded the targeted source repair below. The sealed
+failed actual record remains unchanged.
 
-The bounded flight/ending family remains pending. Its next source task is the
-ordinary Press discovery/document predicate and real Cycle 1 presentation
-boundary, retaining original UID/session/feed/group/privacy/deadline checks and
-actual per-subpredicate diagnostics. No second runtime is authorized at this
-returned boundary; no cohort expansion, external release or checkpoint advance
-is claimed. All 48 fixed closures and complete PC10 gates remain open.
+The bounded flight/ending family remains pending. The independently reproduced
+ordinary-admission defect is repaired below; exclusive historical cause is not
+a prerequisite to that concrete repair. Real Cycle 1 Press presentation and
+movement remain unaccepted. No second runtime was launched, and all 48 fixed
+closures and complete PC10 gates remain open.
+
+### Targeted Press contract repair — source and Native only
+
+Test-first commits `c5053abd` and `b0554821` preserve the omitted-field reader
+failure and labeled Rules failure. The original explicit-null Rules read
+succeeded before the normal omitted-field positive failed. Product commit
+`a06c5856` aligns the reader with the existing App/SDK nullish replacement
+contract and removes only the two redundant explicit-presence/null conditions
+from the Press absent-SNN Rules helper. The shared live-role authority check
+remains, as do authenticated current holder, group membership, private
+discovery/revision/vessel set, exact control, phase and privacy conditions.
+Candidate metadata is `0.5.71`; prior player notes and catalog totals remain.
+
+Two serialized-reader tests were added for ordinary omission and 13 retained
+revoked/stale/private-scope drifts. The existing Rules case gains a server-read
+omission positive; its obsolete omission-denial input becomes malformed
+`replacementStatus: false`, retaining `assertFails` and every other meaningful
+denial. Independent Sol 6.1 review explicitly accepts that contract correction.
+No production App/SDK, movement endpoint or navigation code changed.
+
+The selected Native checks pass: reader 12, Press/core absent-route Rules 2,
+mounted private group projection 41, mounted selection readiness 14 and version
+12; changed TypeScript lint and application typecheck pass. These are local
+Source/fixture checks, with zero fresh authenticated gameplay accounts or
+browsers. Commit `fb3b6729` fixes only the incomplete selection VM fixture by
+binding its two real imported passive/error helpers. All original assertions
+remain. The missing-binding and invocation/import failures are retained;
+the final fixture run uses Node's documented VM-module flag. No test failure
+is relabeled as historical gameplay success.
+
+The corrected proof contract keeps missing discovery as **no derived Press
+group/document authority**. It does not synthesize metadata or use global
+vessel availability to grant a private group. A separately enabled ordinary
+Press movement action may qualify through the existing mounted member/SDK
+observer, exact authenticated UI request/reply, current identity/lease/feed
+checks and matching server-owned holder/group/control/movement state. Private,
+wrong-role, foreign-session, stale-authority and duplicate-effect negatives
+remain separate required evidence.
+
+The minimal next runtime proposal is a **flight-only** fresh manual-training
+slice, reusing the proven ordinary setup: GM, Press and Captain across two
+automated browser contexts and normal origin persistence. GM supplies legitimate
+setup/progression, Press owns the flight, and Captain supplies the wrong-holder
+and private-peer check. Wait for the real current Press Cycle 1 before observing
+and completing its actual transmission. Use existing
+`observeFullGameDemoPresentationMember` and `captureLifecycleUiAction`; qualify
+Request, Begin, a genuinely offered distinct Retarget, exact captured retries,
+natural source-timed arrival and once-only server effects. Observe group
+metadata separately if its private projection is present; absence earns no
+group-authority claim and must not invalidate an independently proved command.
+Keep original 35-second UI and 60-second operation budgets, a six-minute total
+cap including 60 seconds for exact-owned cleanup, and stop at the first
+unexplained integration failure. No ending loop, Base replay or 21-actor
+expansion is part of this proposal, and it is not a launch instruction.
+
+The Source-only risk review is
+`/tmp/dow-pc10-evidence/OWNER_PRESS_OBSERVER_TARGETED_RISK_REVIEW_20261007.json`;
+the closed correction/contract handoff is
+`/tmp/dow-pc10-evidence/OWNER_PRESS_OBSERVER_TARGETED_HANDOFF_20261007.json`.
+Only the verified Native Rules `sessions/s1` subtree was removed from its
+separate local test namespace. Primary gameplay stays idle; no production,
+release, fixed closure, PC11/PC12 or license change is credited.
 
 ### Retained flight-to-ending scenario — first authorization consumed
 

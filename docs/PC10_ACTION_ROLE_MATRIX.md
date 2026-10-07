@@ -28,7 +28,12 @@ scoped admission/preparation/start/Coordination prefix, then stopped before
 Request on null Press document/group authority. It is sealed failed with exact
 cleanup and earns no flight, ending, whole-role or fixed prompt closure. Its
 reader/presentation diagnosis and current recovery gaps live in the same
-acceptance matrix; the generated complete-proof fields are unchanged.
+acceptance matrix. The subsequent targeted normal-admission reader/Rules
+correction at `a06c5856` passes focused Native checks and independent Source
+review; missing discovery still grants no group authority. The matrix records
+the separate current UI/SDK receipt/server ownership contract and minimal
+flight-only proposal. No new game ran; generated complete-proof fields,
+function eligibility cells and all48 fixed closure statuses are unchanged.
 
 Regenerate after building Functions:
 

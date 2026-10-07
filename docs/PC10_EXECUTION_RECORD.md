@@ -241,10 +241,42 @@ The consumed source omitted `holderGroupId`; raw discovery/replacement-status
 inputs and per-subpredicate details were not captured, so exclusive cause is
 unproved. A source-only discriminating fixture reproduces the reader rejecting
 normal absent `replacementStatus` and separately absent discovery. These
-fixtures do not replace actual evidence, and no product/helper repair is claimed.
-The existing matrix records the precise next source diagnosis and remaining
-acceptance. The bounded authorization is consumed; no further runtime, external
-release or checkpoint advancement occurs at this handback.
+fixtures do not replace actual evidence. At that closed-run handback no
+product/helper repair had occurred. The subsequent targeted source correction
+below leaves the failed report intact. The bounded runtime authorization is
+consumed; no further game, external release or checkpoint advance occurred.
+
+### Targeted Press observer correction
+
+The parent returned the concrete reader/product discrepancy for Source-led
+repair, without requiring exclusive historical causation or another whole
+ending run. Test-only `c5053abd`/`b0554821` reproduce normal omitted
+`replacementStatus` rejection; the labeled Rules red passed its explicit-null
+baseline before failing the new server-read omission positive. `a06c5856`
+repairs the reader's explicit-null predicate and removes only the Press Rules
+helper's redundant presence/null checks, retaining shared role authority and
+all holder/group/private-discovery/revision/schema safeguards. The candidate
+version is `0.5.71`, preserving prior notes and 703/751 accounting.
+
+Selected checks pass: reader12, focused Rules2, mounted Press discovery41,
+selection14, version12, changed-TypeScript lint and application typecheck.
+Selection fixture-only `fb3b6729` binds the actual existing passive/error
+imports, preserving all original assertions and product navigation. Initial
+failure logs remain. One independent Sol 6.1 Source-only review passes with no
+material findings and accepts changing the obsolete omission-denial input to
+malformed `false` in the separate test-first commit.
+
+Missing discovery still grants no derived group/document authority. The
+[acceptance matrix](PC10_ACCEPTANCE_MATRIX.md#targeted-press-contract-repair--source-and-native-only)
+records the separate current mounted action/authenticated SDK receipt/server
+ownership contract and proposed three-actor, two-browser flight-only slice.
+Cycle 1 must be current before its real Press transmission is observed. No
+live diagnostic was needed to settle the source defect; no game was launched.
+The exact Native Rules test session cleanup and complete current Source/
+compiled/owned-runtime/original preservation are recorded in
+`/tmp/dow-pc10-evidence/OWNER_PRESS_OBSERVER_TARGETED_HANDOFF_20261007.json`.
+Complete PC10, rendering/recovery/ending acceptance, release and all48 closures
+remain open. No catalog, endpoint inventory, PC11/PC12, license or asset changes.
 
 ## Historical October 6 state
 
