@@ -3,14 +3,15 @@ import test from 'node:test';
 import { dispatchStationCrewChoice } from './pc10-station-crew-dispatch.mjs';
 
 const sessionId = 'session-pc10';
-const deadlineAt = Date.now() + 15_000;
+const deadlineAt = Date.now() + 60_000;
 
 function attack(currentStep, revision = 8) {
   return { attackId: 'attack-p', threatSiteCode: 'P', turn: 3, revision,
     status: 'declared', currentStep };
 }
 
-function surface(roleId, response, { entitledShipId = 'icebreaker', path = '/ships/icebreaker' } = {}) {
+function surface(roleId, response, { entitledShipId = 'icebreaker', path = '/ships/icebreaker/roles/icebreaker-miner',
+  responses = {}, defenceOptions = ['0', '1', '2'] } = {}) {
   const effects = { clicks: [], selected: [], reads: [] };
   const actor = { hasAuth: true, sameActor: true, uidHash: `uid-${roleId}`, sessionId,
     profileRoleId: roleId, assignedRoleId: roleId, activeConsoleRoleId: roleId, seatId: roleId,
@@ -36,12 +37,15 @@ function surface(roleId, response, { entitledShipId = 'icebreaker', path = '/shi
     first() { return this; },
     nth() { return this; },
     all: async () => [this],
-    locator: () => ({ evaluateAll: async () => [0, 1, 2].map(value => ({ value: String(value), disabled: false })) }),
+    locator: () => ({ evaluateAll: async inspect => inspect(defenceOptions.map(value => ({ value: String(value), disabled: false }))) }),
   });
-  let linkOpened = false;
+  let currentRoute = path;
+  let currentResponse = response;
   const panel = {
-    isVisible: async () => true,
-    innerText: async () => `Cycle 3 // current source choice`,
+    isVisible: async () => currentRoute !== '/shuttles/highwall',
+    innerText: async () => currentResponse?.reason === 'no-boarders'
+      ? 'No surviving boarding parties are present on this ship. No Security Teams choice is required.'
+      : `Cycle 3 // current source choice`,
     getByRole: (kind, options = {}) => {
       if (kind === 'button') {
         const name = options.name;
@@ -68,18 +72,33 @@ function surface(roleId, response, { entitledShipId = 'icebreaker', path = '/shi
   }
   if (response?.wingId === 'pdf-escort-fighter-wing') buttons['Pass Medium Range'] = true;
   if (response?.choice?.kind === 'relocation') buttons['Stay at REFINERY 124'] = true;
-  if (response?.type === 'wolf-boarding-defence-choice-view') buttons['Commit defence'] = true;
+  if ([response, ...Object.values(responses)].some(view => view?.type === 'wolf-boarding-defence-choice-view'))
+    buttons['Commit defence'] = true;
   const page = {
-    locator: () => panel,
+    locator: () => ({ ...panel, isVisible: async () => currentRoute !== '/shuttles/highwall' }),
     getByRole: (kind, options = {}) => {
       if (kind === 'link') return {
-        isVisible: async () => roleId === 'icebreaker-miner',
+        isVisible: async () => roleId === 'icebreaker-miner' &&
+          (options.name === 'Open Highwall shuttle console' ? currentRoute !== '/shuttles/highwall'
+            : options.name === 'Back to assigned console' && currentRoute === '/shuttles/highwall'),
         waitFor: async () => {},
-        click: async () => { linkOpened = true; effects.clicks.push(options.name); },
+        click: async () => {
+          currentRoute = options.name === 'Open Highwall shuttle console'
+            ? '/shuttles/highwall' : '/ships/icebreaker/roles/icebreaker-miner';
+          effects.clicks.push(options.name);
+        },
+      };
+      if (kind === 'region' && /boarding/i.test(options.name ?? '')) return {
+        ...panel,
+        isVisible: async () => currentRoute !== '/shuttles/highwall',
+      };
+      if (kind === 'region' && /^Highwall Cannon /.test(options.name ?? '')) return {
+        ...panel,
+        isVisible: async () => currentRoute === '/shuttles/highwall',
       };
       return panel;
     },
-    url: () => `https://new-eden.invalid${linkOpened ? '/shuttles/highwall' : path}`,
+    url: () => `https://new-eden.invalid/#${currentRoute}`,
     evaluate: async () => authority,
   };
   return Object.assign({ label: roleId, page,
@@ -87,7 +106,8 @@ function surface(roleId, response, { entitledShipId = 'icebreaker', path = '/shi
     storeModuleUrl: () => 'test://useSessionStore',
     callable: async (endpoint, payload) => {
       effects.reads.push({ endpoint, payload });
-      return { status: 'committed', result: response };
+      currentResponse = responses[endpoint] ?? response;
+      return { status: 'committed', result: currentResponse };
     },
   }, { effects });
 }
@@ -100,7 +120,7 @@ function options(actors, current, onAction) {
   }, readAttack: async () => current, action: async (surface, endpoint, choose, metadata) => {
     await choose();
     onAction?.({ surface, endpoint, metadata });
-    return { endpoint, httpStatus: 200, result: { status: 'committed' } };
+    return { endpoint, data: metadata.expectedRequest, httpStatus: 200, result: { status: 'committed' } };
   }, actorChecks };
 }
 
@@ -148,9 +168,26 @@ test('opens the current Miner Highwall console and explicitly passes a long-rang
   assert.equal(accepted.metadata.deadlineAt, deadlineAt);
 });
 
+test('returns from the real Highwall route before reading a Miner boarding choice', async () => {
+  const miner = surface('icebreaker-miner', null, { path: '/shuttles/highwall', responses: {
+    getWolfBoardingSpecialChoice: { type: 'wolf-boarding-special-choice-unavailable', sessionId, reason: 'no-special-choice' },
+    getWolfBoardingDefenceChoice: { type: 'wolf-boarding-defence-choice-unavailable', sessionId, reason: 'no-boarders' },
+  } });
+  const current = attack('boarding');
+  const result = await dispatchStationCrewChoice(current, { ...options([{ roleId: miner.label, surface: miner }], current),
+    deadlineAt: Date.now() + 400 });
+  assert.equal(result, undefined);
+  assert.equal(miner.effects.clicks[0], 'Back to assigned console');
+  assert.deepEqual(miner.effects.reads.map(read => read.endpoint), [
+    'getWolfBoardingSpecialChoice', 'getWolfBoardingDefenceChoice',
+  ]);
+});
+
 test('continues across supplied boarding actors until the source offers a current crew special choice', async () => {
   const wing = surface('wing-commander', { type: 'wolf-boarding-special-choice-unavailable',
-    sessionId, reason: 'no-special-choice' }, { entitledShipId: 'aegis' });
+    sessionId, reason: 'no-special-choice' }, { entitledShipId: 'aegis', responses: {
+      getWolfBoardingDefenceChoice: { type: 'wolf-boarding-defence-choice-unavailable', sessionId, reason: 'no-boarders' },
+    } });
   const pdf = surface('refinery-124-pdf-colonel', { type: 'wolf-boarding-special-choice-view',
     sessionId, turn: 3, revision: 8, choice: { kind: 'relocation', craftId: 'chepu',
       currentHostId: 'refinery-124', fuelled: false, controlRevision: 2, legalHostIds: ['refinery-124'] } },
@@ -169,22 +206,17 @@ test('continues across supplied boarding actors until the source offers a curren
 });
 
 test('commits defence only for the current discovered ship and chooses within offered Security Team options', async () => {
-  const miner = surface('icebreaker-miner', { type: 'wolf-boarding-special-choice-unavailable',
-    sessionId, reason: 'no-special-choice' }, { entitledShipId: 'icebreaker' });
   const defence = { type: 'wolf-boarding-defence-choice-view', sessionId, turn: 3, revision: 8,
     targetShipId: 'icebreaker', boardingParties: 2, availableSecurityTeams: 2,
     choiceStatus: 'pending', deadlineAt: '9999-12-31T23:59:59.999Z' };
   // One surface provides the same ordinary actor's two actual current views.
   const crew = surface('icebreaker-miner', { type: 'wolf-boarding-special-choice-unavailable',
-    sessionId, reason: 'no-special-choice' }, { entitledShipId: 'icebreaker' });
-  crew.callable = async (endpoint, payload) => {
-    crew.effects.reads.push({ endpoint, payload });
-    return { status: 'committed', result: endpoint === 'getWolfBoardingSpecialChoice'
-      ? { type: 'wolf-boarding-special-choice-unavailable', sessionId, reason: 'no-special-choice' } : defence };
-  };
+    sessionId, reason: 'no-special-choice' }, { entitledShipId: 'icebreaker', responses: {
+      getWolfBoardingDefenceChoice: defence,
+    } });
   let accepted;
   const current = attack('boarding');
-  const opts = options([{ roleId: miner.label, surface: crew }], current, value => { accepted = value; });
+  const opts = options([{ roleId: crew.label, surface: crew }], current, value => { accepted = value; });
   const result = await dispatchStationCrewChoice(current, opts);
   assert.deepEqual(result, { committed: true });
   assert.equal(crew.effects.clicks.at(-1), 'Commit defence');
