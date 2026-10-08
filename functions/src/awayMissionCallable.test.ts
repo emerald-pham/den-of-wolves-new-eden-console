@@ -680,6 +680,16 @@ describe('dealPrivateInitialCards', () => {
       expect.objectContaining({ 'awayMissionProjectionSafety.writeRevision': 18 })]]));
   });
 
+  it('advances a known prior epoch when an actual initial deal recovers malformed legacy privacy state', async () => {
+    (sessionFields as Record<string, unknown>).awayMissionProjectionSafety = {
+      policyVersion: 1, epoch: 3, state: 'READY', writeRevision: 17,
+    };
+    expect((await dealPrivateInitialCards.run(request(command))).status).toBe('committed');
+    expect(mock.set.mock.calls.filter(([ref]) => ref.path.includes('/awayMissionHandPointers/'))).toHaveLength(2);
+    expect(mock.update).toHaveBeenCalledWith(expect.objectContaining({ path: 'sessions/s1' }),
+      expect.objectContaining({ awayMissionProjectionSafety: { policyVersion: 1, epoch: 4, state: 'held', writeRevision: 1 } }));
+  });
+
   it('rejects a team-selected Mission Leader who is outside the source-bound participant roster', async () => {
     await expect(dealPrivateInitialCards.run(request({
       ...command,
