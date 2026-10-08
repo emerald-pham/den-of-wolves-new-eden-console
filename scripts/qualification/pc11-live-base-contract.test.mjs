@@ -333,3 +333,76 @@ test('active UI receipt helper consumes every exercised normal callable and refu
     response.json=async()=>({result:{status:'denied'}});await assert.rejects(captureLifecycleUiAction(surface,endpoint,async()=>{}));
   }}finally{await rm(directory,{recursive:true});}
 });
+
+test('actual normalJoin wait accepts published setup-confirmed lobby and subsequent casting, retaining authority negatives',async()=>{
+  const runner=await readFile(resolve(root,'scripts/qualification/pc11-three-actor-trade-philia.mjs'),'utf8');
+  const functionsSource=await readFile(resolve(root,'functions/src/index.ts'),'utf8');
+  const create=functionsSource.slice(functionsSource.indexOf('export const createSession'),functionsSource.indexOf('export const joinSession'));
+  const phase=create.match(/session:\s*\{[\s\S]*?phase:\s*'([^']+)'/)?.[1];assert.equal(phase,'lobby');
+  const source=ts.createSourceFile('runner',runner,ts.ScriptTarget.Latest,true,ts.ScriptKind.JS);
+  let joinPredicate;function visit(node){if(ts.isFunctionDeclaration(node)&&node.name?.text==='normalJoin'){
+    function find(child){if(ts.isCallExpression(child)&&ts.isPropertyAccessExpression(child.expression)&&child.expression.name.text==='until')joinPredicate=child.arguments[1]?.getText(source);ts.forEachChild(child,find);}find(node);
+  }ts.forEachChild(node,visit);}visit(source);assert.ok(joinPredicate);
+  const predicate=new Function('sid',`return (${joinPredicate});`)(sid);
+  const before={hasAuth:true,sameActor:true,sessionId:sid,cycle:0,phase,setupConfirmed:true,connection:'live',freshness:'server'};
+  assert.equal(predicate(before),true,'First ordinarily admitted player joins published lobby after setup confirmation.');
+  assert.equal(predicate({...before,phase:'casting'}),true,'The second player joins after the first actual role assignment advances phase.');
+  for(const delta of [{hasAuth:false},{sameActor:false},{sessionId:'foreign'},{cycle:1},{phase:'active'},{phase:'closed'},{setupConfirmed:false},{connection:'offline'},{freshness:'cache'}])assert.equal(predicate({...before,...delta}),false);
+  const admitted=member({phase,cycle:0,assignedRoleId:null,activeConsoleRoleId:null,seatId:null,currentCanonicalSeatOwned:false});
+  assert.equal(adapter.pc11MemberReadiness(admitted,{sessionId:sid,uidHash:hash(uid),roleId:null,stage:'casting'}),true);
+  assert.equal(adapter.pc11MemberReadiness({...admitted,phase:'casting'},{sessionId:sid,uidHash:hash(uid),roleId:null,stage:'casting'}),true);
+});
+
+test('actual first-failure snapshot skips an untouched blank surface without importing App modules',async()=>{
+  const source=await readFile(resolve(root,'scripts/qualification/pc11-three-actor-trade-philia.mjs'),'utf8');
+  const start=source.indexOf('async function snapshot('),end=source.indexOf('async function register(',start);let observations=0,writes=0;
+  const deps={assert,baseUrl:'http://127.0.0.1:5183',sid,stage:'normal join',states:[],consumed:null,directory:'/tmp/native-unused',
+    observeLifecycleActor:async()=>{observations++;return{sameActor:true};},writeFile:async()=>{writes++;},URL};
+  const snapshot=new Function('deps',`let {${Object.keys(deps).join(',')}}=deps;${source.slice(start,end)};return snapshot;`)(deps);
+  const value=await snapshot({page:{url:()=> 'about:blank'}},'unadmitted Recipient');
+  assert.equal(observations,0);assert.equal(writes,0);assert.equal(value.skipped,true);
+  await snapshot({page:{url:()=> 'http://127.0.0.1:5183/'}},'admitted Owner');assert.equal(observations,1);assert.equal(writes,1);
+});
+
+test('all six actual runner wait predicates consume the published ordinary setup-to-start transition chain',async()=>{
+  const runner=await readFile(resolve(root,'scripts/qualification/pc11-three-actor-trade-philia.mjs'),'utf8');
+  const handlers=await readFile(resolve(root,'functions/src/index.ts'),'utf8');
+  const region=(start,end)=>handlers.slice(handlers.indexOf(start),handlers.indexOf(end,handlers.indexOf(start)+1));
+  const create=region('export const createSession','export const joinSession');
+  const confirm=region('export const confirmSetup','export const setFacilitatorResponsibility');
+  const assign=region('export const assignRole','export const releaseSeat');
+  const start=region('export const startGame','export const ');
+  const lobby=create.match(/session:\s*\{[\s\S]*?phase:\s*'([^']+)'/)?.[1];assert.equal(lobby,'lobby');
+  assert.match(confirm,/setupConfirmed: true/);assert.doesNotMatch(confirm,/phase: 'casting'/,'confirmSetup retains the published lobby phase');
+  assert.match(assign,/tx\.update\(sessionRef,\s*\{\s*phase: 'casting'/);assert.match(start,/phase: 'active'/);
+  const source=ts.createSourceFile('runner',runner,ts.ScriptTarget.Latest,true,ts.ScriptKind.JS),predicates=new Map();
+  function visit(node){if(ts.isCallExpression(node)&&ts.isPropertyAccessExpression(node.expression)&&node.expression.name.text==='until'&&node.arguments[1]&&ts.isArrowFunction(node.arguments[1]))predicates.set(node.arguments[0].getText(source),node.arguments[1].getText(source));ts.forEachChild(node,visit);}visit(source);
+  assert.equal(predicates.size,6,'Every added wait requires an explicit ordinary lifecycle fixture.');
+  const deps={assert,sid,before:member(),phase:undefined,expectedUidHash:hash(uid),roleIds:{Owner:roleId},label:'Owner'};
+  const predicate=prefix=>{const entry=[...predicates].find(([name])=>name.includes(prefix));assert.ok(entry,`Missing actual ${prefix} wait`);return new Function('deps',`const {${Object.keys(deps).join(',')}}=deps;return (${entry[1]});`)(deps);};
+  const ordinary={hasAuth:true,sameActor:true,uidHash:hash(uid),sessionId:sid,cycle:0,phase:lobby,setupConfirmed:false,connection:'live',freshness:'server',profileRoleId:null,profileSessionId:null};
+  assert.equal(predicate('Fresh ordinary Cycle0')(ordinary),true);
+  const configured={...ordinary,setupConfirmed:true,activeRoleIds:pureSourceModule('src/data/rolePresets.ts').recommendedRoleIds(12)};
+  assert.equal(predicate('Legal12 roster confirmed')(configured),true);
+  assert.equal(predicate('Normal joined fresh')(configured),true,'First join sees configured lobby');
+  const assigned={...configured,phase:'casting'};assert.equal(predicate('Normal joined fresh')(assigned),true,'Second join follows the first role assignment');
+  const beforeSeat=member({phase:lobby,cycle:0,assignedRoleId:null,activeConsoleRoleId:null,seatId:null,currentCanonicalSeatOwned:false});
+  assert.equal(adapter.pc11MemberReadiness(beforeSeat,{sessionId:sid,uidHash:hash(uid),roleId:null,stage:'casting'}),true);
+  assert.equal(adapter.pc11MemberReadiness({...beforeSeat,phase:'casting',assignedRoleId:roleId},{sessionId:sid,uidHash:hash(uid),roleId,stage:'casting'}),true);
+  const claimed=member({phase:'casting',cycle:0});assert.equal(adapter.pc11MemberReadiness(claimed,{sessionId:sid,uidHash:hash(uid),roleId,stage:'station'}),true);
+  const stationStart=runner.indexOf('function castingStationReady('),stationEnd=runner.indexOf('async function currentMemberBerthReady(',stationStart);
+  const stationDeps={pc11MemberReadiness:adapter.pc11MemberReadiness,sid,short:hash,actorUids:new Map([['Owner',uid],['Recipient','original-president']])};
+  const station=new Function('deps',`const {${Object.keys(stationDeps).join(',')}}=deps;${runner.slice(stationStart,stationEnd)};return castingStationReady;`)(stationDeps);
+  assert.equal(station(claimed,'Owner',roleId),true);
+  const president=member({uidHash:hash('original-president'),assignedRoleId:'dione-president',activeConsoleRoleId:'dione-president',seatId:'dione-president',phase:'casting',cycle:0});
+  assert.equal(station(president,'Recipient','dione-president'),true);
+  assert.equal(station({...president,currentCanonicalSeatOwned:false},'Recipient','dione-president'),false);
+  assert.equal(station({...claimed,phase:lobby},'Owner',roleId),false,'Actual assigned station phase remains casting; lobby admission adds no seat authority.');
+  const gm={...configured,playerRole:'gm',gmInstanceOwned:true,instanceId:'gm-original'};
+  assert.equal(predicate('original normally authenticated live GM')(gm),true);
+  const active={...gm,phase:'active',cycle:1,ordinaryBriefingMounted:true,ordinaryBriefingHeld:true};
+  assert.equal(predicate('Cycle 1 briefing cleared')(active),false);
+  assert.equal(predicate('Cycle 1 briefing cleared')({...active,ordinaryBriefingMounted:false,ordinaryBriefingHeld:false}),true);
+  assert.equal(predicate('Original persisted Auth/member document restoration')({...active,playerRole:'player',activeConsoleRoleId:roleId}),true);
+  for(const delta of [{hasAuth:false},{sameActor:false},{connection:'offline'},{freshness:'cache'}])assert.equal(predicate('Original persisted Auth/member document restoration')({...active,playerRole:'player',activeConsoleRoleId:roleId,...delta}),false);
+});
