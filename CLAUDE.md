@@ -402,3 +402,25 @@ server-only.
   applicable, or recorded a clear preserve/discard outcome.
 - [ ] No privileged client write, secret, key, or private-source material was
   introduced.
+
+## Independent typography review for final releases
+
+Owner instruction, 2026-10-08: every final product checkpoint release and
+equivalent release requires a typography reviewer independent of the
+implementer. Review the actual final built candidate, identify its commit and
+build artifact, and compare it with the intended typography contract and
+previous released build. Automated typography checks do not substitute for this
+review. Recheck affected evidence if the reviewed candidate materially changes.
+
+Inspect the actual resolved/rendered font (including platform fallback or font
+load failure), computed family, size, weight and line height, readability,
+wrapping and overflow. Use representative relevant viewports and states,
+including changed controls, dialogs/portals and recovery screens when affected.
+Choose the smallest useful configuration set; do not expand into a full actor
+or account matrix. For a global font report, sample shared chrome plus distinct
+font/inheritance paths across the app, and compare base/candidate CSS and assets.
+Record the baseline, exact artifact, platform, states, viewport/window sizes,
+findings, evidence and what was not checked. An inaccessible runtime is an
+unresolved review gap, not a pass inferred from unit, inference or source tests.
+Fix actionable typography findings and obtain the affected independent review
+before publication.
