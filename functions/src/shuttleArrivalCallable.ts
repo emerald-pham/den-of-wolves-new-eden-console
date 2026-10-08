@@ -22,6 +22,7 @@ import { ROLE_IDS, recommendedRoleIds } from './roleConfiguration';
 import { isPresenceStale } from './sessionLifecycle';
 import { parseShuttleControl } from './shuttleControl';
 import { parseShuttleArrivalVisitLog, completeShuttleArrival as applyShuttleArrival } from './shuttleArrival';
+import { acceptQuarantineDocking, parseQuarantineDockingState } from './quarantineDocking';
 import { parseShuttleTransitAuthority } from './shuttleTransit';
 import { turnPhaseDeadlinePassed, turnPhaseState } from './turnZero';
 import { wolfAttackBlocksNormalMovement } from './wolfAttackDeclaration';
@@ -320,6 +321,29 @@ export function createCompleteShuttleArrivalCallable() {
         'conflict',
       );
     }
+    const rawQuarantine = session.get('quarantineDocking');
+    const quarantine = parseQuarantineDockingState(rawQuarantine);
+    if (rawQuarantine !== undefined && !quarantine) {
+      throw commandError('failed-precondition', 'The quarantine docking state is malformed.', 'conflict');
+    }
+    let nextQuarantine = quarantine;
+    try {
+      nextQuarantine = acceptQuarantineDocking({
+        state: quarantine,
+        previousHostShipId: transit.originShipId,
+        hostShipId: arrival.result.hostShipId,
+        shuttleId: data.shuttleId,
+        cycle: currentCycle as number,
+        requestId,
+        acceptedAt: arrival.result.arrivedAt,
+      });
+    } catch (cause) {
+      throw commandError(
+        'failed-precondition',
+        cause instanceof Error ? cause.message : 'Quarantine docking was rejected.',
+        'conflict',
+      );
+    }
     const reply: ShuttleArrivalReply = {
       status: 'arrived',
       sessionId: data.sessionId,
@@ -355,6 +379,7 @@ export function createCompleteShuttleArrivalCallable() {
     tx.update(sessionRef, {
       shuttleDockings: arrival.dockings,
       shuttleVisitLog: arrival.visitLog,
+      ...(nextQuarantine !== quarantine ? { quarantineDocking: nextQuarantine } : {}),
       updatedAt: FieldValue.serverTimestamp(),
     });
     tx.delete(transitRef);
