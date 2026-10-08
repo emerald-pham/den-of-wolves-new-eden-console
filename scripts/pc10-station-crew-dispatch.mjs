@@ -319,43 +319,90 @@ async function observeStationActorAuthority(surface, original, trace) {
   return { ...strict, airspace: latest.airspace, turnStatePhase: latest.turnStatePhase };
 }
 
-async function cancelForwardStationChoice(current, fresh, actor, context, trace, original, phase, pinned) {
-  if (!forwardStationProgress(fresh, current, context.sessionId)) return false;
-  if (fresh.status === 'declared') {
+function finalizedStationPhase(original) {
+  if (original.turnState.phase === 'coordination') return original;
+  return { ...original,
+    turnPhase: { ...original.turnPhase, airspace: { ...original.turnPhase.airspace, state: 'lifted' } },
+    turnState: { ...original.turnState, phase: 'coordination', phaseRevision: original.turnState.phaseRevision + 1,
+      startedAt: original.turnPhase.teamPhaseEndsAt, endsAt: original.turnPhase.openAirspaceEndsAt } };
+}
+
+function assertStationProgressPhase(phase, pinned, attack) {
+  if (attack.status === 'declared') {
     assertLockedStationPhase(phase);
     if (pinned) assert.deepEqual(phase, pinned, 'Declared Station progress cannot change its locked phase.');
   } else if (pinned) {
-    const expected = phase.turnState.phase === 'coordination' ? { ...pinned,
-      turnPhase: { ...pinned.turnPhase, airspace: { ...pinned.turnPhase.airspace, state: 'lifted' } },
-      turnState: { ...pinned.turnState, phase: 'coordination', phaseRevision: pinned.turnState.phaseRevision + 1,
-        startedAt: pinned.turnPhase.teamPhaseEndsAt, endsAt: pinned.turnPhase.openAirspaceEndsAt } } : pinned;
-    assert.deepEqual(phase, expected, 'Station finalization may only restore the original complete source phase.');
+    assert.deepEqual(phase, phase.turnState.phase === 'coordination' ? finalizedStationPhase(pinned) : pinned,
+      'Station finalization may only restore the original complete source phase.');
   }
-  const sample = await observePreFreezeActor(actor, current, { ...context,
-    frozenActor: original, deferFrozenPhase: true }, trace);
+}
+
+function assertStationProgressActor(sample, original, phase, pinned, attack) {
   assertStationLifecycleIdentity(sample, original);
-  if (sample.airspace === original.airspace && sample.turnStatePhase === original.turnStatePhase)
-    assertActorScopeUnchanged(sample, original);
-  else {
-    assert.equal(sample.airspace, 'lifted');assert.equal(sample.turnStatePhase, 'coordination');
-    assert.ok(fresh.status === 'resolved', 'Declared Station progress cannot restore member airspace.');
-    assert.equal(sample.turnStatePhaseRevision, phase.turnState.phaseRevision,
+  if (sample.airspace === 'lifted' && sample.turnStatePhase === 'coordination') {
+    assert.equal(attack.status, 'resolved', 'Declared Station progress cannot restore member airspace.');
+    // A source read may predate the terminal transaction. Bound the candidate
+    // actor restoration now, then require the fresh complete GM bookend below.
+    const expected = phase.turnState.phase === 'coordination' ? phase : finalizedStationPhase(pinned ?? phase);
+    assert.equal(sample.turnStatePhaseRevision, expected.turnState.phaseRevision,
       'Restored Station member phase revision must match the actual GM source.');
-    assert.equal(sample.turnStateStartedAt, phase.turnState.startedAt,
+    assert.equal(sample.turnStateStartedAt, expected.turnState.startedAt,
       'Restored Station member start must match the actual GM source.');
-    assert.equal(sample.turnStateEndsAt, phase.turnState.endsAt,
+    assert.equal(sample.turnStateEndsAt, expected.turnState.endsAt,
       'Restored Station member deadline must match the actual GM source.');
+  } else {
+    assert.equal(sample.airspace, 'restricted');assert.equal(sample.turnStatePhase, 'team');
+    if (original.airspace === 'restricted' && original.turnStatePhase === 'team')
+      assertActorScopeUnchanged(sample, original);
+    else assert.ok(actorMatchesPinnedTurnPhase(sample, original, pinned ?? phase),
+      'Station declaration publication must match its complete pinned Team source.');
   }
-  const strict = await observeStationActorAuthority(actor.surface, original, trace);
-  assertStationLifecycleIdentity({ ...sample, ...strict }, original);
-  assert.deepEqual(strict.discoveryAuthority, original.discoveryAuthority,
-    'Original Station discovery changed during source progress.');
-  const bookend = await context.readAttack({ deadlineAt: context.deadlineAt });
+}
+
+// Both Station consumers requalify a known terminal source with one fresh
+// complete GM phase -> original actor -> original attack bookend. It is read
+// cancellation only; no Coordination action eligibility, mutation or retry.
+async function rebookendStationFinalization(current, previous, original, pinned, phase, context, trace, observeActor) {
   assertBudget(context.deadlineAt);
-  trace.attackReads.push(attackTrace(bookend));
+  const snapshot = await readStationPhaseWindow(context.readTurnState, context.deadlineAt, trace);
+  assertBudget(context.deadlineAt);
+  const latestPhase = stationTurnPhaseTuple(snapshot, current, context.sessionId, context.gmAuthority,
+    { deferLockedPhase: true });
+  assert.equal(latestPhase.turnState.phase, 'coordination', 'A fresh finalized Station source must restore Coordination.');
+  assert.equal(latestPhase.turnPhase.airspace.state, 'lifted');
+  assertStationProgressPhase(latestPhase, pinned ?? phase, previous);
+  const latestActor = await observeActor();assertBudget(context.deadlineAt);
+  const latestAttack = await context.readAttack({ deadlineAt: context.deadlineAt });
+  assertBudget(context.deadlineAt);trace.attackReads.push(attackTrace(latestAttack));
+  assertStationCombatSource(latestAttack, current, previous);
+  assert.equal(latestAttack.status, 'resolved', 'Known Station finalization cannot become a new eligible choice.');
+  assertStationProgressActor(latestActor, original, latestPhase, pinned ?? phase, latestAttack);
+  return latestAttack;
+}
+
+async function cancelForwardStationChoice(current, fresh, actor, context, trace, original, phase, pinned) {
+  if (!forwardStationProgress(fresh, current, context.sessionId)) return false;
+  const observeActor = async () => {
+    const sample = await observePreFreezeActor(actor, current, { ...context,
+      frozenActor: original, deferFrozenPhase: true }, trace);
+    assertStationLifecycleIdentity(sample, original);
+    const strict = await observeStationActorAuthority(actor.surface, original, trace);
+    assertStationLifecycleIdentity({ ...sample, ...strict }, original);
+    assert.ok(strict.airspace === 'restricted' && strict.turnStatePhase === 'team' ||
+      strict.airspace === 'lifted' && strict.turnStatePhase === 'coordination',
+    'Current Station actor must retain a complete source phase pair.');
+    return sample;
+  };
+  const sample = await observeActor();
+  let bookend = await context.readAttack({ deadlineAt: context.deadlineAt });
+  assertBudget(context.deadlineAt);trace.attackReads.push(attackTrace(bookend));
+  assertStationCombatSource(bookend, current, fresh);
   assert.ok(forwardStationProgress(bookend, current, context.sessionId),
     'Original Station forward source progress disappeared during its actor fence.');
-  assert.ok(bookend.revision >= fresh.revision, 'Station source progress regressed during its actor fence.');
+  assertStationProgressPhase(phase, pinned, bookend);
+  assertStationProgressActor(sample, original, phase, pinned, bookend);
+  if (bookend.status === 'resolved')
+    bookend = await rebookendStationFinalization(current, bookend, original, pinned, phase, context, trace, observeActor);
   throw new SourceAttackChanged({ operation: 'station-crew-forward-source-progress', roleId: actor.roleId,
     sessionId: context.sessionId, deadlineAt: context.deadlineAt,
     originalAttack: progressAttackTrace(current), observedAttack: progressAttackTrace(bookend),
@@ -1210,28 +1257,14 @@ export async function stationWingFinalIntent(current, {
   const fresh = await readAttack({ deadlineAt });assertBudget(deadlineAt);
   assertStationCombatSource(fresh, current, current);trace.attackReads.push(attackTrace(fresh));
   const authority = await inspectActor();
-  const bookend = await readAttack({ deadlineAt });assertBudget(deadlineAt);
+  let bookend = await readAttack({ deadlineAt });assertBudget(deadlineAt);
   assertStationCombatSource(bookend, current, fresh);trace.attackReads.push(attackTrace(bookend));
-  const restoredPhase = originalPhase.turnState.phase === 'team' && phase.turnState.phase === 'coordination'
-    ? { ...originalPhase,
-      turnPhase: { ...originalPhase.turnPhase, airspace: { ...originalPhase.turnPhase.airspace, state: 'lifted' } },
-      turnState: { ...originalPhase.turnState, phase: 'coordination', phaseRevision: originalPhase.turnState.phaseRevision + 1,
-        startedAt: originalPhase.turnPhase.teamPhaseEndsAt, endsAt: originalPhase.turnPhase.openAirspaceEndsAt } }
-    : originalPhase;
-  assert.deepEqual(phase, restoredPhase, 'Station Wing source phase changed outside its complete finalization transition.');
+  assertStationProgressPhase(phase, originalPhase, bookend);
   if (forwardStationProgress(bookend, current, sessionId)) {
-    if (bookend.status === 'declared') assertLockedStationPhase(phase);
-    if (authority.airspace === 'lifted' && authority.turnStatePhase === 'coordination') {
-      assert.equal(bookend.status, 'resolved', 'Declared Station Wing progress cannot restore member airspace.');
-      assert.equal(authority.turnStatePhaseRevision, phase.turnState.phaseRevision);
-      assert.equal(authority.turnStateStartedAt, phase.turnState.startedAt);
-      assert.equal(authority.turnStateEndsAt, phase.turnState.endsAt);
-    } else {
-      assert.equal(authority.airspace, 'restricted');assert.equal(authority.turnStatePhase, 'team');
-      assert.equal(authority.turnStatePhaseRevision, originalAuthority.turnStatePhaseRevision);
-      assert.equal(authority.turnStateStartedAt, originalAuthority.turnStateStartedAt);
-      assert.equal(authority.turnStateEndsAt, originalAuthority.turnStateEndsAt);
-    }
+    assertStationProgressActor(authority, originalAuthority, phase, originalPhase, bookend);
+    if (bookend.status === 'resolved')
+      bookend = await rebookendStationFinalization(current, bookend, originalAuthority, originalPhase, phase,
+        { deadlineAt, sessionId, readTurnState, gmAuthority, readAttack }, trace, inspectActor);
     const observation = { operation: 'station-wing-forward-source-progress', roleId: 'wing-commander',
       sessionId, deadlineAt, originalAttack: progressAttackTrace(current), observedAttack: progressAttackTrace(bookend),
       actionCredit: false, acceptanceCredit: false, consumedObservations: trace };
