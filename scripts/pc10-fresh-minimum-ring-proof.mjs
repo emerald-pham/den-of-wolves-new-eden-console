@@ -159,15 +159,19 @@ export function stationPopulationSelectVisibleAlert(sourceAlerts,uiAlerts,dialog
  const[shipId,alert]=matches[0];
  return{shipId,alert};
 }
-export function stationPopulationAssertFreshProjection(expected,actual){
+export function stationPopulationAssertFreshProjection(expected,actual,{onObservation=()=>{}}={}){
+ onObservation(actual);
  assert.equal(stationPopulationStable(actual),stationPopulationStable(expected),'The exact alert/actor projection changed before the acknowledgment.');
  return actual;
 }
-export function stationPopulationPostDismissProjection({remainingAlerts,projection,expectedRevisions}){
+export function stationPopulationPostDismissProjection({acknowledgedAlert,remainingAlerts,projection,expectedRevisions}){
  const exactPopulationDialog=projection.visibleDialogs.length===1&&projection.visibleDialogs[0].role==='alertdialog'&&projection.visibleDialogs[0].name==='Survivor population threshold reached';
  if(projection.visibleDialogs.length&&!exactPopulationDialog)throw new Error('Stop if a consequential or unknown modal replaces the population alert.');
+ const dialog=projection.visibleDialogs[0]??null;
+ const staleAcknowledged=Boolean(dialog&&stationPopulationDialogMatches(dialog,stationPopulationUiRows([[acknowledgedAlert.shipId,acknowledgedAlert]])[0]));
+ const selectedRemaining=remainingAlerts.length&&exactPopulationDialog?stationPopulationSelectVisibleAlert(remainingAlerts,projection.targetedPopulation,dialog,{projection}):null;
+ if(dialog&&!staleAcknowledged&&!selectedRemaining)throw new Error('Stop if a changed or unrecognized population tuple replaces the acknowledged or current client-first alert.');
  const feedMatches=stationPopulationSameAlertSet(remainingAlerts,projection.targetedPopulation)&&stationPopulationStable(projection.vesselActionRevisions)===stationPopulationStable(expectedRevisions??{});
- const selectedRemaining=remainingAlerts.length&&exactPopulationDialog?stationPopulationSelectVisibleAlert(remainingAlerts,projection.targetedPopulation,projection.visibleDialogs[0],{projection}):null;
  const dialogMatches=remainingAlerts.length?Boolean(selectedRemaining):projection.visibleDialogs.length===0;
  return{feedMatches,dialogMatches,settled:feedMatches&&dialogMatches};
 }
@@ -1284,7 +1288,8 @@ async function enterRole(surface,label){
     const before=stationCombatServerContext({...beforeAuthority,publicAudience:null});assertSafePopulationAckState(beforeAuthority,before);
     assert.equal(stable(before),stable(ready.context),'Station source changed before the targeted informational acknowledgment.');
     assert.ok(beforeAuthority.authoritativeAttack,'Retain the actual final server Station attack before acknowledgment.');assert.equal(beforeAuthority.authoritativeAttack.attackId,final.attackId);assert.equal(beforeAuthority.authoritativeAttack.revision,final.revision);assert.equal(beforeAuthority.authoritativeAttack.status,'resolved');assert.equal(beforeAuthority.authoritativeAttack.currentStep,'resolved');assert.equal(beforeAuthority.authoritativeAttack.pStationRepeat?.status,'repeat');
-    const beforeProjection=stationPopulationAssertFreshProjection(ready.projection,await stationGmPopulationProjection(deadlineAt));
+    const beforeProjection=await stationGmPopulationProjection(deadlineAt);
+    stationPopulationAssertFreshProjection(ready.projection,beforeProjection,{onObservation:projection=>retainPopulationObservation({sourceAlerts:stationPopulationAlertsForGm(before.populationAlerts,gm1Instance),uiAlerts:projection.targetedPopulation,dialog:projection.visibleDialogs[0]??null,projection})});
     const shipId=ready.shipId,expectedRevision=before.vesselActionRevisions?.[shipId]??0;assert.ok(Number.isSafeInteger(expectedRevision)&&expectedRevision>=0);
     assert.equal(beforeProjection.vesselActionRevisions?.[shipId]??0,expectedRevision,'The current GM feed must expose the same source vessel revision as the server before dismissal.');
     const {dismiss,mounted}=await stationPopulationDismissMount(ready.alert);assert.deepEqual(mounted,{dialogCount:1,visible:true,dismissCount:1,enabled:true});
@@ -1335,7 +1340,7 @@ async function enterRole(surface,label){
      retainPopulationObservation({sourceAlerts:remainingAlerts,uiAlerts:current.targetedPopulation,dialog:current.visibleDialogs[0]??null,projection:current});
      for(const key of ['sessionId','phase','connection','freshness','generation','hydrationRevision','instanceId'])assert.equal(current[key],beforeProjection[key],`Normal GM feed ${key} changed during population dismissal.`);
      assert.deepEqual(current.targetedUnrest,[],'Stop if unrest becomes pending during dismissal.');assert.deepEqual(current.mutinyPanels,[],'Stop if mutiny recovery appears during dismissal.');
-     const publication=stationPopulationPostDismissProjection({remainingAlerts,projection:current,expectedRevisions:after.vesselActionRevisions});
+     const publication=stationPopulationPostDismissProjection({acknowledgedAlert:ready.alert,remainingAlerts,projection:current,expectedRevisions:after.vesselActionRevisions});
      if(publication.settled){settledProjection=current;break;}
      await candidateWait(()=>delay(Math.min(150,deadlineAt-Date.now())),deadlineAt,'Station normal population dismissal feed wait');
     }
