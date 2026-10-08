@@ -127,6 +127,12 @@ function makeConsumer() {
     },
     async waitForDocking() { return structuredClone(state.session); },
     async currentScoutOffer() { return structuredClone(state.session.scoutOffer); },
+    async selectPrintedScoutCoordinate(coordinate, offer) {
+      assert.ok(offer.printedCoordinates.includes(coordinate));
+      state.session.scoutOffer = { ...state.session.scoutOffer, coordinate };
+      trace.push({ ui: 'select-current-printed-scout-coordinate', coordinate });
+      return structuredClone(state.session.scoutOffer);
+    },
     async requestScout(coordinate, before) {
       const ordinal = ++scoutCount;
       const request = { sessionId: 'normal-session', requestId: `scout-${ordinal}`,
@@ -136,7 +142,7 @@ function makeConsumer() {
         ownerRoleId: 'wing-commander', anchorShipId: 'aegis', receivingShipId: 'aegis',
         targetCoordinate: coordinate };
       state.session.scoutOffer = { ...state.session.scoutOffer, firstRequestAvailable: false,
-        fuelledSecondRequestAvailable: true, coordinate: '1101' };
+        fuelledSecondRequestAvailable: true };
       return result('requestScout', request, response);
     },
     async resolveScoutNormally(request) {
@@ -184,6 +190,9 @@ test('a normally admitted current Wing Commander performs one original Starlight
   ], 'The real UI procedure must consume the full movement transition and only the two actually fuelled same-cycle scan receipts.');
   assert.equal(trace.filter(item => item.endpoint === 'beginShuttleTransit').length, 1,
     'An uncertain Begin must never be repeated with a new command identity.');
+  const scoutTargets = trace.filter(item => item.endpoint === 'requestScout').map(item => item.request.targetCoordinate);
+  assert.deepEqual(scoutTargets, ['1100', '1101'],
+    'A second same-cycle scan selects another currently printed coordinate when the normal form retains the first selection.');
   assert.deepEqual(result?.movement?.finalDocking, { shuttleId: 'starlight', shipId: 'shepherd' });
   assert.equal(result?.scouting?.privateReports?.length, 2);
   assert.equal(result?.scouting?.privateReports?.[0]?.requesterUid, undefined,
