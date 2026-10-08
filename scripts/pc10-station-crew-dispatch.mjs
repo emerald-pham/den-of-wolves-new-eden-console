@@ -294,6 +294,8 @@ function assertActorIdentityAtPinnedPhase(current, original) {
     'Original Station member entitled ship changed before choice scope freeze.');
   assert.equal(current.documentTimeOrigin, original.documentTimeOrigin,
     'Original Station browser document changed before choice scope freeze.');
+  assert.equal(current.currentBerthShipId, original.currentBerthShipId,
+    'Original Station current berth ship changed before choice scope freeze.');
 }
 
 function assertStationLifecycleIdentity(current, original) {
@@ -551,6 +553,7 @@ async function observePreFreezeActor(actor, current, context, trace) {
       turnStateEndsAt: session?.turnState?.endsAt ?? null,
       connection: state.connection, freshness: state.sessionSnapshotFreshness,
       documentTimeOrigin: performance.timeOrigin, instanceId: state.gmInstance?.id ?? null,
+      currentBerthShipId: session?.currentActorBerthAuthority?.shipId ?? null,
       gmInstanceOwned: !!state.gmInstance && state.gmInstance.uid === user?.uid &&
         state.gmInstance.sessionId === session?.id, connected: me?.connected !== false,
       discoveryAuthority: discovery ? { groupId: discovery.groupId, shipId: discovery.shipId ?? null,
@@ -590,6 +593,25 @@ async function observePreFreezeActor(actor, current, context, trace) {
     'Original Station identity hydration revision is required before choice scope freeze.');
   assert.ok(['lifted', 'restricted'].includes(sample.airspace),
     `Unknown pre-freeze Station airspace state: ${sample.airspace ?? '(missing)'}.`);
+  // PDF/Wing choices need an actual ship audience. Other current ship-backed
+  // members use the same server berth binding. Press craft and scoped GM
+  // observers retain their legitimate no-ship projections and grant no choice.
+  const shipChoiceActor = ['refinery-124-pdf-colonel', 'wing-commander'].includes(actor.roleId);
+  if (sample.playerRole === 'player' && actor.roleId !== 'press-officer' &&
+      (shipChoiceActor || sample.currentBerthShipId != null)) {
+    const discovery = sample.discoveryAuthority, vessels = discovery?.fleetGroupVesselIds;
+    const wireId = id => typeof id === 'string' && id.length > 0 && id.length <= 1_500 && !id.includes('/');
+    assert.ok(wireId(sample.currentBerthShipId), 'Current Station ship choice requires its actual member berth ship.');
+    assert.ok(discovery && typeof discovery === 'object', 'Current Station ship discovery audience is required before freeze.');
+    assert.equal(discovery.groupId, sample.fleetGroupId, 'Current Station discovery audience must match the actual member group.');
+    assert.ok(Number.isSafeInteger(discovery.revision) && discovery.revision >= 0,
+      'Current Station discovery revision must be a valid source revision.');
+    assert.ok(Array.isArray(vessels) && vessels.every(wireId) && new Set(vessels).size === vessels.length,
+      'Current Station discovery vessel audience must contain unique valid source IDs.');
+    assert.ok(vessels.includes(sample.currentBerthShipId), 'Current Station discovery audience must contain its actual berth ship.');
+    assert.equal(discovery.shipId, sample.currentBerthShipId, 'Current Station discovery ship must match its actual member berth.');
+    assert.equal(sample.entitledShipId, sample.currentBerthShipId, 'Current Station entitled ship must match its actual member berth.');
+  }
   if (context.frozenActor) {
     assertStationLifecycleIdentity(sample, context.frozenActor);
     if (!context.deferFrozenPhase) {
