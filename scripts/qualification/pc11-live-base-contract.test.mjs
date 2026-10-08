@@ -234,6 +234,8 @@ test('passive original UI request tracker retains cleanup IDs even when reply di
   page.emit('request',request('startGame'));page.emit('request',request('createSession'));
   assert.deepEqual(captured.map(v=>v.endpoint),['startGame','createSession']);
   assert.equal(captured[0].requestId,'original-1');assert.equal(captured[0].sessionId,sid);
+  page.emit('request',{url:()=> 'http://127.0.0.1:5013/demo-pc11-test/us-central1/joinSession',method:()=> 'POST',postDataJSON:()=>({data:{joinCode:'NORMAL'}})});
+  assert.equal(captured[2]?.endpoint,'joinSession');
   tracker.finish();assert.equal(page.listenerCount('request'),0);
 });
 
@@ -247,7 +249,7 @@ test('every active runner browser callback binds published modules and normal fi
       // The copied factory's callable controller is never invoked by this UI-only runner.
       if(!text.includes('httpsCallable'))callbacks.push({text,kind:node.expression.name.text});
     }ts.forEachChild(node,visit);
-  }visit(ast);assert.equal(callbacks.length,14,'Active browser callback inventory must be updated for changes.');
+  }visit(ast);assert.equal(callbacks.length,15,'Active browser callback inventory must be updated for changes.');
   const rolePresets=pureSourceModule('src/data/rolePresets.ts');
   const state=stateFixture('gm');state.session.shipDamage={dione:{damagedSystemIds:[]}};state.session.shipResources={dione:{materials:3}};
   state.session.shuttleControl={philia:{holderUid:uid}};state.session.shuttleDockings=[{shuttleId:'philia',shipId:'dione'}];
@@ -273,7 +275,7 @@ test('every active runner browser callback binds published modules and normal fi
     if(text.includes('Held inventory absent'))assert.deepEqual(result,heldBalances);
     if(text.includes('recommendedRoleIds'))assert.equal(result.length,12);
     if(text.includes('occupiedSeatCount'))assert.equal(result.occupiedSeatCount,1);
-  }assert.equal(executed,14);assert.equal(window.__pc11GmClaimObservation,undefined);
+  }assert.equal(executed,15);assert.equal(window.__pc11GmClaimObservation,undefined);
 });
 
 test('hosted Philia and normal reload retain original Dione seat and exact own host map',()=>{
