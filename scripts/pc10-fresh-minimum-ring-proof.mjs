@@ -38,6 +38,23 @@ export async function runStationPaidArrivals(ships,{grant,jump}){for(const ship 
 export function beginStationCombatWing(original,current){assert.equal(original.cycle,1);assert.equal(current.cycle,2);assertSparseStationWing(current,{...original,cycle:2});return current;}
 export function assertStationNavigation(navigation,ships,coordinate){return assertRingNavigation(navigation,ships,coordinate);}
 export function stationActivationContext(input){return {code:'P',...input,gm:{...input.gm,callable:(name,data,options)=>{const timeoutMs=Math.min(options.timeoutMs,options.deadlineAt-Date.now());assert.ok(Number.isFinite(timeoutMs)&&timeoutMs>0);return input.gm.callable(name,data,timeoutMs);}},readRoot:async()=>({...await input.recordRoot(),sessionId:input.sessionId})};}
+export async function readStationCombatGuardAuthority({db,scope}){
+ assert.equal(scope.ownedSyntheticSession,true,'Only a fresh owned synthetic fixture may be inspected.');
+ assert.match(scope.sessionId,/^[A-Za-z0-9_-]+$/);assert.equal(scope.sessionId,scope.ownedSessionId);
+ assert.match(scope.projectId,/^demo-[a-z0-9-]+$/);assert.equal(scope.projectId,scope.expectedProjectId);
+ assert.equal(db.projectId,scope.projectId,'Existing Admin client must belong to the allocated demo project.');
+ assert.match(scope.firestoreHost,/^127\.0\.0\.1:[0-9]+$/);assert.equal(scope.firestoreHost,scope.expectedFirestoreHost);
+ const prefix=`sessions/${scope.sessionId}`;
+ const [session,attack,pdfWing,players,fleetGroups]=await Promise.all([
+  db.doc(prefix).get(),db.doc(`${prefix}/wolfAttackState/current`).get(),db.doc(`${prefix}/serverState/pdfEscortWing`).get(),
+  db.collection(`${prefix}/players`).get(),db.collection(`${prefix}/fleetGroups`).get(),
+ ]);
+ assert.equal(session.exists,true,'Owned fixture root must still exist.');
+ return {sessionId:scope.sessionId,root:session.data(),authoritativeAttack:attack.exists?attack.data():null,
+  pdfWing:pdfWing.exists?pdfWing.data():null,players:players.docs.map(player=>({...player.data(),uid:player.id})),
+  fleetGroups:fleetGroups.docs.map(group=>({...group.data(),id:group.id})),
+  inspection:{channel:'isolated-emulator-admin-read-only',projectId:scope.projectId,firestoreHost:scope.firestoreHost,observedAt:new Date().toISOString()}};
+}
 export function stationCombatServerContext({sessionId,root,pdfWing,publicAudience,players,fleetGroups}){
  const keys=['currentTurn','phase','turnPhase','turnState','activeRoleIds','activeVesselIds','shipDamage','maintenanceCycles','shuttleControl','shuttleDockings','shuttleFuelled','maliadesState','shipResources','shipUpgrades','fighterWingCounts','smallShipStates','expansion','capybaraEnabled','shipSurvivors','candidateState','navigation'];
  const playerKeys=['uid','role','assignedRoleId','activeConsoleRoleId','replacementRoleId','replacementStatus','connected','seatId','kickedAt','escapeState','fleetGroupId'];
@@ -667,22 +684,36 @@ async function enterRole(surface,label){
    const preparation=gm.page.getByRole('region',{name:'Private Wolf attack preparation',exact:true});
    await preparation.getByLabel('Battlestation count',{exact:true}).fill('1');await preparation.getByLabel('Fleet Strikecarrier count',{exact:true}).fill('4');
    await action(gm,'stageWolfAttackPreparation',()=>preparation.getByRole('button',{name:'Save private attack draft',exact:true}).click());
-   let serverCombatContext,lastCombatSampleHash;
+   let browserCombatContext,lastCombatSampleHash;
    async function readAttack(){
     await liveGm(gm,'GM1','active');
     const read=await gm.page.evaluate(async sid=>{
      const source=await(await fetch('/src/lib/firestore.ts')).text(),match=source.match(/from\s+["']([^"']*firebase_firestore\.js[^"']*)["']/);if(!match)throw Error('Actual served Firestore SDK import required');
      const sdk=await import(match[1]),{db}=await import('/src/lib/firestore.ts');
-     const [attack,session,audience]=await Promise.all(['wolfAttackState/current','', 'wolfAttackAudience/current'].map(path=>sdk.getDocFromServer(sdk.doc(db(),`sessions/${sid}${path?`/${path}`:''}`))));
-     if(!attack.exists()||!session.exists())throw Error('Current real Station attack/session missing');const root=session.data();
-     const [pdfWing,players,fleetGroups]=await Promise.all([sdk.getDocFromServer(sdk.doc(db(),`sessions/${sid}/serverState/pdfEscortWing`)),sdk.getDocsFromServer(sdk.collection(db(),`sessions/${sid}/players`)),sdk.getDocsFromServer(sdk.collection(db(),`sessions/${sid}/fleetGroups`))]);
-     return {attack:attack.data(),root,pdfWing:pdfWing.exists()?pdfWing.data():null,publicAudience:audience.exists()?audience.data():null,players:players.docs.map(player=>({...player.data(),uid:player.id})),fleetGroups:fleetGroups.docs.map(group=>({...group.data(),id:group.id}))};
-    },sid);serverCombatContext=stationCombatServerContext({sessionId:sid,...read});return read.attack;
+     const [attack,audience]=await Promise.all(['wolfAttackState/current','wolfAttackAudience/current'].map(path=>sdk.getDocFromServer(sdk.doc(db(),`sessions/${sid}/${path}`))));
+     if(!attack.exists())throw Error('Current real Station attack missing');
+     return {attack:attack.data(),publicAudience:audience.exists()?audience.data():null};
+    },sid);browserCombatContext={channel:'original-GM-browser-Firestore-SDK',sessionId:sid,observedAt:new Date().toISOString(),publicAudience:read.publicAudience};return read.attack;
    }
+   const recordDiagnosticError=(channel,error,attack)=>{
+    const entry={channel,error:originalProofError(error),attackId:attack.attackId,turn:attack.turn,revision:attack.revision,step:attack.currentStep};
+    evidence.stationDiagnosticStatus='incomplete';
+    const fingerprint=hash(stable({channel,message:entry.error.message}));
+    if(!(evidence.stationDiagnosticErrors??=[]).some(item=>item.fingerprint===fingerprint))evidence.stationDiagnosticErrors.push({...entry,fingerprint});
+    return entry;
+   };
    const retainCombatState=async attack=>{
-    const member=await fullMember(recipient);
-    const mountedPanels=await recipient.page.locator('section[aria-label]').evaluateAll(nodes=>nodes.filter(node=>/fighter|wolf|boarding/i.test(node.getAttribute('aria-label')??'')).map(node=>({label:node.getAttribute('aria-label'),visible:node.getClientRects().length>0,text:node.innerText.slice(0,2000),buttons:[...node.querySelectorAll('button')].map(button=>({label:button.innerText,disabled:button.disabled})),selects:[...node.querySelectorAll('select')].map(select=>({label:select.getAttribute('aria-label'),disabled:select.disabled}))})));
-    const sample={attack,serverContext:serverCombatContext,member,mountedPanels};
+    const results=await Promise.allSettled([
+     bounded(readStationCombatGuardAuthority({db,scope:{ownedSyntheticSession:true,sessionId:sid,ownedSessionId:sid,projectId,expectedProjectId:allocation.projectId,firestoreHost:process.env.FIRESTORE_EMULATOR_HOST,expectedFirestoreHost:`127.0.0.1:${ports.firestore}`}}),5000,'Private Station emulator inspection expired.'),
+     bounded(fullMember(recipient),5000,'Station diagnostic member observation expired.'),
+     bounded(recipient.page.locator('section[aria-label]').evaluateAll(nodes=>nodes.filter(node=>/fighter|wolf|boarding/i.test(node.getAttribute('aria-label')??'')).map(node=>({label:node.getAttribute('aria-label'),visible:node.getClientRects().length>0,text:node.innerText.slice(0,2000),buttons:[...node.querySelectorAll('button')].map(button=>({label:button.innerText,disabled:button.disabled})),selects:[...node.querySelectorAll('select')].map(select=>({label:select.getAttribute('aria-label'),disabled:select.disabled}))}))),5000,'Station diagnostic mount observation expired.'),
+    ]);
+    const diagnosticErrors=[];const channels=['emulator-admin-read-only','original-Wing-member','original-Wing-mounted-panels'];
+    const values=results.map((result,index)=>{if(result.status==='fulfilled')return result.value;diagnosticErrors.push(recordDiagnosticError(channels[index],result.reason,attack));return null;});
+    const [authority,member,mountedPanels]=values;
+    const serverContext=authority?{...stationCombatServerContext({...authority,publicAudience:null}),authoritativeAttack:authority.authoritativeAttack,inspection:authority.inspection}:null;
+    const sample={attack,browserContext:browserCombatContext,serverContext,member,mountedPanels,diagnosticErrors};
+    evidence.stationDiagnosticStatus??='complete';
     evidence.stationCombatLatest={observedAt:new Date().toISOString(),...sample};
     const sampleHash=hash(stable(sample));if(sampleHash!==lastCombatSampleHash){lastCombatSampleHash=sampleHash;(evidence.stationCombatTransitions??=[]).push({observedAt:evidence.stationCombatLatest.observedAt,attackId:attack.attackId,revision:attack.revision,step:attack.currentStep,status:attack.status,decisionSummary:attack.decisionSummary??null});}
     await writeFile(`${directory}/Station-combat-latest.json`,JSON.stringify(evidence.stationCombatLatest,null,2)+'\n');
@@ -716,7 +747,7 @@ async function enterRole(surface,label){
    let liberated=false;const waves=[];
    for(let wave=1;wave<=12&&!liberated;wave++){
     for(const ship of ships)await repair(ship);await liveGm(gm,'GM1','active');await action(gm,'declareWolfAttack',()=>preparation.getByRole('button',{name:'Declare Wolf attack',exact:true}).click());
-    const final=await runSparseStationCombat({deadlineAt:Math.min(Date.now()+480000,workEnd-60000),readAttack,onState:retainCombatState,assertActors:async()=>{budget();await liveGm(gm,'GM1','active');assertSparseStationWing(await fullMember(recipient),evidence.stationWingOriginal);},choose});
+    const final=await runSparseStationCombat({deadlineAt:Math.min(Date.now()+480000,workEnd-60000),readAttack,onState:retainCombatState,onDiagnosticError:async(error,attack)=>{recordDiagnosticError('diagnostic-retention',error,attack);},assertActors:async()=>{budget();await liveGm(gm,'GM1','active');assertSparseStationWing(await fullMember(recipient),evidence.stationWingOriginal);},choose});
     waves.push({wave,attackId:final.attackId,repeat:final.pStationRepeat});liberated=final.pStationRepeat.status==='stopped';await writeFile(`${directory}/Station-combat-waves.json`,JSON.stringify(waves,null,2)+'\n');
    }
    assert.equal(liberated,true,'Real Station combat must end with zero surviving Wolves before activation.');
