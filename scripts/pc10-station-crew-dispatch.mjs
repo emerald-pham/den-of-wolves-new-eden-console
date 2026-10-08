@@ -375,15 +375,19 @@ async function readySource(current, actor, spec, { sessionId, deadlineAt, assert
     return observed;
   };
   const expected = { ...current, sessionId };
-  const inspectAttack = async () => {
+  const inspectRawAttack = async () => {
     assertBudget(deadlineAt);
     const attack = await readAttack();
     assertBudget(deadlineAt);
     return attack;
   };
+  const inspectAttack = async () => {
+    const attack = await inspectRawAttack();
+    return lockedAttack(attack, current) ? attack : null;
+  };
   const readChoice = async () => {
     await fence();
-    const beforeAttack = await inspectAttack();
+    const beforeAttack = await inspectRawAttack();
     if (!lockedAttack(beforeAttack, current)) throw new SourceAttackChanged();
     const timeoutMs = Math.min(35_000, deadlineAt - Date.now());
     assert.ok(timeoutMs > 0, 'Original Station deadline expired before its browser SDK source read.');
@@ -405,7 +409,7 @@ async function readySource(current, actor, spec, { sessionId, deadlineAt, assert
       scope.trace.sourceReplies.push({ endpoint: source.endpoint, reply });
     assertBudget(deadlineAt);
     await fence();
-    const afterAttack = await inspectAttack();
+    const afterAttack = await inspectRawAttack();
     sourceRead.afterAttack = structuredClone(afterAttack);
     if (!lockedAttack(afterAttack, current)) throw new SourceAttackChanged();
     if (reply?.status !== 'committed') {
