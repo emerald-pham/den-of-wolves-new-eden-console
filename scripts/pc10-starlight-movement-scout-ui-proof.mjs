@@ -231,21 +231,45 @@ async function waitForArrivalWindow(io, transit, deadlineAt) {
  * use controlled surfaces around the same shared receipt observer, never Auth
  * actors or emulator writes.
  */
-export async function runP181StarlightMovementScoutUiProof({
+async function runP181StarlightMovementScoutCore({
   initial, started, roster, gm, expectedWingCommander, io,
   absoluteDeadlineMs, requiredBranches = ['movement', 'first-scout'],
   evidenceDirectory,
 }) {
-  assert.ok(io && typeof io.observeMember === 'function' && typeof io.observeFlight === 'function',
-    'Pass the original mounted UI actor and Starlight source observers.');
+  assert.ok(io && (typeof io.prepareNormalSession === 'function' ||
+    typeof io.observeMember === 'function' && typeof io.observeFlight === 'function'),
+  'Pass the original normal setup observer or mounted UI actor and Starlight source observers.');
   assert.ok(Number.isFinite(absoluteDeadlineMs) && absoluteDeadlineMs > Date.now(),
     'The parent allocation’s absolute deadline is required.');
   assert.ok(requiredBranches.every(branch => ['movement', 'first-scout', 'second-scout'].includes(branch)));
   assert.equal(new Set(requiredBranches).size, requiredBranches.length);
+  let startupReceipts = [];
+  if (!started || !gm || !Array.isArray(roster) || initial?.setupConfirmed !== true ||
+      expectedWingCommander?.roleId !== P181_NORMAL_SETUP.wingCommanderRoleId) {
+    assert.equal(typeof io.prepareNormalSession, 'function',
+      'A fresh Cycle 0 P181 run must prepare its normal UI session before testing readiness or flight actions.');
+    const prepared = await io.prepareNormalSession({ initial, deadlineAt: absoluteDeadlineMs,
+      requiredBranches: [...requiredBranches], setup: P181_NORMAL_SETUP });
+    assert.ok(prepared && Array.isArray(prepared.receipts),
+      'The existing normal setup/start consumer must return its original observed UI receipts.');
+    ({ initial, started, roster, gm, expectedWingCommander } = prepared);
+    startupReceipts = prepared.receipts;
+    assert.deepEqual(startupReceipts.map(value => value.endpoint),
+      ['confirmSetup', 'assignRole', 'startGame', 'clearTurnAdvanceInterstitial'],
+      'Use the exact normal setup, role assignment, production start and original Cycle 1 briefing-clear sequence.');
+    for (const capture of startupReceipts) {
+      assert.equal(capture.httpStatus, 200);
+      assert.equal(capture.data?.sessionId, initial.sessionId);
+      publicLifecycleReceipt(capture);
+    }
+  }
+  assert.ok(typeof io.observeMember === 'function' && typeof io.observeFlight === 'function',
+    'Normal startup must hand back the original mounted UI actor and current Starlight source observers.');
   const admittedMember = requireStartedContext({ initial, started, roster, gm, expectedWingCommander });
   io.sessionId = initial.sessionId;
   io.expectedWingCommander = { ...admittedMember, ...expectedWingCommander };
-  const receipts = [], movement = { status: 'pending' }, scouting = { status: 'pending', privateReports: [] };
+  const receipts = startupReceipts.map(capture => ({ ...publicLifecycleReceipt(capture), endpoint: capture.endpoint }));
+  const movement = { status: 'pending' }, scouting = { status: 'pending', privateReports: [] };
   const branches = [];
   const remaining = () => {
     const ms = Math.min(60_000, absoluteDeadlineMs - Date.now());
@@ -465,6 +489,33 @@ export async function runP181StarlightMovementScoutUiProof({
       `${JSON.stringify(result, null, 2)}\n`, { mode: 0o600, flag: 'wx' });
   }
   return result;
+}
+
+/** Preserve the first setup/authority/receipt failure while giving the owned
+ * browser/Auth/session teardown one finite deadline on both success and error. */
+export async function runP181StarlightMovementScoutUiProof(input) {
+  let value, firstError, cleanup;
+  try {
+    value = await runP181StarlightMovementScoutCore(input);
+  } catch (error) {
+    firstError = error;
+  }
+  const cleanupOwnedResources = input?.io?.cleanupOwnedResources;
+  if (typeof cleanupOwnedResources === 'function') {
+    const deadlineAt = input.cleanupDeadlineMs ?? input.absoluteDeadlineMs ?? Date.now();
+    try {
+      assert.ok(Number.isFinite(deadlineAt) && deadlineAt > Date.now(),
+        'Original P181 cleanup deadline expired; do not extend or begin a new cleanup action.');
+      cleanup = await cleanupOwnedResources({ firstError, deadlineAt });
+      if (cleanup?.status === 'failed') throw new Error('Original P181 owned cleanup did not complete.');
+    } catch (error) {
+      if (firstError) {
+        Object.defineProperty(firstError, 'cleanupError', { value: error, configurable: true });
+      } else firstError = error;
+    }
+  }
+  if (firstError) throw firstError;
+  return cleanup ? { ...value, cleanup } : value;
 }
 
 /** Read the mounted normal App's original actor and Starlight source projection.
