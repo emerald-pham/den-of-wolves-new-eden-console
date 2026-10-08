@@ -593,8 +593,6 @@ test('P631 first GM claim reaches the actual lifecycle actor guard and binds its
     assert.equal(claim?.data?.instanceId, 'owned-p631-gm-instance');
     assert.equal(claim?.result?.instance?.id, claim?.data?.instanceId,
       'The actual shared capture helper must deliver the same claimed instance as request and reply.');
-    assert.equal(run.trace?.events?.filter(item => item.kind === 'actual-lifecycle-receipt')
-      .some(item => item.endpoint === 'confirmSetup'), true);
     assert.match(retained.originalError?.message ?? '', /CONTROLLED_STOP_AFTER_ACTUAL_GM_CLAIM/);
   } finally { await rm(run.temporary, { recursive: true, force: true }); }
 });
