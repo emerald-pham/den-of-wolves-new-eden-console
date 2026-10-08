@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { build, preview } from 'vite';
 import { chromium } from 'playwright';
+import { referenceLabelGeometry, assertReferenceLabelGeometry } from './operations-reference-render-contract.mjs';
 
 const root = await realpath(process.cwd());
 const output = await mkdtemp(join(tmpdir(), 'dow-mobile-layout-build-'));
@@ -59,6 +60,8 @@ try {
         const size = await toggle.evaluate(element => parseFloat(getComputedStyle(element).fontSize));
         assert.equal(size, 14 * viewport.scale, 'Operations reference primary control uses readable 14px token');
         await toggle.click();
+        metrics.referenceLabel = await toggle.evaluate(referenceLabelGeometry);
+        assertReferenceLabelGeometry(metrics.referenceLabel);
         const bounds = await toggle.evaluate(element => ({
           button: element.getBoundingClientRect().toJSON(),
           panel: element.parentElement.getBoundingClientRect().toJSON(),
