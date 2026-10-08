@@ -392,18 +392,23 @@ export async function openBaseEndeavourResearchRoute({ page, checkpoint }) {
 /** Compare actual visible CIC text while preserving every source value and consequence. */
 export function baseResearchPaintMatches(paint, workspace, receipt) {
   if (paint?.busy !== 'false' || paint.progressVisible !== true || !Array.isArray(paint.rows) ||
-      !Array.isArray(workspace?.tracks) || !Array.isArray(workspace?.cadence?.choices)) return false;
+      !Array.isArray(workspace?.tracks) || !Array.isArray(workspace?.cadence?.choices) ||
+      typeof workspace.scienceDevices?.detectorBuilt !== 'boolean') return false;
   const track = workspace.tracks.find(value => value.trackId === 'wolf-agent-detector');
   if (!track || typeof track.name !== 'string' || !track.name ||
       !Number.isSafeInteger(track.crossedBoxes) || !Number.isSafeInteger(track.totalBoxes) ||
       track.crossedBoxes < 0 || track.totalBoxes < 1 || track.crossedBoxes > track.totalBoxes ||
       typeof track.complete !== 'boolean' ||
-      (!track.complete && (!Number.isSafeInteger(track.currentMaterialCost) || track.currentMaterialCost < 0)) ||
+      (track.currentMaterialCost !== null &&
+        (!Number.isSafeInteger(track.currentMaterialCost) || track.currentMaterialCost < 0)) ||
+      (track.complete && track.currentMaterialCost === null) ||
       !Number.isSafeInteger(workspace.shepherdOre) || workspace.shepherdOre < 0) return false;
   const normalize = value => typeof value === 'string' ? value.replace(/\s+/g, ' ').trim().toUpperCase() : '';
   const chosen = workspace.cadence.choices.some(value => value.trackId === track.trackId);
   const status = track.complete ? 'Research complete.' : chosen ? 'Chosen this cycle.' : 'Available for a research choice.';
-  const fieldCost = track.complete ? 'no further field-upgrade cost.' : `next field-upgrade cost is ${track.currentMaterialCost} materials.`;
+  const fieldCost = track.currentMaterialCost === null ? 'purchase unavailable.'
+    : track.complete ? `current purchase cost is ${track.currentMaterialCost} materials.`
+      : `next field-upgrade cost is ${track.currentMaterialCost} materials.`;
   const expectedRow = normalize(`${track.name}: ${track.crossedBoxes} of ${track.totalBoxes} boxes crossed; ${fieldCost} ${status}`);
   const rows = paint.rows.map(normalize).filter(row => row.startsWith(normalize(`${track.name}:`)));
   if (rows.length !== 1 || rows[0] !== expectedRow) return false;
@@ -414,5 +419,5 @@ export function baseResearchPaintMatches(paint, workspace, receipt) {
       !text.includes(normalize(`Shepherd // ${workspace.shepherdOre} ore available`))) return false;
   if (receipt && !text.includes(normalize(`${track.name} advanced one research box.`)) &&
       !text.includes(normalize(`${track.name} research request was confirmed.`))) return false;
-  return !track.complete || paint.detectorVisible === true;
+  return paint.detectorVisible === workspace.scienceDevices.detectorBuilt;
 }
