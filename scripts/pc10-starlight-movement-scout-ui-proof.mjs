@@ -14,7 +14,7 @@ import { observeFullGameDemoPresentationMember, proofRuntimeFromViteSource,
   validateProofRuntime } from './pc10-full-game-demo-proof-helpers.mjs';
 import { createMemberNavigationResumeObserver } from './pc10-member-navigation-resume.mjs';
 import { pc11GmReadiness, pc11MemberReadiness, removePc11OwnedRootRecords,
-  createPc11OwnedRequestTracker, recoverPc11CreatedSession } from './qualification/pc11-normal-start-adapter.mjs';
+  pc11SameActorEpoch, createPc11OwnedRequestTracker, recoverPc11CreatedSession } from './qualification/pc11-normal-start-adapter.mjs';
 import { runPc11ContractPreflight } from './qualification/pc11-contract-preflight.mjs';
 import { validateScoutBundle } from './pc10-navigation-scout-proof-contracts.mjs';
 
@@ -436,7 +436,16 @@ async function runP181StarlightMovementScoutCore({
 
   // A normal refresh and role chooser entry are read-only recovery, never a
   // second movement request. The actual member adapter uses the captured UID.
+  const expectedBeforeReload = { ...io.expectedWingCommander };
   const recovered = await io.reloadAndReselectWingCommander(remaining());
+  assert.equal(pc11SameActorEpoch(expectedBeforeReload, recovered.actor, recovered.resumeEvidence), true,
+    'A changed document or lease epoch requires the shared exact normal-resumeSession receipt and accepted SDK fence.');
+  if (recovered.resumeEvidence) {
+    io.expectedWingCommander = { ...io.expectedWingCommander,
+      connectionGeneration: recovered.actor.connectionGeneration,
+      identityHydrationRevision: recovered.actor.identityHydrationRevision,
+      documentTimeOrigin: recovered.actor.documentTimeOrigin };
+  }
   requireActor(recovered.actor, io.expectedWingCommander, 'Wing Commander after normal reload/reselection');
   assert.deepEqual(recovered.flight.docking, movement.finalDocking,
     'Current source docking after reload must match the original committed arrival.');
@@ -752,16 +761,57 @@ export function createP181StarlightBrowserIo({ gm, wingCommander, gameplay, dire
       throw new Error(`Source arrival did not publish its current docking: ${JSON.stringify(value?.docking ?? null)}`);
     },
     async reloadAndReselectWingCommander(timeout) {
-      await wingCommander.page.reload({ waitUntil: 'domcontentloaded', timeout });
-      await wingCommander.until('Original Wing Commander after normal reload', value =>
-        value.sessionId === initial.sessionId && value.uidHash === expected.uidHash &&
-        value.connection === 'live' && value.freshness === 'server', timeout);
-      await selectWing(Date.now() + timeout);
-      const after = await observeFlight();
-      await wingCommander.page.getByRole('link', { name: 'Open Starlight shuttle console', exact: true }).click({ timeout });
-      await wingCommander.page.getByRole('region', { name: 'Starlight scouting request', exact: true })
-        .waitFor({ state: 'visible', timeout });
-      return { actor: await member(), flight: await observeFlight() };
+      const deadlineAt = Date.now() + timeout;
+      const before = await member();
+      const navigation = createMemberNavigationResumeObserver(wingCommander.page, {
+        directory, roleId: P181_NORMAL_SETUP.wingCommanderRoleId, deadlineAt, memberContract: 'pc11-live-base',
+      });
+      let failed, acceptedActor, resumeEvidence, recovered;
+      try {
+        await navigation.prepare(before);
+        await wingCommander.page.reload({ waitUntil: 'domcontentloaded',
+          timeout: Math.min(35_000, deadlineAt - Date.now()) });
+        while (Date.now() < deadlineAt) {
+          const current = await member();
+          assert.equal(current.sessionId, initial.sessionId);
+          assert.equal(current.uidHash, io.expectedWingCommander.uidHash);
+          navigation.sample(current);
+          if (current.connection !== 'live' || current.freshness !== 'server') {
+            await delay(Math.min(200, deadlineAt - Date.now()));
+            continue;
+          }
+          if (current.connectionGeneration !== before.connectionGeneration ||
+              current.identityHydrationRevision !== before.identityHydrationRevision ||
+              current.documentTimeOrigin !== before.documentTimeOrigin) {
+            const accepted = await navigation.accept(before, current, () => member());
+            if (!accepted) { await delay(Math.min(150, deadlineAt - Date.now())); continue; }
+            acceptedActor = accepted;
+            resumeEvidence = { status: 'accepted', source: 'normal-resumeSession',
+              uidHash: accepted.uidHash, sessionId: accepted.sessionId,
+              connectionGeneration: accepted.connectionGeneration,
+              identityHydrationRevision: accepted.identityHydrationRevision,
+              sdkHasServerAuthority: accepted.sdkHasServerAuthority };
+          } else acceptedActor = current;
+          break;
+        }
+        assert.ok(acceptedActor, 'Original reload recovery must keep its initial finite deadline.');
+        await selectWing(deadlineAt);
+        const shuttleLink = wingCommander.page.getByRole('link', { name: 'Open Starlight shuttle console', exact: true });
+        if (await shuttleLink.isVisible().catch(() => false)) await shuttleLink.click({ timeout: Math.min(35_000, deadlineAt - Date.now()) });
+        await wingCommander.page.getByRole('region', { name: 'Starlight scouting request', exact: true })
+          .waitFor({ state: 'visible', timeout: Math.min(35_000, deadlineAt - Date.now()) });
+        const after = await member();
+        assert.equal(after.sessionId, initial.sessionId);
+        assert.equal(after.uidHash, io.expectedWingCommander.uidHash);
+        recovered = { actor: after, flight: await observeFlight(), ...(resumeEvidence ? { resumeEvidence } : {}) };
+      } catch (error) { failed = error; }
+      finally {
+        try { await navigation.finish(failed); }
+        catch (error) { if (!failed) failed = error; else Object.defineProperty(failed, 'navigationCleanupError', { value: error }); }
+      }
+      if (failed) throw failed;
+      assert.ok(recovered, 'Original navigation cleanup must finish before the member is returned.');
+      return recovered;
     },
     async currentScoutOffer(timeout) {
       const view = await observeFlight();
