@@ -747,3 +747,49 @@ it('identifies maintenance checks as console-owned rolls and outcomes', () => {
   );
   expect(run).not.toHaveBeenCalled();
 });
+
+
+it('collapses the complete operations reference while contextual maintenance guidance stays visible', async () => {
+  render(<MaintenanceSystems name="AEGIS" shipId="aegis" systems={[]} renderSystem={() => null} rations={null} />);
+  expect(screen.queryByRole('complementary', { name: 'AEGIS maintenance reference' })).not.toBeInTheDocument();
+  const toggle = screen.getByRole('button', { name: 'Operations reference' });
+  expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  expect(screen.getByText('Select food and water rations separately. Add both bonuses to the roll in step 3.')).toBeVisible();
+  expect(screen.getByText('Roll 2d6 plus both ration bonuses. Under 12 adds 2 unrest; otherwise under 20 adds 1 unrest.')).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Run riot check' })).toHaveAccessibleDescription(/console rolls.*applies.*records/i);
+  await userEvent.click(toggle);
+  const reference = screen.getByRole('complementary', { name: 'AEGIS maintenance reference' });
+  expect(reference).toBeVisible();
+  for (const label of ['Sequence', 'Rations', 'Unrest', 'Damage', 'Charging', 'Fuel expiry']) expect(within(reference).getByText(label)).toBeVisible();
+  expect(reference).toHaveTextContent(/under 12 adds 2.*under 20 adds 1/i);
+  expect(reference).toHaveTextContent(/shuttle fuel.*next cycle/i);
+  await userEvent.click(toggle);
+  expect(reference).not.toBeVisible();
+  expect(run).not.toHaveBeenCalled();
+});
+
+it('keeps reference access available offline and before gameplay begins', async () => {
+  useSessionStore.setState({ session: { ...session, currentTurn: 0 }, connection: 'offline' });
+  render(<MaintenanceSystems name="Dione" shipId="dione" systems={[]} renderSystem={() => null} rations={null} />);
+  const toggle = screen.getByRole('button', { name: 'Operations reference' });
+  expect(toggle).toBeEnabled();
+  expect(screen.getByRole('button', { name: 'Run unrest check' })).toBeDisabled();
+  expect(screen.getByRole('status')).toHaveTextContent('Maintenance begins on Cycle 1');
+  await userEvent.click(toggle);
+  expect(screen.getByRole('complementary', { name: 'Dione maintenance reference' })).toBeVisible();
+  expect(run).not.toHaveBeenCalled();
+});
+
+it('updates reference facts without collapsing, but returns to closed for a different ship or session', async () => {
+  const ui = (name: string, shipId: string) => <MaintenanceSystems name={name} shipId={shipId} systems={[]} renderSystem={() => null} rations={null} />;
+  const view = render(ui('AEGIS', 'aegis'));
+  await userEvent.click(screen.getByRole('button', { name: 'Operations reference' }));
+  act(() => useSessionStore.setState({ session: { ...session, shipUpgrades: { aegis: ['reactor'] } } }));
+  expect(screen.getByRole('button', { name: 'Operations reference' })).toHaveAttribute('aria-expanded', 'true');
+  expect(screen.getByRole('complementary', { name: 'AEGIS maintenance reference' })).toHaveTextContent('choose up to 8 consoles');
+  view.rerender(ui('Dione', 'dione'));
+  expect(screen.getByRole('button', { name: 'Operations reference' })).toHaveAttribute('aria-expanded', 'false');
+  await userEvent.click(screen.getByRole('button', { name: 'Operations reference' }));
+  act(() => useSessionStore.setState({ session: { ...session, id: 'new-session' } }));
+  expect(screen.getByRole('button', { name: 'Operations reference' })).toHaveAttribute('aria-expanded', 'false');
+});
