@@ -44,11 +44,12 @@ export function validateRingAllocation(input) {
 export function assertRingWorkspace(view,{sessionId,groupId,cycle,coordinate,gm}) {
  assert.equal(view.type,'candidate-workspace');assert.equal(view.sessionId,sessionId);
  assert.equal(view.groupId,groupId);assert.equal(view.cycle,cycle);
+ if(!gm)assert.equal(Object.hasOwn(view,'privateCalculations'),false,'Ordinary Ring workspace must not contain private calculations.');
  const paths=view.paths.filter(path=>path.code==='N'&&path.coordinate===coordinate);assert.equal(paths.length,1);
  return paths[0];
 }
 export function assertRingCandidateCommit(result,data,view) {
- assert.equal(result.type,'candidate-action-result');assert.equal(result.requestId,data.requestId);
+ assert.equal(result.type,'candidate-action-result');assert.equal(result.sessionId,data.sessionId,'Candidate result session must match original request.');assert.equal(result.requestId,data.requestId);
  assert.equal(result.action,data.action);assert.equal(result.code,'N');assert.equal(result.status,'committed');
  assert.equal(result.revision,view.revision+1);
 }
@@ -74,7 +75,9 @@ export function assertRingSuccessfulSnapshot(root) {
  assert.equal(root.debriefSnapshot.source,'candidate');assert.equal(root.debriefSnapshot.result,'success');assert.equal(root.debriefSnapshot.candidate.code,'N');
 }
 export async function readRingEndingHistory(sdk,{sessionId,instanceId}) {
- const freeze=await sdk('beginSessionDebrief',{sessionId,instanceId,requestId:crypto.randomUUID()});assert.equal(freeze.phase,'debrief');return freeze;
+ const history=await sdk('getSessionDebrief',{sessionId,instanceId});
+ assert.equal(history.type,'session-debrief');assert.equal(history.sessionId,sessionId);
+ assertRingSuccessfulSnapshot({debriefSnapshot:history.snapshot});return history;
 }
 export async function readRingCoordinate(surface) {
  const chart=await surface.page.evaluate(async storeUrl=>{
@@ -645,7 +648,7 @@ async function enterRole(surface,label){
    await recipient.page.reload();const restored=await recipient.until('Entitled ordinary Scientist closed history after original reload',v=>v.sameActor&&v.phase==='closed'&&v.sessionId===sid);
    assert.equal(restored.uidHash,short(actorUids.get('Recipient')));await recipient.page.getByRole('dialog',{name:'Endgame evaluation',exact:true}).waitFor();await recipient.page.screenshot({path:`${directory}/Ring-Scientist-closed-history.png`});
    evidence.endingProof=true;evidence.candidate619OriginalPaidPassageRecovery=true;
-   claims.push('Actual GM far-side sabotage blocks pursuit, source Ring success/debrief, exact late crossing receipt, idempotent freeze, immutable close and entitled same-UID closed-history reload');
+   claims.push('Actual GM far-side sabotage blocks pursuit, source Ring success/debrief, exact late crossing receipt, automatic immutable success freeze, authorized GM history read, immutable close and entitled same-UID closed-history reload');
   },
  };
  let directoryCreated=false;
