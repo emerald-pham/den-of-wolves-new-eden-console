@@ -694,3 +694,46 @@ test('unknown offered boarding special kinds fail with a specific error before a
     /Unknown current boarding special choice kind: unknown-source-choice/);
   assert.deepEqual(crew.effects.clicks, []);
 });
+
+for (const stage of ['enabled-control wait', 'lifecycle capture wait']) {
+  for (const changedField of ['turnStatePhase', 'turnStatePhaseRevision', 'attack revision']) {
+    test(`rejects frozen ${changedField} drift during the ${stage} before PDF launch intent`, async () => {
+      const pdf = surface('refinery-124-pdf-colonel', { type: 'pdf-escort-wing-launch-view',
+        sessionId, turn: 3, revision: 8, wingRevision: 4, launched: false, eligible: true });
+      const current = attack('targeting');
+      let latestAttack = current;
+      const mutate = () => {
+        if (changedField === 'turnStatePhase') pdf.testActor.turnStatePhase = 'coordination';
+        else if (changedField === 'turnStatePhaseRevision') pdf.testActor.turnStatePhaseRevision++;
+        else latestAttack = attack('targeting', current.revision + 1);
+      };
+      const opts = options([{ roleId: pdf.label, surface: pdf }], current);
+      opts.readAttack = async () => latestAttack;
+
+      if (stage === 'enabled-control wait') {
+        const originalLocator = pdf.page.locator;
+        pdf.page.locator = (...args) => {
+          const panel = originalLocator(...args), originalGetByRole = panel.getByRole;
+          return { ...panel, getByRole: (kind, requested) => {
+            const control = originalGetByRole(kind, requested);
+            if (kind === 'button' && requested.name === 'Launch PDF Escort Wing')
+              return { ...control, isEnabled: async () => { mutate(); return true; } };
+            return control;
+          } };
+        };
+      } else {
+        opts.action = async (surface, endpoint, choose, metadata) => {
+          mutate();
+          await choose();
+          return { endpoint, data: metadata.expectedRequest, httpStatus: 200, result: { status: 'committed' } };
+        };
+      }
+
+      let result, failure;
+      try { result = await dispatchStationCrewChoice(current, opts); } catch (error) { failure = error; }
+      assert.ok(failure, `Expected stale UI intent rejection; received ${JSON.stringify(result)}.`);
+      assert.match(failure.message, changedField === 'attack revision' ? /attack|source changed/i : /phase|turnState/);
+      assert.deepEqual(pdf.effects.clicks, [], 'Stale UI intent must be rejected before a browser click.');
+    });
+  }
+}
