@@ -12,7 +12,7 @@ const originalStationGmAuthority = Object.freeze({ sessionId, uidHash: 'uid-orig
 
 function attack(currentStep, revision = 8) {
   return { attackId: 'attack-p', threatSiteCode: 'P', turn: 3, revision,
-    status: 'declared', currentStep, airspaceLocked: true };
+    status: 'declared', currentStep, airspaceLocked: true, targetGroupId: 'fleet-p', threatSourceId: 'arrival-original-p' };
 }
 
 function stationPhaseEnvelope(actor, phaseRevision = actor.turnStatePhaseRevision, gmAuthority = originalStationGmAuthority) {
@@ -1518,3 +1518,43 @@ test('Station benign cancellation retains its consumed phase and fresh source bo
   assert.equal(transitions[0].consumedObservations.phaseReads.at(-1).snapshot.session.turnState.phase, 'coordination');
   assert.deepEqual(scenario.crew.effects.clicks, []);
 });
+
+
+test('Station exact closed boarding denial stays fatal after newer same-step declared progress', async () => {
+  const current = attack('boarding', 17);
+  const crew = surface('icebreaker-miner', { type: 'wolf-boarding-special-choice-unavailable',
+    sessionId, reason: 'no-special-choice' });
+  let latest = current;
+  const opts = options([{ roleId: crew.label, surface: crew }], current);
+  opts.readAttack = async () => latest;
+  crew.callable = async () => {
+    latest = { ...current, revision: 18 };
+    return { status: 'denied', code: 'functions/failed-precondition',
+      message: 'Wolf boarding defence is not currently open.' };
+  };
+  await assert.rejects(dispatchStationCrewChoice(current, opts), /Wolf boarding defence is not currently open/);
+  assert.deepEqual(crew.effects.clicks, []);
+});
+
+for (const [name, drift] of [
+  ['phase revision beyond source', crew => { crew.testActor.turnStatePhaseRevision += 4; }],
+  ['stale Team start', crew => { crew.testActor.turnStateStartedAt = '2026-10-07T00:00:00.000Z'; }],
+]) {
+  test(`Station ${name} cannot qualify restoration with simultaneous finalization`, async () => {
+    const scenario = stationFinalizationScenario('source getter', { drift });
+    // Pin the GM envelope to the actual server restoration, independent of
+    // the deliberately malformed member projection.
+    const sourceActor = structuredClone(scenario.crew.testActor);
+    Object.assign(sourceActor, { airspace: 'lifted', turnStatePhase: 'coordination',
+      turnStatePhaseRevision: sourceActor.turnStatePhaseRevision + 1,
+      turnStateStartedAt: sourceActor.turnPhaseTeamPhaseEndsAt,
+      turnStateEndsAt: sourceActor.turnPhaseOpenAirspaceEndsAt });
+    const read = scenario.opts.readTurnState;
+    scenario.opts.readTurnState = async (...args) => {
+      const value = await read(...args);
+      return scenario.counts().triggered ? stationPhaseEnvelope(sourceActor) : value;
+    };
+    await assert.rejects(dispatchStationCrewChoice(scenario.current, scenario.opts));
+    assert.deepEqual(scenario.crew.effects.clicks, []);
+  });
+}

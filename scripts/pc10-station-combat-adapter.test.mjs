@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';import test from 'node:test';import * as adapter from './pc10-station-combat-adapter.mjs';
+function stationSource(value){return {targetGroupId:'fleet-1',threatSourceId:'arrival-p',airspaceLocked:value.status!=='resolved',...value};}
 import { heldProofFailureObservations, rememberProofFailure } from './pc10-proof-failure-evidence.mjs';
 test('sparse combat actor requires actual original Wing berth, never legacy absent-map or GM substitution',()=>{const actor={hasAuth:true,sameActor:true,uidHash:'wing',sessionId:'sid',playerRole:'player',assignedRoleId:'wing-commander',activeConsoleRoleId:'wing-commander',seatId:'wing-commander',currentCanonicalSeatOwned:true,currentMemberBerthPresent:true,currentMemberBerthMatches:true,connection:'live',freshness:'server',fleetGroupId:'fleet-1',cycle:2};adapter.assertSparseStationWing(actor,actor);for(const patch of [{currentMemberBerthPresent:false},{uidHash:'foreign'},{playerRole:'gm'},{assignedRoleId:'executive-officer'},{freshness:'cache'}])assert.throws(()=>adapter.assertSparseStationWing({...actor,...patch},actor));});
-test('sparse Station combat awaits actual source progress and returns only finalized Station attack',async()=>{let index=0;const states=[{attackId:'real',turn:2,revision:1,status:'declared',currentStep:'targeting',threatSiteCode:'P'},{attackId:'real',turn:2,revision:2,status:'resolved',currentStep:'resolved',threatSiteCode:'P',pStationRepeat:{status:'stopped'}}];const result=await adapter.runSparseStationCombat({deadlineAt:Date.now()+1000,readAttack:async()=>states[index],assertActors:async()=>{},choose:async()=>{index++;},wait:async()=>{}});assert.equal(result.status,'resolved');});
+test('sparse Station combat awaits actual source progress and returns only finalized Station attack',async()=>{let index=0;const states=[{attackId:'real',turn:2,revision:1,status:'declared',currentStep:'targeting',threatSiteCode:'P'},{attackId:'real',turn:2,revision:2,status:'resolved',currentStep:'resolved',threatSiteCode:'P',pStationRepeat:{status:'stopped'}}].map(stationSource);const result=await adapter.runSparseStationCombat({deadlineAt:Date.now()+1000,readAttack:async()=>states[index],assertActors:async()=>{},choose:async()=>{index++;},wait:async()=>{}});assert.equal(result.status,'resolved');});
 test('no adapter credit can come from foreign attack or fabricated resolution type',async()=>{let i=0;await assert.rejects(adapter.runSparseStationCombat({deadlineAt:Date.now()+1000,readAttack:async()=>({attackId:i++?'foreign':'own',turn:2,revision:1,status:'declared',currentStep:'targeting',threatSiteCode:'P'}),assertActors:async()=>{},choose:async()=>{},wait:async()=>{}}));});
 const boarding={attackId:'original',turn:2,revision:5,threatSiteCode:'P',status:'declared',currentStep:'boarding'};
 const pending={type:'wolf-boarding-defence-choice-view',sessionId:'sid',turn:2,revision:6,targetShipId:'aegis',choiceStatus:'pending',availableSecurityTeams:2};
@@ -9,17 +10,17 @@ test('boarding accepts only fresh same-attack pending revision after legitimate 
 test('boarding invalid-phase is terminal only after fresh same original P attack has actually finalized',async()=>{const result=await adapter.stationBoardingRead(boarding,{sessionId:'sid',readChoice:async()=>({status:'denied',code:'functions/failed-precondition',message:'Wolf boarding defence is not currently open.'}),readAttack:async()=>({...boarding,status:'resolved',currentStep:'resolved',revision:6,pStationRepeat:{status:'repeat'}})});assert.equal(result.kind,'resolved');});
 test('boarding race never masks authority/transport rejection or foreign finalized attack',async()=>{for(const patch of [{status:'denied',code:'functions/permission-denied',message:'not entitled'},{status:'denied',code:'functions/unavailable',message:'network'}])await assert.rejects(adapter.stationBoardingRead(boarding,{sessionId:'sid',readChoice:async()=>patch,readAttack:async()=>({...boarding,status:'resolved',currentStep:'resolved',pStationRepeat:{status:'stopped'}})}));await assert.rejects(adapter.stationBoardingRead(boarding,{sessionId:'sid',readChoice:async()=>({status:'committed',result:pending}),readAttack:async()=>({...boarding,attackId:'foreign',revision:6})}));});
 test('already committed current boarding choice waits for normal progress without a second UI commit',async()=>{const result=await adapter.stationBoardingRead(boarding,{sessionId:'sid',readChoice:async()=>({status:'committed',result:{...pending,choiceStatus:'committed'}}),readAttack:async()=>({...boarding,revision:6})});assert.equal(result.kind,'refresh');});
-test('combat failure retains last authoritative original attack and stage instead of only timeout text',async()=>{const states=[];const current={attackId:'original',turn:2,revision:3,threatSiteCode:'P',status:'declared',currentStep:'long-range',deadlineAt:'9999-12-31T23:59:59.999Z',decisionSummary:{range:{status:'pending'}}};await assert.rejects(adapter.runSparseStationCombat({deadlineAt:Date.now()+1000,readAttack:async()=>current,assertActors:async()=>{},onState:async state=>states.push(state),choose:async()=>{throw Error('actionable held stage')},wait:async()=>{}}),/actionable held stage/);assert.deepEqual(states,[current]);});
+test('combat failure retains last authoritative original attack and stage instead of only timeout text',async()=>{const states=[];const current=stationSource({attackId:'original',turn:2,revision:3,threatSiteCode:'P',status:'declared',currentStep:'long-range',deadlineAt:'9999-12-31T23:59:59.999Z',decisionSummary:{range:{status:'pending'}}});await assert.rejects(adapter.runSparseStationCombat({deadlineAt:Date.now()+1000,readAttack:async()=>current,assertActors:async()=>{},onState:async state=>states.push(state),choose:async()=>{throw Error('actionable held stage')},wait:async()=>{}}),/actionable held stage/);assert.deepEqual(states,[current]);});
 test('captured stale launch race can use bounded observed UI recovery before normal fresh clicks',async()=>{
  let index=0,choices=0,recoveries=0;const stale=Error('launchAegisFighterWing: actual UI request rejected.');
- const states=[{attackId:'original',turn:2,revision:1,status:'declared',currentStep:'targeting',threatSiteCode:'P'},{attackId:'original',turn:2,revision:2,status:'declared',currentStep:'targeting',threatSiteCode:'P'},{attackId:'original',turn:2,revision:3,status:'resolved',currentStep:'resolved',threatSiteCode:'P',pStationRepeat:{status:'repeat'}}];
+ const states=[{attackId:'original',turn:2,revision:1,status:'declared',currentStep:'targeting',threatSiteCode:'P'},{attackId:'original',turn:2,revision:2,status:'declared',currentStep:'targeting',threatSiteCode:'P'},{attackId:'original',turn:2,revision:3,status:'resolved',currentStep:'resolved',threatSiteCode:'P',pStationRepeat:{status:'repeat'}}].map(stationSource);
  const final=await adapter.runSparseStationCombat({deadlineAt:Date.now()+1000,readAttack:async()=>states[index],assertActors:async()=>{},choose:async()=>{if(choices++===0)throw stale;index=2;},recoverChoice:async(error,current,{deadlineAt})=>{assert.equal(error,stale);assert.equal(current.revision,1);assert.ok(deadlineAt>Date.now());recoveries++;index=1;return true;},wait:async()=>{}});
  assert.equal(final.status,'resolved');assert.equal(recoveries,1);assert.equal(choices,2);
 });
 const rejectedLaunch={operation:'captureLifecycleUiAction',endpoint:'launchAegisFighterWing',httpStatus:400,
  requestData:{sessionId:'sid',wingId:'fighter-wing-alpha',requestId:'rejected-id',expectedTurn:2,expectedRevision:1,expectedWingRevision:0},
  before:{sessionId:'sid',uidHash:'wing'},current:{sessionId:'sid',uidHash:'wing'},body:{error:{status:'FAILED_PRECONDITION',details:{commandError:'stale-revision'},message:'The AEGIS Fighter Wing launch view is stale. Refresh the current Wolf attack.'}}};
-const launchCurrent={attackId:'original',turn:2,revision:1,status:'declared',currentStep:'targeting',threatSiteCode:'P'};
+const launchCurrent=stationSource({attackId:'original',turn:2,revision:1,status:'declared',currentStep:'targeting',threatSiteCode:'P'});
 const refreshedLaunch={sessionId:'sid',attackId:'original',turn:2,revision:2,wingId:'fighter-wing-alpha',wingRevision:0,eligible:true,launched:false};
 function recoveryOptions(patch={}){return {observations:[structuredClone(rejectedLaunch)],readAttack:async()=>({...launchCurrent,revision:2}),readLaunchView:async()=>refreshedLaunch,assertActors:async()=>{},deadlineAt:Date.now()+1000,used:new Map(),retain:async()=>{},...patch};}
 test('only exact observed stale rejection uses refreshed same-attack UI authority once',async()=>{
@@ -254,7 +255,39 @@ test('Station declaration recovery permits a genuinely absent previous attack on
 });
 
 test('actual GM attack finalization is retained before an unavailable Wing action fence',async()=>{
- const current={attackId:'same',turn:2,revision:3,threatSiteCode:'P',status:'resolved',currentStep:'resolved',pStationRepeat:{status:'stopped'}},states=[];
+ const current=stationSource({attackId:'same',turn:2,revision:3,threatSiteCode:'P',status:'resolved',currentStep:'resolved',pStationRepeat:{status:'stopped'}}),states=[];
  const final=await adapter.runSparseStationCombat({deadlineAt:Date.now()+1000,readAttack:async()=>current,onState:async value=>states.push(value),assertActors:async()=>{throw Error('Wing host was destroyed; no future Wing action')},choose:async()=>{throw Error('must not choose')}});
  assert.equal(final,current);assert.deepEqual(states,[current]);
+});
+
+
+for(const patch of [{targetGroupId:'fleet-foreign'},{threatSourceId:'arrival-foreign'},
+ {revision:3},{airspaceLocked:true},{currentStep:'boarding'}]){
+ test(`actual Station combat loop rejects invalid finalized source before returning credit: ${JSON.stringify(patch)}`,async()=>{
+  const original=stationSource({attackId:'original',turn:2,revision:4,status:'declared',currentStep:'boarding',threatSiteCode:'P'});
+  let latest=original,choices=0;
+  await assert.rejects(adapter.runSparseStationCombat({deadlineAt:Date.now()+1000,readAttack:async()=>latest,
+   assertActors:async()=>{},wait:async()=>{},choose:async()=>{choices++;latest={...original,revision:8,
+    status:'resolved',currentStep:'resolved',airspaceLocked:false,pStationRepeat:{status:'repeat'},...patch};}}));
+  assert.equal(choices,1);
+ });
+}
+
+test('actual Station combat loop rejects ordered-step regression without another choice',async()=>{
+ let choices=0,latest=stationSource({attackId:'original',turn:2,revision:4,status:'declared',currentStep:'short-range',threatSiteCode:'P'});
+ await assert.rejects(adapter.runSparseStationCombat({deadlineAt:Date.now()+1000,readAttack:async()=>latest,
+  assertActors:async()=>{},wait:async()=>{},choose:async()=>{if(choices++)throw Error('Step regression incorrectly reached another choice');
+   latest={...latest,revision:5,currentStep:'medium-range'};}}),/step.*regress|regress.*step/i);
+ assert.equal(choices,1);
+});
+
+test('actual Station combat loop qualifies only a complete unlocked P terminal source after owned actor loss',async()=>{
+ const final=stationSource({attackId:'original',turn:2,revision:8,status:'resolved',currentStep:'resolved',threatSiteCode:'P',pStationRepeat:{status:'stopped'}});
+ assert.equal(await adapter.runSparseStationCombat({deadlineAt:Date.now()+1000,readAttack:async()=>final,
+  assertActors:async()=>{throw Error('Lost Wing must not be required after completed combat');},choose:async()=>{throw Error('No terminal choice');}}),final);
+ for(const key of ['targetGroupId','threatSourceId','airspaceLocked']){
+  const malformed={...final};delete malformed[key];
+  await assert.rejects(adapter.runSparseStationCombat({deadlineAt:Date.now()+1000,readAttack:async()=>malformed,
+   assertActors:async()=>{},choose:async()=>{throw Error('No malformed terminal choice');}}));
+ }
 });

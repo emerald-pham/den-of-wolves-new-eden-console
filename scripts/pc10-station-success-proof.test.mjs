@@ -76,3 +76,19 @@ test('escaped owner of an actually destroyed host retains custody but receives n
  assert.throws(()=>runner.stationInactiveOwner(actor,root,{...player,escapeState:{...escapeState,fleeRequestId:'flee-1'}},member));
  assert.throws(()=>runner.stationInactiveOwner(actor,root,{...player,escapeState:{...escapeState,status:'fled',fleeRequestId:'flee-1'}},{...member,escapeState:{...escapeState,status:'fled',fleeRequestId:'flee-1'}}));
 });
+
+
+test('Station actual Wing-first consumer forwards cancellation evidence under the original crew deadline', async () => {
+  const deadlineAt = Date.now() + 1000, transitions = [], observation = { actionCredit: false };
+  const onSourceProgress = async value => transitions.push(value);
+  const result = await runner.chooseStationCombatActor({ currentStep: 'boarding' }, {
+    deadlineAt, onSourceProgress, chooseWing: async () => undefined,
+    chooseCrew: async (_current, options) => {
+      assert.equal(options.deadlineAt, deadlineAt);
+      assert.equal(options.onSourceProgress, onSourceProgress);
+      await options.onSourceProgress(observation);
+    },
+  });
+  assert.equal(result, undefined);
+  assert.deepEqual(transitions, [observation]);
+});
