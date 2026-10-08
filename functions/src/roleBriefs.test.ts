@@ -73,6 +73,13 @@ describe('role brief projection', () => {
     expect(brief?.text).toMatch(/no automatic consequence/i);
   });
 
+  it('does not give the Wolf Commander the fleet survival objective from common role rules', () => {
+    const brief = serializedRoleBrief('s1', 'commander', 'wolf-commander', 5);
+
+    expect(brief?.text).toContain('Goal // Prevent the fleet from escaping');
+    expect(brief?.commonRules).not.toContain('The fleet objective is to reach New Eden');
+  });
+
   it('projects only the assigned role’s active craft', () => {
     const record = serializedRoleBrief('s1', 'alice', 'wing-commander', 4, {
       activeRoleIds: ['admiral', 'wing-commander'],
