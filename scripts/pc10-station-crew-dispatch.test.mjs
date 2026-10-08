@@ -1496,7 +1496,7 @@ test('Station foreign committed getter payload remains fatal with simultaneous f
 test('Station ordered range progress during final capture cancels with zero stale clicks', async () => {
   const current = { ...attack('medium-range', 8), targetGroupId: 'fleet-p', threatSourceId: 'arrival-original-p' };
   let latest = current, insideAction = false;
-  const pdf = surface('refinery-124-pdf-colonel', { type: 'wolf-fighter-range-action-view', sessionId,
+  const pdf = surface('refinery-124-pdf-colonel', { type: 'wolf-fighter-range-action-view', launched: true, sessionId,
     turn: 3, revision: 8, wingId: 'pdf-escort-fighter-wing', wingLabel: 'P.D.F. Escort Fighter Wing',
     range: 'medium-range', choiceStatus: 'pending', fighters: [{ fighterIndex: 0 }],
     targets: [{ instanceId: 'wolf-contact' }] }, { entitledShipId: 'refinery-124' });
@@ -1535,7 +1535,7 @@ for (const field of ['targetGroupId', 'threatSourceId']) {
 for (const discoveryDrift of [false, true]) {
   test(`Station ordered progress during a getter ${discoveryDrift ? 'cannot mask discovery drift' : 'retains complete cancellation bookends'}`, async () => {
     const current = attack('medium-range'), pdf = surface('refinery-124-pdf-colonel', {
-      type: 'wolf-fighter-range-action-view', sessionId, turn: 3, revision: 8,
+      type: 'wolf-fighter-range-action-view', launched: true, sessionId, turn: 3, revision: 8,
       wingId: 'pdf-escort-fighter-wing', wingLabel: 'P.D.F. Escort Fighter Wing',
       range: 'medium-range', choiceStatus: 'pending', fighters: [{ fighterIndex: 0 }],
       targets: [{ instanceId: 'wolf-contact' }] }, { entitledShipId: 'refinery-124' });
@@ -1621,7 +1621,7 @@ for (const [name, drift] of [
 
 test('Station crew requalifies terminal progress occurring during its ordered-stage actor bookend', async () => {
  const current=attack('medium-range'), crew=surface('refinery-124-pdf-colonel', {
-  type:'wolf-fighter-range-action-view',sessionId,turn:3,revision:8,wingId:'pdf-escort-fighter-wing',
+  type:'wolf-fighter-range-action-view', launched: true,sessionId,turn:3,revision:8,wingId:'pdf-escort-fighter-wing',
   wingLabel:'P.D.F. Escort Fighter Wing',range:'medium-range',choiceStatus:'pending',
   fighters:[{fighterIndex:0}],targets:[{instanceId:'wolf-contact'}]}, {entitledShipId:'refinery-124'});
  const opts=options([{roleId:crew.label,surface:crew}],current), observations=[];
@@ -2118,3 +2118,367 @@ for(const [name,mutate] of [
 });
 for(const contactId of ['contact-0','contact-01','contact--1','contact-1/secret']) test(`actual EO nested ID ${contactId} fails before use`,async()=>{const view=eoRange();view.contacts[0].contactId=contactId;const eo=eoSurface(view);let captures=0;await assert.rejects(dispatchStationCrewChoice(attack('medium-range'),options([{roleId:eo.label,surface:eo}],attack('medium-range'),()=>captures++)));assert.equal(captures,0);assert.deepEqual(eo.effects.clicks,[]);});
 test('actual EO incoming target assignment row is not part of its public source schema',async()=>{const view=eoRange();view.assignments=[{actionId:eoActionId('missile'),contactIds:['contact-1'],privateShipId:'wolf-battlestation'}];const eo=eoSurface(view);let captures=0;await assert.rejects(dispatchStationCrewChoice(attack('medium-range'),options([{roleId:eo.label,surface:eo}],attack('medium-range'),()=>captures++)));assert.equal(captures,0);assert.deepEqual(eo.effects.clicks,[]);});
+
+// Attempt28: execute the actual server projection with controlled documents,
+// its real compiled pure charge/state helpers, and the installed callable
+// encoder. This is source consumer proof; only the separate retained SDK reply
+// has native provenance. No server/emulator or other runtime is started.
+const unionRequire = createRequire(new URL('../functions/package.json', import.meta.url));
+const { transpileModule, ScriptTarget, ModuleKind } = unionRequire('typescript');
+const { encode: callableEncode } = unionRequire('../functions/node_modules/firebase-functions/lib/common/providers/https.js');
+const unionIndexSource = await readFile(new URL('../functions/src/index.ts', import.meta.url), 'utf8');
+function actualViewProducer(name, nextMarker, dependencies) {
+  const start = unionIndexSource.indexOf(`function ${name}(`);
+  const end = unionIndexSource.indexOf(nextMarker, start);
+  assert.ok(start > 0 && end > start, `Execute the full actual ${name} producer.`);
+  const code = transpileModule(unionIndexSource.slice(start, end), {
+    compilerOptions: { target: ScriptTarget.ES2022, module: ModuleKind.None },
+  }).outputText;
+  return new Function(...Object.keys(dependencies), `${code}\nreturn ${name};`)(...Object.values(dependencies));
+}
+const unionPure = Object.assign({}, ...['pdfEscortWingState', 'refineryFighterBay', 'turnZero',
+  'maintenance', 'roleConfiguration', 'resources', 'fighterWingCombat', 'fighterWings', 'shipDamage',
+  'requestGuards'].map(name => unionRequire(`../functions/lib/${name}.js`)));
+const unionDependencies = { ...unionPure,
+  isRecord: value => !!value && typeof value === 'object' && !Array.isArray(value),
+  commandError: (_code, message) => Error(message),
+  WOLF_FIGHTER_LAUNCH_SOURCE_IDS: ['fighter-wing-alpha', 'fighter-wing-bravo', 'pdf-escort-fighter-wing', 'maliades'],
+};
+for (const [name, next] of [
+  ['sessionTurn', '\nfunction pressAvailabilityRevision('],
+  ['sessionActiveRoleIds', '\nfunction captainRoleForShip('],
+  ['wolfAttackActiveVesselIds', '\nfunction configuredWolfTargetRingForSession('],
+  ['wolfFighterLaunchChoiceMap', '\nfunction currentWolfRoleOwners('],
+  ['aegisFighterWingCombatStateForAttack', '\nfunction aegisFighterWingLaunchView('],
+]) unionDependencies[name] = actualViewProducer(name, next, unionDependencies);
+const actualPdfLaunchView = actualViewProducer('pdfEscortWingLaunchView',
+  '\n/** Return the current P.D.F. Colonel', unionDependencies);
+const actualWingLaunchView = actualViewProducer('aegisFighterWingLaunchView',
+  '\nfunction aegisFighterWingLaunchResultIsValid(', unionDependencies);
+const actualCncView = actualViewProducer('aegisCommandAndControlView',
+  '\nfunction aegisCommandAndControlChargeState(', unionDependencies);
+const doc = value => ({ exists: value !== undefined, get: key => value?.[key], data: () => value });
+function actualLaunchDocuments({ choiceStatus, reason, fighters = 4, wing = false } = {}) {
+  const current = attack('targeting');
+  const session = { currentTurn: current.turn, phase: 'active', activeRoleIds: unionPure.recommendedRoleIds(15),
+    activeVesselIds: ['aegis', 'dione', 'icebreaker', 'quellon', 'refinery-124', 'shepherd'],
+    turnPhase: { turn: current.turn, teamPhaseEndsAt: '9999-12-31T23:59:59.999Z',
+      openAirspaceEndsAt: '9999-12-31T23:59:59.999Z',
+      airspace: { state: 'restricted', tickerActive: true, pressAccess: false }, progression: 'manual' },
+    maintenanceCycles: {
+      'refinery-124': { step: 0, revision: 8, turn: current.turn,
+        results: { '5': 'Reactor powered up.', '7': 'Maintenance cycle complete.' },
+        completedAt: '2026-10-08T22:49:00.000Z', charges: ['fighter-bay'], refuelled: [] },
+      aegis: { step: 0, revision: 8, turn: current.turn,
+        results: { '5': 'Reactor powered up.', '7': 'Maintenance cycle complete.' },
+        completedAt: '2026-10-08T22:49:00.000Z', charges: ['fighter-bay-alpha'], refuelled: [] },
+    }, shipDamage: { 'refinery-124': { destroyed: false, damagedSystemIds: [] },
+      aegis: { destroyed: false, damagedSystemIds: [] } } };
+  const state = { ...current, type: 'wolf-attack-state', battleTableCraftActions: [
+    { craftId: 'pdf-escort-fighter-wing', kind: 'fighter-wing', ownerRoleId: 'refinery-124-pdf-colonel' }],
+    launchedCraftIds: [], fighterLaunchChoices: {} };
+  const pdfState = { ...unionPure.beginPdfEscortWingAttack(unionPure.initialPdfEscortWingState(), {
+    expectedRevision: 0, attackId: current.attackId, attackCycle: current.turn }),
+    ...(fighters === 0 ? { revision: 1, fighters: 0, losses: 4 } : {}) };
+  const sourceId = wing ? 'fighter-wing-alpha' : 'pdf-escort-fighter-wing';
+  if (wing) state.aegisFighterWingState = structuredClone(unionPure.initialAegisFighterWingAttack({
+    attackId: current.attackId, cycle: current.turn, counts: { 'fighter-wing-alpha': fighters, 'fighter-wing-bravo': 6 } }));
+  if (choiceStatus) state.fighterLaunchChoices[sourceId] = { sourceId, status: choiceStatus,
+    turn: current.turn, attackId: current.attackId, revision: current.revision,
+    actorUid: 'controlled-original', actorRoleId: wing ? 'wing-commander' : 'refinery-124-pdf-colonel',
+    requestId: '66666666-6666-4666-8666-666666666666' };
+  if (choiceStatus === 'launched') {
+    state.launchedCraftIds = [sourceId]; pdfState.launched = true; pdfState.revision = 1;
+    if (wing) state.aegisFighterWingState.wings[sourceId].launched = true;
+  }
+  if (reason === 'uncharged') session.maintenanceCycles[wing ? 'aegis' : 'refinery-124'].charges = [];
+  if (reason === 'damaged') session.shipDamage[wing ? 'aegis' : 'refinery-124'].damagedSystemIds = [wing ? 'fighter-bay-alpha' : 'fighter-bay'];
+  if (reason === 'destroyed') session.shipDamage[wing ? 'aegis' : 'refinery-124'].destroyed = true;
+  return { current, session, state, pdfState,
+    produce: () => wing ? actualWingLaunchView(sessionId, doc(session), doc(state), sourceId)
+      : actualPdfLaunchView(sessionId, doc(session), doc(state), doc(pdfState)) };
+}
+
+for (const [name, supplied] of [
+  ['actual enabled producer through callable serialization', () => callableEncode(actualLaunchDocuments().produce())],
+  ['retained native enabled SDK DTO shape', () => ({ type: 'pdf-escort-wing-launch-view', sessionId,
+    turn: 3, revision: 8, wingRevision: 0, launched: false, eligible: true, reason: null })],
+]) test(`Attempt28 ${name} reaches normal PDF getter and exactly one captured Launch`, async () => {
+  const view = supplied();
+  assert.equal(view.reason, null); assert.equal(Object.hasOwn(view, 'choiceStatus'), false);
+  const f = await runtimeObserverFixture('refinery-124-pdf-colonel', view);
+  assert.deepEqual(await f.invoke(), { committed: true });
+  assert.equal(f.counts.capture, 1);
+  assert.deepEqual(f.actorSurface.effects.reads.map(row => row.endpoint), ['getPdfEscortWingLaunch']);
+  assert.deepEqual(f.actorSurface.effects.clicks, ['Launch PDF Escort Wing']);
+});
+
+test('Attempt28 actual PDF local producer preserves its own undefined reason until callable encoding', async () => {
+  const raw = actualLaunchDocuments().produce();
+  assert.equal(Object.hasOwn(raw, 'reason'), true); assert.equal(raw.reason, undefined);
+  assert.equal(callableEncode(raw).reason, null);
+  const f = await runtimeObserverFixture('refinery-124-pdf-colonel', raw);
+  assert.deepEqual(await f.invoke(), { committed: true }); assert.equal(f.counts.capture, 1);
+});
+
+for (const [name, delta] of [
+  ['enabled plus launched', { launched: true }],
+  ['enabled plus passed status', { choiceStatus: 'passed', reason: 'passed' }],
+  ['enabled plus unavailable status', { choiceStatus: 'unavailable', reason: 'waiting' }],
+  ['enabled plus launched status', { choiceStatus: 'launched', reason: 'already-launched' }],
+  ...['waiting', 'uncharged', 'damaged', 'destroyed', 'no-fighters', 'passed', 'already-launched']
+    .map(reason => [`enabled plus ${reason} reason`, { reason }]),
+  ['blocked null reason', { eligible: false, reason: null }],
+  ['blocked missing reason', { eligible: false }],
+  ['blocked unknown reason', { eligible: false, reason: 'new-unknown-blocker' }],
+  ['null eligible', { eligible: null }], ['missing eligible', { eligible: undefined }],
+  ['null launched', { launched: null }], ['missing launched', { launched: undefined }],
+  ['null choice status', { choiceStatus: null }], ['unknown choice status', { choiceStatus: 'pending' }],
+  ['passed with waiting reason', { eligible: false, choiceStatus: 'passed', reason: 'waiting' }],
+  ['unavailable with passed reason', { eligible: false, choiceStatus: 'unavailable', reason: 'passed' }],
+  ['already launched without settled status', { eligible: false, launched: true, reason: 'already-launched' }],
+  ['settled launched without launched state', { eligible: false, choiceStatus: 'launched', reason: 'already-launched' }],
+]) test(`Attempt28 PDF ${name} is fatal before any capture or click`, async () => {
+  const raw = { ...actualLaunchDocuments().produce(), ...delta };
+  // Missing remains actually missing here, not an injected expected value.
+  for (const [key, value] of Object.entries(delta)) if (value === undefined) delete raw[key];
+  if (name === 'blocked missing reason') delete raw.reason;
+  const f = await runtimeObserverFixture('refinery-124-pdf-colonel', callableEncode(raw));
+  f.opts.deadlineAt = Date.now() + 450;
+  // Match actual settled paint so the old guard's benign exclusion is also a
+  // discriminating RED, rather than an unrelated paint timeout.
+  if (raw.choiceStatus === 'passed') f.actorSurface.page.locator = () => ({ isVisible: async () => true,
+    innerText: async () => 'Launch choice passed for this attack.' });
+  if (raw.choiceStatus === 'unavailable') f.actorSurface.page.locator = () => ({ isVisible: async () => true,
+    innerText: async () => 'The Escort Wing could not launch for this attack.' });
+  if (raw.launched) f.actorSurface.page.locator = () => ({ isVisible: async () => true,
+    innerText: async () => 'Launched // Cycle 2' });
+  await assert.rejects(f.invoke());
+  assert.equal(f.counts.capture, 0); assert.deepEqual(f.actorSurface.effects.clicks, []);
+});
+
+for (const [name, config, text] of [
+  ['passed', { choiceStatus: 'passed' }, 'Launch choice passed for this attack.'],
+  ['unavailable', { choiceStatus: 'unavailable' }, 'The Escort Wing could not launch for this attack.'],
+  ['launched', { choiceStatus: 'launched' }, 'Launched // Cycle 2'],
+  ['depleted', { fighters: 0 }, 'No fighters remain in this Escort Wing.'],
+  ['uncharged', { reason: 'uncharged' }, 'Refinery 8♦ Fighter Bay uncharged // launch denied'],
+  ['damaged', { reason: 'damaged' }, 'The Refinery Fighter Bay is damaged.'],
+  ['destroyed', { reason: 'destroyed' }, 'Refinery 124 destroyed // launch denied'],
+]) test(`Attempt28 actual serialized PDF ${name} union retains zero intent`, async () => {
+  const raw = actualLaunchDocuments(config).produce(); assert.equal(raw.eligible, false);
+  const f = await runtimeObserverFixture('refinery-124-pdf-colonel', callableEncode(raw));
+  f.actorSurface.page.locator = () => ({ isVisible: async () => true, innerText: async () => text });
+  assert.equal(await f.invoke(), undefined);
+  assert.equal(f.counts.capture, 0); assert.deepEqual(f.actorSurface.effects.clicks, []);
+});
+
+for (const [name, modify] of [
+  ['foreign session', f => { const read = f.actorSurface.callable;
+    f.actorSurface.callable = async (...args) => { const reply = await read(...args); reply.result.sessionId = 'foreign'; return reply; }; }],
+  ['SDK denial', f => { f.actorSurface.callable = async () => ({ status: 'rejected', code: 'permission-denied' }); }],
+  ['unknown SDK outcome', f => { f.actorSurface.callable = async () => ({ status: 'unknown' }); }],
+  ['initial revoked member', f => { f.state.me.connected = false; }],
+  ['initial missing discovery', f => { delete f.state.session.playerDiscovery; }],
+  ['initial missing raw phase', f => { delete f.state.session.turnState.phase; }],
+  ['expired original deadline', f => { f.opts.deadlineAt = Date.now() - 1; }],
+  ['final callback identity drift', f => { f.hooks.capture = () => { f.state.identityHydrationRevision++; }; }],
+  ['final callback discovery drift', f => { f.hooks.capture = () => { f.state.session.playerDiscovery.revision++; }; }],
+  ['final callback deadline expiry', f => { f.hooks.capture = () => { f.opts.deadlineAt = Date.now() - 1; }; }],
+]) test(`Attempt28 serialized enabled PDF still fences ${name}`, async () => {
+  const f = await runtimeObserverFixture('refinery-124-pdf-colonel', callableEncode(actualLaunchDocuments().produce()));
+  if (name === 'final callback deadline expiry') f.hooks.capture = async () => {
+    await new Promise(resolve => setTimeout(resolve, Math.max(0, f.opts.deadlineAt - Date.now() + 1)));
+  };
+  else modify(f);
+  await assert.rejects(f.invoke()); assert.deepEqual(f.actorSurface.effects.clicks, []);
+  if(name.startsWith('final callback'))assert.equal(f.counts.capture,1,'The guard must be reached inside the actual final choose callback.');
+});
+
+test('Attempt28 actual enabled Wing producer omits reason and retains normal default Wing capture', async () => {
+  const raw = actualLaunchDocuments({ wing: true, fighters: 6 }).produce();
+  assert.equal(raw.eligible, true); assert.equal(Object.hasOwn(raw, 'reason'), false);
+  const wire = callableEncode(raw); assert.equal(Object.hasOwn(wire, 'reason'), false);
+  const f = await runtimeObserverFixture('wing-commander');
+  f.actorSurface.page.getByRole = (_kind, {name}) => ({ isVisible: async () => name === 'Launch Fighter Wing Alpha',
+    isEnabled: async () => wire.eligible, click: async () => f.actorSurface.effects.clicks.push(name) });
+  const value = await dispatchStationWingChoice(f.current, { deadlineAt: f.opts.deadlineAt,
+    recipient: f.actorSurface, fullMember: f.assertMember, evidence: {stationWingOriginal: f.original},
+    recoveredLaunches: new Map(), directory: '/tmp/unused-observer-fixture', readAttack: f.opts.readAttack,
+    readTurnState: f.readPhase, gmAuthority: f.opts.gmAuthority, action: f.action });
+  assert.deepEqual(value, {committed:true}); assert.equal(f.counts.capture, 1);
+  assert.deepEqual(f.actorSurface.effects.clicks, ['Launch Fighter Wing Alpha']);
+});
+
+// Equivalent reason-bearing C&C uses its actual projection function; normal
+// wire omission must remain distinct from the PDF own-undefined null arm.
+for (const reason of [undefined, 'uncharged', 'damaged', 'damage-unknown', 'commander-pending', 'no-targets', 'passed', 'already-used']) {
+  test(`Attempt28 serialized C&C ${reason ?? 'enabled omitted reason'} keeps its source union`, async () => {
+    const view = callableEncode(actualCncView(sessionId, 3, 8, { eligible: reason === undefined,
+      commanderAssigned: false, rerollsFinalized: reason !== 'commander-pending',
+      targets: reason === undefined ? [{rosterIndex:0,shipId:'wolf-fighter-wing'}] : [],
+      ...(reason === undefined ? {} : {reason}) }));
+    const warhead = callableEncode({ type:'aegis-enriched-warhead-view',sessionId,attackId:'attack-p',
+      turn:3,revision:8,choiceStatus:'unavailable',eligible:false,oreCost:5 });
+    const eo = surface('executive-officer', warhead, {entitledShipId:'aegis',
+      responses:{getAegisCommandAndControl:view}});
+    const opts = options([{roleId:eo.label,surface:eo}],attack('targeting'),undefined,Date.now()+1000);
+    const notices = {'uncharged':'Unavailable // charge Command and Control for this cycle.',
+      'damaged':'Unavailable // Command and Control is damaged.',
+      'damage-unknown':'Unavailable // AEGIS damage status could not be verified.',
+      'commander-pending':'Rerolls pending // reconnect and finish rerolls with the assigned Wolf Commander.',
+      'no-targets':'Unavailable // no Wolf ships are available to redirect.',
+      'passed':'Command and Control passed // no redirect made.',
+      'already-used':'Command committed // WOLF SHIP redirected to AEGIS.'};
+    const originalRoles=eo.page.getByRole;
+    eo.page.getByRole=(kind,opts)=>{const panel=originalRoles(kind,opts);
+      if(kind==='region'&&opts.name==='Command and Control')panel.innerText=async()=>reason===undefined
+        ? 'Cycle 3 // Rev 8' : `${notices[reason]} // Cycle 3 // Rev 8`;
+      return panel;};
+    const result = await dispatchStationCrewChoice(attack('targeting'),opts);
+    if (reason === undefined) {assert.deepEqual(result,{committed:true});assert.deepEqual(eo.effects.clicks,['Pass Command and Control']);}
+    else {assert.equal(result,undefined);assert.deepEqual(eo.effects.clicks,[]);}
+  });
+}
+
+// The following equivalent family DTOs are source-shaped normal producer arms,
+// not captured native packets. They exercise the actual dispatcher through the
+// same installed serialization boundary and preserve each family's own union.
+for (const status of ['pending','enriched','passed','unavailable']) test(`Attempt28 serialized warheads ${status} has its own explicit status`,async()=>{
+ const view=callableEncode({type:'aegis-enriched-warhead-view',sessionId,attackId:'attack-p',turn:3,revision:8,
+  choiceStatus:status,eligible:status==='pending',oreCost:5});
+ const cnc=callableEncode(actualCncView(sessionId,3,8,{eligible:false,commanderAssigned:false,rerollsFinalized:true,reason:'uncharged',targets:[]}));
+ const eo=surface('executive-officer',view,{entitledShipId:'aegis',responses:{getAegisCommandAndControl:cnc}});
+ const originalRoles=eo.page.getByRole;eo.page.getByRole=(kind,opts)=>{const panel=originalRoles(kind,opts);
+  if(kind==='region')panel.innerText=async()=>`Cycle 3 // Rev 8 // ${opts.name==='Command and Control'
+   ? 'Unavailable // charge Command and Control for this cycle.' : status==='enriched'?'Five ore paid once // enriched for this whole attack.'
+    :status==='passed'?'Enriched warheads passed // no ore spent.':status==='unavailable'?'Unavailable // choose at attack start with five ore and charged, undamaged missile launchers.':'Choose enriched warheads or pass before Long Range begins.'}`;
+  return panel;};
+ const value=await dispatchStationCrewChoice(attack('targeting'),options([{roleId:eo.label,surface:eo}],attack('targeting'),undefined,Date.now()+1000));
+ assert.deepEqual(value,status==='pending'?{committed:true}:undefined);
+ assert.deepEqual(eo.effects.clicks,status==='pending'?['Pass enriched warheads']:[]);
+});
+
+for (const [name, extra, expectedClick] of [
+ ['pending armed',{},{label:'Use selected actions'}],
+ ['pending depleted',{eligibleActions:[]},{label:'Pass this range'}],
+ ['targets-required zero hits',{choiceStatus:'targets-required',hitSlots:[]},{label:'Commit target assignments'}],
+ ['committed',{choiceStatus:'committed'},undefined],
+]) test(`Attempt28 serialized EO range ${name} retains its normal choice arm`,async()=>{
+ const view=callableEncode(eoRange('medium-range',extra)),eo=eoSurface(view);
+ const value=await dispatchStationCrewChoice(attack('medium-range'),options([{roleId:eo.label,surface:eo}],attack('medium-range'),undefined,Date.now()+1000));
+ assert.deepEqual(value,expectedClick?{committed:true}:undefined);assert.deepEqual(eo.effects.clicks,expectedClick?[expectedClick.label]:[]);
+});
+
+test('Attempt28 serialized EO Short null coverage remains an explicit public non-wing value',async()=>{
+ const view=callableEncode(eoRange('short-range',{choiceStatus:'targets-required',contacts:[
+  {contactId:'contact-1',targetShipId:'aegis',available:true,requiredCoverageDamage:0},
+  {contactId:'contact-2',targetShipId:'aegis',available:true,requiredCoverageDamage:null}],
+  hitSlots:[{actionId:eoActionId('laser','short-range'),count:1,damagePerHit:1}]}));
+ const eo=eoSurface(view);let captured;
+ assert.deepEqual(await dispatchStationCrewChoice(attack('short-range'),options([{roleId:eo.label,surface:eo}],attack('short-range'),r=>captured=r)),{committed:true});
+ assert.deepEqual(captured.metadata.expectedRequest.assignments,[{actionId:eoActionId('laser','short-range'),contactIds:['contact-2']}]);
+});
+
+for (const [name, extra] of [
+ ['pending',{}],['committed',{choiceStatus:'committed'}],['not launched',{launched:false,fighters:[]}],['depleted',{fighters:[],targets:[]}],
+]) test(`Attempt28 serialized PDF Medium ${name} preserves range eligibility`,async()=>{
+ const view=callableEncode({type:'wolf-fighter-range-action-view',sessionId,attackId:'attack-p',turn:3,revision:8,
+  wingId:'pdf-escort-fighter-wing',wingLabel:'P.D.F. Escort Fighter Wing',range:'medium-range',choiceStatus:'pending',launched:true,
+  fighters:[{fighterIndex:0}],targets:[{instanceId:'contact-1',label:'Wolf contact 1',targetNumber:1}],...extra});
+ const pdf=surface('refinery-124-pdf-colonel',view);
+ if(name==='not launched'||name==='depleted'){const originalRoles=pdf.page.getByRole;
+  pdf.page.getByRole=(kind,opts)=>{const panel=originalRoles(kind,opts);
+   if(kind==='region'&&name==='not launched')panel.innerText=async()=> 'Cycle 3 // This wing did not launch for the current attack.';
+   if(kind==='region'&&name==='depleted'){const child=panel.getByRole;panel.getByRole=(type,option)=>{const control=child(type,option);
+    if(type==='combobox'&&option?.name instanceof RegExp)control.count=async()=>0;return control;};}
+   return panel;};
+ }
+ const value=await dispatchStationCrewChoice(attack('medium-range'),options([{roleId:pdf.label,surface:pdf}],attack('medium-range'),undefined,Date.now()+1000));
+ const expected=name==='pending'?'Resolve Medium actions':name==='depleted'?'Pass Medium Range':undefined;
+ assert.deepEqual(value,expected?{committed:true}:undefined);assert.deepEqual(pdf.effects.clicks,expected?[expected]:[]);
+});
+
+for (const [status, available] of [['pending',true],['pending',false],['used',true],['passed',false]])
+ test(`Attempt28 serialized Highwall ${status} available ${available} distinguishes owned from operational`,async()=>{
+  const view=callableEncode({type:'wolf-range-support-action-choice-view',sessionId,attackId:'attack-p',turn:3,revision:8,
+   range:'medium-range',sourceId:'highwall',actorRoleId:'icebreaker-miner',choiceStatus:status,eligible:true,actionAvailable:available,
+   deadlineAt:'9999-12-31T23:59:59.999Z',contacts:[]});
+  const miner=surface('icebreaker-miner',view,{path:'/shuttles/highwall'});
+  const originalRoles=miner.page.getByRole;
+  miner.page.getByRole=(kind,opts)=>{const panel=originalRoles(kind,opts);if(kind==='region'){
+   panel.isVisible=async()=>true;panel.innerText=async()=>`Cycle 3 // ${status==='used'?'Highwall Cannon action committed.':status==='passed'?'You passed this range action.':''}`;
+  }return panel;};
+  const value=await dispatchStationCrewChoice(attack('medium-range'),options([{roleId:miner.label,surface:miner}],attack('medium-range'),undefined,Date.now()+1000));
+  assert.deepEqual(value,status==='pending'?{committed:true}:undefined);
+  assert.deepEqual(miner.effects.clicks,status==='pending'?[available?'Use Highwall Cannon':'Pass this range']:[]);
+ });
+
+for(const [name,view] of [
+ ['pending',{type:'wolf-boarding-defence-choice-view',sessionId,turn:3,revision:8,targetShipId:'icebreaker',boardingParties:1,
+  availableSecurityTeams:2,choiceStatus:'pending',deadlineAt:'9999-12-31T23:59:59.999Z'}],
+ ['committed zero',{type:'wolf-boarding-defence-choice-view',sessionId,turn:3,revision:8,targetShipId:'icebreaker',boardingParties:1,
+  availableSecurityTeams:2,choiceStatus:'committed',chosenSecurityTeams:0,deadlineAt:'9999-12-31T23:59:59.999Z'}],
+ ['no boarders',{type:'wolf-boarding-defence-choice-unavailable',sessionId,reason:'no-boarders'}],
+ ['not your choice',{type:'wolf-boarding-defence-choice-unavailable',sessionId,reason:'not-your-choice'}],
+])test(`Attempt28 serialized boarding defence ${name} keeps unavailable/committed distinct`,async()=>{
+ const special={type:'wolf-boarding-special-choice-unavailable',sessionId,reason:'not-your-choice'};
+ const miner=surface('icebreaker-miner',callableEncode(view),{responses:{getWolfBoardingSpecialChoice:callableEncode(special)}});
+ if(name==='committed zero'||name==='not your choice'){
+  const original=miner.page.getByRole;miner.page.getByRole=(kind,opts)=>{const control=original(kind,opts);
+   if(kind==='region')control.innerText=async()=>`Cycle 3 // ${name==='committed zero'?'This defence choice is locked.':'This ship’s defence choice is not open yet.'}`;
+   return control;};
+ }
+ const value=await dispatchStationCrewChoice(attack('boarding'),options([{roleId:miner.label,surface:miner}],attack('boarding'),undefined,Date.now()+1000));
+ assert.deepEqual(value,name==='pending'?{committed:true}:undefined);
+ assert.deepEqual(miner.effects.clicks,name==='pending'?['Commit defence']:[]);
+});
+
+for(const reason of ['not-your-choice','no-special-choice','automatic-progress-pending'])
+ test(`Attempt28 serialized boarding special ${reason} retains zero intent`,async()=>{
+  const view=callableEncode({type:'wolf-boarding-special-choice-unavailable',sessionId,reason});
+  const miner=surface('icebreaker-miner',view,{responses:{getWolfBoardingDefenceChoice:
+   {type:'wolf-boarding-defence-choice-unavailable',sessionId,reason:'no-boarders'}}});
+  if(reason==='automatic-progress-pending'){
+   const original=miner.page.getByRole;miner.page.getByRole=(kind,opts)=>{const control=original(kind,opts);
+    if(kind==='region'&&opts.name==='Boarding decision')control.innerText=async()=> 'Cycle 3 // The server is locking the committed defence dice.';
+    return control;};
+   miner.page.locator=()=>({isVisible:async()=>true,innerText:async()=> 'Cycle 3 // The server is locking the committed defence dice.'});
+  }
+  assert.equal(await dispatchStationCrewChoice(attack('boarding'),options([{roleId:miner.label,surface:miner}],attack('boarding'),undefined,Date.now()+1000)),undefined);
+  assert.deepEqual(miner.effects.clicks,[]);
+ });
+
+for(const [roleId,choice,label] of [
+ ['refinery-124-engineer',{kind:'relocation',craftId:'chepu',currentHostId:'refinery-124',fuelled:true,controlRevision:2,legalHostIds:['refinery-124']},'Stay at REFINERY 124'],
+ ['executive-officer',{kind:'reroll',source:'aegis',targetShipId:'aegis',dice:[],maxRerolls:3,alreadyRerolled:[]},'Pass rerolls'],
+])test(`Attempt28 serialized boarding ${choice.kind} keeps explicit normal command values`,async()=>{
+ const view=callableEncode({type:'wolf-boarding-special-choice-view',sessionId,turn:3,revision:8,choice});
+ const actor=surface(roleId,view,{entitledShipId:roleId==='executive-officer'?'aegis':'refinery-124'});
+ const original=actor.page.getByRole;actor.page.getByRole=(kind,opts)=>{const panel=original(kind,opts);
+  if(kind==='region')panel.getByRole=(child,selected)=>child==='button'?{isVisible:async()=>selected.name===label||selected.name?.test?.(label),
+   isEnabled:async()=>true,click:async()=>actor.effects.clicks.push(label)}:original(child,selected);
+  return panel;};
+ let captured;assert.deepEqual(await dispatchStationCrewChoice(attack('boarding'),options([{roleId,surface:actor}],attack('boarding'),r=>captured=r,Date.now()+1000)),{committed:true});
+ assert.deepEqual(actor.effects.clicks,[label]);
+ if(choice.kind==='relocation')assert.equal(captured.metadata.expectedRequest.choice.targetShipId,null);
+ else assert.deepEqual(captured.metadata.expectedRequest.choice.dieIndexes,[]);
+});
+
+for(const malformed of ['missing','null'])test(`Attempt28 PDF range ${malformed} launched discriminator cannot grant actions`,async()=>{
+ const view={type:'wolf-fighter-range-action-view',sessionId,attackId:'attack-p',turn:3,revision:8,
+  wingId:'pdf-escort-fighter-wing',wingLabel:'P.D.F. Escort Fighter Wing',range:'medium-range',choiceStatus:'pending',
+  fighters:[{fighterIndex:0}],targets:[{instanceId:'contact-1',label:'Wolf contact 1',targetNumber:1}],
+  ...(malformed==='null'?{launched:null}:{})};
+ const pdf=surface('refinery-124-pdf-colonel',callableEncode(view));let captures=0;
+ await assert.rejects(dispatchStationCrewChoice(attack('medium-range'),options([{roleId:pdf.label,surface:pdf}],attack('medium-range'),()=>captures++,Date.now()+1000)));
+ assert.equal(captures,0);assert.deepEqual(pdf.effects.clicks,[]);
+});
+for(const kind of ['special','defence'])test(`Attempt28 unknown boarding ${kind} unavailable discriminant is fatal with known reason`,async()=>{
+ const view={type:`foreign-boarding-${kind}-unavailable`,sessionId,reason:kind==='special'?'not-your-choice':'no-boarders'};
+ const miner=surface('icebreaker-miner',callableEncode(view),{responses:kind==='defence'?{getWolfBoardingSpecialChoice:
+  {type:'wolf-boarding-special-choice-unavailable',sessionId,reason:'not-your-choice'}}:{getWolfBoardingDefenceChoice:
+   {type:'wolf-boarding-defence-choice-unavailable',sessionId,reason:'no-boarders'}}});
+ await assert.rejects(dispatchStationCrewChoice(attack('boarding'),options([{roleId:miner.label,surface:miner}],attack('boarding'),undefined,Date.now()+1000)),/unavailable view type/);
+ assert.deepEqual(miner.effects.clicks,[]);
+});
