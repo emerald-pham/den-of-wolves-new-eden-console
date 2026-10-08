@@ -100,6 +100,31 @@ it('shows live Fighter Wing counts separately from bay status and effective capa
   expect(bravo).not.toHaveTextContent(/tracked at the table/i);
 });
 
+it('offers the Wing Commander a live paired fighter exchange during Team', () => {
+  const session = useSessionStore.getState().session;
+  if (!session) throw new Error('Expected a session.');
+  useSessionStore.getState().setIdentity({
+    ...session,
+    fighterWingCounts: {
+      'fighter-wing-alpha': { count: 3, revision: 4 },
+      'fighter-wing-bravo': { count: 2, revision: 7 },
+    },
+  }, {
+    uid: 'wing', sessionId: 's1', displayName: 'Wing Commander', role: 'player', seatId: 'wing-commander',
+    assignedRoleId: 'wing-commander', activeConsoleRoleId: 'wing-commander',
+    joinedAt: '2026-09-06T12:00:00.000Z',
+  });
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+
+  render(<MemoryRouter><AegisConsoleWorkspace roleId="wing-commander" galacticCoordinate="0000" fuel={3} /></MemoryRouter>);
+
+  const exchange = screen.getByRole('region', { name: /fighter wing exchange/i });
+  expect(exchange).toBeVisible();
+  expect(exchange).toHaveTextContent(/Alpha.*3 fighters.*Bravo.*2 fighters/i);
+  expect(screen.getByRole('button', { name: /transfer fighter/i })).toBeEnabled();
+});
+
 it('describes the Starlight fuel readout as tracked at its console', () => {
   render(<MemoryRouter><AegisConsoleWorkspace roleId="wing-commander" galacticCoordinate="0000" fuel={3} /></MemoryRouter>);
 
