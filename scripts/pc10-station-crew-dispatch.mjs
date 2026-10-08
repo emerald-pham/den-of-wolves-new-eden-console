@@ -657,6 +657,8 @@ async function observePreFreezeActor(actor, current, context, trace) {
     for (const key of ['assignedRoleId', 'activeConsoleRoleId', 'seatId'])
       assert.equal(sample[key], 'executive-officer', `Current EO ${key} must authorize its actual source handler.`);
     assert.equal(sample.currentBerthShipId, 'aegis', 'Current EO requires its actual AEGIS member berth.');
+    assert.equal(sample.fleetGroupId, current.targetGroupId,
+      'Current EO member audience must belong to the actual original P target group.');
   }
   if (context.frozenActor) {
     if (sample.airspace !== context.frozenActor.airspace && sample.turnStatePhase === context.frozenActor.turnStatePhase)
