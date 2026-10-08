@@ -115,6 +115,19 @@ export const exchangeAegisFighterWings = auditedOnCall<{
       tx.get(sessionRef), tx.get(actorRef), tx.get(receiptRef),
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    const now = Date.now();
+    if (!activePlayer(actor, now) || actor.id !== uid ||
+        actor.get('activeConsoleRoleId') !== 'wing-commander' ||
+        boundCoreConsoleRole(actor.get('assignedRoleId'), actor.get('seatId')) !== 'wing-commander' ||
+        !replacementAuthorityAllowsRole(actor.get('replacementRoleId'), 'wing-commander', actor.get('replacementStatus'))) {
+      throw new HttpsError('permission-denied', 'Only the active AEGIS Wing Commander may exchange fighters.');
+    }
+    const roles = activeRoles(session);
+    const activeVessels = session.get('activeVesselIds');
+    if (!roles || !roles.includes('wing-commander') || !Array.isArray(activeVessels) ||
+        !activeVessels.includes('aegis')) {
+      throw commandError('failed-precondition', 'The active AEGIS Wing Commander authority is unavailable.', 'conflict');
+    }
     if (receipt.exists) {
       const disposition = commandReceiptDisposition(receipt.get('fingerprint'), fingerprint);
       if (disposition.kind === 'foreign-actor') {
@@ -130,23 +143,10 @@ export const exchangeAegisFighterWings = auditedOnCall<{
       return { ...prior, status: 'replayed' as const };
     }
 
-    const now = Date.now();
-    if (!activePlayer(actor, now) || actor.id !== uid ||
-        actor.get('activeConsoleRoleId') !== 'wing-commander' ||
-        boundCoreConsoleRole(actor.get('assignedRoleId'), actor.get('seatId')) !== 'wing-commander' ||
-        !replacementAuthorityAllowsRole(actor.get('replacementRoleId'), 'wing-commander', actor.get('replacementStatus'))) {
-      throw new HttpsError('permission-denied', 'Only the active AEGIS Wing Commander may exchange fighters.');
-    }
     requirePursuitEmergencyWindowAbsent(session);
     requireCandidateCraftActionAvailable(session, [...FIGHTER_WING_IDS], ['aegis']);
     if (session.get('phase') !== 'active') {
       throw commandError('failed-precondition', 'Fighter Wing exchange is available only during active gameplay.', 'invalid-phase');
-    }
-    const roles = activeRoles(session);
-    const activeVessels = session.get('activeVesselIds');
-    if (!roles || !roles.includes('wing-commander') || !Array.isArray(activeVessels) ||
-        !activeVessels.includes('aegis')) {
-      throw commandError('failed-precondition', 'The active AEGIS Wing Commander authority is unavailable.', 'conflict');
     }
     const currentTurn = session.get('currentTurn');
     const phase = turnPhaseState(session.get('turnPhase'));
