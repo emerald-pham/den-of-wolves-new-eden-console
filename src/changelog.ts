@@ -61,6 +61,33 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       done: 703, partial: 6, active: 0, missing: 42, blocked: 0,
     },
     changes: [
+      'Action controls explain their costs, requirements, next actor and consequences where you make the decision.',
+      'Same-table trade offers remain visible with server-normalized amounts, and the first accepted offer keeps its valid receipt.',
+      'A fresh GM claim retains its own confirmed connection when a live session update arrives before the acknowledgement.',
+      'Guidance text uses a readable body scale across supported console views.',
+      'Trade offer text and acceptance controls stack when their panel is narrow, including landscape views and enlarged text.',
+      '703 of 751 planned items are complete in the catalog snapshot used to build this release (93.61%).',
+    ],
+  },
+  {
+    version: '0.5.70',
+    implementationProgress: {
+      completed: 703, total: 751, percentage: '93.61%',
+      done: 703, partial: 6, active: 0, missing: 42, blocked: 0,
+    },
+    changes: [
+      'Cycle briefing backgrounds reach the screen edges while keeping text and controls safely inset.',
+      'Only the current GM sees the control to clear a cycle briefing and resume its clock; players continue to see the fleet transmission.',
+      '703 of 751 planned items are complete in the catalog snapshot used to build this release (93.61%).',
+    ],
+  },
+  {
+    version: '0.5.69',
+    implementationProgress: {
+      completed: 703, total: 751, percentage: '93.61%',
+      done: 703, partial: 6, active: 0, missing: 42, blocked: 0,
+    },
+    changes: [
       'Expanded GM DRADIS stays clear of the header and command summary on phones, with reachable Close and keyboard return controls.',
       'GM consoles recover their original connection after a temporary outage. Explicit removal and revoked access still apply.',
       'GM login and Code of Conduct acknowledgement are remembered for seven days on this device. Updated terms require acknowledgement again.',

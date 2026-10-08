@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Intrusion from './Intrusion';
 import { useMotionPreference } from '@/lib/motionPreference';
 import { phaseForSession } from '@/lib/turnPhase';
-import { useSessionStore } from '@/store/useSessionStore';
+import { selectIsGm, useSessionStore } from '@/store/useSessionStore';
 import type { GameSession } from '@/types/game';
 import { DradisAirspaceTimer } from './TurnPhaseTimer';
 import LiveChangeRegion from './LiveChangeRegion';
@@ -195,6 +195,10 @@ function FleetTransmission({
 export default function TurnStartAnnouncement() {
   const session = useSessionStore((state) => state.session);
   const connection = useSessionStore((state) => state.connection);
+  const canClearBriefing = useSessionStore((state) => selectIsGm(state) &&
+    state.me?.sessionId === state.session?.id && state.gmInstance?.uid === state.me?.uid &&
+    !state.gmRecoveryPending);
+  const snapshotFresh = useSessionStore((state) => state.sessionSnapshotFreshness === 'server');
   const [clearing, setClearing] = useState(false);
   const [clearError, setClearError] = useState('');
   const clearButton = useRef<HTMLButtonElement>(null);
@@ -275,7 +279,7 @@ export default function TurnStartAnnouncement() {
     return () => { if (previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus(); };
   }, [holdIdentity]);
   async function clearBriefing(): Promise<void> {
-    if (!session || !heldAt || connection !== 'live' || clearing) return;
+    if (!canClearBriefing || !snapshotFresh || !session || !heldAt || connection !== 'live' || clearing) return;
     if (clearRequest.current?.identity !== holdIdentity) clearRequest.current = {
       identity: holdIdentity, request: {expectedCycle: session.currentTurn ?? 1, expectedPausedAt: heldAt,
         requestId: crypto.randomUUID()},
@@ -304,7 +308,7 @@ export default function TurnStartAnnouncement() {
         announceInitial
       />
       <div className={heldAt ? 'turn-interstitial-layout' : undefined}>
-      {heldAt && <CycleBriefingClearanceView online={connection === 'live'} clearing={clearing}
+      {heldAt && canClearBriefing && <CycleBriefingClearanceView online={connection === 'live' && snapshotFresh} clearing={clearing}
         error={clearError} buttonRef={clearButton} onClear={() => void clearBriefing()} />}
       {activeTransmission && (
         <FleetTransmission

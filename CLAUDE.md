@@ -177,6 +177,8 @@ intact and flag it. Never modify an existing test in the code commit it covers.
 Record reasons for every test added, changed, skipped, or deleted in the
 nontechnical checkpoint report. Reuse unaffected evidence and justify actor
 counts by the claim; 21 accounts are a conditional scale case, not a default.
+Interactive presentation changes require a meaningful failing rendered/consumer
+check first, then the smallest implementation and a passing check.
 Future gameplay proof uses normal authenticated local/emulator native, HTTP/UI and rules paths; prepared scenes alone do not establish behavior. Keep local tests, gameplay, rendered QA, CI, production deployment and actual production behavior distinct. Independent risk review, CI and deployment remain required; production-GM gameplay is not a closure prerequisite.
 
 Typical checks are:
@@ -419,3 +421,27 @@ server-only.
   applicable, or recorded a clear preserve/discard outcome.
 - [ ] No privileged client write, secret, key, or private-source material was
   introduced.
+
+## Independent typography review for final releases
+
+Owner instruction, 2026-10-08: every final product checkpoint release and
+equivalent release requires a typography reviewer independent of the
+implementer. Review the actual final built candidate, identify its commit and
+build artifact, and compare it with the intended typography contract and
+previous released build. Automated typography checks do not substitute for this
+review. Recheck affected evidence if the reviewed candidate materially changes.
+
+Inspect the actual resolved/rendered font (including platform fallback or font
+load failure), computed family, size, weight and line height, readability,
+wrapping and overflow. Use representative relevant viewports and states,
+including changed controls, dialogs/portals and recovery screens when affected.
+Choose the smallest useful configuration set; do not expand into a full actor
+or account matrix. For a global font report, sample shared chrome plus distinct
+font/inheritance paths across the app, and compare base/candidate CSS and assets.
+Record the baseline, exact artifact, platform, states, viewport/window sizes,
+findings, evidence and what was not checked. An inaccessible runtime is an
+unresolved review gap, not a pass inferred from unit, inference or source tests.
+Fix actionable typography findings and obtain the affected independent review
+before publication.
+
+Apply the [routine responsive UI acceptance checklist](docs/AGENT_EXECUTION_POLICY.md#routine-responsive-ui-acceptance) to every UI change, including enlarged text and relevant content/state risks.

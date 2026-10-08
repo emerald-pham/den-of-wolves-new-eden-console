@@ -1,3 +1,4 @@
+import './DecisionGuidance.css';
 import { useId, useState, type FormEvent } from 'react';
 import './SameTableTradePanel.css';
 
@@ -229,13 +230,15 @@ export function SameTableTradePanel({
           <p className="same-table-trade__help">Leave resources you are not offering blank or at zero.</p>
         </fieldset>
 
-        <button className="cic-action-button same-table-trade__send" type="submit" disabled={!canSend}>
+        <p className="same-table-trade__help decision-guidance" id={`${id}-send-help`}>The recipient acts next: they review and accept this exact offer. No held counts change when you send it.</p>
+        <button className="cic-action-button same-table-trade__send" type="submit" disabled={!canSend} aria-describedby={`${id}-send-help`}>
           {isSubmitting ? 'Sending offer…' : 'Send exact offer'}
         </button>
       </form>
 
       <section className="same-table-trade__offers" aria-labelledby={`${id}-incoming-heading`}>
         <h3 id={`${id}-incoming-heading`}>Offers waiting for you</h3>
+        <p className="same-table-trade__help decision-guidance" id={`${id}-accept-help`}>Acceptance subtracts the listed amounts from the sender and adds them to your held tokens. Both players must still be active at this table, and the sender must still hold the full amounts.</p>
         {incomingOffers.length === 0 ? (
           <p className="same-table-trade__empty">No incoming offers.</p>
         ) : (
@@ -251,6 +254,7 @@ export function SameTableTradePanel({
                   type="button"
                   disabled={disabled || pendingOfferId !== null}
                   aria-label={`Accept exact offer from ${offer.participantName}`}
+                  aria-describedby={`${id}-accept-help`}
                   onClick={() => onAcceptOffer(offer.id)}
                 >
                   {pendingOfferId === offer.id ? 'Accepting…' : 'Accept exact offer'}

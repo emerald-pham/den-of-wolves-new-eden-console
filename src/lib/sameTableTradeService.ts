@@ -120,8 +120,11 @@ function parseReceipt(value: unknown, offerId: string): SameTableTradeReceiptVie
 function parseQuantities(value: unknown): SameTableTradeAmounts | null {
   if (!isRecord(value)) return null;
   const entries = Object.entries(value);
+  // Server-persisted offers normalize all six resources, including untouched
+  // amounts as zero. Keep the offer meaningful while accepting that wire shape.
   if (entries.length === 0 || entries.some(([resource, amount]) =>
-    !RESOURCE_IDS.includes(resource as SameTableTradeResourceId) || !safeInteger(amount, 1))) return null;
+    !RESOURCE_IDS.includes(resource as SameTableTradeResourceId) || !safeInteger(amount)) ||
+      !entries.some(([, amount]) => safeInteger(amount) && amount > 0)) return null;
   return Object.fromEntries(entries) as SameTableTradeAmounts;
 }
 

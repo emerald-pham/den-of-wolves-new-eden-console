@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { SHIPS } from '@/data/ships';
 import { BASE_CAPYBARA_CARGO_TYPES, parseBaseCapybaraCargoState } from '@/lib/baseCapybaraCargoLedger';
 import {
@@ -92,6 +92,7 @@ export function SmallShipCargoTransferPanel({ smallShipId }: { readonly smallShi
   const craftName = smallShipId === 'warrior' ? 'Warrior' : 'Capybara';
   const ledgerField = smallShipId === 'warrior' ? 'warriorCargo' : 'baseCapybaraCargo';
   const transfer = smallShipId === 'warrior' ? transferWarriorCargo : transferBaseCapybaraCargo;
+  const id = useId();
   const session = useSessionStore((state) => state.session) as GameSession | null;
   const me = useSessionStore((state) => state.me);
   const connection = useSessionStore((state) => state.connection);
@@ -353,7 +354,7 @@ export function SmallShipCargoTransferPanel({ smallShipId }: { readonly smallShi
         </select>
         <label htmlFor={`${smallShipId}-cargo-amount`}>Positive whole amount</label>
         <input id={`${smallShipId}-cargo-amount`} type="number" min="1" step="1" inputMode="numeric"
-          value={amountText} onChange={(event) => {
+          aria-describedby={`${id}-cargo-help`} value={amountText} onChange={(event) => {
             setAmountText(event.target.value);
             clearAttempt();
           }} />
@@ -361,11 +362,12 @@ export function SmallShipCargoTransferPanel({ smallShipId }: { readonly smallShi
           Available at source // {resourceAvailable ?? 0} {LABELS[resourceId]}
         </p>
       </fieldset>
+      <p id={`${id}-cargo-help`}>Transfer subtracts the selected amount from the source and adds it to the destination. The source must hold the full amount. Load moves host stores onto {craftName}; unload returns {craftName} cargo to its current host.</p>
       <div className="maintenance-controls__confirmation">
         <button className="cic-action-button" type="button"
           disabled={!live || pendingForCurrentAuthority || (retryCommand
             ? false : currentStaleRecovery ? !staleRetryReady : !canSubmit)}
-          onClick={() => void submit()}>
+          aria-describedby={`${id}-cargo-help`} onClick={() => void submit()}>
           {pendingForCurrentAuthority ? 'Transferring cargo…'
             : retryCommand ? 'Retry exact cargo request'
               : currentStaleRecovery ? 'Retry with current revision' : 'Transfer cargo'}

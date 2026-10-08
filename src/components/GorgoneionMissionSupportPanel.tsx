@@ -117,6 +117,7 @@ export default function GorgoneionMissionSupportPanel({
     <section className="gorgoneion-mission-support" aria-labelledby={titleId}>
       <p className="eyebrow">Pre-deal deck support</p>
       <h2 id={titleId}>Gorgoneion mission support</h2>
+      <p className="gorgoneion-mission-support__instructions" id={`${id}-effect-help`}>Each group keeps its original order. Cards kept on top are drawn before the untouched deck; cards moved to the bottom are drawn after it. Applying this one-use support does not deal cards or start a mission.</p>
       <form onSubmit={submit}>
         {hasProjection ? (
           <>
@@ -172,7 +173,7 @@ export default function GorgoneionMissionSupportPanel({
           </p>
         )}
         <div className="gorgoneion-mission-support__actions">
-          <button className="cic-action-button" type="submit" disabled={!canSubmit || submitting}>
+          <button className="cic-action-button" type="submit" aria-describedby={`${id}-effect-help`} disabled={!canSubmit || submitting}>
             Apply deck support
           </button>
         </div>

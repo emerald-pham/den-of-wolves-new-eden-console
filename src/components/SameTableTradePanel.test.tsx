@@ -146,3 +146,16 @@ it('keeps offer controls keyboard reachable and displays parent status feedback'
   expect(screen.getByRole('status')).toHaveTextContent('Offer sent. Waiting for the recipient.');
   expect(props.onCreateOffer).not.toHaveBeenCalled();
 });
+
+it('explains the recipient handoff and acceptance consequence at each control', () => {
+  const { props } = renderPanel({
+    incomingOffers: [{ id: 'offer-1', participantName: 'Captain Vale', amounts: { food: 2 } }],
+  });
+  expect(screen.getByRole('button', { name: 'Send exact offer' })).toHaveAccessibleDescription(
+    /recipient acts next.*no held counts change/i,
+  );
+  expect(screen.getByRole('button', { name: 'Accept exact offer from Captain Vale' }))
+    .toHaveAccessibleDescription(/subtracts the listed amounts from the sender.*adds them to your held tokens/i);
+  expect(props.onCreateOffer).not.toHaveBeenCalled();
+  expect(props.onAcceptOffer).not.toHaveBeenCalled();
+});

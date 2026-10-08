@@ -228,6 +228,12 @@ jobs:
         if: steps.change_scope.outputs.typography == 'true'
         run: npm run test:typography:browser
 
+      - name: Production-built cycle briefing typography
+        if: steps.change_scope.outputs.typography == 'true'
+        env:
+          CYCLE_RENDER_EVIDENCE: /tmp/pc04-typography/cycle-briefing
+        run: npm run test:cycle-briefing:browser
+
       - name: Upload rendered typography evidence
         if: always() && steps.change_scope.outputs.typography == 'true'
         uses: actions/upload-artifact@v7

@@ -208,7 +208,7 @@
 
 .same-table-trade__offer {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(9rem, 13rem);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
   align-items: center;
   gap: 0.8rem;
   min-width: 0;

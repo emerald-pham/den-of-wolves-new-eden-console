@@ -1,0 +1,12 @@
+/* Decision instructions use the existing 14px body scale, not telemetry captions.
+   Scope to the new paragraphs; legacy help/status typography stays unchanged. */
+.jump-drive .decision-guidance,
+.scout-request .decision-guidance,
+.same-table-trade .decision-guidance,
+.voyage33-movement .decision-guidance {
+  color: var(--cic-ink);
+  font: 0.875rem/1.55 var(--cic-mono);
+  letter-spacing: normal;
+  text-transform: none;
+  overflow-wrap: anywhere;
+}

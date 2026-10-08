@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, rename, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { pc11MemberReadiness } from './qualification/pc11-normal-start-adapter.mjs';
 
 const memberFields = ['sessionId', 'role', 'fleetGroupId', 'assignedRoleId', 'activeConsoleRoleId',
   'seatId', 'replacementRoleId', 'replacementStatus'];
@@ -73,7 +74,8 @@ function resumeReply(body) {
 
 /** Passive, operation-local evidence from the ordinary route's real SDK.
  * No forced resume, command, store setter, interception, or deadline extension. */
-export function createMemberNavigationResumeObserver(page, { directory, roleId, deadlineAt }) {
+export function createMemberNavigationResumeObserver(page, { directory, roleId, deadlineAt, memberContract = 'current-berth' }) {
+  assert.ok(['current-berth', 'pc11-live-base'].includes(memberContract), 'Use an explicit supported member contract.');
   if (typeof page?.on !== 'function' || typeof page?.off !== 'function') return null;
   const id = randomUUID(), folder = resolve(directory, 'member-navigation'), path = resolve(folder, `${id}.json`);
   const record = { schemaVersion: 1, operationId: id, roleId, deadlineAt,
@@ -81,6 +83,10 @@ export function createMemberNavigationResumeObserver(page, { directory, roleId, 
     samples: [], events: [], transitions: [], noSdkOrGameplayActionIssued: true };
   const requests = new Map(), listeners = [];
   let baseline, closed = false, writes = Promise.resolve();
+  const cleanReady = (value, original) => pc11MemberReadiness(value, {
+    sessionId: original.sessionId, uidHash: original.uidHash, roleId, stage: 'station',
+  }) && value.memberScopeMatches === true && value.fleetGroupId === original.fleetGroupId &&
+    (value.phase === 'casting' || value.currentOwnBerthConfirmed === true);
   function persist() {
     const bytes = JSON.stringify(record, null, 2) + '\n';
     writes = writes.catch(() => undefined).then(async () => {
@@ -176,8 +182,10 @@ export function createMemberNavigationResumeObserver(page, { directory, roleId, 
       // below supplies that authority; explicit false/malformed reply flags fail.
       // applySession clears the old member envelope. Let the existing feed and
       // SDK finish fence land within the caller's original finite deadline.
-      if (current.connection !== 'live' || current.freshness !== 'server' || !current.currentMemberBerthPresent || !current.currentMemberBerthMatches ||
-          !current.currentOwnPlayerConfirmed) return false;
+      const currentReady = memberContract === 'pc11-live-base' ? cleanReady(current, original) :
+        current.connection === 'live' && current.freshness === 'server' && current.currentMemberBerthPresent &&
+        current.currentMemberBerthMatches && current.currentOwnPlayerConfirmed;
+      if (!currentReady) return false;
       // Reuse the exact post-digest original-member observation. Identity,
       // seat ownership, transaction witness and SDK fence are sampled together
       // after the async yield, inside the caller's original deadline.
@@ -197,9 +205,12 @@ export function createMemberNavigationResumeObserver(page, { directory, roleId, 
       assert.equal(settled.identityHydrationRevision, original.identityHydrationRevision + 1);
       assert.ok(stableMemberFields.every(key => receipt.reply.player[key] === settled[observationField[key] ?? key]),
         'Original resumed member scope changed during client acceptance observation.');
-      if (settled.connection !== 'live' || settled.freshness !== 'server' || !settled.currentMemberBerthPresent ||
-          !settled.currentMemberBerthMatches || !settled.currentOwnPlayerConfirmed ||
-          accepted?.hasServerAuthority !== true || accepted.resumePending !== false) return false;
+      const settledReady = memberContract === 'pc11-live-base' ? cleanReady(settled, original) :
+        settled.connection === 'live' && settled.freshness === 'server' && settled.currentMemberBerthPresent &&
+        settled.currentMemberBerthMatches && settled.currentOwnPlayerConfirmed;
+      // Either projection contract still needs the actual mounted SDK's accepted
+      // authority and completed resume fence after the asynchronous observation.
+      if (!settledReady || accepted?.hasServerAuthority !== true || accepted.resumePending !== false) return false;
       assert.ok(stationPointersMatch(receipt.reply.player, settled, roleId),
         'Original resumed station pointers require canonical current ownership.');
       current = settled;
@@ -215,7 +226,7 @@ export function createMemberNavigationResumeObserver(page, { directory, roleId, 
       // An unfinished body remains explicitly unfinished in the packet. It
       // cannot extend the primary deadline or delay removal of own listeners.
       record.status = error ? 'failed' : 'selected-current-original-member';
-      record.receipts = [...requests.values()].map(({ parsed, ...row }) => row);
+      record.receipts = [...requests.values()].map(({ parsed, ...row }) => { void parsed; return row; });
       if (error) record.originalError = safeError(error, 'original-selection-failed');
       record.closedAt = new Date().toISOString(); await persist();
     },

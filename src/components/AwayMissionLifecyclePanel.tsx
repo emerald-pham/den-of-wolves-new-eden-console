@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useId, useMemo, useState } from 'react';
 import './AwayMissionLifecyclePanel.css';
 
 interface PublicOpportunity {
@@ -92,6 +92,7 @@ export default function AwayMissionLifecyclePanel({
   privateState,
   actions,
 }: AwayMissionLifecyclePanelProps) {
+  const id = useId();
   const [extraCount, setExtraCount] = useState(1);
   const [recipientUid, setRecipientUid] = useState('');
   const [distributionOpportunity, setDistributionOpportunity] = useState('');
@@ -262,11 +263,12 @@ export default function AwayMissionLifecyclePanel({
               </article>
             ))}
           </div>
-          {assignmentPhase && (
-            <button type="button" onClick={submitAssignments} disabled={busy}>
+          {assignmentPhase && (<>
+            <p className="away-mission-lifecycle__muted" id={`${id}-assignment-help`}>Assign every remaining card to a different opportunity. Your submitted cards stay face down. When the rest of the team finishes, the console automatically adds facilitator cards and resolves the mission outcomes.</p>
+            <button type="button" onClick={submitAssignments} disabled={busy} aria-describedby={`${id}-assignment-help`}>
               Submit mission assignments
             </button>
-          )}
+          </>)}
           {ownPrivateState.assignmentCommitted === true && publicState.status === 'active' && (
             <p role="status" aria-label="Your mission assignment">Your assignment is committed // waiting for the team</p>
           )}

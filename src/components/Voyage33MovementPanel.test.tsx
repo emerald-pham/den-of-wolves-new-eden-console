@@ -121,3 +121,14 @@ describe('Voyage33MovementPanel', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('The server denied this Voyage 33-0 action.');
   });
 });
+
+it('describes host-fuel spending and detached arrival at the jump control', () => {
+  const props = makeProps({ phase: 'coordination',
+    host: { shipId: 'dione', name: 'Dione', coordinate: '0101', fuel: 4, status: 'operational' },
+    legalDestinations: [{ coordinate: '1111', label: 'Destination', length: 'long' }] });
+  render(<Voyage33MovementPanel {...props} />);
+  expect(screen.getByRole('button', { name: /Jump to Destination/ })).toHaveAccessibleDescription(
+    /host fuel.*detaches.*one jump per cycle.*Team Phase/i,
+  );
+  expect(props.onJump).not.toHaveBeenCalled();
+});
