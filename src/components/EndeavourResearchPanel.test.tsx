@@ -86,6 +86,22 @@ it('does not expose Detector tests on completed but unbuilt research', async () 
   expect(mocks.runDetector).not.toHaveBeenCalled();
 });
 
+it('builds an unlocked incomplete Detector then exposes its private test path after the authoritative refresh', async () => {
+  const devices = { ...workspace, tracks: [{ trackId: 'wolf-agent-detector', name: 'Wolf Agent Detector',
+    crossedBoxes: 3, totalBoxes: 5, currentMaterialCost: 18, complete: false }] };
+  mocks.read.mockResolvedValueOnce(devices).mockResolvedValue({ ...devices,
+    scienceDevices: { ...devices.scienceDevices, revision: 1, detectorBuilt: true, shepherdMaterials: 0 } });
+  const attempt = { sessionId: 's1', requestId: 'build-detector', expectedCycle: 3, expectedControlRevision: 4,
+    expectedResearchRevision: 0, expectedDeviceRevision: 0, deviceId: 'wolf-agent-detector' };
+  mocks.createBuildAttempt.mockReturnValue(attempt);
+  mocks.buildDevice.mockResolvedValue({ status: 'committed', deviceId: 'wolf-agent-detector', built: true, materialCost: 18, shepherdMaterials: 0 });
+  render(<EndeavourResearchPanel control={control} />);
+  await userEvent.click(await screen.findByRole('button', { name: 'Build Wolf Agent Detector for 18 materials' }));
+  expect(await screen.findByText('Wolf Agent Detector // Built')).toBeVisible();
+  await userEvent.click(screen.getByRole('button', { name: 'Run detector test' }));
+  await waitFor(() => expect(mocks.runDetector).toHaveBeenCalledExactlyOnceWith('target', 0));
+});
+
 it('keeps built Detector tests disabled outside the live Team window', async () => {
   mocks.read.mockResolvedValue({ ...workspace, scienceDevices: { ...workspace.scienceDevices, revision: 1, detectorBuilt: true },
     tracks: [{ trackId: 'wolf-agent-detector', name: 'Wolf Agent Detector', crossedBoxes: 5,

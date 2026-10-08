@@ -12,6 +12,8 @@ import {
   retryEndeavourResearchAttempt,
   type EndeavourResearchAttempt,
   type EndeavourResearchWorkspace,
+  buildEndeavourScienceDevice,
+  createEndeavourScienceDeviceAttempt,
 } from './endeavourResearchService';
 
 const workspace: EndeavourResearchWorkspace = {
@@ -94,6 +96,39 @@ beforeEach(() => {
   });
   useSessionStore.getState().setConnection('live');
   useSessionStore.getState().setSessionSnapshotFreshness('server');
+});
+
+it('sends a paid build with only the observed control/research/construction CAS and reuses the exact request after uncertain transport', async () => {
+  const current = useSessionStore.getState();
+  current.setIdentity({ ...current.session!, turnPhase: { turn: 3, teamPhaseEndsAt: '2999-01-01T00:00:00Z',
+    openAirspaceEndsAt: '2999-01-01T01:00:00Z', airspace: { state: 'restricted', tickerActive: true, pressAccess: false } } }, current.me!);
+  const devices: EndeavourResearchWorkspace = { ...workspace, tracks: [
+    { trackId: 'ecm-device', name: 'ECM Device', crossedBoxes: 2, totalBoxes: 5, currentMaterialCost: 13, complete: false },
+  ] };
+  const attempt = createEndeavourScienceDeviceAttempt({ workspace: devices, deviceId: 'ecm-device' });
+  expect(attempt).toMatchObject({ expectedCycle: 3, expectedControlRevision: 4, expectedResearchRevision: 0,
+    expectedDeviceRevision: 0, deviceId: 'ecm-device' });
+  mocks.call.mockRejectedValueOnce(new Error('response lost')).mockResolvedValueOnce({ data: {
+    status: 'replayed', sessionId: 's1', requestId: attempt.requestId, cycle: 3, deviceId: 'ecm-device',
+    deviceRevision: 1, built: true, materialCost: 13, shepherdMaterials: 5,
+  } });
+  await expect(buildEndeavourScienceDevice(attempt)).rejects.toThrow(/response lost/);
+  await expect(buildEndeavourScienceDevice(attempt)).resolves.toMatchObject({ status: 'replayed', materialCost: 13 });
+  expect(mocks.callable).toHaveBeenLastCalledWith('functions', 'buildEndeavourScienceDevice');
+  expect(mocks.call.mock.calls[0]![0]).toEqual(mocks.call.mock.calls[1]![0]);
+  expect(mocks.call.mock.calls[0]![0]).not.toHaveProperty('materialCost');
+});
+
+it('discards a delayed paid-build result after Scientist authority changes', async () => {
+  const attempt = { sessionId: 's1', requestId: 'build-stale', expectedCycle: 3, expectedControlRevision: 4,
+    expectedResearchRevision: 0, expectedDeviceRevision: 0, deviceId: 'ecm-device' as const };
+  let resolve!: (value: unknown) => void;
+  mocks.call.mockReturnValueOnce(new Promise((done) => { resolve = done; }));
+  const pending = buildEndeavourScienceDevice(attempt);
+  useSessionStore.getState().setMe({ ...useSessionStore.getState().me!, activeConsoleRoleId: 'admiral' });
+  resolve({ data: { status: 'committed', sessionId: 's1', requestId: 'build-stale', cycle: 3, deviceId: 'ecm-device',
+    deviceRevision: 1, built: true, materialCost: 18, shepherdMaterials: 0 } });
+  await expect(pending).rejects.toThrow(/authority changed/i);
 });
 
 it('reads and validates the private research workspace through the named callable', async () => {
