@@ -1,5 +1,6 @@
 import { holdTurnAdvancePhase } from './turnInterstitial';
 import { awayMissionPointerWriteSafetyPatch } from './awayMissionProjectionSafety';
+import { createAwayMissionProjectionMaintenance } from './awayMissionProjectionMaintenance';
 import { parsedMemberSessionDetails } from './memberSession';
 import { createCurrentMemberSessionReader } from './memberSessionCallable';
 import { limitCurrentMemberSessionReader } from './memberSessionLimit';
@@ -1279,6 +1280,14 @@ export const applyGorgoneionMissionSupport = auditedOnCall('applyGorgoneionMissi
 
 export const commitAwayMissionLifecycleCommand = auditedOnCall('commitAwayMissionLifecycleCommand', (request) =>
   awayMissionLifecycleCallables.commitAwayMissionLifecycleCommand(request));
+
+const awayMissionProjectionMaintenance = createAwayMissionProjectionMaintenance({ db,
+  serverTimestamp: () => FieldValue.serverTimestamp(),
+  requireActiveGm: (transaction, sessionId, uid, instanceId) =>
+    requireFacilitatorInstance(transaction as Transaction, sessionId, uid, instanceId).then(() => undefined),
+});
+export const repairAwayMissionProjectionPrivacy = auditedOnCall('repairAwayMissionProjectionPrivacy', request =>
+  awayMissionProjectionMaintenance(request));
 
 export const consentToPermissionedDismantling = auditedOnCall('consentToPermissionedDismantling', (request) =>
   permissionedDismantlingCallables.consentToPermissionedDismantling(request));
