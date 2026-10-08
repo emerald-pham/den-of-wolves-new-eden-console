@@ -70,7 +70,7 @@ test('a missing normal Endeavour link fails within its existing locator deadline
 
 const researchWorkspace = () => ({ tracks: [{ trackId: 'wolf-agent-detector', name: 'Wolf Agent Detector',
   crossedBoxes: 0, totalBoxes: 5, complete: false, currentMaterialCost: 5 }],
-  cadence: { choices: [] }, shepherdOre: 8 });
+  cadence: { choices: [] }, shepherdOre: 8, scienceDevices: { detectorBuilt: false } });
 const researchPaint = () => ({ busy: 'false', progressVisible: true, detectorVisible: false,
   rows: ['Wolf Agent Detector: 0 of 5 boxes crossed; next field-upgrade cost is 5 materials. Available for a research choice.'],
   text: 'CYCLE CHOICES: 0 OF 3 STANDARD; 0 OF 2 ADDITIONAL. SHEPHERD // 8 ORE AVAILABLE' });
@@ -113,10 +113,51 @@ test('a paid research receipt requires its matching visible consequence in the s
 test('completed Detector research also requires the actual eligible Detector panel to be mounted', async () => {
   const { baseResearchPaintMatches } = await contracts();
   assert.equal(typeof baseResearchPaintMatches, 'function');
-  const workspace = researchWorkspace(); workspace.tracks[0] = { ...workspace.tracks[0], crossedBoxes: 5, complete: true };
-  const paint = { ...researchPaint(), rows: ['Wolf Agent Detector: 5 of 5 boxes crossed; no further field-upgrade cost. Research complete.'] };
+  const workspace = researchWorkspace();
+  workspace.tracks[0] = { ...workspace.tracks[0], crossedBoxes: 5, complete: true, currentMaterialCost: 10 };
+  workspace.scienceDevices.detectorBuilt = true;
+  const paint = { ...researchPaint(), rows: ['Wolf Agent Detector: 5 of 5 boxes crossed; current purchase cost is 10 materials. Research complete.'] };
   assert.equal(baseResearchPaintMatches(paint, workspace), false);
   assert.equal(baseResearchPaintMatches({ ...paint, detectorVisible: true }, workspace), true);
+});
+
+test('source research paint follows unavailable early purchases and retained completion prices', async () => {
+  const { baseResearchPaintMatches } = await contracts();
+  for (const [crossedBoxes, currentMaterialCost] of [[1, null], [2, null], [3, 18], [4, 12], [5, 10]]) {
+    const complete = crossedBoxes === 5;
+    const workspace = researchWorkspace();
+    workspace.tracks[0] = { ...workspace.tracks[0], crossedBoxes, currentMaterialCost, complete };
+    const cost = currentMaterialCost === null ? 'purchase unavailable.'
+      : complete ? `current purchase cost is ${currentMaterialCost} materials.`
+        : `next field-upgrade cost is ${currentMaterialCost} materials.`;
+    const paint = { ...researchPaint(), rows: [`Wolf Agent Detector: ${crossedBoxes} of 5 boxes crossed; ${cost} ${complete ? 'Research complete.' : 'Available for a research choice.'}`] };
+    assert.equal(baseResearchPaintMatches(paint, workspace), true, `Actual current ${crossedBoxes}-cross unbuilt paint must match.`);
+    assert.equal(baseResearchPaintMatches({ ...paint, rows: [paint.rows[0].replace(cost, 'purchase unavailable.')] },
+      { ...workspace, tracks: [{ ...workspace.tracks[0], currentMaterialCost: 10 }] }), false);
+  }
+});
+
+test('source research paint requires the paid Detector mount independently of research completion', async () => {
+  const { baseResearchPaintMatches } = await contracts();
+  for (const [crossedBoxes, currentMaterialCost] of [[3, 18], [5, 10]]) {
+    const complete = crossedBoxes === 5;
+    const workspace = researchWorkspace();
+    workspace.tracks[0] = { ...workspace.tracks[0], crossedBoxes, currentMaterialCost, complete };
+    const row = `Wolf Agent Detector: ${crossedBoxes} of 5 boxes crossed; ${complete ? 'current purchase' : 'next field-upgrade'} cost is ${currentMaterialCost} materials. ${complete ? 'Research complete.' : 'Available for a research choice.'}`;
+    const paint = { ...researchPaint(), rows: [row] };
+    assert.equal(baseResearchPaintMatches(paint, workspace), true);
+    assert.equal(baseResearchPaintMatches({ ...paint, detectorVisible: true }, workspace), false);
+    workspace.scienceDevices.detectorBuilt = true;
+    assert.equal(baseResearchPaintMatches(paint, workspace), false);
+    assert.equal(baseResearchPaintMatches({ ...paint, detectorVisible: true }, workspace), true);
+  }
+});
+
+test('source research paint cannot infer construction from missing or malformed private construction state', async () => {
+  const { baseResearchPaintMatches } = await contracts();
+  for (const scienceDevices of [undefined, null, {}, { detectorBuilt: 'true' }]) {
+    assert.equal(baseResearchPaintMatches(researchPaint(), { ...researchWorkspace(), scienceDevices }), false);
+  }
 });
 
 test('source research cadence requires the chosen status rather than an old available-choice row', async () => {
