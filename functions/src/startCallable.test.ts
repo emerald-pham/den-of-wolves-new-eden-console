@@ -77,6 +77,7 @@ import { missionDeck, missionDeckStateFromCards } from './missionDeck';
 import { recommendedRoleIds } from './roleConfiguration';
 import { initialShuttleDockingsForRoles } from './shuttlecraft';
 import { craftStartingManifestForSetup, roleOwnedCraftManifestForSetup } from './craftOwnership';
+import { navigationState, playerDiscoveryProjection } from './navigationProjection';
 
 function fixtureDockingsForRoles(activeRoleIds: readonly string[]) {
   return [
@@ -434,6 +435,59 @@ it('starts a prepared full-game demo through the normal authoritative roster sta
   });
   const sessionUpdate = mock.update.mock.calls.find(([ref]) => ref.path === 'sessions/s1')?.[1];
   expect(sessionUpdate?.fullGameDemo).toEqual({ status: 'active', progression: 'manual' });
+});
+
+it.each([false, true])('publishes the original joined Miner own-ship discovery at normal start (manual=%s)', async fullGameDemo => {
+  const miner = mock.playerDocs.find(({ fields }) => fields.assignedRoleId === 'icebreaker-miner')!;
+  Object.assign(miner.fields, { activeConsoleRoleId: 'icebreaker-miner', fleetGroupId: 'fleet-1' });
+  const activeVesselIds = mock.session.activeVesselIds as string[];
+  // Ordinary join precedes GM assignment/claimSeat. Those casting mutations
+  // do not rewrite discovery, so the real producer's unassigned document is
+  // the previous state consumed by start, rather than a prepared ship view.
+  const joined = playerDiscoveryProjection(snapshot({
+    ...miner.fields, assignedRoleId: null, activeConsoleRoleId: null,
+  }, `sessions/s1/players/${miner.id}`), navigationState({}, activeVesselIds), 0, activeVesselIds);
+  expect(joined).not.toHaveProperty('shipId');
+  if (fullGameDemo) mock.session.fullGameDemo = { status: 'preparing', progression: 'manual' };
+  await startGame.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'start-1', expectedSetupRevision: 0,
+    ...(fullGameDemo ? { fullGameDemo: true } : {}),
+  }));
+  let published: Record<string, unknown> = { ...joined };
+  for (const [ref, fields, options] of mock.set.mock.calls) {
+    if (ref.path !== `sessions/s1/playerDiscoveries/${miner.id}`) continue;
+    published = options?.merge === true ? { ...published, ...fields } : { ...fields };
+  }
+  expect(published).toMatchObject({
+    groupId: 'fleet-1', fleetGroupVesselIds: activeVesselIds, shipId: 'icebreaker',
+    currentCoordinate: '0000', knownCoordinates: ['0000'], navigationLogs: [], pursuitValue: 2, revision: 0,
+  });
+  const groupWrite = [...mock.set.mock.calls, ...mock.update.mock.calls].find(([ref]) =>
+    ref.path === 'sessions/s1/fleetGroups/fleet-1');
+  expect(published.shipId).toBe(groupWrite?.[1].memberShipIds[miner.id]);
+  expect(privateSnapshotKeys(published)).toEqual([]);
+});
+
+it('replaces prior wrong-ship discovery at start and gives no ship view to an unassigned GM', async () => {
+  const miner = mock.playerDocs.find(({ fields }) => fields.assignedRoleId === 'icebreaker-miner')!;
+  Object.assign(miner.fields, { activeConsoleRoleId: 'icebreaker-miner', fleetGroupId: 'fleet-1' });
+  await startGame.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'start-1', expectedSetupRevision: 0,
+  }));
+  let published: Record<string, unknown> = {
+    groupId: 'fleet-2', shipId: 'shepherd', knownSystems: { 'foreign-private-system': '1413' },
+    systemHistory: { foreignPrivateHistory: true }, revision: 999,
+  };
+  for (const [ref, fields, options] of mock.set.mock.calls) {
+    if (ref.path !== `sessions/s1/playerDiscoveries/${miner.id}`) continue;
+    published = options?.merge === true ? { ...published, ...fields } : { ...fields };
+  }
+  expect(published).toMatchObject({ groupId: 'fleet-1', shipId: 'icebreaker', revision: 0 });
+  expect(published.knownSystems).not.toHaveProperty('foreign-private-system');
+  expect(published).not.toHaveProperty('systemHistory');
+  const gmWrites = mock.set.mock.calls.filter(([ref]) => ref.path === 'sessions/s1/playerDiscoveries/u1');
+  expect(gmWrites.length).toBeGreaterThan(0);
+  expect(gmWrites.every(([, fields]) => fields.shipId === undefined)).toBe(true);
 });
 
 async function startFirstManualCycleForHighwall() {

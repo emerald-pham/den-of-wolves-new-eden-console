@@ -1144,7 +1144,8 @@ observer, actual GM controls/phase-publication wait, original35s/60s deadlines,
 first-error-preserving interruption/cleanup and exact source/build freeze.
 Expected bounded cap is five minutes including one-minute cleanup reserve;
 request runtime only after focused RED→implementation→GREEN and one bounded
-independent review. Actual native proof remains unrun until then.
+independent review. The first bounded actual below retains its failed status;
+fresh mining acceptance remains required.
 
 The bounded source review found the normal first-cycle producer omitted the
 fuel ledger required by actual mining authority. Separate `343bff2c` records
@@ -1186,3 +1187,48 @@ only owned resources/data. Fuelled operation3, new-cycle reset, transferred/peer
 foreign holder boundaries, other specialist actions, whole game, capacity and
 final rendered typography are outside this first Highwall slice. No failed
 historical Miner run is relabelled and no new fixed catalog closure is invented.
+
+#### Highwall attempt1 and focused discovery reconciliation
+
+Reviewed `f47e1789` actually launched two independent normal Auth actors in two
+Chrome processes/contexts. Real normal GM `startGame` and manual Coordination
+returned HTTP200; the original Miner had current Cycle1 member/seat/group/berth
+and SDK authority. The run stopped before any mining request because the
+mounted `playerDiscovery.groupId` was undefined rather than `fleet-1`.
+Six admission/setup criteria remain earned; mining/recovery/quota criteria do
+not. Native work plus cleanup took67.3 seconds, and the owned emulator window
+closed after188.1 seconds. Both browsers, both Auth identities, both pointers,
+the session and join code were removed; owned emulator listeners/reservation
+closed. Four original logs were prefix-verified before shutdown and fully
+verified afterward. The retained lightweight Vite5174 remains. Evidence is
+`/tmp/dow-pc10-evidence/OWNER_HIGHWALL_MINING_1_FAILED_CLEAN_HANDOFF_20261008.json`;
+the historical status, original error, screenshots and all six earned claims
+remain immutable. No additional family ran and there is no closure credit.
+
+One bounded independent source audit found three coupled seams. Ordinary join
+publishes an unassigned, shipless discovery document; casting assignment/seat
+claim does not rebuild it, and normal start only merges group metadata despite
+establishing the protected current berth. The actual App correctly withholds
+that shipless document. Separately, the Highwall observer waits for mining and
+control fields but asserts discovery before its independent reader is ready.
+The stopped failure diagnostic also re-enters the normal work budget and
+cannot retain the underlying own raw tuple. The native failed run did not
+capture its stored discovery document, so the persistent producer cause is
+source-backed rather than directly observed in that native record.
+
+The added tests exist to prevent those concrete failures: real normal/manual
+start writes must transform the real unassigned projection into the current
+Miner berth, replace wrong-ship/private remnants, and keep an unassigned GM
+without a ship view; the actual observer must wait for separately published
+own discovery, refuse missing/foreign/host-missing values within its original
+deadline, and accept persisted two-operation state; stopped diagnostics must
+read only verified owned metadata before their original expiry without
+restarting work or replacing the primary error. All previous assertions and
+tests remain unchanged. Before functional repair, the producer showed3 RED/
+86 GREEN, and the corrected adapter fixture showed4 RED/28 GREEN. An earlier
+adapter fixture incorrectly used an explicit Cycle0 wire object instead of
+the Source's absent initial wire field; that run is retained but excluded
+from meaningful RED credit. No emulator/browser or production gameplay is
+started during this source-only reconciliation. Final GREEN, the same bounded
+independent review and a fresh parent allocation still precede the next native
+attempt.

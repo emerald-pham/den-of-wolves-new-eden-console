@@ -120,3 +120,126 @@ async function completeMiningWitness({missingReceipt=false,foreignEvent=false,un
 }
 test('the full actual witness binds 3d6 ore, receipt, event, metadata audit and only its cargo/state effects',async()=>{const seen=await completeMiningWitness();assert.equal(seen.committedWorld.miningState.revision,2);assert.deepEqual(plain(seen.committedWorld.highwallCargo),{ore:8,materials:3});});
 for(const [label,fault]of[['missing bound receipt',{missingReceipt:true}],['foreign event actor',{foreignEvent:true}],['unrelated fuel debit',{unrelatedMutation:true}]])test(`the full real mining witness rejects ${label}`,async()=>{await assert.rejects(completeMiningWitness(fault));});
+
+// Exercise the existing original projection consumer, including its actual
+// mounted-store field selectors. These are source-only observations: no SDK,
+// browser, emulator, identity, state mutation or fabricated HTTP reply.
+function projectionFixture({ frames, world, memberChange = {} } = {}) {
+ const control = { shuttleId: 'highwall', ownerRoleId: 'icebreaker-miner', ownerUid: 'miner-uid', holderUid: 'miner-uid', revision: 0 };
+ const dockings = [{ shuttleId: 'highwall', shipId: 'icebreaker', dockedAt: 'SESSION START' }];
+ const miningState = { cycle: 0, revision: 0, operations: [] }, highwallCargo = { ore: 0, materials: 0 };
+ const expected = world ?? { control, dockings, miningState, highwallCargo };
+ const discovery = { groupId: 'fleet-1', shipId: 'icebreaker', fleetGroupVesselIds: ['icebreaker'], revision: 0 };
+ const member = { uidHash: 'original-miner', sessionId: 'owned-session', meSessionId: 'owned-session',
+  assignedRoleId: 'icebreaker-miner', activeConsoleRoleId: 'icebreaker-miner', seatId: 'icebreaker-miner',
+  fleetGroupId: 'fleet-1', ...memberChange };
+ const samples = frames ?? [{ playerDiscovery: discovery }];
+ const node = ast.statements.find(n => ts.isFunctionDeclaration(n) && n.name?.text === 'currentHighwall');
+ assert.ok(node); let clock = 1000, reads = 0, memberReads = 0;
+ const FakeDate = class extends Date { static now() { return clock; } };
+ const context = { assert: check, sid: 'owned-session', actorUids: new Map([['Miner', 'miner-uid']]),
+  roleIds: { Miner: 'icebreaker-miner' }, stable: JSON.stringify, Date: FakeDate,
+  consumed: null, stage: 'source-only Highwall projection readiness', states: [],
+  parseHighwallMiningState: require('../functions/lib/highwallMining.js').parseHighwallMiningState,
+  memberReady: async () => { memberReads++; return member; },
+  candidateWait: async (run, deadlineAt) => {
+   assert.ok(clock < deadlineAt, 'Original Highwall discovery deadline expired');
+   const result = await run(); assert.ok(clock < deadlineAt, 'Original Highwall discovery deadline expired'); return result;
+  }, delay: async () => { clock += 100; },
+ };
+ const surface = { storeModuleUrl: () => 'actual-mounted-store', page: { evaluate: async consumer => {
+  const frame = samples[Math.min(reads++, samples.length - 1)]; clock += 20;
+  const state = { session: { id: 'owned-session', currentTurn: 1,
+   turnState: { phase: 'coordination' }, turnPhase: { progression: 'manual' },
+   shuttleControl: { highwall: expected.control }, shuttleDockings: expected.dockings,
+   // Source represents the initial cycle-zero parser result by an absent
+   // wire field; an explicit cycle-zero wire object is malformed.
+   shuttleFuelled: {}, highwallMining: expected.miningState.cycle === 0 ? undefined : expected.miningState,
+   shuttleCargo: { highwall: expected.highwallCargo },
+   ...frame }, me: { uid: 'miner-uid', activeConsoleRoleId: 'icebreaker-miner', fleetGroupId: 'fleet-1' } };
+  const body = String(consumer).replace('import(storeUrl)', 'Promise.resolve({useSessionStore})');
+  return vm.runInNewContext(`(${body})`, { useSessionStore: { getState: () => state } })();
+ } } };
+ const consume = vm.runInNewContext(`(${node.getText(ast)})`, context);
+ return { run: () => consume(surface, 'Miner', expected, 1800), discovery,
+  reads: () => reads, memberReads: () => memberReads, context };
+}
+
+test('current Highwall waits for separately published own discovery after current mining/control state', async () => {
+ const first = projectionFixture();
+ const f = projectionFixture({ frames: [{}, { playerDiscovery: first.discovery }] });
+ const result = await f.run(); assert.equal(result.value.discovery.groupId, 'fleet-1');
+ assert.equal(f.reads(), 2); assert.equal(f.memberReads(), 2);
+});
+
+test('permanently missing own discovery refuses at the original deadline instead of beginning mining', async () => {
+ const f = projectionFixture({ frames: [{}] });
+ await assert.rejects(f.run(), /Original Highwall.*deadline expired/);
+ assert.ok(f.reads() > 1);
+});
+
+for (const [label, change] of [
+ ['foreign group', { groupId: 'fleet-2' }],
+ ['foreign ship', { shipId: 'shepherd' }],
+ ['host absent from current group', { fleetGroupVesselIds: ['shepherd'] }],
+ ['incorrect group field alias', { groupId: undefined, fleetGroupId: 'fleet-1' }],
+]) test(`current Highwall rejects ${label} discovery without acquiring authority`, async () => {
+ const original = projectionFixture();
+ const f = projectionFixture({ frames: [{ playerDiscovery: { ...original.discovery, ...change } }] });
+ await assert.rejects(f.run());
+});
+
+test('current Highwall accepts persisted two-operation state with the same own source tuple', async () => {
+ const original = projectionFixture();
+ const operations = [{ requestId: 'one', resource: 'materials', rolls: [3], amount: 3 },
+  { requestId: 'two', resource: 'ore', rolls: [2, 5, 1], amount: 8 }];
+ const world = { control: { shuttleId: 'highwall', ownerRoleId: 'icebreaker-miner', ownerUid: 'miner-uid', holderUid: 'miner-uid', revision: 0 },
+  dockings: [{ shuttleId: 'highwall', shipId: 'icebreaker', dockedAt: 'SESSION START' }],
+  miningState: { cycle: 1, revision: 2, operations }, highwallCargo: { ore: 8, materials: 3 } };
+ const f = projectionFixture({ world, frames: [{ playerDiscovery: original.discovery }] });
+ const result = await f.run(); assert.deepEqual(plain(result.value.highwallCargo), world.highwallCargo);
+ assert.equal(f.reads(), 1);
+});
+
+function stoppedDiagnosticFixture({ ownerUid = 'gm-uid', actorUid = 'miner-uid', expired = false } = {}) {
+ const node = ast.statements.find(n => ts.isFunctionDeclaration(n) && n.name?.text === 'ownedWorld'); assert.ok(node);
+ const reads = [], now = 1000;
+ const docs = {
+  'sessions/owned-session': { ownerUid, phase: 'active', currentTurn: 1 },
+  'sessions/owned-session/players/miner-uid': { uid: actorUid, sessionId: 'owned-session',
+   fleetGroupId: 'fleet-1', assignedRoleId: 'icebreaker-miner', activeConsoleRoleId: 'icebreaker-miner', connectionGeneration: 1 },
+  'sessions/owned-session/fleetGroups/fleet-1': { id: 'fleet-1', vesselIds: ['icebreaker'],
+   memberUids: ['miner-uid'], memberShipIds: { 'miner-uid': 'icebreaker' } },
+  'sessions/owned-session/playerDiscoveries/miner-uid': { groupId: 'fleet-1', fleetGroupVesselIds: ['icebreaker'], revision: 0 },
+ };
+ const context = { assert: check, sid: 'owned-session', stopped: true,
+  actorUids: new Map([['GM1', 'gm-uid'], ['Miner', 'miner-uid']]), Date: { now: () => now },
+  candidateWait: async () => { throw Error('Work has stopped; do not begin a subsequent action.'); },
+  bounded: async (operation, ms) => { assert.ok(ms > 0); return operation; },
+  short: value => `hash:${value}`, fleetGroupRecord: value => value,
+  db: { doc: path => { assert.ok(Object.hasOwn(docs, path), 'No foreign diagnostic path'); return { get: async () => {
+   reads.push(path); const value = docs[path]; return { exists: true, data: () => value, get: key => value[key] };
+  } }; } },
+ };
+ const consume = vm.runInNewContext(`(${node.getText(ast)})`, context);
+ return { run: () => consume(expired ? now : now + 1000, true), reads };
+}
+
+test('stopped first-failure diagnostic retains the original owned raw discovery tuple without restarting work', async () => {
+ const primary = Error('original missing discovery failure'), evidence = { originalError: primary };
+ const f = stoppedDiagnosticFixture(); evidence.firstFailureWorld = await f.run();
+ assert.equal(evidence.originalError, primary);
+ assert.equal(evidence.firstFailureWorld.diagnosticOnly, true);
+ assert.equal(evidence.firstFailureWorld.discovery.groupId, 'fleet-1');
+ assert.equal(evidence.firstFailureWorld.discovery.shipId, null);
+ assert.deepEqual(f.reads().sort(), ['sessions/owned-session', 'sessions/owned-session/fleetGroups/fleet-1',
+  'sessions/owned-session/playerDiscoveries/miner-uid', 'sessions/owned-session/players/miner-uid'].sort());
+});
+
+for (const [label, options, maxReads] of [
+ ['foreign session owner', { ownerUid: 'foreign-gm' }, 1],
+ ['foreign actor document', { actorUid: 'foreign-miner' }, 2],
+ ['expired original diagnostic deadline', { expired: true }, 0],
+]) test(`stopped read-only diagnostic refuses ${label} before expanding scope`, async () => {
+ const f = stoppedDiagnosticFixture(options); await assert.rejects(f.run()); assert.ok(f.reads.length <= maxReads);
+});
