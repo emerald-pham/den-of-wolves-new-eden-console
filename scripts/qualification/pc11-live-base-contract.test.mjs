@@ -250,6 +250,14 @@ test('every active runner browser callback binds published modules and normal fi
       if(!text.includes('httpsCallable'))callbacks.push({text,kind:node.expression.name.text});
     }ts.forEachChild(node,visit);
   }visit(ast);assert.equal(callbacks.length,15,'Active browser callback inventory must be updated for changes.');
+  for(const [file,names]of [['src/lib/firebase.ts',['auth']],['src/lib/firestore.ts',['db']],['src/store/useSessionStore.ts',['useSessionStore']]]) {
+    const module=ts.createSourceFile(file,readFileSync(resolve(root,file),'utf8'),ts.ScriptTarget.Latest,true);
+    const exported=new Set();for(const statement of module.statements){if(!statement.modifiers?.some(modifier=>modifier.kind===ts.SyntaxKind.ExportKeyword))continue;
+      if(ts.isFunctionDeclaration(statement)&&statement.name)exported.add(statement.name.text);
+      if(ts.isVariableStatement(statement))for(const declaration of statement.declarationList.declarations)if(ts.isIdentifier(declaration.name))exported.add(declaration.name.text);}
+    for(const name of names)assert.ok(exported.has(name),`Missing published browser export ${file}:${name}`);
+  }
+  const firestoreSdk=require('firebase/firestore');for(const name of ['doc','getDocFromServer'])assert.equal(typeof firestoreSdk[name],'function');
   const rolePresets=pureSourceModule('src/data/rolePresets.ts');
   const state=stateFixture('gm');state.session.shipDamage={dione:{damagedSystemIds:[]}};state.session.shipResources={dione:{materials:3}};
   state.session.shuttleControl={philia:{holderUid:uid}};state.session.shuttleDockings=[{shuttleId:'philia',shipId:'dione'}];
@@ -294,4 +302,34 @@ test('partial committed create recovers only exact captured UID/request receipt 
   const db={doc:path=>{assert.equal(path,`sessionCreationRequests/${uid}_create-1`);return{get:async()=>({exists:true,get:key=>record[key]})};}};
   assert.equal(await adapter.recoverPc11CreatedSession({db,uid,requestId:'create-1'}),sid);
   record.fingerprint.actorUid='foreign';await assert.rejects(adapter.recoverPc11CreatedSession({db,uid,requestId:'create-1'}));
+});
+
+test('active UI receipt helper consumes every exercised normal callable and refuses foreign session/denied reply',async()=>{
+  const directory=await mkdtemp(resolve(tmpdir(),'pc11-native-receipts-'));const surface=nativeSurface(stateFixture('gm'));
+  const functionsSource=await readFile(resolve(root,'functions/src/index.ts'),'utf8');
+  const balances={ore:0,fuel:0,food:0,water:0,materials:1,securityTeams:0};
+  const fixtures=[
+    ['claimGmInstance',{instanceId:'gm-original',name:'GM',deviceLabel:'PC11'}, {instance:{id:'gm-original',uid,sessionId:sid,claimedAt:'2026-10-08T00:00:00.000Z'}}],
+    ['confirmSetup',{instanceId:'gm-original',expectedSetupRevision:0,playerCount:12,chartId:'A'}, {status:'committed'}],
+    ['assignRole',{instanceId:'gm-original',targetUid:'recipient',roleId:'dione-president'}, {status:'committed'}],
+    ['startGame',{instanceId:'gm-original',expectedSetupRevision:1}, {status:'committed',currentTurn:1}],
+    ['clearTurnAdvanceInterstitial',{expectedCycle:1,expectedPausedAt:'2026-10-08T00:00:00.000Z'}, {status:'cleared'}],
+    ['attestPlayerHeldTokenBaseline',{instanceId:'gm-original',attestationId:'attest-1',targetUid:uid,balances}, {status:'attested'}],
+    ['createSameTableTradeOffer',{offerId:'offer-1',toUid:'recipient',quantities:{materials:1}}, {status:'created',offer:{fromUid:uid,toUid:'recipient',quantities:balances}}],
+    ['acceptSameTableTradeOffer',{offerId:'offer-1',expectedRevision:1}, {status:'committed'}],
+    ['proposePermissionedDismantling',{proposalId:'proposal-1',craftId:'philia',targetShipId:'dione',targetConsoleId:'maintenance',expectedControlRevision:1}, {status:'proposed'}],
+    ['consentToPermissionedDismantling',{proposalId:'proposal-1',consentId:'consent-1',expectedTargetRevision:0}, {status:'consented'}],
+    ['applyPermissionedDismantling',{proposalId:'proposal-1',consentId:'consent-1',expectedTargetRevision:0}, {status:'applied',materialGain:3,targetConsoleId:'maintenance'}],
+  ];
+  try{for(const [endpoint,fields,result]of fixtures){
+    assert.match(functionsSource,new RegExp(`export const ${endpoint} =`));
+    const data={sessionId:sid,requestId:`${endpoint}-1`,...fields};
+    const request={url:()=>`http://127.0.0.1:5013/demo-pc11-test/us-central1/${endpoint}`,method:()=> 'POST',postDataJSON:()=>({data})};
+    const response={request:()=>request,url:request.url,status:()=>200,json:async()=>({result})};
+    surface.page.waitForResponse=async predicate=>{assert.equal(predicate(response),true);return response;};
+    const captured=await captureLifecycleUiAction(surface,endpoint,async()=>{});
+    assert.deepEqual(captured.data,data);assert.deepEqual(captured.result,result);assert.equal(publicLifecycleReceipt(captured).endpoint,endpoint);
+    data.sessionId='foreign';await assert.rejects(captureLifecycleUiAction(surface,endpoint,async()=>{}));data.sessionId=sid;
+    response.json=async()=>({result:{status:'denied'}});await assert.rejects(captureLifecycleUiAction(surface,endpoint,async()=>{}));
+  }}finally{await rm(directory,{recursive:true});}
 });

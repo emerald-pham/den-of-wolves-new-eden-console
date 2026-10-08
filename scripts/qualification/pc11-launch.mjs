@@ -10,6 +10,7 @@ import {emulatorEnvironmentForSlot,emulatorPortsForSlot,vitePortForSlot} from '.
 import {localGmAccessConfiguration} from '../local-gm-access.mjs';
 import {proofRuntimeFromViteSource,validateProofRuntime} from '../pc10-full-game-demo-proof-helpers.mjs';
 import {releaseConfiguredEmulatorSlot,readCoordinationState} from '../emulator-resource-registry.mjs';
+import {runPc11ContractPreflight} from './pc11-contract-preflight.mjs';
 const root=resolve(fileURLToPath(new URL('../..',import.meta.url)));
 async function within(promise,ms,label){let timer;try{return await Promise.race([promise,new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error(label)),ms);})]);}finally{clearTimeout(timer);}}
 const sha=bytes=>createHash('sha256').update(bytes).digest('hex');
@@ -38,9 +39,10 @@ async function main(){
  const args=process.argv.slice(2),run=args.includes('--run');
  const value=name=>{const index=args.indexOf(name);return index<0?undefined:args[index+1];};
  const plan=launchPlan({slot:Number(value('--slot')||5),projectId:value('--project'),evidenceDirectory:value('--evidence')});
+ const sourceContractPreflight=runPc11ContractPreflight(root);
  const gmOnly=args.includes('--gm-only');
  const setup=gmOnly?{configuredSlots:0,authenticatedActors:1,emptyPlayerSlots:0,mode:'gm-startup-only'}:await sourceChecks();
- if(!run){console.log(JSON.stringify({mode:'source-only-check',...plan,setup}));return;}
+ if(!run){console.log(JSON.stringify({mode:'source-only-check',...plan,setup,sourceContractPreflight}));return;}
  assert.ok(args.includes('--allocated'),'Fresh owner runtime allocation is required');
  const sourceCommit=execFileSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8'}).trim();
  assert.equal(execFileSync('git',['status','--porcelain','--untracked-files=no'],{cwd:root,encoding:'utf8'}).trim(),'');

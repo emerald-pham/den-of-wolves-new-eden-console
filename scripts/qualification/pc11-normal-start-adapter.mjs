@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 
 export const PC11_NORMAL_START = Object.freeze({
   setup: Object.freeze({
@@ -22,6 +23,15 @@ export const PC11_NORMAL_START = Object.freeze({
 
 function isNonblankString(value) {
   return typeof value === 'string' && value.trim().length > 0;
+}
+
+/** Allocation already includes startup; report and use its actual remaining
+ * absolute window, while preserving the original sixty-second cleanup reserve. */
+export function pc11ProofTiming(startAt, allocationDeadlineMs) {
+  assert.ok(Number.isFinite(startAt) && Number.isFinite(allocationDeadlineMs));
+  const totalEnd = Math.min(startAt + 480000, allocationDeadlineMs);
+  assert.ok(totalEnd - startAt >= 120000, 'Insufficient allocated time for an original operation plus cleanup');
+  return { totalEnd, workEnd: totalEnd - 60000, executionCapMs: totalEnd - startAt };
 }
 
 function commonLiveMember(value, expected) {
@@ -106,6 +116,84 @@ export function pc11GmReadiness(value, expected) {
     value.currentOwnPlayerConfirmed === true && value.sdkHasServerAuthority === true &&
     value.gmInstanceOwned === true &&
     isNonblankString(expected.instanceId) && value.instanceId === expected.instanceId);
+}
+
+/** A clean ordinary projection has no berth envelope. Observe the exact
+ * server-owned map, then reread the original mounted tuple before using it. */
+export function pc11OwnBerthWitness(before, after, { uid, uidHash, group, expectedShipId }) {
+  if (!isNonblankString(uid) || uid.includes('/') || uid.length > 128 ||
+      createHash('sha256').update(uid).digest('hex').slice(0, 16) !== uidHash ||
+      expectedShipId !== 'dione' || !['dione-engineer', 'dione-president'].includes(before?.assignedRoleId)) return false;
+  const expected = { sessionId: before.sessionId, uidHash, roleId: before.assignedRoleId, stage: 'station' };
+  if (!pc11MemberReadiness(before, expected) || !pc11MemberReadiness(after, expected) ||
+      before.phase !== 'active' || before.cycle !== 1 || after.phase !== 'active' || after.cycle !== 1 ||
+      before.memberScopeMatches !== true || after.memberScopeMatches !== true) return false;
+  const tuple = ['documentTimeOrigin', 'uidHash', 'sessionId', 'meSessionId', 'playerRole',
+    'assignedRoleId', 'activeConsoleRoleId', 'seatId', 'fleetGroupId', 'connectionGeneration', 'identityHydrationRevision'];
+  return tuple.every(key => before[key] === after[key]) &&
+    isNonblankString(group?.id) && group.id === before.fleetGroupId &&
+    Array.isArray(group.memberUids) && group.memberUids.includes(uid) &&
+    Array.isArray(group.vesselIds) && group.vesselIds.includes(expectedShipId) &&
+    group.memberShipIds != null && Object.hasOwn(group.memberShipIds, uid) &&
+    group.memberShipIds[uid] === expectedShipId;
+}
+
+/** Observe original browser requests before response parsing or diagnostics. */
+export function createPc11OwnedRequestTracker(page, capture) {
+  const listener = request => {
+    const endpoint = new URL(request.url()).pathname.match(/\/us-central1\/(createSession|startGame|joinSession)$/)?.[1];
+    if (!endpoint || request.method() !== 'POST') return;
+    const data = request.postDataJSON()?.data;
+    if (!data || (endpoint !== 'joinSession' && (typeof data.requestId !== 'string' || !/^[\w-]{1,128}$/.test(data.requestId)))) return;
+    capture({ endpoint, requestId: data.requestId, sessionId: data.sessionId, instanceId: data.instanceId });
+  };
+  page.on('request', listener);
+  return { finish: () => page.off('request', listener) };
+}
+
+/** Recover a failed create's scope only from its captured original request/UID. */
+export async function recoverPc11CreatedSession({ db, uid, requestId }) {
+  assert.ok(isNonblankString(uid) && !uid.includes('/') && uid.length <= 128);
+  assert.match(requestId, /^[\w-]{1,128}$/);
+  const doc = await db.doc(`sessionCreationRequests/${uid}_${requestId}`).get();
+  if (!doc.exists) return null;
+  assert.equal(doc.get('requestId'), requestId);
+  assert.equal(doc.get('fingerprint')?.actorUid, uid);
+  assert.equal(doc.get('fingerprint')?.requestId, requestId);
+  const sessionId = doc.get('sessionId');
+  assert.match(sessionId, /^[\w-]{1,128}$/);
+  return sessionId;
+}
+
+/** Only the captured original UI create/start identities and GM access belong
+ * to this proof. Validate the complete set before the transaction deletes any. */
+export async function removePc11OwnedRootRecords({ db, uid, sessionId, creationRequestId, startRequestId, instanceId }) {
+  assert.ok(isNonblankString(uid) && !uid.includes('/') && isNonblankString(sessionId) && !sessionId.includes('/'));
+  const rows = [{ ref: db.doc(`gmAccess/${uid}`), validate: doc => assert.equal(doc.get('uid'), uid) }];
+  if (creationRequestId != null) {
+    assert.match(creationRequestId, /^[\w-]{1,128}$/);
+    rows.push({ ref: db.doc(`sessionCreationRequests/${uid}_${creationRequestId}`), validate: doc => {
+      assert.equal(doc.get('sessionId'), sessionId); assert.equal(doc.get('requestId'), creationRequestId);
+      assert.equal(doc.get('fingerprint')?.actorUid, uid); assert.equal(doc.get('fingerprint')?.requestId, creationRequestId);
+    } });
+  }
+  if (startRequestId != null) {
+    assert.match(startRequestId, /^[\w-]{1,128}$/); assert.ok(isNonblankString(instanceId));
+    rows.push({ ref: db.doc(`sessionStartRequests/${sessionId}_${startRequestId}`), validate: doc => {
+      assert.equal(doc.get('sessionId'), sessionId); assert.equal(doc.get('requestId'), startRequestId);
+      assert.equal(doc.get('actorUid'), uid); assert.equal(doc.get('instanceId'), instanceId);
+    } });
+  }
+  const deleted = await db.runTransaction(async tx => {
+    const docs = await Promise.all(rows.map(row => tx.get(row.ref)));
+    for (const [index, doc] of docs.entries()) if (doc.exists) rows[index].validate(doc);
+    let count = 0;
+    for (const [index, doc] of docs.entries()) if (doc.exists) { tx.delete(rows[index].ref); count++; }
+    return count;
+  });
+  const remaining = await Promise.all(rows.map(row => row.ref.get()));
+  assert.ok(remaining.every(doc => !doc.exists), 'Exact owned root proof records must be absent.');
+  return { absent: true, deleted, checkedRecordKinds: rows.map(row => row.ref.path.split('/')[0]) };
 }
 
 /** Check a read-only snapshot after normal production start, before trade/Philia actions. */

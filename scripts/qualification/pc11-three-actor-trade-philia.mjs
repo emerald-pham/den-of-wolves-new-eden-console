@@ -10,7 +10,8 @@ import { originalProofError, retainProofFailure } from '../pc10-proof-failure-ev
 import { observeFullGameDemoPresentationMember as observeNormalMember, proofRuntimeFromViteSource, validateProofRuntime } from '../pc10-full-game-demo-proof-helpers.mjs';
 import { observeLifecycleActor, captureLifecycleUiAction, publicLifecycleReceipt, openLifecycleSettings, closeLifecycleSettings } from '../pc10-member-gm-lifecycle-ui-proof.mjs';
 import { createMemberNavigationResumeObserver } from '../pc10-member-navigation-resume.mjs';
-import { PC11_NORMAL_START, pc11GmReadiness, pc11MemberReadiness, pc11NormalStartPreflight } from './pc11-normal-start-adapter.mjs';
+import { PC11_NORMAL_START, pc11GmReadiness, pc11MemberReadiness, pc11NormalStartPreflight, pc11OwnBerthWitness, removePc11OwnedRootRecords, createPc11OwnedRequestTracker, recoverPc11CreatedSession, pc11ProofTiming } from './pc11-normal-start-adapter.mjs';
+import { runPc11ContractPreflight } from './pc11-contract-preflight.mjs';
 const root=process.env.PC11_SOURCE_ROOT,projectId=process.env.PC11_PROJECT;
 assert.equal(process.env.PC11_RUNTIME_ALLOCATED,'yes','Owner allocation required before any runtime access');
 assert.ok(root && projectId?.startsWith('demo-pc11-'));
@@ -25,14 +26,15 @@ const hash=value=>createHash('sha256').update(value).digest('hex'), short=value=
 const sourceCommit=execFileSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8'}).trim();
 assert.equal(sourceCommit,process.env.PC11_SOURCE_COMMIT);
 assert.equal(execFileSync('git',['status','--porcelain','--untracked-files=no'],{cwd:root,encoding:'utf8'}).trim(),'');
+const sourceContractPreflight=runPc11ContractPreflight(root);
 const require=createRequire(`${root}/package.json`), {chromium}=require('playwright');
 
 const gmOnly=process.env.PC11_GM_ONLY==='1';
 const browsers=[],surfaces=[],errors=[],calls=[],requests=[],remoteRequests=[],states=[],receipts=[],claims=[];
-let gm,owner,recipient,sid,joinCode,stage='not-started',consumed=null,primaryFailure=null,startAt,workEnd,totalEnd;
-const actorUids=new Map(),admissionActors=new Map(),pendingLaunches=[];let stopped=false;
+let gm,owner,recipient,sid,joinCode,creationRequestId,startRequestId,stage='not-started',consumed=null,primaryFailure=null,startAt,workEnd,totalEnd;
+const actorUids=new Map(),admissionActors=new Map(),pendingLaunches=[],pendingOriginalIdentities=[];let stopped=false;
 const roleIds={Owner:'dione-engineer',Recipient:'dione-president'};
-const evidence={schemaVersion:1,sourceCommit,configuredRoles:gmOnly?null:12,actualHumans:0,physicalDeviceProof:false,
+const evidence={schemaVersion:1,sourceCommit,sourceContractPreflight,configuredRoles:gmOnly?null:12,actualHumans:0,physicalDeviceProof:false,
  actualBrowserProcesses:gmOnly?1:3,actualBrowserContexts:gmOnly?1:3,maxMountedSurfaces:gmOnly?1:3,ordinaryPrimaryAccounts:true,
  manualAuthStorageWrites:false,authCredentialInjection:false,demoCrewPreparation:false,adminGameplayWrites:0,
  wholeGameProof:false,endingProof:false,capacityProof:false,visualUsabilityAccepted:false,
@@ -45,7 +47,7 @@ async function bounded(operation,timeout,name,onTimeout=()=>{}) {let timer;try{r
 function budget() { assert.equal(stopped,false,'Work has stopped; do not begin a subsequent action.');assert.ok(Date.now()+60000<=workEnd,'Not enough cap budget to begin another full original60s operation and normal cleanup.'); }
 async function mark(name) { budget();stage=name; await writeFile(`${directory}/progress.json`,JSON.stringify({sourceCommit,stage,elapsedMs:Date.now()-startAt,claims},null,2)+'\n');console.log(JSON.stringify({stage,elapsedMs:Date.now()-startAt})); }
 async function snapshot(surface,label) { const value=await observeLifecycleActor(surface,sid);states.push({label,origin:new URL(surface.page.url()).origin,state:value});consumed={stage,label,state:value};await writeFile(`${directory}/consumed-state.json`,JSON.stringify(consumed,null,2)+'\n');return value; }
-async function register(surface,label) { const uid=await surface.page.evaluate(async()=>{const {auth}=await import('/src/lib/firebase.ts');if(!auth().currentUser)throw new Error('Normal admission has no Auth user.');return auth().currentUser.uid;});assert.ok(![...actorUids.values()].includes(uid),'Require independent normally admitted Auth identities.');actorUids.set(label,uid);evidence.actualAuthenticatedActors=actorUids.size;await writeFile(`${directory}/owned-identities.json`,JSON.stringify({sid,joinCode,actors:Object.fromEntries(actorUids)},null,2)+'\n',{mode:0o600}); }
+async function register(surface,label) { const uid=await surface.page.evaluate(async()=>{const {auth}=await import('/src/lib/firebase.ts');if(!auth().currentUser)throw new Error('Normal admission has no Auth user.');return auth().currentUser.uid;});assert.ok(![...actorUids].some(([actor,value])=>actor!==label&&value===uid),'Require independent normally admitted Auth identities.');if(actorUids.has(label))assert.equal(actorUids.get(label),uid,'Original request Auth UID must be retained.');actorUids.set(label,uid);evidence.actualAuthenticatedActors=actorUids.size;await writeFile(`${directory}/owned-identities.json`,JSON.stringify({sid,joinCode,actors:Object.fromEntries(actorUids)},null,2)+'\n',{mode:0o600}); }
 async function action(surface,endpoint,choose,options={}) { budget();const value=await captureLifecycleUiAction(surface,endpoint,()=>{budget();return choose();},options);receipts.push(publicLifecycleReceipt(value));return value; }
 // Existing ordinary UI surface factory, copied verbatim; original35s/60s budgets retained.
   async function surface(label) {
@@ -61,6 +63,18 @@ async function action(surface,endpoint,choose,options={}) { budget();const value
       return route.abort();
     });
     const page = await context.newPage();
+    createPc11OwnedRequestTracker(page, receipt => {
+      if(receipt.endpoint === 'createSession' || receipt.endpoint === 'joinSession') {
+        const actor=label==='browser-A-normal-GM'?'GM1':label==='browser-B-normal-Engineer'?'Owner':label==='browser-C-normal-Captain'?'Recipient':null;
+        if(!actor) return;
+        if(receipt.endpoint === 'createSession') creationRequestId = receipt.requestId;
+        const pending=page.evaluate(async()=>{const{auth}=await import('/src/lib/firebase.ts');const uid=auth().currentUser?.uid;if(!uid)throw new Error('Original admission Auth identity absent');return uid;});
+        pendingOriginalIdentities.push(pending.then(uid=>{const old=actorUids.get(actor);if(old)assert.equal(old,uid);else {assert.ok(![...actorUids.values()].includes(uid));actorUids.set(actor,uid);}return {ok:true};}).catch(error=>({error})));
+      } else {
+        try { assert.equal(receipt.sessionId,sid); assert.equal(receipt.instanceId,gm1Instance); startRequestId = receipt.requestId; }
+        catch(error) { pendingOriginalIdentities.push(Promise.resolve({error})); stopped=true; }
+      }
+    });
     page.setDefaultTimeout(35_000); page.setDefaultNavigationTimeout(35_000);
     let storeUrl = '/src/store/useSessionStore.ts', sdkUrl = '/node_modules/.vite/deps/firebase_functions.js';
     let authorityUrl = null;
@@ -270,13 +284,20 @@ async function authorizeAndClaim(surface,label,name) {
 // Stop at an action boundary: do not abandon an in-flight create/mutation.
 const cancelProof=()=>{stopped=true;};process.once('SIGINT',cancelProof);process.once('SIGTERM',cancelProof);
 
-async function fullMember(surface){return observeNormalMember(surface,{knownRoleIds:Object.values(roleIds)});}
+async function fullMember(surface,{deadlineAt=Date.now()+60000}={}){
+ const value=await bounded(observeNormalMember(surface,{knownRoleIds:Object.values(roleIds)}),Math.max(1,deadlineAt-Date.now()),'Original mounted member observation expired.');
+ const label=surface===owner?'Owner':surface===recipient?'Recipient':null;
+ if(label&&value.playerRole==='player'&&value.phase==='active'&&value.cycle===1){
+  return await currentMemberBerthReady(surface,value,label,roleIds[label],deadlineAt)||{...value,currentOwnBerthConfirmed:false};
+ }
+ return value;
+}
 function currentMember(value,label,roleId){
  assert.equal(value.uidHash,short(actorUids.get(label)));assert.equal(value.sessionId,sid);assert.equal(value.meSessionId,sid);
  assert.equal(value.hasAuth,true);assert.equal(value.sameActor,true);assert.equal(value.profileRoleId,null);assert.equal(value.profileSessionId,null);
  assert.equal(value.playerRole,'player');assert.equal(value.replacementRoleId,null);assert.equal(value.replacementStatus,null);assert.equal(value.escapeLocked,false);assert.equal(value.kicked,false);assert.deepEqual(value.invalidFields,[]);
  if(value.assignedRoleId===null)return false;assert.equal(value.assignedRoleId,roleId);
- return value.connection==='live'&&value.freshness==='server'&&value.currentOwnPlayerConfirmed&&value.memberScopeMatches&&value.sdkHasServerAuthority;
+ return pc11MemberReadiness(value,{sessionId:sid,uidHash:short(actorUids.get(label)),roleId,stage:value.activeConsoleRoleId==null?'casting':'station'})&&value.memberScopeMatches;
 }
 function stationReady(value,roleId){return value.activeConsoleRoleId===roleId&&value.seatId===roleId&&value.currentCanonicalSeatOwned;}
 // Casting binds the primary station; the normal GM start transaction establishes operational berths.
@@ -284,25 +305,22 @@ function castingStationReady(value,label,roleId){return pc11MemberReadiness(valu
 async function currentMemberBerthReady(surface,value,label,roleId,deadlineAt){
  const remaining=()=>{const ms=deadlineAt-Date.now();assert.ok(ms>0,'Original member operation deadline expired.');return ms;};remaining();
  if(!stationReady(value,roleId))return false;
- if(value.currentMemberBerthPresent)return value.currentMemberBerthMatches?value:false;
  const raw=await bounded(db.doc(`sessions/${sid}/fleetGroups/${value.fleetGroupId}`).get(),remaining(),'Original member berth group-read deadline expired.');const group=fleetGroupRecord(raw.data());
- const absentMap=raw.exists&&group?.id===value.fleetGroupId&&group.memberUids.includes(actorUids.get(label))&&!Object.hasOwn(raw.data(),'memberShipIds');
- const after=await bounded(fullMember(surface),remaining(),'Original member berth reread deadline expired.');remaining();
- const sameTuple=['documentTimeOrigin','uidHash','sessionId','meSessionId','playerRole','assignedRoleId','activeConsoleRoleId','seatId','fleetGroupId','connectionGeneration','identityHydrationRevision'].every(key=>after[key]===value[key]);
- const accepted=absentMap&&sameTuple&&!after.currentMemberBerthPresent&&currentMember(after,label,roleId)&&stationReady(after,roleId);
- states.push({label:stage,actor:label,berthApplicability:{groupId:value.fleetGroupId,readOnlyExactGroup:true,sourceGroupParsed:!!group,ownMemberIncluded:group?.memberUids.includes(actorUids.get(label))===true,mapAbsent:absentMap,originalTupleUnchanged:sameTuple,accepted}});return accepted?after:false;
+ const after=await bounded(observeNormalMember(surface,{knownRoleIds:Object.values(roleIds)}),remaining(),'Original member berth reread deadline expired.');remaining();
+ const accepted=raw.exists&&pc11OwnBerthWitness(value,after,{uid:actorUids.get(label),uidHash:short(actorUids.get(label)),group,expectedShipId:'dione'});
+ states.push({label:stage,actor:label,berthApplicability:{groupId:value.fleetGroupId,readOnlyExactGroup:true,sourceGroupParsed:!!group,ownMemberIncluded:group?.memberUids.includes(actorUids.get(label))===true,ownMapShipMatches:group?.memberShipIds?.[actorUids.get(label)]==='dione',accepted}});return accepted?{...after,currentOwnBerthConfirmed:true}:false;
 }
 async function memberReady(surface,label,{original,navigation,station=true,casting=false,deadlineAt=Date.now()+60000}={}){
  const roleId=roleIds[label];let value;
- while(Date.now()<deadlineAt){value=await bounded(fullMember(surface),deadlineAt-Date.now(),'Original member SDK observation deadline expired.');consumed={stage,label,original,current:value};navigation?.sample(value);
+ while(Date.now()<deadlineAt){value=await bounded(fullMember(surface,{deadlineAt}),deadlineAt-Date.now(),'Original member SDK observation deadline expired.');consumed={stage,label,original,current:value};navigation?.sample(value);
   if(original){for(const key of ['documentTimeOrigin','uidHash','sessionId','meSessionId','playerRole','assignedRoleId','fleetGroupId','replacementRoleId','replacementStatus','escapeLocked'])assert.equal(value[key],original[key],`Original same-document ${key} changed.`);
-   if(value.connectionGeneration!==original.connectionGeneration||value.identityHydrationRevision!==original.identityHydrationRevision){assert.ok(navigation,'Generation/hydration changed without operation-local normal resume evidence.');const accepted=await navigation.accept(original,value,()=>fullMember(surface));if(!accepted){await delay(200);continue;}value={...value,...accepted};}}
-  const accepted=currentMember(value,label,roleId)?station?(casting?(castingStationReady(value,label,roleId)?value:false):await currentMemberBerthReady(surface,value,label,roleId,deadlineAt)):value:false;
+   if(value.connectionGeneration!==original.connectionGeneration||value.identityHydrationRevision!==original.identityHydrationRevision){assert.ok(navigation,'Generation/hydration changed without operation-local normal resume evidence.');const accepted=await navigation.accept(original,value,()=>fullMember(surface,{deadlineAt}));if(!accepted){await delay(200);continue;}value={...value,...accepted};}}
+  const accepted=currentMember(value,label,roleId)?station?(casting?(castingStationReady(value,label,roleId)?value:false):(value.currentOwnBerthConfirmed?value:false)):value:false;
   if(accepted&&Date.now()<deadlineAt){states.push({label:stage,actor:label,member:accepted});return accepted;}await delay(200);
  }throw new Error(`Mounted member readiness expired: ${JSON.stringify(value)}`);
 }
 async function memberNavigate(surface,label,choose,readyLocator,deadlineAt=Date.now()+60000){
- const original=await memberReady(surface,label,{deadlineAt});const navigation=createMemberNavigationResumeObserver(surface.page,{directory,roleId:roleIds[label],deadlineAt});let failed;
+ const original=await memberReady(surface,label,{deadlineAt});const navigation=createMemberNavigationResumeObserver(surface.page,{directory,roleId:roleIds[label],deadlineAt,memberContract:'pc11-live-base'});let failed;
  let result;
  try{await navigation.prepare(original);await bounded(Promise.resolve().then(choose),Math.min(35000,deadlineAt-Date.now()),'Original normal member navigation expired.');result=await memberReady(surface,label,{original,navigation,deadlineAt});if(readyLocator)await readyLocator.waitFor({state:'visible',timeout:Math.min(35000,deadlineAt-Date.now())});}
  catch(error){failed=error;}finally{try{await bounded(navigation.finish(failed),Math.min(5000,Math.max(1,deadlineAt-Date.now())),'Original member navigation teardown expired.');}catch(error){(evidence.navigationTeardownErrors??=[]).push({label,stage,error:originalProofError(error)});if(!failed)failed=error;}}
@@ -321,7 +339,7 @@ async function normalJoin(surface,label){
  admissionActors.set(label,{roleId:roleIds[label],sessionId:sid,uidHash:admitted.uidHash});claims.push(`${label} independent normal Auth/join/consent captured before role assignment`);
 }
 async function enterRole(surface,label){
- const roleId=roleIds[label],deadlineAt=Date.now()+60000,original=await memberReady(surface,label,{station:false,deadlineAt});const navigation=createMemberNavigationResumeObserver(surface.page,{directory,roleId,deadlineAt});let failed;
+ const roleId=roleIds[label],deadlineAt=Date.now()+60000,original=await memberReady(surface,label,{station:false,deadlineAt});const navigation=createMemberNavigationResumeObserver(surface.page,{directory,roleId,deadlineAt,memberContract:'pc11-live-base'});let failed;
  let result;
  try{await navigation.prepare(original);await surface.page.locator(`a[href$="/roles/${roleId}"]`).first().click({timeout:Math.min(35000,deadlineAt-Date.now())});result=await memberReady(surface,label,{original,navigation,casting:true,deadlineAt});}
  catch(error){failed=error;}finally{try{await bounded(navigation.finish(failed),Math.min(5000,Math.max(1,deadlineAt-Date.now())),'Original member navigation teardown expired.');}catch(error){(evidence.navigationTeardownErrors??=[]).push({label,stage,error:originalProofError(error)});if(!failed)failed=error;}}
@@ -361,17 +379,17 @@ async function ordinaryStartPreflight(){
  claims.push('Normal active Cycle 1, cleared briefing, live original GM and two seats match the exact mounted canonical Chart A roster and independently captured admissions');
  return snapshot;
 }
-startAt=Date.now();totalEnd=Math.min(startAt+480000,Number(process.env.PC11_ALLOCATION_DEADLINE_MS)||Infinity);assert.ok(totalEnd-startAt>=120000,'Insufficient allocated time for an original operation plus cleanup');workEnd=totalEnd-60000;evidence.startedAt=new Date(startAt).toISOString();
+startAt=Date.now();({totalEnd,workEnd,executionCapMs:evidence.executionCapMs}=pc11ProofTiming(startAt,Number(process.env.PC11_ALLOCATION_DEADLINE_MS)));evidence.startedAt=new Date(startAt).toISOString();
 try{await bounded((async()=>{
  await mark(gmOnly?'launch exactly one normal GM browser':'launch exactly GM/printed-owner/recipient browser surfaces');gm=await launchSurface('browser-A-normal-GM');if(!gmOnly){owner=await launchSurface('browser-B-normal-Engineer');recipient=await launchSurface('browser-C-normal-Captain');}
- await mark('normal GM create and consent');await gm.page.goto(baseUrl);await gm.reducedMotion();const created=await observeUiReceipt({page:gm.page,consumed:{stage},waitForResponse:()=>gm.page.waitForResponse(r=>new URL(r.url()).pathname.endsWith('/us-central1/createSession')&&r.request().method()==='POST',{timeout:35000}),choose:()=>gm.page.getByRole('button',{name:'Create a session',exact:true}).click()});assert.equal(created.status(),200);const createdBody=await created.json();sid=createdBody.result?.session?.id;joinCode=createdBody.result?.session?.joinCode;assert.match(sid,/^[\w-]{1,128}$/);await register(gm,'GM1');budget();await gm.consent();const initial=await gm.until('Fresh ordinary Cycle0',v=>v.hasAuth&&v.sameActor&&v.sessionId===sid&&v.cycle===0&&v.freshness==='server');joinCode=initial.joinCode;evidence.sessionHash=hash(sid);claims.push('Actual GM normal create/Auth/consent');
+ await mark('normal GM create and consent');await gm.page.goto(baseUrl);await gm.reducedMotion();const created=await observeUiReceipt({page:gm.page,consumed:{stage},waitForResponse:()=>gm.page.waitForResponse(r=>new URL(r.url()).pathname.endsWith('/us-central1/createSession')&&r.request().method()==='POST',{timeout:35000}),choose:()=>gm.page.getByRole('button',{name:'Create a session',exact:true}).click()});assert.equal(created.status(),200);creationRequestId=created.request().postDataJSON()?.data?.requestId;assert.match(creationRequestId,/^[\w-]{1,128}$/);const createdBody=await created.json();sid=createdBody.result?.session?.id;joinCode=createdBody.result?.session?.joinCode;assert.match(sid,/^[\w-]{1,128}$/);await register(gm,'GM1');budget();await gm.consent();const initial=await gm.until('Fresh ordinary Cycle0',v=>v.hasAuth&&v.sameActor&&v.sessionId===sid&&v.cycle===0&&v.freshness==='server');joinCode=initial.joinCode;evidence.sessionHash=hash(sid);claims.push('Actual GM normal create/Auth/consent');
  await mark('normal named live GM authorization');await authorizeAndClaim(gm,'GM1','PC11 guidance GM');
  if(gmOnly){assert.equal(actorUids.size,1);assert.equal(browsers.length,1);assert.equal(remoteRequests.length,0);assert.equal(errors.length,0);evidence.status='PC11_GM_STARTUP_ONLY_PASS';evidence.completedAt=new Date().toISOString();return;}
  if(!await gm.page.getByRole('region',{name:'Setup',exact:true}).isVisible()){await gm.page.getByRole('button',{name:/^Open station catalog/}).click();await gm.page.getByRole('link',{name:'GM Console',exact:true}).click();}
  const setup=gm.page.getByRole('region',{name:'Setup',exact:true});await setup.getByRole('button',{name:'Setup',exact:true}).click();await setup.getByLabel('Recommended player count',{exact:true}).selectOption('12');await setup.getByLabel('Star chart',{exact:true}).selectOption('A');await action(gm,'confirmSetup',()=>setup.getByRole('button',{name:'Confirm setup // Confirm roster',exact:true}).click());await gm.until('Legal12 roster confirmed',v=>v.setupConfirmed&&v.activeRoleIds.length===12&&v.activeRoleIds.includes('dione-engineer')&&v.activeRoleIds.includes('dione-president'));claims.push('Normal legal12 configured roster; other seats open; no prepared crew');
  // Legal12 uses separate Engineers; Union craft/starting-host controls are not configured.
  for(const[surface,label]of[[owner,'Owner'],[recipient,'Recipient']]){await mark(`${label} normal join and primary assignment`);await normalJoin(surface,label);const name=(await observeLifecycleActor(surface)).displayName;assert.ok(name);const casting=gm.page.getByRole('region',{name:'Facilitator casting',exact:true});await casting.getByLabel(`Role for ${name}`,{exact:true}).selectOption(roleIds[label]);await action(gm,'assignRole',()=>casting.getByRole('button',{name:`Assign role to ${name}`,exact:true}).click());await memberReady(surface,label,{station:false});await enterRole(surface,label);claims.push(`${label} normal primary assigned role/chooser/seat/SDK authority during Cycle0 casting; no operational berth claim`);}
- await mark('ordinary GM production start');const production=gm.page.locator('fieldset[aria-label="Ordinary production start"]');const started=await action(gm,'startGame',async()=>{await production.getByRole('button',{name:PC11_NORMAL_START.ui.productionButton,exact:true}).click();await production.getByRole('button',{name:'ARE YOU SURE? // ADVANCE TO CYCLE 1',exact:true}).click();});assert.ok(['committed','replayed'].includes(started.result.status),'Ordinary production start must retain its actual committed UI receipt.');await liveGm(gm,'GM1','active');
+ await mark('ordinary GM production start');const production=gm.page.locator('fieldset[aria-label="Ordinary production start"]');const started=await action(gm,'startGame',async()=>{await production.getByRole('button',{name:PC11_NORMAL_START.ui.productionButton,exact:true}).click();await production.getByRole('button',{name:'ARE YOU SURE? // ADVANCE TO CYCLE 1',exact:true}).click();});startRequestId=started.data.requestId;assert.match(startRequestId,/^[\w-]{1,128}$/);assert.ok(['committed','replayed'].includes(started.result.status),'Ordinary production start must retain its actual committed UI receipt.');await liveGm(gm,'GM1','active');
  await mark('original GM clears actual Cycle 1 briefing');const briefing=gm.page.getByRole('region',{name:'Cycle briefing clearance',exact:true});const clear=await action(gm,'clearTurnAdvanceInterstitial',()=>briefing.getByRole('button',{name:PC11_NORMAL_START.ui.briefingClearButton,exact:true}).click());assert.ok(['cleared','replayed'].includes(clear.result.status),'The mounted briefing clear must retain its actual UI receipt.');await gm.until('Cycle 1 briefing cleared and clock resumed',v=>v.cycle===1&&v.phase==='active'&&!v.ordinaryBriefingMounted&&!v.ordinaryBriefingHeld);await Promise.all([owner,recipient].map(surface=>surface.paintTwoFrames()));
  await memberReady(owner,'Owner');await memberReady(recipient,'Recipient');await ordinaryStartPreflight();
 
@@ -396,7 +414,7 @@ try{await bounded((async()=>{
   await writeFile(`${directory}/trade-recipient-selector.json`,JSON.stringify(diagnostic,null,2)+'\n',{mode:0o600});
  }
  try{await recipientSelector.selectOption(actorUids.get('Recipient'),{timeout:35000});assert.equal(await recipientSelector.inputValue(),actorUids.get('Recipient'));}
- finally{await retainRecipientSelector();}
+ finally{try{await bounded(retainRecipientSelector(),Math.max(1,Math.min(5000,workEnd-Date.now())),'Recipient selector diagnostic budget');}catch(error){(evidence.tradeDiagnosticErrors??=[]).push({stage:'recipient selector',message:error.message});}}
 
  await trade.getByLabel('Materials amount',{exact:true}).fill('1');
  const sent=await action(owner,'createSameTableTradeOffer',()=>trade.getByRole('button',{name:'Send exact offer',exact:true}).click());
@@ -443,7 +461,7 @@ try{await bounded((async()=>{
  evidence.philia={before,after,consoleId,proposalHash:short(requested.data.proposalId),reloadReadback:true};
  claims.push('Philia request/grant cause no damage/resources change; apply damages exact console and adds3 target materials; both current entitled readbacks and normal reloads agree; visible Engineer return preserves authority');
  assert.equal(actorUids.size,3);assert.equal(browsers.length,3);assert.equal(remoteRequests.length,0);assert.equal(errors.length,0);evidence.status='PC11_THREE_ACTOR_TRADE_PHILIA_PASS';evidence.completedAt=new Date().toISOString();
- })(),workEnd-startAt,'Stop trade/Philia work for original eight-minute cap and cleanup reserve.',()=>{stopped=true;});
+ })(),workEnd-startAt,'Stop trade/Philia work for allocated deadline and cleanup reserve.',()=>{stopped=true;});
 }catch(error){stopped=true;primaryFailure=error;evidence.status=gmOnly?'PC11_GM_STARTUP_ONLY_STOPPED_FIRST_FAILURE':'PC11_THREE_ACTOR_TRADE_PHILIA_STOPPED_FIRST_FAILURE';evidence.failedStage=stage;evidence.originalError=originalProofError(error);evidence.consumedState=consumed;const diagnosticEnd=Math.min(Date.now()+10000,totalEnd-45000);evidence.failureDiagnosticErrors=[];
  for(const surface of surfaces){try{await bounded(snapshot(surface,`${surface.label}-first-failure`),Math.max(1,diagnosticEnd-Date.now()),'Original first-failure snapshot deadline');await surface.page.screenshot({path:`${directory}/${surface.label}-first-failure.png`,timeout:Math.max(1,Math.min(5000,diagnosticEnd-Date.now()))});}catch(failure){evidence.failureDiagnosticErrors.push(originalProofError(failure));}}
  try{if(!gmOnly)evidence.firstFailureWorld=await bounded(ownedWorld(),Math.max(1,diagnosticEnd-Date.now()),'First-failure exact owned trade/Philia witness deadline');}catch(failure){evidence.failureDiagnosticErrors.push(originalProofError(failure));}await retainProofFailure(directory,'pc11-trade-philia',error,{stage,consumed,claims});console.log(JSON.stringify({stoppedAt:stage,message:error.message.slice(0,500),claimsEarned:claims.length}));
@@ -456,6 +474,8 @@ try{await bounded((async()=>{
   try{return await bounded(Promise.resolve().then(operation),cleanupEnd-Date.now(),`Owned cleanup deadline: ${label}`);}
   catch(error){cleanup.errors.push({label,error:originalProofError(error)});return null;}
  };
+ await cleanupStep('settle captured original request identities',async()=>{const values=await Promise.all(pendingOriginalIdentities);for(const value of values)if(value.error)throw value.error;});
+ if(!sid&&creationRequestId&&actorUids.has('GM1'))await cleanupStep('recover exact original create scope',async()=>{sid=await recoverPc11CreatedSession({db,uid:actorUids.get('GM1'),requestId:creationRequestId});});
  await cleanupStep('settle all owned launches',()=>Promise.allSettled(pendingLaunches));
  for(const browser of browsers)await cleanupStep('close owned browser',async()=>{await browser.close();assert.equal(browser.isConnected(),false);cleanup.browsersClosed++;});
  if(sid) {
@@ -465,6 +485,7 @@ try{await bounded((async()=>{
    await db.runTransaction(async tx=>{const doc=await tx.get(ref);if(doc.exists){assert.equal(doc.get('sessionId'),sid,'Refuse foreign join-code deletion.');tx.delete(ref);}});
    cleanup.joinCodeAbsent=!(await ref.get()).exists;assert.equal(cleanup.joinCodeAbsent,true);
   });
+  await cleanupStep('remove exact owned top-level proof records',async()=>{cleanup.rootRecords=await removePc11OwnedRootRecords({db,uid:actorUids.get('GM1'),sessionId:sid,creationRequestId,startRequestId,instanceId:gm1Instance});});
   await cleanupStep('remove exact owned session subtree',async()=>{const session=await db.doc(`sessions/${sid}`).get();if(session.exists)await db.recursiveDelete(session.ref);cleanup.sessionAbsent=!(await db.doc(`sessions/${sid}`).get()).exists;assert.equal(cleanup.sessionAbsent,true);});
   await cleanupStep('remove verified owned membership pointers',async()=>{
    const pointers=await db.collection('activeMemberships').where('sessionId','==',sid).get();const known=new Set(actorUids.values());assert.ok(pointers.docs.every(doc=>known.has(doc.id))&&pointers.size<=3,'Refuse unknown actor cleanup.');
