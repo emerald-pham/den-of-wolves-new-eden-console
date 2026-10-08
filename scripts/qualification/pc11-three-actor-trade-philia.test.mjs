@@ -139,3 +139,14 @@ test('PR17 authority proof uses real console routing, compatibility service and 
   assert.match(proof, /foreign-vessel/);
   assert.doesNotMatch(proof, /setState\(|\.setMe\(|\.setSession\(|Engage ICN|Release ICN/);
 });
+
+test('PR17 consumes the real legacy reply, role card hrefs and committed maintenance readiness', () => {
+  const proof = namedRegion(runnerSource, 'async function runPr17Proof', 'startAt=Date.now()');
+  assert.doesNotMatch(proof, /legacy\.result\.status/);
+  assert.match(proof, /legacy\.result\.locked,true/);
+  assert.match(proof, /legacy\.result\.requestId,legacy\.data\.requestId/);
+  assert.doesNotMatch(proof, /getByRole\('link',\{name:'(?:Engineer|Admiral)',exact:true\}\)/);
+  assert.match(proof, /a\[href="#\/ships\/dione\/roles\/dione-engineer"\]/);
+  assert.match(proof, /waitForMaintenanceReceipt/);
+  assert.match(proof, /expectedMaintenance:checked\.result\.cycle/);
+});
