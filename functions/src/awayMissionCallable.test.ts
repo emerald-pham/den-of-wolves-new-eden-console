@@ -766,6 +766,34 @@ describe('dealPrivateInitialCards', () => {
       expect.objectContaining({ path: 'sessions/s1/serverState/missionDeck' }),
       expect.objectContaining({ dealtCount: 33, resolvedDiscardCardIds: [] }),
     );
+    const markerWrite = mock.set.mock.calls.find(([ref]) => ref.path === 'sessions/s1/commandReceipts/deal-1');
+    mock.marker = markerWrite?.[1];
+    const startWrite = mock.create.mock.calls.find(([ref]) =>
+      ref.path === `sessions/s1/missionStartSnapshots/${defaultOpportunity.id}`);
+    mock.missionStartSnapshots[defaultOpportunity.id] = startWrite?.[1] as Record<string, unknown>;
+    mock.set.mockClear();
+    mock.create.mockClear();
+    mock.update.mockClear();
+    await expect(dealPrivateInitialCards.run(request(command))).resolves.toMatchObject({ status: 'replayed' });
+    expect(mock.set).not.toHaveBeenCalled();
+    expect(mock.create).not.toHaveBeenCalled();
+    expect(mock.update).not.toHaveBeenCalled();
+  });
+
+  it('does not partially deal when the remaining resolved-discard pool cannot cover the participant roster', async () => {
+    mock.documents['sessions/s1/serverState/missionDeck'] = {
+      ...deck,
+      dealtCount: 33,
+      resolvedDiscardCardIds: ['Q♣'],
+    };
+
+    await expect(dealPrivateInitialCards.run(request(command))).rejects.toMatchObject({
+      code: 'failed-precondition',
+    });
+
+    expect(mock.set).not.toHaveBeenCalled();
+    expect(mock.update).not.toHaveBeenCalled();
+    expect(mock.create).not.toHaveBeenCalled();
   });
 
   it('seeds reconnect lifecycle and isolated own-hand projections atomically with the first deal', async () => {
