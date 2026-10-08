@@ -71,8 +71,9 @@ function makeConsumer() {
         trace.push({ endpoint, request: structuredClone(request) });
       } });
     assert.equal(observed, response);
-    return { httpStatus: observed.status(), request: structuredClone(observed.request().postDataJSON().data),
-      result: (await observed.json()).result };
+    const data = structuredClone(observed.request().postDataJSON().data);
+    return { endpoint, data, request: data, before: structuredClone(state.actor),
+      httpStatus: observed.status(), result: (await observed.json()).result };
   };
   const io = {
     async observeMember() { return structuredClone(state.actor); },
