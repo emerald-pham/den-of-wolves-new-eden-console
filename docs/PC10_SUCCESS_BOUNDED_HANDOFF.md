@@ -281,3 +281,31 @@ then applies the same CLI argument validation. Both canonical and alias commands
 now validate arguments, with all ten runner contracts GREEN. Native acceptance
 requires a new exact-source allocation after this source change; the original
 f9e0bcbd grant/hashes must not be reused for the repaired runner.
+
+### Attempt2: earned minimum-cohort admission/Cycle1, stopped before research
+
+Fresh parent allocation of `301d3167` passed exact `/tmp` direct-entry and
+static/compiled helper preflight. Actual native run on fresh slot5 project
+`demo-pc10-ring-20261008-slot5-attempt2` lasted85,870ms. Three independent normal
+Auth actors, two Chrome processes and three contexts completed manual13-role
+setup, GM authorization, Scientist/Engineer canonical seat assignment and
+entry, genuine manual Cycle1 start/presentation, and both ordinary actors'
+current seat/member/group/SDK server authority qualification.
+
+First material failure was reading `current.organiserSites` from the raw
+session document (undefined); these facts belong to the entitled GM projection.
+No research, Ring repair/passage/outcome/recovery/ending action followed.
+`minimum-ring-2/OWNER_RESULT.json` preserves actual receipts, states and original
+failure; earned actor/setup claims remain reusable in that bounded scope.
+Owned cleanup passed: two browsers closed, three Auth users and three membership
+pointers deleted, fresh session absent, zero cleanup errors. Own slot5 wrappers
+and configuration were released, retained slot1/slot2 services preserved.
+
+Observed source regression RED `3d8c321f` precedes the repair. The executable now
+uses the existing qualified discovery approach: mounted normal GM store/current
+Auth-owned instance, actual locked chartA and exactly one Ring candidate, under
+original liveGM bounded authority operation. Independent Sol review found no
+material issue in this repair or nearby durable-root field assumptions. Eleven
+runner contracts GREEN remain synthetic; native chart read and later outcome
+steps need a new exact-source allocation. This failure is a harness source-field
+assumption, not evidence of product gameplay malfunction.

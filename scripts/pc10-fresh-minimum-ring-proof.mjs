@@ -40,6 +40,19 @@ export function validateRingAllocation(input) {
  for(const key of ['sourceCommit','runnerSha256','compiledIndexSha256','compiledTreeSha256'])assert.match(input[key]??'',key==='sourceCommit'?/^[0-9a-f]{40}$/:/^[0-9a-f]{64}$/,key);
  return input;
 }
+export async function readRingCoordinate(surface) {
+ const chart=await surface.page.evaluate(async storeUrl=>{
+  const {useSessionStore}=await import(storeUrl);const {auth}=await import('/src/lib/firebase.ts');
+  const state=useSessionStore.getState(),uid=auth().currentUser?.uid,session=state.session;
+  if(!uid||state.me?.uid!==uid||state.me?.role!=='gm'||state.gmInstance?.uid!==uid)throw new Error('Current entitled mounted GM chart required.');
+  return{chartId:session?.chartId,locked:session?.configurationLocked===true||session?.chartSelectionLocked===true,
+   candidates:Object.entries(session?.organiserSites??{}).filter(([,site])=>site.code==='N'&&site.candidate===true).map(([coordinate,site])=>({coordinate,code:site.code}))};
+ },surface.storeModuleUrl());
+ assert.equal(chart.chartId,'A');assert.equal(chart.locked,true,'Require actual locked GM chart.');
+ assert.equal(chart.candidates.length,1,'Actual GM chart must contain exactly one Ring candidate.');
+ assert.equal(chart.candidates[0].code,'N');assert.match(chart.candidates[0].coordinate,/^\d{4}$/);
+ return chart.candidates[0].coordinate;
+}
 export function createRingMaintenancePacer({now=Date.now,wait=delay}={}) {
  let last=null;
  return async()=>{if(last!==null){const remaining=last+2100-now();if(remaining>0)await wait(remaining);}last=now();};
@@ -505,7 +518,7 @@ async function enterRole(surface,label){
    for(const surface of surfaces)await completeOfferedCyclePresentation(surface,await snapshot(surface,'Actual Cycle1 presentation'),{clearBriefing:true});
    const science=await memberReady(recipient,'Recipient'),engineer=await memberReady(owner,'Owner');assert.equal(science.fleetGroupId,engineer.fleetGroupId);groupId=science.fleetGroupId;
    const current=await recordRoot();ships=current.activeVesselIds;assert.equal(ships.length,6);assert.ok(ships.includes('aegis'));
-   coordinate=Object.entries(current.organiserSites).filter(([,site])=>site.code==='N'&&site.candidate===true).map(([location])=>location)[0];assert.match(coordinate,/^\d{4}$/);
+   coordinate=await op(async deadlineAt=>{await liveGm(gm,'GM1','active',{deadlineAt});return readRingCoordinate(gm);});
    assert.equal(current.shuttleControl.endeavour.holderUid,actorUids.get('Recipient'));assert.equal(current.shuttleControl['black-sheep'].holderUid,actorUids.get('Owner'));
    await supply('shepherd','ore',40);await supply('aegis','materials',10);
    for(const ship of ships){const rule=MAINTENANCE_RULES[ship];await supply(ship,'food',rule.food[3]*4);await supply(ship,'water',rule.water[3]*4);await supply(ship,'fuel',30);}
