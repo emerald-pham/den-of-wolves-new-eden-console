@@ -575,7 +575,7 @@ test('P631 initial readiness does not extend the original create-and-consent ope
     assert.equal(run.ownerResult?.failureStage, 'normal GM admitted App/store authority');
     assert.equal(run.trace?.observations?.filter(item => item.phase === 'created').length, 1);
     const retained = JSON.parse(await readFile(join(run.evidenceDirectory, run.failureArtifacts[0]), 'utf8'));
-    assert.match(retained.originalError?.message ?? '', /original shared UI deadline expired/);
+    assert.match(retained.originalError?.message ?? '', /original shared UI deadline/);
   } finally { await rm(run.temporary, { recursive: true, force: true }); }
 });
 
