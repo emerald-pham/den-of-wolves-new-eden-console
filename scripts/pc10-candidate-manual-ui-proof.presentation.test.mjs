@@ -4,7 +4,7 @@ import { readFile, mkdtemp, mkdir, readdir, rm } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { setTimeout as delay } from 'node:timers/promises';
-import { createContext, SourceTextModule, SyntheticModule } from 'node:vm';
+import { createContext, Script, SourceTextModule, SyntheticModule } from 'node:vm';
 import React from 'react';
 import * as jsxRuntime from 'react/jsx-runtime';
 import { createRoot } from 'react-dom/client';
@@ -54,9 +54,20 @@ async function actualPresentation(t, kind) {
     const clearance = await componentSource('src/components/CycleBriefingClearanceView.tsx', jsx, realm);
     const formal = await componentSource('src/components/TeamStartFormalAnnouncementsView.tsx', jsx, realm);
     const useSessionStore = Object.assign(selector => selector(f.store), { getState: () => f.store });
+    // The released announcement now consumes the real GM selector. Evaluate
+    // its source declaration rather than supplying invented GM authority.
+    const storeSource = ts.createSourceFile('useSessionStore.ts',
+      await readFile(resolve(ROOT, 'src/store/useSessionStore.ts'), 'utf8'), ts.ScriptTarget.Latest, true);
+    const selectorDeclaration = storeSource.statements.find(statement => ts.isVariableStatement(statement) &&
+      statement.declarationList.declarations.some(declaration => declaration.name.getText(storeSource) === 'selectIsGm'));
+    assert.ok(selectorDeclaration, 'Actual released GM selector declaration remains present.');
+    const selectorCode = ts.transpileModule(selectorDeclaration.getText(storeSource), { compilerOptions: {
+      target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext,
+    } }).outputText.replace(/^export\s+/gm, '');
+    const selectIsGm = new Script(`${selectorCode}\nselectIsGm`).runInContext(realm);
     const turn = await componentSource('src/components/TurnStartAnnouncement.tsx', { ...jsx,
       './Intrusion': intrusion, '@/lib/motionPreference': motion, '@/lib/turnPhase': phase,
-      '@/store/useSessionStore': { useSessionStore }, './TurnPhaseTimer': timer, './LiveChangeRegion': live,
+      '@/store/useSessionStore': { useSessionStore, selectIsGm }, './TurnPhaseTimer': timer, './LiveChangeRegion': live,
       '@/lib/turnInterstitialService': { clearTurnAdvanceInterstitial: noAction },
       './CycleBriefingClearanceView': clearance, './TeamStartFormalAnnouncementsView': formal }, realm);
     const style = f.window.document.createElement('style');
