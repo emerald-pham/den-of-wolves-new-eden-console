@@ -1,6 +1,39 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { assertStationPopulationAcknowledgmentTransition, assertStationPopulationGmActorAuthority, assertStationPopulationGmActorObserver, minimumRingPlan, runRingWorkflow, runStationCombatWaves, selectStationCombatCrew, stationCombatServerContext, stationDialogAccessibleName, stationPopulationAckMutinyRows, stationPopulationAlertsForGm, stationPopulationDismissIntent, stationPopulationGmActorAnchor, stationPopulationGmAuthorityPreflight } from './pc10-fresh-minimum-ring-proof.mjs';
+
+const stationPopulationGmAttemptEvidence = JSON.parse(readFileSync(
+  new URL('./fixtures/pc10-population-gm-observer-attempt-evidence.json', import.meta.url), 'utf8'));
+
+function stationPopulationGmActualAttempt18() {
+  const attempt = stationPopulationGmAttemptEvidence.attempt18;
+  const live = structuredClone(attempt.native.after);
+  const lifecycle = structuredClone(attempt.lifecycle.current);
+  const expectedUid = 'source-only-synthetic-uid';
+  // The original native capture retains UID hashes and session/instance/lease
+  // values, but not the raw Auth UID or Firestore authority rows. These rows
+  // are source-only synthetic test inputs, not native evidence.
+  const serverPlayer = { uid: expectedUid, sessionId: lifecycle.sessionId, role: 'gm', connected: true,
+    connectionGeneration: live.connectionGeneration };
+  const serverInstance = { id: lifecycle.instanceId, uid: expectedUid, sessionId: lifecycle.sessionId,
+    connected: true, claimedAt: lifecycle.claimedAt };
+  const claimInstance = { id: lifecycle.instanceId, uid: expectedUid, sessionId: lifecycle.sessionId,
+    claimedAt: lifecycle.claimedAt };
+  return { attempt, live, lifecycle, expectedUid, serverPlayer, serverInstance, claimInstance,
+    expectedSessionId: lifecycle.sessionId };
+}
+
+function stationPopulationGmPreflight(input, { readActor, readServerAuthority, onActorObservation } = {}) {
+  return stationPopulationGmAuthorityPreflight({
+    readActor: readActor ?? (async () => ({ live: structuredClone(input.live), lifecycle: structuredClone(input.lifecycle) })),
+    readServerAuthority: readServerAuthority ?? (async () => ({ serverPlayer: input.serverPlayer, serverInstance: input.serverInstance })),
+    claimInstance: input.claimInstance,
+    expectedSessionId: input.expectedSessionId,
+    expectedUid: input.expectedUid,
+    onActorObservation,
+  });
+}
 
 function stationLossFixture({ originalGeneration = 4, currentGeneration = 4 } = {}) {
   const actor = { uid: 'pdf', roleId: 'refinery-124-pdf-colonel',
@@ -147,6 +180,99 @@ test('population alert selector keeps the existing single current-GM target boun
   const second = { shipId: 'shepherd', targetGmInstanceIds: ['gm-1'] };
   assert.deepEqual(stationPopulationAlertsForGm({ dione: first, aegis: other, shepherd: second }, 'gm-1'),
     [['dione', first], ['shepherd', second]]);
+});
+
+test('Attempt18 serialized postclaim observer schemas pass the production GM preflight and bind its callback anchor', async () => {
+  const input = stationPopulationGmActualAttempt18();
+  assert.equal(Object.hasOwn(input.lifecycle, 'profileSessionId'), false,
+    'The actual lifecycle observer omits profileSessionId.');
+  assert.equal(input.live.profileSessionId, null,
+    'The actual native ordinary observer emits the null profileSessionId guard.');
+  assert.equal(input.lifecycle.playerRole, 'gm');
+  assert.equal(input.lifecycle.gmInstanceOwned, true);
+  assert.equal(input.live.gmInstanceOwned, true);
+  assert.equal(input.lifecycle.sessionId, input.live.sessionId);
+  assert.equal(input.lifecycle.uidHash, input.live.uidHash);
+  assert.equal(input.lifecycle.generation, input.live.connectionGeneration);
+  assert.equal(input.lifecycle.hydrationRevision, input.live.hydrationRevision);
+  assert.equal(input.lifecycle.instanceId, input.live.instanceId);
+
+  const result = await stationPopulationGmPreflight(input);
+  assert.equal(result.anchor.generation, input.live.connectionGeneration);
+  assert.equal(result.anchor.hydrationRevision, input.live.hydrationRevision);
+  assert.equal(result.anchor.instanceId, input.live.instanceId);
+  assert.equal(result.anchor.claimedAt, input.lifecycle.claimedAt);
+  assert.doesNotThrow(() => assertStationPopulationGmActorObserver(result.anchor,
+    { live: input.live, lifecycle: input.lifecycle }));
+  assert.equal(assertStationPopulationGmActorAuthority(result.anchor, {
+    live: input.live, lifecycle: input.lifecycle, serverPlayer: input.serverPlayer,
+    serverInstance: input.serverInstance, claimInstance: input.claimInstance,
+    expectedSessionId: input.expectedSessionId, expectedUid: input.expectedUid,
+  }), true);
+});
+
+test('Attempt19 preclaim serialized lifecycle remains rejected without a paired postclaim lifecycle observer', async () => {
+  const attempt = stationPopulationGmAttemptEvidence.attempt19;
+  const live = structuredClone(attempt.native.before);
+  const lifecycle = structuredClone(attempt.lifecycle.current);
+  assert.equal(lifecycle.playerRole, 'player');
+  assert.equal(lifecycle.gmInstanceOwned, false);
+  assert.equal(Object.hasOwn(lifecycle, 'profileSessionId'), false);
+  assert.equal(lifecycle.instanceId, null);
+  assert.equal(lifecycle.claimedAt, null);
+  assert.equal(live.playerRole, 'player');
+  assert.equal(live.gmInstanceOwned, false);
+  assert.equal(live.profileSessionId, null);
+  assert.notEqual(attempt.native.after.playerRole, lifecycle.playerRole,
+    'The postclaim native-only observation is not a matching postclaim lifecycle observation.');
+
+  const expectedUid = 'source-only-preclaim-uid';
+  await assert.rejects(stationPopulationGmAuthorityPreflight({
+    readActor: async () => ({ live: structuredClone(live), lifecycle: structuredClone(lifecycle) }),
+    readServerAuthority: async () => ({ serverPlayer: { uid: expectedUid, sessionId: lifecycle.sessionId,
+      role: 'player', connected: true, connectionGeneration: live.connectionGeneration }, serverInstance: null }),
+    claimInstance: null, expectedSessionId: lifecycle.sessionId, expectedUid,
+  }), /server-owned lease rows/i);
+});
+
+test('Attempt18 production preflight retains each full observer sample before later authority validation', async () => {
+  const input = stationPopulationGmActualAttempt18(), retained = [];
+  const server = { serverPlayer: input.serverPlayer,
+    serverInstance: { ...input.serverInstance, connected: false } };
+  await assert.rejects(stationPopulationGmPreflight(input, {
+    readServerAuthority: async () => server,
+    onActorObservation: (stage, actor) => retained.push({ stage, actor }),
+  }));
+  assert.deepEqual(retained.map(value => value.stage), ['before', 'current']);
+  for (const value of retained) {
+    assert.deepEqual(Object.keys(value.actor.live), Object.keys(input.live));
+    assert.deepEqual(Object.keys(value.actor.lifecycle), Object.keys(input.lifecycle));
+    assert.equal(value.actor.lifecycle.profileSessionId, undefined);
+    assert.equal(value.actor.live.profileSessionId, null);
+  }
+});
+
+test('Attempt18 serialized schema keeps missing or changed identity and profile guards strict', async () => {
+  const input = stationPopulationGmActualAttempt18();
+  const controls = [
+    ['missing native session', live => { delete live.sessionId; }, /sessionId/],
+    ['changed native generation', live => { live.connectionGeneration += 1; }, /generation/],
+    ['missing native hydration', live => { delete live.hydrationRevision; }, /hydration/],
+    ['missing native profile session', live => { delete live.profileSessionId; }, /profileSessionId/],
+    ['contaminated native profile session', live => { live.profileSessionId = 'foreign-session'; }, /profileSessionId/],
+    ['missing lifecycle generation', (_live, lifecycle) => { delete lifecycle.generation; }, /generation/],
+    ['changed lifecycle hydration', (_live, lifecycle) => { lifecycle.hydrationRevision += 1; }, /hydration/],
+    ['missing lifecycle instance', (_live, lifecycle) => { delete lifecycle.instanceId; }, /instanceId/],
+    ['missing lifecycle claim lease', (_live, lifecycle) => { delete lifecycle.claimedAt; }, /claimedAt/],
+  ];
+  for (const [label, mutate, expected] of controls) {
+    const changed = { ...input, live: structuredClone(input.live), lifecycle: structuredClone(input.lifecycle) };
+    mutate(changed.live, changed.lifecycle);
+    await assert.rejects(stationPopulationGmPreflight(changed), error => {
+      assert.match(error.message, expected, label);
+      return true;
+    }, label);
+  }
 });
 
 test('Station GM claim preflight binds both native observer schemas and rejects a changed generation', async () => {
