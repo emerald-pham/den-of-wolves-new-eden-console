@@ -212,3 +212,17 @@ This is approved source qualification preparation, not final release approval.
 Pending parent runtime allocation (priority after font live read-only window,
 PC10 cargo/recharge and editor), clean-base authenticated flow and independent
 final rendered typography approval, then exact-candidate CI/publish ordering.
+
+## Final source-only preflight slice and handoff limits
+
+Core executable/release-note build2cc643eabde2ff984eb7083716778cbf2db57450\npasses final build/typecheck and bundle. Exact source/artifact/version0.5.71\nmanifest /tmp/dow-pc11-0571-source-build-audit.json; serverChangedFiles[].\nSubsequent commits only add two nonbundled qualification-tool files; application\nsource/package/version remain unchanged, so build evidence is reused by exact\ninput equality rather than a ceremonial rebuild. Independent product source\nreview remains clear.\n
+Bounded normal-start preflight now at5a614bab: initial test-only contracts then\n4d8c8701 helper; independent review identified false-green identity/session/\ncohort/roster/fleet cases, repaired after observed focused RED. Residual whitespace/\nnonstring epoch RED83dde9d0 precedes5a614bab shared nonblank guard. Native15/15,\nsyntax/lint/diff checks pass. Sol final review closes all reported helper findings.\nThe helper requires independently captured original actor identities and canonical\nrole source; it never supplies app authority or creates a session. Initial absent\nadapter contract failures are new-tool RED, not old PC10 consumer failure proof.\n
+Source-only CLI: node scripts/qualification/pc11-normal-start-adapter.mjs\n--show-contract. Full automated normal-UI startup, capturing canonicalRoleIds/\nexpectedMembers and driving the three-actor trade/Philia flow are not wired yet.\nThis is a bounded preflight slice, not a runnable end-to-end proof or runtime pass.\nNext owner action is that narrow wiring using existing normal controls and\nconsumer observers (RED first for any adapter behavior), then parent-approved\nallocation. No heavy browser/server/emulator used. Hosting-only selector remains\nclear with both tool files explicitly ignored; artifact/Functions boundary is\nunaffected (/tmp/dow-pc11-0571-with-preflight-deployment-audit.log).\n
+## Eventual 0.9.0 owner authorization
+
+Explicit owner instruction received: increment to0.9.0 only AFTER BOTH PC10 and\nPC11 are released and verified. Parent owns that final determination. Preserve\ncurrent patch ordering and all acceptance/RED/independent-final-render gates; do\nnot bump early or label partial work complete. After both verified releases,\nsynchronize package/root-lock, add separate0.9.0 history, verify exact build\nreference and cache/update rollover, then exact-main live artifacts/version.\nNo0.9.0 metadata is applied in this branch. Routine source work continues under\nstanding authorization; true permission blockers go to parent, not routine\nowner wake-ups. Global iPhone font investigation remains open and is not claimed\nfixed by PC11 or the0.9.0 label.\nEOF
+python3 - <<'PY'
+from pathlib import Path
+p=Path('docs/PC11_LIVE_BASE_EXTRACTION.md');s=p.read_text().replace('\\n','\n');p.write_text(s)
+PY
+git diff --check; git diff --name-only 2cc643ea HEAD -- src package.json package-lock.json index.html vite.config.ts; git add docs/PC11_LIVE_BASE_EXTRACTION.md && git commit -m 'Record PC11 qualification preflight limits and deferred 0.9.0 authorization'
