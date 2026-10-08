@@ -162,3 +162,18 @@ test('Nebula success from old dispositions cannot be relabeled as a new reached 
   };
   await assert.rejects(runMinimumCandidateSuccessProbe(context), /reached.*receipt|receipt.*reached/i);
 });
+
+test('malformed committed envelope retains the exact uncertain request and never sends a replacement', async () => {
+  for (const patch of [{ requestId: 'foreign-request' }, { revision: 100 }]) {
+    const { context, calls } = stationProbe(), original = context.gm.callable;
+    context.gm.callable = async (name, data) => {
+      const response = await original(name, data);
+      if (name === 'executeCandidateAction') Object.assign(response.result, patch);
+      return response;
+    };
+    await assert.rejects(runMinimumCandidateSuccessProbe(context));
+    const requests = calls.filter(call => call.endpoint === 'executeCandidateAction');
+    assert.equal(requests.length, 1);
+    assert.deepEqual(context.pendingCandidateRequest, requests[0].data);
+  }
+});
