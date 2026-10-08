@@ -74,7 +74,9 @@ import { createSameTableTradeCallables } from './sameTableTradeCallable';
 import { createGorgoneionMissionSupportCallables } from './gorgoneionMissionSupportCallable';
 import { applyAwayMissionLifecycleCommand, createAwayMissionLifecycleBootstrap, markAwayMissionOverrun, projectAwayMissionPrivateState, projectAwayMissionPublicState, type AwayMissionLifecycleRecord, type AwayMissionLifecycleCommand } from './awayMissionLifecycleAdapter';
 import { missionCraftIdsCarriedByShip, nextMissionCraftCommitments, parseMissionCraftCommitments, requireMissionCraftMovementAvailable } from './missionCraftCommitment';
-import { planBoaMissionRewardDelivery, planMissionRewardDelivery } from './missionRewardDelivery';
+import { missionRewardConsoleTargets, planBoaMissionRewardDelivery, planMissionRewardDelivery } from './missionRewardDelivery';
+import { prepareResolvedMissionConsequences, prepareMissionRewardConsequences, validateMissionRewardChoice } from './missionConsequences';
+import { hasMissionNebulaBenefit, parseMissionNebulaBenefits } from './missionNebulaBenefits';
 import { createAwayMissionLifecycleCallables } from './awayMissionLifecycleCallable';
 import { deriveAwayMissionParticipantCraftSnapshots } from './awayMissionCraftSnapshot';
 import { createPermissionedDismantlingCallables } from './permissionedDismantlingCallable';
@@ -918,6 +920,8 @@ export const chooseBoaMissionReclamationOpportunity = auditedOnCall('chooseBoaMi
 
 const awayMissionLifecycleCallables = createAwayMissionLifecycleCallables({
   db,
+  prepareResolvedConsequences: context => prepareResolvedMissionConsequences(db, context),
+  validateRewardChoice: validateMissionRewardChoice,
   prepareCraftCommitments: async ({ transaction, sessionId, session, nextRecord }) => {
     const commitments = nextMissionCraftCommitments(session.get('missionCraftCommitments'), {
       missionId: nextRecord.lifecycle.missionId, sourceCycle: nextRecord.sourceCycle,
@@ -977,7 +981,8 @@ const awayMissionLifecycleCallables = createAwayMissionLifecycleCallables({
         groups, true, { sessionSnapshot: session, navigationSnapshot, fleetGroupSnapshots: groupSnapshots.docs });
     };
   },
-  prepareRewardDelivery: async ({ transaction, sessionId, missionId, session, nextRecord, shipId }) => {
+  prepareRewardDelivery: async (context) => {
+    const { transaction, sessionId, missionId, session, nextRecord, shipId } = context;
     const tx = transaction as Transaction;
     const receiptRef = db.doc(`sessions/${sessionId}/serverState/missionRewardDeliveries/receipts/${missionId}`);
     const prior = await tx.get(receiptRef);
@@ -1032,8 +1037,11 @@ const awayMissionLifecycleCallables = createAwayMissionLifecycleCallables({
       });
     }
     if (!delivery) throw new HttpsError('failed-precondition', 'Mission rewards cannot be delivered safely.');
+    const consequences = await prepareMissionRewardConsequences(db, context);
     return () => {
+      consequences.commit();
       tx.update(db.doc(`sessions/${sessionId}`), {
+        ...consequences.sessionPatch,
         [`shipResources.${shipId}`]: delivery.inventory,
         [`shipSurvivors.${shipId}`]: delivery.population,
         [`shipMissionMinerals.${shipId}`]: delivery.minerals,
@@ -1042,6 +1050,7 @@ const awayMissionLifecycleCallables = createAwayMissionLifecycleCallables({
       });
       tx.create(receiptRef, {
         missionId, shipId, revision: nextRecord.revision, deltas: delivery.deltas,
+        ...consequences.receiptFields,
         ...(boaScrapAwarded === undefined ? {} : { boaScrapAwarded, boaScrapCargo }),
         createdAt: FieldValue.serverTimestamp(),
       });
@@ -1082,7 +1091,9 @@ const awayMissionLifecycleCallables = createAwayMissionLifecycleCallables({
     }
 
     let legalDropOffShipIds: string[] = [];
-    if (commandType === 'resolve' || commandType === 'dropOff' || commandType === 'assignCards' || commandType === 'reclamatorSalvage') {
+    let currentGroupId: string | undefined;
+    if (commandType === 'resolve' || commandType === 'dropOff' || commandType === 'assignCards' ||
+        commandType === 'reclamatorSalvage' || commandType === 'chooseRewardTargets') {
       const missionCoordinate = mission.get('coordinate');
       const activeVesselIds = activeVesselIdsForSession(session);
       const tx = transaction as Transaction;
@@ -1127,6 +1138,7 @@ const awayMissionLifecycleCallables = createAwayMissionLifecycleCallables({
             typeof rawCoordinates[shipId] === 'string' && isStarSystemCoordinate(rawCoordinates[shipId] as string))) {
         throw new HttpsError('failed-precondition', 'Current mission-group ship locations are unavailable.');
       }
+      currentGroupId = group.id;
       legalDropOffShipIds = group.vesselIds.filter((shipId) =>
         navigation.shipGalacticCoordinates[shipId] === missionCoordinate);
     }
@@ -1135,6 +1147,8 @@ const awayMissionLifecycleCallables = createAwayMissionLifecycleCallables({
       currentCycle: currentCycle as number,
       teamPhase: currentTurnState.phase === 'team',
       legalDropOffShipIds,
+      currentGroupId,
+      rewardConsoleTargets: missionRewardConsoleTargets(legalDropOffShipIds, session.get('shipUpgrades'), session.get('shipDamage')),
       bonusSources: [],
     };
   },
@@ -2156,6 +2170,8 @@ function navigationProjectionFields(navigation: NavigationState): Record<string,
   return {
     shipGalacticCoordinates: navigation.shipGalacticCoordinates,
     shipNavigationLogs: navigation.shipNavigationLogs,
+    ...(navigation.missionNebulaBenefitsByShip
+      ? { missionNebulaBenefitsByShip: navigation.missionNebulaBenefitsByShip } : {}),
     ...(navigation.missionExploredCoordinatesByUid
       ? { missionExploredCoordinatesByUid: navigation.missionExploredCoordinatesByUid } : {}),
     ...(navigation.scoutedCoordinatesByShip
@@ -2336,7 +2352,9 @@ function maintenanceHazardAuthority(
       'malformed-input',
     );
   }
-  const hazard = environmentalMaintenanceHazard(chart, coordinates[shipId] as string);
+  const benefits = parseMissionNebulaBenefits(isRecord(rawNavigation) ? rawNavigation.missionNebulaBenefitsByShip : undefined);
+  if (!benefits) throw commandError('failed-precondition', 'The protected mission hazard benefit is malformed.', 'malformed-input');
+  const hazard = environmentalMaintenanceHazard(chart, coordinates[shipId] as string, { shipId, benefits });
   if (!hazard) return { hazard: undefined };
 
   const storedActiveVesselIds = session.get('activeVesselIds');
@@ -21089,9 +21107,11 @@ export const jumpShip = auditedOnCall<{
       }
     }
 
+    const freeExitFuel = hasMissionNebulaBenefit(currentNavigation.missionNebulaBenefitsByShip,
+      change.shipId, currentCoordinate, chart, 'freeExitFuel');
     const attemptedLength = jumpLengthBetween(currentCoordinate, destination);
     if (attemptedLength) {
-      const requiredFuel = jumpFuelCost(change.shipId, attemptedLength, upgraded);
+      const requiredFuel = freeExitFuel ? 0 : jumpFuelCost(change.shipId, attemptedLength, upgraded);
       if (inventory.fuel < requiredFuel) {
         supersedeEarlierFailure(identity.requestId);
         const failureState = { ...state, lastFailureRequestId: identity.requestId };
@@ -21138,6 +21158,7 @@ export const jumpShip = auditedOnCall<{
         charged: true,
         damaged: damage.damagedSystemIds.includes('jump-drive'),
         upgraded,
+        freeExitFuel,
         now,
         transitionId,
         state,
@@ -21215,7 +21236,7 @@ export const jumpShip = auditedOnCall<{
         requestId: identity.requestId, shipId: change.shipId, origin: currentCoordinate,
         destination, failureStatus: 'drive-failure', failureRevision: currentRevision,
         currentTurn, fuelAtFailure: inventory.fuel,
-        requiredFuel: attemptedLength ? jumpFuelCost(change.shipId, attemptedLength, upgraded) : undefined,
+        requiredFuel: attemptedLength ? freeExitFuel ? 0 : jumpFuelCost(change.shipId, attemptedLength, upgraded) : undefined,
         failureRoll: integrityRoll, failureThreshold: upgraded ? 1 : 3, adjudicable: true,
         actorUid: uid, occurredAt: now.toISOString(),
       }));
@@ -21626,8 +21647,10 @@ export const adjudicateFailedJump = auditedOnCall<{
     const upgrades = isRecord(session.get('shipUpgrades')) ? session.get('shipUpgrades') : {};
     const upgradeList = upgrades[shipId];
     const upgraded = Array.isArray(upgradeList) && upgradeList.includes('jump-drive');
-    const requiredFuel = jumpFuelCost(shipId, length, upgraded);
-    const fuelSpent = failure.failureStatus === 'fuel-shortage'
+    const freeExitFuel = hasMissionNebulaBenefit(currentNavigation.missionNebulaBenefitsByShip,
+      shipId, origin, lockedNavigationChart(session), 'freeExitFuel');
+    const requiredFuel = freeExitFuel ? 0 : jumpFuelCost(shipId, length, upgraded);
+    const fuelSpent = freeExitFuel ? 0 : failure.failureStatus === 'fuel-shortage'
       ? inventory.fuel
       : Math.min(inventory.fuel, requiredFuel);
     if (change.consequence === 'wrong-location' && inventory.fuel < requiredFuel) {
