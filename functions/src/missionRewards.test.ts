@@ -179,9 +179,11 @@ describe('authoritative away-mission rewards', () => {
   });
 });
 
-it('rejects material-only Reclamator choices and a non-salvage opportunity', () => {
+it('rejects material-only Reclamator choices and accepts the printed any-opportunity choice', () => {
   const input = { participantUid: 'warrior', roleId: 'warrior-captain', siteCode: 'D', opportunityId: 'D-1',
     handCardIds: ['A♥'] as const, choices: [{ cardId: 'A♥' as const, resource: 'materials' as const }] };
   expect(resolveWarriorReclamatorHand(input)).toBeNull();
-  expect(resolveWarriorReclamatorHand({ ...input, opportunityId: 'D-3', choices: [{ cardId: 'A♥', resource: 'food' }] })).toBeNull();
+  expect(resolveWarriorReclamatorHand({ ...input, opportunityId: 'D-3', choices: [{ cardId: 'A♥', resource: 'food' }] }))
+    .toEqual({ participantUid: 'warrior', opportunityId: 'D-3', discardedCardIds: ['A♥'], resources: { materials: 1, food: 1 } });
+  expect(resolveWarriorReclamatorHand({ ...input, opportunityId: 'D-4', choices: [{ cardId: 'A♥', resource: 'food' }] })).toBeNull();
 });

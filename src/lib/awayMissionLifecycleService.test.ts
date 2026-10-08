@@ -49,6 +49,16 @@ const playerContext: AwayMissionLifecycleClientContext = {
 };
 
 describe('away mission lifecycle client service', () => {
+  it('retains recipient-private pending reward options in the existing projection reader', () => {
+    const options = [{ opportunityId: 'C-2', researchSelections: 1, researchTracks: [{ trackId: 'reactor', name: 'Reactor' }],
+      consoleActions: [], consoleTargets: [] }];
+    const projection = { ...privateState, rewardOptions: options, rewardChoices: [] };
+    expect(parseAwayMissionLifecyclePrivateState(projection, { missionId: 'mission-1', participantUid: 'bob', revision: 3 }))
+      .toMatchObject({ rewardOptions: options, rewardChoices: [] });
+    expect(parseAwayMissionLifecyclePublicState({ ...publicState, rewardOptions: options }, 'mission-1')).toBeNull();
+    expect(parseAwayMissionLifecyclePrivateState({ ...projection, rewardOptions: [{ ...options[0], researchSelections: 0 }] },
+      { missionId: 'mission-1', participantUid: 'bob', revision: 3 })).toBeNull();
+  });
   it('accepts only a boolean private assignment commitment and preserves legacy projections', () => {
     const expected = { missionId: 'mission-1', participantUid: 'bob', revision: 3 };
     expect(parseAwayMissionLifecyclePrivateState({ ...privateState, assignmentCommitted: true }, expected))

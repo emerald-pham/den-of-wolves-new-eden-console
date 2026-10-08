@@ -240,7 +240,7 @@ describe('pure away-mission lifecycle', () => {
     expect(replay?.state.dealtCount).toBe(3);
   });
 
-  it('treats a participant request count as the maximum number of extra cards across opportunities', () => {
+  it('retains optional request counts without restricting the leader grant to that count', () => {
     const requested = recordMissionCardRequest(buildState(), 'bob', { count: 1 });
     const first = allocateBlindExtraMissionCard(requested!, {
       actorUid: 'alice',
@@ -255,17 +255,17 @@ describe('pure away-mission lifecycle', () => {
       participantUid: 'bob',
       opportunityId: 'A-2',
       requestId: 'allocate-bob-a2',
-    })).toBeNull();
+    })?.state.cards.filter(card => card.participantUid === 'bob')).toHaveLength(3);
     expect(first?.state.dealtCount).toBe(3);
   });
 
-  it('does not allocate extra cards to a participant who has not requested them', () => {
+  it('allocates an extra card to an admitted participant who has not requested one', () => {
     expect(allocateBlindExtraMissionCard(buildState(), {
       actorUid: 'alice',
       participantUid: 'bob',
       opportunityId: 'A-1',
       requestId: 'unrequested-extra',
-    })).toBeNull();
+    })?.receipt).toEqual({ status: 'committed', requestId: 'unrequested-extra', participantUid: 'bob', opportunityId: 'A-1', cardCount: 1 });
   });
 
   it('limits blind distribution to one card per participant and opportunity', () => {

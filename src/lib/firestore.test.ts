@@ -3711,6 +3711,18 @@ it('does not let a delayed older Wolf timing revision overwrite the newer server
   expect(onWindow).toHaveBeenLastCalledWith({ status: 'deferred', turn: 2, revision: 2 });
 });
 
+it('delivers a recipient-private server K timing window through the existing GM listener', () => {
+  const listener = captureSessionListener();
+  const onWindow = vi.fn();
+  subscribeGmWolfAttackWindow('s1', onWindow);
+  const window = { status: 'due', turn: 2, revision: 1, targetGroupId: 'fleet-1', threatSiteCode: 'K', threatSourceId: 'mission-mission-parity' };
+  listener.callbacks[0]?.({ metadata: { fromCache: false }, exists: () => true, data: () => window });
+  expect(onWindow).toHaveBeenLastCalledWith(window);
+  listener.callbacks[0]?.({ metadata: { fromCache: false }, exists: () => true,
+    data: () => ({ ...window, revision: 2, threatSourceId: 'arrival-forged' }) });
+  expect(onWindow).toHaveBeenLastCalledWith(null);
+});
+
 it('allows equal revision updates, clears deletion, and resets ordering only on a new subscription', () => {
   const first = captureSessionListener();
   const onWindow = vi.fn();

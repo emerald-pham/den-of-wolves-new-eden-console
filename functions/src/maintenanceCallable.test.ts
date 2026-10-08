@@ -917,6 +917,18 @@ it('applies environmental damage casualties and threshold consequences in the ma
   ]);
 });
 
+it('consumes the entitled I1 suppression in the registered maintenance handler without drawing Ion damage', async () => {
+  setEnvironmentalHistoryAuthority();
+  mock.navigation = { ...environmentalNavigation('1096'), missionNebulaBenefitsByShip: {
+    aegis: { missionId: 'mission-parity', coordinate: '1096', suppressMaintenanceDamage: true, freeExitFuel: false },
+  } };
+  mock.randomInt.mockReturnValue(6);
+  await expect(runMaintenance.run(request({ ...data, requestId: 'maintenance-ion-reward' }))).resolves.toMatchObject({
+    result: { damage: { damagedSystemIds: [], destroyed: false } },
+  });
+  expect(mock.set.mock.calls.some(([path]) => String(path).startsWith('sessions/s1/damageDraws/'))).toBe(false);
+});
+
 it('records a below-threshold Ion Nebula check without drawing damage', async () => {
   setEnvironmentalHistoryAuthority();
   mock.navigation = environmentalNavigation('1096');

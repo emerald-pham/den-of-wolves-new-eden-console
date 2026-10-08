@@ -47,6 +47,7 @@ function renderPanel(overrides: Record<string, unknown> = {}) {
     exploreSystems: vi.fn().mockResolvedValue(undefined),
     resolve: vi.fn().mockResolvedValue(undefined),
     dropOff: vi.fn().mockResolvedValue(undefined),
+    chooseRewardTargets: vi.fn().mockResolvedValue(undefined),
   };
   const props = {
     actorUid: 'bob',
@@ -62,6 +63,41 @@ function renderPanel(overrides: Record<string, unknown> = {}) {
 }
 
 describe('AwayMissionLifecyclePanel', () => {
+  it('keeps reward drop-off unavailable until the leader has selected the pending printed targets', () => {
+    renderPanel({ actorUid: 'alice', isMissionLeader: true,
+      publicState: { ...basePublicMission, phase: 'resolved', status: 'resolved', siteCode: 'C' },
+      privateState: { ...privateHand, participantUid: 'alice', phase: 'resolved',
+        rewardOptions: [{ opportunityId: 'C-2', researchTracks: [{ trackId: 'reactor', name: 'Reactor' }], researchSelections: 1, consoleActions: [], consoleTargets: [] }], rewardChoices: [] },
+    });
+    expect(screen.getByRole('button', { name: 'Drop mission rewards at selected ship' })).toBeDisabled();
+  });
+  it('lets the recipient choose a research target privately before the custody transition', async () => {
+    const actions = renderPanel({ actorUid: 'alice', isMissionLeader: true,
+      publicState: { ...basePublicMission, siteCode: 'C', status: 'resolved', phase: 'resolved' },
+      privateState: { ...privateHand, participantUid: 'alice', phase: 'resolved', cards: [],
+        rewardOptions: [{ opportunityId: 'C-2', researchTracks: [{ trackId: 'reactor', name: 'Reactor' }],
+          researchSelections: 1, consoleActions: [], consoleTargets: [] }], rewardChoices: [] },
+    });
+    fireEvent.change(screen.getByLabelText('Research target 1 for C-2'), { target: { value: 'reactor' } });
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Select reward targets C-2' })));
+    expect(actions.chooseRewardTargets).toHaveBeenCalledWith('C-2', { kind: 'research', trackIds: ['reactor'] });
+    expect(actions.dropOff).not.toHaveBeenCalled();
+  });
+  it('lets a leader grant an extra card from the private admitted roster without a prior request', async () => {
+    const actions = renderPanel({ actorUid: 'alice', isMissionLeader: true,
+      publicState: { ...basePublicMission, phase: 'awaiting-card-selection', requestCounts: [] },
+      privateState: { ...privateHand, participantUid: 'alice', phase: 'awaiting-card-selection',
+        extraCardRecipientUids: ['alice', 'bob'], cards: [{ id: 'A♥', value: 10, status: 'remaining', opportunityId: null }] },
+    });
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Participant for extra card'), { target: { value: 'bob' } });
+      fireEvent.change(screen.getByLabelText('Opportunity for blind extra card'), { target: { value: 'D-1' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Distribute one card blindly' }));
+    });
+    expect(actions.distributeExtraCard).toHaveBeenCalledWith('bob', 'D-1');
+    expect(screen.queryByText(/requested \d/)).not.toBeInTheDocument();
+    expect(screen.queryByText('4♥')).not.toBeInTheDocument();
+  });
   it('does not offer an already committed empty assignment again while others finish', () => {
     renderPanel({ publicState: { ...basePublicMission, phase: 'assigning' },
       privateState: { ...privateHand, phase: 'assigning', assignmentCommitted: true,

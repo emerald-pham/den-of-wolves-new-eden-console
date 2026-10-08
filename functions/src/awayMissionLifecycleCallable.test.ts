@@ -4,6 +4,13 @@ import { awayMissionHandId } from './awayMissionCards';
 import { missionDeck, missionDeckStateFromCards } from './missionDeck';
 import { nextMissionCraftCommitments } from './missionCraftCommitment';
 import { createAwayMissionLifecycleCallables } from './awayMissionLifecycleCallable';
+import type { Firestore } from 'firebase-admin/firestore';
+import { prepareResolvedMissionConsequences, prepareMissionRewardConsequences, validateMissionRewardChoice,
+  requireLiveMissionWolfSource } from './missionConsequences';
+import { missionRewardConsoleTargets, planMissionRewardDelivery } from './missionRewardDelivery';
+import { organiserSitesForChart } from './starChartLookup';
+import { endeavourResearchTrack } from './endeavourResearch';
+import { resolveEndeavourResearchChoice } from './endeavourResearchCadence';
 
 type Fields = Record<string, unknown>;
 type Write = Readonly<{ kind: 'set' | 'create' | 'update'; path: string; data: Fields }>;
@@ -25,6 +32,80 @@ const MISSION_ID = `mission-${OPPORTUNITY_ID}`;
 const ALICE_CARD = 'A♥';
 const BOB_CARD = '4♥';
 const EXTRA_CARD = '10♦';
+
+// Retained-parity regressions exercise the callable from its original private deal.
+it('accepts Warrior reclamation of a science opportunity and consumes the complete hand privately', async () => {
+  const store = seededStore({ warrior: true, siteCode: 'D' });
+  const commit = dependencies(store).commitAwayMissionLifecycleCommand;
+  await commit(commandRequest('gm', { type: 'openDiscards', instanceId: 'gm-instance', requestId: 'open-any', expectedRevision: 0 }));
+  const request = commandRequest('bob', { type: 'reclamatorSalvage', requestId: 'claim-science', expectedRevision: 1,
+    opportunityId: 'D-3', choices: [{ cardId: BOB_CARD, resource: 'water' }] });
+  store.retryCallbacks = 2;
+  const reply = await commit(request);
+  expect(reply.status).toBe('committed');
+  expect(reply.privateState?.reclamatorSalvage).toEqual({ opportunityId: 'D-3', choices: [{ cardId: BOB_CARD, resource: 'water' }] });
+  expect(reply.privateState?.cards).toEqual([{ id: BOB_CARD, value: 4, status: 'discarded', opportunityId: null }]);
+  expect(store.records.get(paths().mission)?.lifecycleRecord.reclamatorSalvages).toEqual([
+    { participantUid: 'bob', opportunityId: 'D-3', cardIds: [BOB_CARD], choices: [{ cardId: BOB_CARD, resource: 'water' }], resources: { materials: 1, water: 1 } },
+  ]);
+  expect(JSON.stringify(reply.publicState)).not.toMatch(/4♥|choices|cardIds|canUseReclamator/);
+  const writes = store.committedWrites.length;
+  expect((await commit(request)).status).toBe('replayed');
+  expect(store.committedWrites).toHaveLength(writes);
+});
+
+it('durably excludes ordinary assignment to a reclaimed opportunity and keeps the losing hand unchanged', async () => {
+  const store = seededStore({ warrior: true, siteCode: 'D' });
+  const commit = dependencies(store).commitAwayMissionLifecycleCommand;
+  const send = (uid: string, type: string, fields: Fields = {}) => commit(commandRequest(uid, {
+    type, requestId: `${type}-${currentRevision(store)}`, expectedRevision: currentRevision(store), ...fields,
+    ...(type === 'openDiscards' ? { instanceId: 'gm-instance' } : {}),
+  }));
+  await send('alice', 'requestExtraCards', { count: 1 });
+  await send('alice', 'distributeExtraCard', { participantUid: 'alice', opportunityId: 'D-1' });
+  await send('gm', 'openDiscards');
+  const claimRevision = currentRevision(store);
+  await send('bob', 'reclamatorSalvage', { opportunityId: 'D-1', choices: [{ cardId: BOB_CARD, resource: 'food' }] });
+  expect((await commit(commandRequest('bob', { type: 'reclamatorSalvage', requestId: 'competing-claim', expectedRevision: claimRevision,
+    opportunityId: 'D-2', choices: [{ cardId: BOB_CARD, resource: 'water' }] }))).status).toBe('stale');
+  await send('alice', 'discardCard', { cardId: ALICE_CARD });
+  const writes = store.committedWrites.length;
+  const hand = structuredClone(store.records.get(paths().aliceHand));
+  await expect(send('alice', 'assignCards', { placements: [{ cardId: EXTRA_CARD, opportunityId: 'D-1' }] }))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(store.committedWrites).toHaveLength(writes);
+  expect(store.records.get(paths().aliceHand)).toEqual(hand);
+  const accepted = await send('alice', 'assignCards', { placements: [{ cardId: EXTRA_CARD, opportunityId: 'D-2' }] });
+  expect(accepted.publicState.status).toBe('resolved');
+  expect(accepted.publicState.outcomes?.find(({ opportunityId }) => opportunityId === 'D-1')?.contributorCount).toBe(0);
+  expect(accepted.publicState.specialRewards).toEqual([{ opportunityId: 'D-1', resources: { materials: 1, food: 1 } }]);
+  expect(JSON.stringify(accepted.publicState)).not.toMatch(/10♦|4♥|choices|cardIds/);
+});
+
+it('lets the leader grant a blind extra without a request while retaining slot, pool and actor limits', async () => {
+  const store = seededStore({ siteCode: 'K' });
+  const commit = dependencies(store).commitAwayMissionLifecycleCommand;
+  const request = commandRequest('alice', { type: 'distributeExtraCard', requestId: 'unrequested-grant', expectedRevision: 0,
+    participantUid: 'bob', opportunityId: 'K-1' });
+  store.retryCallbacks = 1;
+  const reply = await commit(request);
+  expect(reply.status).toBe('committed');
+  expect(reply.publicState.requestCounts).toEqual([]);
+  expect(reply.privateState?.cards.map(({ id }) => id)).toEqual([ALICE_CARD]);
+  expect(store.records.get(paths().bobHand)?.lifecyclePrivateState.cards.map(({ id }: { id: string }) => id)).toEqual([BOB_CARD, EXTRA_CARD]);
+  expect(JSON.stringify(reply)).not.toContain(EXTRA_CARD);
+  const writes = store.committedWrites.length;
+  expect((await commit(request)).status).toBe('replayed');
+  expect(store.committedWrites).toHaveLength(writes);
+  await expect(commit(commandRequest('alice', { type: 'distributeExtraCard', requestId: 'same-slot', expectedRevision: 1,
+    participantUid: 'bob', opportunityId: 'K-1' }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  await expect(commit(commandRequest('bob', { type: 'distributeExtraCard', requestId: 'foreign-grant', expectedRevision: 1,
+    participantUid: 'alice', opportunityId: 'K-1' }))).rejects.toMatchObject({ code: 'permission-denied' });
+  const noStock = seededStore({ siteCode: 'K' });
+  noStock.records.set(paths().deck, { ...noStock.records.get(paths().deck)!, dealtCount: 33, resolvedDiscardCardIds: [] });
+  await expect(dependencies(noStock).commitAwayMissionLifecycleCommand(request)).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(noStock.committedWrites).toHaveLength(0);
+});
 
 function pathSet(target: Fields, dottedPath: string, value: unknown): void {
   const parts = dottedPath.split('.');
@@ -228,7 +309,7 @@ function seededStore(options: { readonly warrior?: boolean; readonly siteCode?: 
   return store;
 }
 
-function dependencies(store: FakeStore, options: { readonly d6?: number; readonly prepareRewardDelivery?: (context: unknown) => Promise<() => void>; readonly prepareExplorationApplication?: (context: unknown) => Promise<() => void> } = {}) {
+function dependencies(store: FakeStore, options: { readonly integrateConsequences?: boolean; readonly d6?: number; readonly prepareRewardDelivery?: (context: unknown) => Promise<() => void>; readonly prepareExplorationApplication?: (context: unknown) => Promise<() => void> } = {}) {
   let randomCalls = 0;
   let d6Calls = 0;
   const db = store;
@@ -271,13 +352,32 @@ function dependencies(store: FakeStore, options: { readonly d6?: number; readonl
       return () => (transaction as Transaction).update(store.doc(paths().session), { missionCraftCommitments: commitments });
     },
     prepareExplorationApplication: options.prepareExplorationApplication ?? (async () => () => undefined),
-    prepareRewardDelivery: options.prepareRewardDelivery ?? (async () => () => undefined),
+    prepareRewardDelivery: options.prepareRewardDelivery ?? (options.integrateConsequences ? async (context) => {
+      const consequences = await prepareMissionRewardConsequences(store as unknown as Firestore, context);
+      const resources = context.session.get('shipResources') as Fields;
+      const delivery = planMissionRewardDelivery({ shipId: context.shipId, inventory: resources[context.shipId], population: 0, minerals: 0,
+        rewards: context.nextRecord.rewards ?? [], specialRewards: context.nextRecord.specialRewards ?? [] });
+      if (!delivery) throw new Error('Invalid numeric delivery.');
+      return () => {
+        consequences.commit();
+        (context.transaction as Transaction).update(store.doc(paths().session), { ...consequences.sessionPatch, [`shipResources.${context.shipId}`]: delivery.inventory });
+        (context.transaction as Transaction).create(store.doc(`sessions/${SESSION_ID}/serverState/missionRewardDeliveries/receipts/${MISSION_ID}`),
+          { missionId: MISSION_ID, ...consequences.receiptFields });
+      };
+    } : async () => () => undefined),
+    ...(options.integrateConsequences ? {
+      prepareResolvedConsequences: (context: Parameters<typeof prepareResolvedMissionConsequences>[1]) =>
+        prepareResolvedMissionConsequences(store as unknown as Firestore, context),
+      validateRewardChoice: validateMissionRewardChoice,
+    } : {}),
     deriveContext: async ({ session }) => {
       const turnPhase = session.get('turnPhase') as Fields | undefined;
       return {
         currentCycle: session.get('currentTurn') as number,
         teamPhase: turnPhase?.phase === 'team',
-        legalDropOffShipIds: ['aegis'],
+        legalDropOffShipIds: options.integrateConsequences ? ['aegis', 'refinery-124'] : ['aegis'],
+        ...(options.integrateConsequences ? { currentGroupId: 'fleet-1',
+          rewardConsoleTargets: missionRewardConsoleTargets(['aegis', 'refinery-124'], session.get('shipUpgrades'), session.get('shipDamage')) } : {}),
         bonusSources: [],
       };
     },
@@ -298,6 +398,110 @@ const commandRequest = (uid: string, data: Fields) => ({ auth: { uid }, data: { 
 function currentRevision(store: FakeStore): number {
   return store.records.get(paths().mission)?.revision as number;
 }
+
+function consequenceStore(siteCode: string): FakeStore {
+  const store = seededStore({ siteCode });
+  const coordinate = Object.entries(organiserSitesForChart('A')).find(([, site]) => site.code === siteCode)![0];
+  for (const [path, fields] of store.records) if (fields.coordinate !== undefined) store.records.set(path, { ...fields, coordinate });
+  const p = paths();
+  const initial = store.records.get(p.session)!;
+  const inventory = { ore: 0, fuel: 0, food: 0, water: 0, materials: 0, securityTeams: 0 };
+  store.records.set(p.session, { ...initial, chartId: 'A', chartSelectionLocked: true, activeVesselIds: ['aegis', 'refinery-124'],
+    shipResources: { aegis: { ...inventory }, 'refinery-124': { ...inventory } }, shipUpgrades: {},
+    shipDamage: { 'refinery-124': { damagedSystemIds: ['reactor', 'jump-drive'], destroyed: false } } });
+  store.records.set(`sessions/${SESSION_ID}/serverState/navigation`, { revision: 2,
+    shipGalacticCoordinates: { aegis: coordinate, 'refinery-124': coordinate }, shipNavigationLogs: {}, pursuitGroups: { 'fleet-1': 2 } });
+  const ids = [ALICE_CARD, BOB_CARD, '10♦', 'A♦', '9♥'];
+  store.records.set(p.deck, { ...missionDeckStateFromCards([...ids.map(id => missionDeck().find(card => card.id === id)!),
+    ...missionDeck().filter(card => !ids.includes(card.id))]), dealtCount: 2 });
+  return store;
+}
+
+async function resolveConsequences(siteCode: string, opportunityId: string, contributors = 2, d6 = 6) {
+  const store = consequenceStore(siteCode);
+  const callables = dependencies(store, { integrateConsequences: true, d6 });
+  let sequence = 0;
+  const send = (uid: string, type: string, fields: Fields = {}) => callables.commitAwayMissionLifecycleCommand(commandRequest(uid, {
+    type, requestId: `consequence-${++sequence}`, expectedRevision: currentRevision(store), ...fields,
+    ...(uid === 'gm' ? { instanceId: 'gm-instance' } : {}),
+  }));
+  for (const uid of ['alice', 'bob'].slice(0, contributors)) await send('alice', 'distributeExtraCard', { participantUid: uid, opportunityId });
+  await send('gm', 'openDiscards');
+  await send('alice', 'discardCard', { cardId: ALICE_CARD });
+  await send('bob', 'discardCard', { cardId: BOB_CARD });
+  await send('alice', 'assignCards', { placements: contributors > 0 ? [{ cardId: '10♦', opportunityId }] : [] });
+  await send('bob', 'assignCards', { placements: contributors > 1 ? [{ cardId: 'A♦', opportunityId }] : [] });
+  expect(store.records.get(paths().mission)?.status).toBe('resolved');
+  return { store, send, callables };
+}
+
+it.each([['C', 'C-2', ['reactor'], { reactor: 1 }], ['H', 'H-2', ['reactor', 'reactor'], { reactor: 2 }],
+  ['H', 'H-3', ['jump-drive'], { 'jump-drive': 4 }]] as const)('settles %s %s through the production consequence callback and private callable', async (site, opportunityId, trackIds, progress) => {
+  const { store, send } = await resolveConsequences(site, opportunityId);
+  await expect(send('alice', 'dropOff', { shipId: 'aegis' })).rejects.toMatchObject({ code: 'failed-precondition' });
+  await send('alice', 'chooseRewardTargets', { opportunityId, choice: { kind: 'research', trackIds } });
+  store.retryCallbacks = 2; store.loseNextAcknowledgement = true;
+  await expect(send('alice', 'dropOff', { shipId: 'aegis' })).rejects.toThrow(/lost acknowledgement/);
+  expect(store.records.get(`sessions/${SESSION_ID}/serverState/endeavourResearch`)).toEqual(progress);
+  expect(store.records.get(`sessions/${SESSION_ID}/serverState/endeavourResearchCadence`)).toEqual({ cycle: 3, revision: 1, choices: [] });
+  expect(store.records.get(paths().mission)?.status).toBe('complete');
+  if (site === 'C') {
+    expect(endeavourResearchTrack(progress, 'reactor')).toMatchObject({ crossedBoxes: 2, currentMaterialCost: 7 });
+    expect(resolveEndeavourResearchChoice({ state: store.records.get(`sessions/${SESSION_ID}/serverState/endeavourResearchCadence`),
+      progress, cycle: 3, expectedRevision: 1, trackId: 'reactor', funding: 'standard', shepherdOre: 10,
+      actorScope: 'player', turnPhase: { turn: 3, teamPhaseEndsAt: '2099-10-08T10:00:00Z', openAirspaceEndsAt: '2099-10-08T10:15:00Z',
+        airspace: { state: 'restricted', tickerActive: true, pressAccess: false } } })).toMatchObject({ progress: { reactor: 2 },
+      state: { revision: 2, choices: [{ trackId: 'reactor', funding: 'standard', oreCost: 0 }] } });
+  }
+});
+
+it.each([['F', 'F-3', 'upgrade', [{ shipId: 'refinery-124', systemId: 'fuel-refinery' }]],
+  ['F', 'F-3', 'repair', [{ shipId: 'refinery-124', systemId: 'reactor' }, { shipId: 'refinery-124', systemId: 'jump-drive' }]],
+  ['G', 'G-3', 'upgrade', [{ shipId: 'aegis', systemId: 'reactor' }]],
+  ['L', 'L-3', 'upgrade', [{ shipId: 'aegis', systemId: 'point-defence-lasers' }, { shipId: 'aegis', systemId: 'missile-launchers' }]],
+  ['M', 'M-3', 'upgrade', [{ shipId: 'aegis', systemId: 'point-defence-lasers' }, { shipId: 'aegis', systemId: 'missile-launchers' }, { shipId: 'aegis', systemId: 'command-and-control' }]]] as const)(
+  'applies %s %s %s in the production delivery callback without a purchase', async (site, opportunityId, action, targets) => {
+    const { store, send } = await resolveConsequences(site, opportunityId);
+    await send('alice', 'chooseRewardTargets', { opportunityId, choice: { kind: 'consoles', action, targets } });
+    store.retryCallbacks = 1;
+    await send('alice', 'dropOff', { shipId: 'aegis' });
+    const session = store.records.get(paths().session)!;
+    for (const target of targets) {
+      if (action === 'upgrade') expect(session.shipUpgrades[target.shipId]).toContain(target.systemId);
+      else expect(session.shipDamage[target.shipId].damagedSystemIds).not.toContain(target.systemId);
+    }
+    // This fixture includes a Capybara contributor: retain its printed +1 bulk-haulage reward.
+    expect(session.shipResources.aegis.materials).toBe(site === 'G' ? 7 : 0);
+  });
+
+it.each(['I-1', 'I-2', 'I-3'])('applies %s through actual automatic resolution and retains retry atomicity', async opportunityId => {
+  const { store } = await resolveConsequences('I', opportunityId);
+  if (opportunityId === 'I-3') expect(store.records.get(`sessions/${SESSION_ID}/serverState/endeavourResearch`))
+    .toEqual({ 'ecm-device': 4, 'jump-drive': 4 });
+  else expect(store.records.get(`sessions/${SESSION_ID}/serverState/navigation`)).toMatchObject({ revision: 3,
+    missionNebulaBenefitsByShip: { aegis: { missionId: MISSION_ID, coordinate: '1096',
+      suppressMaintenanceDamage: opportunityId === 'I-1', freeExitFuel: opportunityId === 'I-2' } } });
+  expect(store.records.get(paths().session)).not.toHaveProperty('missionNebulaBenefitsByShip');
+});
+
+it.each([[6, 1, true, 'failure'], [3, 1, true, 'success'], [2, 1, false, 'critical-success'], [2, 2, false, 'critical-success'], [2, 0, false, 'automatic-failure']] as const)(
+  'produces source-bound K pressure from an actual attempt only (%s, %s)', async (d6, contributors, scheduled, outcome) => {
+    const { store } = await resolveConsequences('K', 'K-1', contributors, d6);
+    expect(store.records.get(paths().mission)!.lifecycleRecord.outcomes.find((result: { opportunityId: string }) => result.opportunityId === 'K-1'))
+      .toMatchObject({ contributorCount: contributors, outcome });
+    const pressure = store.records.get(`sessions/${SESSION_ID}/wolfAttackPressure/mission-${MISSION_ID}`);
+    if (!scheduled) { expect(pressure).toBeUndefined(); return; }
+    const mission = store.records.get(paths().mission)!;
+    expect(pressure).toMatchObject({ siteCode: 'K', status: 'scheduled', arrivalTiming: 'immediate', resolutionRequestId: mission.lifecycleRecord.resolutionRequestId });
+    const input = { sessionId: SESSION_ID, sourceId: `mission-${MISSION_ID}`, currentCycle: 3, chart: 'A' as const,
+      group: { id: 'fleet-1', vesselIds: ['aegis', 'refinery-124'], memberUids: ['alice', 'bob'] },
+      activeVesselIds: ['aegis', 'refinery-124'], mission, pressure };
+    expect(requireLiveMissionWolfSource(input)).toEqual(pressure);
+    expect(() => requireLiveMissionWolfSource({ ...input, group: { ...input.group, id: 'fleet-2' } })).toThrow();
+    expect(() => requireLiveMissionWolfSource({ ...input, pressure: { ...pressure, resolutionRequestId: 'foreign-attempt' } })).toThrow();
+    expect(() => requireLiveMissionWolfSource({ ...input, pressure: { ...pressure, status: 'declared' } })).toThrow();
+    expect(JSON.stringify(pressure)).not.toMatch(/secretD6|difficulty|cardTotal|cardId/);
+  });
 
 it('bootstraps only from the exact P403 record, atomically projects a participant-safe state, and returns only the caller’s hand', async () => {
   const store = seededStore();

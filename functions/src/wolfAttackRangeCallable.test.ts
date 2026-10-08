@@ -5,6 +5,7 @@ import { wolfThreatComposition } from './wolfThreatProtocol';
 import { CORE_WOLF_TARGET_RING, EXPANDED_WOLF_TARGET_RING } from './wolfCombatMath';
 import { resolveLockedWolfRange, resolveWolfRange, resolveWolfTargeting, wolfCombatRoster } from './wolfCombatMath';
 import { projectWolfAttackMemberView } from './wolfAttackAudience';
+import { resolvedWolfAttackForCarryover } from './wolfAttackCarryover';
 
 type Fields = Record<string, unknown>;
 
@@ -1455,6 +1456,33 @@ function openBoardingFixture(targetingReceipt = targeting): void {
     boardingDefenceChoices: {},
   });
 }
+
+it('accepts a bound K attempt only after actual boarding finalization in the same cycle', async () => {
+  openBoardingFixture();
+  const declared = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  put('sessions/s1/wolfAttackState/current', { ...declared, announcementId: declared.attackId, attackNumber: 1 });
+  await commitWolfBoardingDefenceChoice.run(request({ sessionId: 's1', requestId: 'boarding-k-prior', expectedTurn: 1,
+    expectedRevision: 10, targetShipId: 'aegis', securityTeams: 2 }));
+  await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
+  await commitWolfBoardingSpecialChoice.run(request({ sessionId: 's1', requestId: 'boarding-k-aegis-pass', expectedTurn: 1,
+    expectedRevision: 12, choice: { kind: 'reroll', source: 'aegis', targetShipId: 'aegis', dieIndexes: [] } }));
+  await commitWolfBoardingSpecialChoice.run(request({ sessionId: 's1', requestId: 'boarding-k-pallas-pass', expectedTurn: 1,
+    expectedRevision: 13, choice: { kind: 'reroll', source: 'pallas', targetShipId: 'aegis', dieIndexes: [] } }));
+  await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
+  const state = testState.documents.get('sessions/s1/wolfAttackState/current')!;
+  const audit = testState.documents.get('sessions/s1/wolfAttackState/current/audit/wolf-finalized-1')!;
+  expect(state).toMatchObject({ status: 'resolved', currentStep: 'resolved', airspaceLocked: false });
+  expect(resolvedWolfAttackForCarryover(state, audit, 2)).toMatchObject({ attackId: state.attackId, attackNumber: 1 });
+  const context = { type: 'mission-k', sourceId: 'mission-mission-parity', missionId: 'mission-parity',
+    resolutionRevision: 10, resolutionRequestId: 'assign-final-k', sourceCycle: 1, groupId: 'fleet-1',
+    parentAttackId: state.attackId, nextAttackNumber: 2 };
+  const read = resolvedWolfAttackForCarryover as (...args: unknown[]) => { attackId: string; attackNumber: number };
+  expect(read(state, audit, 1, context)).toMatchObject({ attackId: state.attackId, attackNumber: 1 });
+  expect(() => resolvedWolfAttackForCarryover(state, audit, 1)).toThrow(/verifiable finalized/i);
+  expect(() => read(state, { ...audit, attackId: 'wolf-attack-foreign' }, 1, context)).toThrow();
+  expect(() => read(state, audit, 1, { ...context, parentAttackId: 'wolf-attack-foreign' })).toThrow();
+  expect(() => read(state, audit, 1, { ...context, sourceCycle: 2 })).toThrow();
+});
 
 it('commits only the target ship crew boarding choice, reserves teams, then auto-resolves and reopens once', async () => {
   openBoardingFixture();

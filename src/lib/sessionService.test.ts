@@ -468,6 +468,15 @@ describe('GM Wolf threat source options service', () => {
     expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'getWolfAttackThreatWindowOptions');
     expect(call).toHaveBeenCalledWith({ sessionId: 's1', instanceId: 'gm-1', targetGroupId: 'fleet-2' });
   });
+  it('retains a scheduled K mission source in the existing GM options reader', async () => {
+    const result = { type: 'wolf-attack-threat-window-options', sessionId: 's1', targetGroupId: 'fleet-2', cycle: 3,
+      sources: [{ siteCode: 'K', sourceId: 'mission-mission-parity', sourceCycle: 3, coordinate: '6931' }] };
+    vi.mocked(httpsCallable).mockReturnValue(callableReturning({ data: result }) as never);
+    await expect(getWolfAttackThreatWindowOptions('fleet-2')).resolves.toEqual(result);
+    vi.mocked(httpsCallable).mockReturnValue(callableReturning({ data: { ...result,
+      sources: [{ ...result.sources[0], sourceId: 'arrival-forged' }] } }) as never);
+    await expect(getWolfAttackThreatWindowOptions('fleet-2')).rejects.toThrow(/invalid.*threat source options/i);
+  });
 
   it('rejects malformed or cross-group source options', async () => {
     vi.mocked(httpsCallable).mockReturnValue(callableReturning({ data: {
@@ -3282,6 +3291,19 @@ describe('GM instance commands', () => {
       requestId: expect.any(String), status: 'due',
     }));
     expect(useSessionStore.getState().session).not.toHaveProperty('wolfAttackWindow');
+  });
+  it('retains the server-confirmed K source when choosing its private timing window', async () => {
+    useSessionStore.getState().setIdentity({ ...session, phase: 'active', currentTurn: 2 }, { ...player, role: 'gm' });
+    useSessionStore.getState().setGmInstance({ id: 'instance-1', sessionId: 's1', uid: 'u1', name: 'Bridge laptop',
+      deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z' });
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+    const source = { targetGroupId: 'fleet-1', threatSiteCode: 'K', threatSourceId: 'mission-mission-parity' };
+    const window = { status: 'due', turn: 2, revision: 3, ...source };
+    const callable = callableReturning({ data: window });
+    vi.mocked(httpsCallable).mockReturnValue(callable);
+    await expect(setWolfAttackWindow('due', 2, source as never)).resolves.toEqual(window);
+    expect(callable).toHaveBeenCalledWith(expect.objectContaining(source));
   });
 
   it('advances only the revision-bound private Wolf stage through the current GM instance', async () => {

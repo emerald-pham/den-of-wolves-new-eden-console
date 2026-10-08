@@ -46,6 +46,7 @@ const mock = vi.hoisted(() => ({
   systemHistory: {} as Record<string, unknown>,
   scoutedCoordinatesByShip: {} as Record<string, string[]>,
   missionExploredCoordinatesByUid: {} as Record<string, string[]>,
+  missionNebulaBenefitsByShip: {} as Record<string, unknown>,
   pursuitGroups: { 'fleet-1': 2 } as Record<string, number>,
   fleetGroups: [{
     id: 'fleet-1',
@@ -242,6 +243,7 @@ beforeEach(() => {
   mock.systemHistory = {};
   mock.scoutedCoordinatesByShip = {};
   mock.missionExploredCoordinatesByUid = {};
+  mock.missionNebulaBenefitsByShip = {};
   mock.pursuitGroups = { 'fleet-1': 2 };
   mock.fleetGroups = [{
     id: 'fleet-1',
@@ -490,6 +492,7 @@ beforeEach(() => {
         ...(protectedPursuitWindow ? { pursuitEmergencyWindow: protectedPursuitWindow } : {}),
         revision: mock.navigationRevision,
         missionExploredCoordinatesByUid: mock.missionExploredCoordinatesByUid,
+        missionNebulaBenefitsByShip: mock.missionNebulaBenefitsByShip,
       };
       return {
         exists: true, id: 'navigation', ref: { path },
@@ -1076,6 +1079,77 @@ it('creates an Unstable Star opportunity again in a later cycle without duplicat
   }))).resolves.not.toHaveProperty('missionOpportunityId');
   expect(mock.set.mock.calls.some(([path]) =>
     String(path).startsWith('sessions/s1/missionOpportunities/'))).toBe(false);
+});
+
+it('redeems protected I2 free exit through the registered jump handler and removes only the departing ship benefit', async () => {
+  mock.coordinate = '1096';
+  mock.coordinates = { dione: '1096' };
+  mock.fuel = 0;
+  const benefit = { missionId: 'mission-parity', coordinate: '1096', suppressMaintenanceDamage: true, freeExitFuel: true };
+  mock.missionNebulaBenefitsByShip = { aegis: benefit, dione: benefit };
+  await expect(jumpShip.run(request({ ...data, requestId: 'nebula-exit-parity', destination: '0000' })))
+    .resolves.toMatchObject({ status: 'jumped', fuelCost: 0, remainingFuel: 0 });
+  expect(mock.set).toHaveBeenCalledWith('sessions/s1/serverState/navigation', expect.objectContaining({
+    missionNebulaBenefitsByShip: { dione: benefit },
+  }));
+});
+
+it.each(['drive-failure', 'fuel-shortage'] as const)(
+  'waives only the entitled I2 departure debit in actual GM adjudication after a real %s', async failureKind => {
+    mock.coordinate = '1096'; mock.coordinates = { dione: '1096' };
+    mock.fuel = failureKind === 'fuel-shortage' ? 1 : 10;
+    if (failureKind === 'drive-failure') {
+      mock.damage = { aegis: { damagedSystemIds: ['jump-drive'], destroyed: false } };
+      mock.randomInt.mockReturnValue(1);
+    }
+    const destination = failureKind === 'fuel-shortage'
+      ? Array.from({ length: 10_000 }, (_, value) => String(value).padStart(4, '0'))
+        .find(coordinate => jumpLengthBetween('1096', coordinate) === 'long')!
+      : '0000';
+    const failed = await jumpShip.run(request({ ...data, requestId: `i2-before-${failureKind}`, destination }));
+    expect(failed).toMatchObject({ status: failureKind, revision: 0 });
+    const record = mock.set.mock.calls.find(([path]) => path === `sessions/s1/jumpFailures/i2-before-${failureKind}`)![1];
+    mock.jumpFailures = { [`i2-before-${failureKind}`]: record }; mock.jumpStates = { aegis: failed.state };
+    const benefit = { missionId: 'mission-parity', coordinate: '1096', suppressMaintenanceDamage: true, freeExitFuel: true };
+    mock.missionNebulaBenefitsByShip = { aegis: benefit, dione: benefit };
+    mock.set.mockClear(); mock.update.mockClear(); mock.randomInt.mockReturnValue(1);
+    await expect(adjudicateFailedJump.run(request({ sessionId: 's1', instanceId: 'bridge', requestId: `i2-adjudicate-${failureKind}`,
+      expectedRevision: 0, failureRequestId: `i2-before-${failureKind}`, destination: '0000',
+      consequence: failureKind === 'fuel-shortage' ? 'half-d6-damage' : 'wrong-location-half-d6-damage' })))
+      .resolves.toMatchObject({ status: 'jumped', fuelSpent: 0, remainingFuel: mock.fuel, damageCount: 0 });
+    expect(mock.set).toHaveBeenCalledWith('sessions/s1/serverState/navigation', expect.objectContaining({ missionNebulaBenefitsByShip: { dione: benefit } }));
+  });
+
+it('preserves the distinct emergency all-fuel penalty while expiring only the departed nebula grant', async () => {
+  mock.coordinate = '1096'; mock.coordinates = { dione: '1096' };
+  mock.fuel = 10;
+  mock.damage = { aegis: { damagedSystemIds: ['jump-drive'], destroyed: false } }; mock.randomInt.mockReturnValue(1);
+  const failed = await jumpShip.run(request({ ...data, requestId: 'i2-before-emergency', destination: '0000' }));
+  expect(failed).toMatchObject({ status: 'drive-failure', revision: 0 });
+  const record = mock.set.mock.calls.find(([path]) => path === 'sessions/s1/jumpFailures/i2-before-emergency')![1];
+  mock.jumpFailures = { 'i2-before-emergency': record }; mock.jumpStates = { aegis: failed.state };
+  const benefit = { missionId: 'mission-parity', coordinate: '1096', suppressMaintenanceDamage: true, freeExitFuel: true };
+  mock.missionNebulaBenefitsByShip = { aegis: benefit, dione: benefit };
+  mock.set.mockClear(); mock.update.mockClear();
+  await expect(jumpShip.run(request({ ...data, requestId: 'i2-emergency-penalty', destination: '0000', emergency: true,
+    failureRequestId: 'i2-before-emergency' })))
+    .resolves.toMatchObject({ status: 'jumped', emergency: true, fuelCost: 10, fuelSpent: 10, remainingFuel: 0,
+      state: { emergencyJumpUsed: true } });
+  expect(mock.set).toHaveBeenCalledWith('sessions/s1/serverState/navigation', expect.objectContaining({ missionNebulaBenefitsByShip: { dione: benefit } }));
+});
+
+it('expires a GM-moved nebula grant and preserves its absence after an actual return to Ion', async () => {
+  mock.coordinate = '1096'; mock.coordinates = { dione: '1096' };
+  const benefit = { missionId: 'mission-parity', coordinate: '1096', suppressMaintenanceDamage: true, freeExitFuel: true };
+  mock.missionNebulaBenefitsByShip = { aegis: benefit, dione: benefit };
+  await moveShipToLocation.run(request({ ...data, requestId: 'i2-gm-departure', destination: '0000' }));
+  const departure = mock.set.mock.calls.find(([path]) => path === 'sessions/s1/serverState/navigation')![1];
+  expect(departure.missionNebulaBenefitsByShip).toEqual({ dione: benefit });
+  mock.coordinate = '0000'; mock.coordinates = departure.shipGalacticCoordinates;
+  mock.missionNebulaBenefitsByShip = departure.missionNebulaBenefitsByShip; mock.navigationLogs = departure.shipNavigationLogs;
+  mock.navigationRevision = departure.revision; mock.set.mockClear(); mock.update.mockClear();
+  await moveShipToLocation.run(request({ ...data, requestId: 'i2-gm-return', destination: '1096' }));
+  expect(mock.set).toHaveBeenCalledWith('sessions/s1/serverState/navigation', expect.objectContaining({ missionNebulaBenefitsByShip: { dione: benefit } }));
 });
 
 it('does not duplicate a legacy Unstable Star opportunity during its deployment cycle', async () => {
