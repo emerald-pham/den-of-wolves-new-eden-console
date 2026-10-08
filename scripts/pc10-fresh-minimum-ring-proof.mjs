@@ -81,6 +81,16 @@ export function stationInactiveOwner(actor,root,player,member){
  assert.equal(member.replacementRoleId,null);assert.equal(member.replacementStatus,null);assert.deepEqual(member.invalidFields,[]);
  return true; // Read-only inactive custody owner; no private choice getter or mutation.
 }
+// The one-read consumer is kept as an exported seam so source-shaped proof
+// tests exercise the same actor selection used by the runner.
+export async function selectStationCombatCrew(actors,{ships,readRoot,readPlayers,readMember,onInactive}={}){
+ const root=await readRoot();if(ships)stationSurvivingRepairTargets(ships,root);
+ const rows=await readPlayers(),byUid=new Map(rows.map(player=>[player.uid,player])),active=[];
+ for(const actor of actors){const member=await readMember(actor);
+  if(stationInactiveOwner(actor,root,byUid.get(actor.uid),member)){onInactive?.(actor,member);continue;}active.push(actor);
+ }
+ return active;
+}
 export const stationRoleIds={Recipient:'wing-commander',Miner:'icebreaker-miner',Scientist:'shepherd-scientist',Explorer:'quellon-explorer',Colonel:'refinery-124-pdf-colonel',Press:'press-officer'};
 // Read-only preflight of the actual normally admitted preset14 custody roster.
 export function assertStationOwnerCustody(root,players,actorUids){
@@ -821,13 +831,12 @@ async function enterRole(surface,label){
     assert.ok(Date.now()<deadlineAt); // Additional actors use only their current ordinary crew surfaces.
    };
    const activeCrew=async(deadlineAt)=>{
-    const root=await candidateWait(()=>recordRoot(),deadlineAt,'Station current host loss');
-    stationSurvivingRepairTargets(ships,root);
-    const players=await candidateWait(()=>db.collection(`sessions/${sid}/players`).get(),deadlineAt,'Station current custody owners');
-    const byUid=new Map(players.docs.map(player=>[player.id,{...player.data(),uid:player.id}])),active=[];
-    for(const actor of stationCrew){const uid=actorUids.get(actor.label),member=await candidateWait(()=>fullMember(actor.surface),deadlineAt,'Station original owner projection');
-     if(stationInactiveOwner({...actor,uid},root,byUid.get(uid),member)){(evidence.stationInactiveOwners??=[]).push({roleId:actor.roleId,uidHash:member.uidHash,shipDestroyed:true,explicitEscape:true,noChoiceIssued:true});continue;}active.push(actor);
-    }return active;
+    const actors=stationCrew.map(actor=>({...actor,uid:actorUids.get(actor.label)}));
+    return selectStationCombatCrew(actors,{ships,
+     readRoot:()=>candidateWait(()=>recordRoot(),deadlineAt,'Station current host loss'),
+     readPlayers:async()=>{const players=await candidateWait(()=>db.collection(`sessions/${sid}/players`).get(),deadlineAt,'Station current custody owners');return players.docs.map(player=>({...player.data(),uid:player.id}));},
+     readMember:actor=>candidateWait(()=>fullMember(actor.surface),deadlineAt,'Station original owner projection'),
+     onInactive:(actor,member)=>(evidence.stationInactiveOwners??=[]).push({roleId:actor.roleId,uidHash:member.uidHash,shipDestroyed:true,explicitEscape:true,noChoiceIssued:true})});
    };
    const choose=(current,{deadlineAt})=>chooseStationCombatActor(current,{deadlineAt,chooseWing,pendingWingRecovery:[...recoveredLaunches.values()].some(row=>row.view.attackId===current.attackId&&!row.committed),chooseCrew:async(attack,options)=>dispatchStationCrewChoice(attack,{...options,sessionId:sid,actors:await activeCrew(options.deadlineAt),assertActor:assertCrewActor,readAttack,action})});
    try {
