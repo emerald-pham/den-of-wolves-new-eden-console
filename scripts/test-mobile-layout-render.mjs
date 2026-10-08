@@ -58,6 +58,14 @@ try {
         const toggle = page.getByRole('button', { name: 'Operations reference', exact: true });
         const size = await toggle.evaluate(element => parseFloat(getComputedStyle(element).fontSize));
         assert.equal(size, 14 * viewport.scale, 'Operations reference primary control uses readable 14px token');
+        await toggle.click();
+        const bounds = await toggle.evaluate(element => ({
+          button: element.getBoundingClientRect().toJSON(),
+          panel: element.parentElement.getBoundingClientRect().toJSON(),
+        }));
+        assert.ok(bounds.button.left >= bounds.panel.left - 1 && bounds.button.right <= bounds.panel.right + 1,
+          `Operations reference must fit its containing panel: ${JSON.stringify(bounds)}`);
+        await toggle.click();
       }
       if (actor === 'gm') {
         const zoom = page.locator('.gm-dradis .ship-plot__toggle');
