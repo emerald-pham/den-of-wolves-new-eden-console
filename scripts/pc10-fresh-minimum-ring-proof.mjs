@@ -75,6 +75,11 @@ export function stationCombatServerContext({sessionId,root,pdfWing,publicAudienc
  const playerKeys=['uid','role','assignedRoleId','activeConsoleRoleId','replacementRoleId','replacementStatus','connected','seatId','kickedAt','escapeState','fleetGroupId'];
  return {sessionId,...Object.fromEntries(keys.filter(key=>root[key]!==undefined).map(key=>[key,root[key]])),pdfEscortWing:pdfWing,publicAudience,fleetGroups:fleetGroups.map(group=>Object.fromEntries(['id','vesselIds','memberUids','memberShipIds'].filter(key=>group[key]!==undefined).map(key=>[key,group[key]]))),players:players.map(player=>Object.fromEntries(playerKeys.filter(key=>player[key]!==undefined).map(key=>[key,player[key]])))};
 }
+export function stationPopulationAlertsForGm(populationAlerts,instanceId){
+ assert.ok(typeof instanceId==='string'&&instanceId.length>0);
+ const targets=Object.entries(populationAlerts??{}).filter(([,alert])=>alert?.targetGmInstanceIds?.includes(instanceId));
+ assert.ok(targets.length<=1,'Stop on multiple current-GM population alerts.');return targets;
+}
 export function assertStationPopulationAcknowledgmentTransition(before,after,shipId){
  const unchanged=['sessionId','currentTurn','phase','turnPhase','turnState','activeRoleIds','activeVesselIds','shipDamage','maintenanceCycles','shuttleControl','shuttleDockings','shuttleVisitLog','retainedShuttles','shuttleFuelled','maliadesState','shipResources','shipUpgrades','fighterWingCounts','smallShipStates','expansion','capybaraEnabled','shipSurvivors','shipUnrest','shipMutinies','unrestAlerts','gameOutcome','survivorOutcome','debriefSnapshot','debriefMode','candidateState','navigation'];
  for(const key of unchanged)assert.deepEqual(after[key],before[key],`Population acknowledgment must not change ${key}.`);
@@ -1087,7 +1092,7 @@ async function enterRole(surface,label){
     while(Date.now()<deadlineAt){
      const currentActor=await liveGm(gm,'GM1','active',{deadlineAt});assertStationAckActor(actorAnchor,currentActor);
      const authority=await readOwnedStationAuthority(deadlineAt),context=stationCombatServerContext({...authority,publicAudience:null});assertSafePopulationAckState(authority,context);
-     const sourceAlerts=Object.entries(context.populationAlerts??{}).filter(([,alert])=>alert.targetGmInstanceIds?.includes(gm1Instance));assert.ok(sourceAlerts.length<=1,'Stop on multiple current-GM population alerts.');
+     const sourceAlerts=stationPopulationAlertsForGm(context.populationAlerts,gm1Instance);
      const projection=await stationGmPopulationProjection(deadlineAt);
      for(const key of ['sessionId','phase','generation','hydrationRevision','instanceId'])assert.equal(projection[key],({sessionId:sid,phase:'active',generation:actorAnchor.generation,hydrationRevision:actorAnchor.hydrationRevision,instanceId:actorAnchor.instanceId})[key],`Current GM browser projection ${key} changed.`);
      assert.equal(projection.connection,'live');assert.equal(projection.freshness,'server');

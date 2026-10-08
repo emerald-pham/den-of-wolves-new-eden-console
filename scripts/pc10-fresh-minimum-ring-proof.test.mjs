@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { assertStationPopulationAcknowledgmentTransition, minimumRingPlan, runRingWorkflow, runStationCombatWaves, selectStationCombatCrew, stationCombatServerContext } from './pc10-fresh-minimum-ring-proof.mjs';
+import { assertStationPopulationAcknowledgmentTransition, minimumRingPlan, runRingWorkflow, runStationCombatWaves, selectStationCombatCrew, stationCombatServerContext, stationPopulationAlertsForGm } from './pc10-fresh-minimum-ring-proof.mjs';
 
 function stationLossFixture({ originalGeneration = 4, currentGeneration = 4 } = {}) {
   const actor = { uid: 'pdf', roleId: 'refinery-124-pdf-colonel',
@@ -138,6 +138,14 @@ test('population acknowledgment accepts only one alert removal and its exact ves
     { ...after, vesselActionRevisions: { dione: 9, aegis: 2 } },
     { ...after, vesselActionRevisions: { dione: 8, aegis: 3 } },
   ]) assert.throws(() => assertStationPopulationAcknowledgmentTransition(before, changed, 'dione'));
+});
+
+test('population alert selector keeps the existing single current-GM target boundary', () => {
+  const first = { shipId: 'dione', targetGmInstanceIds: ['gm-1'] };
+  const other = { shipId: 'aegis', targetGmInstanceIds: ['gm-2'] };
+  assert.deepEqual(stationPopulationAlertsForGm({ dione: first, aegis: other }, 'gm-1'), [['dione', first]]);
+  assert.throws(() => stationPopulationAlertsForGm({ dione: first,
+    shepherd: { shipId: 'shepherd', targetGmInstanceIds: ['gm-1'] } }, 'gm-1'), /multiple current-GM population alerts/i);
 });
 
 test('first prerequisite failure stops the workflow before candidate outcomes', async () => {
