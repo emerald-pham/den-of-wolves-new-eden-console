@@ -121,7 +121,7 @@ test('actual extracted browser phase callback rejects foreign, absent, and malfo
 });
 test('diagnostic collection failure cannot replace an original gameplay stage failure',async()=>{
  const diagnosticError=Error('private diagnostic collection denied');const gameplayError=Error('actual Wing choice rejected');
- await assert.rejects(runSparseStationCombat({deadlineAt:Date.now()+1000,assertActors:async()=>{},readAttack:async()=>({attackId:'a',turn:2,revision:3,threatSiteCode:'P',status:'declared',currentStep:'targeting'}),onState:async()=>{throw diagnosticError},choose:async()=>{throw gameplayError}}),error=>error===gameplayError);
+ await assert.rejects(runSparseStationCombat({deadlineAt:Date.now()+1000,assertActors:async()=>{},readAttack:async()=>({attackId:'a',turn:2,revision:3,threatSiteCode:'P',status:'declared',currentStep:'targeting',targetGroupId:'fleet-owned',threatSourceId:'arrival-owned',airspaceLocked:true}),onState:async()=>{throw diagnosticError},choose:async()=>{throw gameplayError}}),error=>error===gameplayError);
 });
 
 const runner=await import('./pc10-fresh-minimum-ring-proof.mjs');
@@ -145,7 +145,7 @@ test('inspection rejects production, remote hosts, foreign or unowned sessions b
 });
 test('diagnostic reporter failure cannot mask the gameplay error; browser authority failure remains fatal',async()=>{
  const original=Error('original gameplay failure');const observed=[];
- await assert.rejects(runSparseStationCombat({deadlineAt:Date.now()+1000,assertActors:async()=>{},readAttack:async()=>({attackId:'a',turn:2,revision:3,threatSiteCode:'P',status:'declared',currentStep:'targeting'}),onState:async()=>{throw Error('retention failed')},onDiagnosticError:async(error,attack)=>{observed.push([error.message,attack.attackId]);throw Error('reporting failed')},choose:async()=>{throw original}}),error=>error===original);
+ await assert.rejects(runSparseStationCombat({deadlineAt:Date.now()+1000,assertActors:async()=>{},readAttack:async()=>({attackId:'a',turn:2,revision:3,threatSiteCode:'P',status:'declared',currentStep:'targeting',targetGroupId:'fleet-owned',threatSourceId:'arrival-owned',airspaceLocked:true}),onState:async()=>{throw Error('retention failed')},onDiagnosticError:async(error,attack)=>{observed.push([error.message,attack.attackId]);throw Error('reporting failed')},choose:async()=>{throw original}}),error=>error===original);
  assert.deepEqual(observed,[['retention failed','a']]);let diagnosticCalled=false;
  await assert.rejects(runSparseStationCombat({deadlineAt:Date.now()+1000,assertActors:async()=>{},readAttack:async()=>{throw original},onState:async()=>{diagnosticCalled=true},choose:async()=>{}}),error=>error===original);assert.equal(diagnosticCalled,false);
 });
