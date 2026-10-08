@@ -1167,6 +1167,29 @@ test('rejects a changed authoritative phase tuple before actor scope freeze', as
   assert.deepEqual(pdf.effects.clicks, []);
 });
 
+test('rejects authoritative phase drift after actor scope freeze before UI intent', async () => {
+  const current = attack('targeting');
+  const pdf = surface('refinery-124-pdf-colonel', { type: 'pdf-escort-wing-launch-view',
+    sessionId, turn: 3, revision: 8, wingRevision: 4, launched: false, eligible: true });
+  pdf.testActor.turnStatePhaseRevision = 13;
+  let phaseReads = 0, phaseRevision = 13;
+  const opts = options([{ roleId: pdf.label, surface: pdf }], current);
+  opts.gmAuthority = originalStationGmAuthority;
+  opts.readTurnState = async () => {
+    phaseReads++;
+    return stationPhaseEnvelope(pdf.testActor, phaseRevision);
+  };
+  opts.action = async (surface, endpoint, choose, metadata) => {
+    phaseRevision = 15;
+    await choose();
+    return { endpoint, data: metadata.expectedRequest, httpStatus: 200, result: { status: 'committed' } };
+  };
+
+  await assert.rejects(dispatchStationCrewChoice(current, opts), /phase|turnState|authoritative/i);
+  assert.ok(phaseReads >= 2, 'The frozen source phase must be reread immediately before UI intent.');
+  assert.deepEqual(pdf.effects.clicks, []);
+});
+
 test('rejects changed original GM lease identity while reading phase authority', async () => {
   const current = attack('targeting');
   const pdf = surface('refinery-124-pdf-colonel', { type: 'pdf-escort-wing-launch-view',
