@@ -29,6 +29,7 @@ function surface(roleId, response, { entitledShipId = 'icebreaker', path = '/shi
     turnPhaseTeamPhaseEndsAt: '2026-10-08T00:10:00.000Z',
     phaseProgression: 'manual',
     connection: 'live', freshness: 'server' };
+  const originalMember = structuredClone(actor);
   const authority = { sessionId, fleetGroupId: 'fleet-p', connectionGeneration: 1,
     identityHydrationRevision: 1, replacementRoleId: null, replacementStatus: null,
     seatId: roleId, connected: true,
@@ -113,8 +114,10 @@ function surface(roleId, response, { entitledShipId = 'icebreaker', path = '/shi
               throw new Error(`Link ${String(options.name)} is not visible on ${currentRoute}.`);
             await onLinkWait?.(options.name, currentRoute);
           },
-          getAttribute: async name => name === 'href' && options.name === 'Back to Icebreaker Miner console'
-            ? ownerReturnHref : null,
+          getAttribute: async name => name === 'href'
+            ? options.name === 'Back to Icebreaker Miner console' ? ownerReturnHref
+              : options.name === 'Open Highwall shuttle console' ? '/shuttles/highwall' : null
+            : null,
           click: async () => {
             if (!(await isVisible())) throw new Error(`Link ${String(options.name)} is not visible on ${currentRoute}.`);
             currentRoute = options.name === 'Open Highwall shuttle console'
@@ -139,6 +142,7 @@ function surface(roleId, response, { entitledShipId = 'icebreaker', path = '/shi
   };
   effects.routes = [];
   return Object.assign({ label: roleId, page, route: () => currentRoute,
+    originalMember,
     observe: async () => actor,
     storeModuleUrl: () => 'test://useSessionStore',
     testActor: actor,
@@ -171,6 +175,10 @@ function options(actors, current, onAction, deadline = deadlineAt) {
     const observed = await actor.surface.observe();
     actorChecks.push({ roleId: actor.roleId, stage: context.stage, profileRoleId: observed.profileRoleId });
     assert.equal(actor.surface.label, actor.roleId);
+    for (const key of ['uidHash', 'sessionId', 'playerRole', 'assignedRoleId', 'fleetGroupId'])
+      assert.equal(observed[key], actor.surface.originalMember[key], `Original member ${key} must remain exact.`);
+    assert.equal(observed.cycle, context.current.turn);
+    assert.equal(observed.phase, 'active');
     return observed;
   }, readAttack: async () => current, action: async (surface, endpoint, choose, metadata) => {
     await choose();
@@ -690,27 +698,52 @@ test('does not click a Miner return link when the owner destination is not the a
   assert.equal(miner.route(), '/shuttles/highwall');
 });
 
-test('rejects Miner generation drift while the owner return link is becoming visible', async () => {
+test('does not follow a same-path Miner return href from a foreign origin', async () => {
+  const miner = surface('icebreaker-miner', null, { path: '/shuttles/highwall',
+    ownerReturnHref: 'https://outside.invalid/ships/icebreaker/roles/icebreaker-miner', responses: {
+      getWolfBoardingSpecialChoice: { type: 'wolf-boarding-special-choice-unavailable', sessionId, reason: 'no-special-choice' },
+      getWolfBoardingDefenceChoice: { type: 'wolf-boarding-defence-choice-unavailable', sessionId, reason: 'no-boarders' },
+    } });
+  const current = attack('boarding');
+  await dispatchStationCrewChoice(current, options([{ roleId: miner.label, surface: miner }], current));
+  assert.deepEqual(miner.effects.clicks, [], 'A same-path cross-origin owner href must be rejected before click.');
+  assert.equal(miner.route(), '/shuttles/highwall');
+});
+
+test('rejects Miner generation drift before the owner return click under the current-member fence', async () => {
   let miner;
   miner = surface('icebreaker-miner', null, { path: '/shuttles/highwall',
     onLinkWait: async name => {
-      if (name === 'Back to Icebreaker Miner console') miner.testActor.connectionGeneration++;
+      if (name === 'Back to Icebreaker Miner console') {
+        miner.testActor.connectionGeneration++;
+        miner.testAuthority.connectionGeneration++;
+      }
     }, responses: {
       getWolfBoardingSpecialChoice: { type: 'wolf-boarding-special-choice-unavailable', sessionId, reason: 'no-special-choice' },
       getWolfBoardingDefenceChoice: { type: 'wolf-boarding-defence-choice-unavailable', sessionId, reason: 'no-boarders' },
     } });
-  const originalGeneration = miner.testActor.connectionGeneration;
   const current = attack('boarding');
+  await assert.rejects(dispatchStationCrewChoice(current,
+    options([{ roleId: miner.label, surface: miner }], current)),
+  /Original (?:combat connectionGeneration|Station actor connectionGeneration) changed/);
+  assert.deepEqual(miner.effects.clicks, []);
+  assert.equal(miner.route(), '/shuttles/highwall');
+});
+
+test('rejects P attack revision drift while the Miner owner return link is waiting', async () => {
+  const current = attack('boarding');
+  let liveAttack = current;
+  const miner = surface('icebreaker-miner', null, { path: '/shuttles/highwall',
+    onLinkWait: async name => {
+      if (name === 'Back to Icebreaker Miner console') liveAttack = { ...current, revision: current.revision + 1 };
+    }, responses: {
+      getWolfBoardingSpecialChoice: { type: 'wolf-boarding-special-choice-unavailable', sessionId, reason: 'no-special-choice' },
+      getWolfBoardingDefenceChoice: { type: 'wolf-boarding-defence-choice-unavailable', sessionId, reason: 'no-boarders' },
+    } });
   const opts = options([{ roleId: miner.label, surface: miner }], current);
-  const assertActor = opts.assertActor;
-  opts.assertActor = async (actor, context) => {
-    const observed = await assertActor(actor, context);
-    assert.equal(observed.connectionGeneration, originalGeneration,
-      'The original Miner member generation must remain exact through return navigation.');
-    return observed;
-  };
+  opts.readAttack = async () => liveAttack;
   await assert.rejects(dispatchStationCrewChoice(current, opts),
-    /Original Station actor connectionGeneration changed during lock readiness|original Miner member generation/);
+    /The original P attack or exact lock changed before final Station UI intent/);
   assert.deepEqual(miner.effects.clicks, []);
   assert.equal(miner.route(), '/shuttles/highwall');
 });
