@@ -806,6 +806,14 @@ it('executes every lifecycle command, keeps the deck cursor and projections atom
   await expect(commit(finalAssignment)).rejects.toThrow('simulated lost acknowledgement');
   const writesAfterResolve = store.committedWrites.length;
   expect(store.records.get(paths().mission)?.lifecycleRecord).toMatchObject({ status: 'resolved' });
+  // K's original secret roll remains authoritative in the protected outcome.
+  expect(store.records.get(paths().mission)?.lifecycleRecord.outcomes).toEqual([
+    expect.objectContaining({ opportunityId: 'K-1', difficulty: 30, criticalThreshold: 40,
+      outcome: 'failure', contributorCount: 1, rewardBranch: 'none' }),
+  ]);
+  expect(store.records.get(paths().mission)?.lifecycleRecord.rewards).toEqual([
+    expect.objectContaining({ opportunityId: 'K-1', branch: 'none', resources: {}, effects: [] }),
+  ]);
   expect(store.records.get(paths().deck)?.dealtCount).toBe(4);
   expect(store.records.get(paths().session)?.missionCraftCommitments).toMatchObject({
     starlight: { missionId: MISSION_ID, sourceCycle: 3 },
@@ -819,7 +827,7 @@ it('executes every lifecycle command, keeps the deck cursor and projections atom
   for (let retry = 0; retry < 3; retry += 1) {
     const reply = await commit(finalAssignment);
     expect(reply).toMatchObject({ status: 'replayed', publicState: {
-      status: 'resolved', outcomes: [expect.objectContaining({ opportunityId: 'K-1', difficulty: 30 })],
+      status: 'resolved', outcomes: [expect.objectContaining({ opportunityId: 'K-1', difficulty: null, criticalThreshold: null })],
     } });
     expect(JSON.stringify(reply.publicState)).not.toMatch(/A♥|4♥|10♦|cardId|cardTotal|bonusBreakdown|secretD6Rolls/);
   }
