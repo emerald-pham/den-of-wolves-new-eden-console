@@ -84,12 +84,60 @@ export function assertRecoveredStationLaunch(capture,current,used) {
  recovery.committed=true;
 }
 
-// Selection seams for the finite Station proof. These initially preserve the
-// runner's all-planned-ships behavior so the regressions can expose the loss.
+// Selection seams for the finite Station proof. A destroyed hull stays in the
+// original roster, but it can never be selected for repair or Reactor power.
 export function stationSurvivingRepairTargets(plannedShipIds,root) {
- return [...plannedShipIds];
+ assert.ok(Array.isArray(plannedShipIds)&&plannedShipIds.length>0,'Original Station host roster is required.');
+ const planned=new Set();
+ for(const shipId of plannedShipIds){
+  assert.equal(typeof shipId,'string','Original Station host ID must be a string.');
+  assert.match(shipId,/^[a-z][a-z0-9-]*$/,'Original Station host ID must be canonical.');
+  assert.equal(planned.has(shipId),false,`Duplicate original Station host ${shipId}.`);planned.add(shipId);
+ }
+ assert.ok(root&&typeof root==='object'&&!Array.isArray(root),'Current authoritative Station root is required.');
+ assert.ok(Array.isArray(root.activeVesselIds),'Current authoritative original Station host roster is missing.');
+ const current=new Set();
+ for(const shipId of root.activeVesselIds){
+  assert.equal(typeof shipId,'string','Current Station host ID must be a string.');
+  assert.equal(current.has(shipId),false,`Duplicate current Station host ${shipId}.`);current.add(shipId);
+ }
+ assert.deepEqual([...current].sort(),[...planned].sort(),'Current Station hosts must match the original planned host IDs.');
+ assert.ok(root.shipDamage&&typeof root.shipDamage==='object'&&!Array.isArray(root.shipDamage),
+  'Current authoritative ship-damage map is required.');
+ return plannedShipIds.filter(shipId=>{
+  const damage=root.shipDamage[shipId];
+  assert.ok(damage&&typeof damage==='object'&&!Array.isArray(damage),`Current damage record is missing for ${shipId}.`);
+  assert.equal(typeof damage.destroyed,'boolean',`Current destroyed state is missing for ${shipId}.`);
+  assert.ok(Array.isArray(damage.damagedSystemIds),`Current damaged-system list is missing for ${shipId}.`);
+  const systems=new Set();
+  for(const systemId of damage.damagedSystemIds){
+   assert.equal(typeof systemId,'string',`Damaged system ID is malformed for ${shipId}.`);
+   assert.equal(systems.has(systemId),false,`Duplicate damaged system ${systemId} for ${shipId}.`);systems.add(systemId);
+  }
+  return damage.destroyed===false;
+ });
 }
 export function stationReactorCapacity(viewShips) {
- const capacity=viewShips.reduce((sum,ship)=>sum+ship.reactorCapacity,0);
- return {capacity,requiredCapacity:18,meetsThreshold:capacity>=18,eligibleShipIds:viewShips.map(ship=>ship.shipId)};
+ assert.ok(Array.isArray(viewShips)&&viewShips.length>0,'Current authoritative Station workspace ships are required.');
+ const seen=new Set(),eligibleShipIds=[];let capacity=0;
+ for(const ship of viewShips){
+  assert.ok(ship&&typeof ship==='object'&&!Array.isArray(ship),'Station workspace ship row must be an object.');
+  const {shipId,result,canAct,blocker,reactorCapacity}=ship;
+  assert.equal(typeof shipId,'string','Station workspace ship ID must be a string.');
+  assert.match(shipId,/^[a-z][a-z0-9-]*$/,'Station workspace ship ID must be canonical.');
+  assert.equal(seen.has(shipId),false,`Duplicate Station workspace ship ${shipId}.`);seen.add(shipId);
+  assert.ok(Number.isSafeInteger(reactorCapacity)&&reactorCapacity>=0,
+   `Current Reactor capacity is missing or invalid for ${shipId}.`);
+  if(result==='lost'){
+   assert.equal(canAct,false,`Lost Station ship ${shipId} cannot act.`);
+   assert.equal(blocker,'Lost or destroyed ship.',`Lost Station ship ${shipId} needs the source-reported loss blocker.`);
+   continue;
+  }
+  assert.equal(result,'awaiting-choice',`Unexpected current Station action result for ${shipId}.`);
+  assert.equal(canAct,true,`Living Station ship ${shipId} is blocked from Reactor contribution.`);
+  assert.equal(blocker,'',`Living Station ship ${shipId} has a current contribution blocker.`);
+  if(reactorCapacity===0)continue;
+  eligibleShipIds.push(shipId);capacity+=reactorCapacity;
+ }
+ return {capacity,requiredCapacity:18,meetsThreshold:capacity>=18,eligibleShipIds};
 }
