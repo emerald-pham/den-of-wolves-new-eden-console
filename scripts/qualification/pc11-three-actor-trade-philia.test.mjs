@@ -96,3 +96,25 @@ test('every active mounted browser source import exists in the clean source chec
   assert.match(lifecycleObserver, /profileRoleId: null/);
   assert.match(memberObserver, /profileRoleId: null,[\s\S]*?profileSessionId: null/);
 });
+
+test('normal readiness binds only to the clean client server-authority contract', async () => {
+  const authoritySource = await readFile(new URL('../../src/lib/sessionSnapshotAuthority.ts', import.meta.url), 'utf8');
+  const adapterSource = await readFile(new URL('./pc11-normal-start-adapter.mjs', import.meta.url), 'utf8');
+  const memberSource = await readFile(new URL('../pc10-full-game-demo-proof-helpers.mjs', import.meta.url), 'utf8');
+  const memberObserver = namedRegion(memberSource,
+    'export async function observeFullGameDemoPresentationMember', '/** Await the existing App recovery');
+  const gmObserver = namedRegion(runnerSource, 'async function liveGm', 'async function authorizeAndClaim');
+  const exportedNames = [...authoritySource.matchAll(/^export\s+(?:function|interface|type)\s+(\w+)/gm)]
+    .map(match => match[1]);
+
+  assert.ok(exportedNames.includes('sessionSnapshotAuthorityFor'));
+  assert.ok(exportedNames.includes('sessionSnapshotAuthorityVersion'));
+  assert.ok(!exportedNames.includes('memberSessionResumeBlocksFreshness'));
+  assert.doesNotMatch(memberObserver, /memberSessionResumeBlocksFreshness/);
+  assert.doesNotMatch(gmObserver, /memberSessionResumeBlocksFreshness/);
+  assert.doesNotMatch(adapterSource, /sdkResumePending/);
+  assert.match(memberObserver, /sdkHasServerAuthority: authority\?\.hasServerSessionAuthority === true/);
+  assert.match(adapterSource, /value\.sdkHasServerAuthority === true/);
+  assert.match(adapterSource, /value\.connection === 'live'/);
+  assert.match(adapterSource, /value\.freshness === 'server'/);
+});
