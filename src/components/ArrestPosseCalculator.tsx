@@ -121,11 +121,13 @@ export default function ArrestPosseCalculator({
   const visibleCase = caseRecord?.targetUid === targetUid ? caseRecord : null;
   const activeCase = visibleCase?.status === 'pending-resolution' && visibleCase.deadlineCycle !== undefined
     ? visibleCase : null;
-  const sameCycleWindowOpen = Boolean(activeCase && currentCycle === activeCase.turn && deadlineTeamPhaseOpen);
+  const beforeDeadline = Boolean(activeCase && currentCycle !== undefined &&
+    currentCycle >= activeCase.turn && currentCycle < activeCase.deadlineCycle!);
+  const sameCycleTeamWindowOpen = Boolean(activeCase && currentCycle === activeCase.turn && deadlineTeamPhaseOpen);
   const deadlineOpen = Boolean(activeCase && currentCycle === activeCase.deadlineCycle && deadlineTeamPhaseOpen);
   const caseIsOverdue = Boolean(activeCase && currentCycle !== undefined &&
     (currentCycle > activeCase.deadlineCycle! || currentCycle === activeCase.deadlineCycle && !deadlineTeamPhaseOpen));
-  const ordinaryDispositionWindowOpen = sameCycleWindowOpen || deadlineOpen;
+  const ordinaryDispositionWindowOpen = beforeDeadline || deadlineOpen;
   const canDisposition = Boolean(activeCase && onDisposition && currentCycle !== undefined &&
     Number.isSafeInteger(currentCycle) && !resolving &&
     (ordinaryDispositionWindowOpen || caseIsOverdue && ruling.trim().length > 0));
@@ -304,12 +306,14 @@ export default function ArrestPosseCalculator({
         <section className="gm-arrest-posse__case" aria-label="Arrested prisoner case">
           <h3>Prisoner ruling // due by Team Phase {activeCase.deadlineCycle}</h3>
           <p>
-            {sameCycleWindowOpen
+            {sameCycleTeamWindowOpen
               ? `Release or execute now during Team Phase ${activeCase.turn}, or by the end of Team Phase ${activeCase.deadlineCycle}. `
+              : beforeDeadline
+                ? `Release or execute now, before the end of Team Phase ${activeCase.deadlineCycle}. `
               : `Release or execute by the end of Team Phase ${activeCase.deadlineCycle}. `}
             Execution opens the ordinary replacement eligibility process.
           </p>
-          {currentCycle !== undefined && currentCycle < activeCase.deadlineCycle! && !sameCycleWindowOpen && (
+          {currentCycle !== undefined && currentCycle < activeCase.turn && (
             <p role="status">The ruling window begins in Team Phase {activeCase.deadlineCycle}.</p>
           )}
           {currentCycle === activeCase.deadlineCycle && !deadlineTeamPhaseOpen && (

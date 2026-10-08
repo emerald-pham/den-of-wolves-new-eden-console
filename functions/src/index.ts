@@ -13560,7 +13560,7 @@ function isArrestCaseDispositionResult(value: unknown, sessionId: string): value
     (value.ruling === undefined || typeof value.ruling === 'string' && value.ruling.length > 0 && value.ruling.length <= 240);
 }
 
-/** Record a GM's prisoner ruling during the arrest Team Phase or by the next Team Phase deadline. */
+/** Record a GM's prisoner ruling before the next Team Phase deadline. */
 export const resolveArrestCaseDisposition = auditedOnCall<{
   sessionId?: unknown; instanceId?: unknown; requestId?: unknown; targetUid?: unknown;
   expectedCycle?: unknown; expectedRevision?: unknown; expectedSetupRevision?: unknown;
@@ -13613,10 +13613,10 @@ export const resolveArrestCaseDisposition = auditedOnCall<{
     const phase = turnPhaseState(authority.session.get('turnPhase'));
     const teamPhaseOpen = phase?.turn === currentTurn && phase.airspace.state === 'restricted' &&
       phase.timerPause === undefined && !turnPhaseDeadlinePassed(phase, 'team');
-    const sameCycleOpen = currentTurn === caseTurn && teamPhaseOpen;
+    const beforeDeadline = currentTurn >= (caseTurn as number) && currentTurn < (deadlineCycle as number);
     const deadlineOpen = currentTurn === deadlineCycle && phase?.turn === currentTurn &&
       teamPhaseOpen;
-    const deadlineMet = sameCycleOpen || deadlineOpen;
+    const deadlineMet = beforeDeadline || deadlineOpen;
     const afterDeadline = currentTurn > (deadlineCycle as number) || currentTurn === deadlineCycle && !deadlineOpen;
     if (!deadlineMet && (!afterDeadline || command.disposition !== 'facilitator-resolution' || !command.ruling)) {
       throw commandError('failed-precondition',
