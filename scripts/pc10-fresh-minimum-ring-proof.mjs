@@ -74,6 +74,9 @@ export function assertRingCraftConsumption(root,shuttleId) {
 export function assertRingSuccessfulSnapshot(root) {
  assert.equal(root.debriefSnapshot.source,'candidate');assert.equal(root.debriefSnapshot.result,'success');assert.equal(root.debriefSnapshot.candidate.code,'N');
 }
+export function isAcceptedRingClosedHistory(value,expected) {
+ return value.sameActor&&value.phase==='closed'&&value.sessionId===expected.sessionId;
+}
 export async function readRingEndingHistory(sdk,{sessionId,instanceId}) {
  const history=await sdk('getSessionDebrief',{sessionId,instanceId});
  assert.equal(history.type,'session-debrief');assert.equal(history.sessionId,sessionId);
@@ -645,7 +648,7 @@ async function enterRole(surface,label){
    await gm.page.getByRole('dialog',{name:'Endgame evaluation',exact:true}).waitFor();await gm.page.screenshot({path:`${directory}/Ring-GM-ending.png`});
    await action(gm,'closeSession',()=>gm.page.getByRole('button',{name:'Close session',exact:true}).click());await gm.until('Actual closed Ring history',v=>v.phase==='closed');
    assert.equal(hash(stable((await recordRoot()).debriefSnapshot)),snapshotHash);
-   await recipient.page.reload();const restored=await recipient.until('Entitled ordinary Scientist closed history after original reload',v=>v.sameActor&&v.phase==='closed'&&v.sessionId===sid);
+   await recipient.page.reload();const restored=await recipient.until('Entitled ordinary Scientist closed history after original reload',v=>isAcceptedRingClosedHistory(v,{sessionId:sid,uidHash:short(actorUids.get('Recipient')),groupId,cycle:ended.debriefSnapshot.cycle,ships}));
    assert.equal(restored.uidHash,short(actorUids.get('Recipient')));await recipient.page.getByRole('dialog',{name:'Endgame evaluation',exact:true}).waitFor();await recipient.page.screenshot({path:`${directory}/Ring-Scientist-closed-history.png`});
    evidence.endingProof=true;evidence.candidate619OriginalPaidPassageRecovery=true;
    claims.push('Actual GM far-side sabotage blocks pursuit, source Ring success/debrief, exact late crossing receipt, automatic immutable success freeze, authorized GM history read, immutable close and entitled same-UID closed-history reload');

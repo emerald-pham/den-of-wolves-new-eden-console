@@ -104,3 +104,20 @@ test('candidate success history uses exact authorized read contract; failure-onl
  assert.equal(Object.hasOwn(member.candidate.groups[0],'groupId'),false);
  assert.equal(Object.hasOwn(member.candidate.groups[0].path[0],'audience'),false);
 });
+
+test('persisted closed cache cannot qualify same-UID authoritative scoped history',()=>{
+ const expected={sessionId:sid,uidHash:'science-hash',groupId,cycle:4,ships:['aegis']};
+ const current={hasAuth:true,sameActor:true,phase:'closed',sessionId:sid,uidHash:'science-hash',fleetGroupId:groupId,
+  freshness:'cache',hydrationRevision:0,debriefType:'session-debrief',debriefVersion:1,debriefSource:'candidate',
+  debriefResult:'success',debriefCandidateCode:'N',debriefCycle:4,debriefGroupCount:1,debriefGroupsPrivacySafe:true,
+  debriefPaths:[{action:'ring-repair',result:'completed'},{action:'ring-passage',result:'crossed',shipId:'aegis',fuelSpent:5},
+   {action:'sabotage-ring',result:'completed'}]};
+ assert.equal(runner.isAcceptedRingClosedHistory(current,expected),false);
+ const accepted={...current,freshness:'server',hydrationRevision:1};
+ assert.equal(runner.isAcceptedRingClosedHistory(accepted,expected),true);
+ for(const patch of [{uidHash:'foreign'},{fleetGroupId:'fleet-2'},{debriefCandidateCode:'O'},
+  {debriefGroupCount:2},{debriefGroupsPrivacySafe:false},{debriefPaths:[]}])
+  assert.equal(runner.isAcceptedRingClosedHistory({...accepted,...patch},expected),false);
+ // Closed-history entitlement never requires a live connection or active station.
+ assert.equal(runner.isAcceptedRingClosedHistory({...accepted,connection:'disconnected',activeConsoleRoleId:null},expected),true);
+});
