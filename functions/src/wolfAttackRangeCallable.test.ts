@@ -1,3 +1,4 @@
+import capturedP from './test-fixtures/pc10-p-targeting-stall.json';
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { CallableRequest } from 'firebase-functions/v2/https';
 import { firstTurnWolfAttackComposition } from './wolfAttackComposition';
@@ -3048,4 +3049,24 @@ it('rejects unprinted Vulcan Long Range and unavailable charge/custody use with 
   await expect(commitWolfRangeSupportActionChoice.run(request({sessionId:'s1',requestId:'vulcan-uncharged-use',sourceId:'vulcan-laser-cannon',range:'short-range',
     expectedTurn:1,expectedRevision:view.revision,use:true},'vulcan-captain-1'))).rejects.toMatchObject({code:'failed-precondition'});
   expect(entropy.randomInt).not.toHaveBeenCalled();
+});
+
+it('advances the captured P targeting receipt with startup sparse damage and absent EO', async () => {
+  const session = testState.documents.get('sessions/s1')!;
+  put('sessions/s1', { ...session, currentTurn: 2, turnPhase: capturedP.turnPhase,
+    activeRoleIds: ['wing-commander'], shipDamage: {},
+    maintenanceCycles: { aegis: { turn: 2, step: 7, revision: 2,
+      charges: ['fighter-bay-alpha', 'fighter-bay-bravo', 'jump-drive'], results: {}, refuelled: [] } } });
+  testState.documents.delete('sessions/s1/players/xo-1');
+  put('sessions/s1/players/wing-captured', { uid: 'wing-captured', role: 'player', connected: true,
+    assignedRoleId: 'wing-commander', activeConsoleRoleId: 'wing-commander', fleetGroupId: 'fleet-1' });
+  put('sessions/s1/fleetGroups/fleet-1', { id: 'fleet-1', vesselIds: session.activeVesselIds,
+    memberUids: ['wing-captured'], memberShipIds: { 'wing-captured': 'aegis' } });
+  put('sessions/s1/wolfAttackState/current', structuredClone(capturedP.attack));
+  await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
+  expect(testState.documents.get('sessions/s1/wolfAttackState/current')).toMatchObject({
+    currentStep: 'long-range', revision: 4,
+    targetingCompletion: { status: 'no-commander', commandAndControl: 'unavailable',
+      reason: 'no-configured-executive-officer' },
+  });
 });
