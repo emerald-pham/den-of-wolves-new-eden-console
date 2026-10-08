@@ -174,6 +174,17 @@ test('stops without a second actor choice when the attack tuple changes during t
   assert.ok(pdf.effects.reads[0].timeoutMs > 0 && pdf.effects.reads[0].timeoutMs <= 35_000);
 });
 
+test('returns no choice when the supplied attack has already changed before dispatcher entry', async () => {
+  const pdf = surface('refinery-124-pdf-colonel', { type: 'pdf-escort-wing-launch-view',
+    sessionId, turn: 3, revision: 8, wingRevision: 4, launched: false, eligible: true });
+  const current = attack('targeting');
+  const opts = options([{ roleId: pdf.label, surface: pdf }], current);
+  opts.readAttack = async () => attack('targeting', 9);
+  assert.equal(await dispatchStationCrewChoice(current, opts), undefined);
+  assert.deepEqual(pdf.effects.reads, []);
+  assert.deepEqual(pdf.effects.clicks, []);
+});
+
 test('does not treat a generic action wrapper status as a committed source receipt', async () => {
   const pdf = surface('refinery-124-pdf-colonel', { type: 'pdf-escort-wing-launch-view',
     sessionId, turn: 3, revision: 8, wingRevision: 4, launched: false, eligible: true });
