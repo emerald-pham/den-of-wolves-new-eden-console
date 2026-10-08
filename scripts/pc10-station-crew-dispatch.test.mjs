@@ -760,7 +760,8 @@ test('rejects restricted-to-lifted restoration after scope freeze inside the str
   const [held] = heldProofFailureObservations(failure);
   assert.equal(held.operation, 'station-crew-current-source-readiness');
   assert.equal(held.originalActor.airspace, 'restricted');
-  assert.equal(held.consumedObservations.actorScopes.length, 2);
+  assert.equal(held.consumedObservations.actorScopes.length, 4,
+    'Failure evidence retains the actor samples consumed by the added normal-GM phase and post-freeze bookends.');
   assert.deepEqual(pdf.effects.reads, [], 'Strict post-freeze actor drift is rejected before private choice read.');
   assert.deepEqual(pdf.effects.clicks, []);
 });
