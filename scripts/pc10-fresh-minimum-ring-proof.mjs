@@ -9,7 +9,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdir, readFile, writeFile, realpath } from 'node:fs/promises';
 import { setTimeout as delay } from 'node:timers/promises';
 import { observeUiReceipt, attachUiReceiptDiagnostics } from './pc10-browser-ui-receipt.mjs';
-import { originalProofError, retainProofFailure, heldProofFailureObservations } from './pc10-proof-failure-evidence.mjs';
+import { originalProofError, rememberProofFailure, retainProofFailure, heldProofFailureObservations } from './pc10-proof-failure-evidence.mjs';
 import { observeFullGameCallableDiagnostics } from './pc10-full-game-demo-ui-proof.mjs';
 import { observeFullGameDemoPresentationMember, proofRuntimeFromViteSource, validateProofRuntime } from './pc10-full-game-demo-proof-helpers.mjs';
 import { observeLifecycleActor, captureLifecycleUiAction, publicLifecycleReceipt, openLifecycleSettings, closeLifecycleSettings } from './pc10-member-gm-lifecycle-ui-proof.mjs';
@@ -64,32 +64,191 @@ export function stationCombatServerContext({sessionId,root,pdfWing,publicAudienc
 export function stationCombatConsoles(){return ['jump-drive','fighter-bay-alpha','fighter-bay-bravo'];}
 export async function readStationLiberation(readDocument,root,expected){const require=createRequire(new URL('../functions/package.json',import.meta.url));const {parseCandidateStationLiberations}=require('../functions/lib/candidateStationLiberation.js');const markers=parseCandidateStationLiberations(await readDocument('serverState/candidateStationLiberations'));const marker=markers[`${expected.groupId}:${expected.coordinate}`];assert.ok(marker);for(const key of ['sessionId','groupId','coordinate','sourceId','cycle'])assert.equal(marker[key],expected[key]);assert.equal(marker.cycle,root.currentTurn);return marker;}
 export function stationReady(value,roleId){return roleId==='press-officer'?value.activeConsoleRoleId===roleId&&value.assignedRoleId===null&&value.seatId===null&&value.pressEnabled&&value.pressCraftScopeMatches&&(value.phase==='casting'||(value.currentMemberBerthPresent&&value.currentMemberBerthNull&&value.memberVesselCount===0&&value.memberCraftCount===1)):value.activeConsoleRoleId===roleId&&value.seatId===roleId&&value.currentCanonicalSeatOwned;}
+function stationLossEscapeTuple(value){
+ const require=createRequire(new URL('../functions/package.json',import.meta.url)),{parsePlayerEscapeState}=require('../functions/lib/escapeState.js');
+ const parsed=parsePlayerEscapeState(value);if(!parsed)return null;
+ const keys=Object.keys(value).sort();
+ assert.ok(keys.join(',')==='destructionEventId,revision,shipId,status'||
+  keys.join(',')==='destructionEventId,fleeRequestId,revision,shipId,status',
+  'Escape state must retain the exact server-owned tuple, including only its optional flee request ID.');
+ return parsed;
+}
+function stationLossServerTuple(actor,root,player){
+ const require=createRequire(new URL('../functions/package.json',import.meta.url)),{shipForRole}=require('../functions/lib/crewAccess.js');
+ const shipId=shipForRole(actor.roleId);if(!shipId||root.shipDamage?.[shipId]?.destroyed!==true)return null;
+ assert.ok(player&&typeof player==='object','Destroyed-host owner requires the current server player.');
+ assert.equal(player.uid,actor.uid);assert.equal(player.sessionId,actor.original.sessionId);assert.equal(player.role,'player');
+ assert.equal(player.assignedRoleId,actor.roleId);assert.equal(player.activeConsoleRoleId,null);assert.equal(player.seatId,actor.roleId);
+ assert.equal(player.fleetGroupId,actor.original.fleetGroupId);assert.equal(player.connected,true);
+ assert.ok(Number.isSafeInteger(player.connectionGeneration)&&player.connectionGeneration>=1,'Server player requires its current generation.');
+ assert.ok(!player.kickedAt&&player.replacementRoleId==null&&player.replacementStatus==null);
+ const escape=stationLossEscapeTuple(player.escapeState);assert.ok(escape,'Destroyed-host owner requires explicit current server escape state.');
+ assert.equal(escape.status,'pending');assert.equal(escape.shipId,shipId);
+ assert.equal(escape.fleeRequestId,undefined,'A server escape tuple with a flee request cannot qualify as an inactive owner.');
+ return {shipId,escape};
+}
+function sameStationLossTuple(left,right){
+ return left.shipId===right.shipId&&left.escape.status===right.escape.status&&left.escape.shipId===right.escape.shipId&&
+  left.escape.destructionEventId===right.escape.destructionEventId&&left.escape.revision===right.escape.revision&&
+  left.escape.fleeRequestId===right.escape.fleeRequestId;
+}
 export async function chooseStationCombatActor(current,{chooseWing,chooseCrew,pendingWingRecovery=false,deadlineAt}){const choice=await chooseWing(current,{deadlineAt});if(choice?.committed||pendingWingRecovery&&current.currentStep==='targeting')return choice;return chooseCrew(current,{deadlineAt});}
 export function stationInactiveOwner(actor,root,player,member){
- const require=createRequire(new URL('../functions/package.json',import.meta.url));
- const {shipForRole}=require('../functions/lib/crewAccess.js'),{parsePlayerEscapeState}=require('../functions/lib/escapeState.js');
- const shipId=shipForRole(actor.roleId);if(!shipId||root.shipDamage?.[shipId]?.destroyed!==true)return false;
- assert.equal(player.uid,actor.uid);assert.equal(player.sessionId,actor.original.sessionId);assert.equal(player.role,'player');
- assert.equal(player.assignedRoleId,actor.roleId);assert.equal(player.activeConsoleRoleId,null);assert.equal(player.fleetGroupId,actor.original.fleetGroupId);
- assert.ok(!player.kickedAt&&!player.replacementRoleId&&!player.replacementStatus);
- const escape=parsePlayerEscapeState(player.escapeState);assert.ok(escape,'Destroyed-host owner requires explicit current server escape state.');assert.equal(escape.shipId,shipId);
+ const current=stationLossServerTuple(actor,root,player);if(!current)return false;
  for(const key of ['uidHash','sessionId','fleetGroupId'])assert.equal(member[key],actor.original[key]);
  assert.equal(member.meSessionId,actor.original.sessionId);assert.equal(member.hasAuth,true);assert.equal(member.sameActor,true);
  assert.equal(member.profileRoleId,null);assert.equal(member.profileSessionId,null);assert.equal(member.playerRole,'player');
- assert.equal(member.assignedRoleId,actor.roleId);assert.equal(member.activeConsoleRoleId,null);assert.equal(member.escapeLocked,true);
+ assert.equal(member.assignedRoleId,actor.roleId);assert.equal(member.activeConsoleRoleId,null);assert.equal(member.seatId,actor.roleId);
+ assert.equal(member.freshness,'server');assert.equal(member.connectionGeneration,player.connectionGeneration);
+ assert.equal(member.documentTimeOrigin,actor.original.documentTimeOrigin);assert.ok(Number.isSafeInteger(member.identityHydrationRevision)&&member.identityHydrationRevision>=1);
+ assert.equal(member.browserProjectionConsistent,true);
+ if(member.connected!==undefined)assert.equal(member.connected,true);
+ if(member.currentOwnPlayerConfirmed!==undefined)assert.equal(member.currentOwnPlayerConfirmed,true);
+ const browserEscape=stationLossEscapeTuple(member.escapeState);assert.ok(browserEscape,'Destroyed-host owner requires the actual browser escape tuple.');
+ assert.equal(browserEscape.fleeRequestId,undefined,'A player with a flee request is not an eligible inactive owner.');
+ for(const key of ['status','shipId','destructionEventId','revision'])assert.equal(browserEscape[key],current.escape[key]);
+ assert.equal(member.escapeLocked,true);
  assert.equal(member.connection,'live');assert.equal(member.freshness,'server');assert.equal(member.kicked,false);
  assert.equal(member.replacementRoleId,null);assert.equal(member.replacementStatus,null);assert.deepEqual(member.invalidFields,[]);
  return true; // Read-only inactive custody owner; no private choice getter or mutation.
 }
-// The one-read consumer is kept as an exported seam so source-shaped proof
-// tests exercise the same actor selection used by the runner.
-export async function selectStationCombatCrew(actors,{ships,readRoot,readPlayers,readMember,onInactive}={}){
- const root=await readRoot();if(ships)stationSurvivingRepairTargets(ships,root);
- const rows=await readPlayers(),byUid=new Map(rows.map(player=>[player.uid,player])),active=[];
- for(const actor of actors){const member=await readMember(actor);
-  if(stationInactiveOwner(actor,root,byUid.get(actor.uid),member)){onInactive?.(actor,member);continue;}active.push(actor);
- }
- return active;
+function stationLossBrowserSample(actor,player,member,anchor,current){
+ const sample={
+  uidHash:member.uidHash,sessionId:member.sessionId,meSessionId:member.meSessionId,hasAuth:member.hasAuth,sameActor:member.sameActor,
+  profileRoleId:member.profileRoleId,profileSessionId:member.profileSessionId,playerRole:member.playerRole,
+  assignedRoleId:member.assignedRoleId,activeConsoleRoleId:member.activeConsoleRoleId,seatId:member.seatId,fleetGroupId:member.fleetGroupId,
+  replacementRoleId:member.replacementRoleId,replacementStatus:member.replacementStatus,kicked:member.kicked,
+  connected:member.connected,currentOwnPlayerConfirmed:member.currentOwnPlayerConfirmed,
+  connection:member.connection,freshness:member.freshness,connectionGeneration:member.connectionGeneration,
+  documentTimeOrigin:member.documentTimeOrigin,identityHydrationRevision:member.identityHydrationRevision,
+  escapeLocked:member.escapeLocked,escapeState:member.escapeState,escapeStateValid:member.escapeStateValid,
+ };
+ assert.equal(sample.uidHash,actor.original.uidHash);assert.equal(sample.sessionId,actor.original.sessionId);
+ assert.equal(sample.meSessionId,actor.original.sessionId);assert.equal(sample.hasAuth,true);assert.equal(sample.sameActor,true);
+ assert.equal(sample.profileRoleId,null);assert.equal(sample.profileSessionId,null);assert.equal(sample.playerRole,'player');
+ assert.equal(sample.assignedRoleId,actor.roleId);assert.equal(sample.seatId,actor.roleId);assert.equal(sample.fleetGroupId,actor.original.fleetGroupId);
+ assert.equal(sample.replacementRoleId,null);assert.equal(sample.replacementStatus,null);assert.equal(sample.kicked,false);
+ assert.ok(['live','connecting','offline','disconnected'].includes(sample.connection),'Browser connection state is malformed.');
+ assert.ok(sample.freshness===null||['server','cache','unknown'].includes(sample.freshness),'Browser freshness state is malformed.');
+ if(member.connected!==undefined)assert.equal(typeof member.connected,'boolean');
+ if(member.currentOwnPlayerConfirmed!==undefined)assert.equal(typeof member.currentOwnPlayerConfirmed,'boolean');
+ assert.ok(Number.isSafeInteger(sample.connectionGeneration)&&sample.connectionGeneration>=1);
+ assert.equal(sample.documentTimeOrigin,actor.original.documentTimeOrigin);
+ assert.ok(Number.isSafeInteger(sample.identityHydrationRevision)&&sample.identityHydrationRevision>=1);
+ assert.ok(sample.activeConsoleRoleId===null||sample.activeConsoleRoleId===actor.roleId,'Loss feed changed to a foreign console.');
+ if(anchor){for(const key of ['connectionGeneration','documentTimeOrigin','identityHydrationRevision'])assert.equal(sample[key],anchor[key],`Original station loss ${key} changed while waiting.`);}
+ if(sample.escapeStateValid===false)assert.fail('Browser escape state is malformed.');
+ const baseProjection=Object.hasOwn(member,'browserProjectionConsistent'),incoherentBase=baseProjection&&member.browserProjectionConsistent!==true;
+ const escape=sample.escapeState==null?null:stationLossEscapeTuple(sample.escapeState);
+ if(escape){assert.equal(escape.status,'pending','Fled or otherwise finalized escape state cannot qualify as an inactive owner.');
+  assert.equal(escape.fleeRequestId,undefined,'A flee request cannot qualify as an inactive owner.');
+  for(const key of ['shipId','destructionEventId','revision'])assert.equal(escape[key],current.escape[key],`Browser loss ${key} differs from the pinned server tuple.`);}
+ if(!incoherentBase)assert.equal(sample.escapeLocked,escape!==null);
+ const phase=sample.activeConsoleRoleId===actor.roleId&&sample.escapeLocked===false?'before':
+  sample.activeConsoleRoleId===null&&sample.escapeLocked===true?
+   escape?.status==='pending'&&escape.shipId===current.escape.shipId?'after':'after-unverified':'other';
+ if(phase==='other')assert.fail('Browser member is neither the original nor server-cleared loss projection.');
+ if(player.connectionGeneration!==sample.connectionGeneration)assert.fail('Current server and browser generations differ.');
+ return {sample,phase,escape};
+}
+function stationLossObservation(actor,root,player,member,attempt){
+ const require=createRequire(new URL('../functions/package.json',import.meta.url)),{shipForRole}=require('../functions/lib/crewAccess.js');
+ const shipId=shipForRole(actor.roleId),damage=shipId?root?.shipDamage?.[shipId]:null;
+ const damageSummary=damage&&typeof damage==='object'?{
+  destroyed:typeof damage.destroyed==='boolean'?damage.destroyed:null,
+  damagedSystemIds:Array.isArray(damage.damagedSystemIds)&&damage.damagedSystemIds.every(value=>typeof value==='string')?damage.damagedSystemIds:[],
+ }:null;
+ const safeEscape=value=>value==null?null:{status:typeof value?.status==='string'?value.status:'invalid',
+  shipId:typeof value?.shipId==='string'?value.shipId:null,destructionEventId:typeof value?.destructionEventId==='string'?value.destructionEventId:null,
+  revision:Number.isSafeInteger(value?.revision)?value.revision:null,
+  ...(typeof value?.fleeRequestId==='string'?{fleeRequestId:value.fleeRequestId}:{})};
+ const safeBrowser=value=>value?{
+  uidHash:value.uidHash??null,sessionId:value.sessionId??null,meSessionId:value.meSessionId??null,hasAuth:value.hasAuth===true,sameActor:value.sameActor===true,
+  profileRoleId:value.profileRoleId??null,profileSessionId:value.profileSessionId??null,playerRole:value.playerRole??null,
+  assignedRoleId:value.assignedRoleId??null,activeConsoleRoleId:value.activeConsoleRoleId??null,seatId:value.seatId??null,fleetGroupId:value.fleetGroupId??null,
+  replacementRoleId:value.replacementRoleId??null,replacementStatus:value.replacementStatus??null,kicked:value.kicked===true,
+  connected:value.connected===true,currentOwnPlayerConfirmed:value.currentOwnPlayerConfirmed===true,
+  connection:value.connection??null,freshness:value.freshness??null,connectionGeneration:value.connectionGeneration??null,
+  documentTimeOrigin:value.documentTimeOrigin??null,identityHydrationRevision:value.identityHydrationRevision??null,
+  escapeLocked:value.escapeLocked===true,escapeState:safeEscape(value.escapeState),escapeStateValid:value.escapeStateValid!==false,
+ } : null;
+ return {attempt,roleId:actor.roleId,uidHash:actor.original.uidHash,sessionId:actor.original.sessionId,groupId:actor.original.fleetGroupId,
+  shipId,root:{shipDamage:damageSummary},serverPlayer:player?{uidMatchesActor:player.uid===actor.uid,sessionId:player.sessionId??null,
+   role:player.role??null,assignedRoleId:player.assignedRoleId??null,activeConsoleRoleId:player.activeConsoleRoleId??null,
+   seatId:player.seatId??null,fleetGroupId:player.fleetGroupId??null,connectionGeneration:player.connectionGeneration??null,
+   connected:player.connected===true,kicked:player.kickedAt!=null,replacementRoleId:player.replacementRoleId??null,
+   replacementStatus:player.replacementStatus??null,escapeState:safeEscape(player.escapeState)}:null,
+  browserMember:safeBrowser(member),browserLossSample:safeBrowser(member?.browserLossSample),
+  browserLossSamples:Array.isArray(member?.browserLossSamples)?member.browserLossSamples.map(safeBrowser):null,
+  browserAuthUidStable:member?.browserAuthUidStable!==false};
+}
+function stationLossProjectionPhase(actor,player,member,anchor,current){
+ if(member.browserAuthUidStable===false)assert.fail('Browser Auth identity changed during the loss tuple read.');
+ const members=Array.isArray(member.browserLossSamples)?member.browserLossSamples:
+  member.browserLossSample?[member.browserLossSample,member]:[member];
+ if(Array.isArray(member.browserLossSamples))assert.equal(member.browserLossSamples.length,2,'Browser loss read requires exactly two identity bookends.');
+ const phases=members.map(value=>stationLossBrowserSample(actor,player,value,anchor,current));
+ if(member.browserProjectionConsistent!==true)return 'pending';
+ const compared=['uidHash','sessionId','meSessionId','hasAuth','sameActor','profileRoleId','profileSessionId','playerRole',
+  'assignedRoleId','activeConsoleRoleId','seatId','fleetGroupId','replacementRoleId','replacementStatus','kicked','connected',
+  'connection','freshness','connectionGeneration','documentTimeOrigin','identityHydrationRevision','escapeLocked','escapeState'];
+ const sameProjection=(left,right)=>compared.every(key=>JSON.stringify(left.sample[key])===JSON.stringify(right.sample[key]));
+ if(phases.some(value=>value.phase!=='after'||value.sample.connection!=='live'||value.sample.freshness!=='server'||
+   value.sample.connected===false||value.sample.currentOwnPlayerConfirmed===false))return 'pending';
+ if(phases.some(value=>!sameProjection(value,phases[0])))return 'pending';
+ if(members.length>1&&members.some(value=>!compared.every(key=>{
+  const current=key==='connected'?member.currentOwnPlayerConfirmed:member[key];
+  return JSON.stringify(value[key]??null)===JSON.stringify(current??null);
+ })))return 'pending';
+ for(const value of phases){assert.ok(value.escape);for(const key of ['status','shipId','destructionEventId','revision'])assert.equal(value.escape[key],current.escape[key]);}
+ return 'confirmed';
+}
+// This consumer seam lets source-shaped proof tests exercise the same actor
+// selection and bounded normal-feed convergence used by the runner.
+export async function selectStationCombatCrew(actors,{ships,readRoot,readPlayers,readMember,onInactive,onObservation,wait=delay,deadlineAt=Date.now()+5000}={}){
+ assert.ok(Number.isFinite(deadlineAt),'Station owner selection requires the original operation deadline.');
+ const require=createRequire(new URL('../functions/package.json',import.meta.url)),{shipForRole}=require('../functions/lib/crewAccess.js');
+ assert.ok(Array.isArray(actors)&&actors.length>0,'Station owner selection requires the original planned crew.');
+ assert.equal(new Set(actors.map(actor=>actor.uid)).size,actors.length,'Original station crew cannot contain duplicate owners.');
+ const observations=[],anchors=new Map(),lossPins=new Map();let attempt=0;
+ const remaining=()=>{const value=deadlineAt-Date.now();assert.ok(value>0,'Original station owner feed deadline expired.');return value;};
+ const readBeforeDeadline=async(action,label)=>{remaining();const value=await action();remaining();return value;};
+ try{
+  while(true){remaining();attempt++;const root=await readBeforeDeadline(()=>readRoot(deadlineAt),'Station current host loss');if(ships)stationSurvivingRepairTargets(ships,root);
+   const observationByUid=new Map();
+   for(const actor of actors){const observation=stationLossObservation(actor,root,null,null,attempt);observations.push(observation);observationByUid.set(actor.uid,observation);onObservation?.(observation);}
+   const rows=await readBeforeDeadline(()=>readPlayers(deadlineAt),'Station current custody owners');
+   assert.ok(Array.isArray(rows),'Current station player collection is malformed.');
+   const byUid=new Map();for(const player of rows){assert.ok(player&&typeof player==='object'&&typeof player.uid==='string'&&player.uid.length>0,'Current station player row is malformed.');
+    assert.equal(byUid.has(player.uid),false,'Current station player collection contains a duplicate owner.');byUid.set(player.uid,player);}
+   for(const actor of actors){const observation=observationByUid.get(actor.uid);Object.assign(observation,stationLossObservation(actor,root,byUid.get(actor.uid),null,attempt));}
+   const active=[],inactive=[];let pending=false;
+   for(const actor of actors){remaining();const player=byUid.get(actor.uid),observation=observationByUid.get(actor.uid),shipId=shipForRole(actor.roleId);
+    const serverLost=!!shipId&&root.shipDamage?.[shipId]?.destroyed===true,pinned=lossPins.get(actor.uid);
+    if(pinned&&!serverLost)assert.fail('Previously observed destroyed root changed before original owner confirmation.');
+    let current=null;
+    if(serverLost){current=stationLossServerTuple(actor,root,player);if(pinned){assert.ok(sameStationLossTuple(pinned,current),'Authoritative server loss tuple changed while waiting.');}
+     else lossPins.set(actor.uid,current);}
+    const member=await readBeforeDeadline(()=>readMember(actor,{loss:serverLost,deadlineAt}),'Station original owner projection');
+    Object.assign(observation,stationLossObservation(actor,root,player,member,attempt));
+    if(!serverLost){active.push(actor);continue;}
+    let anchor=anchors.get(actor.uid);
+    if(!anchor){
+     assert.equal(member.documentTimeOrigin,actor.original.documentTimeOrigin);
+     assert.ok(Number.isSafeInteger(member.identityHydrationRevision)&&member.identityHydrationRevision>=1);
+     assert.ok(Number.isSafeInteger(member.connectionGeneration)&&member.connectionGeneration>=1);
+     assert.equal(member.connectionGeneration,player.connectionGeneration,'First current browser and server generations must match.');
+     anchor={connectionGeneration:member.connectionGeneration,documentTimeOrigin:member.documentTimeOrigin,identityHydrationRevision:member.identityHydrationRevision};
+     anchors.set(actor.uid,anchor);
+    }
+    const phase=stationLossProjectionPhase(actor,player,member,anchor,current);
+    if(phase==='pending'){pending=true;break;}
+    stationInactiveOwner(actor,root,player,member);inactive.push({actor,member});
+   }
+   if(!pending){remaining();for(const {actor,member} of inactive){remaining();onInactive?.(actor,member);remaining();}remaining();return active;}
+   await readBeforeDeadline(()=>wait(Math.min(200,remaining())), 'Station normal owner feed wait');
+  }
+ }catch(error){rememberProofFailure(error,{stationInactiveOwnerObservations:observations});throw error;}
 }
 export const stationRoleIds={Recipient:'wing-commander',Miner:'icebreaker-miner',Scientist:'shepherd-scientist',Explorer:'quellon-explorer',Colonel:'refinery-124-pdf-colonel',Press:'press-officer'};
 // Read-only preflight of the actual normally admitted preset14 custody roster.
@@ -527,6 +686,52 @@ async function installLossAck(surface,endpoint,waitCommitted,operationDeadlineAt
 
 async function assertStationCustody(){const current=await recordRoot(),players=await db.collection(`sessions/${sid}/players`).get();const result=assertStationOwnerCustody(current,players.docs.map(player=>({...player.data(),uid:player.id})),Object.fromEntries(actorUids));evidence.stationCustody=result;return result;}
 async function fullMember(surface){return observeFullGameDemoPresentationMember(surface,{knownRoleIds:Object.values(roleIds)});}
+async function fullStationLossMember(surface){
+ const member=await fullMember(surface);
+ const browserLoss=await surface.page.evaluate(async moduleUrl=>{
+  const {auth}=await import('/src/lib/firebase.ts'),{activeDemoActorProfile}=await import('/src/lib/demoActorContext.ts');
+  const {useSessionStore}=await import(moduleUrl);
+  const take=()=>{const user=auth().currentUser,state=useSessionStore.getState(),me=state.me,rawUid=user?.uid??null;
+   const rawEscape=me?.escapeState,keys=rawEscape&&typeof rawEscape==='object'&&!Array.isArray(rawEscape)?Object.keys(rawEscape).sort():[];
+   const hasFleeRequestId=rawEscape&&Object.hasOwn(rawEscape,'fleeRequestId');
+   const escapeStateValid=rawEscape==null||(keys.length===(hasFleeRequestId?5:4)&&
+    keys.join(',')===(hasFleeRequestId?'destructionEventId,fleeRequestId,revision,shipId,status':'destructionEventId,revision,shipId,status'))&&
+   (rawEscape.status==='pending'||rawEscape.status==='fled')&&typeof rawEscape.shipId==='string'&&rawEscape.shipId.length>0&&
+    typeof rawEscape.destructionEventId==='string'&&rawEscape.destructionEventId.length>0&&Number.isSafeInteger(rawEscape.revision)&&rawEscape.revision>=1&&
+    (!hasFleeRequestId||typeof rawEscape.fleeRequestId==='string'&&rawEscape.fleeRequestId.length>0);
+   const escapeState=rawEscape==null||!escapeStateValid?null:{status:rawEscape.status,shipId:rawEscape.shipId,
+    destructionEventId:rawEscape.destructionEventId,revision:rawEscape.revision,...(hasFleeRequestId?{fleeRequestId:rawEscape.fleeRequestId}:{})};
+   return {rawUid,sessionId:state.session?.id??null,meSessionId:me?.sessionId??null,hasAuth:!!user,sameActor:!!user&&user.uid===me?.uid,
+   profileRoleId:activeDemoActorProfile?.roleId??null,profileSessionId:activeDemoActorProfile?.sessionId??null,playerRole:me?.role??null,
+   assignedRoleId:me?.assignedRoleId??null,activeConsoleRoleId:me?.activeConsoleRoleId??null,seatId:me?.seatId??null,
+   fleetGroupId:me?.fleetGroupId??null,replacementRoleId:me?.replacementRoleId??null,replacementStatus:me?.replacementStatus??null,
+   kicked:me?.kickedAt!=null,connected:me?.connected===true,connection:state.connection??null,freshness:state.sessionSnapshotFreshness??null,
+   connectionGeneration:me?.connectionGeneration??null,documentTimeOrigin:performance.timeOrigin,
+   identityHydrationRevision:state.identityHydrationRevision,escapeLocked:rawEscape!=null,escapeState,escapeStateValid};
+  };
+  const before=take();
+  const uidHash=before.rawUid?Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(before.rawUid))))
+   .map(byte=>byte.toString(16).padStart(2,'0')).join('').slice(0,16):null;
+  const after=take(),authUidStable=before.rawUid===after.rawUid;
+  const publicSample=value=>{const {rawUid,...sample}=value;return {...sample,uidHash};};
+  return {before:publicSample(before),after:publicSample(after),authUidStable};
+ },surface.storeModuleUrl());
+ const compared=['uidHash','sessionId','meSessionId','hasAuth','sameActor','profileRoleId','profileSessionId','playerRole',
+  'assignedRoleId','activeConsoleRoleId','seatId','fleetGroupId','replacementRoleId','replacementStatus','kicked','connected',
+  'connection','freshness','connectionGeneration','documentTimeOrigin','identityHydrationRevision','escapeLocked','escapeState'];
+ const memberCompared=compared.filter(key=>key!=='escapeState');
+ const memberMatches=sample=>memberCompared.every(key=>{
+  const left=key==='connected'?member.currentOwnPlayerConfirmed:member[key],right=sample[key];
+  return left===right;
+ });
+ const [before,after]=[browserLoss.before,browserLoss.after];
+ const stableBookend=compared.every(key=>key==='escapeState'?JSON.stringify(before[key]??null)===JSON.stringify(after[key]??null):before[key]===after[key]);
+ const browserProjectionConsistent=browserLoss.authUidStable&&before.escapeStateValid&&after.escapeStateValid&&stableBookend&&
+  memberMatches(before)&&memberMatches(after)&&member.invalidFields.length===0;
+ return {...member,browserProjectionConsistent,escapeState:browserProjectionConsistent?after.escapeState:null,
+  escapeStateValid:before.escapeStateValid&&after.escapeStateValid,browserLossSample:after,
+  browserLossSamples:[before,after],browserAuthUidStable:browserLoss.authUidStable};
+}
 function currentMember(value,label,roleId){
  assert.equal(value.uidHash,short(actorUids.get(label)));assert.equal(value.sessionId,sid);assert.equal(value.meSessionId,sid);
  assert.equal(value.hasAuth,true);assert.equal(value.sameActor,true);assert.equal(value.profileRoleId,null);assert.equal(value.profileSessionId,null);
@@ -835,8 +1040,10 @@ async function enterRole(surface,label){
     return selectStationCombatCrew(actors,{ships,
      readRoot:()=>candidateWait(()=>recordRoot(),deadlineAt,'Station current host loss'),
      readPlayers:async()=>{const players=await candidateWait(()=>db.collection(`sessions/${sid}/players`).get(),deadlineAt,'Station current custody owners');return players.docs.map(player=>({...player.data(),uid:player.id}));},
-     readMember:actor=>candidateWait(()=>fullMember(actor.surface),deadlineAt,'Station original owner projection'),
-     onInactive:(actor,member)=>(evidence.stationInactiveOwners??=[]).push({roleId:actor.roleId,uidHash:member.uidHash,shipDestroyed:true,explicitEscape:true,noChoiceIssued:true})});
+     readMember:(actor,{loss})=>candidateWait(()=>loss?fullStationLossMember(actor.surface):fullMember(actor.surface),deadlineAt,'Station original owner projection'),
+     onObservation:observation=>(evidence.stationInactiveOwnerObservations??=[]).push(observation),
+     onInactive:(actor,member)=>(evidence.stationInactiveOwners??=[]).push({roleId:actor.roleId,uidHash:member.uidHash,shipDestroyed:true,explicitEscape:true,noChoiceIssued:true}),
+     wait:milliseconds=>candidateWait(()=>delay(milliseconds),deadlineAt,'Station normal owner feed wait'),deadlineAt});
    };
    const choose=(current,{deadlineAt})=>chooseStationCombatActor(current,{deadlineAt,chooseWing,pendingWingRecovery:[...recoveredLaunches.values()].some(row=>row.view.attackId===current.attackId&&!row.committed),chooseCrew:async(attack,options)=>dispatchStationCrewChoice(attack,{...options,sessionId:sid,actors:await activeCrew(options.deadlineAt),assertActor:assertCrewActor,readAttack,action})});
    try {
