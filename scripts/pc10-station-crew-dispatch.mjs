@@ -161,6 +161,110 @@ function turnStateFields(actor) {
     .map(key => [key, actor[key]]));
 }
 
+const originalStationGmAuthorityFields = ['sessionId', 'uidHash', 'generation', 'hydrationRevision', 'instanceId', 'claimedAt'];
+
+function assertOriginalStationGmAuthority(observed, expected, sessionId) {
+  assert.ok(observed && expected, 'The original Station GM authority and claim lease are required.');
+  assert.equal(expected.sessionId, sessionId, 'Original Station GM lease must belong to the owned session.');
+  for (const key of originalStationGmAuthorityFields)
+    assert.ok(Object.hasOwn(expected, key) && expected[key] !== undefined,
+      `Original Station GM ${key} authority evidence is required.`);
+  assert.ok(typeof expected.uidHash === 'string' && expected.uidHash.length > 0);
+  assert.ok(Number.isSafeInteger(expected.generation) && expected.generation >= 0);
+  assert.ok(Number.isSafeInteger(expected.hydrationRevision) && expected.hydrationRevision >= 0);
+  assert.ok(typeof expected.instanceId === 'string' && expected.instanceId.length > 0);
+  assert.ok(typeof expected.claimedAt === 'string' && expected.claimedAt.length > 0);
+  for (const key of originalStationGmAuthorityFields)
+    assert.equal(observed[key], expected[key], `Original Station GM ${key} or claim lease changed during phase observation.`);
+}
+
+function stationTurnPhaseTuple(snapshot, current, sessionId, expectedGmAuthority) {
+  assert.ok(snapshot && typeof snapshot === 'object', 'A current normal-GM Station phase envelope is required.');
+  assert.equal(snapshot.sessionId, sessionId, 'Original Station phase source must match the owned session.');
+  assertOriginalStationGmAuthority(snapshot.gmAuthority, expectedGmAuthority, sessionId);
+  const session = snapshot.session;
+  assert.ok(session && typeof session === 'object', 'The original GM browser must return the session phase envelope.');
+  const turnPhase = session.turnPhase, turnState = session.turnState;
+  assert.ok(turnPhase && typeof turnPhase === 'object', 'The current server turnPhase is required.');
+  assert.ok(turnState && typeof turnState === 'object', 'The current server turnState is required.');
+  const tuple = {
+    sessionPhase: session.phase,
+    currentTurn: session.currentTurn,
+    turnLimit: session.turnLimit,
+    fullGameDemo: structuredClone(session.fullGameDemo),
+    turnPhase: structuredClone(turnPhase),
+    turnState: structuredClone(turnState),
+  };
+  assert.equal(tuple.sessionPhase, 'active', 'Station phase authority requires the original active session.');
+  assert.equal(tuple.fullGameDemo?.status, 'active', 'Station phase authority requires the active full-game demo.');
+  assert.equal(tuple.fullGameDemo?.progression, 'manual', 'Station phase authority requires manual GM progression.');
+  assert.equal(tuple.currentTurn, current.turn, 'Normal-GM session cycle must match the original P attack.');
+  assert.equal(tuple.turnPhase.turn, current.turn, 'Normal-GM turnPhase cycle must match the original P attack.');
+  assert.equal(tuple.turnState.currentTurn, current.turn, 'Normal-GM turnState cycle must match the original P attack.');
+  assert.ok([6, 7, 8].includes(tuple.turnState.maxTurn), 'Normal-GM turnState maximum must be source-backed.');
+  if (tuple.turnLimit !== undefined)
+    assert.equal(tuple.turnLimit, tuple.turnState.maxTurn, 'Session turnLimit must match the complete turnState maximum.');
+  assert.equal(tuple.turnState.phase, 'team', 'The locked P attack requires the authoritative Team phase.');
+  assert.ok(Number.isSafeInteger(tuple.turnState.phaseRevision) && tuple.turnState.phaseRevision >= 1,
+    'Normal-GM phaseRevision must be a complete server value.');
+  assert.equal(tuple.turnPhase.airspace?.state, 'restricted', 'The locked P attack requires restricted airspace.');
+  assert.equal(typeof tuple.turnPhase.airspace?.tickerActive, 'boolean');
+  assert.equal(typeof tuple.turnPhase.airspace?.pressAccess, 'boolean');
+  assert.equal(tuple.turnPhase.progression, 'manual', 'Normal-GM turnPhase progression must remain manual.');
+  assert.ok(tuple.turnPhase.timerPause == null, 'A paused or held Station phase cannot qualify a crew choice.');
+  for (const [label, instant] of [
+    ['Team phase deadline', tuple.turnPhase.teamPhaseEndsAt],
+    ['Coordination phase deadline', tuple.turnPhase.openAirspaceEndsAt],
+    ['turnState start', tuple.turnState.startedAt], ['turnState deadline', tuple.turnState.endsAt],
+  ]) assert.ok(typeof instant === 'string' && Number.isFinite(Date.parse(instant)),
+    `Normal-GM ${label} must be a valid source instant.`);
+  assert.equal(tuple.turnState.endsAt, tuple.turnPhase.teamPhaseEndsAt,
+    'The normal-GM turnState deadline must agree with the restricted Team phase deadline.');
+  return tuple;
+}
+
+function assertActorIdentityAtPinnedPhase(current, original) {
+  assertWolfChoiceActor({ ...current, airspace: original.airspace, turnStatePhase: original.turnStatePhase }, original);
+  assert.deepEqual(current.discoveryAuthority, original.discoveryAuthority,
+    'Original Station member discovery authority changed before choice scope freeze.');
+  assert.equal(current.entitledShipId, original.entitledShipId,
+    'Original Station member entitled ship changed before choice scope freeze.');
+  assert.equal(current.documentTimeOrigin, original.documentTimeOrigin,
+    'Original Station browser document changed before choice scope freeze.');
+}
+
+function actorMatchesPinnedTurnPhase(current, original, pinned) {
+  assertActorIdentityAtPinnedPhase(current, original);
+  const { turnPhase, turnState } = pinned;
+  assert.equal(original.turnStatePhaseRevision <= turnState.phaseRevision, true,
+    'The original member phase revision cannot be newer than the current server source.');
+  assert.equal(current.turnStatePhaseRevision >= original.turnStatePhaseRevision, true,
+    'The original member turnState phase revision regressed while awaiting source convergence.');
+  assert.equal(current.turnStatePhaseRevision <= turnState.phaseRevision, true,
+    'The member cannot advance beyond the pinned current server phase.');
+  assert.equal(current.phase, 'active');
+  assert.equal(current.cycle, turnState.currentTurn);
+  assert.equal(current.phaseProgression, turnPhase.progression);
+  assert.equal(current.turnPhaseTurn, turnPhase.turn);
+  assert.equal(current.turnPhaseOpenAirspaceEndsAt, turnPhase.openAirspaceEndsAt);
+  assert.equal(current.turnPhaseTeamPhaseEndsAt, turnPhase.teamPhaseEndsAt);
+  assert.equal(current.turnStateCurrentTurn, turnState.currentTurn);
+  assert.equal(current.turnStateMaxTurn, turnState.maxTurn);
+  assert.equal(current.turnStateStartedAt, turnState.startedAt);
+  if (current.airspace === 'restricted' && current.turnStatePhase === 'team') {
+    assert.equal(current.turnStateEndsAt, turnState.endsAt);
+    return current.turnStatePhaseRevision === turnState.phaseRevision;
+  }
+  if (current.airspace === 'lifted' && current.turnStatePhase === 'coordination') {
+    assert.ok(current.turnStatePhaseRevision < turnState.phaseRevision,
+      'A current Team source cannot be paired with a same-or-newer Coordination member projection.');
+    assert.equal(current.turnStateStartedAt, turnPhase.teamPhaseEndsAt);
+    assert.equal(current.turnStateEndsAt, turnPhase.openAirspaceEndsAt);
+    return false;
+  }
+  assert.fail(`Member airspace/turnState phase is not a valid pre-freeze projection: ${current.airspace}/${current.turnStatePhase}.`);
+}
+
 function assertTurnStateProjection(actor, current) {
   assert.equal(actor.turnPhaseTurn, current.turn, 'Original Station turn phase must match the declared attack cycle.');
   assert.equal(actor.turnStateCurrentTurn, current.turn, 'Original Station turn-state cycle must match the declared attack.');
@@ -283,6 +387,12 @@ async function observePreFreezeActor(actor, current, context, trace) {
   assertMemberSampleMatches(memberBefore, sample, 'pre-sample member fence');
   sample.entitledShipId = sample.replacementStatus == null ? sample.discoveryAuthority?.shipId ?? null : null;
   trace.actorScopes.push(sample);
+  if (context.frozenActor) {
+    assert.equal(sample.airspace, context.frozenActor.airspace,
+      'Original combat airspace changed after the Station actor scope was frozen.');
+    assert.equal(sample.turnStatePhase, context.frozenActor.turnStatePhase,
+      'Original combat turnStatePhase changed after the Station actor scope was frozen.');
+  }
   assertWolfChoiceActor(sample, sample);
   assert.equal(sample.sessionId, context.sessionId, 'Lock readiness must stay in the original Station session.');
   assert.equal(sample.phase, 'active', 'Lock readiness requires the original active gameplay phase.');
@@ -304,44 +414,70 @@ function attackTrace(attack) {
 }
 
 async function waitForLockedActorScope(current, actor, context) {
-  const trace = { attackReads: [], actorScopes: [], sourceReplies: [], sourceReadAttempts: [], paintObservations: [] };
+  const trace = { attackReads: [], phaseReads: [], actorScopes: [], sourceReplies: [], sourceReadAttempts: [], paintObservations: [] };
   const inspectAttack = async () => {
     assertBudget(context.deadlineAt);
-    const attack = await context.readAttack();
+    const attack = await context.readAttack({ deadlineAt: context.deadlineAt });
     assertBudget(context.deadlineAt);
     trace.attackReads.push(attackTrace(attack));
     return attack;
+  };
+  const inspectTurnPhase = async () => {
+    assertBudget(context.deadlineAt);
+    const snapshot = await context.readTurnState({ deadlineAt: context.deadlineAt });
+    assertBudget(context.deadlineAt);
+    trace.phaseReads.push(structuredClone(snapshot));
+    return stationTurnPhaseTuple(snapshot, current, context.sessionId, context.gmAuthority);
   };
   try {
     const original = await observePreFreezeActor(actor, current, context, trace);
     let attack = await inspectAttack();
     if (!sameAttack(attack, current)) return { status: 'source-changed', trace };
-    let observed = original;
+    let observed = original, pinnedTurnPhase = null;
     while (Date.now() < context.deadlineAt) {
+      if (lockedAttack(attack, current)) {
+        const phase = await inspectTurnPhase();
+        if (pinnedTurnPhase)
+          assert.deepEqual(phase, pinnedTurnPhase,
+            'Authoritative Station phase tuple changed while the original actor scope was being frozen.');
+        else pinnedTurnPhase = phase;
+        const attackBeforeSample = await inspectAttack();
+        if (!sameAttack(attackBeforeSample, current) || !lockedAttack(attackBeforeSample, current))
+          return { status: 'source-changed', trace };
+        observed = await observePreFreezeActor(actor, current, context, trace);
+        const actorReady = actorMatchesPinnedTurnPhase(observed, original, pinnedTurnPhase);
+        if (actorReady) {
+          const strict = await observeWolfChoiceActor(actor.surface);
+          assertBudget(context.deadlineAt);
+          const after = await observePreFreezeActor(actor, current, context, trace);
+          assert.ok(actorMatchesPinnedTurnPhase(after, original, pinnedTurnPhase),
+            'The strict and atomic actor samples must show the complete pinned Team source phase.');
+          const phaseAfterSample = await inspectTurnPhase();
+          assert.deepEqual(phaseAfterSample, pinnedTurnPhase,
+            'Authoritative Station phase tuple changed during the strict and atomic actor freeze.');
+          const attackAfterSample = await inspectAttack();
+          if (!sameAttack(attackAfterSample, current) || !lockedAttack(attackAfterSample, current))
+            return { status: 'source-changed', trace };
+          assertStrictObservationMatchesAtomic(strict, after);
+          return { status: 'locked', original: after, turnPhase: pinnedTurnPhase, trace };
+        }
+        await delay(Math.min(200, Math.max(1, context.deadlineAt - Date.now())));
+        assertBudget(context.deadlineAt);
+        attack = await inspectAttack();
+        if (!sameAttack(attack, current)) return { status: 'source-changed', trace };
+        continue;
+      }
       assertActorScopeUnchanged(observed, original, { attack, expectedAttack: current,
         allowDeclarationLock: true });
-      if (lockedAttack(attack, current) && observed.airspace === 'restricted' &&
-          observed.turnStatePhase === 'team') {
-        const strict = await observeWolfChoiceActor(actor.surface);
-        assertBudget(context.deadlineAt);
-        const locked = await inspectAttack();
-        if (!sameAttack(locked, current) || !lockedAttack(locked, current))
-          return { status: 'source-changed', trace };
-        const after = await observePreFreezeActor(actor, current, context, trace);
-        assertActorScopeUnchanged(after, original, { attack: locked, expectedAttack: current,
-          allowDeclarationLock: true });
-        assert.equal(after.airspace, 'restricted', 'The original member projection must remain restricted after scope freeze.');
-        assert.equal(after.turnStatePhase, 'team', 'The original member must show the complete declared Team phase.');
-        assertStrictObservationMatchesAtomic(strict, after);
-        return { status: 'locked', original: after, trace };
-      }
       await delay(Math.min(200, Math.max(1, context.deadlineAt - Date.now())));
       assertBudget(context.deadlineAt);
       attack = await inspectAttack();
       if (!sameAttack(attack, current)) return { status: 'source-changed', trace };
-      observed = await observePreFreezeActor(actor, current, context, trace);
-      assertActorScopeUnchanged(observed, original, { attack, expectedAttack: current,
-        allowDeclarationLock: true });
+      if (!lockedAttack(attack, current)) {
+        observed = await observePreFreezeActor(actor, current, context, trace);
+        assertActorScopeUnchanged(observed, original, { attack, expectedAttack: current,
+          allowDeclarationLock: true });
+      }
     }
     assertBudget(context.deadlineAt);
   } catch (error) {
@@ -352,32 +488,46 @@ async function waitForLockedActorScope(current, actor, context) {
   }
 }
 
-async function readySource(current, actor, spec, { sessionId, deadlineAt, assertActor, readAttack }) {
+async function readySource(current, actor, spec, { sessionId, deadlineAt, assertActor, readAttack, readTurnState,
+  gmAuthority }) {
   const surface = actor.surface;
   const source = sourceFor(spec);
   assert.ok(source && typeof surface.callable === 'function', 'An original browser SDK source reader is required.');
-  const context = { sessionId, deadlineAt, assertActor, readAttack };
+  const context = { sessionId, deadlineAt, assertActor, readAttack, readTurnState, gmAuthority };
   const scope = await waitForLockedActorScope(current, actor, context);
   if (scope.status === 'source-changed') return scope;
   const original = scope.original;
+  const inspectPinnedTurnPhase = async () => {
+    assertBudget(deadlineAt);
+    const snapshot = await readTurnState({ deadlineAt });
+    assertBudget(deadlineAt);
+    scope.trace.phaseReads.push(structuredClone(snapshot));
+    const phase = stationTurnPhaseTuple(snapshot, current, sessionId, gmAuthority);
+    assert.deepEqual(phase, scope.turnPhase,
+      'The original authoritative Station phase tuple changed after actor scope freeze.');
+    return phase;
+  };
   const fence = async () => {
     assertBudget(deadlineAt);
     await assertActor(actor, { current, deadlineAt });
     assertBudget(deadlineAt);
+    await inspectPinnedTurnPhase();
   };
   const inspectActor = async () => {
     await fence();
     const strict = await observeWolfChoiceActor(surface);
     assertBudget(deadlineAt);
-    const observed = await observePreFreezeActor(actor, current, { sessionId, deadlineAt, assertActor }, scope.trace);
+    const observed = await observePreFreezeActor(actor, current, { sessionId, deadlineAt, assertActor,
+      frozenActor: original }, scope.trace);
     assertStrictObservationMatchesAtomic(strict, observed);
     assertActorScopeUnchanged(observed, original);
+    await inspectPinnedTurnPhase();
     return observed;
   };
   const expected = { ...current, sessionId };
   const inspectRawAttack = async () => {
     assertBudget(deadlineAt);
-    const attack = await readAttack();
+    const attack = await readAttack({ deadlineAt });
     assertBudget(deadlineAt);
     return attack;
   };
@@ -424,16 +574,18 @@ async function readySource(current, actor, spec, { sessionId, deadlineAt, assert
     let latestAttack;
     try {
       assertBudget(deadlineAt);
-      latestAttack = await readAttack();
+      latestAttack = await readAttack({ deadlineAt });
       assertBudget(deadlineAt);
       assert.ok(lockedAttack(latestAttack, current),
         'The original P attack or exact lock changed before final Station UI intent.');
+      await inspectPinnedTurnPhase();
       await inspectActor();
       assertBudget(deadlineAt);
-      latestAttack = await readAttack();
+      latestAttack = await readAttack({ deadlineAt });
       assertBudget(deadlineAt);
       assert.ok(lockedAttack(latestAttack, current),
         'The original P attack or exact lock changed during the final Station actor sample.');
+      await inspectPinnedTurnPhase();
     } catch (error) {
       rememberProofFailure(error, { operation: 'station-crew-final-ui-intent', roleId: actor.roleId,
         sessionId, deadlineAt, originalAttack: attackTrace(current), observedAttack: attackTrace(latestAttack),
@@ -475,7 +627,7 @@ async function commitUiChoice(current, actor, endpoint, choose, expectedRequest,
   assert.equal(typeof finalIntentFence, 'function', 'A frozen Station source scope is required before final UI intent.');
   assertBudget(deadlineAt);
   await assertActor(actor, { current, deadlineAt });
-  if (!lockedAttack(await readAttack(), current)) return { sourceChanged: true };
+  if (!lockedAttack(await readAttack({ deadlineAt }), current)) return { sourceChanged: true };
   assertBudget(deadlineAt);
   const capture = await action(surface, endpoint, async () => {
     assertBudget(deadlineAt);
@@ -737,7 +889,7 @@ async function dispatchBoardingDefence(current, actor, context) {
  * `{ committed: true }` here.
  */
 export async function dispatchStationCrewChoice(current, {
-  actors = [], sessionId, deadlineAt, assertActor, readAttack, action,
+  actors = [], sessionId, deadlineAt, assertActor, readAttack, readTurnState, gmAuthority, action,
 } = {}) {
   if (!current || current.status !== 'declared' || current.threatSiteCode !== 'P') return undefined;
   assert.ok(['targeting', ...rangeSteps, 'boarding'].includes(current.currentStep),
@@ -749,9 +901,11 @@ export async function dispatchStationCrewChoice(current, {
   assert.ok(Array.isArray(actors), 'Station crew actors must be an array.');
   assert.ok(typeof assertActor === 'function', 'The parent-owned current-member actor fence is required.');
   assert.ok(typeof readAttack === 'function', 'The original live Station attack reader is required.');
+  assert.ok(typeof readTurnState === 'function', 'The original live GM turn-phase reader is required.');
+  assertOriginalStationGmAuthority(gmAuthority, gmAuthority, sessionId);
   assert.ok(typeof action === 'function', 'The original UI action receipt callback is required.');
-  const context = { sessionId, deadlineAt, assertActor, readAttack, action };
-  const live = await readAttack();
+  const context = { sessionId, deadlineAt, assertActor, readAttack, readTurnState, gmAuthority, action };
+  const live = await readAttack({ deadlineAt });
   assertBudget(deadlineAt);
   if (!sameAttack(live, current)) return undefined;
 

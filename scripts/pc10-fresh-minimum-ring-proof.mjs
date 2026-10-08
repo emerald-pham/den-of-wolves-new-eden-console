@@ -1135,15 +1135,83 @@ async function enterRole(surface,label){
    await preparation.getByLabel('Battlestation count',{exact:true}).fill('1');await preparation.getByLabel('Fleet Strikecarrier count',{exact:true}).fill('4');
    await action(gm,'stageWolfAttackPreparation',()=>preparation.getByRole('button',{name:'Save private attack draft',exact:true}).click());
    let browserCombatContext,lastCombatSampleHash;
-   async function readAttack(){
-    await liveGm(gm,'GM1','active');
-    const read=await gm.page.evaluate(async sid=>{
+   async function readAttack({deadlineAt:operationDeadlineAt=Math.min(Date.now()+60000,workEnd)}={}){
+    await liveGm(gm,'GM1','active',{deadlineAt:operationDeadlineAt});
+    const read=await candidateWait(()=>gm.page.evaluate(async sid=>{
      const source=await(await fetch('/src/lib/firestore.ts')).text(),match=source.match(/from\s+["']([^"']*firebase_firestore\.js[^"']*)["']/);if(!match)throw Error('Actual served Firestore SDK import required');
      const sdk=await import(match[1]),{db}=await import('/src/lib/firestore.ts');
      const [attack,audience]=await Promise.all(['wolfAttackState/current','wolfAttackAudience/current'].map(path=>sdk.getDocFromServer(sdk.doc(db(),`sessions/${sid}/${path}`))));
      if(!attack.exists())throw Error('Current real Station attack missing');
      return {attack:attack.data(),publicAudience:audience.exists()?audience.data():null};
-    },sid);browserCombatContext={channel:'original-GM-browser-Firestore-SDK',sessionId:sid,observedAt:new Date().toISOString(),publicAudience:read.publicAudience};return read.attack;
+    },sid),operationDeadlineAt,'Original GM browser P attack read expired.');
+    browserCombatContext={channel:'original-GM-browser-Firestore-SDK',sessionId:sid,observedAt:new Date().toISOString(),publicAudience:read.publicAudience};return read.attack;
+   }
+   async function readTurnState({deadlineAt:operationDeadlineAt=workEnd}={}){
+    const deadlineAt=operationDeadlineAt;
+    const liveBefore=await liveGm(gm,'GM1','active',{deadlineAt});
+    const lifecycleBefore=await candidateWait(()=>observeLifecycleActor(gm,sid),deadlineAt,'Original Station GM phase-read lifecycle preflight expired.');
+    assertStationPopulationGmActorObserver(gm1OriginalAuthority,{live:liveBefore,lifecycle:lifecycleBefore});
+    const read=await candidateWait(()=>gm.page.evaluate(async({sid,storeUrl,authorityUrl,expectedAuthority})=>{
+     const{auth}=await import('/src/lib/firebase.ts'),{useSessionStore}=await import(storeUrl),authority=await import(authorityUrl);
+     const capture=()=>{
+      const user=auth().currentUser,state=useSessionStore.getState(),me=state.me,session=state.session,instance=state.gmInstance;
+      return {uid:user?.uid??null,meUid:me?.uid??null,sessionId:session?.id??null,role:me?.role??null,
+       connection:state.connection??null,freshness:state.sessionSnapshotFreshness??null,
+       generation:me?.connectionGeneration??null,hydrationRevision:state.identityHydrationRevision??null,
+       instanceId:instance?.id??null,instanceUid:instance?.uid??null,instanceSessionId:instance?.sessionId??null,
+       claimedAt:instance?.claimedAt??null};
+     };
+     const before=capture(),own=before.uid?authority.sessionSnapshotAuthorityFor(sid,before.uid):null;
+     if(!before.uid||before.meUid!==before.uid||before.sessionId!==sid||before.role!=='gm'||
+        before.connection!=='live'||before.freshness!=='server'||!own?.hasServerSessionAuthority||
+        authority.memberSessionResumeBlocksFreshness(own))throw Error('Current original GM server-session authority required for phase read.');
+     const source=await(await fetch('/src/lib/firestore.ts')).text(),match=source.match(/from\s+["']([^"']*firebase_firestore\.js[^"']*)["']/);
+     if(!match)throw Error('Actual served Firestore SDK import required for the GM phase read.');
+     const sdk=await import(match[1]),{db}=await import('/src/lib/firestore.ts');
+     const [sessionSnap,playerSnap,instanceSnap]=await Promise.all([
+      sdk.getDocFromServer(sdk.doc(db(),`sessions/${sid}`)),
+      sdk.getDocFromServer(sdk.doc(db(),`sessions/${sid}/players/${before.uid}`)),
+      sdk.getDocFromServer(sdk.doc(db(),`sessions/${sid}/gmInstances/${before.instanceId}`)),
+     ]);
+     if(!sessionSnap.exists()||!playerSnap.exists()||!instanceSnap.exists())throw Error('Original GM current session, player, or instance source is missing.');
+     const root=sessionSnap.data(),player=playerSnap.data(),instance=instanceSnap.data();
+     const uidHash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(before.uid))))
+      .map(byte=>byte.toString(16).padStart(2,'0')).join('').slice(0,16);
+     const after=capture(),afterOwn=after.uid?authority.sessionSnapshotAuthorityFor(sid,after.uid):null;
+     if(after.uid!==before.uid||after.meUid!==before.meUid||after.sessionId!==before.sessionId||after.role!==before.role||
+        after.connection!==before.connection||after.freshness!==before.freshness||after.generation!==before.generation||
+        after.hydrationRevision!==before.hydrationRevision||after.instanceId!==before.instanceId||
+        after.instanceUid!==before.instanceUid||after.instanceSessionId!==before.instanceSessionId||after.claimedAt!==before.claimedAt||
+        !afterOwn?.hasServerSessionAuthority||authority.memberSessionResumeBlocksFreshness(afterOwn))
+      throw Error('Original GM Auth, session, generation, hydration, or lease changed during the server phase read.');
+     const gmAuthority={sessionId:sid,uidHash,generation:before.generation,hydrationRevision:before.hydrationRevision,
+      instanceId:before.instanceId,claimedAt:before.claimedAt};
+     if(uidHash!==expectedAuthority.uidHash||gmAuthority.sessionId!==expectedAuthority.sessionId||
+        gmAuthority.generation!==expectedAuthority.generation||gmAuthority.hydrationRevision!==expectedAuthority.hydrationRevision||
+        gmAuthority.instanceId!==expectedAuthority.instanceId||gmAuthority.claimedAt!==expectedAuthority.claimedAt||
+        player.role!=='gm'||player.connected!==true||player.connectionGeneration!==before.generation||
+        instance.uid!==before.uid||instance.sessionId!==sid||instance.connected!==true||instance.claimedAt!==before.claimedAt)
+      throw Error('Original GM server player, instance lease, or claim authority changed during the phase read.');
+     const rawTurnPhase=root.turnPhase,rawTurnState=root.turnState;
+     const copyPhase=phase=>phase&&({turn:phase.turn,teamPhaseEndsAt:phase.teamPhaseEndsAt,
+      openAirspaceEndsAt:phase.openAirspaceEndsAt,airspace:phase.airspace&&({state:phase.airspace.state,
+       tickerActive:phase.airspace.tickerActive,pressAccess:phase.airspace.pressAccess}),
+      ...(Object.hasOwn(phase,'timerPause')?{timerPause:phase.timerPause}:{}),
+      ...(Object.hasOwn(phase,'progression')?{progression:phase.progression}:{})});
+     const session={phase:root.phase,currentTurn:root.currentTurn,turnLimit:root.turnLimit,
+      fullGameDemo:root.fullGameDemo&&({status:root.fullGameDemo.status,progression:root.fullGameDemo.progression}),
+      turnPhase:copyPhase(rawTurnPhase),turnState:rawTurnState&&({currentTurn:rawTurnState.currentTurn,
+       maxTurn:rawTurnState.maxTurn,phase:rawTurnState.phase,phaseRevision:rawTurnState.phaseRevision,
+       startedAt:rawTurnState.startedAt,endsAt:rawTurnState.endsAt})};
+     return {sessionId:sid,gmAuthority,session};
+    },{sid,storeUrl:gm.storeModuleUrl(),authorityUrl:gm.sessionAuthorityModuleUrl(),expectedAuthority:gm1OriginalAuthority}),
+    deadlineAt,'Original GM browser server phase and lease read expired.');
+    const liveAfter=await liveGm(gm,'GM1','active',{deadlineAt});
+    const lifecycleAfter=await candidateWait(()=>observeLifecycleActor(gm,sid),deadlineAt,'Original Station GM phase-read lifecycle bookend expired.');
+    assertStationPopulationGmActorObserver(gm1OriginalAuthority,{live:liveAfter,lifecycle:lifecycleAfter});
+    for(const key of ['sessionId','uidHash','generation','hydrationRevision','instanceId','claimedAt'])
+     assert.equal(read.gmAuthority[key],gm1OriginalAuthority[key],`Original GM ${key} changed across the normal browser phase read.`);
+    return read;
    }
    const recordDiagnosticError=(channel,error,attack)=>{
     const entry={channel,error:originalProofError(error),attackId:attack.attackId,turn:attack.turn,revision:attack.revision,step:attack.currentStep};
@@ -1183,7 +1251,7 @@ async function enterRole(surface,label){
    };
    const assertStationActors=async()=>{budget();await liveGm(gm,'GM1','active');assertSparseStationWing(await fullMember(recipient),evidence.stationWingOriginal);};
    const recoverChoice=async(error,current,{deadlineAt})=>recoverStationLaunch(error,current,{
-    observations:heldProofFailureObservations(error),readAttack:async()=>{const fresh=await readAttack();await retainCombatState(fresh);return fresh;},assertActors:assertStationActors,deadlineAt,used:recoveredLaunches,
+    observations:heldProofFailureObservations(error),readAttack:async()=>{const fresh=await readAttack({deadlineAt});await retainCombatState(fresh);return fresh;},assertActors:assertStationActors,deadlineAt,used:recoveredLaunches,
     readLaunchView:async(wingId,limit,fresh)=>{while(Date.now()<limit){
      const views=['fighter-wing-alpha','fighter-wing-bravo'].map(id=>launchViews.get(id));
      const button=recipient.page.getByRole('button',{name:`Launch Fighter Wing ${wingId.endsWith('alpha')?'Alpha':'Bravo'}`,exact:true});
@@ -1358,7 +1426,7 @@ async function enterRole(surface,label){
      onInactive:(actor,member)=>(evidence.stationInactiveOwners??=[]).push({roleId:actor.roleId,uidHash:member.uidHash,shipDestroyed:true,explicitEscape:true,noChoiceIssued:true}),
      wait:milliseconds=>candidateWait(()=>delay(milliseconds),deadlineAt,'Station normal owner feed wait'),deadlineAt});
    };
-   const choose=(current,{deadlineAt})=>chooseStationCombatActor(current,{deadlineAt,chooseWing,pendingWingRecovery:[...recoveredLaunches.values()].some(row=>row.view.attackId===current.attackId&&!row.committed),chooseCrew:async(attack,options)=>dispatchStationCrewChoice(attack,{...options,sessionId:sid,actors:await activeCrew(options.deadlineAt),assertActor:assertCrewActor,readAttack,action})});
+   const choose=(current,{deadlineAt})=>chooseStationCombatActor(current,{deadlineAt,chooseWing,pendingWingRecovery:[...recoveredLaunches.values()].some(row=>row.view.attackId===current.attackId&&!row.committed),chooseCrew:async(attack,options)=>dispatchStationCrewChoice(attack,{...options,sessionId:sid,actors:await activeCrew(options.deadlineAt),assertActor:assertCrewActor,readAttack,readTurnState,gmAuthority:gm1OriginalAuthority,action})});
    try {
    let stationWaveDeadlineAt;
    const waves=await runStationCombatWaves({maximumWaves:12,
