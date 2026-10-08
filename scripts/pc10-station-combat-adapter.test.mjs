@@ -106,7 +106,8 @@ test('Station Reactor plan skips only a source-marked lost row and rejects malfo
 function stationDeclareRetryContext(overrides={}) {
  const actor={sessionId:'owned-synthetic',uidHash:'synthetic-gm-hash',generation:1,hydrationRevision:1,
   instanceId:'gm-instance-synthetic',claimedAt:'synthetic-claim',hasAuth:true,sameActor:true,
-  connection:'live',freshness:'server',playerRole:'gm',profileRoleId:null,gmInstanceOwned:true};
+  connection:'live',freshness:'server',playerRole:'gm',profileRoleId:null,profileSessionId:null,
+  gmInstanceOwned:true,phase:'active',cycle:2};
  return {
   wave:10,
   actor,
@@ -149,7 +150,9 @@ test('rate-limited Station declaration waits once, then requires the identical n
  assert.equal(waited,26_000);assert.equal(now,27_000);assert.equal(reads,1);assert.ok(actorChecks>=2);
  const capture={endpoint:'declareWolfAttack',httpStatus:200,
   data:{sessionId:'owned-synthetic',instanceId:'gm-instance-synthetic',requestId:'fresh-request',expectedRevision:10},
-  before:{...expected.actor},result:{status:'committed'}};
+  before:{...expected.actor},result:{status:'committed',type:'wolf-attack-declaration',sessionId:'owned-synthetic',
+   requestId:'fresh-request',turn:2,revision:11,currentStep:'targeting',airspaceLocked:true,
+   deadlineAt:'2026-10-08T19:00:00.000Z',parkedCraftCount:2,announcementId:'announcement-1'}};
  assert.equal(adapter.assertRecoveredStationDeclaration(capture,recovery),true);
  assert.throws(()=>adapter.assertRecoveredStationDeclaration({...capture,data:{...capture.data,
   requestId:'denied-request'}},recovery),/fresh|different|request/i);
@@ -163,6 +166,8 @@ test('Station declaration recovery refuses unsupported errors, bodies, and retry
   stationDeclare429Error({attach:false}).error,
   stationDeclare429Error({observation:{endpoint:'advanceWolfAttackLifecycle'}}).error,
   stationDeclare429Error({observation:{httpStatus:500}}).error,
+  stationDeclare429Error({observation:{requestData:{...stationDeclare429Error().held.requestData,expectedRevision:9}}}).error,
+  stationDeclare429Error({observation:{before:{...stationDeclareRetryContext().actor,claimedAt:'foreign-claim'}}}).error,
   stationDeclare429Error({observation:{body:{error:{status:'UNAVAILABLE',details:{commandError:'rate-limited',retryAfterSeconds:26}}}}}).error,
   ...[0,-1,1.5,61,'26'].map(retryAfterSeconds=>stationDeclare429Error({observation:{body:{error:{status:'RESOURCE_EXHAUSTED',
    details:{commandError:'rate-limited',retryAfterSeconds}}}}}).error),
