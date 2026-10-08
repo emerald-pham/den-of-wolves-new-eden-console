@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { mkdtemp, mkdir, writeFile, symlink, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, symlink, rm, realpath } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import * as wrapper from './run-emulator-command.mjs';
@@ -58,7 +58,7 @@ test('ordinary Vite keeps its existing no-install dispatch and cleanup', async (
   assert.deepEqual(events, ['reserve', 'run', 'release']);
 });
 async function withTools(consume) {
-  const directory = await mkdtemp(join(tmpdir(), 'pc10-installed-firebase-contract-'));
+  const directory = await realpath(await mkdtemp(join(tmpdir(), 'pc10-installed-firebase-contract-')));
   const repository = join(directory, 'repo'), pathDirectory = join(directory, 'bin');
   await mkdir(repository); await mkdir(pathDirectory);
   async function install(at, { version = '15.29.0', name = 'firebase-tools', malformed = false } = {}) {
