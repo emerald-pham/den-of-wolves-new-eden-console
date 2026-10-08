@@ -3,6 +3,7 @@ import {
   candidateWorkspace, parseCandidateAction, parseCandidateState, resolveCandidateAction,
   type CandidateAuthority, type CandidateAction, type CandidateState,
 } from './candidatePaths';
+import { endeavourResearchTrack } from './endeavourResearch';
 import { organiserSitesForChart } from './starChartLookup';
 
 const now = '2026-10-05T12:00:00.000Z';
@@ -84,13 +85,64 @@ describe('candidate source calculations and explicit choices', () => {
   });
   it('requires fully completed Endeavour technologies for Deluxe Ring repair', () => {
     const base = authority();
-    const a = { ...base, research: { ...base.research, 'fuel-refinery': 4 } };
+    const a = { ...base, research: { ...base.research, 'fuel-refinery': 3 } };
     const deluxeState = parseCandidateState({ revision: 0, edition: 'deluxe', sites: {} });
     expect(() => resolveCandidateAction(a, deluxeState, command('contribute-research', {
       trackIds: ['reactor', 'jump-drive', 'hydroponics', 'water-reclamation', 'fuel-refinery'],
     }))).toThrow(/complete/i);
     const view = candidateWorkspace(a, deluxeState);
     expect(view.paths[0]?.researchChoices.map(choice => choice.id)).not.toContain('fuel-refinery');
+  });
+  it('uses canonical printed crosses and completion for Home, Deluxe, and legacy research in the real planner and workspace', () => {
+    const base = authority();
+    const homeState = parseCandidateState({ revision: 0, edition: 'home', sites: {} });
+    const homeBelow = { ...base, research: { ...base.research, reactor: 2 } };
+    expect(endeavourResearchTrack(homeBelow.research, 'reactor')).toMatchObject({ crossedBoxes: 3, complete: false });
+    expect(candidateWorkspace(homeBelow, homeState).paths[0]?.researchChoices).not.toContainEqual(
+      expect.objectContaining({ id: 'reactor' }));
+    expect(() => resolveCandidateAction(homeBelow, homeState, command('contribute-research', { trackIds: ['reactor'] })))
+      .toThrow(/four/i);
+
+    const homeAtFour = { ...base, research: { ...base.research, reactor: 3 } };
+    expect(endeavourResearchTrack(homeAtFour.research, 'reactor')).toMatchObject({ crossedBoxes: 4, complete: false });
+    expect(candidateWorkspace(homeAtFour, homeState).paths[0]?.researchChoices).toContainEqual(
+      expect.objectContaining({ id: 'reactor' }));
+    expect(resolveCandidateAction(homeAtFour, homeState, command('contribute-research', { trackIds: ['reactor'] }))
+      .state.sites['6798']?.researchIds).toEqual(['reactor']);
+
+    const deluxeState = parseCandidateState({ revision: 0, edition: 'deluxe', sites: {} });
+    const deluxeBelow = { ...base, research: { ...base.research, reactor: 3 } };
+    expect(endeavourResearchTrack(deluxeBelow.research, 'reactor')).toMatchObject({ crossedBoxes: 4, complete: false });
+    expect(candidateWorkspace(deluxeBelow, deluxeState).paths[0]?.researchChoices).not.toContainEqual(
+      expect.objectContaining({ id: 'reactor' }));
+    expect(() => resolveCandidateAction(deluxeBelow, deluxeState,
+      command('contribute-research', { trackIds: ['reactor'] }))).toThrow(/complete/i);
+
+    const deluxeComplete = { ...base, research: { ...base.research, reactor: 4 } };
+    expect(endeavourResearchTrack(deluxeComplete.research, 'reactor')).toMatchObject({ crossedBoxes: 5, complete: true });
+    expect(candidateWorkspace(deluxeComplete, deluxeState).paths[0]?.researchChoices).toContainEqual(
+      expect.objectContaining({ id: 'reactor' }));
+    expect(resolveCandidateAction(deluxeComplete, deluxeState,
+      command('contribute-research', { trackIds: ['reactor'] })).state.sites['6798']?.researchIds).toEqual(['reactor']);
+
+    const legacyComplete = { ...base, research: { ...base.research, reactor: 5 } };
+    expect(endeavourResearchTrack(legacyComplete.research, 'reactor')).toMatchObject({ crossedBoxes: 5, complete: true });
+    expect(candidateWorkspace(legacyComplete, deluxeState).paths[0]?.researchChoices).toContainEqual(
+      expect.objectContaining({ id: 'reactor' }));
+    expect(resolveCandidateAction(legacyComplete, deluxeState,
+      command('contribute-research', { trackIds: ['reactor'] })).state.sites['6798']?.researchIds).toEqual(['reactor']);
+  });
+  it('fails closed on malformed or unknown research progress in contribution and workspace consumers', () => {
+    const base = authority();
+    const homeState = parseCandidateState({ revision: 0, edition: 'home', sites: {} });
+    const malformed = { ...base, research: { ...base.research, reactor: 1.5 } };
+    expect(() => candidateWorkspace(malformed, homeState)).toThrow(/invalid crossed-box/i);
+    expect(() => resolveCandidateAction(malformed, homeState,
+      command('contribute-research', { trackIds: ['reactor'] }))).toThrow(/invalid crossed-box/i);
+    const privateProgress = { ...base, research: { ...base.research, 'private-track': 4 } };
+    expect(() => candidateWorkspace(privateProgress, homeState)).toThrow(/unknown track/i);
+    expect(() => resolveCandidateAction(privateProgress, homeState,
+      command('contribute-research', { trackIds: ['reactor'] }))).toThrow(/unknown track/i);
   });
   it('does not treat a track with more crosses than its catalogued final box as completed', () => {
     const base = authority();
@@ -137,7 +189,7 @@ describe('candidate source calculations and explicit choices', () => {
   });
   it('denies incomplete research, unavailable craft and a stale revision', () => {
     const a = authority();
-    a.research.reactor = 3;
+    a.research.reactor = 2;
     expect(() => resolveCandidateAction(a, empty(), command('contribute-research', { trackIds: ['reactor'] }))).toThrow(/four/i);
     expect(() => resolveCandidateAction({ ...a, engineeringShuttles: [] }, empty(),
       command('commit-engineering-shuttle', { shuttleId: 'philia' }))).toThrow(/available/i);

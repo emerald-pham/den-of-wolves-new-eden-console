@@ -72,6 +72,24 @@ function editionReceipt(requestId: string, edition: 'home' | 'deluxe', expectedR
       revision: resultRevision, edition, summary: `N/O rules edition set to ${edition === 'home' ? 'Home' : 'Deluxe'}.` },
     createdAt: '2026-10-05T12:00:00.000Z' };
 }
+function seedScientistRing(progress: Fields) {
+  const coordinate = Object.entries(organiserSitesForChart('A')).find(([, site]) => site.code === 'N')![0];
+  const navigation = structuredClone(documents.get('sessions/s1/serverState/navigation')!);
+  navigation.shipGalacticCoordinates = { ...(navigation.shipGalacticCoordinates as Fields), shepherd: coordinate };
+  navigation.systemHistory = { ...(navigation.systemHistory as Fields), shepherd: { [coordinate]: {
+    coordinate, candidateDiscovery: { id: 'scientist-ring-arrival', occurredAt: '2026-10-05T10:00:00.000Z',
+      code: 'N', title: organiserSitesForChart('A')[coordinate]!.name, source: 'arrival' },
+  } } };
+  put('sessions/s1/serverState/navigation', navigation);
+  const session = documents.get('sessions/s1')!;
+  put('sessions/s1', { ...session, activeRoleIds: ['admiral', 'shepherd-scientist'],
+    shuttleControl: { endeavour: { shuttleId: 'endeavour', ownerRoleId: 'shepherd-scientist',
+      ownerUid: 'captain', holderUid: 'captain', revision: 0 } } });
+  put('sessions/s1/players/captain', { role: 'player', connected: true, assignedRoleId: 'shepherd-scientist',
+    seatId: 'shepherd-scientist', fleetGroupId: 'fleet-1' });
+  put('sessions/s1/serverState/endeavourResearch', progress);
+  return coordinate;
+}
 
 beforeEach(() => {
   documents.clear(); die.mockClear(); requireShipAuthority.mockClear(); commitTerminal.mockClear(); survivorOutcome.mockClear();
@@ -99,6 +117,33 @@ beforeEach(() => {
 });
 
 describe('ordinary candidate callable authority and durable replay', () => {
+  it('offers the canonical four-cross Home research choice through the ordinary workspace read', async () => {
+    const coordinate = seedScientistRing({ reactor: 2 });
+    const below = await handlers.read(request({ sessionId: 's1', expectedGroupId: 'fleet-1' }, 'captain'));
+    expect(below.paths.find(path => path.code === 'N')?.researchChoices).not.toContainEqual(
+      expect.objectContaining({ id: 'reactor' }));
+    put('sessions/s1/serverState/endeavourResearch', { reactor: 3 });
+    const eligible = await handlers.read(request({ sessionId: 's1', expectedGroupId: 'fleet-1' }, 'captain'));
+    expect(eligible.paths.find(path => path.code === 'N')?.researchChoices).toContainEqual(
+      expect.objectContaining({ id: 'reactor' }));
+    expect(documents.has('sessions/s1/serverState/candidates')).toBe(false);
+  });
+  it('commits and replays a Home raw-three research contribution for the current Scientist without a duplicate effect', async () => {
+    const coordinate = seedScientistRing({ reactor: 3 });
+    const action = { sessionId: 's1', requestId: 'home-raw-three-research', expectedRevision: 0,
+      expectedGroupId: 'fleet-1', code: 'N', coordinate, action: 'contribute-research', trackIds: ['reactor'] };
+    const first = await handlers.execute(request(action, 'captain'));
+    expect(first).toMatchObject({ status: 'committed', action: 'contribute-research', revision: 1 });
+    expect(documents.get('sessions/s1/serverState/candidates'))
+      .toMatchObject({ edition: 'home', revision: 1, sites: { [coordinate]: { researchIds: ['reactor'] } } });
+    const researchBeforeReplay = structuredClone(documents.get('sessions/s1/serverState/endeavourResearch'));
+    const beforeReplay = structuredClone([...documents.entries()]);
+    await expect(handlers.execute(request(action, 'captain'))).resolves.toEqual({ ...first, status: 'replayed' });
+    expect(documents.get('sessions/s1/serverState/candidates'))
+      .toMatchObject({ revision: 1, sites: { [coordinate]: { researchIds: ['reactor'] } } });
+    expect(documents.get('sessions/s1/serverState/endeavourResearch')).toEqual(researchBeforeReplay);
+    expect([...documents.entries()]).toEqual(beforeReplay);
+  });
   it('persists a live GM edition choice in the shared session candidate record', async () => {
     const choice = { sessionId: 's1', requestId: 'edition-behavior', expectedRevision: 0,
       expectedGroupId: 'fleet-1', instanceId: 'instance1', edition: 'deluxe' };
