@@ -61,3 +61,23 @@ Source-only validation uses instrumented read-only fixtures, production/remote/f
 Attempt7 failed before P setup because this isolated snapshot retained the older shared observer. The main owner's already-reviewed commits `22744db92db217082493596e1ced20f5db91f0c4` and `1459f1b56aec21d529978273f1d505ed939ab8bb` fix that exact divergence. Only their shared observer behavior is reconciled: a captured matching ordinary request may wait at exactly next generation/original hydration while HTTP delivery, response-body parsing or SDK application is pending. Failed requests are excluded. Acceptance still requires the matching successful reply, exact next hydration, fresh same original member/berth/seat and actual mounted SDK authority with no pending resume. The unchanged original finite deadline governs all waits and listener cleanup.
 
 The corresponding reviewed test fixture/coverage was reused from `1459f1b5`; its provenance includes `0d2cf94a`, `7ca43a16` and `90856b07`. An additional captured Wing-shape regression records null original console/seat, normal canonical claim visible at generation3/hydration2/cache, then checks HTTP200 alone cannot accept and SDK pending still cannot accept; only hydration3/fresh member plus finished mounted authority accepts. Observed RED is recorded before reconciliation. No client/server product files or unrelated PC11 projection changes are imported, and no runtime is started. Source-only fixture tests are not native P evidence.
+
+### October8 paid-jump Refinery targeting repair
+
+Attempt8 qualified the original Wing and both four-fighter launches, then held
+targeting revision3 until the original deadline. Complete scoped diagnostics
+identified a normal private `maintenanceCycles[refinery-124].results.ftl` entry
+from the paid jump, rejected by the Refinery raw-cycle launch validator. The
+authorized repair allows only this known additional string result key. Public
+maintenance keys/projections, unknown/nonstring denial and genuine Commander,
+EO and Wing choices remain unchanged. Captured RED, causal comparison, focused
+GREEN and the actor rationale are recorded in
+[the attempt8 diagnosis](PC10_STATION_ATTEMPT8_TARGETING_DIAGNOSIS.md).
+
+Keep the reviewed two-actor sparse scope. Pending/no-configured-Commander was a
+pre-completion summary rather than evidence that an extra actor was required.
+Do not restore attempt8 or reuse its closed grant. The next attempt needs a
+fresh explicit allocation for the exact repaired source, compiled Functions
+and unchanged runner, with the existing complete Admin/browser diagnostic
+capture and original fixed stage deadlines. Native P progression and success
+remain unproved. Parent owns product version/release metadata and integration.

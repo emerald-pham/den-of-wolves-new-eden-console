@@ -1,9 +1,10 @@
 # PC10 attempt 8 targeting diagnosis
 
 Source-only diagnosis of runtime `3c373e552de4ffd4651473305f15dbee1c5e9108`.
-No product guard, role mapping, actor authority or public projection changed.
-The diagnostic commit intentionally retains one failing regression for the next
-repair. It is not a runnable GREEN candidate or checkpoint acceptance.
+The diagnostic commit `de860bc0` preserved one observed failing regression.
+The subsequent authorized repair recognizes only the known private `ftl` string
+in Refinery raw maintenance results. Role mapping, actor authority and public
+projection are unchanged. This source GREEN is not checkpoint acceptance.
 
 ## Captured cause and observed reproduction
 
@@ -90,3 +91,18 @@ resolution or cast rotation. Existing no-owner handling is reused, not widened.
 Independent Sol diagnosis concurred on both the private `ftl` rejection and
 existing absent/occupied Commander and EO boundaries. No runtime launched for
 this diagnosis; parent retains integration, release and acceptance ownership.
+
+## Authorized source GREEN
+
+Observed additional valid-private-FTL RED before the repair:
+`/tmp/dow-pc10-evidence/STATION_REFINERY_PRIVATE_FTL_SHAPE_RED_20261008.log`
+(one valid case failed, six nonstring denial cases passed). The repair changes
+only the private result key allowlist in `refineryFighterBay.ts`; its existing
+string-value check remains. It does not parse FTL text as gameplay authority.
+
+All 300 checks in the captured lifecycle, Refinery, Commander/EO and maintenance
+cohort pass: `STATION_REFINERY_FTL_CAUSAL_AUTHORITY_GREEN_20261008.log`.
+Both maintenance parser and member event projection exclude FTL in a dedicated
+assertion. Functions compilation and diff whitespace checks pass. Runtime is
+not allocated; compiled/source bindings and independent exact review must be
+recorded in the final source handoff before asking for a fresh runtime window.
