@@ -144,7 +144,7 @@ export function applyEndeavourResearchReward(
   endeavourResearchTrack(canonical, 'reactor');
   if (!Array.isArray(effects)) throw new Error('Endeavour research reward effects must be an array.');
   const next: Partial<Record<EndeavourResearchTrackId, number>> = { ...canonical };
-  for (const effect of effects) {
+  for (const effect of effects as readonly EndeavourResearchRewardEffect[]) {
     if (typeof effect !== 'object' || effect === null || Array.isArray(effect) ||
         Object.getPrototypeOf(effect) !== Object.prototype ||
         Object.keys(effect).length !== 2 || !Object.hasOwn(effect, 'trackId') || !Object.hasOwn(effect, 'marks')) {
