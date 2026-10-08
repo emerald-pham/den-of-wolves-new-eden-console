@@ -395,12 +395,34 @@ async function readySource(current, actor, spec, { sessionId, deadlineAt, assert
     }
     return validateSourceView(reply.result, spec, current, sessionId);
   };
+  const finalIntentFence = async () => {
+    let latestAttack;
+    try {
+      assertBudget(deadlineAt);
+      latestAttack = await readAttack();
+      assertBudget(deadlineAt);
+      assert.ok(lockedAttack(latestAttack, current),
+        'The original P attack or exact lock changed before final Station UI intent.');
+      await inspectActor();
+      assertBudget(deadlineAt);
+      latestAttack = await readAttack();
+      assertBudget(deadlineAt);
+      assert.ok(lockedAttack(latestAttack, current),
+        'The original P attack or exact lock changed during the final Station actor sample.');
+    } catch (error) {
+      rememberProofFailure(error, { operation: 'station-crew-final-ui-intent', roleId: actor.roleId,
+        sessionId, deadlineAt, originalAttack: attackTrace(current), observedAttack: attackTrace(latestAttack),
+        originalActor: original, consumedObservations: scope.trace });
+      throw error;
+    }
+  };
   try {
-    return await waitForWolfChoiceReadiness({ original, expected,
+    const readiness = await waitForWolfChoiceReadiness({ original, expected,
       inspectActor, inspectAttack, readChoice, deadlineAt,
       requireBoardingDiscovery: spec.kind === 'boarding-defence',
       inspectPaint: view => inspectSourcePaint(surface.page, spec, view),
     });
+    return readiness.status === 'eligible' ? { ...readiness, finalIntentFence } : readiness;
   } catch (error) {
     if (error instanceof SourceAttackChanged) return { status: 'source-changed', expected, gameplayCredit: false };
     rememberProofFailure(error, { operation: 'station-crew-current-source-readiness', roleId: actor.roleId,
@@ -414,14 +436,17 @@ function resultStatus(capture) {
   return capture?.result?.status;
 }
 
-async function commitUiChoice(current, actor, endpoint, choose, expectedRequest, context) {
+async function commitUiChoice(current, actor, endpoint, choose, expectedRequest, context, finalIntentFence) {
   const { sessionId, deadlineAt, assertActor, readAttack, action } = context;
   const surface = actor.surface;
+  assert.equal(typeof finalIntentFence, 'function', 'A frozen Station source scope is required before final UI intent.');
   assertBudget(deadlineAt);
   await assertActor(actor, { current, deadlineAt });
   if (!lockedAttack(await readAttack(), current)) return { sourceChanged: true };
   assertBudget(deadlineAt);
   const capture = await action(surface, endpoint, async () => {
+    assertBudget(deadlineAt);
+    await finalIntentFence();
     assertBudget(deadlineAt);
     await choose({ timeout: Math.max(1, deadlineAt - Date.now()) });
     assertBudget(deadlineAt);
@@ -453,7 +478,8 @@ async function dispatchPdfLaunch(current, actor, context) {
   const expectedRequest = { sessionId: context.sessionId, expectedTurn: view.turn,
     expectedRevision: view.revision, expectedWingRevision: view.wingRevision,
     ...(isLaunch ? {} : { sourceId: 'pdf-escort-fighter-wing' }) };
-  return commitUiChoice(current, actor, endpoint, ({ timeout }) => selected.click({ timeout }), expectedRequest, context);
+  return commitUiChoice(current, actor, endpoint, ({ timeout }) => selected.click({ timeout }),
+    expectedRequest, context, ready.finalIntentFence);
 }
 
 async function selectHighwallConsole(current, actor, context) {
@@ -505,7 +531,7 @@ async function dispatchHighwallRange(current, actor, context) {
   return commitUiChoice(current, actor, 'commitWolfRangeSupportActionChoice',
     ({ timeout }) => selected.click({ timeout }),
     { sessionId: context.sessionId, expectedTurn: ready.choice.turn, expectedRevision: ready.choice.revision,
-      range: ready.choice.range, sourceId: ready.choice.sourceId, use: using }, context);
+      range: ready.choice.range, sourceId: ready.choice.sourceId, use: using }, context, ready.finalIntentFence);
 }
 
 async function dispatchPdfEscortRange(current, actor, context) {
@@ -554,7 +580,8 @@ async function dispatchPdfEscortRange(current, actor, context) {
     return commitUiChoice(current, actor, 'commitWolfEscortRangeActionChoice',
       ({ timeout }) => selected.click({ timeout }),
       { sessionId: context.sessionId, expectedTurn: view.turn, expectedRevision: view.revision,
-        range: view.range, sourceId: 'pdf-escort-fighter-wing', actions: canResolve ? actions : [] }, context);
+        range: view.range, sourceId: 'pdf-escort-fighter-wing', actions: canResolve ? actions : [] }, context,
+      ready.finalIntentFence);
   }
 
   assert.ok(Array.isArray(view.fighters), 'Current PDF Short fighter rows are required.');
@@ -565,7 +592,7 @@ async function dispatchPdfEscortRange(current, actor, context) {
     return commitUiChoice(current, actor, 'commitWolfEscortRangeActionChoice',
       ({ timeout }) => pass.click({ timeout }),
       { sessionId: context.sessionId, expectedTurn: view.turn, expectedRevision: view.revision,
-        range: view.range, sourceId: 'pdf-escort-fighter-wing', fighterIndexes: [] }, context);
+        range: view.range, sourceId: 'pdf-escort-fighter-wing', fighterIndexes: [] }, context, ready.finalIntentFence);
   }
   const fighterIndexes = view.fighters.map(({ fighterIndex }) => fighterIndex);
   assert.ok(fighterIndexes.every(index => Number.isSafeInteger(index) && index >= 0) &&
@@ -580,7 +607,8 @@ async function dispatchPdfEscortRange(current, actor, context) {
   return commitUiChoice(current, actor, 'commitWolfEscortRangeActionChoice',
     ({ timeout }) => resolve.click({ timeout }),
     { sessionId: context.sessionId, expectedTurn: view.turn, expectedRevision: view.revision,
-      range: view.range, sourceId: 'pdf-escort-fighter-wing', fighterIndexes: fighterIndexes.sort((a, b) => a - b) }, context);
+      range: view.range, sourceId: 'pdf-escort-fighter-wing', fighterIndexes: fighterIndexes.sort((a, b) => a - b) },
+    context, ready.finalIntentFence);
 }
 
 function specialChoice(view) {
@@ -615,7 +643,7 @@ async function dispatchBoardingSpecial(current, actor, context) {
   return commitUiChoice(current, actor, 'commitWolfBoardingSpecialChoice',
     ({ timeout }) => control.click({ timeout }),
     { sessionId: context.sessionId, expectedTurn: ready.choice.turn, expectedRevision: ready.choice.revision,
-      choice: selected.command }, context);
+      choice: selected.command }, context, ready.finalIntentFence);
 }
 
 async function dispatchBoardingDefence(current, actor, context) {
@@ -646,7 +674,7 @@ async function dispatchBoardingDefence(current, actor, context) {
   return commitUiChoice(current, actor, 'commitWolfBoardingDefenceChoice',
     ({ timeout }) => commit.click({ timeout }),
     { sessionId: context.sessionId, expectedTurn: view.turn, expectedRevision: view.revision,
-      targetShipId: view.targetShipId, securityTeams }, context);
+      targetShipId: view.targetShipId, securityTeams }, context, ready.finalIntentFence);
 }
 
 /**
