@@ -2,31 +2,72 @@ import type * as NodeCrypto from 'node:crypto';
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { CallableRequest } from 'firebase-functions/v2/https';
 import { Timestamp } from 'firebase-admin/firestore';
+import type { AwayMissionLifecycleCallableReply } from './awayMissionLifecycleCallable';
+import type { AwayMissionPublicState } from './awayMissionLifecycleAdapter';
+
+type Data = Record<string, unknown>;
+interface MockReference {
+  readonly path: string;
+  readonly isCollection: boolean;
+  readonly id: string | undefined;
+  get(): Promise<MockSnapshot | MockQuerySnapshot>;
+  where(): MockReference;
+  orderBy(): MockReference;
+  limit(): MockReference;
+}
+interface MockSnapshot {
+  readonly exists: boolean;
+  readonly id: string | undefined;
+  readonly ref: MockReference;
+  get(field: string): unknown;
+  data(): Data | undefined;
+}
+interface MockQuerySnapshot { readonly docs: readonly MockSnapshot[]; readonly exists: boolean }
+interface MockTransaction {
+  get(target: MockReference): Promise<MockSnapshot | MockQuerySnapshot>;
+  set(target: MockReference, fields: Data): void;
+  create(target: MockReference, fields: Data): void;
+  update(target: MockReference, fields: Data): void;
+}
+type ResolvedMissionReply = AwayMissionLifecycleCallableReply & {
+  readonly publicState: AwayMissionPublicState & {
+    readonly outcomes: NonNullable<AwayMissionPublicState['outcomes']>;
+    readonly rewards: NonNullable<AwayMissionPublicState['rewards']>;
+  };
+};
+type MockSessionData = Data & {
+  turnPhase: { airspace: { state: string }; teamPhaseEndsAt: string };
+  turnState: { phase: string; endsAt: string };
+  shipResources: Record<string, { materials: number }>;
+  shipDamage: Record<string, { damagedSystemIds: string[]; destroyed: boolean }>;
+  shipUpgrades: Record<string, string[]>;
+  shuttleDockings: ReturnType<typeof initialShuttleDockingsForRoles>;
+  shuttleVisitLog: ReturnType<typeof initialShuttleVisitsForDockings>;
+};
 
 const mock = vi.hoisted(() => {
-  type Data = Record<string, any>;
   const documents = new Map<string, Data>();
-  const ref = (path: string, isCollection = false): any => ({ path, isCollection, id: path.split('/').at(-1),
+  const ref = (path: string, isCollection = false): MockReference => ({ path, isCollection, id: path.split('/').at(-1),
     get: async () => read(ref(path, isCollection)), where: () => ref(path, isCollection), orderBy: () => ref(path, isCollection), limit: () => ref(path, isCollection) });
-  const snapshot = (path: string): any => {
+  const snapshot = (path: string): MockSnapshot => {
     const fields = documents.get(path);
     return { exists: fields !== undefined, id: path.split('/').at(-1), ref: ref(path), get: (field: string) => fields?.[field], data: () => fields };
   };
   const writes: { kind: string; path: string; fields: Data }[] = [];
-  const read = (target: any) => {
+  const read = (target: MockReference): MockSnapshot | MockQuerySnapshot => {
     const children = [...documents.keys()].filter(path => path.startsWith(target.path + '/') && path.slice(target.path.length + 1).indexOf('/') < 0);
     return target.isCollection ? { docs: children.map(snapshot), exists: true } : snapshot(target.path);
   };
   let retryCallbacks = 0;
   let loseAcknowledgement = false;
-  const runTransaction = async (work: (tx: any) => Promise<any>) => {
-    let result: any;
+  const runTransaction = async <T>(work: (tx: MockTransaction) => Promise<T>): Promise<T> => {
+    let result!: T;
     let staged: typeof writes = [];
-    const tx = {
-      get: async (target: any) => read(target),
-      set: (target: any, fields: Data) => staged.push({ kind: 'set', path: target.path, fields }),
-      create: (target: any, fields: Data) => staged.push({ kind: 'create', path: target.path, fields }),
-      update: (target: any, fields: Data) => staged.push({ kind: 'update', path: target.path, fields }),
+    const tx: MockTransaction = {
+      get: async (target: MockReference) => read(target),
+      set: (target: MockReference, fields: Data) => staged.push({ kind: 'set', path: target.path, fields }),
+      create: (target: MockReference, fields: Data) => staged.push({ kind: 'create', path: target.path, fields }),
+      update: (target: MockReference, fields: Data) => staged.push({ kind: 'update', path: target.path, fields }),
     };
     const retries = retryCallbacks; retryCallbacks = 0;
     for (let attempt = 0; attempt <= retries; attempt += 1) { staged = []; result = await work(tx); }
@@ -37,7 +78,7 @@ const mock = vi.hoisted(() => {
         const next = structuredClone(documents.get(write.path) ?? {});
         for (const [path, value] of Object.entries(write.fields)) {
           const parts = path.split('.'); let cursor = next;
-          for (const part of parts.slice(0, -1)) { cursor[part] = { ...(cursor[part] ?? {}) }; cursor = cursor[part]; }
+          for (const part of parts.slice(0, -1)) { cursor[part] = { ...((cursor[part] ?? {}) as Data) }; cursor = cursor[part] as Data; }
           cursor[parts.at(-1)!] = value;
         }
         documents.set(write.path, next);
@@ -83,7 +124,7 @@ const sessionId = 's1';
 const missionId = 'mission-parity';
 const missionPath = `sessions/s1/serverState/awayMissions/instances/${missionId}`;
 const put = (path: string, fields: Record<string, unknown>) => mock.documents.set(path, fields);
-const currentRevision = () => mock.documents.get(missionPath)!.revision;
+const currentRevision = () => mock.documents.get(missionPath)!.revision as number;
 const command = (type: string, fields: Record<string, unknown> = {}, uid = 'alice') => ({ auth: { uid }, data: {
   sessionId, missionId, type, requestId: `${type}-${uid}-${currentRevision()}`, expectedRevision: currentRevision(), ...fields,
   ...(uid === 'gm' ? { instanceId: 'bridge' } : {}),
@@ -143,17 +184,17 @@ async function resolve(site: string, opportunity: string, contributors = 3, setu
   for (const uid of uids.slice(0, contributors)) await send('distributeExtraCard', { participantUid: uid, opportunityId: opportunity });
   await send('openDiscards', {}, 'gm');
   for (const [index, uid] of uids.entries()) await send('discardCard', { cardId: initialIds[index] }, uid);
-  let reply: any;
+  let reply!: AwayMissionLifecycleCallableReply;
   for (const [index, uid] of uids.entries()) reply = await send('assignCards', { placements: index < contributors ? [{ cardId: extraIds[index], opportunityId: opportunity }] : [] }, uid);
   expect(reply.publicState.status).toBe('resolved');
-  return reply;
+  return reply as ResolvedMissionReply;
 }
 beforeEach(() => { mock.documents.clear(); mock.writes.length = 0; mock.d6 = 2; mock.resetTransactionFaults(); });
 
 async function stageK() {
   mock.d6 = 3;
   const resolved = await resolve('K', 'K-1', 1);
-  expect(resolved.publicState.outcomes.find((result: any) => result.opportunityId === 'K-1'))
+  expect(resolved.publicState.outcomes.find((result) => result.opportunityId === 'K-1'))
     .toMatchObject({ contributorCount: 1, outcome: 'success' });
   return stageWolfAttackPreparation.run({ auth: { uid: 'gm' }, data: { sessionId: 's1', instanceId: 'bridge',
     requestId: 'prepare-k-parity', expectedRevision: 0, turn: 2, shipIds: Array<string>(15).fill('wolf-fighter-wing'),
@@ -178,7 +219,7 @@ it('declares the source-bound immediate K attack through the normal registered d
 it.each([['C', 'C-2'], ['H', 'H-2'], ['H', 'H-3'], ['F', 'F-3'], ['G', 'G-3'], ['L', 'L-3'], ['M', 'M-3']])(
   'keeps %s %s in leader custody until its printed targets are selected', async (site, opportunity) => {
     const reply = await resolve(site, opportunity);
-    expect(reply.publicState.rewards.find((reward: any) => reward.opportunityId === opportunity).branch).not.toBe('none');
+    expect(reply.publicState.rewards.find((reward) => reward.opportunityId === opportunity)!.branch).not.toBe('none');
     const writes = mock.writes.length;
     await expect(send('dropOff', { shipId: 'aegis' })).rejects.toMatchObject({ code: 'failed-precondition' });
     expect(mock.writes).toHaveLength(writes);
@@ -201,7 +242,7 @@ it('continues the actual normal research reader and Team writer after a resolved
   await send('dropOff', { shipId: 'aegis' });
   expect(await readEndeavourResearchWorkspace.run(scientist)).toMatchObject({ researchRevision: 1, progress: { reactor: 1 },
     cadence: { choices: [] }, tracks: expect.arrayContaining([expect.objectContaining({ trackId: 'reactor', crossedBoxes: 2, currentMaterialCost: 7 })]) });
-  const session = mock.documents.get('sessions/s1')!;
+  const session = mock.documents.get('sessions/s1')! as MockSessionData;
   session.turnPhase.airspace.state = 'restricted'; session.turnState.phase = 'team';
   session.turnState.endsAt = session.turnPhase.teamPhaseEndsAt;
   await expect(advanceEndeavourResearchTrack.run({ auth: scientist.auth, data: { sessionId: 's1', requestId: 'research-after-c2',
@@ -228,7 +269,7 @@ it.each([
   const writes = mock.writes.length;
   expect((await commitAwayMissionLifecycleCommand.run(request)).status).toBe('replayed');
   expect(mock.writes).toHaveLength(writes);
-  expect(mock.documents.get('sessions/s1').shipResources.aegis.materials).toBe(0);
+  expect((mock.documents.get('sessions/s1') as MockSessionData).shipResources.aegis.materials).toBe(0);
 });
 it.each([
   ['F', 'F-3', 'upgrade', [{ shipId: 'refinery-124', systemId: 'fuel-refinery' }]],
@@ -243,7 +284,7 @@ it.each([
   mock.retry(1);
   const reply = await commitAwayMissionLifecycleCommand.run(request);
   expect(reply.publicState.status).toBe('complete');
-  const session = mock.documents.get('sessions/s1')!;
+  const session = mock.documents.get('sessions/s1')! as MockSessionData;
   for (const target of targets as { shipId: string; systemId: string }[]) {
     if (action === 'upgrade') expect(session.shipUpgrades[target.shipId]).toContain(target.systemId);
     else expect(session.shipDamage[target.shipId].damagedSystemIds).not.toContain(target.systemId);
@@ -259,7 +300,7 @@ it('rechecks a console that became ineligible after selection before any deliver
   await resolve('F', 'F-3');
   await send('chooseRewardTargets', { opportunityId: 'F-3', choice: { kind: 'consoles', action: 'upgrade',
     targets: [{ shipId: 'refinery-124', systemId: 'fuel-refinery' }] } });
-  mock.documents.get('sessions/s1')!.shipUpgrades['refinery-124'] = ['fuel-refinery'];
+  (mock.documents.get('sessions/s1')! as MockSessionData).shipUpgrades['refinery-124'] = ['fuel-refinery'];
   const writes = mock.writes.length;
   await expect(send('dropOff', { shipId: 'aegis' })).rejects.toMatchObject({ code: 'failed-precondition' });
   expect(mock.writes).toHaveLength(writes);
@@ -268,7 +309,7 @@ it('rechecks a console that became ineligible after selection before any deliver
 
 it.each(['I-1', 'I-2'])('grants %s to the authoritative fleet in protected navigation at resolution', async opportunity => {
   await resolve('I', opportunity);
-  const benefits = mock.documents.get('sessions/s1/serverState/navigation')!.missionNebulaBenefitsByShip;
+  const benefits = mock.documents.get('sessions/s1/serverState/navigation')!.missionNebulaBenefitsByShip as Record<string, Data>;
   expect(Object.keys(benefits ?? {}).sort()).toEqual([...ships].sort());
   expect(benefits.aegis).toMatchObject({ missionId, suppressMaintenanceDamage: opportunity === 'I-1', freeExitFuel: opportunity === 'I-2' });
   expect(mock.documents.get('sessions/s1')).not.toHaveProperty('missionNebulaBenefitsByShip');
@@ -277,7 +318,7 @@ it.each([[6, 1, true, 'failure'], [3, 1, true, 'success'], [2, 1, false, 'critic
   'schedules K only for a resolved noncritical attempt (d6=%s, contributors=%s)', async (d6, contributors, expected, outcome) => {
     mock.d6 = d6;
     const resolved = await resolve('K', 'K-1', contributors);
-    expect(resolved.publicState.outcomes.find((result: any) => result.opportunityId === 'K-1'))
+    expect(resolved.publicState.outcomes.find((result) => result.opportunityId === 'K-1'))
       .toMatchObject({ contributorCount: contributors, outcome });
     const pressure = mock.documents.get(`sessions/s1/wolfAttackPressure/mission-${missionId}`);
     if (expected) {
@@ -321,7 +362,7 @@ it('reads only the live protected K attempt and revalidates it before retaining 
 it('accepts the actual resolved noncritical K source through the existing window setter', async () => {
   mock.d6 = 3;
   const resolved = await resolve('K', 'K-1', 1);
-  expect(resolved.publicState.outcomes.find((result: any) => result.opportunityId === 'K-1'))
+  expect(resolved.publicState.outcomes.find((result) => result.opportunityId === 'K-1'))
     .toMatchObject({ outcome: 'success', contributorCount: 1 });
   await expect(setWolfAttackWindow.run({ auth: { uid: 'gm' }, data: { sessionId, instanceId: 'bridge',
     requestId: 'current-k-window-source', expectedRevision: 1, status: 'due', targetGroupId: 'fleet-1',
@@ -334,7 +375,7 @@ it('binds the real queued K attempt to actual parent finalization and the next s
   const parentId = 'wolf-attack-parent-k';
   const shipIds = Array<string>(15).fill('wolf-fighter-wing');
   await resolve('K', 'K-1', 1, () => {
-    const session = mock.documents.get('sessions/s1')!;
+    const session = mock.documents.get('sessions/s1')! as MockSessionData;
     session.turnPhase.airspace.state = 'restricted';
     session.turnState.phase = 'team';
     session.turnState.endsAt = session.turnPhase.teamPhaseEndsAt;
