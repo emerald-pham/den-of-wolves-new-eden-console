@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSessionStore } from '@/store/useSessionStore';
 import { subscribeConnectedPlayers } from '@/lib/firestore';
-import { createCurrentFleetGroupActions, type FleetGroupNavigationProjection, type FleetGroupNote, type FleetTaxiShuttleId } from '@/lib/fleetGroupService';
+import { createCurrentFleetGroupActions, type FleetGroupNavigationProjection, type FleetGroupNote,
+  type FleetGroupRejoinCandidate, type FleetGroupRejoinDecision, type FleetTaxiShuttleId } from '@/lib/fleetGroupService';
 import type { Player } from '@/types/game';
 import FleetGroupPanel from './FleetGroupPanel';
 
@@ -32,8 +33,11 @@ export default function FleetGroupWorkspace() {
   const [draft, setDraft] = useState('');
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
+  const [rejoinCandidates, setRejoinCandidates] = useState<readonly FleetGroupRejoinCandidate[]>([]);
+  const [rejoinAdjudicationId, setRejoinAdjudicationId] = useState<string | null>(null);
   useEffect(() => {
     let current = true; setLoaded(null); setLoadedNavigation(null); setNotice(''); setBusy(false); setConnectedPlayers([]);
+    setRejoinCandidates([]); setRejoinAdjudicationId(null);
     if (!ready) return () => { current = false; };
     void actions.read().then(reply => { if (current) setLoaded({ key, notes: reply.messages }); })
       .catch(error => { if (current) setNotice(error instanceof Error ? error.message : 'Group notes could not be loaded.'); });
@@ -58,13 +62,36 @@ export default function FleetGroupWorkspace() {
     : session.playerDiscovery?.groupId === me.fleetGroupId
       ? session.playerDiscovery.pursuitValue
       : undefined;
-  const run = async (kind: 'read' | 'send' | 'partition' | 'share' | 'taxi', value?: unknown) => {
+  const run = async (kind: 'read' | 'send' | 'partition' | 'recordRejoin' | 'applyRejoin' | 'share' | 'taxi', value?: unknown) => {
     setBusy(true); setNotice('');
     try {
       if (kind === 'send') { await actions.send(draft); if (activeKey.current !== key) return; setDraft(''); setNotice('Group note sent.'); }
       if (kind === 'partition') {
-        await actions.confirmPartition(); if (activeKey.current !== key) return;
-        setNotice('Current ship positions confirmed. Colocated groups merge automatically and keep the highest prior pursuit score.');
+        const reply = await actions.confirmPartition(); if (activeKey.current !== key) return;
+        if (reply.status === 'adjudication-required') {
+          setRejoinCandidates(reply.candidates); setRejoinAdjudicationId(null);
+          setNotice('Colocated groups have different pursuit values. They remain separate until a current live GM records a decision.');
+        } else {
+          setRejoinCandidates([]); setRejoinAdjudicationId(null);
+          setNotice('Current ship positions confirmed. Groups with identical pursuit inputs retain that shared value when they rejoin.');
+        }
+      }
+      if (kind === 'recordRejoin') {
+        const decisions = value as readonly FleetGroupRejoinDecision[];
+        const reply = await actions.recordRejoinAdjudication(decisions); if (activeKey.current !== key) return;
+        setRejoinAdjudicationId(reply.adjudicationId);
+        setNotice('Your pursuit decision is recorded against the current group and navigation revisions. Apply it to complete the rejoin.');
+      }
+      if (kind === 'applyRejoin') {
+        if (!rejoinAdjudicationId) throw new Error('Record the current facilitator decision before applying this rejoin.');
+        const reply = await actions.confirmPartition(rejoinAdjudicationId); if (activeKey.current !== key) return;
+        if (reply.status === 'adjudication-required') {
+          setRejoinCandidates(reply.candidates); setRejoinAdjudicationId(null);
+          setNotice('The groups changed after the decision was recorded. Refresh and record a new live-GM decision.');
+        } else {
+          setRejoinCandidates([]); setRejoinAdjudicationId(null);
+          setNotice('The recorded live-GM pursuit decision was applied with the group rejoin.');
+        }
       }
       if (kind === 'share') {
         const input = value as { coordinate: string; recipientShipIds: 'all' | readonly string[] };
@@ -99,10 +126,12 @@ export default function FleetGroupWorkspace() {
   const taxiPlayers = connectedPlayers.filter(player => player.uid !== me.uid).map(player => ({ uid: player.uid, label: player.displayName }));
   return <FleetGroupPanel groupId={me.fleetGroupId!} actorUid={me.uid} notes={notes} draft={draft} busy={busy} notice={notice}
     pursuitValue={pursuitValue}
+    rejoinCandidates={rejoinCandidates} rejoinAdjudicationId={rejoinAdjudicationId}
     navigation={projection} scannedCoordinates={scannedCoordinates} taxiDestinations={taxiDestinations}
     taxiShuttles={taxiShuttles} taxiPlayers={taxiPlayers} canShare={me.role === 'player' && !!projection && scannedCoordinates.length > 0}
     onDraft={setDraft} onSend={() => void run('send')} onRefresh={() => void run('read')}
     onShare={(coordinate, recipients) => void run('share', { coordinate, recipientShipIds: recipients })}
     onTaxi={input => void run('taxi', input)}
+    onRecordRejoin={decisions => void run('recordRejoin', decisions)} onApplyRejoin={() => void run('applyRejoin')}
     {...(canConfirm ? { onConfirm: () => void run('partition') } : {})} />;
 }

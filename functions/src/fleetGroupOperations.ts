@@ -8,6 +8,21 @@ export interface FleetGroupRejoinAudit {
   readonly absorbedGroupIds: readonly string[];
   readonly pursuitBefore: Readonly<Record<string, number>>;
   readonly pursuitAfter: number;
+  readonly resolution: 'identical-inputs' | 'facilitator-adjudication';
+  readonly adjudicationId?: string;
+}
+
+export interface FleetGroupRejoinCandidate {
+  readonly coordinate: string;
+  readonly groupIds: readonly string[];
+  readonly pursuitBefore: Readonly<Record<string, number>>;
+}
+
+export interface FleetGroupRejoinDecision {
+  readonly coordinate: string;
+  readonly groupIds: readonly string[];
+  readonly pursuitAfter: number;
+  readonly adjudicationId?: string;
 }
 
 function groupOrdinal(id: string): number {
@@ -20,18 +35,32 @@ function unique(values: readonly string[]): readonly string[] {
 }
 
 /**
- * Merge distinct groups only after the authoritative navigation snapshot
+ * Rejoin distinct groups only after the authoritative navigation snapshot
  * places every ship in each group at the same printed system. The lowest
- * stable group ID survives; the highest prior pursuit value is retained.
+ * stable group ID survives. Identical pursuit inputs retain their shared
+ * value; differing inputs remain separate until a live facilitator records
+ * an explicit decision for the exact current groups and coordinate.
  */
 export function planFleetGroupRejoins(
   navigation: NavigationState,
   groups: readonly FleetGroupRecord[],
-): { readonly navigation: NavigationState; readonly groups: readonly FleetGroupRecord[]; readonly rejoins: readonly FleetGroupRejoinAudit[] } {
+  decisions: readonly FleetGroupRejoinDecision[] = [],
+): { readonly navigation: NavigationState; readonly groups: readonly FleetGroupRecord[];
+  readonly rejoins: readonly FleetGroupRejoinAudit[]; readonly adjudicationRequired: readonly FleetGroupRejoinCandidate[] } {
   if (!groups.length || groups.some(group => !fleetGroupRecord(group)) ||
       new Set(groups.map(group => group.id)).size !== groups.length) {
     throw new Error('Fleet rejoin group authority is malformed.');
   }
+  if (!Array.isArray(decisions) || decisions.some(decision => !decision || typeof decision.coordinate !== 'string' ||
+      !isStarSystemCoordinate(decision.coordinate) || !Array.isArray(decision.groupIds) || decision.groupIds.length < 2 ||
+      decision.groupIds.some(id => typeof id !== 'string' || !/^fleet-[1-9][0-9]*$/.test(id)) ||
+      new Set(decision.groupIds).size !== decision.groupIds.length || !Number.isSafeInteger(decision.pursuitAfter) ||
+      decision.pursuitAfter < 0 || decision.pursuitAfter > 10 ||
+      (decision.adjudicationId !== undefined && (typeof decision.adjudicationId !== 'string' || !decision.adjudicationId)))) {
+    throw new Error('Fleet rejoin adjudication is malformed.');
+  }
+  const decisionKeys = decisions.map(decision => JSON.stringify([decision.coordinate, decision.groupIds]));
+  if (new Set(decisionKeys).size !== decisionKeys.length) throw new Error('Fleet rejoin adjudication is duplicated.');
   const ordered = [...groups].sort((a, b) => groupOrdinal(a.id) - groupOrdinal(b.id));
   const byCoordinate = new Map<string, FleetGroupRecord[]>();
   for (const group of ordered) {
@@ -49,6 +78,8 @@ export function planFleetGroupRejoins(
   const nextGroups: FleetGroupRecord[] = [];
   const pursuitGroups: Record<string, number> = {};
   const rejoins: FleetGroupRejoinAudit[] = [];
+  const adjudicationRequired: FleetGroupRejoinCandidate[] = [];
+  const usedDecisions = new Set<string>();
   for (const [coordinate, colocated] of [...byCoordinate.entries()].sort(([a], [b]) => a.localeCompare(b))) {
     if (colocated.length === 1) {
       const group = colocated[0]!;
@@ -60,7 +91,18 @@ export function planFleetGroupRejoins(
     const absorbedGroupIds = colocated.slice(1).map(group => group.id);
     const ids = colocated.map(group => group.id);
     const before = Object.fromEntries(ids.map(id => [id, navigation.pursuitGroups[id]!])) as Record<string, number>;
-    const pursuitAfter = Math.max(...Object.values(before));
+    const differingInputs = new Set(Object.values(before)).size > 1;
+    const key = JSON.stringify([coordinate, ids]);
+    const decision = decisions.find(candidate => JSON.stringify([candidate.coordinate, candidate.groupIds]) === key);
+    if (decision && !differingInputs) throw new Error('A pursuit decision was supplied for identical merge inputs.');
+    if (differingInputs && !decision) {
+      nextGroups.push(...colocated);
+      for (const group of colocated) pursuitGroups[group.id] = navigation.pursuitGroups[group.id]!;
+      adjudicationRequired.push({ coordinate, groupIds: ids, pursuitBefore: before });
+      continue;
+    }
+    if (decision) usedDecisions.add(key);
+    const pursuitAfter = decision ? decision.pursuitAfter : Object.values(before)[0]!;
     const aliases = unique(colocated.flatMap(group => [
       ...(group.mergedGroupIds ?? []), group.id,
     ])).filter(id => id !== survivor.id).sort((a, b) => groupOrdinal(a) - groupOrdinal(b));
@@ -74,12 +116,16 @@ export function planFleetGroupRejoins(
       ...(aliases.length ? { mergedGroupIds: aliases } : {}),
     });
     pursuitGroups[survivor.id] = pursuitAfter;
-    rejoins.push({ coordinate, survivingGroupId: survivor.id, absorbedGroupIds, pursuitBefore: before, pursuitAfter });
+    rejoins.push({ coordinate, survivingGroupId: survivor.id, absorbedGroupIds, pursuitBefore: before, pursuitAfter,
+      resolution: decision ? 'facilitator-adjudication' : 'identical-inputs',
+      ...(decision?.adjudicationId ? { adjudicationId: decision.adjudicationId } : {}) });
   }
+  if (usedDecisions.size !== decisions.length) throw new Error('A pursuit decision does not match the current exceptional rejoin.');
   return {
     navigation: { ...navigation, pursuitGroups },
     groups: nextGroups.sort((a, b) => groupOrdinal(a.id) - groupOrdinal(b.id)),
     rejoins,
+    adjudicationRequired,
   };
 }
 

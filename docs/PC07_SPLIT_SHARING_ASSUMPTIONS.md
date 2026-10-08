@@ -17,10 +17,18 @@ pointer once. The existing per-ship discovery facts are preserved. Historical
 group messages and server events are read once by stable event/request ID.
 
 PC07's print sources do not choose the pursuit value when groups rejoin. The
-implementation keeps the highest pre-rejoin pursuit score. This conservative
-policy avoids granting a pursuit reduction through regrouping. The server
-records every input score, the resulting score, coordinate, surviving group,
-and absorbed groups in a GM-readable rejoin audit.
+prior PC07 implementation assumption kept the highest pre-rejoin score, but
+that assumption is not author-confirmed and the October 8 owner-approved house
+rule does not approve a formula. The app therefore retains the documented
+lowest-ID survivor, membership, route, knowledge, and history behavior when all
+colocated groups have the same pursuit value. Identical inputs need no choice
+between possible results; this is a narrow implementation reading, not a new
+merge formula. When the authoritative inputs differ, the groups remain
+separate until the current live GM records an explicit pursuit result against
+the current groups and revisions. That decision is persisted before a later
+partition confirmation can apply the merge. The GM-readable rejoin audit keeps
+the input values, the resulting value, coordinate, survivor, absorbed groups,
+and whether the result followed identical inputs or a recorded decision.
 
 ## In-flight shuttle audience
 

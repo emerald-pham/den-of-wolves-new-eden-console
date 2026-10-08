@@ -15,11 +15,19 @@ New cases:
 
 ## functions/src/fleetGroupOperations.test.ts
 
-Added suite: 2 new cases and 0 changed existing cases.
+PC10 update: 1 decision-boundary case added, 1 prior merge assumption corrected, and 1 sharing case unchanged.
 
-New cases:
+New case:
 
-- automatically rejoins only groups at the same authoritative system and keeps the highest recorded pursuit
+- retains colocated groups with differing pursuit inputs until the current live GM records a decision
+
+Corrected prior assumption:
+
+- rejoins colocated groups with identical pursuit inputs and retains their common value; the former unequal-input highest-score assertion was superseded by the owner-approved house rule
+
+Unchanged case:
+
+- shares only server-owned scanned coordinates to an explicit current-group ship subset
 - shares only server-owned scanned coordinates to an explicit current-group ship subset
 
 ## functions/src/fleetGroups.test.ts

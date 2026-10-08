@@ -454,9 +454,10 @@ broader future diegetic-rules PC11 does not enlarge this repair.
 |---|---|
 | ID and checkpoint | PC07-A3, P346–350; recorded 2026-10-03 under PC07 authorization. |
 | Source | Facilitator Guide v1.1 printed p. 16, Split Fleet, requires group-local pursuit and communication but does not specify the pursuit score after groups rejoin. |
-| Chosen reading | When current server positions permit rejoining, retain the highest input pursuit score. The lowest numeric fleet identifier survives, with membership merged atomically and input/result scores recorded in the private GM audit. |
-| Alternatives and limits | Averaging, choosing the lowest score, or asking the GM each time would add a rule or operator step. This conservative digital tie-breaker cannot grant a pursuit reduction just by regrouping. Existing individual chart knowledge and historical identities remain intact. |
+| Original PC07 app reading (superseded) | The 2026-10-03 implementation retained the highest input pursuit score when current server positions permitted rejoining. The lowest numeric fleet identifier survived, with membership merged atomically and input/result scores recorded in the private GM audit. |
+| Alternatives and limits | The printed rule did not specify a numeric result. The prior highest-score tie-breaker was an implementation assumption, not an author-confirmed policy; the October 8 owner-approved house rule authorizes no formula for differing inputs. The existing survivor, membership, chart knowledge and history behavior remain in place, with a live-GM decision required only when inputs differ. |
 | Effect | Exact retries produce no second membership rewrite, message or pursuit result. [The split-fleet note](PC07_SPLIT_SHARING_ASSUMPTIONS.md) explains the connected route audience and knowledge boundaries. |
+| October 8 owner-rule qualification | This earlier PC07 assumption was not author-confirmed. The later owner-approved house rule requires differing pursuit inputs to remain separate until a current live GM records a decision before merge; it does not approve highest-score or another formula. Equal inputs retain their shared value as a narrow app reading of the ordinary rejoin case. The pursuit movement interpretation remains unresolved. |
 
 ### PC07-A4 — A taxi pilot remains at its launch ship
 

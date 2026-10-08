@@ -367,7 +367,8 @@ import {
   withFleetGroupVessels,
   type FleetGroupRecord,
 } from './fleetGroups';
-import { planFleetTaxiTransfer, planKnownSystemSharing, type FleetTaxiPayload } from './fleetGroupOperations';
+import { planFleetTaxiTransfer, planKnownSystemSharing, type FleetGroupRejoinCandidate, type FleetGroupRejoinDecision,
+  type FleetTaxiPayload } from './fleetGroupOperations';
 import {
   ROLE_OWNED_CRAFT_CATALOG,
   battleTableCraftActionsForParkedCraft,
@@ -18337,27 +18338,220 @@ function isFleetPartitionReply(value: unknown): value is FleetPartitionReply {
     value.groupIds.every(id => typeof id === 'string' && /^fleet-[1-9][0-9]*$/.test(id));
 }
 
-/** Confirm physical partitions from server coordinates; the browser cannot assign groups or pursuit. */
-export const confirmFleetPartition = auditedOnCall<{ sessionId: string; instanceId: string; requestId: string; expectedNavigationRevision: number }>('confirmFleetPartition', async request => {
+interface FleetPartitionAdjudicationRequiredReply {
+  readonly status: 'adjudication-required';
+  readonly navigationRevision: number;
+  readonly fleetPartitionRevision: number;
+  readonly candidates: readonly FleetGroupRejoinCandidate[];
+}
+interface FleetGroupRejoinAdjudicationReply {
+  readonly status: 'recorded'; readonly adjudicationId: string;
+  readonly navigationRevision: number; readonly fleetPartitionRevision: number;
+}
+interface RequestedFleetRejoinDecision {
+  readonly coordinate: string; readonly groupIds: readonly string[]; readonly pursuitAfter: number;
+}
+
+function isFleetGroupRejoinAdjudicationReply(value: unknown): value is FleetGroupRejoinAdjudicationReply {
+  return isRecord(value) && Object.keys(value).every(key =>
+    ['status', 'adjudicationId', 'navigationRevision', 'fleetPartitionRevision'].includes(key)) &&
+    value.status === 'recorded' && typeof value.adjudicationId === 'string' && isCanonicalRequestId(value.adjudicationId) &&
+    Number.isSafeInteger(value.navigationRevision) && (value.navigationRevision as number) >= 0 &&
+    Number.isSafeInteger(value.fleetPartitionRevision) && (value.fleetPartitionRevision as number) >= 0;
+}
+
+function requestedFleetRejoinDecisions(value: unknown): readonly RequestedFleetRejoinDecision[] | null {
+  if (!Array.isArray(value) || value.length < 1 || value.length > 32) return null;
+  const result: RequestedFleetRejoinDecision[] = [];
+  for (const candidate of value) {
+    if (!isRecord(candidate) || Object.keys(candidate).some(key => !['coordinate', 'groupIds', 'pursuitAfter'].includes(key)) ||
+        typeof candidate.coordinate !== 'string' || !isStarSystemCoordinate(candidate.coordinate) ||
+        !Array.isArray(candidate.groupIds) || candidate.groupIds.length < 2 || candidate.groupIds.length > 32 ||
+        candidate.groupIds.some(id => typeof id !== 'string' || !/^fleet-[1-9][0-9]*$/.test(id)) ||
+        new Set(candidate.groupIds).size !== candidate.groupIds.length ||
+        !Number.isSafeInteger(candidate.pursuitAfter) || (candidate.pursuitAfter as number) < 0 ||
+        (candidate.pursuitAfter as number) > 10) return null;
+    result.push({ coordinate: candidate.coordinate, groupIds: [...candidate.groupIds] as string[],
+      pursuitAfter: candidate.pursuitAfter as number });
+  }
+  return result;
+}
+
+function fleetPartitionPlanFromSnapshots(session: DocumentSnapshot, storedNavigation: DocumentSnapshot,
+  playerSnapshots: QuerySnapshot, groupSnapshots: QuerySnapshot) {
+  const activeVesselIds = activeVesselIdsForSession(session);
+  const groups = movementPursuitFleetGroups(activeVesselIds, groupSnapshots, playerSnapshots);
+  requireMovementPursuitAuthority(storedNavigation, session);
+  const navigation = navigationStateForSession(storedNavigation, session, activeVesselIds);
+  const players = playerSnapshots.docs.filter(player => player.exists && !isKickedPlayer(player));
+  const members = players.map(player => {
+    const currentGroup = groups.find(group => group.id === player.get('fleetGroupId'));
+    let shipId = currentGroup?.memberShipIds?.[player.id] ?? playerShipId(player) ?? playerAuthoritativeVesselIds(player)[0] ?? null;
+    if (shipId && !activeVesselIds.includes(shipId)) {
+      const id = smallShipId(shipId);
+      shipId = id ? storedSmallShipState(session, id)?.hostShipId ?? null : null;
+    }
+    return { uid: player.id, groupId: player.get('fleetGroupId') as string, shipId };
+  });
+  let plan: ReturnType<typeof planFleetPartition>;
+  try { plan = planFleetPartition(navigation, groups, members, activeVesselIds); }
+  catch (error) {
+    throw commandError('failed-precondition', error instanceof Error ? error.message : 'Fleet partition authority is malformed.', 'conflict');
+  }
+  return { activeVesselIds, groups, navigation, players, members, plan };
+}
+
+function currentFleetPartitionRevision(session: DocumentSnapshot): number {
+  const value = session.get('fleetPartitionRevision');
+  const revision = value === undefined ? 0 : value;
+  if (!Number.isSafeInteger(revision) || (revision as number) < 0 || (revision as number) >= Number.MAX_SAFE_INTEGER) {
+    throw commandError('failed-precondition', 'Fleet partition revision authority is malformed or exhausted.', 'conflict');
+  }
+  return revision as number;
+}
+
+function currentFleetRejoinTiming(session: DocumentSnapshot): Readonly<{
+  currentTurn: number; turnPhase: NonNullable<ReturnType<typeof turnPhaseState>>;
+}> {
+  const currentTurn = session.get('currentTurn');
+  const turnPhase = turnPhaseState(session.get('turnPhase'));
+  if (!Number.isSafeInteger(currentTurn) || (currentTurn as number) < 1 || !turnPhase || turnPhase.turn !== currentTurn) {
+    throw commandError('failed-precondition', 'The current facilitator turn and phase authority is malformed.', 'conflict');
+  }
+  return { currentTurn: currentTurn as number, turnPhase };
+}
+
+function recordDecisionsForCandidates(raw: unknown, candidates: readonly FleetGroupRejoinCandidate[])
+  : readonly (FleetGroupRejoinCandidate & { readonly pursuitAfter: number })[] | null {
+  const requested = requestedFleetRejoinDecisions(raw);
+  if (!requested || requested.length !== candidates.length) return null;
+  const decisions: (FleetGroupRejoinCandidate & { readonly pursuitAfter: number })[] = [];
+  for (const candidate of candidates) {
+    const matches = requested.filter(decision => decision.coordinate === candidate.coordinate &&
+      isDeepStrictEqual(decision.groupIds, candidate.groupIds));
+    if (matches.length !== 1) return null;
+    decisions.push({ ...candidate, pursuitAfter: matches[0]!.pursuitAfter });
+  }
+  return decisions;
+}
+
+function savedDecisionsForCandidates(value: unknown, candidates: readonly FleetGroupRejoinCandidate[],
+  context: Readonly<{ sessionId: string; actorUid: string; instanceId: string; navigationRevision: number;
+    fleetPartitionRevision: number; currentTurn: number; turnPhase: ReturnType<typeof turnPhaseState> }>,
+  adjudicationId: string): readonly FleetGroupRejoinDecision[] | null {
+  if (!isRecord(value) || Object.keys(value).some(key => !['type', 'status', 'sessionId', 'requestId', 'actorUid',
+      'instanceId', 'navigationRevision', 'fleetPartitionRevision', 'currentTurn', 'turnPhase', 'decisions', 'createdAt'].includes(key)) ||
+      value.type !== 'fleet-group-rejoin-adjudication' || value.status !== 'recorded' ||
+      value.sessionId !== context.sessionId || value.requestId !== adjudicationId || value.actorUid !== context.actorUid ||
+      value.instanceId !== context.instanceId || value.navigationRevision !== context.navigationRevision ||
+      value.fleetPartitionRevision !== context.fleetPartitionRevision || value.currentTurn !== context.currentTurn ||
+      !isDeepStrictEqual(value.turnPhase, context.turnPhase) || !Array.isArray(value.decisions) ||
+      value.decisions.length !== candidates.length) return null;
+  const decisions: FleetGroupRejoinDecision[] = [];
+  for (const candidate of candidates) {
+    const matches = value.decisions.filter((raw): raw is Record<string, unknown> => isRecord(raw) &&
+      raw.coordinate === candidate.coordinate && isDeepStrictEqual(raw.groupIds, candidate.groupIds));
+    if (matches.length !== 1) return null;
+    const stored = matches[0]!;
+    if (Object.keys(stored).some(key => !['coordinate', 'groupIds', 'pursuitBefore', 'pursuitAfter'].includes(key)) ||
+        !isDeepStrictEqual(stored.pursuitBefore, candidate.pursuitBefore) ||
+        !Number.isSafeInteger(stored.pursuitAfter) || (stored.pursuitAfter as number) < 0 || (stored.pursuitAfter as number) > 10) return null;
+    decisions.push({ coordinate: candidate.coordinate, groupIds: [...candidate.groupIds],
+      pursuitAfter: stored.pursuitAfter as number, adjudicationId });
+  }
+  return decisions;
+}
+
+/** Record an explicit live-GM result for the exact current exceptional rejoin candidates. */
+export const recordFleetGroupRejoinAdjudication = auditedOnCall<{
+  sessionId: string; instanceId: string; requestId: string; expectedNavigationRevision: number;
+  expectedFleetPartitionRevision: number; decisions: unknown;
+}>('recordFleetGroupRejoinAdjudication', async request => {
   const uid = requireUid(request.auth);
   const data = request.data;
-  if (!isRecord(data) || Object.keys(data).some(key => !['sessionId', 'instanceId', 'requestId', 'expectedNavigationRevision'].includes(key)) ||
+  const decisions = requestedFleetRejoinDecisions(data?.decisions);
+  if (!isRecord(data) || Object.keys(data).some(key => !['sessionId', 'instanceId', 'requestId',
+      'expectedNavigationRevision', 'expectedFleetPartitionRevision', 'decisions'].includes(key)) ||
       typeof data.sessionId !== 'string' || !/^[\w-]{1,128}$/.test(data.sessionId) ||
       typeof data.instanceId !== 'string' || !/^[\w-]{1,128}$/.test(data.instanceId) ||
       typeof data.requestId !== 'string' || !isCanonicalRequestId(data.requestId) ||
       !Number.isSafeInteger(data.expectedNavigationRevision) || data.expectedNavigationRevision < 0 ||
-      data.expectedNavigationRevision >= Number.MAX_SAFE_INTEGER) throw new HttpsError('invalid-argument', 'Invalid fleet partition confirmation.');
-  const fingerprint: CommandFingerprint = { action: 'confirm-fleet-partition', sessionId: data.sessionId,
+      data.expectedNavigationRevision >= Number.MAX_SAFE_INTEGER ||
+      !Number.isSafeInteger(data.expectedFleetPartitionRevision) || data.expectedFleetPartitionRevision < 0 ||
+      data.expectedFleetPartitionRevision >= Number.MAX_SAFE_INTEGER || !decisions) {
+    throw new HttpsError('invalid-argument', 'Invalid fleet rejoin adjudication.');
+  }
+  const fingerprint: CommandFingerprint = { action: 'record-fleet-group-rejoin-adjudication', sessionId: data.sessionId,
     requestId: data.requestId, actorUid: uid, instanceId: data.instanceId,
-    expectedRevision: data.expectedNavigationRevision, payload: {} };
+    expectedRevision: data.expectedNavigationRevision,
+    payload: { expectedFleetPartitionRevision: data.expectedFleetPartitionRevision, decisions: JSON.stringify(decisions) } };
+  const adjudicationRef = db.doc(`sessions/${data.sessionId}/fleetGroupRejoinAdjudications/${data.requestId}`);
   return db.runTransaction(async tx => {
     const { session } = await requireFacilitatorInstance(tx, data.sessionId, uid, data.instanceId);
-    const [storedNavigation, playerSnapshots, groupSnapshots, receipt, attackState, opportunities, missionStarts] = await Promise.all([
+    const [storedNavigation, playerSnapshots, groupSnapshots, receipt, existingAdjudication, attackState] = await Promise.all([
+      tx.get(navigationStateRef(data.sessionId)), tx.get(db.collection(`sessions/${data.sessionId}/players`)),
+      tx.get(db.collection(`sessions/${data.sessionId}/fleetGroups`)), tx.get(commandReceiptRef(data.sessionId, data.requestId)),
+      tx.get(adjudicationRef), tx.get(db.doc(`sessions/${data.sessionId}/wolfAttackState/current`)),
+    ]);
+    const replay = replayBoundCommand(receipt, fingerprint, isFleetGroupRejoinAdjudicationReply, 'fleet rejoin adjudication');
+    if (replay) return replay;
+    requireWolfAttackMovementReleased(attackState);
+    requireActiveGameplayPhase(session);
+    requireActionPhase(session, 'jump', 'facilitator');
+    if (!storedNavigation.exists || storedNavigation.get('revision') !== data.expectedNavigationRevision) {
+      throw commandError('failed-precondition', 'Navigation changed; refresh before recording the rejoin decision.', 'conflict');
+    }
+    const partitionRevision = currentFleetPartitionRevision(session);
+    if (partitionRevision !== data.expectedFleetPartitionRevision) {
+      throw commandError('failed-precondition', 'Fleet membership changed; refresh before recording the rejoin decision.', 'conflict');
+    }
+    if (existingAdjudication.exists) throw commandError('failed-precondition', 'This rejoin decision id is already recorded.', 'conflict');
+    const current = fleetPartitionPlanFromSnapshots(session, storedNavigation, playerSnapshots, groupSnapshots);
+    const recordedDecisions = recordDecisionsForCandidates(decisions, current.plan.adjudicationRequired);
+    if (!recordedDecisions || current.plan.adjudicationRequired.length === 0) {
+      throw commandError('failed-precondition', 'The exceptional rejoin candidates changed; refresh before recording a decision.', 'conflict');
+    }
+    const result: FleetGroupRejoinAdjudicationReply = { status: 'recorded', adjudicationId: data.requestId,
+      navigationRevision: data.expectedNavigationRevision, fleetPartitionRevision: partitionRevision };
+    const { currentTurn, turnPhase } = currentFleetRejoinTiming(session);
+    tx.create(adjudicationRef, { type: 'fleet-group-rejoin-adjudication', status: 'recorded', sessionId: data.sessionId,
+      requestId: data.requestId, actorUid: uid, instanceId: data.instanceId,
+      navigationRevision: data.expectedNavigationRevision, fleetPartitionRevision: partitionRevision, currentTurn, turnPhase,
+      decisions: recordedDecisions, createdAt: FieldValue.serverTimestamp() });
+    tx.create(commandReceiptRef(data.sessionId, data.requestId), { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+});
+
+/** Confirm physical partitions from server coordinates; an exceptional pursuit result must be previously recorded by the live GM. */
+export const confirmFleetPartition = auditedOnCall<{ sessionId: string; instanceId: string; requestId: string;
+  expectedNavigationRevision: number; rejoinAdjudicationId?: string }>('confirmFleetPartition', async request => {
+  const uid = requireUid(request.auth);
+  const data = request.data;
+  if (!isRecord(data) || Object.keys(data).some(key => !['sessionId', 'instanceId', 'requestId', 'expectedNavigationRevision',
+      'rejoinAdjudicationId'].includes(key)) ||
+      typeof data.sessionId !== 'string' || !/^[\w-]{1,128}$/.test(data.sessionId) ||
+      typeof data.instanceId !== 'string' || !/^[\w-]{1,128}$/.test(data.instanceId) ||
+      typeof data.requestId !== 'string' || !isCanonicalRequestId(data.requestId) ||
+      !Number.isSafeInteger(data.expectedNavigationRevision) || data.expectedNavigationRevision < 0 ||
+      data.expectedNavigationRevision >= Number.MAX_SAFE_INTEGER ||
+      (data.rejoinAdjudicationId !== undefined && (typeof data.rejoinAdjudicationId !== 'string' ||
+        !isCanonicalRequestId(data.rejoinAdjudicationId)))) throw new HttpsError('invalid-argument', 'Invalid fleet partition confirmation.');
+  const fingerprint: CommandFingerprint = { action: 'confirm-fleet-partition', sessionId: data.sessionId,
+    requestId: data.requestId, actorUid: uid, instanceId: data.instanceId,
+    expectedRevision: data.expectedNavigationRevision,
+    payload: data.rejoinAdjudicationId ? { rejoinAdjudicationId: data.rejoinAdjudicationId } : {} };
+  return db.runTransaction(async tx => {
+    const { session } = await requireFacilitatorInstance(tx, data.sessionId, uid, data.instanceId);
+    const [storedNavigation, playerSnapshots, groupSnapshots, receipt, attackState, opportunities, missionStarts, adjudicationSnapshot] = await Promise.all([
       tx.get(navigationStateRef(data.sessionId)), tx.get(db.collection(`sessions/${data.sessionId}/players`)),
       tx.get(db.collection(`sessions/${data.sessionId}/fleetGroups`)), tx.get(commandReceiptRef(data.sessionId, data.requestId)),
       tx.get(db.doc(`sessions/${data.sessionId}/wolfAttackState/current`)),
       tx.get(db.collection(`sessions/${data.sessionId}/missionOpportunities`)),
       tx.get(db.collection(`sessions/${data.sessionId}/missionStartSnapshots`)),
+      data.rejoinAdjudicationId
+        ? tx.get(db.doc(`sessions/${data.sessionId}/fleetGroupRejoinAdjudications/${data.rejoinAdjudicationId}`))
+        : Promise.resolve(null),
     ]);
     const shuttleIds = [...AUTHORIZED_SHUTTLE_IDS].sort();
     const [shuttleDepartures, shuttleChains] = await Promise.all([
@@ -18372,29 +18566,36 @@ export const confirmFleetPartition = auditedOnCall<{ sessionId: string; instance
     if (!storedNavigation.exists || storedNavigation.get('revision') !== data.expectedNavigationRevision) {
       throw commandError('failed-precondition', 'Navigation changed; refresh before confirming the fleet partition.', 'conflict');
     }
-    const storedPartitionRevision = session.get('fleetPartitionRevision');
-    const partitionRevision = storedPartitionRevision === undefined ? 0 : storedPartitionRevision;
-    if (!Number.isSafeInteger(partitionRevision) || (partitionRevision as number) < 0 ||
-        (partitionRevision as number) >= Number.MAX_SAFE_INTEGER) {
-      throw commandError('failed-precondition', 'Fleet partition revision authority is malformed or exhausted.', 'conflict');
-    }
-    const activeVesselIds = activeVesselIdsForSession(session);
-    const groups = movementPursuitFleetGroups(activeVesselIds, groupSnapshots, playerSnapshots);
-    requireMovementPursuitAuthority(storedNavigation, session);
-    const navigation = navigationStateForSession(storedNavigation, session, activeVesselIds);
-    const players = playerSnapshots.docs.filter(player => player.exists && !isKickedPlayer(player));
-    const members = players.map(player => {
-      const currentGroup = groups.find(group => group.id === player.get('fleetGroupId'));
-      let shipId = currentGroup?.memberShipIds?.[player.id] ?? playerShipId(player) ?? playerAuthoritativeVesselIds(player)[0] ?? null;
-      if (shipId && !activeVesselIds.includes(shipId)) {
-        const id = smallShipId(shipId);
-        shipId = id ? storedSmallShipState(session, id)?.hostShipId ?? null : null;
+    const partitionRevision = currentFleetPartitionRevision(session);
+    const current = fleetPartitionPlanFromSnapshots(session, storedNavigation, playerSnapshots, groupSnapshots);
+    let plan = current.plan;
+    if (plan.adjudicationRequired.length > 0) {
+      if (!data.rejoinAdjudicationId) return {
+        status: 'adjudication-required', navigationRevision: data.expectedNavigationRevision,
+        fleetPartitionRevision: partitionRevision, candidates: plan.adjudicationRequired,
+      } satisfies FleetPartitionAdjudicationRequiredReply;
+      if (!adjudicationSnapshot?.exists) {
+        throw commandError('failed-precondition', 'A current recorded GM rejoin decision is required.', 'conflict');
       }
-      return { uid: player.id, groupId: player.get('fleetGroupId') as string, shipId };
-    });
-    let plan: ReturnType<typeof planFleetPartition>;
-    try { plan = planFleetPartition(navigation, groups, members, activeVesselIds); }
-    catch (error) { throw commandError('failed-precondition', error instanceof Error ? error.message : 'Fleet partition authority is malformed.', 'conflict'); }
+      const decisions = savedDecisionsForCandidates(adjudicationSnapshot.data(), plan.adjudicationRequired, {
+        sessionId: data.sessionId, actorUid: uid, instanceId: data.instanceId,
+        navigationRevision: data.expectedNavigationRevision, fleetPartitionRevision: partitionRevision,
+        ...currentFleetRejoinTiming(session),
+      }, data.rejoinAdjudicationId);
+      if (!decisions) throw commandError('failed-precondition',
+        'The recorded GM decision is stale, foreign, consumed, or does not match these rejoin candidates.', 'conflict');
+      try {
+        plan = planFleetPartition(current.navigation, current.groups, current.members, current.activeVesselIds, decisions);
+      } catch (error) {
+        throw commandError('failed-precondition', error instanceof Error ? error.message : 'Fleet rejoin adjudication is malformed.', 'conflict');
+      }
+      if (plan.adjudicationRequired.length > 0) {
+        throw commandError('failed-precondition', 'The recorded GM decision did not resolve every current rejoin candidate.', 'conflict');
+      }
+    } else if (data.rejoinAdjudicationId) {
+      throw commandError('failed-precondition', 'This recorded GM decision no longer matches an exceptional rejoin.', 'conflict');
+    }
+    const { groups, players } = current;
     let missionMigrations: ReturnType<typeof partitionPendingMissionOpportunities>;
     try {
       missionMigrations = partitionPendingMissionOpportunities(data.sessionId, lockedNavigationChart(session),
@@ -18437,7 +18638,7 @@ export const confirmFleetPartition = auditedOnCall<{ sessionId: string; instance
     }
     const changed = !isDeepStrictEqual(groups, plan.groups) || missionMigrations.length > 0 || shuttleAudienceChanges.length > 0;
     const revision = data.expectedNavigationRevision + (changed ? 1 : 0);
-    const nextPartitionRevision = (partitionRevision as number) + (changed ? 1 : 0);
+    const nextPartitionRevision = partitionRevision + (changed ? 1 : 0);
     if (changed) {
       tx.update(db.doc(`sessions/${data.sessionId}`), { fleetPartitionRevision: nextPartitionRevision, updatedAt: FieldValue.serverTimestamp() });
       for (const group of plan.groups) tx.set(db.doc(`sessions/${data.sessionId}/fleetGroups/${group.id}`), {
@@ -18467,9 +18668,13 @@ export const confirmFleetPartition = auditedOnCall<{ sessionId: string; instance
         tx.update(db.doc(`sessions/${data.sessionId}/shuttleDepartures/${change.shuttleId}`), { fleetGroupId: change.toGroupId });
       }
       if (plan.rejoins.length > 0) {
+        const resolutions = new Set(plan.rejoins.map(rejoin => rejoin.resolution));
         tx.create(db.doc(`sessions/${data.sessionId}/fleetGroupRejoinAudits/${data.requestId}`), {
           type: 'fleet-group-rejoin-audit', sessionId: data.sessionId, requestId: data.requestId,
-          actorUid: uid, policy: 'highest-pursuit-score', navigationRevision: revision,
+          actorUid: uid,
+          pursuitDecision: resolutions.size > 1 ? 'mixed-identical-and-adjudicated-inputs' : [...resolutions][0],
+          ...(data.rejoinAdjudicationId ? { adjudicationId: data.rejoinAdjudicationId } : {}),
+          navigationRevision: revision,
           migratedShuttleIds: shuttleAudienceChanges.filter(change => change.toGroupId !== NO_LOCAL_FLEET_ROUTE_AUDIENCE)
             .map(change => change.shuttleId).sort(),
           rejoins: plan.rejoins.map(rejoin => ({
@@ -18478,10 +18683,16 @@ export const confirmFleetPartition = auditedOnCall<{ sessionId: string; instance
             absorbedGroupIds: [...rejoin.absorbedGroupIds],
             pursuitBefore: { ...rejoin.pursuitBefore },
             pursuitAfter: rejoin.pursuitAfter,
+            resolution: rejoin.resolution,
+            ...(rejoin.adjudicationId ? { adjudicationId: rejoin.adjudicationId } : {}),
           })),
           createdAt: FieldValue.serverTimestamp(),
         });
       }
+      if (data.rejoinAdjudicationId) tx.update(
+        db.doc(`sessions/${data.sessionId}/fleetGroupRejoinAdjudications/${data.rejoinAdjudicationId}`), {
+          status: 'consumed', consumedByRequestId: data.requestId, consumedAt: FieldValue.serverTimestamp(),
+        });
       if (shuttleAudienceChanges.length > 0) tx.create(
         db.doc(`sessions/${data.sessionId}/fleetGroupTransitPartitionAudits/${data.requestId}`), {
           type: 'fleet-group-transit-partition-audit', sessionId: data.sessionId, requestId: data.requestId,

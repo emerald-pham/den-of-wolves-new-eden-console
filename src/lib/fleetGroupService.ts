@@ -17,6 +17,20 @@ export interface FleetKnownSystemShareReply {
   readonly status: 'committed'; readonly requestId: string; readonly groupId: string;
   readonly coordinate: string; readonly recipientShipIds: readonly string[]; readonly navigationRevision: number;
 }
+export interface FleetGroupRejoinCandidate {
+  readonly coordinate: string; readonly groupIds: readonly string[]; readonly pursuitBefore: Readonly<Record<string, number>>;
+}
+export interface FleetGroupRejoinDecision {
+  readonly coordinate: string; readonly groupIds: readonly string[]; readonly pursuitAfter: number;
+}
+export type FleetPartitionReply =
+  | { readonly status: 'committed'; readonly navigationRevision: number; readonly groupIds: readonly string[] }
+  | { readonly status: 'adjudication-required'; readonly navigationRevision: number;
+      readonly fleetPartitionRevision: number; readonly candidates: readonly FleetGroupRejoinCandidate[] };
+export interface FleetGroupRejoinAdjudicationReply {
+  readonly status: 'recorded'; readonly adjudicationId: string;
+  readonly navigationRevision: number; readonly fleetPartitionRevision: number;
+}
 export type FleetTaxiTransferReply =
   | { readonly status: 'committed' | 'replayed'; readonly requestId: string; readonly shuttleId: FleetTaxiShuttleId;
       readonly kind: 'players'; readonly sourceGroupId: string; readonly targetShipId: string; readonly cycle: number;
@@ -40,7 +54,8 @@ export interface FleetGroupNavigationProjection {
 type Transport = (name: string, payload: Record<string, unknown>) => Promise<unknown>;
 export type FleetTaxiPayload = Readonly<{ kind: 'players'; playerUids: readonly string[] }> | Readonly<{ kind: 'fuel'; units: 1 | 2 }>;
 export type FleetTaxiShuttleId = 'starlight' | 'hummingbird';
-type Action = 'sendFleetGroupMessage' | 'confirmFleetPartition' | 'shareKnownSystemDetails' | 'sendScoutTaxiTransfer';
+type Action = 'sendFleetGroupMessage' | 'confirmFleetPartition' | 'recordFleetGroupRejoinAdjudication' |
+  'shareKnownSystemDetails' | 'sendScoutTaxiTransfer';
 const record = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 const rejected = new Set(['aborted', 'already-exists', 'failed-precondition', 'invalid-argument', 'not-found',
   'out-of-range', 'permission-denied', 'resource-exhausted', 'unauthenticated', 'unimplemented']);
@@ -135,24 +150,37 @@ function strictFleetGroupNavigationProjection(value: unknown): FleetGroupNavigat
 
 export function createFleetGroupActions(getContext: () => FleetGroupContext, transport: Transport,
   requestId: () => string = () => `group-${crypto.randomUUID()}`) {
-  const attempts = new Map<Action, { context: FleetGroupContext; text: string | undefined; payload: Record<string, unknown> }>();
+  const attempts = new Map<Action, { context: FleetGroupContext; signature: string; payload: Record<string, unknown> }>();
   const flights = new Map<Action, Promise<unknown>>();
   const current = () => { const value = getContext(); requireContext(value); return value; };
-  const guard = (context: FleetGroupContext) => {
-    const next = current(); if (!sameAudience(context, next)) throw new Error('The fleet group or actor changed. Refresh the current group.');
+  const guard = (context: FleetGroupContext, action?: Action, reply?: unknown) => {
+    const next = current();
+    if (!sameAudience(context, next)) throw new Error('The fleet group or actor changed. Refresh the current group.');
+    const revisionBound = action === 'recordFleetGroupRejoinAdjudication' ||
+      (action === 'confirmFleetPartition' && record(reply) && reply.status === 'adjudication-required');
+    if (revisionBound &&
+        (next.navigationRevision !== context.navigationRevision || next.fleetPartitionRevision !== context.fleetPartitionRevision)) {
+      throw new Error('Navigation or fleet membership changed while the rejoin decision was being recorded. Refresh before continuing.');
+    }
   };
   const invoke = async (action: Action, text?: string, extra?: Record<string, unknown>) => {
     const context = current();
     if (action === 'confirmFleetPartition' && (!context.gmInstanceId || !Number.isSafeInteger(context.navigationRevision) ||
-        (context.navigationRevision ?? -1) < 0)) throw new Error('Fresh facilitator navigation authority is required.');
+        context.role !== 'gm' || (context.navigationRevision ?? -1) < 0)) throw new Error('Fresh facilitator navigation authority is required.');
+    if (action === 'recordFleetGroupRejoinAdjudication' && (!context.gmInstanceId || context.role !== 'gm' ||
+        !Number.isSafeInteger(context.navigationRevision) || (context.navigationRevision ?? -1) < 0 ||
+        !Number.isSafeInteger(context.fleetPartitionRevision) || (context.fleetPartitionRevision ?? -1) < 0)) {
+      throw new Error('Fresh facilitator navigation and fleet membership authority is required.');
+    }
     if (action === 'shareKnownSystemDetails' && (!Number.isSafeInteger(context.navigationRevision) ||
         (context.navigationRevision ?? -1) < 0)) throw new Error('Fresh ship knowledge is required before sharing.');
     if (action === 'sendScoutTaxiTransfer' && (!Number.isSafeInteger(context.navigationRevision) ||
         (context.navigationRevision ?? -1) < 0 || !Number.isSafeInteger(context.fleetPartitionRevision) ||
         (context.fleetPartitionRevision ?? -1) < 0 || !Number.isSafeInteger(context.currentCycle) ||
         (context.currentCycle ?? 0) < 1)) throw new Error('Fresh cycle, navigation, and fleet membership authority is required for taxi transfer.');
+    const signature = JSON.stringify({ text: text ?? null, extra: extra ?? null });
     const previous = attempts.get(action);
-    if (previous && (!sameAudience(previous.context, context) || previous.text !== text)) {
+    if (previous && (!sameAudience(previous.context, context) || previous.signature !== signature)) {
       throw new Error('An uncertain action is pending. Retry the exact action with the same actor and fleet group.');
     }
     if (flights.has(action)) return flights.get(action)!;
@@ -165,9 +193,13 @@ export function createFleetGroupActions(getContext: () => FleetGroupContext, tra
           ? { ...extra, sessionId: context.sessionId, expectedGroupId: context.groupId,
             expectedNavigationRevision: context.navigationRevision,
             expectedFleetPartitionRevision: context.fleetPartitionRevision, requestId: requestId() }
-        : { sessionId: context.sessionId, instanceId: context.gmInstanceId,
-          expectedNavigationRevision: context.navigationRevision, requestId: requestId() };
-    const attempt = previous ?? { context, text, payload: basePayload };
+        : action === 'recordFleetGroupRejoinAdjudication'
+          ? { ...extra, sessionId: context.sessionId, instanceId: context.gmInstanceId,
+            expectedNavigationRevision: context.navigationRevision,
+            expectedFleetPartitionRevision: context.fleetPartitionRevision, requestId: requestId() }
+          : { ...extra, sessionId: context.sessionId, instanceId: context.gmInstanceId,
+            expectedNavigationRevision: context.navigationRevision, requestId: requestId() };
+    const attempt = previous ?? { context, signature, payload: basePayload };
     attempts.set(action, attempt);
     const flight = (async () => {
       let reply: unknown;
@@ -177,7 +209,9 @@ export function createFleetGroupActions(getContext: () => FleetGroupContext, tra
         if (rejected.has(code)) { attempts.delete(action); throw error instanceof Error ? error : new Error(`Group action rejected: ${code}.`); }
         throw new Error('The group action result is uncertain. Retry the exact action while this live context remains current.');
       }
-      const valid = record(reply) && (reply.status === 'committed' || (action === 'sendScoutTaxiTransfer' && reply.status === 'replayed')) && (action === 'sendFleetGroupMessage'
+      const valid = record(reply) && (reply.status === 'committed' || (action === 'sendScoutTaxiTransfer' && reply.status === 'replayed') ||
+        (action === 'confirmFleetPartition' && reply.status === 'adjudication-required') ||
+        (action === 'recordFleetGroupRejoinAdjudication' && reply.status === 'recorded')) && (action === 'sendFleetGroupMessage'
         ? reply.groupId === context.groupId && reply.messageId === attempt.payload.requestId
         : action === 'shareKnownSystemDetails'
           ? reply.groupId === context.groupId && reply.requestId === attempt.payload.requestId &&
@@ -192,11 +226,30 @@ export function createFleetGroupActions(getContext: () => FleetGroupContext, tra
               (reply.kind === 'fuel' ? reply.units === (attempt.payload.payload as Record<string, unknown>)?.units &&
                 Number.isSafeInteger(reply.sourceFuelRemaining) && (reply.sourceFuelRemaining as number) >= 0
                 : Array.isArray(reply.playerUids) && isDeepEqualStrings(reply.playerUids, (attempt.payload.payload as Record<string, unknown>)?.playerUids))
-          : Number.isSafeInteger(reply.navigationRevision) && (reply.navigationRevision as number) >= 0 && Array.isArray(reply.groupIds) &&
-            reply.groupIds.length > 0 && new Set(reply.groupIds).size === reply.groupIds.length &&
-            reply.groupIds.every(id => typeof id === 'string' && /^fleet-[1-9][0-9]*$/.test(id)));
+          : action === 'confirmFleetPartition'
+            ? reply.status === 'adjudication-required'
+              ? Number.isSafeInteger(reply.navigationRevision) && reply.navigationRevision === context.navigationRevision &&
+                Number.isSafeInteger(reply.fleetPartitionRevision) && reply.fleetPartitionRevision === (context.fleetPartitionRevision ?? 0) &&
+                Array.isArray(reply.candidates) && reply.candidates.length > 0 && reply.candidates.every(candidate =>
+                  record(candidate) && Object.keys(candidate).every(key => ['coordinate', 'groupIds', 'pursuitBefore'].includes(key)) &&
+                  typeof candidate.coordinate === 'string' && /^\d{4}$/.test(candidate.coordinate) && Array.isArray(candidate.groupIds) &&
+                  candidate.groupIds.length >= 2 && new Set(candidate.groupIds).size === candidate.groupIds.length &&
+                  candidate.groupIds.every(id => typeof id === 'string' && /^fleet-[1-9][0-9]*$/.test(id)) && record(candidate.pursuitBefore) &&
+                  Object.keys(candidate.pursuitBefore).length === candidate.groupIds.length && candidate.groupIds.every(id =>
+                    Number.isSafeInteger(candidate.pursuitBefore[id]) && (candidate.pursuitBefore[id] as number) >= 0 &&
+                    (candidate.pursuitBefore[id] as number) <= 10))
+              : Number.isSafeInteger(reply.navigationRevision) && (reply.navigationRevision as number) >= 0 && Array.isArray(reply.groupIds) &&
+                reply.groupIds.length > 0 && new Set(reply.groupIds).size === reply.groupIds.length &&
+                reply.groupIds.every(id => typeof id === 'string' && /^fleet-[1-9][0-9]*$/.test(id))
+            : action === 'recordFleetGroupRejoinAdjudication'
+              ? reply.status === 'recorded' && reply.adjudicationId === attempt.payload.requestId &&
+                reply.navigationRevision === context.navigationRevision &&
+                reply.fleetPartitionRevision === (context.fleetPartitionRevision ?? 0)
+              : Number.isSafeInteger(reply.navigationRevision) && (reply.navigationRevision as number) >= 0 && Array.isArray(reply.groupIds) &&
+                reply.groupIds.length > 0 && new Set(reply.groupIds).size === reply.groupIds.length &&
+                reply.groupIds.every(id => typeof id === 'string' && /^fleet-[1-9][0-9]*$/.test(id)));
       if (!valid) throw new Error('The group action result is uncertain. Retry the exact action.');
-      attempts.delete(action); guard(context); return reply;
+      attempts.delete(action); guard(context, action, reply); return reply;
     })();
     flights.set(action, flight);
     try { return await flight; } finally { flights.delete(action); }
@@ -206,7 +259,23 @@ export function createFleetGroupActions(getContext: () => FleetGroupContext, tra
       if (!text.trim() || text.length > 240) throw new Error('Enter a group note of 1 to 240 characters.');
       return invoke('sendFleetGroupMessage', text.trim());
     },
-    confirmPartition: async () => invoke('confirmFleetPartition'),
+    confirmPartition: async (adjudicationId?: string) => {
+      if (adjudicationId !== undefined && !/^[-\w]{1,128}$/.test(adjudicationId)) {
+        throw new Error('The recorded rejoin decision is malformed.');
+      }
+      return await invoke('confirmFleetPartition', adjudicationId, adjudicationId ? { rejoinAdjudicationId: adjudicationId } : undefined) as FleetPartitionReply;
+    },
+    recordRejoinAdjudication: async (decisions: readonly FleetGroupRejoinDecision[]) => {
+      if (!Array.isArray(decisions) || decisions.length < 1 || decisions.length > 32 || decisions.some(decision =>
+        !decision || !/^\d{4}$/.test(decision.coordinate) || !Array.isArray(decision.groupIds) || decision.groupIds.length < 2 ||
+        decision.groupIds.some(id => typeof id !== 'string' || !/^fleet-[1-9][0-9]*$/.test(id)) ||
+        new Set(decision.groupIds).size !== decision.groupIds.length || !Number.isSafeInteger(decision.pursuitAfter) ||
+        decision.pursuitAfter < 0 || decision.pursuitAfter > 10)) {
+        throw new Error('Record one explicit pursuit result for every current exceptional rejoin.');
+      }
+      const payload = { decisions };
+      return await invoke('recordFleetGroupRejoinAdjudication', JSON.stringify(payload), payload) as FleetGroupRejoinAdjudicationReply;
+    },
     share: async (coordinate: string, recipientShipIds: 'all' | readonly string[]) => {
       if (!/^\d{4}$/.test(coordinate) || (recipientShipIds !== 'all' &&
           (!recipientShipIds.length || new Set(recipientShipIds).size !== recipientShipIds.length ||

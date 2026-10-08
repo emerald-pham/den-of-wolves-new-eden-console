@@ -75,6 +75,30 @@ it('shows a blank live-GM pursuit decision form when group values differ before 
   expect(mocks.recordAdjudication).not.toHaveBeenCalled();
 });
 
+it('records a blank-by-default explicit GM choice before enabling the exceptional rejoin', async () => {
+  seed('gm');
+  mocks.confirm.mockReset()
+    .mockResolvedValueOnce({ status: 'adjudication-required', navigationRevision: 1, fleetPartitionRevision: 4,
+      candidates: [{ coordinate: '1413', groupIds: ['fleet-1', 'fleet-2'], pursuitBefore: { 'fleet-1': 2, 'fleet-2': 5 } }] })
+    .mockResolvedValueOnce({ status: 'committed', navigationRevision: 2, groupIds: ['fleet-1'] });
+  mocks.recordAdjudication.mockReset().mockResolvedValue({
+    status: 'recorded', adjudicationId: 'decision-1', navigationRevision: 1, fleetPartitionRevision: 4,
+  });
+  render(<FleetGroupWorkspace />);
+
+  fireEvent.click(screen.getByRole('button', { name: 'Confirm separated fleet groups' }));
+  const input = await screen.findByLabelText('Pursuit after merge at 1413');
+  fireEvent.change(input, { target: { value: '4' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Record live-GM pursuit decision' }));
+  await waitFor(() => expect(mocks.recordAdjudication).toHaveBeenCalledWith([
+    { coordinate: '1413', groupIds: ['fleet-1', 'fleet-2'], pursuitAfter: 4 },
+  ]));
+  expect(await screen.findByRole('button', { name: 'Apply recorded rejoin adjudication' })).toBeEnabled();
+  fireEvent.click(screen.getByRole('button', { name: 'Apply recorded rejoin adjudication' }));
+  await waitFor(() => expect(mocks.confirm).toHaveBeenNthCalledWith(2, 'decision-1'));
+  expect(await screen.findByText(/recorded live-GM pursuit decision was applied/i)).toBeInTheDocument();
+});
+
 it('shares only a known coordinate to selected ships from the fresh current-group projection', async () => {
   seed(); render(<FleetGroupWorkspace />);
   const system = await screen.findByLabelText('Scanned system to share');
