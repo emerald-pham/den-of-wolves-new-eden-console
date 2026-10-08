@@ -38,38 +38,78 @@ it('refuses a delayed read after group reassignment and confirms only a fresh GM
 it('records explicit merge values and sends only the recorded decision id when applying it', async () => {
   context = { ...context, groupId: 'fleet-1', role: 'gm', live: true, navigationRevision: 4, fleetPartitionRevision: 1 };
   const candidates = [{ coordinate: '1413', groupIds: ['fleet-1', 'fleet-2'], pursuitBefore: { 'fleet-1': 2, 'fleet-2': 5 } }];
+  const phase = { turn: 3, teamPhaseEndsAt: '2026-10-08T12:05:00.000Z', openAirspaceEndsAt: '2026-10-08T12:20:00.000Z',
+    airspace: { state: 'lifted', tickerActive: true, pressAccess: false } };
+  const previewBinding = { actorUid: 'alice', instanceId: 'bridge', leaseClaimedAt: null,
+    navigationRevision: 4, fleetPartitionRevision: 1, currentTurn: 3, turnPhase: phase, candidates };
+  context = { ...context, currentCycle: 3, turnPhase: phase } as FleetGroupContext;
   const transport = vi.fn()
-    .mockResolvedValueOnce({ status: 'adjudication-required', navigationRevision: 4, fleetPartitionRevision: 1, candidates })
+    .mockResolvedValueOnce({ status: 'adjudication-required', navigationRevision: 4, fleetPartitionRevision: 1,
+      candidates, previewBinding })
     .mockResolvedValueOnce({ status: 'recorded', adjudicationId: 'decision-1', navigationRevision: 4, fleetPartitionRevision: 1 })
     .mockResolvedValueOnce({ status: 'committed', navigationRevision: 5, groupIds: ['fleet-1'] });
   const ids = vi.fn().mockReturnValueOnce('preview-1').mockReturnValueOnce('decision-1').mockReturnValueOnce('apply-1');
   const actions = createFleetGroupActions(() => context, transport, ids);
 
   await expect(actions.confirmPartition()).resolves.toEqual({ status: 'adjudication-required',
-    navigationRevision: 4, fleetPartitionRevision: 1, candidates });
+    navigationRevision: 4, fleetPartitionRevision: 1, candidates, previewBinding });
   await expect(actions.recordRejoinAdjudication([{ coordinate: '1413', groupIds: ['fleet-1', 'fleet-2'], pursuitAfter: 4 }]))
     .resolves.toMatchObject({ status: 'recorded', adjudicationId: 'decision-1' });
   await expect(actions.confirmPartition('decision-1')).resolves.toMatchObject({ status: 'committed', navigationRevision: 5 });
   expect(transport.mock.calls).toEqual([
     ['confirmFleetPartition', { sessionId: 's1', instanceId: 'bridge', expectedNavigationRevision: 4, requestId: 'preview-1' }],
     ['recordFleetGroupRejoinAdjudication', { decisions: [{ coordinate: '1413', groupIds: ['fleet-1', 'fleet-2'], pursuitAfter: 4 }],
-      sessionId: 's1', instanceId: 'bridge', expectedNavigationRevision: 4, expectedFleetPartitionRevision: 1, requestId: 'decision-1' }],
+      previewBinding, sessionId: 's1', instanceId: 'bridge', expectedNavigationRevision: 4, expectedFleetPartitionRevision: 1,
+      requestId: 'decision-1' }],
     ['confirmFleetPartition', { rejoinAdjudicationId: 'decision-1', sessionId: 's1', instanceId: 'bridge',
       expectedNavigationRevision: 4, requestId: 'apply-1' }],
   ]);
 });
 
+it('keeps a displayed exceptional rejoin preview bound to the authority and pursuit inputs it returned', async () => {
+  const phase = { turn: 3, teamPhaseEndsAt: '2026-10-08T12:05:00.000Z', openAirspaceEndsAt: '2026-10-08T12:20:00.000Z',
+    airspace: { state: 'lifted', tickerActive: true, pressAccess: false } };
+  const candidates = [{ coordinate: '1413', groupIds: ['fleet-1', 'fleet-2'],
+    pursuitBefore: { 'fleet-1': 2, 'fleet-2': 5 } }];
+  const previewBinding = { actorUid: 'alice', instanceId: 'bridge', leaseClaimedAt: null,
+    navigationRevision: 4, fleetPartitionRevision: 1, currentTurn: 3, turnPhase: phase, candidates };
+  context = { ...context, currentCycle: 3, turnPhase: phase, previewInputSignature: 'candidates:2/5' } as FleetGroupContext;
+  const transport = vi.fn()
+    .mockResolvedValueOnce({ status: 'adjudication-required', navigationRevision: 4, fleetPartitionRevision: 1,
+      candidates, previewBinding })
+    .mockResolvedValueOnce({ status: 'recorded', adjudicationId: 'decision-1', navigationRevision: 5,
+      fleetPartitionRevision: 2 });
+  const actions = createFleetGroupActions(() => context, transport, () => 'decision-1');
+  await expect(actions.confirmPartition()).resolves.toMatchObject({ status: 'adjudication-required', candidates });
+
+  context = { ...context, navigationRevision: 5, fleetPartitionRevision: 2, currentCycle: 4,
+    turnPhase: { ...phase, turn: 4 }, previewInputSignature: 'candidates:3/7' } as FleetGroupContext;
+  await expect(actions.recordRejoinAdjudication([{ coordinate: '1413', groupIds: ['fleet-1', 'fleet-2'], pursuitAfter: 4 }]))
+    .rejects.toThrow(/changed|refresh|stale/i);
+  expect(transport).toHaveBeenCalledTimes(1);
+});
+
 it('holds an uncertain decision to the exact GM choice and refuses player adjudication actions', async () => {
   context = { ...context, role: 'gm', groupId: 'fleet-1', navigationRevision: 4, fleetPartitionRevision: 1 };
-  const transport = vi.fn().mockRejectedValueOnce({ code: 'functions/unavailable' }).mockResolvedValue({
-    status: 'recorded', adjudicationId: 'request-1', navigationRevision: 4, fleetPartitionRevision: 1,
-  });
+  const phase = { turn: 3, teamPhaseEndsAt: '2026-10-08T12:05:00.000Z', openAirspaceEndsAt: '2026-10-08T12:20:00.000Z',
+    airspace: { state: 'lifted', tickerActive: true, pressAccess: false } };
+  const candidates = [{ coordinate: '1413', groupIds: ['fleet-1', 'fleet-2'],
+    pursuitBefore: { 'fleet-1': 2, 'fleet-2': 5 } }];
+  const previewBinding = { actorUid: 'alice', instanceId: 'bridge', leaseClaimedAt: null,
+    navigationRevision: 4, fleetPartitionRevision: 1, currentTurn: 3, turnPhase: phase, candidates };
+  context = { ...context, currentCycle: 3, turnPhase: phase } as FleetGroupContext;
+  const transport = vi.fn()
+    .mockResolvedValueOnce({ status: 'adjudication-required', navigationRevision: 4, fleetPartitionRevision: 1,
+      candidates, previewBinding })
+    .mockRejectedValueOnce({ code: 'functions/unavailable' })
+    .mockResolvedValue({ status: 'recorded', adjudicationId: 'request-1', navigationRevision: 4, fleetPartitionRevision: 1 });
   const actions = createFleetGroupActions(() => context, transport, () => 'request-1');
+  await actions.confirmPartition();
   const original = [{ coordinate: '1413', groupIds: ['fleet-1', 'fleet-2'], pursuitAfter: 4 }];
   await expect(actions.recordRejoinAdjudication(original)).rejects.toThrow(/uncertain/i);
   await expect(actions.recordRejoinAdjudication([{ ...original[0]!, pursuitAfter: 3 }])).rejects.toThrow(/exact action/i);
   await expect(actions.recordRejoinAdjudication(original)).resolves.toMatchObject({ adjudicationId: 'request-1' });
-  expect(transport.mock.calls[0]).toEqual(transport.mock.calls[1]);
+  expect(transport.mock.calls[1]).toEqual(transport.mock.calls[2]);
 
   context = { ...context, role: 'player', gmInstanceId: undefined };
   const playerActions = createFleetGroupActions(() => context, vi.fn());
@@ -78,9 +118,20 @@ it('holds an uncertain decision to the exact GM choice and refuses player adjudi
 
 it('does not accept a recorded decision response after the current navigation or partition revision changes', async () => {
   context = { ...context, role: 'gm', gmInstanceId: 'bridge', groupId: 'fleet-1', navigationRevision: 4, fleetPartitionRevision: 1 };
+  const phase = { turn: 3, teamPhaseEndsAt: '2026-10-08T12:05:00.000Z', openAirspaceEndsAt: '2026-10-08T12:20:00.000Z',
+    airspace: { state: 'lifted', tickerActive: true, pressAccess: false } };
+  const candidates = [{ coordinate: '1413', groupIds: ['fleet-1', 'fleet-2'],
+    pursuitBefore: { 'fleet-1': 2, 'fleet-2': 5 } }];
+  const previewBinding = { actorUid: 'alice', instanceId: 'bridge', leaseClaimedAt: null,
+    navigationRevision: 4, fleetPartitionRevision: 1, currentTurn: 3, turnPhase: phase, candidates };
+  context = { ...context, currentCycle: 3, turnPhase: phase } as FleetGroupContext;
   let finish!: (value: unknown) => void;
-  const transport = vi.fn(() => new Promise(resolve => { finish = resolve; }));
+  const transport = vi.fn()
+    .mockResolvedValueOnce({ status: 'adjudication-required', navigationRevision: 4, fleetPartitionRevision: 1,
+      candidates, previewBinding })
+    .mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
   const actions = createFleetGroupActions(() => context, transport, () => 'decision-1');
+  await actions.confirmPartition();
   const recording = actions.recordRejoinAdjudication([
     { coordinate: '1413', groupIds: ['fleet-1', 'fleet-2'], pursuitAfter: 4 },
   ]);
@@ -91,10 +142,25 @@ it('does not accept a recorded decision response after the current navigation or
 
 it('accepts a committed partition when the live store observes its server revision advance before the reply', async () => {
   context = { ...context, role: 'gm', gmInstanceId: 'bridge', groupId: 'fleet-1', navigationRevision: 4, fleetPartitionRevision: 1 };
+  const phase = { turn: 3, teamPhaseEndsAt: '2026-10-08T12:05:00.000Z', openAirspaceEndsAt: '2026-10-08T12:20:00.000Z',
+    airspace: { state: 'lifted', tickerActive: true, pressAccess: false } };
+  const candidates = [{ coordinate: '1413', groupIds: ['fleet-1', 'fleet-2'],
+    pursuitBefore: { 'fleet-1': 2, 'fleet-2': 5 } }];
+  const previewBinding = { actorUid: 'alice', instanceId: 'bridge', leaseClaimedAt: null,
+    navigationRevision: 4, fleetPartitionRevision: 1, currentTurn: 3, turnPhase: phase, candidates };
+  context = { ...context, currentCycle: 3, turnPhase: phase } as FleetGroupContext;
   let finish!: (value: unknown) => void;
-  const transport = vi.fn(() => new Promise(resolve => { finish = resolve; }));
-  const actions = createFleetGroupActions(() => context, transport, () => 'apply-1');
-  const applying = actions.confirmPartition('decision-1');
+  const transport = vi.fn()
+    .mockResolvedValueOnce({ status: 'adjudication-required', navigationRevision: 4, fleetPartitionRevision: 1,
+      candidates, previewBinding })
+    .mockResolvedValueOnce({ status: 'recorded', adjudicationId: 'record-1', navigationRevision: 4,
+      fleetPartitionRevision: 1 })
+    .mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+  const ids = vi.fn().mockReturnValueOnce('preview-1').mockReturnValueOnce('record-1').mockReturnValueOnce('apply-1');
+  const actions = createFleetGroupActions(() => context, transport, ids);
+  await actions.confirmPartition();
+  await actions.recordRejoinAdjudication([{ coordinate: '1413', groupIds: ['fleet-1', 'fleet-2'], pursuitAfter: 4 }]);
+  const applying = actions.confirmPartition('record-1');
   context = { ...context, navigationRevision: 5, fleetPartitionRevision: 2 };
   finish({ status: 'committed', navigationRevision: 5, groupIds: ['fleet-1'] });
   await expect(applying).resolves.toEqual({ status: 'committed', navigationRevision: 5, groupIds: ['fleet-1'] });

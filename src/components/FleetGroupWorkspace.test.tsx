@@ -75,6 +75,43 @@ it('shows a blank live-GM pursuit decision form when group values differ before 
   expect(mocks.recordAdjudication).not.toHaveBeenCalled();
 });
 
+it.each(['actor', 'role', 'lease', 'navigation revision', 'partition revision', 'cycle', 'phase',
+  'pursuit inputs', 'candidate identity'] as const)(
+  'withdraws the displayed exceptional rejoin form when its %s changes', async change => {
+    seed('gm');
+    const phase = { turn: 3, teamPhaseEndsAt: '2026-10-08T12:05:00.000Z', openAirspaceEndsAt: '2026-10-08T12:20:00.000Z',
+      airspace: { state: 'lifted', tickerActive: true, pressAccess: false } };
+    useSessionStore.setState(state => ({ session: { ...state.session!, gmNavigationRevision: 4,
+      fleetPartitionRevision: 1, turnPhase: phase, pursuitGroups: { 'fleet-1': 2, 'fleet-2': 5 },
+      shipFleetGroupIds: { aegis: 'fleet-1', quellon: 'fleet-2' },
+      shipGalacticCoordinates: { aegis: '1413', quellon: '1413' } } as never,
+    gmInstance: { ...state.gmInstance!, claimedAt: '2026-10-08T10:00:00.000Z' } as never }));
+    mocks.confirm.mockResolvedValue({ status: 'adjudication-required', navigationRevision: 4, fleetPartitionRevision: 1,
+      candidates: [{ coordinate: '1413', groupIds: ['fleet-1', 'fleet-2'],
+        pursuitBefore: { 'fleet-1': 2, 'fleet-2': 5 } }] });
+    render(<FleetGroupWorkspace />);
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm separated fleet groups' }));
+    await screen.findByRole('region', { name: 'Pursuit rejoin adjudication' });
+    fireEvent.change(screen.getByLabelText('Pursuit after merge at 1413'), { target: { value: '4' } });
+
+    act(() => useSessionStore.setState(state => {
+      const session = state.session!;
+      if (change === 'actor') return { me: { ...state.me!, uid: 'other-gm' } as never };
+      if (change === 'role') return { me: { ...state.me!, role: 'player' } as never };
+      if (change === 'lease') return { gmInstance: { ...state.gmInstance!, claimedAt: '2026-10-08T10:01:00.000Z' } as never };
+      if (change === 'navigation revision') return { session: { ...session, gmNavigationRevision: 5 } as never };
+      if (change === 'partition revision') return { session: { ...session, fleetPartitionRevision: 2 } as never };
+      if (change === 'cycle') return { session: { ...session, currentTurn: 4, turnPhase: { ...phase, turn: 4 } } as never };
+      if (change === 'phase') return { session: { ...session,
+        turnPhase: { ...phase, teamPhaseEndsAt: '2026-10-08T12:06:00.000Z' } } as never };
+      if (change === 'pursuit inputs') return { session: { ...session, pursuitGroups: { 'fleet-1': 3, 'fleet-2': 7 } } as never };
+      return { session: { ...session, shipGalacticCoordinates: { aegis: '1513', quellon: '1413' } } as never };
+    }));
+
+    expect(screen.queryByRole('region', { name: 'Pursuit rejoin adjudication' })).toBeNull();
+    expect(mocks.recordAdjudication).not.toHaveBeenCalled();
+  });
+
 it('records a blank-by-default explicit GM choice before enabling the exceptional rejoin', async () => {
   seed('gm');
   mocks.confirm.mockReset()

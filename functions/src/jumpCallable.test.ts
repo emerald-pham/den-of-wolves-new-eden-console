@@ -80,6 +80,9 @@ const mock = vi.hoisted(() => ({
   commandReceiptRecords: {} as Record<string, Record<string, unknown>>,
   fleetGroupRejoinAdjudications: {} as Record<string, Record<string, unknown>>,
   gmInstanceLastSeenAt: undefined as Date | undefined,
+  gmInstanceClaimedAt: undefined as Date | undefined,
+  gmInstanceRevoked: false,
+  turnPhaseOverride: undefined as Record<string, unknown> | undefined,
   singlePlayerDemo: undefined as Record<string, unknown> | undefined,
   jumpFailures: {} as Record<string, Record<string, unknown>>,
   pursuitEmergencyWindow: undefined as Record<string, unknown> | undefined,
@@ -271,6 +274,9 @@ beforeEach(() => {
   mock.commandReceiptRecords = {};
   mock.fleetGroupRejoinAdjudications = {};
   mock.gmInstanceLastSeenAt = undefined;
+  mock.gmInstanceClaimedAt = undefined;
+  mock.gmInstanceRevoked = false;
+  mock.turnPhaseOverride = undefined;
   mock.singlePlayerDemo = undefined;
   mock.jumpFailures = {};
   mock.pursuitEmergencyWindow = undefined;
@@ -386,6 +392,14 @@ beforeEach(() => {
     if (path === 'sessions/s1/gmInstances') {
       return { docs: [{ id: 'bridge' }] };
     }
+    if (/^sessions\/s1\/gmInstances\/[^/]+$/.test(path)) {
+      const fields = mock.gmInstanceRevoked ? undefined : {
+        uid: mock.owner, connected: mock.connected, lastSeenAt: mock.gmInstanceLastSeenAt ?? new Date(),
+        ...(mock.gmInstanceClaimedAt ? { claimedAt: mock.gmInstanceClaimedAt } : {}),
+      };
+      return { exists: fields !== undefined, id: path.split('/').at(-1), ref: { path }, data: () => fields,
+        get: (key: string) => fields?.[key] };
+    }
     const protectedPursuitWindow = mock.pursuitEmergencyWindow;
     const memberPursuitWindow = protectedPursuitWindow &&
       Object.hasOwn(protectedPursuitWindow, 'navigationRevision') &&
@@ -425,7 +439,7 @@ beforeEach(() => {
           activeVesselIds: mock.activeVesselIds,
           currentTurn: mock.currentTurn,
           fleetPartitionRevision: mock.fleetPartitionRevision,
-          turnPhase: {
+          turnPhase: mock.turnPhaseOverride ?? {
             turn: mock.currentTurn,
             teamPhaseEndsAt: '2026-09-06T12:05:00.000Z',
             openAirspaceEndsAt: '2026-09-06T12:20:00.000Z',
@@ -505,6 +519,49 @@ beforeEach(() => {
   });
   mock.transactionOperations = [];
 });
+
+function configureSplitPursuitRejoin() {
+  mock.navigationRevision = 0;
+  mock.fleetPartitionRevision = 0;
+  mock.currentTurn = 1;
+  mock.turnPhaseOverride = undefined;
+  mock.coordinate = '1413';
+  mock.coordinates = Object.fromEntries(mock.activeVesselIds.map(id => [id, '1413']));
+  mock.fleetGroups = [
+    { id: 'fleet-1', vesselIds: ['aegis'], memberUids: ['u1'], memberShipIds: { u1: 'aegis' } },
+    { id: 'fleet-2', vesselIds: mock.activeVesselIds.filter(id => id !== 'aegis'), memberUids: ['u2'], memberShipIds: { u2: 'dione' } },
+  ];
+  mock.players = [
+    { id: 'u1', fields: { role: 'gm', connected: true, fleetGroupId: 'fleet-1' } },
+    { id: 'u2', fields: { role: 'player', connected: true, fleetGroupId: 'fleet-2', assignedRoleId: 'icebreaker-miner' } },
+  ];
+  mock.pursuitGroups = { 'fleet-1': 2, 'fleet-2': 5 };
+}
+
+async function recordValidPursuitRejoin(requestId = 'record-valid-pursuit', pursuitAfter = 4) {
+  configureSplitPursuitRejoin();
+  const calls = jumpCallables as unknown as {
+    recordFleetGroupRejoinAdjudication: { run: (request: unknown) => Promise<unknown> };
+    confirmFleetPartition: { run: (request: unknown) => Promise<unknown> };
+  };
+  const preview = await calls.confirmFleetPartition.run(request({ sessionId: 's1', instanceId: 'bridge',
+    requestId: `preview-${requestId}`, expectedNavigationRevision: 0 }));
+  const previewBinding = typeof preview === 'object' && preview !== null && 'previewBinding' in preview
+    ? (preview as Record<string, unknown>).previewBinding : undefined;
+  const recordCommand = request({ sessionId: 's1', instanceId: 'bridge', requestId,
+    expectedNavigationRevision: 0, expectedFleetPartitionRevision: 0,
+    decisions: [{ coordinate: '1413', groupIds: ['fleet-1', 'fleet-2'], pursuitAfter }],
+    ...(previewBinding === undefined ? {} : { previewBinding }) });
+  const recorded = await calls.recordFleetGroupRejoinAdjudication.run(recordCommand);
+  const adjudicationPath = `sessions/s1/fleetGroupRejoinAdjudications/${requestId}`;
+  const receiptPath = `sessions/s1/commandReceipts/${requestId}`;
+  const saved = mock.set.mock.calls.find(([path]) => path === adjudicationPath)?.[1];
+  const receipt = mock.set.mock.calls.find(([path]) => path === receiptPath)?.[1];
+  if (!saved || !receipt) throw new Error('The actual rejoin record handler did not write its record and receipt.');
+  mock.fleetGroupRejoinAdjudications[requestId] = saved;
+  mock.commandReceiptRecords[requestId] = receipt;
+  return { calls, preview, previewBinding, recordCommand, recorded, saved, adjudicationPath, receiptPath };
+}
 
 afterEach(() => {
   vi.useRealTimers();
@@ -2955,6 +3012,33 @@ it('does not merge colocated groups with different pursuit inputs until the live
   expect(mock.delete).not.toHaveBeenCalled();
 });
 
+it('refuses to attach an old displayed pursuit choice to fresh server candidates without its preview binding', async () => {
+  configureSplitPursuitRejoin();
+  const calls = jumpCallables as unknown as {
+    recordFleetGroupRejoinAdjudication: { run: (request: unknown) => Promise<unknown> };
+    confirmFleetPartition: { run: (request: unknown) => Promise<unknown> };
+  };
+  const preview = await calls.confirmFleetPartition.run(request({ sessionId: 's1', instanceId: 'bridge',
+    requestId: 'old-pursuit-preview', expectedNavigationRevision: 0 }));
+  expect(preview).toMatchObject({ status: 'adjudication-required', navigationRevision: 0, fleetPartitionRevision: 0,
+    candidates: [{ coordinate: '1413', pursuitBefore: { 'fleet-1': 2, 'fleet-2': 5 } }] });
+
+  mock.navigationRevision = 5;
+  mock.fleetPartitionRevision = 2;
+  mock.currentTurn = 4;
+  mock.pursuitGroups = { 'fleet-1': 3, 'fleet-2': 7 };
+  const outcome = await calls.recordFleetGroupRejoinAdjudication.run(request({ sessionId: 's1', instanceId: 'bridge',
+    requestId: 'old-pursuit-choice', expectedNavigationRevision: 5, expectedFleetPartitionRevision: 2,
+    decisions: [{ coordinate: '1413', groupIds: ['fleet-1', 'fleet-2'], pursuitAfter: 4 }] }))
+    .then(value => ({ value }), error => ({ error }));
+
+  expect(outcome).toHaveProperty('error');
+  expect(mock.set.mock.calls.some(([path]) => path === 'sessions/s1/fleetGroupRejoinAdjudications/old-pursuit-choice' ||
+    path === 'sessions/s1/commandReceipts/old-pursuit-choice')).toBe(false);
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.delete).not.toHaveBeenCalled();
+});
+
 it('records a current live-GM choice before applying it, then consumes and exactly replays that decision once', async () => {
   mock.coordinate = '1413';
   mock.coordinates = Object.fromEntries(mock.activeVesselIds.map(id => [id, '1413']));
@@ -2971,9 +3055,14 @@ it('records a current live-GM choice before applying it, then consumes and exact
     recordFleetGroupRejoinAdjudication: { run: (request: unknown) => Promise<unknown> };
     confirmFleetPartition: { run: (request: unknown) => Promise<unknown> };
   };
+  const preview = await calls.confirmFleetPartition.run(request({ sessionId: 's1', instanceId: 'bridge',
+    requestId: 'preview-record-pursuit-decision', expectedNavigationRevision: 0 }));
+  const previewBinding = typeof preview === 'object' && preview !== null && 'previewBinding' in preview
+    ? (preview as Record<string, unknown>).previewBinding : undefined;
   const recordCommand = request({ sessionId: 's1', instanceId: 'bridge', requestId: 'record-pursuit-decision',
     expectedNavigationRevision: 0, expectedFleetPartitionRevision: 0,
-    decisions: [{ coordinate: '1413', groupIds: ['fleet-1', 'fleet-2'], pursuitAfter: 4 }] });
+    decisions: [{ coordinate: '1413', groupIds: ['fleet-1', 'fleet-2'], pursuitAfter: 4 }],
+    ...(previewBinding === undefined ? {} : { previewBinding }) });
   const decision = await calls.recordFleetGroupRejoinAdjudication.run(recordCommand);
   expect(decision).toEqual({ status: 'recorded', adjudicationId: 'record-pursuit-decision',
     navigationRevision: 0, fleetPartitionRevision: 0 });
@@ -3031,6 +3120,10 @@ it('records a current live-GM choice before applying it, then consumes and exact
   mock.set.mockClear(); mock.update.mockClear(); mock.delete.mockClear();
   await expect(calls.confirmFleetPartition.run(applyCommand)).resolves.toEqual(applied);
   expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled(); expect(mock.delete).not.toHaveBeenCalled();
+  await expect(calls.confirmFleetPartition.run(request({ sessionId: 's1', instanceId: 'bridge',
+    requestId: 'apply-pursuit-decision', expectedNavigationRevision: 0,
+    rejoinAdjudicationId: 'different-pursuit-decision' }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled(); expect(mock.delete).not.toHaveBeenCalled();
 
   mock.commandReceiptRecord = undefined;
   await expect(calls.confirmFleetPartition.run(request({ sessionId: 's1', instanceId: 'bridge',
@@ -3039,88 +3132,65 @@ it('records a current live-GM choice before applying it, then consumes and exact
   expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled(); expect(mock.delete).not.toHaveBeenCalled();
 });
 
-it.each([
-  ['foreign actor', 'u2', 0, 0],
-  ['stale navigation', 'u1', 9, 0],
-  ['stale partition', 'u1', 0, 9],
-] as const)('rejects a %s rejoin decision before changing fleet state', async (_label, actorUid, decisionNavigationRevision, decisionPartitionRevision) => {
-  mock.coordinate = '1413';
-  mock.coordinates = Object.fromEntries(mock.activeVesselIds.map(id => [id, '1413']));
-  mock.fleetGroups = [
-    { id: 'fleet-1', vesselIds: ['aegis'], memberUids: ['u1'], memberShipIds: { u1: 'aegis' } },
-    { id: 'fleet-2', vesselIds: mock.activeVesselIds.filter(id => id !== 'aegis'), memberUids: ['u2'], memberShipIds: { u2: 'dione' } },
-  ];
-  mock.players = [
-    { id: 'u1', fields: { role: 'gm', connected: true, fleetGroupId: 'fleet-1' } },
-    { id: 'u2', fields: { role: 'player', connected: true, fleetGroupId: 'fleet-2', assignedRoleId: 'icebreaker-miner' } },
-  ];
-  mock.pursuitGroups = { 'fleet-1': 2, 'fleet-2': 5 };
-  mock.fleetGroupRejoinAdjudications['recorded-decide-1'] = {
-    type: 'fleet-group-rejoin-adjudication', status: 'recorded', sessionId: 's1', requestId: 'recorded-decide-1',
-    actorUid, instanceId: 'bridge', navigationRevision: decisionNavigationRevision,
-    fleetPartitionRevision: decisionPartitionRevision,
-    decisions: [{ coordinate: '1413', groupIds: ['fleet-1', 'fleet-2'],
-      pursuitBefore: { 'fleet-1': 2, 'fleet-2': 5 }, pursuitAfter: 4 }],
-  };
-  const call = (jumpCallables as unknown as { confirmFleetPartition: { run: (request: unknown) => Promise<unknown> } }).confirmFleetPartition;
+it.each(['revoked instance', 'demoted GM', 'disconnected GM', 'foreign instance holder'] as const)(
+  'rechecks a %s before exact record and apply receipt replay', async authorityChange => {
+    const { calls, recordCommand, recorded, adjudicationPath } = await recordValidPursuitRejoin(
+      `record-replay-${authorityChange.replaceAll(' ', '-')}`);
+    const adjudicationId = adjudicationPath.split('/').at(-1)!;
+    const applyCommand = request({ sessionId: 's1', instanceId: 'bridge',
+      requestId: `apply-replay-${authorityChange.replaceAll(' ', '-')}`, expectedNavigationRevision: 0,
+      rejoinAdjudicationId: adjudicationId });
+    const applied = await calls.confirmFleetPartition.run(applyCommand);
+    const applyReceipt = mock.set.mock.calls.find(([path]) => path === `sessions/s1/commandReceipts/${
+      (applyCommand.data as Record<string, unknown>).requestId}`)?.[1];
+    if (!applyReceipt) throw new Error('The actual partition handler did not write its apply receipt.');
+    mock.commandReceiptRecords[(applyCommand.data as Record<string, unknown>).requestId as string] = applyReceipt;
 
-  await expect(call.run(request({ sessionId: 's1', instanceId: 'bridge', requestId: 'apply-invalid-pursuit-decision',
-    expectedNavigationRevision: 0, rejoinAdjudicationId: 'recorded-decide-1' }))).rejects.toMatchObject({ code: 'failed-precondition' });
-  expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled(); expect(mock.delete).not.toHaveBeenCalled();
-});
+    mock.set.mockClear(); mock.update.mockClear(); mock.delete.mockClear();
+    await expect(calls.recordFleetGroupRejoinAdjudication.run(recordCommand)).resolves.toEqual(recorded);
+    await expect(calls.confirmFleetPartition.run(applyCommand)).resolves.toEqual(applied);
+    expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled(); expect(mock.delete).not.toHaveBeenCalled();
 
-it('rejects a decision recorded for changed pursuit inputs even when the same group ids are colocated', async () => {
-  mock.coordinate = '1413';
-  mock.coordinates = Object.fromEntries(mock.activeVesselIds.map(id => [id, '1413']));
-  mock.fleetGroups = [
-    { id: 'fleet-1', vesselIds: ['aegis'], memberUids: ['u1'], memberShipIds: { u1: 'aegis' } },
-    { id: 'fleet-2', vesselIds: mock.activeVesselIds.filter(id => id !== 'aegis'), memberUids: ['u2'], memberShipIds: { u2: 'dione' } },
-  ];
-  mock.players = [
-    { id: 'u1', fields: { role: 'gm', connected: true, fleetGroupId: 'fleet-1' } },
-    { id: 'u2', fields: { role: 'player', connected: true, fleetGroupId: 'fleet-2' } },
-  ];
-  mock.pursuitGroups = { 'fleet-1': 2, 'fleet-2': 6 };
-  mock.fleetGroupRejoinAdjudications['same-revision-decision'] = {
-    type: 'fleet-group-rejoin-adjudication', status: 'recorded', sessionId: 's1', requestId: 'same-revision-decision',
-    actorUid: 'u1', instanceId: 'bridge', navigationRevision: 0, fleetPartitionRevision: 0,
-    decisions: [{ coordinate: '1413', groupIds: ['fleet-1', 'fleet-2'],
-      pursuitBefore: { 'fleet-1': 2, 'fleet-2': 5 }, pursuitAfter: 4 }],
-  };
-  const call = (jumpCallables as unknown as { confirmFleetPartition: { run: (request: unknown) => Promise<unknown> } }).confirmFleetPartition;
-  await expect(call.run(request({ sessionId: 's1', instanceId: 'bridge', requestId: 'apply-changed-candidate',
-    expectedNavigationRevision: 0, rejoinAdjudicationId: 'same-revision-decision' })))
-    .rejects.toMatchObject({ code: 'failed-precondition' });
-  expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled(); expect(mock.delete).not.toHaveBeenCalled();
-});
+    if (authorityChange === 'revoked instance') mock.gmInstanceRevoked = true;
+    else if (authorityChange === 'demoted GM') mock.role = 'player';
+    else if (authorityChange === 'disconnected GM') mock.connected = false;
+    else mock.owner = 'u2';
+    await expect(calls.recordFleetGroupRejoinAdjudication.run(recordCommand))
+      .rejects.toMatchObject({ code: 'permission-denied' });
+    await expect(calls.confirmFleetPartition.run(applyCommand))
+      .rejects.toMatchObject({ code: 'permission-denied' });
+    expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled(); expect(mock.delete).not.toHaveBeenCalled();
+  });
 
-it('rejects a recorded decision after the facilitator turn and phase timing changes', async () => {
-  mock.coordinate = '1413';
-  mock.coordinates = Object.fromEntries(mock.activeVesselIds.map(id => [id, '1413']));
-  mock.fleetGroups = [
-    { id: 'fleet-1', vesselIds: ['aegis'], memberUids: ['u1'], memberShipIds: { u1: 'aegis' } },
-    { id: 'fleet-2', vesselIds: mock.activeVesselIds.filter(id => id !== 'aegis'), memberUids: ['u2'], memberShipIds: { u2: 'dione' } },
-  ];
-  mock.players = [
-    { id: 'u1', fields: { role: 'gm', connected: true, fleetGroupId: 'fleet-1' } },
-    { id: 'u2', fields: { role: 'player', connected: true, fleetGroupId: 'fleet-2' } },
-  ];
-  mock.pursuitGroups = { 'fleet-1': 2, 'fleet-2': 5 };
-  mock.fleetGroupRejoinAdjudications['prior-cycle-decision'] = {
-    type: 'fleet-group-rejoin-adjudication', status: 'recorded', sessionId: 's1', requestId: 'prior-cycle-decision',
-    actorUid: 'u1', instanceId: 'bridge', navigationRevision: 0, fleetPartitionRevision: 0, currentTurn: 1,
-    turnPhase: { turn: 1, teamPhaseEndsAt: '2026-09-06T12:05:00.000Z', openAirspaceEndsAt: '2026-09-06T12:20:00.000Z',
-      airspace: { state: 'lifted', tickerActive: true, pressAccess: false } },
-    decisions: [{ coordinate: '1413', groupIds: ['fleet-1', 'fleet-2'],
-      pursuitBefore: { 'fleet-1': 2, 'fleet-2': 5 }, pursuitAfter: 4 }],
-  };
-  mock.currentTurn = 2;
-  const call = (jumpCallables as unknown as { confirmFleetPartition: { run: (request: unknown) => Promise<unknown> } }).confirmFleetPartition;
-  await expect(call.run(request({ sessionId: 's1', instanceId: 'bridge', requestId: 'apply-old-cycle-decision',
-    expectedNavigationRevision: 0, rejoinAdjudicationId: 'prior-cycle-decision' })))
-    .rejects.toMatchObject({ code: 'failed-precondition' });
-  expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled(); expect(mock.delete).not.toHaveBeenCalled();
-});
+it.each(['foreign actor', 'stale navigation', 'stale partition', 'changed pursuit input', 'changed cycle',
+  'changed phase', 'changed GM lease'] as const)(
+  'rejects an actually recorded decision when only the %s guard changes', async guard => {
+    const { calls, saved, adjudicationPath } = await recordValidPursuitRejoin(`record-${guard.replaceAll(' ', '-')}`);
+    mock.set.mockClear(); mock.update.mockClear(); mock.delete.mockClear();
+    let expectedNavigationRevision = 0;
+    if (guard === 'foreign actor') {
+      mock.fleetGroupRejoinAdjudications[adjudicationPath.split('/').at(-1)!] = { ...saved, actorUid: 'u2' };
+    } else if (guard === 'stale navigation') {
+      mock.navigationRevision = 1; expectedNavigationRevision = 1;
+    } else if (guard === 'stale partition') {
+      mock.fleetPartitionRevision = 1;
+    } else if (guard === 'changed pursuit input') {
+      mock.pursuitGroups = { 'fleet-1': 2, 'fleet-2': 6 };
+    } else if (guard === 'changed cycle') {
+      mock.currentTurn = 2;
+    } else if (guard === 'changed phase') {
+      mock.turnPhaseOverride = { turn: 1, teamPhaseEndsAt: '2026-09-06T12:06:00.000Z',
+        openAirspaceEndsAt: '2026-09-06T12:20:00.000Z', airspace: { state: 'lifted', tickerActive: true, pressAccess: false } };
+    } else {
+      mock.gmInstanceClaimedAt = new Date('2026-09-06T12:01:00.000Z');
+    }
+    const adjudicationId = adjudicationPath.split('/').at(-1)!;
+    await expect(calls.confirmFleetPartition.run(request({ sessionId: 's1', instanceId: 'bridge',
+      requestId: `apply-${guard.replaceAll(' ', '-')}`, expectedNavigationRevision,
+      rejoinAdjudicationId: adjudicationId })))
+      .rejects.toMatchObject({ code: 'failed-precondition', message: expect.stringMatching(/recorded GM decision is stale/i) });
+    expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled(); expect(mock.delete).not.toHaveBeenCalled();
+  });
 
 it.each([
   [],
