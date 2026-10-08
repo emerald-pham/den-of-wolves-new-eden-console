@@ -50,6 +50,8 @@ try {
   });
   const page = await context.newPage(); page.setDefaultTimeout(10000);
   page.on('pageerror', error => result.errors.push(error.message));
+  const cdp = await context.newCDPSession(page);
+  await cdp.send('DOM.enable'); await cdp.send('CSS.enable');
   for (const [name, width, height, scale] of [
     ['landscape', 844, 390, 1], ['narrow', 320, 844, 1],
     ['desktop', 1440, 900, 1], ['landscape-enlarged', 844, 390, 1.25],
@@ -78,16 +80,20 @@ try {
       const availableWidth = offer.clientWidth - parseFloat(offerStyle.paddingLeft) - parseFloat(offerStyle.paddingRight);
       const buttonRect = button?.getBoundingClientRect();
       return { text: heading.textContent, copyWidth: rect.width, minimumReadingWidth, availableWidth,
-        fontFamily: style.fontFamily, fontSize: style.fontSize, lineHeight: style.lineHeight,
+        fontFamily: style.fontFamily, fontSize: style.fontSize, fontWeight: style.fontWeight, lineHeight: style.lineHeight,
         copyOverflow: copy.scrollWidth > copy.clientWidth + 1,
         button: buttonRect ? { x: buttonRect.x, right: buttonRect.right, width: buttonRect.width, height: buttonRect.height,
           overflow: button.scrollWidth > button.clientWidth + 1 } : null };
     }));
+    const { root: domRoot } = await cdp.send('DOM.getDocument');
+    const { nodeId } = await cdp.send('DOM.querySelector', { nodeId: domRoot.nodeId, selector: '.same-table-trade__offer-copy h4' });
+    const { fonts } = await cdp.send('CSS.getPlatformFontsForNode', { nodeId });
     const geometry = await page.evaluate(() => ({ viewport: innerWidth, documentWidth: document.documentElement.scrollWidth }));
     const screenshot = `${name}.png`;
     await page.screenshot({ path: `${directory}/${screenshot}`, fullPage: true });
-    result.samples.push({ name, width, height, scale, measured, geometry, screenshot });
+    result.samples.push({ name, width, height, scale, measured, fonts, geometry, screenshot });
     assert.ok(measured.length > 0, 'Actual built offer consumer required');
+    assert.ok(fonts.some(font => font.glyphCount > 0), 'Actual painted offer font required');
     for (const offer of measured) {
       assert.ok(offer.copyWidth + 1 >= Math.min(offer.availableWidth, offer.minimumReadingWidth),
         `Offer text compressed below a readable sixteen-character measure: ${name} ${offer.copyWidth.toFixed(1)}px`);
