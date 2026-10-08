@@ -46,8 +46,10 @@ function makeConsumer() {
       control: { shuttleId: 'starlight', holderUid: 'wing-uid', ownerUid: 'wing-uid', revision: 4 },
       docking: { shuttleId: 'starlight', shipId: 'aegis' },
       departure: null, transit: null,
-      scoutOffer: { entitled: true, firstRequestAvailable: true, fuelledSecondRequestAvailable: true,
-        coordinate: '1100', printedCoordinates: ['1100'], range: 2 },
+      scoutOffer: { eligible: true, sessionId: 'normal-session', cycle: 1, airspace: 'lifted',
+        entitlementId: 'starlight', ownerRoleId: 'wing-commander', anchorShipId: 'aegis',
+        firstRequestAvailable: true, fuelledSecondRequestAvailable: false,
+        coordinate: '1100', printedCoordinates: ['1100', '1101'], distance: 2, range: 2 },
       privateResult: null, privateNote: null,
     },
   };
@@ -132,6 +134,8 @@ function makeConsumer() {
         sessionId: request.sessionId, cycle: before.cycle, entitlementId: 'starlight', source: 'craft',
         ownerRoleId: 'wing-commander', anchorShipId: 'aegis', receivingShipId: 'aegis',
         targetCoordinate: coordinate };
+      state.session.scoutOffer = { ...state.session.scoutOffer, firstRequestAvailable: false,
+        fuelledSecondRequestAvailable: true, coordinate: '1101' };
       return result('requestScout', request, response);
     },
     async resolveScoutNormally(request) {
