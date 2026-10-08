@@ -2919,6 +2919,30 @@ it.each([null,-1,1.5,'4',Number.MAX_SAFE_INTEGER,Number.MAX_SAFE_INTEGER+1])('de
   expect(mock.update).not.toHaveBeenCalled();expect(mock.set).not.toHaveBeenCalled();expect(mock.delete).not.toHaveBeenCalled();
 });
 
+it('does not merge colocated groups with different pursuit inputs until the live GM records a decision', async () => {
+  mock.coordinate = '1413';
+  mock.coordinates = Object.fromEntries(mock.activeVesselIds.map(id => [id, '1413']));
+  mock.fleetGroups = [
+    { id: 'fleet-1', vesselIds: ['aegis'], memberUids: ['u1'], memberShipIds: { u1: 'aegis' } },
+    { id: 'fleet-2', vesselIds: mock.activeVesselIds.filter(id => id !== 'aegis'), memberUids: ['u2'], memberShipIds: { u2: 'dione' } },
+  ];
+  mock.players = [
+    { id: 'u1', fields: { role: 'gm', connected: true, fleetGroupId: 'fleet-1' } },
+    { id: 'u2', fields: { role: 'player', connected: true, fleetGroupId: 'fleet-2', assignedRoleId: 'icebreaker-miner' } },
+  ];
+  mock.pursuitGroups = { 'fleet-1': 2, 'fleet-2': 5 };
+  const call = (jumpCallables as unknown as { confirmFleetPartition: { run: (request: unknown) => Promise<unknown> } })
+    .confirmFleetPartition;
+
+  await expect(call.run(request({ sessionId: 's1', instanceId: 'bridge', expectedNavigationRevision: 0 }))).resolves.toEqual({
+    status: 'adjudication-required', navigationRevision: 0, fleetPartitionRevision: 0,
+    candidates: [{ coordinate: '1413', groupIds: ['fleet-1', 'fleet-2'], pursuitBefore: { 'fleet-1': 2, 'fleet-2': 5 } }],
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.delete).not.toHaveBeenCalled();
+});
+
 it('reattaches a validated in-flight shuttle to the rejoined current group exactly once', async () => {
   const vesselIds = [...mock.activeVesselIds];
   const rightFleet = vesselIds.filter((id) => id !== 'aegis');
@@ -2932,7 +2956,7 @@ it('reattaches a validated in-flight shuttle to the rejoined current group exact
     { id: 'u1', fields: { role: 'gm', connected: true, fleetGroupId: 'fleet-1' } },
     { id: 'u2', fields: { role: 'player', connected: true, fleetGroupId: 'fleet-2', assignedRoleId: 'icebreaker-miner' } },
   ];
-  mock.pursuitGroups = { 'fleet-1': 2, 'fleet-2': 5 };
+  mock.pursuitGroups = { 'fleet-1': 2, 'fleet-2': 2 };
   const transit = enterShuttleTransit({
     transitRequestId: 'transit-rejoin', actorUid: 'u2', expectedDepartureRequestId: 'departure-rejoin',
     expectedControlRevision: 0, expectedCycle: 1,
@@ -2954,7 +2978,7 @@ it('reattaches a validated in-flight shuttle to the rejoined current group exact
   await expect(call.run(command)).resolves.toEqual({ status: 'committed', navigationRevision: 1, groupIds: ['fleet-1'] });
   expect(mock.update).toHaveBeenCalledWith('sessions/s1/shuttleDepartures/starlight', { fleetGroupId: 'fleet-1' });
   expect(mock.set).toHaveBeenCalledWith('sessions/s1/fleetGroupRejoinAudits/rejoin-with-shuttle', expect.objectContaining({
-    policy: 'highest-pursuit-score', migratedShuttleIds: ['starlight'],
+    pursuitDecision: 'identical-inputs', migratedShuttleIds: ['starlight'],
   }));
 });
 
