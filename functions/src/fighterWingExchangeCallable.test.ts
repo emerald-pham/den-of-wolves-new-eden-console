@@ -146,6 +146,19 @@ it('commits both counts atomically, conserves survivors, and exact replay adds n
   });
 });
 
+it('moves surviving fighters in the reverse Bravo-to-Alpha direction', async () => {
+  await expect(exchangeAegisFighterWings.run(request({
+    ...command, requestId: 'exchange-reverse', sourceWingId: 'fighter-wing-bravo',
+  }))).resolves.toMatchObject({
+    sourceWingId: 'fighter-wing-bravo',
+    counts: {
+      'fighter-wing-alpha': { count: 4, revision: 5 },
+      'fighter-wing-bravo': { count: 1, revision: 8 },
+    },
+  });
+  expect(currentCounts()['fighter-wing-alpha']!.count + currentCounts()['fighter-wing-bravo']!.count).toBe(5);
+});
+
 it('denies a wrong role, wrong phase, stale pair, and foreign or colliding receipt without changing counts', async () => {
   const session = mock.documents.get('sessions/s1')!;
   const actor = mock.documents.get('sessions/s1/players/wing')!;

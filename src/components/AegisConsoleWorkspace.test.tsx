@@ -8,10 +8,10 @@ import { useSessionStore } from '@/store/useSessionStore';
 vi.mock('@/lib/airspaceService', () => ({ unlockPressAirspace: vi.fn() }));
 const { unlockPressAirspace } = await import('@/lib/airspaceService');
 const exchangeMock = vi.hoisted(() => ({ exchange: vi.fn() }));
-vi.mock('@/lib/sessionService', async (importOriginal) => ({
-  ...await importOriginal<typeof import('@/lib/sessionService')>(),
-  exchangeAegisFighterWings: exchangeMock.exchange,
-}));
+vi.mock('@/lib/sessionService', async (importOriginal) => {
+  const original = await importOriginal();
+  return { ...original, exchangeAegisFighterWings: exchangeMock.exchange };
+});
 
 beforeEach(() => {
   const now = Date.now();
