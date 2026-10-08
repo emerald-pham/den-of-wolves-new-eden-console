@@ -65,6 +65,14 @@ describe('role brief projection', () => {
     expect(JSON.stringify(record)).not.toContain('wolf-agent');
   });
 
+  it('labels both Wolf targeting and optional Commander boarding rules as house rules', () => {
+    const brief = roleBriefFor('wolf-commander');
+
+    expect(brief?.text).toMatch(/HOUSE RULE.*nonparticipating target results are rerolled/i);
+    expect(brief?.text).toMatch(/HOUSE RULE.*live GM records the consequence/i);
+    expect(brief?.text).toMatch(/no automatic consequence/i);
+  });
+
   it('projects only the assigned role’s active craft', () => {
     const record = serializedRoleBrief('s1', 'alice', 'wing-commander', 4, {
       activeRoleIds: ['admiral', 'wing-commander'],

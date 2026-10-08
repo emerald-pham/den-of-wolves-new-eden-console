@@ -233,6 +233,36 @@ async function special(uid: string, choice: Fields, requestId: string, instanceI
   const result = await commitWolfBoardingSpecialChoice.run(request(payload, uid));
   return { uid, payload, result };
 }
+
+it('holds Commander-led boarding in the actual GM consequence stage before other boarding choices proceed', async () => {
+  completeBoardingFixture();
+  put(`${sessionPath}/players/gm-1`, { uid: 'gm-1', role: 'gm', connected: true });
+  put(`${sessionPath}/gmInstances/gm-instance`, { uid: 'gm-1', connected: true, lastSeenAt: new Date() });
+
+  await special('commander-1', { kind: 'commander', targetShipId: 'aegis' }, 'house-rule-commander-request');
+
+  const gmView = await getWolfBoardingSpecialChoice.run(request({ sessionId: 's1', instanceId: 'gm-instance' }, 'gm-1'));
+  expect(gmView).toMatchObject({ choice: {
+    kind: 'commander-ruling', targetShipId: 'aegis',
+    condition: expect.stringMatching(/house rule.*live GM.*no automatic consequence/i),
+  } });
+  await expect(getWolfBoardingSpecialChoice.run(request({ sessionId: 's1' }, 'commander-1')))
+    .resolves.toMatchObject({ type: 'wolf-boarding-special-choice-unavailable' });
+
+  const rulingPayload = { sessionId: 's1', requestId: 'house-rule-live-gm-ruling', expectedTurn: 1,
+    expectedRevision: fields(attackPath).revision, instanceId: 'gm-instance',
+    choice: { kind: 'commander-ruling', targetShipId: 'aegis',
+      rulingText: 'The facilitator records the chosen consequence.' } };
+  await expect(commitWolfBoardingSpecialChoice.run(request(rulingPayload, 'another-gm')))
+    .rejects.toMatchObject({ code: 'permission-denied' });
+  const recorded = await commitWolfBoardingSpecialChoice.run(request(rulingPayload, 'gm-1'));
+  expect(recorded).toMatchObject({ status: 'committed', choiceKind: 'commander-ruling' });
+  expect(fields(attackPath)).toMatchObject({
+    boardingCommanderRuling: { targetShipId: 'aegis', text: 'The facilitator records the chosen consequence.', actorUid: 'gm-1' },
+  });
+  await expect(getWolfBoardingSpecialChoice.run(request({ sessionId: 's1' }, 'xo-1')))
+    .resolves.toMatchObject({ choice: { kind: 'relocation', craftId: 'pallas' } });
+});
 async function skipCommanderAndRelocation() {
   await special('commander-1', { kind: 'commander', targetShipId: null }, 'review-no-commander');
   const view = await getWolfBoardingSpecialChoice.run(request({ sessionId: 's1' }, 'xo-1'));
