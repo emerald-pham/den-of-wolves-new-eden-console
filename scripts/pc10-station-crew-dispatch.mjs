@@ -16,6 +16,22 @@ function assertBudget(deadlineAt) {
   assert.ok(Date.now() < deadlineAt, 'Original Station crew choice deadline expired; no reload, mutation, or new deadline.');
 }
 
+async function readStationPhaseWindow(readTurnState, deadlineAt, trace) {
+  const startedAtMs = Date.now();
+  let snapshot, completed = false;
+  try {
+    snapshot = await readTurnState({ deadlineAt });
+    completed = true;
+    return snapshot;
+  } finally {
+    const completedAtMs = Date.now();
+    trace.phaseReads.push({ channel: 'original-GM-browser-Firestore-SDK',
+      startedAt: new Date(startedAtMs).toISOString(), completedAt: new Date(completedAtMs).toISOString(),
+      elapsedMs: completedAtMs - startedAtMs, deadlineAt, completed,
+      snapshot: completed ? structuredClone(snapshot) : null });
+  }
+}
+
 function sameAttack(current, expected) {
   return current && attackKeys.every(key => current[key] === expected[key]) && current.threatSiteCode === 'P';
 }
@@ -424,9 +440,8 @@ async function waitForLockedActorScope(current, actor, context) {
   };
   const inspectTurnPhase = async () => {
     assertBudget(context.deadlineAt);
-    const snapshot = await context.readTurnState({ deadlineAt: context.deadlineAt });
+    const snapshot = await readStationPhaseWindow(context.readTurnState, context.deadlineAt, trace);
     assertBudget(context.deadlineAt);
-    trace.phaseReads.push(structuredClone(snapshot));
     return stationTurnPhaseTuple(snapshot, current, context.sessionId, context.gmAuthority);
   };
   try {
@@ -499,9 +514,8 @@ async function readySource(current, actor, spec, { sessionId, deadlineAt, assert
   const original = scope.original;
   const inspectPinnedTurnPhase = async () => {
     assertBudget(deadlineAt);
-    const snapshot = await readTurnState({ deadlineAt });
+    const snapshot = await readStationPhaseWindow(readTurnState, deadlineAt, scope.trace);
     assertBudget(deadlineAt);
-    scope.trace.phaseReads.push(structuredClone(snapshot));
     const phase = stationTurnPhaseTuple(snapshot, current, sessionId, gmAuthority);
     assert.deepEqual(phase, scope.turnPhase,
       'The original authoritative Station phase tuple changed after actor scope freeze.');
@@ -513,14 +527,20 @@ async function readySource(current, actor, spec, { sessionId, deadlineAt, assert
     assertBudget(deadlineAt);
     await inspectPinnedTurnPhase();
   };
-  const inspectActor = async () => {
-    await fence();
+  const inspectActorScope = async () => {
+    assertBudget(deadlineAt);
     const strict = await observeWolfChoiceActor(surface);
     assertBudget(deadlineAt);
     const observed = await observePreFreezeActor(actor, current, { sessionId, deadlineAt, assertActor,
       frozenActor: original }, scope.trace);
     assertStrictObservationMatchesAtomic(strict, observed);
     assertActorScopeUnchanged(observed, original);
+    assertBudget(deadlineAt);
+    return observed;
+  };
+  const inspectActor = async () => {
+    await fence();
+    const observed = await inspectActorScope();
     await inspectPinnedTurnPhase();
     return observed;
   };
@@ -586,6 +606,11 @@ async function readySource(current, actor, spec, { sessionId, deadlineAt, assert
       assert.ok(lockedAttack(latestAttack, current),
         'The original P attack or exact lock changed during the final Station actor sample.');
       await inspectPinnedTurnPhase();
+      await inspectActorScope();
+      latestAttack = await readAttack({ deadlineAt });
+      assertBudget(deadlineAt);
+      assert.ok(lockedAttack(latestAttack, current),
+        'The original P attack or exact lock changed after the final phase and actor bookends.');
     } catch (error) {
       rememberProofFailure(error, { operation: 'station-crew-final-ui-intent', roleId: actor.roleId,
         sessionId, deadlineAt, originalAttack: attackTrace(current), observedAttack: attackTrace(latestAttack),

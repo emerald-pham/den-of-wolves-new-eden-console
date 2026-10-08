@@ -1175,6 +1175,13 @@ async function enterRole(surface,label){
      ]);
      if(!sessionSnap.exists()||!playerSnap.exists()||!instanceSnap.exists())throw Error('Original GM current session, player, or instance source is missing.');
      const root=sessionSnap.data(),player=playerSnap.data(),instance=instanceSnap.data();
+     const claimLeaseToken=stamp=>{
+      if(typeof stamp==='string')return stamp;
+      if(!stamp||typeof stamp.toDate!=='function')return null;
+      let date;try{date=stamp.toDate();}catch{return null;}
+      return date instanceof Date&&Number.isFinite(date.getTime())?date.toISOString():null;
+     };
+     const serverClaimedAt=claimLeaseToken(instance.claimedAt);
      const uidHash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(before.uid))))
       .map(byte=>byte.toString(16).padStart(2,'0')).join('').slice(0,16);
      const after=capture(),afterOwn=after.uid?authority.sessionSnapshotAuthorityFor(sid,after.uid):null;
@@ -1185,12 +1192,13 @@ async function enterRole(surface,label){
         !afterOwn?.hasServerSessionAuthority||authority.memberSessionResumeBlocksFreshness(afterOwn))
       throw Error('Original GM Auth, session, generation, hydration, or lease changed during the server phase read.');
      const gmAuthority={sessionId:sid,uidHash,generation:before.generation,hydrationRevision:before.hydrationRevision,
-      instanceId:before.instanceId,claimedAt:before.claimedAt};
+      instanceId:before.instanceId,claimedAt:serverClaimedAt};
      if(uidHash!==expectedAuthority.uidHash||gmAuthority.sessionId!==expectedAuthority.sessionId||
         gmAuthority.generation!==expectedAuthority.generation||gmAuthority.hydrationRevision!==expectedAuthority.hydrationRevision||
         gmAuthority.instanceId!==expectedAuthority.instanceId||gmAuthority.claimedAt!==expectedAuthority.claimedAt||
         player.role!=='gm'||player.connected!==true||player.connectionGeneration!==before.generation||
-        instance.uid!==before.uid||instance.sessionId!==sid||instance.connected!==true||instance.claimedAt!==before.claimedAt)
+        instance.uid!==before.uid||instance.sessionId!==sid||instance.connected!==true||
+        typeof before.claimedAt!=='string'||!before.claimedAt||!serverClaimedAt||serverClaimedAt!==before.claimedAt)
       throw Error('Original GM server player, instance lease, or claim authority changed during the phase read.');
      const rawTurnPhase=root.turnPhase,rawTurnState=root.turnState;
      const copyPhase=phase=>phase&&({turn:phase.turn,teamPhaseEndsAt:phase.teamPhaseEndsAt,
