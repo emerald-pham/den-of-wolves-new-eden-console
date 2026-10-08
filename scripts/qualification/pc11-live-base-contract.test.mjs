@@ -463,3 +463,22 @@ test('canonical lifecycle correlation ignores stale and foreign operation respon
     assert.equal(surface.page.listenerCount('request'), 0);
   }
 });
+
+
+test('canonical state-repeat grant pairs the actual no-wire-ID request without changing the backend envelope', async () => {
+  const surface = nativeSurface(stateFixture('gm'));
+  const data = { sessionId: sid, instanceId: 'gm-original', claimedAt: '2026-10-08T00:00:00.000Z', shipId: 'dione', enabled: true };
+  const request = { url: () => 'http://127.0.0.1:5013/demo-pc11-test/us-central1/setGmShipConsoleWriteGrant', method: () => 'POST', postDataJSON: () => ({ data }) };
+  const response = { request: () => request, url: request.url, status: () => 200, json: async () => ({ result: { enabled: true } }) };
+  // Deliver the real request only when the choice runs, then inspect the response predicate.
+  let predicate;
+  surface.page.waitForResponse = match => new Promise((resolve, reject) => {
+    predicate = match;
+    surface.page.once('response', value => predicate(value) ? resolve(value) : reject(new Error('Intended no-wire-ID request was ignored')));
+  });
+  const result = await captureLifecycleUiAction(surface, 'setGmShipConsoleWriteGrant', async () => {
+    surface.page.emit('request', request); surface.page.emit('response', response);
+  }, { correlateRequests: true, matches: value => value?.shipId === 'dione' && value?.enabled === true });
+  assert.deepEqual(result.data, data); assert.equal(result.result.enabled, true);
+  assert.equal(surface.page.listenerCount('request'), 0);
+});
