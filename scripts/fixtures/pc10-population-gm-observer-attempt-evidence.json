@@ -49,12 +49,29 @@
           "stateBefore.ordinaryActor",
           "stateAfter.ordinaryActor"
         ]
+      },
+      "attempt20": {
+        "stationCombatLatest": {
+          "path": "station-success-20/Station-combat-latest.json",
+          "sha256": "a446e460a2b9c99476aacaaf900a13be9be0450c4be3ce2ec49023b201ca8811",
+          "bytes": 263012,
+          "alertPath": "serverContext.populationAlerts",
+          "order": "Object.entries insertion order copied into attempt20.orderedServerAlerts"
+        },
+        "ownerResult": {
+          "path": "station-success-20/OWNER_RESULT.json",
+          "sha256": "7114c6f64834ebeb3c342fe44e1e584da3e63eeeff7fa6e11c28a56fda6a4c7f",
+          "bytes": 2325286,
+          "failurePath": "errors",
+          "exactFailureMessage": "The exact visible population dialog does not match the first current-GM server alert."
+        }
       }
     },
     "limits": [
       "Attempt18 postclaim preflight is the actual paired postclaim GM lifecycle/native observer sample used as the positive schema fixture; the fixture does not include actual server player/instance rows or claim receipt.",
       "Attempt18 active acknowledgment callback sample is a later actual same-actor active-cycle lifecycle/native observer pair from a separate capture in the same owner run; it is used only to exercise the existing actor-anchor callback consumer, not to construct server authority.",
-      "Attempt19 consumed.before/current are the actual preclaim player lifecycle samples. Its ordinaryActor after sample is postclaim, but no postclaim lifecycle observation was retained in that capture; do not pair them as one postclaim actor tuple."
+      "Attempt19 consumed.before/current are the actual preclaim player lifecycle samples. Its ordinaryActor after sample is postclaim, but no postclaim lifecycle observation was retained in that capture; do not pair them as one postclaim actor tuple.",
+      "Attempt20 retained complete ordered server population alerts but no native population dialog/accessibility projection; its rendered DOM cannot be reconstructed from that attempt. The source-rendered component tests are synthetic controls, not captured native DOM."
     ]
   },
   "attempt18": {
@@ -732,6 +749,86 @@
         "briefMatchesActor": false,
         "pendingCommandCount": 0
       }
+    }
+  },
+  "attempt20": {
+    "phase": "active",
+    "currentTurn": 2,
+    "orderedServerAlerts": [
+      {
+        "mapKey": "dione",
+        "shipId": "dione",
+        "shipName": "Dione",
+        "targetGmInstanceIds": [
+          "db2be158-92ac-4f36-8ce8-4a8bbfe5fd7e"
+        ],
+        "createdAt": "2026-10-08T14:57:57.714Z",
+        "population": 70000
+      },
+      {
+        "mapKey": "icebreaker",
+        "shipId": "icebreaker",
+        "shipName": "Icebreaker",
+        "targetGmInstanceIds": [
+          "db2be158-92ac-4f36-8ce8-4a8bbfe5fd7e"
+        ],
+        "createdAt": "2026-10-08T14:57:57.714Z",
+        "population": 34000
+      },
+      {
+        "mapKey": "quellon",
+        "shipId": "quellon",
+        "shipName": "Quellon",
+        "targetGmInstanceIds": [
+          "db2be158-92ac-4f36-8ce8-4a8bbfe5fd7e"
+        ],
+        "createdAt": "2026-10-08T14:57:57.714Z",
+        "population": 17500
+      },
+      {
+        "mapKey": "shepherd",
+        "shipId": "shepherd",
+        "shipName": "Shepherd",
+        "targetGmInstanceIds": [
+          "db2be158-92ac-4f36-8ce8-4a8bbfe5fd7e"
+        ],
+        "createdAt": "2026-10-08T14:57:57.714Z",
+        "population": 24000
+      },
+      {
+        "mapKey": "refinery-124",
+        "shipId": "refinery-124",
+        "shipName": "Refinery 124",
+        "targetGmInstanceIds": [
+          "db2be158-92ac-4f36-8ce8-4a8bbfe5fd7e"
+        ],
+        "createdAt": "2026-10-08T14:57:57.714Z",
+        "population": 10000
+      }
+    ],
+    "nativeDomProjection": null,
+    "nativeDomEvidence": {
+      "retained": false,
+      "latestCaptureKeys": [
+        "observedAt",
+        "attack",
+        "browserContext",
+        "serverContext",
+        "member",
+        "mountedPanels",
+        "diagnosticErrors"
+      ],
+      "browserContextKeys": [
+        "channel",
+        "sessionId",
+        "observedAt",
+        "publicAudience"
+      ],
+      "mountedPanelLabels": [
+        "Wolf attack DRADIS",
+        "Wolf attack status"
+      ],
+      "ownerHeldObservations": []
     }
   }
 }

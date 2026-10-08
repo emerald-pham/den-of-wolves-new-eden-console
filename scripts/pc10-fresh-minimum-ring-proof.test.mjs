@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { assertStationPopulationAcknowledgmentTransition, assertStationPopulationGmActorAuthority, assertStationPopulationGmActorObserver, minimumRingPlan, runRingWorkflow, runStationCombatWaves, selectStationCombatCrew, stationCombatServerContext, stationDialogAccessibleName, stationPopulationAckMutinyRows, stationPopulationAlertsForGm, stationPopulationDismissIntent, stationPopulationGmActorAnchor, stationPopulationGmAuthorityPreflight, stationPopulationGmRetainedObserver } from './pc10-fresh-minimum-ring-proof.mjs';
+import { assertStationPopulationAcknowledgmentTransition, assertStationPopulationGmActorAuthority, assertStationPopulationGmActorObserver, minimumRingPlan, runRingWorkflow, runStationCombatWaves, selectStationCombatCrew, stationCombatServerContext, stationDialogAccessibleName, stationPopulationAckMutinyRows, stationPopulationAlertsForGm, stationPopulationDialogMatches, stationPopulationDismissIntent, stationPopulationGmActorAnchor, stationPopulationGmAuthorityPreflight, stationPopulationGmRetainedObserver, stationPopulationSelectVisibleAlert, stationPopulationUiRows } from './pc10-fresh-minimum-ring-proof.mjs';
 
 const stationPopulationGmAttemptEvidence = JSON.parse(readFileSync(
   new URL('./fixtures/pc10-population-gm-observer-attempt-evidence.json', import.meta.url), 'utf8'));
@@ -180,6 +180,69 @@ test('population alert selector keeps the existing single current-GM target boun
   const second = { shipId: 'shepherd', targetGmInstanceIds: ['gm-1'] };
   assert.deepEqual(stationPopulationAlertsForGm({ dione: first, aegis: other, shepherd: second }, 'gm-1'),
     [['dione', first], ['shepherd', second]]);
+});
+
+function stationAttempt20OrderedAlerts() {
+  return stationPopulationGmAttemptEvidence.attempt20.orderedServerAlerts.map(({ mapKey, ...alert }) => [mapKey, alert]);
+}
+
+function stationAttempt20Dialog(alert, overrides = {}) {
+  const sentence = `${alert.shipName} survivor population has reached ${alert.population.toLocaleString('en-US')}. A census threshold requires GM attention.`;
+  return { role: 'alertdialog', name: 'Survivor population threshold reached', textContent: sentence, ...overrides };
+}
+
+test('Attempt20 source rows allow the actual client-selected alert to be acknowledged in its own order', () => {
+  const attempt = stationPopulationGmAttemptEvidence.attempt20;
+  assert.equal(attempt.nativeDomProjection, null,
+    'Attempt20 did not retain a native DOM/accessibility snapshot; this is a source-backed consumer regression, not a reconstructed capture.');
+  assert.equal(attempt.orderedServerAlerts.length, 5);
+  const sourceAlerts = stationAttempt20OrderedAlerts();
+  let clientOrder = [...sourceAlerts].reverse();
+  const selectedOrder = [];
+
+  while (clientOrder.length) {
+    const uiAlerts = stationPopulationUiRows(clientOrder);
+    const clientSelected = uiAlerts[0];
+    const dialog = stationAttempt20Dialog(clientSelected, {
+      // The page projection retains visual innerText separately. CSS text-transform
+      // behavior is source-backed but was not captured in Attempt20's DOM.
+      text: stationAttempt20Dialog(clientSelected).textContent,
+    });
+    const selected = stationPopulationSelectVisibleAlert(sourceAlerts, uiAlerts, dialog);
+    assert.ok(selected, `Expected the visible ${clientSelected.shipName} alert to match one exact current server tuple.`);
+    assert.equal(selected.shipId, clientSelected.shipId);
+    selectedOrder.push(selected.shipId);
+    clientOrder = clientOrder.filter(([shipId]) => shipId !== selected.shipId);
+    sourceAlerts.splice(sourceAlerts.findIndex(([shipId]) => shipId === selected.shipId), 1);
+  }
+
+  assert.deepEqual(selectedOrder, stationAttempt20OrderedAlerts().map(([shipId]) => shipId).reverse());
+  assert.deepEqual(sourceAlerts, []);
+});
+
+test('population dialog selection retains the complete source and browser projection before a mismatch', () => {
+  const sourceAlerts = stationAttempt20OrderedAlerts();
+  const uiAlerts = stationPopulationUiRows(sourceAlerts);
+  const projection = {
+    sessionId: 'attempt20-owned-session', phase: 'active', generation: 1, hydrationRevision: 1,
+    instanceId: sourceAlerts[0][1].targetGmInstanceIds[0], targetedPopulation: uiAlerts,
+    visibleDialogs: [stationAttempt20Dialog(uiAlerts[0], { text: 'Uppercase visual text was not retained by Attempt20.' })],
+  };
+  const mismatchedDialog = { ...projection.visibleDialogs[0], textContent: 'A different ship population is shown.' };
+  const retained = [];
+  assert.equal(stationPopulationSelectVisibleAlert(sourceAlerts, uiAlerts, mismatchedDialog, {
+    projection, onObservation: observation => retained.push(observation),
+  }), null, 'A stale/replaced dialog must remain unacknowledged while the observer waits for the matching current projection.');
+  assert.deepEqual(retained, [{ sourceAlerts, uiAlerts, dialog: mismatchedDialog, projection }]);
+});
+
+test('population dialog matching uses the exact source-rendered sentence, not transformed visual text', () => {
+  const alert = stationAttempt20OrderedAlerts()[0][1];
+  const sentence = stationAttempt20Dialog(alert).textContent;
+  assert.equal(stationPopulationDialogMatches(stationAttempt20Dialog(alert, { text: sentence.toUpperCase() }), alert), true);
+  assert.equal(stationPopulationDialogMatches(stationAttempt20Dialog(alert, {
+    textContent: sentence.replace(alert.shipName, 'Another ship'),
+  }), alert), false);
 });
 
 test('Attempt18 serialized postclaim observer schemas pass the production GM preflight and bind its callback anchor', async () => {
