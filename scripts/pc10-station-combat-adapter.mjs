@@ -176,8 +176,9 @@ function stationDeclarationActorTuple(actor,label){
  assert.ok(Number.isSafeInteger(actor.hydrationRevision)&&actor.hydrationRevision>=1);
  assert.ok(typeof actor.instanceId==='string'&&actor.instanceId.length>0);
  assert.ok(typeof actor.claimedAt==='string'&&actor.claimedAt.length>0);
- assert.equal(actor.hasAuth,true);assert.equal(actor.sameActor,true);assert.equal(actor.privateAudienceMatches,true);
- assert.equal(actor.foreignPendingCount,0);assert.equal(actor.playerRole,'gm');
+ assert.equal(actor.hasAuth,true);assert.equal(actor.sameActor,true);
+ assert.equal(actor.privateAudienceMatches,true,`${label} original GM actor must still match the private attack audience.`);
+ assert.equal(actor.foreignPendingCount,0,`${label} original GM actor cannot have pending commands for another session.`);
  assert.equal(actor.profileRoleId,null);assert.equal(actor.profileSessionId,null);assert.equal(actor.gmInstanceOwned,true);
  assert.equal(actor.connection,'live');assert.equal(actor.freshness,'server');assert.equal(actor.phase,'active');
  assert.ok(Number.isSafeInteger(actor.cycle)&&actor.cycle>=1);
@@ -225,15 +226,18 @@ function stationDeclarationSourceTuple(context,label){
  assert.match(window.threatSourceId,/^arrival-[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/);
  assert.ok(preparation&&typeof preparation==='object'&&!Array.isArray(preparation),`${label} current private preparation is required.`);
  assert.equal(preparation.turn,session.currentTurn);assert.ok(Number.isSafeInteger(preparation.revision)&&preparation.revision>0);
- assert.equal(preparation.compositionKind,'p-station-repeat');
  assert.equal(preparation.targetGroupId,window.targetGroupId,'Prepared P composition must remain pinned to the due threat group.');
  assert.ok(Array.isArray(preparation.shipIds)&&preparation.shipIds.length>0);
  assert.ok(preparation.targetMode==='manual'||preparation.targetMode==='pre-rolled');
  assert.ok(Array.isArray(preparation.targetAssignments)&&Array.isArray(preparation.modifiers));
  assert.equal(typeof preparation.notes,'string');
  const attack=context.attack;
- if(attack===null){assert.equal(context.wave,1,'Only the first Station wave can have no previous private attack.');}
+ if(attack===null){
+  assert.equal(context.wave,1,'Only the first Station wave can have no previous private attack.');
+  assert.equal(preparation.compositionKind,'P','The initial due P attack must use its source P composition.');
+ }
  else{
+  assert.equal(preparation.compositionKind,'p-station-repeat','Only a later Station repeat may use p-station-repeat composition.');
   assert.ok(attack&&typeof attack==='object'&&!Array.isArray(attack),`${label} current private attack is malformed.`);
   assert.equal(attack.type,'wolf-attack-state');assert.ok(typeof attack.attackId==='string'&&attack.attackId.length>0);
   assert.ok(Number.isSafeInteger(attack.attackNumber)&&attack.attackNumber>=1);

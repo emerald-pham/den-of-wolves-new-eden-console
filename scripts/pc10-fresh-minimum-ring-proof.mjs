@@ -1244,15 +1244,14 @@ async function enterRole(surface,label){
     assertStationPopulationGmActorObserver(gm1OriginalAuthority,{live:liveAfter,lifecycle:lifecycleAfter});
     for(const key of ['sessionId','uidHash','generation','hydrationRevision','instanceId','claimedAt'])
      assert.equal(read.gmAuthority[key],gm1OriginalAuthority[key],`Original GM ${key} changed across the normal browser phase read.`);
-    return read;
+    return {...read,gmActor:{live:liveAfter,lifecycle:lifecycleAfter}};
    }
    async function readStationDeclarationContext(wave,deadlineAt){
     assert.ok(Number.isSafeInteger(wave)&&wave>=1);assert.ok(Date.now()<deadlineAt,'Original Station declaration deadline expired before source reads.');
     const startedAtMs=Date.now();let completed=false,context;
     try{
      const phaseBefore=await readTurnState({deadlineAt,withinExistingOperation:true});
-     const actorBefore=await readStationGmActor(gm,'GM1','active',deadlineAt,{withinExistingOperation:true});
-     assertStationPopulationGmActorObserver(gm1OriginalAuthority,actorBefore);
+     assertStationPopulationGmActorObserver(gm1OriginalAuthority,phaseBefore.gmActor);
      const documents=await stationOperationWait(()=>gm.page.evaluate(async({sid,storeUrl,authorityUrl,expectedAuthority})=>{
       const{auth}=await import('/src/lib/firebase.ts'),{useSessionStore}=await import(storeUrl),authority=await import(authorityUrl);
       const capture=()=>{
@@ -1294,17 +1293,16 @@ async function enterRole(surface,label){
       return {preparation:preparation.data(),window:window.data(),attack:attack.exists()?attack.data():null};
      },{sid,storeUrl:gm.storeModuleUrl(),authorityUrl:gm.sessionAuthorityModuleUrl(),expectedAuthority:gm1OriginalAuthority}),
       deadlineAt,'Original GM private declaration documents read expired.');
-     const actorAfter=await readStationGmActor(gm,'GM1','active',deadlineAt,{withinExistingOperation:true});
-     assertStationPopulationGmActorObserver(gm1OriginalAuthority,actorAfter);
-     for(const key of ['sessionId','uidHash','generation','hydrationRevision','instanceId','claimedAt','phase','cycle'])
-      assert.equal(actorAfter.lifecycle[key],actorBefore.lifecycle[key],`Original GM ${key} changed during declaration document reads.`);
      const phaseAfter=await readTurnState({deadlineAt,withinExistingOperation:true});
      assert.equal(stable(phaseAfter.gmAuthority),stable(phaseBefore.gmAuthority),'Original GM server authority changed across declaration source reads.');
      assert.equal(stable(phaseAfter.session),stable(phaseBefore.session),'Manual Station phase changed across declaration source reads.');
-     context=stationDeclarationRetryProjection({wave,actor:{live:actorAfter.live,lifecycle:actorAfter.lifecycle},session:phaseAfter.session,
+     const beforeContext=stationDeclarationRetryProjection({wave,actor:phaseBefore.gmActor,session:phaseBefore.session,
       preparation:documents.preparation,window:documents.window,attack:documents.attack});
+     context=stationDeclarationRetryProjection({wave,actor:phaseAfter.gmActor,session:phaseAfter.session,
+      preparation:documents.preparation,window:documents.window,attack:documents.attack});
+     assertStationDeclarationRetryContext(beforeContext,context);
      assertStationDeclarationRetryContext(context,context);assert.ok(Date.now()<deadlineAt,'Original Station declaration deadline expired after source reads.');
-     completed=true;return {context,operationActor:actorAfter.lifecycle};
+     completed=true;return {context,operationActor:phaseAfter.gmActor.lifecycle};
     }finally{
      const completedAtMs=Date.now();(evidence.stationDeclarationReads??=[]).push({wave,
       channel:'original-GM-browser-Firestore-SDK',startedAt:new Date(startedAtMs).toISOString(),
@@ -1536,14 +1534,14 @@ async function enterRole(surface,label){
     assert.equal(await control.count(),1,'One exact mounted Station Declare control is required.');
     assert.equal(await control.isEnabled(),true,'The exact mounted Station Declare control must be enabled.');
     const handle=await control.elementHandle({timeout:Math.min(35000,remaining())});assert.ok(handle,'The exact Station Declare control must remain mounted.');
-    const current=await readStationDeclarationContext(attempt.wave,deadlineAt);
-    assertStationDeclarationRetryContext(attempt.context,current.context);
     const mounted=await handle.evaluate(element=>({connected:element.isConnected,tagName:element.tagName,
      type:element.getAttribute('type'),text:element.textContent?.trim()??'',disabled:element.disabled===true,
      ariaDisabled:element.getAttribute('aria-disabled')}));
     assert.deepEqual(mounted,{connected:true,tagName:'BUTTON',type:'button',text:'Declare Wolf attack',disabled:false,ariaDisabled:null},
-     'The same exact enabled Declare control must still be mounted after the source and actor bookends.');
+     'The selected Declare control must be the exact mounted enabled button before the final source fence.');
     assert.equal(await handle.isVisible(),true);assert.equal(await handle.isEnabled(),true);
+    const current=await readStationDeclarationContext(attempt.wave,deadlineAt);
+    assertStationDeclarationRetryContext(attempt.context,current.context);
     const timeout=remaining();await handle.click({timeout});
    }
    async function assertCurrentStationDeclarationActor(attempt){
