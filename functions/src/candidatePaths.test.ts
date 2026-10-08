@@ -135,6 +135,20 @@ describe('candidate source calculations and explicit choices', () => {
     expect(finish.groupOutcome).toMatchObject({ candidateCode: 'N', successfulShipIds: ['aegis'],
       leftBehindShipIds: ['shepherd', 'quellon', 'dione', 'icebreaker', 'refinery-124'] });
   });
+  it('does not carry the Home far-side Wolf-stop choice into Deluxe Ring rules', () => {
+    const base = authority();
+    const gm = { ...base, actor: { ...base.actor, gm: true } };
+    const state = { revision: 3, edition: 'deluxe', sites: { '6798': {
+      code: 'N', coordinate: '6798', groupId: 'fleet-1', materials: 15,
+      researchIds: Object.keys(base.research), shuttleId: 'philia', repairedAt: now,
+      ships: { aegis: { type: 'candidate-action-result', status: 'committed', sessionId: 's1', requestId: 'crossed',
+        revision: 1, code: 'N', action: 'ring-passage', summary: 'Ring passage committed.', outcome: 'crossed',
+        fuelSpent: 5, remainingFuel: 1 } }, reactors: {},
+    } } } as unknown as CandidateState;
+    expect(candidateWorkspace(gm, state).paths[0]?.canSabotage).toBe(false);
+    expect(() => resolveCandidateAction(gm, state,
+      command('sabotage-ring', { expectedRevision: 3, requestId: 'deluxe-sabotage' }))).toThrow(/Home|edition|not available/i);
+  });
   it('uses a server die plus hidden scouts, adds only prior losses and hides all arithmetic from the actor', () => {
     const a = authority('O');
     const c = command('nebula-jump', { shipId: 'aegis' });

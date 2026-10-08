@@ -10,10 +10,10 @@ vi.mock('@/lib/sessionService', () => ({ setGmShipConsoleWriteGrant: service.gra
 vi.mock('@/lib/candidateService', () => ({ readCandidateWorkspace: service.read, executeCandidateAttempt: service.execute,
   createCandidateAttempt: service.create, recoverCandidateAttempt: service.recover,
   selectCandidateEdition: service.edition }));
-const path = (code: 'N' | 'O' | 'P') => ({ code, coordinate: code === 'N' ? '6798' : code === 'O' ? '0408' : '4888',
+const path = (code: 'N' | 'O' | 'P', edition: 'home' | 'deluxe' = 'home') => ({ code, coordinate: code === 'N' ? '6798' : code === 'O' ? '0408' : '4888',
   title: code === 'N' ? 'Ancient Jump Ring' : code === 'O' ? 'Deep Nebula' : 'Ancient Space Station',
   blockers: code === 'N' ? ['Contribute 10 materials.'] : [], nextActor: 'Each ship crew chooses its next action.',
-  materials: 0, materialsRequired: 10, researchCount: 0, researchRequired: 5, shuttleCommitted: false,
+  materials: 0, materialsRequired: edition === 'deluxe' ? 15 : 10, researchCount: 0, researchRequired: 5, shuttleCommitted: false,
   repaired: code !== 'N', liberated: code === 'P', chargeCapacity: 0, requiredCapacity: 18,
   reactorShipIds: [], activated: false, sabotaged: false, completed: false, canSabotage: false,
   researchChoices: code === 'N' ? [{ id: 'reactor', name: 'Reactor' }] : [], engineeringShuttles: [],
@@ -51,6 +51,7 @@ it('explains the three distinct costs and next actor through connected operation
   expect(screen.getByText(/six fuel|6 fuel/i)).toBeInTheDocument();
   expect(screen.getAllByText(/18.*charge capacity/i).length).toBeGreaterThan(0);
   expect(screen.getAllByText(/Each ship crew chooses its next action/)).toHaveLength(3);
+  expect(screen.getByText(/one d6.*protected scouting.*nine.*earlier losses/i)).toBeInTheDocument();
   expect(screen.queryByText(/scout bonus|hidden modifier|wolf roster/i)).not.toBeInTheDocument();
 });
 it('labels Home as the default and gives the GM a pre-outcome Deluxe alternative selector', async () => {
@@ -84,6 +85,15 @@ it('shows the selected N/O edition to players without exposing edition selection
   render(<CandidatePreparationPanel />);
   expect(await screen.findByText(/N\/O rules.*Home.*default/i)).toBeInTheDocument();
   expect(screen.queryByRole('combobox', { name: 'Candidate edition' })).not.toBeInTheDocument();
+});
+it('renders Deluxe thresholds without importing Home-only Ring stop-Wolf wording', async () => {
+  service.read.mockResolvedValueOnce({ type: 'candidate-workspace', sessionId: 's1', groupId: 'fleet-1', cycle: 6,
+    revision: 2, edition: 'deluxe', editionLocked: true, paths: [path('N', 'deluxe'), path('O', 'deluxe')] });
+  render(<CandidatePreparationPanel />);
+  await screen.findByRole('heading', { name: 'Ancient Jump Ring' });
+  expect(screen.getByText(/15 materials.*Engineering Shuttle.*five distinct completed Endeavour technologies.*five fuel from each ship/i)).toBeInTheDocument();
+  expect(screen.getByText(/one d6.*protected scouting.*eight.*prior losses do not add a bonus/i)).toBeInTheDocument();
+  expect(screen.queryByText(/far-side sabotage.*Wolf|stop.*Wolf fleet|Wolf pursuit through the Ring/i)).not.toBeInTheDocument();
 });
 it('offers safe Cycle 6 planning encouragement without revealing the private GM decision', async () => {
   render(<CandidatePreparationPanel />);
