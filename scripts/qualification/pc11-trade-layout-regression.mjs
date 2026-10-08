@@ -37,7 +37,7 @@ const server = createServer(async (request, response) => {
   } catch { response.writeHead(404); response.end(); }
 });
 let browser;
-const result = { version, candidate: audit.candidate, syntheticOnly: true, remoteRequests: [], errors: [], samples: [] };
+const result = { version, candidate: audit.candidate, syntheticOnly: true, remoteRequests: [], errors: [], failures: [], samples: [] };
 const timer = setTimeout(() => { result.errors.push('120-second render allocation exceeded'); void browser?.close(); server.close(); }, 120000);
 try {
   await new Promise((accept, reject) => { server.once('error', reject); server.listen(port, '127.0.0.1', accept); });
@@ -92,6 +92,7 @@ try {
     const screenshot = `${name}.png`;
     await page.screenshot({ path: `${directory}/${screenshot}`, fullPage: true });
     result.samples.push({ name, width, height, scale, measured, fonts, geometry, screenshot });
+    try {
     assert.ok(measured.length > 0, 'Actual built offer consumer required');
     assert.ok(fonts.some(font => font.glyphCount > 0), 'Actual painted offer font required');
     for (const offer of measured) {
@@ -108,7 +109,9 @@ try {
     const accept = page.getByRole('button', { name: /Accept exact offer from/ }).first();
     await accept.focus();
     assert.equal(await accept.evaluate(node => node === document.activeElement), true, 'Acceptance remains keyboard reachable');
+    } catch (error) { result.failures.push({ name, message: error.message }); }
   }
+  assert.deepEqual(result.failures, [], 'Responsive layout failures retained for every sample');
   assert.deepEqual(result.errors, []); assert.deepEqual(result.remoteRequests, []);
   result.status = 'BUILT_TRADE_LAYOUT_PASS';
 } catch (error) { result.status = 'BUILT_TRADE_LAYOUT_FAIL'; result.failure = error.message; process.exitCode = 1; }
