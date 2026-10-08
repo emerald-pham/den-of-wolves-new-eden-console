@@ -2890,3 +2890,17 @@ it('declares against remaining ships after genuine Ring craft consumption withou
   expect((mock.documents.get('sessions/s1')!.shuttleDockings as { shuttleId: string }[])
     .some(docking => docking.shuttleId === 'philia')).toBe(false);
 });
+
+it('declares against remaining ships after a vessel candidate disposition settles', async () => {
+  patchSession({ candidateVesselOutcomes: { icebreaker: { code: 'O', groupId: 'fleet-1', shipId: 'icebreaker',
+    sourceId: 'candidate-O-1', cycle: 1, outcome: 'settled' } } });
+
+  await expect(declareWolfAttack.run(request({ ...baseData, requestId: 'settled-icebreaker-declaration' })))
+    .resolves.toMatchObject({ status: 'committed', type: 'wolf-attack-declaration' });
+
+  const state = mock.documents.get('sessions/s1/wolfAttackState/current')!;
+  const targeting = (state.calculationReceipt as Fields).targeting as Fields;
+  expect(targeting.ring).toEqual(['aegis', 'dione', 'quellon', 'shepherd', 'refinery-124']);
+  expect(targeting.sourceRing).toEqual(['aegis', 'dione', 'icebreaker', 'quellon', 'shepherd', 'refinery-124']);
+  expect((targeting.rolls as Fields[]).every((roll) => roll.target !== 'icebreaker')).toBe(true);
+});

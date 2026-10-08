@@ -1973,6 +1973,36 @@ it('rolls targeting once after the committed Captain choice and continues from t
   expect(entropy.randomInt).toHaveBeenCalledTimes(drawCount);
 });
 
+it('releases deferred Force Field targeting with the canonical source ring after a candidate disposition settles', async () => {
+  const session = testState.documents.get('sessions/s1')!;
+  put('sessions/s1', { ...session, candidateVesselOutcomes: { icebreaker: { code: 'O', groupId: 'fleet-1',
+    shipId: 'icebreaker', sourceId: 'candidate-O-1', cycle: 1, outcome: 'settled' } } });
+  openForceFieldFixture();
+
+  const attackPath = 'sessions/s1/wolfAttackState/current';
+  const attack = testState.documents.get(attackPath)!;
+  const calculation = attack.calculationReceipt as Fields;
+  const participatingRing = CORE_WOLF_TARGET_RING.filter((target) => target !== 'icebreaker');
+  put(attackPath, { ...attack, calculationReceipt: { ...calculation, targetRing: participatingRing } });
+
+  entropy.randomInt.mockReset().mockImplementation(() => 5)
+    .mockReturnValueOnce(2)
+    .mockReturnValueOnce(0);
+  await commitWolfForceFieldChoice.run(request({ sessionId: 's1', requestId: 'candidate-force-field',
+    expectedTurn: 1, expectedRevision: 4, targetShipId: 'aegis' }, 'gorg-1'));
+  await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
+
+  const targeted = testState.documents.get(attackPath)!;
+  expect(targeted).toMatchObject({ currentStep: 'targeting', revision: 6,
+    calculationReceipt: { step: 'targeting', targeting: {
+      ring: participatingRing,
+      sourceRing: CORE_WOLF_TARGET_RING,
+      rolls: [expect.objectContaining({ rosterIndex: 0, sourceDie: 3, initialDie: 1,
+        nonparticipatingTargetRerolls: 1, target: 'aegis' })],
+    } },
+    forceFieldChoice: { status: 'selected', targetShipId: 'aegis', actorUid: 'gorg-1' } });
+});
+
 
 function enrichedWarheadFixture(ore = 9): void {
   const session = testState.documents.get('sessions/s1')!;
