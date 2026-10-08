@@ -1,0 +1,22 @@
+# Minimal Pursuit closure probe handoff
+
+This executable uses reviewed normal setup/admission/owned cleanup from the Ring runner and the existing `runPursuitLimitEnding` helper with two opt-in compatibility adapters. Entry point: `scripts/pc10-pursuit-closure-probe.mjs`. Supply `--allocation ABSOLUTE_JSON --evidence NEW_ABSOLUTE_DIRECTORY`. No runtime is launched by this handoff.
+
+Cohort: one actual fresh GM and one actual ordinary Shepherd Scientist reader, 13 configured roles with unused seats open, one Chrome process/two contexts, five-minute execution cap including 60-second cleanup reserve. The legitimate manual setup/start remains necessary in a fresh disposable session. The probe skips the Engineer, Ring chart, resource preparation, research, maintenance, candidate actions and recovery replay. It advances normally to the offered Pursuit decision, freezes and closes through ordinary UI, then reloads the reader once more for strict receipt-bound history. Genuine normal server behavior determines the terminal, never a forced state.
+
+Require allocation `status: EXPLICIT_PARENT_ALLOCATION_GRANTED`, `probeFamily: pursuit-closure`, demo project, loopback base URL and isolated Auth/Functions/Firestore ports, exact sourceCommit, **shared implementation runner** SHA256 (`scripts/pc10-fresh-minimum-ring-proof.mjs`), compiledIndexSha256 and compiledTreeSha256. The complete tracked source binding includes the wrapper and ending helper. Use the existing parent allocation schema plus probeFamily. Capture exact bindings only after final source commit and ordinary Functions build. Direct entrypoint preflight against the closed old allocation intentionally rejects before resources.
+
+The original terminal helper uses already reviewed normal freeze/close/reload behavior; its opt-in adapter clears actual offered GM/reader briefings after each new cycle and qualifies terminal readiness through current live GM/session/server phase before the actual entitled debrief read; the added reload requires actual HTTP success and normal resumeSession/current-member response bound to original UID/session/group/generation, closed failure-review/pursuit-limit snapshot, absent private group IDs/audiences, a changed document, server freshness and positive identity hydration. Assert the raw immutable snapshot hash remains unchanged. Own source/cleanup checks and runtime errors prevent a false pass. No general-purpose authority wrapper is introduced.
+
+RED procedure commit: ba9f5579. Product repair packaging for main PC10 is independently cherry-pickable:
+
+- `6879c12d`: observed failing candidate and failure-review GM-read-only Close regressions; file `src/components/EndgameDialog.test.tsx`.
+- `b726f65f408af6fe4db1bda362754f094ec7e12d`: one-line `src/components/EndgameDialog.tsx` repair, denied-read negative regression in the same test file, scoped `docs/PC10_RING_ATTEMPT3_EARNED_EVIDENCE.md`.
+
+Assumption: the current live GM's validated entitled debrief is the same record already rendered; enabling Close from it must not grant live GM authority. Existing visibility/current tuple and server close handler retain those checks. Independent Sol reviewed the product fix, passed 15 tests at review time, and found no material blocker. Final additional denied-read regression brought the affected component total to 16 passing; build and 63 font-contract checks pass. No strings/layout/styles changed. Parent owns combined product patch version/changelog and both final exact-SHA typography gates; browser typography is not claimed by this source-only handoff.
+
+Attempt3 N/647 and original619 evidence remains accepted separately. A successful probe proves the repaired common Pursuit closure/history route, **not N-specific closed history**. No synthetic fixture, restored deleted session or normal Pursuit history is relabeled N.
+
+Expected integration overlap: shared Ring runner script for probe setup/runtime reuse; EndgameDialog product repair only. No recharge or PC11 source is edited. Parent should reconcile one shared runner version, preserve the accepted attempt3 evidence and allocate runtime only after PC11 releases its window.
+
+Final independent probe review resolved both source blockers (missing observer snapshot and held cycle briefing), independently ran all30 focused tests, and found no additional concrete source blocker. Runtime completion and five-minute budget remain unverified. Compatibility REDs: e6eb76fc and b6575a85. Defaults preserve existing callers; only this probe opts into the added adapters.

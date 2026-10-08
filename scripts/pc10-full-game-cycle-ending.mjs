@@ -24,7 +24,9 @@ export function assertFreshEndingBranch(snapshot, { branch, cycle, limit }) {
  * This proves the fresh final-cycle branch; it does not claim all game functions.
  * No gameplay document, clock, store, identity or callable response is injected.
  */
-export async function runEnding({ gm, crew, initial, directory }, { branch = 'final-cycle' } = {}) {
+export function isReadyForEntitledGmEndingRead(value,sessionId){return value.hasAuth===true&&value.sameActor===true&&value.playerRole==='gm'&&value.gmInstanceOwned===true&&value.sessionId===sessionId&&value.phase==='debrief'&&value.freshness==='server'&&value.connection==='live'&&value.fullGameDemo?.status==='complete';}
+
+export async function runEnding({ gm, crew, initial, directory, entitledGmEndingRead = false, afterCycleAdvance }, { branch = 'final-cycle' } = {}) {
   assert.ok(['final-cycle', 'pursuit-limit'].includes(branch));
   const advances = [], phases = [];
   let lastAdvance;
@@ -102,12 +104,14 @@ export async function runEnding({ gm, crew, initial, directory }, { branch = 'fi
       assert.equal(replay.status, 'committed', 'A lost cycle acknowledgement remains recoverable.');
       const after = await state();
       assert.equal(replay.result.currentTurn, after.cycle);
+      if(afterCycleAdvance&&after.phase==='active')await afterCycleAdvance(after.cycle);
       advances.push({ fromCycle: current.cycle, toCycle: after.cycle, phase: after.phase,
         requestId: lastAdvance.requestId, uiCommitted: true, confirmationActuallyOffered: uiAdvance.confirmationClicked, exactSdkReplayAccepted: true });
     }
     // The action receipt updates phase before the live projection arrives.
     // Accept the complete server-backed debrief, not that optimistic phase.
     await gm.until('Complete server-produced fresh training debrief', value =>
+      entitledGmEndingRead ? isReadyForEntitledGmEndingRead(value,initial.sessionId) :
       value.fullGameDemo?.status === 'complete' && isObservedGameEnding(value));
     const terminal = await state();
     assert.equal(terminal.phase, 'debrief');

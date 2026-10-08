@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { runPursuitLimitEnding } from './pc10-full-game-cycle-ending.mjs';
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { execFileSync } from 'node:child_process';
@@ -30,6 +31,9 @@ export async function runRingWorkflow(operations) {
  await operations.arrive();await operations.repairRing();await operations.crossAndRecover();
  await operations.finishPassages();await operations.sabotageAndClose();
 }
+export function minimumPursuitClosurePlan(){return {actualAuthenticatedActors:2,configuredRoles:13,browserProcesses:1,browserContexts:2,hardCapMs:300000,probeFamily:'pursuit-closure',nClosedHistoryObserved:false};}
+export async function presentPursuitCycle(surfaces,observe,present=completeOfferedCyclePresentation){for(const surface of surfaces)await present(surface,await observe(surface),{clearBriefing:true});}
+export async function runPursuitClosureWorkflow(operations){await operations.setup();await operations.pursuitAndClose();}
 export function validateRingAllocation(input) {
  assert.equal(input?.status,'EXPLICIT_PARENT_ALLOCATION_GRANTED','Runtime requires explicit parent allocation.');
  assert.ok(isAbsolute(input.sourceRoot));assert.match(input.projectId,/^demo-[a-z0-9-]+$/);
@@ -140,9 +144,12 @@ export function finalizeRingEvidence(evidence, cleanup, originalFailure) {
  }
  return originalFailure;
 }
-export async function runFreshMinimumRingProof({allocationPath,directory}) {
+export async function runFreshMinimumRingProof({allocationPath,directory,probeFamily='ring'}) {
  assert.ok(isAbsolute(allocationPath)&&isAbsolute(directory));
  const allocation=validateRingAllocation(JSON.parse(await readFile(allocationPath,'utf8')));
+ const closureOnly=probeFamily==='pursuit-closure';assert.ok(closureOnly||probeFamily==='ring');
+ if(closureOnly)assert.equal(allocation.probeFamily,'pursuit-closure');
+ const plan=closureOnly?minimumPursuitClosurePlan():minimumRingPlan();
  const {sourceRoot:root,projectId,baseUrl,ports}=allocation;
  assert.ok(!resolve(directory).startsWith(resolve(root)+'/'),'Evidence stays outside source.');
  const hash=value=>createHash('sha256').update(value).digest('hex'),short=value=>hash(value).slice(0,16);
@@ -156,11 +163,11 @@ export async function runFreshMinimumRingProof({allocationPath,directory}) {
  const require=createRequire(`${root}/package.json`),{chromium}=require('playwright');
  const browsers=[],surfaces=[],errors=[],calls=[],requests=[],remoteRequests=[],states=[],receipts=[],claims=[];
  let gm,owner,recipient,sid,joinCode,stage='not-started',consumed=null,primaryFailure=null;
- const startAt=Date.now(),totalEnd=startAt+1200000,workEnd=totalEnd-60000;
+ const startAt=Date.now(),totalEnd=startAt+plan.hardCapMs,workEnd=totalEnd-60000;
  const actorUids=new Map(),pendingLaunches=[],preexistingUids=new Set();let stopped=false;
  const paceMaintenance=createRingMaintenancePacer();
  const roleIds={Owner:'shepherd-engineer',Recipient:'shepherd-scientist'};
- const evidence={schemaVersion:1,...minimumRingPlan(),sourceCommit,runnerSha256:allocation.runnerSha256,
+ const evidence={schemaVersion:1,...plan,sourceCommit,runnerSha256:allocation.runnerSha256,
   compiledIndexSha256:allocation.compiledIndexSha256,sourceBinding,actualHumans:0,actualBrowserProcesses:0,
   actualBrowserContexts:0,actualAuthenticatedActors:0,adminGameplayWrites:0,acceleratedClock:false,
   normalOriginPersistence:true,authCredentialInjection:false,demoCrewPreparation:false,
@@ -175,7 +182,7 @@ async function snapshot(surface,label) { const value=await observeLifecycleActor
 async function register(surface,label) { const uid=await surface.page.evaluate(async()=>{const {auth}=await import('/src/lib/firebase.ts');if(!auth().currentUser)throw new Error('Normal admission has no Auth user.');return auth().currentUser.uid;});assert.ok(![...actorUids.values()].includes(uid),'Require independent normally admitted Auth identities.');actorUids.set(label,uid);evidence.actualAuthenticatedActors=actorUids.size;await writeFile(`${directory}/owned-identities.json`,JSON.stringify({sid,joinCode,actors:Object.fromEntries(actorUids)},null,2)+'\n',{mode:0o600}); }
 async function action(surface,endpoint,choose,options={}) { budget();const value=await captureLifecycleUiAction(surface,endpoint,()=>{budget();return choose();},options);receipts.push(publicLifecycleReceipt(value));return value; }
   async function surface(label) {
-    let browser=browsers[label.includes('Scientist')?1:0];
+    let browser=browsers[!closureOnly&&label.includes('Scientist')?1:0];
     if(!browser){browser=await chromium.launch({channel:'chrome',headless:true});browsers.push(browser);}
     evidence.actualBrowserProcesses=browsers.length;
     const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce', serviceWorkers: 'block' });
@@ -557,9 +564,9 @@ async function enterRole(surface,label){
  }
  const operations={
   async setup(){
-   await mark('fresh ordinary three-actor Ring setup');
-   gm=await launchSurface('browser-A-normal-GM');owner=await launchSurface('browser-A-independent-Engineer');recipient=await launchSurface('browser-B-normal-Scientist');
-   assert.equal(browsers.length,2);assert.equal(surfaces.length,3);
+   await mark(closureOnly?'fresh ordinary GM plus reader Pursuit setup':'fresh ordinary three-actor Ring setup');
+   gm=await launchSurface('browser-A-normal-GM');if(!closureOnly)owner=await launchSurface('browser-A-independent-Engineer');recipient=await launchSurface(closureOnly?'browser-A-independent-Scientist':'browser-B-normal-Scientist');
+   assert.equal(browsers.length,plan.browserProcesses);assert.equal(surfaces.length,plan.browserContexts);
    await gm.page.goto(baseUrl);await gm.reducedMotion();
    const created=await observeUiReceipt({page:gm.page,waitForResponse:()=>gm.page.waitForResponse(r=>new URL(r.url()).pathname.endsWith('/us-central1/createSession')&&r.request().method()==='POST'),choose:()=>gm.page.getByRole('button',{name:'Create a session',exact:true}).click()});
    assert.equal(created.status(),200);const body=await created.json();sid=body.result?.session?.id;joinCode=body.result?.session?.joinCode;assert.match(sid,/^[\w-]{1,128}$/);
@@ -572,16 +579,17 @@ async function enterRole(surface,label){
    await gm.until('Legal13 configured roles with unused seats open',v=>v.setupConfirmed&&v.activeRoleIds.length===13&&Object.values(roleIds).every(id=>v.activeRoleIds.includes(id)));
    const training=gm.page.locator('fieldset[aria-label="Full-game demo preparation"]');
    await action(gm,'prepareFullGameDemo',async()=>{await training.getByRole('button',{name:'Prepare full-game demo',exact:true}).click();await training.getByRole('button',{name:'ARE YOU SURE? // PREPARE FULL-GAME DEMO',exact:true}).click();});
-   for(const[surface,label]of[[owner,'Owner'],[recipient,'Recipient']]){
+   for(const[surface,label]of(closureOnly?[[recipient,'Recipient']]:[[owner,'Owner'],[recipient,'Recipient']])){
     await normalJoin(surface,label);const name=(await observeLifecycleActor(surface)).displayName;assert.ok(name);
     const casting=gm.page.getByRole('region',{name:'Facilitator casting',exact:true});await casting.getByLabel(`Role for ${name}`,{exact:true}).selectOption(roleIds[label]);
     await action(gm,'assignRole',()=>casting.getByRole('button',{name:`Assign role to ${name}`,exact:true}).click());
     await memberReady(surface,label,{station:false});await enterRole(surface,label);
    }
-   assert.equal(actorUids.size,3);
+   assert.equal(actorUids.size,plan.actualAuthenticatedActors);
    await action(gm,'startGame',async()=>{await training.getByRole('button',{name:'Start full-game demo // Advance to Cycle 1',exact:true}).click();await training.getByRole('button',{name:'ARE YOU SURE? // START FULL-GAME DEMO // CYCLE 1',exact:true}).click();});
    await liveGm(gm,'GM1','active');
    for(const surface of surfaces)await completeOfferedCyclePresentation(surface,await snapshot(surface,'Actual Cycle1 presentation'),{clearBriefing:true});
+   if(closureOnly){const reader=await memberReady(recipient,'Recipient');groupId=reader.fleetGroupId;claims.push('Fresh normal13-role manual setup with only GM and one ordinary reader; no Ring prerequisites or recovery replay');return;}
    const science=await memberReady(recipient,'Recipient'),engineer=await memberReady(owner,'Owner');assert.equal(science.fleetGroupId,engineer.fleetGroupId);groupId=science.fleetGroupId;
    const current=await recordRoot();ships=current.activeVesselIds;assert.equal(ships.length,6);assert.ok(ships.includes('aegis'));
    coordinate=await op(async deadlineAt=>{await liveGm(gm,'GM1','active',{deadlineAt});return readRingCoordinate(gm);});
@@ -589,6 +597,30 @@ async function enterRole(surface,label){
    await supply('shepherd','ore',40);await supply('aegis','materials',10);
    for(const ship of ships){const rule=MAINTENANCE_RULES[ship];await supply(ship,'food',rule.food[3]*4);await supply(ship,'water',rule.water[3]*4);await supply(ship,'fuel',30);}
    claims.push('Fresh normal manual13-role setup with only GM/Scientist/Engineering holder; required new state only, no old discovery/checkpoint requalification');
+  },
+  async pursuitAndClose(){
+   await mark('ordinary offered Pursuit ending and GM Close');
+   const initial={sessionId:sid};
+   await bounded(runPursuitLimitEnding({gm,crew:recipient,initial,directory,entitledGmEndingRead:true,afterCycleAdvance:cycle=>presentPursuitCycle(surfaces,surface=>snapshot(surface,`Pursuit Cycle${cycle} presentation`))}),workEnd-Date.now(),'Pursuit closure work cap exhausted.',()=>{stopped=true;});
+   const ended=await recordRoot();assert.equal(ended.phase,'closed');assert.equal(ended.debriefSnapshot.source,'failure-review');assert.equal(ended.debriefSnapshot.cause,'pursuit-limit');
+   const snapshotHash=hash(stable(ended.debriefSnapshot));
+   await mark('fresh authoritative ordinary Pursuit closed history');
+   const deadlineAt=Math.min(Date.now()+60000,workEnd),priorDocument=(await recipient.observe()).documentTimeOrigin;
+   const response=await op(()=>observeUiReceipt({page:recipient.page,
+    waitForResponse:()=>recipient.page.waitForResponse(r=>['resumeSession','getCurrentMemberSession'].includes(new URL(r.url()).pathname.split('/').at(-1))&&r.request().method()==='POST'&&r.request().postDataJSON()?.data?.sessionId===sid,{timeout:Math.min(35000,deadlineAt-Date.now())}),
+    choose:()=>recipient.page.reload({timeout:Math.min(35000,deadlineAt-Date.now())})}),deadlineAt);
+   assert.equal(response.status(),200);const endpoint=new URL(response.url()).pathname.split('/').at(-1),body=await response.json();
+   const result=body.result;let generation;
+   if(endpoint==='resumeSession'){assert.equal(result.player.uid,actorUids.get('Recipient'));assert.equal(result.player.sessionId,sid);assert.equal(result.player.fleetGroupId,groupId);generation=result.player.connectionGeneration;}
+   else{assert.equal(endpoint,'getCurrentMemberSession');assert.equal(result.type,'current-member-session');assert.equal(result.sessionId,sid);assert.equal(result.actorUid,actorUids.get('Recipient'));assert.equal(result.groupId,groupId);generation=result.connectionGeneration;}
+   assert.ok(Number.isSafeInteger(generation)&&generation>=1);assert.equal(result.session.id,sid);assert.equal(result.session.phase,'closed');
+   const publicSnapshot=result.session.debriefSnapshot;assert.equal(publicSnapshot.type,'session-debrief');assert.equal(publicSnapshot.source,'failure-review');assert.equal(publicSnapshot.result,'failure');assert.equal(publicSnapshot.cause,'pursuit-limit');assert.equal(publicSnapshot.cycle,ended.debriefSnapshot.cycle);
+   for(const group of publicSnapshot.candidate?.groups??[]){assert.equal(Object.hasOwn(group,'groupId'),false);for(const step of group.path??[])assert.equal(Object.hasOwn(step,'audience'),false);}
+   receipts.push({endpoint,result,transport:'normal Pursuit closed-history reload receipt'});
+   await op(()=>recipient.until('Fresh same-UID server Pursuit history',v=>v.documentTimeOrigin!==priorDocument&&v.hasAuth&&v.sameActor&&v.uidHash===short(actorUids.get('Recipient'))&&v.sessionId===sid&&v.fleetGroupId===groupId&&v.connectionGeneration===generation&&v.phase==='closed'&&v.freshness==='server'&&Number.isSafeInteger(v.hydrationRevision)&&v.hydrationRevision>0&&v.debriefType==='session-debrief'&&v.debriefVersion===1&&v.debriefSource==='failure-review'&&v.debriefResult==='failure'&&v.debriefCause==='pursuit-limit'&&v.debriefCycle===ended.debriefSnapshot.cycle,deadlineAt-Date.now()),deadlineAt);
+   assert.equal(hash(stable((await recordRoot()).debriefSnapshot)),snapshotHash);
+   await recipient.page.getByRole('dialog',{name:'Endgame evaluation',exact:true}).waitFor();await recipient.page.screenshot({path:`${directory}/Pursuit-reader-authoritative-history.png`});
+   evidence.endingProof=true;evidence.nClosedHistoryObserved=false;claims.push('Normal Pursuit freeze/GM Close preserves immutable snapshot; fresh same-UID ordinary reload bound to real server receipt and public history');
   },
   async researchCycle(cycle){
    await mark(`actual ordinary Scientist research and official GM maintenance Cycle${cycle}`);
@@ -706,8 +738,8 @@ async function enterRole(surface,label){
   assert.equal(authCensus.pageToken,undefined,'Use a fresh bounded isolated runtime.');
   for(const user of authCensus.users)preexistingUids.add(user.uid);
   evidence.preexistingAuthCount=preexistingUids.size;
-  await writeFile(`${directory}/prelaunch.json`,JSON.stringify({allocation,sourceCommit,plan:minimumRingPlan(),nativeLaunched:false},null,2)+'\n');
-  await Promise.race([lossAckFailure.then(error=>{throw error;}),bounded(runRingWorkflow(operations),workEnd-Date.now(),'Ring execution work cap exhausted.',()=>{stopped=true;})]);
+  await writeFile(`${directory}/prelaunch.json`,JSON.stringify({allocation,sourceCommit,plan,nativeLaunched:false},null,2)+'\n');
+  await Promise.race([lossAckFailure.then(error=>{throw error;}),bounded(closureOnly?runPursuitClosureWorkflow(operations):runRingWorkflow(operations),workEnd-Date.now(),'Ring execution work cap exhausted.',()=>{stopped=true;})]);
   assertRingRuntimeClean(errors,remoteRequests);evidence.status='passed';
  }catch(error){primaryFailure=error;stopped=true;evidence.status='failed';evidence.firstFailure={stage,error:originalProofError(error)};
   if(directoryCreated)await retainProofFailure(directory,'minimum-ring',error,{stage,consumed,claims}).catch(()=>{});
