@@ -249,7 +249,7 @@ test('every active runner browser callback binds published modules and normal fi
       // The copied factory's callable controller is never invoked by this UI-only runner.
       if(!text.includes('httpsCallable'))callbacks.push({text,kind:node.expression.name.text});
     }ts.forEachChild(node,visit);
-  }visit(ast);assert.equal(callbacks.length,17,'Active browser callback inventory must be updated for changes.');
+  }visit(ast);assert.equal(callbacks.length,18,'Active browser callback inventory must be updated for changes.');
   for(const [file,names]of [['src/lib/firebase.ts',['auth']],['src/lib/firestore.ts',['db']],['src/store/useSessionStore.ts',['useSessionStore']],['src/lib/sessionService.ts',['setShipConsoleLock']]]) {
     const module=ts.createSourceFile(file,readFileSync(resolve(root,file),'utf8'),ts.ScriptTarget.Latest,true);
     const exported=new Set();for(const statement of module.statements){if(!statement.modifiers?.some(modifier=>modifier.kind===ts.SyntaxKind.ExportKeyword))continue;
@@ -279,14 +279,14 @@ test('every active runner browser callback binds published modules and normal fi
   for(const {text,kind}of callbacks){
     const func=new Function(...Object.keys(context),`return (${text.replace(/\bimport\s*\(/g,'load(')});`)(...Object.values(context));
     const parameter=text.match(/^(?:async\s*)?(?:\(([^)]*)\)|([A-Za-z]+))\s*=>/)?.slice(1).find(Boolean)?.trim();
-    const argument=kind==='evaluateAll'?[]:parameter==='playerCount'?12:parameter==='moduleUrl'||parameter==='storeUrl'?'/src/store/useSessionStore.ts':
+    const argument=kind==='evaluateAll'?[]:parameter==='element'?node:parameter==='playerCount'?12:parameter==='moduleUrl'||parameter==='storeUrl'?'/src/store/useSessionStore.ts':
       {sid,uid,authorityUrl:'/src/lib/sessionSnapshotAuthority.ts',storeUrl:'/src/store/useSessionStore.ts'};
     const result=await func(argument);executed++;
     if(text.includes('wrongSessionAuthority'))assert.deepEqual(result,{ownAuthority:true,wrongSessionAuthority:false});
     if(text.includes('Held inventory absent'))assert.deepEqual(result,heldBalances);
     if(text.includes('recommendedRoleIds'))assert.equal(result.length,12);
     if(text.includes('occupiedSeatCount'))assert.equal(result.occupiedSeatCount,1);
-  }assert.equal(executed,17);assert.equal(compatibilityCalls,1,'Exactly one retained normal service invocation is bound');assert.equal(window.__pc11GmClaimObservation,undefined);
+  }assert.equal(executed,18);assert.equal(compatibilityCalls,1,'Exactly one retained normal service invocation is bound');assert.equal(window.__pc11GmClaimObservation,undefined);
 });
 
 test('hosted Philia and normal reload retain original Dione seat and exact own host map',()=>{
