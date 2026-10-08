@@ -250,6 +250,11 @@ function isRevision(value: unknown): value is number {
   return Number.isSafeInteger(value) && (value as number) >= 0;
 }
 
+function isNonnegativeIntegerOrHalfPoint(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 &&
+    (Number.isSafeInteger(value) || Number.isSafeInteger(value * 2));
+}
+
 function isUniqueStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every(isNonEmptyString) && new Set(value).size === value.length;
 }
@@ -271,7 +276,7 @@ function validPublicOutcomes(value: unknown, opportunityIds: ReadonlySet<string>
         seen.has(entry.opportunityId) || !Number.isSafeInteger(entry.contributorCount) ||
         (entry.contributorCount as number) < 0 || !Number.isSafeInteger(entry.total) ||
         !Number.isSafeInteger(entry.bonusTotal) ||
-        (entry.difficulty !== null && !Number.isSafeInteger(entry.difficulty)) ||
+        (entry.difficulty !== null && !isNonnegativeIntegerOrHalfPoint(entry.difficulty)) ||
         (entry.criticalThreshold !== null && !Number.isSafeInteger(entry.criticalThreshold)) ||
         !['automatic-failure', 'failure', 'success', 'critical-success'].includes(String(entry.outcome))) {
       return false;
