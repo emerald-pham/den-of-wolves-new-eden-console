@@ -129,6 +129,7 @@ async function action(surface,endpoint,choose,options={}) { budget();const value
             rosterStatus: document.querySelector('[aria-label="Roster confirmation status"]')?.textContent ?? '',
             authorityStatus: document.querySelector('[aria-label="Setup authority status"]')?.textContent ?? '' },
           gmInstanceOwned: !!state.gmInstance && state.gmInstance.uid === state.me?.uid && state.gmInstance.sessionId === state.session?.id,
+          grantShipId: state.gmInstance?.shipConsoleWriteGrant?.shipId ?? null,
           instanceId: state.gmInstance?.id ?? null, setupConfirmed: state.session?.setupConfirmed ?? false,
           setupRevision: state.session?.setupRevision ?? null, activeRoleIds: state.session?.activeRoleIds ?? [],
           activeVesselIds: state.session?.activeVesselIds ?? [], pressEnabled: state.session?.pressEnabled !== false,
@@ -410,7 +411,7 @@ async function runPr17Proof(){
  await access.click();
  const grant=await action(gm,'setGmShipConsoleWriteGrant',()=>gm.page.getByRole('alertdialog',{name:'Are you sure?',exact:true}).getByRole('button',{name:'ARE YOU SURE?',exact:true}).click(),{gm:true,original:originalGm,deadlineAt});
  assert.equal(grant.result.enabled,true);
- await gm.until('Current original GM has Dione scoped grant',asyncValue=>asyncValue.sameActor&&asyncValue.gmInstanceOwned);
+ await gm.until('Current original GM has Dione scoped grant',asyncValue=>asyncValue.sameActor&&asyncValue.gmInstanceOwned&&asyncValue.grantShipId==='dione');
  assert.equal(await access.getAttribute('aria-pressed'),'true');
  const legacy=await action(gm,'setShipConsoleLock',()=>gm.page.evaluate(async()=>{
   const service=await import('/src/lib/sessionService.ts');await service.setShipConsoleLock('dione',true);
