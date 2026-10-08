@@ -5,6 +5,7 @@ import pc07DeploymentConsumers from './pc07-deployment-consumers.json' with { ty
 import pc08DeploymentConsumers from './pc08-deployment-consumers.json' with { type: 'json' };
 import pc09DeploymentConsumers from './pc09-deployment-consumers.json' with { type: 'json' };
 import pc10DeploymentConsumers from './pc10-deployment-consumers.json' with { type: 'json' };
+import mobileGmHotfixDeploymentConsumers from './mobile-gm-hotfix-deployment-consumers.json' with { type: 'json' };
 import {
   classifyRiskGates,
   formatRiskGateOutputs,
@@ -126,6 +127,20 @@ function pc07TransitionConsumers(file, previous, current) {
   return [...transition.consumers];
 }
 
+// The standalone mobile GM repair has a separate exact source audit. Keep
+// historical PC receipts unchanged and reject any unaudited edit to this range.
+function mobileGmHotfixTransitionConsumers(file, previous, current) {
+  const audit = file === 'functions/src/index.ts'
+    ? mobileGmHotfixDeploymentConsumers.index : mobileGmHotfixDeploymentConsumers.modules[file];
+  if (!audit) return null;
+  const digest = source => createHash('sha256').update(source).digest('hex');
+  if (digest(previous) !== audit.before) return null;
+  if (digest(current) !== audit.after) {
+    throw new Error(`Cannot safely map mobile GM hotfix ${file} outside its exact source consumer audit.`);
+  }
+  return [...audit.consumers];
+}
+
 // PC09 audits new exports, re-exports and transitive runtime consumers without
 // altering the historical release mappings.
 /** Exact PC10 source transitions retain named SDK endpoint coverage. The
@@ -145,6 +160,34 @@ export function pc10TransitionConsumers(file, previous, current, manifest = pc10
     throw new Error(`Invalid PC10 named deployment consumer audit for ${file}.`);
   }
   return [...audit.consumers];
+}
+
+// PC10 and the standalone hotfix share a baseline for some modules. Select
+// the exact reviewed destination before invoking its strict audit; neither
+// family may shadow the other or lend its consumers to unaudited source.
+function pc10AndMobileGmTransitionConsumers(file, previous, current) {
+  const digest = source => createHash('sha256').update(source).digest('hex');
+  const previousDigest = digest(previous);
+  const currentDigest = digest(current);
+  const audits = [
+    {
+      name: 'PC10',
+      audit: pc10DeploymentConsumers.modules[file],
+      select: () => pc10TransitionConsumers(file, previous, current),
+    },
+    {
+      name: 'mobile GM hotfix',
+      audit: file === 'functions/src/index.ts'
+        ? mobileGmHotfixDeploymentConsumers.index : mobileGmHotfixDeploymentConsumers.modules[file],
+      select: () => mobileGmHotfixTransitionConsumers(file, previous, current),
+    },
+  ].filter(row => row.audit?.before === previousDigest);
+  if (audits.length === 0) return null;
+  const exact = audits.filter(row => row.audit.after === currentDigest);
+  if (exact.length !== 1) {
+    throw new Error(`Cannot safely map ${audits.map(row => row.name).join(' / ')} ${file} outside its exact source consumer audit.`);
+  }
+  return exact[0].select();
 }
 
 function pc09TransitionConsumers(file, previous, current) {
@@ -704,6 +747,8 @@ function changedIndexCallables(before, after, cwd, sourceAtRevision = null) {
   };
   const previousSource = readAt(before);
   const currentSource = readAt(after);
+  const mobileGmConsumers = mobileGmHotfixTransitionConsumers('functions/src/index.ts', previousSource, currentSource);
+  if (mobileGmConsumers) return mobileGmConsumers;
   const pc09Consumers = pc09TransitionConsumers('functions/src/index.ts', previousSource, currentSource);
   if (pc09Consumers) return pc09Consumers;
   const pc08Consumers = pc08TransitionConsumers('functions/src/index.ts', previousSource, currentSource);
@@ -1442,7 +1487,8 @@ function callablesChangedInRange({ before, after, files, cwd, sourceAtRevision }
     file.startsWith('functions/src/') && !isTestFile(file) && /\.(?:ts|js|mjs|cjs)$/.test(file));
   const selected = new Set();
   for (const file of runtimeFiles) {
-    if (pc10DeploymentConsumers.modules[file]) {
+    if (pc10DeploymentConsumers.modules[file] ||
+        (file !== 'functions/src/index.ts' && mobileGmHotfixDeploymentConsumers.modules[file])) {
       const readAt = revision => {
         if (sourceAtRevision) return sourceAtRevision(revision, file);
         try {
@@ -1451,10 +1497,10 @@ function callablesChangedInRange({ before, after, files, cwd, sourceAtRevision }
           });
         } catch {
           if (revision === before) return '';
-          throw new Error(`Cannot safely determine PC10 module source ${file}.`);
+          throw new Error(`Cannot safely determine PC10 / mobile GM hotfix module source ${file}.`);
         }
       };
-      const consumers = pc10TransitionConsumers(file, readAt(before), readAt(after));
+      const consumers = pc10AndMobileGmTransitionConsumers(file, readAt(before), readAt(after));
       if (consumers) {
         for (const name of consumers) selected.add(name);
         continue;

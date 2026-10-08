@@ -1,0 +1,30 @@
+{
+  "baseline": "248ba5fe7460dd2708baf4dc152190001ffbdb20",
+  "productSource": "63d8c8b1c444200bbb25dd99e44f07651f670d48",
+  "notes": "Exact source transition; static call-site audit plus bounded diff confirms access helpers consumed by login/claim, changed parser by claim, new lease helpers and changed handlers by claim/expiry. Unknown edits remain fail-closed.",
+  "modules": {
+    "functions/src/gmAccess.ts": {
+      "before": "0b28ae4815c35eafa10ac8c07e523266f645828b1e75c9afc14ea90325b8433c",
+      "after": "da1959e13f0d6749e52af6ae21739180f350f6306ec381f7efd318bc3b472adf",
+      "consumers": [
+        "claimGmInstance",
+        "loginGmAccess"
+      ]
+    },
+    "functions/src/requestGuards.ts": {
+      "before": "c2b5aa573cfcae6917f86258307f566d55651c88d72a2fbb7ac49f449ed9812f",
+      "after": "6299facaa4f9e1b1bb633d36ae46bba524b055fa1b1c3c1606638996327b7b76",
+      "consumers": [
+        "claimGmInstance"
+      ]
+    }
+  },
+  "index": {
+    "before": "0d907564b3693613258b3988d5903479b9fa672499e61920f2c66685f20217c2",
+    "after": "525fbfcd2ad26e37f0866555088eada44e981bbb419abc8485526ea4b8fb0367",
+    "consumers": [
+      "claimGmInstance",
+      "expireStalePlayers"
+    ]
+  }
+}

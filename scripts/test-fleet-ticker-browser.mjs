@@ -447,7 +447,10 @@ async function runTickerLifecycleCase() {
       acknowledgedAt: Date.now(),
       choice: 'full',
     }));
-    localStorage.setItem('dow-new-eden-session-waiver', String(Date.now()));
+    localStorage.setItem('dow-new-eden-session-waiver', JSON.stringify({
+      acknowledgedAt: Date.now(),
+      termsVersion: 'code-of-conduct-v1',
+    }));
   });
   const page = await context.newPage();
   page.on('pageerror', (error) => console.error(`Normal lifecycle page error: ${error.message}`));
@@ -887,7 +890,10 @@ async function runReducedTickerLifecycleCase() {
       acknowledgedAt: Date.now(),
       choice: 'reduce',
     }));
-    localStorage.setItem('dow-new-eden-session-waiver', String(Date.now()));
+    localStorage.setItem('dow-new-eden-session-waiver', JSON.stringify({
+      acknowledgedAt: Date.now(),
+      termsVersion: 'code-of-conduct-v1',
+    }));
   });
   const page = await context.newPage();
   page.on('pageerror', (error) => console.error(`Reduced lifecycle page error: ${error.message}`));
@@ -1122,7 +1128,10 @@ async function runCase(fontMode, reducedMotion, viewport, scenario = 'press') {
       acknowledgedAt: Date.now(),
       choice: reduced ? 'reduce' : 'full',
     }));
-    localStorage.setItem('dow-new-eden-session-waiver', String(Date.now()));
+    localStorage.setItem('dow-new-eden-session-waiver', JSON.stringify({
+      acknowledgedAt: Date.now(),
+      termsVersion: 'code-of-conduct-v1',
+    }));
     if (mode !== 'pending') return;
     const fonts = document.fonts;
     let patched = false;

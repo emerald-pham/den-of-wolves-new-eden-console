@@ -6,6 +6,7 @@ import {
   type CSSProperties,
   type KeyboardEvent,
   type PointerEvent,
+  type RefObject,
 } from 'react';
 import ContactPlot from './ContactPlot';
 import GalacticOrientationCompass from './GalacticOrientationCompass';
@@ -58,6 +59,7 @@ export default function ShipPlot({
   layout = 'ship',
   expanded: controlledExpanded,
   onExpandedChange,
+  zoomButtonRef,
 }: {
   hostile: boolean;
   aboard: boolean;
@@ -79,6 +81,8 @@ export default function ShipPlot({
   layout?: 'ship' | 'gm';
   expanded?: boolean;
   onExpandedChange?: (expanded: boolean) => void;
+  /** Optional GM focus-return target for its portaled expanded dialog. */
+  zoomButtonRef?: RefObject<HTMLButtonElement> | undefined;
 }) {
   const [localExpanded, setLocalExpanded] = useState(false);
   const expanded = controlledExpanded ?? localExpanded;
@@ -206,7 +210,7 @@ export default function ShipPlot({
         key={`${viewer?.id ?? 'aegis'}-${String(capybaraEnabled)}-${String(dioneEnabled)}${gmLayout ? `-${activeShipIds.join(',')}` : ''}`}
         hostile={hostile}
         placement={gmLayout ? 'inset' : aboard ? 'widget' : 'inset'}
-        size={gmLayout ? expanded ? 'min(92vmin, 128vw)' : 'min(92cqi, 92cqb)' : 'min(92cqi, 92cqb)'}
+        size="min(92cqi, 92cqb)"
         contacts={contacts}
         ambientSession={jumpInProgress ? undefined : ambientSession}
         centerLabel={viewer?.name.toUpperCase() ?? 'AEGIS'}
@@ -273,6 +277,7 @@ export default function ShipPlot({
               <button
                 className="ship-plot__toggle"
                 type="button"
+                ref={zoomButtonRef}
                 aria-label="Zoom into DRADIS panel"
                 onClick={() => setExpanded(true)}
               >

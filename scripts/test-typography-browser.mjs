@@ -481,15 +481,19 @@ async function collectSurface(browser, appUrl, surface, viewport, motion, kind) 
     ? '/console'
     : surface.route;
   fixture.state.lastRoute = initialRoute;
-  await context.addInitScript(({ state, timestamp, motionPreference }) => {
+  await context.addInitScript(({ state, timestamp, motionPreference, kind }) => {
     localStorage.setItem('dow-new-eden-session', JSON.stringify(state));
-    localStorage.setItem('dow-new-eden-session-waiver', String(timestamp));
+    // The exact PC01 source predates version-bound consent. Keep its fixture
+    // compatible without changing that source or the current product reader.
+    localStorage.setItem('dow-new-eden-session-waiver', kind === 'pc01'
+      ? String(timestamp)
+      : JSON.stringify({ acknowledgedAt: timestamp, termsVersion: 'code-of-conduct-v1' }));
     localStorage.setItem('dow-new-eden-motion-safety', JSON.stringify({
       acknowledgedAt: timestamp,
       choice: motionPreference,
     }));
     localStorage.setItem('new-eden-motion-override', motionPreference);
-  }, { state: fixture, timestamp: now, motionPreference: motion === 'reduced' ? 'reduce' : 'full' });
+  }, { state: fixture, timestamp: now, motionPreference: motion === 'reduced' ? 'reduce' : 'full', kind });
 
   const search = `?typography=${kind}-${surface.id}-${viewport.width}x${viewport.height}-${motion}`;
   const url = `${appUrl}/${search}#${initialRoute}`;

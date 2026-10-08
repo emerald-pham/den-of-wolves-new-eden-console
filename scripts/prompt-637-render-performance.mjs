@@ -163,7 +163,10 @@ const acknowledgeSafety = ({ forceOffline = false } = {}) => {
   if (forceOffline) {
     Object.defineProperty(Navigator.prototype, 'onLine', { configurable: true, get: () => false });
   }
-  localStorage.setItem('dow-new-eden-session-waiver', String(now));
+  localStorage.setItem('dow-new-eden-session-waiver', JSON.stringify({
+    acknowledgedAt: now,
+    termsVersion: 'code-of-conduct-v1',
+  }));
   localStorage.setItem('dow-new-eden-motion-safety', JSON.stringify({ choice: 'full', acknowledgedAt: now }));
   localStorage.setItem('new-eden-motion-override', 'full');
 };

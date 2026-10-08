@@ -25,7 +25,7 @@ type ContinuityStage = 'active' | 'disconnected' | 'resumed' | 'left';
 
 const STEPS: readonly { id: Step; label: string; intro: string }[] = [
   { id: 'setup', label: 'Setup', intro: 'Review ground rules, the GM setup checklist, and the first-action route.' },
-  { id: 'waiver', label: 'Waiver', intro: 'Compare acknowledgement before and at the 72-hour boundary.' },
+  { id: 'waiver', label: 'Waiver', intro: 'Compare acknowledgement before and at the seven-day boundary.' },
   { id: 'fleet', label: 'Fleet board', intro: 'Check the opening board, pending pursuit readout, and GM-only status.' },
   { id: 'press', label: 'Press handoff', intro: 'Follow committed events into editorial review and publication.' },
   { id: 'dradis', label: 'DRADIS', intro: 'Compare the first enlarged return, a repeat ping, and the later normal size.' },
@@ -216,12 +216,12 @@ export default function PC02ReviewScene() {
           <select value={waiverTime} onChange={(event) => setWaiverTime(event.currentTarget.value as WaiverTime)}>
             <option value="new">First arrival // checks required</option>
             <option value="accepted">Just acknowledged // accepted</option>
-            <option value="before-expiry">Before 72 hours // accepted</option>
-            <option value="expired">At 72 hours // checks required again</option>
+            <option value="before-expiry">Before seven days // accepted</option>
+            <option value="expired">At seven days // checks required again</option>
           </select>
         </label>
         {(waiverTime === 'accepted' || waiverTime === 'before-expiry')
-          ? <p role="status">Acknowledgement accepted on this device. No new checks are required before 72 hours.</p>
+          ? <p role="status">Acknowledgement accepted on this device. No new checks are required before seven days.</p>
           : <SessionWaiver inline onAcknowledge={() => setWaiverTime('accepted')} />}
       </section>}
 

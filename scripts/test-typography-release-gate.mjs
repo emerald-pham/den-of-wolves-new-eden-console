@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { runInNewContext } from 'node:vm';
+import ts from 'typescript';
 import test from 'node:test';
 
 const ci = readFileSync(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8');
@@ -146,4 +149,80 @@ test('render fixture installs its network boundary before opening the page', () 
     'local synthetic state must not race real production resume requests');
   assert.ok(browserGate.indexOf('await installTypographyNetworkBoundary(context, appUrl)') <
     browserGate.indexOf('const page = await context.newPage()'));
+});
+
+
+function typographySessionInitializer() {
+  const file = ts.createSourceFile('test-typography-browser.mjs', browserGate, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
+  const collect = file.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'collectSurface');
+  assert.ok(collect, 'the ordinary typography surface collector must remain present');
+  let initializer;
+  const visit = node => {
+    if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) &&
+        node.expression.expression.getText(file) === 'context' && node.expression.name.text === 'addInitScript') initializer = node;
+    ts.forEachChild(node, visit);
+  };
+  visit(collect);
+  assert.ok(initializer, 'the collector must install its fixture before navigation');
+  return { callback: initializer.arguments[0].getText(file), args: initializer.arguments[1].getText(file) };
+}
+
+function waiverReader(source) {
+  const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } });
+  const exports = {};
+  runInNewContext(compiled.outputText, { exports }, { timeout: 1000 });
+  return exports;
+}
+
+function runTypographySessionInitializer(kind, timestamp) {
+  const initializer = typographySessionInitializer();
+  const values = new Map();
+  const localStorage = { setItem: (key, value) => values.set(key, value), getItem: key => values.get(key) ?? null };
+  const fixture = { state: {}, version: 1 };
+  const args = runInNewContext(`(${initializer.args})`, { fixture, now: timestamp, motion: 'reduced', kind }, { timeout: 1000 });
+  const callback = runInNewContext(`(${initializer.callback})`, { localStorage }, { timeout: 1000 });
+  callback(args);
+  return localStorage;
+}
+
+for (const kind of ['candidate', 'pc01']) {
+  test(`prepared ${kind} typography consent is accepted by that exact source reader`, () => {
+    const timestamp = 1_790_000_000_000;
+    const pc01Sha = /const PC01_SHA = '([a-f0-9]+)'/.exec(browserGate)?.[1];
+    assert.ok(pc01Sha);
+    const source = kind === 'pc01'
+      ? execFileSync('git', ['show', `${pc01Sha}:src/lib/sessionWaiver.ts`], { encoding: 'utf8' })
+      : readFileSync(new URL('../src/lib/sessionWaiver.ts', import.meta.url), 'utf8');
+    const reader = waiverReader(source);
+    const storage = runTypographySessionInitializer(kind, timestamp);
+    assert.equal(reader.isSessionWaiverAcknowledged(storage, timestamp), true,
+      'a prepared historical comparison must not be covered by a consent dialog caused by the newer format');
+    assert.equal(reader.isSessionWaiverAcknowledged(storage, timestamp - 1), false,
+      'future acknowledgements remain invalid in both source versions');
+  });
+}
+
+test('the typography candidate still uses version-bound consent and the reference stays legacy', () => {
+  const timestamp = 1_790_000_000_000;
+  const candidate = runTypographySessionInitializer('candidate', timestamp).getItem('dow-new-eden-session-waiver');
+  const reference = runTypographySessionInitializer('pc01', timestamp).getItem('dow-new-eden-session-waiver');
+  assert.deepEqual(JSON.parse(candidate), { acknowledgedAt: timestamp, termsVersion: 'code-of-conduct-v1' });
+  assert.equal(reference, String(timestamp));
+});
+
+
+test('CI installs locked parser dependencies before the unconditional typography contract', () => {
+  const steps = ci.split(/^      - /m).slice(1);
+  const installIndex = steps.findIndex(step => /^\s*run: npm ci --prefer-offline --no-audit\s*$/m.test(step));
+  const contractIndex = steps.findIndex(step => step.startsWith('name: Typography release-gate contract'));
+  assert.ok(installIndex >= 0 && contractIndex >= 0 && installIndex < contractIndex,
+    'the actual consent-reader parser must be installed before its always-run contract, including clean runners');
+  assert.ok(!/^\s*if:/m.test(steps[installIndex]),
+    'the unconditional contract needs locked dependencies even for documentation-only events');
+});
+
+test('PR verification retains merge integration and trusted reusable verification keeps its exact ref', () => {
+  const checkout = ci.split(/^      - /m).slice(1).find(step => step.startsWith('uses: actions/checkout@'));
+  assert.ok(checkout?.includes('ref: ${{ inputs.ref || github.sha }}'),
+    'PR verification retains its synthetic merge; the trusted exact-main ref takes priority');
 });

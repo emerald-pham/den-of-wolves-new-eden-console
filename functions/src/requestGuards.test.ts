@@ -779,3 +779,16 @@ describe('callable request guards', () => {
   });
 
 });
+
+
+it('binds automatic GM recovery to the original canonical lease', () => {
+  const base = { sessionId: 's1', instanceId: 'i1', name: 'Bridge', deviceLabel: 'Browser' };
+  const expectedClaimedAt = '2026-01-01T00:00:00.000Z';
+  expect(requireGmClaimRequest({ ...base, resume: true, expectedClaimedAt })).toEqual({
+    ...base, resume: true, expectedClaimedAt,
+  });
+  for (const extra of [{ resume: true }, { expectedClaimedAt }, { resume: false, expectedClaimedAt },
+    { resume: 'true', expectedClaimedAt }, { resume: true, expectedClaimedAt: 'invalid' }]) {
+    expectHttpsError(() => requireGmClaimRequest({ ...base, ...extra }), 'invalid-argument');
+  }
+});

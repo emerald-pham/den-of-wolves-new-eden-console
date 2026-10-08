@@ -53,7 +53,7 @@ export function PressEventLogView({
             </li>
           ))}
         </ol>
-      ) : <p className="press-event-log__status" role="status">{status}</p>}
+      ) : <p className="press-event-log__status" data-awaiting-cic={status === 'AWAITING CIC HANDSHAKE'} role="status">{status}</p>}
     </section>
   );
 }

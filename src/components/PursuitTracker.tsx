@@ -74,7 +74,7 @@ export default function PursuitTracker({
 
       <p className="pursuit-tracker__countdown" aria-live="polite">
         <span>WOLF PURSUIT TRACK // </span>
-        <strong data-pending={!hasAuthoritativeValue}>
+        <strong data-pending={!hasAuthoritativeValue} data-awaiting-cic={currentTurn > 0 && !hasAuthoritativeValue}>
           {hasAuthoritativeValue
             ? <>{failureCountdown} <small>{failureCountdown === 1 ? 'cycle' : 'cycles'}</small></>
             : 'Awaiting CIC handshake'}

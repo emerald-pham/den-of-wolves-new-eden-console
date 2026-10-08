@@ -435,24 +435,25 @@ section with readable bone-white copy, a cyan mail link, and a small lock emoji
 that makes the logged-out or logged-in state immediately legible. The password
 field belongs here rather than on the role-claim card; the browser may remember
 only the login timestamp, never the password. Show the explicit logout control
-and the 24-hour safety timeout in the normal document flow so both remain
+and the seven-day safety timeout in the normal document flow so both remain
 reachable on short screens.
 
 ### Session waiver / code of conduct
 
-The first session entry in a 24-hour browser window opens a required full-screen
-code-of-conduct instrument. It borrows the reference layout's centered heading,
-stacked acknowledgement rows and single continue action, while remaining in the
-CIC profile: square `cic-frame` rules, amber structure, cyan acknowledged
-status, bone-white copy, and no depth shadow. Keep every regulation visible in
-one bounded scrolling panel so players can review the complete table convention,
-in-world information-security rule, and human-on-the-other-side debrief reminder
-before the acknowledgement control. Each row has a real, keyboard-reachable
+The first session entry in a seven-day browser window opens a required
+full-screen code-of-conduct instrument. It borrows the reference layout's
+centered heading, stacked acknowledgement rows and single continue action,
+while remaining in the CIC profile: square `cic-frame` rules, amber structure,
+cyan acknowledged status, bone-white copy, and no depth shadow. Keep every
+regulation visible in one bounded scrolling panel so players can review the
+complete table convention, in-world information-security rule, and
+human-on-the-other-side debrief reminder before the acknowledgement control.
+Each row has a real, keyboard-reachable
 checkbox; the final confirmation stays
 disabled until every row is checked and the ten-second review lock has elapsed.
 Show the remaining seconds in the same ruled instrument so the delay is legible,
 not mysterious. The acknowledgement is browser-local and global to the window
-rather than keyed to a session, so switching tables within 24 hours does not
+rather than keyed to a session, so switching tables within seven days does not
 repeat the prompt. Authenticated GM access may reset that local completion from
 the GM Console, which reopens the full instrument.
 
@@ -1370,18 +1371,20 @@ Skip to Turn 1 has its own confirmation and suppresses that transmission.
 Advance's in-flight state must not rewrite Skip's `SKIP TO TURN 1` wording.
 
 Before a browser joins a session, the top-right default connection light uses
-the established uppercase label `CONNECTED`. Only after joining, while Turn 1
-has not yet occurred, the light uses cyan-blue instrumentation and says
-`NOT CONNECTED — AWAITING IRIS AUTHENTICATION`. The first Turn 1 snapshot
-restores the usual green in-session light, marking CIC as fully uplinked and the
-fleet as ready to launch. These labels describe the player-facing game uplink;
-they do not grant or withhold command authority by themselves.
+the established uppercase label `CONNECTED`. Only after joining, while Cycle 1
+has not yet occurred, the light uses the established danger-red token and says
+`CONNECTED // AWAITING CIC AUTHENTICATION`. Settings explains: “Awaiting CIC
+authentication means waiting for the GM to start the game.” The first Cycle 1
+snapshot restores the usual green in-session light, marking CIC as fully
+uplinked and the fleet as ready to launch. These labels describe the
+player-facing game uplink; they do not grant or withhold command authority by
+themselves.
 
 The indicator's accessible name/title describes the same live state as its
 visible label. Pre-session startup optimism may show `CONNECTED` only while no
 explicit offline signal exists; joined Turn 0 offline after the grace window is
-announced as offline, never as “Connected to Firebase” beside a visible
-`NOT CONNECTED` label. Turn 1 and legacy `currentTurn` snapshots retain the
+announced as offline, never as “Connected to Firebase” beside an offline label.
+Cycle 1 and legacy `currentTurn` snapshots retain the
 same live/offline/grace semantics.
 
 When a browser restores a cached in-session identity after a refresh, loses page

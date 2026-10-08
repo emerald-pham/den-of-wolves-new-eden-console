@@ -16,7 +16,7 @@ try{
  await page.getByRole('button',{name:/^REDUCED MOTION/i}).click();
  await page.getByRole('button',{name:'Settings',exact:true}).click();
  await page.getByRole('button',{name:'Authorize local emulator GM',exact:true}).click();
- await page.getByText('GM access remains authorized on this device for 24 hours.',{exact:false}).waitFor();
+ await page.getByText('GM access remains authorized on this device for seven days.',{exact:false}).waitFor();
  await page.getByRole('button',{name:'Close settings',exact:true}).click();
  const joinCode=(await f.session.get()).get('joinCode');
  await page.getByRole('textbox',{name:'Session code',exact:true}).fill(joinCode);

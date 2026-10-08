@@ -28,6 +28,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     },
     changes: [
       'Returning to a closed game keeps its debrief available without restoring live shuttle or Press controls.',
+      'Press Officers can reopen their station after releasing its console. A pending release remains released until they return and choose the station again.',
       '703 of 751 planned items are complete in the catalog snapshot used to build this release (93.61%).',
     ],
   },
@@ -60,8 +61,12 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       done: 703, partial: 6, active: 0, missing: 42, blocked: 0,
     },
     changes: [
-      'Press Officers can reopen their station after releasing its console. A pending release remains released until they return and choose the station again.',
+      'Expanded GM DRADIS stays clear of the header and command summary on phones, with reachable Close and keyboard return controls.',
+      'GM consoles recover their original connection after a temporary outage. Explicit removal and revoked access still apply.',
+      'GM login and Code of Conduct acknowledgement are remembered for seven days on this device. Updated terms require acknowledgement again.',
+      'Awaiting CIC authentication and handshake use the red warning signal; the GM starts the game.',
       '703 of 751 planned items are complete in the catalog snapshot used to build this release (93.61%).',
+      'This urgent fix adds no catalog closures.',
     ],
   },
   {

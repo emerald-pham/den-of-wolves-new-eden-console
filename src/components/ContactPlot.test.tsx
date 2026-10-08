@@ -1,6 +1,6 @@
 import { useSessionStore } from '@/store/useSessionStore';
 import { act, cleanup, render, screen } from '@testing-library/react';
-import type { ReactElement } from 'react';
+import { Profiler, type ReactElement } from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import ContactPlot, {
@@ -274,6 +274,51 @@ it('tracks a far-moving unknown on the shared variable cadence and drops it afte
     secondInterval - AMBIENT_CONTACT_LIFETIME_MS,
   ));
   expect(container.querySelector("[data-ambient='true']")).toBeInTheDocument();
+});
+
+it('waits for scheduled ambient ticks when wall time changes while effects run', () => {
+  vi.useFakeTimers();
+  const appearedAt = Date.parse(ambientSession.createdAt) + ambientContactIntervalMs(ambientSession.id, 1);
+  vi.setSystemTime(appearedAt);
+  const wallClockNow = Date.now.bind(Date);
+  let reads = 0;
+  // Let time move between render and effects, then plateau so a broken
+  // self-update remains a bounded regression rather than hanging the suite.
+  vi.spyOn(Date, 'now').mockImplementation(() => wallClockNow() + Math.min(reads++, 120));
+  const commits = vi.fn();
+  const { container, unmount } = render(
+    <Profiler id="ambient-clock" onRender={commits}>
+      <ContactPlot contacts={[]} ambientSession={ambientSession} />
+    </Profiler>,
+  );
+
+  expect(container.querySelector("[data-ambient='true']")).toHaveTextContent('UNKNOWN CONTACT');
+  // Initial mount and one session-clock synchronization; clock updates must
+  // then wait for the existing one-second range refresh.
+  expect(commits).toHaveBeenCalledTimes(2);
+  expect(vi.getTimerCount()).toBe(1);
+  act(() => vi.advanceTimersByTime(999));
+  expect(commits).toHaveBeenCalledTimes(2);
+  act(() => vi.advanceTimersByTime(1));
+  expect(commits).toHaveBeenCalledTimes(3);
+  expect(vi.getTimerCount()).toBe(1);
+  unmount();
+  expect(vi.getTimerCount()).toBe(0);
+});
+
+it('immediately synchronizes a newly triggered contact without a recursive clock update', () => {
+  vi.useFakeTimers();
+  vi.setSystemTime('2026-01-01T00:10:00.000Z');
+  const { container, rerender } = render(<ContactPlot contacts={[]} ambientSession={ambientSession} />);
+  expect(container.querySelector("[data-ambient='true']")).not.toBeInTheDocument();
+  vi.setSystemTime('2026-01-01T00:11:00.000Z');
+  rerender(<ContactPlot contacts={[]} ambientSession={{
+    ...ambientSession,
+    dradisContactTriggeredAt: new Date(Date.now()).toISOString(),
+  }} />);
+  expect(container.querySelector("[data-ambient='true']")).toHaveTextContent('UNKNOWN CONTACT');
+  act(() => vi.advanceTimersByTime(AMBIENT_CONTACT_LIFETIME_MS));
+  expect(container.querySelector("[data-ambient='true']")).not.toBeInTheDocument();
 });
 
 it('recalculates an unknown contact range from the viewing ship origin', () => {

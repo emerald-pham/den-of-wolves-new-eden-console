@@ -822,3 +822,52 @@ Reconcile only the current0.5.72 release summary to the actual catalog:
 P542/P543/P593 partial subcriteria; no fixed closure is invented. Historical
 0.5.71 and all old failed progress logs are preserved. This metadata/docs-only
 correction does not change game behavior or require a new application version.
+
+
+### October 8 released GM hotfix reconciliation
+
+The source-only continuation integrates released main
+`a0e38bef957b4cefccfff20808b8a054c5f71489` (0.5.69) into the preserved PC10
+branch, whose prior accounting head is `9073f410`. The common PC09 release is
+`248ba5fe`. PC10 remains private 0.5.72, with703done/13partial/35missing,
+245/293campaign and all48 fixed closures open. The hotfix earns no PC10 closure.
+Original checkout, retained PC09 worktree/evidence and the parent's PC11 branches
+are outside this integration's write scope. No native session or browser has
+been launched for this continuation; Mac allocation remains required.
+
+Test-only commits `79380045`, `9f961e54` and `e91d436a` precede the source merge.
+They restore the released CIC authentication/status expectations, add a fresh
+full-game preparation recovery regression and test both reviewed shared-parser
+deployment transitions. The mounted recovery regression now starts with the
+available preparation action, invokes the existing recovery consumer, observes
+its removal and restores it through that consumer. The current Settings
+progress expectation changes from stale6/42 to the accepted13/35. Existing
+assertions and deadlines remain; no test was skipped, removed or weakened.
+The parent's Add/Edit transition lesson is recorded in the existing CLAUDE test
+guidance: final-state fixtures alone do not prove a behavior-changing handler.
+
+The initial affected slice retained three failures: merged duplicate changelog
+versions caused its real display parser to reject the history, and changing the
+live GM instance to another UID left disabled setup controls on screen. The
+original PC10 UID transition test passes before integration; retain that route
+identity fence alongside the hotfix's held same-owner recovery screen. Released
+0.5.69 keeps its own history entry and unchanged PC09 0.5.68 remains. The
+conflicting private PC10 0.5.69 Press note moves into current private0.5.72;
+its implementation and evidence remain intact. The initial compiler failure
+also remains recorded: strict client checking requires the validated optional
+recovery timestamp to be narrowed before object spread. Validation is unchanged.
+
+Conflict choices retain both PC10's audited callable wrapper and the hotfix's
+original-claim recovery fields, both GM DRADIS and convoy-confirmation portals,
+identity hydration and current authority fences, loyalty census loading status,
+normal joined-session QR and the manual unlimited full-game demo. The shared
+source selector accepts exactly one reviewed destination digest and rejects
+unknown drift; historical inventories remain unchanged. PC10's pre-existing
+stale index audit remains a final-release task, not implied approval of this
+merged source. Prior native claims stay bound to their original tested sources.
+
+Focused verification and one bounded independent Sol review are being completed
+against this integration. Source checks do not grant native, whole-game,
+responsive, human, capacity, manual-free or external release acceptance. The
+next allocated slice remains settled Black Sheep cargo display and the already
+scoped Water Reclamation recharge family in the current acceptance matrix.
