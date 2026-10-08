@@ -1318,6 +1318,15 @@ describe('Prompt 020 production lobby-to-Team-Phase composition', () => {
         turnPhase: { turn: 1, airspace: { state: 'lifted' } },
       });
       const pauseAt = Date.parse(turnOnePhase.teamPhaseEndsAt) + 15 * 60_000;
+      for (let heartbeatAt = Date.parse(turnOnePhase.teamPhaseEndsAt) + 1_000;
+        heartbeatAt < pauseAt;
+        heartbeatAt += 30_000) {
+        vi.setSystemTime(new Date(heartbeatAt));
+        await refreshPresence.run(request({
+          sessionId: composition.sessionId,
+          instanceId: composition.startRequest.instanceId,
+        }, composition.ownerUid));
+      }
       vi.setSystemTime(new Date(pauseAt));
       await expect(setEmergencyTimerPaused.run(request({
         sessionId: composition.sessionId,
@@ -1327,7 +1336,12 @@ describe('Prompt 020 production lobby-to-Team-Phase composition', () => {
       }, composition.ownerUid))).resolves.toMatchObject({
         turnPhase: { timerPause: { window: 'open', remainingMs: 10 * 60_000 } },
       });
-      const resumedAt = pauseAt + 2 * 60_000;
+      const resumedAt = pauseAt + 30_000;
+      vi.setSystemTime(new Date(resumedAt - 20_000));
+      await refreshPresence.run(request({
+        sessionId: composition.sessionId,
+        instanceId: composition.startRequest.instanceId,
+      }, composition.ownerUid));
       vi.setSystemTime(new Date(resumedAt));
       await expect(setEmergencyTimerPaused.run(request({
         sessionId: composition.sessionId,
@@ -1337,7 +1351,7 @@ describe('Prompt 020 production lobby-to-Team-Phase composition', () => {
       }, composition.ownerUid))).resolves.toMatchObject({
         turnPhase: {
           teamPhaseEndsAt: turnOnePhase.teamPhaseEndsAt,
-          openAirspaceEndsAt: new Date(Date.parse(turnOnePhase.teamPhaseEndsAt) + 27 * 60_000).toISOString(),
+          openAirspaceEndsAt: new Date(Date.parse(turnOnePhase.teamPhaseEndsAt) + 25 * 60_000 + 30_000).toISOString(),
         },
       });
       const resumedPhase = (read(sessionPath) as StoredDocument).turnPhase as {
