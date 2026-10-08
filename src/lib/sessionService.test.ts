@@ -4,6 +4,8 @@ import { SESSION_STORAGE_KEY, useSessionStore } from '@/store/useSessionStore';
 import type { SetupReceipt } from '@/types/game';
 import { INITIAL_SHIP_RESOURCES } from '@/data/resources';
 
+const authMockState = vi.hoisted(() => ({ uid: 'u1' }));
+
 vi.mock('firebase/auth', () => ({
   signInAnonymously: vi.fn().mockResolvedValue(undefined),
 }));
@@ -13,7 +15,7 @@ vi.mock('firebase/functions', () => ({
 }));
 
 vi.mock('./firebase', () => ({
-  auth: () => ({ currentUser: { uid: 'u1' } }),
+  auth: () => ({ currentUser: { uid: authMockState.uid } }),
   functions: vi.fn(() => ({ kind: 'functions' })),
 }));
 
@@ -1862,13 +1864,17 @@ describe('createSession', () => {
 
 describe('GM instance commands', () => {
   beforeEach(() => {
+    authMockState.uid = 'u1';
     useSessionStore.getState().reset();
     useSessionStore.getState().setIdentity(session, player);
     useSessionStore.getState().setConnection('live');
     useSessionStore.getState().setSessionSnapshotFreshness('server');
   });
 
-  afterEach(() => vi.restoreAllMocks());
+  afterEach(() => {
+    authMockState.uid = 'u1';
+    vi.restoreAllMocks();
+  });
 
   it('claims a named GM instance with this browser device information', async () => {
     const instance = {
@@ -1889,6 +1895,137 @@ describe('GM instance commands', () => {
     expect(useSessionStore.getState().gmInstance).toEqual(instance);
     expect(useSessionStore.getState().me?.role).toBe('gm');
   });
+
+  it('keeps a same-actor GM claim when live bootstrap authority advances before its reply', async () => {
+    const sessionId = 'gm-claim-bootstrap-refresh';
+    const beforeSession = {
+      ...session,
+      id: sessionId,
+      updatedAt: '2099-01-01T00:00:00.000Z',
+    };
+    const actor = { ...player, sessionId };
+    useSessionStore.getState().reset();
+    useSessionStore.getState().setIdentity(beforeSession, actor);
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+    useSessionStore.getState().setGmAccessAuthenticatedAt(Date.now());
+
+    const authority = sessionSnapshotAuthorityFor(sessionId, actor.uid);
+    expect(acceptServerSessionAuthority(authority, beforeSession, undefined, false, true)).toBe(true);
+    const startingVersion = authority.authorityVersion;
+
+    let finishClaim!: (value: { data: { instance: unknown } }) => void;
+    const callable = Object.assign(vi.fn<(
+      payload: { sessionId: string; instanceId: string; name: string; deviceLabel: string; }
+    ) => Promise<{ data: { instance: unknown } }>>(() => new Promise<{ data: { instance: unknown } }>((resolve) => {
+      finishClaim = resolve;
+    })), { stream: vi.fn() });
+    vi.mocked(httpsCallable).mockReturnValue(callable as never);
+    const claiming = claimGmInstance('Bridge laptop');
+    await vi.waitFor(() => expect(callable).toHaveBeenCalled());
+
+    // During startup, a newer accepted live server projection can arrive before
+    // this browser's claim callable returns, while confirming this same actor
+    // as the session GM.
+    const refreshedSession = {
+      ...beforeSession,
+      pressAvailabilityRevision: 1,
+      updatedAt: '2099-01-01T00:00:01.000Z',
+    };
+    expect(acceptServerSessionAuthority(authority, refreshedSession, undefined, false, true)).toBe(true);
+    expect(authority.authorityVersion).toBe((startingVersion ?? 0) + 1);
+    useSessionStore.getState().setSession(refreshedSession);
+    useSessionStore.getState().setMe({ ...actor, role: 'gm' });
+
+    const payload = callable.mock.calls[0]?.[0];
+    expect(payload).toBeDefined();
+    if (!payload) throw new Error('claim payload missing');
+    const instance = {
+      id: payload.instanceId,
+      sessionId,
+      uid: actor.uid,
+      name: payload.name,
+      deviceLabel: payload.deviceLabel,
+      claimedAt: '2099-01-01T00:00:02.000Z',
+    };
+    finishClaim({ data: { instance } });
+    await claiming;
+
+    expect(useSessionStore.getState().gmInstance).toEqual(instance);
+    expect(useSessionStore.getState().me).toMatchObject({ sessionId, uid: actor.uid, role: 'gm' });
+    expect(useSessionStore.getState()).toMatchObject({ connection: 'live', sessionSnapshotFreshness: 'server' });
+  });
+
+  it.each([
+    'demotion', 'logout', 'replacement', 'foreign-response', 'offline', 'cache', 'foreign-auth',
+    'closed', 'authority-invalidated',
+  ] as const)(
+    'does not apply a refreshed GM claim after the same-actor %s fence',
+    async (fence) => {
+      const sessionId = `gm-claim-fence-${fence}`;
+      const beforeSession = {
+        ...session,
+        id: sessionId,
+        updatedAt: '2099-01-02T00:00:00.000Z',
+      };
+      const actor = { ...player, sessionId };
+      const store = useSessionStore.getState();
+      store.reset();
+      useSessionStore.getState().setIdentity(beforeSession, actor);
+      useSessionStore.getState().setConnection('live');
+      useSessionStore.getState().setSessionSnapshotFreshness('server');
+      useSessionStore.getState().setGmAccessAuthenticatedAt(Date.now());
+
+      const authority = sessionSnapshotAuthorityFor(sessionId, actor.uid);
+      expect(acceptServerSessionAuthority(authority, beforeSession, undefined, false, true)).toBe(true);
+      let finishClaim!: (value: { data: { instance: unknown } }) => void;
+      const callable = Object.assign(vi.fn<(
+        payload: { sessionId: string; instanceId: string; name: string; deviceLabel: string; }
+      ) => Promise<{ data: { instance: unknown } }>>(() => new Promise<{ data: { instance: unknown } }>((resolve) => {
+        finishClaim = resolve;
+      })), { stream: vi.fn() });
+      vi.mocked(httpsCallable).mockReturnValue(callable as never);
+      const claiming = claimGmInstance('Bridge laptop');
+      await vi.waitFor(() => expect(callable).toHaveBeenCalled());
+
+      const refreshedSession = {
+        ...beforeSession,
+        pressAvailabilityRevision: 1,
+        updatedAt: '2099-01-02T00:00:01.000Z',
+      };
+      expect(acceptServerSessionAuthority(authority, refreshedSession, undefined, false, true)).toBe(true);
+      useSessionStore.getState().setSession(refreshedSession);
+      useSessionStore.getState().setMe({ ...actor, role: 'gm' });
+
+      const payload = callable.mock.calls[0]?.[0];
+      expect(payload).toBeDefined();
+      if (!payload) throw new Error('claim payload missing');
+      const replacement = {
+        id: 'replacement-bridge', sessionId, uid: actor.uid, name: 'Replacement',
+        deviceLabel: 'Other browser', claimedAt: '2099-01-02T00:00:02.000Z',
+      };
+      if (fence === 'demotion') useSessionStore.getState().setMe(actor);
+      if (fence === 'logout') useSessionStore.getState().clearGmAccess();
+      if (fence === 'replacement') useSessionStore.getState().setGmInstance(replacement);
+      if (fence === 'offline') useSessionStore.getState().setConnection('offline');
+      if (fence === 'cache') useSessionStore.getState().setSessionSnapshotFreshness('cache');
+      if (fence === 'foreign-auth') authMockState.uid = 'foreign-uid';
+      if (fence === 'closed') useSessionStore.getState().setSession({ ...refreshedSession, phase: 'closed' });
+      if (fence === 'authority-invalidated') authority.hasServerSessionAuthority = false;
+
+      const instance = fence === 'foreign-response'
+        ? { id: payload.instanceId, sessionId: 'foreign-session', uid: 'foreign-uid',
+          name: payload.name, deviceLabel: payload.deviceLabel, claimedAt: '2099-01-02T00:00:02.000Z' }
+        : { id: payload.instanceId, sessionId, uid: actor.uid,
+          name: payload.name, deviceLabel: payload.deviceLabel, claimedAt: '2099-01-02T00:00:02.000Z' };
+      finishClaim({ data: { instance } });
+      await claiming;
+
+      expect(useSessionStore.getState().gmInstance).toEqual(fence === 'replacement' ? replacement : null);
+      if (fence === 'demotion') expect(useSessionStore.getState().me?.role).toBe('player');
+      if (fence === 'logout') expect(useSessionStore.getState().gmAccessAuthenticatedAt).toBeNull();
+    },
+  );
 
   it('rejects a cache-derived GM mutation while offline without contacting Firebase', async () => {
     vi.spyOn(window.navigator, 'onLine', 'get').mockReturnValue(false);
