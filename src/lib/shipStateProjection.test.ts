@@ -102,7 +102,7 @@ describe('projectShipState', () => {
       population: 220_000,
       unrest: 2,
       upgrades: ['jump-drive'],
-      consoleLocked: true,
+      consoleLocked: false,
       fighterWingCounts: {
         'fighter-wing-alpha': { count: 4, revision: 1 },
         'fighter-wing-bravo': { count: 2, revision: 3 },

@@ -2,7 +2,7 @@ import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { Link, MemoryRouter, Route, Routes } from 'react-router-dom';
-import { useSessionStore } from '@/store/useSessionStore';
+import { SESSION_STORAGE_KEY, useSessionStore } from '@/store/useSessionStore';
 import ShipConsole from './ShipConsole';
 import type { Player, WolfAttackMemberView, WolfRangeActionChoiceView } from '@/types/game';
 import * as maintenanceService from '@/lib/maintenanceService';
@@ -1251,7 +1251,7 @@ it('freezes ship gameplay controls while showing the final-turn evaluation state
   expect(screen.getByText(
     /final cycle complete.*endgame evaluation in progress.*gameplay controls are frozen/i,
   )).toHaveAttribute('role', 'status');
-  expect(screen.getByRole('button', { name: /engage icn console lock/i })).toBeDisabled();
+  expect(screen.queryByRole('button', { name: /icn console lock/i })).not.toBeInTheDocument();
 });
 
 it('keeps the retained craft path explicit after total fleet loss', () => {
@@ -1844,7 +1844,7 @@ it.each([
     expect(within(workspace).getByRole('heading', { name: supplySystem })).toBeVisible();
     expect(screen.getByRole('region', { name: `${shipName} census` })).toHaveTextContent(survivors);
     expect(screen.getByText('Role assignment').nextElementSibling).toHaveTextContent('Captain');
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Engage ICN console lock' })).toBeEnabled());
+    expect(screen.queryByRole('button', { name: /icn console lock/i })).not.toBeInTheDocument();
     expect(screen.queryByLabelText('View ship console role')).not.toBeInTheDocument();
     expect(screen.queryByText(/console access.*read only/i)).not.toBeInTheDocument();
   },
@@ -2485,3 +2485,76 @@ it('lets the current replacement VIP Host reach the Dione draw control without a
   await userEvent.click(draw);
   expect(drawVipCard).toHaveBeenCalledWith(3, 'vip-host');
 });
+
+
+it.each(['player', 'foreign-role', 'gm-observer'] as const)(
+  'ignores a persisted ICN lock after reload while preserving %s authority', async (actor) => {
+    const state = useSessionStore.getState();
+    if (!state.session || !state.me) throw new Error('Expected the fixture.');
+    const legacySession = { ...state.session, phase: 'active' as const, currentTurn: 2,
+      activeRoleIds: ['admiral', 'executive-officer', 'wing-commander'], activeVesselIds: ['aegis'],
+      shipConsoleLocks: { aegis: true },
+      maintenanceCycles: { aegis: { turn: 2, step: 1, revision: 7, charges: [], refuelled: [], results: {} } },
+    };
+    const legacyPlayer = { ...state.me,
+      role: actor === 'gm-observer' ? 'gm' as const : 'player' as const,
+      assignedRoleId: actor === 'foreign-role' ? 'admiral' : 'executive-officer',
+      seatId: actor === 'foreign-role' ? 'admiral' : 'executive-officer',
+      activeConsoleRoleId: actor === 'foreign-role' ? 'admiral' : 'executive-officer',
+    };
+    localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({ version: 1, state: {
+      session: legacySession, me: legacyPlayer, mode: 'console',
+      gmInstance: actor === 'gm-observer' ? {
+        id: 'gm-1', sessionId: 's1', uid: 'u1', name: 'GM', deviceLabel: 'Test',
+        claimedAt: '2026-01-01T00:00:00.000Z',
+      } : null,
+    } }));
+    await useSessionStore.persist.rehydrate();
+    expect(useSessionStore.getState().sessionSnapshotFreshness).toBe('cache');
+    const command = vi.spyOn(maintenanceService, 'runMaintenance').mockResolvedValue({ status: 'committed' });
+    const route = actor === 'gm-observer' ? '/ships/aegis/observer' : '/ships/aegis/roles/executive-officer';
+    const mount = () => render(<MemoryRouter initialEntries={[route]}><Routes>
+      <Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} />
+      <Route path="/ships/:shipId/observer" element={<ShipConsole observer />} />
+    </Routes></MemoryRouter>);
+    try {
+      let view = mount();
+      expect(screen.queryByRole('region', { name: 'ICN console lock' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /icn console lock/i })).not.toBeInTheDocument();
+      expect(screen.queryByText(/lock this console before/i)).not.toBeInTheDocument();
+      // Server recovery retains the old wire field; it must not reinstate the removed inhibit.
+      act(() => {
+        useSessionStore.getState().setSession(legacySession);
+        useSessionStore.getState().setConnection('live');
+        useSessionStore.getState().setSessionSnapshotFreshness('server');
+      });
+      if (actor === 'gm-observer') {
+        const write = screen.getByRole('button', { name: 'GM ship console read write access' });
+        expect(write).toHaveAttribute('aria-pressed', 'false');
+        expect(view.container.querySelector('.ship-console')).toHaveAttribute('data-observer-mode', 'read');
+        expect(setGmShipConsoleWriteGrant).not.toHaveBeenCalled();
+      } else {
+        for (let entry = 0; entry < 2; entry += 1) {
+          const user = userEvent.setup();
+          const maintenance = screen.getByRole('button', { name: 'Maintenance' });
+          maintenance.focus();
+          await user.keyboard('{Enter}');
+          const storage = screen.getByRole('button', { name: 'Check storage' });
+          if (actor === 'player') {
+            expect(storage).toBeEnabled();
+            storage.focus();
+            await user.keyboard('{Enter}');
+            expect(command).toHaveBeenCalledTimes(entry + 1);
+            expect(command).toHaveBeenLastCalledWith('aegis', 'storage', 7, {}, 'executive-officer');
+          } else {
+            expect(storage).toBeDisabled();
+            await user.click(storage);
+            expect(command).not.toHaveBeenCalled();
+          }
+          // A fresh route mount exercises the startup path again with the legacy field still true.
+          if (entry === 0) { view.unmount(); view = mount(); }
+        }
+      }
+    } finally { command.mockRestore(); }
+  },
+);
