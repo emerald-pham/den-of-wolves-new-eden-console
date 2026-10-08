@@ -121,3 +121,17 @@ test('persisted closed cache cannot qualify same-UID authoritative scoped histor
  // Closed-history entitlement never requires a live connection or active station.
  assert.equal(runner.isAcceptedRingClosedHistory({...accepted,connection:'disconnected',activeConsoleRoleId:null},expected),true);
 });
+
+test('closed normal-resume/member-read receipts bind original actor/group and public candidate success',()=>{
+ assert.equal(typeof runner.assertRingClosedServerReceipt,'function');
+ const snapshot={type:'session-debrief',version:1,source:'candidate',result:'success',candidate:{code:'N',groups:[]}};
+ const session={id:sid,phase:'closed',debriefSnapshot:snapshot};const expected={sessionId:sid,uid:'scientist',groupId};
+ const resumed={player:{uid:'scientist',sessionId:sid,fleetGroupId:groupId,connectionGeneration:1},session};
+ runner.assertRingClosedServerReceipt('resumeSession',resumed,expected);
+ const member={type:'current-member-session',sessionId:sid,actorUid:'scientist',groupId,connectionGeneration:1,session};
+ runner.assertRingClosedServerReceipt('getCurrentMemberSession',member,expected);
+ assert.throws(()=>runner.assertRingClosedServerReceipt('resumeSession',{...resumed,player:{...resumed.player,uid:'foreign'}},expected));
+ assert.throws(()=>runner.assertRingClosedServerReceipt('getCurrentMemberSession',{...member,groupId:'fleet-2'},expected));
+ assert.throws(()=>runner.assertRingClosedServerReceipt('getCurrentMemberSession',{...member,session:{...session,phase:'active'}},expected));
+ assert.throws(()=>runner.assertRingClosedServerReceipt('getCurrentMemberSession',{...member,session:{...session,debriefSnapshot:{...snapshot,result:'failure'}}},expected));
+});
