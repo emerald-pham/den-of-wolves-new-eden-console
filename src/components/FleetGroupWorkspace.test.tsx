@@ -3,10 +3,12 @@ import { readFileSync } from 'node:fs';
 import { beforeEach, expect, it, vi } from 'vitest';
 import FleetGroupWorkspace from './FleetGroupWorkspace';
 import { useSessionStore } from '@/store/useSessionStore';
-const mocks = vi.hoisted(() => ({ read: vi.fn(), send: vi.fn(), confirm: vi.fn(), readNavigation: vi.fn(), share: vi.fn(), transferTaxi: vi.fn(),
+const mocks = vi.hoisted(() => ({ read: vi.fn(), send: vi.fn(), confirm: vi.fn(), recordAdjudication: vi.fn(),
+  readNavigation: vi.fn(), share: vi.fn(), transferTaxi: vi.fn(),
   roster: [{ uid: 'crew-1', displayName: 'Pilot Mira', role: 'player', connected: true, fleetGroupId: 'fleet-2', assignedRoleId: 'quellon-engineer' }] }));
 vi.mock('@/lib/fleetGroupService', () => ({ createCurrentFleetGroupActions: () => ({
   read: mocks.read, send: mocks.send, confirmPartition: mocks.confirm,
+  recordRejoinAdjudication: mocks.recordAdjudication,
   readNavigation: mocks.readNavigation, share: mocks.share, transferTaxi: mocks.transferTaxi,
 }) }));
 vi.mock('@/lib/firestore', () => ({ subscribeConnectedPlayers: (_sessionId: string, onPlayers: (players: unknown[]) => void) => {
@@ -17,6 +19,7 @@ beforeEach(() => {
   mocks.read.mockReset().mockResolvedValue({ groupId: 'fleet-2', messages: [{ id: 'r1', actorUid: 'bob', text: 'Hold here.', sentAt: '2026-09-30T10:00:00Z' }] });
   mocks.send.mockReset().mockResolvedValue({ status: 'committed', groupId: 'fleet-2', messageId: 'r2' });
   mocks.confirm.mockReset().mockResolvedValue({ status: 'committed', navigationRevision: 2, groupIds: ['fleet-1', 'fleet-2'] });
+  mocks.recordAdjudication.mockReset().mockResolvedValue({ status: 'recorded', adjudicationId: 'decision-1' });
   mocks.readNavigation.mockReset().mockResolvedValue({ groupId: 'fleet-2', navigationRevision: 1, fleetPartitionRevision: 1,
     sampledAt: '2026-10-02T10:00:00Z', ships: [
       { shipId: 'quellon', fleetGroupId: 'fleet-2', coordinate: '0000' },
@@ -54,6 +57,22 @@ it('mounts the facilitator partition confirmation but hides notes when context g
   act(() => { useSessionStore.setState({ connection: 'offline' }); }); result.rerender(<FleetGroupWorkspace />);
   expect(screen.queryByText('Hold here.')).toBeNull();
   expect(screen.queryByRole('button', { name: 'Send group note' })).toBeNull();
+});
+
+it('shows a blank live-GM pursuit decision form when group values differ before rejoin', async () => {
+  seed('gm');
+  mocks.confirm.mockResolvedValue({ status: 'adjudication-required', navigationRevision: 1, fleetPartitionRevision: 4,
+    candidates: [{ coordinate: '1413', groupIds: ['fleet-1', 'fleet-2'], pursuitBefore: { 'fleet-1': 2, 'fleet-2': 5 } }] });
+  render(<FleetGroupWorkspace />);
+
+  fireEvent.click(screen.getByRole('button', { name: 'Confirm separated fleet groups' }));
+  const decision = await screen.findByRole('region', { name: 'Pursuit rejoin adjudication' });
+  expect(decision).toHaveTextContent('HOUSE RULE // EXCEPTIONAL REJOIN');
+  expect(decision).toHaveTextContent('FLEET-1: 2');
+  expect(decision).toHaveTextContent('FLEET-2: 5');
+  expect(screen.getByLabelText('Pursuit after merge at 1413')).toHaveValue(null);
+  expect(screen.queryByRole('button', { name: 'Apply recorded rejoin adjudication' })).toBeNull();
+  expect(mocks.recordAdjudication).not.toHaveBeenCalled();
 });
 
 it('shares only a known coordinate to selected ships from the fresh current-group projection', async () => {
