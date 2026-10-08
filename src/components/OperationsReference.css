@@ -6,6 +6,9 @@
 
 .operations-reference .operations-reference__toggle {
   min-height: 44px;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -21,4 +24,13 @@
 
 .operations-reference__content[hidden] {
   display: none;
+}
+
+.operations-reference__toggle > span:first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.operations-reference__toggle > span:last-child {
+  flex-shrink: 0;
 }
