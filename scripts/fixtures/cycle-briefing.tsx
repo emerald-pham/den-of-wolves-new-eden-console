@@ -15,4 +15,4 @@ useSessionStore.getState().setIdentity({id:'visual-fixture',name:'Synthetic brie
 if (actor === 'gm') useSessionStore.getState().setGmInstance({id:'fixture-gm-instance',uid:'fixture-gm',sessionId:'visual-fixture',name:'Synthetic GM',deviceLabel:'Fixture',claimedAt:stamp});
 useSessionStore.getState().setConnection('live');
 useSessionStore.getState().setSessionSnapshotFreshness('server');
-createRoot(document.getElementById('root')!).render(<TurnStartAnnouncement />);
+createRoot(document.getElementById('root')!).render(<div data-motion="reduce"><TurnStartAnnouncement /></div>);
