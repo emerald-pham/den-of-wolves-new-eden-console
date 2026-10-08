@@ -135,6 +135,16 @@ export function stationPopulationAlertsForGm(populationAlerts,instanceId){
  const targets=Object.entries(populationAlerts??{}).filter(([,alert])=>alert?.targetGmInstanceIds?.includes(instanceId));
  return targets;
 }
+export function stationPopulationUiRows(alerts){return alerts.map(([shipId,alert])=>{assert.equal(alert.shipId,shipId);return{shipId,shipName:alert.shipName,population:alert.population,targetGmInstanceIds:alert.targetGmInstanceIds};});}
+export function stationPopulationDialogMatches(dialog,alert){return dialog?.role==='alertdialog'&&dialog.name==='Survivor population threshold reached'&&dialog.text.includes(alert.shipName)&&dialog.text.includes(alert.population.toLocaleString('en-US'))&&dialog.text.includes('A census threshold requires GM attention.');}
+function stationPopulationStable(value){return value===null||typeof value!=='object'?JSON.stringify(value):Array.isArray(value)?`[${value.map(stationPopulationStable).join(',')}]`:`{${Object.keys(value).sort().map(key=>`${JSON.stringify(key)}:${stationPopulationStable(value[key])}`).join(',')}}`;}
+export function stationPopulationSelectVisibleAlert(sourceAlerts,uiAlerts,dialog){
+ const exactDialog=dialog?.role==='alertdialog'&&dialog.name==='Survivor population threshold reached';
+ if(!sourceAlerts.length||stationPopulationStable(uiAlerts)!==stationPopulationStable(stationPopulationUiRows(sourceAlerts))||!exactDialog)return null;
+ const[shipId,alert]=sourceAlerts[0];
+ if(!stationPopulationDialogMatches(dialog,uiAlerts[0]))throw new Error('The exact visible population dialog does not match the first current-GM server alert.');
+ return{shipId,alert};
+}
 export function stationDialogAccessibleName(labelledBy,labelTextById){
  return (labelledBy??'').split(/\s+/).map(id=>labelTextById?.[id]?.trim()).filter(Boolean).join(' ');
 }
@@ -1195,8 +1205,6 @@ async function enterRole(surface,label){
     const activeMutinies=stationPopulationAckMutinyRows(context);assert.deepEqual(activeMutinies,[],'Stop while mutiny recovery is active or unresolved.');
     const replacements=authority.players.filter(player=>player.replacementRoleId!=null||player.replacementStatus!=null);assert.deepEqual(replacements,[],'Stop while any replacement transfer is pending.');
    };
-   const stationPopulationUiRows=alerts=>alerts.map(([shipId,alert])=>{assert.equal(alert.shipId,shipId);return{shipId,shipName:alert.shipName,population:alert.population,targetGmInstanceIds:alert.targetGmInstanceIds};});
-   const stationPopulationDialogMatches=(dialog,alert)=>dialog?.role==='alertdialog'&&dialog.name==='Survivor population threshold reached'&&dialog.text.includes(alert.shipName)&&dialog.text.includes(alert.population.toLocaleString('en-US'))&&dialog.text.includes('A census threshold requires GM attention.');
    const stationPopulationDismissMount=async()=>{
     const alertDialog=gm.page.getByRole('alertdialog',{name:'Survivor population threshold reached',exact:true});
     const dialogCount=await alertDialog.count(),visible=dialogCount===1&&await alertDialog.isVisible();
@@ -1224,10 +1232,10 @@ async function enterRole(surface,label){
      if(projection.visibleDialogs.length&&!exactDialog)throw new Error('Stop on an unknown or consequential modal; only the exact population alert is eligible.');
      const uiAlerts=projection.targetedPopulation;
      if(sourceAlerts.length===0&&uiAlerts.length===0&&projection.visibleDialogs.length===0)return false;
-     if(sourceAlerts.length>0&&stable(uiAlerts)===stable(stationPopulationUiRows(sourceAlerts))&&exactDialog){
-      const [mapShipId,alert]=sourceAlerts[0];
+     const visibleAlert=stationPopulationSelectVisibleAlert(sourceAlerts,uiAlerts,projection.visibleDialogs[0]);
+     if(visibleAlert){
+      const{shipId:mapShipId,alert}=visibleAlert;
       assert.ok(Number.isSafeInteger(alert.population)&&alert.population>=0);
-      if(!stationPopulationDialogMatches(projection.visibleDialogs[0],uiAlerts[0]))throw new Error('The exact visible population dialog does not match the first current-GM server alert.');
       ready={authority,context,projection,shipId:mapShipId,alert};break;
      }
      await candidateWait(()=>delay(Math.min(150,deadlineAt-Date.now())),deadlineAt,'Station normal population alert feed wait');
