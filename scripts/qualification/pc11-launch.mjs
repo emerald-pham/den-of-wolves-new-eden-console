@@ -44,7 +44,7 @@ async function main(){
  assert.ok(args.includes('--allocated'),'Fresh owner runtime allocation is required');
  const sourceCommit=execFileSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8'}).trim();
  assert.equal(execFileSync('git',['status','--porcelain','--untracked-files=no'],{cwd:root,encoding:'utf8'}).trim(),'');
- const deadline=Date.now()+plan.allocationMilliseconds,children=[],cleanup={errors:[]};let configured=false,cancelled=false,notifyCancellation;
+ const allocationStartedAt=Date.now(),deadline=allocationStartedAt+plan.allocationMilliseconds,children=[],cleanup={errors:[]};let configured=false,cancelled=false,notifyCancellation;
  const cancellation=new Promise(resolve=>{notifyCancellation=resolve;});
  const onCancel=signal=>{cancelled=true;notifyCancellation(new Error(`Owner cancelled ${signal}; cleanup required`));};
  const onInt=()=>onCancel('SIGINT'),onTerm=()=>onCancel('SIGTERM');process.once('SIGINT',onInt);process.once('SIGTERM',onTerm);
@@ -77,7 +77,7 @@ async function main(){
   const result=await interruptible(within(proof.result,Math.max(1,deadline-Date.now()-25000),'Allocated deadline reached; stop and retain proof evidence'));assert.equal(result.code,0,'Proof stopped; retain run/OWNER_RESULT.json and proof.log');
  }finally{
   const activeProof=children.find(c=>c.name==='proof'&&c.child.exitCode===null&&c.child.signalCode===null);
-  if(activeProof){activeProof.child.kill('SIGINT');await within(activeProof.result,Math.min(120000,Math.max(1,deadline-Date.now()-12000)),'Proof cancellation cleanup deadline').catch(e=>cleanup.errors.push(e.message));}
+  if(activeProof){activeProof.child.kill('SIGINT');await within(activeProof.result,Math.min(120000,Math.max(1,deadline-Date.now()-25000)),'Proof cancellation cleanup deadline').catch(e=>cleanup.errors.push(e.message));}
   const registry=await readCoordinationState();
   await Promise.all(children.reverse().map(async c=>{
    const own=registry.reservations.find(r=>r.pid===c.child.pid&&r.worktree===root&&r.slot===plan.slot);
@@ -96,10 +96,10 @@ async function main(){
    await c.log.close();
   }));
   process.removeListener('SIGINT',onInt);process.removeListener('SIGTERM',onTerm);
-  const openPorts=[];for(const port of [new URL(plan.baseUrl).port,...Object.values(plan.ports)]){const listening=await new Promise(resolve=>{const socket=createConnection({host:'127.0.0.1',port:Number(port)});socket.setTimeout(1000);socket.once('connect',()=>{socket.destroy();resolve(true);});socket.once('error',()=>resolve(false));socket.once('timeout',()=>{socket.destroy();resolve(true);});});if(listening)openPorts.push(Number(port));}
+  const openPorts=[];for(const port of [new URL(plan.baseUrl).port,...Object.values(plan.ports)]){const listening=await new Promise(resolve=>{const socket=createConnection({host:'127.0.0.1',port:Number(port)});socket.setTimeout(Math.min(1000,Math.max(1,deadline-Date.now()-2000)));socket.once('connect',()=>{socket.destroy();resolve(true);});socket.once('error',()=>resolve(false));socket.once('timeout',()=>{socket.destroy();resolve(true);});});if(listening)openPorts.push(Number(port));}
   cleanup.openPorts=openPorts;if(openPorts.length)cleanup.errors.push('Owned row still has listeners; retain configuration and inspect exact processes');
   if(configured&&!openPorts.length)await releaseConfiguredEmulatorSlot({slot:plan.slot,worktree:root});
-  cleanup.closedAt=new Date().toISOString();await writeFile(`${plan.evidenceDirectory}/launcher-cleanup.json`,JSON.stringify(cleanup,null,2)+'\n');if(cleanup.errors.length)throw new Error('Launcher cleanup incomplete; inspect launcher-cleanup.json');
+  cleanup.elapsedMilliseconds=Date.now()-allocationStartedAt;cleanup.allocationWithinCap=cleanup.elapsedMilliseconds<=plan.allocationMilliseconds;if(!cleanup.allocationWithinCap)cleanup.errors.push('Owner allocation cap exceeded');cleanup.closedAt=new Date().toISOString();await writeFile(`${plan.evidenceDirectory}/launcher-cleanup.json`,JSON.stringify(cleanup,null,2)+'\n');if(cleanup.errors.length)throw new Error('Launcher cleanup incomplete; inspect launcher-cleanup.json');
  }
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).href)main().catch(e=>{console.error(e.message);process.exitCode=1;});
