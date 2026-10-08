@@ -7797,11 +7797,11 @@ function wolfBoardingSpecialChoiceReadReply(value: unknown): WolfBoardingSpecial
   }
   if (choice.kind === 'commander-ruling') {
     if (Object.keys(choice).some((key) => !['kind', 'targetShipId', 'condition'].includes(key)) ||
-        !validTarget(choice.targetShipId) || choice.condition !== 'All Commander-led Wolf Boarding Parties were destroyed.') return null;
+        !validTarget(choice.targetShipId) || choice.condition !== 'HOUSE RULE: The optional +2 Commander boarding request remains pending until the current live GM records the consequence for what happens if all Commander-led Wolf Boarding Parties are destroyed. No automatic consequence or default outcome is assumed.') return null;
     return { type: 'wolf-boarding-special-choice-view', sessionId: reply.sessionId,
       turn: reply.turn as number, revision: reply.revision as number, choice: {
         kind: 'commander-ruling', targetShipId: choice.targetShipId,
-        condition: 'All Commander-led Wolf Boarding Parties were destroyed.',
+        condition: 'HOUSE RULE: The optional +2 Commander boarding request remains pending until the current live GM records the consequence for what happens if all Commander-led Wolf Boarding Parties are destroyed. No automatic consequence or default outcome is assumed.',
       } };
   }
   return null;

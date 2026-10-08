@@ -950,7 +950,7 @@ export type WolfBoardingSpecialChoiceView = Readonly<{
         alreadyRerolled: readonly Readonly<{ targetShipId: WolfAttackTargetId; dieIndex: number }>[];
         maxRerolls: 3 }>
     | Readonly<{ kind: 'commander-ruling'; targetShipId: WolfAttackTargetId;
-        condition: 'All Commander-led Wolf Boarding Parties were destroyed.' }>;
+        condition: 'HOUSE RULE: The optional +2 Commander boarding request remains pending until the current live GM records the consequence for what happens if all Commander-led Wolf Boarding Parties are destroyed. No automatic consequence or default outcome is assumed.' }>;
 }>;
 
 export type WolfBoardingSpecialChoiceReadResult = WolfBoardingSpecialChoiceView | Readonly<{

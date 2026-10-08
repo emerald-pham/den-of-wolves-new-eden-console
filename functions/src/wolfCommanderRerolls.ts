@@ -30,10 +30,22 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function isTargetRing(value: unknown): value is WolfTargetRing {
+function isCanonicalSourceRing(value: unknown): value is WolfTargetRing {
   return JSON.stringify(value) === JSON.stringify(CORE_WOLF_TARGET_RING.filter(target => target !== 'dione')) ||
     JSON.stringify(value) === JSON.stringify(CORE_WOLF_TARGET_RING) ||
     JSON.stringify(value) === JSON.stringify(EXPANDED_WOLF_TARGET_RING);
+}
+
+function isOrderedParticipatingRing(value: unknown, sourceRing: WolfTargetRing): value is WolfTargetRing {
+  if (!Array.isArray(value) || value.length === 0 ||
+      value.some((target) => typeof target !== 'string') || new Set(value).size !== value.length) return false;
+  let previousIndex = -1;
+  return value.every((target) => {
+    const index = sourceRing.indexOf(target as WolfTargetRing[number]);
+    if (index <= previousIndex) return false;
+    previousIndex = index;
+    return true;
+  });
 }
 
 function isWolfShipId(value: unknown): value is WolfShipId {
@@ -53,16 +65,40 @@ function isModifiers(value: unknown): value is WolfTargetingRollReceipt['modifie
     index === 0 || allowedOrder.indexOf(modifier) > allowedOrder.indexOf(value[index - 1]!));
 }
 
-function parseRoll(value: unknown, rosterIndex: number, ring: WolfTargetRing): WolfTargetingRollReceipt | undefined {
+function parseRoll(
+  value: unknown,
+  rosterIndex: number,
+  ring: WolfTargetRing,
+  sourceRing: WolfTargetRing,
+): WolfTargetingRollReceipt | undefined {
   if (!isRecord(value) || value.rosterIndex !== rosterIndex || !isWolfShipId(value.shipId) ||
       !isResolvedDie(value.initialDie, ring) || !isResolvedDie(value.finalDie, ring) ||
       typeof value.target !== 'string' || !ring.includes(value.target as never) ||
       !isModifiers(value.modifiers)) return undefined;
+  if (value.sourceDie !== undefined && !isResolvedDie(value.sourceDie, sourceRing)) return undefined;
+  if (value.commanderSourceDie !== undefined && !isResolvedDie(value.commanderSourceDie, sourceRing)) return undefined;
   if (value.rerollDie !== undefined && !isResolvedDie(value.rerollDie, ring)) return undefined;
   if (value.shiftedDie !== undefined && !isResolvedDie(value.shiftedDie, ring)) return undefined;
+  const nonparticipatingRerolls = value.nonparticipatingTargetRerolls;
+  const commanderNonparticipatingRerolls = value.commanderNonparticipatingTargetRerolls;
+  if (nonparticipatingRerolls !== undefined && nonparticipatingRerolls !== 1 ||
+      commanderNonparticipatingRerolls !== undefined && commanderNonparticipatingRerolls !== 1) return undefined;
+  if (value.sourceDie !== undefined) {
+    const initialSourceTarget = wolfTargetForDie(value.sourceDie, sourceRing);
+    const initialTargetParticipates = ring.includes(initialSourceTarget);
+    if (initialTargetParticipates !== (nonparticipatingRerolls === undefined) ||
+        initialTargetParticipates && value.initialDie !== ring.indexOf(initialSourceTarget) + 1) return undefined;
+  } else if (nonparticipatingRerolls !== undefined) return undefined;
+  if (value.commanderSourceDie !== undefined) {
+    if (value.rerollDie === undefined) return undefined;
+    const commanderSourceTarget = wolfTargetForDie(value.commanderSourceDie, sourceRing);
+    const commanderTargetParticipates = ring.includes(commanderSourceTarget);
+    if (commanderTargetParticipates !== (commanderNonparticipatingRerolls === undefined) ||
+        commanderTargetParticipates && value.rerollDie !== ring.indexOf(commanderSourceTarget) + 1) return undefined;
+  } else if (commanderNonparticipatingRerolls !== undefined) return undefined;
   const printedRerolls = value.printedRerolls;
   const commanderPrintedRerolls = value.commanderPrintedRerolls;
-  if (!ring.includes('capybara') && (printedRerolls !== undefined || commanderPrintedRerolls !== undefined)) {
+  if (!sourceRing.includes('capybara') && (printedRerolls !== undefined || commanderPrintedRerolls !== undefined)) {
     return undefined;
   }
   if (printedRerolls !== undefined && (!Array.isArray(printedRerolls) ||
@@ -76,7 +112,7 @@ function parseRoll(value: unknown, rosterIndex: number, ring: WolfTargetRing): W
   if ((value.rerollDie === undefined) !== !hasCommanderReroll ||
       (value.shiftedDie === undefined) !== !hasTargetShift ||
       (commanderPrintedRerolls !== undefined && !hasCommanderReroll) ||
-      (printedRerolls !== undefined && !ring.includes('capybara'))) return undefined;
+      (printedRerolls !== undefined && !sourceRing.includes('capybara'))) return undefined;
   const expectedFinalDie = value.shiftedDie ?? value.rerollDie ?? value.initialDie;
   if (value.finalDie !== expectedFinalDie) return undefined;
   if (hasRedirect ? value.target !== 'aegis' : value.target !== wolfTargetForDie(value.finalDie, ring)) {
@@ -86,7 +122,12 @@ function parseRoll(value: unknown, rosterIndex: number, ring: WolfTargetRing): W
     rosterIndex,
     shipId: value.shipId,
     initialDie: value.initialDie,
+    ...(value.sourceDie === undefined ? {} : { sourceDie: value.sourceDie as number }),
+    ...(nonparticipatingRerolls === undefined ? {} : { nonparticipatingTargetRerolls: 1 as const }),
     ...(value.rerollDie === undefined ? {} : { rerollDie: value.rerollDie }),
+    ...(value.commanderSourceDie === undefined ? {} : { commanderSourceDie: value.commanderSourceDie as number }),
+    ...(commanderNonparticipatingRerolls === undefined
+      ? {} : { commanderNonparticipatingTargetRerolls: 1 as const }),
     ...(value.shiftedDie === undefined ? {} : { shiftedDie: value.shiftedDie }),
     finalDie: value.finalDie,
     target: value.target as WolfTargetingRollReceipt['target'],
@@ -99,16 +140,24 @@ function parseRoll(value: unknown, rosterIndex: number, ring: WolfTargetRing): W
 
 /** Parse only the targeting receipt fields needed by the next private action. */
 export function parseWolfTargetingReceipt(value: unknown): WolfTargetingReceipt | undefined {
-  if (!isRecord(value) || !isTargetRing(value.ring) || !Array.isArray(value.rolls) ||
+  if (!isRecord(value) || !Array.isArray(value.ring) || !Array.isArray(value.rolls) ||
       value.rolls.length === 0 || value.modifierOrder === undefined ||
       JSON.stringify(value.modifierOrder) !== JSON.stringify([
         'commander-reroll', 'target-shift', 'command-and-control-redirect',
       ])) return undefined;
-  const ring = value.ring;
-  const rolls = value.rolls.map((roll, index) => parseRoll(roll, index, ring));
+  const sourceRing = value.sourceRing === undefined ? value.ring : value.sourceRing;
+  if (!isCanonicalSourceRing(sourceRing) || !isOrderedParticipatingRing(value.ring, sourceRing) ||
+      value.sourceRing === undefined && !isCanonicalSourceRing(value.ring)) return undefined;
+  const ring = value.ring as WolfTargetRing;
+  if (JSON.stringify(sourceRing) !== JSON.stringify(ring) &&
+      (!Array.isArray(value.rolls) || value.rolls.some((roll) => !isRecord(roll) ||
+        !Number.isSafeInteger(roll.sourceDie) ||
+        roll.rerollDie !== undefined && !Number.isSafeInteger(roll.commanderSourceDie)))) return undefined;
+  const rolls = value.rolls.map((roll, index) => parseRoll(roll, index, ring, sourceRing));
   if (rolls.some((roll): roll is undefined => roll === undefined)) return undefined;
   return {
     ring: [...ring],
+    sourceRing: [...sourceRing],
     rolls: rolls as WolfTargetingRollReceipt[],
     modifierOrder: ['commander-reroll', 'target-shift', 'command-and-control-redirect'],
   };
@@ -144,21 +193,38 @@ export function applyWolfCommanderRerolls(
        roll.modifiers.includes('command-and-control-redirect')))) {
     throw new Error('Commander rerolls close before later targeting modifiers.');
   }
-  const upperBound = receipt.ring.includes('capybara') ? 8 : receipt.ring.length;
-  const rollConfiguredDie = (): { readonly die: number; readonly printedRerolls: readonly number[] } => {
-    const printedRerolls: number[] = [];
-    let die = random(upperBound) + 1;
-    if (!Number.isSafeInteger(die - 1) || die < 1 || die > upperBound) {
+  const sourceRing = receipt.sourceRing ?? receipt.ring;
+  const upperBound = sourceRing.includes('capybara') ? 8 : sourceRing.length;
+  const boundedSample = (bound: number): number => {
+    const value = random(bound);
+    if (!Number.isSafeInteger(value) || value < 0 || value >= bound) {
       throw new Error('The server randomness source returned an invalid sample.');
     }
-    while (receipt.ring.includes('capybara') && die === 8) {
-      printedRerolls.push(die);
-      die = random(upperBound) + 1;
-      if (!Number.isSafeInteger(die - 1) || die < 1 || die > upperBound) {
-        throw new Error('The server randomness source returned an invalid sample.');
-      }
+    return value;
+  };
+  const rollConfiguredDie = (): {
+    readonly die: number;
+    readonly sourceDie: number;
+    readonly printedRerolls: readonly number[];
+    readonly nonparticipatingTargetRerolls: 0 | 1;
+  } => {
+    const printedRerolls: number[] = [];
+    let sourceDie = boundedSample(upperBound) + 1;
+    while (sourceRing.includes('capybara') && sourceDie === 8) {
+      printedRerolls.push(sourceDie);
+      sourceDie = boundedSample(upperBound) + 1;
     }
-    return { die, printedRerolls };
+    const sourceTarget = wolfTargetForDie(sourceDie, sourceRing);
+    const participatingDie = receipt.ring.indexOf(sourceTarget);
+    if (participatingDie >= 0) {
+      return { die: participatingDie + 1, sourceDie, printedRerolls, nonparticipatingTargetRerolls: 0 };
+    }
+    return {
+      die: boundedSample(receipt.ring.length) + 1,
+      sourceDie,
+      printedRerolls,
+      nonparticipatingTargetRerolls: 1,
+    };
   };
   const rolls = receipt.rolls.map((roll) => {
     if (!selected.has(roll.rosterIndex)) return roll;
@@ -166,6 +232,9 @@ export function applyWolfCommanderRerolls(
     return {
       ...roll,
       rerollDie: commander.die,
+      commanderSourceDie: commander.sourceDie,
+      ...(commander.nonparticipatingTargetRerolls === 0
+        ? {} : { commanderNonparticipatingTargetRerolls: 1 as const }),
       finalDie: commander.die,
       target: wolfTargetForDie(commander.die, receipt.ring),
       ...(commander.printedRerolls.length === 0

@@ -24680,6 +24680,7 @@ function wolfTargetingStageReceipt(
   preparation: WolfAttackPreparation,
   declaredAt: string,
   targetRing: WolfTargetRing,
+  sourceRing: WolfTargetRing,
   pursuit: WolfAttackPursuitSnapshot,
 ): Record<string, unknown> {
   const composition = wolfAttackCompositionForPreparation(preparation);
@@ -24691,6 +24692,7 @@ function wolfTargetingStageReceipt(
     {},
     targetRing,
     (upperBound) => randomInt(upperBound),
+    sourceRing,
   );
   return {
     type: 'wolf-combat-calculation-stage',
@@ -24914,7 +24916,8 @@ export const declareWolfAttack = auditedOnCall<{
       preflight.phase.turn, preflight.preparation, declaredAt, preflight.targetRing, preflightPursuit,
     )
     : wolfTargetingStageReceipt(
-      preflight.phase.turn, preflight.preparation, declaredAt, preflight.targetRing, preflightPursuit,
+      preflight.phase.turn, preflight.preparation, declaredAt, preflight.targetRing,
+      configuredWolfTargetRingForSession(preflightSession), preflightPursuit,
     );
   const announcementId = `wolf-attack-${declaration.requestId}`;
   const result: WolfAttackDeclarationResult = {
@@ -26429,7 +26432,7 @@ async function reconcileWolfAttackBoarding(
     tx.set(db.doc(`sessions/${sessionId}/wolfAttackState/current/audit/wolf-boarding-commander-ruling-${currentTurn}`), {
       type: 'wolf-boarding-commander-ruling-required', turn: currentTurn, revision: nextRevision,
       actorUid: 'server', targetShipId: commanderTarget,
-      condition: 'All Commander-led Wolf Boarding Parties were destroyed.',
+      condition: 'HOUSE RULE: The optional +2 Commander boarding request remains pending until the current live GM records the consequence for what happens if all Commander-led Wolf Boarding Parties are destroyed. No automatic consequence or default outcome is assumed.',
       boardingResolution, createdAt: FieldValue.serverTimestamp(),
     });
     return;
@@ -27009,7 +27012,8 @@ async function reconcileWolfAttackProgress(sessionId: string): Promise<void> {
         };
         const committedAt = new Date().toISOString();
         const targetingReceipt = wolfTargetingStageReceipt(
-          turn as number, preparation, committedAt, targetRing, pursuit,
+          turn as number, preparation, committedAt, targetRing,
+          configuredWolfTargetRingForSession(session), pursuit,
         );
         const nextRevision = (revision as number) + 1;
         tx.update(stateRef, {
@@ -27638,8 +27642,10 @@ function wolfCommanderTargetingInputs(
       throw new Error('The Wolf targeting receipt does not match its preparation.');
     }
     const expectedRing = configuredWolfTargetRingForAttack(session, state);
-    if (JSON.stringify(receipt.ring) !== JSON.stringify(expectedRing)) {
-      throw new Error('The Wolf targeting receipt does not match the active fleet.');
+    const expectedSourceRing = configuredWolfTargetRingForSession(session);
+    if (JSON.stringify(receipt.ring) !== JSON.stringify(expectedRing) ||
+        JSON.stringify(receipt.sourceRing) !== JSON.stringify(expectedSourceRing)) {
+      throw new Error('The Wolf targeting receipt does not match the active fleet and selected group.');
     }
   } catch (error) {
     throw commandError(
@@ -31985,8 +31991,25 @@ function wolfBoardingProtocolSnapshot(
   }
   const commanderTarget = isRecord(commanderChoice) && typeof commanderChoice.targetShipId === 'string'
     ? commanderChoice.targetShipId : null;
+  const commanderRuling = state.get('boardingCommanderRuling');
+  const storedRulingRequiredTarget = state.get('boardingCommanderRulingRequiredTarget');
+  const commanderRulingRequiredTarget = typeof storedRulingRequiredTarget === 'string'
+    ? storedRulingRequiredTarget : commanderTarget ?? undefined;
+  if (commanderRulingRequiredTarget !== undefined &&
+      (commanderRulingRequiredTarget !== commanderTarget ||
+       !baseAttackedTargets.some(({ target }) => target === commanderRulingRequiredTarget))) {
+    throw commandError('failed-precondition', 'The pending Commander ruling target is malformed.', 'conflict');
+  }
+  if (commanderRuling !== undefined && (!isRecord(commanderRuling) ||
+      typeof commanderRuling.actorUid !== 'string' || typeof commanderRuling.text !== 'string' ||
+      !commanderRuling.text.trim() || commanderRuling.targetShipId !== commanderRulingRequiredTarget)) {
+    throw commandError('failed-precondition', 'The facilitator boarding ruling is malformed.', 'conflict');
+  }
+  const ruledCommanderTarget = typeof commanderTarget === 'string' &&
+    commanderRulingRequiredTarget === commanderTarget && isRecord(commanderRuling) &&
+    commanderRuling.targetShipId === commanderTarget ? commanderTarget : null;
   const attackedTargets = baseAttackedTargets.map(({ target, boardingParties }) => ({ target,
-    boardingParties: boardingParties + (target === commanderTarget ? 2 : 0) }));
+    boardingParties: boardingParties + (target === ruledCommanderTarget ? 2 : 0) }));
   const relocationChoicesValue = state.get('boardingRelocationChoices');
   const defenceChoicesValue = state.get('boardingDefenceChoices');
   const militiaChoicesValue = state.get('boardingMilitiaChoices');
@@ -32034,13 +32057,6 @@ function wolfBoardingProtocolSnapshot(
   const lockedDefence = (rawLocked ?? []) as readonly WolfBoardingDefence[];
   const diceCounts = Object.fromEntries(inputs.targetRing.map((target) => [target,
     lockedDefence.find((entry) => entry.target === target)?.lockedRolls?.length ?? 0]));
-  const commanderRuling = state.get('boardingCommanderRuling');
-  const commanderRulingRequiredTarget = state.get('boardingCommanderRulingRequiredTarget');
-  if (commanderRuling !== undefined && (!isRecord(commanderRuling) ||
-      typeof commanderRuling.actorUid !== 'string' || typeof commanderRuling.text !== 'string' ||
-      !commanderRuling.text.trim())) {
-    throw commandError('failed-precondition', 'The facilitator boarding ruling is malformed.', 'conflict');
-  }
   const protocol: WolfBoardingProtocolInput = {
     attackedTargets,
     ...(assignedCommanders[0] ? { commanderUid: assignedCommanders[0] } : {}),
@@ -32058,7 +32074,7 @@ function wolfBoardingProtocolSnapshot(
     ...(executiveOfficers[0] ? { aegisRerollActorUid: executiveOfficers[0].id } : {}),
     ...(pallas ? { pallasRerollActorUid: pallas.holderUid } : {}),
     rerollChoices,
-    ...(typeof commanderRulingRequiredTarget === 'string' ? { commanderRulingRequiredTarget } : {}),
+    ...(commanderRulingRequiredTarget ? { commanderRulingRequiredTarget } : {}),
     ...(isRecord(commanderRuling) ? { commanderRuling: {
       actorUid: commanderRuling.actorUid as string, text: commanderRuling.text as string,
     } } : {}),
@@ -32290,7 +32306,7 @@ type WolfBoardingSpecialChoiceView = Readonly<{
       dice: readonly Readonly<{ dieIndex: number; value: number }>[]; maxRerolls: 3;
       alreadyRerolled: readonly number[] }>
     | Readonly<{ kind: 'commander-ruling'; targetShipId: WolfFleetTargetId;
-      condition: 'All Commander-led Wolf Boarding Parties were destroyed.' }>;
+      condition: 'HOUSE RULE: The optional +2 Commander boarding request remains pending until the current live GM records the consequence for what happens if all Commander-led Wolf Boarding Parties are destroyed. No automatic consequence or default outcome is assumed.' }>;
 }>;
 
 type WolfBoardingSpecialChoiceReadResult = WolfBoardingSpecialChoiceView | Readonly<{
@@ -32366,7 +32382,7 @@ export const getWolfBoardingSpecialChoice = auditedOnCall<{
       return { type: 'wolf-boarding-special-choice-view', sessionId, turn: snapshot.inputs.turn,
         revision: snapshot.inputs.revision, choice: { kind: 'commander-ruling',
           targetShipId: stage.target as WolfFleetTargetId,
-          condition: 'All Commander-led Wolf Boarding Parties were destroyed.' } };
+          condition: 'HOUSE RULE: The optional +2 Commander boarding request remains pending until the current live GM records the consequence for what happens if all Commander-led Wolf Boarding Parties are destroyed. No automatic consequence or default outcome is assumed.' } };
     }
     if (!wolfBoardingStageCanBeActedBy(stage, uid)) return noChoice('not-your-choice');
     if (stage.kind === 'commander') {
@@ -32585,7 +32601,8 @@ export const commitWolfBoardingSpecialChoice = auditedOnCall<{
       }
       statePatch = { boardingCommanderChoice: { targetShipId: choiceTargetId, actorUid: uid,
         actorRoleId: 'wolf-commander', requestId, attackId: state.get('attackId'), turn: snapshot.inputs.turn,
-        committedAt, revision: snapshot.inputs.revision + 1 } };
+        committedAt, revision: snapshot.inputs.revision + 1 },
+        ...(choiceTargetId === null ? {} : { boardingCommanderRulingRequiredTarget: choiceTargetId }) };
     } else if (kind === 'relocation') {
       if (stage.kind !== 'relocation' || stage.actorUid !== uid || stage.craftId !== choice.craftId) {
         throw commandError('failed-precondition', 'This shuttle relocation is not currently open.', 'invalid-phase');

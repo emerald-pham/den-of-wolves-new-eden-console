@@ -149,7 +149,7 @@ const ROLE_BRIEFS: Readonly<Record<string, Omit<RoleBriefContent, 'roleId'>>> = 
   'wolf-commander': {
     roleName: 'Wolf Commander',
     vesselName: 'Wolf Armada',
-    text: 'Command the Wolf armada hunting the fleet. During the targeting phase you may reroll each eligible targeting die once before AEGIS Command and Control; follow the facilitator\'s authoritative attack sequence for every later choice.',
+    text: 'Command the Wolf armada hunting the fleet. During the targeting phase you may reroll each eligible targeting die once before AEGIS Command and Control. HOUSE RULE: Nonparticipating target results are rerolled into a participating target; keep the printed Capybara d8 face 8 reroll separate. HOUSE RULE: The optional +2 boarding request remains pending until the current live GM records the consequence for what happens if all Commander-led Wolf Boarding Parties are destroyed. No automatic consequence or default outcome is assumed.',
   },
   'comms-officer': {
     roleName: 'Comms Officer',

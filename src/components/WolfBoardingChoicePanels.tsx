@@ -62,6 +62,7 @@ export function WolfBoardingCommanderChoicePanelView({
     <h3>Wolf Commander boarding leadership</h3>
     {view.status === 'pending' ? <>
       <p>Add two boarding parties to one target before relocation and crew defence, or pass.</p>
+      <p>HOUSE RULE: This optional +2 request remains pending until the current live GM records the consequence for what happens if all Commander-led Wolf Boarding Parties are destroyed. No automatic consequence or default outcome is assumed.</p>
       <div className="boarding-choice-actions">
         {view.targets.map(({ targetShipId, boardingParties }) => <button key={targetShipId} type="button" disabled={busy}
           onClick={() => onChoose(targetShipId)}>
@@ -204,7 +205,7 @@ export function WolfBoardingCommanderRulingPanelView({
   busy?: boolean;
 }>) {
   const [ruling, setRuling] = useState(view.rulingText ?? '');
-  return <section aria-label="Facilitator ruling for destroyed Commander-led parties">
+  return <section aria-label="Facilitator ruling for the optional Wolf Commander boarding action">
     <h3>Facilitator ruling required</h3>
     <p>{view.condition}</p>
     {view.status === 'committed' ? <p>Recorded ruling: {view.rulingText}</p> : <>
