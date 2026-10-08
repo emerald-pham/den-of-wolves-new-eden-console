@@ -825,7 +825,10 @@ it('writes Android loyalty only to the target secret and leaves the assignment e
     expect.objectContaining({ path: 'sessions/s1/secrets/loyalty-u2' }),
     expect.objectContaining({
       visibleToUids: ['u2'],
-      payload: { type: 'loyalty', kind: 'android', suspicion: null },
+      payload: expect.objectContaining({
+        type: 'loyalty', kind: 'android', suspicion: null,
+        directives: expect.arrayContaining([expect.stringMatching(/android identity secret/i)]),
+      }),
     }),
   );
   expect(mock.set).toHaveBeenCalledWith(
@@ -850,6 +853,27 @@ it('denies optional loyalties when their public setup mode is disabled', async (
   expect(mock.set).not.toHaveBeenCalled();
 });
 
+it('writes Universal Arbour recruitment text only to the assigned holder secret', async () => {
+  mock.session = { ...mock.session, universalArbourEnabled: true };
+  await expect(assignLoyalty.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'universal-enabled',
+    targetUid: 'u2', kind: 'universal-arbour', suspicion: 10,
+  }))).resolves.toEqual({ sessionId: 's1', setupRevision: 3, assignedUids: ['u2'] });
+
+  expect(mock.set).toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/s1/secrets/loyalty-u2' }),
+    expect.objectContaining({
+      visibleToUids: ['u2'],
+      payload: expect.objectContaining({
+        type: 'loyalty', kind: 'universal-arbour', suspicion: 10,
+        directives: expect.arrayContaining([expect.stringMatching(/recruit fleet members/i)]),
+      }),
+    }),
+  );
+  const eventWrite = mock.set.mock.calls.find(([ref]) => ref.path === 'sessions/s1/events/universal-enabled')?.[1];
+  expect(JSON.stringify(eventWrite)).not.toMatch(/recruit fleet members|Universal Arbour influence/i);
+});
+
 it('allows Wolf Cult only in the explicit two-Wolf setup and keeps its card private', async () => {
   mock.session = {
     ...mock.session,
@@ -865,7 +889,10 @@ it('allows Wolf Cult only in the explicit two-Wolf setup and keeps its card priv
     expect.objectContaining({ path: 'sessions/s1/secrets/loyalty-u2' }),
     expect.objectContaining({
       visibleToUids: ['u2'],
-      payload: { type: 'loyalty', kind: 'wolf-cult', suspicion: 15 },
+      payload: expect.objectContaining({
+        type: 'loyalty', kind: 'wolf-cult', suspicion: 15,
+        directives: expect.arrayContaining([expect.stringMatching(/Wolf-created cult/i)]),
+      }),
     }),
   );
   const eventWrite = mock.set.mock.calls.find(([ref]) => ref.path === 'sessions/s1/events/wolf-cult-enabled')?.[1];
@@ -883,13 +910,20 @@ it('pairs Friends by writing reciprocal private records and rejects malformed su
     expect.objectContaining({ path: 'sessions/s1/secrets/loyalty-u3' }),
     expect.objectContaining({
       visibleToUids: ['u3'],
-      payload: expect.objectContaining({ partnerUid: 'u2', partnerRoleId: 'icebreaker-miner' }),
+      payload: expect.objectContaining({
+        partnerUid: 'u2', partnerRoleId: 'icebreaker-miner',
+        directives: expect.arrayContaining([expect.stringMatching(/matching Friend card/i)]),
+      }),
     }),
   );
   expect(mock.set).toHaveBeenCalledWith(
     expect.objectContaining({ path: 'sessions/s1/secrets/loyalty-u2' }),
     expect.objectContaining({
-      payload: expect.objectContaining({ partnerUid: 'u3', partnerRoleId: 'admiral' }),
+      visibleToUids: ['u2'],
+      payload: expect.objectContaining({
+        partnerUid: 'u3', partnerRoleId: 'admiral',
+        directives: expect.arrayContaining([expect.stringMatching(/matching Friend card/i)]),
+      }),
     }),
   );
 
