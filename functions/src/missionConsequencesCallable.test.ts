@@ -75,6 +75,7 @@ import { resolvedWolfAttackForCarryover } from './wolfAttackCarryover';
 import { configuredWolfAttackTargetRing } from './wolfAttackTargetRing';
 import { INITIAL_SHIP_SURVIVORS } from './shipPopulation';
 import { initialShuttleDockingsForRoles, initialShuttleVisitsForDockings } from './shuttlecraft';
+import { initialFighterWingCounts } from './fighterWings';
 
 const roles = [...recommendedRoleIds(8)];
 const ships = [...activeVesselIdsForRoles(roles)];
@@ -102,6 +103,7 @@ function seed(siteCode: string) {
     phase: 'active', currentTurn: 2, setupRevision: 1, playerCount: 8, chartId: 'A', chartSelectionLocked: true, configurationLocked: true,
     expansion: 'base', turnLimit: 6, dioneEnabled: false, capybaraEnabled: false, universalArbourEnabled: false, wolfCultEnabled: false,
     activeRoleIds: roles, activeVesselIds: ships,
+    fighterWingCounts: initialFighterWingCounts(),
     turnPhase: { turn: 2, teamPhaseEndsAt: '2099-10-08T12:00:00.000Z', openAirspaceEndsAt: '2099-10-08T12:15:00.000Z', airspace: { state: 'lifted', tickerActive: true, pressAccess: true } },
     turnState: { currentTurn: 2, maxTurn: 6, phase: 'coordination', phaseRevision: 3, startedAt: '2099-10-08T12:00:00.000Z', endsAt: '2099-10-08T12:15:00.000Z' },
     shipResources: Object.fromEntries(ships.map(ship => [ship, { ore: 1, fuel: 0, food: 0, water: 0, materials: 0, securityTeams: 0 }])),
@@ -155,7 +157,7 @@ async function stageK() {
     .toMatchObject({ contributorCount: 1, outcome: 'success' });
   return stageWolfAttackPreparation.run({ auth: { uid: 'gm' }, data: { sessionId: 's1', instanceId: 'bridge',
     requestId: 'prepare-k-parity', expectedRevision: 0, turn: 2, shipIds: Array<string>(15).fill('wolf-fighter-wing'),
-    targetMode: 'manual', targetAssignments: [], modifiers: [], notes: '' } } as CallableRequest<Record<string, unknown>>);
+    targetMode: 'pre-rolled', targetAssignments: [], modifiers: [], notes: '' } } as CallableRequest<Record<string, unknown>>);
 }
 it('carries the real noncritical K resolution into the ordinary private attack preparation', async () => {
   expect(await stageK()).toMatchObject({ compositionKind: 'K', targetGroupId: 'fleet-1' });
