@@ -100,9 +100,11 @@ function parseInventoryReply(value: unknown, uid: string): SameTableTradeInvento
 }
 
 function parseReceipt(value: unknown, offerId: string): SameTableTradeReceiptView | null {
+  // The receipt records its offer's creation revision; accepting the first
+  // offer advances inventory/state but the immutable receipt remains revision zero.
   if (!isRecord(value) || value.receiptId !== offerId || value.offerId !== offerId ||
       !isIdentity(value.fromUid) || !isIdentity(value.toUid) || value.fromUid === value.toUid ||
-      !isIdentity(value.tableId) || !safeInteger(value.revision, 1)) return null;
+      !isIdentity(value.tableId) || !safeInteger(value.revision)) return null;
   const quantities = parseBalances(value.quantities);
   return quantities ? {
     receiptId: offerId,
@@ -118,8 +120,11 @@ function parseReceipt(value: unknown, offerId: string): SameTableTradeReceiptVie
 function parseQuantities(value: unknown): SameTableTradeAmounts | null {
   if (!isRecord(value)) return null;
   const entries = Object.entries(value);
+  // Server-persisted offers normalize all six resources, including untouched
+  // amounts as zero. Keep the offer meaningful while accepting that wire shape.
   if (entries.length === 0 || entries.some(([resource, amount]) =>
-    !RESOURCE_IDS.includes(resource as SameTableTradeResourceId) || !safeInteger(amount, 1))) return null;
+    !RESOURCE_IDS.includes(resource as SameTableTradeResourceId) || !safeInteger(amount)) ||
+      !entries.some(([, amount]) => safeInteger(amount) && amount > 0)) return null;
   return Object.fromEntries(entries) as SameTableTradeAmounts;
 }
 
