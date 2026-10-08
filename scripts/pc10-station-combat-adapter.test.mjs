@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';import test from 'node:test';import * as adapter from './pc10-station-combat-adapter.mjs';
+import { heldProofFailureObservations, rememberProofFailure } from './pc10-proof-failure-evidence.mjs';
 test('sparse combat actor requires actual original Wing berth, never legacy absent-map or GM substitution',()=>{const actor={hasAuth:true,sameActor:true,uidHash:'wing',sessionId:'sid',playerRole:'player',assignedRoleId:'wing-commander',activeConsoleRoleId:'wing-commander',seatId:'wing-commander',currentCanonicalSeatOwned:true,currentMemberBerthPresent:true,currentMemberBerthMatches:true,connection:'live',freshness:'server',fleetGroupId:'fleet-1',cycle:2};adapter.assertSparseStationWing(actor,actor);for(const patch of [{currentMemberBerthPresent:false},{uidHash:'foreign'},{playerRole:'gm'},{assignedRoleId:'executive-officer'},{freshness:'cache'}])assert.throws(()=>adapter.assertSparseStationWing({...actor,...patch},actor));});
 test('sparse Station combat awaits actual source progress and returns only finalized Station attack',async()=>{let index=0;const states=[{attackId:'real',turn:2,revision:1,status:'declared',currentStep:'targeting',threatSiteCode:'P'},{attackId:'real',turn:2,revision:2,status:'resolved',currentStep:'resolved',threatSiteCode:'P',pStationRepeat:{status:'stopped'}}];const result=await adapter.runSparseStationCombat({deadlineAt:Date.now()+1000,readAttack:async()=>states[index],assertActors:async()=>{},choose:async()=>{index++;},wait:async()=>{}});assert.equal(result.status,'resolved');});
 test('no adapter credit can come from foreign attack or fabricated resolution type',async()=>{let i=0;await assert.rejects(adapter.runSparseStationCombat({deadlineAt:Date.now()+1000,readAttack:async()=>({attackId:i++?'foreign':'own',turn:2,revision:1,status:'declared',currentStep:'targeting',threatSiteCode:'P'}),assertActors:async()=>{},choose:async()=>{},wait:async()=>{}}));});
@@ -100,6 +101,117 @@ test('Station Reactor plan skips only a source-marked lost row and rejects malfo
  assert.throws(()=>adapter.stationReactorCapacity(invalidLost),/lost|blocker/i);
  const missingCapacity=stationWorkspaceShips();delete missingCapacity[0].reactorCapacity;
  assert.throws(()=>adapter.stationReactorCapacity(missingCapacity),/capacity/i);
+});
+
+function stationDeclareRetryContext(overrides={}) {
+ const actor={sessionId:'owned-synthetic',uidHash:'synthetic-gm-hash',generation:1,hydrationRevision:1,
+  instanceId:'gm-instance-synthetic',claimedAt:'synthetic-claim',hasAuth:true,sameActor:true,
+  connection:'live',freshness:'server',playerRole:'gm',profileRoleId:null,gmInstanceOwned:true};
+ return {
+  wave:10,
+  actor,
+  session:{phase:'active',currentTurn:2,fullGameDemo:{status:'active',progression:'manual'},
+   turnPhase:{turn:2,teamPhaseEndsAt:'source-deadline-team',openAirspaceEndsAt:'source-deadline-open',
+    airspace:{state:'lifted',tickerActive:true,pressAccess:false},timerPause:null,progression:'manual'},
+   turnState:{currentTurn:2,maxTurn:8,phase:'coordination',phaseRevision:22,
+    startedAt:'source-start',endsAt:'source-end'},gameOutcome:null,survivorOutcome:null,
+   debriefMode:{active:false,revision:0},hasDebriefSnapshot:false},
+  window:{status:'due',turn:2,revision:20,targetGroupId:'fleet-1',threatSiteCode:'P',threatSourceId:'p-source'},
+  preparation:{turn:2,shipIds:['wolf-strikecarrier','wolf-battlestation'],targetMode:'pre-rolled',
+   targetAssignments:[],modifiers:[],notes:'',revision:10,compositionKind:'p-station-repeat',targetGroupId:'fleet-1'},
+  attack:{type:'wolf-attack-state',attackId:'previous-resolved-attack',turn:2,attackNumber:9,revision:10,
+   preparationRevision:9,status:'resolved',currentStep:'resolved',airspaceLocked:false,
+   targetGroupId:'fleet-1',threatSiteCode:'P',threatSourceId:'p-source',pStationRepeat:{status:'repeat'}},
+  ...overrides,
+ };
+}
+
+function stationDeclare429Error({observation={}, attach=true}={}) {
+ const error=new Error('declareWolfAttack: actual UI request rejected.');
+ const held={operation:'captureLifecycleUiAction',endpoint:'declareWolfAttack',httpStatus:429,
+  requestData:{sessionId:'owned-synthetic',instanceId:'gm-instance-synthetic',requestId:'denied-request',expectedRevision:10},
+  before:{...stationDeclareRetryContext().actor},current:{...stationDeclareRetryContext().actor},
+  body:{error:{status:'RESOURCE_EXHAUSTED',message:'Too many requests for this session. Please try again shortly.',
+   details:{commandError:'rate-limited',retryAfterSeconds:26}}},...observation};
+ if(attach)rememberProofFailure(error,held);
+ return {error,held};
+}
+
+test('rate-limited Station declaration waits once, then requires the identical normal-GM source and lease tuple',async()=>{
+ let now=1000,reads=0,actorChecks=0,waited=0;const used=new Set(),expected=stationDeclareRetryContext();
+ const {error,held}=stationDeclare429Error();
+ const recovery=await adapter.recoverStationRateLimitedDeclaration(error,{expectedContext:expected,
+  readCurrent:async()=>{reads++;return structuredClone(expected);},assertActor:async()=>{actorChecks++;},
+  deadlineAt:100_000,now:()=>now,wait:async(ms,deadlineAt)=>{waited=ms;assert.equal(deadlineAt,100_000);now+=ms;},used});
+ assert.equal(heldProofFailureObservations(error).length,1);
+ assert.equal(recovery.retryAfterMs,26_000);assert.equal(recovery.deadlineAt,100_000);
+ assert.equal(recovery.deniedRequestId,'denied-request');assert.equal(recovery.expectedRevision,10);
+ assert.equal(waited,26_000);assert.equal(now,27_000);assert.equal(reads,1);assert.ok(actorChecks>=2);
+ const capture={endpoint:'declareWolfAttack',httpStatus:200,
+  data:{sessionId:'owned-synthetic',instanceId:'gm-instance-synthetic',requestId:'fresh-request',expectedRevision:10},
+  before:{...expected.actor},result:{status:'committed'}};
+ assert.equal(adapter.assertRecoveredStationDeclaration(capture,recovery),true);
+ assert.throws(()=>adapter.assertRecoveredStationDeclaration({...capture,data:{...capture.data,
+  requestId:'denied-request'}},recovery),/fresh|different|request/i);
+ assert.throws(()=>adapter.assertRecoveredStationDeclaration({...capture,data:{...capture.data,
+  expectedRevision:11}},recovery),/revision/i);
+});
+
+test('Station declaration recovery refuses unsupported errors, bodies, and retry hints without reading or waiting',async()=>{
+ const expected=stationDeclareRetryContext();
+ const variants=[
+  stationDeclare429Error({attach:false}).error,
+  stationDeclare429Error({observation:{endpoint:'advanceWolfAttackLifecycle'}}).error,
+  stationDeclare429Error({observation:{httpStatus:500}}).error,
+  stationDeclare429Error({observation:{body:{error:{status:'UNAVAILABLE',details:{commandError:'rate-limited',retryAfterSeconds:26}}}}}).error,
+  ...[0,-1,1.5,61,'26'].map(retryAfterSeconds=>stationDeclare429Error({observation:{body:{error:{status:'RESOURCE_EXHAUSTED',
+   details:{commandError:'rate-limited',retryAfterSeconds}}}}}).error),
+ ];
+ for(const error of variants){let reads=0,waits=0;
+  await assert.rejects(adapter.recoverStationRateLimitedDeclaration(error,{expectedContext:expected,
+   readCurrent:async()=>{reads++;return structuredClone(expected);},assertActor:async()=>{},
+   deadlineAt:100_000,now:()=>1000,wait:async()=>{waits++;}}),value=>value===error);
+  assert.equal(reads,0);assert.equal(waits,0);
+ }
+});
+
+test('Station declaration recovery fails closed on changed authority, phase, preparation, window, attack, or expired deadline',async()=>{
+ const expected=stationDeclareRetryContext();const patches=[
+  {actor:{...expected.actor,sessionId:'foreign'}},{actor:{...expected.actor,uidHash:'foreign'}},
+  {actor:{...expected.actor,instanceId:'replacement'}},{actor:{...expected.actor,claimedAt:'new-lease'}},
+  {actor:{...expected.actor,generation:2}},{actor:{...expected.actor,hydrationRevision:2}},
+  {session:{...expected.session,turnState:{...expected.session.turnState,phase:'team'}}},
+  {session:{...expected.session,turnPhase:{...expected.session.turnPhase,airspace:{...expected.session.turnPhase.airspace,state:'restricted'}}}},
+  {session:{...expected.session,turnPhase:{...expected.session.turnPhase,timerPause:{reason:'pause'}}}},
+  {session:{...expected.session,gameOutcome:{result:'ended'}}},
+  {preparation:{...expected.preparation,revision:11}},{window:{...expected.window,revision:21}},
+  {window:{...expected.window,threatSiteCode:'N'}},{attack:{...expected.attack,attackId:'new-attack'}},
+  {attack:{...expected.attack,status:'declared'}},{attack:{...expected.attack,currentStep:'boarding'}},
+  {attack:{...expected.attack,airspaceLocked:true}},
+ ];
+ for(const patch of patches){const {error}=stationDeclare429Error();let waits=0;
+  await assert.rejects(adapter.recoverStationRateLimitedDeclaration(error,{expectedContext:expected,
+   readCurrent:async()=>({...structuredClone(expected),...structuredClone(patch)}),assertActor:async()=>{},
+   deadlineAt:100_000,now:()=>1000,wait:async ms=>{waits++;assert.equal(ms,26_000);}}),value=>value===error);
+  assert.equal(waits,1);
+ }
+ const {error}=stationDeclare429Error();let readCount=0,waitCount=0;
+ await assert.rejects(adapter.recoverStationRateLimitedDeclaration(error,{expectedContext:expected,
+  readCurrent:async()=>{readCount++;return structuredClone(expected);},assertActor:async()=>{},
+  deadlineAt:20_000,now:()=>1000,wait:async()=>{waitCount++;}}),value=>value===error);
+ assert.equal(readCount,0);assert.equal(waitCount,0);
+});
+
+test('Station declaration recovery permits a genuinely absent previous attack only on wave one and only once per declaration',async()=>{
+ const expected=stationDeclareRetryContext({wave:1,attack:null});const used=new Set();
+ const {error}=stationDeclare429Error({observation:{requestData:{sessionId:'owned-synthetic',
+  instanceId:'gm-instance-synthetic',requestId:'first-wave-denial',expectedRevision:10}}});
+ const options={expectedContext:expected,readCurrent:async()=>structuredClone(expected),assertActor:async()=>{},
+  deadlineAt:100_000,now:()=>1000,wait:async()=>{},used};
+ assert.equal((await adapter.recoverStationRateLimitedDeclaration(error,options)).deniedRequestId,'first-wave-denial');
+ await assert.rejects(adapter.recoverStationRateLimitedDeclaration(error,options),value=>value===error);
+ const secondWave=stationDeclareRetryContext({attack:null});const {error:secondError}=stationDeclare429Error();
+ await assert.rejects(adapter.recoverStationRateLimitedDeclaration(secondError,{...options,expectedContext:secondWave,used:new Set()}),value=>value===secondError);
 });
 
 test('actual GM attack finalization is retained before an unavailable Wing action fence',async()=>{
