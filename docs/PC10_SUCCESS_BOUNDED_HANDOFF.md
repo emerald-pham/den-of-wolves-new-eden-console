@@ -52,6 +52,9 @@ RED are `c059332f`, followed by adapter GREEN at `4e575067`. Independent review
 identified original-deadline, workspace/authority binding, delayed terminal
 publication and false old-Nebula reach credit gaps; all four observed RED at
 `49ce1dc0` before repair, then all nine focused adapter contracts passed.
+Final review found uncertain-request clearing before exact response validation;
+its malformed-request/revision regression observed RED at `924e5379`, then
+clearing moved after all receipt assertions/recording and all ten passed.
 These are synthetic adapter/source checks. The N/O action routing was initially
 included in the shared adapter draft without a distinct N/O transition RED;
 do not claim a separate test-first N/O gameplay repair or acceptance from it.

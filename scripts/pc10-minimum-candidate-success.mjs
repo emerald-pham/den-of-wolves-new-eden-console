@@ -82,7 +82,6 @@ export async function runMinimumCandidateSuccessProbe(context) {
     const response = await bounded(options => gm.callable(name, data, options));
     assert.equal(response.status, 'committed', `${name} transport failed: ${response.code ?? 'unknown'}`);
     assert.ok(response.result); assert.notEqual(response.result.status, 'stale');
-    if (name === 'executeCandidateAction') context.pendingCandidateRequest = null;
     return response.result;
   }
   async function workspace() {
@@ -104,7 +103,9 @@ export async function runMinimumCandidateSuccessProbe(context) {
     assert.equal(result.sessionId, sessionId); assert.equal(result.requestId, data.requestId);
     assert.equal(result.code, code); assert.equal(result.action, actionName);
     assert.equal(result.revision, view.revision + 1);
-    receipts.push({ request: data, result }); return result;
+    receipts.push({ request: data, result });
+    context.pendingCandidateRequest = null;
+    return result;
   }
   const start = await workspace();
   if (code === 'N') assert.equal(start.path.repaired, true, 'Real research/materials/holder-craft repair is required.');
