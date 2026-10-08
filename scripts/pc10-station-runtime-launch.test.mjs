@@ -40,3 +40,14 @@ test('reviewed backend repair reports historical admission delta and requires fr
  assert.throws(()=>compareStationAdmissionReference(allocation,{...prior,compiledTreeSha256:'unexplained-build'},reference));
  assert.throws(()=>compareStationAdmissionReference(allocation,{...current,trackedFiles:[{path:'src/components/LocalGmAccess.tsx',sha256:'changed'},{path:'functions/src/index.ts',sha256:'new-source'}]},reference));
 });
+
+test('historical admission discloses frontend regression test changes without treating them as product route changes',async()=>{
+ const {compareStationAdmissionReference}=await import('./pc10-station-runtime-launch.mjs');
+ const prior={compiledTreeSha256:'same-build',trackedFiles:[{path:'src/components/AegisFighterWingLaunchPanel.tsx',sha256:'same'},{path:'src/components/AegisFighterWingLaunchPanel.test.tsx',sha256:'prior-test'}]};
+ const reference={probeFamily:'station-success',sourceCommit:'prior',sourceBinding:{sourceCommit:'prior',...prior},runtime:{useEmulators:true,ports:allocation.ports,projectId:'demo-prior'},claims:['GM1 ordinary admission/consent, normal local GM authorization and independent owned live instance'],receipts:[{endpoint:'claimGmInstance',httpStatus:200}]};
+ const current={...prior,trackedFiles:[prior.trackedFiles[0],{path:prior.trackedFiles[1].path,sha256:'new-test'}]};
+ const result=compareStationAdmissionReference(allocation,current,reference);
+ assert.deepEqual(result.frontendTestSourceChanges,[{path:prior.trackedFiles[1].path,priorSha256:'prior-test',currentSha256:'new-test'}]);
+ assert.equal(result.requiresFreshAdmission,true);
+ assert.throws(()=>compareStationAdmissionReference(allocation,{...current,trackedFiles:[{path:prior.trackedFiles[0].path,sha256:'changed-product'},current.trackedFiles[1]]},reference));
+});

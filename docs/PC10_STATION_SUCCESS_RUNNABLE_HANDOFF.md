@@ -118,3 +118,10 @@ UI recovery and Bravo rereads both shared revisions after Alpha. Synthetic
 adapter checks cannot claim native recovery or P success. Next runtime remains
 subject to a fresh parent allocation bound to the final reviewed runner/source
 and unchanged compiled product tree, with original progress and cleanup guards.
+
+Historical admission comparison records changed frontend `.test.ts`/`.test.tsx`
+bytes separately as `frontendTestSourceChanges`; product frontend sources must
+still match the historical successful route byte-for-byte. The new regression
+test exposed this distinction with observed RED before the launcher correction.
+Exact current source/build/runner/allocation binding and fresh normal admission
+remain mandatory. This does not recredit native gameplay from test evidence.
