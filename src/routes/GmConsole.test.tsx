@@ -530,15 +530,15 @@ it('routes only a current unpaused arrest phase to mounted prisoner actions', as
     onCase(null);
     return vi.fn();
   });
-  const now = Date.now();
-  const teamPhaseEndsAt = new Date(now + 60_000).toISOString();
-  const openAirspaceEndsAt = new Date(now + 120_000).toISOString();
+  const teamPhaseEndsAt = '2000-01-01T00:00:00.000Z';
+  const openAirspaceEndsAt = '2000-01-02T00:00:00.000Z';
   useSessionStore.getState().setSession({
     ...useSessionStore.getState().session!,
     phase: 'active', currentTurn: 3,
     turnPhase: {
       turn: 3, teamPhaseEndsAt, openAirspaceEndsAt,
       airspace: { state: 'lifted', tickerActive: false, pressAccess: true },
+      progression: 'manual',
     },
   });
   useSessionStore.getState().setGmInstance(local);
@@ -568,10 +568,11 @@ it('routes only a current unpaused arrest phase to mounted prisoner actions', as
 
   act(() => useSessionStore.getState().setSession({
     ...useSessionStore.getState().session!,
+    currentTurn: 4,
     turnPhase: {
-      turn: 3, teamPhaseEndsAt, openAirspaceEndsAt,
+      turn: 4, teamPhaseEndsAt, openAirspaceEndsAt,
       airspace: { state: 'lifted', tickerActive: false, pressAccess: true },
-      timerPause: { window: 'open', remainingMs: 30_000, pausedAt: new Date(now).toISOString(), reason: 'turn-interstitial' },
+      timerPause: { window: 'open', remainingMs: 30_000, pausedAt: new Date().toISOString(), reason: 'turn-interstitial' },
     },
   }));
   expect(within(panel).queryByRole('button', { name: 'Release prisoner' })).not.toBeInTheDocument();
@@ -583,12 +584,35 @@ it('routes only a current unpaused arrest phase to mounted prisoner actions', as
   act(() => useSessionStore.getState().setSession({
     ...useSessionStore.getState().session!,
     turnPhase: {
-      turn: 2, teamPhaseEndsAt, openAirspaceEndsAt,
+      turn: 3, teamPhaseEndsAt, openAirspaceEndsAt,
       airspace: { state: 'lifted', tickerActive: false, pressAccess: true },
     },
   }));
   expect(within(panel).queryByRole('button', { name: 'Release prisoner' })).not.toBeInTheDocument();
   expect(within(panel).queryByRole('button', { name: 'Execute prisoner' })).not.toBeInTheDocument();
+  expect(within(panel).queryByRole('button', { name: 'Record facilitator resolution' })).not.toBeInTheDocument();
+  expect(within(panel).getByText(/a current unpaused phase is required/i)).toBeVisible();
+
+  act(() => useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!,
+    turnPhase: {
+      turn: 4, teamPhaseEndsAt: new Date(Date.now() + 60_000).toISOString(),
+      openAirspaceEndsAt: new Date(Date.now() + 120_000).toISOString(),
+      airspace: { state: 'lifted', tickerActive: false, pressAccess: true },
+    },
+  }));
+  expect(within(panel).queryByRole('button', { name: 'Release prisoner' })).not.toBeInTheDocument();
+  expect(within(panel).queryByRole('button', { name: 'Execute prisoner' })).not.toBeInTheDocument();
+  expect(within(panel).queryByRole('button', { name: 'Record facilitator resolution' })).not.toBeInTheDocument();
+  expect(within(panel).getByText(/a current unpaused phase is required/i)).toBeVisible();
+
+  act(() => {
+    useSessionStore.getState().setSession({
+      ...useSessionStore.getState().session!,
+      turnPhase: undefined,
+    });
+  });
+  expect(within(panel).queryByRole('button', { name: 'Release prisoner' })).not.toBeInTheDocument();
   expect(within(panel).queryByRole('button', { name: 'Record facilitator resolution' })).not.toBeInTheDocument();
   expect(within(panel).getByText(/a current unpaused phase is required/i)).toBeVisible();
 });

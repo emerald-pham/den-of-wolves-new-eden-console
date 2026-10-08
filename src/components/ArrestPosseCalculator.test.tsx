@@ -143,8 +143,7 @@ it('blocks ordinary disposition after the next Team deadline and requires a reas
     calculation: result,
     caseRecord: pendingCase,
     currentCycle: 4,
-    deadlineTeamPhaseOpen: false,
-    currentDispositionPhaseAvailable: true,
+    currentDispositionPhase: 'coordination' as const,
     onCalculate: vi.fn(),
     onDisposition,
   };
@@ -172,8 +171,7 @@ it('offers ordinary release or execution during the next Team Phase', async () =
     calculation={result}
     caseRecord={pendingCase}
     currentCycle={4}
-    deadlineTeamPhaseOpen
-    currentDispositionPhaseAvailable
+    currentDispositionPhase="team"
     onCalculate={vi.fn()}
     onDisposition={onDisposition}
   />);
@@ -197,8 +195,7 @@ it('offers same-cycle release or execution in the current Team Phase and confirm
     calculation={result}
     caseRecord={pendingCase}
     currentCycle={3}
-    deadlineTeamPhaseOpen
-    currentDispositionPhaseAvailable
+    currentDispositionPhase="team"
     onCalculate={vi.fn()}
     onDisposition={onDisposition}
   />);
@@ -219,8 +216,7 @@ it('keeps ordinary ruling actions available during same-cycle Coordination befor
     calculation={result}
     caseRecord={pendingCase}
     currentCycle={3}
-    deadlineTeamPhaseOpen={false}
-    currentDispositionPhaseAvailable
+    currentDispositionPhase="coordination"
     onCalculate={vi.fn()}
     onDisposition={onDisposition}
   />);
@@ -239,8 +235,7 @@ it('hides ordinary and late actions as mounted phase authority becomes paused or
     calculation: result,
     caseRecord: pendingCase,
     currentCycle: 3,
-    deadlineTeamPhaseOpen: false,
-    currentDispositionPhaseAvailable: true,
+    currentDispositionPhase: 'coordination' as const,
     onCalculate: vi.fn(),
     onDisposition: vi.fn(),
   };
@@ -249,19 +244,19 @@ it('hides ordinary and late actions as mounted phase authority becomes paused or
   expect(screen.getByRole('button', { name: 'Release prisoner' })).toBeVisible();
   expect(screen.getByRole('button', { name: 'Execute prisoner' })).toBeVisible();
 
-  rerender(<ArrestPosseCalculator {...props} currentDispositionPhaseAvailable={false} />);
+  rerender(<ArrestPosseCalculator {...props} currentDispositionPhase="paused" />);
   expect(screen.queryByRole('button', { name: 'Release prisoner' })).not.toBeInTheDocument();
   expect(screen.queryByRole('button', { name: 'Execute prisoner' })).not.toBeInTheDocument();
   expect(screen.queryByRole('button', { name: 'Record facilitator resolution' })).not.toBeInTheDocument();
   expect(screen.getByText(/a current unpaused phase is required/i)).toBeVisible();
 
-  rerender(<ArrestPosseCalculator {...props} currentCycle={4} currentDispositionPhaseAvailable={false} />);
+  rerender(<ArrestPosseCalculator {...props} currentCycle={4} currentDispositionPhase="unavailable" />);
   expect(screen.queryByRole('button', { name: 'Release prisoner' })).not.toBeInTheDocument();
   expect(screen.queryByRole('button', { name: 'Execute prisoner' })).not.toBeInTheDocument();
   expect(screen.queryByRole('button', { name: 'Record facilitator resolution' })).not.toBeInTheDocument();
   expect(screen.queryByText(/Team Phase ruling window is closed/i)).not.toBeInTheDocument();
 
-  rerender(<ArrestPosseCalculator {...props} currentCycle={4} currentDispositionPhaseAvailable />);
+  rerender(<ArrestPosseCalculator {...props} currentCycle={4} currentDispositionPhase="coordination" />);
   expect(screen.queryByRole('button', { name: 'Release prisoner' })).not.toBeInTheDocument();
   expect(screen.queryByRole('button', { name: 'Execute prisoner' })).not.toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Record facilitator resolution' })).toBeDisabled();
@@ -282,7 +277,6 @@ it('shows a recovered terminal case without retaining the pending deadline notic
       outcome: 'arrested', deadlineCycle: 4,
     }}
     currentCycle={4}
-    deadlineTeamPhaseOpen
     onCalculate={vi.fn()}
   />);
 
@@ -300,8 +294,7 @@ it('requires a reason for facilitator resolution after the deadline', async () =
     calculation={result}
     caseRecord={pendingCase}
     currentCycle={5}
-    deadlineTeamPhaseOpen={false}
-    currentDispositionPhaseAvailable
+    currentDispositionPhase="complete"
     onCalculate={vi.fn()}
     onDisposition={onDisposition}
   />);
