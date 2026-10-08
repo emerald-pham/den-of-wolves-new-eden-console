@@ -106,3 +106,60 @@ fresh browser profile and parent-accessible screenshot are still needed.
 
 Preserve isolated checkout and both borrowed dependency symlinks for parent
 integration. No retained PC10/slot2 processes were modified.
+
+## Completed bounded private-browser qualification
+
+Owner authorized the established Playwright private-context path. All browser
+contexts and ephemeral loopback preview servers are now closed; runtime may be
+allocated to Chain Scanner immediately. No retained services or real user data
+were used. Original screenshot transfer403 remains recorded; this qualification
+reproduced the real consumer with synthetic state, without bypassing that403.
+
+`7e147b4c` production-builds the real TurnStartAnnouncement component in a tiny
+fixture and observes the full-bleed regression: x16,width358 at viewport390.
+It retains GM/player screenshots at390×844,844×390,1440×900 before asserting,
+and uses CDP CSS.getPlatformFontsForNode to identify actual painted faces.
+`bbda43da` removes ground padding, paints CIC panel to physical edges and keeps
+content/clearance insets and safe areas. Six rendered cases pass edge coverage,
+no horizontal overflow, nonzero text geometry and correct GM/player visibility.
+
+Independent visual review found intermediate animation made initial06/07 pixels
+unsuitable for steady readability. `dc522a1f` repairs the fixture to reproduce
+App's data-motion=reduce and asserts all sampled ancestor opacities are1. Fresh
+steady TRAITORS screenshots/metrics: /tmp/dow-cycle-render-steady; passed six
+production-built consumer renders, log /tmp/font-steady-green.log. This is a
+fixture repair, not a product animation change.
+
+Released0568/0569 synthetic consumer builds: /tmp/dow-cycle-release-0568 and
+/tmp/dow-cycle-release-0569. Initial-state family,size,weight,line-height and
+actual painted-font metrics match each other and candidate without deltas.
+All samples paint Courier on this Mac, despite computed mono stack. This is an
+existing platform fallback, not a reproduced0569 typography change.
+
+A fresh private deployed noauth safety inspection independently confirms version
+0.5.69, computed mono family, 24px size/line height, weight700 and actual
+Courier-Bold with zero font network requests. Evidence /tmp/dow-public-font-runtime,
+log /tmp/font-public-runtime.log. Firebase traffic was blocked. No statement
+about authenticated routes, iPhone font selection or all-screen correctness is
+supported by that single safety sample. Do not speculatively replace fonts.
+
+Final full-app production build passes (/tmp/font-visual-final-build.log); final
+focused suites pass83 (clearance/announcement/service21 plus aesthetics62).
+Independent reviewer verified full-app index links index-Dt955Y5i.css with
+SHA25625173ae136116a84f0f907ed96c5faf965c3ec91a197f86cd9943c4e2f96121f,
+and its emitted rules match the scoped reviewed CSS. Rendered fixtures exercise
+actual production-bundled consumer code; they are not full authenticated app
+runtime. Parent retains whole-release ticker/typography CI, release metadata,
+merge/deploy and final reconciled-candidate review responsibilities.
+
+Global report remains unresolved on the reporting iPhone; the investigated
+released range has no reproduced sampled font delta. Resolved requested defects:
+blue background gutters and non-GM clearance visibility.
+
+Independent Sol typography review completed with no remaining actionable findings
+on product candidate bbda43da and evidence repair dc522a1f. It inspected all six
+steady06/07 screenshots: clean wrapping/readability, unobstructed44px GM button,
+edge coverage and zero horizontal overflow. Exclusions are authenticated full-app
+runtime, selected live profile, other routes/dialogs/recovery, full animation
+sequence, nonzero safe areas and real iOS devices. Preserve this scoped evidence;
+it does not substitute for final review of a materially changed reconciled release.
