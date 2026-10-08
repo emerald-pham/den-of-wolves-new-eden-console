@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {assertSparseStationWing,runSparseStationCombat,stationBoardingRead,recoverStationLaunch,assertRecoveredStationLaunch,stationSurvivingRepairTargets} from './pc10-station-combat-adapter.mjs';
+import {assertSparseStationWing,runSparseStationCombat,stationBoardingRead,recoverStationLaunch,assertRecoveredStationLaunch,stationSurvivingRepairTargets,stationDeclarationRetryProjection,assertStationDeclarationRetryContext,recoverStationRateLimitedDeclaration,assertRecoveredStationDeclaration} from './pc10-station-combat-adapter.mjs';
 import {dispatchStationCrewChoice} from './pc10-station-crew-dispatch.mjs';
 import {runMinimumCandidateSuccessProbe} from './pc10-minimum-candidate-success.mjs';
 import { runPursuitLimitEnding } from './pc10-full-game-cycle-ending.mjs';
@@ -34,11 +34,22 @@ export async function runRingWorkflow(operations) {
  await operations.arrive();await operations.repairRing();await operations.crossAndRecover();
  await operations.finishPassages();await operations.sabotageAndClose();
 }
-export async function runStationCombatWaves({maximumWaves=12,assertActors,prepareAndDeclare,runWave,persistWaves,acknowledgeBetweenWaves}) {
+export async function runStationCombatWaves({maximumWaves=12,assertActors,prepareAndDeclare,runWave,persistWaves,
+ acknowledgeBetweenWaves,getDeclarationDeadline,recoverRateLimitedDeclaration,retryDeclaration}) {
  let liberated=false;const waves=[];
  for(let wave=1;wave<=maximumWaves&&!liberated;wave++){
   await assertActors({wave});
-  await prepareAndDeclare({wave});
+  try{await prepareAndDeclare({wave});}catch(error){
+   if(!recoverRateLimitedDeclaration||!retryDeclaration)throw error;
+   const deadlineAt=getDeclarationDeadline?.({wave});let retryCount=0;
+   const capture=await recoverRateLimitedDeclaration({error,wave,deadlineAt,retryDeclaration:async()=>{
+    assert.equal(retryCount,0,'A Station declaration rate-limit recovery permits one fresh UI action.');retryCount++;
+    return retryDeclaration({wave,deadlineAt});
+   }});
+   assert.equal(retryCount,1,'A Station declaration recovery must issue exactly one fresh UI action.');
+   assert.ok(capture&&capture.endpoint==='declareWolfAttack'&&capture.httpStatus===200,
+    'A Station declaration recovery must return its successful normal-UI capture.');
+  }
   const final=await runWave({wave});
   waves.push({wave,attackId:final.attackId,repeat:final.pStationRepeat});
   liberated=final.pStationRepeat.status==='stopped';
@@ -801,6 +812,15 @@ const lossAcks=[],lossAckErrors=[],lossAckControls=[];evidence.lossAcks=lossAcks
 let lossAckFirstError=null,notifyLossAckFailure;const lossAckFailure=new Promise(resolve=>{notifyLossAckFailure=resolve;});
 function latchLossAckError(error,endpoint){lossAckErrors.push({endpoint,error:originalProofError(error)});if(!lossAckFirstError){lossAckFirstError=error;stopped=true;notifyLossAckFailure(error);}}
 async function candidateWait(run,deadlineAt,label){budget();const remaining=deadlineAt-Date.now();assert.ok(remaining>0,`Original candidate operation deadline expired: ${label}`);const operation=Promise.resolve().then(()=>{budget();return run();});const value=await bounded(Promise.race([operation,lossAckFailure.then(error=>{throw error;})]),remaining,`Original candidate operation deadline expired: ${label}`,()=>{stopped=true;});budget();assert.ok(Date.now()<deadlineAt,`Original candidate operation deadline expired: ${label}`);return value;}
+async function stationOperationWait(run,deadlineAt,label){
+ if(lossAckFirstError)throw lossAckFirstError;assert.equal(stopped,false,'Work has stopped; do not begin a subsequent Station declaration read.');
+ const remaining=deadlineAt-Date.now();assert.ok(remaining>0,`Original Station declaration deadline expired: ${label}`);
+ const operation=Promise.resolve().then(()=>{if(lossAckFirstError)throw lossAckFirstError;assert.equal(stopped,false,'Work has stopped; do not continue a Station declaration read.');return run();});
+ const value=await bounded(Promise.race([operation,lossAckFailure.then(error=>{throw error;})]),remaining,
+  `Original Station declaration deadline expired: ${label}`,()=>{stopped=true;});
+ if(lossAckFirstError)throw lossAckFirstError;assert.equal(stopped,false,'Work stopped during a Station declaration read.');
+ assert.ok(Date.now()<deadlineAt,`Original Station declaration deadline expired: ${label}`);return value;
+}
 async function readStationGmAuthorityServerRows(deadlineAt,instanceId,label='Station original GM authority source read'){
  const authority=await candidateWait(()=>readStationCombatGuardAuthority({db,scope:{ownedSyntheticSession:true,sessionId:sid,ownedSessionId:sid,
   projectId,expectedProjectId:allocation.projectId,firestoreHost:process.env.FIRESTORE_EMULATOR_HOST,
@@ -809,9 +829,11 @@ async function readStationGmAuthorityServerRows(deadlineAt,instanceId,label='Sta
  assert.ok(serverPlayer,'Current original GM player row must remain present.');assert.ok(serverInstance,'Current original GM instance lease must remain present.');
  return {authority,serverPlayer,serverInstance};
 }
-async function readStationGmActor(surface,label,phase,deadlineAt){
+async function readStationGmActor(surface,label,phase,deadlineAt,{withinExistingOperation=false}={}){
  const live=await liveGm(surface,label,phase,{deadlineAt});
- const lifecycle=await candidateWait(()=>observeLifecycleActor(surface,sid),deadlineAt,'Original Station GM lifecycle actor read');
+ const read=()=>observeLifecycleActor(surface,sid);
+ const lifecycle=withinExistingOperation?await stationOperationWait(read,deadlineAt,'Original Station GM lifecycle actor read'):
+  await candidateWait(read,deadlineAt,'Original Station GM lifecycle actor read');
  return {live,lifecycle};
 }
 async function installLossAck(surface,endpoint,waitCommitted,operationDeadlineAt=Date.now()+60000) {
@@ -1146,12 +1168,13 @@ async function enterRole(surface,label){
     },sid),operationDeadlineAt,'Original GM browser P attack read expired.');
     browserCombatContext={channel:'original-GM-browser-Firestore-SDK',sessionId:sid,observedAt:new Date().toISOString(),publicAudience:read.publicAudience};return read.attack;
    }
-   async function readTurnState({deadlineAt:operationDeadlineAt=workEnd}={}){
+   async function readTurnState({deadlineAt:operationDeadlineAt=workEnd,withinExistingOperation=false}={}){
     const deadlineAt=operationDeadlineAt;
+    const readWait=(run,label)=>withinExistingOperation?stationOperationWait(run,deadlineAt,label):candidateWait(run,deadlineAt,label);
     const liveBefore=await liveGm(gm,'GM1','active',{deadlineAt});
-    const lifecycleBefore=await candidateWait(()=>observeLifecycleActor(gm,sid),deadlineAt,'Original Station GM phase-read lifecycle preflight expired.');
+    const lifecycleBefore=await readWait(()=>observeLifecycleActor(gm,sid),'Original Station GM phase-read lifecycle preflight expired.');
     assertStationPopulationGmActorObserver(gm1OriginalAuthority,{live:liveBefore,lifecycle:lifecycleBefore});
-    const read=await candidateWait(()=>gm.page.evaluate(async({sid,storeUrl,authorityUrl,expectedAuthority})=>{
+    const read=await readWait(()=>gm.page.evaluate(async({sid,storeUrl,authorityUrl,expectedAuthority})=>{
      const{auth}=await import('/src/lib/firebase.ts'),{useSessionStore}=await import(storeUrl),authority=await import(authorityUrl);
      const capture=()=>{
       const user=auth().currentUser,state=useSessionStore.getState(),me=state.me,session=state.session,instance=state.gmInstance;
@@ -1210,16 +1233,84 @@ async function enterRole(surface,label){
       fullGameDemo:root.fullGameDemo&&({status:root.fullGameDemo.status,progression:root.fullGameDemo.progression}),
       turnPhase:copyPhase(rawTurnPhase),turnState:rawTurnState&&({currentTurn:rawTurnState.currentTurn,
        maxTurn:rawTurnState.maxTurn,phase:rawTurnState.phase,phaseRevision:rawTurnState.phaseRevision,
-       startedAt:rawTurnState.startedAt,endsAt:rawTurnState.endsAt})};
+       startedAt:rawTurnState.startedAt,endsAt:rawTurnState.endsAt}),gameOutcome:root.gameOutcome??null,
+       survivorOutcome:root.survivorOutcome??null,debriefMode:root.debriefMode??null,
+       hasDebriefSnapshot:Boolean(root.debriefSnapshot)};
      return {sessionId:sid,gmAuthority,session};
     },{sid,storeUrl:gm.storeModuleUrl(),authorityUrl:gm.sessionAuthorityModuleUrl(),expectedAuthority:gm1OriginalAuthority}),
-    deadlineAt,'Original GM browser server phase and lease read expired.');
+    'Original GM browser server phase and lease read expired.');
     const liveAfter=await liveGm(gm,'GM1','active',{deadlineAt});
-    const lifecycleAfter=await candidateWait(()=>observeLifecycleActor(gm,sid),deadlineAt,'Original Station GM phase-read lifecycle bookend expired.');
+    const lifecycleAfter=await readWait(()=>observeLifecycleActor(gm,sid),'Original Station GM phase-read lifecycle bookend expired.');
     assertStationPopulationGmActorObserver(gm1OriginalAuthority,{live:liveAfter,lifecycle:lifecycleAfter});
     for(const key of ['sessionId','uidHash','generation','hydrationRevision','instanceId','claimedAt'])
      assert.equal(read.gmAuthority[key],gm1OriginalAuthority[key],`Original GM ${key} changed across the normal browser phase read.`);
     return read;
+   }
+   async function readStationDeclarationContext(wave,deadlineAt){
+    assert.ok(Number.isSafeInteger(wave)&&wave>=1);assert.ok(Date.now()<deadlineAt,'Original Station declaration deadline expired before source reads.');
+    const startedAtMs=Date.now();let completed=false,context;
+    try{
+     const phaseBefore=await readTurnState({deadlineAt,withinExistingOperation:true});
+     const actorBefore=await readStationGmActor(gm,'GM1','active',deadlineAt,{withinExistingOperation:true});
+     assertStationPopulationGmActorObserver(gm1OriginalAuthority,actorBefore);
+     const documents=await stationOperationWait(()=>gm.page.evaluate(async({sid,storeUrl,authorityUrl,expectedAuthority})=>{
+      const{auth}=await import('/src/lib/firebase.ts'),{useSessionStore}=await import(storeUrl),authority=await import(authorityUrl);
+      const capture=()=>{
+       const user=auth().currentUser,state=useSessionStore.getState(),me=state.me,session=state.session,instance=state.gmInstance;
+       return {uid:user?.uid??null,meUid:me?.uid??null,sessionId:session?.id??null,role:me?.role??null,
+        connection:state.connection??null,freshness:state.sessionSnapshotFreshness??null,
+        generation:me?.connectionGeneration??null,hydrationRevision:state.identityHydrationRevision??null,
+        profileRoleId:me?.profileRoleId??null,profileSessionId:me?.profileSessionId??null,
+        instanceId:instance?.id??null,instanceUid:instance?.uid??null,instanceSessionId:instance?.sessionId??null,
+        claimedAt:instance?.claimedAt??null};
+      };
+      const before=capture(),own=before.uid?authority.sessionSnapshotAuthorityFor(sid,before.uid):null;
+      if(!before.uid||before.meUid!==before.uid||before.sessionId!==sid||before.role!=='gm'||
+         before.connection!=='live'||before.freshness!=='server'||before.profileRoleId!==null||before.profileSessionId!==null||
+         !own?.hasServerSessionAuthority||authority.memberSessionResumeBlocksFreshness(own))
+       throw Error('Current original GM server-session authority required for declaration source read.');
+      const uidHash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(before.uid))))
+       .map(byte=>byte.toString(16).padStart(2,'0')).join('').slice(0,16);
+      if(uidHash!==expectedAuthority.uidHash||before.generation!==expectedAuthority.generation||
+         before.hydrationRevision!==expectedAuthority.hydrationRevision||before.instanceId!==expectedAuthority.instanceId||
+         typeof before.claimedAt!=='string'||before.claimedAt!==expectedAuthority.claimedAt||
+         before.instanceUid!==before.uid||before.instanceSessionId!==sid)
+       throw Error('Original GM UID, generation, hydration, instance, or claim lease changed before declaration source read.');
+      const source=await(await fetch('/src/lib/firestore.ts')).text(),match=source.match(/from\s+["']([^"']*firebase_firestore\.js[^"']*)["']/);
+      if(!match)throw Error('Actual served Firestore SDK import required for declaration source read.');
+      const sdk=await import(match[1]),{db}=await import('/src/lib/firestore.ts');
+      const [preparation,window,attack]=await Promise.all([
+       sdk.getDocFromServer(sdk.doc(db(),`sessions/${sid}/wolfAttackPreparation/current`)),
+       sdk.getDocFromServer(sdk.doc(db(),`sessions/${sid}/wolfAttackWindow/current`)),
+       sdk.getDocFromServer(sdk.doc(db(),`sessions/${sid}/wolfAttackState/current`)),
+      ]);
+      const after=capture(),afterOwn=after.uid?authority.sessionSnapshotAuthorityFor(sid,after.uid):null;
+      for(const key of ['uid','meUid','sessionId','role','connection','freshness','generation','hydrationRevision',
+       'profileRoleId','profileSessionId','instanceId','instanceUid','instanceSessionId','claimedAt'])
+       if(after[key]!==before[key])throw Error(`Original GM ${key} changed during declaration source read.`);
+      if(!afterOwn?.hasServerSessionAuthority||authority.memberSessionResumeBlocksFreshness(afterOwn))
+       throw Error('Original GM server-session authority changed during declaration source read.');
+      if(!preparation.exists()||!window.exists())throw Error('Current private Wolf preparation and due window are required.');
+      return {preparation:preparation.data(),window:window.data(),attack:attack.exists()?attack.data():null};
+     },{sid,storeUrl:gm.storeModuleUrl(),authorityUrl:gm.sessionAuthorityModuleUrl(),expectedAuthority:gm1OriginalAuthority}),
+      deadlineAt,'Original GM private declaration documents read expired.');
+     const actorAfter=await readStationGmActor(gm,'GM1','active',deadlineAt,{withinExistingOperation:true});
+     assertStationPopulationGmActorObserver(gm1OriginalAuthority,actorAfter);
+     for(const key of ['sessionId','uidHash','generation','hydrationRevision','instanceId','claimedAt','phase','cycle'])
+      assert.equal(actorAfter.lifecycle[key],actorBefore.lifecycle[key],`Original GM ${key} changed during declaration document reads.`);
+     const phaseAfter=await readTurnState({deadlineAt,withinExistingOperation:true});
+     assert.equal(stable(phaseAfter.gmAuthority),stable(phaseBefore.gmAuthority),'Original GM server authority changed across declaration source reads.');
+     assert.equal(stable(phaseAfter.session),stable(phaseBefore.session),'Manual Station phase changed across declaration source reads.');
+     context=stationDeclarationRetryProjection({wave,actor:{live:actorAfter.live,lifecycle:actorAfter.lifecycle},session:phaseAfter.session,
+      preparation:documents.preparation,window:documents.window,attack:documents.attack});
+     assertStationDeclarationRetryContext(context,context);assert.ok(Date.now()<deadlineAt,'Original Station declaration deadline expired after source reads.');
+     completed=true;return {context,operationActor:actorAfter.lifecycle};
+    }finally{
+     const completedAtMs=Date.now();(evidence.stationDeclarationReads??=[]).push({wave,
+      channel:'original-GM-browser-Firestore-SDK',startedAt:new Date(startedAtMs).toISOString(),
+      completedAt:new Date(completedAtMs).toISOString(),elapsedMs:completedAtMs-startedAtMs,deadlineAt,completed,
+      context:completed?context:null});
+    }
    }
    const recordDiagnosticError=(channel,error,attack)=>{
     const entry={channel,error:originalProofError(error),attackId:attack.attackId,turn:attack.turn,revision:attack.revision,step:attack.currentStep};
@@ -1435,11 +1526,89 @@ async function enterRole(surface,label){
      wait:milliseconds=>candidateWait(()=>delay(milliseconds),deadlineAt,'Station normal owner feed wait'),deadlineAt});
    };
    const choose=(current,{deadlineAt})=>chooseStationCombatActor(current,{deadlineAt,chooseWing,pendingWingRecovery:[...recoveredLaunches.values()].some(row=>row.view.attackId===current.attackId&&!row.committed),chooseCrew:async(attack,options)=>dispatchStationCrewChoice(attack,{...options,sessionId:sid,actors:await activeCrew(options.deadlineAt),assertActor:assertCrewActor,readAttack,readTurnState,gmAuthority:gm1OriginalAuthority,action})});
+   let stationDeclarationAttempt=null;const stationDeclarationRetries=new Set();
+   const stationDeclareRequestMatches=(attempt,data)=>data?.sessionId===attempt.context.actor.sessionId&&
+    data?.instanceId===attempt.context.actor.instanceId&&data?.expectedRevision===attempt.context.preparation.revision;
+   async function chooseStationDeclarationControl(attempt){
+    const deadlineAt=attempt.deadlineAt,remaining=()=>{const value=deadlineAt-Date.now();assert.ok(value>0,'Original Station declaration deadline expired before its normal UI action.');return value;};
+    const control=preparation.getByRole('button',{name:'Declare Wolf attack',exact:true});
+    await control.waitFor({state:'visible',timeout:Math.min(35000,remaining())});
+    assert.equal(await control.count(),1,'One exact mounted Station Declare control is required.');
+    assert.equal(await control.isEnabled(),true,'The exact mounted Station Declare control must be enabled.');
+    const handle=await control.elementHandle({timeout:Math.min(35000,remaining())});assert.ok(handle,'The exact Station Declare control must remain mounted.');
+    const current=await readStationDeclarationContext(attempt.wave,deadlineAt);
+    assertStationDeclarationRetryContext(attempt.context,current.context);
+    const mounted=await handle.evaluate(element=>({connected:element.isConnected,tagName:element.tagName,
+     type:element.getAttribute('type'),text:element.textContent?.trim()??'',disabled:element.disabled===true,
+     ariaDisabled:element.getAttribute('aria-disabled')}));
+    assert.deepEqual(mounted,{connected:true,tagName:'BUTTON',type:'button',text:'Declare Wolf attack',disabled:false,ariaDisabled:null},
+     'The same exact enabled Declare control must still be mounted after the source and actor bookends.');
+    assert.equal(await handle.isVisible(),true);assert.equal(await handle.isEnabled(),true);
+    const timeout=remaining();await handle.click({timeout});
+   }
+   async function assertCurrentStationDeclarationActor(attempt){
+    assert.ok(Date.now()<attempt.deadlineAt,'Original Station declaration deadline expired before the actor check.');
+    const actor=await readStationGmActor(gm,'GM1','active',attempt.deadlineAt,{withinExistingOperation:true});
+    assertStationPopulationGmActorObserver(gm1OriginalAuthority,actor);
+    assertStationDeclarationRetryContext(attempt.context,{...attempt.context,actor:{live:actor.live,lifecycle:actor.lifecycle}});
+    assert.ok(Date.now()<attempt.deadlineAt,'Original Station declaration deadline expired during the actor check.');
+    return actor.lifecycle;
+   }
+   async function persistStationDeclarationRecovery(){
+    const path=`${directory}/Station-declaration-rate-limit-recoveries.json`;
+    await writeFile(path,JSON.stringify({source:'owned local proof observations; no command receipt reads',
+     reads:evidence.stationDeclarationReads??[],recoveries:evidence.stationDeclarationRecoveries??[]},null,2)+'\n');
+   }
    try {
    let stationWaveDeadlineAt;
    const waves=await runStationCombatWaves({maximumWaves:12,
     assertActors:async()=>{await assertStationActors();},
-    prepareAndDeclare:async()=>{for(const ship of stationSurvivingRepairTargets(ships,await recordRoot()))await repair(ship);await liveGm(gm,'GM1','active');await action(gm,'declareWolfAttack',()=>preparation.getByRole('button',{name:'Declare Wolf attack',exact:true}).click());},
+    prepareAndDeclare:async({wave})=>{
+     for(const ship of stationSurvivingRepairTargets(ships,await recordRoot()))await repair(ship);
+     const deadlineAt=Math.min(Date.now()+60000,workEnd);
+     const preflight=await readStationDeclarationContext(wave,deadlineAt);
+     stationDeclarationAttempt={wave,deadlineAt,context:preflight.context,operationActor:preflight.operationActor};
+     const capture=await action(gm,'declareWolfAttack',()=>chooseStationDeclarationControl(stationDeclarationAttempt),
+      {deadlineAt,original:stationDeclarationAttempt.operationActor,gm:true,
+       matches:data=>stationDeclareRequestMatches(stationDeclarationAttempt,data)});
+     assert.equal(capture.data.expectedRevision,stationDeclarationAttempt.context.preparation.revision);
+     assert.equal(capture.result.status,'committed');assert.equal(capture.result.requestId,capture.data.requestId);
+     return capture;
+    },
+    getDeclarationDeadline:({wave})=>stationDeclarationAttempt?.wave===wave?stationDeclarationAttempt.deadlineAt:undefined,
+    recoverRateLimitedDeclaration:async({error,wave,deadlineAt,retryDeclaration})=>{
+     const attempt=stationDeclarationAttempt;assert.ok(attempt&&attempt.wave===wave,'The failed declaration must match its pinned wave context.');
+     assert.equal(deadlineAt,attempt.deadlineAt,'A rate-limit retry must reuse the original declaration deadline.');
+     const held=heldProofFailureObservations(error);
+     const entry={wave,deadlineAt,startedAt:new Date().toISOString(),expectedRevision:attempt.context.preparation.revision,
+      sourceBefore:attempt.context,deniedError:originalProofError(error),heldObservations:held,events:[],status:'observed'};
+     (evidence.stationDeclarationRecoveries??=[]).push(entry);
+     try{
+      await stationOperationWait(persistStationDeclarationRecovery,deadlineAt,'Station declaration denial retention');
+      const recovery=await recoverStationRateLimitedDeclaration(error,{expectedContext:attempt.context,
+       readCurrent:async limit=>(await readStationDeclarationContext(wave,limit)).context,
+       assertActor:()=>assertCurrentStationDeclarationActor(attempt),deadlineAt,used:stationDeclarationRetries,
+       wait:(milliseconds,limit)=>stationOperationWait(()=>delay(milliseconds),limit,'Station source-reported rate-limit wait'),
+       onObservation:event=>entry.events.push(event)});
+      entry.waitStartedAt=recovery.waitStartedAt;entry.waitCompletedAt=recovery.waitCompletedAt;
+      entry.retrySourceReadCompletedAt=recovery.sourceReadCompletedAt;entry.retryAfterMs=recovery.retryAfterMs;
+      entry.status='retrying';
+      const capture=await retryDeclaration();assertRecoveredStationDeclaration(capture,recovery);
+      entry.retryReceipt=publicLifecycleReceipt(capture);entry.status='recovered';entry.completedAt=new Date().toISOString();
+      await stationOperationWait(persistStationDeclarationRecovery,deadlineAt,'Station declaration recovery retention');
+      return capture;
+     }catch(recoveryError){
+      entry.status='failed';entry.completedAt=new Date().toISOString();entry.recoveryError=originalProofError(recoveryError);
+      try{await persistStationDeclarationRecovery();}catch(retentionError){rememberProofFailure(error,{stationDeclarationRecoveryRetentionError:originalProofError(retentionError)});}
+      throw recoveryError;
+     }
+    },
+    retryDeclaration:async({wave,deadlineAt})=>{
+     const attempt=stationDeclarationAttempt;assert.ok(attempt&&attempt.wave===wave);assert.equal(attempt.deadlineAt,deadlineAt);
+     const capture=await captureLifecycleUiAction(gm,'declareWolfAttack',()=>chooseStationDeclarationControl(attempt),
+      {deadlineAt,original:attempt.operationActor,gm:true,matches:data=>stationDeclareRequestMatches(attempt,data)});
+     receipts.push(publicLifecycleReceipt(capture));return capture;
+    },
     runWave:async()=>{stationWaveDeadlineAt=Math.min(Date.now()+480000,workEnd-60000);return runSparseStationCombat({deadlineAt:stationWaveDeadlineAt,readAttack,onState:retainCombatState,onDiagnosticError:async(error,attack)=>{recordDiagnosticError('diagnostic-retention',error,attack);},assertActors:async()=>{budget();await liveGm(gm,'GM1','active');assertSparseStationWing(await fullMember(recipient),evidence.stationWingOriginal);},choose,recoverChoice});},
     acknowledgeBetweenWaves:context=>acknowledgeStationPopulationAlert({...context,deadlineAt:stationWaveDeadlineAt}),
     persistWaves:currentWaves=>writeFile(`${directory}/Station-combat-waves.json`,JSON.stringify(currentWaves,null,2)+'\n')});
