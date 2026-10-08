@@ -109,6 +109,18 @@ beforeEach(() => {
   setScientist();
 });
 
+it('selects a console at its permanent final price and calls the ordinary purchase path', async () => {
+  const completed: EndeavourResearchWorkspace = { ...workspace, progress: { reactor: 4 }, tracks: [
+    { trackId: 'reactor', name: 'Reactor', crossedBoxes: 5, totalBoxes: 5, currentMaterialCost: 4, complete: true },
+  ] };
+  renderPanel(purchaseState, makeSession(), completed);
+  await userEvent.click(screen.getByLabelText('Shepherd // Reactor // 4 materials'));
+  await userEvent.click(screen.getByRole('button', { name: 'Purchase selected upgrades' }));
+  await waitFor(() => expect(mocks.purchase).toHaveBeenCalledWith(expect.objectContaining({
+    targets: [{ shipId: 'shepherd', systemId: 'reactor' }], workspace: completed,
+  })));
+});
+
 it('shows private per-target current costs and only systems on active ships in the Scientist fleet group', async () => {
   renderPanel(purchaseState, makeSession({
     playerDiscovery: {

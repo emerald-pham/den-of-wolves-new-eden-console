@@ -560,15 +560,15 @@ it('keeps the ore-funded choice unavailable without five current Shepherd ore', 
   expect(mocks.advance).not.toHaveBeenCalled();
 });
 
-it('shows completed tracks without inventing another field-upgrade price', async () => {
+it('shows completed tracks with the permanent final field-upgrade price', async () => {
   mocks.read.mockResolvedValue({
     ...workspace,
-    progress: { reactor: 5 },
-    tracks: [{ ...workspace.tracks[0]!, crossedBoxes: 5, totalBoxes: 5, currentMaterialCost: null, complete: true }],
+    progress: { reactor: 4 },
+    tracks: [{ ...workspace.tracks[0]!, crossedBoxes: 5, totalBoxes: 5, currentMaterialCost: 4, complete: true }],
   });
   render(<EndeavourResearchPanel control={control} />);
   expect(await screen.findByRole('list', { name: 'Research progress' })).toHaveTextContent(
-    'Reactor: 5 of 5 boxes crossed; no further field-upgrade cost. Research complete.',
+    'Reactor: 5 of 5 boxes crossed; current purchase cost is 4 materials. Research complete.',
   );
 });
 
