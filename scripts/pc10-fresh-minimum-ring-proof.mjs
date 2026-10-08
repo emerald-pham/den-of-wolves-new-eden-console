@@ -98,11 +98,14 @@ export function stationPopulationAckMutinyRows(context){
  }
  return blocked;
 }
-export async function stationPopulationDismissIntent({deadlineAt,now=Date.now,expected,readCurrentIntent,click}){
+export async function stationPopulationDismissIntent({deadlineAt,now=Date.now,expected,readCurrentIntent,readIntentBookend,click}){
  assert.ok(Number.isFinite(deadlineAt)&&now()<deadlineAt,'Original Station wave deadline expired before population dismissal.');
  const current=await readCurrentIntent();
  assert.ok(now()<deadlineAt,'Original Station wave deadline expired during final population intent verification.');
  assert.deepEqual(current,expected,'Population dismissal intent changed before the normal click.');
+ const bookend=await readIntentBookend();
+ assert.ok(now()<deadlineAt,'Original Station wave deadline expired during the final population source bookend.');
+ assert.deepEqual(bookend,{actor:expected.actor,source:expected.source,attack:expected.attack},'GM authority, source state, or final attack changed during the final mounted-control checks.');
  assert.ok(now()<deadlineAt,'Original Station wave deadline expired before the population dismissal click.');
  return click();
 }
@@ -1175,8 +1178,16 @@ async function enterRole(surface,label){
      const currentMount=await stationPopulationDismissMount();
      return{actor:stationAckActorAnchor(currentActor),source:stable(current),attack:stable(currentAuthority.authoritativeAttack),projection:stable(currentProjection),shipId,alert:stable(currentAlerts[0][1]),revision:current.vesselActionRevisions?.[shipId]??0,mounted:currentMount.mounted};
     };
+    const readIntentBookend=async()=>{
+     assert.ok(Date.now()<deadlineAt,'Original Station wave deadline expired before the final source bookend.');
+     const bookendActor=await liveGm(gm,'GM1','active',{deadlineAt});assertStationAckActor(actorAnchor,bookendActor);
+     const bookendAuthority=await readOwnedStationAuthority(deadlineAt),bookend=stationCombatServerContext({...bookendAuthority,publicAudience:null});assertSafePopulationAckState(bookendAuthority,bookend);
+     assert.equal(stable(bookend),stable(before),'Station source, safety state, or pinned population alert changed during the final mounted-control checks.');
+     assert.equal(stable(bookendAuthority.authoritativeAttack),stable(beforeAuthority.authoritativeAttack),'Resolved Station attack changed during the final mounted-control checks.');
+     return{actor:stationAckActorAnchor(bookendActor),source:stable(bookend),attack:stable(bookendAuthority.authoritativeAttack)};
+    };
     assert.ok(Date.now()<deadlineAt,'Original Station wave deadline expired before population dismissal intent verification.');
-    const capture=await action(gm,'dismissPopulationAlert',()=>stationPopulationDismissIntent({deadlineAt,expected:expectedIntent,readCurrentIntent,click:()=>{const timeout=deadlineAt-Date.now();assert.ok(Number.isFinite(timeout)&&timeout>0,'Original Station wave deadline expired immediately before the population dismissal click.');return dismiss.click({timeout});}}),{deadlineAt,original:beforeActor,gm:true,matches:data=>data?.sessionId===sid&&data?.shipId===shipId&&data?.instanceId===gm1Instance&&data?.expectedRevision===expectedRevision});
+    const capture=await action(gm,'dismissPopulationAlert',()=>stationPopulationDismissIntent({deadlineAt,expected:expectedIntent,readCurrentIntent,readIntentBookend,click:()=>{const timeout=deadlineAt-Date.now();assert.ok(Number.isFinite(timeout)&&timeout>0,'Original Station wave deadline expired immediately before the population dismissal click.');return dismiss.click({timeout});}}),{deadlineAt,original:beforeActor,gm:true,matches:data=>data?.sessionId===sid&&data?.shipId===shipId&&data?.instanceId===gm1Instance&&data?.expectedRevision===expectedRevision});
     assert.equal(capture.httpStatus,200);assert.equal(capture.data.sessionId,sid);assert.equal(capture.data.shipId,shipId);assert.equal(capture.data.instanceId,gm1Instance);assert.equal(capture.data.expectedRevision,expectedRevision);assert.equal(typeof capture.data.requestId,'string');assert.ok(capture.data.requestId.length>0);
     const response=capture.result,gmPlayer=beforeAuthority.players.find(player=>player.uid===actorUids.get('GM1'));assert.ok(gmPlayer);assert.equal(gmPlayer.role,'gm');assert.equal(response.dismissed,true);assert.equal(response.actorUid,actorUids.get('GM1'));assert.equal(response.actorRoleId,gmPlayer.activeConsoleRoleId??null);assert.equal(response.vesselId,shipId);assert.equal(response.turn,before.currentTurn);assert.equal(response.phase,'active');assert.equal(response.revision,expectedRevision+1);assert.equal(response.idempotencyKey,capture.data.requestId);assert.equal(response.auditId,`dismiss-population-${capture.data.requestId}`);
     const entry={wave,nextWave,attack:{attackId:final.attackId,revision:final.revision,status:final.status,currentStep:final.currentStep,pStationRepeat:final.pStationRepeat},actor:actorAnchor,ui:{role:'alertdialog',name:'Survivor population threshold reached',button:'Dismiss population alert',shipId,shipName:ready.alert.shipName,population:ready.alert.population},request:{endpoint:'dismissPopulationAlert',httpStatus:capture.httpStatus,data:capture.data,responseBody:{result:response}},sourceBefore:stationAckSafeSummary(before,shipId),sourceAfter:null,browserBefore:beforeProjection,browserAfter:null};
