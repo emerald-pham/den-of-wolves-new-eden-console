@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
+import { PC11_NORMAL_START } from './pc11-normal-start-adapter.mjs';
 
 const runnerUrl = new URL('./pc11-three-actor-trade-philia.mjs', import.meta.url);
 const runnerSource = await readFile(runnerUrl, 'utf8');
@@ -14,7 +15,7 @@ function functionSource(name, nextName) {
 
 test('normal casting readiness requires original identity and canonical seat without training markers', () => {
   const readiness = functionSource('castingStationReady', 'currentMemberBerthReady');
-  assert.match(readiness, /stationReady\(value,roleId\)/);
+  assert.match(readiness, /pc11MemberReadiness\(value,\{sessionId:sid,uidHash:short\(actorUids\.get\(label\)\),roleId,stage:'station'\}\)/);
   assert.match(readiness, /value\.cycle===0/);
   assert.match(readiness, /value\.phase==='casting'/);
   assert.match(readiness, /value\.setupConfirmed/);
@@ -25,14 +26,21 @@ test('normal casting readiness requires original identity and canonical seat wit
   assert.match(join, /v\.hasAuth&&v\.sameActor&&v\.sessionId===sid/);
   assert.match(join, /v\.cycle===0/);
   assert.match(join, /v\.phase==='casting'/);
+  assert.match(join, /admissionActors\.set\(label,\{roleId:roleIds\[label\],sessionId:sid,uidHash:admitted\.uidHash\}\)/);
   assert.doesNotMatch(join, /fullGameDemo|training|preparing|manual/i);
 });
 
 test('normal game start uses ordinary production and clears the actual briefing', () => {
-  assert.ok(runnerSource.includes('Start production // Advance to Cycle 1'));
-  assert.ok(runnerSource.includes('Clear cycle briefing // resume clock'));
+  assert.ok(runnerSource.includes('PC11_NORMAL_START.ui.productionButton'));
+  assert.equal(PC11_NORMAL_START.ui.productionButton, 'Start production // Advance to Cycle 1');
+  assert.equal(PC11_NORMAL_START.ui.briefingClearButton, 'Clear cycle briefing // resume clock');
   assert.ok(runnerSource.includes('clearTurnAdvanceInterstitial'));
   assert.ok(runnerSource.includes('pc11NormalStartPreflight'));
+  assert.ok(runnerSource.includes('recommendedRoleIds(playerCount)'));
+  assert.ok(runnerSource.includes('},PC11_NORMAL_START.setup.playerCount)'));
+  assert.ok(runnerSource.includes('expectedMembers'));
+  assert.ok(runnerSource.includes('expectedGm'));
+  assert.ok(runnerSource.includes('occupiedSeatCount'));
 });
 
 test('normal PC11 path has no prepared-demo or manual Coordination gate', () => {
