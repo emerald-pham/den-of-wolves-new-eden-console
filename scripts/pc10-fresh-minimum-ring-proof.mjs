@@ -833,6 +833,7 @@ async function enterRole(surface,label){
    try {
    let liberated=false;const waves=[];
    for(let wave=1;wave<=12&&!liberated;wave++){
+    await assertStationActors(); // No next wave or repair after original Wing action authority is lost.
     for(const ship of stationSurvivingRepairTargets(ships,await recordRoot()))await repair(ship);await liveGm(gm,'GM1','active');await action(gm,'declareWolfAttack',()=>preparation.getByRole('button',{name:'Declare Wolf attack',exact:true}).click());
     const final=await runSparseStationCombat({deadlineAt:Math.min(Date.now()+480000,workEnd-60000),readAttack,onState:retainCombatState,onDiagnosticError:async(error,attack)=>{recordDiagnosticError('diagnostic-retention',error,attack);},assertActors:async()=>{budget();await liveGm(gm,'GM1','active');assertSparseStationWing(await fullMember(recipient),evidence.stationWingOriginal);},choose,recoverChoice});
     waves.push({wave,attackId:final.attackId,repeat:final.pStationRepeat});liberated=final.pStationRepeat.status==='stopped';await writeFile(`${directory}/Station-combat-waves.json`,JSON.stringify(waves,null,2)+'\n');
@@ -843,7 +844,7 @@ async function enterRole(surface,label){
    } finally {recipient.page.off('response',observeLaunchRead);}
   },
   async stationActivate(){
-   await mark('existing tested sparse activation callback after actual liberation');for(const ship of stationSurvivingRepairTargets(ships,await recordRoot()))await repair(ship);
+   await mark('existing tested sparse activation callback after actual liberation');assertSparseStationWing(await fullMember(recipient),evidence.stationWingOriginal);for(const ship of stationSurvivingRepairTargets(ships,await recordRoot()))await repair(ship);
    const before=await recordRoot();const result=await runMinimumCandidateSuccessProbe(stationActivationContext({gm,wing:{...recipient,observe:()=>fullMember(recipient)},sessionId:sid,groupId,coordinate,recordRoot,selectGmShip:grant,deadlineAt:Math.min(Date.now()+60000,workEnd),configuredRoleCount:plan.configuredRoles}));
    evidence.stationActivation=result;assert.equal((await recordRoot()).debriefSnapshot.candidate.code,'P');claims.push('Unique real available Reactors consumed through current GM scoped grants; actual18+ capacity triggers immutable P success');
   },
