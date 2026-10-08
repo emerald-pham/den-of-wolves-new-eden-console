@@ -24233,6 +24233,15 @@ export const stageWolfAttackPreparation = auditedOnCall<{
           window.threatSourceId, groupSnapshot, schedule, pressure, currentTurn,
         );
         compositionRule = { kind: window.threatSiteCode, targetGroupId: window.targetGroupId };
+      } else if (window.threatSiteCode === 'K') {
+        const [groupSnapshot, schedule, mission] = await Promise.all([
+          tx.get(db.doc(`sessions/${change.sessionId}/fleetGroups/${window.targetGroupId}`)),
+          tx.get(db.doc(`sessions/${change.sessionId}/wolfAttackPressure/${window.threatSourceId!}`)),
+          tx.get(missionWolfSourceRef(change.sessionId, window.threatSourceId!)),
+        ]);
+        requireLiveMissionWolfThreatSource(session, window.targetGroupId, window.threatSourceId!,
+          groupSnapshot, schedule, mission, currentTurn);
+        compositionRule = { kind: 'K', targetGroupId: window.targetGroupId };
       } else {
         const [navigation, groups, players] = await Promise.all([
           tx.get(navigationRef), tx.get(fleetGroupsRef), tx.get(playersRef),
