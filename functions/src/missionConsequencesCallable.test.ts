@@ -595,6 +595,7 @@ it('binds the real queued K attempt to actual parent finalization and the next s
 // Dedicated maintenance cases use the same actual registered mission producer,
 // protected P403/deck/start receipts and transactional document store as above.
 const privacyRoot = 'sessions/s1/serverState/awayMissionProjectionPrivacy/repairs';
+const privacyCommandsRoot = 'sessions/s1/serverState/awayMissionProjectionPrivacy/commands';
 const privacyRequest = (step: 'hold' | 'repair' | 'finalize', requestId = `privacy-${step}`, repairRunId = 'privacy-run', uid = 'gm') => ({
   auth: { uid }, data: { sessionId, instanceId: 'bridge', requestId, repairRunId, step },
 }) as CallableRequest<Record<string, unknown>>;
@@ -618,7 +619,7 @@ async function legacyPrivacyWorld() {
   return structuredClone([...mock.documents]);
 }
 function privacyInvariantSnapshot() {
-  return [...mock.documents].filter(([path]) => !path.startsWith(privacyRoot + '/')).map(([path, fields]) => {
+  return [...mock.documents].filter(([path]) => !path.startsWith(privacyRoot + '/') && !path.startsWith(privacyCommandsRoot + '/')).map(([path, fields]) => {
     const value = structuredClone(fields);
     if (path === 'sessions/s1') delete value.awayMissionProjectionSafety;
     if (path.includes('/awayMissionHandPointers/')) delete value.lifecyclePublicState;
@@ -706,6 +707,27 @@ it('binds repair runs and request receipts to exact payload/current actor and ne
   expect([...mock.documents]).toEqual(newer);
 });
 
+it('rejects reuse of the same session request identity for another repair run without advancing its epoch', async () => {
+  await legacyPrivacyWorld();
+  await maintain('hold', 'same-session-request', 'first-run');
+  const before = structuredClone([...mock.documents]); const writes = mock.writes.length;
+  await expect(maintain('hold', 'same-session-request', 'changed-run')).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect([...mock.documents]).toEqual(before); expect(mock.writes).toHaveLength(writes);
+});
+
+it.each(['changed policy version', 'unknown audit field', 'missing audit timestamp'] as const)(
+  'rejects a malformed protected maintenance receipt with %s and makes no repair or gameplay writes', async defect => {
+    await legacyPrivacyWorld(); await maintain('hold');
+    const receipt = [...mock.documents].find(([path]) => path.startsWith('sessions/s1/serverState/awayMissionProjectionPrivacy/') &&
+      path.endsWith('/commands/privacy-hold'))![1];
+    if (defect === 'changed policy version') receipt.policyVersion = 2;
+    else if (defect === 'unknown audit field') receipt.unexpected = 'untrusted';
+    else delete receipt.createdAt;
+    const before = structuredClone([...mock.documents]); const writes = mock.writes.length;
+    await expect(maintain('hold')).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect([...mock.documents]).toEqual(before); expect(mock.writes).toHaveLength(writes);
+  });
+
 it.each(['changed numeric projection', 'foreign pointer', 'missing private hand', 'missing protected record', 'missing start', 'orphan pointer'] as const)(
   'keeps the session held without partial repair for %s', async defect => {
     await legacyPrivacyWorld(); await maintain('hold');
@@ -732,7 +754,7 @@ it('rejects final readiness after an actual gameplay pointer writer races the ve
   expect((mock.documents.get('sessions/s1')!.awayMissionProjectionSafety as Data).writeRevision).not.toBe(verified);
   const offset = mock.writes.length;
   expect(await maintain('finalize')).toMatchObject({ status: 'stale', state: 'held' });
-  expect(mock.writes.slice(offset).filter(write => !write.path.startsWith(privacyRoot + '/'))).toEqual([]);
+  expect(mock.writes.slice(offset).filter(write => !write.path.startsWith(privacyRoot + '/') && !write.path.startsWith(privacyCommandsRoot + '/'))).toEqual([]);
   expect((mock.documents.get('sessions/s1')!.awayMissionProjectionSafety as Data).state).toBe('held');
   await maintain('repair', 'reverify-after-gameplay');
   expect(await maintain('finalize', 'new-finalize')).toMatchObject({ state: 'ready' });
