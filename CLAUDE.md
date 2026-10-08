@@ -167,6 +167,7 @@ added, changed, skipped, or deleted in the nontechnical checkpoint report.
 Pure prose/documentation without functional changes needs consistency review.
 Interactive presentation changes require a meaningful failing rendered/consumer
 check first, then the smallest implementation and a passing check.
+Use the smallest cohort per distinct claim; avoid blanket suites/account matrices.
 Future gameplay proof uses normal authenticated local/emulator native, HTTP/UI and rules paths; prepared scenes alone do not establish behavior. Keep local tests, gameplay, rendered QA, CI, production deployment and actual production behavior distinct. Independent risk review, CI and deployment remain required; production-GM gameplay is not a closure prerequisite.
 
 Typical checks are:

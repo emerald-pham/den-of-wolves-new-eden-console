@@ -125,7 +125,7 @@ it.each([
 );
 
 it.each(['endeavour', 'comms-officer'] as const)(
-  'keeps the existing generic guidance for %s',
+  'shows the source-specific range and cadence for %s',
   (entitlementId) => {
     setOwner(entitlementId);
     render(<ScoutRequestControls entitlementId={entitlementId} />);
@@ -133,9 +133,12 @@ it.each(['endeavour', 'comms-officer'] as const)(
     const label = entitlementId === 'endeavour' ? 'Endeavour' : 'Comms Officer';
     const controls = screen.getByRole('region', { name: `${label} scouting request` });
     expect(controls).toHaveTextContent('Enter a printed four-digit system coordinate to record a request.');
-    expect(controls).not.toHaveTextContent(
-      /within (?:two|three) jumps|second, distinct request|one request per cycle/i,
-    );
+    expect(controls).toHaveTextContent('One request per cycle.');
+    const procedure = within(controls).getByText(entitlementId === 'endeavour'
+      ? /any printed system.*unlimited range/i
+      : /within one jump of AEGIS/i);
+    expect(within(controls).getByLabelText('Printed system coordinate')
+      .getAttribute('aria-describedby')?.split(/\s+/)).toContain(procedure.id);
   },
 );
 

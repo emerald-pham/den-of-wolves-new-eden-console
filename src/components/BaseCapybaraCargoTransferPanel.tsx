@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { SHIPS } from '@/data/ships';
 import { BASE_CAPYBARA_CARGO_TYPES, parseBaseCapybaraCargoState } from '@/lib/baseCapybaraCargoLedger';
 import {
@@ -82,6 +82,7 @@ function currentStaleTargetMatches(
 }
 
 export default function BaseCapybaraCargoTransferPanel() {
+  const id = useId();
   const session = useSessionStore((state) => state.session) as GameSession | null;
   const me = useSessionStore((state) => state.me);
   const [resourceId, setResourceId] = useState<(typeof BASE_CAPYBARA_CARGO_TYPES)[number]>('food');
@@ -337,7 +338,7 @@ export default function BaseCapybaraCargoTransferPanel() {
         </select>
         <label htmlFor="base-capybara-cargo-amount">Positive whole amount</label>
         <input id="base-capybara-cargo-amount" type="number" min="1" step="1" inputMode="numeric"
-          value={amountText} onChange={(event) => {
+          aria-describedby={`${id}-cargo-help`} value={amountText} onChange={(event) => {
             setAmountText(event.target.value);
             clearAttempt();
           }} />
@@ -345,11 +346,12 @@ export default function BaseCapybaraCargoTransferPanel() {
           Available at source // {resourceAvailable ?? 0} {LABELS[resourceId]}
         </p>
       </fieldset>
+      <p id={`${id}-cargo-help`}>Transfer subtracts the selected amount from the source and adds it to the destination. The source must hold the full amount. Load moves host stores onto Capybara; unload returns Capybara cargo to its current host.</p>
       <div className="maintenance-controls__confirmation">
         <button className="cic-action-button" type="button"
           disabled={pendingForCurrentAuthority || (retryCommand
             ? false : currentStaleRecovery ? !staleRetryReady : !canSubmit)}
-          onClick={() => void submit()}>
+          aria-describedby={`${id}-cargo-help`} onClick={() => void submit()}>
           {pendingForCurrentAuthority ? 'Transferring cargo…'
             : retryCommand ? 'Retry exact cargo request'
               : currentStaleRecovery ? 'Retry with current revision' : 'Transfer cargo'}

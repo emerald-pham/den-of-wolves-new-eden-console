@@ -1,4 +1,5 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import './DecisionGuidance.css';
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import {
   createJumpShipAttempt,
   isJumpShipOutcomeUncertain,
@@ -78,6 +79,7 @@ export default function JumpDriveConsole({
   presentationOnly = false,
   demoMode = false,
 }: Props) {
+  const id = useId();
   const access = useConsoleAccess();
   const [destination, setDestination] = useState(() => coordinateDigits(currentCoordinate).join(''));
   const [blindMode, setBlindMode] = useState(false);
@@ -291,6 +293,9 @@ export default function JumpDriveConsole({
         </p>
       )}
 
+      <p className="jump-drive__blind-help decision-guidance" id={`${id}-sequence-help`}>{blindMode
+        ? 'Arm blind jump, then raise power to 100%. Arming does not launch the ship.'
+        : 'Lock the destination, then raise power to 100%. Locking does not launch the ship.'}{' '}Charge the drive during maintenance before a normal jump; the power rail does not supply that charge.</p>
       <div className="jump-drive__coordinates">
         <div className="jump-drive__readout">
           <span className="jump-drive__label">{blindMode ? 'Blind-jump display' : 'Destination coordinates'}</span>
@@ -351,6 +356,7 @@ export default function JumpDriveConsole({
       </p>}
 
       <button
+        aria-describedby={`${id}-sequence-help`}
         ref={coordinateLockRef}
         className="cic-action-button jump-drive__lock"
         type="button"
@@ -382,6 +388,7 @@ export default function JumpDriveConsole({
           value={power}
           disabled={powerDisabled}
           aria-label="Jump drive power"
+          aria-describedby={`${id}-sequence-help`}
           onChange={(event) => setPower(Number(event.target.value))}
         />
         <div className="jump-drive__power-scale" aria-hidden="true"><span>CHARGE</span><span>IGNITION</span><span>JUMP</span></div>
@@ -401,7 +408,11 @@ export default function JumpDriveConsole({
       )}
       {notice && (!lockoutActive || emergencyAvailable) && <p className="jump-drive__notice" role="status">{notice}</p>}
 
+      <p className="jump-drive__blind-help decision-guidance" id={`${id}-route-help`}>{blindMode
+        ? 'The server chooses a connected system; its coordinates remain hidden until the result is confirmed.'
+        : 'Use a printed system reachable by a short, medium or long jump; the cost bands above show the fuel required. An invalid route causes a one-hour integrity lock. Confirm the destination before launch.'}</p>
       <button
+        aria-describedby={`${id}-sequence-help ${id}-route-help`}
         ref={launchRef}
         className="cic-action-button jump-drive__launch"
         type="button"

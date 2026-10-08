@@ -311,3 +311,12 @@ it('keeps the transfer control disabled outside explicit base vessel mode', () =
   render(<BaseCapybaraCargoTransferPanel />);
   expect(screen.getByRole('button', { name: 'Transfer cargo' })).toBeDisabled();
 });
+
+it('describes cargo debits and credits without submitting a transfer', () => {
+  render(<BaseCapybaraCargoTransferPanel />);
+  expect(screen.getByRole('button', { name: 'Transfer cargo' })).toHaveAccessibleDescription(
+    /subtracts the selected amount from the source.*adds it to the destination/i,
+  );
+  expect(screen.getByLabelText('Positive whole amount')).toHaveAccessibleDescription(/source must hold the full amount/i);
+  expect(mocks.transfer).not.toHaveBeenCalled();
+});

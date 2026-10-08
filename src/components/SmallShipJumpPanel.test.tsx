@@ -125,3 +125,16 @@ it('presents a detached arrival and keeps stale-origin refresh as an explicit vi
   fireEvent.click(within(workspace).getByRole('button', { name: 'Refresh movement projection' }));
   expect(onRefresh).toHaveBeenCalledOnce();
 });
+
+it('describes jump charge consumption and exact recovery beside the controls', () => {
+  renderPanel({ pendingCharge: true, pendingJump: true });
+  expect(screen.getByRole('button', { name: 'Execute jump' })).toHaveAccessibleDescription(
+    /consumes the Jump Drive charge.*one jump per cycle/i,
+  );
+  expect(screen.getByRole('button', { name: 'Retry exact jump' })).toHaveAccessibleDescription(
+    /same saved action.*without spending again/i,
+  );
+  expect(screen.getByRole('button', { name: 'Retry exact charge' })).toHaveAccessibleDescription(
+    /same saved action/i,
+  );
+});

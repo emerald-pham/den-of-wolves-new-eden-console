@@ -223,3 +223,23 @@ it('rejects a malformed or bilateral balance reply from trade acceptance', async
 
   await expect(acceptSameTableTradeOffer(incomingOfferId)).rejects.toThrow(/private balances/i);
 });
+
+it('accepts the immutable initial offer receipt at revision zero after inventory advances', async () => {
+  const offerId = '3f23b456-789a-4abc-8def-0123456789ab';
+  const receipt = { receiptId: offerId, offerId, fromUid: 'bob', toUid: 'alice', tableId: 'aegis', revision: 0,
+    quantities: { ore: 1, fuel: 0, food: 0, water: 0, materials: 0, securityTeams: 0 } };
+  mocks.call.mockResolvedValue({ data: { status: 'committed', sessionId: 's1', offerId, revision: 1,
+    inventory: { playerUid: 'alice', revision: 1, balances }, receipt } });
+  const result = await acceptSameTableTradeOffer(offerId);
+  expect(result.receipt).toEqual(receipt);
+  expect(result.inventory).toEqual({ revision: 1, balances });
+});
+
+it.each([-1, 0.5])('rejects invalid immutable offer receipt revision %s', async (revision) => {
+  const offerId = '3f23b456-789a-4abc-8def-0123456789ab';
+  mocks.call.mockResolvedValue({ data: { status: 'committed', sessionId: 's1', offerId, revision: 1,
+    inventory: { playerUid: 'alice', revision: 1, balances },
+    receipt: { receiptId: offerId, offerId, fromUid: 'bob', toUid: 'alice', tableId: 'aegis', revision,
+      quantities: { ore: 1, fuel: 0, food: 0, water: 0, materials: 0, securityTeams: 0 } } } });
+  await expect(acceptSameTableTradeOffer(offerId)).rejects.toThrow();
+});

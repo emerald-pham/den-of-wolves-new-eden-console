@@ -76,3 +76,13 @@ it('keeps submission disabled until the supplied cards form an exact partition',
 
   expect(screen.getByRole('button', { name: 'Apply deck support' })).toBeDisabled();
 });
+
+it('describes preserved deck order and one-use pre-deal consequences', () => {
+  const submit = vi.fn();
+  render(<GorgoneionMissionSupportPanel projection={{ cardIds: topFiveCardIds }}
+    topCardIds={topFiveCardIds} bottomCardIds={[]} onPartitionChange={vi.fn()} onSubmit={submit} />);
+  expect(screen.getByRole('button', { name: 'Apply deck support' })).toHaveAccessibleDescription(
+    /original order.*untouched.*one-use.*does not deal/i,
+  );
+  expect(submit).not.toHaveBeenCalled();
+});

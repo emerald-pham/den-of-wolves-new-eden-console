@@ -736,3 +736,14 @@ it('keeps rations available for exact rescued-survivor counts between printed ma
   expect(screen.queryByRole('alert')).toBeNull();
   expect(screen.getByRole('button', { name: 'Proceed with rations' })).toBeEnabled();
 });
+
+it('identifies maintenance checks as console-owned rolls and outcomes', () => {
+  render(<MaintenanceSystems name="AEGIS" shipId="aegis" systems={[]} renderSystem={() => null} rations={null} />);
+  expect(screen.getByRole('button', { name: 'Run unrest check' })).toHaveAccessibleDescription(
+    /console rolls.*applies.*records.*do not roll/i,
+  );
+  expect(screen.getByRole('button', { name: 'Run riot check' })).toHaveAccessibleDescription(
+    /console rolls.*applies.*records/i,
+  );
+  expect(run).not.toHaveBeenCalled();
+});

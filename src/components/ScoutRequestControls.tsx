@@ -1,3 +1,4 @@
+import './DecisionGuidance.css';
 import { useId, useLayoutEffect, useRef, useState, type FormEvent } from 'react';
 import {
   isScoutEntitlementHolder,
@@ -19,11 +20,13 @@ const LABELS: Readonly<Record<ScoutEntitlementId, string>> = {
   'comms-officer': 'Comms Officer',
 };
 
-const PROCEDURE_GUIDANCE: Partial<Record<ScoutEntitlementId, string>> = {
+const PROCEDURE_GUIDANCE: Readonly<Record<ScoutEntitlementId, string>> = {
   starlight: [
     'Choose a printed system within two jumps of AEGIS\'s current position on the printed chart.',
     'A second, distinct request in the same cycle requires Starlight to be fuelled in AEGIS\'s shuttle bay during that cycle.',
   ].join(' '),
+  endeavour: 'Choose any printed system on the chart; Endeavour has unlimited range. One request per cycle.',
+  'comms-officer': "Choose a printed system within one jump of AEGIS's current position on the chart. One request per cycle.",
   hummingbird: [
     'Choose a printed system within three jumps of Quellon\'s current position on the printed chart.',
     'Hummingbird allows one request per cycle.',
@@ -173,7 +176,7 @@ export default function ScoutRequestControls({ entitlementId }: Props) {
         Enter a printed four-digit system coordinate to record a request.
       </p>
       {procedureGuidance && (
-        <p className="scout-request__description" id={`${id}-procedure`}>
+        <p className="scout-request__description decision-guidance" id={`${id}-procedure`}>
           {procedureGuidance}
         </p>
       )}
@@ -210,11 +213,11 @@ export default function ScoutRequestControls({ entitlementId }: Props) {
           />
         </label>
         <button className="cic-action-button scout-request__submit" type="submit"
-          disabled={!canSubmit}>
+          disabled={!canSubmit} aria-describedby={`${id}-procedure ${id}-help`}>
           {busy ? 'Recording request…' : retrying ? 'Retry same request' : 'Record request'}
         </button>
-        <p className="scout-request__help" id={`${id}-help`}>
-          Use the coordinate printed on your chart.
+        <p className="scout-request__help decision-guidance" id={`${id}-help`}>
+          Recording uses a scouting request for this cycle. Your private report arrives here automatically; it does not move your craft.
         </p>
       </form>
 
