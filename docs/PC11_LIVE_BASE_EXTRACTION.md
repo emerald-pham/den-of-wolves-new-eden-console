@@ -357,3 +357,32 @@ unaffected. Reconcile this clean navigation adapter with focused RED/GREEN and
 review before claiming general runnable qualification or requesting the next
 actual proof. Full normal-flow proof and authenticated guidance/render acceptance
 remain open; parent owns the next allocation and release decision.
+
+## Complete clean-contract repair groups — October 8
+
+Parent explicitly requests one full active-helper/consumer audit before another
+browser attempt. After two distinct clean-runtime adapter failures, source
+implementation transfers to Sol `scout_copy_review`; Luna `control_inventory`
+is parked. Independent Sol `normal_adapter_review` audits and reviews the
+complete repaired group. Root owns reconciliation, docs, the offer-layout
+regression and final validation. No worker owns checkpoint/release acceptance.
+
+The audit covers all active mounted callbacks, imported helpers, named exports,
+asserted fields, callable/receipt contracts, epoch recovery, own-player ship map,
+entitled readbacks, cleanup and runtime boundaries. Independent audit identified
+three remaining seams together: legacy navigation berth/clientAcceptance
+expectations; rejection of the valid memberShipIds map created by ordinary
+start; and uncaptured cleanup of own top-level create/start request receipts.
+The repaired preflight must execute these actual helpers against normal clean
+DTOs, including changed-epoch receipt recovery and negative authority cases,
+before browser setup. Existing actual10/11 and their limits remain preserved.
+
+Root prepared `scripts/qualification/pc11-trade-layout-regression.mjs` as a
+test-only exact-built consumer check before editing the UI. It inspects the
+actual PC06 incoming/outgoing offer copy measure and controls at844x390,320x844,
+1440x900 and enlarged-text landscape, including long names, document/copy/control
+overflow and keyboard focus. It is explicitly blocked before listener/browser
+creation without `PC11_RENDER_ALLOCATED=yes`. No new rendered RED is claimed yet,
+and SameTableTradePanel.css remains unchanged until a fresh parent allocation
+runs the failing regression against the audited existing build. The prior built
+landscape screenshot is preserved as the motivating finding.
