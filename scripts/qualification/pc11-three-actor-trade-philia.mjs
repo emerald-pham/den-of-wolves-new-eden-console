@@ -51,7 +51,7 @@ function budget() { assert.equal(stopped,false,'Work has stopped; do not begin a
 async function mark(name) { budget();stage=name; await writeFile(`${directory}/progress.json`,JSON.stringify({sourceCommit,stage,elapsedMs:Date.now()-startAt,claims},null,2)+'\n');console.log(JSON.stringify({stage,elapsedMs:Date.now()-startAt})); }
 async function snapshot(surface,label) { if(new URL(surface.page.url()).origin!==new URL(baseUrl).origin)return {skipped:true,reason:'Original App origin has not mounted; no actor observer was imported.'};const value=await observeLifecycleActor(surface,sid);states.push({label,origin:new URL(surface.page.url()).origin,state:value});consumed={stage,label,state:value};await writeFile(`${directory}/consumed-state.json`,JSON.stringify(consumed,null,2)+'\n');return value; }
 async function register(surface,label) { const uid=await surface.page.evaluate(async()=>{const {auth}=await import('/src/lib/firebase.ts');if(!auth().currentUser)throw new Error('Normal admission has no Auth user.');return auth().currentUser.uid;});assert.ok(![...actorUids].some(([actor,value])=>actor!==label&&value===uid),'Require independent normally admitted Auth identities.');if(actorUids.has(label))assert.equal(actorUids.get(label),uid,'Original request Auth UID must be retained.');actorUids.set(label,uid);evidence.actualAuthenticatedActors=actorUids.size;await writeFile(`${directory}/owned-identities.json`,JSON.stringify({sid,joinCode,actors:Object.fromEntries(actorUids)},null,2)+'\n',{mode:0o600}); }
-async function action(surface,endpoint,choose,options={}) { budget();const value=await captureLifecycleUiAction(surface,endpoint,()=>{budget();return choose();},options);receipts.push(publicLifecycleReceipt(value));return value; }
+async function action(surface,endpoint,choose,options={}) { budget();const value=await captureLifecycleUiAction(surface,endpoint,()=>{budget();return choose();},{...options,correlateRequests:pr17Proof});receipts.push(publicLifecycleReceipt(value));return value; }
 // Existing ordinary UI surface factory, copied verbatim; original35s/60s budgets retained.
   async function surface(label) {
     const browser = await chromium.launch({ channel: 'chrome', headless: true });
@@ -421,13 +421,13 @@ async function runPr17Proof(){
  await noIcn(gm);
  const originalGm=await observeLifecycleActor(gm,sid);
  await access.click();
- const grant=await action(gm,'setGmShipConsoleWriteGrant',()=>gm.page.getByRole('alertdialog',{name:'Are you sure?',exact:true}).getByRole('button',{name:'ARE YOU SURE?',exact:true}).click(),{gm:true,original:originalGm,deadlineAt});
+ const grant=await action(gm,'setGmShipConsoleWriteGrant',()=>gm.page.getByRole('alertdialog',{name:'Are you sure?',exact:true}).getByRole('button',{name:'ARE YOU SURE?',exact:true}).click(),{gm:true,original:originalGm,deadlineAt,matches:data=>data?.shipId==='dione'&&data?.enabled===true&&data?.instanceId===originalGm.instanceId&&data?.claimedAt===originalGm.claimedAt});
  assert.equal(grant.result.enabled,true);
  await gm.until('Current original GM has Dione scoped grant',asyncValue=>asyncValue.sameActor&&asyncValue.gmInstanceOwned&&asyncValue.grantShipId==='dione');
  assert.equal(await access.getAttribute('aria-pressed'),'true');
  const legacy=await action(gm,'setShipConsoleLock',()=>gm.page.evaluate(async()=>{
   const service=await import('/src/lib/sessionService.ts');await service.setShipConsoleLock('dione',true);
- }),{gm:true,original:originalGm,deadlineAt});
+ }),{gm:true,original:originalGm,deadlineAt,matches:data=>data?.shipId==='dione'&&data?.locked===true});
  assert.equal(legacy.result.locked,true);assert.equal(legacy.result.shipId,'dione');
  assert.equal(legacy.result.vesselId,'dione');assert.equal(legacy.result.idempotencyKey,legacy.data.requestId);
  assert.equal(legacy.result.actorUid,actorUids.get('GM1'));assert.ok(Number.isSafeInteger(legacy.result.revision));
@@ -443,12 +443,12 @@ async function runPr17Proof(){
  assert.equal(await begin.isEnabled(),true);
  const begun=await action(owner,'runMaintenance',async()=>{
   await begin.click();await panel(owner).getByRole('button',{name:'ARE YOU SURE?',exact:true}).click();
- },{deadlineAt});
+ },{deadlineAt,matches:data=>data?.shipId==='dione'&&data?.action==='begin'});
  assert.equal(begun.data.shipId,'dione');assert.equal(begun.data.action,'begin');
  assert.equal(begun.result.status,'committed');await synchronize(begun.result.cycle);
  const storage=panel(owner).getByRole('button',{name:'Check storage',exact:true});
  await storage.waitFor();assert.equal(await storage.isEnabled(),true);
- const checked=await action(owner,'runMaintenance',()=>storage.click(),{deadlineAt});
+ const checked=await action(owner,'runMaintenance',()=>storage.click(),{deadlineAt,matches:data=>data?.shipId==='dione'&&data?.action==='storage'});
  assert.equal(checked.data.action,'storage');assert.equal(checked.result.status,'committed');
  await waitForMaintenanceReceipt({shipId:'dione',cycle:checked.result.cycle.turn,revision:checked.result.cycle.revision,expectedActor:originalEngineer,expectedMaintenance:checked.result.cycle,
   inspectGm:()=>lockState(gm),inspectCrew:()=>lockState(owner),inspectActor:()=>owner.observe(),inspectRendered,timeoutMs:Math.max(1,Math.min(60000,deadlineAt-Date.now()))});
@@ -475,7 +475,7 @@ async function runPr17Proof(){
  await noIcn(owner);states.push({label:'PR17 foreign-vessel denied',actor:foreign});
  claims.push('Server-assigned Dione Engineer retains identity while AEGIS Admiral gameplay is disabled; no same-ship short-staff claim');
  await mark('PR17 visible GM revoke and observer read-only');
- const revoked=await action(gm,'setGmShipConsoleWriteGrant',()=>access.click(),{gm:true,original:originalGm,deadlineAt,matches:data=>data?.enabled===false});
+ const revoked=await action(gm,'setGmShipConsoleWriteGrant',()=>access.click(),{gm:true,original:originalGm,deadlineAt,matches:data=>data?.shipId==='dione'&&data?.enabled===false&&data?.instanceId===originalGm.instanceId&&data?.claimedAt===originalGm.claimedAt});
  assert.equal(revoked.result.enabled,false);
  assert.equal(await access.getAttribute('aria-pressed'),'false');
  assert.equal(await panel(gm).getByRole('button',{name:'Proceed with rations',exact:true}).isDisabled(),true);
