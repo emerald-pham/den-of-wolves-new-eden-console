@@ -68,3 +68,41 @@ Residual risks: platform/system fallback, text scaling/browser settings, stale
 served assets, build-only cascade and unsampled inheritance paths. Static source
 audit cost is low; a focused final-build comparison needs allocated browser time,
 not new accounts or whole-game replay.
+
+## Subsequent cycle-clearance handback
+
+Owner screenshot metadata and pixel inspection identify the cycle briefing's
+Clear cycle briefing // resume clock action, not Maintenance Proceed controls.
+Parent measured blue grid x37–904 in a 942px PNG, leaving 37px dark gutters;
+CSS viewport is unknown. This worker's Library transfer returned HTTP403 twice
+and cloud-local materialization was inaccessible on the Mac; screenshot pixels
+were not available to this worker. No full-bleed CSS change is claimed.
+
+Test-first commit `fc253cd3` adds real mounted-consumer role-loss, mismatched
+UID/session, recovery and initial-player reconnect regressions. Five failed
+before implementation; existing two clearance tests now supply genuine GM
+identity, keeping their assertions. Fix `bec5779d` limits visibility and dispatch
+to matching current GM identity/descriptor with recovery excluded; dispatch also
+requires fresh server state. Offline GM control remains disabled. Existing server
+authorization is preserved (active members remain authorized by the callable);
+this is the requested UI restriction. Focused component, announcement and service
+suites pass 21 tests. Raw red/green logs: /tmp/font-clearance-red.log and
+/tmp/font-clearance-green.log. Independent Sol code review found no actionable
+findings on implementation blob dfd24e96166a7d24d446b5f33a5882eedd157787.
+
+Production build passes after linking existing root and Functions dependency
+directories. Initial build failed because Functions dependencies were missing;
+that repair justified the retry. Build log: /tmp/font-clearance-build.log. No
+version bump/CI/deploy performed: parent reconciles the whole visual candidate,
+release metadata and final gates. Required independent rendered typography
+review remains outstanding.
+
+ReadBar runtime was subsequently confirmed released by parent. Chrome control
+was unavailable; in-app browser reused existing route/session, so it was closed
+without proceeding into real user data. Only the visible safety heading was
+inspected: mono family stack, 48px size/line height and weight700. This is neither
+actual painted-face identification nor global font correctness evidence. A
+fresh browser profile and parent-accessible screenshot are still needed.
+
+Preserve isolated checkout and both borrowed dependency symlinks for parent
+integration. No retained PC10/slot2 processes were modified.
