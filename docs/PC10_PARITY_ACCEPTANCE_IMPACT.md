@@ -211,9 +211,9 @@ source disputes outside the five approved scopes remain unresolved.
 The remaining 18 audit obligations have bounded implementation owners across
 four groups. The isolated reconciliation candidate at `694a03c4` connects
 A, C and D, covering 11 obligations. B's seven obligations are still in its
-assigned checkout. The canonical parent owns current-main integration,
-acceptance, runtime allocations and release; this intermediate source work
-earns no fixed catalog closures.
+assigned checkout. Root remains the single current-main integration owner;
+the canonical parent owns acceptance, runtime allocations and release. This
+intermediate source work earns no fixed catalog closures.
 
 | Group | Obligations | Connected source and remaining acceptance |
 | --- | --- | --- |
@@ -240,14 +240,24 @@ normal navigation tuple mismatch. Missing imports and source-presence assertions
 receive no functional RED credit. The direct CLI retained only the safe error
 fingerprint, so the exact raw first error is unavailable.
 
-The original Sol source owner is repairing that bounded compatibility and
-private failure-retention scope in a new isolated checkout. Preserve real
-authority, privacy, receipt, resume and deadline requirements. Before another
-allocation request, the complete source preflight must actually pass against
-the exact reviewed candidate and retained build. A change to the preflight
-ordering requires meaningful consumer RED before implementation and exact
-independent review. Historical chronology gaps remain recorded; these repairs
-do not retroactively make them compliant.
+The original Sol source owner completed that bounded compatibility and private
+failure-retention repair at `56a581dd`. The API's source-only preflight uses the
+complete canonical contracts and source/build checks before allocation, with
+no browser, Auth, SDK, network or reservation access. Two actual API/CLI
+behavioral REDs preceded the functional repair; applicability, missing-import
+and fixture setup corrections earn no RED credit. Affected runner checks
+passed 81 tests, canonical contracts passed 40, and independent bounded source
+review passed with no material findings.
+
+After that review, the real complete source-only preflight passed against the
+exact candidate in 2,054 ms of its 60-second budget. All 434 Functions and 272
+web outputs were copied into the corrected checkout and individually verified,
+with all 528 Functions inputs and 2,048 tracked paths bound. These retain the
+original `74911da2` build provenance; no new build is claimed. Configuration
+preparation and a fresh absolute native allocation remain parent-owned. The
+real served source, runtime, authority, gameplay and cleanup gates remain open.
+Historical chronology gaps and Attempt 2's raw-error loss remain recorded;
+these repairs do not retroactively make them compliant or recover lost data.
 
 Exact worker, root and failure receipts remain in `/tmp/dow-pc10-evidence`,
 including `PC10_PARITY_A_T03_T04_T09_HANDOFF_20261008.json`,
