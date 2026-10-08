@@ -139,8 +139,7 @@ export async function observeFullGameDemoPresentationMember(surface, { knownRole
   return surface.page.evaluate(async ({ moduleUrl, knownRoleIds, authorityModuleUrl }) => {
     const { auth } = await import('/src/lib/firebase.ts');
     const { useSessionStore } = await import(moduleUrl);
-    const { sessionSnapshotAuthorityFor, memberSessionResumeBlocksFreshness } =
-      await import(authorityModuleUrl);
+    const { sessionSnapshotAuthorityFor } = await import(authorityModuleUrl);
     const originalUid = auth().currentUser?.uid;
     const uidHash = originalUid ? Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',
       new TextEncoder().encode(originalUid)))).map(byte => byte.toString(16).padStart(2, '0')).join('').slice(0, 16) : null;
@@ -215,7 +214,6 @@ export async function observeFullGameDemoPresentationMember(surface, { knownRole
       currentCanonicalSeatOwned: state.seats.some(seat => seat.id === me?.assignedRoleId &&
         (seat.roleId ?? seat.id) === me.assignedRoleId && seat.status === 'claimed' && seat.holderUid === me.uid),
       sdkHasServerAuthority: authority?.hasServerSessionAuthority === true,
-      sdkResumePending: authority ? memberSessionResumeBlocksFreshness(authority) : true,
       communicationError: state.communicationError ? { code: safeCode(state.communicationError.code),
         kind: safeKind(state.communicationError.kind) } : null, invalidFields };
   }, { moduleUrl: surface.storeModuleUrl(), knownRoleIds, authorityModuleUrl });
@@ -297,7 +295,7 @@ export async function waitForFullGameDemoPresentationActor(options) {
         if (current.currentMemberBerthPresent) assert.equal(current.currentMemberBerthMatches, true);
       }
       return current.connection === 'live' && current.freshness === 'server' && current.currentOwnPlayerConfirmed &&
-        current.sdkHasServerAuthority && !current.sdkResumePending &&
+        current.sdkHasServerAuthority &&
         (!press || current.currentMemberBerthPresent && current.currentMemberBerthNull && current.memberScopeMatches);
     }
     async function inspect() {

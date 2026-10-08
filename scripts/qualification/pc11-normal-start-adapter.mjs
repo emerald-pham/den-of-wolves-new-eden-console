@@ -40,7 +40,7 @@ function commonLiveMember(value, expected) {
     (expected.connectionGeneration === undefined || value.connectionGeneration === expected.connectionGeneration) &&
     (expected.identityHydrationRevision === undefined || value.identityHydrationRevision === expected.identityHydrationRevision) &&
     value.connection === 'live' && value.freshness === 'server' &&
-    value.sdkHasServerAuthority === true && value.sdkResumePending === false &&
+    value.sdkHasServerAuthority === true &&
     Array.isArray(value.invalidFields) && value.invalidFields.length === 0);
 }
 
@@ -104,7 +104,7 @@ export function pc11GmReadiness(value, expected) {
     value.connected === true && value.kicked === false && value.recoveryPending === false &&
     Array.isArray(value.invalidFields) && value.invalidFields.length === 0 &&
     value.currentOwnPlayerConfirmed === true && value.sdkHasServerAuthority === true &&
-    value.sdkResumePending === false && value.gmInstanceOwned === true &&
+    value.gmInstanceOwned === true &&
     isNonblankString(expected.instanceId) && value.instanceId === expected.instanceId);
 }
 

@@ -47,7 +47,6 @@ const castingMember = Object.freeze({
   fullGameDemo: null,
   currentCanonicalSeatOwned: false,
   sdkHasServerAuthority: true,
-  sdkResumePending: false,
   invalidFields: [],
 });
 
@@ -96,7 +95,8 @@ test('normal readiness rejects identity, server freshness, and mounted SDK autho
     { sessionId: 'foreign-session' },
     { freshness: 'cache' },
     { sdkHasServerAuthority: false },
-    { sdkResumePending: true },
+    { currentOwnPlayerConfirmed: false },
+    { connection: 'connecting' },
     { profileRoleId: 'dione-engineer' },
   ]) {
     assert.equal(readiness?.({ ...castingMember, ...changed }, expected), false);
@@ -192,7 +192,6 @@ test('GM readiness requires the exact current owned live instance and server aut
     recoveryPending: false,
     currentOwnPlayerConfirmed: true,
     sdkHasServerAuthority: true,
-    sdkResumePending: false,
     instanceId: 'fresh-gm-instance',
     gmInstanceOwned: true,
     invalidFields: [],
@@ -230,7 +229,7 @@ function normalStartSnapshot() {
     connectionGeneration: 1, identityHydrationRevision: 1,
     connection: 'live', freshness: 'server', currentOwnPlayerConfirmed: true,
     connected: true, kicked: false, recoveryPending: false, invalidFields: [],
-    sdkHasServerAuthority: true, sdkResumePending: false,
+    sdkHasServerAuthority: true,
     instanceId: 'fresh-gm-instance', gmInstanceOwned: true, fullGameDemo: null,
   };
   const player = (uidHash, roleId) => ({

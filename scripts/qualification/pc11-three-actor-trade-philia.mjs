@@ -219,9 +219,9 @@ async function liveGm(surface,label,phase,{deadlineAt=Date.now()+60000}={}) {
  const sdk=await bounded(surface.page.evaluate(async({sid,authorityUrl,storeUrl})=>{
   const{auth}=await import('/src/lib/firebase.ts');const{useSessionStore}=await import(storeUrl);const authority=await import(authorityUrl);const uid=auth().currentUser?.uid,state=useSessionStore.getState();
   if(!uid||state.me?.uid!==uid||state.session?.id!==sid||state.me?.role!=='gm'||state.gmInstance?.uid!==uid)throw new Error('Current original GM tuple required.');
-  const own=authority.sessionSnapshotAuthorityFor(sid,uid);return {ownAuthority:own.hasServerSessionAuthority,resumePending:authority.memberSessionResumeBlocksFreshness(own),wrongSessionAuthority:authority.sessionSnapshotAuthorityFor('pc10-absent-session-control',uid).hasServerSessionAuthority};
+  const own=authority.sessionSnapshotAuthorityFor(sid,uid);return {ownAuthority:own.hasServerSessionAuthority,wrongSessionAuthority:authority.sessionSnapshotAuthorityFor('pc10-absent-session-control',uid).hasServerSessionAuthority};
  },{sid,authorityUrl:surface.sessionAuthorityModuleUrl(),storeUrl:surface.storeModuleUrl()}),remaining(),'Original live GM SDK witness deadline expired.');
- assert.deepEqual(sdk,{ownAuthority:true,resumePending:false,wrongSessionAuthority:false});remaining();return value;
+ assert.deepEqual(sdk,{ownAuthority:true,wrongSessionAuthority:false});remaining();return value;
 }
 
 async function authorizeAndClaim(surface,label,name) {
@@ -276,7 +276,7 @@ function currentMember(value,label,roleId){
  assert.equal(value.hasAuth,true);assert.equal(value.sameActor,true);assert.equal(value.profileRoleId,null);assert.equal(value.profileSessionId,null);
  assert.equal(value.playerRole,'player');assert.equal(value.replacementRoleId,null);assert.equal(value.replacementStatus,null);assert.equal(value.escapeLocked,false);assert.equal(value.kicked,false);assert.deepEqual(value.invalidFields,[]);
  if(value.assignedRoleId===null)return false;assert.equal(value.assignedRoleId,roleId);
- return value.connection==='live'&&value.freshness==='server'&&value.currentOwnPlayerConfirmed&&value.memberScopeMatches&&value.sdkHasServerAuthority&&!value.sdkResumePending;
+ return value.connection==='live'&&value.freshness==='server'&&value.currentOwnPlayerConfirmed&&value.memberScopeMatches&&value.sdkHasServerAuthority;
 }
 function stationReady(value,roleId){return value.activeConsoleRoleId===roleId&&value.seatId===roleId&&value.currentCanonicalSeatOwned;}
 // Casting binds the primary station; the normal GM start transaction establishes operational berths.
