@@ -108,6 +108,10 @@ async function audienceConsumer({ fault } = {}) {
   const peer = { callable: async (name, payload) => {
     calls.push({ actor: 'peer', name, payload });
     if (name === 'listMyScoutReports') return { status: 'committed', result: fault === 'peer-index-leak' ? [{ requestId: discovery.requestId }] : [] };
+    if (name === 'getCurrentMemberSession') return { status: 'committed', result: {
+      type: 'current-member-session', sessionId: 'owned-session', actorUid: 'own-peer', groupId: 'fleet-1',
+      session: { id: 'owned-session', currentTurn: 1, ...(fault === 'server-session-leak' ? { scoutResults: {} } : {}) },
+    } };
     return fault === 'borrowed-gm-leak' && payload.instanceId
       ? { status: 'committed', result: {} } : { status: 'denied', code: 'functions/permission-denied' };
   }, page: { evaluate: async () => ({ candidateReveals: [{ code: 'N', title: 'Ancient Jump Ring', ...(fault === 'coordinate-leak' ? { coordinate: '6798' } : {}) }],
@@ -115,7 +119,7 @@ async function audienceConsumer({ fault } = {}) {
     currentMemberPrivateKeys: fault === 'member-session-leak' ? ['scoutResults'] : [], privatePayloadRecorded: false }) } };
   peer.storeModuleUrl = () => 'mounted-store';
   const consume = vm.runInNewContext(`(${node.getText(ast)})`, { assert: check, scientist, peer, sid: 'owned-session', gm1Instance: 'own-gm-instance',
-    actorUids: new Map([['Scientist', 'own-scientist']]),
+    actorUids: new Map([['Scientist', 'own-scientist'], ['Peer', 'own-peer']]),
     memberReady: async (_surface, label) => label === 'Scientist' ? { ...member, fleetGroupId: fault === 'foreign-group' ? 'fleet-2' : 'fleet-1' }
       : { ...member, connectionGeneration: fault === 'changed-peer-epoch' && peerObservations++ > 0 ? 3 : 2 },
     candidateWait: run => run(), scoutPrivateWorld: async () => ({ hash: fault === 'durable-effect' && worldReads++ > 0 ? 'changed' : 'original' }) });
@@ -126,9 +130,11 @@ test('actual audience consumer permits only requester data and same-group candid
   assert.equal(result.requesterIndexCount, 1); assert.equal(result.peerIndexCount, 0);
   assert.equal(result.requesterFullResultAllowed, true); assert.equal(result.scopedDurableStateUnchanged, true);
   assert.equal(calls.filter(call => call.actor === 'peer' && call.name === 'readPrivateScoutResult').length, 2);
+  assert.equal(calls.some(call => call.actor === 'peer' && call.name === 'getCurrentMemberSession'), true,
+    'Read the real server envelope; a filtered mounted store cannot prove server allowlist privacy.');
 });
 for (const fault of ['peer-index-leak', 'borrowed-gm-leak', 'coordinate-leak', 'private-doc-leak', 'member-session-leak',
-  'foreign-group', 'changed-peer-epoch', 'durable-effect']) {
+  'foreign-group', 'changed-peer-epoch', 'durable-effect', 'server-session-leak']) {
   test(`actual audience consumer refuses ${fault} without granting proof credit`, async () => {
     await assert.rejects(audienceConsumer({ fault }));
   });
