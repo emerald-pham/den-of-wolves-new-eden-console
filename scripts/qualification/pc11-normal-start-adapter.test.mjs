@@ -208,4 +208,10 @@ test('normal start preflight requires the legal twelve-seat Dione and docked Phi
     .blockers.includes('session must be a normal production session without a training marker'));
   assert.ok(normalStartPreflight?.({ ...snapshot, occupiedSeatCount: 1 }).blockers
     .includes('exactly the Engineer and President seats must be occupied'));
+  const illegalRoles = [...snapshot.session.activeRoleIds];
+  illegalRoles[11] = 'not-a-configured-role';
+  assert.ok(normalStartPreflight?.({
+    ...snapshot,
+    session: { ...snapshot.session, activeRoleIds: illegalRoles },
+  }).blockers.includes('setup must match the legal twelve-seat Chart A role preset'));
 });
