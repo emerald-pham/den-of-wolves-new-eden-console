@@ -56,24 +56,34 @@ async function runActualRunner(mode, safetyTimeoutMs = 10_000) {
   const fakeBindingPath = join(temporary, 'fake-gate-binding.mjs');
   const fakeProofHelpersPath = join(temporary, 'fake-proof-helpers.mjs');
   const fakeLifecyclePath = join(temporary, 'fake-lifecycle.mjs');
+  const fakeLifecycleDepsPath = join(temporary, 'fake-lifecycle-deps.mjs');
   const fakeCorePath = join(temporary, 'fake-core.mjs');
   await writeFile(loaderPath, `
 const target = ${JSON.stringify(runnerUrl)};
+const actualLifecycle = ${JSON.stringify(pathToFileURL(join(root, 'scripts/pc10-member-gm-lifecycle-ui-proof.mjs')).href)};
 const playwright = ${JSON.stringify(pathToFileURL(fakePlaywrightPath).href)};
 const modules = ${JSON.stringify(pathToFileURL(fakeModulesPath).href)};
 const childProcess = ${JSON.stringify(pathToFileURL(fakeChildProcessPath).href)};
 const binding = ${JSON.stringify(pathToFileURL(fakeBindingPath).href)};
 const proofHelpers = ${JSON.stringify(pathToFileURL(fakeProofHelpersPath).href)};
 const lifecycle = ${JSON.stringify(pathToFileURL(fakeLifecyclePath).href)};
+const lifecycleDeps = ${JSON.stringify(pathToFileURL(fakeLifecycleDepsPath).href)};
 const core = ${JSON.stringify(pathToFileURL(fakeCorePath).href)};
 export async function resolve(specifier, context, nextResolve) {
+  if (context.parentURL === actualLifecycle) {
+    if (specifier === './pc10-full-game-demo-proof-helpers.mjs') return { url: proofHelpers, shortCircuit: true };
+    if (specifier === './pc10-two-browser-gameplay.mjs') return { url: lifecycleDeps, shortCircuit: true };
+  }
   if (context.parentURL === target) {
     if (specifier === 'playwright') return { url: playwright, shortCircuit: true };
     if (specifier === 'node:module') return { url: modules, shortCircuit: true };
     if (specifier === 'node:child_process') return { url: childProcess, shortCircuit: true };
     if (specifier === './pc10-gate2-functional-proof.mjs') return { url: binding, shortCircuit: true };
     if (specifier === './pc10-full-game-demo-proof-helpers.mjs') return { url: proofHelpers, shortCircuit: true };
-    if (specifier === './pc10-member-gm-lifecycle-ui-proof.mjs') return { url: lifecycle, shortCircuit: true };
+    if (specifier === './pc10-member-gm-lifecycle-ui-proof.mjs') {
+      if (process.env.PC10_P631_TEST_MODE === 'readiness-real-claim') return nextResolve(specifier, context);
+      return { url: lifecycle, shortCircuit: true };
+    }
     if (specifier === './pc10-member-rate-security-ui-proof-core.mjs' &&
         process.env.PC10_P631_TEST_MODE?.startsWith('readiness-')) return { url: core, shortCircuit: true };
   }
@@ -132,6 +142,8 @@ export async function observeFullGameDemoPresentationMember(surface) {
     const sample = clock()[observationKey]++;
     const isPending = mode === 'readiness-player-pending-ready' || mode === 'readiness-deadline';
     const pending = sample === 0 && (member || isPending && phase === 'created');
+    const revokedPhase = mode.match(/^readiness-gm-revoked-(claimed|setup|prepared)$/)?.[1];
+    const revoked = !member && phase === revokedPhase;
     const state = {
       hasAuth: true, sameActor: true,
       uidHash: mode === 'readiness-changed-uid' && !member && phase === 'created' && !pending
@@ -143,7 +155,8 @@ export async function observeFullGameDemoPresentationMember(surface) {
         ? 'foreign-p631-session' : 'owned-p631-session',
       profileRoleId: null, profileSessionId: null,
       playerRole: phase === 'claimed' || phase === 'setup' || phase === 'prepared' ? 'gm' : 'player',
-      connected: true, currentOwnPlayerConfirmed: true, kicked: false, escapeLocked: false,
+      connected: !revoked, currentOwnPlayerConfirmed: !revoked, kicked: revoked, escapeLocked: false,
+      memberScopeMatches: member, currentMemberBerthMatches: member,
       replacementRoleId: null, replacementStatus: null,
       connectionGeneration: 1, identityHydrationRevision: 1, assignedRoleId: null,
       activeConsoleRoleId: null, seatId: null, currentCanonicalSeatOwned: false,
@@ -164,7 +177,9 @@ export async function observeFullGameDemoPresentationMember(surface) {
       fullGameDemo: phase === 'prepared' ? { status: 'preparing', progression: 'manual' } : null,
       invalidFields: [],
     };
-    clock().now += 5_000;
+    clock().now += revoked ? 20_000 :
+      !member && phase === 'created' && sample === 0 && mode === 'readiness-ready-at-deadline' ? 5_000 :
+      !member && phase === 'created' && sample === 0 && mode === 'readiness-ready-after-deadline' ? 6_000 : 5_000;
     clock().observations.push({ member, phase, sample, pending, state });
     await record(member ? 'member-observation' : 'gm-observation', { phase, sample, pending });
     return state;
@@ -212,6 +227,9 @@ export async function captureLifecycleUiAction(surface, endpoint, choose, option
 export async function openLifecycleSettings() { throw new Error('Unexpected settings path in controlled runner test.'); }
 export async function closeLifecycleSettings() {}
 `);
+  await writeFile(fakeLifecycleDepsPath, `
+export function createTwoBrowserGameplay() { throw new Error('Unused in the actual captureLifecycleUiAction source test.'); }
+`);
   const actualCoreUrl = pathToFileURL(join(root, 'scripts/pc10-member-rate-security-ui-proof-core.mjs')).href;
   await writeFile(fakeCorePath, `
 import * as actual from ${JSON.stringify(actualCoreUrl)};
@@ -257,20 +275,22 @@ export function createRequire() {
 `);
   await writeFile(fakePlaywrightPath, `
 import { writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 const trace = () => globalThis.__P631_CONTROLLED_CLOCK;
 const flush = async () => writeFile(process.env.PC10_P631_TEST_TRACE,
   JSON.stringify(trace()), { mode: 0o600 });
 class Locator {
-  constructor(name) { this.name = String(name ?? ''); }
+  constructor(name, page = null) { this.name = String(name ?? ''); this.page = page; }
   async isVisible() { return !this.name.startsWith('/^REDUCED MOTION/i'); }
   async isEnabled() { return true; }
   async count() { return 3; }
   async all() { return [1, 2, 3].map(index => new Locator('checkbox-' + index)); }
-  getByRole(role, options = {}) { return new Locator(options.name ?? role); }
-  getByLabel(name) { return new Locator(name); }
+  getByRole(role, options = {}) { return new Locator(options.name ?? role, this.page); }
+  getByLabel(name) { return new Locator(name, this.page); }
   async click(options = {}) {
     trace().clickTimeouts ??= []; trace().clickTimeouts.push(options.timeout ?? null);
     trace().events.push({ kind: 'click', name: this.name }); await flush();
+    await this.page?.handleClick(this.name);
   }
   async fill(value) { trace().events.push({ kind: 'fill', name: this.name, value }); await flush(); }
   async selectOption(value) { trace().events.push({ kind: 'select', name: this.name, value }); await flush(); }
@@ -282,7 +302,7 @@ class Locator {
   async waitFor() {}
 }
 class Page {
-  constructor(index) { this.listeners = new Map(); this.frame = {}; this.index = index; this.responses = 0; }
+  constructor(index) { this.listeners = new Map(); this.frame = {}; this.index = index; this.responses = 0; this.lifecycleWaiters = []; }
   on(name, callback) { this.listeners.set(name, callback); }
   off(name) { this.listeners.delete(name); }
   setDefaultTimeout() {}
@@ -290,19 +310,61 @@ class Page {
   async goto() {}
   url() { return 'http://127.0.0.1:5174/'; }
   mainFrame() { return this.frame; }
-  getByRole(role, options = {}) { return new Locator(options.name ?? role); }
-  getByLabel(name) { return new Locator(name); }
-  locator(name) { return new Locator(name); }
+  getByRole(role, options = {}) { return new Locator(options.name ?? role, this); }
+  getByLabel(name) { return new Locator(name, this); }
+  locator(name) { return new Locator(name, this); }
   async evaluate(_callback, args) {
+    if (args?.moduleUrl && process.env.PC10_P631_TEST_MODE === 'readiness-real-claim') {
+      const claimed = ['claimed', 'setup', 'prepared'].includes(trace().gmPhase);
+      return { hasAuth: true, sameActor: true,
+        uidHash: createHash('sha256').update('controlled-gm-uid').digest('hex').slice(0, 16),
+        sessionId: 'owned-p631-session', connection: 'live', freshness: 'server',
+        generation: 1, hydrationRevision: 1, playerRole: claimed ? 'gm' : 'player',
+        instanceId: claimed ? 'owned-p631-gm-instance' : null,
+        claimedAt: claimed ? 1 : null, gmInstanceOwned: claimed,
+        privateAudienceMatches: true, foreignPendingCount: 0, activeConsoleRoleId: null };
+    }
     if (args?.name === 'prepareFullGameDemo' && process.env.PC10_P631_TEST_MODE.startsWith('readiness-'))
       throw new Error('CONTROLLED_STOP_AFTER_MEMBER_READINESS');
     return this.index === 0 ? 'controlled-gm-uid' : 'controlled-member-uid';
+  }
+  async handleClick(name) {
+    const mode = process.env.PC10_P631_TEST_MODE;
+    if (mode !== 'readiness-real-claim') return;
+    const endpoint = name === 'Join as GM' ? 'claimGmInstance'
+      : name === 'Confirm setup // Confirm roster' ? 'confirmSetup' : null;
+    if (!endpoint) return;
+    if (endpoint === 'claimGmInstance') trace().gmPhase = 'claimed';
+    if (endpoint === 'confirmSetup') trace().gmPhase = 'setup';
+    const index = this.lifecycleWaiters.findIndex(waiter => waiter.endpoint === endpoint);
+    if (index < 0) throw new Error('Actual lifecycle observer was not armed before the original UI control.');
+    const [{ predicate, resolve }] = this.lifecycleWaiters.splice(index, 1);
+    const data = endpoint === 'claimGmInstance'
+      ? { sessionId: 'owned-p631-session', instanceId: 'owned-p631-gm-instance', requestId: 'claim-receipt' }
+      : { sessionId: 'owned-p631-session', instanceId: 'owned-p631-gm-instance' };
+    const result = endpoint === 'claimGmInstance'
+      ? { instance: { id: 'owned-p631-gm-instance', claimedAt: 1 } }
+      : { status: 'committed' };
+    const request = { method: () => 'POST', postDataJSON: () => ({ data }) };
+    const response = { url: () => 'http://127.0.0.1:5011/us-central1/' + endpoint, request: () => request,
+      status: () => 200, json: async () => {
+        if (endpoint === 'confirmSetup') throw new Error('CONTROLLED_STOP_AFTER_ACTUAL_GM_CLAIM');
+        return { result };
+      } };
+    if (!predicate(response)) throw new Error('Actual lifecycle response did not satisfy the source observer predicate.');
+    trace().events.push({ kind: 'actual-lifecycle-receipt', endpoint, data, result });
+    await flush(); resolve(response);
   }
   async waitForResponse(predicate, options = {}) {
     trace().observerTimeouts.push(options.timeout ?? null);
     await flush();
     if (process.env.PC10_P631_TEST_MODE === 'observer-failure')
       throw new Error('PC10_PRIVATE_FAILURE_CANARY');
+    if (process.env.PC10_P631_TEST_MODE === 'readiness-real-claim' && this.index === 0 && this.responses >= 2) {
+      const endpoints = ['claimGmInstance', 'confirmSetup', 'prepareFullGameDemo'];
+      const endpoint = endpoints[this.responses - 2]; this.responses++;
+      return new Promise(resolve => this.lifecycleWaiters.push({ endpoint, predicate, resolve }));
+    }
     const request = { method: () => 'POST', postDataJSON: () => ({ data: {
       sessionId: 'owned-p631-session', instanceId: 'owned-p631-gm', requestId: 'original-ui-request' } }) };
     const mode = process.env.PC10_P631_TEST_MODE;
@@ -320,7 +382,8 @@ class Page {
           trace().now += 59_900;
         return 200;
       }, json: async () => {
-        if (mode === 'readiness-deadline' && !authorization && !memberJoin) trace().now += 25_000;
+        if ((mode === 'readiness-deadline' || mode === 'readiness-ready-at-deadline' ||
+            mode === 'readiness-ready-after-deadline') && !authorization && !memberJoin) trace().now += 25_000;
         if (mode === 'create-body-stall' && !authorization || mode === 'authorization-body-stall' && authorization) {
           return new Promise(() => {});
         }
@@ -515,3 +578,70 @@ test('P631 initial readiness does not extend the original create-and-consent ope
     assert.match(retained.originalError?.message ?? '', /original shared UI deadline expired/);
   } finally { await rm(run.temporary, { recursive: true, force: true }); }
 });
+
+test('P631 first GM claim reaches the actual lifecycle actor guard and binds its real UI receipt', async () => {
+  const run = await runActualRunner('readiness-real-claim');
+  try {
+    assert.equal(run.child.status, 1, run.child.stderr);
+    const retained = JSON.parse(await readFile(join(run.evidenceDirectory, run.failureArtifacts[0]), 'utf8'));
+    assert.equal(run.ownerResult?.failureStage, 'legal roster configuration and setup',
+      `The ordinary player must pass the actual shared first-claim guard; observed ${run.ownerResult?.failureStage}: ` +
+      `${retained.originalError?.message ?? run.child.stdout}\n${run.child.stderr}`);
+    assert.ok(run.trace?.events?.some(item => item.kind === 'click' && item.name === 'Join as GM'),
+      'The ordinary connected player must reach the first-claim control through the real shared guard.');
+    const claim = run.trace?.events?.find(item => item.kind === 'actual-lifecycle-receipt' && item.endpoint === 'claimGmInstance');
+    assert.equal(claim?.data?.instanceId, 'owned-p631-gm-instance');
+    assert.equal(claim?.result?.instance?.id, claim?.data?.instanceId,
+      'The actual shared capture helper must deliver the same claimed instance as request and reply.');
+    assert.equal(run.trace?.events?.filter(item => item.kind === 'actual-lifecycle-receipt')
+      .some(item => item.endpoint === 'confirmSetup'), true);
+    assert.match(retained.originalError?.message ?? '', /CONTROLLED_STOP_AFTER_ACTUAL_GM_CLAIM/);
+  } finally { await rm(run.temporary, { recursive: true, force: true }); }
+});
+
+for (const mode of ['readiness-ready-at-deadline', 'readiness-ready-after-deadline']) {
+  test(`P631 does not credit ready App/store authority delivered ${mode.endsWith('at-deadline') ? 'at' : 'after'} its original deadline`, async () => {
+    const run = await runActualRunner(mode);
+    try {
+      assert.equal(run.child.status, 1, run.child.stderr);
+      assert.equal(run.ownerResult?.failureStage, 'normal GM admitted App/store authority',
+        `${run.child.stdout}\n${run.child.stderr}`);
+      const sample = run.trace?.observations?.find(item => !item.member && item.phase === 'created' && item.sample === 0);
+      assert.equal(sample?.state?.connection, 'live');
+      assert.equal(sample?.state?.sdkHasServerAuthority, true);
+      assert.equal(sample?.state?.sdkResumePending, false);
+      const retained = JSON.parse(await readFile(join(run.evidenceDirectory, run.failureArtifacts[0]), 'utf8'));
+      assert.match(retained.originalError?.message ?? '', /original shared UI deadline expired/);
+      assert.match(retained.contextInspect ?? '', /sdkHasServerAuthority: true/);
+    } finally { await rm(run.temporary, { recursive: true, force: true }); }
+  });
+}
+
+for (const [mode, expectedStage, expectedActions] of [
+  ['readiness-gm-revoked-claimed', 'normal live GM claim', ['claimGmInstance']],
+  ['readiness-gm-revoked-setup', 'legal roster configuration and setup', ['claimGmInstance', 'confirmSetup']],
+  ['readiness-gm-revoked-prepared', 'original UI preparation before ordinary join',
+    ['claimGmInstance', 'confirmSetup', 'prepareFullGameDemo']],
+]) {
+  test(`P631 rejects disconnected, unconfirmed and kicked GM authority at ${mode.slice('readiness-gm-revoked-'.length)} readiness`, async () => {
+    const run = await runActualRunner(mode, 20_000);
+    try {
+      assert.equal(run.child.status, 1, run.child.stderr);
+      assert.equal(run.ownerResult?.failureStage, expectedStage, `${run.child.stdout}\n${run.child.stderr}`);
+      const lifecycle = run.trace?.events?.filter(item => item.kind === 'lifecycle-action').map(item => item.endpoint);
+      assert.deepEqual(lifecycle, expectedActions);
+      const revoked = run.trace?.observations?.find(item => !item.member && item.phase ===
+        mode.slice('readiness-gm-revoked-'.length));
+      assert.equal(revoked?.state?.connected, false);
+      assert.equal(revoked?.state?.currentOwnPlayerConfirmed, false);
+      assert.equal(revoked?.state?.kicked, true);
+      assert.equal(revoked?.state?.memberScopeMatches, false);
+      assert.equal(revoked?.state?.currentMemberBerthMatches, false,
+        'GM qualification is bound to its own live instance and does not invent a player berth requirement.');
+      const retained = JSON.parse(await readFile(join(run.evidenceDirectory, run.failureArtifacts[0]), 'utf8'));
+      assert.match(retained.contextInspect ?? '', /connected: false/);
+      assert.match(retained.contextInspect ?? '', /currentOwnPlayerConfirmed: false/);
+      assert.match(retained.contextInspect ?? '', /kicked: true/);
+    } finally { await rm(run.temporary, { recursive: true, force: true }); }
+  });
+}
