@@ -248,3 +248,64 @@ it('keeps a manually held Team phase open even when compatibility deadlines elap
 
   await expect(exchangeAegisFighterWings.run(request())).resolves.toMatchObject({ status: 'committed' });
 });
+
+const revokedActorCases = [
+  { label: 'actor deletion', mutate: () => { mock.documents.delete('sessions/s1/players/wing'); } },
+  { label: 'disconnection', mutate: () => { mock.documents.get('sessions/s1/players/wing')!.connected = false; } },
+  { label: 'Admiral reassignment and active seat', mutate: () => {
+    const actor = mock.documents.get('sessions/s1/players/wing')!;
+    actor.assignedRoleId = 'admiral'; actor.seatId = 'admiral'; actor.activeConsoleRoleId = 'admiral';
+  } },
+  { label: 'seat mismatch', mutate: () => { mock.documents.get('sessions/s1/players/wing')!.seatId = 'admiral'; } },
+  { label: 'active console change', mutate: () => { mock.documents.get('sessions/s1/players/wing')!.activeConsoleRoleId = 'admiral'; } },
+  { label: 'non-player role', mutate: () => { mock.documents.get('sessions/s1/players/wing')!.role = 'gm'; } },
+];
+
+it.each(revokedActorCases)('denies exact receipt replay after $label without another write', async ({ mutate }) => {
+  await exchangeAegisFighterWings.run(request());
+  mutate();
+  const writes = mock.update.mock.calls.length + mock.create.mock.calls.length;
+
+  await expect(exchangeAegisFighterWings.run(request())).rejects.toMatchObject({ code: 'permission-denied' });
+
+  expect(mock.update.mock.calls.length + mock.create.mock.calls.length).toBe(writes);
+  expect(currentCounts()).toMatchObject({
+    'fighter-wing-alpha': { count: 2, revision: 5 },
+    'fighter-wing-bravo': { count: 3, revision: 8 },
+  });
+});
+
+const revokedSessionCases = [
+  { label: 'Wing Commander role disablement', mutate: () => { mock.documents.get('sessions/s1')!.activeRoleIds = ['admiral']; } },
+  { label: 'AEGIS vessel disablement', mutate: () => { mock.documents.get('sessions/s1')!.activeVesselIds = []; } },
+];
+
+it.each(revokedSessionCases)('denies replay when $label is no longer current without another write', async ({ mutate }) => {
+  await exchangeAegisFighterWings.run(request());
+  mutate();
+  const writes = mock.update.mock.calls.length + mock.create.mock.calls.length;
+
+  await expect(exchangeAegisFighterWings.run(request())).rejects.toMatchObject({ code: 'failed-precondition' });
+
+  expect(mock.update.mock.calls.length + mock.create.mock.calls.length).toBe(writes);
+});
+
+it('recovers an authorized exact receipt in a later cycle without fresh phase or revision checks', async () => {
+  await exchangeAegisFighterWings.run(request());
+  const session = mock.documents.get('sessions/s1')!;
+  session.currentTurn = 3;
+  session.turnPhase = {
+    turn: 3,
+    teamPhaseEndsAt: '2000-01-01T00:00:00.000Z', openAirspaceEndsAt: '2000-01-01T00:01:00.000Z',
+    airspace: { state: 'lifted', tickerActive: true, pressAccess: true },
+  };
+  const writes = mock.update.mock.calls.length + mock.create.mock.calls.length;
+
+  await expect(exchangeAegisFighterWings.run(request())).resolves.toMatchObject({ status: 'replayed' });
+
+  expect(mock.update.mock.calls.length + mock.create.mock.calls.length).toBe(writes);
+  expect(currentCounts()).toMatchObject({
+    'fighter-wing-alpha': { count: 2, revision: 5 },
+    'fighter-wing-bravo': { count: 3, revision: 8 },
+  });
+});
