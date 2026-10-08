@@ -54,6 +54,11 @@ try {
       const stem = `${actor}-${viewport.width}x${viewport.height}-${viewport.scale}`;
       await page.locator('.ship-console__identity > h1').scrollIntoViewIfNeeded();
       await page.screenshot({ path: join(evidence, `${stem}-heading.png`) });
+      if (actor === 'player') {
+        const toggle = page.getByRole('button', { name: 'Operations reference', exact: true });
+        const size = await toggle.evaluate(element => parseFloat(getComputedStyle(element).fontSize));
+        assert.equal(size, 14 * viewport.scale, 'Operations reference primary control uses readable 14px token');
+      }
       if (actor === 'gm') {
         const zoom = page.locator('.gm-dradis .ship-plot__toggle');
         await zoom.click();
