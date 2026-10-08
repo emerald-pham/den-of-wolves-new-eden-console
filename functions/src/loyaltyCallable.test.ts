@@ -155,7 +155,10 @@ it('assigns Intelligence Agent beside a Wolf with a private card and redacted ev
     expect.objectContaining({ path: 'sessions/s1/secrets/loyalty-u2' }),
     expect.objectContaining({
       visibleToUids: ['u2'],
-      payload: { type: 'loyalty', kind: 'intelligence-agent', suspicion: 6 },
+      payload: expect.objectContaining({
+        type: 'loyalty', kind: 'intelligence-agent', suspicion: 6,
+        directives: expect.arrayContaining([expect.stringMatching(/cover hidden/i)]),
+      }),
     }),
   );
   expect(mock.set).toHaveBeenCalledWith(

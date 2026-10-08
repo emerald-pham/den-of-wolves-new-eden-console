@@ -88,6 +88,18 @@ it('shows only the current core player loyalty card and suspicion', () => {
   expect(screen.queryByText(/fleet loyalist/i)).not.toBeInTheDocument();
 });
 
+it('renders the directives delivered on the current holder private loyalty payload', () => {
+  act(() => useSessionStore.getState().setPrivateLoyalty({
+    kind: 'fleet-loyalist', suspicion: 5,
+    directives: ['Server-assigned private objective for this holder.'],
+  } as never));
+
+  render(<PrivateLoyaltyPanel />);
+
+  expect(screen.getByRole('region', { name: 'Private loyalty goals' }))
+    .toHaveTextContent('Server-assigned private objective for this holder.');
+});
+
 it.each([
   ['fleet-loyalist', 'reach New Eden with as many survivors as possible'],
   ['wolf-agent', 'sleeper priority overrides your former loyalty objective when you activate'],

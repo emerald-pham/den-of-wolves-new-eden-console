@@ -2032,54 +2032,48 @@ it('hydrates stable seat role ids without treating Press as a core seat', () => 
 });
 
 it('hydrates only the current player loyalty and a GM-visible setup receipt after reconnect', () => {
+  vi.mocked(doc).mockImplementation(((_database: unknown, path: string) => ({ path })) as never);
+  const { callbacks } = captureSessionListener();
   const onPrivateLoyalty = vi.fn();
   const onSetupReceipt = vi.fn();
-  let listener = 0;
-  vi.mocked(onSnapshot).mockImplementation(((_reference: unknown, optionsOrCallback: unknown,
-    callbackOrError: unknown) => {
-    const callback = typeof optionsOrCallback === 'function' ? optionsOrCallback : callbackOrError;
-    listener += 1;
-    if (listener === 3) {
-      (callback as (snapshot: unknown) => void)({ docs: [] });
-    } else if (listener === 4) {
-      (callback as (snapshot: unknown) => void)({
-        exists: () => true,
-        get: (field: string) => field === 'payload'
-          ? { type: 'loyalty', kind: 'fleet-loyalist', suspicion: 5 }
-          : undefined,
-      });
-    } else if (listener === 5) {
-      (callback as (snapshot: unknown) => void)({
-        docs: [{
-          get: (field: string) => field === 'payload'
-            ? {
-              type: 'setup-receipt', source: 'routine-start', playerCount: 8,
-              mode: 'base', rosterIds: ['admiral'], pressEligibility: {}, excludedGmCount: 1,
-              wolfCount: 1, wolfRule: 'one-wolf-at-8-13', selectedWolfRoleIds: ['admiral'],
-              eligibleRoleIds: ['admiral'], orderedModifiers: [], resultCount: 8,
-              loyaltySource: 'automatic-default', request: {}, expectedSetupRevision: 0,
-              committedSetupRevision: 1, actorUid: 'u1', serverTime: '2026-09-09T00:00:00.000Z',
-              event: 'game-started',
-            } : undefined,
-        }],
-      });
-    } else {
-      (callback as (snapshot: unknown) => void)({
-        exists: () => true,
-        id: 's1',
-        data: () => ({}),
-        get: () => undefined,
-      });
-    }
-    return vi.fn();
-  }) as never);
 
   subscribeSessionState('s1', 'u1', {
     onSession: vi.fn(), onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(),
     onPrivateLoyalty, onSetupReceipt, onError: vi.fn(),
   });
 
-  expect(onPrivateLoyalty).toHaveBeenCalledWith({ kind: 'fleet-loyalist', suspicion: 5 });
+  const privateListenerIndex = vi.mocked(onSnapshot).mock.calls.findIndex(([reference]) =>
+    (reference as { readonly path?: string } | undefined)?.path === 'sessions/s1/secrets/loyalty-u1');
+  expect(privateListenerIndex).toBeGreaterThanOrEqual(0);
+  callbacks[privateListenerIndex]?.({
+    metadata: { fromCache: false },
+    exists: () => true,
+    get: (field: string) => field === 'payload'
+      ? {
+        type: 'loyalty', kind: 'fleet-loyalist', suspicion: 5,
+        directives: ['Server-assigned private objective for this holder.'],
+      }
+      : undefined,
+  });
+  callbacks.at(-1)?.({
+    docs: [{
+      get: (field: string) => field === 'payload'
+        ? {
+          type: 'setup-receipt', source: 'routine-start', playerCount: 8,
+          mode: 'base', rosterIds: ['admiral'], pressEligibility: {}, excludedGmCount: 1,
+          wolfCount: 1, wolfRule: 'one-wolf-at-8-13', selectedWolfRoleIds: ['admiral'],
+          eligibleRoleIds: ['admiral'], orderedModifiers: [], resultCount: 8,
+          loyaltySource: 'automatic-default', request: {}, expectedSetupRevision: 0,
+          committedSetupRevision: 1, actorUid: 'u1', serverTime: '2026-09-09T00:00:00.000Z',
+          event: 'game-started',
+        } : undefined,
+    }],
+  });
+
+  expect(onPrivateLoyalty).toHaveBeenCalledWith({
+    kind: 'fleet-loyalist', suspicion: 5,
+    directives: ['Server-assigned private objective for this holder.'],
+  });
   expect(onSetupReceipt).toHaveBeenCalledWith(expect.objectContaining({
     source: 'routine-start', committedSetupRevision: 1,
   }));
