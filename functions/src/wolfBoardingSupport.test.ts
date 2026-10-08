@@ -4,6 +4,11 @@ import {
   relocateWolfBoardingSupportCraft,
   type WolfBoardingCraftAuthorityInput,
 } from './wolfBoardingSupport';
+import { activeVesselIdsForRoles } from './gameSetup';
+import { recommendedRoleIds } from './roleConfiguration';
+import { roleOwnedCraftForRoles } from './craftOwnership';
+import { initialShuttleControl } from './shuttleControl';
+import { initialShuttleDockingsForRoles, initialShuttleVisitsForDockings } from './shuttlecraft';
 
 const input: WolfBoardingCraftAuthorityInput = {
   activeRoleIds: ['executive-officer', 'dione-engineer', 'capybara-captain', 'refinery-124-pdf-colonel'],
@@ -34,6 +39,27 @@ const input: WolfBoardingCraftAuthorityInput = {
   playerUids: ['xo-owner', 'pallas-pilot', 'dione-owner', 'philia-pilot', 'capy-owner', 'macaw-pilot', 'pdf-owner', 'chepu-pilot'],
   retainedShuttles: {},
 };
+
+function normal14BoardingInput(overrides: Partial<WolfBoardingCraftAuthorityInput> = {}): WolfBoardingCraftAuthorityInput {
+  const activeRoleIds = recommendedRoleIds(14);
+  const dockings = initialShuttleDockingsForRoles(activeRoleIds);
+  const roleHolders = activeRoleIds.map(roleId => ({ uid: `holder-${roleId}`, roleId }));
+  const supportIds = new Set(roleOwnedCraftForRoles(activeRoleIds)
+    .filter(craft => craft.kind === 'shuttle' && craft.boardingSupport !== undefined)
+    .map(({ id }) => id));
+  return {
+    activeRoleIds,
+    activeVesselIds: activeVesselIdsForRoles(activeRoleIds),
+    dockings,
+    visits: initialShuttleVisitsForDockings(dockings).filter(({ shuttleId }) => supportIds.has(shuttleId)),
+    control: initialShuttleControl(roleOwnedCraftForRoles(activeRoleIds), roleHolders),
+    fuelled: { wobbly: true, ally: false },
+    roleHolders,
+    playerUids: roleHolders.map(({ uid }) => uid),
+    retainedShuttles: {},
+    ...overrides,
+  };
+}
 
 describe('Wolf boarding support-craft authority', () => {
   it('derives host support from each registered craft and preserves its distinct owner, holder, host, fuel, and revision', () => {
@@ -102,4 +128,56 @@ it('excludes permanently consumed Ring craft from current boarding support while
   const remaining = deriveWolfBoardingSupportCraft({ ...input, consumedShuttleIds: ['philia'],
     dockings: input.dockings.filter(docking => docking.shuttleId !== 'philia') } as WolfBoardingCraftAuthorityInput);
   expect(remaining.map(craft => craft.shuttleId)).toEqual(['pallas', 'macaw', 'chepu']);
+});
+
+it('accepts a source-seeded normal14 roster when never-docked optional GM craft have no visits', () => {
+  const seeded = normal14BoardingInput();
+  expect(seeded.dockings.map(({ shuttleId }) => shuttleId)).toContain('chepu');
+  expect(seeded.dockings.map(({ shuttleId }) => shuttleId)).not.toContain('wobbly');
+  expect(seeded.dockings.map(({ shuttleId }) => shuttleId)).not.toContain('ally');
+  expect(seeded.visits.map(({ shuttleId }) => shuttleId)).toEqual(['chepu']);
+  // Initial control and fuel metadata alone do not mean the optional GM craft were ever docked.
+  expect(seeded.control).toHaveProperty('wobbly');
+  expect(seeded.control).toHaveProperty('ally');
+  const result = deriveWolfBoardingSupportCraft(seeded);
+  expect(result.map(({ shuttleId }) => shuttleId)).toEqual(['chepu']);
+});
+
+it('still requires history for mandatory and physically docked support craft', () => {
+  expect(() => deriveWolfBoardingSupportCraft({ ...input,
+    visits: input.visits.filter(({ shuttleId }) => shuttleId !== 'pallas'),
+  })).toThrow(/location does not match its visit history/);
+
+  const seeded = normal14BoardingInput();
+  expect(() => deriveWolfBoardingSupportCraft({ ...seeded,
+    dockings: [...seeded.dockings, { shuttleId: 'wobbly', shipId: 'quellon', dockedAt: 'SESSION START' }],
+  })).toThrow(/location does not match its visit history/);
+});
+
+it('does not excuse missing history for retained optional support craft', () => {
+  const seeded = normal14BoardingInput({ retainedShuttles: {
+    wobbly: { status: 'retained', shuttleId: 'wobbly', ownerRoleId: 'joint-engineering-quellon-refinery',
+      holderUid: 'holder-joint-engineering-quellon-refinery', destroyedHostShipId: 'quellon', controlRevision: 0,
+      retainedAt: '2026-10-08T00:00:00.000Z' },
+  } });
+  expect(() => deriveWolfBoardingSupportCraft(seeded)).toThrow(/location does not match its visit history/);
+});
+
+it('validates optional craft history when present and rejects fabricated or location-mismatched visits', () => {
+  const seeded = normal14BoardingInput();
+  const wobblyHistory = [
+    { id: 'wobbly-start', shuttleId: 'wobbly', shipId: 'quellon', action: 'docked' as const, occurredAt: 'SESSION START' },
+    { id: 'wobbly-departed', shuttleId: 'wobbly', shipId: 'quellon', action: 'departed' as const, occurredAt: 'later' },
+  ];
+  const departed = deriveWolfBoardingSupportCraft({ ...seeded, visits: [...seeded.visits, ...wobblyHistory] });
+  expect(departed.map(({ shuttleId }) => shuttleId)).toEqual(['chepu']);
+
+  expect(() => deriveWolfBoardingSupportCraft({ ...seeded, visits: [...seeded.visits,
+    { id: 'fabricated-wobbly-departed', shuttleId: 'wobbly', shipId: 'quellon',
+      action: 'departed', occurredAt: 'later' },
+  ] })).toThrow(/impossible transition/);
+  expect(() => deriveWolfBoardingSupportCraft({ ...seeded,
+    dockings: [...seeded.dockings, { shuttleId: 'wobbly', shipId: 'quellon', dockedAt: 'later' }],
+    visits: [...seeded.visits, wobblyHistory[0]!, wobblyHistory[1]!],
+  })).toThrow(/location does not match its visit history/);
 });
