@@ -148,6 +148,19 @@ it('shows the Macaw target player the exact one-Scrap award without converting i
   expect(mocks.consent).toHaveBeenCalledWith({ inbox: macawInbox, consentId: 'stable-request-id' });
 });
 
+it('describes Macaw permission as a holder handoff awarding Scrap to Capybara', () => {
+  mocks.subscribe.mockImplementation((_sessionId, _shipId, handlers) => {
+    handlers.onInbox({ ...pendingInbox, craftId: 'macaw', materialGain: undefined, scrapGain: 1 });
+    return vi.fn();
+  });
+  render(<PermissionedDismantlingPanel mode="target" sessionId="s1" targetShipId="dione" />);
+  expect(screen.getByRole('button', { name: 'Grant permission' })).toHaveAccessibleDescription(
+    /does not damage.*craft holder acts next.*damages.*1 Scrap.*Capybara/i,
+  );
+  expect(mocks.consent).not.toHaveBeenCalled();
+  expect(mocks.apply).not.toHaveBeenCalled();
+});
+
 it('does not claim that no request is pending while the target inbox is offline', () => {
   render(<PermissionedDismantlingPanel mode="target" sessionId="s1" targetShipId="dione"
     connection="offline" canAct={false} />);
