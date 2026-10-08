@@ -42,12 +42,19 @@ export function compareStationAdmissionReference(allocation,binding,reference){
  assert.ok(reference.receipts.some(r=>r.endpoint==='claimGmInstance'&&r.httpStatus===200));
  assert.deepEqual(reference.runtime.ports,allocation.ports);
  assert.equal(reference.sourceBinding.sourceCommit,reference.sourceCommit);
- assert.equal(reference.sourceBinding.compiledTreeSha256,binding.compiledTreeSha256);
+ const backendSourceChanges=[];
  for(const prior of reference.sourceBinding.trackedFiles.filter(f=>f.path.startsWith('src/')||f.path.startsWith('functions/src/'))){
-  assert.equal(binding.trackedFiles.find(f=>f.path===prior.path)?.sha256,prior.sha256,`Successful admission product source ${prior.path}`);
+  const current=binding.trackedFiles.find(f=>f.path===prior.path);assert.ok(current,`Historical product source remains present: ${prior.path}`);
+  if(prior.path.startsWith('src/'))assert.equal(current.sha256,prior.sha256,`Successful admission frontend source ${prior.path}`);
+  else if(current.sha256!==prior.sha256)backendSourceChanges.push({path:prior.path,priorSha256:prior.sha256,currentSha256:current.sha256});
  }
+ const compiledTreeEqual=reference.sourceBinding.compiledTreeSha256===binding.compiledTreeSha256;
+ assert.ok(compiledTreeEqual||backendSourceChanges.some(change=>change.path.endsWith('.ts')&&!change.path.endsWith('.test.ts')),'Changed compiled build requires an explicit backend source difference.');
+ // Historical admission verifies the setup route, not the repaired current
+ // backend. Exact current bytes stay allocation-bound by validateReceipt;
+ // the proof must perform fresh ordinary admission before any P gameplay.
  return {referenceCommit:reference.sourceCommit,referenceProject:reference.runtime.projectId,newProject:allocation.projectId,
-  portsEqual:true,compiledTreeEqual:true,productSourcesEqual:true,
+  portsEqual:true,compiledTreeEqual,productSourcesEqual:backendSourceChanges.length===0,backendSourceChanges,requiresFreshAdmission:true,
   rawLaunchEnvironmentRecorded:false,requiredFlagsValidatedAgainst:'scripts/local-gm-access.mjs and actual AppHeader/LocalGmAccess DEV opt-in gates'};
 }
 async function validateReceipt(receipt){
