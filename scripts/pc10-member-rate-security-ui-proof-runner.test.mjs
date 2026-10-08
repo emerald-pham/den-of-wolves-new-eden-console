@@ -12,7 +12,7 @@ const runner = join(root, 'scripts/pc10-member-rate-security-ui-proof.mjs');
 const router = join(root, 'scripts/pc10-security-http-proof.mjs');
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
 
-async function runActualRunner(mode) {
+async function runActualRunner(mode, safetyTimeoutMs = 10_000) {
   const temporary = await mkdtemp(join(tmpdir(), 'pc10-p631-runner-consumer-'));
   const evidenceDirectory = join(temporary, 'private-evidence');
   const preflightPath = join(temporary, 'preflight.json');
@@ -108,6 +108,11 @@ export function proofRuntimeFromViteSource() { return { projectId: 'demo-pc10-ow
   useEmulators: true, ports: { auth: 9109, functions: 5011, firestore: 8090 } }; }
 export function validateProofRuntime(runtime) { return runtime; }
 export async function observeFullGameDemoPresentationMember() {
+  if (process.env.PC10_P631_TEST_MODE === 'authorization-body-stall') return {
+    hasAuth: true, sameActor: true, sessionId: 'owned-p631-session', profileRoleId: null,
+    profileSessionId: null, playerRole: null, connection: 'live', freshness: 'server',
+    sdkHasServerAuthority: true, sdkResumePending: false,
+  };
   throw new Error('CONTROLLED_STOP_AFTER_CONSENT');
 }
 `);
@@ -182,8 +187,20 @@ class Page {
       throw new Error('PC10_PRIVATE_FAILURE_CANARY');
     const request = { method: () => 'POST', postDataJSON: () => ({ data: {
       sessionId: 'owned-p631-session', instanceId: 'owned-p631-gm', requestId: 'original-ui-request' } }) };
-    const response = { url: () => 'http://127.0.0.1:5011/us-central1/createSession', request: () => request,
-      status: () => 200, json: async () => ({ result: { session: { id: 'owned-p631-session', joinCode: '1234' } } }) };
+    const authorization = process.env.PC10_P631_TEST_MODE === 'authorization-body-stall' && trace().observerTimeouts.length > 1;
+    const endpoint = authorization ? 'local-gm-access' : 'us-central1/createSession';
+    const response = { url: () => authorization ? 'http://127.0.0.1:5174/__local-gm-access'
+        : 'http://127.0.0.1:5011/us-central1/createSession', request: () => request,
+      status: () => 200, json: async () => {
+        const mode = process.env.PC10_P631_TEST_MODE;
+        if (mode === 'create-body-stall' && !authorization || mode === 'authorization-body-stall' && authorization) {
+          trace().now += 59_900;
+          await flush();
+          return new Promise(() => {});
+        }
+        return authorization ? { authenticated: true }
+          : { result: { session: { id: 'owned-p631-session', joinCode: '1234' } } };
+      } };
     if (!predicate(response)) throw new Error('Controlled response did not match the actual observer predicate.');
     return response;
   }
@@ -212,7 +229,7 @@ export const chromium = { launch: async () => {
   };
   const child = spawnSync(process.execPath,
     ['--no-warnings', '--experimental-loader', loaderPath, '--import', preloadPath, callPath],
-    { cwd: root, env, encoding: 'utf8', timeout: 10_000 });
+    { cwd: root, env, encoding: 'utf8', timeout: safetyTimeoutMs });
   let trace = null, ownerResult = null, failureArtifacts = [];
   try { trace = JSON.parse(await readFile(tracePath, 'utf8')); } catch { /* The earliest controlled stop may precede a trace write. */ }
   try { ownerResult = JSON.parse(await readFile(join(evidenceDirectory, 'OWNER_RESULT.json'), 'utf8')); }
@@ -248,5 +265,27 @@ test('P631 consent controls share one original UI deadline across all checkboxes
     assert.ok(run.trace.checkboxTimeouts[0] >= run.trace.checkboxTimeouts[1] &&
       run.trace.checkboxTimeouts[1] >= run.trace.checkboxTimeouts[2],
     `Checkbox controls must share a decreasing deadline, not restart 35 seconds each. Observed ${JSON.stringify(run.trace.checkboxTimeouts)}.`);
+  } finally { await rm(run.temporary, { recursive: true, force: true }); }
+});
+
+test('P631 createSession response body remains inside its original admission deadline', async () => {
+  const run = await runActualRunner('create-body-stall', 2_000);
+  try {
+    assert.equal(run.child.status, 1, run.child.stderr);
+    assert.notEqual(run.child.error?.code, 'ETIMEDOUT', 'The runner must stop the stalled body before the test safety timeout.');
+    assert.equal(run.ownerResult?.failureStage, 'normal GM create, consent, local authorization and original prepare');
+    assert.equal(run.ownerResult?.cleanup?.closedBrowsers, 1);
+    assert.equal(run.ownerResult?.cleanup?.deletedAuthActors, 1);
+  } finally { await rm(run.temporary, { recursive: true, force: true }); }
+});
+
+test('P631 local GM authorization response body remains inside its original operation deadline', async () => {
+  const run = await runActualRunner('authorization-body-stall', 2_000);
+  try {
+    assert.equal(run.child.status, 1, run.child.stderr);
+    assert.notEqual(run.child.error?.code, 'ETIMEDOUT', 'The runner must stop the stalled body before the test safety timeout.');
+    assert.equal(run.ownerResult?.failureStage, 'normal local GM authorization');
+    assert.equal(run.ownerResult?.cleanup?.closedBrowsers, 1);
+    assert.equal(run.ownerResult?.cleanup?.deletedAuthActors, 1);
   } finally { await rm(run.temporary, { recursive: true, force: true }); }
 });
