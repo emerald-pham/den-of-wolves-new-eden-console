@@ -68,6 +68,38 @@ test('station wave consumer seam preserves actor, Declare, combat and publicatio
   ]);
 });
 
+test('station wave consumer dismisses its exact informational population alert before the next Declare', async () => {
+  const trace = [];
+  let populationAlertOpen = false;
+  const results = [
+    { attackId: 'attack-1', pStationRepeat: { status: 'repeat' } },
+    { attackId: 'attack-2', pStationRepeat: { status: 'stopped' } },
+  ];
+  const waves = await runStationCombatWaves({ maximumWaves: 12,
+    assertActors: async ({ wave }) => trace.push(`actors:${wave}`),
+    prepareAndDeclare: async ({ wave }) => {
+      trace.push(`declare:${wave}`);
+      assert.equal(populationAlertOpen, false,
+        'The first terminal pass raises a modal that intercepts the next normal Declare click.');
+    },
+    runWave: async ({ wave }) => {
+      trace.push(`combat:${wave}`);
+      if (wave === 1) populationAlertOpen = true;
+      return results[wave - 1];
+    },
+    acknowledgeBetweenWaves: async ({ wave }) => {
+      assert.equal(wave, 1);
+      assert.equal(populationAlertOpen, true);
+      trace.push('dismiss:exact-population-alert');
+      populationAlertOpen = false;
+    },
+    persistWaves: async current => trace.push(`persist:${current.length}`),
+  });
+  assert.deepEqual(trace, ['actors:1', 'declare:1', 'combat:1', 'persist:1',
+    'dismiss:exact-population-alert', 'actors:2', 'declare:2', 'combat:2', 'persist:2']);
+  assert.equal(waves.length, 2);
+});
+
 test('Station combat diagnostics retain population, alert, mutiny and terminal guards without retaining the whole root', () => {
   const root = {
     currentTurn: 2, phase: 'active', activeVesselIds: ['aegis', 'dione'], shipDamage: {},
