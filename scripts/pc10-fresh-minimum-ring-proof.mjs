@@ -33,11 +33,11 @@ export async function runRingWorkflow(operations) {
  await operations.arrive();await operations.repairRing();await operations.crossAndRecover();
  await operations.finishPassages();await operations.sabotageAndClose();
 }
-export const stationBoardingReadEndpoint='readWolfBoardingDefenceChoice';
-export async function runStationPaidArrivals(ships,{grant,jump}){for(const ship of ships)await jump(ship);}
-export function beginStationCombatWing(original,current){assertSparseStationWing(current,original);return original;}
-export function assertStationNavigation(navigation,ships,coordinate){return assertRingNavigation(navigation.data(),ships,coordinate);}
-export function stationActivationContext(input){return {code:'P',...input,readRoot:input.recordRoot};}
+export const stationBoardingReadEndpoint='getWolfBoardingDefenceChoice';
+export async function runStationPaidArrivals(ships,{grant,jump}){for(const ship of ships){await grant(ship);await jump(ship);}}
+export function beginStationCombatWing(original,current){assert.equal(original.cycle,1);assert.equal(current.cycle,2);assertSparseStationWing(current,{...original,cycle:2});return current;}
+export function assertStationNavigation(navigation,ships,coordinate){return assertRingNavigation(navigation,ships,coordinate);}
+export function stationActivationContext(input){return {code:'P',...input,gm:{...input.gm,callable:(name,data,options)=>{const timeoutMs=Math.min(options.timeoutMs,options.deadlineAt-Date.now());assert.ok(Number.isFinite(timeoutMs)&&timeoutMs>0);return input.gm.callable(name,data,timeoutMs);}},readRoot:async()=>({...await input.recordRoot(),sessionId:input.sessionId})};}
 export function stationCombatConsoles(){return ['jump-drive','fighter-bay-alpha','fighter-bay-bravo'];}
 export async function readStationLiberation(readDocument,root,expected){const require=createRequire(new URL('../functions/package.json',import.meta.url));const {parseCandidateStationLiberations}=require('../functions/lib/candidateStationLiberation.js');const markers=parseCandidateStationLiberations(await readDocument('serverState/candidateStationLiberations'));const marker=markers[`${expected.groupId}:${expected.coordinate}`];assert.ok(marker);for(const key of ['sessionId','groupId','coordinate','sourceId','cycle'])assert.equal(marker[key],expected[key]);assert.equal(marker.cycle,root.currentTurn);return marker;}
 export function minimumStationPlan(){return {actualAuthenticatedActors:2,configuredRoles:13,browserProcesses:1,browserContexts:2,hardCapMs:1200000,probeFamily:'station-success',forcedOutcome:false};}
