@@ -93,7 +93,7 @@ it('offers the printed condition without publishing an address first', async () 
   await waitFor(() => expect(mocks.offer).toHaveBeenCalledWith('dione', 4, 10));
   expect(mocks.address).not.toHaveBeenCalled();
   expect((await screen.findAllByText(/surrender by medium jump to 0101/i)).length).toBeGreaterThanOrEqual(1);
-  expect(screen.getByText(/purge survivors based on potential Wolf loyalty and keep the ship undamaged/i)).toBeVisible();
+  expect(screen.getAllByText(/purge survivors based on potential Wolf loyalty and keep the ship undamaged/i)).toHaveLength(2);
   expect(screen.getByText(/Response due/i)).toBeVisible();
   expect(screen.queryByText(/targetUid|damage capacity|fleet composition/i)).not.toBeInTheDocument();
 });
