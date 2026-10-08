@@ -103,7 +103,7 @@ The stable audit triage is
 These authorized local reads succeeded; the audit's earlier disclosure rejection
 is historical and is not a current source-access failure.
 
-## Current P181 source boundary
+## Initial P181 source boundary and retained history
 
 The smallest proposed cohort remains normal GM plus Wing Commander. Normal
 Auth/consent/setup/chooser/start, current craft custody/control/berth, lifted
@@ -209,18 +209,22 @@ source disputes outside the five approved scopes remain unresolved.
 ## Remaining parity source reconciliation — October 8
 
 The remaining 18 audit obligations have bounded implementation owners across
-four groups. The isolated reconciliation candidate at `6ae5bb0d` connects
+four groups. The isolated reconciliation candidate at `bae218c9` connects
 A, B, C and D. B's private mission producers, navigation entitlements and
 mission-bound K timing, preparation, declaration and listener now use the
-shared registered paths. This is source integration, with two F-3 public
-projection assertions still under diagnosis and final reconciled review open.
+shared registered paths. The one consolidated independent review of `e53f1d4a`
+returned three source findings and two test/validation findings. A's paused-Team
+and current-authority replay repairs are integrated; B's K result privacy,
+public guidance assertion contract and fixture typing repairs remain active.
+The bounded follow-up covers these unresolved findings and materially changed
+risk. This is source integration, with no gameplay or release acceptance.
 Root remains the single current-main integration owner;
 the canonical parent owns acceptance, runtime allocations and release. This
 intermediate source work earns no fixed catalog closures.
 
 | Group | Obligations | Connected source and remaining acceptance |
 | --- | --- | --- |
-| A | T03, T04, T09 | Environmental damage applies its casualty consequence; ordinary quarantine arrivals retain the cycle limit; paired fighter exchange uses current Wing Commander authority. The worker's focused checks and exact handoff are retained. Reconciled review, normal authenticated gameplay and rendered verification remain open. |
+| A | T03, T04, T09 | Environmental damage applies its casualty consequence; ordinary quarantine arrivals retain the cycle limit; paired fighter exchange uses current Wing Commander authority. Actual callable and mounted checks exposed a paused-Team exchange, and eight revoked/current-entitlement replay cases exposed the replay ordering defect. Separate test/source commits now deny both while preserving manual Team progression and authorized later-cycle no-write recovery. The worker's 16 callable and eight mounted checks, lint and exact handoff pass; bounded follow-up, normal authenticated gameplay and rendered verification remain open. |
 | B | T07, T08, T10, T18, T19, T20, T21 | Warrior opportunity/agency, leader allocation and durable research, console, nebula and K consequences are connected to the registered handlers and recipient consumers. Valid actual-handler failures preceded the shared repairs. K and ordinary attack controls pass; the 159-check run retains two F-3 projection assertion failures. Final reconciled review and affected native proof remain open. |
 | C | T13–T17 | Final research prices, printed initial crosses, Command/Control and Detector tracks, and paid durable device construction are connected. Actual registered device checks passed 25 tests; research paint contracts passed 50; the affected proof composition passed 30 after its physical-cross recording repair. These are separate source checks, not gameplay or visual evidence. |
 | D | T12, T22, T23 | Amnesty is independent of the previous Address action; restored role goals and recipient-private loyalty guidance are connected. Actual private writers, resume and investigation preserve the guidance and existing private fields. The affected current-member and investigation checks passed 62 tests with existing assertions retained. Reconciled review, private gameplay and rendered verification remain open. |
@@ -235,8 +239,9 @@ duplicate dependency-reference commit. Root corrected the canonical helper's
 TypeScript array narrowing at `07d5ea22`: the targeted compiler reported two
 TS7053 errors before the one-line type-only repair and none afterward;
 in-memory emitted JavaScript is identical. This compiler evidence earns no
-functional RED or new-build credit. Combined N/O integration and the type
-correction's independent review remain open.
+functional RED or new-build credit. The consolidated review found no further
+type-source issue while reusing that compiler evidence; it did not run a build
+or whole-project typecheck. Combined N/O integration remains open.
 The approved Home and Deluxe requirements do not change.
 
 P181 Attempt 2 on `74911da2` started local emulators, then stopped at the first
@@ -271,9 +276,23 @@ that was absent from the served route. Setup, cycle 0→1, Wing admission,
 movement and scouting were not earned. Own browsers, synthetic identity,
 session, nine ports, processes and reservation were verified clean at
 20:08:57.323 UTC; the unused allocation was returned and all source/build
-bindings remained unchanged. The original source owner is repairing the
-normal mounted GM route and auditing the journey's remaining navigation
-selectors in an isolated successor. No fresh runtime grant is active.
+bindings remained unchanged. The original source owner completed the ordinary
+navigation successor at `808b4521`: two catalog selectors now match the actual
+accessible-name prefix, and the Wing return selector accepts the actual
+visible ship-console chooser. Both actual mounted regressions failed before
+the test-only commit and three-line runner change; the current open/return
+route is a passing control. All 84 affected source checks and 40 unchanged
+canonical checks pass. Exact bounded independent review passed with no
+material findings. The equivalent setup fallback has producer-backed source
+coverage; it is not separately earned native navigation.
+
+Root copied and byte-verified all original 434 Functions and 272 web outputs
+into that exact checkout, with all 528 Functions inputs and 2,048 tracked paths
+bound. The actual current-checkout source-only API passed in 3,522 ms. These
+retain the original `74911da2` build provenance and do not cover the separately
+changing all18 product candidate. No new build, SDK, Auth or browser execution
+is claimed. Configuration preparation and a fresh absolute native grant remain
+parent-owned; the expiry of another task's window does not authorize a launch.
 The remaining gameplay and final rendered gates remain open.
 Historical chronology gaps and Attempt 2's raw-error loss remain recorded;
 these repairs do not retroactively make them compliant or recover lost data.
@@ -285,7 +304,7 @@ including `PC10_PARITY_A_T03_T04_T09_HANDOFF_20261008.json`,
 and `p181-normal-two-actor-74911da2-attempt2/FIRST_NATIVE_FAILURE_AND_CLEAN_HANDBACK.json`.
 All 48 PC10 rows remain open: 703/751 overall and 245/293 campaign.
 
-## Shared B integration evidence and remaining review questions
+## Shared B integration evidence and consolidated review findings
 
 The root serial sequence retains actual registered REDs before producer,
 protected window, preparation and declaration repairs. The valid immediate K
@@ -305,12 +324,30 @@ subscription without changing its assertions or product code. All 212
 listener checks now pass. The partial 159-check registered log remains a
 failure, despite its historical filename ending in `GREEN`.
 
-Final independent review must resolve the two F-3 assertions without removing
-legitimate public reward guidance or hiding private selected targets. It must
-also assess the documented K noncritical-attempt and weapon-console readings,
-the separate emergency all-fuel penalty, and the original resolved K result's
-retained difficulty/critical-threshold fields. New private pressure/window
-projections omit hidden rolls; this does not establish the entire existing
-post-resolution privacy boundary. No test assertion or historical failure is
-silently relabeled. These source checks establish no authenticated native,
-visual, typography, CI, deployment or checkpoint acceptance.
+The consolidated review reproduced a failed K result that directly returned
+the hidden difficulty and critical threshold. B owns meaningful fresh,
+replay, pointer and actual client-reader REDs before correcting that projection;
+protected server calculation remains numeric. It also confirmed that the two
+old F-3 regex failures match legitimate static public reward choices rather
+than selected private targets. The reviewed correction is a separate test-only
+exact public schema and recursive private-data denial contract, retaining all
+five settlement assertions and the original failed log. Sixteen new fixture
+typing lint errors are a real gate failure relative to the accepted baseline;
+bounded mock types replace them without lint waivers or assertion changes.
+
+The review accepted the documented noncritical attempted K attack trigger,
+the separate emergency all-fuel penalty and the Command/Control weapon-console
+reading as bounded source interpretations. An automatic unattempted failure
+does not trigger K pressure; an ordinary exit waiver does not waive the distinct
+emergency penalty. These are source dispositions, not author-confirmed rules
+or authenticated gameplay acceptance.
+
+Validated legacy client views can redact old K numeric fields, but the SDK
+still downloads raw old pointers, and prior downloaded caches are not erased.
+No cloud read or migration has been performed to establish or repair historical
+data exposure. Root carries that concrete legacy-data disposition to the
+canonical parent before unqualified historical privacy or release acceptance.
+Success rewards may naturally permit inference of the hidden value; no claim
+of permanent uninferability or historical erasure is made. No test assertion or
+historical failure is silently relabeled. These source checks establish no
+authenticated native, visual, typography, CI, deployment or checkpoint acceptance.
