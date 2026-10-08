@@ -6,11 +6,13 @@ import test from 'node:test';
 let readiness;
 let sameActorEpoch;
 let gmReadiness;
+let normalStartPreflight;
 try {
   ({
     pc11MemberReadiness: readiness,
     pc11SameActorEpoch: sameActorEpoch,
     pc11GmReadiness: gmReadiness,
+    pc11NormalStartPreflight: normalStartPreflight,
   } = await import('./pc11-normal-start-adapter.mjs'));
 } catch {
   readiness = undefined;
@@ -161,4 +163,48 @@ test('GM readiness requires the exact current owned live instance and server aut
   assert.equal(gmReadiness?.({ ...gm, gmInstanceOwned: false }, expected), false);
   assert.equal(gmReadiness?.({ ...gm, instanceId: 'foreign-instance' }, expected), false);
   assert.equal(gmReadiness?.({ ...gm, sdkHasServerAuthority: false }, expected), false);
+});
+
+test('normal start preflight requires the legal twelve-seat Dione and docked Philia state', () => {
+  const gm = {
+    hasAuth: true, sameActor: true, uidHash: 'gm-uid-hash',
+    sessionId: 'fresh-normal-session', meSessionId: 'fresh-normal-session',
+    profileRoleId: null, profileSessionId: null, playerRole: 'gm',
+    connectionGeneration: 1, identityHydrationRevision: 1,
+    connection: 'live', freshness: 'server', currentOwnPlayerConfirmed: true,
+    sdkHasServerAuthority: true, sdkResumePending: false,
+    instanceId: 'fresh-gm-instance', gmInstanceOwned: true, fullGameDemo: null,
+  };
+  const player = (uidHash, roleId) => ({
+    ...castingMember,
+    uidHash,
+    assignedRoleId: roleId,
+    phase: 'active',
+    cycle: 1,
+    activeConsoleRoleId: roleId,
+    seatId: roleId,
+    currentCanonicalSeatOwned: true,
+  });
+  const snapshot = {
+    session: {
+      id: 'fresh-normal-session', phase: 'active', currentTurn: 1,
+      fullGameDemo: null, setupConfirmed: true, playerCount: 12, chartId: 'A',
+      activeRoleIds: ['admiral', 'wing-commander', 'dione-engineer', 'dione-president',
+        'icebreaker-engineer', 'icebreaker-miner', 'shepherd-engineer', 'shepherd-scientist',
+        'quellon-engineer', 'quellon-explorer', 'refinery-124-engineer', 'refinery-124-pdf-colonel'],
+      dioneEnabled: true, activeVesselIds: ['dione'],
+      shuttleDockings: [{ shuttleId: 'philia', shipId: 'dione' }],
+    },
+    gm,
+    expectedGm: { sessionId: 'fresh-normal-session', uidHash: 'gm-uid-hash', instanceId: 'fresh-gm-instance' },
+    members: [player('engineer-uid-hash', 'dione-engineer'), player('president-uid-hash', 'dione-president')],
+    occupiedSeatCount: 2,
+  };
+  assert.deepEqual(normalStartPreflight?.(snapshot), { ready: true, blockers: [] });
+  assert.ok(normalStartPreflight?.({ ...snapshot, session: { ...snapshot.session, phase: 'closed' } })
+    .blockers.includes('session must be active and nonterminal'));
+  assert.ok(normalStartPreflight?.({ ...snapshot, session: { ...snapshot.session, fullGameDemo: { status: 'active' } } })
+    .blockers.includes('session must be a normal production session without a training marker'));
+  assert.ok(normalStartPreflight?.({ ...snapshot, occupiedSeatCount: 1 }).blockers
+    .includes('exactly the Engineer and President seats must be occupied'));
 });
