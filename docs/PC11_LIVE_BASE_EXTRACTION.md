@@ -274,3 +274,34 @@ Logs: `/tmp/dow-pc11-launch-red.log`, `/tmp/dow-pc11-launch-green.log`,
 `/tmp/dow-pc11-normal-launch-final.log`. These are source qualification checks,
 not actual UI/runtime or typography approval. Bundled app and server inputs are
 unchanged from the built `2cc643ea` candidate.
+
+## Runnable ordinary-start qualification
+
+`27cb3c28102b85be0f7111eee5a4cf6cb1eb07b4` finishes the normal UI runner at
+`scripts/qualification/pc11-three-actor-trade-philia.mjs`. It creates and configures
+12-seat Chart A through the GM UI, admits two independent ordinary players,
+assigns and claims their Engineer/President stations, starts ordinary production,
+and clears the actual GM cycle briefing before trade and Philia. Prepared-demo
+and manual Coordination gates are removed. The preflight uses the mounted
+`recommendedRoleIds(12)` preset, original admission identities, original claimed
+GM descriptor and live seats/server-authority observers. The exact printed roster
+ordering is enforced by the existing `confirmSetup` server path.
+
+The existing GM UI tabletop baseline attestation is retained and disclosed as an
+attestation; the runner does not observe or seed physical tokens. Thirteen helper
+modules are unchanged reviewed copies; hashes are retained in
+`/tmp/dow-pc11-helper-reuse-audit.json`. Their dependency imports resolve: running
+the unallocated CLI stops at the allocation assertion before runtime access
+(`/tmp/dow-pc11-runner-allocation-guard.log`). Adapter/runner/launcher checks pass
+24/24, syntax and scoped lint pass. The source-only launcher check reports slot5,
+three actors, twelve configured seats, ten empty player seats, and 300000ms cap;
+it creates no evidence directory or runtime.
+
+`0ff9e53c` recorded the runner's three failing ordinary-flow source-contract
+checks before adaptation. These check wiring and removal of unavailable training
+dependencies; they are not an actual UI rehearsal. The runtime check remains
+parent-allocated: request a five-minute slot5 window for this clean exact commit,
+then a separate five-to-eight-minute rendered typography window on the frozen
+built app. No push, PR, merge, deployment, browser or emulator access was performed
+for this qualification tooling. Release and checkpoint acceptance remain with
+the parent, with0.9.0 deferred until both PC10 and PC11 are released and verified.
