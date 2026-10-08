@@ -471,6 +471,7 @@ export { repairGorgoneionWithDrones } from './gorgoneionRepairDronesCallable';
 export { repairWarriorWithDrones } from './warriorRepairDronesCallable';
 export { resolveWolfAttackAftermath } from './wolfAttackAftermathCallable';
 export { transferBaseCapybaraCargo, transferWarriorCargo } from './baseCapybaraCargoTransferCallable';
+export { exchangeAegisFighterWings } from './fighterWingExchangeCallable';
 import { createResolvePendingScoutRequest, type ScoutMapCommit } from './scoutResultCallable';
 import { createAutomaticScoutResolver } from './scoutAutomaticResolution';
 export {

@@ -1837,6 +1837,108 @@ export interface FighterBuildResult extends Partial<VesselActionEnvelope> {
   readonly currentRevision?: number;
 }
 
+export type AegisFighterWingId = 'fighter-wing-alpha' | 'fighter-wing-bravo';
+export interface AegisFighterWingExchangeResult {
+  readonly status: 'committed' | 'replayed';
+  readonly sessionId: string;
+  readonly requestId: string;
+  readonly sourceWingId: AegisFighterWingId;
+  readonly amount: number;
+  readonly turn: number;
+  readonly capacity: 4 | 6;
+  readonly counts: Readonly<Record<AegisFighterWingId, Readonly<{ count: number; revision: number }>>>;
+}
+
+function fighterWingExchangeReply(
+  value: unknown,
+  expected: Readonly<{ sessionId: string; requestId: string; sourceWingId: AegisFighterWingId;
+    amount: number; turn: number }>,
+): AegisFighterWingExchangeResult | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  const counts = raw.counts as Record<string, unknown> | undefined;
+  const validCount = (entry: unknown): entry is { count: number; revision: number } =>
+    typeof entry === 'object' && entry !== null && !Array.isArray(entry) &&
+    Number.isSafeInteger((entry as Record<string, unknown>).count) &&
+    ((entry as Record<string, unknown>).count as number) >= 0 &&
+    Number.isSafeInteger((entry as Record<string, unknown>).revision) &&
+    ((entry as Record<string, unknown>).revision as number) >= 1;
+  if ((raw.status !== 'committed' && raw.status !== 'replayed') ||
+      raw.sessionId !== expected.sessionId || raw.requestId !== expected.requestId ||
+      raw.sourceWingId !== expected.sourceWingId || raw.amount !== expected.amount ||
+      raw.turn !== expected.turn || (raw.capacity !== 4 && raw.capacity !== 6) ||
+      !counts || !validCount(counts['fighter-wing-alpha']) || !validCount(counts['fighter-wing-bravo'])) return null;
+  return {
+    status: raw.status,
+    sessionId: expected.sessionId,
+    requestId: expected.requestId,
+    sourceWingId: expected.sourceWingId,
+    amount: expected.amount,
+    turn: expected.turn,
+    capacity: raw.capacity,
+    counts: {
+      'fighter-wing-alpha': counts['fighter-wing-alpha'],
+      'fighter-wing-bravo': counts['fighter-wing-bravo'],
+    },
+  };
+}
+
+/** Exchange surviving fighters as the active Wing Commander during Team. */
+export async function exchangeAegisFighterWings(
+  sourceWingId: AegisFighterWingId,
+  amount: number,
+): Promise<AegisFighterWingExchangeResult> {
+  const store = useSessionStore.getState();
+  const session = store.session;
+  if (!session || !store.me || store.me.sessionId !== session.id ||
+      store.me.activeConsoleRoleId !== 'wing-commander') {
+    throw new Error('Only the active AEGIS Wing Commander may exchange fighters.');
+  }
+  const turn = session.currentTurn;
+  const alpha = session.fighterWingCounts?.['fighter-wing-alpha'];
+  const bravo = session.fighterWingCounts?.['fighter-wing-bravo'];
+  if (!Number.isSafeInteger(turn) || (turn as number) < 1 || !alpha || !bravo ||
+      !Number.isSafeInteger(amount) || amount < 1 || amount > 6) {
+    throw new Error('Wait for the current live Fighter Wing counts before exchanging fighters.');
+  }
+  requireFreshSessionAuthority('Reconnect before exchanging Fighter Wing strength.');
+  const sessionId = session.id;
+  const checkpoint = sessionAuthorityCheckpoint(sessionId, sessionAuthorityUid(store));
+  const requestId = commandId();
+  const payload = {
+    sessionId, requestId, sourceWingId, amount, expectedTurn: turn as number,
+    expectedAlphaRevision: alpha.revision, expectedBravoRevision: bravo.revision,
+  };
+  await ensureSignedIn();
+  const call = httpsCallable<typeof payload, unknown>(functions(), 'exchangeAegisFighterWings');
+  try {
+    const reply = fighterWingExchangeReply((await call(payload)).data, {
+      sessionId, requestId, sourceWingId, amount, turn: turn as number,
+    });
+    if (!reply) throw new Error('The server returned an invalid Fighter Wing exchange result.');
+    const latest = useSessionStore.getState();
+    const current = latest.session;
+    if (!current || current.id !== sessionId || !authorityCheckpointIsCurrent(checkpoint) ||
+        latest.me?.activeConsoleRoleId !== 'wing-commander') return reply;
+    const currentAlphaRevision = current.fighterWingCounts?.['fighter-wing-alpha']?.revision ?? 0;
+    const currentBravoRevision = current.fighterWingCounts?.['fighter-wing-bravo']?.revision ?? 0;
+    if (currentAlphaRevision < reply.counts['fighter-wing-alpha'].revision &&
+        currentBravoRevision < reply.counts['fighter-wing-bravo'].revision) {
+      useSessionStore.getState().setSession({
+        ...current,
+        fighterWingCounts: {
+          ...current.fighterWingCounts,
+          ...reply.counts,
+        },
+      });
+    }
+    return reply;
+  } catch (cause) {
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    throw cause;
+  }
+}
+
 function fighterBuildReply(value: unknown): FighterBuildResult | null {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
   const raw = value as Record<string, unknown>;
