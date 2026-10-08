@@ -171,3 +171,14 @@ completion follow [`LOCAL_STORAGE.md`](LOCAL_STORAGE.md): remove eligible
 worktrees after the task is terminal, or record the exact preservation reason
 and owner. Preserve active or parked work, unique commits, local files, and
 dependencies shared by other checkouts. Never force-delete a worktree.
+
+## October 8 owner correction: observed RED, risk-based breadth
+
+Every functional change requires meaningful observed RED before implementation,
+then GREEN. Risk chooses tests, execution breadth and regression depth, not
+implementation-first permission. Interactive layout/visibility/defaults/parsers/
+provider features are functional; pure prose/docs may use consistency review.
+Existing imported patches retain honest historical evidence; never rewrite
+history or claim retrospective validation was contemporaneous RED. Flag gaps
+separately from actual behavior acceptance and use the minimum actors per claim.
+No blanket full-suite or account matrix is required by this correction.

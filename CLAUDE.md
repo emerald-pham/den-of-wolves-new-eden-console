@@ -155,12 +155,17 @@ need focused rules and callable tests: assert Firestore denies privileged
 client writes, callable authorization rejects the wrong actor, and the server
 transaction owns the mutation. New routes need a route-level test that activates
 the visible return control. Components should use accessible roles and text;
-pure logic belongs in focused unit tests. For new behavior, commit a failing
-test before code, in separate commits. Never weaken, skip, or delete an
+pure logic belongs in focused unit tests. Every functional change requires a
+meaningful observed RED before implementation, then GREEN, in separate test-first
+commits. Risk governs test selection, execution breadth and regression depth;
+it never permits implementation-first. Interactive layout, visibility, defaults,
+parsers and provider features are functional changes. Never weaken, skip, or delete an
 existing test to pass; leave a suspect test intact and flag it. Never modify
 an existing test in the code commit it covers. Record reasons for every test
 added, changed, skipped, or deleted in the nontechnical checkpoint report.
-Low-impact changes without new behavior need a focused or rendered check.
+Pure prose/docs may use consistency review. Retrospective base-versus-fixed
+failures validate behavior but cannot establish contemporaneous test-first history.
+Use the smallest cohort per distinct claim; avoid blanket suites/account matrices.
 Future gameplay proof uses normal authenticated local/emulator native, HTTP/UI and rules paths; prepared scenes alone do not establish behavior. Keep local tests, gameplay, rendered QA, CI, production deployment and actual production behavior distinct. Independent risk review, CI and deployment remain required; production-GM gameplay is not a closure prerequisite.
 
 Typical checks are:
