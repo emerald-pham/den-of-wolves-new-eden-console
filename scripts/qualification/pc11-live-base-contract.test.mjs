@@ -249,8 +249,8 @@ test('every active runner browser callback binds published modules and normal fi
       // The copied factory's callable controller is never invoked by this UI-only runner.
       if(!text.includes('httpsCallable'))callbacks.push({text,kind:node.expression.name.text});
     }ts.forEachChild(node,visit);
-  }visit(ast);assert.equal(callbacks.length,15,'Active browser callback inventory must be updated for changes.');
-  for(const [file,names]of [['src/lib/firebase.ts',['auth']],['src/lib/firestore.ts',['db']],['src/store/useSessionStore.ts',['useSessionStore']]]) {
+  }visit(ast);assert.equal(callbacks.length,17,'Active browser callback inventory must be updated for changes.');
+  for(const [file,names]of [['src/lib/firebase.ts',['auth']],['src/lib/firestore.ts',['db']],['src/store/useSessionStore.ts',['useSessionStore']],['src/lib/sessionService.ts',['setShipConsoleLock']]]) {
     const module=ts.createSourceFile(file,readFileSync(resolve(root,file),'utf8'),ts.ScriptTarget.Latest,true);
     const exported=new Set();for(const statement of module.statements){if(!statement.modifiers?.some(modifier=>modifier.kind===ts.SyntaxKind.ExportKeyword))continue;
       if(ts.isFunctionDeclaration(statement)&&statement.name)exported.add(statement.name.text);
@@ -267,10 +267,13 @@ test('every active runner browser callback binds published modules and normal fi
   const modules={'/src/lib/firebase.ts':{auth:()=>({currentUser:{uid}})},'/src/store/useSessionStore.ts':{useSessionStore:store},
     '/src/lib/sessionSnapshotAuthority.ts':sdk,'/src/data/rolePresets.ts':rolePresets,'/src/lib/firestore.ts':{db:()=>({})},
     '/node_modules/.vite/deps/firebase_firestore.js':{doc:(_db,path)=>{assert.equal(path,`sessions/${sid}/playerHeldResourceInventories/${uid}`);return path;},getDocFromServer:async()=>({exists:()=>true,data:()=>({balances:heldBalances})})}};
+  let compatibilityCalls=0;
+  modules['/src/lib/sessionService.ts']={setShipConsoleLock:async(shipId,locked)=>{assert.equal(shipId,'dione');assert.equal(locked,true);compatibilityCalls++;}};
+  const location={hash:'#/ships/dione/observer'};
   const window={};const node={textContent:'actual diagnostic',isConnected:true,querySelectorAll:()=>[],getAttribute:()=>null};
   const document={querySelector:selector=>selector==='section.same-table-trade'?node:null,querySelectorAll:()=>[]};
   const context={load:async path=>{assert.ok(Object.hasOwn(modules,path),`Unavailable active browser import ${path}`);return modules[path];},
-    crypto:webcrypto,performance:{timeOrigin:100,now:()=>1},document,window,TextEncoder,
+    crypto:webcrypto,performance:{timeOrigin:100,now:()=>1},document,window,location,TextEncoder,
     requestAnimationFrame:callback=>callback(),fetch:async path=>{assert.equal(path,'/src/lib/firestore.ts');return{text:async()=>`import {getDocFromServer} from '/node_modules/.vite/deps/firebase_firestore.js';`};}};
   let executed=0;
   for(const {text,kind}of callbacks){
@@ -283,7 +286,7 @@ test('every active runner browser callback binds published modules and normal fi
     if(text.includes('Held inventory absent'))assert.deepEqual(result,heldBalances);
     if(text.includes('recommendedRoleIds'))assert.equal(result.length,12);
     if(text.includes('occupiedSeatCount'))assert.equal(result.occupiedSeatCount,1);
-  }assert.equal(executed,15);assert.equal(window.__pc11GmClaimObservation,undefined);
+  }assert.equal(executed,17);assert.equal(compatibilityCalls,1,'Exactly one retained normal service invocation is bound');assert.equal(window.__pc11GmClaimObservation,undefined);
 });
 
 test('hosted Philia and normal reload retain original Dione seat and exact own host map',()=>{
@@ -393,11 +396,17 @@ test('all six actual runner wait predicates consume the published ordinary setup
 
   const source=ts.createSourceFile('runner',runner,ts.ScriptTarget.Latest,true,ts.ScriptKind.JS),predicates=new Map();
   function visit(node){if(ts.isCallExpression(node)&&ts.isPropertyAccessExpression(node.expression)&&node.expression.name.text==='until'&&node.arguments[1]&&ts.isArrowFunction(node.arguments[1]))predicates.set(node.arguments[0].getText(source),node.arguments[1].getText(source));ts.forEachChild(node,visit);}visit(source);
-  assert.equal(predicates.size,6,'Every added wait requires an explicit ordinary lifecycle fixture.');
+  assert.equal(predicates.size,7,'Every added wait requires an explicit ordinary lifecycle fixture.');
   const deps={assert,sid,before:member(),phase:undefined,expectedUidHash:hash(uid),roleIds:{Owner:roleId},label:'Owner'};
   const predicate=(prefix,overrides={})=>{const entry=[...predicates].find(([name])=>name.includes(prefix));assert.ok(entry,`Missing actual ${prefix} wait`);return new Function('deps',`const {${Object.keys(deps).join(',')}}=deps;return (${entry[1]});`)({...deps,...overrides});};
   const ordinary={hasAuth:true,sameActor:true,uidHash:hash(uid),sessionId:sid,cycle:0,phase:lobby,setupConfirmed:false,connection:'live',freshness:'server',profileRoleId:null,profileSessionId:null};
   assert.equal(predicate('Fresh ordinary Cycle0')(ordinary),true);
+  const grantActor=predicate('Current original GM has Dione scoped grant');
+  assert.equal(grantActor({sameActor:true,gmInstanceOwned:true,grantShipId:'dione'}),true);
+  assert.equal(grantActor({sameActor:false,gmInstanceOwned:true,grantShipId:'dione'}),false);
+  assert.equal(grantActor({sameActor:true,gmInstanceOwned:false,grantShipId:'dione'}),false);
+  assert.equal(grantActor({sameActor:true,gmInstanceOwned:true,grantShipId:'aegis'}),false);
+  assert.equal(grantActor({sameActor:true,gmInstanceOwned:true}),false);
   const configured={...ordinary,setupConfirmed:true,activeRoleIds:pureSourceModule('src/data/rolePresets.ts').recommendedRoleIds(12)};
   assert.equal(predicate('Legal12 roster confirmed')(configured),true);
   assert.equal(predicate('Normal joined fresh')(configured),true,'First join sees configured lobby');
