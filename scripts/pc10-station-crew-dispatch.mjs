@@ -133,28 +133,42 @@ function validateExecutiveRangeView(view, current) {
   assert.ok(typeof view.deadlineAt === 'string' && Number.isFinite(Date.parse(view.deadlineAt)));
   for (const key of ['eligibleActions', 'hitSlots', 'contacts']) assert.ok(Array.isArray(view[key]), `Current EO ${key} is required.`);
   const unique = (rows, key) => {
-    assert.ok(rows.every(row => row && typeof row[key] === 'string' && row[key]));
+    assert.ok(rows.every(row => row && typeof row === 'object' && !Array.isArray(row) &&
+      typeof row[key] === 'string' && row[key]));
     assert.equal(new Set(rows.map(row => row[key])).size, rows.length, `Current EO ${key}s must be distinct.`);
   };
   unique(view.eligibleActions, 'actionId'); unique(view.hitSlots, 'actionId'); unique(view.contacts, 'contactId');
   for (const action of view.eligibleActions) {
+    assert.ok(Object.keys(action).length === 3 &&
+      Object.keys(action).every(key => ['actionId', 'sourceId', 'range'].includes(key)),
+    'Current EO action must retain the exact public producer fields.');
     assert.ok(Object.hasOwn(executiveActionLabels, action.sourceId), 'Unknown current EO action source.');
     assert.equal(action.range, view.range);
     if (action.sourceId === 'aegis-missile-launchers') assert.ok(['long-range', 'medium-range'].includes(view.range));
     if (action.sourceId === 'aegis-point-defence-lasers') assert.ok(['medium-range', 'short-range'].includes(view.range));
   }
   for (const slot of view.hitSlots) {
+    assert.ok(Object.keys(slot).length === 3 &&
+      Object.keys(slot).every(key => ['actionId', 'count', 'damagePerHit'].includes(key)),
+    'Current EO hit slot must retain the exact public locked fields.');
     assert.ok(view.eligibleActions.some(action => action.actionId === slot.actionId), 'EO hits must belong to an actual offered action.');
     assert.ok(Number.isSafeInteger(slot.count) && slot.count >= 0 && Number.isSafeInteger(slot.damagePerHit) && slot.damagePerHit >= 1,
       'EO hits and damage must come from the current locked source.');
   }
   assert.ok(view.choiceStatus !== 'pending' || view.hitSlots.length === 0, 'Uncommitted EO actions cannot supply locked hits.');
   for (const contact of view.contacts) {
+    assert.match(contact.contactId, /^contact-[1-9]\d*$/, 'Current EO contact requires its actual public identifier.');
+    const hasCoverage = Object.hasOwn(contact, 'requiredCoverageDamage');
+    assert.ok(Object.keys(contact).length === (hasCoverage ? 4 : 3) &&
+      Object.keys(contact).every(key => ['contactId', 'targetShipId', 'available', 'requiredCoverageDamage'].includes(key)),
+    'Current EO contact must retain the exact public producer fields.');
     assert.ok(typeof contact.targetShipId === 'string' && contact.targetShipId);
     assert.equal(typeof contact.available, 'boolean');
+    if (hasCoverage) assert.ok(contact.requiredCoverageDamage === null ||
+      Number.isSafeInteger(contact.requiredCoverageDamage) && contact.requiredCoverageDamage >= 0,
+    'Current EO public coverage must retain its actual source type.');
     if (view.range === 'short-range' && view.choiceStatus === 'targets-required')
-      assert.ok(contact.requiredCoverageDamage === null || Number.isSafeInteger(contact.requiredCoverageDamage) && contact.requiredCoverageDamage >= 0,
-        'Current Short contacts require their actual public coverage value.');
+      assert.ok(hasCoverage, 'Current Short contacts require their actual public coverage value.');
   }
 }
 
