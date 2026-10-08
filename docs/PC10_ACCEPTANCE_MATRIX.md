@@ -1084,7 +1084,7 @@ campaign,13partial/35missing, NEXT181; no release or catalog status is changed.
 
 | Distinct remaining family | Concrete unqualified criteria | Owner / boundary |
 |---|---|---|
-| Highwall mining, Icebreaker Miner | Two standard unfuelled choices and actual server dice/cargo; committed-ack loss/exact UI retry; original cold reload/replay; stale-revision no-effect envelope; wrong-role/GM denial; fresh third-operation quota refusal. Fuelled third operation and foreign/peer custody are separate. | Selected next owner source-only slice below. Leaf proof/tests only unless a focused product RED proves a defect. No emulator/browser starts until a new parent allocation. |
+| Highwall mining, Icebreaker Miner | Actual2 at `81947faf` earns the two standard unfuelled server dice/cargo operations, committed-ack loss/exact UI retry, original cold reload/SDK replay, stale no-effect envelope, live GM wrong-role denial and fresh third-operation quota refusal. Fuelled operation3, new-cycle reset and foreign/peer custody remain unproved. | Parent accepted12 criteria and clean handback. Reuse this closed bounded slice; final rendered coverage still needs the panel framed after reload. No duplicate whole-family replay. |
 | N/O/P outcomes | Remaining candidate-specific variants/privacy, N-specific closed history, Nebula scouting/loss/threshold and Station combat/contributions/power. Parent accepted helper Ring attempt3 N success/partial619 recovery; those scoped criteria remain retained. | Existing N/O/P helper owns remaining implementation/native proof. Its common Pursuit closure/history pass verifies the narrow Close repair integrated here; N-specific closed history remains unobserved. No overlapping fixes or replay by this owner; prior Ring failures stay retained. |
 | Other specialist and expansion actions | Wing Commander builds/launches/scouting/missions; Scientist private research/devices/field upgrades; Explorer harvesting/scouting/missions; PDF Colonel launch/boarding/reference; Capybara Macaw/Boa salvage/reclamation/Scrap and remaining maintenance/missions. | Separately assignable complete mechanic groups. Accepted Scientist candidate discovery/preparation and maintenance prefixes remain reusable. Highwall slice makes no credit for these. |
 | Combat, politics, crisis and arrest | Stable eligible role selection, genuine range choices/targets/damage/aftermath, political/crisis choices and posse/arrest resolution with costs, repeats/recovery and actual authority/private audiences. | Unassigned local gameplay families; avoid N/O/P Station combat ownership. Preserve Combat29/Miner failures; source repairs are not native outcomes. |
@@ -1092,7 +1092,7 @@ campaign,13partial/35missing, NEXT181; no release or catalog status is changed.
 | Member/GM/private projection and durable boundaries | Remaining current-role/private audience reads, receipt/query/redaction/security-denial coverage, lease/reconnect/revocation and terminal branches not covered by Pursuit/history. | Unassigned distinct authority/audience slice. Historical source-only taxonomies and unmounted compatibility endpoints are not fabricated UI functions. |
 | Complete rehearsal, usability and final release | Stitch valid unique-function/role families into the fresh two-browser solo game through ending; available actions/costs/blockers/next actor; final fonts/rendered review, exact candidate/main CI and deployment. | Checkpoint owner integration. Conditional justified simultaneous capacity is separate; human-device play is explicitly unclaimed. Post-PC10→PC11→PC12 remain future roadmap. |
 
-### Selected next family — unfuelled Highwall mining
+### Highwall bounded family — accepted October 8
 
 The October8 independent acceptance audit at
 `/tmp/pc10-independent-acceptance-audit/PC10_READ_ONLY_GAP_MAP.md` is incorporated
@@ -1101,12 +1101,12 @@ source `522447d4` retains the failed combined status while preserving earned
 N/619 actions before Close; common Close source `ddfb7ee5` separately passes.
 The first-cycle startup repair at `2f3e9efc` is a real transitive dependency:
 170 affected checks and its independent review qualify source readiness,
-while the fresh Highwall actual remains required. Earlier family evidence stays
+and actual2 below now qualifies the repaired Highwall startup. Earlier family evidence stays
 bound to its original source and unchanged bodies; the audit does not validate
 the repair or supply final rendered/CI/deployment proof. Catalog counts remain
 703/751 overall,245/293 campaign,48open; criterion credit is not a closure.
 
-After the active Highwall slice, smallest remaining proof priorities are:
+After the accepted Highwall slice, smallest remaining proof priorities are:
 
 1. Map Ring contribution/blocker/duplicate/unfuelled/wrong-role negatives and
    existing Close/privacy receipts read-only; reuse positive N and common Close.
@@ -1126,8 +1126,8 @@ After the active Highwall slice, smallest remaining proof priorities are:
    typography/review/CI/main deployment. These still require gameplay; capacity
    is separate and unclaimed. PC11 guidance and PC12 remain later work.
 
-The actual function inventory's `runHighwallMining` row and Icebreaker Miner
-whole-role evidence remain pending. Qualify only this distinct specialist
+The actual function inventory's `runHighwallMining` row now has scoped actual2
+evidence; Icebreaker Miner whole-role evidence remains pending. Qualify only this distinct specialist
 mechanic, not every Miner/ship/function or P630/P618/P620/P629/P635 closure.
 Two independent normal Auth actors and two Chrome processes/contexts are the
 minimum: GM for actual create/consent/authorization/casting/manual preparation
@@ -1268,3 +1268,59 @@ candidate must reconcile that released base while preserving its unpublished
 Functions/rules work. This source-only repair does not integrate or execute
 PC11, post-PC10 work or conditional PC12; the private0.5.72 candidate remains
 unreleased.
+
+#### Highwall actual2 acceptance, screenshot inspection and allocation clock
+
+Exact reviewed `81947fafeff7386718fd040ae139d45b919aa40f`, tree
+`901b96feb07b07289bc9dc64ddeee396e7c5841c`, passed the two-actor native slice
+with12 earned criteria in87.453 seconds including its data/browser cleanup.
+Two normal admitted Auth actors used two independent Chrome processes/contexts;
+16 roles were configured with other seats open, and no human-device play is
+claimed. Real authorized GM0→1/manual Coordination and the original Miner
+berth/seat/group/holder/SDK binding now work. Actual1d6 materials and3d6 ore
+each persisted one bound result, cargo/state increment, command receipt,
+member event and metadata audit. Interrupted acknowledgement recovered through
+the offered exact original UI retry; a stale envelope and live GM wrong-role
+refusal added no effects. The same Miner cold reload retained durable state
+and quota; captured original SDK replay added no effect. A fresh entitled
+current-revision third request reached the unfuelled quota guard. Pending UI
+intent across a cold document and native RNG draw-call counts are not claimed.
+
+The parent accepted all12 criteria and the clean handback. Native receipt:
+`/tmp/dow-pc10-evidence/OWNER_HIGHWALL_MINING_2_PASSED_CLEAN_HANDOFF_20261008.json`.
+Both browsers, both Auth identities, both pointers, the session and join code
+were removed with no cleanup errors. Owned wrapper/CLI/proof/two Chrome main
+PIDs, all eight emulator ports and its reservation were absent at
+04:53:46.593 UTC; only the retained lightweight Vite5174 remains. Four original
+logs were held and prefix-verified before shutdown, then fully verified after
+all owned writers closed, totaling12,560,955 bytes. The initially absent
+firebase-debug path was restored before startup from its hash-verified prior
+complete archive; no missing archive bytes were invented. The older lost
+debug log remains unrecovered. Attempt1's failure and originals stay immutable.
+
+The parent resource grant started at04:46 UTC. The owner incorrectly anchored
+its cap to the later emulator reservation at04:49:08.821. Actual owned runtime
+lasted277.772 seconds and the native own cap passed, but clean return exceeded
+the observed parent grant's five-minute deadline by143.593 seconds. This is a
+scheduling overrun, recorded separately from gameplay PASS. Future clock-window
+caps start at the parent grant and include startup and cleanup. Do not launch
+when the remaining grant cannot cover original operation deadlines and cleanup;
+do not move the deadline to startup or shorten the established operation waits.
+
+Direct inspection of both original PNGs is recorded at
+`/tmp/dow-pc10-evidence/OWNER_HIGHWALL_MINING_2_SCREENSHOT_INSPECTION_20261008.json`.
+The first shows Miner/Icebreaker/manual phase and0-of2 quota/fuel guidance,
+but lower controls/results extend below the viewport. The post-reload image
+shows the original actor's private loyalty card rather than framing mining.
+Native actual DOM assertions verify quota and disabled controls; those images
+do not independently prove every post-reload mining pixel. Complete that
+rendered coverage in the later affected rehearsal/render pass. No product
+defect is established by the framing gap and no final typography/usability
+acceptance is claimed. No further runtime starts during source reconciliation.
+
+These earned criteria support the changed mining function and scoped recovery,
+stale/no-effect, server-dice and audit claims in618/620/630/635 and the aggregate
+role/function inventory. They close no fixed catalog row: all48 remain open,
+703/751 overall and245/293 campaign, while other unique mechanics and final
+release gates remain. The N/O/P helper retains its current runtime/ownership;
+candidate requester-peer/private-audience preparation is the next owner scope.
