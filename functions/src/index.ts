@@ -18348,6 +18348,37 @@ interface FleetPartitionAdjudicationRequiredReply {
   readonly navigationRevision: number;
   readonly fleetPartitionRevision: number;
   readonly candidates: readonly FleetGroupRejoinCandidate[];
+  readonly previewBinding: FleetGroupRejoinPreviewBinding;
+}
+interface FleetGroupRejoinPreviewBinding {
+  readonly actorUid: string;
+  readonly instanceId: string;
+  readonly leaseClaimedAt: string | null;
+  readonly navigationRevision: number;
+  readonly fleetPartitionRevision: number;
+  readonly currentTurn: number;
+  readonly turnPhase: NonNullable<ReturnType<typeof turnPhaseState>>;
+  readonly candidates: readonly FleetGroupRejoinCandidate[];
+}
+function fleetRejoinLeaseClaimedAt(instance: Pick<DocumentSnapshot, 'get'>): string | null {
+  const value = instance.get('claimedAt');
+  if (value === undefined || value === null) return null;
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === 'string') {
+    const milliseconds = Date.parse(value);
+    return Number.isFinite(milliseconds) ? new Date(milliseconds).toISOString() : null;
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) return new Date(value).toISOString();
+  if (isRecord(value) && typeof value.toDate === 'function') {
+    const date = value.toDate();
+    return date instanceof Date ? date.toISOString() : null;
+  }
+  if (isRecord(value) && typeof value.toMillis === 'function') {
+    const milliseconds = value.toMillis();
+    return typeof milliseconds === 'number' && Number.isFinite(milliseconds)
+      ? new Date(milliseconds).toISOString() : null;
+  }
+  return null;
 }
 interface FleetGroupRejoinAdjudicationReply {
   readonly status: 'recorded'; readonly adjudicationId: string;
@@ -18380,6 +18411,32 @@ function requestedFleetRejoinDecisions(value: unknown): readonly RequestedFleetR
       pursuitAfter: candidate.pursuitAfter as number });
   }
   return result;
+}
+
+function fleetGroupRejoinPreviewBinding(value: unknown): FleetGroupRejoinPreviewBinding | null {
+  if (!isRecord(value) || Object.keys(value).some(key => !['actorUid', 'instanceId', 'leaseClaimedAt',
+      'navigationRevision', 'fleetPartitionRevision', 'currentTurn', 'turnPhase', 'candidates'].includes(key)) ||
+      typeof value.actorUid !== 'string' || !/^[\w-]{1,128}$/.test(value.actorUid) ||
+      typeof value.instanceId !== 'string' || !/^[\w-]{1,128}$/.test(value.instanceId) ||
+      (value.leaseClaimedAt !== null && typeof value.leaseClaimedAt !== 'string') ||
+      !Number.isSafeInteger(value.navigationRevision) || (value.navigationRevision as number) < 0 ||
+      !Number.isSafeInteger(value.fleetPartitionRevision) || (value.fleetPartitionRevision as number) < 0 ||
+      !Number.isSafeInteger(value.currentTurn) || (value.currentTurn as number) < 1 ||
+      !Array.isArray(value.candidates) || value.candidates.length < 1 || value.candidates.length > 32) return null;
+  const turnPhase = turnPhaseState(value.turnPhase);
+  if (!turnPhase || turnPhase.turn !== value.currentTurn || !isDeepStrictEqual(value.turnPhase, turnPhase)) return null;
+  for (const candidate of value.candidates) {
+    if (!isRecord(candidate) || Object.keys(candidate).some(key => !['coordinate', 'groupIds', 'pursuitBefore'].includes(key)) ||
+        typeof candidate.coordinate !== 'string' || !isStarSystemCoordinate(candidate.coordinate) ||
+        !Array.isArray(candidate.groupIds) || candidate.groupIds.length < 2 || candidate.groupIds.length > 32 ||
+        candidate.groupIds.some(id => typeof id !== 'string' || !/^fleet-[1-9][0-9]*$/.test(id)) ||
+        new Set(candidate.groupIds).size !== candidate.groupIds.length || !isRecord(candidate.pursuitBefore) ||
+        Object.keys(candidate.pursuitBefore).length !== candidate.groupIds.length ||
+        Object.keys(candidate.pursuitBefore).some(id => !candidate.groupIds.includes(id)) ||
+        candidate.groupIds.some(id => !Number.isSafeInteger(candidate.pursuitBefore[id]) ||
+          (candidate.pursuitBefore[id] as number) < 0 || (candidate.pursuitBefore[id] as number) > 10)) return null;
+  }
+  return value as unknown as FleetGroupRejoinPreviewBinding;
 }
 
 function fleetPartitionPlanFromSnapshots(session: DocumentSnapshot, storedNavigation: DocumentSnapshot,
@@ -18442,13 +18499,16 @@ function recordDecisionsForCandidates(raw: unknown, candidates: readonly FleetGr
 
 function savedDecisionsForCandidates(value: unknown, candidates: readonly FleetGroupRejoinCandidate[],
   context: Readonly<{ sessionId: string; actorUid: string; instanceId: string; navigationRevision: number;
-    fleetPartitionRevision: number; currentTurn: number; turnPhase: ReturnType<typeof turnPhaseState> }>,
+    leaseClaimedAt: string | null; fleetPartitionRevision: number; currentTurn: number;
+    turnPhase: ReturnType<typeof turnPhaseState> }>,
   adjudicationId: string): readonly FleetGroupRejoinDecision[] | null {
   if (!isRecord(value) || Object.keys(value).some(key => !['type', 'status', 'sessionId', 'requestId', 'actorUid',
-      'instanceId', 'navigationRevision', 'fleetPartitionRevision', 'currentTurn', 'turnPhase', 'decisions', 'createdAt'].includes(key)) ||
+      'instanceId', 'leaseClaimedAt', 'navigationRevision', 'fleetPartitionRevision', 'currentTurn', 'turnPhase',
+      'decisions', 'createdAt'].includes(key)) ||
       value.type !== 'fleet-group-rejoin-adjudication' || value.status !== 'recorded' ||
       value.sessionId !== context.sessionId || value.requestId !== adjudicationId || value.actorUid !== context.actorUid ||
-      value.instanceId !== context.instanceId || value.navigationRevision !== context.navigationRevision ||
+      value.instanceId !== context.instanceId || value.leaseClaimedAt !== context.leaseClaimedAt ||
+      value.navigationRevision !== context.navigationRevision ||
       value.fleetPartitionRevision !== context.fleetPartitionRevision || value.currentTurn !== context.currentTurn ||
       !isDeepStrictEqual(value.turnPhase, context.turnPhase) || !Array.isArray(value.decisions) ||
       value.decisions.length !== candidates.length) return null;
@@ -18470,29 +18530,39 @@ function savedDecisionsForCandidates(value: unknown, candidates: readonly FleetG
 /** Record an explicit live-GM result for the exact current exceptional rejoin candidates. */
 export const recordFleetGroupRejoinAdjudication = auditedOnCall<{
   sessionId: string; instanceId: string; requestId: string; expectedNavigationRevision: number;
-  expectedFleetPartitionRevision: number; decisions: unknown;
+  expectedFleetPartitionRevision: number; decisions: unknown; previewBinding: unknown;
 }>('recordFleetGroupRejoinAdjudication', async request => {
   const uid = requireUid(request.auth);
   const data = request.data;
   const decisions = requestedFleetRejoinDecisions(data?.decisions);
+  const previewBinding = fleetGroupRejoinPreviewBinding(data?.previewBinding);
   if (!isRecord(data) || Object.keys(data).some(key => !['sessionId', 'instanceId', 'requestId',
-      'expectedNavigationRevision', 'expectedFleetPartitionRevision', 'decisions'].includes(key)) ||
+      'expectedNavigationRevision', 'expectedFleetPartitionRevision', 'decisions', 'previewBinding'].includes(key)) ||
       typeof data.sessionId !== 'string' || !/^[\w-]{1,128}$/.test(data.sessionId) ||
       typeof data.instanceId !== 'string' || !/^[\w-]{1,128}$/.test(data.instanceId) ||
       typeof data.requestId !== 'string' || !isCanonicalRequestId(data.requestId) ||
       !Number.isSafeInteger(data.expectedNavigationRevision) || data.expectedNavigationRevision < 0 ||
       data.expectedNavigationRevision >= Number.MAX_SAFE_INTEGER ||
       !Number.isSafeInteger(data.expectedFleetPartitionRevision) || data.expectedFleetPartitionRevision < 0 ||
-      data.expectedFleetPartitionRevision >= Number.MAX_SAFE_INTEGER || !decisions) {
+      data.expectedFleetPartitionRevision >= Number.MAX_SAFE_INTEGER || !decisions ||
+      (previewBinding !== null && (previewBinding.navigationRevision !== data.expectedNavigationRevision ||
+        previewBinding.fleetPartitionRevision !== data.expectedFleetPartitionRevision))) {
     throw new HttpsError('invalid-argument', 'Invalid fleet rejoin adjudication.');
   }
   const fingerprint: CommandFingerprint = { action: 'record-fleet-group-rejoin-adjudication', sessionId: data.sessionId,
     requestId: data.requestId, actorUid: uid, instanceId: data.instanceId,
     expectedRevision: data.expectedNavigationRevision,
-    payload: { expectedFleetPartitionRevision: data.expectedFleetPartitionRevision, decisions: JSON.stringify(decisions) } };
+    payload: { expectedFleetPartitionRevision: data.expectedFleetPartitionRevision, decisions: JSON.stringify(decisions),
+      previewBinding: JSON.stringify(previewBinding) } };
   const adjudicationRef = db.doc(`sessions/${data.sessionId}/fleetGroupRejoinAdjudications/${data.requestId}`);
   return db.runTransaction(async tx => {
-    const { session } = await requireFacilitatorInstance(tx, data.sessionId, uid, data.instanceId);
+    const { session, instance } = await requireFacilitatorInstance(tx, data.sessionId, uid, data.instanceId);
+    if (!previewBinding) throw new HttpsError('invalid-argument', 'A current exceptional rejoin preview is required.');
+    const leaseClaimedAt = fleetRejoinLeaseClaimedAt(instance);
+    if (previewBinding.actorUid !== uid || previewBinding.instanceId !== data.instanceId ||
+        previewBinding.leaseClaimedAt !== leaseClaimedAt) {
+      throw commandError('failed-precondition', 'The facilitator lease changed after this rejoin preview. Refresh before recording.', 'conflict');
+    }
     const [storedNavigation, playerSnapshots, groupSnapshots, receipt, existingAdjudication, attackState] = await Promise.all([
       tx.get(navigationStateRef(data.sessionId)), tx.get(db.collection(`sessions/${data.sessionId}/players`)),
       tx.get(db.collection(`sessions/${data.sessionId}/fleetGroups`)), tx.get(commandReceiptRef(data.sessionId, data.requestId)),
@@ -18512,16 +18582,21 @@ export const recordFleetGroupRejoinAdjudication = auditedOnCall<{
     }
     if (existingAdjudication.exists) throw commandError('failed-precondition', 'This rejoin decision id is already recorded.', 'conflict');
     const current = fleetPartitionPlanFromSnapshots(session, storedNavigation, playerSnapshots, groupSnapshots);
+    const { currentTurn, turnPhase } = currentFleetRejoinTiming(session);
+    if (previewBinding.currentTurn !== currentTurn || !isDeepStrictEqual(previewBinding.turnPhase, turnPhase) ||
+        !isDeepStrictEqual(previewBinding.candidates, current.plan.adjudicationRequired)) {
+      throw commandError('failed-precondition', 'The exceptional rejoin preview inputs changed; refresh before recording a decision.', 'conflict');
+    }
     const recordedDecisions = recordDecisionsForCandidates(decisions, current.plan.adjudicationRequired);
     if (!recordedDecisions || current.plan.adjudicationRequired.length === 0) {
       throw commandError('failed-precondition', 'The exceptional rejoin candidates changed; refresh before recording a decision.', 'conflict');
     }
     const result: FleetGroupRejoinAdjudicationReply = { status: 'recorded', adjudicationId: data.requestId,
       navigationRevision: data.expectedNavigationRevision, fleetPartitionRevision: partitionRevision };
-    const { currentTurn, turnPhase } = currentFleetRejoinTiming(session);
     tx.create(adjudicationRef, { type: 'fleet-group-rejoin-adjudication', status: 'recorded', sessionId: data.sessionId,
       requestId: data.requestId, actorUid: uid, instanceId: data.instanceId,
-      navigationRevision: data.expectedNavigationRevision, fleetPartitionRevision: partitionRevision, currentTurn, turnPhase,
+      leaseClaimedAt, navigationRevision: data.expectedNavigationRevision, fleetPartitionRevision: partitionRevision,
+      currentTurn, turnPhase,
       decisions: recordedDecisions, createdAt: FieldValue.serverTimestamp() });
     tx.create(commandReceiptRef(data.sessionId, data.requestId), { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
     return result;
@@ -18547,7 +18622,7 @@ export const confirmFleetPartition = auditedOnCall<{ sessionId: string; instance
     expectedRevision: data.expectedNavigationRevision,
     payload: data.rejoinAdjudicationId ? { rejoinAdjudicationId: data.rejoinAdjudicationId } : {} };
   return db.runTransaction(async tx => {
-    const { session } = await requireFacilitatorInstance(tx, data.sessionId, uid, data.instanceId);
+    const { session, instance } = await requireFacilitatorInstance(tx, data.sessionId, uid, data.instanceId);
     const [storedNavigation, playerSnapshots, groupSnapshots, receipt, attackState, opportunities, missionStarts, adjudicationSnapshot] = await Promise.all([
       tx.get(navigationStateRef(data.sessionId)), tx.get(db.collection(`sessions/${data.sessionId}/players`)),
       tx.get(db.collection(`sessions/${data.sessionId}/fleetGroups`)), tx.get(commandReceiptRef(data.sessionId, data.requestId)),
@@ -18563,6 +18638,13 @@ export const confirmFleetPartition = auditedOnCall<{ sessionId: string; instance
       Promise.all(shuttleIds.map(shuttleId => tx.get(db.doc(`sessions/${data.sessionId}/shuttleDepartures/${shuttleId}`)))),
       Promise.all(shuttleIds.map(shuttleId => tx.get(db.doc(`sessions/${data.sessionId}/shuttleTransitChains/${shuttleId}`)))),
     ]);
+    if (data.rejoinAdjudicationId && adjudicationSnapshot?.exists) {
+      const saved = adjudicationSnapshot.data();
+      const leaseClaimedAt = fleetRejoinLeaseClaimedAt(instance);
+      if (!isRecord(saved) || saved.leaseClaimedAt !== leaseClaimedAt) {
+        throw commandError('failed-precondition', 'The recorded GM decision is stale because the facilitator lease changed after it was recorded.', 'conflict');
+      }
+    }
     const replay = replayBoundCommand(receipt, fingerprint, isFleetPartitionReply, 'fleet partition');
     if (replay) return replay;
     requireWolfAttackMovementReleased(attackState);
@@ -18575,16 +18657,22 @@ export const confirmFleetPartition = auditedOnCall<{ sessionId: string; instance
     const current = fleetPartitionPlanFromSnapshots(session, storedNavigation, playerSnapshots, groupSnapshots);
     let plan = current.plan;
     if (plan.adjudicationRequired.length > 0) {
-      if (!data.rejoinAdjudicationId) return {
-        status: 'adjudication-required', navigationRevision: data.expectedNavigationRevision,
-        fleetPartitionRevision: partitionRevision, candidates: plan.adjudicationRequired,
-      } satisfies FleetPartitionAdjudicationRequiredReply;
+      if (!data.rejoinAdjudicationId) {
+        const { currentTurn, turnPhase } = currentFleetRejoinTiming(session);
+        const previewBinding: FleetGroupRejoinPreviewBinding = { actorUid: uid, instanceId: data.instanceId,
+          leaseClaimedAt: fleetRejoinLeaseClaimedAt(instance),
+          navigationRevision: data.expectedNavigationRevision, fleetPartitionRevision: partitionRevision,
+          currentTurn, turnPhase, candidates: plan.adjudicationRequired };
+        return { status: 'adjudication-required', navigationRevision: data.expectedNavigationRevision,
+          fleetPartitionRevision: partitionRevision, candidates: plan.adjudicationRequired, previewBinding } as FleetPartitionAdjudicationRequiredReply;
+      }
       if (!adjudicationSnapshot?.exists) {
         throw commandError('failed-precondition', 'A current recorded GM rejoin decision is required.', 'conflict');
       }
       const decisions = savedDecisionsForCandidates(adjudicationSnapshot.data(), plan.adjudicationRequired, {
         sessionId: data.sessionId, actorUid: uid, instanceId: data.instanceId,
         navigationRevision: data.expectedNavigationRevision, fleetPartitionRevision: partitionRevision,
+        leaseClaimedAt: fleetRejoinLeaseClaimedAt(instance),
         ...currentFleetRejoinTiming(session),
       }, data.rejoinAdjudicationId);
       if (!decisions) throw commandError('failed-precondition',

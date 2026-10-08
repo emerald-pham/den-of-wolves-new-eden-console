@@ -9,7 +9,9 @@ export interface FleetGroupContext {
   readonly live: boolean; readonly fresh: boolean; readonly active: boolean;
   readonly role?: 'player' | 'gm'; readonly fleetPartitionRevision?: number;
   readonly gmInstanceId?: string; readonly navigationRevision?: number | undefined;
-  readonly currentCycle?: number | undefined; readonly shuttleControlRevisions?: Readonly<Record<string, number>>;
+  readonly currentCycle?: number | undefined; readonly turnPhase?: unknown;
+  readonly gmInstanceClaimedAt?: string | null; readonly previewInputSignature?: string;
+  readonly shuttleControlRevisions?: Readonly<Record<string, number>>;
 }
 export interface FleetGroupNote { readonly id: string; readonly actorUid: string; readonly text: string; readonly sentAt: string }
 export interface FleetGroupNotes { readonly groupId: string; readonly messages: readonly FleetGroupNote[] }
@@ -23,10 +25,17 @@ export interface FleetGroupRejoinCandidate {
 export interface FleetGroupRejoinDecision {
   readonly coordinate: string; readonly groupIds: readonly string[]; readonly pursuitAfter: number;
 }
+export interface FleetGroupRejoinPreviewBinding {
+  readonly actorUid: string; readonly instanceId: string; readonly leaseClaimedAt: string | null;
+  readonly navigationRevision: number; readonly fleetPartitionRevision: number;
+  readonly currentTurn: number; readonly turnPhase: unknown;
+  readonly candidates: readonly FleetGroupRejoinCandidate[];
+}
 export type FleetPartitionReply =
   | { readonly status: 'committed'; readonly navigationRevision: number; readonly groupIds: readonly string[] }
   | { readonly status: 'adjudication-required'; readonly navigationRevision: number;
-      readonly fleetPartitionRevision: number; readonly candidates: readonly FleetGroupRejoinCandidate[] };
+      readonly fleetPartitionRevision: number; readonly candidates: readonly FleetGroupRejoinCandidate[];
+      readonly previewBinding: FleetGroupRejoinPreviewBinding };
 export interface FleetGroupRejoinAdjudicationReply {
   readonly status: 'recorded'; readonly adjudicationId: string;
   readonly navigationRevision: number; readonly fleetPartitionRevision: number;
@@ -59,10 +68,47 @@ type Action = 'sendFleetGroupMessage' | 'confirmFleetPartition' | 'recordFleetGr
 const record = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 const rejected = new Set(['aborted', 'already-exists', 'failed-precondition', 'invalid-argument', 'not-found',
   'out-of-range', 'permission-denied', 'resource-exhausted', 'unauthenticated', 'unimplemented']);
+function stableJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`;
+  if (record(value)) return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${stableJson(value[key])}`).join(',')}}`;
+  return JSON.stringify(value) ?? 'undefined';
+}
 
 function sameAudience(left: FleetGroupContext, right: FleetGroupContext) {
   return left.sessionId === right.sessionId && left.actorUid === right.actorUid && left.groupId === right.groupId &&
     left.role === right.role && left.gmInstanceId === right.gmInstanceId;
+}
+function sameRejoinContext(left: FleetGroupContext, right: FleetGroupContext) {
+  return sameAudience(left, right) && left.live === right.live && left.fresh === right.fresh && left.active === right.active &&
+    left.navigationRevision === right.navigationRevision && left.fleetPartitionRevision === right.fleetPartitionRevision &&
+    left.currentCycle === right.currentCycle && left.gmInstanceClaimedAt === right.gmInstanceClaimedAt &&
+    left.previewInputSignature === right.previewInputSignature &&
+    stableJson(left.turnPhase ?? null) === stableJson(right.turnPhase ?? null);
+}
+function strictRejoinPreviewBinding(value: unknown, context: FleetGroupContext,
+  candidates: readonly FleetGroupRejoinCandidate[]): value is FleetGroupRejoinPreviewBinding {
+  return record(value) && Object.keys(value).length === 8 &&
+    Object.keys(value).every(key => ['actorUid', 'instanceId', 'leaseClaimedAt', 'navigationRevision',
+      'fleetPartitionRevision', 'currentTurn', 'turnPhase', 'candidates'].includes(key)) &&
+    value.actorUid === context.actorUid && value.instanceId === context.gmInstanceId &&
+    (value.leaseClaimedAt === null || typeof value.leaseClaimedAt === 'string') &&
+    (context.gmInstanceClaimedAt === undefined || value.leaseClaimedAt === context.gmInstanceClaimedAt) &&
+    Number.isSafeInteger(value.navigationRevision) && value.navigationRevision === context.navigationRevision &&
+    Number.isSafeInteger(value.fleetPartitionRevision) && value.fleetPartitionRevision === context.fleetPartitionRevision &&
+    Number.isSafeInteger(value.currentTurn) && value.currentTurn === context.currentCycle &&
+    stableJson(value.turnPhase) === stableJson(context.turnPhase) &&
+    stableJson(value.candidates) === stableJson(candidates);
+}
+function strictRejoinCandidates(value: unknown): value is readonly FleetGroupRejoinCandidate[] {
+  return Array.isArray(value) && value.length > 0 && value.length <= 32 && value.every(candidate =>
+    record(candidate) && Object.keys(candidate).every(key => ['coordinate', 'groupIds', 'pursuitBefore'].includes(key)) &&
+    typeof candidate.coordinate === 'string' && /^\d{4}$/.test(candidate.coordinate) && Array.isArray(candidate.groupIds) &&
+    candidate.groupIds.length >= 2 && candidate.groupIds.length <= 32 && new Set(candidate.groupIds).size === candidate.groupIds.length &&
+    candidate.groupIds.every(id => typeof id === 'string' && /^fleet-[1-9][0-9]*$/.test(id)) &&
+    record(candidate.pursuitBefore) && Object.keys(candidate.pursuitBefore).length === candidate.groupIds.length &&
+    Object.keys(candidate.pursuitBefore).every(id => candidate.groupIds.includes(id)) && candidate.groupIds.every(id =>
+      Number.isSafeInteger(candidate.pursuitBefore[id]) && (candidate.pursuitBefore[id] as number) >= 0 &&
+      (candidate.pursuitBefore[id] as number) <= 10));
 }
 function requireContext(context: FleetGroupContext) {
   if (!context.sessionId || !context.actorUid ||
@@ -152,10 +198,19 @@ export function createFleetGroupActions(getContext: () => FleetGroupContext, tra
   requestId: () => string = () => `group-${crypto.randomUUID()}`) {
   const attempts = new Map<Action, { context: FleetGroupContext; signature: string; payload: Record<string, unknown> }>();
   const flights = new Map<Action, Promise<unknown>>();
+  let rejoinPreview: { readonly context: FleetGroupContext; readonly binding: FleetGroupRejoinPreviewBinding;
+    readonly adjudicationId?: string } | null = null;
   const current = () => { const value = getContext(); requireContext(value); return value; };
   const guard = (context: FleetGroupContext, action?: Action, reply?: unknown) => {
     const next = current();
     if (!sameAudience(context, next)) throw new Error('The fleet group or actor changed. Refresh the current group.');
+    if (action === 'confirmFleetPartition' && record(reply) && reply.status === 'adjudication-required' &&
+        !sameRejoinContext(context, next)) {
+      throw new Error('The rejoin preview authority or inputs changed while loading. Refresh before recording a decision.');
+    }
+    if (action === 'recordFleetGroupRejoinAdjudication' && !sameRejoinContext(context, next)) {
+      throw new Error('Navigation, fleet membership, or preview authority changed while the rejoin decision was being recorded. Refresh before continuing.');
+    }
     const revisionBound = action === 'recordFleetGroupRejoinAdjudication' ||
       (action === 'confirmFleetPartition' && record(reply) && reply.status === 'adjudication-required');
     if (revisionBound &&
@@ -195,8 +250,9 @@ export function createFleetGroupActions(getContext: () => FleetGroupContext, tra
             expectedFleetPartitionRevision: context.fleetPartitionRevision, requestId: requestId() }
         : action === 'recordFleetGroupRejoinAdjudication'
           ? { ...extra, sessionId: context.sessionId, instanceId: context.gmInstanceId,
-            expectedNavigationRevision: context.navigationRevision,
-            expectedFleetPartitionRevision: context.fleetPartitionRevision, requestId: requestId() }
+            expectedNavigationRevision: record(extra?.previewBinding) ? extra.previewBinding.navigationRevision : context.navigationRevision,
+            expectedFleetPartitionRevision: record(extra?.previewBinding)
+              ? extra.previewBinding.fleetPartitionRevision : context.fleetPartitionRevision, requestId: requestId() }
           : { ...extra, sessionId: context.sessionId, instanceId: context.gmInstanceId,
             expectedNavigationRevision: context.navigationRevision, requestId: requestId() };
     const attempt = previous ?? { context, signature, payload: basePayload };
@@ -230,14 +286,8 @@ export function createFleetGroupActions(getContext: () => FleetGroupContext, tra
             ? reply.status === 'adjudication-required'
               ? Number.isSafeInteger(reply.navigationRevision) && reply.navigationRevision === context.navigationRevision &&
                 Number.isSafeInteger(reply.fleetPartitionRevision) && reply.fleetPartitionRevision === (context.fleetPartitionRevision ?? 0) &&
-                Array.isArray(reply.candidates) && reply.candidates.length > 0 && reply.candidates.every(candidate =>
-                  record(candidate) && Object.keys(candidate).every(key => ['coordinate', 'groupIds', 'pursuitBefore'].includes(key)) &&
-                  typeof candidate.coordinate === 'string' && /^\d{4}$/.test(candidate.coordinate) && Array.isArray(candidate.groupIds) &&
-                  candidate.groupIds.length >= 2 && new Set(candidate.groupIds).size === candidate.groupIds.length &&
-                  candidate.groupIds.every(id => typeof id === 'string' && /^fleet-[1-9][0-9]*$/.test(id)) && record(candidate.pursuitBefore) &&
-                  Object.keys(candidate.pursuitBefore).length === candidate.groupIds.length && candidate.groupIds.every(id =>
-                    Number.isSafeInteger(candidate.pursuitBefore[id]) && (candidate.pursuitBefore[id] as number) >= 0 &&
-                    (candidate.pursuitBefore[id] as number) <= 10))
+                strictRejoinCandidates(reply.candidates) &&
+                strictRejoinPreviewBinding(reply.previewBinding, context, reply.candidates)
               : Number.isSafeInteger(reply.navigationRevision) && (reply.navigationRevision as number) >= 0 && Array.isArray(reply.groupIds) &&
                 reply.groupIds.length > 0 && new Set(reply.groupIds).size === reply.groupIds.length &&
                 reply.groupIds.every(id => typeof id === 'string' && /^fleet-[1-9][0-9]*$/.test(id))
@@ -249,7 +299,7 @@ export function createFleetGroupActions(getContext: () => FleetGroupContext, tra
                 reply.groupIds.length > 0 && new Set(reply.groupIds).size === reply.groupIds.length &&
                 reply.groupIds.every(id => typeof id === 'string' && /^fleet-[1-9][0-9]*$/.test(id)));
       if (!valid) throw new Error('The group action result is uncertain. Retry the exact action.');
-      attempts.delete(action); guard(context, action, reply); return reply;
+      guard(context, action, reply); attempts.delete(action); return reply;
     })();
     flights.set(action, flight);
     try { return await flight; } finally { flights.delete(action); }
@@ -263,9 +313,28 @@ export function createFleetGroupActions(getContext: () => FleetGroupContext, tra
       if (adjudicationId !== undefined && !/^[-\w]{1,128}$/.test(adjudicationId)) {
         throw new Error('The recorded rejoin decision is malformed.');
       }
-      return await invoke('confirmFleetPartition', adjudicationId, adjudicationId ? { rejoinAdjudicationId: adjudicationId } : undefined) as FleetPartitionReply;
+      const context = current();
+      const extra = adjudicationId ? { rejoinAdjudicationId: adjudicationId } : undefined;
+      const text = adjudicationId;
+      const pending = attempts.get('confirmFleetPartition');
+      const retry = pending !== undefined && sameAudience(pending.context, context) &&
+        pending.signature === JSON.stringify({ text: text ?? null, extra: extra ?? null });
+      if (adjudicationId && !retry && (!rejoinPreview || rejoinPreview.adjudicationId !== adjudicationId ||
+          !sameRejoinContext(rejoinPreview.context, context))) {
+        rejoinPreview = null;
+        throw new Error('The recorded rejoin decision no longer matches its live preview. Refresh before applying it.');
+      }
+      const reply = await invoke('confirmFleetPartition', text, extra) as FleetPartitionReply;
+      if (reply.status === 'adjudication-required') {
+        rejoinPreview = { context, binding: reply.previewBinding };
+      } else {
+        rejoinPreview = null;
+      }
+      return reply;
     },
     recordRejoinAdjudication: async (decisions: readonly FleetGroupRejoinDecision[]) => {
+      const context = current();
+      if (context.role !== 'gm' || !context.gmInstanceId) throw new Error('Fresh facilitator authority is required to record a rejoin decision.');
       if (!Array.isArray(decisions) || decisions.length < 1 || decisions.length > 32 || decisions.some(decision =>
         !decision || !/^\d{4}$/.test(decision.coordinate) || !Array.isArray(decision.groupIds) || decision.groupIds.length < 2 ||
         decision.groupIds.some(id => typeof id !== 'string' || !/^fleet-[1-9][0-9]*$/.test(id)) ||
@@ -273,8 +342,31 @@ export function createFleetGroupActions(getContext: () => FleetGroupContext, tra
         decision.pursuitAfter < 0 || decision.pursuitAfter > 10)) {
         throw new Error('Record one explicit pursuit result for every current exceptional rejoin.');
       }
-      const payload = { decisions };
-      return await invoke('recordFleetGroupRejoinAdjudication', JSON.stringify(payload), payload) as FleetGroupRejoinAdjudicationReply;
+      const previous = attempts.get('recordFleetGroupRejoinAdjudication');
+      const binding = rejoinPreview?.binding ?? (record(previous?.payload.previewBinding)
+        ? previous.payload.previewBinding as unknown as FleetGroupRejoinPreviewBinding : undefined);
+      if (!binding) throw new Error('Open a current exceptional rejoin preview before recording a decision.');
+      const payload = { decisions, previewBinding: binding };
+      const text = JSON.stringify(payload);
+      const signature = JSON.stringify({ text, extra: payload });
+      const retry = previous !== undefined && sameAudience(previous.context, context) && previous.signature === signature;
+      if (!retry && (!rejoinPreview || rejoinPreview.adjudicationId !== undefined ||
+          !sameRejoinContext(rejoinPreview.context, context) || stableJson(decisions.map(({ coordinate, groupIds }) => ({ coordinate, groupIds }))) !==
+          stableJson(binding.candidates.map(({ coordinate, groupIds }) => ({ coordinate, groupIds }))))) {
+        rejoinPreview = null;
+        throw new Error('The rejoin preview authority, candidates, or pursuit inputs changed. Refresh before recording.');
+      }
+      try {
+        const reply = await invoke('recordFleetGroupRejoinAdjudication', text, payload) as FleetGroupRejoinAdjudicationReply;
+        if (rejoinPreview && sameRejoinContext(rejoinPreview.context, current())) {
+          rejoinPreview = { ...rejoinPreview, adjudicationId: reply.adjudicationId };
+        }
+        return reply;
+      } catch (error) {
+        const code = record(error) && typeof error.code === 'string' ? error.code.replace(/^functions\//, '') : '';
+        if (rejected.has(code)) rejoinPreview = null;
+        throw error;
+      }
     },
     share: async (coordinate: string, recipientShipIds: 'all' | readonly string[]) => {
       if (!/^\d{4}$/.test(coordinate) || (recipientShipIds !== 'all' &&
@@ -340,7 +432,7 @@ export function createFleetGroupActions(getContext: () => FleetGroupContext, tra
 export function createCurrentFleetGroupActions() {
   return createFleetGroupActions(() => {
     const { session, me, connection, gmInstance } = useSessionStore.getState();
-  const sessionFields: Record<string, unknown> = record(session) ? session : {};
+    const sessionFields: Record<string, unknown> = record(session) ? session : {};
     const navigationRevision = me?.role === 'gm'
       ? (Number.isSafeInteger(session?.gmNavigationRevision) ? session!.gmNavigationRevision : undefined)
       : (Number.isSafeInteger(session?.playerDiscovery?.revision) ? session!.playerDiscovery!.revision : undefined);
@@ -350,13 +442,22 @@ export function createCurrentFleetGroupActions() {
       ? Object.fromEntries(Object.entries(session!.shuttleControl).flatMap(([id, control]) =>
         record(control) && Number.isSafeInteger(control.revision) ? [[id, control.revision as number]] : []))
       : {};
+    const currentGmInstance = me?.role === 'gm' && gmInstance && gmInstance.sessionId === session?.id && gmInstance.uid === me.uid
+      ? gmInstance : null;
+    const previewInputSignature = stableJson({
+      activeVesselIds: [...(session?.activeVesselIds ?? [])].sort(),
+      shipFleetGroupIds: session?.shipFleetGroupIds ?? {},
+      shipGalacticCoordinates: session?.shipGalacticCoordinates ?? {},
+      pursuitGroups: session?.pursuitGroups ?? {},
+    });
     return { sessionId: session?.id ?? '', actorUid: me?.uid ?? '', groupId: me?.fleetGroupId ?? '',
       live: connection === 'live', fresh: hasFreshSessionAuthority(), active: session?.phase === 'active' && me?.sessionId === session.id,
       role: me?.role === 'gm' ? 'gm' as const : 'player' as const,
       fleetPartitionRevision, navigationRevision, shuttleControlRevisions,
       ...(typeof session?.currentTurn === 'number' ? { currentCycle: session.currentTurn } : {}),
-      ...(me?.role === 'gm' && gmInstance && gmInstance.sessionId === session?.id && gmInstance.uid === me.uid
-        ? { gmInstanceId: gmInstance.id } : {}) };
+      ...(session?.turnPhase ? { turnPhase: session.turnPhase } : {}), previewInputSignature,
+      ...(currentGmInstance ? { gmInstanceId: currentGmInstance.id,
+        gmInstanceClaimedAt: currentGmInstance.claimedAt ?? null } : {}) };
   }, async (name, payload) => (await httpsCallable(functions(), name)(payload)).data);
 }
 
