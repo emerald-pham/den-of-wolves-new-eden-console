@@ -83,3 +83,13 @@ export function assertRecoveredStationLaunch(capture,current,used) {
  assert.ok(Date.now()<recovery.deadlineAt,'Original rejected-launch deadline expired.');
  recovery.committed=true;
 }
+
+// Selection seams for the finite Station proof. These initially preserve the
+// runner's all-planned-ships behavior so the regressions can expose the loss.
+export function stationSurvivingRepairTargets(plannedShipIds,root) {
+ return [...plannedShipIds];
+}
+export function stationReactorCapacity(viewShips) {
+ const capacity=viewShips.reduce((sum,ship)=>sum+ship.reactorCapacity,0);
+ return {capacity,requiredCapacity:18,meetsThreshold:capacity>=18,eligibleShipIds:viewShips.map(ship=>ship.shipId)};
+}

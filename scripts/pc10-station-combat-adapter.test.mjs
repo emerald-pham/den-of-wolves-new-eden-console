@@ -43,3 +43,61 @@ test('accepted stale recovery never resets its original deadline at a higher att
  let i=0,limit;const original=Error('stale');
  await assert.rejects(adapter.runSparseStationCombat({deadlineAt:Date.now()+1000,readAttack:async()=>({...launchCurrent,revision:i+1}),assertActors:async()=>{},choose:async(_state,{deadlineAt})=>{if(i===0){limit=deadlineAt;throw original;}assert.equal(deadlineAt,limit);throw Error('second rejection fatal');},recoverChoice:async error=>{if(error!==original)return false;i++;return true;},wait:async()=>{}}),/second rejection fatal/);
 });
+
+const plannedStationHosts=['aegis','dione','icebreaker','shepherd','quellon','refinery-124'];
+function stationRootWithDamage(overrides={}) {
+ return {activeVesselIds:[...plannedStationHosts],shipDamage:Object.fromEntries(plannedStationHosts.map(shipId=>
+  [shipId,{destroyed:false,damagedSystemIds:[]}]).map(([shipId,damage])=>[shipId,{...damage,...overrides[shipId]}]))};
+}
+function stationWorkspaceShips() {
+ return [
+  {shipId:'aegis',result:'awaiting-choice',canAct:true,blocker:'',reactorCapacity:5},
+  {shipId:'dione',result:'awaiting-choice',canAct:true,blocker:'',reactorCapacity:4},
+  {shipId:'icebreaker',result:'awaiting-choice',canAct:true,blocker:'',reactorCapacity:4},
+  {shipId:'shepherd',result:'awaiting-choice',canAct:true,blocker:'',reactorCapacity:3},
+  {shipId:'quellon',result:'awaiting-choice',canAct:true,blocker:'',reactorCapacity:3},
+  {shipId:'refinery-124',result:'awaiting-choice',canAct:true,blocker:'',reactorCapacity:4},
+ ];
+}
+test('Station repair selection skips only actually destroyed members of the original planned host roster',()=>{
+ const root=stationRootWithDamage({icebreaker:{destroyed:true,damagedSystemIds:['reactor']},'refinery-124':{destroyed:true,damagedSystemIds:['reactor']}});
+ assert.deepEqual(adapter.stationSurvivingRepairTargets(plannedStationHosts,root),['aegis','dione','shepherd','quellon']);
+});
+test('Station repair selection keeps every explicitly living host when no vessel was destroyed',()=>{
+ assert.deepEqual(adapter.stationSurvivingRepairTargets(plannedStationHosts,stationRootWithDamage()),plannedStationHosts);
+});
+test('Station repair selection fails closed on duplicate, foreign, or missing damage authority',()=>{
+ const root=stationRootWithDamage();
+ assert.throws(()=>adapter.stationSurvivingRepairTargets([...plannedStationHosts,'aegis'],root),/duplicate|unique/i);
+ assert.throws(()=>adapter.stationSurvivingRepairTargets([...plannedStationHosts,'foreign-ship'],root),/roster|planned|foreign|active/i);
+ const missing=stationRootWithDamage();delete missing.shipDamage.icebreaker;
+ assert.throws(()=>adapter.stationSurvivingRepairTargets(plannedStationHosts,missing),/damage|icebreaker|missing/i);
+ const undefinedDamage=stationRootWithDamage();delete undefinedDamage.shipDamage.icebreaker.destroyed;
+ assert.throws(()=>adapter.stationSurvivingRepairTargets(plannedStationHosts,undefinedDamage),/destroyed|damage|boolean/i);
+});
+test('Station Reactor plan counts only unique living candidates and reports the fixed 18 threshold',()=>{
+ const ships=stationWorkspaceShips();
+ Object.assign(ships.find(ship=>ship.shipId==='icebreaker'),{result:'lost',canAct:false,blocker:'Lost or destroyed ship.'});
+ Object.assign(ships.find(ship=>ship.shipId==='refinery-124'),{result:'lost',canAct:false,blocker:'Lost or destroyed ship.'});
+ assert.deepEqual(adapter.stationReactorCapacity(ships),{capacity:15,requiredCapacity:18,meetsThreshold:false,
+  eligibleShipIds:['aegis','dione','shepherd','quellon']});
+});
+test('Station Reactor plan accepts exactly 18 actual capacity after source-reported damage and loss',()=>{
+ const ships=stationWorkspaceShips().filter(ship=>ship.shipId!=='refinery-124');
+ ships.find(ship=>ship.shipId==='icebreaker').reactorCapacity=3;
+ assert.deepEqual(adapter.stationReactorCapacity(ships),{capacity:18,requiredCapacity:18,meetsThreshold:true,
+  eligibleShipIds:['aegis','dione','icebreaker','shepherd','quellon']});
+});
+test('Station Reactor plan rejects duplicate identities and permission-blocked living rows',()=>{
+ const duplicate=stationWorkspaceShips();duplicate.push({...duplicate[0]});
+ assert.throws(()=>adapter.stationReactorCapacity(duplicate),/duplicate|unique/i);
+ const denied=stationWorkspaceShips();Object.assign(denied[1],{canAct:false,blocker:'Current ship authority is unavailable.'});
+ assert.throws(()=>adapter.stationReactorCapacity(denied),/canAct|blocked|authority/i);
+});
+test('Station Reactor plan skips only a source-marked lost row and rejects malformed path capacity',()=>{
+ const invalidLost=stationWorkspaceShips();
+ Object.assign(invalidLost[2],{result:'lost',canAct:false,blocker:'Unknown blocker.'});
+ assert.throws(()=>adapter.stationReactorCapacity(invalidLost),/lost|blocker/i);
+ const missingCapacity=stationWorkspaceShips();delete missingCapacity[0].reactorCapacity;
+ assert.throws(()=>adapter.stationReactorCapacity(missingCapacity),/capacity/i);
+});
