@@ -89,10 +89,14 @@ try {
     const { nodeId } = await cdp.send('DOM.querySelector', { nodeId: domRoot.nodeId, selector: '.same-table-trade__offer-copy h4' });
     const { fonts } = await cdp.send('CSS.getPlatformFontsForNode', { nodeId });
     const geometry = await page.evaluate(() => ({ viewport: innerWidth, documentWidth: document.documentElement.scrollWidth }));
+    const accept = page.getByRole('button', { name: /Accept exact offer from/ }).first();
+    await accept.focus();
+    const keyboardReachable = await accept.evaluate(node => node === document.activeElement);
     const screenshot = `${name}.png`;
     await page.screenshot({ path: `${directory}/${screenshot}`, fullPage: true });
-    result.samples.push({ name, width, height, scale, measured, fonts, geometry, screenshot });
+    result.samples.push({ name, width, height, scale, measured, fonts, geometry, keyboardReachable, screenshot });
     try {
+    assert.equal(keyboardReachable, true, 'Acceptance remains keyboard reachable');
     assert.ok(measured.length > 0, 'Actual built offer consumer required');
     assert.ok(fonts.some(font => font.glyphCount > 0), 'Actual painted offer font required');
     for (const offer of measured) {
@@ -106,9 +110,6 @@ try {
       }
     }
     assert.ok(geometry.documentWidth <= width + 1, `Document overflow: ${name}`);
-    const accept = page.getByRole('button', { name: /Accept exact offer from/ }).first();
-    await accept.focus();
-    assert.equal(await accept.evaluate(node => node === document.activeElement), true, 'Acceptance remains keyboard reachable');
     } catch (error) { result.failures.push({ name, message: error.message }); }
   }
   assert.deepEqual(result.failures, [], 'Responsive layout failures retained for every sample');
