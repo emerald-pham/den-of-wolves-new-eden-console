@@ -144,6 +144,7 @@ it('blocks ordinary disposition after the next Team deadline and requires a reas
     caseRecord: pendingCase,
     currentCycle: 4,
     deadlineTeamPhaseOpen: false,
+    currentDispositionPhaseAvailable: true,
     onCalculate: vi.fn(),
     onDisposition,
   };
@@ -172,6 +173,7 @@ it('offers ordinary release or execution during the next Team Phase', async () =
     caseRecord={pendingCase}
     currentCycle={4}
     deadlineTeamPhaseOpen
+    currentDispositionPhaseAvailable
     onCalculate={vi.fn()}
     onDisposition={onDisposition}
   />);
@@ -196,6 +198,7 @@ it('offers same-cycle release or execution in the current Team Phase and confirm
     caseRecord={pendingCase}
     currentCycle={3}
     deadlineTeamPhaseOpen
+    currentDispositionPhaseAvailable
     onCalculate={vi.fn()}
     onDisposition={onDisposition}
   />);
@@ -217,6 +220,7 @@ it('keeps ordinary ruling actions available during same-cycle Coordination befor
     caseRecord={pendingCase}
     currentCycle={3}
     deadlineTeamPhaseOpen={false}
+    currentDispositionPhaseAvailable
     onCalculate={vi.fn()}
     onDisposition={onDisposition}
   />);
@@ -225,6 +229,43 @@ it('keeps ordinary ruling actions available during same-cycle Coordination befor
   expect(screen.getByText(/before the end of team phase 4/i)).toBeVisible();
   await user.click(screen.getByRole('button', { name: 'Release prisoner' }));
   await waitFor(() => expect(onDisposition).toHaveBeenCalledWith('u2', 'released', 3, 1, undefined));
+});
+
+it('hides ordinary and late actions as mounted phase authority becomes paused or stale', () => {
+  const props = {
+    targetOptions: [{ uid: 'u2', label: 'Rae (u2)' }],
+    censusRevision: 9,
+    expectedRevision: 1,
+    calculation: result,
+    caseRecord: pendingCase,
+    currentCycle: 3,
+    deadlineTeamPhaseOpen: false,
+    currentDispositionPhaseAvailable: true,
+    onCalculate: vi.fn(),
+    onDisposition: vi.fn(),
+  };
+  const { rerender } = render(<ArrestPosseCalculator {...props} />);
+
+  expect(screen.getByRole('button', { name: 'Release prisoner' })).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Execute prisoner' })).toBeVisible();
+
+  rerender(<ArrestPosseCalculator {...props} currentDispositionPhaseAvailable={false} />);
+  expect(screen.queryByRole('button', { name: 'Release prisoner' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Execute prisoner' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Record facilitator resolution' })).not.toBeInTheDocument();
+  expect(screen.getByText(/a current unpaused phase is required/i)).toBeVisible();
+
+  rerender(<ArrestPosseCalculator {...props} currentCycle={4} currentDispositionPhaseAvailable={false} />);
+  expect(screen.queryByRole('button', { name: 'Release prisoner' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Execute prisoner' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Record facilitator resolution' })).not.toBeInTheDocument();
+  expect(screen.queryByText(/Team Phase ruling window is closed/i)).not.toBeInTheDocument();
+
+  rerender(<ArrestPosseCalculator {...props} currentCycle={4} currentDispositionPhaseAvailable />);
+  expect(screen.queryByRole('button', { name: 'Release prisoner' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Execute prisoner' })).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Record facilitator resolution' })).toBeDisabled();
+  expect(screen.getByText(/Team Phase ruling window is closed/i)).toBeVisible();
 });
 
 it('shows a recovered terminal case without retaining the pending deadline notice', () => {
@@ -260,6 +301,7 @@ it('requires a reason for facilitator resolution after the deadline', async () =
     caseRecord={pendingCase}
     currentCycle={5}
     deadlineTeamPhaseOpen={false}
+    currentDispositionPhaseAvailable
     onCalculate={vi.fn()}
     onDisposition={onDisposition}
   />);

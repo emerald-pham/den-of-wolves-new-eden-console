@@ -135,6 +135,88 @@ it('allows ordinary disposition during same-cycle Coordination before the next-T
   });
 });
 
+it.each(['absent', 'foreign-cycle', 'paused'] as const)(
+  'rejects a fresh same-cycle disposition when current phase authority is %s', async (scenario) => {
+    mock.documents.clear();
+    provision(3);
+    const session = mock.documents.get('sessions/s1')!;
+    const phase = session.turnPhase as Record<string, unknown>;
+    put('sessions/s1', {
+      ...session,
+      turnPhase: scenario === 'absent' ? undefined : scenario === 'foreign-cycle' ? { ...phase, turn: 2 } : {
+        ...phase,
+        timerPause: {
+          window: 'restricted', remainingMs: 60_000, pausedAt: new Date().toISOString(),
+          reason: 'turn-interstitial',
+        },
+      },
+    });
+
+    const requestId = `invalid-phase-${scenario}`;
+    await expect(resolveArrestCaseDisposition.run(request({
+      ...baseData, requestId, expectedCycle: 3, disposition: 'released',
+    }))).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(mock.documents.get('sessions/s1/arrestCases/u2')?.status).toBe('pending-resolution');
+    expect(mock.documents.has(`sessions/s1/commandReceipts/${requestId}`)).toBe(false);
+    expect(mock.documents.has(`sessions/s1/arrestCases/u2/audit/${requestId}`)).toBe(false);
+  },
+);
+
+it('does not treat a held next-Team phase as deadline expiry for a reasoned ruling', async () => {
+  mock.documents.clear();
+  provision(4);
+  const session = mock.documents.get('sessions/s1')!;
+  const phase = session.turnPhase as Record<string, unknown>;
+  put('sessions/s1', {
+    ...session,
+    turnPhase: {
+      ...phase,
+      timerPause: {
+        window: 'restricted', remainingMs: 60_000, pausedAt: new Date().toISOString(),
+        reason: 'turn-interstitial',
+      },
+    },
+  });
+
+  await expect(resolveArrestCaseDisposition.run(request({
+    ...baseData, requestId: 'paused-deadline-ruling', expectedCycle: 4,
+    disposition: 'facilitator-resolution', ruling: 'The table agrees on a final ruling.',
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.documents.get('sessions/s1/arrestCases/u2')?.status).toBe('pending-resolution');
+  expect(mock.documents.has('sessions/s1/commandReceipts/paused-deadline-ruling')).toBe(false);
+});
+
+it.each([
+  { currentTurn: 3, state: 'lifted', disposition: 'released' },
+  { currentTurn: 4, state: 'restricted', disposition: 'executed' },
+] as const)(
+  'keeps unpaused manual phase authority despite compatibility timestamps ($currentTurn/$state)', async ({ currentTurn, state, disposition }) => {
+    mock.documents.clear();
+    provision(currentTurn);
+    const session = mock.documents.get('sessions/s1')!;
+    const phase = session.turnPhase as Record<string, unknown>;
+    put('sessions/s1', {
+      ...session,
+      turnPhase: {
+        ...phase,
+        teamPhaseEndsAt: '2000-01-01T00:00:00.000Z',
+        openAirspaceEndsAt: '2000-01-02T00:00:00.000Z',
+        progression: 'manual',
+        airspace: { state, tickerActive: true, pressAccess: false },
+      },
+    });
+
+    const result = await resolveArrestCaseDisposition.run(request({
+      ...baseData, requestId: `manual-phase-${currentTurn}-${state}`, expectedCycle: currentTurn, disposition,
+    }));
+
+    expect(result).toMatchObject({
+      turn: currentTurn, deadlineCycle: 4, deadlineMet: true, disposition,
+    });
+    expect(mock.documents.get('sessions/s1/arrestCases/u2')?.status).toBe(disposition);
+  },
+);
+
 it('rejects early resolution and permits only a reasoned facilitator resolution after the deadline', async () => {
   await expect(resolveArrestCaseDisposition.run(request({ ...baseData, expectedCycle: 3 })))
     .rejects.toMatchObject({ code: 'failed-precondition' });
