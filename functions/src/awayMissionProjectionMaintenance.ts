@@ -48,10 +48,16 @@ export function createAwayMissionProjectionMaintenance(dependencies: Dependencie
       await dependencies.requireActiveGm(transaction, command.sessionId, actorUid, command.instanceId);
       const sessionRef = dependencies.db.doc(root);
       const runRef = dependencies.db.doc(runPath);
-      const receiptRef = dependencies.db.doc(`${runPath}/commands/${command.requestId}`);
+      // A request identity belongs to the whole session, including its run.
+      const receiptRef = dependencies.db.doc(`${root}/serverState/awayMissionProjectionPrivacy/commands/${command.requestId}`);
       const [session, runSnapshot, receipt] = await Promise.all([transaction.get(sessionRef), transaction.get(runRef), transaction.get(receiptRef)]);
       if (!session.exists) fail('The session is unavailable.');
       if (receipt.exists) {
+        const audit = receipt.data();
+        if (!isRecord(audit) || !exactKeys(audit, ['policyVersion', 'actorUid', 'fingerprint', 'result', 'createdAt']) ||
+            audit.policyVersion !== 1 || audit.createdAt === null || audit.createdAt === undefined) {
+          fail('The protected maintenance receipt is malformed.');
+        }
         if (receipt.get('actorUid') !== actorUid) throw new HttpsError('permission-denied', 'The maintenance receipt belongs to another actor.');
         if (receipt.get('fingerprint') !== fingerprint) fail('The maintenance request is bound to a different operation.');
         const result = requireReply(receipt.get('result'), command);
