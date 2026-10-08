@@ -88,6 +88,65 @@ it('shows only the current core player loyalty card and suspicion', () => {
   expect(screen.queryByText(/fleet loyalist/i)).not.toBeInTheDocument();
 });
 
+it.each([
+  ['fleet-loyalist', 'reach New Eden with as many survivors as possible'],
+  ['wolf-agent', 'sleeper priority overrides your former loyalty objective when you activate'],
+  ['intelligence-agent', 'keep your Intelligence Bureau cover hidden while identifying Wolf agents'],
+  ['universal-arbour', 'recruit fleet members and spread Universal Arbour influence'],
+  ['wolf-cult', 'prevent the Survivor Fleet from escaping through the Wolf-created Arbour cult'],
+  ['android', 'reach New Eden with as many survivors as possible and keep your android identity secret'],
+  ['friend', 'your matching Friend card names you back as someone known not to be a Wolf agent'],
+] as const)('shows the printed private goal for %s to its current holder', (kind, expected) => {
+  useSessionStore.getState().setPrivateLoyalty({
+    kind, suspicion: kind === 'android' ? null : 0,
+    ...(kind === 'friend' ? { partnerUid: 'u3', partnerRoleId: 'admiral' } : {}),
+  } as never);
+
+  render(<PrivateLoyaltyPanel />);
+
+  expect(within(screen.getByRole('region', { name: 'Private loyalty card' })).getByText(new RegExp(expected, 'i')))
+    .toBeVisible();
+});
+
+it.each([
+  { role: 'gm' as const }, { sessionId: 'another-session' }, { replacementStatus: 'awaiting-re-role' as const },
+] satisfies Partial<Player>[])('keeps every loyalty goal out of a non-holder view %j', patch => {
+  useSessionStore.getState().setPrivateLoyalty({ kind: 'wolf-agent', suspicion: 0 });
+  useSessionStore.getState().setMe({ ...useSessionStore.getState().me!, ...patch });
+
+  render(<PrivateLoyaltyPanel />);
+
+  expect(screen.queryByRole('region', { name: 'Private loyalty card' })).not.toBeInTheDocument();
+  expect(screen.queryByText(/sleeper priority overrides/i)).not.toBeInTheDocument();
+});
+
+it('shows Arbour and Wolf Cult variable intel only when its live recipient projection belongs to this holder', () => {
+  useSessionStore.getState().setPrivateLoyalty({ kind: 'universal-arbour', suspicion: 10 });
+  useSessionStore.getState().setArbourVision({
+    sessionId: 's1', recipientUid: 'u2', revision: 1, kind: 'danger',
+    text: 'Current private vision: danger at 0101.', label: 'FACILITATOR CALL',
+  });
+  const first = render(<PrivateLoyaltyPanel />);
+  expect(screen.getByText('Current private vision: danger at 0101.')).toBeVisible();
+  first.unmount();
+
+  useSessionStore.getState().setPrivateLoyalty({ kind: 'wolf-cult', suspicion: 15 });
+  useSessionStore.getState().setWolfCultIntelligence({
+    sessionId: 's1', recipientUid: 'u2', revision: 1, fortressCoordinate: '0101',
+    suppliesCoordinate: '0202', agentUid: 'u3', codeWord: 'private-token', label: 'WOLF INTEL',
+  });
+  const second = render(<PrivateLoyaltyPanel />);
+  expect(screen.getByText('Code word // private-token')).toBeVisible();
+  second.unmount();
+
+  useSessionStore.getState().setWolfCultIntelligence({
+    sessionId: 's1', recipientUid: 'u3', revision: 2, fortressCoordinate: '0303',
+    suppliesCoordinate: '0404', agentUid: 'u4', codeWord: 'foreign-token', label: 'WOLF INTEL',
+  });
+  render(<PrivateLoyaltyPanel />);
+  expect(screen.queryByText(/foreign-token/)).not.toBeInTheDocument();
+});
+
 it('sends a short private Wolf handler message and applies the server suspicion result', async () => {
   const user = userEvent.setup();
   prepareLivePlayer();
