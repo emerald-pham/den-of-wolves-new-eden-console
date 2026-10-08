@@ -112,6 +112,29 @@ it.each(['released', 'executed'] as const)(
   },
 );
 
+it('allows ordinary disposition during same-cycle Coordination before the next-Team deadline', async () => {
+  mock.documents.clear();
+  provision(3);
+  const session = mock.documents.get('sessions/s1')!;
+  const turnPhase = session.turnPhase as Record<string, unknown>;
+  put('sessions/s1', {
+    ...session,
+    turnPhase: {
+      ...turnPhase,
+      airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
+    },
+  });
+
+  const result = await resolveArrestCaseDisposition.run(request({
+    ...baseData, requestId: 'coordination-release', expectedCycle: 3, disposition: 'released',
+  }));
+
+  expect(result).toMatchObject({ turn: 3, deadlineCycle: 4, deadlineMet: true, disposition: 'released' });
+  expect(mock.documents.get('sessions/s1/arrestCases/u2')).toMatchObject({
+    status: 'released', turn: 3, deadlineCycle: 4, revision: 2,
+  });
+});
+
 it('rejects early resolution and permits only a reasoned facilitator resolution after the deadline', async () => {
   await expect(resolveArrestCaseDisposition.run(request({ ...baseData, expectedCycle: 3 })))
     .rejects.toMatchObject({ code: 'failed-precondition' });

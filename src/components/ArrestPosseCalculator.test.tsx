@@ -181,6 +181,27 @@ it('offers same-cycle release or execution in the current Team Phase and confirm
   expect(await screen.findByText('Prisoner case recorded // released.')).toBeVisible();
 });
 
+it('keeps ordinary ruling actions available during same-cycle Coordination before the next-Team deadline', async () => {
+  const user = userEvent.setup();
+  const onDisposition = vi.fn().mockResolvedValue({ status: 'committed' });
+  render(<ArrestPosseCalculator
+    targetOptions={[{ uid: 'u2', label: 'Rae (u2)' }]}
+    censusRevision={9}
+    expectedRevision={1}
+    calculation={result}
+    caseRecord={pendingCase}
+    currentCycle={3}
+    deadlineTeamPhaseOpen={false}
+    onCalculate={vi.fn()}
+    onDisposition={onDisposition}
+  />);
+
+  expect(screen.getByRole('button', { name: 'Release prisoner' })).toBeVisible();
+  expect(screen.getByText(/before the end of team phase 4/i)).toBeVisible();
+  await user.click(screen.getByRole('button', { name: 'Release prisoner' }));
+  await waitFor(() => expect(onDisposition).toHaveBeenCalledWith('u2', 'released', 3, 1, undefined));
+});
+
 it('shows a recovered terminal case without retaining the pending deadline notice', () => {
   const releasedCase: ArrestCase = { ...pendingCase, status: 'released', revision: 2 };
   render(<ArrestPosseCalculator
