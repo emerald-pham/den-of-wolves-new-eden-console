@@ -209,6 +209,33 @@ test('population dismissal rechecks exact intent and original deadline before th
   assert.equal(clicks, 0);
 });
 
+test('population dismissal rereads safe GM source after the final enabled-state await', async () => {
+  const trace = [], state = { unrest: 3 };
+  let clicks = 0;
+  const expected = { actor: 'gm-1', source: 'safe', attack: 'attack-final' };
+  await assert.rejects(stationPopulationDismissIntent({ deadlineAt: 1000, now: () => 100, expected,
+    readCurrentIntent: async () => {
+      trace.push('pre-mount actor/source snapshot');
+      const stale = { ...expected };
+      trace.push('alertdialog count and visibility');
+      await Promise.resolve();
+      trace.push('button enabled state');
+      state.unrest = 8;
+      return stale;
+    },
+    readIntentBookend: async () => {
+      trace.push('post-mount GM actor');
+      trace.push('post-mount server source');
+      assert.ok(state.unrest < 8, 'Mutiny appeared during the final enabled-state read.');
+      return expected;
+    },
+    click: async () => { clicks++; },
+  }), /mutiny appeared/i);
+  assert.deepEqual(trace, ['pre-mount actor/source snapshot', 'alertdialog count and visibility',
+    'button enabled state', 'post-mount GM actor', 'post-mount server source']);
+  assert.equal(clicks, 0);
+});
+
 test('first prerequisite failure stops the workflow before candidate outcomes', async () => {
   const trace = [];
   const operations = { setup: async () => trace.push('setup'),
