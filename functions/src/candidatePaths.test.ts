@@ -72,6 +72,16 @@ describe('candidate source calculations and explicit choices', () => {
     const view = candidateWorkspace(a, deluxeState);
     expect(view.paths[0]?.researchChoices.map(choice => choice.id)).not.toContain('fuel-refinery');
   });
+  it('does not treat a track with more crosses than its catalogued final box as completed', () => {
+    const base = authority();
+    const a = { ...base, research: { reactor: 6, 'jump-drive': 5, hydroponics: 5,
+      'water-reclamation': 5, 'fuel-refinery': 5 } };
+    const deluxeState = parseCandidateState({ revision: 0, edition: 'deluxe', sites: {} });
+    expect(() => resolveCandidateAction(a, deluxeState, command('contribute-research', {
+      trackIds: ['reactor', 'jump-drive', 'hydroponics', 'water-reclamation', 'fuel-refinery'],
+    }))).toThrow(/complete/i);
+    expect(candidateWorkspace(a, deluxeState).paths[0]?.researchChoices.map(choice => choice.id)).not.toContain('reactor');
+  });
   it.each(['roll', 'dice', 'hiddenScoutCount', 'modifier', 'outcome', 'wolfRoster'])('rejects client-owned %s', field => {
     expect(() => command('nebula-jump', { shipId: 'aegis', [field]: 6 })).toThrow();
   });
