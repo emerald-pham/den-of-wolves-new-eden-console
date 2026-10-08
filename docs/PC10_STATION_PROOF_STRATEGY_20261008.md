@@ -80,6 +80,16 @@ unknown reads, denied authority and ambiguous receipts remain fatal. Only
 validated ordered/terminal progression cancels stale intent; the same original
 deadline applies. No second uncertain mutation or deadline reset is introduced.
 
+Source audit correction, explicitly accepted by the parent after the first
+draft: the actual range component intentionally renders no panel for its exact
+`wolf-range-action-choice-unavailable`, same-session, `waiting` reply. After
+the canonical actor, original GM/phase and attack bookends, this one typed reply
+may yield zero intent without fabricated paint or a receipt. A stale present
+panel grants no action. The outer original range deadline and polling remain;
+unknown/malformed/foreign replies, `not-in-range` and denied reads stay fatal.
+The absent-panel consumer RED and draft hashes are separate from the original
+7c RED chronology. No shared painter or product component is changed.
+
 ## Concrete integration boundary
 
 P181 Attempt 4 handoff `OWNER_PC10_P181_ATTEMPT4_FINAL_PARENT_HANDOFF_AND_OPEN_GATES_20261008.json`
