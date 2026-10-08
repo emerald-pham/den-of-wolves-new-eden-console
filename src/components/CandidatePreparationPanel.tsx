@@ -2,11 +2,11 @@ import { useEffect, useId, useState } from 'react';
 import { useSessionStore } from '@/store/useSessionStore';
 import { setGmShipConsoleWriteGrant } from '@/lib/sessionService';
 import { createCandidateAttempt, executeCandidateAttempt, readCandidateWorkspace, recoverCandidateAttempt,
-  type CandidateAttempt, type CandidatePathView, type CandidateWorkspace } from '@/lib/candidateService';
+  selectCandidateEdition, type CandidateAttempt, type CandidateEdition, type CandidatePathView, type CandidateWorkspace } from '@/lib/candidateService';
 import './CandidatePreparationPanel.css';
 
-function CandidateChoices({ path, revision, groupId, busy, submit, gm, grantedShipId }: {
-  path: CandidatePathView; revision: number; groupId: string; busy: boolean;
+function CandidateChoices({ path, revision, groupId, edition, busy, submit, gm, grantedShipId }: {
+  path: CandidatePathView; revision: number; groupId: string; edition: CandidateEdition; busy: boolean;
   gm?: boolean; grantedShipId?: string | undefined;
   submit: (choice: Omit<CandidateAttempt, 'sessionId' | 'requestId' | 'instanceId'>) => void;
 }) {
@@ -22,15 +22,15 @@ function CandidateChoices({ path, revision, groupId, busy, submit, gm, grantedSh
       onChange={event => setShipId(event.target.value)}>{ownShips.map(candidate =>
         <option key={candidate.shipId} value={candidate.shipId}>{candidate.shipId}</option>)}</select></label>}
     {path.code === 'N' && !path.repaired && !path.completed && <>
-      {ship && path.materials < 10 && <div className="candidate-preparation__action">
-        <label>Materials to contribute<input type="number" min={1} max={10 - path.materials} value={materials}
+      {ship && path.materials < path.materialsRequired && <div className="candidate-preparation__action">
+        <label>Materials to contribute<input type="number" min={1} max={path.materialsRequired - path.materials} value={materials}
           disabled={busy} onChange={event => setMaterials(Number(event.target.value))} /></label>
-        <button className="cic-action-button" type="button" disabled={shipBlocked || materials < 1 || materials > 10 - path.materials}
+        <button className="cic-action-button" type="button" disabled={shipBlocked || materials < 1 || materials > path.materialsRequired - path.materials}
           onClick={() => submit({ ...base, action: 'contribute-materials', shipId: ship.shipId, amount: materials })}>
           Contribute Ring materials</button>
       </div>}
       {path.researchChoices.length > 0 && <fieldset disabled={busy}>
-        <legend>Choose distinct four-cross research tracks</legend>
+        <legend>{edition === 'home' ? 'Choose distinct four-cross research tracks' : 'Choose distinct completed technologies'}</legend>
         {path.researchChoices.map(track => <label key={track.id} className="candidate-preparation__track">
           <input type="checkbox" checked={tracks.includes(track.id)} onChange={event => setTracks(current =>
             event.target.checked ? [...current, track.id] : current.filter(id => id !== track.id))} />{track.name}</label>)}
@@ -134,6 +134,17 @@ function CandidatePreparationWorkspace() {
     } catch (cause) { setMessage(cause instanceof Error ? cause.message : 'GM vessel control unavailable.'); }
     finally { setBusy(false); }
   }
+  async function chooseCandidateEdition(value: string) {
+    if (!canMakeChoices || !isGm || !gmInstance || !groupId || !currentWorkspace ||
+        currentWorkspace.editionLocked || busy || (value !== 'home' && value !== 'deluxe') || value === currentWorkspace.edition) return;
+    setBusy(true); setMessage('Saving the session N/O rules edition…');
+    try {
+      const result = await selectCandidateEdition(groupId, value as CandidateEdition, currentWorkspace.revision);
+      setMessage(result.summary); setRefresh(current => current + 1);
+    } catch (cause) {
+      setMessage(cause instanceof Error ? cause.message : 'The N/O rules edition could not be saved. Refresh the live report.');
+    } finally { setBusy(false); }
+  }
   return <section className="candidate-preparation cic-frame" aria-label="Candidate preparation and actions">
     <div className="candidate-preparation__header"><h2>New Eden preparation</h2>
       {isGm && groupIds.length > 1 && <label>Fleet group<select value={groupId ?? ''} onChange={event => setSelectedGroup(event.target.value)}>
@@ -143,6 +154,14 @@ function CandidatePreparationWorkspace() {
         Refresh candidate operations</button></div>
     {session.currentTurn === 6 && <p>Cycle 6 // agree a New Eden plan with your fleet and identify who acts next.</p>}
     {currentWorkspace && <p>Cycle {currentWorkspace.cycle} // candidate revision {currentWorkspace.revision}</p>}
+    {currentWorkspace && <div className="candidate-preparation__action" aria-label="N/O rules edition">
+      <p>N/O rules // {currentWorkspace.edition === 'home' ? 'Home (default)' : 'Deluxe (alternative)'}</p>
+      {isGm && <label>Candidate edition<select aria-label="Candidate edition" value={currentWorkspace.edition}
+        disabled={!canMakeChoices || busy || currentWorkspace.editionLocked}
+        onChange={event => void chooseCandidateEdition(event.target.value)}>
+        <option value="home">Home (default)</option><option value="deluxe">Deluxe (alternative)</option>
+      </select></label>}
+    </div>}
     {ready && ended && <p id={readinessId}>Game ended // original candidate results remain available.</p>}
     {isGm && canMakeChoices && grantShip && <div className="candidate-preparation__action">
       <label>GM candidate vessel<select value={grantShip} disabled={busy} onChange={event => setGmShipId(event.target.value)}>
@@ -155,10 +174,16 @@ function CandidatePreparationWorkspace() {
         <p>Scout or arrive at a candidate to receive its preparation and actions.</p> : currentWorkspace.paths.map(path =>
           <article key={`${path.code}-${path.coordinate}`} className="candidate-preparation__path">
             <h3>{path.title}</h3>
-            <p>{path.code === 'N' ? 'Repair: 10 materials, one Engineering Shuttle and five distinct research tracks with four crosses. Ring repair permanently consumes the Engineering Shuttle; it cannot launch, repair, recharge or join a mission afterward. Passage: five fuel from each ship.' :
-              path.code === 'O' ? 'Scout within range, then each ship chooses a long jump. The server resolves whether it reaches New Eden or is lost. Scouting totals stay private.' :
+            <p>{path.code === 'N' ? currentWorkspace.edition === 'home'
+              ? 'Repair: 10 materials, one Engineering Shuttle and five distinct research tracks with at least four crosses. Ring repair permanently consumes the Engineering Shuttle; it cannot launch, repair, recharge or join a mission afterward. Passage: five fuel from each ship. In Home, the GM may choose far-side sabotage after a paid crossing to stop Wolf pursuit through the Ring.'
+              : 'Repair: 15 materials, one Engineering Shuttle and five distinct fully completed Endeavour technologies. Ring repair permanently consumes the Engineering Shuttle; it cannot launch, repair, recharge or join a mission afterward. Passage: five fuel from each ship.' :
+              path.code === 'O' ? currentWorkspace.edition === 'home'
+                ? 'Scout within range, then each ship chooses a long jump. One d6 plus protected scouting reaches New Eden at nine; earlier losses at that coordinate also add to the total. The server resolves the result; scouting totals stay private.'
+                : 'Scout within range, then each ship chooses a long jump. One d6 plus protected scouting reaches New Eden at eight; prior losses do not add a bonus. The server resolves the result; scouting totals stay private.' :
                 'Defeat all Station Wolves, then cannibalise unique Reactors for at least 18 available charge capacity. Station defences activate automatically.'}</p>
-            <p>{path.code === 'N' ? `${path.materials}/10 materials // ${path.researchCount}/5 research // Engineering Shuttle ${path.shuttleCommitted ? 'committed' : 'required'} // ${path.repaired ? 'Ring repaired' : 'repair pending'}` :
+            <p>{path.code === 'N' ? currentWorkspace.edition === 'home'
+              ? `${path.materials}/10 materials // ${path.researchCount}/5 research // Engineering Shuttle ${path.shuttleCommitted ? 'committed' : 'required'} // ${path.repaired ? 'Ring repaired' : 'repair pending'}`
+              : `${path.materials}/15 materials // ${path.researchCount}/5 completed technologies // Engineering Shuttle ${path.shuttleCommitted ? 'committed' : 'required'} // ${path.repaired ? 'Ring repaired' : 'repair pending'}` :
               path.code === 'O' ? 'Each ship retains one committed reached-or-lost result.' :
                 `${path.liberated ? 'Station liberated' : 'Station occupied'} // ${path.chargeCapacity}/18 charge capacity // ${path.activated ? 'defences active' : 'power pending'}`}</p>
             {path.blockers.length > 0 && <ul aria-label={`${path.title} blockers`}>{path.blockers.map(blocker => <li key={blocker}>{blocker}</li>)}</ul>}
@@ -170,7 +195,8 @@ function CandidatePreparationWorkspace() {
             <ul className="candidate-preparation__ships">{path.ships.map(ship => <li key={ship.shipId}>
               <strong>{ship.shipId}</strong> // {ship.summary || ship.result}{ship.blocker && ` // ${ship.blocker}`}</li>)}</ul>
             {canMakeChoices && <CandidateChoices path={path} revision={currentWorkspace.revision} groupId={currentWorkspace.groupId}
-              busy={busy || !!pending} submit={submit} gm={isGm} grantedShipId={gmInstance?.shipConsoleWriteGrant?.shipId} />}
+              edition={currentWorkspace.edition} busy={busy || !!pending} submit={submit} gm={isGm}
+              grantedShipId={gmInstance?.shipConsoleWriteGrant?.shipId} />}
           </article>)}
     {message && <p role="status" aria-live="polite">{message}</p>}
     {ready && pending && !busy && <button className="cic-action-button" type="button"

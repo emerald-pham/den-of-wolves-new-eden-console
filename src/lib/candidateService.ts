@@ -4,6 +4,7 @@ import { captureSessionAuthority, isCurrentSessionAuthority, requireFreshSession
 import { useSessionStore } from '@/store/useSessionStore';
 
 export type CandidateCode = 'N' | 'O' | 'P';
+export type CandidateEdition = 'home' | 'deluxe';
 export type CandidateActionName = 'contribute-materials' | 'contribute-research' | 'commit-engineering-shuttle' |
   'ring-passage' | 'sabotage-ring' | 'nebula-jump' | 'contribute-reactor';
 export interface CandidateAttempt {
@@ -16,6 +17,10 @@ export interface CandidateResult {
   requestId: string; revision: number; code: CandidateCode; action: CandidateActionName; summary: string;
   outcome?: 'crossed' | 'reached' | 'lost' | 'activated'; fuelSpent?: number; remainingFuel?: number;
 }
+export interface CandidateEditionResult {
+  type: 'candidate-edition-result'; status: 'committed' | 'replayed'; sessionId: string;
+  requestId: string; revision: number; edition: CandidateEdition; summary: string;
+}
 export interface CandidatePathView {
   code: CandidateCode; coordinate: string; title: string; blockers: string[]; nextActor: string;
   materials: number; materialsRequired: number; researchCount: number; researchRequired: number;
@@ -27,7 +32,7 @@ export interface CandidatePathView {
 }
 export interface CandidateWorkspace {
   type: 'candidate-workspace'; sessionId: string; groupId: string; cycle: number; revision: number;
-  paths: CandidatePathView[];
+  edition: CandidateEdition; editionLocked: boolean; paths: CandidatePathView[];
   privateCalculations?: { requestId: string; code: CandidateCode; calculation: Record<string, unknown>; result: string }[];
 }
 const record = (value: unknown): value is Record<string, unknown> =>
@@ -87,6 +92,7 @@ export function createCandidateAttempt(choice: Omit<CandidateAttempt, 'sessionId
 }
 const counter = (value: unknown): value is number => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 const code = (value: unknown): value is CandidateCode => value === 'N' || value === 'O' || value === 'P';
+const edition = (value: unknown): value is CandidateEdition => value === 'home' || value === 'deluxe';
 const texts = (value: unknown): value is string[] => Array.isArray(value) && value.every(item => typeof item === 'string');
 function fields(value: Record<string, unknown>, keys: readonly string[]): Record<string, unknown> {
   return Object.fromEntries(keys.filter(key => value[key] !== undefined).map(key => [key, value[key]]));
@@ -118,11 +124,13 @@ function operationalPath(value: unknown, gm: boolean): CandidatePathView | undef
 function workspaceProjection(value: unknown, c: ReturnType<typeof context>, expectedGroupId: string): CandidateWorkspace {
   const invalid = () => new Error('The candidate operation report could not be verified. Refresh the live session.');
   if (!record(value) || value.type !== 'candidate-workspace' || value.sessionId !== c.sessionId ||
-      value.groupId !== expectedGroupId || !counter(value.cycle) || !counter(value.revision) || !Array.isArray(value.paths)) throw invalid();
+      value.groupId !== expectedGroupId || !counter(value.cycle) || !counter(value.revision) ||
+      !edition(value.edition) || typeof value.editionLocked !== 'boolean' || !Array.isArray(value.paths)) throw invalid();
   const paths = value.paths.map(path => operationalPath(path, c.role === 'gm'));
   if (paths.some(path => !path)) throw invalid();
   const projected: CandidateWorkspace = { type: 'candidate-workspace', sessionId: c.sessionId, groupId: expectedGroupId,
-    cycle: value.cycle, revision: value.revision, paths: paths as CandidatePathView[] };
+    cycle: value.cycle, revision: value.revision, edition: value.edition, editionLocked: value.editionLocked,
+    paths: paths as CandidatePathView[] };
   if (c.role === 'gm' && value.privateCalculations !== undefined) {
     if (!Array.isArray(value.privateCalculations)) throw invalid();
     projected.privateCalculations = value.privateCalculations.map(audit => {
@@ -143,6 +151,29 @@ export async function readCandidateWorkspace(expectedGroupId: string): Promise<C
   requireCurrentContext(c, expectedGroupId);
   if (!isCurrentSessionAuthority(authority)) throw new Error('Candidate session authority changed. Refresh the live report.');
   return workspaceProjection(reply, c, expectedGroupId);
+}
+export async function selectCandidateEdition(expectedGroupId: string, requestedEdition: CandidateEdition,
+  expectedRevision: number): Promise<CandidateEditionResult> {
+  requireFreshSessionAuthority('Reconnect before selecting an N/O rules edition.');
+  const c = context(expectedGroupId);
+  if (c.role !== 'gm' || !c.instanceId) throw new Error('Only the current GM can select the N/O rules edition.');
+  if (!edition(requestedEdition) || !counter(expectedRevision) || expectedRevision >= Number.MAX_SAFE_INTEGER) {
+    throw new Error('Refresh the current N/O rules edition before choosing.');
+  }
+  const authority = captureSessionAuthority(c.sessionId, c.uid);
+  const payload = { sessionId: c.sessionId, requestId: crypto.randomUUID(), expectedRevision,
+    expectedGroupId, instanceId: c.instanceId, edition: requestedEdition };
+  const reply = (await httpsCallable<typeof payload, unknown>(functions(), 'selectCandidateEdition')(payload)).data;
+  requireCurrentContext(c, expectedGroupId);
+  if (!isCurrentSessionAuthority(authority)) throw new Error('Candidate session authority changed. Refresh the live report.');
+  const fields = ['type', 'status', 'sessionId', 'requestId', 'revision', 'edition', 'summary'];
+  if (!record(reply) || Object.keys(reply).some(field => !fields.includes(field)) ||
+      reply.type !== 'candidate-edition-result' || !['committed', 'replayed'].includes(String(reply.status)) ||
+      reply.sessionId !== c.sessionId || reply.requestId !== payload.requestId || !counter(reply.revision) ||
+      reply.edition !== requestedEdition || typeof reply.summary !== 'string') {
+    throw new Error('The N/O rules edition result could not be verified. Refresh the live report.');
+  }
+  return reply as unknown as CandidateEditionResult;
 }
 export async function executeCandidateAttempt(attempt: CandidateAttempt): Promise<CandidateResult> {
   requireFreshSessionAuthority('Reconnect to retry the original candidate request.');

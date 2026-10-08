@@ -4,7 +4,8 @@ import { randomInt } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import { HttpsError } from 'firebase-functions/v2/https';
 import { candidateWorkspace, parseCandidateAction, parseCandidateState, resolveCandidateAction,
-  type CandidateAction, type CandidateActionReply, type CandidateAuthority, type CandidateCode, type CandidateSiteState } from './candidatePaths';
+  isCandidateEdition, type CandidateAction, type CandidateActionReply, type CandidateAuthority, type CandidateCode,
+  type CandidateEdition, type CandidateSiteState } from './candidatePaths';
 import { commandReceiptDisposition, type CommandFingerprint } from './commandIdempotency';
 import { fleetGroupRecord } from './fleetGroups';
 import { shipForRole } from './crewAccess';
@@ -78,6 +79,37 @@ function validateRead(raw: unknown): { sessionId: string; expectedGroupId: strin
       !id(raw.sessionId) || typeof raw.expectedGroupId !== 'string' || !/^fleet-[1-9]\d*$/.test(raw.expectedGroupId) ||
       (raw.instanceId !== undefined && !id(raw.instanceId))) throw new HttpsError('invalid-argument', 'Choose a current candidate fleet group.');
   return raw as unknown as { sessionId: string; expectedGroupId: string; instanceId?: string };
+}
+type CandidateEditionSelection = {
+  sessionId: string; requestId: string; expectedRevision: number; expectedGroupId: string;
+  instanceId: string; edition: CandidateEdition;
+};
+function validateEditionSelection(raw: unknown): CandidateEditionSelection {
+  const keys = ['sessionId', 'requestId', 'expectedRevision', 'expectedGroupId', 'instanceId', 'edition'];
+  if (!record(raw) || Object.keys(raw).length !== keys.length || Object.keys(raw).some(key => !keys.includes(key)) ||
+      !id(raw.sessionId) || !id(raw.requestId) || !Number.isSafeInteger(raw.expectedRevision) ||
+      (raw.expectedRevision as number) < 0 || (raw.expectedRevision as number) >= Number.MAX_SAFE_INTEGER ||
+      typeof raw.expectedGroupId !== 'string' || !/^fleet-[1-9]\d*$/.test(raw.expectedGroupId) ||
+      !id(raw.instanceId) || !isCandidateEdition(raw.edition)) {
+    throw new HttpsError('invalid-argument', 'Choose an N/O rules edition from the current GM connection.');
+  }
+  return raw as unknown as CandidateEditionSelection;
+}
+function editionFingerprint(choice: CandidateEditionSelection, uid: string): CommandFingerprint {
+  return { action: 'candidate-edition-selection', actorUid: uid, sessionId: choice.sessionId,
+    requestId: choice.requestId, instanceId: choice.instanceId, expectedRevision: choice.expectedRevision,
+    payload: { groupId: choice.expectedGroupId, edition: choice.edition } };
+}
+function safeEditionReply(raw: unknown, sessionId: string) {
+  const fields = ['type', 'status', 'sessionId', 'requestId', 'revision', 'edition', 'summary'];
+  if (!record(raw) || Object.keys(raw).some(key => !fields.includes(key)) ||
+      raw.type !== 'candidate-edition-result' || raw.status !== 'committed' || raw.sessionId !== sessionId ||
+      !id(raw.requestId) || !Number.isSafeInteger(raw.revision) || (raw.revision as number) < 0 ||
+      !isCandidateEdition(raw.edition) || typeof raw.summary !== 'string' || raw.summary.length > 1000) {
+    return precondition('The original candidate edition receipt needs recovery.');
+  }
+  return raw as { type: 'candidate-edition-result'; status: 'committed' | 'replayed'; sessionId: string;
+    requestId: string; revision: number; edition: CandidateEdition; summary: string };
 }
 function fingerprint(command: CandidateAction, uid: string): CommandFingerprint {
   return { action: 'candidate-action', actorUid: uid, sessionId: command.sessionId,
@@ -244,6 +276,57 @@ export function createCandidateCallables(d: Dependencies) {
         .filter(audit => audit.get('groupId') === data.expectedGroupId).map(audit => audit.data()) } : {}) };
     });
   }
+  async function selectEdition(request: Request) {
+    if (!id(request.auth?.uid)) throw new HttpsError('unauthenticated', 'Sign in before selecting an N/O rules edition.');
+    const choice = validateEditionSelection(request.data);
+    const uid = request.auth.uid; const at = now(); const fingerprintValue = editionFingerprint(choice, uid);
+    const base = `sessions/${choice.sessionId}`;
+    const stateRef = db.doc(`${base}/serverState/candidates`);
+    const receiptRef = db.doc(`${base}/candidateActionReceipts/${choice.requestId}`);
+    return db.runTransaction(async tx => {
+      const [world, receipt] = await Promise.all([
+        authority(tx, { sessionId: choice.sessionId, expectedGroupId: choice.expectedGroupId,
+          instanceId: choice.instanceId }, uid, at), tx.get(receiptRef),
+      ]);
+      if (receipt.exists) {
+        const disposition = commandReceiptDisposition(receipt.get('fingerprint'), fingerprintValue);
+        if (disposition.kind !== 'replay') throw new HttpsError(disposition.kind === 'foreign-actor' ? 'permission-denied' : 'failed-precondition',
+          'This candidate edition request is bound to its original GM and choice.');
+        return { ...safeEditionReply(receipt.get('result'), choice.sessionId), status: 'replayed' as const };
+      }
+      if (world.actor.get('role') !== 'gm') throw new HttpsError('permission-denied', 'Only the current GM may select the N/O rules edition.');
+      if (world.a.phase !== 'active') return precondition('The N/O rules edition can be selected only while the game is active.');
+      if (world.state.revision !== choice.expectedRevision) return precondition('Candidate revision changed; refresh the live record.');
+      const priorEdition = world.state.edition ?? 'home';
+      const locked = Object.values(world.state.sites).some(site => site.code === 'N' || site.code === 'O');
+      if (locked && choice.edition !== priorEdition) return precondition('The N/O rules edition is locked after candidate actions begin in any fleet group.');
+      const changed = choice.edition !== priorEdition;
+      const nextRevision = world.state.revision + (changed ? 1 : 0);
+      const nextState = changed ? { ...world.state, edition: choice.edition, revision: nextRevision } : world.state;
+      const summary = changed ? `N/O rules edition set to ${choice.edition === 'home' ? 'Home' : 'Deluxe'}.` :
+        `N/O rules edition remains ${choice.edition === 'home' ? 'Home' : 'Deluxe'}.`;
+      const result = { type: 'candidate-edition-result' as const, status: 'committed' as const,
+        sessionId: choice.sessionId, requestId: choice.requestId, revision: nextRevision,
+        edition: choice.edition, summary };
+      writeStandardActionAudit(tx, db, {
+        sessionId: choice.sessionId, actorUid: uid, actorRoleId: world.actor.get('assignedRoleId') ?? null,
+        action: 'candidate-edition-selection', phase: world.session.get('phase'),
+        requestId: choice.requestId, revision: nextRevision, outcome: 'committed',
+        resolutionSource: 'facilitator', createdAt: d.serverTimestamp(),
+      }, {
+        sourceId: `${choice.edition}-v1-1-candidate-edition`,
+        requiredChoices: [{ actor: 'facilitator', kind: 'candidate-edition-selection',
+          value: { groupId: choice.expectedGroupId, edition: choice.edition, changed } }],
+        calculation: { revisionBefore: world.state.revision, revisionAfter: nextRevision,
+          previousEdition: priorEdition, editionLocked: locked },
+        consequences: { edition: choice.edition, editionLocked: locked },
+        audience: { operational: 'members' },
+      });
+      if (changed) tx.set(stateRef, nextState);
+      tx.set(receiptRef, { fingerprint: fingerprintValue, result, createdAt: d.serverTimestamp() });
+      return result;
+    });
+  }
   async function execute(request: Request) {
     if (!id(request.auth?.uid)) throw new HttpsError('unauthenticated', 'Sign in before choosing a candidate action.');
     let command: CandidateAction;
@@ -358,7 +441,8 @@ export function createCandidateCallables(d: Dependencies) {
         resolutionSource: command.action === 'nebula-jump' ? 'server-random' : 'server-calculated',
         createdAt: d.serverTimestamp(),
       }, {
-        sourceId: `base-v1-1-candidate-${command.code}`,
+        sourceId: command.code === 'P' ? `base-v1-1-candidate-${command.code}` :
+          `${world.state.edition ?? 'home'}-v1-1-candidate-${command.code}`,
         requiredChoices: [{ actor: a.actor.gm ? 'facilitator' : 'player', kind: command.action,
           value: { ...(command.shipId ? { shipId: command.shipId } : {}),
             ...(command.amount ? { amount: command.amount } : {}), ...(command.trackIds ? { trackIds: command.trackIds } : {}),
@@ -369,5 +453,5 @@ export function createCandidateCallables(d: Dependencies) {
       return plan.reply;
     });
   }
-  return { read, execute };
+  return { read, execute, selectEdition };
 }

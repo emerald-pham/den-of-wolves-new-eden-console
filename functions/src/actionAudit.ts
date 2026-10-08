@@ -30,6 +30,7 @@ export const ACTION_AUDIT_RESOLUTION_SOURCE_BY_ACTION = {
   'warrior-cargo': 'server-calculated',
   'candidate-action': 'server-calculated',
   'candidate-nebula-jump': 'server-random',
+  'candidate-edition-selection': 'facilitator',
   'game-ending': 'server-calculated',
   'debrief-freeze': 'server-calculated',
 } as const satisfies Readonly<Record<string, ActionAuditResolutionSource>>;
