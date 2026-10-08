@@ -20,7 +20,6 @@ import {
   popShipConfetti,
   selectConsoleRole,
   setGmShipConsoleWriteGrant,
-  setShipConsoleLock,
   type GmShipConsoleWriteGrantAuthority,
 } from '@/lib/sessionService';
 import { selectIsGm, useSessionStore } from '@/store/useSessionStore';
@@ -163,9 +162,8 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
       ['player', 'gm'].includes(player.role) && player.activeConsoleRoleId === role.id)),
   );
   const writable = observer ? observerWrite : roleEnabled && (hasConfirmedRole || canCoverShortStaffedShip);
-  const consoleLocked = shipState?.consoleLocked ?? false;
   const gameplayFrozen = ['success', 'failure', 'debrief', 'closed'].includes(session?.phase ?? '');
-  const effectiveWritable = writable && !consoleLocked && !gameplayFrozen;
+  const effectiveWritable = writable && !gameplayFrozen;
   const validRole = !roleId || consoleRole?.shipId === ship?.id || replacementVipHost || replacementCommissar || replacementTableRoute;
   const canShowPermissionedDismantlingTarget = Boolean(
     !observer && !isGm && mode === 'console' && session?.phase === 'active' &&
@@ -188,7 +186,6 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
   const [hideResources, setHideResources] = useState(false);
   const [hideCensus, setHideCensus] = useState(false);
   const [hideLocationContents, setHideLocationContents] = useState(false);
-  const [lockPending, setLockPending] = useState(false);
   const [burst, setBurst] = useState(0);
   const [burstSource, setBurstSource] = useState<string | null>(null);
   const [confettiActor, setConfettiActor] = useState<{
@@ -461,18 +458,6 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
     }
   }
 
-  async function toggleConsoleLock(): Promise<void> {
-    if (!ship || !writable || gameplayFrozen || lockPending) return;
-    setLockPending(true);
-    try {
-      await setShipConsoleLock(ship.id, !consoleLocked);
-    } catch {
-      // The shared communication notice reports a rejected or offline lock.
-    } finally {
-      setLockPending(false);
-    }
-  }
-
   return (
     <ConsoleAccessContext.Provider value={{ writable: effectiveWritable, ...(viewedRoleId ? { roleId: viewedRoleId } : {}) }}>
     <main
@@ -571,18 +556,6 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
           {resources && <a className="cic-text-button" href={`#${ship.id}-resource-stores`}>Resource stores</a>}
           <a className="cic-text-button" href={`#${ship.id}-shuttlebay`}>Shuttle docking history</a>
         </nav>
-        <section className="ship-console__travel-lock cic-frame" aria-label="ICN console lock">
-          <p className="ship-resources__eyebrow">ICN console lock // {consoleLocked ? 'engaged' : 'clear'}</p>
-          <p>{consoleLocked ? 'Console actions are locked while travelling.' : 'Lock this console before a ship travels.'}</p>
-          <button
-            className="cic-action-button"
-            type="button"
-            disabled={!writable || gameplayFrozen || lockPending}
-            onClick={() => void toggleConsoleLock()}
-          >
-            {consoleLocked ? 'Release ICN console lock' : 'Engage ICN console lock'}
-          </button>
-        </section>
         {(visiting || (!observer && !roleEnabled)) && (
           <p className="cic-overline ship-console__access">Console access // {writable ? 'Write // crew incomplete' : 'Read only'}</p>
         )}
@@ -603,7 +576,6 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
             navigationLogs={shipState?.navigationLogs}
             knownCoordinates={shipDiscovery?.knownCoordinates}
             knownSystems={shipDiscovery?.knownSystems}
-            consoleLocked={consoleLocked}
             writable={effectiveWritable}
             shipState={shipState}
           />
