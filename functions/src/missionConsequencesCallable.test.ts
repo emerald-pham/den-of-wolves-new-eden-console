@@ -279,7 +279,8 @@ it.each([
   ['M', 'M-3', 'upgrade', [{ shipId: 'aegis', systemId: 'point-defence-lasers' }, { shipId: 'aegis', systemId: 'missile-launchers' }, { shipId: 'aegis', systemId: 'command-and-control' }]],
 ])('settles %s %s %s console targets once with no ordinary purchase cost', async (site, opportunity, action, targets) => {
   await resolve(site as string, opportunity as string);
-  await send('chooseRewardTargets', { opportunityId: opportunity, choice: { kind: 'consoles', action, targets } });
+  const selected: AwayMissionLifecycleCallableReply = await send('chooseRewardTargets', {
+    opportunityId: opportunity, choice: { kind: 'consoles', action, targets } });
   const request = command('dropOff', { shipId: 'aegis' });
   mock.retry(1);
   const reply = await commitAwayMissionLifecycleCommand.run(request);
@@ -294,7 +295,44 @@ it.each([
   const writes = mock.writes.length;
   expect((await commitAwayMissionLifecycleCommand.run(request)).status).toBe('replayed');
   expect(mock.writes).toHaveLength(writes);
-  expect(JSON.stringify(reply.publicState)).not.toMatch(/choice|trackIds|targets/);
+  const expectedEffects = site === 'F'
+    ? [{ kind: 'upgradeOrRepairConsoles', target: 'refinery-124',
+      choices: [{ action: 'upgrade', amount: 1 }, { action: 'repair', amount: 2 }], selection: 'choice' }]
+    : [{ kind: 'upgradeConsoles', target: site === 'G' ? 'any' : 'weapon', amount: site === 'G' ? 1 : site === 'L' ? 2 : 3 }];
+  const selection = [{ opportunityId: opportunity, choice: { kind: 'consoles', action, targets } }];
+  expect(selected.privateState?.rewardChoices).toEqual(selection);
+  expect(selected.privateState?.rewardOptions).toEqual(expect.arrayContaining([
+    expect.objectContaining({ opportunityId: opportunity, consoleTargets: expect.arrayContaining(
+      (targets as { shipId: string; systemId: string }[]).map(target => expect.objectContaining(target)),
+    ) }),
+  ]));
+  const replayReply: AwayMissionLifecycleCallableReply = await commitAwayMissionLifecycleCommand.run(request);
+  expect(replayReply.privateState?.rewardChoices).toEqual(selection);
+  expect(mock.writes).toHaveLength(writes);
+  const bobHand = mock.documents.get(`sessions/s1/awayMissionHands/${awayMissionHandId(missionId, 'bob')}`)!;
+  expect(bobHand.lifecyclePrivateState).not.toHaveProperty('rewardChoices');
+  expect(bobHand.lifecyclePrivateState).not.toHaveProperty('rewardOptions');
+  for (const publicState of [reply.publicState, replayReply.publicState]) {
+    expect(Object.keys(publicState).sort()).toEqual(['missionId', 'groupId', 'siteCode', 'revision', 'phase', 'status',
+      'overrun', 'missionLeaderUid', 'participantCount', 'opportunities', 'requestCounts', 'outcomes', 'rewards',
+      'specialRewards', 'custody', 'legalDropOffShipIds'].sort());
+    const rewardIndex = publicState.rewards!.findIndex(reward => reward.opportunityId === opportunity);
+    expect(publicState.rewards![rewardIndex].effects).toEqual(expectedEffects);
+    const staticF3EffectPath = site === 'F' ? `rewards.${rewardIndex}.effects.0` : null;
+    const excludedKeys = new Set(['rewardChoices', 'rewardOptions', 'choice', 'trackIds', 'targets',
+      'consoleTargets', 'consoleActions', 'systemId', 'canUpgrade', 'canRepair', 'cardId', 'cardIds', 'cards']);
+    const assertPublicFields = (value: unknown, path = ''): void => {
+      if (Array.isArray(value)) { value.forEach((entry, index) => assertPublicFields(entry, `${path}.${index}`)); return; }
+      if (typeof value === 'string') expect(value).not.toMatch(/(?:A|4|5|6|7|8|9|10|J|Q|K)[♥♦♣]/);
+      if (!value || typeof value !== 'object') return;
+      for (const [key, nested] of Object.entries(value)) {
+        expect(excludedKeys.has(key)).toBe(false);
+        if (key === 'choices' || key === 'selection') expect(path).toBe(staticF3EffectPath);
+        assertPublicFields(nested, path ? `${path}.${key}` : key);
+      }
+    };
+    assertPublicFields(publicState);
+  }
 });
 it('rechecks a console that became ineligible after selection before any delivery write', async () => {
   await resolve('F', 'F-3');
