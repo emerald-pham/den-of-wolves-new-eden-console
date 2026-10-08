@@ -1502,3 +1502,19 @@ test('Station ordered range progress during final capture cancels with zero stal
   assert.equal(await dispatchStationCrewChoice(current, opts), undefined);
   assert.deepEqual(pdf.effects.clicks, []);
 });
+
+
+test('Station benign cancellation retains its consumed phase and fresh source bookend without action credit', async () => {
+  const scenario = stationFinalizationScenario('pre-freeze phase');
+  const transitions = [];
+  scenario.opts.onSourceProgress = async observation => transitions.push(observation);
+  assert.equal(await dispatchStationCrewChoice(scenario.current, scenario.opts), undefined);
+  assert.equal(transitions.length, 1);
+  assert.equal(transitions[0].originalAttack.revision, 17);
+  assert.equal(transitions[0].observedAttack.revision, 20);
+  assert.equal(transitions[0].actionCredit, false);
+  assert.equal(transitions[0].deadlineAt, scenario.opts.deadlineAt);
+  assert.ok(transitions[0].consumedObservations.phaseReads.length > 0);
+  assert.equal(transitions[0].consumedObservations.phaseReads.at(-1).snapshot.session.turnState.phase, 'coordination');
+  assert.deepEqual(scenario.crew.effects.clicks, []);
+});
