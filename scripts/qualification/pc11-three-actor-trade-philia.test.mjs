@@ -1,10 +1,29 @@
 import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
+import { dirname, resolve } from 'node:path';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 import { PC11_NORMAL_START } from './pc11-normal-start-adapter.mjs';
 
 const runnerUrl = new URL('./pc11-three-actor-trade-philia.mjs', import.meta.url);
 const runnerSource = await readFile(runnerUrl, 'utf8');
+const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
+
+async function runnerHelperClosure() {
+  const pending = [fileURLToPath(runnerUrl)];
+  const visited = new Set();
+  while (pending.length > 0) {
+    const file = pending.pop();
+    if (visited.has(file)) continue;
+    visited.add(file);
+    const source = await readFile(file, 'utf8');
+    for (const match of source.matchAll(/(?:from\s*|import\s*\()\s*['"](\.{1,2}\/[^'"]+\.mjs)['"]/g)) {
+      pending.push(resolve(dirname(file), match[1]));
+    }
+  }
+  return [...visited].map(async file => ({ file, source: await readFile(file, 'utf8') }));
+}
 
 function functionSource(name, nextName) {
   const start = runnerSource.indexOf(`function ${name}`);
@@ -54,4 +73,33 @@ test('normal PC11 path has no prepared-demo or manual Coordination gate', () => 
   ]) {
     assert.equal(runnerSource.includes(forbidden), false, `${forbidden} must not gate normal PC11 flow`);
   }
+});
+
+function namedRegion(source, startMarker, endMarker) {
+  const start = source.indexOf(startMarker);
+  const end = source.indexOf(endMarker, start + 1);
+  assert.ok(start >= 0 && end > start, `Expected bounded source region ${startMarker}`);
+  return source.slice(start, end);
+}
+
+test('every active mounted browser source import exists in the clean source checkout', async () => {
+  const lifecycleSource = await readFile(new URL('../pc10-member-gm-lifecycle-ui-proof.mjs', import.meta.url), 'utf8');
+  const memberSource = await readFile(new URL('../pc10-full-game-demo-proof-helpers.mjs', import.meta.url), 'utf8');
+  const activeObservers = [
+    { importer: 'scripts/qualification/pc11-three-actor-trade-philia.mjs', source: runnerSource },
+    { importer: 'scripts/pc10-member-gm-lifecycle-ui-proof.mjs', source: namedRegion(lifecycleSource,
+      'export async function observeLifecycleActor', '\nexport async function untilLifecycle') },
+    { importer: 'scripts/pc10-full-game-demo-proof-helpers.mjs', source: namedRegion(memberSource,
+      'export async function observeFullGameDemoPresentationMember', '/** Await the existing App recovery') },
+  ];
+  const missing = [];
+  for (const { importer, source } of activeObservers) {
+    for (const match of source.matchAll(/import\s*\(\s*['"](\/src\/[^'"]+)['"]\s*\)/g)) {
+      const browserPath = match[1];
+      if (!existsSync(resolve(repoRoot, browserPath.slice(1)))) missing.push({
+        importer, browserPath,
+      });
+    }
+  }
+  assert.deepEqual(missing, [], `Mounted source imports must exist before runtime: ${JSON.stringify(missing)}`);
 });
