@@ -7,7 +7,7 @@ import {
 
 const reserve = (state: unknown, expectedRevision: number, cycle = 2) =>
   reserveWolfAgentDetectorTest({
-    progress: { 'wolf-agent-detector': 4 }, state, expectedRevision, cycle,
+    progress: { 'wolf-agent-detector': 4 }, construction: { revision: 1, ecmBuilt: false, detectorBuilt: true }, state, expectedRevision, cycle,
   });
 
 it('permits exactly three detector test authorizations in one cycle', () => {
@@ -29,10 +29,10 @@ it('starts a fresh three-test allowance in the next cycle without resetting revi
   });
 });
 
-it('requires the canonical four-box detector research track to be complete', () => {
+it('requires paid Detector construction even after research is complete', () => {
   expect(() => reserveWolfAgentDetectorTest({
-    progress: { 'wolf-agent-detector': 3 }, state: undefined, expectedRevision: 0, cycle: 1,
-  })).toThrow(/research.*complete/i);
+    progress: { 'wolf-agent-detector': 4 }, construction: undefined, state: undefined, expectedRevision: 0, cycle: 1,
+  })).toThrow(/build|built/i);
 });
 
 it('rejects stale revisions, backward cycles, unsafe revisions, and malformed state', () => {

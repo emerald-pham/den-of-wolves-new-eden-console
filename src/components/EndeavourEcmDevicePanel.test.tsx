@@ -22,7 +22,7 @@ const control = {
 
 const readyWorkspace = {
   status: 'ready' as const, sessionId: 's1', cycle: 3, controlRevision: 4,
-  researchComplete: true,
+  researchComplete: true, built: true,
   device: { status: 'ready' as const, revision: 0 },
   pursuit: { groupId: 'fleet-1', current: 8 },
 };
@@ -135,10 +135,10 @@ it('shows the ready state, working feedback, success receipt, and persisted spen
 });
 
 it('keeps an unfinished device unavailable and shows the persisted spent result after reopening', async () => {
-  mocks.read.mockResolvedValueOnce({ ...readyWorkspace, researchComplete: false });
+  mocks.read.mockResolvedValueOnce({ ...readyWorkspace, researchComplete: true, built: false });
   const { unmount } = render(<EndeavourEcmDevicePanel control={control} />);
   expect(await screen.findByText('Status: Unavailable')).toBeVisible();
-  expect(screen.getByText('Complete ECM Device research before use.')).toBeVisible();
+  expect(screen.getByText('Build the ECM Device before use.')).toBeVisible();
   expect(screen.getByRole('button', { name: 'Use ECM Device' })).toBeDisabled();
 
   unmount();

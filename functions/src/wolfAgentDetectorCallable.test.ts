@@ -63,6 +63,7 @@ beforeEach(() => {
   put('sessions/s1/players/u2', { role: 'player', connected: true, displayName: 'Target' });
   put('sessions/s1/fleetGroups/fleet-1', { id: 'fleet-1', vesselIds: ['shepherd'], memberUids: ['u1', 'u2'] });
   put('sessions/s1/serverState/endeavourResearch', { 'wolf-agent-detector': 4 });
+  put('sessions/s1/serverState/endeavourScienceDevices', { revision: 1, ecmBuilt: false, detectorBuilt: true });
   put('sessions/s1/secrets/loyalty-u2', {
     visibleToUids: ['u2'], payload: { type: 'loyalty', kind: 'wolf-agent', suspicion: 0 },
   });
@@ -153,4 +154,17 @@ it('denies a fresh detector operation after Shepherd settlement before reading a
     code: 'failed-precondition', message: expect.stringContaining('candidate disposition'),
   });
   expect(mock.set).not.toHaveBeenCalled(); expect(random.randomInt).not.toHaveBeenCalled();
+});
+
+
+it('runs tests on a paid built Detector with incomplete research and denies complete research on an unbuilt device', async () => {
+  put('sessions/s1/serverState/endeavourResearch', { 'wolf-agent-detector': 2 });
+  await expect(runWolfAgentDetectorTest.run(request())).resolves.toMatchObject({ reportedWolf: true });
+  expect(random.randomInt).toHaveBeenCalledOnce();
+  mock.documents.delete('sessions/s1/serverState/endeavourScienceDevices');
+  put('sessions/s1/serverState/endeavourResearch', { 'wolf-agent-detector': 4 });
+  random.randomInt.mockClear(); mock.set.mockClear();
+  await expect(runWolfAgentDetectorTest.run(request({ ...payload, requestId: 'unbuilt', expectedRevision: 1 })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(random.randomInt).not.toHaveBeenCalled(); expect(mock.set).not.toHaveBeenCalled();
 });

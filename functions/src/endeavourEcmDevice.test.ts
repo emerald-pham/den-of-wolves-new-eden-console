@@ -19,6 +19,7 @@ const groups = [
 
 it('activates a completed ECM Device once and reduces only Shepherd’s group pursuit by three', () => {
   const result = activateEndeavourEcmDevice({
+    construction: { revision: 1, ecmBuilt: true, detectorBuilt: false },
     progress: { 'ecm-device': 5 },
     state: undefined,
     expectedRevision: 0,
@@ -34,6 +35,7 @@ it('activates a completed ECM Device once and reduces only Shepherd’s group pu
 
 it('bounds the fixed reduction at zero without changing another group', () => {
   const result = activateEndeavourEcmDevice({
+    construction: { revision: 1, ecmBuilt: true, detectorBuilt: false },
     progress: { 'ecm-device': 5 }, state: { status: 'ready', revision: 0 }, expectedRevision: 0,
     navigation: navigation({ 'fleet-1': 2, 'fleet-2': 7 }), fleetGroups: groups,
   });
@@ -42,17 +44,19 @@ it('bounds the fixed reduction at zero without changing another group', () => {
   expect(result.state).toMatchObject({ pursuitBefore: 2, pursuitAfter: 0 });
 });
 
-it('rejects incomplete research, stale revisions, and a second activation', () => {
+it('rejects an unbuilt device, stale revisions, and a second activation', () => {
   const input = {
+    construction: { revision: 1, ecmBuilt: true, detectorBuilt: false },
     progress: { 'ecm-device': 4 }, state: undefined, expectedRevision: 0,
     navigation: navigation({ 'fleet-1': 8, 'fleet-2': 9 }), fleetGroups: groups,
   };
-  expect(() => activateEndeavourEcmDevice(input)).toThrow(/research.*complete/i);
+  expect(() => activateEndeavourEcmDevice({ ...input, construction: undefined })).toThrow(/build|built/i);
   expect(() => activateEndeavourEcmDevice({
     ...input, progress: { 'ecm-device': 5 }, expectedRevision: 1,
   })).toThrow(/changed/i);
   expect(() => activateEndeavourEcmDevice({
     ...input,
+    construction: { revision: 1, ecmBuilt: true, detectorBuilt: false },
     progress: { 'ecm-device': 5 },
     state: {
       status: 'used', revision: 1, ownerGroupId: 'fleet-1', pursuitBefore: 8, pursuitAfter: 5,
@@ -63,6 +67,7 @@ it('rejects incomplete research, stale revisions, and a second activation', () =
 
 it('fails closed when Shepherd ownership or pursuit authority is ambiguous or malformed', () => {
   const base = {
+    construction: { revision: 1, ecmBuilt: true, detectorBuilt: false },
     progress: { 'ecm-device': 5 }, state: undefined, expectedRevision: 0,
     navigation: navigation({ 'fleet-1': 8, 'fleet-2': 9 }), fleetGroups: groups,
   };
@@ -83,7 +88,8 @@ it.each(['', 'group-alpha'])(
   'rejects non-canonical fleet-group id %j before producing a one-shot result',
   (groupId) => {
     expect(() => activateEndeavourEcmDevice({
-      progress: { 'ecm-device': 5 }, state: undefined, expectedRevision: 0,
+      construction: { revision: 1, ecmBuilt: true, detectorBuilt: false },
+    progress: { 'ecm-device': 5 }, state: undefined, expectedRevision: 0,
       navigation: navigation({ [groupId]: 8 }),
       fleetGroups: [{ id: groupId, vesselIds: ['shepherd'], memberUids: ['scientist'] }],
     })).toThrow(/non-canonical group id/i);
