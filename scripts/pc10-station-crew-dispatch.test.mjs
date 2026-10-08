@@ -380,6 +380,56 @@ test('does not dispatch if the authoritative attack lock drops after the strict 
   assert.deepEqual(pdf.effects.clicks, []);
 });
 
+// Source-shaped synthetic transitions: the PDF launch panel paints, then the
+// already-used live reader sees a changed attack tuple. No native Attempt22
+// attack-after-paint sample was retained.
+const postPaintAttackChanges = [
+  { name: 'declared lock drops', patch: { airspaceLocked: false } },
+  { name: 'P site changes', patch: { threatSiteCode: 'Q' } },
+];
+for (const change of postPaintAttackChanges) {
+  test(`stops after source paint when the exact P attack ${change.name}`, async () => {
+    const current = attack('targeting');
+    let latest = current, panelTextReads = 0, paintComplete = false, postPaintAttackReads = 0, actions = 0;
+    const pdf = surface('refinery-124-pdf-colonel', { type: 'pdf-escort-wing-launch-view',
+      sessionId, turn: 3, revision: 8, wingRevision: 4, launched: false, eligible: true });
+    const originalLocator = pdf.page.locator;
+    pdf.page.locator = selector => {
+      const panel = originalLocator(selector);
+      return { ...panel, innerText: async () => {
+        const text = await panel.innerText();
+        panelTextReads++;
+        if (panelTextReads === 2) {
+          latest = { ...latest, ...change.patch };
+          paintComplete = true;
+        }
+        return text;
+      } };
+    };
+    const opts = options([{ roleId: pdf.label, surface: pdf }], current);
+    opts.readAttack = async () => {
+      if (paintComplete) postPaintAttackReads++;
+      return latest;
+    };
+    opts.action = async (surface, endpoint, choose, metadata) => {
+      actions++;
+      await choose();
+      return { endpoint, data: metadata.expectedRequest, httpStatus: 200, result: { status: 'committed' } };
+    };
+
+    let result, failure;
+    try { result = await dispatchStationCrewChoice(current, opts); } catch (error) { failure = error; }
+    assert.equal(failure, undefined,
+      `${change.name} after paint should stop at readiness without entering the UI action; got ${failure?.message}.`);
+    assert.equal(result, undefined, `${change.name} after paint grants no choice result.`);
+    assert.equal(panelTextReads, 2, 'The source panel must actually paint before the exact attack changes.');
+    assert.equal(postPaintAttackReads, 1,
+      `${change.name} must be caught by the readiness bookend without a later dispatcher-stage read.`);
+    assert.equal(actions, 0, `${change.name} after paint must be detected before lifecycle/action capture.`);
+    assert.deepEqual(pdf.effects.clicks, []);
+  });
+}
+
 test('returns no choice when the supplied attack has already changed before dispatcher entry', async () => {
   const pdf = surface('refinery-124-pdf-colonel', { type: 'pdf-escort-wing-launch-view',
     sessionId, turn: 3, revision: 8, wingRevision: 4, launched: false, eligible: true });
