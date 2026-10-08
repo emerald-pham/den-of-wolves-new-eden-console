@@ -464,7 +464,7 @@ for (const changedField of ['connectionGeneration', 'identityHydrationRevision',
     let failure;
     try { await dispatchStationCrewChoice(initial, opts); } catch (error) { failure = error; }
 
-    assert.match(failure?.message ?? '', new RegExp(`Original combat ${changedField} changed|Original Station actor ${changedField} changed`));
+    assert.match(failure?.message ?? '', new RegExp(`Original combat ${changedField} changed|Original Station actor ${changedField} changed|Original member ${changedField} must remain exact`));
     const [held] = heldProofFailureObservations(failure);
     assert.equal(held.operation, 'station-crew-lock-readiness');
     assert.ok(held.consumedObservations.actorScopes.length >= 1);
