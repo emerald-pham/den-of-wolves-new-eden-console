@@ -342,6 +342,140 @@ test('keeps the original discovery epoch pinned during restricted-lock readiness
   assert.deepEqual(actor.effects.clicks, []);
 });
 
+for (const changedField of ['attackId', 'revision']) {
+  test(`stops with zero source or UI work when the current attack ${changedField} changes during lock readiness`, async () => {
+    const initial = { ...attack('targeting'), airspaceLocked: false };
+    const pdf = surface('refinery-124-pdf-colonel', { type: 'pdf-escort-wing-launch-view',
+      sessionId, turn: 3, revision: 8, wingRevision: 4, launched: false, eligible: true });
+    let attackReads = 0, actions = 0;
+    const opts = options([{ roleId: pdf.label, surface: pdf }], initial);
+    opts.readAttack = async () => {
+      attackReads++;
+      return attackReads === 1 ? initial : { ...initial,
+        [changedField]: changedField === 'revision' ? initial.revision + 1 : 'replacement-attack' };
+    };
+    opts.action = async () => { actions++; throw new Error('A changed attack must not reach a UI action.'); };
+
+    assert.equal(await dispatchStationCrewChoice(initial, opts), undefined);
+    assert.ok(attackReads >= 2, 'The attack must change after dispatcher entry while the actor scope is being sampled.');
+    assert.deepEqual(pdf.effects.reads, []);
+    assert.deepEqual(pdf.effects.clicks, []);
+    assert.equal(actions, 0);
+  });
+}
+
+test('keeps the original deadline when the member remains lifted and retains timeout observations', async () => {
+  const initial = { ...attack('targeting'), airspaceLocked: false };
+  const pdf = surface('refinery-124-pdf-colonel', { type: 'pdf-escort-wing-launch-view',
+    sessionId, turn: 3, revision: 8, wingRevision: 4, launched: false, eligible: true });
+  pdf.testActor.airspace = 'lifted';
+  const originalDeadlineAt = Date.now() + 120;
+  const opts = { ...options([{ roleId: pdf.label, surface: pdf }], initial), deadlineAt: originalDeadlineAt,
+    readAttack: async () => initial };
+  let failure;
+  try { await dispatchStationCrewChoice(initial, opts); } catch (error) { failure = error; }
+
+  assert.match(failure?.message ?? '', /deadline expired/);
+  const [held] = heldProofFailureObservations(failure);
+  assert.equal(held.operation, 'station-crew-lock-readiness');
+  assert.equal(held.deadlineAt, originalDeadlineAt);
+  assert.deepEqual(held.originalAttack, { attackId: 'attack-p', threatSiteCode: 'P', turn: 3,
+    revision: 8, status: 'declared', currentStep: 'targeting', airspaceLocked: false });
+  assert.deepEqual(pdf.effects.reads, []);
+  assert.deepEqual(pdf.effects.clicks, []);
+});
+
+for (const changedField of ['connectionGeneration', 'identityHydrationRevision', 'uidHash']) {
+  test(`rejects ${changedField} drift during lock readiness before reading or acting`, async () => {
+    const initial = { ...attack('targeting'), airspaceLocked: false };
+    const pdf = surface('refinery-124-pdf-colonel', { type: 'pdf-escort-wing-launch-view',
+      sessionId, turn: 3, revision: 8, wingRevision: 4, launched: false, eligible: true });
+    let latest = initial, samples = 0;
+    pdf.testActor.airspace = 'lifted';
+    pdf.page.evaluate = async () => {
+      samples++;
+      if (samples === 1) {
+        const observed = { ...pdf.testActor, ...pdf.testAuthority };
+        pdf.testActor.airspace = 'restricted';
+        latest = { ...latest, airspaceLocked: true };
+        return observed;
+      }
+      if (samples === 2) {
+        if (changedField === 'uidHash') pdf.testActor.uidHash = 'different-authenticated-actor';
+        else {
+          pdf.testActor[changedField]++;
+          pdf.testAuthority[changedField]++;
+        }
+      }
+      return { ...pdf.testActor, ...pdf.testAuthority };
+    };
+    const opts = options([{ roleId: pdf.label, surface: pdf }], initial);
+    opts.readAttack = async () => latest;
+    let failure;
+    try { await dispatchStationCrewChoice(initial, opts); } catch (error) { failure = error; }
+
+    assert.match(failure?.message ?? '', new RegExp(`Original combat ${changedField} changed|Original Station actor ${changedField} changed`));
+    const [held] = heldProofFailureObservations(failure);
+    assert.equal(held.operation, 'station-crew-lock-readiness');
+    assert.ok(held.consumedObservations.actorScopes.length >= 1);
+    assert.deepEqual(pdf.effects.reads, []);
+    assert.deepEqual(pdf.effects.clicks, []);
+  });
+}
+
+test('rejects a changed turnStatePhase during lock readiness without normalizing the phase', async () => {
+  const initial = { ...attack('targeting'), airspaceLocked: false };
+  const pdf = surface('refinery-124-pdf-colonel', { type: 'pdf-escort-wing-launch-view',
+    sessionId, turn: 3, revision: 8, wingRevision: 4, launched: false, eligible: true });
+  let latest = initial, samples = 0;
+  pdf.testActor.airspace = 'lifted';
+  pdf.page.evaluate = async () => {
+    samples++;
+    if (samples === 1) {
+      const observed = { ...pdf.testActor, ...pdf.testAuthority };
+      pdf.testActor.airspace = 'restricted';
+      latest = { ...latest, airspaceLocked: true };
+      return observed;
+    }
+    if (samples === 2) pdf.testActor.turnStatePhase = 'team';
+    return { ...pdf.testActor, ...pdf.testAuthority };
+  };
+  const opts = options([{ roleId: pdf.label, surface: pdf }], initial);
+  opts.readAttack = async () => latest;
+  let failure;
+  try { await dispatchStationCrewChoice(initial, opts); } catch (error) { failure = error; }
+
+  assert.match(failure?.message ?? '', /Original combat turnStatePhase changed/);
+  const [held] = heldProofFailureObservations(failure);
+  assert.equal(held.operation, 'station-crew-lock-readiness');
+  assert.deepEqual(pdf.effects.reads, []);
+  assert.deepEqual(pdf.effects.clicks, []);
+});
+
+test('rejects restricted-to-lifted restoration after scope freeze inside the strict observer fence', async () => {
+  const current = attack('targeting');
+  const pdf = surface('refinery-124-pdf-colonel', { type: 'pdf-escort-wing-launch-view',
+    sessionId, turn: 3, revision: 8, wingRevision: 4, launched: false, eligible: true });
+  let strictSamples = 0;
+  pdf.observe = async () => ({ ...pdf.testActor });
+  pdf.page.evaluate = async () => {
+    strictSamples++;
+    if (strictSamples === 4) pdf.testActor.airspace = 'lifted';
+    return { ...pdf.testActor, ...pdf.testAuthority };
+  };
+  const opts = options([{ roleId: pdf.label, surface: pdf }], current);
+  let failure;
+  try { await dispatchStationCrewChoice(current, opts); } catch (error) { failure = error; }
+
+  assert.match(failure?.message ?? '', /Original combat airspace changed/);
+  const [held] = heldProofFailureObservations(failure);
+  assert.equal(held.operation, 'station-crew-current-source-readiness');
+  assert.equal(held.originalActor.airspace, 'restricted');
+  assert.equal(held.consumedObservations.actorScopes.length, 2);
+  assert.deepEqual(pdf.effects.reads, [], 'Strict post-freeze actor drift is rejected before private choice read.');
+  assert.deepEqual(pdf.effects.clicks, []);
+});
+
 test('does not treat a generic action wrapper status as a committed source receipt', async () => {
   const pdf = surface('refinery-124-pdf-colonel', { type: 'pdf-escort-wing-launch-view',
     sessionId, turn: 3, revision: 8, wingRevision: 4, launched: false, eligible: true });
