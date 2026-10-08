@@ -329,11 +329,12 @@ test('active UI receipt helper consumes every exercised normal callable and refu
     const data={sessionId:sid,requestId:`${endpoint}-1`,...fields};
     const request={url:()=>`http://127.0.0.1:5013/demo-pc11-test/us-central1/${endpoint}`,method:()=> 'POST',postDataJSON:()=>({data})};
     const response={request:()=>request,url:request.url,status:()=>200,json:async()=>({result})};
-    surface.page.waitForResponse=async predicate=>{assert.equal(predicate(response),true);return response;};
-    const captured=await captureLifecycleUiAction(surface,endpoint,async()=>{surface.page.emit('request',request);},{correlateRequests:true});
+    surface.page.waitForResponse=predicate=>new Promise((resolve,reject)=>surface.page.once('request',()=>queueMicrotask(()=>predicate(response)?resolve(response):reject(new Error('Unmatched request')))));
+    const choose=async()=>{surface.page.emit('request',request);};
+    const captured=await captureLifecycleUiAction(surface,endpoint,choose,{correlateRequests:true});
     assert.deepEqual(captured.data,data);assert.deepEqual(captured.result,result);assert.equal(publicLifecycleReceipt(captured).endpoint,endpoint);
-    data.sessionId='foreign';await assert.rejects(captureLifecycleUiAction(surface,endpoint,async()=>{}));data.sessionId=sid;
-    response.json=async()=>({result:{status:'denied'}});await assert.rejects(captureLifecycleUiAction(surface,endpoint,async()=>{}));
+    data.sessionId='foreign';await assert.rejects(captureLifecycleUiAction(surface,endpoint,choose,{correlateRequests:true}));data.sessionId=sid;
+    response.json=async()=>({result:{status:'denied'}});await assert.rejects(captureLifecycleUiAction(surface,endpoint,choose,{correlateRequests:true}));
   }}finally{await rm(directory,{recursive:true});}
 });
 
