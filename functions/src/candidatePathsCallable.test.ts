@@ -93,6 +93,14 @@ describe('ordinary candidate callable authority and durable replay', () => {
     expect(documents.get('sessions/s1/candidateActionReceipts/edition-behavior-replay')?.result).toEqual(first);
     expect(retry).toEqual({ ...first, status: 'replayed' });
   });
+  it('keeps edition selection behind the real current-GM instance authority guard', async () => {
+    const choice = { sessionId: 's1', requestId: 'edition-player-denied', expectedRevision: 0,
+      expectedGroupId: 'fleet-1', instanceId: 'instance1', edition: 'deluxe' };
+    await expect(handlers.selectEdition(request(choice, 'admiral'))).rejects.toMatchObject({ code: 'permission-denied' });
+    expect(documents.has('sessions/s1/serverState/candidates')).toBe(false);
+    expect(documents.has('sessions/s1/candidateActionReceipts/edition-player-denied')).toBe(false);
+    expect(documents.has('sessions/s1/actionAudits/edition-player-denied')).toBe(false);
+  });
   it('authorizes edition selection only to the live GM instance and locks it across every fleet group', async () => {
     const choice = { sessionId: 's1', requestId: 'edition-deluxe', expectedRevision: 0,
       expectedGroupId: 'fleet-1', instanceId: 'instance1', edition: 'deluxe' };
