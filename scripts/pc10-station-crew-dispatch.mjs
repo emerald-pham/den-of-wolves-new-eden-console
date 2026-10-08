@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
-import { inspectWolfChoicePaint, observeWolfChoiceActor, waitForWolfChoiceReadiness } from './pc10-combat-choice-readiness.mjs';
+import { setTimeout as delay } from 'node:timers/promises';
+import { assertWolfChoiceActor, inspectWolfChoicePaint, observeWolfChoiceActor,
+  waitForWolfChoiceReadiness } from './pc10-combat-choice-readiness.mjs';
+import { rememberProofFailure } from './pc10-proof-failure-evidence.mjs';
 
 const rangeSteps = new Set(['long-range', 'medium-range', 'short-range']);
 const escortRangeSteps = new Set(['medium-range', 'short-range']);
@@ -15,6 +18,10 @@ function assertBudget(deadlineAt) {
 
 function sameAttack(current, expected) {
   return current && attackKeys.every(key => current[key] === expected[key]) && current.threatSiteCode === 'P';
+}
+
+function lockedAttack(current, expected) {
+  return sameAttack(current, expected) && current.status === 'declared' && current.airspaceLocked === true;
 }
 
 function routePath(page) {
@@ -123,10 +130,154 @@ async function inspectSourcePaint(page, spec, view) {
   return painted;
 }
 
+const actorMemberKeys = ['uidHash', 'sessionId', 'meSessionId', 'profileRoleId', 'profileSessionId', 'playerRole',
+  'assignedRoleId', 'activeConsoleRoleId', 'seatId', 'fleetGroupId', 'connectionGeneration',
+  'identityHydrationRevision', 'replacementRoleId', 'replacementStatus', 'cycle', 'phase', 'documentTimeOrigin'];
+
+function assertMemberSampleMatches(member, sample, label) {
+  if (!member || typeof member !== 'object') return;
+  for (const key of actorMemberKeys) {
+    if (Object.hasOwn(member, key) && Object.hasOwn(sample, key))
+      assert.deepEqual(sample[key], member[key], `Current Station actor ${key} differs between ${label} and the mounted SDK sample.`);
+  }
+  if (Object.hasOwn(member, 'meSessionId'))
+    assert.equal(sample.sessionId, member.meSessionId, `Current Station actor member session changed during ${label}.`);
+}
+
+function assertActorScopeUnchanged(current, original) {
+  // The only field allowed to settle while the server lock arrives is airspace.
+  // In particular, turnStatePhase, identity epochs and discovery remain exact.
+  assertWolfChoiceActor({ ...current, airspace: original.airspace }, original);
+  assert.ok(current.airspace === original.airspace ||
+    original.airspace === 'lifted' && current.airspace === 'restricted',
+  'Station actor airspace moved outside the declaration lock transition.');
+  assert.deepEqual(current.discoveryAuthority, original.discoveryAuthority,
+    'Original Station member discovery authority changed before choice scope freeze.');
+  assert.equal(current.entitledShipId, original.entitledShipId,
+    'Original Station member entitled ship changed before choice scope freeze.');
+  assert.equal(current.documentTimeOrigin, original.documentTimeOrigin,
+    'Original Station browser document changed before choice scope freeze.');
+}
+
+async function observePreFreezeActor(actor, current, context, trace) {
+  const { surface } = actor;
+  assertBudget(context.deadlineAt);
+  const memberBefore = await context.assertActor(actor, { current, deadlineAt: context.deadlineAt });
+  assertBudget(context.deadlineAt);
+  const sample = await surface.page.evaluate(async moduleUrl => {
+    const { auth } = await import('/src/lib/firebase.ts');
+    const { activeDemoActorProfile } = await import('/src/lib/demoActorContext.ts');
+    const { useSessionStore } = await import(moduleUrl);
+    const originalUid = auth().currentUser?.uid;
+    const uidHash = originalUid ? Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',
+      new TextEncoder().encode(originalUid)))).map(byte => byte.toString(16).padStart(2, '0')).join('').slice(0, 16) : null;
+    const state = useSessionStore.getState(), user = auth().currentUser, session = state.session, me = state.me;
+    if (user?.uid !== originalUid) throw new Error('Original Station Auth UID changed during lock readiness observation.');
+    const discovery = session?.playerDiscovery;
+    return { hasAuth: !!user, sameActor: !!user && user.uid === me?.uid, uidHash,
+      sessionId: session?.id ?? null, profileRoleId: activeDemoActorProfile?.roleId ?? null,
+      profileSessionId: activeDemoActorProfile?.sessionId ?? null, playerRole: me?.role ?? null,
+      phase: session?.phase ?? null, cycle: session?.currentTurn ?? null, fleetGroupId: me?.fleetGroupId ?? null,
+      connectionGeneration: me?.connectionGeneration ?? null, identityHydrationRevision: state.identityHydrationRevision ?? null,
+      replacementRoleId: me?.replacementRoleId ?? null, replacementStatus: me?.replacementStatus ?? null,
+      seatId: me?.seatId ?? null, assignedRoleId: me?.assignedRoleId ?? null,
+      activeConsoleRoleId: me?.activeConsoleRoleId ?? null, airspace: session?.turnPhase?.airspace?.state ?? null,
+      turnStatePhase: session?.turnState?.phase ?? null, phaseProgression: session?.turnPhase?.progression ?? null,
+      connection: state.connection, freshness: state.sessionSnapshotFreshness,
+      documentTimeOrigin: performance.timeOrigin, instanceId: state.gmInstance?.id ?? null,
+      gmInstanceOwned: !!state.gmInstance && state.gmInstance.uid === user?.uid &&
+        state.gmInstance.sessionId === session?.id, connected: me?.connected !== false,
+      discoveryAuthority: discovery ? { groupId: discovery.groupId, shipId: discovery.shipId ?? null,
+        revision: discovery.revision, fleetGroupVesselIds: [...(discovery.fleetGroupVesselIds ?? [])] } : null };
+  }, surface.storeModuleUrl());
+  assertBudget(context.deadlineAt);
+  const memberAfter = await context.assertActor(actor, { current, deadlineAt: context.deadlineAt });
+  assertBudget(context.deadlineAt);
+  assertMemberSampleMatches(memberAfter, sample, 'post-sample member fence');
+  for (const key of actorMemberKeys) {
+    if (memberBefore && memberAfter && Object.hasOwn(memberBefore, key) && Object.hasOwn(memberAfter, key))
+      assert.deepEqual(memberAfter[key], memberBefore[key], `Original Station actor ${key} changed during lock readiness.`);
+  }
+  assertMemberSampleMatches(memberBefore, sample, 'pre-sample member fence');
+  sample.entitledShipId = sample.replacementStatus == null ? sample.discoveryAuthority?.shipId ?? null : null;
+  assertWolfChoiceActor(sample, sample);
+  assert.equal(sample.sessionId, context.sessionId, 'Lock readiness must stay in the original Station session.');
+  assert.equal(sample.phase, 'active', 'Lock readiness requires the original active gameplay phase.');
+  assert.equal(sample.cycle, current.turn, 'Lock readiness must stay in the original attack cycle.');
+  assert.ok(Number.isSafeInteger(sample.connectionGeneration) && sample.connectionGeneration >= 0,
+    'Original Station connection generation is required before choice scope freeze.');
+  assert.ok(Number.isSafeInteger(sample.identityHydrationRevision) && sample.identityHydrationRevision >= 0,
+    'Original Station identity hydration revision is required before choice scope freeze.');
+  assert.ok(['lifted', 'restricted'].includes(sample.airspace),
+    `Unknown pre-freeze Station airspace state: ${sample.airspace ?? '(missing)'}.`);
+  trace.actorScopes.push(sample);
+  return sample;
+}
+
+function attackTrace(attack) {
+  if (!attack || typeof attack !== 'object') return attack ?? null;
+  return Object.fromEntries(['attackId', 'threatSiteCode', 'turn', 'revision', 'status', 'currentStep', 'airspaceLocked']
+    .map(key => [key, attack[key] ?? null]));
+}
+
+async function waitForLockedActorScope(current, actor, context) {
+  const trace = { attackReads: [], actorScopes: [] };
+  const inspectAttack = async () => {
+    assertBudget(context.deadlineAt);
+    const attack = await context.readAttack();
+    assertBudget(context.deadlineAt);
+    trace.attackReads.push(attackTrace(attack));
+    return attack;
+  };
+  try {
+    const original = await observePreFreezeActor(actor, current, context, trace);
+    let attack = await inspectAttack();
+    if (!sameAttack(attack, current)) return { status: 'source-changed', trace };
+    let observed = original;
+    while (Date.now() < context.deadlineAt) {
+      assertActorScopeUnchanged(observed, original);
+      if (lockedAttack(attack, current) && observed.airspace === 'restricted') {
+        const strict = await observeWolfChoiceActor(actor.surface);
+        assertBudget(context.deadlineAt);
+        assertActorScopeUnchanged(strict, original);
+        assert.equal(strict.airspace, 'restricted', 'The strict source snapshot must follow the authoritative restricted lock.');
+        const locked = await inspectAttack();
+        if (!sameAttack(locked, current) || !lockedAttack(locked, current))
+          return { status: 'source-changed', trace };
+        const after = await observePreFreezeActor(actor, current, context, trace);
+        assertActorScopeUnchanged(after, original);
+        assert.equal(after.airspace, 'restricted', 'The original member projection must remain restricted after scope freeze.');
+        assertActorScopeUnchanged(strict, after);
+        return { status: 'locked', original: strict, trace };
+      }
+      await delay(Math.min(200, Math.max(1, context.deadlineAt - Date.now())));
+      assertBudget(context.deadlineAt);
+      attack = await inspectAttack();
+      if (!sameAttack(attack, current)) return { status: 'source-changed', trace };
+      observed = await observePreFreezeActor(actor, current, context, trace);
+      assertActorScopeUnchanged(observed, original);
+    }
+    assertBudget(context.deadlineAt);
+  } catch (error) {
+    rememberProofFailure(error, { operation: 'station-crew-lock-readiness', roleId: actor.roleId,
+      sessionId: context.sessionId, deadlineAt: context.deadlineAt, originalAttack: attackTrace(current),
+      consumedObservations: trace });
+    throw error;
+  }
+}
+
 async function readySource(current, actor, spec, { sessionId, deadlineAt, assertActor, readAttack }) {
   const surface = actor.surface;
   const source = sourceFor(spec);
   assert.ok(source && typeof surface.callable === 'function', 'An original browser SDK source reader is required.');
+  const context = { sessionId, deadlineAt, assertActor, readAttack };
+  const scope = await waitForLockedActorScope(current, actor, context);
+  if (scope.status === 'source-changed') return scope;
+  const original = scope.original;
+  if (spec.kind === 'range-support' && spec.sourceId === 'highwall')
+    await selectHighwallConsole(current, actor, context);
+  if (spec.kind === 'boarding-special')
+    await returnFromHighwallConsole(current, actor, context);
   const fence = async () => {
     assertBudget(deadlineAt);
     await assertActor(actor, { current, deadlineAt });
@@ -136,19 +287,19 @@ async function readySource(current, actor, spec, { sessionId, deadlineAt, assert
     await fence();
     const observed = await observeWolfChoiceActor(surface);
     assertBudget(deadlineAt);
+    assertActorScopeUnchanged(observed, original);
     return observed;
   };
-  const original = await inspectActor();
   const expected = { ...current, sessionId };
   const inspectAttack = async () => {
     assertBudget(deadlineAt);
     const attack = await readAttack();
     assertBudget(deadlineAt);
-    return attack;
+    return lockedAttack(attack, current) ? attack : null;
   };
   const readChoice = async () => {
     await fence();
-    if (!sameAttack(await inspectAttack(), current)) throw new SourceAttackChanged();
+    if (!lockedAttack(await inspectAttack(), current)) throw new SourceAttackChanged();
     const timeoutMs = Math.min(35_000, deadlineAt - Date.now());
     assert.ok(timeoutMs > 0, 'Original Station deadline expired before its browser SDK source read.');
     const payload = { sessionId, ...source.fields,
@@ -160,7 +311,7 @@ async function readySource(current, actor, spec, { sessionId, deadlineAt, assert
     const reply = await surface.callable(source.endpoint, payload, timeoutMs);
     assertBudget(deadlineAt);
     await fence();
-    if (!sameAttack(await inspectAttack(), current)) throw new SourceAttackChanged();
+    if (!lockedAttack(await inspectAttack(), current)) throw new SourceAttackChanged();
     if (reply?.status !== 'committed') {
       throw new Error(typeof reply?.message === 'string' ? reply.message
         : `Read-only ${source.endpoint} did not return a successful original-browser SDK reply.`);
@@ -175,6 +326,9 @@ async function readySource(current, actor, spec, { sessionId, deadlineAt, assert
     });
   } catch (error) {
     if (error instanceof SourceAttackChanged) return { status: 'source-changed', expected, gameplayCredit: false };
+    rememberProofFailure(error, { operation: 'station-crew-current-source-readiness', roleId: actor.roleId,
+      sessionId, deadlineAt, originalAttack: attackTrace(current), originalActor: original,
+      consumedObservations: scope.trace });
     throw error;
   }
 }
@@ -188,7 +342,7 @@ async function commitUiChoice(current, actor, endpoint, choose, expectedRequest,
   const surface = actor.surface;
   assertBudget(deadlineAt);
   await assertActor(actor, { current, deadlineAt });
-  if (!sameAttack(await readAttack(), current)) return { sourceChanged: true };
+  if (!lockedAttack(await readAttack(), current)) return { sourceChanged: true };
   assertBudget(deadlineAt);
   const capture = await action(surface, endpoint, async () => {
     assertBudget(deadlineAt);
@@ -258,7 +412,6 @@ async function actorFence(actor, current, context) {
 }
 
 async function dispatchHighwallRange(current, actor, context) {
-  await selectHighwallConsole(current, actor, context);
   const spec = { kind: 'range-support', sourceId: 'highwall', range: current.currentStep };
   const ready = await readySource(current, actor, spec, context);
   if (ready.status === 'source-changed') return { sourceChanged: true };
@@ -375,7 +528,6 @@ function specialChoice(view) {
 }
 
 async function dispatchBoardingSpecial(current, actor, context) {
-  await returnFromHighwallConsole(current, actor, context);
   const ready = await readySource(current, actor, { kind: 'boarding-special' }, context);
   if (ready.status === 'source-changed') return { sourceChanged: true };
   if (ready.status !== 'eligible') return undefined;
