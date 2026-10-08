@@ -5,6 +5,7 @@ import {
   parseAwayMissionLifecyclePrivateState,
   parseAwayMissionLifecyclePublicState,
   type AwayMissionLifecycleClientContext,
+  type AwayMissionLifecycleProjectionReader,
 } from './awayMissionLifecycleService';
 
 const publicState = {
@@ -253,4 +254,117 @@ it('sends an exploration choice through current GM authority and parses only its
   expect(invoke).toHaveBeenCalledWith(expect.objectContaining({ type: 'exploreSystems',
     opportunityId: 'D-1', targetCoordinates: ['4454', '5143'], instanceId: 'gm-instance', expectedRevision: 3 }));
   expect(parseAwayMissionLifecyclePublicState({ ...state, explorationTargets: ['4454', '5143'] }, 'mission-1')).toBeNull();
+});
+
+
+describe('Boa half-point outcome delivery', () => {
+  const resolvedBoaState = (difficulty: unknown) => ({
+    ...publicState,
+    revision: 4,
+    phase: 'resolved',
+    status: 'resolved',
+    outcomes: [{
+      opportunityId: 'D-1', contributorCount: 1, total: 8, bonusTotal: 0,
+      difficulty, criticalThreshold: 25, outcome: 'failure',
+    }],
+  });
+
+  it('accepts exact integer-or-half-point difficulties while retaining integer result fields', () => {
+    const accepted = [8, 8.5, Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER / 2, null];
+    for (const difficulty of accepted) {
+      expect(parseAwayMissionLifecyclePublicState(
+        resolvedBoaState(difficulty), 'mission-1',
+      )).not.toBeNull();
+    }
+
+    const rejected = [-0.5, 8.25, Number.NaN, Number.POSITIVE_INFINITY,
+      '8.5', Number.MAX_SAFE_INTEGER + 1];
+    for (const difficulty of rejected) {
+      expect(parseAwayMissionLifecyclePublicState(
+        resolvedBoaState(difficulty), 'mission-1',
+      )).toBeNull();
+    }
+
+    for (const field of ['total', 'bonusTotal', 'criticalThreshold'] as const) {
+      const state = resolvedBoaState(8.5);
+      const outcome = { ...state.outcomes[0], [field]: field === 'criticalThreshold' ? 25.5 : 8.5 };
+      expect(parseAwayMissionLifecyclePublicState(
+        { ...state, outcomes: [outcome] }, 'mission-1',
+      )).toBeNull();
+    }
+  });
+
+  it('accepts a committed final assignment reply carrying the Boa half-point outcome', async () => {
+    const state = resolvedBoaState(8.5);
+    const invoke = vi.fn().mockResolvedValue({
+      status: 'committed', sessionId: 's1', missionId: 'mission-1',
+      requestId: 'boa-final-assignment', revision: 4, publicState: state,
+      privateState: { ...privateState, revision: 4, phase: 'resolved' },
+    });
+    const actions = createAwayMissionLifecycleActions(
+      () => playerContext,
+      { invoke, createRequestId: () => 'boa-final-assignment' },
+    );
+
+    await expect(actions.assignCards([])).resolves.toBeUndefined();
+    expect(invoke).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'assignCards', requestId: 'boa-final-assignment', expectedRevision: 3,
+    }));
+  });
+
+  it('keeps the own mission projection ready when an integer threshold becomes a Boa half-point result', () => {
+    let pointerListener: Parameters<AwayMissionLifecycleProjectionReader['watchOwnPointers']>[2] | undefined;
+    let handListener: Parameters<AwayMissionLifecycleProjectionReader['watchOwnHand']>[3] | undefined;
+    const onState = vi.fn();
+    const reader: AwayMissionLifecycleProjectionReader = {
+      watchAuth: (onUid) => { onUid('bob'); return vi.fn(); },
+      watchOwnPointers: (_sessionId, _uid, onSnapshot) => {
+        pointerListener = onSnapshot;
+        return vi.fn();
+      },
+      watchOwnHand: (_sessionId, _uid, _handId, onSnapshot) => {
+        handListener = onSnapshot;
+        return vi.fn();
+      },
+    };
+    const stop = createAwayMissionLifecycleProjectionSubscription({
+      sessionId: 's1', actorUid: 'bob', onState, reader,
+    });
+    const emitPointer = (state: ReturnType<typeof resolvedBoaState>) => pointerListener!({
+      fromCache: false,
+      hasPendingWrites: false,
+      docs: [{ id: 'hand-bob', data: () => ({
+        type: 'away-mission-hand-pointer', sessionId: 's1', participantUid: 'bob',
+        missionId: 'mission-1', handId: 'hand-bob', phase: state.phase,
+        revision: state.revision, sourceCycle: 1, discarded: false,
+        lifecyclePublicState: state,
+      }) }],
+    });
+    const emitHand = (revision: number, phase: string) => handListener!({
+      fromCache: false,
+      hasPendingWrites: false,
+      exists: true,
+      data: () => ({
+        type: 'away-mission-hand', sessionId: 's1', participantUid: 'bob',
+        missionId: 'mission-1', handId: 'hand-bob',
+        lifecyclePrivateState: { ...privateState, revision, phase },
+      }),
+    });
+
+    emitPointer(publicState);
+    emitHand(3, 'assignment-ready');
+    emitPointer(resolvedBoaState(8.5));
+    emitHand(4, 'resolved');
+
+    expect(onState).toHaveBeenLastCalledWith({
+      status: 'ready',
+      missions: [{
+        publicState: resolvedBoaState(8.5),
+        privateState: { ...privateState, revision: 4, phase: 'resolved' },
+        sourceCycle: 1,
+      }],
+      projectionMissing: false,
+    });
+    stop();
+  });
 });
