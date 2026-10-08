@@ -147,8 +147,10 @@ test('Station declaration accepts the native paired observer schemas without inv
   gmInstanceOwned:true,connection:'live',freshness:'server'};
  const paired={...context,actor:{live,lifecycle}};
  assert.deepEqual(adapter.stationDeclarationRetryProjection(paired).actor,context.actor);
- for(const patch of [{profileSessionId:undefined},{profileSessionId:'foreign-profile-session'}]){
-  const invalid={...paired,actor:{...paired.actor,live:{...live,...patch}}};
+ const missingProfileSession={...live};delete missingProfileSession.profileSessionId;
+ for(const invalidLive of [missingProfileSession,{...live,profileSessionId:undefined},
+  {...live,profileSessionId:'foreign-profile-session'}]){
+  const invalid={...paired,actor:{...paired.actor,live:invalidLive}};
   assert.throws(()=>adapter.stationDeclarationRetryProjection(invalid));
  }
 });
