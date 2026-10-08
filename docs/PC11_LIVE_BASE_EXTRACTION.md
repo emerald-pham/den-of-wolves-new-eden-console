@@ -386,3 +386,36 @@ creation without `PC11_RENDER_ALLOCATED=yes`. No new rendered RED is claimed yet
 and SameTableTradePanel.css remains unchanged until a fresh parent allocation
 runs the failing regression against the audited existing build. The prior built
 landscape screenshot is preserved as the motivating finding.
+
+
+## Complete adapter freeze and landscape repair, October 8
+
+Adapter commit `2bbd89a60af15a6bf475eb2f7864094c3ea91ba6` passed the complete
+no-browser source-contract preflight. Independent Sol review closed the published
+SDK, changed-epoch navigation, exact operational map, partial-admission cleanup,
+retry-count and privacy findings. Launcher/preflight integration: 8/8 passed.
+This is source/native compatibility, not authenticated gameplay proof.
+
+The allocated render window retained actual built RED at
+`/tmp/dow-pc11-landscape-red-focus-20261008/result.json`: 844x390 text column
+31.2px, enlarged text/long name 0px with overflow; phone and desktop passed.
+Four screenshots, actual painted Courier-Bold and keyboard-reachability records
+are retained. Independent visual review confirmed the severe wrapping. The
+owned browser/server closed and port4299 had no listener; no gameplay ran.
+
+Test-only commits `1ab72870` and `9031c0a7` precede repair
+`0032197028451e8ac5dc8ae51e8c338545804f26`. The repair changes one grid property
+to stack offer copy/actions using the available panel width, with current .71
+release-note prose. Independent source review found no blocking finding.
+Production build passed; 21 metadata tests and 8 native launch/preflight tests
+passed. Exact new build inventory (260 artifacts, no server changes):
+`/tmp/dow-pc11-layout-candidate-audit-20261008.json`. Version remains unpublished
+0.5.71. No push or deployment occurred.
+
+Next allocated render command uses the existing four-case regression with
+`PC11_RENDER_ALLOCATED=yes`, a fresh `/tmp/` evidence directory,
+`PC11_BUILD_AUDIT=/tmp/dow-pc11-layout-candidate-audit-20261008.json`, and
+`PC11_RENDER_PORT=4299`. Actual built GREEN and final independent typography
+review remain open. The independently reviewed gameplay adapter is ready for a
+separate bounded runtime allocation. Prior Actual10/11 failures remain evidence;
+no source fixture grants live Auth, rules, navigation or mutation proof.
