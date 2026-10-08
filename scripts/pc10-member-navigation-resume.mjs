@@ -127,7 +127,11 @@ export function createMemberNavigationResumeObserver(page, { directory, roleId, 
     } catch (error) { append({ kind: 'response-read-error', error: safeError(error, 'response-read-failed') }); }
   });
   on('requestfailed', request => {
-    try { const name = endpoint(request); if (watchedEndpoints.has(name)) append({ kind: 'requestfailed', endpoint: name }); }
+    try {
+      const name = endpoint(request);
+      if (watchedEndpoints.has(name)) append({ kind: 'requestfailed', endpoint: name });
+      const receipt = requests.get(request); if (receipt) receipt.requestFailed = true;
+    }
     catch (error) { append({ kind: 'requestfailed-read-error', error: safeError(error, 'requestfailure-read-failed') }); }
   });
   on('framenavigated', frame => append({ kind: 'framenavigated', route: safeRoute(frame.url()),
@@ -148,13 +152,22 @@ export function createMemberNavigationResumeObserver(page, { directory, roleId, 
         row.baseline.identityHydrationRevision === original.identityHydrationRevision);
       await beforeDeadline(Promise.all(candidates.map(row => row.parsed)), deadlineAt);
       assert.ok(Date.now() < deadlineAt, 'Original role navigation deadline expired.');
-      const receipt = candidates.find(row => row.requestMatches && row.requestSessionId === original.sessionId &&
+      const originalRequests = candidates.filter(row => !row.requestFailed && row.requestMatches && row.requestSessionId === original.sessionId);
+      const receipt = originalRequests.find(row =>
         row.httpStatus === 200 && row.reply?.sessionId === original.sessionId && row.reply.uidHash === original.uidHash &&
         row.reply.connectionGeneration === original.connectionGeneration + 1 &&
         row.reply.connectionGeneration === current.connectionGeneration &&
         (row.reply.connected === true || !row.reply.connectedFieldPresent && row.reply.connected === null) && !row.reply.escapeLocked &&
         stableMemberFields.every(key => row.reply.player[key] === current[observationField[key] ?? key]) &&
         row.reply.player.role === 'player');
+      // The own-player feed may publish the new lease before HTTP delivery or
+      // SDK applySession. Only that exact captured ordinary request may wait;
+      // no authority is accepted until the receipt and hydration checks below.
+      if (current.connectionGeneration === original.connectionGeneration + 1 &&
+          current.identityHydrationRevision === original.identityHydrationRevision &&
+          current.hasAuth === true && current.sameActor === true &&
+          stableObservationFields.every(key => current[key] === original[key]) &&
+          originalRequests.some(row => row.respondedAt === undefined || row === receipt)) return false;
       assert.ok(receipt && current.identityHydrationRevision === original.identityHydrationRevision + 1,
         'Original role navigation epoch changed without its matching normal resume receipt and accepted hydration.');
       // The actual normal DTO omits connected. Current own-player confirmation
@@ -166,7 +179,14 @@ export function createMemberNavigationResumeObserver(page, { directory, roleId, 
       // Reuse the exact post-digest original-member observation. Identity,
       // seat ownership, transaction witness and SDK fence are sampled together
       // after the async yield, inside the caller's original deadline.
-      const settled = await beforeDeadline(readAcceptedCurrent(), deadlineAt);
+      const observed = await beforeDeadline(readAcceptedCurrent(), deadlineAt);
+      // Both readers observe the same mounted SDK authority after the digest.
+      // Preserve an explicit clientAcceptance object; the presentation reader
+      // exposes the same two booleans as sdkHasServerAuthority/sdkResumePending.
+      const accepted = Object.hasOwn(observed, 'clientAcceptance') ? observed.clientAcceptance : {
+        hasServerAuthority: observed.sdkHasServerAuthority, resumePending: observed.sdkResumePending,
+      };
+      const settled = { ...observed, clientAcceptance: accepted };
       assert.ok(Date.now() < deadlineAt, 'Original role navigation deadline expired.');
       for (const key of stableObservationFields) assert.equal(settled[key], original[key],
         `Original resumed ${key} changed during client acceptance observation.`);
@@ -175,7 +195,6 @@ export function createMemberNavigationResumeObserver(page, { directory, roleId, 
       assert.equal(settled.identityHydrationRevision, original.identityHydrationRevision + 1);
       assert.ok(stableMemberFields.every(key => receipt.reply.player[key] === settled[observationField[key] ?? key]),
         'Original resumed member scope changed during client acceptance observation.');
-      const accepted = settled.clientAcceptance;
       if (settled.connection !== 'live' || settled.freshness !== 'server' || !settled.currentMemberBerthPresent ||
           !settled.currentMemberBerthMatches || !settled.currentOwnPlayerConfirmed ||
           accepted?.hasServerAuthority !== true || accepted.resumePending !== false) return false;

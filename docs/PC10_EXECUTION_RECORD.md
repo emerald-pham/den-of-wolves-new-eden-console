@@ -975,3 +975,17 @@ The completed case reaches the original deadline on unchanged observer code;
 the negative remains GREEN. Combined10tests record4RED/6GREEN before repair.
 This is a proof schema mismatch with observed source regression, not an
 additional native failure or evidence that the product eventually resumed.
+
+The observer repair waits only when the exact original-bound ordinary request
+is still in flight, or its matching200receipt awaits hydration, at precisely
+one newer generation and unchanged hydration/identity. A failed request cannot
+qualify. It accepts the actual presentation reader's two mounted SDK booleans
+while preserving any explicit `clientAcceptance` object. Receipt validation,
+the exact hydration increment, post-digest Auth/member checks, fresh server
+witness, canonical seat and settled SDK fence remain required before acceptance.
+No resume, store mutation, interception or deadline extension is added.
+All57affected navigation tests pass. The recharge runner and product source
+remain unchanged. This repairs the proof contract; a new parent allocation is
+still required to establish actual Captain entry and remaining recharge
+recovery/reload/second-use behavior. Prior earned native claims remain bounded
+to their original sources and are not repeated or promoted to family completion.
