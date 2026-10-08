@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { execFileSync } from 'node:child_process';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile, realpath } from 'node:fs/promises';
 import { setTimeout as delay } from 'node:timers/promises';
 import { observeUiReceipt, attachUiReceiptDiagnostics } from './pc10-browser-ui-receipt.mjs';
 import { originalProofError, retainProofFailure } from './pc10-proof-failure-evidence.mjs';
@@ -641,7 +641,7 @@ async function enterRole(surface,label){
  }
  if(primaryFailure)throw primaryFailure;return evidence;
 }
-if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
+if(process.argv[1]&&await realpath(process.argv[1])===await realpath(fileURLToPath(import.meta.url))){
  const args=process.argv.slice(2);assert.equal(args.length,4,'Use --allocation ABSOLUTE_JSON --evidence NEW_ABSOLUTE_DIRECTORY.');
  assert.equal(args[0],'--allocation');assert.equal(args[2],'--evidence');
  await runFreshMinimumRingProof({allocationPath:args[1],directory:args[3]});

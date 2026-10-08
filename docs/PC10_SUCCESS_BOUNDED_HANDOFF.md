@@ -262,3 +262,22 @@ same cap (no bypass/retry), bind owned Auth cleanup against prelaunch census
 and precision-aware creation time, require no collected page/remote errors,
 and explicitly label wider noninterference `not-measured`. The final focused
 suite has nine synthetic contracts; native execution remains untested.
+
+### Allocated attempt stopped at CLI entrypoint (October 8)
+
+Parent explicitly started the reviewed f9e0bcbd run. Slot5 was verified free,
+exact Functions source built, and isolated Auth/Firestore/Functions plus Vite
+started after the sandbox loopback EPERM was resolved through approval.
+The documented `/tmp` CLI then exited0 with no output or evidence directory:
+Node resolved import.meta.url to `/private/tmp`, so the original lexical path
+comparison skipped execution. This is a harness failure, not gameplay evidence.
+No browser, Auth actor, session or gameplay action launched; no N/619 claim earned.
+Stopped at that first material failure and released only owned slot5 wrappers
+and configured reservation; retained slot1/slot2 services stayed untouched.
+
+A subprocess regression observed alias exit0 as RED (`d815defd`). The narrow
+entrypoint repair canonicalizes argv and import paths with filesystem realpath,
+then applies the same CLI argument validation. Both canonical and alias commands
+now validate arguments, with all ten runner contracts GREEN. Native acceptance
+requires a new exact-source allocation after this source change; the original
+f9e0bcbd grant/hashes must not be reused for the repaired runner.
