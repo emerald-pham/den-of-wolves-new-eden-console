@@ -176,6 +176,7 @@ it('denies a wrong role, wrong phase, stale pair, and foreign or colliding recei
   await expect(exchangeAegisFighterWings.run(request({ ...command, requestId: 'stale', expectedAlphaRevision: 3 })))
     .rejects.toMatchObject({ code: 'failed-precondition' });
   await exchangeAegisFighterWings.run(request());
+  put('sessions/s1/players/intruder', mock.documents.get('sessions/s1/players/wing')!);
   await expect(exchangeAegisFighterWings.run(request(command, 'intruder')))
     .rejects.toMatchObject({ code: 'permission-denied' });
   await expect(exchangeAegisFighterWings.run(request({ ...command, amount: 2 })))
