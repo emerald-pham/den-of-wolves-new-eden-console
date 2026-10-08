@@ -2013,4 +2013,3 @@ test('Attempt26 scoped GM with absent ship berth preserves actual lease authorit
  assert.equal(sample.gmInstanceOwned,true);assert.equal(f.counts.capture,0);
  assert.deepEqual(f.actorSurface.effects.clicks,[]);
 });
-
