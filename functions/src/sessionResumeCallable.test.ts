@@ -290,6 +290,47 @@ it('renews a current live member without scanning every player or rewriting shar
   expect(mock.update.mock.calls.map(([ref]) => ref.path)).not.toContain('sessions/s1/serverState/navigation');
 });
 
+it('restores missing printed loyalty directives from the current holder private secret on resume', async () => {
+  const current = prepareResume({ status: 'open', holderUid: null });
+  const secretPath = 'sessions/s1/secrets/loyalty-u1';
+  overrideResumeRead(secretPath, {
+    visibleToUids: ['u1'],
+    payload: { type: 'loyalty', kind: 'android', suspicion: null, proofRevealed: true },
+  });
+  mock.enforceReadOrder = true;
+
+  await resumeSession.run(request('s1'));
+
+  expect(mock.update).toHaveBeenCalledWith(
+    expect.objectContaining({ path: secretPath }),
+    expect.objectContaining({ payload: expect.objectContaining({
+      type: 'loyalty', kind: 'android', suspicion: null, proofRevealed: true,
+      directives: expect.arrayContaining([expect.stringMatching(/android identity secret/i)]),
+    }) }),
+  );
+});
+
+it.each([
+  ['GM', { role: 'gm' }],
+  ['replacement', { replacementStatus: 'awaiting-re-role', replacementRoleId: 'cadet' }],
+  ['foreign audience', { secretAudience: ['u2'] }],
+] as const)('does not backfill a private loyalty card for a %s resume', async (_label, override) => {
+  const playerPatch = 'secretAudience' in override ? {} : { ...override };
+  prepareResume({ status: 'open', holderUid: null }, playerPatch);
+  const secretPath = 'sessions/s1/secrets/loyalty-u1';
+  const visibleToUids = 'secretAudience' in override ? override.secretAudience : ['u1'];
+  overrideResumeRead(secretPath, {
+    visibleToUids,
+    payload: { type: 'loyalty', kind: 'wolf-agent', suspicion: 0 },
+  });
+  mock.enforceReadOrder = true;
+
+  await resumeSession.run(request('s1'));
+
+  expect(mock.update.mock.calls.some(([reference]) =>
+    (reference as { path: string }).path === secretPath)).toBe(false);
+});
+
 function overrideResumeRead(path: string, fields: Readonly<Record<string, unknown>>, exists = true) {
   const underlying = mock.get.getMockImplementation()!;
   mock.get.mockImplementation((ref: { path: string }) => ref.path === path ? snapshot(fields, exists) : underlying(ref));
