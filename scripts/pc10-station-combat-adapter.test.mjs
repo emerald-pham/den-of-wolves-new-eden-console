@@ -118,12 +118,12 @@ function stationDeclareRetryContext(overrides={}) {
    turnState:{currentTurn:2,maxTurn:8,phase:'coordination',phaseRevision:22,
     startedAt:'source-start',endsAt:'source-end'},gameOutcome:null,survivorOutcome:null,
    debriefMode:{active:false,revision:0},hasDebriefSnapshot:false},
-  window:{status:'due',turn:2,revision:20,targetGroupId:'fleet-1',threatSiteCode:'P',threatSourceId:'p-source'},
+  window:{status:'due',turn:2,revision:20,targetGroupId:'fleet-1',threatSiteCode:'P',threatSourceId:'arrival-p-source'},
   preparation:{turn:2,shipIds:['wolf-strikecarrier','wolf-battlestation'],targetMode:'pre-rolled',
    targetAssignments:[],modifiers:[],notes:'',revision:10,compositionKind:'p-station-repeat',targetGroupId:'fleet-1'},
   attack:{type:'wolf-attack-state',attackId:'previous-resolved-attack',turn:2,attackNumber:9,revision:10,
    preparationRevision:9,status:'resolved',currentStep:'resolved',airspaceLocked:false,
-   targetGroupId:'fleet-1',threatSiteCode:'P',threatSourceId:'p-source',pStationRepeat:{status:'repeat'}},
+   targetGroupId:'fleet-1',threatSiteCode:'P',threatSourceId:'arrival-p-source',pStationRepeat:{status:'repeat'}},
   ...overrides,
  };
 }
@@ -195,6 +195,7 @@ test('Station declaration recovery fails closed on changed authority, phase, pre
   {actor:{...expected.actor,sessionId:'foreign'}},{actor:{...expected.actor,uidHash:'foreign'}},
   {actor:{...expected.actor,instanceId:'replacement'}},{actor:{...expected.actor,claimedAt:'new-lease'}},
   {actor:{...expected.actor,privateAudienceMatches:false}},{actor:{...expected.actor,foreignPendingCount:1}},
+  {actor:{...expected.actor,cycle:3}},
   {actor:{...expected.actor,generation:2}},{actor:{...expected.actor,hydrationRevision:2}},
   {session:{...expected.session,turnState:{...expected.session.turnState,phase:'team'}}},
   {session:{...expected.session,turnPhase:{...expected.session.turnPhase,airspace:{...expected.session.turnPhase.airspace,state:'restricted'}}}},
