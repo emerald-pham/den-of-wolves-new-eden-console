@@ -304,7 +304,7 @@ function attackTrace(attack) {
 }
 
 async function waitForLockedActorScope(current, actor, context) {
-  const trace = { attackReads: [], actorScopes: [], sourceReplies: [], paintObservations: [] };
+  const trace = { attackReads: [], actorScopes: [], sourceReplies: [], sourceReadAttempts: [], paintObservations: [] };
   const inspectAttack = async () => {
     assertBudget(context.deadlineAt);
     const attack = await context.readAttack();
@@ -379,11 +379,12 @@ async function readySource(current, actor, spec, { sessionId, deadlineAt, assert
     assertBudget(deadlineAt);
     const attack = await readAttack();
     assertBudget(deadlineAt);
-    return lockedAttack(attack, current) ? attack : null;
+    return attack;
   };
   const readChoice = async () => {
     await fence();
-    if (!lockedAttack(await inspectAttack(), current)) throw new SourceAttackChanged();
+    const beforeAttack = await inspectAttack();
+    if (!lockedAttack(beforeAttack, current)) throw new SourceAttackChanged();
     const timeoutMs = Math.min(35_000, deadlineAt - Date.now());
     assert.ok(timeoutMs > 0, 'Original Station deadline expired before its browser SDK source read.');
     const payload = { sessionId, ...source.fields,
@@ -392,15 +393,26 @@ async function readySource(current, actor, spec, { sessionId, deadlineAt, assert
     if (spec.kind === 'boarding-special' && original.playerRole === 'gm')
       assert.ok(typeof original.instanceId === 'string' && original.instanceId,
         'Original facilitator instance is required for the source read.');
+    const sourceRead = { requestIntent: { endpoint: source.endpoint, payload: structuredClone(payload),
+      source: 'dispatcher-built callable arguments' }, transportPacketCaptured: false,
+    beforeAttack: structuredClone(beforeAttack), afterAttack: null };
+    scope.trace.sourceReadAttempts.push(sourceRead);
     const reply = await surface.callable(source.endpoint, payload, timeoutMs);
+    if (reply?.status !== 'committed') {
+      sourceRead.reply = reply;
+    }
     if (spec.kind === 'pdf-launch')
       scope.trace.sourceReplies.push({ endpoint: source.endpoint, reply });
     assertBudget(deadlineAt);
     await fence();
-    if (!lockedAttack(await inspectAttack(), current)) throw new SourceAttackChanged();
+    const afterAttack = await inspectAttack();
+    sourceRead.afterAttack = structuredClone(afterAttack);
+    if (!lockedAttack(afterAttack, current)) throw new SourceAttackChanged();
     if (reply?.status !== 'committed') {
-      throw new Error(typeof reply?.message === 'string' ? reply.message
-        : `Read-only ${source.endpoint} did not return a successful original-browser SDK reply.`);
+      const error = new Error(typeof reply?.message === 'string' ? reply.message
+        : `Read-only ${source.endpoint} did not return a successful original-browser SDK reply.`, { cause: reply });
+      error.code = reply?.code;
+      throw error;
     }
     return validateSourceView(reply.result, spec, current, sessionId);
   };
