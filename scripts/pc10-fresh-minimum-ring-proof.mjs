@@ -136,17 +136,32 @@ export function stationPopulationAlertsForGm(populationAlerts,instanceId){
  return targets;
 }
 export function stationPopulationUiRows(alerts){return alerts.map(([shipId,alert])=>{assert.equal(alert.shipId,shipId);return{shipId,shipName:alert.shipName,population:alert.population,targetGmInstanceIds:alert.targetGmInstanceIds};});}
-export function stationPopulationDialogMatches(dialog,alert){return dialog?.role==='alertdialog'&&dialog.name==='Survivor population threshold reached'&&dialog.text.includes(alert.shipName)&&dialog.text.includes(alert.population.toLocaleString('en-US'))&&dialog.text.includes('A census threshold requires GM attention.');}
+export function stationPopulationAlertSentence(alert){return`${alert.shipName} survivor population has reached ${alert.population.toLocaleString('en-US')}. A census threshold requires GM attention.`;}
+export function stationPopulationDialogMatches(dialog,alert){
+ const text=typeof dialog?.textContent==='string'?dialog.textContent.replace(/\s+/g,' ').trim():'';
+ return dialog?.role==='alertdialog'&&dialog.name==='Survivor population threshold reached'&&text.includes(stationPopulationAlertSentence(alert));
+}
 function stationPopulationStable(value){return value===null||typeof value!=='object'?JSON.stringify(value):Array.isArray(value)?`[${value.map(stationPopulationStable).join(',')}]`:`{${Object.keys(value).sort().map(key=>`${JSON.stringify(key)}:${stationPopulationStable(value[key])}`).join(',')}}`;}
-export function stationPopulationSelectVisibleAlert(sourceAlerts,uiAlerts,dialog){
+export function stationPopulationSameAlertSet(sourceAlerts,uiAlerts){
+ const sourceRows=stationPopulationUiRows(sourceAlerts);
+ if(!Array.isArray(uiAlerts)||sourceRows.length!==uiAlerts.length)return false;
+ const sourceKeys=sourceRows.map(stationPopulationStable),uiKeys=uiAlerts.map(stationPopulationStable);
+ if(new Set(sourceKeys).size!==sourceKeys.length||new Set(uiKeys).size!==uiKeys.length)return false;
+ return stationPopulationStable([...sourceKeys].sort())===stationPopulationStable([...uiKeys].sort());
+}
+export function stationPopulationSelectVisibleAlert(sourceAlerts,uiAlerts,dialog,{projection=null,onObservation=()=>{}}={}){
+ onObservation({sourceAlerts,uiAlerts,dialog,projection});
  const exactDialog=dialog?.role==='alertdialog'&&dialog.name==='Survivor population threshold reached';
- if(!sourceAlerts.length||stationPopulationStable(uiAlerts)!==stationPopulationStable(stationPopulationUiRows(sourceAlerts))||!exactDialog)return null;
- const[shipId,alert]=sourceAlerts[0];
- if(!stationPopulationDialogMatches(dialog,uiAlerts[0]))throw new Error('The exact visible population dialog does not match the first current-GM server alert.');
+ if(!sourceAlerts.length||!stationPopulationSameAlertSet(sourceAlerts,uiAlerts)||!exactDialog)return null;
+ const selectedUi=uiAlerts[0];
+ const matches=sourceAlerts.filter(([shipId,alert])=>shipId===selectedUi.shipId&&stationPopulationStable(stationPopulationUiRows([[shipId,alert]])[0])===stationPopulationStable(selectedUi));
+ if(matches.length!==1||!stationPopulationDialogMatches(dialog,selectedUi))return null;
+ const[shipId,alert]=matches[0];
  return{shipId,alert};
 }
-export function stationPopulationDismissLocator(page){
- const alertDialog=page.getByRole('alertdialog',{name:'Survivor population threshold reached',exact:true});
+export function stationPopulationDismissLocator(page,alert){
+ const populationSentence=page.getByText(stationPopulationAlertSentence(alert),{exact:true});
+ const alertDialog=page.getByRole('alertdialog',{name:'Survivor population threshold reached',exact:true}).filter({has:populationSentence});
  const dismiss=alertDialog.getByRole('button',{name:'Dismiss population alert',exact:true});
  return{alertDialog,dismiss};
 }
@@ -1196,7 +1211,7 @@ async function enterRole(surface,label){
     const targets=value=>Object.values(value??{}).filter(alert=>instance&&Array.isArray(alert.targetGmInstanceIds)&&alert.targetGmInstanceIds.includes(instance.id)).map(alert=>({shipId:alert.shipId,shipName:alert.shipName,population:alert.population,targetGmInstanceIds:[...alert.targetGmInstanceIds]}));
     const visible=element=>element.getClientRects().length>0&&getComputedStyle(element).visibility!=='hidden'&&getComputedStyle(element).display!=='none';
     const labelTextById=Object.fromEntries(Array.from(document.querySelectorAll('[id]')).map(element=>[element.id,element.textContent?.trim()??'']));
-    const visibleDialogs=Array.from(document.querySelectorAll('[role="dialog"],[role="alertdialog"]')).filter(visible).map(element=>({role:element.getAttribute('role'),labelledBy:element.getAttribute('aria-labelledby')??'',labelTextById,text:element.innerText.slice(0,1200)}));
+    const visibleDialogs=Array.from(document.querySelectorAll('[role="dialog"],[role="alertdialog"]')).filter(visible).map(element=>({role:element.getAttribute('role'),labelledBy:element.getAttribute('aria-labelledby')??'',labelTextById,textContent:element.textContent?.slice(0,1200)??'',innerText:element.innerText.slice(0,1200),computedTextTransform:getComputedStyle(element).textTransform,textNodes:Array.from(element.querySelectorAll('p,h1,h2,h3,button')).map(node=>({tagName:node.tagName.toLowerCase(),id:node.id||null,role:node.getAttribute('role'),textContent:node.textContent?.slice(0,600)??'',innerText:node.innerText.slice(0,600),computedTextTransform:getComputedStyle(node).textTransform}))}));
     const mutinyPanels=Array.from(document.querySelectorAll('section[aria-label]')).filter(element=>visible(element)&&/mutiny recovery/i.test(element.getAttribute('aria-label')??'')).map(element=>element.getAttribute('aria-label'));
     return{sessionId:session?.id??null,phase:session?.phase??null,connection:store.connection,freshness:store.sessionSnapshotFreshness,generation:store.me?.connectionGeneration??null,hydrationRevision:store.identityHydrationRevision,instanceId:instance?.id??null,vesselActionRevisions:session?.vesselActionRevisions??{},targetedPopulation:targets(session?.populationAlerts),targetedUnrest:targets(session?.unrestAlerts),visibleDialogs,mutinyPanels};
     },gm.storeModuleUrl()),deadlineAt,'Station current GM population alert projection');
@@ -1210,8 +1225,8 @@ async function enterRole(surface,label){
     const activeMutinies=stationPopulationAckMutinyRows(context);assert.deepEqual(activeMutinies,[],'Stop while mutiny recovery is active or unresolved.');
     const replacements=authority.players.filter(player=>player.replacementRoleId!=null||player.replacementStatus!=null);assert.deepEqual(replacements,[],'Stop while any replacement transfer is pending.');
    };
-   const stationPopulationDismissMount=async()=>{
-    const{alertDialog,dismiss}=stationPopulationDismissLocator(gm.page);
+   const stationPopulationDismissMount=async alert=>{
+    const{alertDialog,dismiss}=stationPopulationDismissLocator(gm.page,alert);
     const dialogCount=await alertDialog.count(),visible=dialogCount===1&&await alertDialog.isVisible();
     const dismissCount=await dismiss.count(),enabled=dismissCount===1&&await dismiss.isEnabled();
     return{alertDialog,dismiss,mounted:{dialogCount,visible,dismissCount,enabled}};
@@ -1221,6 +1236,11 @@ async function enterRole(surface,label){
     assert.ok(Number.isFinite(deadlineAt)&&Date.now()<deadlineAt,'Original Station wave deadline expired before population acknowledgment.');
     assert.equal(final.status,'resolved');assert.equal(final.currentStep,'resolved');assert.equal(final.pStationRepeat?.status,'repeat','Only a normal repeat wave may acknowledge its informational alert.');
     const actorAnchor=gm1OriginalAuthority,initialActor=await readStationGmActor(gm,'GM1','active',deadlineAt);assertStationAckActor(actorAnchor,initialActor);
+    const retainPopulationObservation=observation=>{
+     const retained={deadlineAt,orderedServerAlerts:observation.sourceAlerts.map(([mapKey,alert])=>({mapKey,...structuredClone(alert)})),clientTargetedPopulation:structuredClone(observation.uiAlerts),visibleDialog:structuredClone(observation.dialog),browserProjection:structuredClone(observation.projection)};
+     const observations=evidence.stationPopulationAlertObservations??=[];
+     if(!observations.length||stable(observations[observations.length-1])!==stable(retained))observations.push(retained);
+    };
     let ready=null;
     while(Date.now()<deadlineAt){
      const currentActor=await readStationGmActor(gm,'GM1','active',deadlineAt);assertStationAckActor(actorAnchor,currentActor);
@@ -1228,6 +1248,7 @@ async function enterRole(surface,label){
      const context=stationCombatServerContext({...authority,publicAudience:null});assertSafePopulationAckState(authority,context);
      const sourceAlerts=stationPopulationAlertsForGm(context.populationAlerts,gm1Instance);
      const projection=await stationGmPopulationProjection(deadlineAt);
+     retainPopulationObservation({sourceAlerts,uiAlerts:projection.targetedPopulation,dialog:projection.visibleDialogs[0]??null,projection});
      for(const key of ['sessionId','phase','generation','hydrationRevision','instanceId'])assert.equal(projection[key],({sessionId:sid,phase:'active',generation:actorAnchor.generation,hydrationRevision:actorAnchor.hydrationRevision,instanceId:actorAnchor.instanceId})[key],`Current GM browser projection ${key} changed.`);
      assert.equal(projection.connection,'live');assert.equal(projection.freshness,'server');
      assert.deepEqual(projection.targetedUnrest,[],'Do not dismiss a population alert while the GM-targeted unrest alert is visible.');
@@ -1236,7 +1257,7 @@ async function enterRole(surface,label){
      if(projection.visibleDialogs.length&&!exactDialog)throw new Error('Stop on an unknown or consequential modal; only the exact population alert is eligible.');
      const uiAlerts=projection.targetedPopulation;
      if(sourceAlerts.length===0&&uiAlerts.length===0&&projection.visibleDialogs.length===0)return false;
-     const visibleAlert=stationPopulationSelectVisibleAlert(sourceAlerts,uiAlerts,projection.visibleDialogs[0]);
+     const visibleAlert=stationPopulationSelectVisibleAlert(sourceAlerts,uiAlerts,projection.visibleDialogs[0],{projection,onObservation:retainPopulationObservation});
      if(visibleAlert){
       const{shipId:mapShipId,alert}=visibleAlert;
       assert.ok(Number.isSafeInteger(alert.population)&&alert.population>=0);
@@ -1254,7 +1275,7 @@ async function enterRole(surface,label){
     const beforeProjection=await stationGmPopulationProjection(deadlineAt);assert.equal(stable(beforeProjection),stable(ready.projection),'The exact alert/actor projection changed before the acknowledgment.');
     const shipId=ready.shipId,expectedRevision=before.vesselActionRevisions?.[shipId]??0;assert.ok(Number.isSafeInteger(expectedRevision)&&expectedRevision>=0);
     assert.equal(beforeProjection.vesselActionRevisions?.[shipId]??0,expectedRevision,'The current GM feed must expose the same source vessel revision as the server before dismissal.');
-    const {dismiss,mounted}=await stationPopulationDismissMount();assert.deepEqual(mounted,{dialogCount:1,visible:true,dismissCount:1,enabled:true});
+    const {dismiss,mounted}=await stationPopulationDismissMount(ready.alert);assert.deepEqual(mounted,{dialogCount:1,visible:true,dismissCount:1,enabled:true});
     const expectedIntent={actor:actorAnchor,source:stable(before),attack:stable(beforeAuthority.authoritativeAttack),projection:stable(beforeProjection),shipId,alert:stable(ready.alert),revision:expectedRevision,mounted};
     const readCurrentIntent=async()=>{
      assert.ok(Date.now()<deadlineAt,'Original Station wave deadline expired before final population intent reads.');
@@ -1264,13 +1285,15 @@ async function enterRole(surface,label){
      assert.equal(stable(current),stable(before),'Station source or alert tuple changed before the normal population dismissal click.');
      assert.equal(stable(currentAuthority.authoritativeAttack),stable(beforeAuthority.authoritativeAttack),'Resolved Station attack changed before the population dismissal click.');
      const currentProjection=await stationGmPopulationProjection(deadlineAt);
+     retainPopulationObservation({sourceAlerts:stationPopulationAlertsForGm(current.populationAlerts,gm1Instance),uiAlerts:currentProjection.targetedPopulation,dialog:currentProjection.visibleDialogs[0]??null,projection:currentProjection});
      for(const key of ['sessionId','phase','connection','freshness','generation','hydrationRevision','instanceId'])assert.equal(currentProjection[key],beforeProjection[key],`Current GM projection ${key} changed before the population dismissal click.`);
      assert.deepEqual(currentProjection.targetedUnrest,[],'Stop if unrest becomes pending before the population dismissal click.');assert.deepEqual(currentProjection.mutinyPanels,[],'Stop if mutiny recovery appears before the population dismissal click.');
-     const currentAlerts=stationPopulationAlertsForGm(current.populationAlerts,gm1Instance);assert.equal(currentAlerts[0]?.[0],shipId);assert.equal(stable(currentAlerts[0]?.[1]),stable(ready.alert));
-     const currentUi=stationPopulationUiRows(currentAlerts);assert.deepEqual(currentProjection.targetedPopulation,currentUi);
-     assert.equal(currentProjection.visibleDialogs.length,1);assert.equal(stationPopulationDialogMatches(currentProjection.visibleDialogs[0],currentUi[0]),true);
-     const currentMount=await stationPopulationDismissMount();
-     return{actor:actorAnchor,source:stable(current),attack:stable(currentAuthority.authoritativeAttack),projection:stable(currentProjection),shipId,alert:stable(currentAlerts[0][1]),revision:current.vesselActionRevisions?.[shipId]??0,mounted:currentMount.mounted};
+     const currentAlerts=stationPopulationAlertsForGm(current.populationAlerts,gm1Instance);assert.ok(stationPopulationSameAlertSet(currentAlerts,currentProjection.targetedPopulation));
+     const currentSelection=stationPopulationSelectVisibleAlert(currentAlerts,currentProjection.targetedPopulation,currentProjection.visibleDialogs[0],{projection:currentProjection,onObservation:retainPopulationObservation});
+     assert.equal(currentSelection?.shipId,shipId);assert.equal(stable(currentSelection?.alert),stable(ready.alert));
+     assert.equal(currentProjection.visibleDialogs.length,1);
+     const currentMount=await stationPopulationDismissMount(currentSelection.alert);
+     return{actor:actorAnchor,source:stable(current),attack:stable(currentAuthority.authoritativeAttack),projection:stable(currentProjection),shipId,alert:stable(currentSelection.alert),revision:current.vesselActionRevisions?.[shipId]??0,mounted:currentMount.mounted};
     };
     const readIntentBookend=async()=>{
      assert.ok(Date.now()<deadlineAt,'Original Station wave deadline expired before the final source bookend.');
@@ -1290,19 +1313,21 @@ async function enterRole(surface,label){
     const afterAuthority=await readOwnedStationAuthority(deadlineAt),after=stationCombatServerContext({...afterAuthority,publicAudience:null});entry.sourceAfter=stationAckSafeSummary(after,shipId);await writeFile(`${directory}/Station-population-alert-acks.json`,JSON.stringify(evidence.stationPopulationAcknowledgments,null,2)+'\n');
     assertSafePopulationAckState(afterAuthority,after);assertStationPopulationAcknowledgmentTransition(before,after,shipId);assert.equal(stable(afterAuthority.authoritativeAttack),stable(beforeAuthority.authoritativeAttack),'Population acknowledgment must not change the resolved Station attack.');
     const afterActor=await readStationGmActor(gm,'GM1','active',deadlineAt);assertStationAckActor(actorAnchor,afterActor);assertStationAckAuthority(actorAnchor,afterActor,afterAuthority);
-    const remainingAlerts=stationPopulationAlertsForGm(after.populationAlerts,gm1Instance),remainingUi=stationPopulationUiRows(remainingAlerts);
+    const remainingAlerts=stationPopulationAlertsForGm(after.populationAlerts,gm1Instance);
     let settledProjection=null;while(Date.now()<deadlineAt){
      const currentActor=await readStationGmActor(gm,'GM1','active',deadlineAt);assertStationAckActor(actorAnchor,currentActor);
      const currentAuthority=await readOwnedStationAuthority(deadlineAt);assertStationAckAuthority(actorAnchor,currentActor,currentAuthority);
      const currentContext=stationCombatServerContext({...currentAuthority,publicAudience:null});assertSafePopulationAckState(currentAuthority,currentContext);
      assert.equal(stable(currentContext),stable(after),'Station source changed while awaiting normal population alert publication.');assert.equal(stable(currentAuthority.authoritativeAttack),stable(afterAuthority.authoritativeAttack),'Resolved Station attack changed while awaiting alert publication.');
-     const current=await stationGmPopulationProjection(deadlineAt);for(const key of ['sessionId','phase','connection','freshness','generation','hydrationRevision','instanceId'])assert.equal(current[key],beforeProjection[key],`Normal GM feed ${key} changed during population dismissal.`);
+     const current=await stationGmPopulationProjection(deadlineAt);
+     retainPopulationObservation({sourceAlerts:remainingAlerts,uiAlerts:current.targetedPopulation,dialog:current.visibleDialogs[0]??null,projection:current});
+     for(const key of ['sessionId','phase','connection','freshness','generation','hydrationRevision','instanceId'])assert.equal(current[key],beforeProjection[key],`Normal GM feed ${key} changed during population dismissal.`);
      assert.deepEqual(current.targetedUnrest,[],'Stop if unrest becomes pending during dismissal.');assert.deepEqual(current.mutinyPanels,[],'Stop if mutiny recovery appears during dismissal.');
      const exactPopulationDialog=current.visibleDialogs.length===1&&current.visibleDialogs[0].role==='alertdialog'&&current.visibleDialogs[0].name==='Survivor population threshold reached';
      if(current.visibleDialogs.length&&!exactPopulationDialog)throw new Error('Stop if a consequential or unknown modal replaces the population alert.');
-     if(current.visibleDialogs.length&& !stationPopulationDialogMatches(current.visibleDialogs[0],ready.alert)&&!(remainingAlerts.length&&stationPopulationDialogMatches(current.visibleDialogs[0],remainingAlerts[0][1])))throw new Error('Stop if a changed or unrecognized population tuple replaces the acknowledged alert.');
-     const feedMatches=stable(current.targetedPopulation)===stable(remainingUi)&&stable(current.vesselActionRevisions)===stable(after.vesselActionRevisions??{});
-     const dialogMatches=remainingAlerts.length?exactPopulationDialog&&stationPopulationDialogMatches(current.visibleDialogs[0],remainingAlerts[0][1]):current.visibleDialogs.length===0;
+     const feedMatches=stationPopulationSameAlertSet(remainingAlerts,current.targetedPopulation)&&stable(current.vesselActionRevisions)===stable(after.vesselActionRevisions??{});
+     const selectedRemaining=remainingAlerts.length&&exactPopulationDialog?stationPopulationSelectVisibleAlert(remainingAlerts,current.targetedPopulation,current.visibleDialogs[0],{projection:current,onObservation:retainPopulationObservation}):null;
+     const dialogMatches=remainingAlerts.length?Boolean(selectedRemaining):current.visibleDialogs.length===0;
      if(feedMatches&&dialogMatches){settledProjection=current;break;}
      await candidateWait(()=>delay(Math.min(150,deadlineAt-Date.now())),deadlineAt,'Station normal population dismissal feed wait');
     }

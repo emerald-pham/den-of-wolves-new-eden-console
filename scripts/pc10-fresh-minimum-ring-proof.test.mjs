@@ -206,7 +206,7 @@ test('Attempt20 source rows allow the actual client-selected alert to be acknowl
     const dialog = stationAttempt20Dialog(clientSelected, {
       // The page projection retains visual innerText separately. CSS text-transform
       // behavior is source-backed but was not captured in Attempt20's DOM.
-      text: stationAttempt20Dialog(clientSelected).textContent,
+      innerText: stationAttempt20Dialog(clientSelected).textContent,
     });
     const selected = stationPopulationSelectVisibleAlert(sourceAlerts, uiAlerts, dialog);
     assert.ok(selected, `Expected the visible ${clientSelected.shipName} alert to match one exact current server tuple.`);
@@ -220,13 +220,25 @@ test('Attempt20 source rows allow the actual client-selected alert to be acknowl
   assert.deepEqual(sourceAlerts, []);
 });
 
+test('population alert selection rejects duplicate rows and a changed source tuple', () => {
+  const sourceAlerts = stationAttempt20OrderedAlerts();
+  const uiAlerts = stationPopulationUiRows(sourceAlerts);
+  assert.equal(stationPopulationSelectVisibleAlert(sourceAlerts, [...uiAlerts, uiAlerts[0]],
+    stationAttempt20Dialog(uiAlerts[0])), null);
+  assert.equal(stationPopulationSelectVisibleAlert(sourceAlerts,
+    uiAlerts.map((row, index) => index === 0 ? { ...row, population: row.population + 1 } : row),
+    stationAttempt20Dialog(uiAlerts[0])), null);
+  assert.equal(stationPopulationSelectVisibleAlert(sourceAlerts, uiAlerts,
+    stationAttempt20Dialog(uiAlerts[0], { textContent: 'Another ship survivor population has reached 70,000.' })), null);
+});
+
 test('population dialog selection retains the complete source and browser projection before a mismatch', () => {
   const sourceAlerts = stationAttempt20OrderedAlerts();
   const uiAlerts = stationPopulationUiRows(sourceAlerts);
   const projection = {
     sessionId: 'attempt20-owned-session', phase: 'active', generation: 1, hydrationRevision: 1,
     instanceId: sourceAlerts[0][1].targetGmInstanceIds[0], targetedPopulation: uiAlerts,
-    visibleDialogs: [stationAttempt20Dialog(uiAlerts[0], { text: 'Uppercase visual text was not retained by Attempt20.' })],
+    visibleDialogs: [stationAttempt20Dialog(uiAlerts[0], { innerText: 'Uppercase visual text was not retained by Attempt20.' })],
   };
   const mismatchedDialog = { ...projection.visibleDialogs[0], textContent: 'A different ship population is shown.' };
   const retained = [];
@@ -239,7 +251,7 @@ test('population dialog selection retains the complete source and browser projec
 test('population dialog matching uses the exact source-rendered sentence, not transformed visual text', () => {
   const alert = stationAttempt20OrderedAlerts()[0][1];
   const sentence = stationAttempt20Dialog(alert).textContent;
-  assert.equal(stationPopulationDialogMatches(stationAttempt20Dialog(alert, { text: sentence.toUpperCase() }), alert), true);
+  assert.equal(stationPopulationDialogMatches(stationAttempt20Dialog(alert, { innerText: sentence.toUpperCase() }), alert), true);
   assert.equal(stationPopulationDialogMatches(stationAttempt20Dialog(alert, {
     textContent: sentence.replace(alert.shipName, 'Another ship'),
   }), alert), false);
@@ -449,10 +461,10 @@ test('Station GM claim preflight binds both native observer schemas and rejects 
 });
 
 test('station wave consumer acknowledges each current-GM threshold alert before the next Declare', async () => {
-  const trace = [], alerts = {
-    aegis: { shipId: 'aegis', shipName: 'Aegis', targetGmInstanceIds: ['gm-1'] },
-    dione: { shipId: 'dione', shipName: 'Dione', targetGmInstanceIds: ['gm-1'] },
-  };
+  const trace = [], sourceRows = stationAttempt20OrderedAlerts();
+  const alerts = Object.fromEntries(sourceRows);
+  const gmInstanceId = sourceRows[0][1].targetGmInstanceIds[0];
+  let clientOrder = sourceRows.map(([shipId]) => shipId).reverse();
   const results = [
     { attackId: 'attack-1', pStationRepeat: { status: 'repeat' } },
     { attackId: 'attack-2', pStationRepeat: { status: 'stopped' } },
@@ -462,18 +474,25 @@ test('station wave consumer acknowledges each current-GM threshold alert before 
     prepareAndDeclare: async ({ wave }) => {
       trace.push(`declare:${wave}`);
       if (wave === 2) assert.deepEqual(Object.keys(alerts), [],
-        'Every ordinary threshold dialog must be acknowledged before the next wave Declare.');
+        'All five ordinary threshold dialogs must be acknowledged before the next wave Declare.');
     },
     runWave: async ({ wave }) => results[wave - 1],
     acknowledgeBetweenWaves: async () => {
-      for (const [shipId] of stationPopulationAlertsForGm(alerts, 'gm-1')) {
-        trace.push(`dismiss:${shipId}`);
-        delete alerts[shipId];
+      while (clientOrder.length) {
+        const currentSource = stationPopulationAlertsForGm(alerts, gmInstanceId);
+        const uiAlerts = stationPopulationUiRows(clientOrder.map(shipId => [shipId, alerts[shipId]]));
+        const selected = stationPopulationSelectVisibleAlert(currentSource, uiAlerts,
+          stationAttempt20Dialog(uiAlerts[0]));
+        assert.ok(selected);
+        trace.push(`dismiss:${selected.shipId}`);
+        delete alerts[selected.shipId];
+        clientOrder = clientOrder.filter(shipId => shipId !== selected.shipId);
       }
     },
     persistWaves: async () => {},
   });
-  assert.deepEqual(trace, ['declare:1', 'dismiss:aegis', 'dismiss:dione', 'declare:2']);
+  assert.deepEqual(trace, ['declare:1', 'dismiss:refinery-124', 'dismiss:shepherd', 'dismiss:quellon',
+    'dismiss:icebreaker', 'dismiss:dione', 'declare:2']);
 });
 
 test('population dialog accessible name resolves every whitespace-separated labelledby ID', () => {
