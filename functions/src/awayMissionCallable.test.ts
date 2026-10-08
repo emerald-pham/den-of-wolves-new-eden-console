@@ -669,8 +669,13 @@ describe('dealPrivateInitialCards', () => {
       expect.objectContaining({ participantUid: 'alice', phase: 'awaiting-card-selection', revision: 0 }),
       expect.objectContaining({ participantUid: 'bob', phase: 'awaiting-card-selection', revision: 0 }),
     ]));
-    expect(mock.update).toHaveBeenCalledWith(expect.objectContaining({ path: 'sessions/s1' }),
-      expect.objectContaining({ 'awayMissionProjectionSafety.writeRevision': 18 }));
+    const committedUpdates = [...mock.update.mock.calls];
+    mock.marker = mock.set.mock.calls.find(([ref]) => ref.path === 'sessions/s1/commandReceipts/deal-1')?.[1];
+    mock.set.mockClear(); mock.update.mockClear();
+    expect((await dealPrivateInitialCards.run(request(command))).status).toBe('replayed');
+    expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled();
+    expect(committedUpdates).toEqual(expect.arrayContaining([[expect.objectContaining({ path: 'sessions/s1' }),
+      expect.objectContaining({ 'awayMissionProjectionSafety.writeRevision': 18 })]]));
   });
 
   it('rejects a team-selected Mission Leader who is outside the source-bound participant roster', async () => {

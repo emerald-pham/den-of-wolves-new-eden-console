@@ -210,21 +210,60 @@ it.each(['canonical command', 'legacy synchronization', 'legacy open fallback', 
     const marker = { policyVersion: 1, epoch: 3, state: 'held', writeRevision: 17 };
     put('sessions/s1', { ...mock.documents.get('sessions/s1')!, awayMissionProjectionSafety: marker });
     const before = mock.writes.length;
-    let reply;
-    if (writer === 'canonical command') reply = await send('distributeExtraCard', { participantUid: 'alice', opportunityId: 'L-1' });
-    else if (writer === 'legacy discard fallback') reply = await discardPrivateMissionCard.run({
-      ...legacyRequest('generation-discard', 'alice'),
-      data: { ...legacyRequest('generation-discard', 'alice').data, cardId: 'A♥' },
-    });
-    else reply = await openPrivateMissionDiscards.run(legacyRequest('generation-open'));
+    const canonicalRequest = command('distributeExtraCard', { participantUid: 'alice', opportunityId: 'L-1' });
+    const discardRequest = { ...legacyRequest('generation-discard', 'alice'),
+      data: { ...legacyRequest('generation-discard', 'alice').data, cardId: 'A♥' } };
+    const openRequest = legacyRequest('generation-open');
+    const invoke = () => writer === 'canonical command' ? commitAwayMissionLifecycleCommand.run(canonicalRequest)
+      : writer === 'legacy discard fallback' ? discardPrivateMissionCard.run(discardRequest)
+      : openPrivateMissionDiscards.run(openRequest);
+    const reply = await invoke();
 
     expect(reply.status).toBe('committed');
     const pointerWrites = mock.writes.slice(before).filter(write => write.path.includes('/awayMissionHandPointers/'));
     expect(pointerWrites.length).toBeGreaterThan(0);
     expect(mock.documents.get(`sessions/s1/awayMissionHandPointers/${awayMissionHandId(missionId, 'alice')}`)!.phase)
       .toBe(writer === 'canonical command' ? 'awaiting-card-selection' : 'discarding');
+    const replayWrites = mock.writes.length;
+    const replayState = structuredClone([...mock.documents]);
+    expect((await invoke()).status).toBe('replayed');
+    expect(mock.writes).toHaveLength(replayWrites);
+    expect([...mock.documents]).toEqual(replayState);
     expect(mock.documents.get('sessions/s1')!.awayMissionProjectionSafety).toEqual({ ...marker, writeRevision: 18 });
   });
+
+it.each(['missing', 'malformed'] as const)('keeps %s legacy session safety held when a real command writes new participant pointers', async kind => {
+  seed('L');
+  if (kind === 'malformed') mock.documents.get('sessions/s1')!.awayMissionProjectionSafety = { state: 'ready' };
+  const request = command('distributeExtraCard', { participantUid: 'alice', opportunityId: 'L-1' });
+  const before = mock.writes.length;
+  expect((await commitAwayMissionLifecycleCommand.run(request)).status).toBe('committed');
+  expect(mock.writes.slice(before).filter(write => write.path.includes('/awayMissionHandPointers/'))).toHaveLength(3);
+  const replayState = structuredClone([...mock.documents]);
+  const writes = mock.writes.length;
+  expect((await commitAwayMissionLifecycleCommand.run(request)).status).toBe('replayed');
+  expect([...mock.documents]).toEqual(replayState);
+  expect(mock.writes).toHaveLength(writes);
+  expect(mock.documents.get('sessions/s1')!.awayMissionProjectionSafety).toEqual({ policyVersion: 1, epoch: 1, state: 'held', writeRevision: 1 });
+});
+
+it('does not advance privacy generation for a revoked participant or stale live-GM lease', async () => {
+  seed('L');
+  const marker = { policyVersion: 1, epoch: 3, state: 'held', writeRevision: 17 };
+  mock.documents.get('sessions/s1')!.awayMissionProjectionSafety = marker;
+  mock.documents.get('sessions/s1/players/alice')!.connected = false;
+  const original = structuredClone([...mock.documents]);
+  await expect(send('distributeExtraCard', { participantUid: 'alice', opportunityId: 'L-1' })).rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.writes).toHaveLength(0);
+  expect([...mock.documents]).toEqual(original);
+  mock.documents.get('sessions/s1/gmInstances/bridge')!.lastSeenAt = Timestamp.fromDate(new Date('2000-01-01T00:00:00.000Z'));
+  const stale = structuredClone([...mock.documents]);
+  await expect(openPrivateMissionDiscards.run({ auth: { uid: 'gm' }, data: {
+    sessionId, missionId, requestId: 'stale-generation-open', expectedSetupRevision: 1, instanceId: 'bridge',
+  } } as CallableRequest<Record<string, unknown>>)).rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.writes).toHaveLength(0);
+  expect([...mock.documents]).toEqual(stale);
+});
 
 it.each(['fresh reply', 'alice', 'bob', 'scientist'] as const)(
   'redacts failed K difficulty in the actual %s resolution consumer without changing protected arithmetic', async surface => {

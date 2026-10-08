@@ -37,7 +37,7 @@ beforeEach(() => {
   mock.uid = 'alice';
   sessionStorage.clear();
 });
-afterEach(() => { stops.splice(0).forEach(stop => stop()); useSessionStore.setState({ session: undefined, me: undefined }); });
+afterEach(() => { stops.splice(0).forEach(stop => stop()); useSessionStore.setState({ session: null, me: null }); });
 
 it.each(['global member feed', 'standalone mission workspace'] as const)(
   'requires a held/fresh-memory barrier before the actual %s constructs any owner pointer listener', construction => {

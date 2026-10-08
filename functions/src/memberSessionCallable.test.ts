@@ -192,6 +192,22 @@ it('keeps current GM readiness independent of a held K privacy epoch and denies 
   await expect(read(request(undefined, 'stranger'))).rejects.toMatchObject({ code: 'permission-denied' });
 });
 
+it.each([
+  ['missing', undefined], ['null', null], ['wrong policy', { policyVersion: 2, epoch: 3, state: 'ready', writeRevision: 17 }],
+  ['zero epoch', { policyVersion: 1, epoch: 0, state: 'ready', writeRevision: 17 }],
+  ['unsafe epoch', { policyVersion: 1, epoch: Number.MAX_SAFE_INTEGER + 1, state: 'ready', writeRevision: 17 }],
+  ['wrong state', { policyVersion: 1, epoch: 3, state: 'READY', writeRevision: 17 }],
+  ['missing generation', { policyVersion: 1, epoch: 3, state: 'ready' }],
+  ['negative generation', { policyVersion: 1, epoch: 3, state: 'ready', writeRevision: -1 }],
+  ['extra private field', { policyVersion: 1, epoch: 3, state: 'ready', writeRevision: 17, audit: 'secret' }],
+] as const)('returns an explicit fail-closed privacy marker for %s stored safety state', async (_label, marker) => {
+  if (marker !== undefined) records['sessions/s1']!.awayMissionProjectionSafety = marker;
+  const response = await read(request());
+  expect(response.session.shipResources).toEqual({ shepherd: { fuel: 3 } });
+  expect(response.session.awayMissionProjectionSafety).toBeNull();
+  expect(JSON.stringify(response.session)).not.toMatch(/writeRevision|secret/);
+});
+
 it('denies closed history to disconnected outsiders, stale-group readers, and kicked members', async () => {
   records['sessions/s1']!.phase = 'closed';
   records['sessions/s1/players/u1']!.connected = false;
