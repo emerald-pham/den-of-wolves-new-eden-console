@@ -254,3 +254,22 @@ No0.9.0 metadata is applied in this branch. Routine source work continues under
 standing authorization; true permission blockers go to parent, not routine
 owner wake-ups. Global iPhone font investigation remains open and is not claimed
 fixed by PC11 or the0.9.0 label.
+
+## Five-minute ordinary-proof launcher
+
+The reviewed launcher is now present at `scripts/qualification/pc11-launch.mjs`.
+`d4ed614c` retained the existing audited launcher and introduced the allocation
+regression: four checks passed and the five-minute plan check failed before the
+budget change. `0a47857a` made the actual deadline use the 300000ms plan budget.
+Independent review found insufficient terminal teardown reserve; `a1dbaef1`
+observed five passes and one cleanup-reserve failure, then `49200c10` reserved
+25 seconds, bounded port checks by the remaining deadline, and records elapsed
+milliseconds and an explicit allocation-cap outcome. Independent review closed
+that finding without runtime. Adapter plus launcher checks: 21/21 pass.
+
+Logs: `/tmp/dow-pc11-launch-red.log`, `/tmp/dow-pc11-launch-green.log`,
+`/tmp/dow-pc11-launch-cleanup-red.log`,
+`/tmp/dow-pc11-launch-cleanup-green.log`,
+`/tmp/dow-pc11-normal-launch-final.log`. These are source qualification checks,
+not actual UI/runtime or typography approval. Bundled app and server inputs are
+unchanged from the built `2cc643ea` candidate.
