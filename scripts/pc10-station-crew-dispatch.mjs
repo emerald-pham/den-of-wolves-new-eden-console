@@ -176,6 +176,10 @@ function validateSourceView(view, spec, current, sessionId) {
   assert.ok(view && typeof view === 'object', `Current ${spec.kind} browser SDK view is required.`);
   assert.equal(view.sessionId, sessionId, `Current ${spec.kind} source session must match the original session.`);
   if (view.type?.endsWith('-unavailable')) {
+    const type = spec.kind === 'boarding-special' ? 'wolf-boarding-special-choice-unavailable'
+      : spec.kind === 'boarding-defence' ? 'wolf-boarding-defence-choice-unavailable'
+        : spec.kind === 'range-actions' ? 'wolf-range-action-choice-unavailable' : undefined;
+    assert.equal(view.type, type, `Unknown current ${spec.kind} unavailable view type.`);
     const reasons = spec.kind === 'boarding-special'
       ? ['not-your-choice', 'automatic-progress-pending', 'no-special-choice']
       : spec.kind === 'boarding-defence' ? ['no-boarders', 'not-your-choice']
@@ -217,14 +221,27 @@ function validateSourceView(view, spec, current, sessionId) {
     assert.ok(Number.isSafeInteger(view.wingRevision) && view.wingRevision >= 0,
       'Current PDF Escort Wing revision is required.');
     const reasons = ['waiting', 'uncharged', 'damaged', 'destroyed', 'no-fighters', 'already-launched', 'passed'];
-    if (view.reason !== undefined) assert.ok(reasons.includes(view.reason), `Unknown current PDF launch reason: ${view.reason}.`);
+    if (view.reason !== undefined && view.reason !== null)
+      assert.ok(reasons.includes(view.reason), `Unknown current PDF launch reason: ${view.reason}.`);
     const statuses = ['launched', 'passed', 'unavailable'];
     if (view.choiceStatus !== undefined) assert.ok(statuses.includes(view.choiceStatus),
       `Unknown current PDF launch status: ${view.choiceStatus}.`);
+    // Only the enabled PDF producer owns reason: undefined, which the callable
+    // encoder sends as null. Every disabled or settled producer arm has its
+    // explicit reason/status/launch combination; null never grants that arm.
+    const enabled = view.eligible && !view.launched && view.choiceStatus === undefined &&
+      (view.reason === undefined || view.reason === null);
+    const blocked = !view.eligible && (view.launched
+      ? view.choiceStatus === 'launched' && view.reason === 'already-launched'
+      : view.choiceStatus === 'passed' ? view.reason === 'passed'
+        : view.choiceStatus === 'unavailable' ? view.reason === 'waiting'
+          : view.choiceStatus === undefined && ['waiting', 'uncharged', 'damaged', 'destroyed', 'no-fighters'].includes(view.reason));
+    assert.ok(enabled || blocked, 'Current PDF launch view contradicts its producer union.');
   } else if (spec.kind === 'escort-range') {
     assert.equal(view.type, 'wolf-fighter-range-action-view', 'Unknown current PDF escort range view type.');
     assert.equal(view.wingId, 'pdf-escort-fighter-wing', 'Current escort view must belong to the P.D.F. wing.');
     assert.equal(view.wingLabel, 'P.D.F. Escort Fighter Wing');
+    assert.equal(typeof view.launched, 'boolean', 'Current PDF range requires its actual launched state.');
     assert.ok(['pending', 'committed'].includes(view.choiceStatus), `Unknown current PDF escort choice status: ${view.choiceStatus}.`);
     assert.ok(Array.isArray(view.fighters) && Array.isArray(view.targets), 'Current PDF escort fighters and targets are required.');
   } else if (spec.kind === 'range-support') {
