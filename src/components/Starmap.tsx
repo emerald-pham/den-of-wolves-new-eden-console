@@ -182,7 +182,7 @@ export default function Starmap({
             ))}
           </div>
         )}
-        <p className="starmap__ground-truth">22 systems // 40 jump links</p>
+        <p className="starmap__ground-truth">22 systems // {STAR_CHART_CONNECTIONS.length} jump links</p>
       </div>
 
       <div className="starmap__body">
