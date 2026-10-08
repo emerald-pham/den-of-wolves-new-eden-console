@@ -501,8 +501,8 @@ export function createBoaMissionReclamationCallables(dependencies: BoaMissionRec
             missionOpportunityId: opportunity.id, taskOpportunityId: task.id,
           } }],
           calculation: {
-            rounding: 'floor', printedDifficulty,
-            effectiveDifficulty: printedDifficulty === null ? null : Math.floor(printedDifficulty / 2),
+            rounding: 'none', printedDifficulty,
+            effectiveDifficulty: printedDifficulty === null ? null : printedDifficulty / 2,
             criticalThreshold, criticalThresholdChanged: false,
           },
           consequences: {

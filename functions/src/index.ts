@@ -11135,7 +11135,7 @@ export const dealPrivateInitialCards = auditedOnCall<{
     let boaReclamation: Readonly<{
       actorUid: string; opportunityId: string; locationOpportunityId: string; choiceRevision: number;
       printedDifficulty: number | null; effectiveDifficulty: number | null;
-      criticalThreshold: number | null; difficultyRule: unknown; rounding: 'floor';
+      criticalThreshold: number | null; difficultyRule: unknown; rounding: 'none';
     }> | undefined;
     if (boaReclamationSelection) {
       const boaControl = shuttleControls?.boa;
@@ -11157,7 +11157,7 @@ export const dealPrivateInitialCards = auditedOnCall<{
       const selectedTask = missionDefinition.opportunities.find(({ id }) =>
         id === boaReclamationSelection!.taskOpportunityId)!;
       const printedDifficulty = Number.isSafeInteger(selectedTask.difficulty) ? selectedTask.difficulty! : null;
-      const effectiveDifficulty = printedDifficulty === null ? null : Math.floor(printedDifficulty / 2);
+      const effectiveDifficulty = printedDifficulty === null ? null : printedDifficulty / 2;
       boaReclamation = {
         actorUid: boaReclamationSelection.actorUid,
         opportunityId: selectedTask.id,
@@ -11168,7 +11168,7 @@ export const dealPrivateInitialCards = auditedOnCall<{
         criticalThreshold: Number.isSafeInteger(selectedTask.criticalThreshold)
           ? selectedTask.criticalThreshold! : null,
         difficultyRule: selectedTask.difficultyRule ?? null,
-        rounding: 'floor',
+        rounding: 'none',
       };
     }
     const pressureSnapshot = await tx.get(
@@ -11285,7 +11285,7 @@ export const dealPrivateInitialCards = auditedOnCall<{
       },
       recycledCardIds: [...finiteDeal.recycledCardIds],
       modifiers: boaReclamation ? [
-        `Boa reclamation ${boaReclamation.opportunityId} // printed difficulty ${boaReclamation.printedDifficulty ?? 'server-calculated'} // effective difficulty ${boaReclamation.effectiveDifficulty ?? 'floor of server-calculated difficulty'} (floor assumption) // reward replaced by 1 Scrap on success; no ordinary or critical bonus`,
+        `Boa reclamation ${boaReclamation.opportunityId} // printed difficulty ${boaReclamation.printedDifficulty ?? 'server-calculated'} // effective difficulty ${boaReclamation.effectiveDifficulty ?? 'exact half of server-calculated difficulty'} (no rounding) // reward replaced by 1 Scrap on success; no ordinary or critical bonus`,
       ] : [],
       ...(boaReclamation ? { boaReclamation: {
         actorUid: boaReclamation.actorUid,

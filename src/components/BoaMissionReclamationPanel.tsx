@@ -206,7 +206,7 @@ export default function BoaMissionReclamationPanel({ control, docking }: Props) 
             <input type="radio" name="boa-mission-task" value={task.id} checked={draftTaskId === task.id}
               disabled={pending} onChange={() => { setDraftTaskId(task.id); setPendingChoice(null); setError(''); setStatus(''); }} />
             <span>{task.id} // {task.description}</span>
-            {task.difficulty !== null && <small>Printed difficulty {task.difficulty}; Boa adjustment {Math.floor(task.difficulty / 2)}.</small>}
+            {task.difficulty !== null && <small>Printed difficulty {task.difficulty}; Boa adjustment {task.difficulty / 2}.</small>}
             {task.criticalThreshold !== null && <small>Critical threshold {task.criticalThreshold}; Boa grants no critical bonus.</small>}
           </label>)}
         </fieldset>

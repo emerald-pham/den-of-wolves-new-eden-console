@@ -1,9 +1,9 @@
 import type { MissionOpportunityResolution } from './missionLifecycle';
 
 /**
- * Apply the printed Boa halving only to the player's selected mission-card
- * opportunity. Integer thresholds round down, as recorded in the PC10 rules
- * assumption; the separate printed critical threshold is left unchanged.
+ * Apply exact division for the printed Boa halving only to the player's
+ * selected mission-card opportunity. The resulting threshold may be a
+ * half-point; the separate printed critical threshold is left unchanged.
  */
 export function applyBoaReclamationDifficulty(
   outcomes: readonly MissionOpportunityResolution[],
@@ -25,7 +25,7 @@ export function applyBoaReclamationDifficulty(
 
   return outcomes.map((entry) => {
     if (entry.opportunityId !== opportunityId) return entry;
-    const difficulty = Math.floor(entry.difficulty / 2);
+    const difficulty = entry.difficulty / 2;
     const critical = entry.criticalThreshold !== null && entry.total >= entry.criticalThreshold;
     const successful = entry.total >= difficulty;
     const outcome = !successful ? 'failure' : critical ? 'critical-success' : 'success';
