@@ -18,7 +18,26 @@ export async function runSparseStationCombat({deadlineAt,readAttack,assertActors
  }throw new Error('Original Station combat budget expired.');
 }
 export async function stationBoardingRead(current,{readChoice,readAttack,sessionId}){
- const reply=await readChoice();assert.equal(reply.status,'committed');const view=reply.result;
- assert.equal(view.sessionId,sessionId);if(view.choiceStatus==='pending')assert.equal(view.revision,current.revision);
+ assert.equal(current.status,'declared');assert.equal(current.currentStep,'boarding');
+ const reply=await readChoice();
+ const closedRace=reply.status==='denied'&&reply.code==='functions/failed-precondition'&&reply.message==='Wolf boarding defence is not currently open.';
+ assert.ok(reply.status==='committed'||closedRace,`Boarding read failed: ${reply.code??reply.status}`);
+ if(reply.status==='committed')assert.equal(reply.result.sessionId,sessionId);
+ const fresh=await readAttack();for(const key of ['attackId','turn','threatSiteCode'])assert.equal(fresh[key],current[key],`Original boarding ${key}`);
+ assert.equal(fresh.threatSiteCode,'P');assert.ok(Number.isSafeInteger(fresh.revision)&&fresh.revision>=current.revision);
+ if(fresh.status==='resolved'){
+  assert.equal(fresh.currentStep,'resolved');assert.ok(['repeat','stopped'].includes(fresh.pStationRepeat?.status));
+  return {kind:'resolved',attack:fresh};
+ }
+ assert.equal(closedRace,false,'Boarding phase rejection without actual same-attack finalization.');
+ assert.equal(fresh.status,'declared');assert.equal(fresh.currentStep,'boarding');
+ const view=reply.result;
+ if(view.type==='wolf-boarding-defence-choice-view'){
+  assert.equal(view.turn,fresh.turn);assert.equal(view.targetShipId,'aegis');assert.ok(['pending','committed'].includes(view.choiceStatus));
+  assert.ok(Number.isSafeInteger(view.revision)&&view.revision>=current.revision&&view.revision<=fresh.revision);
+  if(view.revision!==fresh.revision)return {kind:'refresh'};
+ }else{
+  assert.equal(view.type,'wolf-boarding-defence-choice-unavailable');assert.ok(['no-boarders','not-your-choice'].includes(view.reason));
+ }
  return {kind:'choice',view};
 }
