@@ -145,6 +145,11 @@ export function stationPopulationSelectVisibleAlert(sourceAlerts,uiAlerts,dialog
  if(!stationPopulationDialogMatches(dialog,uiAlerts[0]))throw new Error('The exact visible population dialog does not match the first current-GM server alert.');
  return{shipId,alert};
 }
+export function stationPopulationDismissLocator(page){
+ const alertDialog=page.getByRole('alertdialog',{name:'Survivor population threshold reached',exact:true});
+ const dismiss=alertDialog.getByRole('button',{name:'Dismiss population alert',exact:true});
+ return{alertDialog,dismiss};
+}
 export function stationDialogAccessibleName(labelledBy,labelTextById){
  return (labelledBy??'').split(/\s+/).map(id=>labelTextById?.[id]?.trim()).filter(Boolean).join(' ');
 }
@@ -1206,9 +1211,8 @@ async function enterRole(surface,label){
     const replacements=authority.players.filter(player=>player.replacementRoleId!=null||player.replacementStatus!=null);assert.deepEqual(replacements,[],'Stop while any replacement transfer is pending.');
    };
    const stationPopulationDismissMount=async()=>{
-    const alertDialog=gm.page.getByRole('alertdialog',{name:'Survivor population threshold reached',exact:true});
+    const{alertDialog,dismiss}=stationPopulationDismissLocator(gm.page);
     const dialogCount=await alertDialog.count(),visible=dialogCount===1&&await alertDialog.isVisible();
-    const dismiss=alertDialog.getByRole('button',{name:'Dismiss population alert',exact:true});
     const dismissCount=await dismiss.count(),enabled=dismissCount===1&&await dismiss.isEnabled();
     return{alertDialog,dismiss,mounted:{dialogCount,visible,dismissCount,enabled}};
    };
