@@ -105,7 +105,7 @@ vi.mock('node:crypto', async original => ({ ...await original<typeof NodeCrypto>
 import { commitAwayMissionLifecycleCommand, stageWolfAttackPreparation, declareWolfAttack,
   readEndeavourResearchWorkspace, advanceEndeavourResearchTrack, getWolfAttackThreatWindowOptions,
   setWolfAttackWindow, advanceWolfAttackLifecycle, getWolfBoardingSpecialChoice,
-  openPrivateMissionDiscards, discardPrivateMissionCard } from './index';
+  openPrivateMissionDiscards, discardPrivateMissionCard, repairAwayMissionProjectionPrivacy } from './index';
 import { missionDeck, missionDeckStateFromCards } from './missionDeck';
 import { awayMissionHandId } from './awayMissionCards';
 import { organiserSitesForChart } from './starChartLookup';
@@ -589,4 +589,161 @@ it('binds the real queued K attempt to actual parent finalization and the next s
     .resolves.toMatchObject({ status: 'committed', type: 'wolf-attack-declaration', turn: 2 });
   expect(mock.documents.get('sessions/s1/wolfAttackState/current')).toMatchObject({ attackNumber: 2, previousAttackId: parentId,
     threatSiteCode: 'K', threatSourceId: `mission-${missionId}` });
+});
+
+
+// Dedicated maintenance cases use the same actual registered mission producer,
+// protected P403/deck/start receipts and transactional document store as above.
+const privacyRoot = 'sessions/s1/serverState/awayMissionProjectionPrivacy/repairs';
+const privacyRequest = (step: 'hold' | 'repair' | 'finalize', requestId = `privacy-${step}`, repairRunId = 'privacy-run', uid = 'gm') => ({
+  auth: { uid }, data: { sessionId, instanceId: 'bridge', requestId, repairRunId, step },
+}) as CallableRequest<Record<string, unknown>>;
+const maintain = (step: 'hold' | 'repair' | 'finalize', requestId?: string, repairRunId?: string) =>
+  repairAwayMissionProjectionPrivacy.run(privacyRequest(step, requestId, repairRunId));
+async function legacyPrivacyWorld() {
+  mock.d6 = 6;
+  const resolved = await resolve('K', 'K-1', 1);
+  const record = mock.documents.get(missionPath)!.lifecycleRecord as { outcomes: NonNullable<AwayMissionPublicState['outcomes']> };
+  expect(record.outcomes[0]).toMatchObject({ contributorCount: 1, total: 20, difficulty: 30, criticalThreshold: 40, outcome: 'failure' });
+  expect(resolved.publicState.rewards).toEqual([expect.objectContaining({ branch: 'none', resources: {}, effects: [] })]);
+  for (const uid of ['alice', 'bob', 'scientist']) {
+    const path = `sessions/s1/awayMissionHandPointers/${awayMissionHandId(missionId, uid)}`;
+    const pointer = mock.documents.get(path)!;
+    const safe = pointer.lifecyclePublicState as AwayMissionPublicState;
+    pointer.lifecyclePublicState = { ...safe, outcomes: safe.outcomes!.map(outcome => {
+      const original = record.outcomes.find(candidate => candidate.opportunityId === outcome.opportunityId)!;
+      return { ...outcome, difficulty: original.difficulty, criticalThreshold: original.criticalThreshold };
+    }) };
+  }
+  return structuredClone([...mock.documents]);
+}
+function privacyInvariantSnapshot() {
+  return [...mock.documents].filter(([path]) => !path.startsWith(privacyRoot + '/')).map(([path, fields]) => {
+    const value = structuredClone(fields);
+    if (path === 'sessions/s1') delete value.awayMissionProjectionSafety;
+    if (path.includes('/awayMissionHandPointers/')) delete value.lifecyclePublicState;
+    return [path, value];
+  });
+}
+
+it('sanitizes every canonical K participant in one registered maintenance transaction and preserves all gameplay bytes', async () => {
+  await legacyPrivacyWorld();
+  const original = privacyInvariantSnapshot();
+  const originalPointers = ['alice', 'bob', 'scientist'].map(uid => structuredClone(mock.documents.get(`sessions/s1/awayMissionHandPointers/${awayMissionHandId(missionId, uid)}`)!));
+  mock.documents.get('sessions/s1/players/bob')!.connected = false;
+  const before = privacyInvariantSnapshot();
+  expect((await maintain('hold')).state).toBe('held');
+  const generation = (mock.documents.get('sessions/s1')!.awayMissionProjectionSafety as Data).writeRevision as number;
+  const offset = mock.writes.length;
+  expect(await maintain('repair')).toMatchObject({ status: 'committed', state: 'held', missionId, pointerCount: 3 });
+  expect(mock.writes.slice(offset).filter(write => write.path.includes('/awayMissionHandPointers/'))).toHaveLength(3);
+  expect((mock.documents.get('sessions/s1')!.awayMissionProjectionSafety as Data).writeRevision).toBe(generation + 1);
+  for (const [index, uid] of ['alice', 'bob', 'scientist'].entries()) {
+    const snapshot = await mock.ref(`sessions/s1/awayMissionHandPointers/${awayMissionHandId(missionId, uid)}`).get();
+    expect('data' in snapshot && snapshot.data()).toMatchObject({ ...originalPointers[index], lifecyclePublicState: {
+      ...(originalPointers[index]!.lifecyclePublicState as Data), outcomes: [expect.objectContaining({
+        contributorCount: 1, total: 20, difficulty: null, criticalThreshold: null, outcome: 'failure' })],
+    } });
+  }
+  expect(privacyInvariantSnapshot()).toEqual(before);
+  // The deliberately disconnected participant is still part of the complete
+  // canonical repair; original authorized outcome bytes remain numeric.
+  expect((mock.documents.get(missionPath)!.lifecycleRecord as Data).outcomes).toEqual([expect.objectContaining({ difficulty: 30, criticalThreshold: 40 })]);
+  expect(original).not.toEqual(before);
+  expect(await maintain('repair', 'privacy-verify')).toMatchObject({ pointerCount: 0, state: 'held' });
+  expect(await maintain('finalize')).toMatchObject({ state: 'ready' });
+  expect(privacyInvariantSnapshot()).toEqual(before);
+});
+
+it.each(['hold', 'repair', 'finalize'] as const)('replays a lost-acknowledgement %s with zero new repair or gameplay effects', async step => {
+  await legacyPrivacyWorld();
+  if (step !== 'hold') await maintain('hold');
+  if (step === 'finalize') { await maintain('repair'); await maintain('repair', 'privacy-verify'); }
+  mock.retry(2); mock.loseAck();
+  await expect(maintain(step)).rejects.toThrow('lost acknowledgement');
+  const before = structuredClone([...mock.documents]); const writes = mock.writes.length;
+  expect((await maintain(step)).status).toBe('replayed');
+  expect([...mock.documents]).toEqual(before); expect(mock.writes).toHaveLength(writes);
+});
+
+it('checks current Auth, live GM role and owned lease before every protected maintenance receipt replay', async () => {
+  await legacyPrivacyWorld();
+  await maintain('hold');
+  const controls: Array<() => void> = [
+    () => { mock.documents.get('sessions/s1/players/gm')!.connected = false; },
+    () => { mock.documents.get('sessions/s1/players/gm')!.role = 'player'; },
+    () => { mock.documents.get('sessions/s1/gmInstances/bridge')!.uid = 'foreign-gm'; },
+    () => { mock.documents.get('sessions/s1/gmInstances/bridge')!.lastSeenAt = Timestamp.fromDate(new Date('2000-01-01T00:00:00.000Z')); },
+  ];
+  for (const revoke of controls) {
+    const prior = structuredClone([...mock.documents]); revoke();
+    const revoked = structuredClone([...mock.documents]); const writes = mock.writes.length;
+    await expect(maintain('hold')).rejects.toMatchObject({ code: 'permission-denied' });
+    expect([...mock.documents]).toEqual(revoked); expect(mock.writes).toHaveLength(writes);
+    mock.documents.clear(); for (const [path, fields] of prior) put(path, fields);
+  }
+  const before = structuredClone([...mock.documents]); const writes = mock.writes.length;
+  await expect(repairAwayMissionProjectionPrivacy.run({ data: privacyRequest('hold').data, auth: null } as CallableRequest<Record<string, unknown>>))
+    .rejects.toMatchObject({ code: 'unauthenticated' });
+  await expect(repairAwayMissionProjectionPrivacy.run(privacyRequest('repair', 'player-repair', 'privacy-run', 'alice')))
+    .rejects.toMatchObject({ code: 'permission-denied' });
+  expect([...mock.documents]).toEqual(before); expect(mock.writes).toHaveLength(writes);
+});
+
+it('binds repair runs and request receipts to exact payload/current actor and never restores an old epoch', async () => {
+  await legacyPrivacyWorld();
+  const first = await maintain('hold');
+  const before = structuredClone([...mock.documents]); const writes = mock.writes.length;
+  await expect(maintain('repair', 'privacy-hold')).rejects.toMatchObject({ code: 'failed-precondition' });
+  await expect(maintain('hold', 'different-hold')).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect([...mock.documents]).toEqual(before); expect(mock.writes).toHaveLength(writes);
+  const second = await maintain('hold', 'new-hold', 'new-run');
+  expect(second.epoch).toBe(first.epoch + 1);
+  const newer = structuredClone([...mock.documents]); const newerWrites = mock.writes.length;
+  expect((await maintain('hold')).status).toBe('replayed');
+  expect([...mock.documents]).toEqual(newer); expect(mock.writes).toHaveLength(newerWrites);
+  await expect(maintain('repair', 'old-run-repair')).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect([...mock.documents]).toEqual(newer);
+});
+
+it.each(['changed numeric projection', 'foreign pointer', 'missing private hand', 'missing protected record', 'missing start', 'orphan pointer'] as const)(
+  'keeps the session held without partial repair for %s', async defect => {
+    await legacyPrivacyWorld(); await maintain('hold');
+    const path = `sessions/s1/awayMissionHandPointers/${awayMissionHandId(missionId, 'bob')}`;
+    if (defect === 'changed numeric projection') {
+      const pointer = mock.documents.get(path)!;
+      const state = pointer.lifecyclePublicState as AwayMissionPublicState;
+      pointer.lifecyclePublicState = { ...state, outcomes: state.outcomes!.map(outcome => ({ ...outcome, difficulty: 25 })) };
+    } else if (defect === 'foreign pointer') mock.documents.get(path)!.sessionId = 'foreign-session';
+    else if (defect === 'missing private hand') mock.documents.delete(`sessions/s1/awayMissionHands/${awayMissionHandId(missionId, 'bob')}`);
+    else if (defect === 'missing protected record') mock.documents.delete(missionPath);
+    else if (defect === 'missing start') mock.documents.delete('sessions/s1/missionStartSnapshots/parity');
+    else put('sessions/s1/awayMissionHandPointers/orphan', { ...mock.documents.get(path)!, handId: 'orphan', missionId: 'unknown-mission' });
+    const before = structuredClone([...mock.documents]); const writes = mock.writes.length;
+    await expect(maintain('repair')).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect([...mock.documents]).toEqual(before); expect(mock.writes).toHaveLength(writes);
+    expect((mock.documents.get('sessions/s1')!.awayMissionProjectionSafety as Data).state).toBe('held');
+  });
+
+it('rejects final readiness after an actual gameplay pointer writer races the verified inventory', async () => {
+  await legacyPrivacyWorld(); await maintain('hold'); await maintain('repair'); await maintain('repair', 'privacy-verify');
+  const verified = (mock.documents.get('sessions/s1')!.awayMissionProjectionSafety as Data).writeRevision;
+  await send('dropOff', { shipId: 'aegis' });
+  expect((mock.documents.get('sessions/s1')!.awayMissionProjectionSafety as Data).writeRevision).not.toBe(verified);
+  const offset = mock.writes.length;
+  expect(await maintain('finalize')).toMatchObject({ status: 'stale', state: 'held' });
+  expect(mock.writes.slice(offset).filter(write => !write.path.startsWith(privacyRoot + '/'))).toEqual([]);
+  expect((mock.documents.get('sessions/s1')!.awayMissionProjectionSafety as Data).state).toBe('held');
+  await maintain('repair', 'reverify-after-gameplay');
+  expect(await maintain('finalize', 'new-finalize')).toMatchObject({ state: 'ready' });
+});
+
+it('validates the whole non-K namespace without changing ordinary printed arithmetic or participant data', async () => {
+  await resolve('D', 'D-1', 1);
+  const before = privacyInvariantSnapshot();
+  const pointers = structuredClone([...mock.documents].filter(([path]) => path.includes('/awayMissionHandPointers/')));
+  await maintain('hold'); expect(await maintain('repair')).toMatchObject({ pointerCount: 0 });
+  expect(await maintain('finalize')).toMatchObject({ state: 'ready' });
+  expect(privacyInvariantSnapshot()).toEqual(before);
+  expect([...mock.documents].filter(([path]) => path.includes('/awayMissionHandPointers/'))).toEqual(pointers);
 });
