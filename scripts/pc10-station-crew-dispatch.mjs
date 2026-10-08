@@ -29,6 +29,12 @@ function routePath(page) {
   return url.hash.startsWith('#/') ? new URL(url.hash.slice(1), url.origin).pathname : url.pathname;
 }
 
+function routePathFromHref(page, href) {
+  assert.ok(typeof href === 'string' && href, 'The visible current console return link must expose its ordinary destination.');
+  const url = new URL(href, page.url());
+  return url.hash.startsWith('#/') ? new URL(url.hash.slice(1), url.origin).pathname : url.pathname;
+}
+
 function roleActor(actors, roleId) {
   return actors.find(actor => actor.roleId === roleId);
 }
@@ -491,21 +497,32 @@ async function selectHighwallConsole(current, actor, context) {
   await actorFence(actor, current, context);
   await link.waitFor({ state: 'visible', timeout: Math.max(1, context.deadlineAt - Date.now()) });
   assertBudget(context.deadlineAt);
+  await actorFence(actor, current, context);
   await link.click({ timeout: Math.max(1, context.deadlineAt - Date.now()) });
   assertBudget(context.deadlineAt);
   await actorFence(actor, current, context);
+  assert.equal(routePath(page), '/shuttles/highwall', 'The original Miner member must remain on the actual Highwall route after entry.');
 }
 
 async function returnFromHighwallConsole(current, actor, context) {
   const page = actor.surface.page;
   if (actor.roleId !== 'icebreaker-miner' || routePath(page) !== '/shuttles/highwall') return;
-  const link = page.getByRole('link', { name: 'Back to assigned console', exact: true });
+  const expectedRoute = '/ships/icebreaker/roles/icebreaker-miner';
+  const link = page.getByRole('link', { name: 'Back to Icebreaker Miner console', exact: true });
   await actorFence(actor, current, context);
   await link.waitFor({ state: 'visible', timeout: Math.max(1, context.deadlineAt - Date.now()) });
   assertBudget(context.deadlineAt);
+  await actorFence(actor, current, context);
+  const href = await link.getAttribute('href');
+  assertBudget(context.deadlineAt);
+  assert.equal(routePathFromHref(page, href), expectedRoute,
+    'The printed Miner owner return link must target the assigned Miner console.');
+  await actorFence(actor, current, context);
   await link.click({ timeout: Math.max(1, context.deadlineAt - Date.now()) });
   assertBudget(context.deadlineAt);
   await actorFence(actor, current, context);
+  assert.equal(routePath(page), expectedRoute,
+    'The original Miner member must return to its exact printed owner console.');
 }
 
 async function actorFence(actor, current, context) {
