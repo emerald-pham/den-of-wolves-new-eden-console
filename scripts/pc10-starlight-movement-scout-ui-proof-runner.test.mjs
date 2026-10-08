@@ -19,12 +19,13 @@ const originalRoleIds = Object.freeze([
 const original = Object.freeze({
   sessionId: 'normal-session', uid: 'wing-uid', uidHash: '81088b8f489c2407',
   meSessionId: 'normal-session',
-  hasAuth: true, sameActor: true, playerRole: 'player', profileRoleId: null,
+  hasAuth: true, sameActor: true, playerRole: 'player', profileRoleId: null, profileSessionId: null,
   assignedRoleId: 'wing-commander', activeConsoleRoleId: 'wing-commander',
   seatId: 'wing-commander', replacementRoleId: null, replacementStatus: null,
   roleId: 'wing-commander', generation: 2, connectionGeneration: 2,
   hydrationRevision: 3, identityHydrationRevision: 3, connection: 'live', freshness: 'server',
   phase: 'active', cycle: 1, airspace: 'lifted', turnStatePhase: 'coordination',
+  documentTimeOrigin: 1_000,
   fullGameDemo: null, currentOwnPlayerConfirmed: true, sdkHasServerAuthority: true,
   groupId: 'fleet-1', shipId: 'aegis',
 });
