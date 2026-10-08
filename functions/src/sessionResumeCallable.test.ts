@@ -1174,6 +1174,7 @@ it('returns fresh server state after the resume transaction instead of its initi
       });
     }
     if (path === 'sessions/s1/players') return snapshot({}, true);
+    if (path === 'sessions/s1/secrets/loyalty-u1') return snapshot({}, false);
     if (path === 'activeMemberships/u1') return snapshot({}, false);
     if (path.startsWith('sessions/s1/seats/')) return snapshot({}, false);
     if (path === 'sessions/s1/wolfAttackState/current') return snapshot({}, false);
@@ -1209,6 +1210,7 @@ it('replaces a stale membership lock but refuses an active membership in another
         activeConsoleRoleId: null,
       });
       if (path === 'sessions/s1/players') return snapshot({}, true);
+      if (path === 'sessions/s1/secrets/loyalty-u1') return snapshot({}, false);
       if (path === 'activeMemberships/u1') return snapshot(membership);
       if (path === 'sessions/s2/players/u1') return snapshot(otherPlayer);
       if (path.startsWith('sessions/s1/seats/')) return snapshot({}, false);
