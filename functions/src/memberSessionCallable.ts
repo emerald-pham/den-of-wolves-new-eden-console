@@ -75,6 +75,7 @@ export function createCurrentMemberSessionReader({ db, projectSession }: {
         debriefSnapshot: session.get('debriefSnapshot'),
         fullGameDemo: session.get('fullGameDemo'),
         pressHolderUid: session.get('pressHolderUid'),
+        awayMissionProjectionSafety: session.get('awayMissionProjectionSafety'),
       };
       const memberSession = wire(memberSessionProjection(raw, { ...scope, actorUid, craftIds,
         presidentialBallotSubmitted: election.exists && ballot.exists && ballot.get('voterUid') === actorUid })) as Record<string, unknown>;

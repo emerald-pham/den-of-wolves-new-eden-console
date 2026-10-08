@@ -1,4 +1,5 @@
 import { shipForRole } from './crewAccess';
+import { awayMissionPointerWriteSafetyPatch } from './awayMissionProjectionSafety';
 import { requireCandidateCraftActionAvailable } from './candidateAvailability';
 import { randomInt } from 'node:crypto';
 import { HttpsError } from 'firebase-functions/v2/https';
@@ -639,6 +640,8 @@ export function createAwayMissionLifecycleCallables(
             updatedAt,
           });
         });
+        transaction.update(dependencies.db.doc(`sessions/${parsed.sessionId}`),
+          awayMissionPointerWriteSafetyPatch(session.get('awayMissionProjectionSafety')));
         transaction.create(dependencies.db.doc(p.event), {
           type: 'away-mission-lifecycle-command',
           sessionId: parsed.sessionId,
