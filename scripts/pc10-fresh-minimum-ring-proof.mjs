@@ -41,6 +41,8 @@ export function validateRingAllocation(input) {
  return input;
 }
 // Ring-specific source contract seams. Pure fixtures are not runtime evidence.
+export function ringGrantLeaseToken(stamp) { return typeof stamp==='string'?stamp:stamp.toDate().toISOString(); }
+export function ringResearchRevision(view) { return view.researchRevision; }
 export function assertRingWorkspace(view,{sessionId,groupId,cycle,coordinate,gm}) {
  assert.equal(view.type,'candidate-workspace');assert.equal(view.sessionId,sessionId);
  assert.equal(view.groupId,groupId);assert.equal(view.cycle,cycle);
@@ -75,7 +77,29 @@ export function assertRingSuccessfulSnapshot(root) {
  assert.equal(root.debriefSnapshot.source,'candidate');assert.equal(root.debriefSnapshot.result,'success');assert.equal(root.debriefSnapshot.candidate.code,'N');
 }
 export function isAcceptedRingClosedHistory(value,expected) {
- return value.sameActor&&value.phase==='closed'&&value.sessionId===expected.sessionId;
+ const paths=value.debriefPaths;
+ return value.hasAuth&&value.sameActor&&value.phase==='closed'&&value.sessionId===expected.sessionId&&
+  value.uidHash===expected.uidHash&&value.fleetGroupId===expected.groupId&&value.freshness==='server'&&
+  Number.isSafeInteger(value.hydrationRevision)&&value.hydrationRevision>0&&
+  value.debriefType==='session-debrief'&&value.debriefVersion===1&&value.debriefSource==='candidate'&&
+  value.debriefResult==='success'&&value.debriefCandidateCode==='N'&&value.debriefCycle===expected.cycle&&
+  value.debriefGroupCount===1&&value.debriefGroupsPrivacySafe===true&&Array.isArray(paths)&&
+  paths.some(step=>step.action==='ring-repair'&&step.result==='completed')&&
+  paths.some(step=>step.action==='sabotage-ring'&&step.result==='completed')&&
+  expected.ships.every(shipId=>paths.some(step=>step.action==='ring-passage'&&step.result==='crossed'&&step.shipId===shipId&&step.fuelSpent===5));
+}
+export function assertRingClosedServerReceipt(endpoint,result,{sessionId,uid,groupId}) {
+ let generation;
+ if(endpoint==='resumeSession') {
+  assert.equal(result.player.uid,uid);assert.equal(result.player.sessionId,sessionId);
+  assert.equal(result.player.fleetGroupId,groupId);generation=result.player.connectionGeneration;
+ }else {
+  assert.equal(endpoint,'getCurrentMemberSession');assert.equal(result.type,'current-member-session');
+  assert.equal(result.sessionId,sessionId);assert.equal(result.actorUid,uid);assert.equal(result.groupId,groupId);
+  generation=result.connectionGeneration;
+ }
+ assert.ok(Number.isSafeInteger(generation)&&generation>=1);assert.equal(result.session.id,sessionId);
+ assert.equal(result.session.phase,'closed');assertRingSuccessfulSnapshot(result.session);return generation;
 }
 export async function readRingEndingHistory(sdk,{sessionId,instanceId}) {
  const history=await sdk('getSessionDebrief',{sessionId,instanceId});
@@ -211,6 +235,8 @@ async function action(surface,endpoint,choose,options={}) { budget();const value
           profileSessionId: activeDemoActorProfile?.sessionId ?? null,
           assignedRoleId: state.me?.assignedRoleId ?? null, activeConsoleRoleId: state.me?.activeConsoleRoleId ?? null,
           connection: state.connection, freshness: state.sessionSnapshotFreshness,
+          hydrationRevision:state.identityHydrationRevision,fleetGroupId:state.me?.fleetGroupId??null,
+          connectionGeneration:state.me?.connectionGeneration??null,
           communicationError: state.communicationError ? { code: state.communicationError.code,
             kind: state.communicationError.kind ?? null } : null,
           setupUi: { confirmEnabled: [...document.querySelectorAll('button')].some(button =>
@@ -232,6 +258,11 @@ async function action(surface,endpoint,choose,options={}) { budget();const value
           debriefResult: state.session?.debriefSnapshot?.result ?? null,
           debriefCause: state.session?.debriefSnapshot?.cause ?? null,
           debriefCycle: state.session?.debriefSnapshot?.cycle ?? null,
+          debriefCandidateCode:state.session?.debriefSnapshot?.candidate?.code??null,
+          debriefGroupCount:state.session?.debriefSnapshot?.candidate?.groups?.length??null,
+          debriefPaths:state.session?.debriefSnapshot?.candidate?.groups?.flatMap(group=>group.path??[])??[],
+          debriefGroupsPrivacySafe:state.session?.debriefSnapshot?.candidate?.groups?.every(group=>
+            !Object.hasOwn(group,'groupId')&&(group.path??[]).every(step=>!Object.hasOwn(step,'audience')))??false,
           privateLoyaltyPresent: !!state.privateLoyalty, briefRoleId: state.roleBrief?.roleId ?? null,
           briefMatchesActor: !!state.roleBrief && state.roleBrief.assignmentUid === user?.uid,
           pendingCommandCount: state.pendingCommands.length };
@@ -460,7 +491,7 @@ async function enterRole(surface,label){
  }
  async function grant(shipId){
   const lease=await op(()=>db.doc(`sessions/${sid}/gmInstances/${gm1Instance}`).get());
-  const stamp=lease.get('claimedAt'),claimedAt=typeof stamp==='string'?stamp:stamp.toDate().toISOString();
+  const claimedAt=ringGrantLeaseToken(lease.get('claimedAt'));
   await sdk(gm,'setGmShipConsoleWriteGrant',{sessionId:sid,instanceId:gm1Instance,claimedAt,shipId,enabled:true});
  }
  async function supply(shipId,resourceId,minimum){
@@ -565,7 +596,7 @@ async function enterRole(surface,label){
    for(const[index,trackId]of TRACKS.entries()){
     const view=await sdk(recipient,'readEndeavourResearchWorkspace',{sessionId:sid});
     const current=await recordRoot(),data={sessionId:sid,requestId:crypto.randomUUID(),expectedCycle:cycle,
-     expectedControlRevision:current.shuttleControl.endeavour.revision,expectedResearchRevision:view.researchRevision,
+     expectedControlRevision:current.shuttleControl.endeavour.revision,expectedResearchRevision:ringResearchRevision(view),
      trackId,funding:index<3?'standard':'shepherd-ore'};
     const result=await sdk(recipient,'advanceEndeavourResearchTrack',data);
     assertRingResearchChoice(result,{trackId,cycle,oreCost:index<3?0:5});
@@ -648,7 +679,18 @@ async function enterRole(surface,label){
    await gm.page.getByRole('dialog',{name:'Endgame evaluation',exact:true}).waitFor();await gm.page.screenshot({path:`${directory}/Ring-GM-ending.png`});
    await action(gm,'closeSession',()=>gm.page.getByRole('button',{name:'Close session',exact:true}).click());await gm.until('Actual closed Ring history',v=>v.phase==='closed');
    assert.equal(hash(stable((await recordRoot()).debriefSnapshot)),snapshotHash);
-   await recipient.page.reload();const restored=await recipient.until('Entitled ordinary Scientist closed history after original reload',v=>isAcceptedRingClosedHistory(v,{sessionId:sid,uidHash:short(actorUids.get('Recipient')),groupId,cycle:ended.debriefSnapshot.cycle,ships}));
+   const closedDeadlineAt=Math.min(Date.now()+60000,workEnd),priorDocument=(await recipient.observe()).documentTimeOrigin;
+   const closedResponse=await op(()=>observeUiReceipt({page:recipient.page,consumed:{stage,closedHistory:true},
+    waitForResponse:()=>recipient.page.waitForResponse(response=>{
+     const endpoint=new URL(response.url()).pathname.split('/').at(-1);
+     return ['resumeSession','getCurrentMemberSession'].includes(endpoint)&&response.request().method()==='POST'&&response.request().postDataJSON()?.data?.sessionId===sid;
+    },{timeout:Math.min(35000,closedDeadlineAt-Date.now())}),
+    choose:()=>recipient.page.reload({timeout:Math.min(35000,closedDeadlineAt-Date.now())})}),closedDeadlineAt);
+   assert.equal(closedResponse.status(),200);const endpoint=new URL(closedResponse.url()).pathname.split('/').at(-1),closedBody=await closedResponse.json();
+   const closedGeneration=assertRingClosedServerReceipt(endpoint,closedBody.result,{sessionId:sid,uid:actorUids.get('Recipient'),groupId});
+   receipts.push({endpoint,result:closedBody.result,transport:'normal closed-history reload receipt'});
+   const restored=await op(()=>recipient.until('Entitled ordinary Scientist server closed history after original reload',v=>
+    v.documentTimeOrigin!==priorDocument&&v.connectionGeneration===closedGeneration&&isAcceptedRingClosedHistory(v,{sessionId:sid,uidHash:short(actorUids.get('Recipient')),groupId,cycle:ended.debriefSnapshot.cycle,ships}),closedDeadlineAt-Date.now()),closedDeadlineAt);
    assert.equal(restored.uidHash,short(actorUids.get('Recipient')));await recipient.page.getByRole('dialog',{name:'Endgame evaluation',exact:true}).waitFor();await recipient.page.screenshot({path:`${directory}/Ring-Scientist-closed-history.png`});
    evidence.endingProof=true;evidence.candidate619OriginalPaidPassageRecovery=true;
    claims.push('Actual GM far-side sabotage blocks pursuit, source Ring success/debrief, exact late crossing receipt, automatic immutable success freeze, authorized GM history read, immutable close and entitled same-UID closed-history reload');

@@ -135,3 +135,36 @@ test('closed normal-resume/member-read receipts bind original actor/group and pu
  assert.throws(()=>runner.assertRingClosedServerReceipt('getCurrentMemberSession',{...member,session:{...session,phase:'active'}},expected));
  assert.throws(()=>runner.assertRingClosedServerReceipt('getCurrentMemberSession',{...member,session:{...session,debriefSnapshot:{...snapshot,result:'failure'}}},expected));
 });
+
+test('lease read uses canonical claimedAt Timestamp and protected grant request contract',()=>{
+ const {Timestamp}=require('firebase-admin/firestore');
+ const {requireGmShipConsoleWriteGrantRequest}=require('../functions/lib/requestGuards.js');
+ const stamp=Timestamp.fromDate(new Date('2026-10-08T00:00:00.123Z'));
+ const claimedAt=runner.ringGrantLeaseToken(stamp);
+ assert.equal(claimedAt,'2026-10-08T00:00:00.123Z');assert.equal(runner.ringGrantLeaseToken(claimedAt),claimedAt);
+ assert.equal(requireGmShipConsoleWriteGrantRequest({sessionId:sid,instanceId:'owned',shipId:'aegis',claimedAt,enabled:true}).claimedAt,claimedAt);
+ assert.throws(()=>runner.ringGrantLeaseToken(undefined));
+});
+test('research read exposes researchRevision separately from root Endeavour control revision',()=>{
+ // Gold fields from endeavourResearchWriter.readPrivateState: ready/sessionId/
+ // cycle/researchRevision/cadence/progress/tracks/shepherdOre/fieldUpgradeState.
+ const workspace={status:'ready',sessionId:sid,cycle:4,researchRevision:19,cadence:{cycle:4,revision:19,choices:[]},
+  progress:Object.fromEntries(tracks.map(id=>[id,3])),tracks:[],shepherdOre:5,
+  fieldUpgradeState:{upgradeRevision:0,targetsUsedThisCycle:0}};
+ assert.equal(runner.ringResearchRevision(workspace),19);
+ assert.notEqual(runner.ringResearchRevision(workspace),0); // Independent control revision remains0.
+});
+test('actual jump planner result matches paid-arrival adapter fields without a prescribed server outcome',()=>{
+ const {resolveJumpAttempt}=require('../functions/lib/jumpDrive.js');
+ const result=resolveJumpAttempt({shipId:'aegis',origin:'0000',destination:'5143',transitionId:'synthetic-jump',charged:true,
+  damaged:false,upgraded:false,fuel:30,currentTurn:4,now:new Date(a.now)});
+ assert.equal(result.status,'jumped');assert.ok(result.fuelCost>0);
+ runner.assertRingPaidArrival(result,{shipResources:{aegis:{fuel:30}}},{shipResources:{aegis:{fuel:result.remainingFuel}}},'aegis');
+});
+test('actual Firestore CollectionReference QuerySnapshot exposes the witness query path without server I/O',()=>{
+ const {Firestore,QuerySnapshot,Timestamp}=require('@google-cloud/firestore');
+ const client=new Firestore({projectId:'demo-contract-fixture'});
+ const query=client.collection(`sessions/${sid}/candidateActionReceipts`);
+ const snapshot=new QuerySnapshot(query,Timestamp.fromDate(new Date(a.now)),0,()=>[],()=>[]);
+ assert.equal(snapshot.query.path.split('/').at(-1),'candidateActionReceipts');assert.equal(snapshot.size,0);assert.deepEqual(snapshot.docs,[]);
+});
