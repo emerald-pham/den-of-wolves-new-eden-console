@@ -141,7 +141,7 @@ function makeConsumer() {
     },
     async resolveScoutNormally(request) {
       trace.push({ ui: 'normal-gm-scout-resolution', requestId: request.requestId });
-      state.session.privateResult = { requestId: request.requestId, type: 'private-scout-result',
+      state.session.privateResult = { sessionId: 'normal-session', requestId: request.requestId, type: 'private-scout-result',
         requesterUid: 'wing-uid', sourceId: 'starlight', cycle: 1, targetCoordinate: request.targetCoordinate,
         systemFact: { coordinate: request.targetCoordinate, code: 'A', title: 'Actual private current fact' } };
       state.session.privateNote = { id: '1'.repeat(64), type: 'player-discovery-note', cycle: 1,
