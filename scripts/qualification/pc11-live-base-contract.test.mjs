@@ -438,3 +438,28 @@ test('all six actual runner wait predicates consume the published ordinary setup
   assert.equal(predicate('Original persisted Auth/member document restoration')({...active,playerRole:'player',activeConsoleRoleId:roleId}),true);
   for(const delta of [{hasAuth:false},{sameActor:false},{connection:'offline'},{freshness:'cache'}])assert.equal(predicate('Original persisted Auth/member document restoration')({...active,playerRole:'player',activeConsoleRoleId:roleId,...delta}),false);
 });
+
+
+test('canonical lifecycle correlation ignores stale and foreign operation responses and preserves intended rejection', async () => {
+  const surface = nativeSurface(stateFixture('gm'));
+  for (const denied of [false, true]) {
+    const make = (requestId, enabled, shipId = 'dione') => {
+      const data = { sessionId: sid, instanceId: 'gm-original', requestId, shipId, enabled };
+      const request = { url: () => 'http://127.0.0.1:5013/demo-pc11-test/us-central1/setGmShipConsoleWriteGrant', method: () => 'POST', postDataJSON: () => ({ data }) };
+      return { request: () => request, url: request.url, status: () => denied && requestId === 'intended' ? 403 : 200, json: async () => denied && requestId === 'intended' ? { error: { status: 'PERMISSION_DENIED' } } : { result: { enabled } } };
+    };
+    const stale = make('earlier-disable', false), earlierEnable = make('earlier-enable', true), foreign = make('foreign', true, 'aegis'), intended = make('intended', true);
+    surface.page.waitForResponse = predicate => new Promise(resolve => {
+      const listener = response => { if (predicate(response)) { surface.page.off('response', listener); resolve(response); } };
+      surface.page.on('response', listener);
+    });
+    const run = captureLifecycleUiAction(surface, 'setGmShipConsoleWriteGrant', async () => {
+      surface.page.emit('response', stale); surface.page.emit('response', earlierEnable);
+      surface.page.emit('request', foreign.request()); surface.page.emit('response', foreign);
+      surface.page.emit('request', intended.request()); surface.page.emit('response', intended);
+    }, { correlateRequests: true, matches: data => data?.shipId === 'dione' && data?.enabled === true });
+    if (denied) await assert.rejects(run, /actual UI request rejected/);
+    else { const result = await run; assert.equal(result.data.requestId, 'intended'); assert.equal(result.result.enabled, true); }
+    assert.equal(surface.page.listenerCount('request'), 0);
+  }
+});
