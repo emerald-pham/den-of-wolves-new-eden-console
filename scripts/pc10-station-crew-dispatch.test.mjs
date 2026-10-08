@@ -150,6 +150,8 @@ test('dispatches the currently offered PDF launch through its colonel console an
   assert.deepEqual(pdf.effects.clicks, ['Launch PDF Escort Wing']);
   assert.equal(accepted.endpoint, 'launchPdfEscortWing');
   assert.equal(accepted.metadata.deadlineAt, deadlineAt);
+  assert.equal(Object.hasOwn(accepted.metadata, 'original'), false,
+    'Lifecycle capture receives the original deadline and actor fence, never an incompatible observer snapshot.');
   assert.ok(opts.actorChecks.length > 0 && opts.actorChecks.every(check => check.profileRoleId === null),
     'An assigned actor with null profileRoleId stays bound to its observed live identity.');
 });
