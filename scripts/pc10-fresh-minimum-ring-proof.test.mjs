@@ -155,6 +155,24 @@ test('station loss wait rejects torn before/after browser reads before accepting
   assert.equal(memberReads, 2);
 });
 
+test('station loss wait treats an incomplete cleared-role aggregate as pending until the explicit tuple arrives', async () => {
+  const { actor, root, player, after } = stationLossFixture();
+  const incomplete = { ...after, escapeState: null, escapeLocked: true, escapeStateValid: true,
+    browserProjectionConsistent: false };
+  let memberReads = 0, inactive = 0;
+  const active = await selectStationCombatCrew([actor], {
+    deadlineAt: Date.now() + 1000,
+    readRoot: async () => root,
+    readPlayers: async () => [player],
+    readMember: async () => [incomplete, after][Math.min(memberReads++, 1)],
+    wait: async () => {},
+    onInactive: () => inactive++,
+  });
+  assert.deepEqual(active, []);
+  assert.equal(memberReads, 2);
+  assert.equal(inactive, 1);
+});
+
 test('station loss wait cannot credit inactivity when an awaited source read finishes after the original deadline', async () => {
   const { actor, root, player, after } = stationLossFixture();
   const inactive = [];
