@@ -8,6 +8,19 @@ test('actual browser combat collection never reads server-only authority',()=>{
  assert.ok(browserRead.includes('wolfAttackState/current'));assert.ok(browserRead.includes('wolfAttackAudience/current'));
  assert.doesNotMatch(browserRead,/serverState\/|getDocsFromServer|\/players|\/fleetGroups/);
 });
+test('Station phase catch-up reads the whole phase envelope and original GM lease from its owned browser',()=>{
+ const start=source.indexOf('async function readTurnState()');
+ const end=source.indexOf('const recordDiagnosticError',start);
+ const browserRead=source.slice(start,end);
+ assert.ok(browserRead.includes('getDocFromServer'),'The turn phase must come from a current server read through the original browser SDK.');
+ assert.match(browserRead,/sessions\/\$\{sid\}/);
+ assert.ok(browserRead.includes('turnPhase'));assert.ok(browserRead.includes('turnState'));
+ assert.ok(browserRead.includes('airspace'));assert.ok(browserRead.includes('progression'));
+ assert.ok(browserRead.includes('gmInstances'));assert.ok(browserRead.includes('claimedAt'));
+ assert.ok(browserRead.includes('gm1OriginalAuthority'));
+ assert.doesNotMatch(browserRead,/readStationCombatGuardAuthority|serverContext|serverState\//,
+  'Admin diagnostics and private attack support docs cannot qualify the member phase projection.');
+});
 test('diagnostic collection failure cannot replace an original gameplay stage failure',async()=>{
  const diagnosticError=Error('private diagnostic collection denied');const gameplayError=Error('actual Wing choice rejected');
  await assert.rejects(runSparseStationCombat({deadlineAt:Date.now()+1000,assertActors:async()=>{},readAttack:async()=>({attackId:'a',turn:2,revision:3,threatSiteCode:'P',status:'declared',currentStep:'targeting'}),onState:async()=>{throw diagnosticError},choose:async()=>{throw gameplayError}}),error=>error===gameplayError);

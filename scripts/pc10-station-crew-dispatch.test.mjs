@@ -1108,3 +1108,91 @@ test('rechecks the exact P attack after the final actor sample before PDF launch
   assert.equal(held.observedAttack.revision, current.revision + 1);
   assert.deepEqual(pdf.effects.clicks, [], 'The old source action must not click after the attack changes during actor sampling.');
 });
+
+const originalStationGmAuthority = Object.freeze({ sessionId, uidHash: 'uid-original-gm', generation: 4,
+  hydrationRevision: 2, instanceId: 'gm-instance-original', claimedAt: 'lease-original' });
+
+function stationPhaseEnvelope(actor, phaseRevision = actor.turnStatePhaseRevision, gmAuthority = originalStationGmAuthority) {
+  return { sessionId, gmAuthority: { ...gmAuthority }, session: {
+    phase: 'active', currentTurn: actor.turnStateCurrentTurn,
+    fullGameDemo: { status: 'active', progression: 'manual' },
+    turnPhase: { turn: actor.turnPhaseTurn, teamPhaseEndsAt: actor.turnPhaseTeamPhaseEndsAt,
+      openAirspaceEndsAt: actor.turnPhaseOpenAirspaceEndsAt,
+      airspace: { state: actor.airspace, tickerActive: true, pressAccess: false }, progression: actor.phaseProgression },
+    turnState: { currentTurn: actor.turnStateCurrentTurn, maxTurn: actor.turnStateMaxTurn,
+      phase: actor.turnStatePhase, phaseRevision, startedAt: actor.turnStateStartedAt, endsAt: actor.turnStateEndsAt },
+  } };
+}
+
+test('waits for the pinned normal GM Team projection before freezing and acting on a stale actor', async () => {
+  const current = attack('targeting');
+  const pdf = surface('refinery-124-pdf-colonel', { type: 'pdf-escort-wing-launch-view',
+    sessionId, turn: 3, revision: 8, wingRevision: 4, launched: false, eligible: true });
+  pdf.testActor.turnStatePhaseRevision = 11;
+  let phaseReads = 0, phaseAtIntent = null;
+  const opts = options([{ roleId: pdf.label, surface: pdf }], current);
+  opts.gmAuthority = originalStationGmAuthority;
+  opts.readTurnState = async () => {
+    phaseReads++;
+    if (phaseReads === 2) pdf.testActor.turnStatePhaseRevision = 13;
+    return stationPhaseEnvelope(pdf.testActor, 13);
+  };
+  opts.action = async (surface, endpoint, choose, metadata) => {
+    phaseAtIntent = pdf.testActor.turnStatePhaseRevision;
+    await choose();
+    return { endpoint, data: metadata.expectedRequest, httpStatus: 200, result: { status: 'committed' } };
+  };
+
+  assert.deepEqual(await dispatchStationCrewChoice(current, opts), { committed: true });
+  assert.equal(phaseAtIntent, 13, 'No choice may be intended from the retained Team11 member projection.');
+  assert.ok(phaseReads >= 3, 'The original session phase must be read and bookended around the actor freeze.');
+  assert.deepEqual(pdf.effects.clicks, ['Launch PDF Escort Wing']);
+});
+
+test('rejects a changed authoritative phase tuple before actor scope freeze', async () => {
+  const current = attack('targeting');
+  const pdf = surface('refinery-124-pdf-colonel', { type: 'pdf-escort-wing-launch-view',
+    sessionId, turn: 3, revision: 8, wingRevision: 4, launched: false, eligible: true });
+  pdf.testActor.turnStatePhaseRevision = 13;
+  let phaseReads = 0;
+  const opts = options([{ roleId: pdf.label, surface: pdf }], current);
+  opts.gmAuthority = originalStationGmAuthority;
+  opts.readTurnState = async () => stationPhaseEnvelope(pdf.testActor, ++phaseReads === 1 ? 13 : 15);
+
+  await assert.rejects(dispatchStationCrewChoice(current, opts), /phase|turnState|authoritative/i);
+  assert.ok(phaseReads >= 2, 'The source change must be observed after the original phase tuple was pinned.');
+  assert.deepEqual(pdf.effects.reads, [], 'A changed source phase must stop before the private choice read.');
+  assert.deepEqual(pdf.effects.clicks, []);
+});
+
+test('rejects changed original GM lease identity while reading phase authority', async () => {
+  const current = attack('targeting');
+  const pdf = surface('refinery-124-pdf-colonel', { type: 'pdf-escort-wing-launch-view',
+    sessionId, turn: 3, revision: 8, wingRevision: 4, launched: false, eligible: true });
+  pdf.testActor.turnStatePhaseRevision = 13;
+  const changedLease = { ...originalStationGmAuthority, claimedAt: 'lease-replaced' };
+  const opts = options([{ roleId: pdf.label, surface: pdf }], current);
+  opts.gmAuthority = originalStationGmAuthority;
+  opts.readTurnState = async () => stationPhaseEnvelope(pdf.testActor, 13, changedLease);
+
+  await assert.rejects(dispatchStationCrewChoice(current, opts), /GM|lease|authority|claimedAt/i);
+  assert.deepEqual(pdf.effects.reads, []);
+  assert.deepEqual(pdf.effects.clicks, []);
+});
+
+test('does not extend the original deadline while reading the GM phase source', async () => {
+  const current = attack('targeting');
+  const pdf = surface('refinery-124-pdf-colonel', { type: 'pdf-escort-wing-launch-view',
+    sessionId, turn: 3, revision: 8, wingRevision: 4, launched: false, eligible: true });
+  pdf.testActor.turnStatePhaseRevision = 13;
+  const opts = options([{ roleId: pdf.label, surface: pdf }], current, undefined, Date.now() + 300);
+  opts.gmAuthority = originalStationGmAuthority;
+  opts.readTurnState = async () => {
+    await new Promise(resolve => setTimeout(resolve, 400));
+    return stationPhaseEnvelope(pdf.testActor, 13);
+  };
+
+  await assert.rejects(dispatchStationCrewChoice(current, opts), /deadline|expired/i);
+  assert.deepEqual(pdf.effects.reads, [], 'A phase read completing after the original budget cannot earn source readiness.');
+  assert.deepEqual(pdf.effects.clicks, []);
+});
