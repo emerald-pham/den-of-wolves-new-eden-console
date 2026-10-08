@@ -41,7 +41,7 @@ export function stationActivationContext(input){return {code:'P',...input,gm:{..
 export function stationCombatConsoles(){return ['jump-drive','fighter-bay-alpha','fighter-bay-bravo'];}
 export async function readStationLiberation(readDocument,root,expected){const require=createRequire(new URL('../functions/package.json',import.meta.url));const {parseCandidateStationLiberations}=require('../functions/lib/candidateStationLiberation.js');const markers=parseCandidateStationLiberations(await readDocument('serverState/candidateStationLiberations'));const marker=markers[`${expected.groupId}:${expected.coordinate}`];assert.ok(marker);for(const key of ['sessionId','groupId','coordinate','sourceId','cycle'])assert.equal(marker[key],expected[key]);assert.equal(marker.cycle,root.currentTurn);return marker;}
 export function minimumStationPlan(){return {actualAuthenticatedActors:2,configuredRoles:13,browserProcesses:1,browserContexts:2,hardCapMs:1200000,probeFamily:'station-success',forcedOutcome:false};}
-export async function runStationWorkflow(operations){await operations.setup();await operations.stationArrivalMaintenance();await operations.stationArrival();await operations.advance(2);await operations.stationCombatMaintenance();await operations.stationCombat();await operations.stationActivate();await operations.stationEnding();}
+export async function runStationWorkflow(operations){await operations.setup();await operations.stationArrivalMaintenance();await operations.stationArrival();await operations.stationDeferCombat();await operations.advance(2);await operations.stationCombatMaintenance();await operations.stationCombat();await operations.stationActivate();await operations.stationEnding();}
 export function minimumPursuitClosurePlan(){return {actualAuthenticatedActors:2,configuredRoles:13,browserProcesses:1,browserContexts:2,hardCapMs:300000,probeFamily:'pursuit-closure',nClosedHistoryObserved:false};}
 export async function presentPursuitCycle(surfaces,observe,present=completeOfferedCyclePresentation){for(const surface of surfaces)await present(surface,await observe(surface),{clearBriefing:true});}
 export async function runPursuitClosureWorkflow(operations){await operations.setup();await operations.pursuitAndClose();}
@@ -633,6 +633,19 @@ async function enterRole(surface,label){
    const nav=await db.doc(`sessions/${sid}/serverState/navigation`).get();assertStationNavigation(nav,ships,coordinate);
    const wing=await fullMember(recipient);assertSparseStationWing(wing,wing);assert.equal(wing.fleetGroupId,groupId);evidence.stationWingOriginal=wing;
    claims.push('Six real charged paid P arrivals; normal movement establishes exact original Wing AEGIS memberShipIds berth');
+  },
+  async stationDeferCombat(){
+   await mark('ordinary Cycle1 deferral required for first Cycle2 Station attack');
+   const actor=await liveGm(gm,'GM1','active');assert.equal(actor.cycle,1);
+   const timing=gm.page.getByRole('region',{name:'Wolf attack timing controls',exact:true});
+   const prior=await db.doc(`sessions/${sid}/wolfAttackWindow/current`).get();const revision=prior.exists?prior.get('revision'):0;
+   const receipt=await action(gm,'setWolfAttackWindow',()=>timing.getByRole('button',{name:'Defer to Cycle 2',exact:true}).click());
+   assert.equal(receipt.data.sessionId,sid);assert.equal(receipt.data.status,'deferred');assert.equal(receipt.data.expectedRevision,revision);
+   assert.equal(receipt.result.status,'deferred');assert.equal(receipt.result.turn,2);assert.equal(receipt.result.revision,revision+1);
+   const deferred=await db.doc(`sessions/${sid}/wolfAttackWindow/current`).get();
+   assert.equal(deferred.get('status'),'deferred');assert.equal(deferred.get('turn'),2);
+   assert.equal(deferred.get('revision'),revision+1);
+   evidence.stationCycle1Deferral={status:'deferred',turn:2,revision:revision+1,receipt:publicLifecycleReceipt(receipt)};
   },
   async stationCombatMaintenance(){
    await mark('legitimate Station Cycle2 maintenance and actual fighter charges');
