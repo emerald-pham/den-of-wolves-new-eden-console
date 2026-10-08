@@ -1,0 +1,1239 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-08T07:31:23.318508+00:00",
+  "status": "SOURCE_ONLY_CURRENT_GAPS_RECONCILED_NEXT_FOCUSED_RUNNER_REQUIRED",
+  "sourceCommit": "ceca8140c855da8ae3edf716bfe1cd391d34c681",
+  "sourceBindingScope": "Read-only product source plus existing immutable native receipts. New document is planning/accounting, not new tests/native/CI/deployment.",
+  "remoteMainVerified": "9bfe4c3ae338f21eb564323c0d26822a28b628ec",
+  "releasedVersion": "0.5.71",
+  "unreleasedOwnerVersion": "0.5.72",
+  "accounting": {
+    "fixedRows": 48,
+    "partial": 13,
+    "missing": 35,
+    "overallDone": 703,
+    "overallTotal": 751,
+    "campaignDone": 245,
+    "campaignTotal": 293,
+    "next": "181",
+    "newClosures": 0,
+    "newNativeCredit": 0,
+    "criteriaCountsNotAdditive": true
+  },
+  "previousReadOnlyAudit": {
+    "path": "/tmp/pc10-independent-acceptance-audit/PC10_READ_ONLY_GAP_MAP.md",
+    "sha256": "525ca3181eb87d8069daeef0f506ebaf7395b51d64b6c675ccf4210654516c4c"
+  },
+  "acceptedScopedFamilies": [
+    {
+      "key": "press-flight-ending",
+      "evidence": {
+        "path": "/tmp/dow-pc10-evidence/OWNER_PRESS_ENDING_4_CLOSED_FAMILY_HANDOFF_20261007.json",
+        "sha256": "257c17704a5ac112560890f9fc14db8b598a8ea14c375ef57ac48c946f13e513"
+      },
+      "status": "PASSED_BOUNDED_PRESS_FLIGHT_TO_ENDING_FAMILY_CLOSED",
+      "acceptedSourceCommit": "3c279eee621fa3df96689e1191a0932980fcc729",
+      "scopedCriteria": 27,
+      "authActors": 3,
+      "independentChromeProcesses": 2,
+      "browserContexts": 2,
+      "humanDevices": 0,
+      "functionCriteria": [
+        "beginSessionDebrief",
+        "closeSession"
+      ],
+      "scope": "Fresh GM/manual progression, real Press natural flight/current group and Pursuit ending/history.",
+      "remainingLimits": [
+        "Starlight first movement and all role/functions are not inferred. Final rendered usability remains open."
+      ],
+      "evidenceKind": "native",
+      "fixedClosureCredit": 0
+    },
+    {
+      "key": "two-gm-ending-race",
+      "evidence": {
+        "path": "/tmp/dow-pc10-evidence/OWNER_ENDING_CONCURRENCY_2_CLOSED_FAMILY_HANDOFF_20261007.json",
+        "sha256": "8a9b9c6b03b42d2a1ae82a94fcb1e4ade51fc21de523f210934de3069bae8253"
+      },
+      "status": "PASS_SELECTED_ENDING_CONCURRENCY_FAMILY_CLOSED_HANDOFF",
+      "acceptedSourceCommit": "d9664a4182c3cdfbcd68d0b55870b7dc44dcd0a4",
+      "scopedCriteria": 19,
+      "authActors": 3,
+      "independentChromeProcesses": 2,
+      "browserContexts": 2,
+      "humanDevices": 0,
+      "functionCriteria": [
+        "beginSessionDebrief",
+        "closeSession"
+      ],
+      "scope": "Two real live-GM UI freeze/close races, one effect each, four actor-bound receipts, original reader recovery/reload.",
+      "remainingLimits": [
+        "Other outcomes/private audiences and natural dropout remain distinct."
+      ],
+      "evidenceKind": "native",
+      "fixedClosureCredit": 0
+    },
+    {
+      "key": "candidate-discovery-preparation",
+      "evidence": {
+        "path": "/tmp/dow-pc10-evidence/OWNER_CANDIDATE_DISCOVERY_PREPARATION_6_CLOSED_FAMILY_HANDOFF_20261007.json",
+        "sha256": "b6e9dfbba6ad4ec84193e0ed1e5aa4e752412cc2197419af6106f9a1a366dc7c"
+      },
+      "status": "PASS_SELECTED_CANDIDATE_DISCOVERY_PREPARATION_FAMILY_CLOSED_HANDOFF",
+      "acceptedSourceCommit": "84dc3c4e8a8b5a7882349836c026a1c357379759",
+      "scopedCriteria": 20,
+      "authActors": 2,
+      "independentChromeProcesses": 2,
+      "browserContexts": 2,
+      "humanDevices": 0,
+      "functionCriteria": [
+        "requestScout",
+        "setCandidatePlanCheckpoint"
+      ],
+      "scope": "N/O/P automatic discovery, real active Cycle6 plan and preparation blockers/costs; original request/GM checkpoint interruption and recovery.",
+      "remainingLimits": [
+        "No N/O/P success, whole-game or full619 credit. Original immutable source binding is retained."
+      ],
+      "evidenceKind": "native",
+      "fixedClosureCredit": 0,
+      "originalSourceBinding": {
+        "actualSourceCommit": "84dc3c4e8a8b5a7882349836c026a1c357379759",
+        "reconciledHead": "d480a133a40c1b39090ef2616637fce56491ff9e",
+        "docsOnlyDelta": [
+          "docs/IMPLEMENTATION_PROGRESS.md",
+          "docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md",
+          "docs/PC10_ACCEPTANCE_MATRIX.md",
+          "docs/PC10_ACTION_ROLE_MATRIX.md",
+          "docs/PC10_EXECUTION_RECORD.md",
+          "docs/PC10_PC11_HANDOFF.md",
+          "docs/implementation-prompts.json"
+        ],
+        "productRulesScriptsFunctionsMetadataByteIdenticalAfterDocs": true,
+        "trackedFiles": 2003,
+        "canonicalPc10Mjs": 251,
+        "compiledFiles": 434,
+        "compiledTreeSha256": "2f12632b003d10ee16b0af2513964fe28de5185c5143969289219c92eac3254f",
+        "javascriptFiles": 217,
+        "javascriptTreeSha256": "e5a98eca19821832785959f21dc3d3d40a503eff397a079e4f7da563edb16eb9"
+      },
+      "originalCommitMetadata": {
+        "plan": "84dc3c4e8a8b5a7882349836c026a1c357379759",
+        "acceptanceDocs": "d480a133a40c1b39090ef2616637fce56491ff9e",
+        "productChangesThisFamily": []
+      }
+    },
+    {
+      "key": "black-sheep-custody-cargo",
+      "evidence": {
+        "path": "/tmp/dow-pc10-evidence/OWNER_CORE_CUSTODY_CARGO_4_CLOSED_FAMILY_HANDOFF_20261007.json",
+        "sha256": "5dfb7b314ec610db675a6709c310647d135c9425bcc873c7a46517dbdfe5c60f"
+      },
+      "status": "PASS_SELECTED_CORE_CUSTODY_CARGO_FAMILY_CLOSED_HANDOFF",
+      "acceptedSourceCommit": "5da0593c89b5b5d1d29500a96b714bd858c76b99",
+      "scopedCriteria": 17,
+      "authActors": 3,
+      "independentChromeProcesses": 3,
+      "browserContexts": 3,
+      "humanDevices": 0,
+      "functionCriteria": [
+        "transferShuttleControlCommand",
+        "transferShuttleCargoCommand"
+      ],
+      "scope": "Actual handoff/reclaim/cargo debit-credit, committed acknowledgement loss, exact UI/SDK replay, original reload and former-holder denial.",
+      "remainingLimits": [
+        "Settled cargo pixels were earned later; pending-intent persistence/other craft are not inferred. Original immutable source binding is retained."
+      ],
+      "evidenceKind": "native",
+      "fixedClosureCredit": 0,
+      "originalSourceBinding": {
+        "actualSourceCommit": "5da0593c89b5b5d1d29500a96b714bd858c76b99",
+        "reconciledHead": "45b94dedb0cc753969243beab625a2316f4a240a",
+        "docsOnlyDelta": [
+          "docs/AGENT_EXECUTION_POLICY.md",
+          "docs/IMPLEMENTATION_PROGRESS.md",
+          "docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md",
+          "docs/PC10_ACCEPTANCE_MATRIX.md",
+          "docs/PC10_ACTION_ROLE_MATRIX.md",
+          "docs/PC10_EXECUTION_RECORD.md",
+          "docs/PC10_PC11_HANDOFF.md",
+          "docs/implementation-prompts.json"
+        ],
+        "productRulesScriptsFunctionsBuildMetadataByteIdenticalAfterDocs": true,
+        "trackedFiles": 2003,
+        "canonicalPc10Mjs": 251,
+        "compiledFiles": 434,
+        "compiledTreeSha256": "2f12632b003d10ee16b0af2513964fe28de5185c5143969289219c92eac3254f",
+        "javascriptFiles": 217,
+        "javascriptTreeSha256": "e5a98eca19821832785959f21dc3d3d40a503eff397a079e4f7da563edb16eb9"
+      },
+      "originalCommitMetadata": {
+        "plan": "5da0593c89b5b5d1d29500a96b714bd858c76b99",
+        "acceptanceDocs": "45b94dedb0cc753969243beab625a2316f4a240a",
+        "productChangesThisFamily": []
+      }
+    },
+    {
+      "key": "water-recharge",
+      "evidence": {
+        "path": "/tmp/dow-pc10-evidence/OWNER_WATER_RECHARGE_RECOVERY_4_ACTUAL_HANDOFF_20261008.json",
+        "sha256": "0828fa9d99926359ac0b52d872dd55dc84a40a2a90d2d3748b2150f1c3fc739c"
+      },
+      "status": "ACTUAL_NATIVE_BOUNDED_PASS_OWNED_RUNTIME_RELEASED",
+      "acceptedSourceCommit": "1459f1b56aec21d529978273f1d505ed939ab8bb",
+      "scopedCriteria": 15,
+      "authActors": 3,
+      "independentChromeProcesses": 3,
+      "browserContexts": 3,
+      "humanDevices": 0,
+      "functionCriteria": [
+        "runMaintenance",
+        "rechargeHostConsoleFromShuttle"
+      ],
+      "scope": "Printed Shepherd Cycle2 maintenance/refuel; Water2to4, one receipt/event/metadata/private audit, ack loss/UI exact retry/reload and fresh once guard.",
+      "remainingLimits": [
+        "Cross-cycle reset, same-cycle stale, other consoles/hosts/craft and foreign readers remain unproved."
+      ],
+      "evidenceKind": "native",
+      "fixedClosureCredit": 0
+    },
+    {
+      "key": "highwall-two-unfuelled",
+      "evidence": {
+        "path": "/tmp/dow-pc10-evidence/OWNER_HIGHWALL_MINING_2_PASSED_CLEAN_HANDOFF_20261008.json",
+        "sha256": "5f313c68cf3c751bbe435d8709622e237550c6791088eb755add0f7d28b869a8"
+      },
+      "status": "HIGHWALL_NATIVE_PASS_OWNED_RUNTIME_RETURNED_PARENT_GRANT_CLOCK_OVERRUN",
+      "acceptedSourceCommit": "81947fafeff7386718fd040ae139d45b919aa40f",
+      "scopedCriteria": 12,
+      "authActors": 2,
+      "independentChromeProcesses": 2,
+      "browserContexts": 2,
+      "humanDevices": 0,
+      "functionCriteria": [
+        "runHighwallMining"
+      ],
+      "scope": "Two standard server dice/cargo operations; real acknowledgement loss/UI retry, original reload/SDK replay, stale/no-effect, GM wrong role and fresh quota refusal.",
+      "remainingLimits": [
+        "Fuelled third operation, new-cycle reset, foreign/peer custody and postreload panel framing remain open. Parent allocation overrun remains recorded separately."
+      ],
+      "evidenceKind": "native",
+      "fixedClosureCredit": 0
+    },
+    {
+      "key": "requester-scout-peer-privacy",
+      "evidence": {
+        "path": "/tmp/dow-pc10-evidence/OWNER_SCOUT_PRIVATE_AUDIENCE_3_CDE_PASSED_CLEAN_HANDBACK_20261008.json",
+        "sha256": "b07cbcb85e0d57dd530d22df43b3240fcfee771b246805da8a69d852ebd77818"
+      },
+      "status": "BOUNDED_THREE_ACTOR_SCOUT_PRIVATE_AUDIENCE_PASS_CLEAN_HANDBACK",
+      "acceptedSourceCommit": "cde408b5ed9be76f541f19dcdb3e9bf63d442cfb",
+      "scopedCriteria": 12,
+      "authActors": 3,
+      "independentChromeProcesses": 3,
+      "browserContexts": 3,
+      "humanDevices": 0,
+      "functionCriteria": [
+        "requestScout",
+        "listMyScoutReports",
+        "readPrivateScoutResult",
+        "readMyScoutDiscoveryNote",
+        "getCurrentMemberSession"
+      ],
+      "scope": "One real6798/N original requester report/note; own index, peer/borrowed-GM denial, code/title allowlist, ten populated SDK doc/query denials, bound wire envelope and original peer cold reload.",
+      "remainingLimits": [
+        "Foreign/revoked audience, other producers, ending, whole-role and full manual-free acceptance remain open."
+      ],
+      "evidenceKind": "native",
+      "fixedClosureCredit": 0
+    }
+  ],
+  "helperOwnership": {
+    "owner": "SUCCESS/P helper",
+    "worktree": "/private/tmp/dow-pc10-success-20261008",
+    "families": [
+      "544",
+      "545",
+      "546",
+      "547",
+      "548",
+      "549",
+      "550",
+      "551",
+      "552",
+      "553",
+      "554",
+      "555",
+      "556",
+      "557",
+      "558",
+      "559",
+      "647",
+      "648",
+      "649",
+      "619"
+    ],
+    "sharedBoundaries": [
+      "619 candidate recovery",
+      "563/564/566 candidate-specific ending/read privacy"
+    ],
+    "retainedN": "Ring attempt3 positive N plus partial619; common Close separately accepted; N-specific closed history remains unobserved.",
+    "latestP": "Parent clarified intended boarding-finalization dependency: printed shuttle owners and custody are required; resolved boarding summary covers defence choices only. Captured losses leave15 Reactor capacity versus18required. Helper diagnosis bcdac25f has118 reviewed checks; its proposed12actor Pressdisabled supported-preset/custody/capacity cohort awaits independent minimum audit and test-first dispatch before any larger native allocation. No product blocker or owner repair is established; no P success credit.",
+    "heavyRuntimeReturnedEarly": true,
+    "ownerRuntimeGrant": false,
+    "retainedCommonClose": {
+      "evidence": {
+        "path": "/tmp/dow-pc10-evidence/OWNER_PC10_PURSUIT_CLOSURE_PASSED_HANDOFF_20261008.json",
+        "sha256": "b793537bb27529a109ea60bea5beb7075cedef0b60958f6ad70251169544b6d1"
+      },
+      "sourceCommit": "ddfb7ee5d2e6a6342a5717201a64d02d56d05857",
+      "scopedCriteria": 4,
+      "authActors": 2,
+      "browserProcesses": 1,
+      "contexts": 2,
+      "nSpecificClosedHistoryUnproved": true
+    },
+    "retainedRingEvidence": {
+      "repoPath": "docs/PC10_RING_ATTEMPT3_EARNED_EVIDENCE.md",
+      "sourceCommit": "522447d42170c058e64a0ea57dac5a4174579608",
+      "combinedStatus": "failed-later-close",
+      "nSuccessAndPartial619Only": true,
+      "nativeWholeFamilyPassClaimed": false
+    },
+    "previousReportedPState": "Parent reports both Wing launches and bounded Alpha stale-view recovery plus boarding progression. Declared attack revision16/boarding summary resolved discrepancy remains helper source-only diagnosis; no P outcome credit."
+  },
+  "fixedRows": [
+    {
+      "id": "181",
+      "catalogStatus": "missing",
+      "title": "Create the Wing Commander workspace.",
+      "acceptance": "Starlight, both Fighter Bays, wings, scouting, missions, and fighter rebuilding show current authority and results. Use the existing ordinary-player station/console chooser, role-bound actions and truthful pending/committed results. Back and lost-station recovery return to the correct chooser with a reselect instruction, preserving safe local input.",
+      "auditClassification": "M",
+      "retainedEarlierCriteria": "SETUP supports chooser/seat only; no complete workspace credit",
+      "remainingBehaviorAtAudit": "Starlight Begin/retarget/arrival, both bays, wings, scout, missions and rebuild with current authority/results and loss-of-station return",
+      "minimumCohortAtAudit": "GM + Wing Commander; add actual recipient/competitor only for handoff/race",
+      "sourceAnchorsAtAudit": "src/components/AegisConsoleWorkspace.tsx; src/components/AegisFighterWingLaunchPanel.tsx; functions/src/fighterWingCallable.test.ts",
+      "fixedClosureAccepted": false,
+      "gapType": "unqualified_behavior_or_branch",
+      "behaviorImplementationMissingEstablishedByThisReview": false,
+      "owner": "PC10 owner next bounded family",
+      "currentScopedAdditions": []
+    },
+    {
+      "id": "215b",
+      "catalogStatus": "missing",
+      "title": "Complete the Scientist workspace.",
+      "acceptance": "research tracks/devices, Endeavour, scouting, upgrades, and mission participation remain private and authoritative. Use the existing ordinary-player station/console chooser, role-bound actions and truthful pending/committed results. Back and lost-station recovery return to the correct chooser with a reselect instruction, preserving safe local input.",
+      "auditClassification": "B+M",
+      "retainedEarlierCriteria": "DISC discovery; RING four real research cycles/five tracks",
+      "remainingBehaviorAtAudit": "Remaining devices, field upgrades and mission participation; private peer/foreign reads; complete chooser/recovery",
+      "minimumCohortAtAudit": "GM + Scientist; third peer/foreign actor for private audience",
+      "sourceAnchorsAtAudit": "src/components/EndeavourResearchPanel.tsx; src/components/EndeavourResearchChoices.test.tsx",
+      "fixedClosureAccepted": false,
+      "gapType": "unqualified_behavior_or_branch",
+      "behaviorImplementationMissingEstablishedByThisReview": false,
+      "owner": "PC10 owner next bounded family",
+      "currentScopedAdditions": [
+        "requester-scout-peer-privacy"
+      ]
+    },
+    {
+      "id": "223b",
+      "catalogStatus": "missing",
+      "title": "Complete the Explorer workspace.",
+      "acceptance": "Hummingbird scouting, harvesting allocation, route planning, and mission participation are authoritative. Use the existing ordinary-player station/console chooser, role-bound actions and truthful pending/committed results. Back and lost-station recovery return to the correct chooser with a reselect instruction, preserving safe local input.",
+      "auditClassification": "M",
+      "retainedEarlierCriteria": "No complete native Explorer outcome identified",
+      "remainingBehaviorAtAudit": "Real Hummingbird scouting/harvest allocation/route planning/mission with result and recovery",
+      "minimumCohortAtAudit": "GM + Explorer; recipient only if allocation requires one",
+      "sourceAnchorsAtAudit": "src/components/HummingbirdHarvest.tsx; src/components/HummingbirdHarvest.test.tsx",
+      "fixedClosureAccepted": false,
+      "gapType": "unqualified_behavior_or_branch",
+      "behaviorImplementationMissingEstablishedByThisReview": false,
+      "owner": "PC10 owner next bounded family",
+      "currentScopedAdditions": []
+    },
+    {
+      "id": "233b",
+      "catalogStatus": "missing",
+      "title": "Complete the PDF Colonel workspace.",
+      "acceptance": "Fighter Bay, Escort Wing, Chepu, boarding, news relay, and mission participation remain role-bound. Use the existing ordinary-player station/console chooser, role-bound actions and truthful pending/committed results. Back and lost-station recovery return to the correct chooser with a reselect instruction, preserving safe local input.",
+      "auditClassification": "M",
+      "retainedEarlierCriteria": "No complete native Colonel outcome identified",
+      "remainingBehaviorAtAudit": "Fighter Bay/Escort Wing/Chepu/boarding/news/mission actions and role-bound recovery",
+      "minimumCohortAtAudit": "GM + Colonel; required defender/recipient for real boarding/handoff",
+      "sourceAnchorsAtAudit": "src/components/BoardingSecurityTeamWorkspace.tsx; src/components/PdfEscortWingReference.tsx; functions/src/boardingSecurityTeamCallable.ts",
+      "fixedClosureAccepted": false,
+      "gapType": "unqualified_behavior_or_branch",
+      "behaviorImplementationMissingEstablishedByThisReview": false,
+      "owner": "PC10 owner next bounded family",
+      "currentScopedAdditions": []
+    },
+    {
+      "id": "576",
+      "catalogStatus": "missing",
+      "title": "Resolve Macaw salvage dismantling.",
+      "acceptance": "target permission and the recorded self-dismantling policy govern deliberate damage and Scrap gain.",
+      "auditClassification": "M",
+      "retainedEarlierCriteria": "Implemented permissioned dismantling panel/callable; no complete real outcome identified",
+      "remainingBehaviorAtAudit": "Target permission/self-dismantle policy, deliberate damage/Scrap/replay",
+      "minimumCohortAtAudit": "GM + Macaw holder; target owner if actual permission requires distinct actor",
+      "sourceAnchorsAtAudit": "src/components/PermissionedDismantlingPanel.tsx; functions/src/permissionedDismantling.ts; functions/src/permissionedDismantlingCallable.ts",
+      "fixedClosureAccepted": false,
+      "gapType": "unqualified_behavior_or_branch",
+      "behaviorImplementationMissingEstablishedByThisReview": false,
+      "owner": "PC10 owner next bounded family",
+      "currentScopedAdditions": []
+    },
+    {
+      "id": "579",
+      "catalogStatus": "missing",
+      "title": "Resolve Boa reclamation.",
+      "acceptance": "one pre-deal opportunity halves difficulty, replaces reward with one Scrap, and grants no critical bonus.",
+      "auditClassification": "M",
+      "retainedEarlierCriteria": "Implemented Boa mission reclamation panel/callable; no complete real outcome identified",
+      "remainingBehaviorAtAudit": "One pre-deal choice halves difficulty, reward1Scrap/no critical bonus, repeat/late denial",
+      "minimumCohortAtAudit": "GM + Boa holder/mission actor; required participants only",
+      "sourceAnchorsAtAudit": "src/components/BoaMissionReclamationPanel.tsx; functions/src/boaMissionReclamation.ts",
+      "fixedClosureAccepted": false,
+      "gapType": "unqualified_behavior_or_branch",
+      "behaviorImplementationMissingEstablishedByThisReview": false,
+      "owner": "PC10 owner next bounded family",
+      "currentScopedAdditions": []
+    },
+    {
+      "id": "581",
+      "catalogStatus": "missing",
+      "title": "Create post-damage Scrap pickups.",
+      "acceptance": "each ship taking at least three attack damage yields exactly one collectible Scrap per attack.",
+      "auditClassification": "M",
+      "retainedEarlierCriteria": "Implemented threshold opportunity producer and collectible-Scrap callable; no retained complete runtime pickup",
+      "remainingBehaviorAtAudit": ">=3 damage -> one collectible Scrap per attack, threshold/no repeat/claim authority",
+      "minimumCohortAtAudit": "GM + attacker/collector; distinct target only if required",
+      "sourceAnchorsAtAudit": "functions/src/wolfAttackAftermath.ts:195; functions/src/wolfAttackAftermathCallable.ts:437; functions/src/wolfAttackAftermathCallable.test.ts:291",
+      "fixedClosureAccepted": false,
+      "gapType": "unqualified_behavior_or_branch",
+      "behaviorImplementationMissingEstablishedByThisReview": false,
+      "owner": "PC10 owner next bounded family",
+      "currentScopedAdditions": []
+    },
+    {
+      "id": "584",
+      "catalogStatus": "missing",
+      "title": "Run the Capybara vertical scenario.",
+      "acceptance": "the configured 20-role core cast, maintenance, production, one bay, Macaw, Boa, Scrap, d8 targeting, combat, mission, jump, and reconnect work end to end, with an enabled optional twenty-first Press role remaining independent. Preserve optional non-counting Press, optional additional GMs, separate base/expansion Capybara definitions and approved automatic Wolf assignment from the confirmed real roster, including zero eligible Wolves. Retain the human-survivor framing and complete configured-role behavior; qualify progression on a legitimate minimum playable roster, rotate shared role families and cover each unique mechanic. Keep sparse-roster continuation/recovery; simultaneous full-table capacity requires its own justified claim.",
+      "auditClassification": "A+M",
+      "retainedEarlierCriteria": "Historical Capybara2 60 maintenance receipts/six ends; SETUP sparse casting; no full expansion run",
+      "remainingBehaviorAtAudit": "Production/bay/Macaw/Boa/Scrap/d8/combat/mission/jump/reconnect end-to-end unique mechanics",
+      "minimumCohortAtAudit": "GM + minimum genuine expansion roles; rotate legitimately; configured20 !=20Auth",
+      "sourceAnchorsAtAudit": "docs/PC10_ACCEPTANCE_MATRIX.md:544; src/data/vessels/boa.ts; src/data/vessels/macaw.ts",
+      "fixedClosureAccepted": false,
+      "gapType": "aggregate_rehearsal_with_missing_mechanics",
+      "behaviorImplementationMissingEstablishedByThisReview": false,
+      "owner": "PC10 owner next bounded family",
+      "currentScopedAdditions": []
+    },
+    {
+      "id": "585",
+      "catalogStatus": "missing",
+      "title": "Run the base/expansion isolation scenario.",
+      "acceptance": "identical display names cannot cross-load roles, stores, damage, jump, targeting, or craft behavior; toggling Press and connecting multiple GM instances cannot change either roster or its readiness, loyalty, and Wolf math. Preserve optional non-counting Press, optional additional GMs, separate base/expansion Capybara definitions and approved automatic Wolf assignment from the confirmed real roster, including zero eligible Wolves. Retain the human-survivor framing and the full-table acceptance; add sparse-roster continuation/recovery without replacing that proof.",
+      "auditClassification": "A+M",
+      "retainedEarlierCriteria": "Source separate vessel definitions; no complete isolation gameplay found",
+      "remainingBehaviorAtAudit": "Same-name base/expansion stores/roles/damage/jump/target/craft isolation, Press/additional GM readiness/loyalty/Wolf invariance",
+      "minimumCohortAtAudit": "One actor per distinct configuration + GM; independent GM only for actual GM invariant/race",
+      "sourceAnchorsAtAudit": "src/data/vessels/boa.ts; src/data/vessels/macaw.ts; docs/PC10_FUNCTION_ROLE_MATRIX.json",
+      "fixedClosureAccepted": false,
+      "gapType": "aggregate_rehearsal_with_missing_mechanics",
+      "behaviorImplementationMissingEstablishedByThisReview": false,
+      "owner": "PC10 owner next bounded family",
+      "currentScopedAdditions": []
+    },
+    {
+      "id": "541",
+      "catalogStatus": "partial",
+      "title": "Reveal a New Eden candidate.",
+      "acceptance": "an entitled discovery exposes N, O, or P to the correct group without leaking organiser-chart facts.",
+      "auditClassification": "B+M",
+      "retainedEarlierCriteria": "DISC actual N/O/P own reveal/report/reload",
+      "remainingBehaviorAtAudit": "Requester-peer and foreign-group withholding; inspect each distinct discovery producer dependency",
+      "minimumCohortAtAudit": "GM + Scientist already sufficient positive; add entitled peer/foreign reader where required",
+      "sourceAnchorsAtAudit": "functions/src/candidateDiscovery.ts; functions/src/candidateRevealProjection.ts; src/components/CandidateRevealPanel.tsx",
+      "fixedClosureAccepted": false,
+      "gapType": "unqualified_behavior_or_branch",
+      "behaviorImplementationMissingEstablishedByThisReview": false,
+      "owner": "PC10 owner next bounded family",
+      "currentScopedAdditions": [
+        "requester-scout-peer-privacy"
+      ],
+      "remainingBehaviorAfterAcceptedAdditions": "Same-group requester versus peer is earned; foreign/revoked audience and other distinct producers remain unproved."
+    },
+    {
+      "id": "542",
+      "catalogStatus": "partial",
+      "title": "Make candidate discovery retry-safe.",
+      "acceptance": "repeated submissions return one record without duplicate pursuit, mission, or event effects.",
+      "auditClassification": "B+M",
+      "retainedEarlierCriteria": "DISC original N reply interruption/UI retry/reload/SDK replay preserves one effect",
+      "remainingBehaviorAtAudit": "Other distinct discovery producers duplicate pursuit/mission/event effects",
+      "minimumCohortAtAudit": "GM + entitled producer; two competitors only for shared contention",
+      "sourceAnchorsAtAudit": "functions/src/candidateDiscovery.ts; functions/src/candidateDiscovery.test.ts",
+      "fixedClosureAccepted": false,
+      "gapType": "unqualified_behavior_or_branch",
+      "behaviorImplementationMissingEstablishedByThisReview": false,
+      "owner": "PC10 owner next bounded family",
+      "currentScopedAdditions": []
+    },
+    {
+      "id": "543",
+      "catalogStatus": "partial",
+      "title": "Track candidate plans by Cycle 6.",
+      "acceptance": "facilitators see plan status and players receive only the agreed summary or encouragement. Use Cycle 6 in visible preparation/status copy and preserve current CIC typography; internal turn fields and printed-source citations need no rename.",
+      "auditClassification": "B+M",
+      "retainedEarlierCriteria": "DISC real active Cycle6 plan save/encouragement/recovery; early/private/borrowed denial",
+      "remainingBehaviorAtAudit": "Other plan-status branches/audiences; current visible Cycle6 rendering",
+      "minimumCohortAtAudit": "GM + planner; peer/foreign third only for private audience",
+      "sourceAnchorsAtAudit": "functions/src/candidatePlanCheckpoint.ts; functions/src/candidatePlanCheckpointProjection.ts",
+      "fixedClosureAccepted": false,
+      "gapType": "unqualified_behavior_or_branch",
+      "behaviorImplementationMissingEstablishedByThisReview": false,
+      "owner": "PC10 owner next bounded family",
+      "currentScopedAdditions": []
+    },
+    {
+      "id": "544",
+      "catalogStatus": "missing",
+      "title": "Validate Ancient Jump Ring prerequisites.",
+      "acceptance": "N reports missing ten materials, one Engineering Shuttle, and five distinct four-cross upgrades/devices accurately.",
+      "auditClassification": "B+M",
+      "retainedEarlierCriteria": "RING real ten materials/five four-cross tracks/Engineering craft repair; candidateWorkspace explicit blockers",
+      "remainingBehaviorAtAudit": "Review exact missing-prerequisite UI assertions for partial states; not merely final funded state",
+      "minimumCohortAtAudit": "Reuse RING; GM + Scientist/Engineering holder if a distinct missing-state runtime is absent",
+      "sourceAnchorsAtAudit": "functions/src/candidatePaths.ts:240; src/components/CandidatePreparationPanel.tsx",
+      "fixedClosureAccepted": false,
+      "gapType": "unqualified_behavior_or_branch",
+      "behaviorImplementationMissingEstablishedByThisReview": false,
+      "owner": "SUCCESS/P helper",
+      "currentScopedAdditions": []
+    },
+    {
+      "id": "545",
+      "catalogStatus": "missing",
+      "title": "Repair the Ancient Jump Ring.",
+      "acceptance": "valid materials, research contributions, shuttle, actor, and state commit once.",
+      "auditClassification": "B+M",
+      "retainedEarlierCriteria": "RING real material debit/research/craft reservation and automatic repair",
+      "remainingBehaviorAtAudit": "Review per-contribution receipt bindings and invalid actor/state negatives; release only after those map",
+      "minimumCohortAtAudit": "Reuse RING three actors; no replay of prerequisite prefix by default",
+      "sourceAnchorsAtAudit": "functions/src/candidatePaths.ts:151; functions/src/candidatePathsCallable.ts:247",
+      "fixedClosureAccepted": false,
+      "gapType": "unqualified_behavior_or_branch",
+      "behaviorImplementationMissingEstablishedByThisReview": false,
+      "owner": "SUCCESS/P helper",
+      "currentScopedAdditions": []
+    },
+    {
+      "id": "546",
+      "catalogStatus": "missing",
+      "title": "Prevent duplicate Ring contributions.",
+      "acceptance": "no upgrade, device, material, shuttle, or request can satisfy the checklist twice.",
+      "auditClassification": "B+M",
+      "retainedEarlierCriteria": "RING distinct five tracks/permanent consumed craft and replay slice",
+      "remainingBehaviorAtAudit": "Explicit duplicate upgrade/device/material/shuttle/request attempts are not all proved by a successful distinct checklist; inspect negative assertions",
+      "minimumCohortAtAudit": "Reuse native guards; fresh two competitors + GM only if cross-request race lacks proof",
+      "sourceAnchorsAtAudit": "functions/src/candidatePaths.ts:159; functions/src/candidatePaths.test.ts",
+      "fixedClosureAccepted": false,
+      "gapType": "unqualified_behavior_or_branch",
+      "behaviorImplementationMissingEstablishedByThisReview": false,
+      "owner": "SUCCESS/P helper",
+      "currentScopedAdditions": []
+    },
+    {
+      "id": "547",
+      "catalogStatus": "missing",
+      "title": "Fuel each Ring passage.",
+      "acceptance": "every attempting ship spends five of its authoritative fuel independently; unfuelled ships remain with a reason.",
+      "auditClassification": "B+M",
+      "retainedEarlierCriteria": "RING all six passages each five fuel and original Aegis replay",
+      "remainingBehaviorAtAudit": "Unfuelled ship remains behind with reason; verify missing-fuel native assertion",
+      "minimumCohortAtAudit": "Reuse six-ship RING positive; GM + one holder for negative if needed",
+      "sourceAnchorsAtAudit": "functions/src/candidatePaths.ts:173; functions/src/candidatePathsCallable.ts",
+      "fixedClosureAccepted": false,
+      "gapType": "unqualified_behavior_or_branch",
+      "behaviorImplementationMissingEstablishedByThisReview": false,
+      "owner": "SUCCESS/P helper",
+      "currentScopedAdditions": []
+    },
+    {
+      "id": "548",
+      "catalogStatus": "missing",
+      "title": "Resolve Ring passage.",
+      "acceptance": "each eligible ship crosses once and the opposite-side sabotage remains a labeled facilitator action. Automatically commit the source-defined calculation and documented outcome policy after the required choices; preserve explicit facilitator sabotage/adjudication choices rather than requesting routine result transcription. Record the private GM receipt and entitled outcome once.",
+      "auditClassification": "B+M",
+      "retainedEarlierCriteria": "RING six single passages, explicit far-side sabotage, durable N success",
+      "remainingBehaviorAtAudit": "Review late/same-ship replay source negatives and private GM outcome receipt; N-specific closed history is separate",
+      "minimumCohortAtAudit": "Reuse RING/CLOSE; no whole Ring rerun for common close",
+      "sourceAnchorsAtAudit": "functions/src/candidatePaths.ts:179; functions/src/candidatePathsCallable.ts:40",
+      "fixedClosureAccepted": false,
+      "gapType": "unqualified_behavior_or_branch",
+      "behaviorImplementationMissingEstablishedByThisReview": false,
+      "owner": "SUCCESS/P helper",
+      "currentScopedAdditions": []
+    },
+    {
+      "id": "549",
+      "catalogStatus": "missing",
+      "title": "Record blocked Wolf pursuit through the Ring.",
+      "acceptance": "authorized sabotage creates the candidate-specific outcome and no ordinary client can claim it.",
+      "auditClassification": "B+M",
+      "retainedEarlierCriteria": "RING explicit real GM sabotage blocked pursuit and committed N result",
+      "remainingBehaviorAtAudit": "Ordinary actor sabotage denial must be mapped to actual authenticated/native negative; not inferred from successful GM",
+      "minimumCohortAtAudit": "GM + ordinary actor; existing RING trio adequate if denial retained",
+      "sourceAnchorsAtAudit": "functions/src/candidatePaths.ts:179; functions/src/candidatePathsCallable.ts:115",
+      "fixedClosureAccepted": false,
+      "gapType": "unqualified_behavior_or_branch",
+      "behaviorImplementationMissingEstablishedByThisReview": false,
+      "owner": "SUCCESS/P helper",
+      "currentScopedAdditions": []
+    },
+    {
+      "id": "593",
+      "catalogStatus": "partial",
+      "title": "Show candidate preparation help.",
+      "acceptance": "N, O, and P requirements remain distinct and no hidden location, bonus, or Wolf state leaks.",
+      "auditClassification": "B+M",
+      "retainedEarlierCriteria": "DISC distinct mounted N/O/P costs/blockers/next actor/Cycle6 reload",
+      "remainingBehaviorAtAudit": "Hidden bonus/Wolf/private calculation and requester-peer/foreign withholding; rendered release QA",
+      "minimumCohortAtAudit": "GM + Scientist; third distinct audience only as needed",
+      "sourceAnchorsAtAudit": "src/components/CandidatePreparationPanel.tsx; src/components/CandidatePreparationAudience.test.tsx; functions/src/candidatePaths.ts:240",
+      "fixedClosureAccepted": false,
+      "gapType": "unqualified_behavior_or_branch",
+      "behaviorImplementationMissingEstablishedByThisReview": false,
+      "owner": "PC10 owner next bounded family",
+      "currentScopedAdditions": []
+    },
+    {
+      "id": "619",
+      "catalogStatus": "missing",
+      "title": "Make candidate retries survive reconnect.",
+      "acceptance": "N/O/P actions return original fuel, roll, loss, contribution, and outcome results without duplicates.",
+      "auditClassification": "B+M",
+      "retainedEarlierCriteria": "RING Aegis committed-ack loss/UI intent cold reload/UI+SDK replay/wrong actor/late success retry",
+      "remainingBehaviorAtAudit": "Other N contribution intents; all O roll/loss/fuel and P reactor/outcome intent recovery",
+      "minimumCohortAtAudit": "Reuse RING; add recovery to existing helper O/P family, no new setup tour",
+      "sourceAnchorsAtAudit": "functions/src/candidatePathsCallable.ts:247; src/lib/candidateService.ts",
+      "fixedClosureAccepted": false,
+      "gapType": "unqualified_behavior_or_branch",
+      "behaviorImplementationMissingEstablishedByThisReview": false,
+      "owner": "SUCCESS/P helper",
+      "currentScopedAdditions": [],
+      "ownershipBoundary": "Candidate contribution and N/O/P intent/outcome recovery remain helper-owned; this owner does not duplicate that source/native repair."
+    },
+    {
+      "id": "550",
+      "catalogStatus": "missing",
+      "title": "Accumulate Deep Nebula scouting.",
+      "acceptance": "every qualifying scout increments a hidden modifier once and players cannot read the total.",
+      "auditClassification": "B+M",
+      "retainedEarlierCriteria": "DISC candidate discovery is not hidden scout accumulation proof",
+      "remainingBehaviorAtAudit": "Qualifying scouts once, hidden total withholding and original retry",
+      "minimumCohortAtAudit": "GM + scout actor + wrong/private reader only where required",
+      "sourceAnchorsAtAudit": "functions/src/candidateScoutProjection.test.ts; functions/src/candidatePathsCallable.ts",
+      "fixedClosureAccepted": false,
+      "gapType": "unqualified_behavior_or_branch",
+      "behaviorImplementationMissingEstablishedByThisReview": false,
+      "owner": "SUCCESS/P helper",
+      "currentScopedAdditions": []
+    },
+    {
+      "id": "551",
+      "catalogStatus": "missing",
+      "title": "Attempt a Deep Nebula jump.",
+      "acceptance": "one ship makes a long jump using server dice, hidden scout modifier, and prior-loss bonus.",
+      "auditClassification": "M",
+      "retainedEarlierCriteria": "Source implemented serverDie + hiddenScoutCount + priorLosses",
+      "remainingBehaviorAtAudit": "Actual charged/paid long jump with real server die and calculation/result receipt",
+      "minimumCohortAtAudit": "GM + ship controller; legitimate scout actor can rotate if allowed",
+      "sourceAnchorsAtAudit": "functions/src/candidatePaths.ts:187; functions/src/candidatePathsCallable.ts:247",
+      "fixedClosureAccepted": false,
+      "gapType": "unqualified_behavior_or_branch",
+      "behaviorImplementationMissingEstablishedByThisReview": false,
+      "owner": "SUCCESS/P helper",
+      "currentScopedAdditions": []
+    },
+    {
+      "id": "552",
+      "catalogStatus": "missing",
+      "title": "Lose a ship in the Deep Nebula.",
+      "acceptance": "failure marks it lost, removes active actions, preserves consequences, and adds one later-ship bonus.",
+      "auditClassification": "M",
+      "retainedEarlierCriteria": "Source patches destroyed/survivors0 on O loss",
+      "remainingBehaviorAtAudit": "Actual loss closes former actions, preserves consequences and adds later-ship bonus",
+      "minimumCohortAtAudit": "GM + ship controller; second ship authority legitimately supplied/rotated",
+      "sourceAnchorsAtAudit": "functions/src/candidatePaths.ts:197",
+      "fixedClosureAccepted": false,
+      "gapType": "unqualified_behavior_or_branch",
+      "behaviorImplementationMissingEstablishedByThisReview": false,
+      "owner": "SUCCESS/P helper",
+      "currentScopedAdditions": []
+    },
+    {
+      "id": "553",
+      "catalogStatus": "missing",
+      "title": "Reach the Deep Nebula threshold.",
+      "acceptance": "a total of 9+ creates the chosen durable success state under the recorded fleet-success policy. Automatically commit the source-defined calculation and documented outcome policy after the required choices; preserve explicit facilitator sabotage/adjudication choices rather than requesting routine result transcription. Record the private GM receipt and entitled outcome once.",
+      "auditClassification": "M",
+      "retainedEarlierCriteria": "Source threshold9 and all-vessel outcome policy",
+      "remainingBehaviorAtAudit": "Actual threshold success + durable chosen fleet policy and debrief, not forced dice",
+      "minimumCohortAtAudit": "Same minimal O setup; legitimate lost and later successful ships",
+      "sourceAnchorsAtAudit": "functions/src/candidatePaths.ts:196; functions/src/candidatePaths.ts:228",
+      "fixedClosureAccepted": false,
+      "gapType": "unqualified_behavior_or_branch",
+      "behaviorImplementationMissingEstablishedByThisReview": false,
+      "owner": "SUCCESS/P helper",
+      "currentScopedAdditions": []
+    },
+    {
+      "id": "554",
+      "catalogStatus": "missing",
+      "title": "Prevent repeat Nebula attempts.",
+      "acceptance": "a successful, lost, or same-cycle ship receives its original result without another roll or fuel spend.",
+      "auditClassification": "M",
+      "retainedEarlierCriteria": "Source original ship result replay precedes new-action phase guard",
+      "remainingBehaviorAtAudit": "Actual reached/lost/same-cycle retry preserving roll/fuel and original authority",
+      "minimumCohortAtAudit": "GM + original O controller; foreign/wrong actor for replay denial",
+      "sourceAnchorsAtAudit": "functions/src/candidatePaths.ts:140; functions/src/candidatePaths.test.ts",
+      "fixedClosureAccepted": false,
+      "gapType": "unqualified_behavior_or_branch",
+      "behaviorImplementationMissingEstablishedByThisReview": false,
+      "owner": "SUCCESS/P helper",
+      "currentScopedAdditions": []
+    },
+    {
+      "id": "555",
+      "catalogStatus": "missing",
+      "title": "Trigger Ancient Space Station arrival combat.",
+      "acceptance": "P starts at least one Battlestation plus 20 other damage capacity from private authority.",
+      "auditClassification": "M",
+      "retainedEarlierCriteria": "Source Station liberation adapter exists; discovery is not combat",
+      "remainingBehaviorAtAudit": "Real P arrival creates Battlestation +20 damage capacity from private authority",
+      "minimumCohortAtAudit": "Helper owns P prerequisites; GM + legitimate combat actor, not new duplicate worker",
+      "sourceAnchorsAtAudit": "functions/src/candidateStationLiberation.ts; functions/src/wolfAttackTargetRing.ts",
+      "fixedClosureAccepted": false,
+      "gapType": "unqualified_behavior_or_branch",
+      "behaviorImplementationMissingEstablishedByThisReview": false,
+      "owner": "SUCCESS/P helper",
+      "currentScopedAdditions": []
+    },
+    {
+      "id": "556",
+      "catalogStatus": "missing",
+      "title": "Repeat Station combat while Wolves survive.",
+      "acceptance": "the candidate cannot advance and required attacks continue until authoritative threat state is empty.",
+      "auditClassification": "M",
+      "retainedEarlierCriteria": "Source liberation requires authoritative finalization",
+      "remainingBehaviorAtAudit": "Actual repeated attacks while Wolves survive and advance refusal",
+      "minimumCohortAtAudit": "Same P combat family; minimum legitimate role/defender cohort",
+      "sourceAnchorsAtAudit": "functions/src/candidateStationLiberation.ts; functions/src/wolfAttackTargetRing.test.ts",
+      "fixedClosureAccepted": false,
+      "gapType": "unqualified_behavior_or_branch",
+      "behaviorImplementationMissingEstablishedByThisReview": false,
+      "owner": "SUCCESS/P helper",
+      "currentScopedAdditions": []
+    },
+    {
+      "id": "557",
+      "catalogStatus": "missing",
+      "title": "Liberate the Ancient Space Station.",
+      "acceptance": "all required Wolves destroyed changes P to liberated exactly once.",
+      "auditClassification": "M",
+      "retainedEarlierCriteria": "Source finalization -> liberation marker",
+      "remainingBehaviorAtAudit": "All required Wolves destroyed -> exactly one liberated transition/retry",
+      "minimumCohortAtAudit": "Same helper P family; competitor only for liberation race if not covered",
+      "sourceAnchorsAtAudit": "functions/src/candidateStationLiberation.ts:21",
+      "fixedClosureAccepted": false,
+      "gapType": "unqualified_behavior_or_branch",
+      "behaviorImplementationMissingEstablishedByThisReview": false,
+      "owner": "SUCCESS/P helper",
+      "currentScopedAdditions": []
+    },
+    {
+      "id": "558",
+      "catalogStatus": "missing",
+      "title": "Validate Station Reactor contributions.",
+      "acceptance": "at least 18 available charge capacity is counted and no Reactor, lost ship, or contribution is used twice.",
+      "auditClassification": "M",
+      "retainedEarlierCriteria": "Source rejects reused reactor across sites, counts capacity",
+      "remainingBehaviorAtAudit": "Actual18 available charge; lost/cannibalised/repeated contribution denials and no duplicate capacity",
+      "minimumCohortAtAudit": "Helper GM + real contributor(s); count required reactor vessels, not accounts",
+      "sourceAnchorsAtAudit": "functions/src/candidatePaths.ts:206",
+      "fixedClosureAccepted": false,
+      "gapType": "unqualified_behavior_or_branch",
+      "behaviorImplementationMissingEstablishedByThisReview": false,
+      "owner": "SUCCESS/P helper",
+      "currentScopedAdditions": []
+    },
+    {
+      "id": "559",
+      "catalogStatus": "missing",
+      "title": "Power New Eden Station.",
+      "acceptance": "valid contributions rename/activate the station and publish its candidate-specific defence result.",
+      "auditClassification": "M",
+      "retainedEarlierCriteria": "Source capacity>=18 activation/candidate outcome",
+      "remainingBehaviorAtAudit": "Actual activation/rename/defence/debrief/private receipt and replay",
+      "minimumCohortAtAudit": "Same helper P family",
+      "sourceAnchorsAtAudit": "functions/src/candidatePaths.ts:218; functions/src/candidatePathsCallable.ts",
+      "fixedClosureAccepted": false,
+      "gapType": "unqualified_behavior_or_branch",
+      "behaviorImplementationMissingEstablishedByThisReview": false,
+      "owner": "SUCCESS/P helper",
+      "currentScopedAdditions": []
+    },
+    {
+      "id": "563",
+      "catalogStatus": "missing",
+      "title": "Explain candidate results.",
+      "acceptance": "debrief shows path, met/unmet prerequisites, rolls, losses, and facilitator calls without private-loyalty leakage. Automatically preserve and publish only the reader's permitted committed outcome/history through reconnect and closure. Ending play does not itself reveal private loyalties, mission hands, remaining deck order, hidden chart data or GM notes; genuine facilitator calls stay distinguishable in their entitled audit.",
+      "auditClassification": "B+M",
+      "retainedEarlierCriteria": "RING displayed entitled N evaluation; PRESS/RACE/CLOSE public Pursuit history",
+      "remainingBehaviorAtAudit": "O/P rolls/losses/calls; entitled audit + private loyalties/chart/cards/notes withholding per audience",
+      "minimumCohortAtAudit": "GM + entitled reader + peer/foreign where relevant; reuse unchanged readers",
+      "sourceAnchorsAtAudit": "functions/src/candidatePathsCallable.ts:40; src/components/EndgameDialog.tsx",
+      "fixedClosureAccepted": false,
+      "gapType": "unqualified_behavior_or_branch",
+      "behaviorImplementationMissingEstablishedByThisReview": false,
+      "owner": "PC10 owner next bounded family",
+      "currentScopedAdditions": []
+    },
+    {
+      "id": "564",
+      "catalogStatus": "partial",
+      "title": "Enter debrief once.",
+      "acceptance": "success/failure freezes actions and creates one immutable outcome despite concurrent close requests. Automatically preserve and publish only the reader's permitted committed outcome/history through reconnect and closure. Ending play does not itself reveal private loyalties, mission hands, remaining deck order, hidden chart data or GM notes; genuine facilitator calls stay distinguishable in their entitled audit.",
+      "auditClassification": "B+M",
+      "retainedEarlierCriteria": "RACE competing freeze/close immutable Pursuit; RING immutable N success",
+      "remainingBehaviorAtAudit": "O/P freeze and remaining private-audience variants; review common handler equivalence before runtime",
+      "minimumCohortAtAudit": "Reuse three-actor RACE; unique O/P outcome family supplies own ending",
+      "sourceAnchorsAtAudit": "src/components/EndgameDialog.tsx; functions/src/candidatePathsCallable.ts",
+      "fixedClosureAccepted": false,
+      "gapType": "unqualified_behavior_or_branch",
+      "behaviorImplementationMissingEstablishedByThisReview": false,
+      "owner": "PC10 owner next bounded family",
+      "currentScopedAdditions": []
+    },
+    {
+      "id": "565",
+      "catalogStatus": "partial",
+      "title": "Close the session authoritatively.",
+      "acceptance": "the server transitions from readable debrief to closed retention without losing permitted history. Automatically preserve and publish only the reader's permitted committed outcome/history through reconnect and closure. Ending play does not itself reveal private loyalties, mission hands, remaining deck order, hidden chart data or GM notes; genuine facilitator calls stay distinguishable in their entitled audit.",
+      "auditClassification": "B+M",
+      "retainedEarlierCriteria": "PRESS/RACE core close; CLOSE repaired displayed-GM-snapshot close and immutable retention",
+      "remainingBehaviorAtAudit": "Remaining entitled audiences/privacy reconciliation; common behavior can be reviewed as earned, final gates remain",
+      "minimumCohortAtAudit": "CLOSE two actors is sufficient common close; do not replay N prerequisites",
+      "sourceAnchorsAtAudit": "src/components/EndgameDialog.tsx; src/components/EndgameDialog.test.tsx",
+      "fixedClosureAccepted": false,
+      "gapType": "unqualified_behavior_or_branch",
+      "behaviorImplementationMissingEstablishedByThisReview": false,
+      "owner": "PC10 owner next bounded family",
+      "currentScopedAdditions": []
+    },
+    {
+      "id": "566",
+      "catalogStatus": "partial",
+      "title": "Read debrief after closure.",
+      "acceptance": "members regain the outcome and allowed audit while loyalties, hidden chart, cards, and notes keep their privacy policy. Automatically preserve and publish only the reader's permitted committed outcome/history through reconnect and closure. Ending play does not itself reveal private loyalties, mission hands, remaining deck order, hidden chart data or GM notes; genuine facilitator calls stay distinguishable in their entitled audit.",
+      "auditClassification": "B+M",
+      "retainedEarlierCriteria": "PRESS/RACE/CLOSE same-UID entitled public history/reload",
+      "remainingBehaviorAtAudit": "Allowed audit access and all audience withholding; N-specific history unobserved",
+      "minimumCohortAtAudit": "GM + entitled reader; third only distinct private audience",
+      "sourceAnchorsAtAudit": "src/components/EndgameDialog.tsx; src/App.stationMemberRefresh.test.tsx",
+      "fixedClosureAccepted": false,
+      "gapType": "unqualified_behavior_or_branch",
+      "behaviorImplementationMissingEstablishedByThisReview": false,
+      "owner": "PC10 owner next bounded family",
+      "currentScopedAdditions": []
+    },
+    {
+      "id": "647",
+      "catalogStatus": "missing",
+      "title": "Prove Ancient Jump Ring success.",
+      "acceptance": "discovery, research, repair, contribution uniqueness, per-ship fuel, passage, sabotage call, and debrief complete.",
+      "auditClassification": "B+M",
+      "retainedEarlierCriteria": "RING real discovery/research/repair/six paid crossings/sabotage/N immutable debrief; combined runner failed later close",
+      "remainingBehaviorAtAudit": "Review contribution-uniqueness explicit negatives; no need common Close rerun; N-specific closed history separate unobserved variant",
+      "minimumCohortAtAudit": "Reuse RING three actors and CLOSE common path; owner decides reviewed behavioral credit",
+      "sourceAnchorsAtAudit": "functions/src/candidatePaths.ts; docs/PC10_RING_ATTEMPT3_EARNED_EVIDENCE.md",
+      "fixedClosureAccepted": false,
+      "gapType": "unqualified_behavior_or_branch",
+      "behaviorImplementationMissingEstablishedByThisReview": false,
+      "owner": "SUCCESS/P helper",
+      "currentScopedAdditions": []
+    },
+    {
+      "id": "648",
+      "catalogStatus": "missing",
+      "title": "Prove Deep Nebula success and loss.",
+      "acceptance": "hidden scout bonus, one lost ship, later bonus, one successful ship, fleet-success policy, and debrief complete.",
+      "auditClassification": "M",
+      "retainedEarlierCriteria": "Source O die+scout+loss+threshold+fleet policy, no actual O loss/success found",
+      "remainingBehaviorAtAudit": "Hidden scout/lost ship/later bonus/success/fleet outcome/debrief and replay; no forced outcome",
+      "minimumCohortAtAudit": "Helper owns; GM + legitimate O controller/scout roles rotated if legal",
+      "sourceAnchorsAtAudit": "functions/src/candidatePaths.ts:187; functions/src/candidatePaths.ts:228",
+      "fixedClosureAccepted": false,
+      "gapType": "unqualified_behavior_or_branch",
+      "behaviorImplementationMissingEstablishedByThisReview": false,
+      "owner": "SUCCESS/P helper",
+      "currentScopedAdditions": []
+    },
+    {
+      "id": "649",
+      "catalogStatus": "missing",
+      "title": "Prove Ancient Space Station success.",
+      "acceptance": "arrival pressure, repeated attacks, liberation, 18 Reactor power, activation, and debrief complete.",
+      "auditClassification": "M",
+      "retainedEarlierCriteria": "Source P liberation/reactor/activation, no actual completed P combat/activation found",
+      "remainingBehaviorAtAudit": "Arrival pressure/repeated attacks/liberation18capacity/activation/debrief",
+      "minimumCohortAtAudit": "Helper owns combat-prerequisite bounded adapter; do not duplicate",
+      "sourceAnchorsAtAudit": "functions/src/candidateStationLiberation.ts; functions/src/candidatePaths.ts:206",
+      "fixedClosureAccepted": false,
+      "gapType": "unqualified_behavior_or_branch",
+      "behaviorImplementationMissingEstablishedByThisReview": false,
+      "owner": "SUCCESS/P helper",
+      "currentScopedAdditions": []
+    },
+    {
+      "id": "650",
+      "catalogStatus": "partial",
+      "title": "Prove authoritative terminal failure and recovery paths.",
+      "acceptance": "server-owned pursuit 10, total loss, destroyed ship, escape pods, evacuation, mutiny, arrest deadline, abandoned candidate, and unresolved call cannot orphan play; a client-only `GAME OVER` label or presentation state is not terminal authority.",
+      "auditClassification": "B+M",
+      "retainedEarlierCriteria": "PRESS/RACE/CLOSE authoritative Pursuit10+freeze/close/history; RING N success is not failure coverage",
+      "remainingBehaviorAtAudit": "Total loss/destroyed ship/escape pods/evacuation/mutiny/arrest deadline/abandon candidate/unresolved call cannot orphan",
+      "minimumCohortAtAudit": "Minimum branch-specific actors/roles; add negative actor only authority claim",
+      "sourceAnchorsAtAudit": "docs/PC10_ACCEPTANCE_MATRIX.md:229; functions/src/candidatePaths.ts:228",
+      "fixedClosureAccepted": false,
+      "gapType": "unqualified_behavior_or_branch",
+      "behaviorImplementationMissingEstablishedByThisReview": false,
+      "owner": "PC10 owner next bounded family",
+      "currentScopedAdditions": []
+    },
+    {
+      "id": "618",
+      "catalogStatus": "partial",
+      "title": "Reconnect every live projection.",
+      "acceptance": "session, player, seat, role, ship, shuttle, group, mission, attack, candidate, and debrief listeners replace cache correctly. Cover every occupied non-GM role and sparse-roster dropout/recovery. If station authority is lost, return to the existing chooser with a reselect instruction; preserve safe unsent input without replaying unauthorized actions. Replace stale cache with current entitled state, keep resolved actions locked and preserve the authoritative timer's remaining time when all players disconnect and later resume.",
+      "auditClassification": "B+M",
+      "retainedEarlierCriteria": "PRESS/RACE/CLOSE history; CARGO custody/cold reload; WATER retry/reload and original SDK authority",
+      "remainingBehaviorAtAudit": "Other occupied role/group/mission/attack/candidate projections, revocation/dropout, safe drafts, all-disconnected timer pause/resume",
+      "minimumCohortAtAudit": "Two relevant actors + GM only if needed; rotate roles legitimately; no endpoint-role Cartesian matrix",
+      "sourceAnchorsAtAudit": "src/App.stationMemberRefresh.test.tsx; docs/PC10_FUNCTION_ROLE_MATRIX.json",
+      "fixedClosureAccepted": false,
+      "gapType": "unqualified_behavior_or_branch",
+      "behaviorImplementationMissingEstablishedByThisReview": false,
+      "owner": "PC10 owner next bounded family",
+      "currentScopedAdditions": [
+        "highwall-two-unfuelled",
+        "water-recharge"
+      ]
+    },
+    {
+      "id": "620",
+      "catalogStatus": "partial",
+      "title": "Recover from stale revisions.",
+      "acceptance": "conflict responses carry enough fresh nonsecret state to retry safely while preserving local input where appropriate. Cover every occupied non-GM role and sparse-roster dropout/recovery. If station authority is lost, return to the existing chooser with a reselect instruction; preserve safe unsent input without replaying unauthorized actions. Replace stale cache with current entitled state, keep resolved actions locked and preserve the authoritative timer's remaining time when all players disconnect and later resume.",
+      "auditClassification": "B+M",
+      "retainedEarlierCriteria": "PRESS phase/flight/ending; CARGO/WATER exact replay/current once refusal",
+      "remainingBehaviorAtAudit": "Remaining stale/conflicting role requests, safe drafts/lost station/timer resume; stale no-effect envelope",
+      "minimumCohortAtAudit": "Two competitors per contention; GM only required authority; mining owner covers its scope",
+      "sourceAnchorsAtAudit": "src/lib/candidateService.ts; docs/PC10_FUNCTION_ROLE_MATRIX.json",
+      "fixedClosureAccepted": false,
+      "gapType": "unqualified_behavior_or_branch",
+      "behaviorImplementationMissingEstablishedByThisReview": false,
+      "owner": "PC10 owner next bounded family",
+      "currentScopedAdditions": [
+        "highwall-two-unfuelled",
+        "water-recharge"
+      ]
+    },
+    {
+      "id": "629",
+      "catalogStatus": "partial",
+      "title": "Protect private projections comprehensively.",
+      "acceptance": "loyalty, Wolf identity, organiser chart, mission hands, hidden rolls/bonuses, and notes reach only entitled readers.",
+      "auditClassification": "B+M",
+      "retainedEarlierCriteria": "SETUP own/peer loyalty; DISC private/borrowed-GM; CARGO revoked/nonowner; RACE narrow public history",
+      "remainingBehaviorAtAudit": "Wolf/chart/mission hands/hidden bonus/notes each distinct audience/revocation; no inference from taxonomy",
+      "minimumCohortAtAudit": "Entitled + peer + foreign/wrong-role as needed; three often suffice, not full census",
+      "sourceAnchorsAtAudit": "functions/src/candidateRevealProjection.ts; functions/src/candidatePaths.ts:240; functions/src/securityCallable.ts",
+      "fixedClosureAccepted": false,
+      "gapType": "unqualified_behavior_or_branch",
+      "behaviorImplementationMissingEstablishedByThisReview": false,
+      "owner": "PC10 owner next bounded family",
+      "currentScopedAdditions": [
+        "requester-scout-peer-privacy"
+      ],
+      "remainingBehaviorAfterAcceptedAdditions": "Requester scout peer/callable/query/reload boundary is earned; Wolf/chart/mission-hand/hidden-bonus/loyalty/other private-note audiences and revocation remain distinct."
+    },
+    {
+      "id": "630",
+      "catalogStatus": "missing",
+      "title": "Prove server-owned randomness.",
+      "acceptance": "dice, cards, decks, compositions, clues, accuracy, and uncertain outcomes ignore any client-supplied result.",
+      "auditClassification": "B+M",
+      "retainedEarlierCriteria": "RING research and candidate calculation are not comprehensive entropy proof; source server die path exists",
+      "remainingBehaviorAtAudit": "Ignore forged dice/cards/decks/compositions/clues/accuracy/outcomes; review exact entropy boundaries then native unique mechanics",
+      "minimumCohortAtAudit": "One entitled actor+GM where setup needed; do not add capacity actors",
+      "sourceAnchorsAtAudit": "functions/src/candidatePaths.ts:195; functions/src/candidatePathsCallable.ts; functions/src/fighterWingCombat.ts",
+      "fixedClosureAccepted": false,
+      "gapType": "unqualified_behavior_or_branch",
+      "behaviorImplementationMissingEstablishedByThisReview": false,
+      "owner": "PC10 owner next bounded family",
+      "currentScopedAdditions": [
+        "highwall-two-unfuelled"
+      ],
+      "remainingBehaviorAfterAcceptedAdditions": "Two genuine Highwall server dice are earned; forged-client entropy rejection and other dice/cards/decks/compositions/clues/accuracy/outcomes remain unproved natively."
+    },
+    {
+      "id": "631",
+      "catalogStatus": "partial",
+      "title": "Rate-limit expensive callables.",
+      "acceptance": "identity/session-aware limits contain abuse without breaking legitimate same-table retries or shared-network users.",
+      "auditClassification": "M",
+      "retainedEarlierCriteria": "Dedicated rate-limit unit/Firestore fixtures exist; no current complete native abuse proof identified",
+      "remainingBehaviorAtAudit": "Identity/session limits, genuine exact retry exemptions, same-network independent users",
+      "minimumCohortAtAudit": "Two legitimate shared-network actors plus abuse actor only if isolated identity needed",
+      "sourceAnchorsAtAudit": "functions/src/callableRateLimit.ts; functions/src/callableRateLimitFirestore.ts; functions/src/callableRateLimitFirestore.test.ts",
+      "fixedClosureAccepted": false,
+      "gapType": "unqualified_behavior_or_branch",
+      "behaviorImplementationMissingEstablishedByThisReview": false,
+      "owner": "PC10 owner next bounded family",
+      "currentScopedAdditions": []
+    },
+    {
+      "id": "634",
+      "catalogStatus": "missing",
+      "title": "Record security denials privately.",
+      "acceptance": "auth, App Check, schema, and rate-limit failures produce useful telemetry without credentials, hands, loyalties, or note bodies.",
+      "auditClassification": "M",
+      "retainedEarlierCriteria": "Dedicated security callable transport/inventory tests exist",
+      "remainingBehaviorAtAudit": "Exact auth/AppCheck/schema/rate-denial useful private telemetry, sensitive field redaction; source/test review first",
+      "minimumCohortAtAudit": "Wrong/unauthenticated request and entitled telemetry reader; no full gameplay cohort",
+      "sourceAnchorsAtAudit": "functions/src/securityCallable.ts; functions/src/securityCallableTransport.test.ts; functions/src/securityCallableInventory.test.ts",
+      "fixedClosureAccepted": false,
+      "gapType": "unqualified_behavior_or_branch",
+      "behaviorImplementationMissingEstablishedByThisReview": false,
+      "owner": "PC10 owner next bounded family",
+      "currentScopedAdditions": []
+    },
+    {
+      "id": "635",
+      "catalogStatus": "partial",
+      "title": "Standardize action audit records.",
+      "acceptance": "actor, session, action, phase, request, revision, outcome, random/facilitator source, and redaction policy are queryable. Automatic procedure receipts include the required choice or ruling, source-defined calculations, committed consequences and correct audience, with private GM detail separated from player/Press projections; optional GM concurrency cannot duplicate the record.",
+      "auditClassification": "B+M",
+      "retainedEarlierCriteria": "CARGO actor/request audit; WATER receipt/event/metadata/private audit replay; RACE two-GM no duplicate; RING candidate receipt",
+      "remainingBehaviorAtAudit": "Queryable required metadata/source/ruling/calculation/consequence/audience and all unmigrated action boundaries",
+      "minimumCohortAtAudit": "Reuse existing audits; two GMs only actual concurrency; private reader negatives 2-3 actors",
+      "sourceAnchorsAtAudit": "functions/src/actionAudit.ts; functions/src/standardProcedureAudit.test.ts; functions/src/candidatePathsCallable.ts",
+      "fixedClosureAccepted": false,
+      "gapType": "unqualified_behavior_or_branch",
+      "behaviorImplementationMissingEstablishedByThisReview": false,
+      "owner": "PC10 owner next bounded family",
+      "currentScopedAdditions": [
+        "requester-scout-peer-privacy",
+        "highwall-two-unfuelled",
+        "water-recharge"
+      ]
+    },
+    {
+      "id": "641",
+      "catalogStatus": "missing",
+      "title": "Run a complete base-game playthrough.",
+      "acceptance": "six core ships and one facilitator progress from lobby through maintenance, jump, scout, mission, combat, deduction, crisis, and debrief without manual arithmetic or transcription; repeat the mutation races with optional additional GMs. Cover complete configured-role behavior and prove progression with the minimum legitimate playable roster, representative shared role families, each unique mechanic and dropout/recovery across non-GM roles; simultaneous full-table capacity is a separate justified claim. Automatic Wolf assignment preserves the real-roster policy, including zero eligible Wolves; no extra GM or Press participant is required. Resolved choices and random results, safe drafts, current station authority and all-player-disconnection timer pause/resume survive reconnect without reset or duplicate effects.",
+      "auditClassification": "A+M",
+      "retainedEarlierCriteria": "SETUP/PRESS/RACE/CARGO/WATER/RING bounded paths; historical Combat29 paid maintenance/opening only",
+      "remainingBehaviorAtAudit": "Fresh two-browser base rehearsal through all unique mechanics incl mission/combat/deduction/crisis + ending; source repairs do not backfill",
+      "minimumCohortAtAudit": "GM + legitimate minimum playable roster, rotate roles; optional GM race reused",
+      "sourceAnchorsAtAudit": "docs/PC10_ACCEPTANCE_MATRIX.md; docs/PC10_FUNCTION_ROLE_MATRIX.json",
+      "fixedClosureAccepted": false,
+      "gapType": "aggregate_rehearsal_with_missing_mechanics",
+      "behaviorImplementationMissingEstablishedByThisReview": false,
+      "owner": "PC10 owner next bounded family",
+      "currentScopedAdditions": []
+    },
+    {
+      "id": "642",
+      "catalogStatus": "missing",
+      "title": "Run a complete Capybara playthrough.",
+      "acceptance": "one facilitator runs both roles, Scrap, Macaw, Boa, d8 targeting, mission, combat, jump, and one candidate path; optional Press remains independent and an additional-GM race cannot double-mutate. Cover complete configured-role behavior and prove progression with the minimum legitimate playable roster, representative shared role families, each unique mechanic and dropout/recovery across non-GM roles; simultaneous full-table capacity is a separate justified claim. Automatic Wolf assignment preserves the real-roster policy, including zero eligible Wolves; no extra GM or Press participant is required. Resolved choices and random results, safe drafts, current station authority and all-player-disconnection timer pause/resume survive reconnect without reset or duplicate effects.",
+      "auditClassification": "A+M",
+      "retainedEarlierCriteria": "Historical Capybara maintenance prefixes only; shared ending/custody recovery reused",
+      "remainingBehaviorAtAudit": "Both expansion roles/Scrap/Macaw/Boa/d8/mission/combat/jump/candidate and dropout through ending",
+      "minimumCohortAtAudit": "GM + legitimate minimum expansion cast; no automatic20/21Auth",
+      "sourceAnchorsAtAudit": "docs/PC10_ACCEPTANCE_MATRIX.md:544; docs/PC10_FUNCTION_ROLE_MATRIX.json",
+      "fixedClosureAccepted": false,
+      "gapType": "aggregate_rehearsal_with_missing_mechanics",
+      "behaviorImplementationMissingEstablishedByThisReview": false,
+      "owner": "PC10 owner next bounded family",
+      "currentScopedAdditions": []
+    },
+    {
+      "id": "651",
+      "catalogStatus": "missing",
+      "title": "Run the final release-readiness audit.",
+      "acceptance": "aggregate current prompt and milestone evidence; all roles, vessels, craft, candidate paths, privacy, accessibility, resilience, security, claimed capacity, version, changelog, and docs gates are green; the final executable gates pass and no placeholder control remains, without manually repeating every earlier review. Audit the fixed 751-ID endpoint against current evidence and true counts; this prompt amendment itself earns no closure. Report local tests, rendered QA, CI, deployment and ordinary authorized gameplay separately. Provide a finished numbered solo UI tour, preserve explicit exclusions/version authorization and the existing mandatory typography release gate, and leave unavailable gameplay proof explicitly incomplete.",
+      "auditClassification": "R",
+      "retainedEarlierCriteria": "Aggregate evidence ledger exists; all48 formal IDs open is accurate release accounting",
+      "remainingBehaviorAtAudit": "Reconcile fixed48 and source/function inventory, independent review, current typography/ticker/rendered QA, exact CI/main deployment/version/changelog/docs/numbered tour",
+      "minimumCohortAtAudit": "Owner release aggregate; no new actor cohort or full suite by audit worker",
+      "sourceAnchorsAtAudit": "docs/PC10_ACCEPTANCE_MATRIX.md; docs/PC10_FUNCTION_ROLE_MATRIX.json; CLAUDE.md",
+      "fixedClosureAccepted": false,
+      "gapType": "release_aggregate_only",
+      "behaviorImplementationMissingEstablishedByThisReview": false,
+      "owner": "PC10 owner next bounded family",
+      "currentScopedAdditions": []
+    }
+  ],
+  "inventoryLimits": {
+    "functionInventory": 241,
+    "actionRows": 232,
+    "nonInteractiveExports": 9,
+    "roleDefinitions": 42,
+    "wholeRolePendingRemainsAccurate": true,
+    "taxonomyIsNotGameplayAcceptance": true,
+    "historicalMatrixBindingsRequireFinalCurrentReconciliation": true,
+    "unmountedCompatibilityExportsDoNotNeedFabricatedUI": true
+  },
+  "nextFamily": {
+    "family": "P631 narrow member-read limit, same-network isolation and exact preparation replay exemption",
+    "stage": "PRODUCT_SOURCE_GUARDS_MAPPED_FOCUSED_RUNNER_NOT_YET_READY",
+    "minimumAuthActors": 2,
+    "plannedIndependentChromeProcesses": 2,
+    "plannedContexts": 2,
+    "actualAuthActors": 0,
+    "actualHumans": 0,
+    "roles": [
+      "normally authenticated and local-authorized live GM",
+      "normally joined ordinary member, with configured casting only as needed for live projection"
+    ],
+    "claims": [
+      "Current member makes ordinary SDK reads then exhausts only its real getCurrentMemberSession120-per60s window; subsequent response is RESOURCE_EXHAUSTED with retryAfterSeconds.",
+      "The other original legitimate identity on the same loopback network still reads the same session; each marker binds actual UID/session/callable.",
+      "Original live-GM prepareFullGameDemo request is captured and committed before any ordinary join. Six distinct legitimate preparation requests consume its real6/min budget; next fresh request is rate-denied.",
+      "The original captured actor/instance/request/payload remains replayable after that budget is exhausted, without a new preparation effect; no forged pending intent.",
+      "Private serverState budget-marker doc/query reads are denied through real member and GM SDK paths; inspect only owned authoritative marker and effect state.",
+      "Unauthenticated/schema/rate-denial logger records expose only allowlisted category/callable/hash metadata; no credentials, loyalties, cards or real note bodies enter report output."
+    ],
+    "notClaimed": [
+      "cross-session native reset/isolation",
+      "all expensive-callable behavior",
+      "platform maxInstances saturation",
+      "production App Check verification",
+      "all entropy domains",
+      "whole fresh game",
+      "all roles",
+      "human devices",
+      "PC631 closure",
+      "PC634 closure"
+    ],
+    "sourceAnchors": {
+      "readerExport": "functions/src/index.ts:18592",
+      "membershipSchemaGate": "functions/src/memberSessionLimit.ts:13",
+      "rateCharge": "functions/src/memberSessionLimit.ts:33",
+      "policies": "functions/src/callableRateLimit.ts:3",
+      "originalPreparationReceiptBeforeLimit": "functions/src/index.ts:7397",
+      "denialMetadata": "functions/src/securityCallable.ts:28"
+    },
+    "existingFocusedEvidence": "Dedicated memberSessionLimit, rate-limit Firestore adapter, audited callable/redaction/inventory and actual App Check transport tests exist. This source review does not rerun them or convert their historical GREEN into current native acceptance.",
+    "appCheckLimit": "Firebase transport rejects missing App Check in standalone real-handler transport tests; local emulator behavior cannot establish production enforcement. Keep this P634 branch separately qualified.",
+    "legacyRunner": "scripts/pc10-security-http-proof.mjs requires9Auth plus unrelated fighter construction/maintenance. It is not the focused two-actor runner and is not a readiness receipt.",
+    "requiredBeforeRuntime": [
+      "Implement bounded focused consumer runner reusing existing normal App/SDK admission and original request/authority observers; meaningful observed RED before each functional change in a separate test-first commit, then GREEN. Missing-entry-point failures alone earn no RED credit.",
+      "Independent Sol6.1 bounded reconciled source review of the new runner and any real product repair; do not repeat shared launcher or settled privacy review.",
+      "Exact current source/build/installed-CLI/data-scope binding and source freeze BEFORE any browser. Rebuild only changed Functions/client inputs; current tooling-only resolver and documentation changes reuse matched accepted build.",
+      "Fresh explicit parent absolute runtime allocation includes startup, original35s/60s operations and60s cleanup; min120s remaining at browser launch. Shared runtime availability is not a launch grant.",
+      "Fresh exclusive evidence paths, retain first failure and complete original logs/body evidence, owned-only accounts/membership/session/join/child/reservation cleanup and closed postflight."
+    ],
+    "runtimeStarted": false,
+    "sourceFiles": [
+      {
+        "path": "functions/src/index.ts",
+        "sha256": "d900752833054d3e3a952725fe3dc3a070b0daf21acf856140e8667d3748db2c"
+      },
+      {
+        "path": "functions/src/memberSessionLimit.ts",
+        "sha256": "4b276e810157b37c2bd60c5e68da12dbe06af26d7f35139623483d141d5d4adf"
+      },
+      {
+        "path": "functions/src/memberSessionLimit.test.ts",
+        "sha256": "ddca7d0de5699340d2af3facf32c8fdaac732b396e7b848c7081dd061de7f44c"
+      },
+      {
+        "path": "functions/src/memberSessionCallable.ts",
+        "sha256": "e648196fa9e775305630dbf7c6f7371f9eff52024eeb19a4e4396247d32a878c"
+      },
+      {
+        "path": "functions/src/callableRateLimit.ts",
+        "sha256": "7084293724138ccffd1625940916e8b886ae309055a4bcdd3dbc308f2a405467"
+      },
+      {
+        "path": "functions/src/callableRateLimitFirestore.ts",
+        "sha256": "17eda0896dbb9a90cc4531165a9ed973811836c2e63a34e3de60a9656bbdc83a"
+      },
+      {
+        "path": "functions/src/callableRateLimitFirestore.test.ts",
+        "sha256": "bc365a4244cd234f257ef3fc5e767d104b8cc2aa3469b87bd7c623a63ae5453e"
+      },
+      {
+        "path": "functions/src/securityCallable.ts",
+        "sha256": "7c5e0b7a77352cb2705fa5dcdec86146ebd08cfb9765ae3da05150a350ed5e17"
+      },
+      {
+        "path": "functions/src/securityCallable.test.ts",
+        "sha256": "cc0fafe2590dfe1b10933d8503694bb3072c01f845c9ab809d858ab5f324f47b"
+      },
+      {
+        "path": "functions/src/securityCallableTransport.test.ts",
+        "sha256": "8c0637862ba553d0fd3c9f1260fbb58a3fccdf4372cfbe9e9a23048958d010d2"
+      },
+      {
+        "path": "functions/src/securityCallableInventory.test.ts",
+        "sha256": "6af0710189d3e7df581335e61a75b46bb3cb0baf5bc72935880b5ffd018edbe2"
+      },
+      {
+        "path": "scripts/pc10-security-http-proof.mjs",
+        "sha256": "d2c7ad45946afac8f8c8d46a6fcf1002fc7c36bdd6996fd0f762d09a782f45a8"
+      },
+      {
+        "path": "scripts/run-emulator-command.mjs",
+        "sha256": "46cb7be4d8f2936dc47c63a21220b72e770ab14b03635ee80ccced176a64719f"
+      },
+      {
+        "path": "scripts/pc10-browser-ui-receipt.mjs",
+        "sha256": "b7033303d7f575ad5dbb3f2a6b925a9913fd936e86eb706e13c3a24a937f61ec"
+      },
+      {
+        "path": "scripts/pc10-member-gm-lifecycle-ui-proof.mjs",
+        "sha256": "6a541aac3474be488e20e58a4f9fff23139bb071f38143f9dcc726483bb3751e"
+      }
+    ],
+    "noProductRepairEstablished": true,
+    "stationPExcluded": true
+  },
+  "aggregateGates": [
+    "Complete fresh-game every unique role/mechanic solo rehearsal across two browsers through ending; prepared tours alone insufficient.",
+    "Remaining claim-based overlap/reconnect/retry/privacy; no blanket21-account default after October7/8 owner correction. Capacity remains unclaimed unless specifically justified.",
+    "Rendered actions/costs/blockers/next actor, fonts/ticker/return/mobile/keyboard review; PC11 major cross-game guidance remains later.",
+    "One reconciled appropriate validation/review, exact candidate/main CI and deployment/health/IAM verification, version/changelog/catalog reconciliation and explicit PC10 handoff."
+  ],
+  "preservedOwnerRequirements": [
+    "Authenticated live GM and real Cycle0to1 already scoped earned; reuse actual flow.",
+    "Full-game demo unlimited with manual advancement; A01 join QR and A02 full-game addition have zero fixed closure credit.",
+    "Normal Firebase admission/auth/consent/privacy and QR join URL without elevated capabilities.",
+    "Cycle0 AWAITING CIC AUTHENTICATION and Settings awaiting-GM-start copy.",
+    "Post-PC10 thenPC11 thenPC12 same-repository Mac authoritative offline backup remain recorded future work.",
+    "Licensing/assets/notices unchanged; owner licensing scope remains separate."
+  ],
+  "runtimeStarted": false,
+  "pc10Complete": false,
+  "releaseAccepted": false
+}

@@ -1532,3 +1532,16 @@ Screenshot inspection:`OWNER_SCOUT_PRIVATE_AUDIENCE_3_CDE_REQUESTER_SCREENSHOT_I
 No full-game ending, foreign/revoked actor, human-device, capacity or complete
 manual-free usability acceptance is claimed. All48 fixed rows remain open at
 703/751 overall and245/293 campaign; NEXT181. PC10 and release are incomplete.
+
+### October 8 accepted-evidence remaining-gap reconciliation
+
+[The current remaining-gap map](PC10_REMAINING_GAP_MAP.md) and its
+[fixed 48 machine mapping](PC10_REMAINING_GAP_MAP.json) distinguish accepted
+scoped behavior from unproved branches, aggregate rehearsal and final release.
+Reuse accepted Highwall, scout peer/reload, Water/custody/cargo, Press ending
+and GM ending-race evidence. SUCCESS/P retains N/O/P and current boarding
+diagnosis. Next source preparation is the two-actor P631 member-read budget,
+same-network independence and exact original preparation replay exemption;
+server guards exist, but the focused runner/test-first/review prerequisites
+remain open. Source-only: no runtime, catalog closure, whole-game, capacity,
+human-device or release acceptance. Counts stay 703/751 and 245/293, 48 open.
