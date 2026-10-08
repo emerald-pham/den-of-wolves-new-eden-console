@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { minimumRingPlan, runRingWorkflow, runStationCombatWaves, selectStationCombatCrew, stationCombatServerContext } from './pc10-fresh-minimum-ring-proof.mjs';
+import { assertStationPopulationAcknowledgmentTransition, minimumRingPlan, runRingWorkflow, runStationCombatWaves, selectStationCombatCrew, stationCombatServerContext } from './pc10-fresh-minimum-ring-proof.mjs';
 
 function stationLossFixture({ originalGeneration = 4, currentGeneration = 4 } = {}) {
   const actor = { uid: 'pdf', roleId: 'refinery-124-pdf-colonel',
@@ -117,6 +117,27 @@ test('Station combat diagnostics retain population, alert, mutiny and terminal g
     'populationAlerts', 'unrestAlerts', 'vesselActionRevisions', 'gameOutcome', 'survivorOutcome',
     'debriefSnapshot', 'debriefMode']) assert.deepEqual(context[key], root[key]);
   for (const key of ['joinCode', 'ownerUid', 'email']) assert.equal(context[key], undefined);
+});
+
+test('population acknowledgment accepts only one alert removal and its exact vessel revision', () => {
+  const before = { sessionId: 'owned', currentTurn: 2, phase: 'active', shipDamage: { dione: { destroyed: false } },
+    shipSurvivors: { dione: 66000 }, shipResources: { dione: { food: 5, water: 4 } }, shipUnrest: { dione: 3 },
+    shipMutinies: {}, populationAlerts: { dione: { shipId: 'dione' }, aegis: { shipId: 'aegis' } },
+    unrestAlerts: {}, vesselActionRevisions: { dione: 7, aegis: 2 }, gameOutcome: null,
+    survivorOutcome: null, debriefSnapshot: null, debriefMode: { active: false, revision: 0 } };
+  const after = { ...before, populationAlerts: { aegis: before.populationAlerts.aegis },
+    vesselActionRevisions: { dione: 8, aegis: 2 } };
+  assert.deepEqual(assertStationPopulationAcknowledgmentTransition(before, after, 'dione'),
+    { expectedRevision: 7, revision: 8 });
+  for (const changed of [
+    { ...after, shipSurvivors: { dione: 65999 } },
+    { ...after, shipResources: { dione: { food: 4, water: 4 } } },
+    { ...after, shipDamage: { dione: { destroyed: true } } },
+    { ...after, phase: 'debrief' },
+    { ...after, populationAlerts: {} },
+    { ...after, vesselActionRevisions: { dione: 9, aegis: 2 } },
+    { ...after, vesselActionRevisions: { dione: 8, aegis: 3 } },
+  ]) assert.throws(() => assertStationPopulationAcknowledgmentTransition(before, changed, 'dione'));
 });
 
 test('first prerequisite failure stops the workflow before candidate outcomes', async () => {
