@@ -11,13 +11,50 @@ import {
   parseWolfTargetingReceipt,
 } from './wolfCommanderRerolls';
 
-it('accepts the canonical five-ship receipt while denying arbitrary subsets, reordered rings and out-of-ring dice', () => {
+it('accepts canonical source rings and ordered participating subsets while denying malformed rings and dice', () => {
   const ring = CORE_WOLF_TARGET_RING.filter(target => target !== 'dione');
   const receipt = resolveWolfTargeting(firstTurnWolfAttackComposition(), {}, ring, () => 0);
   expect(parseWolfTargetingReceipt(receipt)).toEqual(receipt);
-  expect(parseWolfTargetingReceipt({ ...receipt, ring: ring.slice(0, 4) })).toBeUndefined();
+  const grouped = resolveWolfTargeting(firstTurnWolfAttackComposition(), {}, ring.slice(2), () => 0, ring);
+  expect(parseWolfTargetingReceipt(grouped)).toEqual(grouped);
+  expect(parseWolfTargetingReceipt({ ...grouped, ring: ['refinery-124', 'shepherd'] })).toBeUndefined();
   expect(parseWolfTargetingReceipt({ ...receipt, ring: [...ring].reverse() })).toBeUndefined();
   expect(parseWolfTargetingReceipt({ ...receipt, rolls: [{ ...receipt.rolls[0], initialDie: 6, finalDie: 6 }, ...receipt.rolls.slice(1)] })).toBeUndefined();
+});
+
+it('rerolls a nonparticipating source face once into a bounded participating target draw', () => {
+  const ring = ['shepherd', 'quellon', 'refinery-124'] as const;
+  const bounds: number[] = [];
+  const receipt = resolveWolfTargeting(
+    firstTurnWolfAttackComposition(), {}, ring, (upperBound) => {
+      bounds.push(upperBound);
+      return upperBound === 6 ? 0 : 1;
+    }, CORE_WOLF_TARGET_RING,
+  );
+
+  expect(bounds.slice(0, 4)).toEqual([6, 3, 6, 3]);
+  expect(receipt.rolls[0]).toMatchObject({
+    sourceDie: 1, initialDie: 2, target: 'quellon', nonparticipatingTargetRerolls: 1,
+  });
+  expect(parseWolfTargetingReceipt(receipt)).toEqual(receipt);
+});
+
+it('keeps the Capybara d8 face-eight reroll separate from a nonparticipating Capybara target reroll', () => {
+  const ring = CORE_WOLF_TARGET_RING;
+  const samples = [7, 0, 6, 2];
+  const receipt = resolveWolfTargeting(
+    firstTurnWolfAttackComposition(), {}, ring, (upperBound) => {
+      const sample = samples.shift() ?? 0;
+      expect(sample).toBeLessThan(upperBound);
+      return sample;
+    }, EXPANDED_WOLF_TARGET_RING,
+  );
+
+  expect(receipt.rolls[0]).toMatchObject({ initialDie: 1, target: 'aegis', printedRerolls: [8] });
+  expect(receipt.rolls[1]).toMatchObject({
+    sourceDie: 7, initialDie: 3, target: 'icebreaker', nonparticipatingTargetRerolls: 1,
+  });
+  expect(parseWolfTargetingReceipt(receipt)).toEqual(receipt);
 });
 
 it('patches only selected rolls and keeps printed Capybara 8 rerolls separate', () => {

@@ -277,6 +277,7 @@ async function crewDefence(securityTeams: number) {
 const specialCases = ['commander', 'relocation', 'militia', 'aegis-reroll', 'pallas-reroll', 'commander-ruling'] as const;
 async function commitSpecialFixture(kind: typeof specialCases[number]) {
   completeBoardingFixture();
+  let committedCommanderRuling: Awaited<ReturnType<typeof special>> | undefined;
   if (kind === 'commander') return special('commander-1', { kind: 'commander', targetShipId: 'aegis' }, 'review-commander');
   if (kind === 'relocation') {
     await special('commander-1', { kind: 'commander', targetShipId: null }, 'review-no-commander');
@@ -286,6 +287,10 @@ async function commitSpecialFixture(kind: typeof specialCases[number]) {
   if (kind === 'commander-ruling') {
     patch(sessionPath, { shipResources: { aegis: { securityTeams: 22 } } });
     await special('commander-1', { kind: 'commander', targetShipId: 'aegis' }, 'review-commander');
+    put(`${sessionPath}/players/gm-1`, { uid: 'gm-1', role: 'gm', connected: true });
+    put(`${sessionPath}/gmInstances/gm-instance`, { uid: 'gm-1', connected: true, lastSeenAt: new Date() });
+    committedCommanderRuling = await special('gm-1', { kind: 'commander-ruling', targetShipId: 'aegis',
+      rulingText: 'Explicit current ruling.' }, 'review-commander-ruling', 'gm-instance');
     await special('xo-1', { kind: 'relocation', craftId: 'pallas', targetShipId: null,
       expectedControlRevision: 0 }, 'review-no-relocation');
     await crewDefence(22);
@@ -304,6 +309,7 @@ async function commitSpecialFixture(kind: typeof specialCases[number]) {
     dieIndexes: kind === 'pallas-reroll' ? [0] : [] }, 'review-pallas-reroll');
   if (kind === 'pallas-reroll') return pallas;
   await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
+  if (committedCommanderRuling) return committedCommanderRuling;
   put(`${sessionPath}/players/gm-1`, { uid: 'gm-1', role: 'gm', connected: true });
   put(`${sessionPath}/gmInstances/gm-instance`, { uid: 'gm-1', connected: true, lastSeenAt: new Date() });
   return special('gm-1', { kind: 'commander-ruling', targetShipId: 'aegis', rulingText: 'Explicit current ruling.' },

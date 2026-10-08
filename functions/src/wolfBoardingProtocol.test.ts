@@ -19,8 +19,16 @@ describe('Wolf boarding stage protocol', () => {
   it('serializes Commander leadership, fuelled relocation, crew defence, and Militia before locking dice', () => {
     expect(nextWolfBoardingStage(base)).toEqual({ kind: 'commander', actorUid: 'commander' });
     expect(nextWolfBoardingStage({ ...base, commanderChoice: { target: 'aegis' } }))
+      .toEqual({ kind: 'commander-ruling', target: 'aegis' });
+    expect(nextWolfBoardingStage({ ...base, commanderChoice: { target: 'aegis' },
+      commanderRulingRequiredTarget: 'aegis',
+      commanderRuling: { actorUid: 'gm-1', text: 'Explicit ruling.' } }))
+      .toEqual({ kind: 'relocation', actorUid: 'pilot', craftId: 'pallas' });
+    expect(nextWolfBoardingStage({ ...base, commanderChoice: { target: null } }))
       .toEqual({ kind: 'relocation', actorUid: 'pilot', craftId: 'pallas' });
     expect(nextWolfBoardingStage({ ...base, commanderChoice: { target: 'aegis' },
+      commanderRulingRequiredTarget: 'aegis',
+      commanderRuling: { actorUid: 'gm-1', text: 'Explicit ruling.' },
       relocationChoices: { pallas: { target: 'dione' } } }))
       .toEqual({ kind: 'defence', actorUids: ['crew-aegis', 'crew-aegis-2'], target: 'aegis' });
   });
@@ -32,13 +40,13 @@ describe('Wolf boarding stage protocol', () => {
       defenceChoices: { aegis: { actorUid: 'crew-aegis' }, dione: { actorUid: 'crew-dione' } },
       rollsLocked: true, commanderRulingRequiredTarget: 'aegis',
     };
-    expect(nextWolfBoardingStage(ready)).toEqual({ kind: 'aegis-reroll', actorUid: 'xo' });
-    expect(nextWolfBoardingStage({ ...ready, rerollChoices: { aegis: [] } }))
+    expect(nextWolfBoardingStage(ready)).toEqual({ kind: 'commander-ruling', target: 'aegis' });
+    const ruled = { ...ready, commanderRuling: { actorUid: 'gm-1', text: 'Explicit ruling.' } };
+    expect(nextWolfBoardingStage(ruled)).toEqual({ kind: 'aegis-reroll', actorUid: 'xo' });
+    expect(nextWolfBoardingStage({ ...ruled, rerollChoices: { aegis: [] } }))
       .toEqual({ kind: 'pallas-reroll', actorUid: 'pilot', target: 'aegis' });
-    expect(nextWolfBoardingStage({ ...ready, rerollChoices: { aegis: [], pallas: [] } }))
-      .toEqual({ kind: 'commander-ruling', target: 'aegis' });
-    expect(nextWolfBoardingStage({ ...ready, rerollChoices: { aegis: [], pallas: [] },
-      commanderRuling: { actorUid: 'gm-1', text: 'Ruling recorded.' } })).toEqual({ kind: 'complete' });
+    expect(nextWolfBoardingStage({ ...ruled, rerollChoices: { aegis: [], pallas: [] } }))
+      .toEqual({ kind: 'complete' });
   });
 
   it('keeps defence unresolved without an entitled actor and skips attacks with no boarders', () => {
