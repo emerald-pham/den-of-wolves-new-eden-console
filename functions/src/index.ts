@@ -75,7 +75,8 @@ import { createGorgoneionMissionSupportCallables } from './gorgoneionMissionSupp
 import { applyAwayMissionLifecycleCommand, createAwayMissionLifecycleBootstrap, markAwayMissionOverrun, projectAwayMissionPrivateState, projectAwayMissionPublicState, type AwayMissionLifecycleRecord, type AwayMissionLifecycleCommand } from './awayMissionLifecycleAdapter';
 import { missionCraftIdsCarriedByShip, nextMissionCraftCommitments, parseMissionCraftCommitments, requireMissionCraftMovementAvailable } from './missionCraftCommitment';
 import { missionRewardConsoleTargets, planBoaMissionRewardDelivery, planMissionRewardDelivery } from './missionRewardDelivery';
-import { prepareResolvedMissionConsequences, prepareMissionRewardConsequences, validateMissionRewardChoice } from './missionConsequences';
+import { prepareResolvedMissionConsequences, prepareMissionRewardConsequences, validateMissionRewardChoice,
+  requireLiveMissionWolfSource, requireMissionAwareWolfAttackWindowRequest, type MissionWolfPressure } from './missionConsequences';
 import { hasMissionNebulaBenefit, parseMissionNebulaBenefits } from './missionNebulaBenefits';
 import { createAwayMissionLifecycleCallables } from './awayMissionLifecycleCallable';
 import { deriveAwayMissionParticipantCraftSnapshots } from './awayMissionCraftSnapshot';
@@ -162,7 +163,6 @@ import {
   requireGmInstanceActionRequest,
   requireGmInstanceRequest,
   requireAirspaceWindowExtensionRequest,
-  requireWolfAttackWindowRequest,
   requireWolfAttackPreparationRequest,
   requireWolfAttackDeclarationRequest,
   requireWolfCommanderRerollRequest,
@@ -667,6 +667,7 @@ import {
   resolvedWolfAttackForCarryover,
   wolfWingCarryoverForPreparation,
   type CommanderCycleCarryoverContext,
+  type MissionKCarryoverContext,
   type PStationRepeatContext,
   type ResolvedPStationRepeat,
   type ResolvedWolfAttackForCarryover,
@@ -22899,7 +22900,47 @@ export const setEmergencyTimerPaused = auditedOnCall<{
   });
 });
 
-/** Read server-scheduled base/Station triggers for one current fleet group. */
+/** Protected K source uses the actual mission attempt, independently of caller-selected timing. */
+function missionWolfSourceRef(sessionId: string, sourceId: string): DocumentReference {
+  if (!/^mission-[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(sourceId)) {
+    throw commandError('failed-precondition', 'The K mission source identity is malformed.', 'conflict');
+  }
+  return db.doc(`sessions/${sessionId}/serverState/awayMissions/instances/${sourceId.slice(8)}`);
+}
+
+function requireLiveMissionWolfThreatSource(
+  session: DocumentSnapshot, targetGroupId: string, sourceId: string,
+  groupSnapshot: DocumentSnapshot | undefined, schedule: DocumentSnapshot | undefined,
+  mission: DocumentSnapshot | undefined, currentCycle: number,
+): MissionWolfPressure {
+  const group = groupSnapshot?.exists ? fleetGroupRecord(groupSnapshot.data()) : undefined;
+  if (!group || group.id !== targetGroupId || groupSnapshot!.id !== targetGroupId ||
+      !schedule?.exists || schedule.id !== sourceId || !mission?.exists || mission.id !== sourceId.slice(8)) {
+    throw commandError('failed-precondition', 'The protected K mission source is unavailable for this group.', 'conflict');
+  }
+  return requireLiveMissionWolfSource({ sessionId: session.id, sourceId, currentCycle,
+    chart: lockedNavigationChart(session), group, activeVesselIds: wolfAttackActiveVesselIds(session),
+    mission: mission.data(), pressure: schedule.data() });
+}
+
+function missionWolfCarryoverContext(
+  source: MissionWolfPressure, parent: unknown,
+): MissionKCarryoverContext {
+  if (!isRecord(parent) || typeof parent.attackId !== 'string') {
+    throw commandError('failed-precondition', 'The prior K attack parent identity is unavailable.', 'conflict');
+  }
+  const attackNumber = parent.attackNumber === undefined ? 1 : parent.attackNumber;
+  if (!Number.isSafeInteger(attackNumber) || (attackNumber as number) < 1 ||
+      (attackNumber as number) >= Number.MAX_SAFE_INTEGER) {
+    throw commandError('failed-precondition', 'The prior attack identity is malformed.', 'conflict');
+  }
+  return { type: 'mission-k', sourceId: `mission-${source.missionId}`, missionId: source.missionId,
+    resolutionRevision: source.resolutionRevision, resolutionRequestId: source.resolutionRequestId,
+    sourceCycle: source.sourceCycle, groupId: source.groupId, parentAttackId: parent.attackId,
+    nextAttackNumber: (attackNumber as number) + 1 };
+}
+
+/** Read server-scheduled base, Station and resolved K triggers for one current fleet group. */
 export const getWolfAttackThreatWindowOptions = auditedOnCall<{
   sessionId?: unknown;
   instanceId?: unknown;
@@ -22946,7 +22987,7 @@ export const getWolfAttackThreatWindowOptions = auditedOnCall<{
       (entry.siteCode === 'L' || entry.siteCode === 'M' || entry.siteCode === 'P') &&
       (entry.siteCode !== 'P' || entry.cycle === cycle));
     const sources = [] as Array<Readonly<{
-      siteCode: WolfThreatSiteCode;
+      siteCode: 'K' | WolfThreatSiteCode;
       sourceId: string;
       sourceCycle: number;
       coordinate: string;
@@ -22962,6 +23003,16 @@ export const getWolfAttackThreatWindowOptions = auditedOnCall<{
         continue;
       }
       sources.push({ siteCode: entry.siteCode, sourceId, sourceCycle: entry.cycle, coordinate: entry.coordinate });
+    }
+    const missionSchedules = await tx.get(db.collection(`sessions/${sessionId}/wolfAttackPressure`).where('groupId', '==', targetGroupId));
+    for (const schedule of missionSchedules.docs) {
+      if (schedule.get('type') !== 'mission-k-attack-schedule' || schedule.get('status') !== 'scheduled' ||
+          schedule.get('groupId') !== targetGroupId || !/^mission-[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(schedule.id)) continue;
+      const mission = await tx.get(missionWolfSourceRef(sessionId, schedule.id));
+      try {
+        const source = requireLiveMissionWolfThreatSource(session, targetGroupId, schedule.id, groupSnapshot, schedule, mission, cycle);
+        sources.push({ siteCode: 'K', sourceId: schedule.id, sourceCycle: source.sourceCycle, coordinate: source.coordinate });
+      } catch { continue; }
     }
     sources.sort((left, right) => left.sourceCycle - right.sourceCycle || left.siteCode.localeCompare(right.siteCode));
     return { type: 'wolf-attack-threat-window-options', sessionId, targetGroupId, cycle, sources };
@@ -22980,7 +23031,7 @@ export const setWolfAttackWindow = auditedOnCall<{
   threatSourceId?: unknown;
 }>('setWolfAttackWindow', async request => {
   const uid = requireUid(request.auth);
-  const change = requireWolfAttackWindowRequest(request.data ?? {});
+  const change = requireMissionAwareWolfAttackWindowRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${change.sessionId}`);
   const projectionRef = db.doc(`sessions/${change.sessionId}/wolfAttackWindow/current`);
   const attackStateRef = db.doc(`sessions/${change.sessionId}/wolfAttackState/current`);
@@ -23097,6 +23148,15 @@ export const setWolfAttackWindow = auditedOnCall<{
         'stale-revision',
       );
     }
+    let missionSource: MissionWolfPressure | undefined;
+    if (change.status === 'due' && change.threatSiteCode === 'K') {
+      const [schedule, mission] = await Promise.all([
+        tx.get(db.doc(`sessions/${change.sessionId}/wolfAttackPressure/${change.threatSourceId!}`)),
+        tx.get(missionWolfSourceRef(change.sessionId, change.threatSourceId!)),
+      ]);
+      missionSource = requireLiveMissionWolfThreatSource(session, change.targetGroupId!, change.threatSourceId!,
+        selectedGroupSnapshot, schedule, mission, currentTurn);
+    }
     if (sameState && current) {
       tx.set(receiptRef, { fingerprint, result: current, createdAt: FieldValue.serverTimestamp() });
       return current;
@@ -23112,6 +23172,27 @@ export const setWolfAttackWindow = auditedOnCall<{
         );
       }
       turn = 2;
+    } else if (change.status === 'due' && missionSource) {
+      if ((projection.exists && !current) || (current && current.status !== 'resolved')) {
+        throw commandError('failed-precondition', 'A live attack timing window must finish before selecting K.', 'conflict');
+      }
+      if (attackState.exists) {
+        const parent = attackState.data();
+        const parentTurn = isRecord(parent) ? parent.turn : undefined;
+        const audit = Number.isSafeInteger(parentTurn) ? await tx.get(db.doc(
+          `sessions/${change.sessionId}/wolfAttackState/current/audit/wolf-finalized-${parentTurn}`,
+        )) : undefined;
+        try {
+          const previous = resolvedWolfAttackForCarryover(parent, audit?.exists ? audit.data() : undefined,
+            currentTurn, missionWolfCarryoverContext(missionSource, parent));
+          if (current && previous.turn !== current.turn) throw new Error('The finalized parent does not match the resolved window.');
+        } catch (cause) {
+          throw commandError('failed-precondition', cause instanceof Error ? cause.message : 'The prior attack is not finalized.', 'conflict');
+        }
+      } else if (current) {
+        throw commandError('failed-precondition', 'The resolved timing window has no finalized parent attack.', 'conflict');
+      }
+      turn = currentTurn;
     } else if (change.status === 'due') {
       const initialWindow = (currentTurn === 1 && current === undefined) ||
         (currentTurn === 2 && current?.status === 'deferred' && current.turn === 2);
