@@ -101,6 +101,14 @@ describe('ordinary candidate callable authority and durable replay', () => {
     expect(documents.has('sessions/s1/candidateActionReceipts/edition-player-denied')).toBe(false);
     expect(documents.has('sessions/s1/actionAudits/edition-player-denied')).toBe(false);
   });
+  it('does not open a new edition choice after the game lifecycle has ended', async () => {
+    update(ref('sessions/s1'), { phase: 'debrief' });
+    const choice = { sessionId: 's1', requestId: 'edition-after-end', expectedRevision: 0,
+      expectedGroupId: 'fleet-1', instanceId: 'instance1', edition: 'deluxe' };
+    await expect(handlers.selectEdition(request(choice, 'gm'))).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(documents.has('sessions/s1/serverState/candidates')).toBe(false);
+    expect(documents.has('sessions/s1/candidateActionReceipts/edition-after-end')).toBe(false);
+  });
   it('authorizes edition selection only to the live GM instance and locks it across every fleet group', async () => {
     const choice = { sessionId: 's1', requestId: 'edition-deluxe', expectedRevision: 0,
       expectedGroupId: 'fleet-1', instanceId: 'instance1', edition: 'deluxe' };
