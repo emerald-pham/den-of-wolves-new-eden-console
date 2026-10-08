@@ -16,6 +16,9 @@ beforeEach(() => {
   useSessionStore.getState().setSession({id: 's1',name:'PC07',joinCode:'123456',ownerUid:'u1',phase:'active',
     currentTurn:2,createdAt:'2026-01-01T00:00:00Z',updatedAt:'2026-01-01T00:00:00Z',
     turnStartAnnouncement:{turn:2,survivorPopulation:242500},turnPhase:phase});
+  useSessionStore.getState().setMe({uid:'gm1',sessionId:'s1',role:'gm',displayName:'GM',seatId:null,joinedAt:''});
+  useSessionStore.getState().setGmInstance({id:'gm-instance',sessionId:'s1',uid:'gm1',name:'GM',claimedAt:'',deviceLabel:'test'});
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
   vi.mocked(clearTurnAdvanceInterstitial).mockReset().mockResolvedValue(undefined);
 });
 afterEach(() => vi.useRealTimers());
@@ -44,4 +47,35 @@ it('keeps the same clear identity after a temporary error and blocks offline dis
   expect(vi.mocked(clearTurnAdvanceInterstitial).mock.calls[0]).toEqual(vi.mocked(clearTurnAdvanceInterstitial).mock.calls[1]);
   act(() => useSessionStore.getState().setConnection('offline'));
   expect(clear).toBeDisabled();
+});
+
+// The real consumer must remove the clearance action as authority changes.
+it.each(['player', 'wrong-uid', 'wrong-session', 'recovery'] as const)(
+  'hides cycle clearance after GM authority becomes %s and restores only current GM', change => {
+    render(<TurnStartAnnouncement />);
+    expect(screen.getByRole('button', {name:'Clear cycle briefing // resume clock'})).toBeEnabled();
+    const gm = useSessionStore.getState().me!;
+    const instance = useSessionStore.getState().gmInstance!;
+    act(() => {
+      if (change === 'player') useSessionStore.getState().setMe({...gm, role:'player'});
+      if (change === 'wrong-uid') useSessionStore.getState().setGmInstance({...instance, uid:'foreign'});
+      if (change === 'wrong-session') useSessionStore.getState().setGmInstance({...instance, sessionId:'foreign'});
+      if (change === 'recovery') useSessionStore.getState().setGmRecoveryPending(true);
+    });
+    expect(screen.queryByRole('button', {name:'Clear cycle briefing // resume clock'})).not.toBeInTheDocument();
+    expect(document.querySelector('.intrusion--fleet')).toBeInTheDocument();
+    expect(clearTurnAdvanceInterstitial).not.toHaveBeenCalled();
+    act(() => {
+      useSessionStore.getState().setMe(gm);
+      useSessionStore.getState().setGmInstance(instance);
+      useSessionStore.getState().setGmRecoveryPending(false);
+    });
+    expect(screen.getByRole('button', {name:'Clear cycle briefing // resume clock'})).toBeEnabled();
+  },
+);
+it('does not expose clearance when a player first reconnects to a held briefing', () => {
+  useSessionStore.getState().setMe({...useSessionStore.getState().me!,role:'player'});
+  render(<TurnStartAnnouncement />);
+  expect(screen.queryByRole('button', {name:'Clear cycle briefing // resume clock'})).not.toBeInTheDocument();
+  expect(screen.getByText('CYCLE 2')).toBeInTheDocument();
 });
