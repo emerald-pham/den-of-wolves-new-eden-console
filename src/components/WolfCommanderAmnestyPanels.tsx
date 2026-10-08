@@ -12,7 +12,7 @@ import { SHIPS } from '@/data/ships';
 import { useSessionStore } from '@/store/useSessionStore';
 import './WolfCommanderAmnestyPanels.css';
 
-const CONDITION_TEXT = 'Surrender by medium jump to 0101.';
+const CONDITION_TEXT = 'Surrender by medium jump to 0101. Purge survivors based on potential Wolf loyalty and keep the ship undamaged.';
 
 function usePrivateAmnestyView(enabled: boolean) {
   const sessionId = useSessionStore((state) => state.session?.id ?? null);

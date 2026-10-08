@@ -20,6 +20,11 @@ const COMMON_ROLE_RULES_BASE = [
 /** Base-game copy retained as a named fixture for projection tests. */
 export const COMMON_ROLE_RULES = COMMON_ROLE_RULES_BASE;
 const COMMON_ROLE_RULES_CAPYBARA = `${COMMON_ROLE_RULES_BASE} In the Capybara expansion, Wolf targeting uses a d8: 7 targets Capybara and 8 is rerolled; Scrap is a Capybara-only resource used by its ship and shuttles.`;
+const COMMON_ROLE_RULES_WOLF_COMMANDER = COMMON_ROLE_RULES_BASE.replace(
+  ' The fleet objective is to reach New Eden with as many survivors as possible.',
+  '',
+);
+const COMMON_ROLE_RULES_WOLF_COMMANDER_CAPYBARA = `${COMMON_ROLE_RULES_WOLF_COMMANDER} In the Capybara expansion, Wolf targeting uses a d8: 7 targets Capybara and 8 is rerolled; Scrap is a Capybara-only resource used by its ship and shuttles.`;
 export const CAPYBARA_SHARED_OBJECTIVE =
   'Protect the Capybara and the S.A.N. survivors, make sure the S.A.N. is heard in fleet decisions, and do not let the Capybara be taken for granted.';
 
@@ -34,27 +39,27 @@ const ROLE_BRIEFS: Readonly<Record<string, Omit<RoleBriefContent, 'roleId'>>> = 
   admiral: {
     roleName: 'Admiral',
     vesselName: 'AEGIS',
-    text: 'Coordinate the AEGIS team and set its fleet-defence policy. Keep military assets maintained, support the President, and help the fleet exchange usable jump information.',
+    text: 'Coordinate the AEGIS team and set its fleet-defence policy. Keep military assets maintained, support the President, and help the fleet exchange usable jump information. ICN objectives // Protect the fleet at any cost and uphold the Council Navy’s honour so it earns recognition.',
   },
   'executive-officer': {
     roleName: 'Executive Officer',
     vesselName: 'AEGIS',
-    text: 'Run AEGIS maintenance and secure the resources it needs. Operate its weapons and Pallas during Wolf attacks, and coordinate defence with Refinery 124.',
+    text: 'Run AEGIS maintenance and secure the resources it needs. Operate its weapons and Pallas during Wolf attacks, and coordinate defence with Refinery 124. ICN objectives // Protect the fleet at any cost and uphold the Council Navy’s honour so it earns recognition.',
   },
   'wing-commander': {
     roleName: 'Wing Commander',
     vesselName: 'AEGIS',
-    text: 'Operate Fighter Wings Alpha and Bravo, scout with the Starlight, and join away missions. Coordinate scouting with the Scientist and Explorer and protect the fleet in combat.',
+    text: 'Operate Fighter Wings Alpha and Bravo, scout with the Starlight, and join away missions. Coordinate scouting with the Scientist and Explorer and protect the fleet in combat. ICN objectives // Protect the fleet at any cost and uphold the Council Navy’s honour so it earns recognition.',
   },
   'dione-captain': {
     roleName: 'Captain',
     vesselName: 'Dione',
-    text: 'Coordinate the Dione team, set ship policy, and liaise with other ships. Protect the Dione\'s large survivor population while securing the food and water the ship consumes.',
+    text: 'Coordinate the Dione team, set ship policy, and liaise with other ships. Protect the Dione\'s large survivor population while securing the food and water the ship consumes. FAS objectives // Protect Dione and its survivors, and ensure the FAS has a voice in fleet decisions.',
   },
   'dione-engineer': {
     roleName: 'Engineer',
     vesselName: 'Dione',
-    text: 'Run maintenance, gather supplies, transfer resources, and repair with the Philia. Use the Maliades in Wolf attacks and choose which Dione console must remain uncharged.',
+    text: 'Run maintenance, gather supplies, transfer resources, and repair with the Philia. Use the Maliades in Wolf attacks and choose which Dione console must remain uncharged. FAS objectives // Protect Dione and its survivors, and ensure the FAS has a voice in fleet decisions.',
   },
   'dione-president': {
     roleName: 'President',
@@ -64,72 +69,72 @@ const ROLE_BRIEFS: Readonly<Record<string, Omit<RoleBriefContent, 'roleId'>>> = 
   'icebreaker-captain': {
     roleName: 'Captain',
     vesselName: 'Icebreaker',
-    text: 'Coordinate the Icebreaker team, set ship policy, and liaise with other ships. Use the ship\'s materials and strytium production to secure food, water, and repairs.',
+    text: 'Coordinate the Icebreaker team, set ship policy, and liaise with other ships. Use the ship\'s materials and strytium production to secure food, water, and repairs. C.P.A. objectives // Protect Icebreaker and its survivors, give the C.P.A. a voice in fleet decisions, and earn recognition for the ship.',
   },
   'icebreaker-engineer': {
     roleName: 'Engineer',
     vesselName: 'Icebreaker',
-    text: 'Run maintenance and gather supplies. Use the Blacksmith to transfer resources and repair ships, and track demand for materials and strytium ore across the fleet.',
+    text: 'Run maintenance and gather supplies. Use the Blacksmith to transfer resources and repair ships, and track demand for materials and strytium ore across the fleet. C.P.A. objectives // Protect Icebreaker and its survivors, give the C.P.A. a voice in fleet decisions, and earn recognition for the ship.',
   },
   'icebreaker-miner': {
     roleName: 'Miner',
     vesselName: 'Icebreaker',
-    text: 'Produce materials and strytium ore with Highwall, help fight Wolf attacks, and represent the C.P.A. on away missions. Balance mining against the fleet\'s current demand.',
+    text: 'Produce materials and strytium ore with Highwall, help fight Wolf attacks, and represent the C.P.A. on away missions. Balance mining against the fleet\'s current demand. C.P.A. objectives // Protect Icebreaker and its survivors, give the C.P.A. a voice in fleet decisions, and earn recognition for the ship.',
   },
   'shepherd-captain': {
     roleName: 'Captain',
     vesselName: 'Shepherd',
-    text: 'Coordinate the Shepherd team, set ship policy, and liaise with other ships. Use Shepherd\'s food production and Endeavour upgrades to secure water and repairs.',
+    text: 'Coordinate the Shepherd team, set ship policy, and liaise with other ships. Use Shepherd\'s food production and Endeavour upgrades to secure water and repairs. Rosal objectives // Protect Shepherd and its survivors, preserve Rosal\'s voice in fleet decisions, and earn recognition for the ship.',
   },
   'shepherd-engineer': {
     roleName: 'Engineer',
     vesselName: 'Shepherd',
-    text: 'Run maintenance, obtain water and supplies, distribute food, and use the Black Sheep to transfer resources or charge consoles. Keep the ship ready for the fleet.',
+    text: 'Run maintenance, obtain water and supplies, distribute food, and use the Black Sheep to transfer resources or charge consoles. Keep the ship ready for the fleet. Rosal objectives // Protect Shepherd and its survivors, preserve Rosal\'s voice in fleet decisions, and earn recognition for the ship. Rosal seeks independence from FAS control.',
   },
   'shepherd-scientist': {
     roleName: 'Scientist',
     vesselName: 'Shepherd',
-    text: 'Research console upgrades, use Endeavour\'s long-range sensors to scout, and represent Rosal on away missions. Identify shortages early so research arrives in time.',
+    text: 'Research console upgrades, use Endeavour\'s long-range sensors to scout, and represent Rosal on away missions. Identify shortages early so research arrives in time. Rosal objectives // Protect Shepherd and its survivors, preserve Rosal\'s voice in fleet decisions, and earn recognition for the ship.',
   },
   'quellon-captain': {
     roleName: 'Captain',
     vesselName: 'Quellon',
-    text: 'Coordinate the Quellon team, set ship policy, and liaise with other ships. Trade Quellon\'s water production and Hummingbird scouting for food, repairs, and political consideration.',
+    text: 'Coordinate the Quellon team, set ship policy, and liaise with other ships. Trade Quellon\'s water production and Hummingbird scouting for food, repairs, and political consideration. Proxima objectives // Protect Quellon and its survivors, preserve Proxima\'s voice in fleet decisions, and earn recognition for the ship.',
   },
   'quellon-engineer': {
     roleName: 'Engineer',
     vesselName: 'Quellon',
-    text: 'Run maintenance, gather and distribute water, and use the Condor to transfer resources or charge consoles. Keep Quellon supporting the fleet.',
+    text: 'Run maintenance, gather and distribute water, and use the Condor to transfer resources or charge consoles. Keep Quellon supporting the fleet. Proxima objectives // Protect Quellon and its survivors, preserve Proxima\'s voice in fleet decisions, and earn recognition for the ship.',
   },
   'quellon-explorer': {
     roleName: 'Explorer',
     vesselName: 'Quellon',
-    text: 'Scout with Hummingbird and represent Proxima on away missions. Coordinate with the Wing Commander and Scientist, verify reports when needed, and choose useful harvests for the fleet.',
+    text: 'Scout with Hummingbird and represent Proxima on away missions. Coordinate with the Wing Commander and Scientist, verify reports when needed, and choose useful harvests for the fleet. Proxima objectives // Protect Quellon and its survivors, preserve Proxima\'s voice in fleet decisions, and earn recognition for the ship.',
   },
   'refinery-124-captain': {
     roleName: 'Captain',
     vesselName: 'Refinery 124',
-    text: 'Coordinate Refinery 124, set ship policy, and liaise with other ships. Use the refinery\'s fuel production and military support to secure food, water, and repairs.',
+    text: 'Coordinate Refinery 124, set ship policy, and liaise with other ships. Use the refinery\'s fuel production and military support to secure food, water, and repairs. Gliese objectives // Protect Refinery 124 and its survivors, preserve Gliese\'s voice in fleet decisions, and earn recognition for the refinery.',
   },
   'refinery-124-engineer': {
     roleName: 'Engineer',
     vesselName: 'Refinery 124',
-    text: 'Run maintenance, gather ore, refine and distribute fuel, and use Chacau to transfer resources and repair ships. Track every ship\'s likely jump cost.',
+    text: 'Run maintenance, gather ore, refine and distribute fuel, and use Chacau to transfer resources and repair ships. Track every ship\'s likely jump cost. Gliese objectives // Protect Refinery 124 and its survivors, preserve Gliese\'s voice in fleet decisions, and earn recognition for the refinery.',
   },
   'refinery-124-pdf-colonel': {
     roleName: 'P.D.F. Colonel',
     vesselName: 'Refinery 124',
-    text: 'Defend the fleet with Refinery 124\'s fighter wing and Chepu, and contribute to away missions. Coordinate combat with AEGIS and relay useful messages outside attacks.',
+    text: 'Defend the fleet with Refinery 124\'s fighter wing and Chepu, and contribute to away missions. Coordinate combat with AEGIS and relay useful messages outside attacks. Gliese objectives // Protect Refinery 124 and its survivors, preserve Gliese\'s voice in fleet decisions, and earn recognition for the refinery.',
   },
   'joint-engineering-quellon-refinery': {
     roleName: 'Quellon / Refinery Engineer',
     vesselName: 'Joint Engineering Union',
-    text: 'Keep both assigned ships supplied and repaired. During Team Phase run maintenance and charge important consoles; during Coordination Phase distribute supplies and triage repairs with the engineering shuttle.',
+    text: 'Keep both assigned ships supplied and repaired. During Team Phase run maintenance, charge important consoles, and fuel their engineering shuttles; during Coordination Phase distribute supplies and triage repairs. Offer shuttle transfer or repair services for a charge when appropriate. Union objective // Protect ordinary survivors and workers when fleet leaders make decisions.',
   },
   'joint-engineering-shepherd-icebreaker': {
     roleName: 'Shepherd / Icebreaker Engineer',
     vesselName: 'Joint Engineering Union',
-    text: 'Keep both assigned ships supplied and repaired. During Team Phase run maintenance and charge important consoles; during Coordination Phase distribute supplies and triage repairs with the engineering shuttle.',
+    text: 'Keep both assigned ships supplied and repaired. During Team Phase run maintenance, charge important consoles, and fuel their engineering shuttles; during Coordination Phase distribute supplies and triage repairs. Offer shuttle transfer or repair services for a charge when appropriate. Union objective // Protect ordinary survivors and workers when fleet leaders make decisions.',
   },
   'capybara-captain': {
     roleName: 'Capybara Captain',
@@ -149,7 +154,7 @@ const ROLE_BRIEFS: Readonly<Record<string, Omit<RoleBriefContent, 'roleId'>>> = 
   'wolf-commander': {
     roleName: 'Wolf Commander',
     vesselName: 'Wolf Armada',
-    text: 'Command the Wolf armada hunting the fleet. During the targeting phase you may reroll each eligible targeting die once before AEGIS Command and Control. HOUSE RULE: Nonparticipating target results are rerolled into a participating target; keep the printed Capybara d8 face 8 reroll separate. HOUSE RULE: The optional +2 boarding request remains pending until the current live GM records the consequence for what happens if all Commander-led Wolf Boarding Parties are destroyed. No automatic consequence or default outcome is assumed.',
+    text: 'Goal // Prevent the fleet from escaping by spreading fear or confusion, damaging infrastructure or defences, or raising unrest. Command the Wolf armada hunting the fleet. During the targeting phase you may reroll each eligible targeting die once before AEGIS Command and Control. HOUSE RULE: Nonparticipating target results are rerolled into a participating target; keep the printed Capybara d8 face 8 reroll separate. HOUSE RULE: The optional +2 boarding request remains pending until the current live GM records the consequence for what happens if all Commander-led Wolf Boarding Parties are destroyed. No automatic consequence or default outcome is assumed.',
   },
   'comms-officer': {
     roleName: 'Comms Officer',
@@ -159,47 +164,47 @@ const ROLE_BRIEFS: Readonly<Record<string, Omit<RoleBriefContent, 'roleId'>>> = 
   'vip-host': {
     roleName: 'VIP Host',
     vesselName: 'Dione',
-    text: 'When spending Team Time at a ship other than Dione, help that ship reroll one die during its maintenance cycle. Make sure the fleet remains welcome and coordinated.',
+    text: 'When spending Team Time at a ship other than Dione, help that ship reroll one die during its maintenance cycle. Your social goal is to help everyone have a good time.',
   },
   commissar: {
     roleName: 'Commissar',
     vesselName: 'Icebreaker',
-    text: 'With the captain\'s agreement, purge survivors as if the ship had taken damage, then reduce unrest by 1. Use this choice carefully and only through the authoritative console.',
+    text: 'Goals // Encourage AEGIS to make difficult decisions that move the fleet toward Eden and reduce the risk of riots. With the captain\'s agreement, purge survivors as if the ship had taken damage, then reduce unrest by 1; this ability is available once per ship per cycle. Use this choice carefully and only through the authoritative console.',
   },
   'rosal-militia-leader': {
     roleName: 'Rosal Militia Leader',
     vesselName: 'Shepherd',
-    text: 'During Boarding, defend on the ship where you are present. If Wolf boarding parties outnumber its Security Teams, roll up to two defence dice per Security Team. Whether or not they outnumber the teams, you may lead from the front and roll up to three extra defence dice; a front-line 1 kills you. The authoritative boarding result records losses.',
+    text: 'Political goals // Reduce FAS influence and advocate Rosal\'s freedom to decide its own future. During Boarding, defend on the ship where you are present. If Wolf boarding parties outnumber its Security Teams, roll up to two defence dice per Security Team. Whether or not they outnumber the teams, you may lead from the front and roll up to three extra defence dice; a front-line 1 kills you. The authoritative boarding result records losses.',
   },
   doctor: {
     roleName: 'Doctor',
     vesselName: 'Quellon',
-    text: 'After a Wolf Attack, choose one ship and halve its survivor casualties from damage. Additional ships require the stated food and water cost; the facilitator records every authoritative result.',
+    text: 'Objective // Preserve as many survivors as possible and reserve resources so more than one ship can receive care. After a Wolf Attack, choose one ship and halve its survivor casualties from damage. Additional ships require the stated food and water cost; the facilitator records every authoritative result.',
   },
   'pdf-fighter-ace': {
     roleName: 'P.D.F. Fighter Ace',
     vesselName: 'Refinery 124',
-    text: 'Defend the fleet with personal combat during Wolf attacks and pursue the goal of destroying a Wolf capital ship. Use only the authoritative Fighter Ace controls.',
+    text: 'Defend the fleet with personal combat during Wolf attacks and pursue the goal of destroying a Wolf capital ship, specifically a cruiser or carrier. Use only the authoritative Fighter Ace controls.',
   },
   'gorgoneion-captain': {
     roleName: 'Gorgoneion Captain',
     vesselName: 'I.C.S.S. Gorgoneion',
-    text: 'Defend the fleet and contribute to away missions using Gorgoneion\'s offensive, defensive, repair, and mission-support systems. Protect the fleet and uphold the Interstellar Council Navy\'s honour.',
+    text: 'Defend the fleet and contribute to away missions using Gorgoneion\'s offensive, defensive, repair, and mission-support systems. Protect the fleet at any cost and uphold the Interstellar Council Navy\'s honour so it earns recognition.',
   },
   'capybara-small-captain': {
     roleName: 'Capybara Captain // base small ship',
     vesselName: 'S.A.N.S. Capybara',
-    text: 'Supply and transfer food, water, and materials and assist on away missions. Protect the Capybara and S.A.N. survivors; this brief applies to the base small ship, not the Capybara expansion.',
+    text: 'Supply and transfer food, water, and materials and assist on away missions. Protect the Capybara and S.A.N. survivors, make sure the S.A.N. has a voice in fleet decisions, and earn recognition for the ship. This brief applies to the base small ship, not the Capybara expansion.',
   },
   'warrior-captain': {
     roleName: 'Warrior Captain',
     vesselName: 'RSS Warrior',
-    text: 'Supply materials and repair damaged ships through Wolf-attack salvage and away missions. Protect the Warrior and Rosal survivors and preserve Rosal\'s voice.',
+    text: 'Supply materials and repair damaged ships through Wolf-attack salvage and away missions. Protect the Warrior and Rosal survivors, preserve Rosal\'s voice, and do not let the Warrior be taken for granted.',
   },
   'vulcan-captain': {
     roleName: 'Vulcan Captain',
     vesselName: 'Vulcan',
-    text: 'Care for and rehabilitate prisoners, identify useful work for them, and manage its risks. Protect the Vulcan and Proxima survivors and preserve Proxima\'s voice.',
+    text: 'Care for and rehabilitate prisoners, identify useful work for them, and manage its risks. Protect the Vulcan and Proxima survivors, preserve Proxima\'s voice, and do not let the Vulcan be taken for granted.',
   },
 };
 
@@ -246,9 +251,13 @@ export function serializedRoleBrief(
     assignmentUid,
     visibleToUids: [assignmentUid],
     ...content,
-    commonRules: options.capybaraExpansion === true
-      ? COMMON_ROLE_RULES_CAPYBARA
-      : COMMON_ROLE_RULES_BASE,
+    commonRules: roleId === 'wolf-commander'
+      ? options.capybaraExpansion === true
+        ? COMMON_ROLE_RULES_WOLF_COMMANDER_CAPYBARA
+        : COMMON_ROLE_RULES_WOLF_COMMANDER
+      : options.capybaraExpansion === true
+        ? COMMON_ROLE_RULES_CAPYBARA
+        : COMMON_ROLE_RULES_BASE,
     ownedCraftIds: ownedCraftIdsForRole(roleId, activeRoleIds),
     setupRevision,
     ...(voyage33Motivation === undefined ? {} : { voyage33Motivation }),
