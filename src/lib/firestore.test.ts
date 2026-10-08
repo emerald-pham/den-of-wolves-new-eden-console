@@ -56,6 +56,7 @@ const {
   subscribeDamageDraws,
   subscribeLoyaltyCensus,
   subscribeGmArrestPosseCalculation,
+  subscribeGmArrestCase,
   subscribeGmMissionStartSnapshots,
   subscribeGmWolfActionReceipt,
   subscribeGmWolfSuspicionHistory,
@@ -2580,6 +2581,27 @@ it('subscribes to the server-only arrest calculation, rejects cached or malforme
   callbacks[0]?.({ metadata: { fromCache: false }, exists: () => true, data: () => result });
   expect(unsubscribeSpies[0]).toHaveBeenCalledOnce();
   expect(onCalculation).toHaveBeenCalledTimes(callsAtUnsubscribe);
+});
+
+it('recovers the current GM-only prisoner case from a server snapshot', () => {
+  const { callbacks } = captureSessionListener();
+  const onCase = vi.fn();
+  const stop = subscribeGmArrestCase('s1', 'u2', onCase);
+  const currentCase = {
+    type: 'arrest-case', sessionId: 's1', targetUid: 'u2', status: 'pending-resolution',
+    outcome: 'arrested', turn: 3, revision: 1, requiredPlayers: 5, presentPlayers: 5,
+    deadlineCycle: 4, createdBy: 'gm1', requestId: 'arrest-1',
+  };
+
+  callbacks[0]?.({ metadata: { fromCache: true }, exists: () => true, data: () => currentCase });
+  expect(onCase).toHaveBeenCalledTimes(1);
+  expect(onCase).toHaveBeenLastCalledWith(null);
+  callbacks[0]?.({ metadata: { fromCache: false }, exists: () => true, data: () => currentCase });
+  expect(onCase).toHaveBeenLastCalledWith(expect.objectContaining({
+    status: 'pending-resolution', turn: 3, deadlineCycle: 4, revision: 1,
+  }));
+
+  stop();
 });
 
 it('projects only complete server-confirmed PC04 mission-start receipts to the facilitator', () => {

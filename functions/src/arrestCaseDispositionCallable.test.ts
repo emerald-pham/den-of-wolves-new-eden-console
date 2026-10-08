@@ -88,6 +88,30 @@ it('allows release during the deadline Team Phase without creating replacement e
   expect(mock.documents.has('sessions/s1/replacementEligibility/u2')).toBe(false);
 });
 
+it.each(['released', 'executed'] as const)(
+  'allows a same-cycle %s during the current Team Phase without waiting for the next cycle', async (disposition) => {
+    mock.documents.clear();
+    provision(3);
+
+    const result = await resolveArrestCaseDisposition.run(request({
+      ...baseData, requestId: `same-cycle-${disposition}`, expectedCycle: 3, disposition,
+    }));
+
+    expect(result).toMatchObject({ turn: 3, deadlineCycle: 4, deadlineMet: true, disposition });
+    expect(mock.documents.get('sessions/s1/arrestCases/u2')).toMatchObject({
+      status: disposition, turn: 3, deadlineCycle: 4, revision: 2,
+    });
+    if (disposition === 'executed') {
+      expect(mock.documents.get('sessions/s1/replacementEligibility/u2')).toMatchObject({
+        eligible: true, reason: 'arrested', revision: 1,
+      });
+      expect(mock.documents.get('sessions/s1')?.setupRevision).toBe(3);
+    } else {
+      expect(mock.documents.has('sessions/s1/replacementEligibility/u2')).toBe(false);
+    }
+  },
+);
+
 it('rejects early resolution and permits only a reasoned facilitator resolution after the deadline', async () => {
   await expect(resolveArrestCaseDisposition.run(request({ ...baseData, expectedCycle: 3 })))
     .rejects.toMatchObject({ code: 'failed-precondition' });
@@ -111,4 +135,15 @@ it('replays exactly and rejects wrong facilitator or stale case revision', async
   expect(mock.update).not.toHaveBeenCalled();
   await expect(resolveArrestCaseDisposition.run(request({ ...baseData, requestId: 'other', expectedRevision: 9 }, 'u8')))
     .rejects.toMatchObject({ code: 'permission-denied' });
+});
+
+it('rejects a revoked facilitator lease before applying a same-cycle disposition', async () => {
+  mock.documents.clear();
+  provision(3);
+  put('sessions/s1/gmInstances/gm-1', { uid: 'u1', connected: false, lastSeenAt: new Date() });
+
+  await expect(resolveArrestCaseDisposition.run(request({
+    ...baseData, requestId: 'revoked-same-cycle', expectedCycle: 3, disposition: 'released',
+  }))).rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.documents.get('sessions/s1/arrestCases/u2')?.status).toBe('pending-resolution');
 });

@@ -156,6 +156,53 @@ it('offers release or execution only during the next Team Phase and binds the ru
   await waitFor(() => expect(onDisposition).toHaveBeenCalledWith('u2', 'executed', 4, 1, undefined));
 });
 
+it('offers same-cycle release or execution in the current Team Phase and confirms the saved case', async () => {
+  const user = userEvent.setup();
+  const onDisposition = vi.fn().mockResolvedValue({
+    status: 'committed', type: 'arrest-case-disposition', sessionId: 's1', requestId: 'same-cycle-release',
+    targetUid: 'u2', turn: 3, revision: 2, deadlineCycle: 4, deadlineMet: true,
+    disposition: 'released', setupRevision: 2,
+  });
+  render(<ArrestPosseCalculator
+    targetOptions={[{ uid: 'u2', label: 'Rae (u2)' }]}
+    censusRevision={9}
+    expectedRevision={1}
+    calculation={result}
+    caseRecord={pendingCase}
+    currentCycle={3}
+    deadlineTeamPhaseOpen
+    onCalculate={vi.fn()}
+    onDisposition={onDisposition}
+  />);
+
+  expect(screen.getByText(/release or execute now during team phase 3, or by the end of team phase 4/i)).toBeVisible();
+  await user.click(screen.getByRole('button', { name: 'Release prisoner' }));
+  await waitFor(() => expect(onDisposition).toHaveBeenCalledWith('u2', 'released', 3, 1, undefined));
+  expect(await screen.findByText('Prisoner case recorded // released.')).toBeVisible();
+});
+
+it('shows a recovered terminal case without retaining the pending deadline notice', () => {
+  const releasedCase: ArrestCase = { ...pendingCase, status: 'released', revision: 2 };
+  render(<ArrestPosseCalculator
+    targetOptions={[{ uid: 'u2', label: 'Rae (u2)' }]}
+    censusRevision={9}
+    expectedRevision={1}
+    calculation={result}
+    caseRecord={releasedCase}
+    caseOutcome={{
+      status: 'committed', type: 'arrest-posse-outcome', sessionId: 's1', requestId: 'released-1',
+      turn: 3, revision: 2, targetUid: 'u2', requiredPlayers: 5, presentPlayers: 5,
+      outcome: 'arrested', deadlineCycle: 4,
+    }}
+    currentCycle={4}
+    deadlineTeamPhaseOpen
+    onCalculate={vi.fn()}
+  />);
+
+  expect(screen.getByText('Prisoner case recorded // released.')).toBeVisible();
+  expect(screen.queryByText('Arrested; resolve the prisoner by the end of Team Phase 4.')).not.toBeInTheDocument();
+});
+
 it('requires a reason for facilitator resolution after the deadline', async () => {
   const user = userEvent.setup();
   const onDisposition = vi.fn().mockResolvedValue({ status: 'committed' });
