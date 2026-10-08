@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { assertStationPopulationAcknowledgmentTransition, minimumRingPlan, runRingWorkflow, runStationCombatWaves, selectStationCombatCrew, stationCombatServerContext, stationDialogAccessibleName, stationPopulationAckMutinyRows, stationPopulationAlertsForGm, stationPopulationDismissIntent, stationPopulationGmActorAnchor } from './pc10-fresh-minimum-ring-proof.mjs';
+import { assertStationPopulationAcknowledgmentTransition, assertStationPopulationGmActorAuthority, assertStationPopulationGmActorObserver, minimumRingPlan, runRingWorkflow, runStationCombatWaves, selectStationCombatCrew, stationCombatServerContext, stationDialogAccessibleName, stationPopulationAckMutinyRows, stationPopulationAlertsForGm, stationPopulationDismissIntent, stationPopulationGmActorAnchor, stationPopulationGmAuthorityPreflight } from './pc10-fresh-minimum-ring-proof.mjs';
 
 function stationLossFixture({ originalGeneration = 4, currentGeneration = 4 } = {}) {
   const actor = { uid: 'pdf', roleId: 'refinery-124-pdf-colonel',
@@ -149,18 +149,58 @@ test('population alert selector keeps the existing single current-GM target boun
     [['dione', first], ['shepherd', second]]);
 });
 
-test('Station GM anchor reads the actual live observer generation field', () => {
+test('Station GM claim preflight binds both native observer schemas and rejects a changed generation', async () => {
   // This is the liveGm/surface.observe schema from the native callback: it emits
   // connectionGeneration and hydrationRevision, while lifecycle snapshots are a
   // separate observer and provide generation/claimedAt.
+  const claimedAt = '2026-10-08T12:00:00.000Z', expectedUid = 'gm-uid';
   const liveGmObserver = { hasAuth: true, sameActor: true, sessionId: 'sid', uidHash: 'gm-hash',
-    connection: 'live', freshness: 'server', connectionGeneration: 1, hydrationRevision: 1,
+    connection: 'live', freshness: 'server', connectionGeneration: 1, hydrationRevision: 2,
     instanceId: 'gm-instance', gmInstanceOwned: true };
+  const lifecycleObserver = { hasAuth: true, sameActor: true, sessionId: 'sid', uidHash: 'gm-hash',
+    connection: 'live', freshness: 'server', generation: 1, hydrationRevision: 2,
+    playerRole: 'gm', profileRoleId: null, profileSessionId: null, instanceId: 'gm-instance',
+    claimedAt, gmInstanceOwned: true };
   assert.equal(Object.hasOwn(liveGmObserver, 'generation'), false);
   assert.equal(Object.hasOwn(liveGmObserver, 'claimedAt'), false);
-  const anchor = stationPopulationGmActorAnchor(liveGmObserver);
+  const input = { live: liveGmObserver, lifecycle: lifecycleObserver,
+    serverPlayer: { uid: expectedUid, sessionId: 'sid', role: 'gm', connected: true, connectionGeneration: 1 },
+    serverInstance: { id: 'gm-instance', uid: expectedUid, sessionId: 'sid', connected: true, claimedAt },
+    claimInstance: { id: 'gm-instance', uid: expectedUid, sessionId: 'sid', claimedAt },
+    expectedSessionId: 'sid', expectedUid };
+  const trace = [];
+  const preflight = await stationPopulationGmAuthorityPreflight({
+    readActor: async () => { trace.push('native liveGm + lifecycle observers'); return { live: liveGmObserver, lifecycle: lifecycleObserver }; },
+    readServerAuthority: async () => { trace.push('current player + GM instance lease'); return input; },
+    claimInstance: input.claimInstance, expectedSessionId: 'sid', expectedUid });
+  const anchor = preflight.anchor;
+  assert.deepEqual(trace, ['native liveGm + lifecycle observers', 'current player + GM instance lease',
+    'native liveGm + lifecycle observers'], 'Claim preflight bookends the authoritative source read with browser observations.');
   assert.equal(anchor.generation, liveGmObserver.connectionGeneration,
     'Attempt18 observed projection generation 1 against an undefined saved generation.');
+  assert.equal(anchor.claimedAt, lifecycleObserver.claimedAt,
+    'The actual lifecycle observer and server claim receipt supply the lease absent from liveGm.');
+  assert.doesNotThrow(() => assertStationPopulationGmActorObserver(anchor, input));
+  assert.equal(assertStationPopulationGmActorAuthority(anchor, input), true);
+
+  let changedReads = 0;
+  await assert.rejects(stationPopulationGmAuthorityPreflight({
+    readActor: async () => {
+      if (changedReads++ === 0) return { live: liveGmObserver, lifecycle: lifecycleObserver };
+      return { live: { ...liveGmObserver, connectionGeneration: 2 },
+        lifecycle: { ...lifecycleObserver, generation: 2 } };
+    },
+    readServerAuthority: async () => input,
+    claimInstance: input.claimInstance, expectedSessionId: 'sid', expectedUid }), /generation/i);
+
+  const changedGeneration = { ...input, live: { ...liveGmObserver, connectionGeneration: 2 },
+    lifecycle: { ...lifecycleObserver, generation: 2 },
+    serverPlayer: { ...input.serverPlayer, connectionGeneration: 2 } };
+  assert.throws(() => assertStationPopulationGmActorAuthority(anchor, changedGeneration), /generation changed/i);
+  const missingGeneration = { ...liveGmObserver }; delete missingGeneration.connectionGeneration;
+  assert.throws(() => stationPopulationGmActorAnchor({ ...input, live: missingGeneration }), /connectionGeneration/i);
+  const changedLease = { ...input, serverInstance: { ...input.serverInstance, claimedAt: '2026-10-08T12:01:00.000Z' } };
+  assert.throws(() => stationPopulationGmActorAnchor(changedLease), /claim lease|claim receipt/i);
 });
 
 test('station wave consumer acknowledges each current-GM threshold alert before the next Declare', async () => {

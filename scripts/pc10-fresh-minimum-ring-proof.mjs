@@ -59,15 +59,18 @@ export async function readStationCombatGuardAuthority({db,scope}){
  assert.match(scope.projectId,/^demo-[a-z0-9-]+$/);assert.equal(scope.projectId,scope.expectedProjectId);
  assert.equal(db.projectId,scope.projectId,'Existing Admin client must belong to the allocated demo project.');
  assert.match(scope.firestoreHost,/^127\.0\.0\.1:[0-9]+$/);assert.equal(scope.firestoreHost,scope.expectedFirestoreHost);
+ if(scope.gmInstanceId!==undefined)assert.match(scope.gmInstanceId,/^[A-Za-z0-9_-]{1,128}$/);
  const prefix=`sessions/${scope.sessionId}`;
- const [session,attack,pdfWing,players,fleetGroups]=await Promise.all([
+ const [session,attack,pdfWing,players,fleetGroups,gmInstance]=await Promise.all([
   db.doc(prefix).get(),db.doc(`${prefix}/wolfAttackState/current`).get(),db.doc(`${prefix}/serverState/pdfEscortWing`).get(),
   db.collection(`${prefix}/players`).get(),db.collection(`${prefix}/fleetGroups`).get(),
+  scope.gmInstanceId?db.doc(`${prefix}/gmInstances/${scope.gmInstanceId}`).get():Promise.resolve(null),
  ]);
  assert.equal(session.exists,true,'Owned fixture root must still exist.');
  return {sessionId:scope.sessionId,root:session.data(),authoritativeAttack:attack.exists?attack.data():null,
   pdfWing:pdfWing.exists?pdfWing.data():null,players:players.docs.map(player=>({...player.data(),uid:player.id})),
   fleetGroups:fleetGroups.docs.map(group=>({...group.data(),id:group.id})),
+  gmInstance:gmInstance?.exists?{...gmInstance.data(),id:scope.gmInstanceId}:null,
   inspection:{channel:'isolated-emulator-admin-read-only',projectId:scope.projectId,firestoreHost:scope.firestoreHost,observedAt:new Date().toISOString()}};
 }
 export function stationCombatServerContext({sessionId,root,pdfWing,publicAudience,players,fleetGroups}){
@@ -75,10 +78,49 @@ export function stationCombatServerContext({sessionId,root,pdfWing,publicAudienc
  const playerKeys=['uid','role','assignedRoleId','activeConsoleRoleId','replacementRoleId','replacementStatus','connected','seatId','kickedAt','escapeState','fleetGroupId'];
  return {sessionId,...Object.fromEntries(keys.filter(key=>root[key]!==undefined).map(key=>[key,root[key]])),pdfEscortWing:pdfWing,publicAudience,fleetGroups:fleetGroups.map(group=>Object.fromEntries(['id','vesselIds','memberUids','memberShipIds'].filter(key=>group[key]!==undefined).map(key=>[key,group[key]]))),players:players.map(player=>Object.fromEntries(playerKeys.filter(key=>player[key]!==undefined).map(key=>[key,player[key]])))};
 }
-// Behavior-preserving extraction of the Station acknowledgment's current actor projection.
-// Keep this field mapping intact until its native observer schema is reconciled below.
-export function stationPopulationGmActorAnchor(actor){
- return Object.fromEntries(['sessionId','uidHash','generation','hydrationRevision','instanceId','claimedAt'].map(key=>[key,actor[key]]));
+function stationPopulationGmAuthorityTuple({live,lifecycle,serverPlayer,serverInstance,claimInstance,expectedSessionId,expectedUid}){
+ assert.ok(live&&lifecycle&&serverPlayer&&serverInstance,'Station GM authority requires both browser observers and current server-owned lease rows.');
+ assert.equal(live.hasAuth,true);assert.equal(live.sameActor,true);assert.equal(live.sessionId,expectedSessionId);assert.equal(live.connection,'live');assert.equal(live.freshness,'server');
+ assert.ok(typeof live.uidHash==='string'&&live.uidHash.length>0);assert.ok(Number.isSafeInteger(live.connectionGeneration)&&live.connectionGeneration>=1,'Native live GM observer must expose its actual connectionGeneration.');
+ assert.ok(Number.isSafeInteger(live.hydrationRevision)&&live.hydrationRevision>=1);
+ assert.equal(lifecycle.hasAuth,true);assert.equal(lifecycle.sameActor,true);assert.equal(lifecycle.sessionId,expectedSessionId);assert.equal(lifecycle.connection,'live');assert.equal(lifecycle.freshness,'server');
+ assert.equal(lifecycle.uidHash,live.uidHash);assert.equal(lifecycle.generation,live.connectionGeneration,'Lifecycle generation must agree with the native live observer connectionGeneration.');
+ assert.equal(lifecycle.hydrationRevision,live.hydrationRevision,'Both browser observations must share the current identity hydration revision.');
+ assert.equal(lifecycle.playerRole,'gm');assert.equal(lifecycle.profileRoleId,null);assert.equal(lifecycle.profileSessionId,null);
+ assert.equal(lifecycle.gmInstanceOwned,true);assert.equal(live.gmInstanceOwned,true);assert.equal(lifecycle.instanceId,live.instanceId);
+ assert.ok(typeof live.instanceId==='string'&&live.instanceId.length>0);assert.ok(typeof lifecycle.claimedAt==='string'&&lifecycle.claimedAt.length>0);
+ assert.equal(serverPlayer.uid,expectedUid);assert.equal(serverPlayer.sessionId,expectedSessionId);assert.equal(serverPlayer.role,'gm');assert.equal(serverPlayer.connected,true);
+ assert.equal(serverPlayer.connectionGeneration,live.connectionGeneration,'Server player generation must agree with both current browser observations.');
+ assert.equal(serverInstance.id,live.instanceId);assert.equal(serverInstance.uid,expectedUid);assert.equal(serverInstance.sessionId,expectedSessionId);assert.equal(serverInstance.connected,true);
+ const claimedAt=ringGrantLeaseToken(serverInstance.claimedAt);assert.equal(lifecycle.claimedAt,claimedAt,'Browser lifecycle claim lease must match the current server-owned GM instance.');
+ if(claimInstance){assert.equal(claimInstance.id,live.instanceId);assert.equal(claimInstance.uid,expectedUid);assert.equal(claimInstance.sessionId,expectedSessionId);
+  assert.equal(claimInstance.claimedAt,claimedAt,'Original claim receipt must match the current server-owned GM instance lease.');}
+ return {sessionId:expectedSessionId,uidHash:live.uidHash,generation:live.connectionGeneration,
+  hydrationRevision:live.hydrationRevision,instanceId:live.instanceId,claimedAt};
+}
+export function stationPopulationGmActorAnchor(input){
+ return Object.freeze(stationPopulationGmAuthorityTuple(input));
+}
+export function assertStationPopulationGmActorObserver(anchor,{live,lifecycle}){
+ for(const key of ['sessionId','uidHash','hydrationRevision','instanceId'])assert.equal(lifecycle[key],anchor[key],`Original Station GM ${key} changed during population acknowledgment.`);
+ assert.equal(live.sessionId,anchor.sessionId);assert.equal(live.uidHash,anchor.uidHash);assert.equal(live.hydrationRevision,anchor.hydrationRevision);
+ assert.equal(live.connectionGeneration,anchor.generation,'Original Station GM native connectionGeneration changed during population acknowledgment.');
+ assert.equal(lifecycle.generation,anchor.generation,'Original Station GM lifecycle generation changed during population acknowledgment.');
+ assert.equal(lifecycle.claimedAt,anchor.claimedAt,'Original Station GM claim lease changed during population acknowledgment.');
+ assert.equal(live.instanceId,anchor.instanceId);assert.equal(lifecycle.instanceId,anchor.instanceId);
+}
+export function assertStationPopulationGmActorAuthority(anchor,input){
+ const current=stationPopulationGmAuthorityTuple(input);
+ for(const key of ['sessionId','uidHash','generation','hydrationRevision','instanceId','claimedAt'])assert.equal(current[key],anchor[key],`Original Station GM ${key} changed during population acknowledgment.`);
+ return true;
+}
+export async function stationPopulationGmAuthorityPreflight({readActor,readServerAuthority,claimInstance,expectedSessionId,expectedUid}){
+ const before=await readActor(),server=await readServerAuthority(),current=await readActor();
+ const authorityInput=actor=>({...actor,serverPlayer:server.serverPlayer,serverInstance:server.serverInstance,claimInstance,expectedSessionId,expectedUid});
+ const initialAnchor=stationPopulationGmActorAnchor(authorityInput(before));
+ const anchor=stationPopulationGmActorAnchor(authorityInput(current));
+ assert.deepEqual(anchor,initialAnchor,'Original GM authority changed during the claim preflight.');
+ return {anchor,actor:current,serverAuthority:server};
 }
 export function stationPopulationAlertsForGm(populationAlerts,instanceId){
  assert.ok(typeof instanceId==='string'&&instanceId.length>0);
@@ -661,7 +703,7 @@ async function launchSurface(label) {
  const {MAINTENANCE_ORDERS}=adminRequire(`${root}/functions/lib/maintenanceOrder.js`);
  const {MAINTENANCE_RULES}=adminRequire(`${root}/functions/lib/maintenance.js`);
 const stable=value=>value===null||typeof value!=='object'?JSON.stringify(value):Array.isArray(value)?`[${value.map(stable).join(',')}]`:`{${Object.keys(value).sort().map(key=>`${JSON.stringify(key)}:${stable(value[key])}`).join(',')}}`;
-let gm1Instance,gm1OriginalAuthority;
+let gm1Instance,gm1OriginalAuthority,gm1ClaimInstance;
 async function liveGm(surface,label,phase,{deadlineAt=Date.now()+60000}={}) {
  const remaining=()=>{const left=deadlineAt-Date.now();assert.ok(left>0,'Original live GM operation deadline expired.');return left;};
  const expectedUidHash=short(actorUids.get(label));
@@ -690,7 +732,12 @@ async function authorizeAndClaim(surface,label,name) {
  await closeLifecycleSettings(settings);await surface.page.getByRole('link',{name:/GM join$/i}).click();await surface.page.getByLabel('Input GM Name',{exact:true}).fill(name);
  const claimed=await action(surface,'claimGmInstance',()=>surface.page.getByRole('button',{name:'Join as GM',exact:true}).click());
  const live=await liveGm(surface,label);assert.equal(claimed.data.instanceId,live.instanceId);assert.equal(claimed.result.instance.id,live.instanceId);
- gm1Instance=live.instanceId;gm1OriginalAuthority=live;
+ gm1Instance=live.instanceId;gm1ClaimInstance=claimed.result.instance;
+ const deadlineAt=Date.now()+60000,preflight=await stationPopulationGmAuthorityPreflight({
+  readActor:()=>readStationGmActor(surface,label,null,deadlineAt),
+  readServerAuthority:()=>readStationGmAuthorityServerRows(deadlineAt,gm1Instance,'Original GM claim server preflight'),
+  claimInstance:gm1ClaimInstance,expectedSessionId:sid,expectedUid:actorUids.get(label)});
+ gm1OriginalAuthority=preflight.anchor;
  claims.push(`${label} ordinary admission/consent, normal local GM authorization and independent owned live instance`);return live;
 }
 
@@ -698,6 +745,19 @@ const lossAcks=[],lossAckErrors=[],lossAckControls=[];evidence.lossAcks=lossAcks
 let lossAckFirstError=null,notifyLossAckFailure;const lossAckFailure=new Promise(resolve=>{notifyLossAckFailure=resolve;});
 function latchLossAckError(error,endpoint){lossAckErrors.push({endpoint,error:originalProofError(error)});if(!lossAckFirstError){lossAckFirstError=error;stopped=true;notifyLossAckFailure(error);}}
 async function candidateWait(run,deadlineAt,label){budget();const remaining=deadlineAt-Date.now();assert.ok(remaining>0,`Original candidate operation deadline expired: ${label}`);const operation=Promise.resolve().then(()=>{budget();return run();});const value=await bounded(Promise.race([operation,lossAckFailure.then(error=>{throw error;})]),remaining,`Original candidate operation deadline expired: ${label}`,()=>{stopped=true;});budget();assert.ok(Date.now()<deadlineAt,`Original candidate operation deadline expired: ${label}`);return value;}
+async function readStationGmAuthorityServerRows(deadlineAt,instanceId,label='Station original GM authority source read'){
+ const authority=await candidateWait(()=>readStationCombatGuardAuthority({db,scope:{ownedSyntheticSession:true,sessionId:sid,ownedSessionId:sid,
+  projectId,expectedProjectId:allocation.projectId,firestoreHost:process.env.FIRESTORE_EMULATOR_HOST,
+  expectedFirestoreHost:`127.0.0.1:${ports.firestore}`,gmInstanceId:instanceId}}),deadlineAt,label);
+ const uid=actorUids.get('GM1'),serverPlayer=authority.players.find(player=>player.uid===uid),serverInstance=authority.gmInstance;
+ assert.ok(serverPlayer,'Current original GM player row must remain present.');assert.ok(serverInstance,'Current original GM instance lease must remain present.');
+ return {authority,serverPlayer,serverInstance};
+}
+async function readStationGmActor(surface,label,phase,deadlineAt){
+ const live=await liveGm(surface,label,phase,{deadlineAt});
+ const lifecycle=await candidateWait(()=>observeLifecycleActor(surface,sid),deadlineAt,'Original Station GM lifecycle actor read');
+ return {live,lifecycle};
+}
 async function installLossAck(surface,endpoint,waitCommitted,operationDeadlineAt=Date.now()+60000) {
  const pattern=`**/us-central1/${endpoint}`,record={surface:surface.label,endpoint,heldRetries:0,normalRecoveries:0,successfulRecoveries:0,recoveringReplies:[]};
  let mode='hold',firstStarted=false,firstError=null,settleFirst,settleRecovery;const first=new Promise(resolve=>{settleFirst=resolve;}),recovery=new Promise(resolve=>{settleRecovery=resolve;});const running=new Set();
@@ -1099,8 +1159,12 @@ async function enterRole(surface,label){
     }
     assert.ok(Date.now()<deadlineAt); // Additional actors use only their current ordinary crew surfaces.
    };
-   const readOwnedStationAuthority=deadlineAt=>candidateWait(()=>readStationCombatGuardAuthority({db,scope:{ownedSyntheticSession:true,sessionId:sid,ownedSessionId:sid,projectId,expectedProjectId:allocation.projectId,firestoreHost:process.env.FIRESTORE_EMULATOR_HOST,expectedFirestoreHost:`127.0.0.1:${ports.firestore}`}}),deadlineAt,'Station population acknowledgment source read');
-   const assertStationAckActor=(anchor,actor)=>{for(const key of Object.keys(anchor))assert.equal(actor[key],anchor[key],`Original Station GM ${key} changed during population acknowledgment.`);};
+   const readOwnedStationAuthority=deadlineAt=>candidateWait(()=>readStationCombatGuardAuthority({db,scope:{ownedSyntheticSession:true,sessionId:sid,ownedSessionId:sid,projectId,expectedProjectId:allocation.projectId,firestoreHost:process.env.FIRESTORE_EMULATOR_HOST,expectedFirestoreHost:`127.0.0.1:${ports.firestore}`,gmInstanceId:gm1Instance}}),deadlineAt,'Station population acknowledgment source read');
+   const assertStationAckActor=(anchor,actor)=>assertStationPopulationGmActorObserver(anchor,actor);
+   const assertStationAckAuthority=(anchor,actor,authority)=>{
+    const serverPlayer=authority.players.find(player=>player.uid===actorUids.get('GM1'));
+    assertStationPopulationGmActorAuthority(anchor,{...actor,serverPlayer,serverInstance:authority.gmInstance,claimInstance:gm1ClaimInstance,expectedSessionId:sid,expectedUid:actorUids.get('GM1')});
+   };
    const stationGmPopulationProjection=async deadlineAt=>{
     const projection=await candidateWait(()=>gm.page.evaluate(async storeUrl=>{
     const{useSessionStore}=await import(storeUrl),store=useSessionStore.getState(),session=store.session,instance=store.gmInstance;
@@ -1134,11 +1198,12 @@ async function enterRole(surface,label){
    const acknowledgeStationPopulationAlert=async({wave,nextWave,final,deadlineAt})=>{
     assert.ok(Number.isFinite(deadlineAt)&&Date.now()<deadlineAt,'Original Station wave deadline expired before population acknowledgment.');
     assert.equal(final.status,'resolved');assert.equal(final.currentStep,'resolved');assert.equal(final.pStationRepeat?.status,'repeat','Only a normal repeat wave may acknowledge its informational alert.');
-    const initialActor=await liveGm(gm,'GM1','active',{deadlineAt}),actorAnchor=stationPopulationGmActorAnchor(gm1OriginalAuthority);assertStationAckActor(actorAnchor,initialActor);
+    const actorAnchor=gm1OriginalAuthority,initialActor=await readStationGmActor(gm,'GM1','active',deadlineAt);assertStationAckActor(actorAnchor,initialActor);
     let ready=null;
     while(Date.now()<deadlineAt){
-     const currentActor=await liveGm(gm,'GM1','active',{deadlineAt});assertStationAckActor(actorAnchor,currentActor);
-     const authority=await readOwnedStationAuthority(deadlineAt),context=stationCombatServerContext({...authority,publicAudience:null});assertSafePopulationAckState(authority,context);
+     const currentActor=await readStationGmActor(gm,'GM1','active',deadlineAt);assertStationAckActor(actorAnchor,currentActor);
+     const authority=await readOwnedStationAuthority(deadlineAt);assertStationAckAuthority(actorAnchor,currentActor,authority);
+     const context=stationCombatServerContext({...authority,publicAudience:null});assertSafePopulationAckState(authority,context);
      const sourceAlerts=stationPopulationAlertsForGm(context.populationAlerts,gm1Instance);
      const projection=await stationGmPopulationProjection(deadlineAt);
      for(const key of ['sessionId','phase','generation','hydrationRevision','instanceId'])assert.equal(projection[key],({sessionId:sid,phase:'active',generation:actorAnchor.generation,hydrationRevision:actorAnchor.hydrationRevision,instanceId:actorAnchor.instanceId})[key],`Current GM browser projection ${key} changed.`);
@@ -1158,8 +1223,10 @@ async function enterRole(surface,label){
      await candidateWait(()=>delay(Math.min(150,deadlineAt-Date.now())),deadlineAt,'Station normal population alert feed wait');
     }
     assert.ok(ready,'The original Station wave deadline expired before the population alert was consistently visible.');
-    const beforeActor=await liveGm(gm,'GM1','active',{deadlineAt});assertStationAckActor(actorAnchor,beforeActor);
-    const beforeAuthority=await readOwnedStationAuthority(deadlineAt),before=stationCombatServerContext({...beforeAuthority,publicAudience:null});assertSafePopulationAckState(beforeAuthority,before);
+    const beforeActorObservation=await readStationGmActor(gm,'GM1','active',deadlineAt);assertStationAckActor(actorAnchor,beforeActorObservation);
+    const beforeActor=beforeActorObservation.lifecycle;
+    const beforeAuthority=await readOwnedStationAuthority(deadlineAt);assertStationAckAuthority(actorAnchor,beforeActorObservation,beforeAuthority);
+    const before=stationCombatServerContext({...beforeAuthority,publicAudience:null});assertSafePopulationAckState(beforeAuthority,before);
     assert.equal(stable(before),stable(ready.context),'Station source changed before the targeted informational acknowledgment.');
     assert.ok(beforeAuthority.authoritativeAttack,'Retain the actual final server Station attack before acknowledgment.');assert.equal(beforeAuthority.authoritativeAttack.attackId,final.attackId);assert.equal(beforeAuthority.authoritativeAttack.revision,final.revision);assert.equal(beforeAuthority.authoritativeAttack.status,'resolved');assert.equal(beforeAuthority.authoritativeAttack.currentStep,'resolved');assert.equal(beforeAuthority.authoritativeAttack.pStationRepeat?.status,'repeat');
     const beforeProjection=await stationGmPopulationProjection(deadlineAt);assert.equal(stable(beforeProjection),stable(ready.projection),'The exact alert/actor projection changed before the acknowledgment.');
@@ -1169,8 +1236,9 @@ async function enterRole(surface,label){
     const expectedIntent={actor:actorAnchor,source:stable(before),attack:stable(beforeAuthority.authoritativeAttack),projection:stable(beforeProjection),shipId,alert:stable(ready.alert),revision:expectedRevision,mounted};
     const readCurrentIntent=async()=>{
      assert.ok(Date.now()<deadlineAt,'Original Station wave deadline expired before final population intent reads.');
-     const currentActor=await liveGm(gm,'GM1','active',{deadlineAt});assertStationAckActor(actorAnchor,currentActor);
-     const currentAuthority=await readOwnedStationAuthority(deadlineAt),current=stationCombatServerContext({...currentAuthority,publicAudience:null});assertSafePopulationAckState(currentAuthority,current);
+     const currentActor=await readStationGmActor(gm,'GM1','active',deadlineAt);assertStationAckActor(actorAnchor,currentActor);
+     const currentAuthority=await readOwnedStationAuthority(deadlineAt);assertStationAckAuthority(actorAnchor,currentActor,currentAuthority);
+     const current=stationCombatServerContext({...currentAuthority,publicAudience:null});assertSafePopulationAckState(currentAuthority,current);
      assert.equal(stable(current),stable(before),'Station source or alert tuple changed before the normal population dismissal click.');
      assert.equal(stable(currentAuthority.authoritativeAttack),stable(beforeAuthority.authoritativeAttack),'Resolved Station attack changed before the population dismissal click.');
      const currentProjection=await stationGmPopulationProjection(deadlineAt);
@@ -1180,15 +1248,16 @@ async function enterRole(surface,label){
      const currentUi=stationPopulationUiRows(currentAlerts);assert.deepEqual(currentProjection.targetedPopulation,currentUi);
      assert.equal(currentProjection.visibleDialogs.length,1);assert.equal(stationPopulationDialogMatches(currentProjection.visibleDialogs[0],currentUi[0]),true);
      const currentMount=await stationPopulationDismissMount();
-     return{actor:stationPopulationGmActorAnchor(currentActor),source:stable(current),attack:stable(currentAuthority.authoritativeAttack),projection:stable(currentProjection),shipId,alert:stable(currentAlerts[0][1]),revision:current.vesselActionRevisions?.[shipId]??0,mounted:currentMount.mounted};
+     return{actor:actorAnchor,source:stable(current),attack:stable(currentAuthority.authoritativeAttack),projection:stable(currentProjection),shipId,alert:stable(currentAlerts[0][1]),revision:current.vesselActionRevisions?.[shipId]??0,mounted:currentMount.mounted};
     };
     const readIntentBookend=async()=>{
      assert.ok(Date.now()<deadlineAt,'Original Station wave deadline expired before the final source bookend.');
-     const bookendActor=await liveGm(gm,'GM1','active',{deadlineAt});assertStationAckActor(actorAnchor,bookendActor);
-     const bookendAuthority=await readOwnedStationAuthority(deadlineAt),bookend=stationCombatServerContext({...bookendAuthority,publicAudience:null});assertSafePopulationAckState(bookendAuthority,bookend);
+     const bookendActor=await readStationGmActor(gm,'GM1','active',deadlineAt);assertStationAckActor(actorAnchor,bookendActor);
+     const bookendAuthority=await readOwnedStationAuthority(deadlineAt);assertStationAckAuthority(actorAnchor,bookendActor,bookendAuthority);
+     const bookend=stationCombatServerContext({...bookendAuthority,publicAudience:null});assertSafePopulationAckState(bookendAuthority,bookend);
      assert.equal(stable(bookend),stable(before),'Station source, safety state, or pinned population alert changed during the final mounted-control checks.');
      assert.equal(stable(bookendAuthority.authoritativeAttack),stable(beforeAuthority.authoritativeAttack),'Resolved Station attack changed during the final mounted-control checks.');
-     return{actor:stationPopulationGmActorAnchor(bookendActor),source:stable(bookend),attack:stable(bookendAuthority.authoritativeAttack)};
+     return{actor:actorAnchor,source:stable(bookend),attack:stable(bookendAuthority.authoritativeAttack)};
     };
     assert.ok(Date.now()<deadlineAt,'Original Station wave deadline expired before population dismissal intent verification.');
     const capture=await action(gm,'dismissPopulationAlert',()=>stationPopulationDismissIntent({deadlineAt,expected:expectedIntent,readCurrentIntent,readIntentBookend,click:()=>{const timeout=deadlineAt-Date.now();assert.ok(Number.isFinite(timeout)&&timeout>0,'Original Station wave deadline expired immediately before the population dismissal click.');return dismiss.click({timeout});}}),{deadlineAt,original:beforeActor,gm:true,matches:data=>data?.sessionId===sid&&data?.shipId===shipId&&data?.instanceId===gm1Instance&&data?.expectedRevision===expectedRevision});
@@ -1198,11 +1267,12 @@ async function enterRole(surface,label){
     (evidence.stationPopulationAcknowledgments??=[]).push(entry);await writeFile(`${directory}/Station-population-alert-acks.json`,JSON.stringify(evidence.stationPopulationAcknowledgments,null,2)+'\n');
     const afterAuthority=await readOwnedStationAuthority(deadlineAt),after=stationCombatServerContext({...afterAuthority,publicAudience:null});entry.sourceAfter=stationAckSafeSummary(after,shipId);await writeFile(`${directory}/Station-population-alert-acks.json`,JSON.stringify(evidence.stationPopulationAcknowledgments,null,2)+'\n');
     assertSafePopulationAckState(afterAuthority,after);assertStationPopulationAcknowledgmentTransition(before,after,shipId);assert.equal(stable(afterAuthority.authoritativeAttack),stable(beforeAuthority.authoritativeAttack),'Population acknowledgment must not change the resolved Station attack.');
-    const afterActor=await liveGm(gm,'GM1','active',{deadlineAt});assertStationAckActor(actorAnchor,afterActor);
+    const afterActor=await readStationGmActor(gm,'GM1','active',deadlineAt);assertStationAckActor(actorAnchor,afterActor);assertStationAckAuthority(actorAnchor,afterActor,afterAuthority);
     const remainingAlerts=stationPopulationAlertsForGm(after.populationAlerts,gm1Instance),remainingUi=stationPopulationUiRows(remainingAlerts);
     let settledProjection=null;while(Date.now()<deadlineAt){
-     const currentActor=await liveGm(gm,'GM1','active',{deadlineAt});assertStationAckActor(actorAnchor,currentActor);
-     const currentAuthority=await readOwnedStationAuthority(deadlineAt),currentContext=stationCombatServerContext({...currentAuthority,publicAudience:null});assertSafePopulationAckState(currentAuthority,currentContext);
+     const currentActor=await readStationGmActor(gm,'GM1','active',deadlineAt);assertStationAckActor(actorAnchor,currentActor);
+     const currentAuthority=await readOwnedStationAuthority(deadlineAt);assertStationAckAuthority(actorAnchor,currentActor,currentAuthority);
+     const currentContext=stationCombatServerContext({...currentAuthority,publicAudience:null});assertSafePopulationAckState(currentAuthority,currentContext);
      assert.equal(stable(currentContext),stable(after),'Station source changed while awaiting normal population alert publication.');assert.equal(stable(currentAuthority.authoritativeAttack),stable(afterAuthority.authoritativeAttack),'Resolved Station attack changed while awaiting alert publication.');
      const current=await stationGmPopulationProjection(deadlineAt);for(const key of ['sessionId','phase','connection','freshness','generation','hydrationRevision','instanceId'])assert.equal(current[key],beforeProjection[key],`Normal GM feed ${key} changed during population dismissal.`);
      assert.deepEqual(current.targetedUnrest,[],'Stop if unrest becomes pending during dismissal.');assert.deepEqual(current.mutinyPanels,[],'Stop if mutiny recovery appears during dismissal.');
