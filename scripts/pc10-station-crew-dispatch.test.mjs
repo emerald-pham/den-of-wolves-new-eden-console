@@ -19,7 +19,12 @@ function surface(roleId, response, { entitledShipId = 'icebreaker', path = '/shi
     profileRoleId, assignedRoleId: roleId, activeConsoleRoleId: roleId, seatId: roleId,
     playerRole: 'player', phase: 'active', cycle: 3, fleetGroupId: 'fleet-p', connectionGeneration: 1,
     identityHydrationRevision: 1, replacementRoleId: null, replacementStatus: null,
-    airspace: 'restricted', turnStatePhase: 'coordination', phaseProgression: 'manual',
+    airspace: 'restricted', turnStatePhase: 'team', turnStatePhaseRevision: 1,
+    turnStateCurrentTurn: 3, turnStateMaxTurn: 6,
+    turnStateStartedAt: '2026-10-08T00:00:00.000Z',
+    turnStateEndsAt: '2026-10-08T00:20:00.000Z',
+    openAirspaceEndsAt: '2026-10-08T00:10:00.000Z', teamPhaseEndsAt: '2026-10-08T00:20:00.000Z',
+    phaseProgression: 'manual',
     connection: 'live', freshness: 'server' };
   const authority = { sessionId, fleetGroupId: 'fleet-p', connectionGeneration: 1,
     identityHydrationRevision: 1, replacementRoleId: null, replacementStatus: null,
@@ -131,6 +136,20 @@ function surface(roleId, response, { entitledShipId = 'icebreaker', path = '/shi
   }, { effects });
 }
 
+function setLiftedCoordinationProjection(actor) {
+  actor.testActor.airspace = 'lifted';
+  actor.testActor.turnStatePhase = 'coordination';
+  actor.testActor.turnStateEndsAt = actor.testActor.openAirspaceEndsAt;
+}
+
+function publishDeclaredAttackLock(actor, current) {
+  actor.testActor.airspace = 'restricted';
+  actor.testActor.turnStatePhase = 'team';
+  actor.testActor.turnStatePhaseRevision++;
+  actor.testActor.turnStateEndsAt = actor.testActor.teamPhaseEndsAt;
+  return { ...current, airspaceLocked: true };
+}
+
 function options(actors, current, onAction) {
   const actorChecks = [];
   return { actors, sessionId, deadlineAt, assertActor: async (actor, context) => {
@@ -217,15 +236,12 @@ test('waits for the declared attack lock and restricted member view before freez
   const pdf = surface('refinery-124-pdf-colonel', { type: 'pdf-escort-wing-launch-view',
     sessionId, turn: 3, revision: 8, wingRevision: 4, launched: false, eligible: true });
   let latest = { ...initial, airspaceLocked: false };
-  pdf.testActor.airspace = 'lifted';
+  setLiftedCoordinationProjection(pdf);
   let pageSamples = 0;
   pdf.page.evaluate = async () => {
     const observed = { ...pdf.testActor, ...pdf.testAuthority };
     pageSamples++;
-    if (pageSamples === 1) {
-      pdf.testActor.airspace = 'restricted';
-      latest = { ...latest, airspaceLocked: true };
-    }
+    if (pageSamples === 1) latest = publishDeclaredAttackLock(pdf, latest);
     return observed;
   };
   const opts = options([{ roleId: pdf.label, surface: pdf }], initial);
@@ -235,6 +251,13 @@ test('waits for the declared attack lock and restricted member view before freez
   pdf.callable = async (...args) => {
     assert.equal(latest.airspaceLocked, true, 'No source view may be read before the server attack lock.');
     assert.equal(pdf.testActor.airspace, 'restricted', 'No source view may be read before the member projection is restricted.');
+    assert.equal(pdf.testActor.turnStatePhase, 'team');
+    assert.equal(pdf.testActor.turnStatePhaseRevision, 2,
+      'The declaration must derive the Team phase revision from the captured Coordination revision.');
+    assert.equal(pdf.testActor.turnStateCurrentTurn, 3);
+    assert.equal(pdf.testActor.turnStateMaxTurn, 6);
+    assert.equal(pdf.testActor.turnStateStartedAt, '2026-10-08T00:00:00.000Z');
+    assert.equal(pdf.testActor.turnStateEndsAt, pdf.testActor.teamPhaseEndsAt);
     return callable(...args);
   };
 
@@ -247,20 +270,24 @@ test('waits for the declared attack lock and restricted member view before freez
 function installDelayedRestrictedProjection(actor, current) {
   const initial = { ...current, airspaceLocked: false };
   let latest = initial, sampleCount = 0;
-  actor.testActor.airspace = 'lifted';
+  setLiftedCoordinationProjection(actor);
   actor.page.evaluate = async () => {
     const observed = { ...actor.testActor, ...actor.testAuthority };
     sampleCount++;
-    if (sampleCount === 1) {
-      actor.testActor.airspace = 'restricted';
-      latest = { ...latest, airspaceLocked: true };
-    }
+    if (sampleCount === 1) latest = publishDeclaredAttackLock(actor, latest);
     return observed;
   };
   const callable = actor.callable;
   actor.callable = async (...args) => {
     assert.equal(latest.airspaceLocked, true, 'The exact P attack must be authoritatively locked before any current choice read.');
     assert.equal(actor.testActor.airspace, 'restricted', 'The source read must wait for this member’s restricted projection.');
+    assert.equal(actor.testActor.turnStatePhase, 'team');
+    assert.equal(actor.testActor.turnStatePhaseRevision, 2,
+      'The source-derived Coordination-to-Team phase revision must be exactly one higher.');
+    assert.equal(actor.testActor.turnStateCurrentTurn, 3);
+    assert.equal(actor.testActor.turnStateMaxTurn, 6);
+    assert.equal(actor.testActor.turnStateStartedAt, '2026-10-08T00:00:00.000Z');
+    assert.equal(actor.testActor.turnStateEndsAt, actor.testActor.teamPhaseEndsAt);
     return callable(...args);
   };
   return { initial, readAttack: async () => latest, sampleCount: () => sampleCount };
@@ -368,7 +395,7 @@ test('keeps the original deadline when the member remains lifted and retains tim
   const initial = { ...attack('targeting'), airspaceLocked: false };
   const pdf = surface('refinery-124-pdf-colonel', { type: 'pdf-escort-wing-launch-view',
     sessionId, turn: 3, revision: 8, wingRevision: 4, launched: false, eligible: true });
-  pdf.testActor.airspace = 'lifted';
+  setLiftedCoordinationProjection(pdf);
   const originalDeadlineAt = Date.now() + 120;
   const opts = { ...options([{ roleId: pdf.label, surface: pdf }], initial), deadlineAt: originalDeadlineAt,
     readAttack: async () => initial };
@@ -391,13 +418,12 @@ for (const changedField of ['connectionGeneration', 'identityHydrationRevision',
     const pdf = surface('refinery-124-pdf-colonel', { type: 'pdf-escort-wing-launch-view',
       sessionId, turn: 3, revision: 8, wingRevision: 4, launched: false, eligible: true });
     let latest = initial, samples = 0;
-    pdf.testActor.airspace = 'lifted';
+    setLiftedCoordinationProjection(pdf);
     pdf.page.evaluate = async () => {
       samples++;
       if (samples === 1) {
         const observed = { ...pdf.testActor, ...pdf.testAuthority };
-        pdf.testActor.airspace = 'restricted';
-        latest = { ...latest, airspaceLocked: true };
+        latest = publishDeclaredAttackLock(pdf, latest);
         return observed;
       }
       if (samples === 2) {
@@ -423,12 +449,12 @@ for (const changedField of ['connectionGeneration', 'identityHydrationRevision',
   });
 }
 
-test('rejects a changed turnStatePhase during lock readiness without normalizing the phase', async () => {
+test('rejects a mixed restricted/coordination pair during lock readiness', async () => {
   const initial = { ...attack('targeting'), airspaceLocked: false };
   const pdf = surface('refinery-124-pdf-colonel', { type: 'pdf-escort-wing-launch-view',
     sessionId, turn: 3, revision: 8, wingRevision: 4, launched: false, eligible: true });
   let latest = initial, samples = 0;
-  pdf.testActor.airspace = 'lifted';
+  setLiftedCoordinationProjection(pdf);
   pdf.page.evaluate = async () => {
     samples++;
     if (samples === 1) {
@@ -437,7 +463,6 @@ test('rejects a changed turnStatePhase during lock readiness without normalizing
       latest = { ...latest, airspaceLocked: true };
       return observed;
     }
-    if (samples === 2) pdf.testActor.turnStatePhase = 'team';
     return { ...pdf.testActor, ...pdf.testAuthority };
   };
   const opts = options([{ roleId: pdf.label, surface: pdf }], initial);
@@ -445,7 +470,35 @@ test('rejects a changed turnStatePhase during lock readiness without normalizing
   let failure;
   try { await dispatchStationCrewChoice(initial, opts); } catch (error) { failure = error; }
 
-  assert.match(failure?.message ?? '', /Original combat turnStatePhase changed/);
+  assert.match(failure?.message ?? '', /restricted\/coordination|turnStatePhase changed/);
+  const [held] = heldProofFailureObservations(failure);
+  assert.equal(held.operation, 'station-crew-lock-readiness');
+  assert.deepEqual(pdf.effects.reads, []);
+  assert.deepEqual(pdf.effects.clicks, []);
+});
+
+test('rejects a phaseRevision jump beyond the exact declaration-derived increment', async () => {
+  const initial = { ...attack('targeting'), airspaceLocked: false };
+  const pdf = surface('refinery-124-pdf-colonel', { type: 'pdf-escort-wing-launch-view',
+    sessionId, turn: 3, revision: 8, wingRevision: 4, launched: false, eligible: true });
+  let latest = initial, samples = 0;
+  setLiftedCoordinationProjection(pdf);
+  pdf.page.evaluate = async () => {
+    samples++;
+    if (samples === 1) {
+      const observed = { ...pdf.testActor, ...pdf.testAuthority };
+      latest = publishDeclaredAttackLock(pdf, latest);
+      pdf.testActor.turnStatePhaseRevision++;
+      return observed;
+    }
+    return { ...pdf.testActor, ...pdf.testAuthority };
+  };
+  const opts = options([{ roleId: pdf.label, surface: pdf }], initial);
+  opts.readAttack = async () => latest;
+  let failure;
+  try { await dispatchStationCrewChoice(initial, opts); } catch (error) { failure = error; }
+
+  assert.match(failure?.message ?? '', /phaseRevision|turnState phase revision/);
   const [held] = heldProofFailureObservations(failure);
   assert.equal(held.operation, 'station-crew-lock-readiness');
   assert.deepEqual(pdf.effects.reads, []);
@@ -473,6 +526,29 @@ test('rejects restricted-to-lifted restoration after scope freeze inside the str
   assert.equal(held.originalActor.airspace, 'restricted');
   assert.equal(held.consumedObservations.actorScopes.length, 2);
   assert.deepEqual(pdf.effects.reads, [], 'Strict post-freeze actor drift is rejected before private choice read.');
+  assert.deepEqual(pdf.effects.clicks, []);
+});
+
+test('rejects a post-freeze turnStatePhase change inside the strict observer fence', async () => {
+  const current = attack('targeting');
+  const pdf = surface('refinery-124-pdf-colonel', { type: 'pdf-escort-wing-launch-view',
+    sessionId, turn: 3, revision: 8, wingRevision: 4, launched: false, eligible: true });
+  let strictSamples = 0;
+  pdf.observe = async () => ({ ...pdf.testActor });
+  pdf.page.evaluate = async () => {
+    strictSamples++;
+    if (strictSamples === 4) pdf.testActor.turnStatePhase = 'coordination';
+    return { ...pdf.testActor, ...pdf.testAuthority };
+  };
+  const opts = options([{ roleId: pdf.label, surface: pdf }], current);
+  let failure;
+  try { await dispatchStationCrewChoice(current, opts); } catch (error) { failure = error; }
+
+  assert.match(failure?.message ?? '', /Original combat turnStatePhase changed/);
+  const [held] = heldProofFailureObservations(failure);
+  assert.equal(held.operation, 'station-crew-current-source-readiness');
+  assert.equal(held.originalActor.turnStatePhase, 'team');
+  assert.deepEqual(pdf.effects.reads, []);
   assert.deepEqual(pdf.effects.clicks, []);
 });
 
