@@ -30,3 +30,11 @@ test('normal proof launch stays within the five minute owner allocation',()=>{
  const plan=launchPlan({slot:5,projectId:'demo-pc11-budget',evidenceDirectory:'/tmp/pc11-budget'});
  assert.equal(plan.allocationMilliseconds,300000);
 });
+
+test('proof cancellation reserves terminal service teardown within allocation',async()=>{
+ const {readFileSync}=await import('node:fs');
+ const source=readFileSync(new URL('./pc11-launch.mjs',import.meta.url),'utf8');
+ assert.ok(!source.includes('deadline-Date.now()-12000'),'Twelve seconds cannot fit10s services plus4s ports and evidence');
+ assert.ok(source.includes('deadline-Date.now()-25000'),'Keep25s terminal cleanup reserve');
+ assert.ok(source.includes('allocationWithinCap'),'Persist exact cap outcome');
+});
