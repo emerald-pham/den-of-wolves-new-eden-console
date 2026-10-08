@@ -626,8 +626,10 @@ test('P631 normal setup and original preparation remain in confirmed lobby befor
     assert.equal(run.ownerResult?.actualAuthenticatedActors, 2);
     assert.equal(run.ownerResult?.cleanup?.closedBrowsers, 2);
     assert.equal(run.ownerResult?.cleanup?.deletedAuthActors, 2);
-    assert.deepEqual(run.trace?.events?.filter(item => item.kind === 'lifecycle-action').map(item => item.endpoint),
-      ['claimGmInstance', 'confirmSetup', 'prepareFullGameDemo']);
+    const clicks = run.trace?.events?.filter(item => item.kind === 'click').map(item => item.name) ?? [];
+    assert.ok(clicks.includes('Join as GM'));
+    assert.ok(clicks.includes('Confirm setup // Confirm roster'));
+    assert.ok(clicks.includes('ARE YOU SURE? // PREPARE FULL-GAME DEMO'));
     const receipts = run.trace?.events?.filter(item => item.kind === 'actual-lifecycle-receipt');
     assert.deepEqual(receipts?.map(item => item.endpoint),
       ['claimGmInstance', 'confirmSetup', 'prepareFullGameDemo']);
