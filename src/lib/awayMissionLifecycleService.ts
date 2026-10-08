@@ -361,7 +361,13 @@ export function parseAwayMissionLifecyclePublicState(
       !validRewardResults(value.rewards, opportunityIds) ||
       !validSpecialRewards(value.specialRewards, opportunityIds)) return null;
 
-  return value as unknown as AwayMissionPublicState;
+  const projection = value as unknown as AwayMissionPublicState;
+  if (projection.siteCode === 'K' && projection.outcomes) {
+    return { ...projection, outcomes: projection.outcomes.map(outcome => ({
+      ...outcome, difficulty: null, criticalThreshold: null,
+    })) };
+  }
+  return projection;
 }
 
 export function parseAwayMissionLifecyclePrivateState(
