@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 import { randomUUID } from 'node:crypto';
-import { existsSync } from 'node:fs';
-import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
+import { constants, existsSync } from 'node:fs';
+import { access, mkdir, readFile, realpath, unlink, writeFile } from 'node:fs/promises';
 import { execFile, spawn } from 'node:child_process';
-import { dirname, resolve } from 'node:path';
+import { delimiter, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import {
@@ -42,6 +42,54 @@ function firebaseConfigPath() {
 
 async function readJson(path) {
   return JSON.parse(await readFile(path, 'utf8'));
+}
+
+/** Use the installed exact pin without npm metadata/network resolution.
+ * Prefer this project's CLI, then the actual Firebase executable on PATH.
+ * CI retains its existing pinned npx bootstrap when no local CLI is installed.
+ * This resolves only executable metadata; it changes no config or permissions. */
+export async function resolveFirebaseToolsInvocation(args, {
+  repository = repositoryDirectory,
+  searchPath = process.env.PATH ?? '',
+  nodeExecutable = process.execPath,
+  allowRegistryFallback = Boolean(process.env.CI),
+} = {}) {
+  const installed = async (packagePath, aliasEntry) => {
+    const pkg = await readJson(packagePath);
+    if (pkg.name !== 'firebase-tools' || `firebase-tools@${pkg.version}` !== FIREBASE_TOOLS ||
+        typeof pkg.bin?.firebase !== 'string') {
+      throw new Error(`Installed Firebase CLI must match ${FIREBASE_TOOLS}: ${packagePath}`);
+    }
+    const entry = await realpath(resolve(dirname(packagePath), pkg.bin.firebase));
+    if (aliasEntry && entry !== aliasEntry) {
+      throw new Error(`Installed Firebase alias differs from its declared entry: ${packagePath}`);
+    }
+    await access(entry, constants.R_OK);
+    return { command: nodeExecutable, args: [entry, ...args], packagePath,
+      packageVersion: pkg.version, registryResolution: false };
+  };
+  const localPackage = resolve(repository, 'node_modules/firebase-tools/package.json');
+  if (existsSync(localPackage)) return installed(localPackage);
+  for (const directory of searchPath.split(delimiter).filter(Boolean)) {
+    const alias = resolve(directory, 'firebase');
+    if (!existsSync(alias)) continue;
+    const entry = await realpath(alias);
+    let parent = dirname(entry);
+    while (true) {
+      const packagePath = resolve(parent, 'package.json');
+      if (existsSync(packagePath)) {
+        const pkg = await readJson(packagePath);
+        if (pkg.name === 'firebase-tools') return installed(packagePath, entry);
+      }
+      const next = dirname(parent);
+      if (next === parent) break;
+      parent = next;
+    }
+  }
+  if (allowRegistryFallback) {
+    return { command: 'npx', args: ['--yes', FIREBASE_TOOLS, ...args], registryResolution: true };
+  }
+  throw new Error(`Installed Firebase CLI ${FIREBASE_TOOLS} is required before reserving local runtime.`);
 }
 
 async function configuredSlot(configPath) {
@@ -166,7 +214,11 @@ export async function runWithReservation({
   release = releaseEmulatorSlot,
   runner = runCommand,
   attachChild = updateReservationChildPid,
+  resolveFirebaseTools = resolveFirebaseToolsInvocation,
 }) {
+  const invocation = args[0] === '--yes' && args[1] === FIREBASE_TOOLS
+    ? await resolveFirebaseTools(args.slice(2))
+    : { command: 'npx', args };
   const reservation = await reserve({
     filePath,
     slot,
@@ -177,7 +229,7 @@ export async function runWithReservation({
   });
 
   try {
-    await runner('npx', args, {
+    await runner(invocation.command, invocation.args, {
       onSpawn: (child) => attachChild(reservation, child.pid, filePath),
     });
   } finally {
@@ -208,6 +260,7 @@ async function temporaryRulesConfig(slot) {
 }
 
 async function runRules(configPath) {
+  const invocation = await resolveFirebaseToolsInvocation(['emulators:exec']);
   const preferredSlot = await configuredSlot(configPath);
   const filePath = coordinationFilePath();
   const reservation = await reserveAvailableEmulatorSlot({
@@ -222,10 +275,8 @@ async function runRules(configPath) {
   let rulesConfigPath;
   try {
     rulesConfigPath = await temporaryRulesConfig(reservation.slot);
-    await runCommand('npx', [
-      '--yes',
-      FIREBASE_TOOLS,
-      'emulators:exec',
+    await runCommand(invocation.command, [
+      ...invocation.args,
       '--config',
       rulesConfigPath,
       '--project',
