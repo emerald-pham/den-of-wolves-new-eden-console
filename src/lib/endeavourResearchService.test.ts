@@ -23,6 +23,7 @@ const workspace: EndeavourResearchWorkspace = {
     totalBoxes: 5, currentMaterialCost: 7, complete: false,
   }],
   shepherdOre: 10,
+  scienceDevices: { revision: 0, ecmBuilt: false, detectorBuilt: false, ecmUsed: false, shepherdMaterials: 18 },
   fieldUpgradeState: { upgradeRevision: 0, targetsUsedThisCycle: 0 },
 };
 

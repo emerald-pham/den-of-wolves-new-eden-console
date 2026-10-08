@@ -86,6 +86,18 @@ it('does not expose Detector tests on completed but unbuilt research', async () 
   expect(mocks.runDetector).not.toHaveBeenCalled();
 });
 
+it('keeps built Detector tests disabled outside the live Team window', async () => {
+  mocks.read.mockResolvedValue({ ...workspace, scienceDevices: { ...workspace.scienceDevices, revision: 1, detectorBuilt: true },
+    tracks: [{ trackId: 'wolf-agent-detector', name: 'Wolf Agent Detector', crossedBoxes: 5,
+      totalBoxes: 5, currentMaterialCost: 10, complete: true }] });
+  const session = useSessionStore.getState().session!;
+  useSessionStore.setState({ session: { ...session, turnPhase: { ...session.turnPhase!,
+    airspace: { state: 'lifted', tickerActive: false, pressAccess: false } } } });
+  render(<EndeavourResearchPanel control={control} />);
+  expect(await screen.findByRole('button', { name: 'Run detector test' })).toBeDisabled();
+  expect(mocks.runDetector).not.toHaveBeenCalled();
+});
+
 function staleReply(attempt: {
   sessionId: string; requestId: string; expectedControlRevision: number;
   expectedResearchRevision: number; expectedCycle: number; trackId: string; funding: string;
