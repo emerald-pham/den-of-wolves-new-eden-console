@@ -81,7 +81,8 @@ export async function resolve(specifier, context, nextResolve) {
     if (specifier === './pc10-gate2-functional-proof.mjs') return { url: binding, shortCircuit: true };
     if (specifier === './pc10-full-game-demo-proof-helpers.mjs') return { url: proofHelpers, shortCircuit: true };
     if (specifier === './pc10-member-gm-lifecycle-ui-proof.mjs') {
-      if (process.env.PC10_P631_TEST_MODE === 'readiness-real-claim') return nextResolve(specifier, context);
+      if (['readiness-real-claim', 'readiness-setup-lobby'].includes(process.env.PC10_P631_TEST_MODE))
+        return nextResolve(specifier, context);
       return { url: lifecycle, shortCircuit: true };
     }
     if (specifier === './pc10-member-rate-security-ui-proof-core.mjs' &&
@@ -156,7 +157,8 @@ export async function observeFullGameDemoPresentationMember(surface) {
       profileRoleId: null, profileSessionId: null,
       playerRole: phase === 'claimed' || phase === 'setup' || phase === 'prepared' ? 'gm' : 'player',
       connected: !revoked, currentOwnPlayerConfirmed: !revoked, kicked: revoked, escapeLocked: false,
-      memberScopeMatches: member, currentMemberBerthMatches: member,
+      memberScopeMatches: member,
+      currentMemberBerthMatches: mode === 'readiness-setup-lobby' ? false : member,
       replacementRoleId: null, replacementStatus: null,
       connectionGeneration: 1, identityHydrationRevision: 1, assignedRoleId: null,
       activeConsoleRoleId: null, seatId: null, currentCanonicalSeatOwned: false,
@@ -173,8 +175,10 @@ export async function observeFullGameDemoPresentationMember(surface) {
         ? 'owned-p631-gm-instance'
         : mode === 'readiness-foreign-instance' && !member && phase === 'created' ? 'foreign-gm-instance' : null,
       setupConfirmed: phase === 'setup' || phase === 'prepared', cycle: 0,
-      phase: phase === 'setup' || phase === 'prepared' ? 'casting' : 'lobby',
-      fullGameDemo: phase === 'prepared' ? { status: 'preparing', progression: 'manual' } : null,
+      phase: mode === 'readiness-setup-lobby' || phase !== 'setup' && phase !== 'prepared'
+        ? 'lobby' : 'casting',
+      fullGameDemo: phase === 'prepared' || member && mode === 'readiness-setup-lobby' &&
+        clock().gmPhase === 'prepared' ? { status: 'preparing', progression: 'manual' } : null,
       invalidFields: [],
     };
     clock().now += revoked ? 20_000 :
@@ -314,7 +318,7 @@ class Page {
   getByLabel(name) { return new Locator(name, this); }
   locator(name) { return new Locator(name, this); }
   async evaluate(_callback, args) {
-    if (args?.moduleUrl && process.env.PC10_P631_TEST_MODE === 'readiness-real-claim') {
+    if (args?.moduleUrl && ['readiness-real-claim', 'readiness-setup-lobby'].includes(process.env.PC10_P631_TEST_MODE)) {
       const claimed = ['claimed', 'setup', 'prepared'].includes(trace().gmPhase);
       return { hasAuth: true, sameActor: true,
         uidHash: createHash('sha256').update('controlled-gm-uid').digest('hex').slice(0, 16),
@@ -330,25 +334,34 @@ class Page {
   }
   async handleClick(name) {
     const mode = process.env.PC10_P631_TEST_MODE;
-    if (mode !== 'readiness-real-claim') return;
+    if (!['readiness-real-claim', 'readiness-setup-lobby'].includes(mode)) return;
     const endpoint = name === 'Join as GM' ? 'claimGmInstance'
-      : name === 'Confirm setup // Confirm roster' ? 'confirmSetup' : null;
+      : name === 'Confirm setup // Confirm roster' ? 'confirmSetup'
+        : name === 'ARE YOU SURE? // PREPARE FULL-GAME DEMO' ? 'prepareFullGameDemo' : null;
     if (!endpoint) return;
     if (endpoint === 'claimGmInstance') trace().gmPhase = 'claimed';
     if (endpoint === 'confirmSetup') trace().gmPhase = 'setup';
+    if (endpoint === 'prepareFullGameDemo') trace().gmPhase = 'prepared';
     const index = this.lifecycleWaiters.findIndex(waiter => waiter.endpoint === endpoint);
     if (index < 0) throw new Error('Actual lifecycle observer was not armed before the original UI control.');
     const [{ predicate, resolve }] = this.lifecycleWaiters.splice(index, 1);
     const data = endpoint === 'claimGmInstance'
       ? { sessionId: 'owned-p631-session', instanceId: 'owned-p631-gm-instance', requestId: 'claim-receipt' }
-      : { sessionId: 'owned-p631-session', instanceId: 'owned-p631-gm-instance' };
+      : endpoint === 'prepareFullGameDemo'
+        ? { sessionId: 'owned-p631-session', instanceId: 'owned-p631-gm-instance',
+          requestId: 'original-prepare-request', expectedSetupRevision: 1 }
+        : { sessionId: 'owned-p631-session', instanceId: 'owned-p631-gm-instance',
+          requestId: 'setup-receipt', expectedSetupRevision: 1 };
     const result = endpoint === 'claimGmInstance'
       ? { instance: { id: 'owned-p631-gm-instance', claimedAt: 1 } }
+      : endpoint === 'prepareFullGameDemo'
+        ? { status: 'committed', fullGameDemo: { status: 'preparing', progression: 'manual' } }
       : { status: 'committed' };
     const request = { method: () => 'POST', postDataJSON: () => ({ data }) };
     const response = { url: () => 'http://127.0.0.1:5011/us-central1/' + endpoint, request: () => request,
       status: () => 200, json: async () => {
-        if (endpoint === 'confirmSetup') throw new Error('CONTROLLED_STOP_AFTER_ACTUAL_GM_CLAIM');
+        if (endpoint === 'confirmSetup' && mode === 'readiness-real-claim')
+          throw new Error('CONTROLLED_STOP_AFTER_ACTUAL_GM_CLAIM');
         return { result };
       } };
     if (!predicate(response)) throw new Error('Actual lifecycle response did not satisfy the source observer predicate.');
@@ -360,7 +373,8 @@ class Page {
     await flush();
     if (process.env.PC10_P631_TEST_MODE === 'observer-failure')
       throw new Error('PC10_PRIVATE_FAILURE_CANARY');
-    if (process.env.PC10_P631_TEST_MODE === 'readiness-real-claim' && this.index === 0 && this.responses >= 2) {
+    if (['readiness-real-claim', 'readiness-setup-lobby'].includes(process.env.PC10_P631_TEST_MODE) &&
+        this.index === 0 && this.responses >= 2) {
       const endpoints = ['claimGmInstance', 'confirmSetup', 'prepareFullGameDemo'];
       const endpoint = endpoints[this.responses - 2]; this.responses++;
       return new Promise(resolve => this.lifecycleWaiters.push({ endpoint, predicate, resolve }));
@@ -594,6 +608,46 @@ test('P631 first GM claim reaches the actual lifecycle actor guard and binds its
     assert.equal(claim?.result?.instance?.id, claim?.data?.instanceId,
       'The actual shared capture helper must deliver the same claimed instance as request and reply.');
     assert.match(retained.originalError?.message ?? '', /CONTROLLED_STOP_AFTER_ACTUAL_GM_CLAIM/);
+  } finally { await rm(run.temporary, { recursive: true, force: true }); }
+});
+
+test('P631 normal setup and original preparation remain in confirmed lobby before ordinary member admission', async () => {
+  const run = await runActualRunner('readiness-setup-lobby');
+  try {
+    assert.equal(run.child.status, 1, run.child.stderr);
+    const setup = run.trace?.observations?.find(item => !item.member && item.phase === 'setup');
+    assert.equal(setup?.state?.phase, 'lobby', 'The real confirmSetup receipt leaves the live Cycle 0 session in its confirmed lobby.');
+    assert.equal(setup?.state?.setupConfirmed, true);
+    assert.equal(setup?.state?.cycle, 0);
+    assert.equal(run.ownerResult?.failureStage, 'ordinary current-member SDK read exhaustion and same-network GM read',
+      `The original UI setup/preparation should qualify in its confirmed Cycle 0 lobby; observed setup tuple ` +
+      `${JSON.stringify(setup?.state)} and failure stage ` +
+      `${run.ownerResult?.failureStage}: ${run.child.stdout}\n${run.child.stderr}`);
+    assert.equal(run.ownerResult?.actualAuthenticatedActors, 2);
+    assert.equal(run.ownerResult?.cleanup?.closedBrowsers, 2);
+    assert.equal(run.ownerResult?.cleanup?.deletedAuthActors, 2);
+    assert.deepEqual(run.trace?.events?.filter(item => item.kind === 'lifecycle-action').map(item => item.endpoint),
+      ['claimGmInstance', 'confirmSetup', 'prepareFullGameDemo']);
+    const receipts = run.trace?.events?.filter(item => item.kind === 'actual-lifecycle-receipt');
+    assert.deepEqual(receipts?.map(item => item.endpoint),
+      ['claimGmInstance', 'confirmSetup', 'prepareFullGameDemo']);
+    assert.equal(receipts?.[0]?.data?.instanceId, receipts?.[0]?.result?.instance?.id);
+    assert.equal(receipts?.[1]?.data?.expectedSetupRevision, 1);
+    assert.equal(receipts?.[2]?.data?.expectedSetupRevision, 1,
+      'The preparation request keeps the original confirmed setup revision.');
+    const prepared = run.trace?.observations?.find(item => !item.member && item.phase === 'prepared');
+    assert.equal(prepared?.state?.phase, 'lobby');
+    assert.equal(prepared?.state?.setupConfirmed, true);
+    assert.equal(prepared?.state?.fullGameDemo?.status, 'preparing');
+    assert.equal(prepared?.state?.fullGameDemo?.progression, 'manual');
+    const member = run.trace?.observations?.find(item => item.member && item.phase === 'joined');
+    assert.equal(member?.state?.phase, 'lobby');
+    assert.equal(member?.state?.fullGameDemo?.status, 'preparing');
+    assert.equal(member?.state?.memberScopeMatches, true);
+    assert.equal(member?.state?.currentMemberBerthMatches, false,
+      'The current-member read proof does not require a player berth or assignment.');
+    const retained = JSON.parse(await readFile(join(run.evidenceDirectory, run.failureArtifacts[0]), 'utf8'));
+    assert.match(retained.originalError?.message ?? '', /CONTROLLED_STOP_AFTER_MEMBER_READINESS/);
   } finally { await rm(run.temporary, { recursive: true, force: true }); }
 });
 
