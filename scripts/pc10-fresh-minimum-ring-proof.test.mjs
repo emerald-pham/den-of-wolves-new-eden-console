@@ -148,6 +148,34 @@ test('population alert selector keeps the existing single current-GM target boun
     shepherd: { shipId: 'shepherd', targetGmInstanceIds: ['gm-1'] } }, 'gm-1'), /multiple current-GM population alerts/i);
 });
 
+test('station wave consumer acknowledges each current-GM threshold alert before the next Declare', async () => {
+  const trace = [], alerts = {
+    aegis: { shipId: 'aegis', shipName: 'Aegis', targetGmInstanceIds: ['gm-1'] },
+    dione: { shipId: 'dione', shipName: 'Dione', targetGmInstanceIds: ['gm-1'] },
+  };
+  const results = [
+    { attackId: 'attack-1', pStationRepeat: { status: 'repeat' } },
+    { attackId: 'attack-2', pStationRepeat: { status: 'stopped' } },
+  ];
+  await runStationCombatWaves({ maximumWaves: 12,
+    assertActors: async () => {},
+    prepareAndDeclare: async ({ wave }) => {
+      trace.push(`declare:${wave}`);
+      if (wave === 2) assert.deepEqual(Object.keys(alerts), [],
+        'Every ordinary threshold dialog must be acknowledged before the next wave Declare.');
+    },
+    runWave: async ({ wave }) => results[wave - 1],
+    acknowledgeBetweenWaves: async () => {
+      for (const [shipId] of stationPopulationAlertsForGm(alerts, 'gm-1')) {
+        trace.push(`dismiss:${shipId}`);
+        delete alerts[shipId];
+      }
+    },
+    persistWaves: async () => {},
+  });
+  assert.deepEqual(trace, ['declare:1', 'dismiss:aegis', 'dismiss:dione', 'declare:2']);
+});
+
 test('first prerequisite failure stops the workflow before candidate outcomes', async () => {
   const trace = [];
   const operations = { setup: async () => trace.push('setup'),
