@@ -71,7 +71,7 @@ vi.mock('node:crypto', async (importOriginal) => ({
   randomUUID: vi.fn(() => 'start-test-uuid'),
 }));
 
-import { advanceFullGameDemoPhase, prepareFullGameDemo, setFacilitatorResponsibility, startGame } from './index';
+import { advanceFullGameDemoPhase, prepareFullGameDemo, runHighwallMining, setFacilitatorResponsibility, startGame } from './index';
 import { activeVesselIdsForRoles, stableSeatsForRoles } from './gameSetup';
 import { missionDeck, missionDeckStateFromCards } from './missionDeck';
 import { recommendedRoleIds } from './roleConfiguration';
@@ -434,6 +434,83 @@ it('starts a prepared full-game demo through the normal authoritative roster sta
   });
   const sessionUpdate = mock.update.mock.calls.find(([ref]) => ref.path === 'sessions/s1')?.[1];
   expect(sessionUpdate?.fullGameDemo).toEqual({ status: 'active', progression: 'manual' });
+});
+
+async function startFirstManualCycleForHighwall() {
+  mock.session.fullGameDemo = { status: 'preparing', progression: 'manual' };
+  mock.session.turnLimit = 6;
+  const miner = mock.playerDocs.find(({ fields }) => fields.assignedRoleId === 'icebreaker-miner')!;
+  Object.assign(miner.fields, { activeConsoleRoleId: 'icebreaker-miner', fleetGroupId: 'fleet-1' });
+  const originalGet = mock.get.getMockImplementation()!;
+  mock.get.mockImplementation(async (ref: { path: string }) => ref.path === 'sessions/s1/fleetGroups/fleet-1'
+    ? snapshot({ id: 'fleet-1', vesselIds: mock.session.activeVesselIds, memberUids: [miner.id] }, ref.path)
+    : originalGet(ref));
+  // Persist the actual production handlers' writes between calls. The initial
+  // casting fixture, like createSession, has no shuttleFuelled field.
+  mock.update.mockImplementation((ref: { path: string }, fields: Record<string, unknown>) => {
+    if (ref.path !== 'sessions/s1') return;
+    for (const [key, value] of Object.entries(fields)) {
+      if (key === 'shuttleCargo.highwall') {
+        mock.session.shuttleCargo = { ...(mock.session.shuttleCargo as object ?? {}), highwall: value };
+      } else if (value === 'delete-field') delete mock.session[key];
+      else mock.session[key] = value;
+    }
+  });
+  await expect(startGame.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'first-miner-start',
+    expectedSetupRevision: 0, fullGameDemo: true,
+  }))).resolves.toMatchObject({ currentTurn: 1, fullGameDemo: { progression: 'manual' } });
+  // The actual unlimited manual producer offers no timed briefing hold.
+  expect((mock.session.turnPhase as { timerPause?: unknown }).timerPause).toBeUndefined();
+  await expect(advanceFullGameDemoPhase.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'first-miner-open', expectedTurn: 1,
+  }))).resolves.toMatchObject({ turnPhase: { progression: 'manual', airspace: { state: 'lifted' } } });
+  expect(mock.session).toMatchObject({ currentTurn: 1, turnState: { phase: 'coordination' } });
+  expect((mock.session.maintenanceCycles as Record<string, { step: number }>).icebreaker.step).toBe(0);
+  mock.randomInt.mockClear().mockReturnValue(4);
+  mock.set.mockClear(); mock.update.mockClear();
+  const control = (mock.session.shuttleControl as Record<string, { revision: number; holderUid: string }>).highwall;
+  expect(control.holderUid).toBe(miner.id);
+  return { miner, command: { sessionId: 's1', requestId: 'first-miner-materials', resource: 'materials',
+    expectedRevision: 0, expectedControlRevision: control.revision, expectedCycle: 1 } };
+}
+
+it('allows original Highwall mining from the actual first manual start and Coordination before maintenance', async () => {
+  const originalRandom = mock.randomInt.getMockImplementation()!;
+  try {
+    expect(mock.session).not.toHaveProperty('shuttleFuelled');
+    const { miner, command } = await startFirstManualCycleForHighwall();
+    await expect(runHighwallMining.run(request(command, miner.id))).resolves.toMatchObject({
+      status: 'committed', cycle: 1, revision: 1,
+      operation: { rolls: [4], amount: 4 }, cargo: { ore: 0, materials: 4 },
+    });
+    expect(mock.randomInt).toHaveBeenCalledTimes(1);
+  } finally { mock.randomInt.mockImplementation(originalRandom); }
+});
+
+it('preserves a valid existing fuel ledger through the actual first manual start and Coordination', async () => {
+  const originalRandom = mock.randomInt.getMockImplementation()!;
+  try {
+    const fuelled = { highwall: false, 'black-sheep': true };
+    mock.session.shuttleFuelled = fuelled;
+    const { miner, command } = await startFirstManualCycleForHighwall();
+    expect(mock.session.shuttleFuelled).toEqual(fuelled);
+    await expect(runHighwallMining.run(request(command, miner.id))).resolves.toMatchObject({ status: 'committed' });
+    expect(mock.session.shuttleFuelled).toEqual(fuelled);
+  } finally { mock.randomInt.mockImplementation(originalRandom); }
+});
+
+it.each([null, [], 'fuelled', { highwall: 'yes' }])('keeps an explicitly malformed startup fuel ledger %j denied through real start and Coordination', async fuelled => {
+  const originalRandom = mock.randomInt.getMockImplementation()!;
+  try {
+    mock.session.shuttleFuelled = fuelled;
+    const { miner, command } = await startFirstManualCycleForHighwall();
+    await expect(runHighwallMining.run(request(command, miner.id))).rejects.toMatchObject({
+      code: 'failed-precondition', message: 'Highwall fuel state is unavailable.',
+    });
+    expect(mock.randomInt).not.toHaveBeenCalled();
+    expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled();
+  } finally { mock.randomInt.mockImplementation(originalRandom); }
 });
 
 function committedFullGameDemoStart() {

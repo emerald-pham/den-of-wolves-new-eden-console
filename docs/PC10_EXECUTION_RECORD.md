@@ -1101,3 +1101,27 @@ the helper owns its pending two-actor common Pursuit closure/history probe and
 N/O/P work. N-specific closed history remains unobserved. The helper's retained
 Ring evidence report is imported without promoting it to new catalog closures,
 checkpoint completion or release acceptance.
+
+The single Highwall review subsequently found one material startup mismatch:
+normal creation/confirmation, first Cycle0→1 start and manual Coordination do
+not materialize `shuttleFuelled`. The proof and real mining authority require
+that authoritative ledger. The earlier mining fixtures already supplied it,
+so their GREEN does not qualify the fresh producer path. Source PASS is held;
+no native run occurred. The initial review is retained separately before any
+consolidated update.
+
+Before product repair, the real `startGame → advanceFullGameDemoPhase →
+runHighwallMining` handlers now reproduce `Highwall fuel state is unavailable`
+from a Cycle0 document without the ledger, with maintenance still at step0.
+The final focused run records1meaningful RED/124GREEN (125tests, exit1).
+Existing valid ledger preservation and eight explicit malformed-ledger/startup
+negatives remain GREEN. Initial test drafts made an incorrect timed-briefing
+assumption for unlimited manual mode and leaked a test RNG implementation;
+those logs remain as uncredited fixture errors. The corrected test follows
+the actual offered manual phase and restores its RNG mock after each case.
+No existing assertion, game deadline, authority guard or runtime was weakened.
+Reason for the planned repair: normal authoritative first start must fill only
+an absent fuel ledger so the original unfuelled Miner can use its printed
+choices before any maintenance. Preserve existing valid and malformed state;
+do not seed via Admin, normalize the mining guard or add an Engineer prefix.
+RED log: `/tmp/dow-pc10-evidence/OWNER_HIGHWALL_FIRST_CYCLE_FINAL_MEANINGFUL_RED_20261008.log`.

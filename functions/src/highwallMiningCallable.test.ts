@@ -345,6 +345,15 @@ it('allows two standard operations and requires fuel for the third', async () =>
   }))).resolves.toMatchObject({ revision: 3 });
 });
 
+it.each([null, [], 'fuelled', { highwall: 'yes' }])('rejects an explicitly malformed fuel ledger %j before rolling or writing', async fuelled => {
+  mock.documents.get('sessions/s1')!.shuttleFuelled = fuelled;
+  await expect(runHighwallMining.run(request(command))).rejects.toMatchObject({
+    code: 'failed-precondition', message: 'Highwall fuel state is unavailable.',
+  });
+  expect(cryptoMock.randomInt).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled();
+});
+
 it.each([
   ['foreign holder', 'owner', {}, command],
   ['wrong phase', 'holder', { turnPhase: { turn: 2, airspace: { state: 'restricted' } } }, { ...command, requestId: 'wrong-phase' }],
