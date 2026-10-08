@@ -5,6 +5,7 @@ import {
   parseAwayMissionLifecyclePrivateState,
   parseAwayMissionLifecyclePublicState,
   type AwayMissionLifecycleClientContext,
+  type AwayMissionLifecycleFeedState,
   type AwayMissionLifecycleProjectionReader,
 } from './awayMissionLifecycleService';
 
@@ -250,6 +251,104 @@ describe('away mission lifecycle client service', () => {
     );
 
     await expect(actions.requestExtraCards(1)).rejects.toThrow(/mission state changed/i);
+  });
+});
+
+describe('K participant secrecy through legacy projection consumers', () => {
+  const activeK = { ...publicState, siteCode: 'K', opportunities: [{ id: 'K-1', label: 'Unknown outpost' }] };
+  const resolvedK = {
+    ...activeK, revision: 4, phase: 'resolved', status: 'resolved',
+    outcomes: [{ opportunityId: 'K-1', contributorCount: 1, total: 20, bonusTotal: 0,
+      difficulty: 30, criticalThreshold: 40, outcome: 'failure' }],
+    rewards: [{ opportunityId: 'K-1', branch: 'none', resources: {}, effects: [], bulkHaulageApplied: false }],
+  };
+
+  it('redacts legacy numeric K thresholds after the actual public parser validates the full projection', () => {
+    const raw = structuredClone(resolvedK);
+    const parsed = parseAwayMissionLifecyclePublicState(raw, 'mission-1');
+    expect(parsed).toMatchObject({ siteCode: 'K', outcomes: [{ contributorCount: 1, total: 20, bonusTotal: 0,
+      difficulty: null, criticalThreshold: null, outcome: 'failure' }], rewards: resolvedK.rewards });
+    expect(raw).toEqual(resolvedK); // Parsing cannot erase a previously downloaded document.
+  });
+
+  it('keeps non-K arithmetic and malformed-K rejection intact in the same parser', () => {
+    const ordinary = { ...resolvedK, siteCode: 'D', opportunities: publicState.opportunities,
+      outcomes: [{ ...resolvedK.outcomes[0], opportunityId: 'D-1', difficulty: 8.5, criticalThreshold: 25 }],
+      rewards: [{ ...resolvedK.rewards[0], opportunityId: 'D-1' }] };
+    expect(parseAwayMissionLifecyclePublicState(ordinary, 'mission-1')).toEqual(ordinary);
+    for (const altered of [
+      { ...resolvedK, outcomes: [{ ...resolvedK.outcomes[0], difficulty: '30' }] },
+      { ...resolvedK, outcomes: [{ ...resolvedK.outcomes[0], criticalThreshold: 40.5 }] },
+      { ...resolvedK, outcomes: [{ ...resolvedK.outcomes[0], secretD6: 6 }] },
+      { ...resolvedK, missionId: 'foreign-mission' },
+    ]) expect(parseAwayMissionLifecyclePublicState(altered, 'mission-1')).toBeNull();
+  });
+
+  it('redacts K on the actual own-pointer active-to-resolved transition and server reconnect', () => {
+    let authListener: ((uid: string | null) => void) | undefined;
+    let pointerListener: Parameters<AwayMissionLifecycleProjectionReader['watchOwnPointers']>[2] | undefined;
+    let handListener: Parameters<AwayMissionLifecycleProjectionReader['watchOwnHand']>[3] | undefined;
+    const onState = vi.fn<(state: AwayMissionLifecycleFeedState) => void>();
+    const reader: AwayMissionLifecycleProjectionReader = {
+      watchAuth: onUid => { authListener = onUid; onUid('bob'); return vi.fn(); },
+      watchOwnPointers: (_sessionId, _uid, onSnapshot) => { pointerListener = onSnapshot; return vi.fn(); },
+      watchOwnHand: (_sessionId, _uid, _handId, onSnapshot) => { handListener = onSnapshot; return vi.fn(); },
+    };
+    const stop = createAwayMissionLifecycleProjectionSubscription({ sessionId: 's1', actorUid: 'bob', onState, reader });
+    const emitPointer = (state: typeof activeK | typeof resolvedK, fromCache = false) => pointerListener!({
+      fromCache, hasPendingWrites: false, docs: [{ id: 'hand-bob', data: () => ({
+        type: 'away-mission-hand-pointer', sessionId: 's1', participantUid: 'bob', missionId: 'mission-1',
+        handId: 'hand-bob', phase: state.phase, revision: state.revision, sourceCycle: 1, discarded: state.status === 'resolved',
+        lifecyclePublicState: state,
+      }) }],
+    });
+    const emitHand = (revision: number, phase: string) => handListener!({
+      fromCache: false, hasPendingWrites: false, exists: true, data: () => ({
+        type: 'away-mission-hand', sessionId: 's1', participantUid: 'bob', missionId: 'mission-1', handId: 'hand-bob',
+        lifecyclePrivateState: { ...privateState, revision, phase },
+      }),
+    });
+    emitPointer(activeK); emitHand(3, 'assignment-ready');
+    expect(onState).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'ready' }));
+    emitPointer(resolvedK); emitHand(4, 'resolved');
+    expect(onState).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'ready' }));
+    emitPointer(resolvedK, true);
+    expect(onState).toHaveBeenLastCalledWith({ status: 'stale', missions: [], projectionMissing: false });
+    const releasedListener = pointerListener!;
+    authListener!(null);
+    expect(onState).toHaveBeenLastCalledWith({ status: 'error', missions: [], projectionMissing: false });
+    authListener!('bob');
+    const callsAfterReconnect = onState.mock.calls.length;
+    releasedListener({ fromCache: false, hasPendingWrites: false, docs: [] });
+    expect(onState).toHaveBeenCalledTimes(callsAfterReconnect);
+    emitPointer(resolvedK); emitHand(4, 'resolved');
+    expect(onState).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'ready', projectionMissing: false }));
+    const resolvedViews = onState.mock.calls.flatMap(([state]) => state.missions)
+      .filter(mission => mission.publicState.status === 'resolved');
+    expect(resolvedViews.length).toBeGreaterThanOrEqual(2);
+    for (const { publicState: state } of resolvedViews) expect(state.outcomes).toEqual([
+      expect.objectContaining({ total: 20, difficulty: null, criticalThreshold: null, outcome: 'failure' }),
+    ]);
+    expect(resolvedK.outcomes[0]).toMatchObject({ difficulty: 30, criticalThreshold: 40 });
+    stop();
+  });
+
+  it('consumes validated legacy and redacted K action replies without publishing them, and rejects malformed replies', async () => {
+    for (const state of [resolvedK, { ...resolvedK, outcomes: [{ ...resolvedK.outcomes[0], difficulty: null, criticalThreshold: null }] }]) {
+      const invoke = vi.fn().mockResolvedValue({ status: 'replayed', sessionId: 's1', missionId: 'mission-1',
+        requestId: 'k-final-assignment', revision: 4, publicState: state,
+        privateState: { ...privateState, revision: 4, phase: 'resolved' } });
+      const actions = createAwayMissionLifecycleActions(() => playerContext, { invoke, createRequestId: () => 'k-final-assignment' });
+      await expect(actions.assignCards([])).resolves.toBeUndefined();
+      expect(invoke).toHaveBeenCalledWith(expect.objectContaining({ type: 'assignCards', expectedRevision: 3,
+        requestId: 'k-final-assignment' }));
+    }
+    const invoke = vi.fn().mockResolvedValue({ status: 'committed', sessionId: 's1', missionId: 'mission-1',
+      requestId: 'k-invalid', revision: 4, publicState: { ...resolvedK,
+        outcomes: [{ ...resolvedK.outcomes[0], difficulty: '30' }] },
+      privateState: { ...privateState, revision: 4, phase: 'resolved' } });
+    const actions = createAwayMissionLifecycleActions(() => playerContext, { invoke, createRequestId: () => 'k-invalid' });
+    await expect(actions.assignCards([])).rejects.toThrow(/server returned an invalid/i);
   });
 });
 

@@ -431,10 +431,79 @@ async function resolveConsequences(siteCode: string, opportunityId: string, cont
   await send('alice', 'discardCard', { cardId: ALICE_CARD });
   await send('bob', 'discardCard', { cardId: BOB_CARD });
   await send('alice', 'assignCards', { placements: contributors > 0 ? [{ cardId: '10♦', opportunityId }] : [] });
-  await send('bob', 'assignCards', { placements: contributors > 1 ? [{ cardId: 'A♦', opportunityId }] : [] });
+  const resolved = await send('bob', 'assignCards', { placements: contributors > 1 ? [{ cardId: 'A♦', opportunityId }] : [] });
   expect(store.records.get(paths().mission)?.status).toBe('resolved');
-  return { store, send, callables };
+  const resolutionRequest = commandRequest('bob', { type: 'assignCards', requestId: resolved.requestId,
+    expectedRevision: resolved.revision - 1, placements: contributors > 1 ? [{ cardId: 'A♦', opportunityId }] : [] });
+  return { store, send, callables, resolved, resolutionRequest };
 }
+
+function legacyKPublicProjection(state: AwayMissionPublicState, record: AwayMissionLifecycleRecord): AwayMissionPublicState {
+  return { ...state, outcomes: state.outcomes!.map(outcome => {
+    const authoritative = record.outcomes!.find(candidate => candidate.opportunityId === outcome.opportunityId)!;
+    return { ...outcome, difficulty: authoritative.difficulty, criticalThreshold: authoritative.criticalThreshold };
+  }) };
+}
+
+it('rebuilds an exact legacy K receipt replay safely without changing saved numeric receipts or public pointers', async () => {
+  const { store, callables, resolutionRequest } = await resolveConsequences('K', 'K-1', 1, 6);
+  const record = store.records.get(paths().mission)!.lifecycleRecord as AwayMissionLifecycleRecord;
+  expect(record.outcomes).toEqual([expect.objectContaining({ contributorCount: 1, total: 20,
+    difficulty: 30, criticalThreshold: 40, outcome: 'failure', rewardBranch: 'none' })]);
+  for (const path of [paths().alicePointer, paths().bobPointer]) {
+    const pointer = store.records.get(path)!;
+    store.records.set(path, { ...pointer, lifecyclePublicState: legacyKPublicProjection(pointer.lifecyclePublicState as AwayMissionPublicState, record) });
+  }
+  const markerPath = `sessions/${SESSION_ID}/commandReceipts/${resolutionRequest.data.requestId}`;
+  const marker = store.records.get(markerPath)!;
+  const savedReply = marker.result as { publicState: AwayMissionPublicState };
+  store.records.set(markerPath, { ...marker, result: { ...savedReply, publicState: legacyKPublicProjection(savedReply.publicState, record) } });
+  const before = structuredClone([...store.records]);
+  const writes = store.committedWrites.length;
+  const randomCalls = callables.randomCalls; const d6Calls = callables.d6Calls;
+  for (let retry = 0; retry < 3; retry += 1) {
+    const replay = await callables.commitAwayMissionLifecycleCommand(resolutionRequest);
+    expect(replay.status).toBe('replayed');
+    expect(replay.publicState.outcomes).toEqual([expect.objectContaining({ total: 20,
+      difficulty: null, criticalThreshold: null, outcome: 'failure' })]);
+    expect(replay.publicState.rewards).toEqual([expect.objectContaining({ branch: 'none', resources: {}, effects: [] })]);
+    expect(replay.privateState?.participantUid).toBe('bob');
+  }
+  expect(store.committedWrites).toHaveLength(writes);
+  expect([...store.records]).toEqual(before);
+  expect(callables.randomCalls).toBe(randomCalls);
+  expect(callables.d6Calls).toBe(d6Calls);
+});
+
+it('redacts a fresh leader response after a valid legacy K pointer while preserving the protected outcome', async () => {
+  const { store, send } = await resolveConsequences('K', 'K-1', 1, 6);
+  const record = store.records.get(paths().mission)!.lifecycleRecord as AwayMissionLifecycleRecord;
+  for (const path of [paths().alicePointer, paths().bobPointer]) {
+    const pointer = store.records.get(path)!;
+    store.records.set(path, { ...pointer, lifecyclePublicState: legacyKPublicProjection(pointer.lifecyclePublicState as AwayMissionPublicState, record) });
+  }
+  const reply = await send('alice', 'dropOff', { shipId: 'aegis' });
+  expect(reply.publicState.status).toBe('complete');
+  expect(reply.publicState.outcomes).toEqual([expect.objectContaining({ difficulty: null, criticalThreshold: null, outcome: 'failure' })]);
+  expect((store.records.get(paths().mission)!.lifecycleRecord as AwayMissionLifecycleRecord).outcomes).toEqual(record.outcomes);
+  for (const path of [paths().alicePointer, paths().bobPointer]) expect(store.records.get(path)!.lifecyclePublicState)
+    .toMatchObject({ status: 'complete', outcomes: [expect.objectContaining({ difficulty: null, criticalThreshold: null })] });
+});
+
+it.each(['difficulty', 'criticalThreshold', 'foreign mission', 'private field'] as const)(
+  'denies an altered legacy K pointer (%s) before replay without writes', async mutation => {
+    const { store, callables, resolutionRequest } = await resolveConsequences('K', 'K-1', 1, 6);
+    const record = store.records.get(paths().mission)!.lifecycleRecord as AwayMissionLifecycleRecord;
+    const pointer = store.records.get(paths().bobPointer)!;
+    const state = legacyKPublicProjection(pointer.lifecyclePublicState as AwayMissionPublicState, record);
+    const altered = mutation === 'foreign mission' ? { ...state, missionId: 'foreign-mission' }
+      : mutation === 'private field' ? { ...state, secretD6Rolls: { 'K-1': 6 } }
+      : { ...state, outcomes: state.outcomes!.map(outcome => ({ ...outcome, [mutation]: mutation === 'difficulty' ? 25 : 35 })) };
+    store.records.set(paths().bobPointer, { ...pointer, lifecyclePublicState: altered });
+    const writes = store.committedWrites.length;
+    await expect(callables.commitAwayMissionLifecycleCommand(resolutionRequest)).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(store.committedWrites).toHaveLength(writes);
+  });
 
 it.each([['C', 'C-2', ['reactor'], { reactor: 1 }], ['H', 'H-2', ['reactor', 'reactor'], { reactor: 2 }],
   ['H', 'H-3', ['jump-drive'], { 'jump-drive': 4 }]] as const)('settles %s %s through the production consequence callback and private callable', async (site, opportunityId, trackIds, progress) => {

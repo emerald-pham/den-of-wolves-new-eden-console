@@ -191,6 +191,54 @@ async function resolve(site: string, opportunity: string, contributors = 3, setu
 }
 beforeEach(() => { mock.documents.clear(); mock.writes.length = 0; mock.d6 = 2; mock.resetTransactionFaults(); });
 
+it.each(['fresh reply', 'alice', 'bob', 'scientist'] as const)(
+  'redacts failed K difficulty in the actual %s resolution consumer without changing protected arithmetic', async surface => {
+    mock.d6 = 6;
+    const reply = await resolve('K', 'K-1', 1);
+    const protectedRecord = mock.documents.get(missionPath)!.lifecycleRecord as {
+      outcomes: AwayMissionPublicState['outcomes']; rewards: AwayMissionPublicState['rewards'];
+    };
+    expect(protectedRecord.outcomes).toEqual([expect.objectContaining({ opportunityId: 'K-1',
+      contributorCount: 1, total: 20, bonusTotal: 0, difficulty: 30, criticalThreshold: 40, outcome: 'failure' })]);
+    expect(protectedRecord.rewards).toEqual([expect.objectContaining({ opportunityId: 'K-1', branch: 'none', resources: {}, effects: [] })]);
+    let state = reply.publicState;
+    if (surface !== 'fresh reply') {
+      const snapshot = await mock.ref(`sessions/s1/awayMissionHandPointers/${awayMissionHandId(missionId, surface)}`).get();
+      expect('data' in snapshot && snapshot.exists).toBe(true);
+      state = ('data' in snapshot ? snapshot.data()?.lifecyclePublicState : undefined) as AwayMissionPublicState;
+    }
+    expect(state.outcomes).toEqual([expect.objectContaining({ opportunityId: 'K-1',
+      contributorCount: 1, total: 20, bonusTotal: 0, difficulty: null, criticalThreshold: null, outcome: 'failure' })]);
+    expect(state.rewards).toEqual([expect.objectContaining({ opportunityId: 'K-1', branch: 'none', resources: {}, effects: [] })]);
+    expect(JSON.stringify(state)).not.toMatch(/secretD6|cardId|cardTotal|bonusBreakdown/);
+  });
+it('retains successful K reward quantities and exact replay while redacting its public thresholds', async () => {
+  mock.d6 = 3;
+  const reply = await resolve('K', 'K-1', 1);
+  const record = mock.documents.get(missionPath)!.lifecycleRecord as { outcomes: AwayMissionPublicState['outcomes'] };
+  expect(record.outcomes).toEqual([expect.objectContaining({ contributorCount: 1, total: 20,
+    difficulty: 15, criticalThreshold: 25, outcome: 'success' })]);
+  expect(reply.publicState.rewards).toEqual([expect.objectContaining({ opportunityId: 'K-1',
+    branch: 'success', resources: { food: 6, water: 6, fuel: 6, materials: 3 } })]);
+  const request = { auth: { uid: 'scientist' }, data: { sessionId, missionId, type: 'assignCards',
+    requestId: reply.requestId, expectedRevision: reply.revision - 1, placements: [] } } as CallableRequest<Record<string, unknown>>;
+  const writes = mock.writes.length;
+  const replay = await commitAwayMissionLifecycleCommand.run(request);
+  expect(replay.status).toBe('replayed');
+  expect(replay.publicState.rewards).toEqual(reply.publicState.rewards);
+  expect(mock.writes).toHaveLength(writes);
+  for (const state of [reply.publicState, replay.publicState]) expect(state.outcomes)
+    .toEqual([expect.objectContaining({ total: 20, difficulty: null, criticalThreshold: null, outcome: 'success' })]);
+});
+it('preserves another site\'s public numeric difficulty and protected resolution unchanged', async () => {
+  const reply = await resolve('D', 'D-1', 1);
+  expect(reply.publicState.outcomes.find(result => result.opportunityId === 'D-1'))
+    .toMatchObject({ contributorCount: 1, total: 20, difficulty: 14, criticalThreshold: 24, outcome: 'success' });
+  const record = mock.documents.get(missionPath)!.lifecycleRecord as { outcomes: AwayMissionPublicState['outcomes'] };
+  expect(record.outcomes?.find(result => result.opportunityId === 'D-1'))
+    .toMatchObject({ difficulty: 14, criticalThreshold: 24, outcome: 'success' });
+});
+
 async function stageK() {
   mock.d6 = 3;
   const resolved = await resolve('K', 'K-1', 1);
