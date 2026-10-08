@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { useSessionStore } from '@/store/useSessionStore';
 import { runMaintenance, rollbackMaintenance, type MaintenanceChoices } from '@/lib/maintenanceService';
 import { assignShipDamage, repairAllShipDamage } from '@/lib/shipDamageService';
@@ -32,6 +32,7 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
   readonly damageDraws?: readonly DamageDraw[] | undefined;
   readonly shipState?: ShipConsoleProjection | undefined;
 }) {
+  const id = useId();
   const session = useSessionStore((state) => state.session);
   const me = useSessionStore((state) => state.me);
   const connection = useSessionStore((state) => state.connection);
@@ -204,9 +205,11 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
               </fieldset>
             </>}
             {step === 3 && <p>Roll 2d6 plus both ration bonuses. Under 12 adds 2 unrest; otherwise under 20 adds 1 unrest.</p>}
-            {step === 3 && <button className="cic-action-button" disabled={disabled(3)} onClick={() => void execute('unrest')}>Run unrest check</button>}
+            {step === 3 && <p id={`${id}-unrest-help`}>Run the check here: the console rolls, applies and records the outcome. Do not roll or calculate the result manually.</p>}
+            {step === 3 && <button aria-describedby={`${id}-unrest-help`} className="cic-action-button" disabled={disabled(3)} onClick={() => void execute('unrest')}>Run unrest check</button>}
             {step === 4 && <p>Roll 1d6. Below current unrest causes a riot: draw and apply 1 damage card.</p>}
-            {step === 4 && <button className="cic-action-button" disabled={disabled(4)} onClick={() => void execute('riot')}>Run riot check</button>}
+            {step === 4 && <p id={`${id}-riot-help`}>Run the check here: the console rolls, applies and records any riot damage. Do not roll or draw a damage card manually.</p>}
+            {step === 4 && <button aria-describedby={`${id}-riot-help`} className="cic-action-button" disabled={disabled(4)} onClick={() => void execute('riot')}>Run riot check</button>}
             {step === 4 && cycle?.unrestRolls && <VipHostMaintenanceRerollControl
               shipId={shipId} shipLabel={name} cycle={currentTurn} maintenanceCycle={cycle}
               canUseGrant={access.writable && connection === 'live'}

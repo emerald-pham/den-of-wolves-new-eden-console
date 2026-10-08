@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useState } from 'react';
 import type { ShipResourceInventory } from '../../functions/src/resources';
 import {
   isVoyage33InMutiny,
   parseVoyage33MaintenanceState,
   type Voyage33MaintenanceState,
 } from '../../functions/src/voyage33Maintenance';
+import { isSupportedShipPopulation, shipRationSchedule } from '@/data/shipPopulation';
 import type { GameSession } from '@/types/game';
 import { commandErrorCode, normalizeCommandError } from '@/lib/commandErrors';
 import { runVoyage33Maintenance } from '@/lib/smallShipService';
@@ -228,6 +229,9 @@ export default function Voyage33MaintenancePanel({
   phase,
   authorityReady,
 }: Voyage33MaintenancePanelProps) {
+  const id = useId();
+  const rationSchedule = isSupportedShipPopulation('icebreaker', state.population)
+    ? shipRationSchedule('icebreaker', state.population) : null;
   const [foodLevel, setFoodLevel] = useState(0);
   const [waterLevel, setWaterLevel] = useState(0);
   const [selectedConsole, setSelectedConsole] = useState<string>('');
@@ -458,6 +462,9 @@ export default function Voyage33MaintenancePanel({
           <fieldset className="maintenance-controls" disabled={disabled}>
             <legend>Step 1 // Rations</legend>
             <p>Choose a food and water ration level. The server validates the selected cost against {hostName}’s current ledger.</p>
+            <p id={`${id}-rations-help`}>{rationSchedule
+              ? `Food costs by level 0 / 1 / 2 / 3: ${rationSchedule.food.join(' / ')}. Water costs: ${rationSchedule.water.join(' / ')}. Each selected level adds 3 to the combined ration bonus for the unrest check.`
+              : 'Ration costs unavailable: the current population is outside the printed track.'}</p>
             <label>Food ration level
               <select aria-label="Voyage 33-0 food ration level" value={foodLevel}
                 onChange={(event) => setFoodLevel(Number(event.target.value))}>
@@ -470,7 +477,7 @@ export default function Voyage33MaintenancePanel({
                 {[0, 1, 2, 3].map((level) => <option key={level} value={level}>Level {level}</option>)}
               </select>
             </label>
-            <button className="cic-action-button" type="button" onClick={() => submit('rations', { foodLevel, waterLevel })}>
+            <button className="cic-action-button" type="button" aria-describedby={`${id}-rations-help`} onClick={() => submit('rations', { foodLevel, waterLevel })}>
               Apply host-funded rations
             </button>
           </fieldset>

@@ -1,3 +1,4 @@
+import './DecisionGuidance.css';
 import type { ReactNode } from 'react';
 import './Voyage33MovementPanel.css';
 
@@ -201,7 +202,7 @@ export default function Voyage33MovementPanel({
                 type="button"
                 key={destination.coordinate}
                 disabled={Boolean(jumpDisabledReason)}
-                aria-describedby={jumpDisabledReason ? 'voyage33-jump-guidance' : undefined}
+                aria-describedby="voyage33-jump-guidance voyage33-jump-effect"
                 onClick={() => onJump(destination.coordinate)}
               >
                 Jump to {destination.label} // {destination.length} // {HOST_FUEL_COST[destination.length]} host fuel
@@ -214,6 +215,7 @@ export default function Voyage33MovementPanel({
         <p className="voyage33-movement__guidance" id="voyage33-jump-guidance">
           {jumpDisabledReason ?? 'Select only a legal destination supplied by the current server state.'}
         </p>
+        <p className="voyage33-movement__note decision-guidance" id="voyage33-jump-effect">A committed jump spends the listed host fuel and detaches Voyage 33-0 at the destination. Only one jump per cycle is allowed. Before another departure, the facilitator docks it with a co-located active host during Team Phase.</p>
         <p className="voyage33-movement__note">The displayed location changes after the server confirms a committed jump.</p>
       </section>
 

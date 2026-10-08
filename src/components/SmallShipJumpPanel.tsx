@@ -1,3 +1,4 @@
+import { useId } from 'react';
 import './SmallShipJumpPanel.css';
 
 export interface SmallShipJumpPanelDestination {
@@ -70,6 +71,7 @@ export default function SmallShipJumpPanel({
   onRetryJump,
   onRefresh,
 }: SmallShipJumpPanelProps) {
+  const id = useId();
   const destinations = projection?.knownDestinations ?? [];
   const destination = destinations.find((choice) => choice.coordinate === selectedDestination);
   const hasHostFuel = destination !== undefined && (projection?.hostFuel ?? -1) >= destination.fuelCost;
@@ -92,7 +94,7 @@ export default function SmallShipJumpPanel({
         Charge during Team Phase, then jump during Coordination. Route choices come only from this Captain’s known chart nodes.
         Host fuel is spent only after the server validates the route and confirms it remains known to this Captain. The host pays 1 / 1 / 2 fuel for a short / medium / long jump.
       </p>
-      <p>Successful jump detaches the craft at its arrival coordinate. Re-docking requires an active host at that same coordinate.</p>
+      <p id={`${id}-jump-help`}>A successful jump consumes the Jump Drive charge; the craft may make only one jump per cycle. Successful jump detaches the craft at its arrival coordinate. Re-docking requires an active host at that same coordinate.</p>
       {loading && <p className="console-workspace__status" role="status">Loading current server movement projection…</p>}
       {error && <p className="console-workspace__error" role="alert">{error}</p>}
       {resultMessage && <p className="console-workspace__status" role="status" aria-label={resultStatusLabel}>{resultMessage}</p>}
@@ -108,13 +110,15 @@ export default function SmallShipJumpPanel({
             <div><dt>Cycle / phase</dt><dd>{projection.currentTurn} // {projection.phase}</dd></div>
             <div><dt>Jump Drive</dt><dd>{projection.charged ? 'Charged this cycle' : 'Not charged this cycle'}</dd></div>
           </dl>
+          <p id={`${id}-charge-help`}>The Captain charges the drive at maintenance step 4 during Team Phase, while docked. It occupies one of the craft’s two console charge slots.</p>
           {canCharge && (
-            <button type="button" className="console-workspace__button" disabled={busy || pendingCharge} onClick={onCharge}>
+            <button type="button" className="console-workspace__button" disabled={busy || pendingCharge} aria-describedby={`${id}-charge-help`} onClick={onCharge}>
               Charge Jump Drive
             </button>
           )}
+          {(pendingCharge || pendingJump) && <p id={`${id}-retry-help`}>Retry the same saved action to confirm its outcome. An already recorded action returns its result without spending again.</p>}
           {pendingCharge && (
-            <button type="button" className="console-workspace__button" disabled={busy} onClick={onRetryCharge}>
+            <button type="button" className="console-workspace__button" disabled={busy} aria-describedby={`${id}-retry-help`} onClick={onRetryCharge}>
               Retry exact charge
             </button>
           )}
@@ -139,11 +143,11 @@ export default function SmallShipJumpPanel({
             <p>The craft is independent at its recorded arrival coordinate. Ask the facilitator to dock it with a co-located active host before its next jump.</p>
           )}
           {destination && !hasHostFuel && <p role="alert">The current host fuel ledger cannot fund this route.</p>}
-          <button type="button" className="console-workspace__button" disabled={!canJump || busy || pendingJump} onClick={onJump}>
+          <button type="button" className="console-workspace__button" disabled={!canJump || busy || pendingJump} aria-describedby={`${id}-jump-help`} onClick={onJump}>
             Execute jump
           </button>
           {pendingJump && (
-            <button type="button" className="console-workspace__button" disabled={busy} onClick={onRetryJump}>
+            <button type="button" className="console-workspace__button" disabled={busy} aria-describedby={`${id}-retry-help`} onClick={onRetryJump}>
               Retry exact jump
             </button>
           )}

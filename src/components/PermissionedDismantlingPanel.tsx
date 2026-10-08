@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import {
   applyPermissionedDismantling,
   consentToPermissionedDismantling,
@@ -119,6 +119,7 @@ function useDismantlingInbox(
 }
 
 function ProposerPanel(props: ProposerProps) {
+  const id = useId();
   const [targetConsoleId, setTargetConsoleId] = useState('');
   const [command, setCommand] = useState<DismantlingProposalCommand | null>(() =>
     readStoredProposal(props.sessionId, props.currentPlayerUid, props.craftId));
@@ -216,9 +217,10 @@ function ProposerPanel(props: ProposerProps) {
             ))}
           </select>
         </label>
+        <p className="permissioned-dismantling__guidance" id={`${id}-proposal-help`}>The target-ship player acts next: they grant or decline permission. Sending a request does not damage the console or add materials.</p>
         <div className="permissioned-dismantling__actions">
           {(!inbox || inbox.status === 'pending') ? (
-            <button className="cic-action-button" type="button" onClick={() => void submitProposal()}
+            <button className="cic-action-button" type="button" aria-describedby={`${id}-proposal-help`} onClick={() => void submitProposal()}
               disabled={disabled || (!command && !targetConsoleId)}>
               {busy ? 'Sending permission request…' : command ? 'Retry the same permission request' : 'Request target-player permission'}
             </button>
@@ -265,6 +267,7 @@ function ProposerPanel(props: ProposerProps) {
 }
 
 function TargetPanel(props: TargetProps) {
+  const id = useId();
   const connection = props.connection ?? 'live';
   const canAct = props.canAct ?? true;
   const { inbox, error } = useDismantlingInbox(
@@ -334,11 +337,13 @@ function TargetPanel(props: TargetProps) {
           {inbox.craftId} // {inbox.targetConsoleId} // +{inbox.materialGain} materials // target revision {inbox.targetRevision}
         </p>
         <p>Only this target-ship player can approve or decline. The proposal applies only to the console and current state shown above.</p>
-        <button className="cic-action-button" type="button" onClick={() => void grantConsent()}
+        <p className="permissioned-dismantling__guidance" id={`${id}-consent-help`}>Granting permission does not damage the console yet. The craft holder acts next: applying permission damages the selected console and adds 3 materials to this ship.</p>
+        <p className="permissioned-dismantling__guidance" id={`${id}-decline-help`}>Declining ends this request. The craft holder must send a new proposal to ask again.</p>
+        <button className="cic-action-button" type="button" aria-describedby={`${id}-consent-help`} onClick={() => void grantConsent()}
           disabled={!canAct || busy || Boolean(consentId && feedback?.startsWith('Consent recorded'))}>
           {busy ? 'Recording consent…' : consentId ? 'Retry this consent decision' : 'Grant permission'}
         </button>
-        <button className="cic-text-button" type="button" onClick={() => void declineRequest()}
+        <button className="cic-text-button" type="button" aria-describedby={`${id}-decline-help`} onClick={() => void declineRequest()}
           disabled={!canAct || busy}>
           {busy ? 'Declining request…' : 'Decline request'}
         </button>
