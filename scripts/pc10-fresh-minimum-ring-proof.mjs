@@ -37,8 +37,16 @@ export function validateRingAllocation(input) {
  assert.deepEqual(Object.keys(input.ports).sort(),['auth','firestore','functions']);
  assert.ok(Object.values(input.ports).every(port=>Number.isSafeInteger(port)&&port>0&&port<=65535));
  assert.equal(new Set([...Object.values(input.ports),Number(url.port)]).size,4);
- for(const key of ['sourceCommit','runnerSha256','compiledIndexSha256'])assert.match(input[key],key==='sourceCommit'?/^[0-9a-f]{40}$/:/^[0-9a-f]{64}$/);
+ for(const key of ['sourceCommit','runnerSha256','compiledIndexSha256','compiledTreeSha256'])assert.match(input[key]??'',key==='sourceCommit'?/^[0-9a-f]{40}$/:/^[0-9a-f]{64}$/,key);
  return input;
+}
+export function finalizeRingEvidence(evidence, cleanup, originalFailure) {
+ evidence.cleanup=cleanup;
+ if(cleanup.errors.length){
+  evidence.status='failed';
+  return originalFailure??new Error('Owned cleanup incomplete; no successful proof closeout.');
+ }
+ return originalFailure;
 }
 export async function runFreshMinimumRingProof({allocationPath,directory}) {
  assert.ok(isAbsolute(allocationPath)&&isAbsolute(directory));
@@ -51,6 +59,8 @@ export async function runFreshMinimumRingProof({allocationPath,directory}) {
  assert.equal(execFileSync('git',['status','--porcelain','--untracked-files=no'],{cwd:root,encoding:'utf8'}).trim(),'');
  assert.equal(hash(await readFile(new URL(import.meta.url))),allocation.runnerSha256);
  assert.equal(hash(await readFile(`${root}/functions/lib/index.js`)),allocation.compiledIndexSha256);
+ const sourceBinding=await capturePc10Gate2SourceBinding(root,fileURLToPath(import.meta.url));
+ assert.equal(sourceBinding.compiledTreeSha256,allocation.compiledTreeSha256);
  const require=createRequire(`${root}/package.json`),{chromium}=require('playwright');
  const browsers=[],surfaces=[],errors=[],calls=[],requests=[],remoteRequests=[],states=[],receipts=[],claims=[];
  let gm,owner,recipient,sid,joinCode,stage='not-started',consumed=null,primaryFailure=null;
@@ -58,7 +68,7 @@ export async function runFreshMinimumRingProof({allocationPath,directory}) {
  const actorUids=new Map(),pendingLaunches=[];let stopped=false;
  const roleIds={Owner:'shepherd-engineer',Recipient:'shepherd-scientist'};
  const evidence={schemaVersion:1,...minimumRingPlan(),sourceCommit,runnerSha256:allocation.runnerSha256,
-  compiledIndexSha256:allocation.compiledIndexSha256,actualHumans:0,actualBrowserProcesses:0,
+  compiledIndexSha256:allocation.compiledIndexSha256,sourceBinding,actualHumans:0,actualBrowserProcesses:0,
   actualBrowserContexts:0,actualAuthenticatedActors:0,adminGameplayWrites:0,acceleratedClock:false,
   normalOriginPersistence:true,authCredentialInjection:false,demoCrewPreparation:false,
   wholeGameProof:false,capacityProof:false,endingProof:false,visualUsabilityAccepted:false,
@@ -604,10 +614,10 @@ async function enterRole(surface,label){
    await clean('own fresh session',async()=>{await db.recursiveDelete(db.doc(`sessions/${sid}`));cleanup.sessionAbsent=!(await db.doc(`sessions/${sid}`).get()).exists;assert.equal(cleanup.sessionAbsent,true);});
   }
   for(const uid of actorUids.values())await clean('own fresh Auth',async()=>{const user=await adminAuth.getUser(uid);assert.ok(Date.parse(user.metadata.creationTime)>=startAt);await adminAuth.deleteUser(uid);cleanup.deletedOwnAuth++;});
-  await clean('source unchanged',()=>{assert.equal(execFileSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8'}).trim(),sourceCommit);assert.equal(execFileSync('git',['status','--porcelain','--untracked-files=no'],{cwd:root,encoding:'utf8'}).trim(),'');});
+  await clean('source unchanged',async()=>{assert.deepEqual(await capturePc10Gate2SourceBinding(root,fileURLToPath(import.meta.url)),sourceBinding);assert.equal(execFileSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8'}).trim(),sourceCommit);assert.equal(execFileSync('git',['status','--porcelain','--untracked-files=no'],{cwd:root,encoding:'utf8'}).trim(),'');});
   await clean('own Admin client',async()=>{await db.terminate();await deleteApp(adminApp);});
   evidence.cleanup=cleanup;evidence.elapsedMs=Date.now()-startAt;
-  if(cleanup.errors.length&&!primaryFailure)primaryFailure=new Error('Owned cleanup incomplete; no successful proof closeout.');
+  primaryFailure=finalizeRingEvidence(evidence,cleanup,primaryFailure);
   if(directoryCreated)await writeFile(`${directory}/OWNER_RESULT.json`,JSON.stringify(evidence,null,2)+'\n');
  }
  if(primaryFailure)throw primaryFailure;return evidence;
