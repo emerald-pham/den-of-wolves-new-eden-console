@@ -1389,3 +1389,37 @@ deadline includes startup and cleanup; preserve the original60-second
 operation and60-second cleanup windows, refuse insufficient time, and stop
 at the first unexplained integration failure. No new browser or emulator
 started during this source preparation. All48 fixed rows remain open.
+
+
+#### Privacy source review and first allocation handback
+
+Independent exact-source review of`4bd3bef3`/tree`d6334891` passed with no
+unresolved material findings. It covers the released-base merge and finite
+three-actor privacy driver; all531 protected Functions/rules inputs are
+unchanged. The exact prelaunch also passed with zero sessions/player/GM
+pointers and the intended local emulator runtime. Native privacy remains
+unproved: no browser, Auth actor or gameplay write was started.
+
+The owner incorrectly interpreted the parent's earlier runtime-free readiness
+message as an execution grant. Preserve that receipt and its separate
+clarification; future startup requires an explicit allocation and absolute
+deadline. The explicit05:47UTC allocation arrived after the owned emulator
+was already returned. At05:44:45UTC, only69seconds remained under the owner's
+earlier conservative cap, insufficient for an original60-second operation
+plus60-second cleanup reserve, so the browser launch was refused. The owned
+emulator wrapper/CLI and all eight ports were closed, its reservation released,
+and the retained Vite preserved. Verified handback was05:45:42.073UTC. Complete
+original logs/prefixes totaling12,682,819bytes are retained and hash-verified.
+No timing allowance was shortened or reset; no native criterion or fixed
+catalog closure was earned.
+
+The next attempt changes only exclusive evidence paths from audience1 to2,
+retaining every operation, audience assertion, source/compiled binding and
+absolute-deadline guard byte for byte after path normalization. This is artifact
+rebinding, not a gameplay or proof-behavior repair. A fresh immutable parent
+allocation, preflight and freeze are required before the first browser; the
+old freeze cannot authorize another execution. The bounded source follow-up
+reviews only this path/prose delta.
+
+Evidence:`/tmp/dow-pc10-evidence/OWNER_SCOUT_PRIVATE_AUDIENCE_1_NOT_STARTED_CLEAN_HANDBACK_20261008.json`
+and`OWNER_SCOUT_PRIVATE_AUDIENCE_1_ALLOCATION_CLARIFICATION_20261008.json`.

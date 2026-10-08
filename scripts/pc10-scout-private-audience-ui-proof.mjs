@@ -17,7 +17,7 @@ import { capturePc10Gate2SourceBinding } from './pc10-gate2-functional-proof.mjs
 const root=fileURLToPath(new URL('../',import.meta.url)).replace(/\/$/,''), projectId='demo-pc10-owner-integrated-2';
 const baseUrl='http://127.0.0.1:5174';
 const ports={auth:9109,functions:5011,firestore:8090};
-const directory='/tmp/dow-pc10-evidence/three-actor-scout-private-audience-1';
+const directory='/tmp/dow-pc10-evidence/three-actor-scout-private-audience-2';
 const hash=value=>createHash('sha256').update(value).digest('hex'), short=value=>hash(value).slice(0,16);
 const sourceCommit=execFileSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8'}).trim();
 assert.equal(sourceCommit,process.env.PC10_OWNER_SOURCE_COMMIT);
@@ -189,9 +189,9 @@ const adminRequire=createRequire(`${root}/functions/package.json`);const{initial
 await mkdir(directory,{mode:0o700});
 const runtime=validateProofRuntime(proofRuntimeFromViteSource(await bounded(fetch(`${baseUrl}/src/lib/firebaseConfig.ts`).then(value=>value.text()),15000,'Original Vite runtime read deadline')),{baseUrl,projectId,ports});evidence.runtime=runtime;
 assert.equal((await bounded(db.collection('sessions').get(),15000,'Original empty-scope read deadline')).size,0);
-const preflight=JSON.parse(await readFile('/tmp/dow-pc10-evidence/OWNER_SCOUT_PRIVATE_AUDIENCE_1_LAUNCH_PREFLIGHT_20261008.json','utf8'));assert.equal(preflight.source.sourceCommit,sourceCommit);assert.deepEqual(preflight.scope,{sessions:0,connectedPlayers:0,connectedGmInstances:0});
+const preflight=JSON.parse(await readFile('/tmp/dow-pc10-evidence/OWNER_SCOUT_PRIVATE_AUDIENCE_2_LAUNCH_PREFLIGHT_20261008.json','utf8'));assert.equal(preflight.source.sourceCommit,sourceCommit);assert.deepEqual(preflight.scope,{sessions:0,connectedPlayers:0,connectedGmInstances:0});
 evidence.preflightSource=preflight.source;evidence.preflightRecordedAt=preflight.recordedAt;
-const freezeBytes=await readFile('/tmp/dow-pc10-evidence/OWNER_SCOUT_PRIVATE_AUDIENCE_1_SOURCE_FREEZE_20261008.json');
+const freezeBytes=await readFile('/tmp/dow-pc10-evidence/OWNER_SCOUT_PRIVATE_AUDIENCE_2_SOURCE_FREEZE_20261008.json');
 const freeze=JSON.parse(freezeBytes);assert.equal(freeze.sourceCommit,sourceCommit);
 const sourceTree=execFileSync('git',['rev-parse','HEAD^{tree}'],{cwd:root,encoding:'utf8'}).trim();
 assert.equal(freeze.sourceTree,sourceTree);
@@ -209,10 +209,10 @@ evidence.exactLaunchBinding={sourceTree,trackedTreeSha256:launchBinding.trackedT
  compiledTreeSha256:launchBinding.compiledTreeSha256,javascriptTreeSha256:launchBinding.javascriptTreeSha256,
  compiledSourceBuild:freeze.compiledSourceBuild,macAllocation:freeze.macAllocation};
 assert.equal(freeze.runner.sha256,hash(await readFile(new URL(import.meta.url))));
-assert.equal(freeze.preflight.sha256,hash(await readFile('/tmp/dow-pc10-evidence/OWNER_SCOUT_PRIVATE_AUDIENCE_1_LAUNCH_PREFLIGHT_20261008.json')));
+assert.equal(freeze.preflight.sha256,hash(await readFile('/tmp/dow-pc10-evidence/OWNER_SCOUT_PRIVATE_AUDIENCE_2_LAUNCH_PREFLIGHT_20261008.json')));
 assert.equal(freeze.status,'FROZEN_BEFORE_EXECUTION');assert.equal(freeze.review.currentStatus,'PASS_BOUNDED_SOURCE_ONLY');
 assert.equal(freeze.prelaunchWriterMustSucceed,true);assert.equal(freeze.recordWrittenAfterLaunch,false);
-evidence.sourceFreeze={path:'/tmp/dow-pc10-evidence/OWNER_SCOUT_PRIVATE_AUDIENCE_1_SOURCE_FREEZE_20261008.json',sha256:hash(freezeBytes),recordedAt:freeze.recordedAt};
+evidence.sourceFreeze={path:'/tmp/dow-pc10-evidence/OWNER_SCOUT_PRIVATE_AUDIENCE_2_SOURCE_FREEZE_20261008.json',sha256:hash(freezeBytes),recordedAt:freeze.recordedAt};
 
 
 

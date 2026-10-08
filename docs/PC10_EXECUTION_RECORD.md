@@ -1152,3 +1152,27 @@ other-data change was not measured. Evidence:
 (SHA `b793537bb27529a109ea60bea5beb7075cedef0b60958f6ad70251169544b6d1`).
 This verifies the integrated common Close UI repair. It does not prove native
 N-specific closed history, whole-game completion, human play or a release.
+
+
+### October8 bounded private scout audience readiness
+
+Exact-source review passed`4bd3bef3` with no unresolved material findings;
+36 component checks,140 source/proof checks,15 privacy contracts, affected
+lint and the client build passed. The accepted Highwall Functions build is
+reused honestly because all531 Functions/rules inputs and compiled hashes
+match; no fresh Functions compile is claimed. The privacy prelaunch passed
+with empty scoped data, but compaction consumed the remaining execution margin.
+No browser or gameplay launched. Owned emulator runtime was returned and
+verified at05:45:42.073UTC with all eight ports closed; retained Vite and
+other reservations were preserved. All12,682,819bytes of current original
+logs were preserved and independently hash-verified.
+
+The parent clarified that its earlier runtime-free message requested readiness;
+the owner had misclassified that as an explicit grant. That historical receipt
+is preserved with a separate correction. The later explicit05:47UTC deadline
+arrived after clean handback and could not fit the unchanged60-second operation
+plus60-second cleanup reserve. Future runtime requires a fresh explicit absolute
+allocation. Only exclusive proof artifact paths are rebound for attempt2;
+all three-actor admission, audience, cleanup and deadline behavior is unchanged.
+The[acceptance matrix](PC10_ACCEPTANCE_MATRIX.md) carries the exact limits.
+No new native or release credit is earned; all48 fixed rows remain open.
