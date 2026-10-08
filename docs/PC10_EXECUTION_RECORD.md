@@ -1070,3 +1070,19 @@ uncertain SDK codes. Existing tests are unchanged. Reason: prepare the minimum
 distinct specialist proof without carrying cargo/maintenance/recharge scope,
 and bind actual server dice/once effects and exact recovery to its current Miner.
 RED log: `/tmp/dow-pc10-evidence/OWNER_HIGHWALL_MINIMUM_PROOF_RED_EXIT_VERIFIED_20261008.log`.
+
+The separate test-first commit is `ca986bcef409a4d379e8f11640fea82a39c5fa03`.
+The new Highwall runner passes all21 focused contracts and all17 unchanged
+finite acknowledgement-adapter checks. All60 unchanged mining panel/service/
+engine/callable tests pass across four files. Its first materials acknowledgement
+is interrupted only after the actual receipt/event/audit and dice/cargo witness;
+its recovery requires the original real `replayed` result. The second operation,
+stale/wrong-role negatives, original reload/replay and current quota guard retain
+the same source-bound effect checks. Existing normal admission/manual setup,
+navigation observers and owned cleanup are reused. Reason: prove the distinct
+unfuelled Miner family with two actors and a five-minute total cap, preserving
+the original35s/60s operation budgets and one-minute cleanup reserve. No product
+or server source changes. These GREEN checks are source readiness only: no
+native browser/emulator/gameplay run or function acceptance has occurred.
+Independent bounded source review and a new parent runtime allocation remain
+required; final rendered typography, whole-game and release gates stay open.
