@@ -204,6 +204,33 @@ test('dispatches the currently offered PDF launch through its colonel console an
     'An assigned actor with null profileRoleId stays bound to its observed live identity.');
 });
 
+test('retains the consumed PDF source reply and exact stale panel text when readiness rejects it', async () => {
+  // Source-backed synthetic shape: the server's PDF view projects a recorded
+  // unavailable choice with reason=waiting; Attempt21 did not retain this
+  // reply or a native PDF panel snapshot.
+  const view = { type: 'pdf-escort-wing-launch-view', sessionId, turn: 3, revision: 8,
+    wingRevision: 4, launched: false, eligible: false, choiceStatus: 'unavailable', reason: 'waiting' };
+  const pdf = surface('refinery-124-pdf-colonel', view);
+  const staleText = 'Waiting for an active Wolf Attack targeting window.';
+  pdf.page.locator = selector => {
+    assert.equal(selector, '[aria-label="PDF Escort Wing launch control"]');
+    return { isVisible: async () => true, innerText: async () => staleText };
+  };
+  const current = attack('targeting');
+  const opts = options([{ roleId: pdf.label, surface: pdf }], current);
+  let failure;
+  try { await dispatchStationCrewChoice(current, opts); } catch (error) { failure = error; }
+  assert.match(failure?.message ?? '', /Painted blocker must match the current source reason/);
+  const held = heldProofFailureObservations(failure).find(entry =>
+    entry.operation === 'station-crew-current-source-readiness');
+  assert.ok(held, 'The original readiness failure must retain its consumed observations.');
+  assert.deepEqual(held.consumedObservations.sourceReplies, [{ endpoint: 'getPdfEscortWingLaunch',
+    reply: { status: 'committed', result: view } }]);
+  assert.deepEqual(held.consumedObservations.paintObservations, [{ panelText: staleText,
+    result: { status: 'pending', reason: 'The current source blocker has not painted.' } }]);
+  assert.deepEqual(pdf.effects.clicks, []);
+});
+
 test('stops without a second actor choice when the attack tuple changes during the source read', async () => {
   let latest = attack('targeting');
   const pdf = surface('refinery-124-pdf-colonel', { type: 'pdf-escort-wing-launch-view',
