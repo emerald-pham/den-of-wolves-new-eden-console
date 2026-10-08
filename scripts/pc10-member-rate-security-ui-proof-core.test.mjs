@@ -43,7 +43,7 @@ test('preparation bucket reaches six, denies the seventh fresh request, and repl
   const proof = await provePreparationRateLimit({ gm, original,
     readMarker: async () => bucket, readEffect: async () => effect,
     readOriginalReceipt: async () => receipt,
-    makeRequestId: () => `fresh-request-${++requestNumber}` });
+    makeRequestId: () => `fresh-request-${++requestNumber}`, now: () => 60_000 });
   assert.equal(proof.distinctChargedRequests, 6);
   assert.equal(proof.markerCountAtLimit, 6);
   assert.equal(proof.retryAfterSeconds, 31);
@@ -135,7 +135,7 @@ test('same-session GM success must complete before the exhausted member read win
   } };
   await assert.rejects(proveCurrentMemberReadRateLimit({ member, gm, sessionId: 'owned-session',
     readMemberMarker: async () => memberMarker, readGmMarker: async () => gmMarker, now: () => time,
-  }), /original member window expired/i);
+  }), /original member read window expired/i);
 });
 
 test('P631 denial log parser returns only allowlisted hashes and rejects extra body fields', () => {

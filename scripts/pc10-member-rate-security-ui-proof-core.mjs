@@ -28,6 +28,11 @@ function assertMarker(marker, callableName) {
   return marker;
 }
 
+function assertOriginalWindowLive(marker, label, now) {
+  assert.ok(now() - marker.windowStartedAtMs < P631_RATE_WINDOW_MS,
+    `The original ${label} window expired before the focused proof completed.`);
+}
+
 function assertCommittedPreparation(reply, request, label) {
   assert.equal(reply?.status, 'committed', `${label} must use the original authenticated SDK and commit.`);
   assert.equal(reply.result?.status, 'committed', `${label} must receive a committed preparation receipt.`);
@@ -39,7 +44,7 @@ function assertCommittedPreparation(reply, request, label) {
 
 /** Consume the actual GM preparation bucket after its original normal UI receipt. */
 export async function provePreparationRateLimit({
-  gm, original, readMarker, readEffect, readOriginalReceipt, makeRequestId = randomUUID,
+  gm, original, readMarker, readEffect, readOriginalReceipt, makeRequestId = randomUUID, now = Date.now,
 } = {}) {
   assert.equal(original?.endpoint, 'prepareFullGameDemo');
   const payload = original.data;
@@ -88,10 +93,13 @@ export async function provePreparationRateLimit({
   assert.equal(markerAfterDenial.requestCount, P631_PREPARATION_LIMIT,
     'The denied fresh request must not charge the exhausted marker.');
   assert.equal(markerAfterDenial.windowStartedAtMs, beforeMarker.windowStartedAtMs);
+  assertOriginalWindowLive(markerAfterDenial, 'preparation', now);
 
   // This is the exact object captured from the original UI request; keep it in
   // memory and replay it through the same mounted App Firebase SDK.
+  assertOriginalWindowLive(markerAfterDenial, 'preparation', now);
   const replay = await gm.callable('prepareFullGameDemo', payload);
+  assertOriginalWindowLive(markerAfterDenial, 'preparation', now);
   assert.equal(replay?.status, 'committed');
   assert.equal(replay.result?.status, 'replayed');
   assert.equal(replay.result?.sessionMatches, true);
@@ -103,6 +111,7 @@ export async function provePreparationRateLimit({
   const markerAfterReplay = assertMarker(await readMarker(), 'prepareFullGameDemo');
   const receiptAfterReplay = await readOriginalReceipt();
   const effectAfterReplay = await readEffect();
+  assertOriginalWindowLive(markerAfterReplay, 'preparation', now);
   assert.equal(markerAfterReplay.requestCount, P631_PREPARATION_LIMIT,
     'The exact original receipt replay must bypass the exhausted bucket without another charge.');
   assert.equal(markerAfterReplay.windowStartedAtMs, beforeMarker.windowStartedAtMs);
@@ -159,13 +168,22 @@ export async function proveCurrentMemberReadRateLimit({
   else assert.ok(exhaustedMarker.windowStartedAtMs >= beganAt - 1_000 && exhaustedMarker.windowStartedAtMs <= now(),
     'The complete current-member saturation must use one live 60-second window.');
   assert.ok(denied.details.retryAfterSeconds >= 1);
+  assertOriginalWindowLive(exhaustedMarker, 'member read', now);
 
   const gmReply = await gm.callable('getCurrentMemberSession', { sessionId });
+  assertOriginalWindowLive(exhaustedMarker, 'member read', now);
   assert.equal(gmReply?.status, 'committed', 'The original same-network GM must retain its own read budget.');
   assert.equal(gmReply.result?.type, 'current-member-session');
   assert.equal(gmReply.result?.sessionMatches, true);
   assert.equal(gmReply.result?.actorMatches, true);
+  const memberMarkerAfterGm = assertMarker(await readMemberMarker(), 'getCurrentMemberSession');
+  assert.equal(memberMarkerAfterGm.requestCount, exhaustedMarker.requestCount,
+    'The original member marker must not reset while verifying the same-session GM result.');
+  assert.equal(memberMarkerAfterGm.windowStartedAtMs, exhaustedMarker.windowStartedAtMs,
+    'The same exhausted member window must remain authoritative through GM verification.');
+  assertOriginalWindowLive(memberMarkerAfterGm, 'member read', now);
   const gmMarker = assertMarker(await readGmMarker(), 'getCurrentMemberSession');
+  assertOriginalWindowLive(memberMarkerAfterGm, 'member read', now);
   assert.ok(gmMarker.requestCount < P631_MEMBER_READ_LIMIT);
   assert.notEqual(gmMarker.identityHash, exhaustedMarker.identityHash,
     'Same-network actors must use distinct UID-bound marker identities.');
@@ -228,17 +246,28 @@ export function assertP631RateDenialRecords(records, expected) {
   for (const item of expected) {
     const matches = records.filter(record => record.callableName === item.callableName &&
       record.actorHash === item.actorHash && record.sessionHash === item.sessionHash &&
-      (item.requestHash === undefined || record.requestHash === item.requestHash) &&
       record.code === 'resource-exhausted' && record.category === 'rate-limit');
     assert.ok(matches.length >= 1, `Missing scoped ${item.callableName} rate-denial log record.`);
-    const record = matches[0];
-    assert.equal(record.type, 'security-denial');
-    assert.equal(record.schemaVersion, 1);
-    assert.equal(record.redactionPolicy, 'security-denial-hashed-metadata-v1');
-    assert.deepEqual(record.extraFields, [], 'Denial logs must not include arbitrary request/body fields.');
-    assert.match(record.actorHash ?? '', /^[a-f0-9]{64}$/);
-    assert.match(record.sessionHash ?? '', /^[a-f0-9]{64}$/);
-    if (item.requestHash !== undefined) assert.equal(record.requestHash, item.requestHash);
+    let exactRequestHashFound = item.requestHash === undefined;
+    for (const record of matches) {
+      assert.equal(record.type, 'security-denial');
+      assert.equal(record.schemaVersion, 1);
+      assert.equal(record.redactionPolicy, 'security-denial-hashed-metadata-v1');
+      assert.deepEqual(record.extraFields, [], 'Denial logs must not include arbitrary request/body fields.');
+      assert.match(record.actorHash ?? '', /^[a-f0-9]{64}$/);
+      assert.match(record.sessionHash ?? '', /^[a-f0-9]{64}$/);
+      if (Object.hasOwn(record, 'requestHash')) {
+        assert.match(record.requestHash ?? '', /^[a-f0-9]{64}$/,
+          'An optional requestHash must be a 64-character hash.');
+        if (item.requestHash === undefined) {
+          assert.fail('Current-member denial records must omit requestHash for the one-field callable payload.');
+        }
+        if (record.requestHash === item.requestHash) exactRequestHashFound = true;
+      }
+    }
+    assert.equal(exactRequestHashFound, true,
+      `Scoped ${item.callableName} preparation denial must include the expected request hash.`);
+    const record = matches.find(candidate => item.requestHash === undefined || candidate.requestHash === item.requestHash);
     summaries.push(Object.fromEntries(['callableName', 'code', 'category', 'actorHash', 'sessionHash',
       ...(item.requestHash === undefined ? [] : ['requestHash']), 'redactionPolicy']
       .filter(key => Object.hasOwn(record, key)).map(key => [key, record[key]])));
