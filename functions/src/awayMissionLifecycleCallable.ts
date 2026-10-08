@@ -641,7 +641,7 @@ export function createAwayMissionLifecycleCallables(
           });
         });
         transaction.update(dependencies.db.doc(`sessions/${parsed.sessionId}`),
-          awayMissionPointerWriteSafetyPatch(session.get('awayMissionProjectionSafety')));
+          awayMissionPointerWriteSafetyPatch(sessionSnapshot.get('awayMissionProjectionSafety')));
         transaction.create(dependencies.db.doc(p.event), {
           type: 'away-mission-lifecycle-command',
           sessionId: parsed.sessionId,
