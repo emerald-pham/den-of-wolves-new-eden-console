@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import {assertSparseStationWing,runSparseStationCombat} from './pc10-station-combat-adapter.mjs';
+import {runMinimumCandidateSuccessProbe} from './pc10-minimum-candidate-success.mjs';
 import { runPursuitLimitEnding } from './pc10-full-game-cycle-ending.mjs';
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
@@ -31,6 +33,8 @@ export async function runRingWorkflow(operations) {
  await operations.arrive();await operations.repairRing();await operations.crossAndRecover();
  await operations.finishPassages();await operations.sabotageAndClose();
 }
+export function minimumStationPlan(){return {actualAuthenticatedActors:2,configuredRoles:13,browserProcesses:1,browserContexts:2,hardCapMs:1200000,probeFamily:'station-success',forcedOutcome:false};}
+export async function runStationWorkflow(operations){await operations.setup();await operations.stationArrivalMaintenance();await operations.stationArrival();await operations.advance(2);await operations.stationCombatMaintenance();await operations.stationCombat();await operations.stationActivate();await operations.stationEnding();}
 export function minimumPursuitClosurePlan(){return {actualAuthenticatedActors:2,configuredRoles:13,browserProcesses:1,browserContexts:2,hardCapMs:300000,probeFamily:'pursuit-closure',nClosedHistoryObserved:false};}
 export async function presentPursuitCycle(surfaces,observe,present=completeOfferedCyclePresentation){for(const surface of surfaces)await present(surface,await observe(surface),{clearBriefing:true});}
 export async function runPursuitClosureWorkflow(operations){await operations.setup();await operations.pursuitAndClose();}
@@ -123,6 +127,19 @@ export async function readRingCoordinate(surface) {
  assert.equal(chart.candidates[0].code,'N');assert.match(chart.candidates[0].coordinate,/^\d{4}$/);
  return chart.candidates[0].coordinate;
 }
+export async function readStationCoordinate(surface) {
+ const chart=await surface.page.evaluate(async storeUrl=>{
+  const {useSessionStore}=await import(storeUrl);const {auth}=await import('/src/lib/firebase.ts');
+  const state=useSessionStore.getState(),uid=auth().currentUser?.uid,session=state.session;
+  if(!uid||state.me?.uid!==uid||state.me?.role!=='gm'||state.gmInstance?.uid!==uid)throw new Error('Current entitled mounted GM chart required.');
+  return{chartId:session?.chartId,locked:session?.configurationLocked===true||session?.chartSelectionLocked===true,
+   candidates:Object.entries(session?.organiserSites??{}).filter(([,site])=>site.code==='P'&&site.candidate===true).map(([coordinate,site])=>({coordinate,code:site.code}))};
+ },surface.storeModuleUrl());
+ assert.equal(chart.chartId,'B');assert.equal(chart.locked,true,'Require actual locked GM chart.');
+ assert.equal(chart.candidates.length,1,'Actual GM chart must contain exactly one Station candidate.');
+ assert.equal(chart.candidates[0].code,'P');assert.match(chart.candidates[0].coordinate,/^\d{4}$/);
+ return chart.candidates[0].coordinate;
+}
 export function createRingMaintenancePacer({now=Date.now,wait=delay}={}) {
  let last=null;
  return async()=>{if(last!==null){const remaining=last+2100-now();if(remaining>0)await wait(remaining);}last=now();};
@@ -147,9 +164,9 @@ export function finalizeRingEvidence(evidence, cleanup, originalFailure) {
 export async function runFreshMinimumRingProof({allocationPath,directory,probeFamily='ring'}) {
  assert.ok(isAbsolute(allocationPath)&&isAbsolute(directory));
  const allocation=validateRingAllocation(JSON.parse(await readFile(allocationPath,'utf8')));
- const closureOnly=probeFamily==='pursuit-closure';assert.ok(closureOnly||probeFamily==='ring');
- if(closureOnly)assert.equal(allocation.probeFamily,'pursuit-closure');
- const plan=closureOnly?minimumPursuitClosurePlan():minimumRingPlan();
+ const closureOnly=probeFamily==='pursuit-closure',stationOnly=probeFamily==='station-success',sparse=closureOnly||stationOnly;assert.ok(sparse||probeFamily==='ring');
+ if(sparse)assert.equal(allocation.probeFamily,probeFamily);
+ const plan=closureOnly?minimumPursuitClosurePlan():stationOnly?minimumStationPlan():minimumRingPlan();
  const {sourceRoot:root,projectId,baseUrl,ports}=allocation;
  assert.ok(!resolve(directory).startsWith(resolve(root)+'/'),'Evidence stays outside source.');
  const hash=value=>createHash('sha256').update(value).digest('hex'),short=value=>hash(value).slice(0,16);
@@ -166,7 +183,7 @@ export async function runFreshMinimumRingProof({allocationPath,directory,probeFa
  const startAt=Date.now(),totalEnd=startAt+plan.hardCapMs,workEnd=totalEnd-60000;
  const actorUids=new Map(),pendingLaunches=[],preexistingUids=new Set();let stopped=false;
  const paceMaintenance=createRingMaintenancePacer();
- const roleIds={Owner:'shepherd-engineer',Recipient:'shepherd-scientist'};
+ const roleIds={Owner:'shepherd-engineer',Recipient:stationOnly?'wing-commander':'shepherd-scientist'};
  const evidence={schemaVersion:1,...plan,sourceCommit,runnerSha256:allocation.runnerSha256,
   compiledIndexSha256:allocation.compiledIndexSha256,sourceBinding,actualHumans:0,actualBrowserProcesses:0,
   actualBrowserContexts:0,actualAuthenticatedActors:0,adminGameplayWrites:0,acceleratedClock:false,
@@ -182,7 +199,7 @@ async function snapshot(surface,label) { const value=await observeLifecycleActor
 async function register(surface,label) { const uid=await surface.page.evaluate(async()=>{const {auth}=await import('/src/lib/firebase.ts');if(!auth().currentUser)throw new Error('Normal admission has no Auth user.');return auth().currentUser.uid;});assert.ok(![...actorUids.values()].includes(uid),'Require independent normally admitted Auth identities.');actorUids.set(label,uid);evidence.actualAuthenticatedActors=actorUids.size;await writeFile(`${directory}/owned-identities.json`,JSON.stringify({sid,joinCode,actors:Object.fromEntries(actorUids)},null,2)+'\n',{mode:0o600}); }
 async function action(surface,endpoint,choose,options={}) { budget();const value=await captureLifecycleUiAction(surface,endpoint,()=>{budget();return choose();},options);receipts.push(publicLifecycleReceipt(value));return value; }
   async function surface(label) {
-    let browser=browsers[!closureOnly&&label.includes('Scientist')?1:0];
+    let browser=browsers[!sparse&&label.includes('Scientist')?1:0];
     if(!browser){browser=await chromium.launch({channel:'chrome',headless:true});browsers.push(browser);}
     evidence.actualBrowserProcesses=browsers.length;
     const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce', serviceWorkers: 'block' });
@@ -519,12 +536,12 @@ async function enterRole(surface,label){
    expectedRevision:current.vesselActionRevisions?.[shipId]??0,requestId:crypto.randomUUID()});
   assert.deepEqual((await recordRoot()).shipDamage[shipId].damagedSystemIds,[]);
  }
- async function maintain(shipId){
+ async function maintain(shipId,consoles=['jump-drive']){
   await grant(shipId);const current=await recordRoot();let revision=current.maintenanceCycles?.[shipId]?.revision??0;
   for(const step of ['begin',...MAINTENANCE_ORDERS[shipId],'end']){
    const result=await sdk(gm,'runMaintenance',{sessionId:sid,instanceId:gm1Instance,shipId,action:step,
     expectedRevision:revision,requestId:crypto.randomUUID(),
-    ...(step==='rations'?{foodLevel:3,waterLevel:3}:{}),...(step==='reactor'?{consoles:['jump-drive']}:{}),
+    ...(step==='rations'?{foodLevel:3,waterLevel:3}:{}),...(step==='reactor'?{consoles}:{}),
     ...(step==='bays'?{refuels:{}}:{})});
    assertRingMaintenanceReply(result,await recordRoot(),shipId);revision=result.cycle.revision;
    if(step==='begin'||step==='riot')await repair(shipId);
@@ -564,8 +581,8 @@ async function enterRole(surface,label){
  }
  const operations={
   async setup(){
-   await mark(closureOnly?'fresh ordinary GM plus reader Pursuit setup':'fresh ordinary three-actor Ring setup');
-   gm=await launchSurface('browser-A-normal-GM');if(!closureOnly)owner=await launchSurface('browser-A-independent-Engineer');recipient=await launchSurface(closureOnly?'browser-A-independent-Scientist':'browser-B-normal-Scientist');
+   await mark(sparse?`fresh ordinary GM plus ${stationOnly?'Wing Station':'reader Pursuit'} setup`:'fresh ordinary three-actor Ring setup');
+   gm=await launchSurface('browser-A-normal-GM');if(!sparse)owner=await launchSurface('browser-A-independent-Engineer');recipient=await launchSurface(sparse?`browser-A-independent-${stationOnly?'Wing':'Scientist'}`:'browser-B-normal-Scientist');
    assert.equal(browsers.length,plan.browserProcesses);assert.equal(surfaces.length,plan.browserContexts);
    await gm.page.goto(baseUrl);await gm.reducedMotion();
    const created=await observeUiReceipt({page:gm.page,waitForResponse:()=>gm.page.waitForResponse(r=>new URL(r.url()).pathname.endsWith('/us-central1/createSession')&&r.request().method()==='POST'),choose:()=>gm.page.getByRole('button',{name:'Create a session',exact:true}).click()});
@@ -574,12 +591,12 @@ async function enterRole(surface,label){
    await authorizeAndClaim(gm,'GM1','PC10 minimum Ring GM');
    if(!await gm.page.getByRole('region',{name:'Setup',exact:true}).isVisible()){await gm.page.getByRole('button',{name:/^Open station catalog/}).click();await gm.page.getByRole('link',{name:'GM Console',exact:true}).click();}
    const setup=gm.page.getByRole('region',{name:'Setup',exact:true});await setup.getByRole('button',{name:'Setup',exact:true}).click();
-   await setup.getByLabel('Recommended player count',{exact:true}).selectOption('13');await setup.getByLabel('Star chart',{exact:true}).selectOption('A');
+   await setup.getByLabel('Recommended player count',{exact:true}).selectOption('13');await setup.getByLabel('Star chart',{exact:true}).selectOption(stationOnly?'B':'A');
    await action(gm,'confirmSetup',()=>setup.getByRole('button',{name:'Confirm setup // Confirm roster',exact:true}).click());
    await gm.until('Legal13 configured roles with unused seats open',v=>v.setupConfirmed&&v.activeRoleIds.length===13&&Object.values(roleIds).every(id=>v.activeRoleIds.includes(id)));
    const training=gm.page.locator('fieldset[aria-label="Full-game demo preparation"]');
    await action(gm,'prepareFullGameDemo',async()=>{await training.getByRole('button',{name:'Prepare full-game demo',exact:true}).click();await training.getByRole('button',{name:'ARE YOU SURE? // PREPARE FULL-GAME DEMO',exact:true}).click();});
-   for(const[surface,label]of(closureOnly?[[recipient,'Recipient']]:[[owner,'Owner'],[recipient,'Recipient']])){
+   for(const[surface,label]of(sparse?[[recipient,'Recipient']]:[[owner,'Owner'],[recipient,'Recipient']])){
     await normalJoin(surface,label);const name=(await observeLifecycleActor(surface)).displayName;assert.ok(name);
     const casting=gm.page.getByRole('region',{name:'Facilitator casting',exact:true});await casting.getByLabel(`Role for ${name}`,{exact:true}).selectOption(roleIds[label]);
     await action(gm,'assignRole',()=>casting.getByRole('button',{name:`Assign role to ${name}`,exact:true}).click());
@@ -589,7 +606,7 @@ async function enterRole(surface,label){
    await action(gm,'startGame',async()=>{await training.getByRole('button',{name:'Start full-game demo // Advance to Cycle 1',exact:true}).click();await training.getByRole('button',{name:'ARE YOU SURE? // START FULL-GAME DEMO // CYCLE 1',exact:true}).click();});
    await liveGm(gm,'GM1','active');
    for(const surface of surfaces)await completeOfferedCyclePresentation(surface,await snapshot(surface,'Actual Cycle1 presentation'),{clearBriefing:true});
-   if(closureOnly){const reader=await memberReady(recipient,'Recipient');groupId=reader.fleetGroupId;claims.push('Fresh normal13-role manual setup with only GM and one ordinary reader; no Ring prerequisites or recovery replay');return;}
+   if(sparse){const reader=await memberReady(recipient,'Recipient');groupId=reader.fleetGroupId;claims.push(`Fresh normal13-role manual setup with only GM and ${stationOnly?'Wing':'one ordinary reader'}; no Ring prerequisites or recovery replay`);return;}
    const science=await memberReady(recipient,'Recipient'),engineer=await memberReady(owner,'Owner');assert.equal(science.fleetGroupId,engineer.fleetGroupId);groupId=science.fleetGroupId;
    const current=await recordRoot();ships=current.activeVesselIds;assert.equal(ships.length,6);assert.ok(ships.includes('aegis'));
    coordinate=await op(async deadlineAt=>{await liveGm(gm,'GM1','active',{deadlineAt});return readRingCoordinate(gm);});
@@ -597,6 +614,77 @@ async function enterRole(surface,label){
    await supply('shepherd','ore',40);await supply('aegis','materials',10);
    for(const ship of ships){const rule=MAINTENANCE_RULES[ship];await supply(ship,'food',rule.food[3]*4);await supply(ship,'water',rule.water[3]*4);await supply(ship,'fuel',30);}
    claims.push('Fresh normal manual13-role setup with only GM/Scientist/Engineering holder; required new state only, no old discovery/checkpoint requalification');
+  },
+  async stationArrivalMaintenance(){
+   await mark('legitimate Station Cycle1 charged maintenance');const current=await recordRoot();ships=current.activeVesselIds;assert.equal(ships.length,6);coordinate=await readStationCoordinate(gm);
+   for(const ship of ships){const rule=MAINTENANCE_RULES[ship];await supply(ship,'food',rule.food[3]*2);await supply(ship,'water',rule.water[3]*2);await supply(ship,'fuel',30);await maintain(ship);}
+   await coordination(1);
+  },
+  async stationArrival(){
+   await mark('actual paid Station arrival and genuine Wing berth');
+   for(const shipId of ships){const before=await recordRoot(),result=await sdk(gm,'jumpShip',{sessionId:sid,instanceId:gm1Instance,shipId,destination:coordinate,requestId:crypto.randomUUID()});assertRingPaidArrival(result,before,await recordRoot(),shipId);}
+   const nav=await db.doc(`sessions/${sid}/serverState/navigation`).get();assertRingNavigation(nav.data(),ships,coordinate);
+   const wing=await fullMember(recipient);assertSparseStationWing(wing,wing);assert.equal(wing.fleetGroupId,groupId);evidence.stationWingOriginal=wing;
+   claims.push('Six real charged paid P arrivals; normal movement establishes exact original Wing AEGIS memberShipIds berth');
+  },
+  async stationCombatMaintenance(){
+   await mark('legitimate Station Cycle2 maintenance and actual fighter charges');
+   for(const ship of ships)await maintain(ship,ship==='aegis'?['jump-drive','fighter-wing-alpha','fighter-wing-bravo']:['jump-drive']);
+   await coordination(2);
+  },
+  async stationCombat(){
+   await mark('source Station combat with real Wing choices and ordinary GM composition');
+   const timing=gm.page.getByRole('region',{name:'Wolf attack timing controls',exact:true});await timing.getByLabel('Target fleet group',{exact:true}).selectOption(groupId);
+   const source=timing.getByLabel('Triggered Wolf site',{exact:true});let sourceId;const sourceDeadline=Date.now()+60000;
+   while(Date.now()<sourceDeadline&&!sourceId){sourceId=await source.locator('option').evaluateAll(options=>options.find(option=>!option.disabled&&/^P \/\//.test(option.textContent.trim()))?.value);if(!sourceId)await delay(200);}
+   assert.ok(sourceId,'Real paid P arrival must offer normal Station threat source.');await source.selectOption(sourceId);
+   await action(gm,'setWolfAttackWindow',()=>timing.getByRole('button',{name:'Mark threat source due',exact:true}).click());
+   const preparation=gm.page.getByRole('region',{name:'Private Wolf attack preparation',exact:true});
+   await preparation.getByLabel('Battlestation count',{exact:true}).fill('1');await preparation.getByLabel('Fleet Strikecarrier count',{exact:true}).fill('4');
+   await action(gm,'stageWolfAttackPreparation',()=>preparation.getByRole('button',{name:'Save private attack draft',exact:true}).click());
+   async function readAttack(){await liveGm(gm,'GM1','active');return gm.page.evaluate(async sid=>{const source=await(await fetch('/src/lib/firestore.ts')).text(),match=source.match(/from\s+["']([^"']*firebase_firestore\.js[^"']*)["']/);if(!match)throw Error('Actual served Firestore SDK import required');const sdk=await import(match[1]),{db}=await import('/src/lib/firestore.ts');const doc=await sdk.getDocFromServer(sdk.doc(db(),`sessions/${sid}/wolfAttackState/current`));if(!doc.exists())throw Error('Current real Station attack missing');return doc.data();},sid);}
+   const choose=async(current,{deadlineAt})=>{
+    assertSparseStationWing(await fullMember(recipient),evidence.stationWingOriginal);
+    if(current.currentStep==='targeting'){
+     for(const label of ['Fighter Wing Alpha','Fighter Wing Bravo']){const launch=recipient.page.getByRole('button',{name:`Launch ${label}`,exact:true}),pass=recipient.page.getByRole('button',{name:`Pass ${label}`,exact:true});if(await launch.isVisible()&&await launch.isEnabled()){await action(recipient,'launchAegisFighterWing',()=>launch.click());return;}if(await pass.isVisible()&&await pass.isEnabled()){await action(recipient,'passWolfFighterLaunchChoice',()=>pass.click());return;}}
+    }else if(['medium-range','short-range'].includes(current.currentStep)){
+     const range=current.currentStep==='medium-range'?'Medium Range':'Short Range';
+     for(const label of ['Fighter Wing Alpha','Fighter Wing Bravo']){const panel=recipient.page.getByRole('region',{name:`${label} ${range} actions`,exact:true});if(!await panel.isVisible())continue;
+      if(range==='Medium Range'){const actions=panel.getByRole('combobox',{name:/^Fighter \d+ action$/});for(let i=0;i<await actions.count();i++){const select=actions.nth(i),name=(await select.getAttribute('aria-label')).replace('action','target');await select.selectOption('attack');const target=panel.getByRole('combobox',{name,exact:true}),options=await target.locator('option').evaluateAll(nodes=>nodes.filter(node=>node.value&&!node.disabled).map(node=>({value:node.value,label:node.textContent})));if(options.length)await target.selectOption((options.find(option=>/battlestation/i.test(option.label))??options[i%options.length]).value);}}
+      else for(const box of await panel.getByRole('checkbox',{name:/^Fighter \d+ Short attack$/}).all())await box.check();
+      const use=panel.getByRole('button',{name:range==='Medium Range'?'Resolve Medium actions':'Resolve selected Short attacks',exact:true}),pass=panel.getByRole('button',{name:range==='Medium Range'?'Pass Medium Range':'Pass Short Range',exact:true});const button=await use.isVisible()&&await use.isEnabled()?use:pass;
+      if(await button.isVisible()&&await button.isEnabled()){await action(recipient,'commitWolfFighterRangeActionChoice',()=>button.click());return;}
+     }
+    }else if(current.currentStep==='boarding'){
+     const view=await sdk(recipient,'readWolfBoardingDefenceChoice',{sessionId:sid});assert.equal(view.sessionId,sid);
+     if(view.type==='wolf-boarding-defence-choice-view'&&view.choiceStatus==='pending'){
+      assert.equal(view.turn,current.turn);assert.equal(view.revision,current.revision);assert.equal(view.targetShipId,'aegis');assert.ok(Number.isSafeInteger(view.availableSecurityTeams)&&view.availableSecurityTeams>=0);
+      const panel=recipient.page.getByRole('region',{name:/ boarding defence$/i}).filter({has:recipient.page.getByRole('button',{name:'Commit defence',exact:true})});await panel.getByRole('combobox').selectOption(String(view.availableSecurityTeams));await action(recipient,'commitWolfBoardingDefenceChoice',()=>panel.getByRole('button',{name:'Commit defence',exact:true}).click());return;
+     }
+     assert.equal(view.type,'wolf-boarding-defence-choice-unavailable');assert.ok(['no-boarders','not-your-choice'].includes(view.reason));
+    }
+    assert.ok(Date.now()<deadlineAt); // No absent EO/crew is impersonated; wait for ordinary server reconciliation.
+   };
+   let liberated=false;const waves=[];
+   for(let wave=1;wave<=12&&!liberated;wave++){
+    for(const ship of ships)await repair(ship);await liveGm(gm,'GM1','active');await action(gm,'declareWolfAttack',()=>preparation.getByRole('button',{name:'Declare Wolf attack',exact:true}).click());
+    const final=await runSparseStationCombat({deadlineAt:Math.min(Date.now()+480000,workEnd-60000),readAttack,assertActors:async()=>{budget();await liveGm(gm,'GM1','active');assertSparseStationWing(await fullMember(recipient),evidence.stationWingOriginal);},choose});
+    waves.push({wave,attackId:final.attackId,repeat:final.pStationRepeat});liberated=final.pStationRepeat.status==='stopped';await writeFile(`${directory}/Station-combat-waves.json`,JSON.stringify(waves,null,2)+'\n');
+   }
+   assert.equal(liberated,true,'Real Station combat must end with zero surviving Wolves before activation.');
+   const current=await recordRoot();assert.ok(current.candidateStationLiberations?.[`${groupId}:${coordinate}`]);evidence.stationCombatWaves=waves;
+   claims.push('Actual source-bound Station waves finalized with real server rolls; durable zero-survivor liberation precedes any Reactor contribution');
+  },
+  async stationActivate(){
+   await mark('existing tested sparse activation callback after actual liberation');for(const ship of ships)await repair(ship);
+   const before=await recordRoot();const result=await runMinimumCandidateSuccessProbe({code:'P',gm,wing:{...recipient,observe:()=>fullMember(recipient)},sessionId:sid,groupId,coordinate,readRoot:recordRoot,selectGmShip:grant,deadlineAt:Math.min(Date.now()+60000,workEnd),configuredRoleCount:13});
+   evidence.stationActivation=result;assert.equal((await recordRoot()).debriefSnapshot.candidate.code,'P');claims.push('Unique real available Reactors consumed through current GM scoped grants; actual18+ capacity triggers immutable P success');
+  },
+  async stationEnding(){
+   await mark('normal P success ending read and immutable GM close');const ended=await recordRoot();assert.equal(ended.debriefSnapshot.source,'candidate');assert.equal(ended.debriefSnapshot.result,'success');assert.equal(ended.debriefSnapshot.candidate.code,'P');const snapshotHash=hash(stable(ended.debriefSnapshot));
+   const result=await sdk(gm,'getSessionDebrief',{sessionId:sid,instanceId:gm1Instance});assert.equal(result.snapshot.candidate.code,'P');
+   await gm.page.getByRole('dialog',{name:'Endgame evaluation',exact:true}).waitFor();await gm.page.screenshot({path:`${directory}/Station-GM-ending.png`});await action(gm,'closeSession',()=>gm.page.getByRole('button',{name:'Close session',exact:true}).click());await gm.until('Actual closed P history',v=>v.phase==='closed');assert.equal(hash(stable((await recordRoot()).debriefSnapshot)),snapshotHash);
+   evidence.endingProof=true;claims.push('Actual P candidate success displayed through entitled GM read; normal Close retains immutable snapshot. P member closed reload remains separate.');
   },
   async pursuitAndClose(){
    await mark('ordinary offered Pursuit ending and GM Close');
@@ -739,7 +827,7 @@ async function enterRole(surface,label){
   for(const user of authCensus.users)preexistingUids.add(user.uid);
   evidence.preexistingAuthCount=preexistingUids.size;
   await writeFile(`${directory}/prelaunch.json`,JSON.stringify({allocation,sourceCommit,plan,nativeLaunched:false},null,2)+'\n');
-  await Promise.race([lossAckFailure.then(error=>{throw error;}),bounded(closureOnly?runPursuitClosureWorkflow(operations):runRingWorkflow(operations),workEnd-Date.now(),'Ring execution work cap exhausted.',()=>{stopped=true;})]);
+  await Promise.race([lossAckFailure.then(error=>{throw error;}),bounded(closureOnly?runPursuitClosureWorkflow(operations):stationOnly?runStationWorkflow(operations):runRingWorkflow(operations),workEnd-Date.now(),'Ring execution work cap exhausted.',()=>{stopped=true;})]);
   assertRingRuntimeClean(errors,remoteRequests);evidence.status='passed';
  }catch(error){primaryFailure=error;stopped=true;evidence.status='failed';evidence.firstFailure={stage,error:originalProofError(error)};
   if(directoryCreated)await retainProofFailure(directory,'minimum-ring',error,{stage,consumed,claims}).catch(()=>{});
