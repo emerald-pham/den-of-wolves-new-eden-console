@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
+import { spawnSync } from 'node:child_process';
 import vm from 'node:vm';
 import test from 'node:test';
 import { originalProofError } from './pc10-proof-failure-evidence.mjs';
@@ -48,4 +49,27 @@ test('normal admission and resume replies are excluded from private scout body d
  for(const endpoint of ['createSession','joinSession','resumeSession','authorizeLocalGmAccess']){
   const r=await observe({endpoint});assert.equal(r.bodyReads,0);assert.deepEqual(r.bodies,[]);assert.deepEqual(r.writes,[]);
  }
+});
+
+
+test('a private response write failure remains observable without terminating native cleanup',()=>{
+ const callbackSource=JSON.stringify(callbacks[0].getText(ast));
+ const child=`
+ import assert from 'node:assert/strict';
+ import vm from 'node:vm';
+ const pendingScoutResponses=[];
+ const callback=vm.runInNewContext('('+${callbackSource}+')',{URL,Date,Promise,
+  calls:[],scoutResponseBodies:[],pendingScoutResponses,label:'browser-B-normal-Scientist',directory:'/private-test-evidence',
+  hash:()=> 'hash',originalProofError:error=>({name:error.name,message:error.message}),
+  writeFile:async()=>{throw new Error('Original private response writer failure');}});
+ callback({url:()=> 'http://127.0.0.1:5011/demo-local/us-central1/readPrivateScoutResult',status:()=>200,
+  request:()=>({method:()=> 'POST',postDataJSON:()=>({data:{sessionId:'owned-session',requestId:'original-scout'}})}),
+  json:async()=>({result:{type:'private-scout-result'}})});
+ await new Promise(resolve=>setTimeout(resolve,20));
+ const settled=await Promise.allSettled(pendingScoutResponses);
+ assert.equal(settled.length,1);assert.equal(settled[0].status,'rejected');
+ assert.equal(settled[0].reason.message,'Original private response writer failure');
+ `;
+ const childResult=spawnSync(process.execPath,['--input-type=module','-e',child],{encoding:'utf8',timeout:1500});
+ assert.equal(childResult.status,0,childResult.stderr);
 });
