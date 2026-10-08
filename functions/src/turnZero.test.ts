@@ -123,7 +123,7 @@ it('records a complete turn entity across the existing Team-to-Coordination boun
     phase: 'coordination',
     phaseRevision: 2,
     startedAt: '2026-09-07T12:10:00.000Z',
-    endsAt: '2026-09-07T12:30:00.000Z',
+    endsAt: '2026-09-07T12:35:00.000Z',
   });
 });
 

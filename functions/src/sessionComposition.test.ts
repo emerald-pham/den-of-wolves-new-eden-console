@@ -267,6 +267,7 @@ import {
   releaseRole,
   resumeSession,
   runMaintenance,
+  setEmergencyTimerPaused,
   setShipPreference,
   startGame,
 } from './index';
@@ -1296,6 +1297,9 @@ describe('Prompt 020 production lobby-to-Team-Phase composition', () => {
       const turnOnePhase = turnOne.turnPhase as { teamPhaseEndsAt: string; openAirspaceEndsAt: string };
 
       const initialTime = Date.parse('2026-09-12T16:00:00.000Z');
+      expect(Date.parse(turnOnePhase.teamPhaseEndsAt) - initialTime).toBe(10 * 60_000);
+      expect(Date.parse(turnOnePhase.openAirspaceEndsAt) - Date.parse(turnOnePhase.teamPhaseEndsAt))
+        .toBe(25 * 60_000);
       for (let heartbeatAt = initialTime + 30_000;
         heartbeatAt < Date.parse(turnOnePhase.teamPhaseEndsAt);
         heartbeatAt += 30_000) {
@@ -1313,9 +1317,35 @@ describe('Prompt 020 production lobby-to-Team-Phase composition', () => {
       }, composition.coreUids[0]!))).resolves.toMatchObject({
         turnPhase: { turn: 1, airspace: { state: 'lifted' } },
       });
+      const pauseAt = Date.parse(turnOnePhase.teamPhaseEndsAt) + 15 * 60_000;
+      vi.setSystemTime(new Date(pauseAt));
+      await expect(setEmergencyTimerPaused.run(request({
+        sessionId: composition.sessionId,
+        instanceId: composition.startRequest.instanceId,
+        expectedTurn: 1,
+        paused: true,
+      }, composition.ownerUid))).resolves.toMatchObject({
+        turnPhase: { timerPause: { window: 'open', remainingMs: 10 * 60_000 } },
+      });
+      const resumedAt = pauseAt + 2 * 60_000;
+      vi.setSystemTime(new Date(resumedAt));
+      await expect(setEmergencyTimerPaused.run(request({
+        sessionId: composition.sessionId,
+        instanceId: composition.startRequest.instanceId,
+        expectedTurn: 1,
+        paused: false,
+      }, composition.ownerUid))).resolves.toMatchObject({
+        turnPhase: {
+          teamPhaseEndsAt: turnOnePhase.teamPhaseEndsAt,
+          openAirspaceEndsAt: new Date(Date.parse(turnOnePhase.teamPhaseEndsAt) + 27 * 60_000).toISOString(),
+        },
+      });
+      const resumedPhase = (read(sessionPath) as StoredDocument).turnPhase as {
+        teamPhaseEndsAt: string; openAirspaceEndsAt: string;
+      };
 
-      for (let heartbeatAt = Date.parse(turnOnePhase.teamPhaseEndsAt) + 1_000;
-        heartbeatAt < Date.parse(turnOnePhase.openAirspaceEndsAt);
+      for (let heartbeatAt = resumedAt + 1_000;
+        heartbeatAt < Date.parse(resumedPhase.openAirspaceEndsAt);
         heartbeatAt += 30_000) {
         vi.setSystemTime(new Date(heartbeatAt));
         await refreshPresence.run(request({
@@ -1323,7 +1353,7 @@ describe('Prompt 020 production lobby-to-Team-Phase composition', () => {
           instanceId: composition.startRequest.instanceId,
         }, composition.ownerUid));
       }
-      vi.setSystemTime(new Date(Date.parse(turnOnePhase.openAirspaceEndsAt) + 1));
+      vi.setSystemTime(new Date(Date.parse(resumedPhase.openAirspaceEndsAt) + 1));
       const advanceRequests = [
         { sessionId: composition.sessionId, instanceId: composition.startRequest.instanceId, requestId: 'advance-turn-1a', expectedTurn: 1 },
         { sessionId: composition.sessionId, instanceId: composition.startRequest.instanceId, requestId: 'advance-turn-1b', expectedTurn: 1 },
@@ -1334,6 +1364,9 @@ describe('Prompt 020 production lobby-to-Team-Phase composition', () => {
       expect(advances.filter((result) => result.status === 'rejected')).toHaveLength(1);
       const advanced = advances.find((result): result is PromiseFulfilledResult<Record<string, unknown>> =>
         result.status === 'fulfilled')!.value;
+      const turnTwoPhase = advanced.turnPhase as { teamPhaseEndsAt: string; openAirspaceEndsAt: string };
+      expect(Date.parse(turnTwoPhase.openAirspaceEndsAt) - Date.parse(turnTwoPhase.teamPhaseEndsAt))
+        .toBe(15 * 60_000);
       expect(advanced).toMatchObject({
         currentTurn: 2,
         turnPhase: { turn: 2, airspace: { state: 'restricted' } },
