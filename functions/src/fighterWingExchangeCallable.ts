@@ -152,6 +152,7 @@ export const exchangeAegisFighterWings = auditedOnCall<{
     const phase = turnPhaseState(session.get('turnPhase'));
     if (!Number.isSafeInteger(currentTurn) || (currentTurn as number) < 1 || !phase ||
         phase.turn !== currentTurn || phase.airspace.state !== 'restricted' ||
+        phase.timerPause !== undefined ||
         turnPhaseDeadlinePassed(phase, 'team', now) || expectedTurn !== currentTurn) {
       throw commandError('failed-precondition', 'Fighter Wing exchange is available only during the current Team Phase.', 'invalid-phase');
     }

@@ -24,6 +24,7 @@ export default function AegisFighterWingExchangePanel() {
   const bravo = counts?.['fighter-wing-bravo'];
   const phase = phaseForSession(session);
   const teamOpen = Boolean(phase && phase.airspace.state === 'restricted' &&
+    phase.timerPause === undefined &&
     !turnPhaseDeadlinePassed(phase, 'team'));
   const liveAuthority = Boolean(session && me?.sessionId === session.id && me.role === 'player' &&
     me.activeConsoleRoleId === 'wing-commander' && connection === 'live' && freshness === 'server');
