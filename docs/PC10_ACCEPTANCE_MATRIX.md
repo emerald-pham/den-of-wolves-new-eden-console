@@ -1324,3 +1324,68 @@ role/function inventory. They close no fixed catalog row: all48 remain open,
 703/751 overall and245/293 campaign, while other unique mechanics and final
 release gates remain. The N/O/P helper retains its current runtime/ownership;
 candidate requester-peer/private-audience preparation is the next owner scope.
+
+### October 8 released-base reconciliation and next private audience slice
+
+The isolated owner branch merged released `0.5.71` main
+`9bfe4c3ae338f21eb564323c0d26822a28b628ec` at `32863c47`.
+The owner candidate remains unreleased `0.5.72`; no release or catalog closure
+is earned by this integration. All531 tracked Functions/rules inputs match
+the pre-merge snapshot, and the original dirty checkout's exact porcelain
+status is unchanged. Existing license, notices and assets remain unchanged.
+Keep the accepted Highwall source81947/evidence, clock overrun and limited
+post-reload screenshot coverage above. Its server behavior is unchanged;
+the reconciled client's changed guidance still needs final rendered acceptance.
+
+Separate test-first commits3305d036 and1b90432d observed5 craft-guidance and2
+production-member consumer failures before conflict repair. The repaired
+guidance names Warrior cargo correctly, preserves noncharging Warrior/Vulcan
+drive behavior, and describes Macaw's1Scrap-to-Capybara consent handoff.
+Both protected-berth and ordinary-production member contracts still require
+the actual mounted SDK's accepted authority and completed resume fence.
+Existing tests/assertions remain intact. Focused validation passed36 component
+tests and140 source/proof checks; the client build passed. Two initial
+presentation failures were missing real`selectIsGm` fixture dependencies,
+not gameplay failures. Separate fixture commit7ac7f189 loads that actual source
+selector; all23 presentation checks then passed. These checks and build do
+not establish native private audiences, final painted typography or release.
+
+The next owner slice is one real Cycle1 Endeavour scout followed by
+requester/ordinary same-group peer reads. Minimum cohort:3 normally admitted
+independent Auth actors and3 browser processes/contexts: GM for protected
+manual preparation/start, Shepherd Scientist requester, and Icebreaker Miner
+peer. The printed legal16 roster includes these roles; remaining seats stay
+open. Two actors cannot prove the live requester/peer distinction while
+retaining the GM required by legitimate setup. It shares existing admission,
+GM authority, manual progression and member navigation, then creates only the
+one fresh populated report needed for this new audience claim. It does not
+replay accepted N/O/P outcomes, research, Ring, Close, cargo or Highwall.
+
+Source-derived privacy contract: the peer may read its own discovery document's
+candidate`code`/`title` allowlist. That allowlist omits the scout coordinate,
+request identity, requester identity and private note. The original requester
+may read its own full result/index/durable note through the normal callable.
+The peer must have an empty own index and must be denied the requester's full
+result/note, including an attempted borrowed live GM instance. Ten populated
+ordinary SDK document/query denials cover private requests/results/audits,
+requester notes/discovery and discovery enumeration. The actual ordinary
+server member envelope must omit private fields; a filtered store is
+insufficient. Scoped original scout/navigation/receipt hashes must remain
+unchanged by reads, and the same peer's normal cold reload must preserve both
+the allowed candidate names and requester-only denials. Foreign groups,
+revocation, expiration, hidden loyalty, ending histories and capacity remain
+outside this first slice; it does not close541/629/635 or any fixed row.
+
+The new driver is`scripts/pc10-scout-private-audience-ui-proof.mjs`.
+Before adaptation, separate test commit2b6edb62 observed4 meaningful failures
+against the accepted two-actor driver: three-actor launch, normal casting,
+three-owned-member cleanup and the absolute parent deadline. Later source-only
+consumer checks added in f9e56f55 validate refusal paths after adaptation;
+they do not backfill test-first chronology or native credit. Separate
+test commit796decf2 observed2 server-envelope failures before that repair.
+All15 focused contracts and affected lint are green. Independent exact-source
+review and native execution are pending. The future allocation's absolute
+deadline includes startup and cleanup; preserve the original60-second
+operation and60-second cleanup windows, refuse insufficient time, and stop
+at the first unexplained integration failure. No new browser or emulator
+started during this source preparation. All48 fixed rows remain open.
