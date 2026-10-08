@@ -617,11 +617,13 @@ export async function runBaseCombatAndDeduction(context, options = {}) {
           const result = await rpc(surface, 'advanceEndeavourResearchTrack', () => button.click(), {
             expectedCycle: report.cycle, expectedResearchRevision: workspace.researchRevision,
             expectedControlRevision: current.shuttleControl?.endeavour?.revision, trackId: 'wolf-agent-detector', funding });
-          await waitForBaseResearchReceipt({ inspect: () => surface.observe(), original, receipt: result,
+          const confirmedWorkspace = await waitForBaseResearchReceipt({ inspect: () => surface.observe(), original, receipt: result,
             read: () => currentActorRead(surface, 'readEndeavourResearchWorkspace'),
             renderedReady: value => renderedResearch(value, result) });
           committed('detector-research-cross', { audience: 'actor', cycle: report.cycle,
-            researchRevision: result.researchRevision, crossedBoxes: result.progress['wolf-agent-detector'],
+            researchRevision: result.researchRevision,
+            crossedBoxes: confirmedWorkspace.tracks.find(track => track.trackId === 'wolf-agent-detector').crossedBoxes,
+            earnedMarks: result.progress['wolf-agent-detector'],
             oreSpent: result.oreCost, exactSourceAndRenderedReceipt: true });
         } else blocked('detector-research-cross', 'Actual Team/control/cadence/resources block the offered research action.', role);
       }
