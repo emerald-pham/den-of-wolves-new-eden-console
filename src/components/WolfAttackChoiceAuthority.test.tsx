@@ -410,7 +410,7 @@ it('shows the Commander ruling only to the current live GM instance and sends th
   const rulingView: WolfBoardingSpecialChoiceReadResult = {
     type: 'wolf-boarding-special-choice-view', sessionId: 's1', turn: 1, revision: 7,
     choice: { kind: 'commander-ruling', targetShipId: 'aegis',
-      condition: 'All Commander-led Wolf Boarding Parties were destroyed.' },
+      condition: 'HOUSE RULE: The optional +2 Commander boarding request remains pending until the current live GM records the consequence for what happens if all Commander-led Wolf Boarding Parties are destroyed. No automatic consequence or default outcome is assumed.' },
   };
   mocks.getBoardingSpecial.mockResolvedValue(rulingView);
   render(<WolfBoardingSpecialChoicePanel facilitator />);

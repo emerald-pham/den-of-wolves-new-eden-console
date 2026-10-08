@@ -5094,7 +5094,7 @@ it('mounts the genuine private boarding ruling for the current live facilitator'
   });
   vi.mocked(getWolfBoardingSpecialChoice).mockResolvedValue({type: 'wolf-boarding-special-choice-view',
     sessionId: 's1', turn: 4, revision: 9,
-    choice: {kind: 'commander-ruling', targetShipId: 'aegis', condition: 'All Commander-led Wolf Boarding Parties were destroyed.'}});
+    choice: {kind: 'commander-ruling', targetShipId: 'aegis', condition: 'HOUSE RULE: The optional +2 Commander boarding request remains pending until the current live GM records the consequence for what happens if all Commander-led Wolf Boarding Parties are destroyed. No automatic consequence or default outcome is assumed.'}});
   renderConsole();
   expect(await screen.findByRole('textbox', {name: 'Facilitator ruling'})).toBeVisible();
   expect(getWolfBoardingSpecialChoice).toHaveBeenCalled();
