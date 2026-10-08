@@ -75,6 +75,11 @@ export function stationCombatServerContext({sessionId,root,pdfWing,publicAudienc
  const playerKeys=['uid','role','assignedRoleId','activeConsoleRoleId','replacementRoleId','replacementStatus','connected','seatId','kickedAt','escapeState','fleetGroupId'];
  return {sessionId,...Object.fromEntries(keys.filter(key=>root[key]!==undefined).map(key=>[key,root[key]])),pdfEscortWing:pdfWing,publicAudience,fleetGroups:fleetGroups.map(group=>Object.fromEntries(['id','vesselIds','memberUids','memberShipIds'].filter(key=>group[key]!==undefined).map(key=>[key,group[key]]))),players:players.map(player=>Object.fromEntries(playerKeys.filter(key=>player[key]!==undefined).map(key=>[key,player[key]])))};
 }
+// Behavior-preserving extraction of the Station acknowledgment's current actor projection.
+// Keep this field mapping intact until its native observer schema is reconciled below.
+export function stationPopulationGmActorAnchor(actor){
+ return Object.fromEntries(['sessionId','uidHash','generation','hydrationRevision','instanceId','claimedAt'].map(key=>[key,actor[key]]));
+}
 export function stationPopulationAlertsForGm(populationAlerts,instanceId){
  assert.ok(typeof instanceId==='string'&&instanceId.length>0);
  const targets=Object.entries(populationAlerts??{}).filter(([,alert])=>alert?.targetGmInstanceIds?.includes(instanceId));
@@ -1095,7 +1100,6 @@ async function enterRole(surface,label){
     assert.ok(Date.now()<deadlineAt); // Additional actors use only their current ordinary crew surfaces.
    };
    const readOwnedStationAuthority=deadlineAt=>candidateWait(()=>readStationCombatGuardAuthority({db,scope:{ownedSyntheticSession:true,sessionId:sid,ownedSessionId:sid,projectId,expectedProjectId:allocation.projectId,firestoreHost:process.env.FIRESTORE_EMULATOR_HOST,expectedFirestoreHost:`127.0.0.1:${ports.firestore}`}}),deadlineAt,'Station population acknowledgment source read');
-   const stationAckActorAnchor=actor=>Object.fromEntries(['sessionId','uidHash','generation','hydrationRevision','instanceId','claimedAt'].map(key=>[key,actor[key]]));
    const assertStationAckActor=(anchor,actor)=>{for(const key of Object.keys(anchor))assert.equal(actor[key],anchor[key],`Original Station GM ${key} changed during population acknowledgment.`);};
    const stationGmPopulationProjection=async deadlineAt=>{
     const projection=await candidateWait(()=>gm.page.evaluate(async storeUrl=>{
@@ -1130,7 +1134,7 @@ async function enterRole(surface,label){
    const acknowledgeStationPopulationAlert=async({wave,nextWave,final,deadlineAt})=>{
     assert.ok(Number.isFinite(deadlineAt)&&Date.now()<deadlineAt,'Original Station wave deadline expired before population acknowledgment.');
     assert.equal(final.status,'resolved');assert.equal(final.currentStep,'resolved');assert.equal(final.pStationRepeat?.status,'repeat','Only a normal repeat wave may acknowledge its informational alert.');
-    const initialActor=await liveGm(gm,'GM1','active',{deadlineAt}),actorAnchor=stationAckActorAnchor(gm1OriginalAuthority);assertStationAckActor(actorAnchor,initialActor);
+    const initialActor=await liveGm(gm,'GM1','active',{deadlineAt}),actorAnchor=stationPopulationGmActorAnchor(gm1OriginalAuthority);assertStationAckActor(actorAnchor,initialActor);
     let ready=null;
     while(Date.now()<deadlineAt){
      const currentActor=await liveGm(gm,'GM1','active',{deadlineAt});assertStationAckActor(actorAnchor,currentActor);
@@ -1176,7 +1180,7 @@ async function enterRole(surface,label){
      const currentUi=stationPopulationUiRows(currentAlerts);assert.deepEqual(currentProjection.targetedPopulation,currentUi);
      assert.equal(currentProjection.visibleDialogs.length,1);assert.equal(stationPopulationDialogMatches(currentProjection.visibleDialogs[0],currentUi[0]),true);
      const currentMount=await stationPopulationDismissMount();
-     return{actor:stationAckActorAnchor(currentActor),source:stable(current),attack:stable(currentAuthority.authoritativeAttack),projection:stable(currentProjection),shipId,alert:stable(currentAlerts[0][1]),revision:current.vesselActionRevisions?.[shipId]??0,mounted:currentMount.mounted};
+     return{actor:stationPopulationGmActorAnchor(currentActor),source:stable(current),attack:stable(currentAuthority.authoritativeAttack),projection:stable(currentProjection),shipId,alert:stable(currentAlerts[0][1]),revision:current.vesselActionRevisions?.[shipId]??0,mounted:currentMount.mounted};
     };
     const readIntentBookend=async()=>{
      assert.ok(Date.now()<deadlineAt,'Original Station wave deadline expired before the final source bookend.');
@@ -1184,7 +1188,7 @@ async function enterRole(surface,label){
      const bookendAuthority=await readOwnedStationAuthority(deadlineAt),bookend=stationCombatServerContext({...bookendAuthority,publicAudience:null});assertSafePopulationAckState(bookendAuthority,bookend);
      assert.equal(stable(bookend),stable(before),'Station source, safety state, or pinned population alert changed during the final mounted-control checks.');
      assert.equal(stable(bookendAuthority.authoritativeAttack),stable(beforeAuthority.authoritativeAttack),'Resolved Station attack changed during the final mounted-control checks.');
-     return{actor:stationAckActorAnchor(bookendActor),source:stable(bookend),attack:stable(bookendAuthority.authoritativeAttack)};
+     return{actor:stationPopulationGmActorAnchor(bookendActor),source:stable(bookend),attack:stable(bookendAuthority.authoritativeAttack)};
     };
     assert.ok(Date.now()<deadlineAt,'Original Station wave deadline expired before population dismissal intent verification.');
     const capture=await action(gm,'dismissPopulationAlert',()=>stationPopulationDismissIntent({deadlineAt,expected:expectedIntent,readCurrentIntent,readIntentBookend,click:()=>{const timeout=deadlineAt-Date.now();assert.ok(Number.isFinite(timeout)&&timeout>0,'Original Station wave deadline expired immediately before the population dismissal click.');return dismiss.click({timeout});}}),{deadlineAt,original:beforeActor,gm:true,matches:data=>data?.sessionId===sid&&data?.shipId===shipId&&data?.instanceId===gm1Instance&&data?.expectedRevision===expectedRevision});
