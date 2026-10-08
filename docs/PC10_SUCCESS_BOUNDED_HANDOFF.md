@@ -205,3 +205,60 @@ runtime continuation. Dependency symlinks point to the supplied active checkout;
 do not delete their targets. No private evidence or credentials are committed.
 Parent owns integration and eventual eligible worktree removal; no PR, push,
 merge, CI, production deployment or checkpoint closure was attempted.
+
+### First executable minimum cohort: fresh Ring (source only)
+
+`scripts/pc10-fresh-minimum-ring-proof.mjs` now composes normal admission,
+13-role manual setup with ten unused seats open, fresh ordinary Scientist
+research across four cycles, official scoped GM maintenance/counters/jumps,
+Engineering Shuttle commitment, six paid Ring passages, explicit far-side
+sabotage, immutable debrief/close and same-UID member history reload.
+The fresh research creates required state; it does not requalify the prior
+20-choice discovery/preparation evidence. No product code or visual source changes.
+
+The runner uses three distinct normally admitted Auth identities (GM,
+Shepherd Scientist, Shepherd Engineer), two Chrome processes and three isolated
+normal contexts. Its original total cap is 1,200,000ms, including a final
+60,000ms cleanup reserve. Original paid-crossing interruption/recovery has one
+60,000ms deadline. Admin is used for read witnesses and deletion of precisely
+owned fresh session/account/pointer data, never gameplay state creation.
+The setup deliberately uses authorized normal demo GM counter/repair handlers;
+that preparation is recorded and does not establish ordinary-player resource
+acquisition or balance claims.
+
+Parent allocation is required before invoking:
+
+```sh
+node /tmp/dow-pc10-success-20261008/scripts/pc10-fresh-minimum-ring-proof.mjs --allocation /tmp/dow-pc10-evidence/RING_PARENT_ALLOCATION.json --evidence /tmp/dow-pc10-evidence/minimum-ring-1
+```
+
+The allocation JSON must contain `status: EXPLICIT_PARENT_ALLOCATION_GRANTED`,
+absolute `sourceRoot`, a fresh `demo-...` project ID, loopback HTTP `baseUrl`,
+three distinct `ports` (`auth`, `firestore`, `functions`) distinct from the UI
+port, exact 40-hex `sourceCommit`, and exact 64-hex `runnerSha256`,
+`compiledIndexSha256`, and `compiledTreeSha256`. Use the reconciled clean
+source checkout and rebuilt server tree; obtain the complete tree hash through
+existing `capturePc10Gate2SourceBinding(sourceRoot, absoluteRunnerPath)`.
+The runner creates no server processes. Parent owns verified runtime startup
+and allocation. Evidence directory must be new and outside the source tree.
+
+Focused synthetic procedure/guard contracts are labeled synthetic and are
+not runtime acceptance. Initial fresh-workflow RED was committed in `cc8b600c`,
+implementation in `047e7318`; cleanup/full-tree binding RED `5ee644eb`, GREEN
+`00f5e0d2`; concrete HTTP replay-shape RED `c951e82b`, GREEN `679b5214`.
+
+Until a real allocated run passes, N/647 and the narrow 619 paid-passage recovery
+remain unqualified. Low-fuel left-behind variants, new-request duplicate
+contribution/passages, wider 619 mechanics, O/648 and P/649 are outside this
+first executable run. Full ending presentation/typography acceptance remains
+unclaimed; screenshots are diagnostic evidence only. No checkpoint closure,
+release, PR, push or deployment is authorized for this helper.
+
+Independent Sol review of the executable found maintenance rate-limit bursts,
+second-precision Auth cleanup, unchecked browser failures and an unmeasured
+noninterference assertion. RED commits `98e024f0`/`6c0fd0f3` record focused
+regressions. Repairs pace ordinary maintenance calls 2,100ms apart within the
+same cap (no bypass/retry), bind owned Auth cleanup against prelaunch census
+and precision-aware creation time, require no collected page/remote errors,
+and explicitly label wider noninterference `not-measured`. The final focused
+suite has nine synthetic contracts; native execution remains untested.

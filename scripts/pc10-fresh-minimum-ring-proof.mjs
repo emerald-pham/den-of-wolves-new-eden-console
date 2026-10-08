@@ -40,6 +40,18 @@ export function validateRingAllocation(input) {
  for(const key of ['sourceCommit','runnerSha256','compiledIndexSha256','compiledTreeSha256'])assert.match(input[key]??'',key==='sourceCommit'?/^[0-9a-f]{40}$/:/^[0-9a-f]{64}$/,key);
  return input;
 }
+export function createRingMaintenancePacer({now=Date.now,wait=delay}={}) {
+ let last=null;
+ return async()=>{if(last!==null){const remaining=last+2100-now();if(remaining>0)await wait(remaining);}last=now();};
+}
+export function assertFreshRingIdentity(user,startAt,preexistingUids) {
+ assert.equal(preexistingUids.has(user.uid),false,'Never delete a preexisting Auth identity.');
+ assert.ok(Date.parse(user.metadata.creationTime)>=Math.floor(startAt/1000)*1000,'Require own fresh Auth identity.');
+}
+export function assertRingRuntimeClean(errors,remoteRequests) {
+ assert.deepEqual(errors,[],'Native page errors prevent proof acceptance.');
+ assert.deepEqual(remoteRequests,[],'Blocked remote requests prevent proof acceptance.');
+}
 export function expectedRingRecoveryReply(original) { return {...original,status:'replayed'}; }
 export function finalizeRingEvidence(evidence, cleanup, originalFailure) {
  evidence.cleanup=cleanup;
@@ -66,7 +78,8 @@ export async function runFreshMinimumRingProof({allocationPath,directory}) {
  const browsers=[],surfaces=[],errors=[],calls=[],requests=[],remoteRequests=[],states=[],receipts=[],claims=[];
  let gm,owner,recipient,sid,joinCode,stage='not-started',consumed=null,primaryFailure=null;
  const startAt=Date.now(),totalEnd=startAt+1200000,workEnd=totalEnd-60000;
- const actorUids=new Map(),pendingLaunches=[];let stopped=false;
+ const actorUids=new Map(),pendingLaunches=[],preexistingUids=new Set();let stopped=false;
+ const paceMaintenance=createRingMaintenancePacer();
  const roleIds={Owner:'shepherd-engineer',Recipient:'shepherd-scientist'};
  const evidence={schemaVersion:1,...minimumRingPlan(),sourceCommit,runnerSha256:allocation.runnerSha256,
   compiledIndexSha256:allocation.compiledIndexSha256,sourceBinding,actualHumans:0,actualBrowserProcesses:0,
@@ -380,6 +393,7 @@ async function enterRole(surface,label){
  async function recordRoot(){return op(async()=>{const value=await db.doc(`sessions/${sid}`).get();assert.equal(value.exists,true);return value.data();});}
  async function sdk(surface,name,data){
   return op(async deadlineAt=>{
+   if(name==='runMaintenance')await paceMaintenance();
    if(surface===gm)await liveGm(gm,'GM1',undefined,{deadlineAt});
    else await memberReady(surface,surface===owner?'Owner':'Recipient',{deadlineAt});
    const response=await surface.callable(name,data,Math.min(35000,deadlineAt-Date.now()));
@@ -598,13 +612,17 @@ async function enterRole(surface,label){
   const runtime=await bounded(fetch(`${baseUrl}/src/lib/firebaseConfig.ts`).then(response=>response.text()),15000,'Original preflight runtime read expired.');
   evidence.runtime=validateProofRuntime(proofRuntimeFromViteSource(runtime),{baseUrl,projectId,ports});
   assert.equal((await bounded(db.collection('sessions').get(),15000,'Original preflight session census expired.')).size,0);
+  const authCensus=await bounded(adminAuth.listUsers(1000),15000,'Original preflight Auth census expired.');
+  assert.equal(authCensus.pageToken,undefined,'Use a fresh bounded isolated runtime.');
+  for(const user of authCensus.users)preexistingUids.add(user.uid);
+  evidence.preexistingAuthCount=preexistingUids.size;
   await writeFile(`${directory}/prelaunch.json`,JSON.stringify({allocation,sourceCommit,plan:minimumRingPlan(),nativeLaunched:false},null,2)+'\n');
   await Promise.race([lossAckFailure.then(error=>{throw error;}),bounded(runRingWorkflow(operations),workEnd-Date.now(),'Ring execution work cap exhausted.',()=>{stopped=true;})]);
-  evidence.status='passed';
+  assertRingRuntimeClean(errors,remoteRequests);evidence.status='passed';
  }catch(error){primaryFailure=error;stopped=true;evidence.status='failed';evidence.firstFailure={stage,error:originalProofError(error)};
   if(directoryCreated)await retainProofFailure(directory,'minimum-ring',error,{stage,consumed,claims}).catch(()=>{});
  }finally{
-  stopped=true;const cleanup={browsersClosed:0,sessionAbsent:false,deletedOwnAuth:0,deletedOwnPointers:0,errors:[],otherDataChanged:false};
+  stopped=true;const cleanup={browsersClosed:0,sessionAbsent:false,deletedOwnAuth:0,deletedOwnPointers:0,errors:[],otherDataChanged:'not-measured'};
   async function clean(label,run){const remaining=totalEnd-Date.now()-1000;if(remaining<=0){cleanup.errors.push({label,error:'original cleanup cap expired'});return;}try{return await bounded(Promise.resolve().then(run),remaining,`Original ${label} cleanup expired.`);}catch(error){cleanup.errors.push({label,error:originalProofError(error)});}}
   for(const control of lossAckControls)await clean('interrupted reply handler',()=>control.dispose(Math.min(5000,totalEnd-Date.now()-1000)));
   await clean('owned pending launches',()=>Promise.allSettled(pendingLaunches));
@@ -614,7 +632,7 @@ async function enterRole(surface,label){
    await clean('own membership pointers',async()=>{const pointers=await db.collection('activeMemberships').where('sessionId','==',sid).get();assert.ok(pointers.docs.every(doc=>[...actorUids.values()].includes(doc.id)));await db.runTransaction(async tx=>{const documents=await Promise.all(pointers.docs.map(doc=>tx.get(doc.ref)));for(const doc of documents){assert.equal(doc.get('sessionId'),sid);tx.delete(doc.ref);}});cleanup.deletedOwnPointers=pointers.size;});
    await clean('own fresh session',async()=>{await db.recursiveDelete(db.doc(`sessions/${sid}`));cleanup.sessionAbsent=!(await db.doc(`sessions/${sid}`).get()).exists;assert.equal(cleanup.sessionAbsent,true);});
   }
-  for(const uid of actorUids.values())await clean('own fresh Auth',async()=>{const user=await adminAuth.getUser(uid);assert.ok(Date.parse(user.metadata.creationTime)>=startAt);await adminAuth.deleteUser(uid);cleanup.deletedOwnAuth++;});
+  for(const uid of actorUids.values())await clean('own fresh Auth',async()=>{const user=await adminAuth.getUser(uid);assertFreshRingIdentity(user,startAt,preexistingUids);await adminAuth.deleteUser(uid);cleanup.deletedOwnAuth++;});
   await clean('source unchanged',async()=>{assert.deepEqual(await capturePc10Gate2SourceBinding(root,fileURLToPath(import.meta.url)),sourceBinding);assert.equal(execFileSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8'}).trim(),sourceCommit);assert.equal(execFileSync('git',['status','--porcelain','--untracked-files=no'],{cwd:root,encoding:'utf8'}).trim(),'');});
   await clean('own Admin client',async()=>{await db.terminate();await deleteApp(adminApp);});
   evidence.cleanup=cleanup;evidence.elapsedMs=Date.now()-startAt;
