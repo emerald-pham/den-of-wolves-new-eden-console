@@ -1,3 +1,6 @@
+import { initialMaliadesState } from './maliadesState';
+import { recommendedRoleIds } from './roleConfiguration';
+import { beginPdfEscortWingAttack, initialPdfEscortWingState } from './pdfEscortWingState';
 import capturedP from './test-fixtures/pc10-p-targeting-stall.json';
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { CallableRequest } from 'firebase-functions/v2/https';
@@ -1412,6 +1415,7 @@ it('does not leave charged Command and Control ownerless when no Executive Offic
 
   await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
 
+  await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
   expect(testState.documents.get('sessions/s1/wolfAttackState/current')).toMatchObject({
     currentStep: 'long-range', revision: 5,
     targetingCompletion: { commandAndControl: 'unavailable' },
@@ -3051,22 +3055,26 @@ it('rejects unprinted Vulcan Long Range and unavailable charge/custody use with 
   expect(entropy.randomInt).not.toHaveBeenCalled();
 });
 
-it('advances the captured P targeting receipt with startup sparse damage and absent EO', async () => {
+it.each([false, true])('advances the captured P targeting receipt with unowned uncharged Maliades (Dione damage stored=%s)', async (storedDioneDamage) => {
   const session = testState.documents.get('sessions/s1')!;
   put('sessions/s1', { ...session, currentTurn: 2, turnPhase: capturedP.turnPhase,
-    activeRoleIds: ['wing-commander'], shipDamage: {},
-    maintenanceCycles: { aegis: { turn: 2, step: 7, revision: 2,
-      charges: ['fighter-bay-alpha', 'fighter-bay-bravo', 'jump-drive'], results: {}, refuelled: [] } } });
+    activeRoleIds: recommendedRoleIds(13), shipDamage: { aegis: { damagedSystemIds: [], destroyed: false }, ...(storedDioneDamage ? { dione: { damagedSystemIds: [], destroyed: false } } : {}) },
+    maintenanceCycles: { aegis: { turn: 2, step: 0, revision: 14,
+      charges: ['fighter-bay-alpha', 'fighter-bay-bravo', 'jump-drive'], results: { '5': 'Reactor powered up.', '7': 'Maintenance cycle complete.' }, refuelled: [] },
+      dione: { turn: 2, step: 0, revision: 14, charges: ['jump-drive'], results: { '5': 'Reactor powered up.', '7': 'Maintenance cycle complete.' }, refuelled: [] } },
+    maliadesState: initialMaliadesState() });
   testState.documents.delete('sessions/s1/players/xo-1');
   put('sessions/s1/players/wing-captured', { uid: 'wing-captured', role: 'player', connected: true,
     assignedRoleId: 'wing-commander', activeConsoleRoleId: 'wing-commander', fleetGroupId: 'fleet-1' });
   put('sessions/s1/fleetGroups/fleet-1', { id: 'fleet-1', vesselIds: session.activeVesselIds,
     memberUids: ['wing-captured'], memberShipIds: { 'wing-captured': 'aegis' } });
+  put('sessions/s1/serverState/pdfEscortWing', { ...beginPdfEscortWingAttack(initialPdfEscortWingState(), { expectedRevision: 0, attackId: capturedP.attack.attackId, attackCycle: 2 }) });
   put('sessions/s1/wolfAttackState/current', structuredClone(capturedP.attack));
   await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
+  await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
   expect(testState.documents.get('sessions/s1/wolfAttackState/current')).toMatchObject({
-    currentStep: 'long-range', revision: 4,
+    currentStep: 'long-range', revision: 5,
     targetingCompletion: { status: 'no-commander', commandAndControl: 'unavailable',
-      reason: 'no-configured-executive-officer' },
+      reason: 'no-current-executive-officer' },
   });
 });
