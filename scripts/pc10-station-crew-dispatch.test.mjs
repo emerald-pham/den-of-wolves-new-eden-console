@@ -1198,6 +1198,34 @@ test('rejects a changed authoritative phase tuple before actor scope freeze', as
   assert.deepEqual(pdf.effects.clicks, []);
 });
 
+test('retains timestamped normal-GM phase read windows before rejecting source drift', async () => {
+  const current = attack('targeting');
+  const pdf = surface('refinery-124-pdf-colonel', { type: 'pdf-escort-wing-launch-view',
+    sessionId, turn: 3, revision: 8, wingRevision: 4, launched: false, eligible: true });
+  pdf.testActor.turnStatePhaseRevision = 13;
+  let reads = 0;
+  const opts = options([{ roleId: pdf.label, surface: pdf }], current);
+  opts.gmAuthority = originalStationGmAuthority;
+  opts.readTurnState = async () => stationPhaseEnvelope(pdf.testActor, ++reads === 1 ? 13 : 15);
+
+  let failure;
+  try { await dispatchStationCrewChoice(current, opts); } catch (error) { failure = error; }
+  assert.match(failure?.message ?? '', /phase|turnState|authoritative/i);
+  const held = heldProofFailureObservations(failure).find(item => item.operation === 'station-crew-lock-readiness');
+  const phaseReads = held?.consumedObservations?.phaseReads ?? [];
+  assert.ok(phaseReads.length >= 2, 'Retain the pinned and changed normal-GM source reads that caused the stop.');
+  for (const read of phaseReads) {
+    assert.equal(read.channel, 'original-GM-browser-Firestore-SDK');
+    assert.ok(Number.isFinite(Date.parse(read.startedAt)) && Number.isFinite(Date.parse(read.completedAt)));
+    assert.ok(Date.parse(read.completedAt) >= Date.parse(read.startedAt));
+    assert.ok(Number.isFinite(read.deadlineAt));
+    assert.ok(read.snapshot?.session?.turnState, 'Retain each exact consumed source projection with its read window.');
+  }
+  assert.equal(phaseReads.at(-1).snapshot.session.turnState.phaseRevision, 15);
+  assert.deepEqual(pdf.effects.reads, []);
+  assert.deepEqual(pdf.effects.clicks, []);
+});
+
 test('rejects authoritative phase drift after actor scope freeze before UI intent', async () => {
   const current = attack('targeting');
   const pdf = surface('refinery-124-pdf-colonel', { type: 'pdf-escort-wing-launch-view',
