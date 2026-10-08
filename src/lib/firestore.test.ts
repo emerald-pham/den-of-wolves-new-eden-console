@@ -2082,6 +2082,7 @@ it('hydrates only the current player loyalty and a GM-visible setup receipt afte
 it('clears a peer reader when its own loyalty secret path denies access', () => {
   vi.mocked(doc).mockImplementation(((_database: unknown, path: string) => ({ path })) as never);
   const { callbacks, errors } = captureSessionListener();
+  const listenerCallOffset = vi.mocked(onSnapshot).mock.calls.length;
   const onPrivateLoyalty = vi.fn();
   const onError = vi.fn();
   subscribeSessionState('s1', 'u2', {
@@ -2089,10 +2090,11 @@ it('clears a peer reader when its own loyalty secret path denies access', () => 
     onPrivateLoyalty, onError,
   });
 
-  const privateListenerIndex = vi.mocked(onSnapshot).mock.calls.findIndex(([reference]) =>
+  const privateListenerIndex = vi.mocked(onSnapshot).mock.calls.findIndex(([reference], index) =>
+    index >= listenerCallOffset &&
     (reference as { readonly path?: string } | undefined)?.path === 'sessions/s1/secrets/loyalty-u2');
   expect(privateListenerIndex).toBeGreaterThanOrEqual(0);
-  errors[privateListenerIndex]?.({ code: 'permission-denied' });
+  errors[privateListenerIndex - listenerCallOffset]?.({ code: 'permission-denied' });
 
   expect(onPrivateLoyalty).toHaveBeenLastCalledWith(null);
   expect(onPrivateLoyalty).not.toHaveBeenCalledWith(expect.objectContaining({ directives: expect.any(Array) }));
