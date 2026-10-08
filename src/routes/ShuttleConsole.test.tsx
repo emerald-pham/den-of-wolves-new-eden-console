@@ -1,6 +1,8 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, it, vi } from 'vitest';
+import { deleteApp, initializeApp } from 'firebase/app';
+import { connectFunctionsEmulator, getFunctions, httpsCallable } from 'firebase/functions';
 import { Link, MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom';
 import { useSessionStore } from '@/store/useSessionStore';
 import { SHUTTLECRAFT } from '@/data/shuttles';
@@ -295,6 +297,7 @@ beforeEach(() => {
     hostShipId: 'quellon', consoleId: 'hydroponics', cycle: 2, maintenanceRevision: 10,
     rechargeRevision: 1, immediate: true, message: 'Hydroponics: spent 1 water, generated 3 food.',
   });
+  vi.mocked(replayServiceShuttleRecharge).mockReset();
   vi.mocked(repairConsolesFromBlacksmith).mockReset();
   vi.mocked(repairConsolesFromBlacksmith).mockResolvedValue({
     status: 'committed', hostShipId: 'icebreaker', systemIds: ['reactor', 'storage'],
@@ -2404,6 +2407,144 @@ it('preserves a service recharge selection and waits for current revisions befor
   expect(within(screen.getByRole('region', { name: 'Shuttle control' })).getByRole('status', { name: '' })).toHaveTextContent(/spent 4 ore, generated 4 fuel/i);
 });
 
+async function firebaseRechargeFetchFailure(): Promise<unknown> {
+  // Exercise the installed public SDK, with all fetches intercepted. A lost
+  // acknowledgement must use its actual error taxonomy, not an invented code.
+  const app = initializeApp({ projectId: 'demo-pc10-recharge-sdk-unit' }, crypto.randomUUID());
+  const transport = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('Failed to fetch'));
+  try {
+    const functions = getFunctions(app);
+    connectFunctionsEmulator(functions, '127.0.0.1', 1);
+    const failure: unknown = await httpsCallable(functions, 'rechargeHostConsoleFromShuttle')({})
+      .then(() => undefined, (cause: unknown) => cause);
+    expect(transport).toHaveBeenCalledTimes(1);
+    expect(transport.mock.calls[0]![0]).toBe(
+      'http://127.0.0.1:1/demo-pc10-recharge-sdk-unit/us-central1/rechargeHostConsoleFromShuttle',
+    );
+    expect(failure).toMatchObject({ code: 'functions/internal', details: undefined });
+    return failure;
+  } finally {
+    transport.mockRestore();
+    await deleteApp(app);
+  }
+}
+
+async function interruptCommittedBlackSheepRecharge() {
+  const user = userEvent.setup();
+  const state = useSessionStore.getState();
+  const pending = deferred<Awaited<ReturnType<typeof rechargeHostConsoleFromShuttle>>>();
+  const failure = await firebaseRechargeFetchFailure();
+  state.setSession({
+    ...state.session!, phase: 'active', currentTurn: 2,
+    activeRoleIds: ['shepherd-engineer', 'shepherd-captain'], activeVesselIds: ['shepherd'],
+    turnPhase: {
+      turn: 2, teamPhaseEndsAt: '2026-09-21T12:00:00.000Z',
+      openAirspaceEndsAt: '2026-09-21T12:15:00.000Z',
+      airspace: { state: 'lifted', tickerActive: true, pressAccess: true },
+    },
+    shuttleDockings: [{ shuttleId: 'black-sheep', shipId: 'shepherd', dockedAt: 'now' }],
+    shuttleFuelled: { 'black-sheep': true },
+    shuttleControl: { 'black-sheep': {
+      shuttleId: 'black-sheep', ownerRoleId: 'shepherd-engineer', ownerUid: 'u2',
+      holderUid: 'u1', revision: 1,
+    } },
+    maintenanceCycles: { shepherd: {
+      step: 0, revision: 8, turn: 2, results: { '7': 'Maintenance cycle complete.' },
+      charges: ['jump-drive'], refuelled: ['black-sheep'], completedAt: 'now',
+    } },
+    shipDamage: { shepherd: { damagedSystemIds: [], destroyed: false } },
+    shipResources: { shepherd: {
+      ore: 8, fuel: 3, food: 2, water: 2, materials: 0, securityTeams: 2,
+    } },
+    serviceShuttleRecharges: {},
+  });
+  state.setMe({
+    ...state.me!, assignedRoleId: 'shepherd-captain', activeConsoleRoleId: 'shepherd-captain',
+    fleetGroupId: 'fleet-1',
+  });
+  state.setConnection('live');
+  state.setSessionSnapshotFreshness('server');
+  vi.mocked(rechargeHostConsoleFromShuttle).mockReturnValueOnce(pending.promise);
+  render(<MemoryRouter initialEntries={['/shuttles/black-sheep']}><Routes>
+    <Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} />
+  </Routes></MemoryRouter>);
+  const panel = screen.getByRole('region', { name: 'Service shuttle recharge' });
+  expect(within(panel).getByLabelText('Host console')).toHaveValue('');
+  await user.selectOptions(within(panel).getByLabelText('Host console'), 'water-reclamation');
+  await user.click(within(panel).getByRole('button', { name: 'Recharge console' }));
+  expect(rechargeHostConsoleFromShuttle).toHaveBeenCalledTimes(1);
+  const original = vi.mocked(rechargeHostConsoleFromShuttle).mock.calls[0]![0];
+  expect(original).toEqual({
+    requestId: expect.any(String), shuttleId: 'black-sheep', consoleId: 'water-reclamation',
+    expectedControlRevision: 1, expectedMaintenanceRevision: 8, expectedCycle: 2,
+    expectedHostShipId: 'shepherd',
+  });
+
+  // The member snapshot can arrive before the callable acknowledgement, as it
+  // did in the retained native failure. Publish its committed state first.
+  const current = useSessionStore.getState().session!;
+  act(() => state.setSession({
+    ...current,
+    maintenanceCycles: { shepherd: { ...current.maintenanceCycles!.shepherd!, revision: 10 } },
+    shipResources: { shepherd: { ...current.shipResources!.shepherd!, water: 4 } },
+    serviceShuttleRecharges: { 'black-sheep': {
+      cycle: 2, hostShipId: 'shepherd', consoleId: 'water-reclamation', revision: 1,
+    } },
+  }));
+  await act(async () => pending.reject(failure));
+  expect(within(panel).getByText('Recharged water-reclamation on Shepherd this cycle.')).toBeVisible();
+  expect(within(panel).getByRole('button', { name: 'Recharge console' })).toBeDisabled();
+  return { user, state, panel, original };
+}
+
+it('recovers the exact committed Water request after the installed Firebase SDK loses its acknowledgement', async () => {
+  const { user, panel, original } = await interruptCommittedBlackSheepRecharge();
+  expect(within(panel).getByText(
+    'Recharge result could not be confirmed. Retry the exact request; its request ID prevents a second charge.',
+  )).toBeVisible();
+  const committed = useSessionStore.getState().session;
+  vi.mocked(replayServiceShuttleRecharge).mockResolvedValueOnce({
+    status: 'replayed', sessionId: 's1', requestId: original.requestId,
+    shuttleId: 'black-sheep', hostShipId: 'shepherd', consoleId: 'water-reclamation',
+    cycle: 2, maintenanceRevision: 10, rechargeRevision: 1, immediate: true,
+    message: 'Water Reclamation: generated 2 water.',
+  });
+  await user.click(within(panel).getByRole('button', { name: 'Retry exact recharge request' }));
+  expect(replayServiceShuttleRecharge).toHaveBeenCalledTimes(1);
+  expect(replayServiceShuttleRecharge).toHaveBeenCalledWith(original);
+  expect(rechargeHostConsoleFromShuttle).toHaveBeenCalledTimes(1);
+  expect(useSessionStore.getState().session).toEqual(committed);
+  expect(within(screen.getByRole('region', { name: 'Shuttle control' })).getByRole('status', { name: '' }))
+    .toHaveTextContent('Water Reclamation: generated 2 water.');
+  expect(within(panel).queryByRole('button', { name: 'Retry exact recharge request' })).not.toBeInTheDocument();
+  expect(within(panel).getByRole('button', { name: 'Recharge console' })).toBeDisabled();
+});
+
+it.each(['holder revoked', 'actor changed', 'cache-backed snapshot'] as const)(
+  'withholds lost-acknowledgement recharge replay when its %s', async (change) => {
+    const { state, panel } = await interruptCommittedBlackSheepRecharge();
+    expect(within(panel).getByRole('button', { name: 'Retry exact recharge request' })).toBeEnabled();
+    act(() => {
+      if (change === 'holder revoked') {
+        const current = useSessionStore.getState().session!;
+        state.setSession({
+          ...current,
+          shuttleControl: { 'black-sheep': {
+            ...current.shuttleControl!['black-sheep']!, holderUid: 'next-holder', revision: 2,
+          } },
+        });
+      } else if (change === 'actor changed') {
+        state.setMe({ ...useSessionStore.getState().me!, uid: 'next-actor' });
+      } else {
+        state.setSessionSnapshotFreshness('cache');
+      }
+    });
+    expect(within(panel).queryByRole('button', { name: 'Retry exact recharge request' })).not.toBeInTheDocument();
+    expect(replayServiceShuttleRecharge).not.toHaveBeenCalled();
+    expect(rechargeHostConsoleFromShuttle).toHaveBeenCalledTimes(1);
+  },
+);
+
 it('retains the original request for exact replay after an uncertain result and closed Coordination', async () => {
   const user = userEvent.setup();
   const state = useSessionStore.getState();
@@ -2495,6 +2636,34 @@ it.each([
       code: 'functions/unavailable', details: { commandError: 'stale-revision' },
     }),
     /old recharge request cannot carry into this cycle/i,
+  ],
+  [
+    'an internal code with a classified server rejection',
+    Object.assign(new Error('The Coordination cycle changed.'), {
+      code: 'functions/internal', details: { commandError: 'stale-revision' },
+    }),
+    /old recharge request cannot carry into this cycle/i,
+  ],
+  [
+    'an internal code with a nested classified server response',
+    Object.assign(new Error('The Coordination cycle changed.'), {
+      code: 'functions/internal', customData: { serverResponse: { details: { commandError: 'stale-revision' } } },
+    }),
+    /old recharge request cannot carry into this cycle/i,
+  ],
+  [
+    'an internal code with an explicit error kind',
+    Object.assign(new Error('The server classified this outcome.'), {
+      code: 'functions/internal', kind: 'unavailable-service',
+    }),
+    /fleet service is temporarily unavailable/i,
+  ],
+  [
+    'an internal code with opaque server details',
+    Object.assign(new Error('The server returned outcome details.'), {
+      code: 'functions/internal', details: { serverResult: 'classified' },
+    }),
+    /fleet service is temporarily unavailable/i,
   ],
   ['an unclassified error', new Error('The recharge outcome could not be classified.'), /fleet service is temporarily unavailable/i],
 ])('does not offer exact replay after %s', async (_label, failure, expectedStatus) => {

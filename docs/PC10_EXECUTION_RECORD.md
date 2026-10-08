@@ -877,3 +877,44 @@ against this integration. Source checks do not grant native, whole-game,
 responsive, human, capacity, manual-free or external release acceptance. The
 next allocated slice remains settled Black Sheep cargo display and the already
 scoped Water Reclamation recharge family in the current acceptance matrix.
+
+### October 8 committed recharge acknowledgement recovery
+
+The allocated native run at `d4392c07` stopped at its first failure after
+15 earned assertions. Three independently authenticated local browser actors
+proved settled Food9/1 before and after cold reload, normal manual Cycle0→1→2,
+ordinary maintenance/refuelling and fresh wrong-holder denial. A real Water
+Reclamation commit generated2water without consuming another fuel; its receipt,
+service event and both audits were verified before the reply was interrupted.
+The expected exact-request recovery control never appeared. The three browsers,
+owned accounts, session and pointers were cleaned up; the runtime window was
+returned. Preserve that failed run and its passed claims. No recovery, reload
+replay, same-cycle second-use, whole-game, capacity or release acceptance is
+earned by this partial result.
+
+Source-only diagnosis found that the installed Firebase SDK maps a rejected
+fetch to `functions/internal`; the UI accepts only `unavailable` and
+`deadline-exceeded` as ambiguous recharge outcomes. The native observer assumes
+a retry warning after the verified commit and abort, but did not record the
+SDK error code. That mapping is therefore reproduced through the actual public
+SDK with every fetch intercepted, rather than attributed to an unrecorded
+native error. The mounted regression starts with an empty Water selection,
+clicks its real consumer, publishes the committed member snapshot while the
+request is pending, then delivers that SDK error. On the unchanged product it
+fails at the same missing warning/control:4RED/7GREEN in the focused selection,
+with92 other route tests unselected. The failure log is
+`/tmp/dow-pc10-evidence/OWNER_RECHARGE_FETCH_INTERRUPTION_FINAL_TEST_ONLY_RED_20261008.log`.
+This RED was observed before a repair; it is contemporaneous evidence, not a
+retrospective history claim.
+
+The new tests cover exact original-command replay, no second normal command,
+unchanged committed resources, and removal of replay after holder revocation,
+actor change or cache-backed authority. Additional classified `internal`
+rejections cover direct/nested server details and explicit error kinds so the
+repair cannot convert a known rejection into ambiguous recovery. The replay
+mock now resets between route tests to keep their request counts independent.
+Existing assertions remain intact. These are focused recovery and authority
+regressions; they create no native actors and grant no gameplay acceptance.
+The editor owns the current separate runtime window. A new allocation is
+required for the smallest remaining recharge recovery/reload/second-use probe;
+the earned cargo and maintenance evidence should be reused where unchanged.
