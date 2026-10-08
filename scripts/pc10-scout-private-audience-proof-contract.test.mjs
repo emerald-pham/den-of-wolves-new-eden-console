@@ -85,3 +85,51 @@ test('cleanup handles all three verified original members without relaxing exact
 test('three-member cleanup still refuses an unknown actor before any deletion', async () => {
   await assert.rejects(pointerCleanup({ foreign: true }), /Refuse unknown actor cleanup/);
 });
+
+// Additional source-only validation of the new audience consumer. These were
+// added after the four discriminating cohort/timing REDs and driver adaptation;
+// they do not backfill native gameplay or separate test-first chronology.
+async function audienceConsumer({ fault } = {}) {
+  const node = ast.statements.find(statement => ts.isFunctionDeclaration(statement) && statement.name?.text === 'privateReadAudience');
+  assert.ok(node);
+  const member = { documentTimeOrigin: 1000, uidHash: 'peer-hash', sessionId: 'owned-session', meSessionId: 'owned-session',
+    assignedRoleId: 'icebreaker-miner', activeConsoleRoleId: 'icebreaker-miner', seatId: 'icebreaker-miner',
+    fleetGroupId: 'fleet-1', connectionGeneration: 2, identityHydrationRevision: 1 };
+  const discovery = { requestId: 'original-scout', noteId: 'original-note', fact: { coordinate: '6798', code: 'N', title: 'Ancient Jump Ring' } };
+  let peerObservations = 0, worldReads = 0; const calls = [];
+  const scientist = { callable: async (name, payload) => {
+    calls.push({ actor: 'requester', name, payload });
+    return { status: 'committed', result: name === 'listMyScoutReports'
+      ? [{ requestId: discovery.requestId, noteId: discovery.noteId, status: 'resolved' }]
+      : name === 'readPrivateScoutResult'
+        ? { requesterUid: 'own-scientist', requestId: discovery.requestId, systemFact: discovery.fact }
+        : { id: discovery.noteId, systemFact: discovery.fact } };
+  } };
+  const peer = { callable: async (name, payload) => {
+    calls.push({ actor: 'peer', name, payload });
+    if (name === 'listMyScoutReports') return { status: 'committed', result: fault === 'peer-index-leak' ? [{ requestId: discovery.requestId }] : [] };
+    return fault === 'borrowed-gm-leak' && payload.instanceId
+      ? { status: 'committed', result: {} } : { status: 'denied', code: 'functions/permission-denied' };
+  }, page: { evaluate: async () => ({ candidateReveals: [{ code: 'N', title: 'Ancient Jump Ring', ...(fault === 'coordinate-leak' ? { coordinate: '6798' } : {}) }],
+    reads: [{ kind: 'private-result', status: fault === 'private-doc-leak' ? 'allowed' : 'denied', code: 'permission-denied' }],
+    currentMemberPrivateKeys: fault === 'member-session-leak' ? ['scoutResults'] : [], privatePayloadRecorded: false }) } };
+  peer.storeModuleUrl = () => 'mounted-store';
+  const consume = vm.runInNewContext(`(${node.getText(ast)})`, { assert: check, scientist, peer, sid: 'owned-session', gm1Instance: 'own-gm-instance',
+    actorUids: new Map([['Scientist', 'own-scientist']]),
+    memberReady: async (_surface, label) => label === 'Scientist' ? { ...member, fleetGroupId: fault === 'foreign-group' ? 'fleet-2' : 'fleet-1' }
+      : { ...member, connectionGeneration: fault === 'changed-peer-epoch' && peerObservations++ > 0 ? 3 : 2 },
+    candidateWait: run => run(), scoutPrivateWorld: async () => ({ hash: fault === 'durable-effect' && worldReads++ > 0 ? 'changed' : 'original' }) });
+  return { result: await consume(discovery, Date.now() + 1000), calls };
+}
+test('actual audience consumer permits only requester data and same-group candidate names', async () => {
+  const { result, calls } = await audienceConsumer();
+  assert.equal(result.requesterIndexCount, 1); assert.equal(result.peerIndexCount, 0);
+  assert.equal(result.requesterFullResultAllowed, true); assert.equal(result.scopedDurableStateUnchanged, true);
+  assert.equal(calls.filter(call => call.actor === 'peer' && call.name === 'readPrivateScoutResult').length, 2);
+});
+for (const fault of ['peer-index-leak', 'borrowed-gm-leak', 'coordinate-leak', 'private-doc-leak', 'member-session-leak',
+  'foreign-group', 'changed-peer-epoch', 'durable-effect']) {
+  test(`actual audience consumer refuses ${fault} without granting proof credit`, async () => {
+    await assert.rejects(audienceConsumer({ fault }));
+  });
+}
