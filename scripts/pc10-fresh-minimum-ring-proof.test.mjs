@@ -81,3 +81,15 @@ test('page errors and blocked remote requests preclude successful native proof',
  assert.throws(()=>proof.assertRingRuntimeClean([{message:'page failed'}],[]),/page/i);
  assert.throws(()=>proof.assertRingRuntimeClean([],['https://outside.example/']),/remote/i);
 });
+
+import {spawnSync} from 'node:child_process';
+import {fileURLToPath} from 'node:url';
+test('CLI entrypoint validates arguments through both canonical and /tmp alias paths',()=>{
+ const canonical=fileURLToPath(new URL('./pc10-fresh-minimum-ring-proof.mjs',import.meta.url));
+ const alias=canonical.replace(/^\/private\/tmp\//,'/tmp/');
+ for(const filename of new Set([canonical,alias])){
+  const result=spawnSync(process.execPath,[filename,'--invalid'],{encoding:'utf8'});
+  assert.notEqual(result.status,0,`${filename} silently skipped its CLI guard`);
+  assert.match(result.stderr,/Use --allocation/);
+ }
+});
