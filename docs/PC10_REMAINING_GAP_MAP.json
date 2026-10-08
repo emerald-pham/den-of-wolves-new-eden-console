@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "recordedAt": "2026-10-08T07:31:23.318508+00:00",
-  "status": "SOURCE_ONLY_CURRENT_GAPS_RECONCILED_NEXT_FOCUSED_RUNNER_REQUIRED",
-  "sourceCommit": "ceca8140c855da8ae3edf716bfe1cd391d34c681",
-  "sourceBindingScope": "Read-only product source plus existing immutable native receipts. New document is planning/accounting, not new tests/native/CI/deployment.",
+  "recordedAt": "2026-10-08T11:46:59.628195+00:00",
+  "status": "CURRENT_GAPS_WITH_P631_NARROW_NATIVE_PASS_P181_SOURCE_ONLY",
+  "sourceCommit": "18aabd20bb26f515421249b016e0fc2771a02a5a",
+  "sourceBindingScope": "Current planning incorporates immutable accepted native source18aabd20; documentation is not fresh gameplay, CI, capacity or release evidence.",
   "remoteMainVerified": "9bfe4c3ae338f21eb564323c0d26822a28b628ec",
   "releasedVersion": "0.5.71",
   "unreleasedOwnerVersion": "0.5.72",
@@ -17,8 +17,9 @@
     "campaignTotal": 293,
     "next": "181",
     "newClosures": 0,
-    "newNativeCredit": 0,
-    "criteriaCountsNotAdditive": true
+    "newNativeCredit": 6,
+    "criteriaCountsNotAdditive": true,
+    "newNativeCreditUnit": "Six accepted P631 narrow criteria; overlapping P634 observations are not additive or fixed catalog closures."
   },
   "previousReadOnlyAudit": {
     "path": "/tmp/pc10-independent-acceptance-audit/PC10_READ_ONLY_GAP_MAP.md",
@@ -245,6 +246,37 @@
       ],
       "evidenceKind": "native",
       "fixedClosureCredit": 0
+    },
+    {
+      "key": "member-read-preparation-rate-security",
+      "acceptedSourceCommit": "18aabd20bb26f515421249b016e0fc2771a02a5a",
+      "status": "PASS_SIX_NARROW_NATIVE_CRITERIA_FORMAL_HANDBACK_LATE",
+      "evidenceKind": "native",
+      "evidence": {
+        "path": "/tmp/dow-pc10-evidence/OWNER_PC10_P631_LOBBY_REPAIR_NATIVE_CRITERIA_PASS_CLEAN_HANDOFF_20261008.json",
+        "sha256": "39cf63b1e55fadc9b48cbb2d7bae1ee3bf217b579ff1ced800949b0bd10ea06b"
+      },
+      "repoReport": "docs/PC10_P631_NARROW_NATIVE_REPORT.md",
+      "scope": "Original normal live GM and ordinary member; actual6/min preparation budget, exact original replay,120/min current-member read budget, same-network UID isolation, populated private-marker SDK document/query denial and two sanitized rate-denial logs.",
+      "authActors": 2,
+      "independentChromeProcesses": 2,
+      "browserContexts": 2,
+      "humanDevices": 0,
+      "scopedCriteria": 6,
+      "fixedClosureCredit": 0,
+      "functionCriteria": [
+        "prepareFullGameDemo",
+        "getCurrentMemberSession"
+      ],
+      "deadlineGateMet": false,
+      "finalVerificationOverrunMs": 99703,
+      "remainingLimits": [
+        "P631 maxInstances/platform operational capacity remains open.",
+        "Cross-session isolation and other expensive callables are not inferred.",
+        "P634 auth/schema/AppCheck and all other denial branches remain unaccepted.",
+        "Fresh-game start/ending, all roles/functions, human devices and whole-game usability are outside this slice.",
+        "Formal port/process/reservation verification and reporting missed the absolute allocation deadline."
+      ]
     }
   ],
   "helperOwnership": {
@@ -1006,7 +1038,10 @@
       "gapType": "unqualified_behavior_or_branch",
       "behaviorImplementationMissingEstablishedByThisReview": false,
       "owner": "PC10 owner next bounded family",
-      "currentScopedAdditions": []
+      "currentScopedAdditions": [
+        "member-read-preparation-rate-security"
+      ],
+      "remainingBehaviorCurrent": "P631 remains partial: platform maxInstances saturation/operational evidence; cross-session native reset/isolation and other-callable behavior are not inferred from this two-actor slice."
     },
     {
       "id": "634",
@@ -1022,7 +1057,10 @@
       "gapType": "unqualified_behavior_or_branch",
       "behaviorImplementationMissingEstablishedByThisReview": false,
       "owner": "PC10 owner next bounded family",
-      "currentScopedAdditions": []
+      "currentScopedAdditions": [
+        "member-read-preparation-rate-security"
+      ],
+      "remainingBehaviorCurrent": "Only two actual rate-denial logs are accepted scoped observations. Auth/AppCheck/schema and broader private telemetry remain unaccepted; local emulators cannot prove production AppCheck enforcement."
     },
     {
       "id": "635",
@@ -1104,120 +1142,62 @@
     "unmountedCompatibilityExportsDoNotNeedFabricatedUI": true
   },
   "nextFamily": {
-    "family": "P631 narrow member-read limit, same-network isolation and exact preparation replay exemption",
-    "stage": "PRODUCT_SOURCE_GUARDS_MAPPED_FOCUSED_RUNNER_NOT_YET_READY",
+    "family": "Normal Wing Commander Starlight movement and scouting through the existing role/station/shuttle chooser.",
+    "stage": "P181_TEST_FIRST_SOURCE_PREPARATION_DISPATCHED",
     "minimumAuthActors": 2,
     "plannedIndependentChromeProcesses": 2,
     "plannedContexts": 2,
     "actualAuthActors": 0,
     "actualHumans": 0,
     "roles": [
-      "normally authenticated and local-authorized live GM",
-      "normally joined ordinary member, with configured casting only as needed for live projection"
+      "Real normal GM for fresh setup/manual progression",
+      "Ordinary original Wing Commander, roleId wing-commander"
     ],
-    "claims": [
-      "Current member makes ordinary SDK reads then exhausts only its real getCurrentMemberSession120-per60s window; subsequent response is RESOURCE_EXHAUSTED with retryAfterSeconds.",
-      "The other original legitimate identity on the same loopback network still reads the same session; each marker binds actual UID/session/callable.",
-      "Original live-GM prepareFullGameDemo request is captured and committed before any ordinary join. Six distinct legitimate preparation requests consume its real6/min budget; next fresh request is rate-denied.",
-      "The original captured actor/instance/request/payload remains replayable after that budget is exhausted, without a new preparation effect; no forged pending intent.",
-      "Private serverState budget-marker doc/query reads are denied through real member and GM SDK paths; inspect only owned authoritative marker and effect state.",
-      "Unauthenticated/schema/rate-denial logger records expose only allowlisted category/callable/hash metadata; no credentials, loyalties, cards or real note bodies enter report output."
+    "scope": [
+      "Normal original Wing Commander enters the current flight workspace, opens Starlight and follows current holder/operational berth.",
+      "Actual normal departure/Begin/retarget/arrival with current control/cycle receipts, truthful pending/committed UI and no duplicate movement effect.",
+      "Original Starlight first scout and fuelled additional scout when source-derived current cadence/resources permit; actual own private result/note.",
+      "Interrupted original movement/scout intent, legitimate retry/reload and loss-of-station return/reselection; preserve safe input and current actor authority."
+    ],
+    "initialLivePrerequisites": [
+      "Supported normal preset retains AEGIS/Wing Commander/Starlight; actual Primary Auth, join code, consent and legitimate role/seat assignment.",
+      "Reuse real GM authorization/claim and exact-instance/live-epoch readiness; actual Cycle0->1 start and manual phase publication through existing served controls.",
+      "Qualify canonical casting role first, then the source-projected current operational station/berth after start/movement. Preserve original UID/session/lease/current-own membership.",
+      "Observe actual Starlight custody/docking/control revision and normal eligible destinations. Existing departure/transit receipt and real movement timer/cycle are required.",
+      "Observe active Cycle>=1 and lifted airspace for scouting; actual entitlement/cadence/range/roster/fuel blockers come from current server/UI. No Admin markers, fake profiles, clock changes or fabricated outcomes."
+    ],
+    "additionalActorOnlyWhenNeeded": "A real recipient/peer/competitor is added only for a specific new handoff/race/privacy claim. The two-actor slice does not claim those distinct audience/capacity cases.",
+    "worker": "/root/p181_starlight_source",
+    "workerModel": "gpt-6-luna",
+    "workerEffort": "max",
+    "assignedSourceFiles": [
+      "scripts/pc10-starlight-movement-scout-ui-proof.mjs",
+      "scripts/pc10-starlight-movement-scout-ui-proof-runner.test.mjs"
+    ],
+    "parentAuthorizedSourceOnly": true,
+    "successRuntimeWindowThroughUtc": "2026-10-08T12:04:00Z",
+    "runtimeStarted": false,
+    "runtimeGrantRequired": true,
+    "requiredBeforeRuntime": [
+      "Meaningful actual-consumer RED before functional implementation, separate test-first commit, then focused GREEN.",
+      "One bounded independent Sol review of the completed coupled source group, plus exact current source/build/installed launcher/data-scope binding and prebrowser freeze.",
+      "Normal original Auth/consent/GM/setup/chooser/start/manual phase and current custody/control/cycle/airspace/scout prerequisites; no Admin gameplay writes, fake receipts or clock acceleration.",
+      "A realistic total allocation must include startup, original waits, owned teardown, independent final port/process/reservation verification and immediate reporting. Reserve at least two minutes for final cleanup/verification/reporting; do not shorten proof waits.",
+      "Fresh explicit parent absolute allocation only after the other runtime owner returns cleanly;12:04 is not an automatic grant."
+    ],
+    "wholeWorkspaceBranchesStillSeparate": [
+      "SUCCESS/P retains fighter/combat/boarding implementation and P619 candidate recovery.",
+      "Away missions, bonuses and fighter rebuild require their own source-backed prerequisites and scoped unchanged-evidence reuse.",
+      "Original chart edge, quarantine normal-arrival guard and fighter exchange remain parity-owner findings; no independent rule patch or parity acceptance."
     ],
     "notClaimed": [
-      "cross-session native reset/isolation",
-      "all expensive-callable behavior",
-      "platform maxInstances saturation",
-      "production App Check verification",
-      "all entropy domains",
-      "whole fresh game",
-      "all roles",
+      "P181 closure",
+      "every-role/every-function fresh-game ending",
       "human devices",
-      "PC631 closure",
-      "PC634 closure"
-    ],
-    "sourceAnchors": {
-      "readerExport": "functions/src/index.ts:18592",
-      "membershipSchemaGate": "functions/src/memberSessionLimit.ts:13",
-      "rateCharge": "functions/src/memberSessionLimit.ts:33",
-      "policies": "functions/src/callableRateLimit.ts:3",
-      "originalPreparationReceiptBeforeLimit": "functions/src/index.ts:7397",
-      "denialMetadata": "functions/src/securityCallable.ts:28"
-    },
-    "existingFocusedEvidence": "Dedicated memberSessionLimit, rate-limit Firestore adapter, audited callable/redaction/inventory and actual App Check transport tests exist. This source review does not rerun them or convert their historical GREEN into current native acceptance.",
-    "appCheckLimit": "Firebase transport rejects missing App Check in standalone real-handler transport tests; local emulator behavior cannot establish production enforcement. Keep this P634 branch separately qualified.",
-    "legacyRunner": "scripts/pc10-security-http-proof.mjs requires9Auth plus unrelated fighter construction/maintenance. It is not the focused two-actor runner and is not a readiness receipt.",
-    "requiredBeforeRuntime": [
-      "Implement bounded focused consumer runner reusing existing normal App/SDK admission and original request/authority observers; meaningful observed RED before each functional change in a separate test-first commit, then GREEN. Missing-entry-point failures alone earn no RED credit.",
-      "Independent Sol6.1 bounded reconciled source review of the new runner and any real product repair; do not repeat shared launcher or settled privacy review.",
-      "Exact current source/build/installed-CLI/data-scope binding and source freeze BEFORE any browser. Rebuild only changed Functions/client inputs; current tooling-only resolver and documentation changes reuse matched accepted build.",
-      "Fresh explicit parent absolute runtime allocation includes startup, original35s/60s operations and60s cleanup; min120s remaining at browser launch. Shared runtime availability is not a launch grant.",
-      "Fresh exclusive evidence paths, retain first failure and complete original logs/body evidence, owned-only accounts/membership/session/join/child/reservation cleanup and closed postflight."
-    ],
-    "runtimeStarted": false,
-    "sourceFiles": [
-      {
-        "path": "functions/src/index.ts",
-        "sha256": "d900752833054d3e3a952725fe3dc3a070b0daf21acf856140e8667d3748db2c"
-      },
-      {
-        "path": "functions/src/memberSessionLimit.ts",
-        "sha256": "4b276e810157b37c2bd60c5e68da12dbe06af26d7f35139623483d141d5d4adf"
-      },
-      {
-        "path": "functions/src/memberSessionLimit.test.ts",
-        "sha256": "ddca7d0de5699340d2af3facf32c8fdaac732b396e7b848c7081dd061de7f44c"
-      },
-      {
-        "path": "functions/src/memberSessionCallable.ts",
-        "sha256": "e648196fa9e775305630dbf7c6f7371f9eff52024eeb19a4e4396247d32a878c"
-      },
-      {
-        "path": "functions/src/callableRateLimit.ts",
-        "sha256": "7084293724138ccffd1625940916e8b886ae309055a4bcdd3dbc308f2a405467"
-      },
-      {
-        "path": "functions/src/callableRateLimitFirestore.ts",
-        "sha256": "17eda0896dbb9a90cc4531165a9ed973811836c2e63a34e3de60a9656bbdc83a"
-      },
-      {
-        "path": "functions/src/callableRateLimitFirestore.test.ts",
-        "sha256": "bc365a4244cd234f257ef3fc5e767d104b8cc2aa3469b87bd7c623a63ae5453e"
-      },
-      {
-        "path": "functions/src/securityCallable.ts",
-        "sha256": "7c5e0b7a77352cb2705fa5dcdec86146ebd08cfb9765ae3da05150a350ed5e17"
-      },
-      {
-        "path": "functions/src/securityCallable.test.ts",
-        "sha256": "cc0fafe2590dfe1b10933d8503694bb3072c01f845c9ab809d858ab5f324f47b"
-      },
-      {
-        "path": "functions/src/securityCallableTransport.test.ts",
-        "sha256": "8c0637862ba553d0fd3c9f1260fbb58a3fccdf4372cfbe9e9a23048958d010d2"
-      },
-      {
-        "path": "functions/src/securityCallableInventory.test.ts",
-        "sha256": "6af0710189d3e7df581335e61a75b46bb3cb0baf5bc72935880b5ffd018edbe2"
-      },
-      {
-        "path": "scripts/pc10-security-http-proof.mjs",
-        "sha256": "d2c7ad45946afac8f8c8d46a6fcf1002fc7c36bdd6996fd0f762d09a782f45a8"
-      },
-      {
-        "path": "scripts/run-emulator-command.mjs",
-        "sha256": "46cb7be4d8f2936dc47c63a21220b72e770ab14b03635ee80ccced176a64719f"
-      },
-      {
-        "path": "scripts/pc10-browser-ui-receipt.mjs",
-        "sha256": "b7033303d7f575ad5dbb3f2a6b925a9913fd936e86eb706e13c3a24a937f61ec"
-      },
-      {
-        "path": "scripts/pc10-member-gm-lifecycle-ui-proof.mjs",
-        "sha256": "6a541aac3474be488e20e58a4f9fff23139bb071f38143f9dcc726483bb3751e"
-      }
-    ],
-    "noProductRepairEstablished": true,
-    "stationPExcluded": true
+      "capacity",
+      "whole-game usability",
+      "PC10 or release acceptance"
+    ]
   },
   "aggregateGates": [
     "Complete fresh-game every unique role/mechanic solo rehearsal across two browsers through ending; prepared tours alone insufficient.",
@@ -1235,5 +1215,20 @@
   ],
   "runtimeStarted": false,
   "pc10Complete": false,
-  "releaseAccepted": false
+  "releaseAccepted": false,
+  "runtimeHeld": false,
+  "parityAcceptanceBoundary": {
+    "sourceAudit": "/tmp/dow-parity/early-critical-findings.md",
+    "sourceOnly": true,
+    "originalPaperBaseline": true,
+    "pendingFindings": [
+      "5143\u21941413 original chart edge absent in client/server graph",
+      "Normal shuttle arrival quarantine docking limit guard absent",
+      "Alpha/Bravo player fighter exchange absent"
+    ],
+    "auditOwnerThread": "01a11b43-740e-76eb-b5d3-0988a0c11037",
+    "independentRuleChanges": false,
+    "completeParityAccepted": false,
+    "releaseGateEffect": "Corresponding route, arrival and complete fighter-workspace parity/acceptance cannot be claimed before source-cited parity-owner resolution. Narrow P631 acceptance is retained."
+  }
 }

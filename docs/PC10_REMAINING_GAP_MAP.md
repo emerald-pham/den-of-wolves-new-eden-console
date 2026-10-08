@@ -1,13 +1,14 @@
 # PC10 remaining behavior and release gaps — October 8
 
-This source-only reconciliation is bound to owner `ceca8140`, accepted scout
-privacy source `cde408b5` and the original receipts below. Read-only
-`origin/main` verification returns `9bfe4c3a` (released 0.5.71); owner 0.5.72
-is unreleased. The [machine map](PC10_REMAINING_GAP_MAP.json) covers each of
-the 48 fixed rows, its current catalog status, original source/audit mapping,
-accepted scoped additions, and precise remaining branch. Counts remain
-703/751 overall, 245/293 campaign, 13 partial/35 missing and NEXT181. No catalog
-closure or new native/release credit is added.
+This current reconciliation retains the earlier `ceca8140` audit and original
+accepted receipts, and adds the parent-accepted P631 native source `18aabd20`.
+The earlier read-only `origin/main` check recorded `9bfe4c3a` (0.5.71); it is not
+a new release check. Owner 0.5.72 remains unreleased. The
+[machine map](PC10_REMAINING_GAP_MAP.json) covers all 48 fixed rows and their
+original audit, accepted additions and remaining branches. Counts remain
+703/751 overall, 245/293 campaign, 13 partial/35 missing and NEXT P181. Six
+narrow native criteria are newly accepted; fixed catalog closures and release
+credit remain zero.
 
 Existing code/panels without accepted outcomes are **unqualified behavior**,
 not established missing implementation. This review found no new product
@@ -24,6 +25,7 @@ gameplay gaps, so final CI/deployment alone cannot complete it.
 | water-recharge | 3 / 3 / 3 | Printed Shepherd Cycle2 maintenance/refuel; Water 2→4, one receipt/event/metadata/private audit, ack loss/UI exact retry/reload and fresh once guard. Cross-cycle reset, same-cycle stale, other consoles/hosts/craft and foreign readers remain unproved. |
 | highwall-two-unfuelled | 2 / 2 / 2 | Two standard server dice/cargo operations; real acknowledgement loss/UI retry, original reload/SDK replay, stale/no-effect, GM wrong role and fresh quota refusal. Fuelled third operation, new-cycle reset, foreign/peer custody and postreload panel framing remain open. Parent allocation overrun remains recorded separately. |
 | requester-scout-peer-privacy | 3 / 3 / 3 | One real 6798/N original requester report/note; own index, peer/borrowed-GM denial, code/title allowlist, ten populated SDK doc/query denials, bound wire envelope and original peer cold reload. Foreign/revoked audience, other producers, ending, whole-role and full manual-free acceptance remain open. |
+| member-read-preparation-rate-security | 2 / 2 / 2 | Original normal GM/member admission; actual 6/min preparation and 120/min member-read budgets, exact original replay, same-network UID isolation, private-marker SDK doc/query denials and two sanitized denial logs. Zero humans. Formal handback verification was 99.703 seconds late; capacity, broader security and complete game acceptance remain open. |
 
 Scoped criterion counts overlap setup/recovery and are not summed as unique
 functions, roles or closures. All captures/body files and original failures
@@ -44,49 +46,44 @@ bindings need final reconciliation and do not supply native evidence.
 | Entropy, rate limit and private denial/audit boundary | Review existing producer-specific tests/audits first. Highwall dice are a scoped native positive, not comprehensive client-entropy rejection. Select only absent HTTP/rules paths; do not replay a whole game. |
 | Fresh rehearsal/usability/final release | Integrate unique mechanics into a fresh two-browser solo game through ending. Then appropriate reconciled tests/review/rendered fonts/ticker/return/mobile checks and exact candidate/main CI/deployment/health/IAM. No new cohort for a release-only requirement. |
 
-The next smallest unproved slice is **P631 member-read budget, same-network
-independence, and the original full-game preparation receipt after budget
-exhaustion**. Plan two normal independent Auth identities and two actual
-Chrome processes/contexts: live GM and ordinary member. Prepare the unlimited
-manual demo through the GM before the ordinary join; do not start a new
-entire-game prefix solely for this request-path claim.
+The [P631 narrow native report](PC10_P631_NARROW_NATIVE_REPORT.md) records
+six passed criteria, two normal Auth actors/two actual Chrome processes and
+contexts, and zero humans. The driver completed successfully; the absolute
+handback timing gate failed because final independent port/process/reservation
+verification was late. P631 stays partial for platform `maxInstances`
+operational capacity and unproved branches. P634 stays missing: the two scoped
+rate-denial logs do not accept auth/schema/App Check or broader telemetry.
 
-`getCurrentMemberSession` is already composed with
-`limitCurrentMemberSessionReader` at `functions/src/index.ts:18592`. Its
-validated membership/schema gate precedes the private 120/min limiter and
-collection projection. `prepareFullGameDemo` validates the original
-actor/instance/payload-bound receipt before its 6/min limiter. The native
-probe must exhaust real limits without changing clocks or marker documents,
-show the other original same-network member still succeeds, and replay the
-first captured preparation request without another effect. SDK private
-marker doc/query denial and category/hash-only application logger telemetry
-are scoped additional observations.
+The next independent slice is **P181 Starlight normal movement and scouting**.
+The parent dispatched source preparation to a separate Luna Max worker. Its
+minimum cohort is normal GM plus ordinary Wing Commander, two independent
+Chrome processes/contexts when a future runtime is granted. The original
+normal create/join/consent, GM claim, supported role/seat chooser, actual Cycle
+0→1, manual phase progression, current craft custody/berth/control revision,
+lifted airspace, real transit timing and scout cadence/fuel are prerequisites.
+A peer/recipient is added only for a genuinely new audience or handoff claim.
+SUCCESS/P retains fighter/combat/boarding work and candidate 619 recovery.
 
-This is **not runtime-ready**: the old `pc10-security-http-proof.mjs` composes
-nine Auth accounts and unrelated Wing build/maintenance/audit work. A
-focused two-actor runner remains necessary. Its implementation must first
-observe meaningful functional RED, commit that test-first change separately,
-then reach GREEN and one bounded independent Sol6.1 review. Missing helper
-exports alone are not meaningful RED; no existing product repair is proposed
-without a counterexample. Current dedicated member-reader/limiter/redaction
-regressions are mapped source evidence, not newly executed GREEN/native proof.
+A meaningful actual-consumer RED must precede functional implementation in a
+separate test-first commit, followed by focused GREEN and one bounded
+independent Sol review. Bind the reconciled source, unchanged matched builds,
+installed Firebase 15.29 CLI and empty owned scope before browser launch.
+SUCCESS owns runtime through **12:04 UTC**; that time is not a launch grant.
+Request a realistic total allocation covering startup, original proof waits,
+owned teardown, independent final port/process/reservation verification and
+immediate reporting. Reserve at least two minutes for final cleanup,
+verification and reporting; preserve original waits and first-error stopping.
+No P181 runtime or native acceptance is earned by source preparation.
 
-Before native execution, bind exact candidate, matched builds, installed
-Firebase 15.29 CLI and empty owned scope; freeze source before browser launch.
-Use a fresh explicit absolute parent allocation covering startup, original
-35s/60s operations and 60s cleanup, with 120s remaining at launch. P returned
-shared runtime early; availability alone does not authorize owner launch.
-No runtime starts in this reconciliation. Preserve complete original logs
-and first failure, remove only owned browser/Auth/membership/session/join
-records, return owned process/reservation resources and record closed scope.
-
-The probe cannot accept all expensive callables, cross-session native
-reset/isolation, platform maxInstances saturation, entropy domains or 634.
-App Check missing-token enforcement has standalone real-Firebase-transport
-unit coverage; local emulator behavior cannot establish production
-enforcement. Keep that evidence class explicit. Shared launcher `cde408b5`
-and its 41 checks/source review are complete and reused without another
-resolver implementation or broad review.
+The independent original-paper audit reports missing route 5143↔1413,
+research/device and mission-effect mismatches, a normal-arrival quarantine
+guard bypass, fighter exchange and original objective omissions, with other
+bounded ambiguities. Parity is unestablished. Corresponding gameplay claims
+must be reevaluated against its source-cited findings before final PC10/0.9;
+passing old source-only tests does not resolve them. The parity owner retains
+repair-scope reconciliation; this source group does not patch those rules.
+P631's independent rate/replay/privacy observations remain earned. Original
+paper is the shared-mechanics baseline; intentional additions are separate.
 
 Full-game rehearsal, actions/costs/blockers/next actor and all required release
 gates remain. Human-device and simultaneous capacity play are unclaimed;

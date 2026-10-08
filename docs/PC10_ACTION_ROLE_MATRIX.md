@@ -120,3 +120,18 @@ matrix records this scoped acceptance. Shared618/620/629/635 staypartial,
 13partial/35missing/all48open,703/751overall245/293campaign/NEXT181 unchanged.
 No next family, release/push/merge/deploy, post-PC10, PC11/PC12 or license/assets
 change was executed. Return the local closed-family handoff to the parent.
+
+
+### P631 narrow rate/replay/privacy criteria
+
+Parent-accepted native source `18aabd20` qualifies normal live GM and ordinary
+member admission, `prepareFullGameDemo`'s 6/min budget/exact original replay
+and `getCurrentMemberSession`'s 120/min budget with same-network UID isolation.
+Both normal SDK actors are denied populated private-marker docs/query; two
+rate-denial logs contain allowlisted metadata only. Actual cohort is two Auth
+identities, two Chrome processes/contexts and zero humans. Six narrow criteria
+pass; the formal handback timing gate failed. See the
+[exact native report](PC10_P631_NARROW_NATIVE_REPORT.md). Generated whole-function
+and whole-role proof fields stay pending; no taxonomy or fixed catalog closure
+is promoted. P181 source preparation and original-paper parity reconciliation
+remain separate, with no new runtime grant or complete-game acceptance.

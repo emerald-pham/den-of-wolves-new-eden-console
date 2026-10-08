@@ -1272,8 +1272,28 @@ manual-free usability acceptance is claimed. All48 fixed rows remain open at
 scoped behavior from unproved branches, aggregate rehearsal and final release.
 Reuse accepted Highwall, scout peer/reload, Water/custody/cargo, Press ending
 and GM ending-race evidence. SUCCESS/P retains N/O/P and current boarding
-diagnosis. Next source preparation is the two-actor P631 member-read budget,
-same-network independence and exact original preparation replay exemption;
-server guards exist, but the focused runner/test-first/review prerequisites
-remain open. Source-only: no runtime, catalog closure, whole-game, capacity,
-human-device or release acceptance. Counts stay 703/751 and 245/293, 48 open.
+diagnosis. P631's subsequent two-actor native rate/replay/privacy slice is
+recorded in the [narrow native report](PC10_P631_NARROW_NATIVE_REPORT.md): six
+criteria passed, while the absolute handback timing gate failed. P631 remains
+partial and P634 missing. Next is the parent-dispatched P181 Starlight
+movement/scouting source group, with two normal actors and complete legitimate
+startup/chooser/cycle/custody/airspace/timer/cadence prerequisites. SUCCESS owns
+runtime through 12:04 UTC; source preparation does not grant execution. Counts
+stay 703/751 and 245/293, all 48 fixed rows open. Original-paper parity findings
+hold corresponding complete-gameplay claims for reevaluation; no independent
+rule patch, whole-game, capacity, human-device or release credit is added.
+
+
+### October 8 accepted P631 narrow native criteria
+
+The parent accepted normal GM/member admission, actual preparation 6/min and
+member-read 120/min budgets, exact original preparation replay without charge
+or effect, same-network UID isolation, populated private-marker SDK denial
+and two scoped sanitized rate-denial logs on `18aabd20`. This is two actual
+Auth/Chrome/context actors and zero humans. Execution completed and all six
+narrow criteria passed; independent final cleanup verification was 99.703
+seconds late, so the absolute handback gate failed. Complete original logs and
+result are preserved, owned runtime is returned, and the original dirty
+checkout remains unchanged. See the [report](PC10_P631_NARROW_NATIVE_REPORT.md)
+for source/test-first/review binding, exact cleanup times and residual limits.
+No P631/P634 fixed closure, whole-game, capacity, CI or release is accepted.
