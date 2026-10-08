@@ -603,3 +603,22 @@ it('offers the emergency drive only after the facilitator decision is live', () 
 
   expect(screen.getByRole('button', { name: /emergency jump to/i })).toBeInTheDocument();
 });
+
+it('explains coordinate lock, power and charge requirements before departure', () => {
+  renderConsole();
+  expect(screen.getByRole('button', { name: 'Lock destination coordinates' }))
+    .toHaveAccessibleDescription(/lock the destination.*power to 100%.*does not launch/i);
+  expect(screen.getByRole('slider', { name: 'Jump drive power' }))
+    .toHaveAccessibleDescription(/charge the drive during maintenance/i);
+  expect(screen.getByRole('button', { name: 'Jump to 0000' }))
+    .toHaveAccessibleDescription(/short.*medium.*long.*one-hour integrity lock/i);
+  expect(jumpShip).not.toHaveBeenCalled();
+});
+
+it('describes hidden server selection instead of coordinate confirmation in blind mode', async () => {
+  renderConsole();
+  await userEvent.setup().click(screen.getByRole('button', { name: 'Enable blind jump' }));
+  const launch = screen.getByRole('button', { name: 'Blind jump' });
+  expect(launch).toHaveAccessibleDescription(/arm blind jump.*server chooses.*hidden until/i);
+  expect(launch).not.toHaveAccessibleDescription(/confirm the destination|lock the destination/i);
+});

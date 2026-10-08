@@ -141,3 +141,25 @@ it('lets the target player decline a pending request and closes the old request'
   expect(screen.queryByRole('button', { name: /grant permission/i })).not.toBeInTheDocument();
   expect(screen.getByRole('alert')).toHaveTextContent(/request declined.*new request/i);
 });
+
+it('explains that permission hands execution back to the craft holder', async () => {
+  render(<PermissionedDismantlingPanel mode="target" sessionId="s1" targetShipId="dione" />);
+  expect(await screen.findByRole('button', { name: 'Grant permission' })).toHaveAccessibleDescription(
+    /does not damage.*craft holder acts next.*3 materials/i,
+  );
+  expect(screen.getByRole('button', { name: 'Decline request' })).toHaveAccessibleDescription(
+    /ends this request.*new proposal/i,
+  );
+  expect(mocks.consent).not.toHaveBeenCalled();
+  expect(mocks.decline).not.toHaveBeenCalled();
+});
+
+it('describes the proposal handoff before the craft holder sends it', () => {
+  render(<PermissionedDismantlingPanel mode="proposer" sessionId="s1" currentPlayerUid="engineer" craftId="philia"
+    targetShipId="dione" targetSystems={[{ id: 'reactor', name: 'Reactor' }]}
+    damagedSystemIds={[]} connection="live" canAct />);
+  expect(screen.getByRole('button', { name: 'Request target-player permission' })).toHaveAccessibleDescription(
+    /target-ship player acts next.*does not damage/i,
+  );
+  expect(mocks.propose).not.toHaveBeenCalled();
+});

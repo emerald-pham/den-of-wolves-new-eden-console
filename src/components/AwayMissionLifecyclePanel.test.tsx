@@ -231,3 +231,11 @@ it('lets the GM apply a successful exploration reward with two coordinates and h
   await act(async () => fireEvent.click(apply));
   expect(actions.exploreSystems).toHaveBeenCalledWith('D-3', ['4454', '5143']);
 });
+
+it('explains distinct face-down assignments and the next actor before submission', () => {
+  const actions = renderPanel();
+  expect(screen.getByRole('button', { name: 'Submit mission assignments' })).toHaveAccessibleDescription(
+    /every remaining card.*different opportunity.*face down.*automatically/i,
+  );
+  expect(actions.assignCards).not.toHaveBeenCalled();
+});
