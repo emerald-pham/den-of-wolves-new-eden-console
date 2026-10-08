@@ -32899,6 +32899,13 @@ function dioneMaliadesLaunchView(
   }
   const damageRoot = session.get('shipDamage');
   const rawDamage = isRecord(damageRoot) ? damageRoot.dione : undefined;
+  // New sessions store damage sparsely. An uncharged bay cannot launch, so
+  // absent damage must not hold the whole attack at targeting. A charged bay
+  // still requires complete damage authority below; malformed records fail.
+  if (isRecord(damageRoot) && rawDamage === undefined && !cycle.charges.includes('fighter-bay')) {
+    return { type: 'dione-maliades-launch-view', sessionId, turn: turn as number,
+      revision: revision as number, launched: false, eligible: false, reason: 'uncharged' };
+  }
   const knownDamageIds = new Set((SHIP_DAMAGE_DECKS.dione ?? []).map(({ systemId }) => systemId));
   if (!isRecord(rawDamage) || !Array.isArray(rawDamage.damagedSystemIds) ||
       rawDamage.damagedSystemIds.some((systemId) => typeof systemId !== 'string' || !knownDamageIds.has(systemId)) ||
