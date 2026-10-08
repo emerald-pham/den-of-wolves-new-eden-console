@@ -22,7 +22,8 @@ try {
   const cases = process.env.MOBILE_LAYOUT_RED_ONLY === 'true'
     ? [{ width: 390, height: 844, scale: 1.5 }]
     : [{ width: 320, height: 844, scale: 1 }, { width: 390, height: 844, scale: 1 },
-      { width: 844, height: 390, scale: 1 }, { width: 390, height: 844, scale: 1.5 }];
+      { width: 844, height: 390, scale: 1 }, { width: 390, height: 844, scale: 1.5 },
+      { width: 1440, height: 900, scale: 1 }];
   for (const viewport of cases) for (const actor of ['gm', 'player']) {
     const context = await browser.newContext({ viewport: { width: viewport.width, height: viewport.height },
       isMobile: true, hasTouch: true, reducedMotion: 'reduce', serviceWorkers: 'block' });
