@@ -1,0 +1,3049 @@
+{
+  "provenance": {
+    "source": "station-success-11/OWNER_RESULT.json stationCombatLatest",
+    "sourceCommit": "72171fe1df835a86b5d3f8035f1a07d42579d951",
+    "limitation": "Retained guard-context root fields; synthetic in-memory transaction replay, not native acceptance. Actual attack/choice/range/dice state retained; fresh owned identities anonymized."
+  },
+  "root": {
+    "currentTurn": 2,
+    "phase": "active",
+    "turnPhase": {
+      "turn": 2,
+      "teamPhaseEndsAt": "9999-12-31T23:59:59.999Z",
+      "openAirspaceEndsAt": "9999-12-31T23:59:59.999Z",
+      "airspace": {
+        "state": "restricted",
+        "tickerActive": true,
+        "pressAccess": false
+      },
+      "progression": "manual"
+    },
+    "turnState": {
+      "currentTurn": 2,
+      "maxTurn": 8,
+      "phase": "team",
+      "phaseRevision": 5,
+      "startedAt": "9999-12-31T23:59:59.999Z",
+      "endsAt": "9999-12-31T23:59:59.999Z"
+    },
+    "activeRoleIds": [
+      "admiral",
+      "executive-officer",
+      "wing-commander",
+      "dione-engineer",
+      "dione-president",
+      "icebreaker-engineer",
+      "icebreaker-miner",
+      "shepherd-engineer",
+      "shepherd-scientist",
+      "quellon-engineer",
+      "quellon-explorer",
+      "refinery-124-engineer",
+      "refinery-124-pdf-colonel"
+    ],
+    "activeVesselIds": [
+      "aegis",
+      "dione",
+      "icebreaker",
+      "shepherd",
+      "quellon",
+      "refinery-124"
+    ],
+    "shipDamage": {
+      "aegis": {
+        "damagedSystemIds": [],
+        "destroyed": false
+      },
+      "dione": {
+        "damagedSystemIds": [],
+        "destroyed": false
+      },
+      "icebreaker": {
+        "damagedSystemIds": [],
+        "destroyed": false
+      },
+      "shepherd": {
+        "damagedSystemIds": [],
+        "destroyed": false
+      },
+      "quellon": {
+        "damagedSystemIds": [],
+        "destroyed": false
+      },
+      "refinery-124": {
+        "damagedSystemIds": [],
+        "destroyed": false
+      }
+    },
+    "maintenanceCycles": {
+      "aegis": {
+        "step": 0,
+        "revision": 18,
+        "results": {
+          "1": "Storage intact. No resources lost.",
+          "2": "Spent 8 food and 6 water. Ration bonus +18.",
+          "3": "Rolled 2 + 1 + 18 = 21. Added 0 unrest; unrest 0.",
+          "4": "Rolled 2 against unrest 0. No riot.",
+          "5": "Reactor powered up. Previous unused charge lost. Charged 3/5 consoles.",
+          "6": "Shuttle Bay Zeta powered up. No shuttles refuelled.",
+          "7": "Shuttle Bay Omega powered up. No shuttles refuelled.",
+          "ftl": "FTL jump complete // 0000 \u2192 1964 // LONG // 6 fuel."
+        },
+        "charges": [
+          "fighter-bay-alpha",
+          "fighter-bay-bravo"
+        ],
+        "refuelled": [],
+        "turn": 2,
+        "rationBonus": 18,
+        "startedAt": "2026-10-08T07:20:40.151Z",
+        "unrestRolls": [
+          2,
+          1
+        ],
+        "unrestBeforeCheck": 0,
+        "completedAt": "2026-10-08T07:20:56.976Z"
+      },
+      "dione": {
+        "step": 0,
+        "revision": 16,
+        "results": {
+          "1": "Storage intact. No resources lost.",
+          "2": "Spent 18 food and 14 water. Ration bonus +18.",
+          "3": "Rolled 2 + 4 + 18 = 24. Added 0 unrest; unrest 0.",
+          "4": "Rolled 3 against unrest 0. No riot.",
+          "5": "Reactor powered up. Previous unused charge lost. Charged 1/4 consoles.",
+          "6": "Shuttle Bay powered up. No shuttles refuelled.",
+          "7": "Maintenance cycle complete.",
+          "ftl": "FTL jump complete // 0000 \u2192 1964 // LONG // 8 fuel."
+        },
+        "charges": [],
+        "refuelled": [],
+        "turn": 2,
+        "rationBonus": 18,
+        "startedAt": "2026-10-08T07:20:59.071Z",
+        "unrestRolls": [
+          2,
+          4
+        ],
+        "unrestBeforeCheck": 0,
+        "completedAt": "2026-10-08T07:21:13.784Z"
+      },
+      "icebreaker": {
+        "step": 0,
+        "revision": 16,
+        "results": {
+          "1": "Storage intact. No resources lost.",
+          "2": "Spent 13 food and 10 water. Ration bonus +18.",
+          "3": "Rolled 3 + 4 + 18 = 25. Added 0 unrest; unrest 0.",
+          "4": "Rolled 2 against unrest 0. No riot.",
+          "5": "Reactor powered up. Previous unused charge lost. Charged 1/4 consoles.",
+          "6": "Shuttle Bay powered up. No shuttles refuelled.",
+          "7": "Maintenance cycle complete.",
+          "ftl": "FTL jump complete // 0000 \u2192 1964 // LONG // 12 fuel."
+        },
+        "charges": [],
+        "refuelled": [],
+        "turn": 2,
+        "rationBonus": 18,
+        "startedAt": "2026-10-08T07:21:15.880Z",
+        "unrestRolls": [
+          3,
+          4
+        ],
+        "unrestBeforeCheck": 0,
+        "completedAt": "2026-10-08T07:21:30.593Z"
+      },
+      "shepherd": {
+        "step": 0,
+        "revision": 16,
+        "results": {
+          "1": "Storage intact. No resources lost.",
+          "2": "Spent 12 food and 9 water. Ration bonus +18.",
+          "3": "Rolled 3 + 4 + 18 = 25. Added 0 unrest; unrest 0.",
+          "4": "Rolled 2 against unrest 0. No riot.",
+          "5": "Reactor powered up. Previous unused charge lost. Charged 1/3 consoles.",
+          "6": "Shuttle Bay powered up. No shuttles refuelled.",
+          "7": "Maintenance cycle complete.",
+          "ftl": "FTL jump complete // 0000 \u2192 1964 // LONG // 12 fuel."
+        },
+        "charges": [],
+        "refuelled": [],
+        "turn": 2,
+        "rationBonus": 18,
+        "startedAt": "2026-10-08T07:21:32.701Z",
+        "unrestRolls": [
+          3,
+          4
+        ],
+        "unrestBeforeCheck": 0,
+        "completedAt": "2026-10-08T07:21:47.409Z"
+      },
+      "quellon": {
+        "step": 0,
+        "revision": 16,
+        "results": {
+          "1": "Storage intact. No resources lost.",
+          "2": "Spent 12 food and 9 water. Ration bonus +18.",
+          "3": "Rolled 4 + 2 + 18 = 24. Added 0 unrest; unrest 0.",
+          "4": "Rolled 6 against unrest 0. No riot.",
+          "5": "Reactor powered up. Previous unused charge lost. Charged 1/3 consoles.",
+          "6": "Shuttle Bay powered up. No shuttles refuelled.",
+          "7": "Maintenance cycle complete.",
+          "ftl": "FTL jump complete // 0000 \u2192 1964 // LONG // 8 fuel."
+        },
+        "charges": [],
+        "refuelled": [],
+        "turn": 2,
+        "rationBonus": 18,
+        "startedAt": "2026-10-08T07:21:49.510Z",
+        "unrestRolls": [
+          4,
+          2
+        ],
+        "unrestBeforeCheck": 0,
+        "completedAt": "2026-10-08T07:22:04.222Z"
+      },
+      "refinery-124": {
+        "step": 0,
+        "revision": 16,
+        "results": {
+          "1": "Storage intact. No resources lost.",
+          "2": "Spent 11 food and 8 water. Ration bonus +18.",
+          "3": "Rolled 5 + 5 + 18 = 28. Added 0 unrest; unrest 0.",
+          "4": "Rolled 6 against unrest 0. No riot.",
+          "5": "Reactor powered up. Previous unused charge lost. Charged 1/4 consoles.",
+          "6": "Shuttle Bay powered up. No shuttles refuelled.",
+          "7": "Maintenance cycle complete.",
+          "ftl": "FTL jump complete // 0000 \u2192 1964 // LONG // 8 fuel."
+        },
+        "charges": [],
+        "refuelled": [],
+        "turn": 2,
+        "rationBonus": 18,
+        "startedAt": "2026-10-08T07:22:06.324Z",
+        "unrestRolls": [
+          5,
+          5
+        ],
+        "unrestBeforeCheck": 0,
+        "completedAt": "2026-10-08T07:22:21.032Z"
+      }
+    },
+    "shuttleControl": {
+      "starlight": {
+        "shuttleId": "starlight",
+        "ownerRoleId": "wing-commander",
+        "ownerUid": "captured-player-0",
+        "holderUid": "captured-player-0",
+        "revision": 0
+      }
+    },
+    "shuttleDockings": [
+      {
+        "shuttleId": "snn-press-shuttle",
+        "shipId": "dione",
+        "dockedAt": "SESSION START"
+      },
+      {
+        "shuttleId": "starlight",
+        "shipId": "aegis",
+        "dockedAt": "SESSION START"
+      },
+      {
+        "shuttleId": "pallas",
+        "shipId": "aegis",
+        "dockedAt": "SESSION START"
+      },
+      {
+        "shuttleId": "philia",
+        "shipId": "dione",
+        "dockedAt": "SESSION START"
+      },
+      {
+        "shuttleId": "maliades",
+        "shipId": "dione",
+        "dockedAt": "SESSION START"
+      },
+      {
+        "shuttleId": "highwall",
+        "shipId": "icebreaker",
+        "dockedAt": "SESSION START"
+      },
+      {
+        "shuttleId": "blacksmith",
+        "shipId": "icebreaker",
+        "dockedAt": "SESSION START"
+      },
+      {
+        "shuttleId": "endeavour",
+        "shipId": "shepherd",
+        "dockedAt": "SESSION START"
+      },
+      {
+        "shuttleId": "black-sheep",
+        "shipId": "shepherd",
+        "dockedAt": "SESSION START"
+      },
+      {
+        "shuttleId": "hummingbird",
+        "shipId": "quellon",
+        "dockedAt": "SESSION START"
+      },
+      {
+        "shuttleId": "condor",
+        "shipId": "quellon",
+        "dockedAt": "SESSION START"
+      },
+      {
+        "shuttleId": "chacau",
+        "shipId": "refinery-124",
+        "dockedAt": "SESSION START"
+      },
+      {
+        "shuttleId": "chepu",
+        "shipId": "refinery-124",
+        "dockedAt": "SESSION START"
+      }
+    ],
+    "shuttleFuelled": {
+      "starlight": false,
+      "pallas": false,
+      "snn-press-shuttle": false,
+      "philia": false,
+      "maliades": false,
+      "highwall": false,
+      "blacksmith": false,
+      "endeavour": false,
+      "black-sheep": false,
+      "hummingbird": false,
+      "condor": false,
+      "chacau": false,
+      "chepu": false
+    },
+    "maliadesState": {
+      "revision": 1,
+      "attackId": "wolf-attack-a9b5d518-f284-421a-bda0-e7a738e39a0b",
+      "attackCycle": 2,
+      "launched": false,
+      "damage": 0,
+      "destroyed": false,
+      "medium": null,
+      "short": null
+    },
+    "shipResources": {
+      "dione": {
+        "ore": 0,
+        "food": 0,
+        "water": 0,
+        "materials": 0,
+        "securityTeams": 2,
+        "fuel": 22
+      },
+      "icebreaker": {
+        "ore": 0,
+        "food": 0,
+        "water": 0,
+        "materials": 3,
+        "securityTeams": 2,
+        "fuel": 18
+      },
+      "shepherd": {
+        "ore": 0,
+        "food": 0,
+        "water": 0,
+        "materials": 0,
+        "securityTeams": 2,
+        "fuel": 18
+      },
+      "quellon": {
+        "ore": 0,
+        "food": 0,
+        "water": 0,
+        "materials": 0,
+        "securityTeams": 2,
+        "fuel": 22
+      },
+      "refinery-124": {
+        "ore": 12,
+        "food": 0,
+        "water": 0,
+        "materials": 0,
+        "securityTeams": 6,
+        "fuel": 22
+      },
+      "aegis": {
+        "ore": 0,
+        "food": 0,
+        "water": 0,
+        "materials": 1,
+        "fuel": 24,
+        "securityTeams": 0
+      }
+    },
+    "fighterWingCounts": {
+      "fighter-wing-alpha": {
+        "count": 4,
+        "revision": 0
+      },
+      "fighter-wing-bravo": {
+        "count": 3,
+        "revision": 1
+      }
+    },
+    "smallShipStates": {},
+    "expansion": "base",
+    "capybaraEnabled": true,
+    "shipSurvivors": {
+      "aegis": 2500,
+      "dione": 100000,
+      "icebreaker": 40000,
+      "shepherd": 30000,
+      "quellon": 30000,
+      "refinery-124": 20000
+    }
+  },
+  "attack": {
+    "type": "wolf-attack-state",
+    "status": "declared",
+    "attackId": "wolf-attack-a9b5d518-f284-421a-bda0-e7a738e39a0b",
+    "turn": 2,
+    "attackNumber": 1,
+    "targetGroupId": "fleet-1",
+    "targetGroupVesselIds": [
+      "aegis",
+      "dione",
+      "icebreaker",
+      "quellon",
+      "refinery-124",
+      "shepherd"
+    ],
+    "threatSiteCode": "P",
+    "threatSourceId": "arrival-jump-969932f8-3c01-481f-9d60-700586c58e5d",
+    "pStationSequence": {
+      "type": "p-station-sequence",
+      "sequenceId": "wolf-p-station-jump-969932f8-3c01-481f-9d60-700586c58e5d",
+      "groupId": "fleet-1",
+      "chart": "B",
+      "coordinate": "1964",
+      "stationId": "P",
+      "sourceTransitionId": "jump-969932f8-3c01-481f-9d60-700586c58e5d",
+      "sourceCycle": 2,
+      "attackNumber": 1
+    },
+    "preparationRevision": 1,
+    "deadlineAt": "9999-12-31T23:59:59.999Z",
+    "airspaceLocked": true,
+    "parkedCraftIds": [
+      "snn-press-shuttle",
+      "starlight",
+      "fighter-wing-alpha",
+      "fighter-wing-bravo",
+      "pallas",
+      "philia",
+      "maliades",
+      "highwall",
+      "blacksmith",
+      "endeavour",
+      "black-sheep",
+      "hummingbird",
+      "condor",
+      "chacau",
+      "chepu",
+      "pdf-escort-fighter-wing"
+    ],
+    "parkingReleaseCondition": "normal-movement-reopened",
+    "battleTableCraftActions": [
+      {
+        "craftId": "fighter-wing-alpha",
+        "kind": "fighter-wing",
+        "ownerRoleId": "wing-commander"
+      },
+      {
+        "craftId": "fighter-wing-bravo",
+        "kind": "fighter-wing",
+        "ownerRoleId": "wing-commander"
+      },
+      {
+        "craftId": "maliades",
+        "kind": "shuttle",
+        "ownerRoleId": "dione-engineer"
+      },
+      {
+        "craftId": "highwall",
+        "kind": "shuttle",
+        "ownerRoleId": "icebreaker-miner"
+      },
+      {
+        "craftId": "pdf-escort-fighter-wing",
+        "kind": "fighter-wing",
+        "ownerRoleId": "refinery-124-pdf-colonel"
+      }
+    ],
+    "launchedCraftIds": [],
+    "parkedShuttleDockings": [
+      {
+        "shuttleId": "snn-press-shuttle",
+        "shipId": "dione",
+        "dockedAt": "SESSION START"
+      },
+      {
+        "shuttleId": "starlight",
+        "shipId": "aegis",
+        "dockedAt": "SESSION START"
+      },
+      {
+        "shuttleId": "pallas",
+        "shipId": "aegis",
+        "dockedAt": "SESSION START"
+      },
+      {
+        "shuttleId": "philia",
+        "shipId": "dione",
+        "dockedAt": "SESSION START"
+      },
+      {
+        "shuttleId": "maliades",
+        "shipId": "dione",
+        "dockedAt": "SESSION START"
+      },
+      {
+        "shuttleId": "highwall",
+        "shipId": "icebreaker",
+        "dockedAt": "SESSION START"
+      },
+      {
+        "shuttleId": "blacksmith",
+        "shipId": "icebreaker",
+        "dockedAt": "SESSION START"
+      },
+      {
+        "shuttleId": "endeavour",
+        "shipId": "shepherd",
+        "dockedAt": "SESSION START"
+      },
+      {
+        "shuttleId": "black-sheep",
+        "shipId": "shepherd",
+        "dockedAt": "SESSION START"
+      },
+      {
+        "shuttleId": "hummingbird",
+        "shipId": "quellon",
+        "dockedAt": "SESSION START"
+      },
+      {
+        "shuttleId": "condor",
+        "shipId": "quellon",
+        "dockedAt": "SESSION START"
+      },
+      {
+        "shuttleId": "chacau",
+        "shipId": "refinery-124",
+        "dockedAt": "SESSION START"
+      },
+      {
+        "shuttleId": "chepu",
+        "shipId": "refinery-124",
+        "dockedAt": "SESSION START"
+      }
+    ],
+    "parkingDecisions": [
+      {
+        "craftId": "snn-press-shuttle",
+        "source": "docked",
+        "hostShipId": "dione",
+        "distanceSquared": 0,
+        "tiedHostIds": [
+          "dione"
+        ]
+      },
+      {
+        "craftId": "starlight",
+        "source": "docked",
+        "hostShipId": "aegis",
+        "distanceSquared": 0,
+        "tiedHostIds": [
+          "aegis"
+        ]
+      },
+      {
+        "craftId": "pallas",
+        "source": "docked",
+        "hostShipId": "aegis",
+        "distanceSquared": 0,
+        "tiedHostIds": [
+          "aegis"
+        ]
+      },
+      {
+        "craftId": "philia",
+        "source": "docked",
+        "hostShipId": "dione",
+        "distanceSquared": 0,
+        "tiedHostIds": [
+          "dione"
+        ]
+      },
+      {
+        "craftId": "maliades",
+        "source": "docked",
+        "hostShipId": "dione",
+        "distanceSquared": 0,
+        "tiedHostIds": [
+          "dione"
+        ]
+      },
+      {
+        "craftId": "highwall",
+        "source": "docked",
+        "hostShipId": "icebreaker",
+        "distanceSquared": 0,
+        "tiedHostIds": [
+          "icebreaker"
+        ]
+      },
+      {
+        "craftId": "blacksmith",
+        "source": "docked",
+        "hostShipId": "icebreaker",
+        "distanceSquared": 0,
+        "tiedHostIds": [
+          "icebreaker"
+        ]
+      },
+      {
+        "craftId": "endeavour",
+        "source": "docked",
+        "hostShipId": "shepherd",
+        "distanceSquared": 0,
+        "tiedHostIds": [
+          "shepherd"
+        ]
+      },
+      {
+        "craftId": "black-sheep",
+        "source": "docked",
+        "hostShipId": "shepherd",
+        "distanceSquared": 0,
+        "tiedHostIds": [
+          "shepherd"
+        ]
+      },
+      {
+        "craftId": "hummingbird",
+        "source": "docked",
+        "hostShipId": "quellon",
+        "distanceSquared": 0,
+        "tiedHostIds": [
+          "quellon"
+        ]
+      },
+      {
+        "craftId": "condor",
+        "source": "docked",
+        "hostShipId": "quellon",
+        "distanceSquared": 0,
+        "tiedHostIds": [
+          "quellon"
+        ]
+      },
+      {
+        "craftId": "chacau",
+        "source": "docked",
+        "hostShipId": "refinery-124",
+        "distanceSquared": 0,
+        "tiedHostIds": [
+          "refinery-124"
+        ]
+      },
+      {
+        "craftId": "chepu",
+        "source": "docked",
+        "hostShipId": "refinery-124",
+        "distanceSquared": 0,
+        "tiedHostIds": [
+          "refinery-124"
+        ]
+      }
+    ],
+    "calculationReceipt": {
+      "type": "wolf-combat-calculation-stage",
+      "version": 1,
+      "turn": 2,
+      "step": "targeting",
+      "generatedAt": "2026-10-08T07:22:25.883Z",
+      "pursuitPressure": {
+        "navigationRevision": 8,
+        "targetGroupId": "fleet-1",
+        "targetGroupValue": 0
+      },
+      "composition": {
+        "shipIds": [
+          "wolf-fighter-wing",
+          "wolf-fighter-wing",
+          "wolf-fighter-wing",
+          "wolf-fighter-wing",
+          "wolf-fighter-wing",
+          "wolf-fighter-wing",
+          "wolf-fighter-wing",
+          "wolf-fighter-wing",
+          "wolf-fighter-wing",
+          "wolf-fighter-wing",
+          "wolf-assault-transport",
+          "wolf-assault-transport",
+          "wolf-assault-transport",
+          "wolf-assault-transport",
+          "wolf-assault-transport",
+          "wolf-strikecarrier",
+          "wolf-strikecarrier",
+          "wolf-strikecarrier",
+          "wolf-strikecarrier",
+          "wolf-battlestation"
+        ],
+        "counts": {
+          "wolf-fighter-wing": 10,
+          "wolf-assault-transport": 5,
+          "wolf-destroyer": 0,
+          "wolf-cruiser": 0,
+          "wolf-strikecarrier": 4,
+          "wolf-battlestation": 1
+        },
+        "damageCapacity": 46
+      },
+      "targeting": {
+        "ring": [
+          "aegis",
+          "dione",
+          "icebreaker",
+          "quellon",
+          "shepherd",
+          "refinery-124"
+        ],
+        "rolls": [
+          {
+            "rosterIndex": 0,
+            "shipId": "wolf-fighter-wing",
+            "initialDie": 5,
+            "finalDie": 5,
+            "target": "shepherd",
+            "modifiers": []
+          },
+          {
+            "rosterIndex": 1,
+            "shipId": "wolf-fighter-wing",
+            "initialDie": 2,
+            "finalDie": 2,
+            "target": "dione",
+            "modifiers": []
+          },
+          {
+            "rosterIndex": 2,
+            "shipId": "wolf-fighter-wing",
+            "initialDie": 6,
+            "finalDie": 6,
+            "target": "refinery-124",
+            "modifiers": []
+          },
+          {
+            "rosterIndex": 3,
+            "shipId": "wolf-fighter-wing",
+            "initialDie": 4,
+            "finalDie": 4,
+            "target": "quellon",
+            "modifiers": []
+          },
+          {
+            "rosterIndex": 4,
+            "shipId": "wolf-fighter-wing",
+            "initialDie": 2,
+            "finalDie": 2,
+            "target": "dione",
+            "modifiers": []
+          },
+          {
+            "rosterIndex": 5,
+            "shipId": "wolf-fighter-wing",
+            "initialDie": 5,
+            "finalDie": 5,
+            "target": "shepherd",
+            "modifiers": []
+          },
+          {
+            "rosterIndex": 6,
+            "shipId": "wolf-fighter-wing",
+            "initialDie": 6,
+            "finalDie": 6,
+            "target": "refinery-124",
+            "modifiers": []
+          },
+          {
+            "rosterIndex": 7,
+            "shipId": "wolf-fighter-wing",
+            "initialDie": 2,
+            "finalDie": 2,
+            "target": "dione",
+            "modifiers": []
+          },
+          {
+            "rosterIndex": 8,
+            "shipId": "wolf-fighter-wing",
+            "initialDie": 5,
+            "finalDie": 5,
+            "target": "shepherd",
+            "modifiers": []
+          },
+          {
+            "rosterIndex": 9,
+            "shipId": "wolf-fighter-wing",
+            "initialDie": 1,
+            "finalDie": 1,
+            "target": "aegis",
+            "modifiers": []
+          },
+          {
+            "rosterIndex": 10,
+            "shipId": "wolf-assault-transport",
+            "initialDie": 1,
+            "finalDie": 1,
+            "target": "aegis",
+            "modifiers": []
+          },
+          {
+            "rosterIndex": 11,
+            "shipId": "wolf-assault-transport",
+            "initialDie": 3,
+            "finalDie": 3,
+            "target": "icebreaker",
+            "modifiers": []
+          },
+          {
+            "rosterIndex": 12,
+            "shipId": "wolf-assault-transport",
+            "initialDie": 6,
+            "finalDie": 6,
+            "target": "refinery-124",
+            "modifiers": []
+          },
+          {
+            "rosterIndex": 13,
+            "shipId": "wolf-assault-transport",
+            "initialDie": 6,
+            "finalDie": 6,
+            "target": "refinery-124",
+            "modifiers": []
+          },
+          {
+            "rosterIndex": 14,
+            "shipId": "wolf-assault-transport",
+            "initialDie": 1,
+            "finalDie": 1,
+            "target": "aegis",
+            "modifiers": []
+          },
+          {
+            "rosterIndex": 15,
+            "shipId": "wolf-strikecarrier",
+            "initialDie": 2,
+            "finalDie": 2,
+            "target": "dione",
+            "modifiers": []
+          },
+          {
+            "rosterIndex": 16,
+            "shipId": "wolf-strikecarrier",
+            "initialDie": 6,
+            "finalDie": 6,
+            "target": "refinery-124",
+            "modifiers": []
+          },
+          {
+            "rosterIndex": 17,
+            "shipId": "wolf-strikecarrier",
+            "initialDie": 6,
+            "finalDie": 6,
+            "target": "refinery-124",
+            "modifiers": []
+          },
+          {
+            "rosterIndex": 18,
+            "shipId": "wolf-strikecarrier",
+            "initialDie": 4,
+            "finalDie": 4,
+            "target": "quellon",
+            "modifiers": []
+          },
+          {
+            "rosterIndex": 19,
+            "shipId": "wolf-battlestation",
+            "initialDie": 6,
+            "finalDie": 6,
+            "target": "refinery-124",
+            "modifiers": []
+          }
+        ],
+        "modifierOrder": [
+          "commander-reroll",
+          "target-shift",
+          "command-and-control-redirect"
+        ]
+      }
+    },
+    "forceFieldChoice": {
+      "status": "unavailable",
+      "turn": 2,
+      "revision": 1,
+      "unavailableReason": "no-current-captain",
+      "determinedAt": "2026-10-08T07:22:25.883Z"
+    },
+    "maliadesRangeEffects": {
+      "attackId": "wolf-attack-a9b5d518-f284-421a-bda0-e7a738e39a0b",
+      "cycle": 2,
+      "medium": null,
+      "short": null
+    },
+    "commanderRerollIndexes": [],
+    "preparation": {
+      "revision": 1,
+      "turn": 2,
+      "shipIds": [
+        "wolf-fighter-wing",
+        "wolf-fighter-wing",
+        "wolf-fighter-wing",
+        "wolf-fighter-wing",
+        "wolf-fighter-wing",
+        "wolf-fighter-wing",
+        "wolf-fighter-wing",
+        "wolf-fighter-wing",
+        "wolf-fighter-wing",
+        "wolf-fighter-wing",
+        "wolf-assault-transport",
+        "wolf-assault-transport",
+        "wolf-assault-transport",
+        "wolf-assault-transport",
+        "wolf-assault-transport",
+        "wolf-strikecarrier",
+        "wolf-strikecarrier",
+        "wolf-strikecarrier",
+        "wolf-strikecarrier",
+        "wolf-battlestation"
+      ],
+      "targetMode": "pre-rolled",
+      "targetAssignments": [],
+      "modifiers": [],
+      "notes": "",
+      "compositionKind": "P",
+      "targetGroupId": "fleet-1"
+    },
+    "actorUid": "captured-player-1",
+    "declaredAt": "2026-10-08T07:22:25.883Z",
+    "announcementId": "wolf-attack-a9b5d518-f284-421a-bda0-e7a738e39a0b",
+    "fighterLaunchChoices": {
+      "pdf-escort-fighter-wing": {
+        "sourceId": "pdf-escort-fighter-wing",
+        "status": "unavailable",
+        "turn": 2,
+        "attackId": "wolf-attack-a9b5d518-f284-421a-bda0-e7a738e39a0b",
+        "revision": 2,
+        "actorUid": "server",
+        "actorRoleId": "refinery-124-pdf-colonel",
+        "requestId": "wolf-launch-auto-pdf-escort-fighter-wing-2",
+        "reason": "no-current-role-owner"
+      },
+      "maliades": {
+        "sourceId": "maliades",
+        "status": "unavailable",
+        "turn": 2,
+        "attackId": "wolf-attack-a9b5d518-f284-421a-bda0-e7a738e39a0b",
+        "revision": 2,
+        "actorUid": "server",
+        "actorRoleId": "dione-engineer",
+        "requestId": "wolf-launch-auto-maliades-2",
+        "reason": "no-current-role-owner"
+      },
+      "fighter-wing-alpha": {
+        "sourceId": "fighter-wing-alpha",
+        "status": "launched",
+        "turn": 2,
+        "attackId": "wolf-attack-a9b5d518-f284-421a-bda0-e7a738e39a0b",
+        "revision": 3,
+        "actorUid": "captured-player-0",
+        "actorRoleId": "wing-commander",
+        "requestId": "04465911-3770-491d-b442-ab9099b35396"
+      },
+      "fighter-wing-bravo": {
+        "sourceId": "fighter-wing-bravo",
+        "status": "launched",
+        "turn": 2,
+        "attackId": "wolf-attack-a9b5d518-f284-421a-bda0-e7a738e39a0b",
+        "revision": 4,
+        "actorUid": "captured-player-0",
+        "actorRoleId": "wing-commander",
+        "requestId": "9eb37115-5fd7-4425-8496-6df00b3d3849"
+      }
+    },
+    "commanderRerollCompletion": {
+      "status": "no-commander",
+      "turn": 2,
+      "revision": 5,
+      "actorUid": "server",
+      "requestId": "wolf-no-commander-2"
+    },
+    "targetingCompletion": {
+      "turn": 2,
+      "revision": 5,
+      "status": "no-commander",
+      "commandAndControl": "unavailable",
+      "reason": "no-current-executive-officer"
+    },
+    "memberResults": [
+      {
+        "status": "committed",
+        "range": "medium-range",
+        "sourceId": "aegis-alpha-wing",
+        "targetId": "shepherd",
+        "bearing": null,
+        "contactReference": "Wolf contact 1",
+        "effect": "Alpha Fighter Wing attack missed",
+        "outcome": {
+          "damage": 0,
+          "destroyed": true
+        },
+        "serverTime": "2026-10-08T07:22:33.433Z"
+      },
+      {
+        "status": "committed",
+        "range": "medium-range",
+        "sourceId": "aegis-alpha-wing",
+        "targetId": "dione",
+        "bearing": null,
+        "contactReference": "Wolf contact 2",
+        "effect": "Alpha Fighter Wing attack missed",
+        "outcome": {
+          "damage": 0,
+          "destroyed": false
+        },
+        "serverTime": "2026-10-08T07:22:33.433Z"
+      },
+      {
+        "status": "committed",
+        "range": "medium-range",
+        "sourceId": "aegis-alpha-wing",
+        "targetId": "refinery-124",
+        "bearing": null,
+        "contactReference": "Wolf contact 3",
+        "effect": "Alpha Fighter Wing attack missed",
+        "outcome": {
+          "damage": 0,
+          "destroyed": false
+        },
+        "serverTime": "2026-10-08T07:22:33.433Z"
+      },
+      {
+        "status": "committed",
+        "range": "medium-range",
+        "sourceId": "aegis-alpha-wing",
+        "targetId": "quellon",
+        "bearing": null,
+        "contactReference": "Wolf contact 4",
+        "effect": "Alpha Fighter Wing attack missed",
+        "outcome": {
+          "damage": 0,
+          "destroyed": false
+        },
+        "serverTime": "2026-10-08T07:22:33.433Z"
+      },
+      {
+        "status": "committed",
+        "range": "medium-range",
+        "sourceId": "aegis-bravo-wing",
+        "targetId": "shepherd",
+        "bearing": null,
+        "contactReference": "Wolf contact 1",
+        "effect": "Bravo Fighter Wing attack hit",
+        "outcome": {
+          "damage": 1,
+          "destroyed": true
+        },
+        "serverTime": "2026-10-08T07:22:33.433Z"
+      },
+      {
+        "status": "committed",
+        "range": "medium-range",
+        "sourceId": "aegis-bravo-wing",
+        "targetId": "dione",
+        "bearing": null,
+        "contactReference": "Wolf contact 2",
+        "effect": "Bravo Fighter Wing attack missed",
+        "outcome": {
+          "damage": 0,
+          "destroyed": false
+        },
+        "serverTime": "2026-10-08T07:22:33.433Z"
+      },
+      {
+        "status": "committed",
+        "range": "medium-range",
+        "sourceId": "aegis-bravo-wing",
+        "targetId": "refinery-124",
+        "bearing": null,
+        "contactReference": "Wolf contact 3",
+        "effect": "Bravo Fighter Wing attack missed",
+        "outcome": {
+          "damage": 0,
+          "destroyed": false
+        },
+        "serverTime": "2026-10-08T07:22:33.433Z"
+      },
+      {
+        "status": "committed",
+        "range": "medium-range",
+        "sourceId": "aegis-bravo-wing",
+        "targetId": "quellon",
+        "bearing": null,
+        "contactReference": "Wolf contact 4",
+        "effect": "Bravo Fighter Wing attack missed",
+        "outcome": {
+          "damage": 0,
+          "destroyed": false
+        },
+        "serverTime": "2026-10-08T07:22:33.433Z"
+      }
+    ],
+    "fighterRangeChoices": {
+      "medium-range": {
+        "fighter-wing-alpha": {
+          "type": "wolf-fighter-range-action-choice",
+          "status": "committed",
+          "sourceId": "fighter-wing-alpha",
+          "range": "medium-range",
+          "turn": 2,
+          "attackId": "wolf-attack-a9b5d518-f284-421a-bda0-e7a738e39a0b",
+          "revision": 7,
+          "actorUid": "captured-player-0",
+          "actorRoleId": "wing-commander",
+          "requestId": "a4150dea-ccd1-447d-8c24-baa86eac2a0c",
+          "actions": [
+            {
+              "fighterIndex": 0,
+              "kind": "attack",
+              "targetInstanceId": "0:wolf-fighter-wing"
+            },
+            {
+              "fighterIndex": 1,
+              "kind": "attack",
+              "targetInstanceId": "1:wolf-fighter-wing"
+            },
+            {
+              "fighterIndex": 2,
+              "kind": "attack",
+              "targetInstanceId": "2:wolf-fighter-wing"
+            },
+            {
+              "fighterIndex": 3,
+              "kind": "attack",
+              "targetInstanceId": "3:wolf-fighter-wing"
+            }
+          ]
+        },
+        "fighter-wing-bravo": {
+          "type": "wolf-fighter-range-action-choice",
+          "status": "committed",
+          "sourceId": "fighter-wing-bravo",
+          "range": "medium-range",
+          "turn": 2,
+          "attackId": "wolf-attack-a9b5d518-f284-421a-bda0-e7a738e39a0b",
+          "revision": 8,
+          "actorUid": "captured-player-0",
+          "actorRoleId": "wing-commander",
+          "requestId": "61ae9838-0839-4fed-88ba-bd975a97b0d9",
+          "actions": [
+            {
+              "fighterIndex": 0,
+              "kind": "attack",
+              "targetInstanceId": "0:wolf-fighter-wing"
+            },
+            {
+              "fighterIndex": 1,
+              "kind": "attack",
+              "targetInstanceId": "1:wolf-fighter-wing"
+            },
+            {
+              "fighterIndex": 2,
+              "kind": "attack",
+              "targetInstanceId": "2:wolf-fighter-wing"
+            },
+            {
+              "fighterIndex": 3,
+              "kind": "attack",
+              "targetInstanceId": "3:wolf-fighter-wing"
+            }
+          ]
+        }
+      },
+      "short-range": {
+        "fighter-wing-alpha": {
+          "type": "wolf-fighter-range-action-choice",
+          "status": "committed",
+          "sourceId": "fighter-wing-alpha",
+          "range": "short-range",
+          "turn": 2,
+          "attackId": "wolf-attack-a9b5d518-f284-421a-bda0-e7a738e39a0b",
+          "revision": 10,
+          "actorUid": "captured-player-0",
+          "actorRoleId": "wing-commander",
+          "requestId": "c5f12c50-7f5c-48a1-a4d2-5266d1151e46",
+          "fighterIndexes": [
+            0,
+            1,
+            2,
+            3
+          ]
+        },
+        "fighter-wing-bravo": {
+          "type": "wolf-fighter-range-action-choice",
+          "status": "committed",
+          "sourceId": "fighter-wing-bravo",
+          "range": "short-range",
+          "turn": 2,
+          "attackId": "wolf-attack-a9b5d518-f284-421a-bda0-e7a738e39a0b",
+          "revision": 11,
+          "actorUid": "captured-player-0",
+          "actorRoleId": "wing-commander",
+          "requestId": "adfe9d70-7f81-44f9-821a-61c8181afd63",
+          "fighterIndexes": [
+            0,
+            1,
+            2,
+            3
+          ]
+        }
+      }
+    },
+    "currentStep": "boarding",
+    "rangeDecisions": {
+      "long-range": {
+        "status": "auto-passed",
+        "range": "long-range",
+        "actorUid": "server",
+        "actorRoleId": "server",
+        "requestId": "wolf-auto-long-range-2",
+        "actionIds": [],
+        "weaponActionIds": [],
+        "lock": {
+          "range": "long-range",
+          "dice": []
+        },
+        "assignments": [],
+        "receipt": {
+          "range": "long-range",
+          "targetSnapshot": [
+            {
+              "instanceId": "0:wolf-fighter-wing",
+              "target": "shepherd"
+            },
+            {
+              "instanceId": "1:wolf-fighter-wing",
+              "target": "dione"
+            },
+            {
+              "instanceId": "2:wolf-fighter-wing",
+              "target": "refinery-124"
+            },
+            {
+              "instanceId": "3:wolf-fighter-wing",
+              "target": "quellon"
+            },
+            {
+              "instanceId": "4:wolf-fighter-wing",
+              "target": "dione"
+            },
+            {
+              "instanceId": "5:wolf-fighter-wing",
+              "target": "shepherd"
+            },
+            {
+              "instanceId": "6:wolf-fighter-wing",
+              "target": "refinery-124"
+            },
+            {
+              "instanceId": "7:wolf-fighter-wing",
+              "target": "dione"
+            },
+            {
+              "instanceId": "8:wolf-fighter-wing",
+              "target": "shepherd"
+            },
+            {
+              "instanceId": "9:wolf-fighter-wing",
+              "target": "aegis"
+            },
+            {
+              "instanceId": "10:wolf-assault-transport",
+              "target": "aegis"
+            },
+            {
+              "instanceId": "11:wolf-assault-transport",
+              "target": "icebreaker"
+            },
+            {
+              "instanceId": "12:wolf-assault-transport",
+              "target": "refinery-124"
+            },
+            {
+              "instanceId": "13:wolf-assault-transport",
+              "target": "refinery-124"
+            },
+            {
+              "instanceId": "14:wolf-assault-transport",
+              "target": "aegis"
+            },
+            {
+              "instanceId": "15:wolf-strikecarrier",
+              "target": "dione"
+            },
+            {
+              "instanceId": "16:wolf-strikecarrier",
+              "target": "refinery-124"
+            },
+            {
+              "instanceId": "17:wolf-strikecarrier",
+              "target": "refinery-124"
+            },
+            {
+              "instanceId": "18:wolf-strikecarrier",
+              "target": "quellon"
+            },
+            {
+              "instanceId": "19:wolf-battlestation",
+              "target": "refinery-124"
+            }
+          ],
+          "dice": [],
+          "assignments": [],
+          "targetShifts": [],
+          "unusedHitsByAction": [],
+          "damageByInstance": {},
+          "destroyedInstanceIds": [],
+          "destructionDamageByTarget": {
+            "aegis": 0,
+            "dione": 0,
+            "icebreaker": 0,
+            "quellon": 0,
+            "shepherd": 0,
+            "refinery-124": 0,
+            "capybara": 0
+          }
+        },
+        "committedAt": "2026-10-08T07:22:30.662Z",
+        "reason": "no-eligible-range-action"
+      },
+      "medium-range": {
+        "status": "auto-resolved",
+        "range": "medium-range",
+        "actorUid": "server",
+        "actorRoleId": "server",
+        "requestId": "wolf-auto-medium-range-2",
+        "actionIds": [
+          "aegis-alpha-wing-medium-0",
+          "aegis-alpha-wing-medium-1",
+          "aegis-alpha-wing-medium-2",
+          "aegis-alpha-wing-medium-3",
+          "aegis-bravo-wing-medium-0",
+          "aegis-bravo-wing-medium-1",
+          "aegis-bravo-wing-medium-2",
+          "aegis-bravo-wing-medium-3"
+        ],
+        "weaponActionIds": [],
+        "lock": {
+          "range": "medium-range",
+          "dice": [
+            {
+              "actionId": "aegis-alpha-wing-medium-0",
+              "sourceId": "aegis-alpha-wing",
+              "range": "medium-range",
+              "rolls": [
+                3
+              ],
+              "successes": 0,
+              "damage": 0,
+              "damagePerHit": 1
+            },
+            {
+              "actionId": "aegis-alpha-wing-medium-1",
+              "sourceId": "aegis-alpha-wing",
+              "range": "medium-range",
+              "rolls": [
+                3
+              ],
+              "successes": 0,
+              "damage": 0,
+              "damagePerHit": 1
+            },
+            {
+              "actionId": "aegis-alpha-wing-medium-2",
+              "sourceId": "aegis-alpha-wing",
+              "range": "medium-range",
+              "rolls": [
+                4
+              ],
+              "successes": 0,
+              "damage": 0,
+              "damagePerHit": 1
+            },
+            {
+              "actionId": "aegis-alpha-wing-medium-3",
+              "sourceId": "aegis-alpha-wing",
+              "range": "medium-range",
+              "rolls": [
+                2
+              ],
+              "successes": 0,
+              "damage": 0,
+              "damagePerHit": 1
+            },
+            {
+              "actionId": "aegis-bravo-wing-medium-0",
+              "sourceId": "aegis-bravo-wing",
+              "range": "medium-range",
+              "rolls": [
+                5
+              ],
+              "successes": 1,
+              "damage": 1,
+              "damagePerHit": 1
+            },
+            {
+              "actionId": "aegis-bravo-wing-medium-1",
+              "sourceId": "aegis-bravo-wing",
+              "range": "medium-range",
+              "rolls": [
+                4
+              ],
+              "successes": 0,
+              "damage": 0,
+              "damagePerHit": 1
+            },
+            {
+              "actionId": "aegis-bravo-wing-medium-2",
+              "sourceId": "aegis-bravo-wing",
+              "range": "medium-range",
+              "rolls": [
+                1
+              ],
+              "successes": 0,
+              "damage": 0,
+              "damagePerHit": 1
+            },
+            {
+              "actionId": "aegis-bravo-wing-medium-3",
+              "sourceId": "aegis-bravo-wing",
+              "range": "medium-range",
+              "rolls": [
+                4
+              ],
+              "successes": 0,
+              "damage": 0,
+              "damagePerHit": 1
+            }
+          ]
+        },
+        "assignments": [
+          {
+            "actionId": "aegis-alpha-wing-medium-0",
+            "targetInstanceIds": []
+          },
+          {
+            "actionId": "aegis-alpha-wing-medium-1",
+            "targetInstanceIds": []
+          },
+          {
+            "actionId": "aegis-alpha-wing-medium-2",
+            "targetInstanceIds": []
+          },
+          {
+            "actionId": "aegis-alpha-wing-medium-3",
+            "targetInstanceIds": []
+          },
+          {
+            "actionId": "aegis-bravo-wing-medium-0",
+            "targetInstanceIds": [
+              "0:wolf-fighter-wing"
+            ]
+          },
+          {
+            "actionId": "aegis-bravo-wing-medium-1",
+            "targetInstanceIds": []
+          },
+          {
+            "actionId": "aegis-bravo-wing-medium-2",
+            "targetInstanceIds": []
+          },
+          {
+            "actionId": "aegis-bravo-wing-medium-3",
+            "targetInstanceIds": []
+          }
+        ],
+        "receipt": {
+          "range": "medium-range",
+          "targetSnapshot": [
+            {
+              "instanceId": "0:wolf-fighter-wing",
+              "target": "shepherd"
+            },
+            {
+              "instanceId": "1:wolf-fighter-wing",
+              "target": "dione"
+            },
+            {
+              "instanceId": "2:wolf-fighter-wing",
+              "target": "refinery-124"
+            },
+            {
+              "instanceId": "3:wolf-fighter-wing",
+              "target": "quellon"
+            },
+            {
+              "instanceId": "4:wolf-fighter-wing",
+              "target": "dione"
+            },
+            {
+              "instanceId": "5:wolf-fighter-wing",
+              "target": "shepherd"
+            },
+            {
+              "instanceId": "6:wolf-fighter-wing",
+              "target": "refinery-124"
+            },
+            {
+              "instanceId": "7:wolf-fighter-wing",
+              "target": "dione"
+            },
+            {
+              "instanceId": "8:wolf-fighter-wing",
+              "target": "shepherd"
+            },
+            {
+              "instanceId": "9:wolf-fighter-wing",
+              "target": "aegis"
+            },
+            {
+              "instanceId": "10:wolf-assault-transport",
+              "target": "aegis"
+            },
+            {
+              "instanceId": "11:wolf-assault-transport",
+              "target": "icebreaker"
+            },
+            {
+              "instanceId": "12:wolf-assault-transport",
+              "target": "refinery-124"
+            },
+            {
+              "instanceId": "13:wolf-assault-transport",
+              "target": "refinery-124"
+            },
+            {
+              "instanceId": "14:wolf-assault-transport",
+              "target": "aegis"
+            },
+            {
+              "instanceId": "15:wolf-strikecarrier",
+              "target": "dione"
+            },
+            {
+              "instanceId": "16:wolf-strikecarrier",
+              "target": "refinery-124"
+            },
+            {
+              "instanceId": "17:wolf-strikecarrier",
+              "target": "refinery-124"
+            },
+            {
+              "instanceId": "18:wolf-strikecarrier",
+              "target": "quellon"
+            },
+            {
+              "instanceId": "19:wolf-battlestation",
+              "target": "refinery-124"
+            }
+          ],
+          "dice": [
+            {
+              "actionId": "aegis-alpha-wing-medium-0",
+              "sourceId": "aegis-alpha-wing",
+              "range": "medium-range",
+              "rolls": [
+                3
+              ],
+              "successes": 0,
+              "damage": 0
+            },
+            {
+              "actionId": "aegis-alpha-wing-medium-1",
+              "sourceId": "aegis-alpha-wing",
+              "range": "medium-range",
+              "rolls": [
+                3
+              ],
+              "successes": 0,
+              "damage": 0
+            },
+            {
+              "actionId": "aegis-alpha-wing-medium-2",
+              "sourceId": "aegis-alpha-wing",
+              "range": "medium-range",
+              "rolls": [
+                4
+              ],
+              "successes": 0,
+              "damage": 0
+            },
+            {
+              "actionId": "aegis-alpha-wing-medium-3",
+              "sourceId": "aegis-alpha-wing",
+              "range": "medium-range",
+              "rolls": [
+                2
+              ],
+              "successes": 0,
+              "damage": 0
+            },
+            {
+              "actionId": "aegis-bravo-wing-medium-0",
+              "sourceId": "aegis-bravo-wing",
+              "range": "medium-range",
+              "rolls": [
+                5
+              ],
+              "successes": 1,
+              "damage": 1
+            },
+            {
+              "actionId": "aegis-bravo-wing-medium-1",
+              "sourceId": "aegis-bravo-wing",
+              "range": "medium-range",
+              "rolls": [
+                4
+              ],
+              "successes": 0,
+              "damage": 0
+            },
+            {
+              "actionId": "aegis-bravo-wing-medium-2",
+              "sourceId": "aegis-bravo-wing",
+              "range": "medium-range",
+              "rolls": [
+                1
+              ],
+              "successes": 0,
+              "damage": 0
+            },
+            {
+              "actionId": "aegis-bravo-wing-medium-3",
+              "sourceId": "aegis-bravo-wing",
+              "range": "medium-range",
+              "rolls": [
+                4
+              ],
+              "successes": 0,
+              "damage": 0
+            }
+          ],
+          "assignments": [
+            {
+              "actionId": "aegis-alpha-wing-medium-0",
+              "targetInstanceIds": []
+            },
+            {
+              "actionId": "aegis-alpha-wing-medium-1",
+              "targetInstanceIds": []
+            },
+            {
+              "actionId": "aegis-alpha-wing-medium-2",
+              "targetInstanceIds": []
+            },
+            {
+              "actionId": "aegis-alpha-wing-medium-3",
+              "targetInstanceIds": []
+            },
+            {
+              "actionId": "aegis-bravo-wing-medium-0",
+              "targetInstanceIds": [
+                "0:wolf-fighter-wing"
+              ]
+            },
+            {
+              "actionId": "aegis-bravo-wing-medium-1",
+              "targetInstanceIds": []
+            },
+            {
+              "actionId": "aegis-bravo-wing-medium-2",
+              "targetInstanceIds": []
+            },
+            {
+              "actionId": "aegis-bravo-wing-medium-3",
+              "targetInstanceIds": []
+            }
+          ],
+          "targetShifts": [],
+          "unusedHitsByAction": [],
+          "damageByInstance": {
+            "0:wolf-fighter-wing": 1
+          },
+          "destroyedInstanceIds": [
+            "0:wolf-fighter-wing"
+          ],
+          "destructionDamageByTarget": {
+            "aegis": 0,
+            "dione": 0,
+            "icebreaker": 0,
+            "quellon": 0,
+            "shepherd": 0,
+            "refinery-124": 0,
+            "capybara": 0
+          }
+        },
+        "committedAt": "2026-10-08T07:22:33.433Z",
+        "reason": "committed-range-sources-resolved"
+      },
+      "short-range": {
+        "status": "auto-resolved",
+        "range": "short-range",
+        "actorUid": "server",
+        "actorRoleId": "server",
+        "requestId": "wolf-auto-short-range-2",
+        "actionIds": [
+          "aegis-alpha-wing-short-0",
+          "aegis-alpha-wing-short-1",
+          "aegis-alpha-wing-short-2",
+          "aegis-alpha-wing-short-3",
+          "aegis-bravo-wing-short-0",
+          "aegis-bravo-wing-short-1",
+          "aegis-bravo-wing-short-2",
+          "aegis-bravo-wing-short-3"
+        ],
+        "weaponActionIds": [],
+        "lock": {
+          "range": "short-range",
+          "dice": [
+            {
+              "actionId": "aegis-alpha-wing-short-0",
+              "sourceId": "aegis-alpha-wing",
+              "range": "short-range",
+              "rolls": [
+                3
+              ],
+              "successes": 1,
+              "damage": 1,
+              "damagePerHit": 1
+            },
+            {
+              "actionId": "aegis-alpha-wing-short-1",
+              "sourceId": "aegis-alpha-wing",
+              "range": "short-range",
+              "rolls": [
+                5
+              ],
+              "successes": 1,
+              "damage": 1,
+              "damagePerHit": 1
+            },
+            {
+              "actionId": "aegis-alpha-wing-short-2",
+              "sourceId": "aegis-alpha-wing",
+              "range": "short-range",
+              "rolls": [
+                5
+              ],
+              "successes": 1,
+              "damage": 1,
+              "damagePerHit": 1
+            },
+            {
+              "actionId": "aegis-alpha-wing-short-3",
+              "sourceId": "aegis-alpha-wing",
+              "range": "short-range",
+              "rolls": [
+                4
+              ],
+              "successes": 1,
+              "damage": 1,
+              "damagePerHit": 1
+            },
+            {
+              "actionId": "aegis-bravo-wing-short-0",
+              "sourceId": "aegis-bravo-wing",
+              "range": "short-range",
+              "rolls": [
+                4
+              ],
+              "successes": 1,
+              "damage": 1,
+              "damagePerHit": 1
+            },
+            {
+              "actionId": "aegis-bravo-wing-short-1",
+              "sourceId": "aegis-bravo-wing",
+              "range": "short-range",
+              "rolls": [
+                6
+              ],
+              "successes": 1,
+              "damage": 1,
+              "damagePerHit": 1
+            },
+            {
+              "actionId": "aegis-bravo-wing-short-2",
+              "sourceId": "aegis-bravo-wing",
+              "range": "short-range",
+              "rolls": [
+                3
+              ],
+              "successes": 1,
+              "damage": 1,
+              "damagePerHit": 1
+            },
+            {
+              "actionId": "aegis-bravo-wing-short-3",
+              "sourceId": "aegis-bravo-wing",
+              "range": "short-range",
+              "rolls": [
+                1
+              ],
+              "successes": 0,
+              "damage": 0,
+              "damagePerHit": 1
+            }
+          ]
+        },
+        "assignments": [
+          {
+            "actionId": "aegis-alpha-wing-short-0",
+            "targetInstanceIds": [
+              "1:wolf-fighter-wing"
+            ]
+          },
+          {
+            "actionId": "aegis-alpha-wing-short-1",
+            "targetInstanceIds": [
+              "2:wolf-fighter-wing"
+            ]
+          },
+          {
+            "actionId": "aegis-alpha-wing-short-2",
+            "targetInstanceIds": [
+              "3:wolf-fighter-wing"
+            ]
+          },
+          {
+            "actionId": "aegis-alpha-wing-short-3",
+            "targetInstanceIds": [
+              "4:wolf-fighter-wing"
+            ]
+          },
+          {
+            "actionId": "aegis-bravo-wing-short-0",
+            "targetInstanceIds": [
+              "5:wolf-fighter-wing"
+            ]
+          },
+          {
+            "actionId": "aegis-bravo-wing-short-1",
+            "targetInstanceIds": [
+              "6:wolf-fighter-wing"
+            ]
+          },
+          {
+            "actionId": "aegis-bravo-wing-short-2",
+            "targetInstanceIds": [
+              "7:wolf-fighter-wing"
+            ]
+          },
+          {
+            "actionId": "aegis-bravo-wing-short-3",
+            "targetInstanceIds": []
+          }
+        ],
+        "receipt": {
+          "range": "short-range",
+          "targetSnapshot": [
+            {
+              "instanceId": "0:wolf-fighter-wing",
+              "target": "shepherd"
+            },
+            {
+              "instanceId": "1:wolf-fighter-wing",
+              "target": "dione"
+            },
+            {
+              "instanceId": "2:wolf-fighter-wing",
+              "target": "refinery-124"
+            },
+            {
+              "instanceId": "3:wolf-fighter-wing",
+              "target": "quellon"
+            },
+            {
+              "instanceId": "4:wolf-fighter-wing",
+              "target": "dione"
+            },
+            {
+              "instanceId": "5:wolf-fighter-wing",
+              "target": "shepherd"
+            },
+            {
+              "instanceId": "6:wolf-fighter-wing",
+              "target": "refinery-124"
+            },
+            {
+              "instanceId": "7:wolf-fighter-wing",
+              "target": "dione"
+            },
+            {
+              "instanceId": "8:wolf-fighter-wing",
+              "target": "shepherd"
+            },
+            {
+              "instanceId": "9:wolf-fighter-wing",
+              "target": "aegis"
+            },
+            {
+              "instanceId": "10:wolf-assault-transport",
+              "target": "aegis"
+            },
+            {
+              "instanceId": "11:wolf-assault-transport",
+              "target": "icebreaker"
+            },
+            {
+              "instanceId": "12:wolf-assault-transport",
+              "target": "refinery-124"
+            },
+            {
+              "instanceId": "13:wolf-assault-transport",
+              "target": "refinery-124"
+            },
+            {
+              "instanceId": "14:wolf-assault-transport",
+              "target": "aegis"
+            },
+            {
+              "instanceId": "15:wolf-strikecarrier",
+              "target": "dione"
+            },
+            {
+              "instanceId": "16:wolf-strikecarrier",
+              "target": "refinery-124"
+            },
+            {
+              "instanceId": "17:wolf-strikecarrier",
+              "target": "refinery-124"
+            },
+            {
+              "instanceId": "18:wolf-strikecarrier",
+              "target": "quellon"
+            },
+            {
+              "instanceId": "19:wolf-battlestation",
+              "target": "refinery-124"
+            }
+          ],
+          "dice": [
+            {
+              "actionId": "aegis-alpha-wing-short-0",
+              "sourceId": "aegis-alpha-wing",
+              "range": "short-range",
+              "rolls": [
+                3
+              ],
+              "successes": 1,
+              "damage": 1
+            },
+            {
+              "actionId": "aegis-alpha-wing-short-1",
+              "sourceId": "aegis-alpha-wing",
+              "range": "short-range",
+              "rolls": [
+                5
+              ],
+              "successes": 1,
+              "damage": 1
+            },
+            {
+              "actionId": "aegis-alpha-wing-short-2",
+              "sourceId": "aegis-alpha-wing",
+              "range": "short-range",
+              "rolls": [
+                5
+              ],
+              "successes": 1,
+              "damage": 1
+            },
+            {
+              "actionId": "aegis-alpha-wing-short-3",
+              "sourceId": "aegis-alpha-wing",
+              "range": "short-range",
+              "rolls": [
+                4
+              ],
+              "successes": 1,
+              "damage": 1
+            },
+            {
+              "actionId": "aegis-bravo-wing-short-0",
+              "sourceId": "aegis-bravo-wing",
+              "range": "short-range",
+              "rolls": [
+                4
+              ],
+              "successes": 1,
+              "damage": 1
+            },
+            {
+              "actionId": "aegis-bravo-wing-short-1",
+              "sourceId": "aegis-bravo-wing",
+              "range": "short-range",
+              "rolls": [
+                6
+              ],
+              "successes": 1,
+              "damage": 1
+            },
+            {
+              "actionId": "aegis-bravo-wing-short-2",
+              "sourceId": "aegis-bravo-wing",
+              "range": "short-range",
+              "rolls": [
+                3
+              ],
+              "successes": 1,
+              "damage": 1
+            },
+            {
+              "actionId": "aegis-bravo-wing-short-3",
+              "sourceId": "aegis-bravo-wing",
+              "range": "short-range",
+              "rolls": [
+                1
+              ],
+              "successes": 0,
+              "damage": 0
+            }
+          ],
+          "assignments": [
+            {
+              "actionId": "aegis-alpha-wing-short-0",
+              "targetInstanceIds": [
+                "1:wolf-fighter-wing"
+              ]
+            },
+            {
+              "actionId": "aegis-alpha-wing-short-1",
+              "targetInstanceIds": [
+                "2:wolf-fighter-wing"
+              ]
+            },
+            {
+              "actionId": "aegis-alpha-wing-short-2",
+              "targetInstanceIds": [
+                "3:wolf-fighter-wing"
+              ]
+            },
+            {
+              "actionId": "aegis-alpha-wing-short-3",
+              "targetInstanceIds": [
+                "4:wolf-fighter-wing"
+              ]
+            },
+            {
+              "actionId": "aegis-bravo-wing-short-0",
+              "targetInstanceIds": [
+                "5:wolf-fighter-wing"
+              ]
+            },
+            {
+              "actionId": "aegis-bravo-wing-short-1",
+              "targetInstanceIds": [
+                "6:wolf-fighter-wing"
+              ]
+            },
+            {
+              "actionId": "aegis-bravo-wing-short-2",
+              "targetInstanceIds": [
+                "7:wolf-fighter-wing"
+              ]
+            },
+            {
+              "actionId": "aegis-bravo-wing-short-3",
+              "targetInstanceIds": []
+            }
+          ],
+          "targetShifts": [],
+          "unusedHitsByAction": [],
+          "damageByInstance": {
+            "1:wolf-fighter-wing": 1,
+            "2:wolf-fighter-wing": 1,
+            "3:wolf-fighter-wing": 1,
+            "4:wolf-fighter-wing": 1,
+            "5:wolf-fighter-wing": 1,
+            "6:wolf-fighter-wing": 1,
+            "7:wolf-fighter-wing": 1
+          },
+          "destroyedInstanceIds": [
+            "1:wolf-fighter-wing",
+            "2:wolf-fighter-wing",
+            "3:wolf-fighter-wing",
+            "4:wolf-fighter-wing",
+            "5:wolf-fighter-wing",
+            "6:wolf-fighter-wing",
+            "7:wolf-fighter-wing"
+          ],
+          "destructionDamageByTarget": {
+            "aegis": 0,
+            "dione": 3,
+            "icebreaker": 0,
+            "quellon": 1,
+            "shepherd": 1,
+            "refinery-124": 2,
+            "capybara": 0
+          }
+        },
+        "committedAt": "2026-10-08T07:22:37.053Z",
+        "reason": "committed-range-sources-resolved"
+      }
+    },
+    "combatRoster": [
+      {
+        "instanceId": "0:wolf-fighter-wing",
+        "shipId": "wolf-fighter-wing",
+        "target": "shepherd",
+        "damageTaken": 1,
+        "destroyed": true
+      },
+      {
+        "instanceId": "1:wolf-fighter-wing",
+        "shipId": "wolf-fighter-wing",
+        "target": "dione",
+        "damageTaken": 1,
+        "destroyed": true
+      },
+      {
+        "instanceId": "2:wolf-fighter-wing",
+        "shipId": "wolf-fighter-wing",
+        "target": "refinery-124",
+        "damageTaken": 1,
+        "destroyed": true
+      },
+      {
+        "instanceId": "3:wolf-fighter-wing",
+        "shipId": "wolf-fighter-wing",
+        "target": "quellon",
+        "damageTaken": 1,
+        "destroyed": true
+      },
+      {
+        "instanceId": "4:wolf-fighter-wing",
+        "shipId": "wolf-fighter-wing",
+        "target": "dione",
+        "damageTaken": 1,
+        "destroyed": true
+      },
+      {
+        "instanceId": "5:wolf-fighter-wing",
+        "shipId": "wolf-fighter-wing",
+        "target": "shepherd",
+        "damageTaken": 1,
+        "destroyed": true
+      },
+      {
+        "instanceId": "6:wolf-fighter-wing",
+        "shipId": "wolf-fighter-wing",
+        "target": "refinery-124",
+        "damageTaken": 1,
+        "destroyed": true
+      },
+      {
+        "instanceId": "7:wolf-fighter-wing",
+        "shipId": "wolf-fighter-wing",
+        "target": "dione",
+        "damageTaken": 1,
+        "destroyed": true
+      },
+      {
+        "instanceId": "8:wolf-fighter-wing",
+        "shipId": "wolf-fighter-wing",
+        "target": "shepherd",
+        "damageTaken": 0,
+        "destroyed": false
+      },
+      {
+        "instanceId": "9:wolf-fighter-wing",
+        "shipId": "wolf-fighter-wing",
+        "target": "aegis",
+        "damageTaken": 0,
+        "destroyed": false
+      },
+      {
+        "instanceId": "10:wolf-assault-transport",
+        "shipId": "wolf-assault-transport",
+        "target": "aegis",
+        "damageTaken": 0,
+        "destroyed": false
+      },
+      {
+        "instanceId": "11:wolf-assault-transport",
+        "shipId": "wolf-assault-transport",
+        "target": "icebreaker",
+        "damageTaken": 0,
+        "destroyed": false
+      },
+      {
+        "instanceId": "12:wolf-assault-transport",
+        "shipId": "wolf-assault-transport",
+        "target": "refinery-124",
+        "damageTaken": 0,
+        "destroyed": false
+      },
+      {
+        "instanceId": "13:wolf-assault-transport",
+        "shipId": "wolf-assault-transport",
+        "target": "refinery-124",
+        "damageTaken": 0,
+        "destroyed": false
+      },
+      {
+        "instanceId": "14:wolf-assault-transport",
+        "shipId": "wolf-assault-transport",
+        "target": "aegis",
+        "damageTaken": 0,
+        "destroyed": false
+      },
+      {
+        "instanceId": "15:wolf-strikecarrier",
+        "shipId": "wolf-strikecarrier",
+        "target": "dione",
+        "damageTaken": 0,
+        "destroyed": false
+      },
+      {
+        "instanceId": "16:wolf-strikecarrier",
+        "shipId": "wolf-strikecarrier",
+        "target": "refinery-124",
+        "damageTaken": 0,
+        "destroyed": false
+      },
+      {
+        "instanceId": "17:wolf-strikecarrier",
+        "shipId": "wolf-strikecarrier",
+        "target": "refinery-124",
+        "damageTaken": 0,
+        "destroyed": false
+      },
+      {
+        "instanceId": "18:wolf-strikecarrier",
+        "shipId": "wolf-strikecarrier",
+        "target": "quellon",
+        "damageTaken": 0,
+        "destroyed": false
+      },
+      {
+        "instanceId": "19:wolf-battlestation",
+        "shipId": "wolf-battlestation",
+        "target": "refinery-124",
+        "damageTaken": 0,
+        "destroyed": false
+      }
+    ],
+    "rangeReceipts": [
+      {
+        "range": "long-range",
+        "targetSnapshot": [
+          {
+            "instanceId": "0:wolf-fighter-wing",
+            "target": "shepherd"
+          },
+          {
+            "instanceId": "1:wolf-fighter-wing",
+            "target": "dione"
+          },
+          {
+            "instanceId": "2:wolf-fighter-wing",
+            "target": "refinery-124"
+          },
+          {
+            "instanceId": "3:wolf-fighter-wing",
+            "target": "quellon"
+          },
+          {
+            "instanceId": "4:wolf-fighter-wing",
+            "target": "dione"
+          },
+          {
+            "instanceId": "5:wolf-fighter-wing",
+            "target": "shepherd"
+          },
+          {
+            "instanceId": "6:wolf-fighter-wing",
+            "target": "refinery-124"
+          },
+          {
+            "instanceId": "7:wolf-fighter-wing",
+            "target": "dione"
+          },
+          {
+            "instanceId": "8:wolf-fighter-wing",
+            "target": "shepherd"
+          },
+          {
+            "instanceId": "9:wolf-fighter-wing",
+            "target": "aegis"
+          },
+          {
+            "instanceId": "10:wolf-assault-transport",
+            "target": "aegis"
+          },
+          {
+            "instanceId": "11:wolf-assault-transport",
+            "target": "icebreaker"
+          },
+          {
+            "instanceId": "12:wolf-assault-transport",
+            "target": "refinery-124"
+          },
+          {
+            "instanceId": "13:wolf-assault-transport",
+            "target": "refinery-124"
+          },
+          {
+            "instanceId": "14:wolf-assault-transport",
+            "target": "aegis"
+          },
+          {
+            "instanceId": "15:wolf-strikecarrier",
+            "target": "dione"
+          },
+          {
+            "instanceId": "16:wolf-strikecarrier",
+            "target": "refinery-124"
+          },
+          {
+            "instanceId": "17:wolf-strikecarrier",
+            "target": "refinery-124"
+          },
+          {
+            "instanceId": "18:wolf-strikecarrier",
+            "target": "quellon"
+          },
+          {
+            "instanceId": "19:wolf-battlestation",
+            "target": "refinery-124"
+          }
+        ],
+        "dice": [],
+        "assignments": [],
+        "targetShifts": [],
+        "unusedHitsByAction": [],
+        "damageByInstance": {},
+        "destroyedInstanceIds": [],
+        "destructionDamageByTarget": {
+          "aegis": 0,
+          "dione": 0,
+          "icebreaker": 0,
+          "quellon": 0,
+          "shepherd": 0,
+          "refinery-124": 0,
+          "capybara": 0
+        }
+      },
+      {
+        "range": "medium-range",
+        "targetSnapshot": [
+          {
+            "instanceId": "0:wolf-fighter-wing",
+            "target": "shepherd"
+          },
+          {
+            "instanceId": "1:wolf-fighter-wing",
+            "target": "dione"
+          },
+          {
+            "instanceId": "2:wolf-fighter-wing",
+            "target": "refinery-124"
+          },
+          {
+            "instanceId": "3:wolf-fighter-wing",
+            "target": "quellon"
+          },
+          {
+            "instanceId": "4:wolf-fighter-wing",
+            "target": "dione"
+          },
+          {
+            "instanceId": "5:wolf-fighter-wing",
+            "target": "shepherd"
+          },
+          {
+            "instanceId": "6:wolf-fighter-wing",
+            "target": "refinery-124"
+          },
+          {
+            "instanceId": "7:wolf-fighter-wing",
+            "target": "dione"
+          },
+          {
+            "instanceId": "8:wolf-fighter-wing",
+            "target": "shepherd"
+          },
+          {
+            "instanceId": "9:wolf-fighter-wing",
+            "target": "aegis"
+          },
+          {
+            "instanceId": "10:wolf-assault-transport",
+            "target": "aegis"
+          },
+          {
+            "instanceId": "11:wolf-assault-transport",
+            "target": "icebreaker"
+          },
+          {
+            "instanceId": "12:wolf-assault-transport",
+            "target": "refinery-124"
+          },
+          {
+            "instanceId": "13:wolf-assault-transport",
+            "target": "refinery-124"
+          },
+          {
+            "instanceId": "14:wolf-assault-transport",
+            "target": "aegis"
+          },
+          {
+            "instanceId": "15:wolf-strikecarrier",
+            "target": "dione"
+          },
+          {
+            "instanceId": "16:wolf-strikecarrier",
+            "target": "refinery-124"
+          },
+          {
+            "instanceId": "17:wolf-strikecarrier",
+            "target": "refinery-124"
+          },
+          {
+            "instanceId": "18:wolf-strikecarrier",
+            "target": "quellon"
+          },
+          {
+            "instanceId": "19:wolf-battlestation",
+            "target": "refinery-124"
+          }
+        ],
+        "dice": [
+          {
+            "actionId": "aegis-alpha-wing-medium-0",
+            "sourceId": "aegis-alpha-wing",
+            "range": "medium-range",
+            "rolls": [
+              3
+            ],
+            "successes": 0,
+            "damage": 0
+          },
+          {
+            "actionId": "aegis-alpha-wing-medium-1",
+            "sourceId": "aegis-alpha-wing",
+            "range": "medium-range",
+            "rolls": [
+              3
+            ],
+            "successes": 0,
+            "damage": 0
+          },
+          {
+            "actionId": "aegis-alpha-wing-medium-2",
+            "sourceId": "aegis-alpha-wing",
+            "range": "medium-range",
+            "rolls": [
+              4
+            ],
+            "successes": 0,
+            "damage": 0
+          },
+          {
+            "actionId": "aegis-alpha-wing-medium-3",
+            "sourceId": "aegis-alpha-wing",
+            "range": "medium-range",
+            "rolls": [
+              2
+            ],
+            "successes": 0,
+            "damage": 0
+          },
+          {
+            "actionId": "aegis-bravo-wing-medium-0",
+            "sourceId": "aegis-bravo-wing",
+            "range": "medium-range",
+            "rolls": [
+              5
+            ],
+            "successes": 1,
+            "damage": 1
+          },
+          {
+            "actionId": "aegis-bravo-wing-medium-1",
+            "sourceId": "aegis-bravo-wing",
+            "range": "medium-range",
+            "rolls": [
+              4
+            ],
+            "successes": 0,
+            "damage": 0
+          },
+          {
+            "actionId": "aegis-bravo-wing-medium-2",
+            "sourceId": "aegis-bravo-wing",
+            "range": "medium-range",
+            "rolls": [
+              1
+            ],
+            "successes": 0,
+            "damage": 0
+          },
+          {
+            "actionId": "aegis-bravo-wing-medium-3",
+            "sourceId": "aegis-bravo-wing",
+            "range": "medium-range",
+            "rolls": [
+              4
+            ],
+            "successes": 0,
+            "damage": 0
+          }
+        ],
+        "assignments": [
+          {
+            "actionId": "aegis-alpha-wing-medium-0",
+            "targetInstanceIds": []
+          },
+          {
+            "actionId": "aegis-alpha-wing-medium-1",
+            "targetInstanceIds": []
+          },
+          {
+            "actionId": "aegis-alpha-wing-medium-2",
+            "targetInstanceIds": []
+          },
+          {
+            "actionId": "aegis-alpha-wing-medium-3",
+            "targetInstanceIds": []
+          },
+          {
+            "actionId": "aegis-bravo-wing-medium-0",
+            "targetInstanceIds": [
+              "0:wolf-fighter-wing"
+            ]
+          },
+          {
+            "actionId": "aegis-bravo-wing-medium-1",
+            "targetInstanceIds": []
+          },
+          {
+            "actionId": "aegis-bravo-wing-medium-2",
+            "targetInstanceIds": []
+          },
+          {
+            "actionId": "aegis-bravo-wing-medium-3",
+            "targetInstanceIds": []
+          }
+        ],
+        "targetShifts": [],
+        "unusedHitsByAction": [],
+        "damageByInstance": {
+          "0:wolf-fighter-wing": 1
+        },
+        "destroyedInstanceIds": [
+          "0:wolf-fighter-wing"
+        ],
+        "destructionDamageByTarget": {
+          "aegis": 0,
+          "dione": 0,
+          "icebreaker": 0,
+          "quellon": 0,
+          "shepherd": 0,
+          "refinery-124": 0,
+          "capybara": 0
+        }
+      },
+      {
+        "range": "short-range",
+        "targetSnapshot": [
+          {
+            "instanceId": "0:wolf-fighter-wing",
+            "target": "shepherd"
+          },
+          {
+            "instanceId": "1:wolf-fighter-wing",
+            "target": "dione"
+          },
+          {
+            "instanceId": "2:wolf-fighter-wing",
+            "target": "refinery-124"
+          },
+          {
+            "instanceId": "3:wolf-fighter-wing",
+            "target": "quellon"
+          },
+          {
+            "instanceId": "4:wolf-fighter-wing",
+            "target": "dione"
+          },
+          {
+            "instanceId": "5:wolf-fighter-wing",
+            "target": "shepherd"
+          },
+          {
+            "instanceId": "6:wolf-fighter-wing",
+            "target": "refinery-124"
+          },
+          {
+            "instanceId": "7:wolf-fighter-wing",
+            "target": "dione"
+          },
+          {
+            "instanceId": "8:wolf-fighter-wing",
+            "target": "shepherd"
+          },
+          {
+            "instanceId": "9:wolf-fighter-wing",
+            "target": "aegis"
+          },
+          {
+            "instanceId": "10:wolf-assault-transport",
+            "target": "aegis"
+          },
+          {
+            "instanceId": "11:wolf-assault-transport",
+            "target": "icebreaker"
+          },
+          {
+            "instanceId": "12:wolf-assault-transport",
+            "target": "refinery-124"
+          },
+          {
+            "instanceId": "13:wolf-assault-transport",
+            "target": "refinery-124"
+          },
+          {
+            "instanceId": "14:wolf-assault-transport",
+            "target": "aegis"
+          },
+          {
+            "instanceId": "15:wolf-strikecarrier",
+            "target": "dione"
+          },
+          {
+            "instanceId": "16:wolf-strikecarrier",
+            "target": "refinery-124"
+          },
+          {
+            "instanceId": "17:wolf-strikecarrier",
+            "target": "refinery-124"
+          },
+          {
+            "instanceId": "18:wolf-strikecarrier",
+            "target": "quellon"
+          },
+          {
+            "instanceId": "19:wolf-battlestation",
+            "target": "refinery-124"
+          }
+        ],
+        "dice": [
+          {
+            "actionId": "aegis-alpha-wing-short-0",
+            "sourceId": "aegis-alpha-wing",
+            "range": "short-range",
+            "rolls": [
+              3
+            ],
+            "successes": 1,
+            "damage": 1
+          },
+          {
+            "actionId": "aegis-alpha-wing-short-1",
+            "sourceId": "aegis-alpha-wing",
+            "range": "short-range",
+            "rolls": [
+              5
+            ],
+            "successes": 1,
+            "damage": 1
+          },
+          {
+            "actionId": "aegis-alpha-wing-short-2",
+            "sourceId": "aegis-alpha-wing",
+            "range": "short-range",
+            "rolls": [
+              5
+            ],
+            "successes": 1,
+            "damage": 1
+          },
+          {
+            "actionId": "aegis-alpha-wing-short-3",
+            "sourceId": "aegis-alpha-wing",
+            "range": "short-range",
+            "rolls": [
+              4
+            ],
+            "successes": 1,
+            "damage": 1
+          },
+          {
+            "actionId": "aegis-bravo-wing-short-0",
+            "sourceId": "aegis-bravo-wing",
+            "range": "short-range",
+            "rolls": [
+              4
+            ],
+            "successes": 1,
+            "damage": 1
+          },
+          {
+            "actionId": "aegis-bravo-wing-short-1",
+            "sourceId": "aegis-bravo-wing",
+            "range": "short-range",
+            "rolls": [
+              6
+            ],
+            "successes": 1,
+            "damage": 1
+          },
+          {
+            "actionId": "aegis-bravo-wing-short-2",
+            "sourceId": "aegis-bravo-wing",
+            "range": "short-range",
+            "rolls": [
+              3
+            ],
+            "successes": 1,
+            "damage": 1
+          },
+          {
+            "actionId": "aegis-bravo-wing-short-3",
+            "sourceId": "aegis-bravo-wing",
+            "range": "short-range",
+            "rolls": [
+              1
+            ],
+            "successes": 0,
+            "damage": 0
+          }
+        ],
+        "assignments": [
+          {
+            "actionId": "aegis-alpha-wing-short-0",
+            "targetInstanceIds": [
+              "1:wolf-fighter-wing"
+            ]
+          },
+          {
+            "actionId": "aegis-alpha-wing-short-1",
+            "targetInstanceIds": [
+              "2:wolf-fighter-wing"
+            ]
+          },
+          {
+            "actionId": "aegis-alpha-wing-short-2",
+            "targetInstanceIds": [
+              "3:wolf-fighter-wing"
+            ]
+          },
+          {
+            "actionId": "aegis-alpha-wing-short-3",
+            "targetInstanceIds": [
+              "4:wolf-fighter-wing"
+            ]
+          },
+          {
+            "actionId": "aegis-bravo-wing-short-0",
+            "targetInstanceIds": [
+              "5:wolf-fighter-wing"
+            ]
+          },
+          {
+            "actionId": "aegis-bravo-wing-short-1",
+            "targetInstanceIds": [
+              "6:wolf-fighter-wing"
+            ]
+          },
+          {
+            "actionId": "aegis-bravo-wing-short-2",
+            "targetInstanceIds": [
+              "7:wolf-fighter-wing"
+            ]
+          },
+          {
+            "actionId": "aegis-bravo-wing-short-3",
+            "targetInstanceIds": []
+          }
+        ],
+        "targetShifts": [],
+        "unusedHitsByAction": [],
+        "damageByInstance": {
+          "1:wolf-fighter-wing": 1,
+          "2:wolf-fighter-wing": 1,
+          "3:wolf-fighter-wing": 1,
+          "4:wolf-fighter-wing": 1,
+          "5:wolf-fighter-wing": 1,
+          "6:wolf-fighter-wing": 1,
+          "7:wolf-fighter-wing": 1
+        },
+        "destroyedInstanceIds": [
+          "1:wolf-fighter-wing",
+          "2:wolf-fighter-wing",
+          "3:wolf-fighter-wing",
+          "4:wolf-fighter-wing",
+          "5:wolf-fighter-wing",
+          "6:wolf-fighter-wing",
+          "7:wolf-fighter-wing"
+        ],
+        "destructionDamageByTarget": {
+          "aegis": 0,
+          "dione": 3,
+          "icebreaker": 0,
+          "quellon": 1,
+          "shepherd": 1,
+          "refinery-124": 2,
+          "capybara": 0
+        }
+      }
+    ],
+    "aegisFighterWingState": {
+      "type": "aegis-fighter-wing-combat-state",
+      "attackId": "wolf-attack-a9b5d518-f284-421a-bda0-e7a738e39a0b",
+      "cycle": 2,
+      "revision": 6,
+      "wings": {
+        "fighter-wing-alpha": {
+          "fighters": 4,
+          "launched": true,
+          "mediumResolved": true,
+          "shortResolved": true,
+          "losses": 0
+        },
+        "fighter-wing-bravo": {
+          "fighters": 3,
+          "launched": true,
+          "mediumResolved": true,
+          "shortResolved": true,
+          "losses": 1
+        }
+      }
+    },
+    "boardingDefenceChoices": {
+      "aegis": {
+        "type": "wolf-boarding-defence-choice",
+        "turn": 2,
+        "revision": 13,
+        "actorUid": "captured-player-0",
+        "actorRoleId": "wing-commander",
+        "requestId": "50d62f21-8cb2-48b7-98d7-300a5a1baef4",
+        "securityTeams": 9,
+        "availableBefore": 9,
+        "committedAt": "2026-10-08T07:22:41.491Z"
+      },
+      "icebreaker": {
+        "type": "wolf-boarding-defence-choice",
+        "status": "unavailable",
+        "reason": "no-current-crew-actor",
+        "targetShipId": "icebreaker",
+        "turn": 2,
+        "revision": 14,
+        "actorUid": "server",
+        "actorRoleId": "server",
+        "requestId": "wolf-no-boarding-defence-icebreaker-2",
+        "securityTeams": 0,
+        "availableBefore": 2,
+        "committedAt": "2026-10-08T07:22:41.636Z"
+      },
+      "refinery-124": {
+        "type": "wolf-boarding-defence-choice",
+        "status": "unavailable",
+        "reason": "no-current-crew-actor",
+        "targetShipId": "refinery-124",
+        "turn": 2,
+        "revision": 15,
+        "actorUid": "server",
+        "actorRoleId": "server",
+        "requestId": "wolf-no-boarding-defence-refinery-124-2",
+        "securityTeams": 0,
+        "availableBefore": 6,
+        "committedAt": "2026-10-08T07:22:41.737Z"
+      }
+    },
+    "boardingLockedDefence": [
+      {
+        "target": "aegis",
+        "securityTeams": 9,
+        "availableSecurityTeams": 9,
+        "commanderLed": false,
+        "militiaDoubleTeams": false,
+        "militiaFrontLineDice": 0,
+        "pallasRerollAvailable": false,
+        "lockedRolls": [
+          1,
+          1,
+          1,
+          5,
+          2,
+          2,
+          3,
+          4,
+          2
+        ]
+      },
+      {
+        "target": "icebreaker",
+        "securityTeams": 0,
+        "availableSecurityTeams": 2,
+        "commanderLed": false,
+        "militiaDoubleTeams": false,
+        "militiaFrontLineDice": 0,
+        "pallasRerollAvailable": false,
+        "lockedRolls": []
+      },
+      {
+        "target": "refinery-124",
+        "securityTeams": 0,
+        "availableSecurityTeams": 6,
+        "commanderLed": false,
+        "militiaDoubleTeams": false,
+        "militiaFrontLineDice": 0,
+        "pallasRerollAvailable": false,
+        "lockedRolls": []
+      }
+    ],
+    "revision": 16,
+    "updatedAt": {
+      "seconds": 1791444161,
+      "nanoseconds": 803000000
+    },
+    "decisionSummary": {
+      "commander": {
+        "status": "no-commander",
+        "actors": [],
+        "completionRevision": 5
+      },
+      "commandAndControl": {
+        "status": "unavailable",
+        "actors": [],
+        "reason": "no-current-executive-officer"
+      },
+      "forceField": {
+        "status": "unavailable",
+        "reason": "no-current-captain"
+      },
+      "enrichedWarheads": {
+        "status": "unavailable",
+        "actors": []
+      },
+      "boarding": {
+        "status": "resolved",
+        "targets": [
+          {
+            "targetShipId": "aegis",
+            "status": "committed",
+            "actors": [
+              {
+                "uid": "captured-player-0",
+                "connected": true
+              }
+            ],
+            "boardingParties": 8,
+            "securityTeams": 9
+          },
+          {
+            "targetShipId": "icebreaker",
+            "status": "committed",
+            "actors": [],
+            "boardingParties": 4,
+            "securityTeams": 0
+          },
+          {
+            "targetShipId": "refinery-124",
+            "status": "committed",
+            "actors": [],
+            "boardingParties": 8,
+            "securityTeams": 0
+          }
+        ]
+      }
+    }
+  },
+  "players": [
+    {
+      "uid": "captured-player-0",
+      "role": "player",
+      "assignedRoleId": "wing-commander",
+      "activeConsoleRoleId": "wing-commander",
+      "connected": true,
+      "seatId": "wing-commander",
+      "fleetGroupId": "fleet-1"
+    },
+    {
+      "uid": "captured-player-1",
+      "role": "gm",
+      "assignedRoleId": null,
+      "activeConsoleRoleId": null,
+      "connected": true,
+      "seatId": null,
+      "fleetGroupId": "fleet-1"
+    }
+  ],
+  "fleetGroups": [
+    {
+      "id": "fleet-1",
+      "vesselIds": [
+        "aegis",
+        "dione",
+        "icebreaker",
+        "shepherd",
+        "quellon",
+        "refinery-124"
+      ],
+      "memberUids": [
+        "captured-player-0",
+        "captured-player-1"
+      ],
+      "memberShipIds": {
+        "captured-player-0": "aegis"
+      }
+    }
+  ],
+  "pdfWing": {
+    "type": "pdf-escort-fighter-wing-state",
+    "revision": 0,
+    "attackId": "wolf-attack-a9b5d518-f284-421a-bda0-e7a738e39a0b",
+    "attackCycle": 2,
+    "wingId": "pdf-escort-fighter-wing",
+    "capacity": 4,
+    "fighters": 4,
+    "launched": false,
+    "mediumResolved": false,
+    "mediumActionFighterIndexes": [],
+    "shortResolved": false,
+    "shortRollFighterIndexes": [],
+    "losses": 0,
+    "mission": {
+      "eligible": true,
+      "requiresFuel": false,
+      "bonuses": {
+        "searchAndRescue": 2,
+        "salvage": 1
+      }
+    }
+  }
+}

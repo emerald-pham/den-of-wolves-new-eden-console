@@ -2,6 +2,9 @@ import { beforeEach, expect, it, vi } from 'vitest';
 import type { CallableRequest } from 'firebase-functions/v2/https';
 import { firstTurnWolfAttackComposition } from './wolfAttackComposition';
 import { EXPANDED_WOLF_TARGET_RING, resolveWolfTargeting, wolfCombatRoster } from './wolfCombatMath';
+import capturedP11 from './test-fixtures/pc10-p-boarding-attempt11.json';
+import { roleOwnedCraftForRoles } from './craftOwnership';
+import { initialShuttleControl } from './shuttleControl';
 
 type Fields = Record<string, unknown>;
 const testState = vi.hoisted(() => {
@@ -60,6 +63,55 @@ import {
 } from './index';
 
 const targeting = resolveWolfTargeting(firstTurnWolfAttackComposition(), {}, undefined, () => 0);
+function capturedPBoardingFixture() {
+  testState.documents.clear();
+  entropy.randomInt.mockImplementation((minimum: number) => minimum);
+  put('sessions/s1', structuredClone(capturedP11.root));
+  for (const player of capturedP11.players) put(`sessions/s1/players/${player.uid}`, structuredClone(player));
+  for (const group of capturedP11.fleetGroups) put(`sessions/s1/fleetGroups/${group.id}`, structuredClone(group));
+  put('sessions/s1/wolfAttackState/current', structuredClone(capturedP11.attack));
+  put('sessions/s1/serverState/pdfEscortWing', structuredClone(capturedP11.pdfWing));
+}
+it('preserves the captured P custody guard even after boarding choices report resolved', async () => {
+  capturedPBoardingFixture();
+  const rootBefore = structuredClone(testState.documents.get('sessions/s1'));
+  const attackBefore = structuredClone(testState.documents.get('sessions/s1/wolfAttackState/current'));
+  expect(attackBefore?.decisionSummary).toMatchObject({ boarding: { status: 'resolved' } });
+  await expect(advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } }))
+    .rejects.toThrow('The authoritative shuttle custody state cannot preserve craft during destruction.');
+  expect(testState.documents.get('sessions/s1')).toEqual(rootBefore);
+  expect(testState.documents.get('sessions/s1/wolfAttackState/current')).toEqual(attackBefore);
+});
+it('finalizes the captured rolls when the newly destroyed hosts have distinct printed owners and valid custody', async () => {
+  capturedPBoardingFixture();
+  // Synthetic isolation control: these are not native admission receipts or
+  // acceptance evidence. Change only the missing prerequisite, never the dice.
+  const roles = ['icebreaker-miner', 'icebreaker-engineer', 'refinery-124-engineer', 'refinery-124-pdf-colonel'];
+  const owners = roles.map((roleId, i) => ({ uid: `custody-owner-${i}`, roleId }));
+  for (const { uid, roleId } of owners) put(`sessions/s1/players/${uid}`, {
+    uid, role: 'player', connected: false, assignedRoleId: roleId, activeConsoleRoleId: roleId,
+  });
+  const root = testState.documents.get('sessions/s1')!;
+  put('sessions/s1', { ...root, shuttleControl: {
+    ...root.shuttleControl as Fields,
+    ...initialShuttleControl(roleOwnedCraftForRoles(capturedP11.root.activeRoleIds), owners),
+  } });
+  // These projections were outside the retained guard context. Use the
+  // existing source-valid P projection shape only for this isolation control.
+  put('sessions/s1/wolfAttackWindow/current', { status: 'resolved', turn: 2, revision: 2,
+    targetGroupId: 'fleet-1', threatSiteCode: 'P', threatSourceId: capturedP11.attack.threatSourceId });
+  put('sessions/s1/wolfAttackPreparation/current', structuredClone(capturedP11.attack.preparation));
+  await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
+  expect(testState.documents.get('sessions/s1/wolfAttackState/current')?.resolutionBlocker).toBeUndefined();
+  expect(testState.documents.get('sessions/s1/wolfAttackState/current')).toMatchObject({ status: 'resolved', currentStep: 'resolved' });
+  const committedRoot = structuredClone(testState.documents.get('sessions/s1'));
+  const committedAttack = structuredClone(testState.documents.get('sessions/s1/wolfAttackState/current'));
+  const draws = entropy.randomInt.mock.calls.length;
+  await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
+  expect(testState.documents.get('sessions/s1')).toEqual(committedRoot);
+  expect(testState.documents.get('sessions/s1/wolfAttackState/current')).toEqual(committedAttack);
+  expect(entropy.randomInt).toHaveBeenCalledTimes(draws);
+});
 function request(data: Record<string, unknown>, uid = 'commander-1') {
   return { data, auth: { uid } } as CallableRequest<Record<string, unknown>>;
 }
