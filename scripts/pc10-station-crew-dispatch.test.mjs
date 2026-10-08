@@ -87,7 +87,7 @@ function surface(roleId, response, { entitledShipId = 'icebreaker', path = '/shi
     isVisible: async () => currentRoute !== '/shuttles/highwall',
     innerText: async () => currentResponse?.reason === 'no-boarders'
       ? 'No surviving boarding parties are present on this ship. No Security Teams choice is required.'
-      : `Cycle 3 // current source choice`,
+      : `Cycle 3 // Rev ${currentResponse?.revision} // current source choice ${currentResponse?.choiceStatus==='unavailable'?'Unavailable // choose at attack start':currentResponse?.reason==='uncharged'?'Unavailable // charge Command and Control':currentResponse?.type?.endsWith('-unavailable')?'No weapon choice is open':currentResponse?.choiceStatus==='committed'?'This range decision is committed':currentResponse?.choiceStatus==='passed'?'Enriched warheads passed':''}`,
     getByRole: (kind, options = {}) => {
       if (kind === 'button') {
         const name = options.name;
@@ -110,6 +110,10 @@ function surface(roleId, response, { entitledShipId = 'icebreaker', path = '/shi
     },
   };
   const buttons = Object.create(null);
+  if ([response,...Object.values(responses)].some(view=>view?.type==='aegis-enriched-warhead-view')) buttons['Pass enriched warheads']=true;
+  if ([response,...Object.values(responses)].some(view=>view?.type==='aegis-command-and-control-view')) buttons['Pass Command and Control']=true;
+  if (response?.type==='wolf-range-action-choice-view') { buttons['Pass this range']=true;buttons['Use selected actions']=true;buttons['Commit target assignments']=true; }
+
   if (response?.type === 'pdf-escort-wing-launch-view') {
     buttons['Launch PDF Escort Wing'] = true;
     buttons['Pass PDF Escort Wing'] = true;
@@ -848,7 +852,7 @@ test('dispatches the PDF medium-range choice from the current escort view', asyn
     [{ kind: 'attack', targetContactId: 'contact-1', fighterIndex: 0 }]);
 });
 
-test('commits the visible PDF Short fighters from the current source view', async () => {
+test('preserves visible PDF Short fighters by an explicit current source pass', async () => {
   const pdf = surface('refinery-124-pdf-colonel', { type: 'wolf-fighter-range-action-view',
     sessionId, attackId: 'attack-p', turn: 3, revision: 8, wingId: 'pdf-escort-fighter-wing',
     wingLabel: 'P.D.F. Escort Fighter Wing', range: 'short-range', choiceStatus: 'pending', launched: true,
@@ -858,9 +862,10 @@ test('commits the visible PDF Short fighters from the current source view', asyn
   const opts = options([{ roleId: pdf.label, surface: pdf }], current, value => { accepted = value; });
   const result = await dispatchStationCrewChoice(current, opts);
   assert.deepEqual(result, { committed: true });
-  assert.ok(pdf.effects.selected.some(([name, value]) => String(name).includes('Short attack') && value === true));
+  assert.equal(pdf.effects.selected.some(([name, value]) => String(name).includes('Short attack') && value === true),false);
+  assert.deepEqual(pdf.effects.clicks,['Pass Short Range']);
   assert.equal(accepted.endpoint, 'commitWolfEscortRangeActionChoice');
-  assert.deepEqual(accepted.metadata.expectedRequest.fighterIndexes, [0]);
+  assert.deepEqual(accepted.metadata.expectedRequest.fighterIndexes, []);
 });
 
 test('opens the current Miner Highwall console and explicitly passes a long-range choice', async () => {
@@ -2013,3 +2018,41 @@ test('Attempt26 scoped GM with absent ship berth preserves actual lease authorit
  assert.equal(sample.gmInstanceOwned,true);assert.equal(f.counts.capture,0);
  assert.deepEqual(f.actorSurface.effects.clicks,[]);
 });
+
+// Runtime-shaped public EO views from the real SDK producer; no private roster.
+function eoRange(range='medium-range',extra={}) {return {type:'wolf-range-action-choice-view',sessionId,turn:3,revision:8,currentStep:range,range,deadlineAt:'9999-12-31T23:59:59.999Z',choiceStatus:'pending',eligibleActions:[{actionId:'missile',sourceId:'aegis-missile-launchers',range},{actionId:'laser',sourceId:'aegis-point-defence-lasers',range}],hitSlots:[],contacts:[{contactId:'Wolf contact 1',targetShipId:'aegis',available:true},{contactId:'Wolf contact 2',targetShipId:'icebreaker',available:true},{contactId:'Wolf contact 3',targetShipId:'shepherd',available:true}],...extra};}
+function eoSurface(view,extra={}) {return surface('executive-officer',view,{entitledShipId:'aegis',path:'/ships/aegis/roles/executive-officer',...extra});}
+test('actual PDF Medium consumer focuses last public contact without a hidden type preference',async()=>{
+ const view={type:'wolf-fighter-range-action-view',sessionId,attackId:'attack-p',turn:3,revision:8,wingId:'pdf-escort-fighter-wing',wingLabel:'P.D.F. Escort Fighter Wing',range:'medium-range',choiceStatus:'pending',launched:true,fighters:[{fighterIndex:0}],targets:[{instanceId:'first',label:'Wolf contact 1',targetNumber:1},{instanceId:'last',label:'Wolf contact 2',targetNumber:2}]};
+ const pdf=surface('refinery-124-pdf-colonel',view);let receipt;await dispatchStationCrewChoice(attack('medium-range'),options([{roleId:pdf.label,surface:pdf}],attack('medium-range'),r=>receipt=r));assert.equal(receipt.metadata.expectedRequest.actions[0].targetContactId,'last');
+});
+for(const range of ['long-range','medium-range','short-range']) test(`actual EO ${range} uses only offered missile/laser actions through normal capture`,async()=>{
+ const ids=range==='long-range'?['missile']:range==='short-range'?['laser']:['missile','laser'];const offered=eoRange(range);offered.eligibleActions=offered.eligibleActions.filter(row=>ids.includes(row.actionId));const eo=eoSurface(offered);let receipt;const result=await dispatchStationCrewChoice(attack(range),options([{roleId:eo.label,surface:eo}],attack(range),r=>receipt=r));assert.deepEqual(result,{committed:true});assert.equal(receipt.endpoint,'commitWolfRangeActionChoice');assert.deepEqual(receipt.metadata.expectedRequest.actionIds,ids);assert.equal(receipt.metadata.deadlineAt,deadlineAt);assert.deepEqual(eo.effects.clicks,['Use selected actions']);assert.equal(eo.effects.reads[0].endpoint,'getWolfRangeActionChoice');
+});
+test('actual EO depleted weapons explicitly pass without replenishing or inventing an action',async()=>{
+ const eo=eoSurface(eoRange('long-range',{eligibleActions:[]}));let receipt;assert.deepEqual(await dispatchStationCrewChoice(attack('long-range'),options([{roleId:eo.label,surface:eo}],attack('long-range'),r=>receipt=r)),{committed:true});assert.deepEqual(receipt.metadata.expectedRequest.actionIds,[]);assert.deepEqual(eo.effects.clicks,['Pass this range']);
+});
+test('actual EO locked hit slots assign distinct last public contacts from the offered view',async()=>{
+ const eo=eoSurface(eoRange('medium-range',{choiceStatus:'targets-required',hitSlots:[{actionId:'missile',count:2,damagePerHit:1},{actionId:'laser',count:1,damagePerHit:1}]}));let receipt;assert.deepEqual(await dispatchStationCrewChoice(attack('medium-range'),options([{roleId:eo.label,surface:eo}],attack('medium-range'),r=>receipt=r)),{committed:true});assert.equal(receipt.endpoint,'assignWolfRangeTargets');assert.deepEqual(receipt.metadata.expectedRequest.assignments,[{actionId:'missile',contactIds:['Wolf contact 3','Wolf contact 2']},{actionId:'laser',contactIds:['Wolf contact 3']}]);assert.deepEqual(eo.effects.clicks,['Commit target assignments']);
+});
+test('actual EO Short uses public coverage damage before non-wing contacts',async()=>{
+ const contacts=[{contactId:'Wolf contact 1',targetShipId:'aegis',available:true,requiredCoverageDamage:1},{contactId:'Wolf contact 2',targetShipId:'aegis',available:true,requiredCoverageDamage:null},{contactId:'Wolf contact 3',targetShipId:'aegis',available:true,requiredCoverageDamage:1}];
+ const eo=eoSurface(eoRange('short-range',{choiceStatus:'targets-required',contacts,hitSlots:[{actionId:'laser',count:2,damagePerHit:1}]}));let receipt;await dispatchStationCrewChoice(attack('short-range'),options([{roleId:eo.label,surface:eo}],attack('short-range'),r=>receipt=r));assert.deepEqual(receipt.metadata.expectedRequest.assignments,[{actionId:'laser',contactIds:['Wolf contact 3','Wolf contact 1']}]);
+});
+for(const count of [0,4]) test(`actual EO ${count} locked hits caps targets to live distinct contacts`,async()=>{
+ const eo=eoSurface(eoRange('long-range',{choiceStatus:'targets-required',eligibleActions:[{actionId:'missile',sourceId:'aegis-missile-launchers',range:'long-range'}],hitSlots:[{actionId:'missile',count,damagePerHit:2}],contacts:[{contactId:'Wolf contact 9',targetShipId:'aegis',available:true}]}));let receipt;await dispatchStationCrewChoice(attack('long-range'),options([{roleId:eo.label,surface:eo}],attack('long-range'),r=>receipt=r));assert.deepEqual(receipt.metadata.expectedRequest.assignments,[{actionId:'missile',contactIds:count?['Wolf contact 9']:[]}]);
+});
+for(const kind of ['warheads','command']) test(`actual EO optional ${kind} choice explicitly passes without ore or private targeting`,async()=>{
+ const warheads={type:'aegis-enriched-warhead-view',sessionId,attackId:'attack-p',turn:3,revision:8,eligible:kind==='warheads',choiceStatus:kind==='warheads'?'pending':'unavailable',oreCost:5};const command={type:'aegis-command-and-control-view',sessionId,turn:3,revision:8,eligible:true,commanderAssigned:false,rerollsFinalized:true,targets:[{instanceId:'opaque-only'}]};
+ const eo=eoSurface(warheads,{responses:{getAegisEnrichedWarheadChoice:warheads,getAegisCommandAndControl:command}});let receipt;assert.deepEqual(await dispatchStationCrewChoice(attack('targeting'),options([{roleId:eo.label,surface:eo}],attack('targeting'),r=>receipt=r)),{committed:true});assert.equal(receipt.endpoint,kind==='warheads'?'commitAegisEnrichedWarheadChoice':'passAegisCommandAndControl');assert.equal(receipt.metadata.expectedRequest.choice,kind==='warheads'?'pass':undefined);assert.deepEqual(eo.effects.clicks,[kind==='warheads'?'Pass enriched warheads':'Pass Command and Control']);
+});
+for(const [name,mutate] of [
+ ['foreign session',v=>{v.sessionId='foreign'}],['stale revision',v=>{v.revision--}],['malformed action',v=>{v.eligibleActions[0].sourceId='private-admin'}],['duplicate contact',v=>{v.contacts.push({...v.contacts[0]})}],['unknown unavailable',v=>{v.type='wolf-range-action-choice-unavailable';v.reason='invented'}],['malformed locked hits',v=>{v.choiceStatus='targets-required';v.hitSlots=[{actionId:'missile',count:-1,damagePerHit:1}]}],['missing Short coverage',v=>{v.range=v.currentStep='short-range';v.choiceStatus='targets-required';v.hitSlots=[{actionId:'laser',count:1,damagePerHit:1}]}],
+]) test(`actual EO ${name} fails before capture`,async()=>{
+ const view=eoRange();mutate(view);const eo=eoSurface(view);let captures=0;await assert.rejects(dispatchStationCrewChoice(attack(view.range),options([{roleId:eo.label,surface:eo}],attack(view.range),()=>captures++)));assert.equal(captures,0);assert.deepEqual(eo.effects.clicks,[]);
+});
+for(const [name,mutate] of [
+ ['foreign UID',s=>{s.testActor.uidHash='foreign'}],['foreign canonical seat',s=>{s.testActor.seatId='wing-commander'}],['foreign berth',s=>{s.testAuthority.currentBerthShipId='icebreaker'}],['missing discovery',s=>{delete s.testAuthority.discoveryAuthority}],['revoked console',s=>{s.testActor.activeConsoleRoleId=null}],['invalid source phase',s=>{s.testActor.airspace='lifted'}],
+]) test(`actual EO ${name} remains fatal without any capture`,async()=>{const eo=eoSurface(eoRange());mutate(eo);let captures=0;await assert.rejects(dispatchStationCrewChoice(attack('medium-range'),options([{roleId:eo.label,surface:eo}],attack('medium-range'),()=>captures++)));assert.equal(captures,0);assert.deepEqual(eo.effects.clicks,[]);});
+test('actual EO original expired deadline has zero reads and actions',async()=>{const eo=eoSurface(eoRange());await assert.rejects(dispatchStationCrewChoice(attack('medium-range'),options([{roleId:eo.label,surface:eo}],attack('medium-range'),undefined,Date.now()-1)));assert.deepEqual(eo.effects.reads,[]);assert.deepEqual(eo.effects.clicks,[]);});
+test('actual EO unknown getter denial cannot become a pass',async()=>{const eo=eoSurface(eoRange());const error=Error('permission denied');eo.callable=async()=>{throw error};await assert.rejects(dispatchStationCrewChoice(attack('medium-range'),options([{roleId:eo.label,surface:eo}],attack('medium-range'))),e=>e===error);assert.deepEqual(eo.effects.clicks,[]);});

@@ -1,10 +1,10 @@
 import {createRequire} from 'node:module';import test from 'node:test';import assert from 'node:assert/strict';import * as runner from './pc10-fresh-minimum-ring-proof.mjs';
-test('Station plan covers every preset14 printed craft owner with seven normal actors and bounded genuine combat',()=>{const p=runner.minimumStationPlan();assert.equal(p.actualAuthenticatedActors,7);assert.equal(p.configuredRoles,14);assert.equal(p.browserProcesses,1);assert.equal(p.browserContexts,7);assert.equal(p.hardCapMs,1200000);assert.equal(p.forcedOutcome,false);});
+test('Station plan covers every preset15 printed craft owners and real EO with eight normal actors and bounded genuine combat',()=>{const p=runner.minimumStationPlan();assert.equal(p.actualAuthenticatedActors,8);assert.equal(p.configuredRoles,15);assert.equal(p.browserProcesses,1);assert.equal(p.browserContexts,8);assert.equal(p.hardCapMs,1200000);assert.equal(p.forcedOutcome,false);});
 test('Station workflow establishes real paid arrival and combat before existing activation callback',async()=>{const trace=[];const names=['setup','stationArrivalMaintenance','stationDeferCombat','advance','stationCombatMaintenance','stationArrival','stationCombat','stationActivate','stationEnding'];await runner.runStationWorkflow(Object.fromEntries(names.map(name=>[name,async()=>trace.push(name)])));assert.deepEqual(trace,names);});
 test('failed actual Station combat precludes activation and close',async()=>{let activated=false;await assert.rejects(runner.runStationWorkflow({setup:async()=>{},stationArrivalMaintenance:async()=>{},stationArrival:async()=>{},stationDeferCombat:async()=>{},advance:async()=>{},stationCombatMaintenance:async()=>{},stationCombat:async()=>{throw Error('surviving Wolves')},stationActivate:async()=>{activated=true}}));assert.equal(activated,false);});
 test('Station GM coordinate read binds live owned chart B and unique P without raw-root guessing',async()=>{const surface={storeModuleUrl:()=>'/normal-store',page:{evaluate:async(fn,url)=>{assert.equal(url,'/normal-store');return {chartId:'B',locked:true,candidates:[{coordinate:'1234',code:'P'}]}}}};assert.equal(await runner.readStationCoordinate(surface),'1234');});
 
-test('fighter reactor charges use physical bay console IDs, not fighter source IDs',()=>{assert.deepEqual(runner.stationCombatConsoles(),['jump-drive','fighter-bay-alpha','fighter-bay-bravo']);});
+test('fighter reactor charges use physical bay console IDs, not fighter source IDs',()=>{assert.deepEqual(runner.stationCombatConsoles(),['jump-drive','fighter-bay-alpha','fighter-bay-bravo','missile-launchers','point-defence-lasers']);});
 test('Station liberation consumes actual private serverState marker, never a nonexistent root field',async()=>{
  const {createRequire}=await import('node:module');const require=createRequire(new URL('../functions/package.json',import.meta.url));const {organiserSitesForChart}=require('../functions/lib/starChartLookup.js');const coordinate=Object.entries(organiserSitesForChart('B')).find(([,site])=>site.code==='P')[0];
  const marker={type:'candidate-station-liberation',sessionId:'sid',groupId:'fleet-1',coordinate,chart:'B',sequenceId:'wolf-p-station-real',sourceId:'wolf-attack-real',cycle:2,liberatedAt:'2026-10-08T12:00:00.000Z'};let read;
@@ -29,17 +29,20 @@ test('combat diagnostics retain guard authority while excluding player private d
  assert.deepEqual(context.pdfEscortWing,{attackId:'attack'});assert.equal(context.players[0].assignedRoleId,'wing-commander');assert.equal(context.players[0].uid,'owned');assert.equal(context.players[0].seatId,'wing-commander');assert.equal(context.players[0].kickedAt,null);assert.equal(context.players[0].escapeState,null);assert.deepEqual(context.fleetGroups[0].memberShipIds,{owned:'aegis'});assert.equal(context.email,undefined);assert.equal(context.joinCode,undefined);assert.equal(context.players[0].email,undefined);assert.equal(context.players[0].privateBrief,undefined);
 });
 
-test('preset14 custody preflight rejects omitted core or Press printed owners, disabled Press, absent actual custody and optional Union craft',()=>{
+test('preset15 custody preflight rejects omitted core or Press printed owners, disabled Press, absent actual custody and optional Union craft',()=>{
  const req=createRequire(new URL('../functions/package.json',import.meta.url));
  const {recommendedRoleIds}=req('../functions/lib/roleConfiguration.js'),{roleOwnedCraftForRoles}=req('../functions/lib/craftOwnership.js'),{initialShuttleDockingsForRoles}=req('../functions/lib/shuttlecraft.js'),{initialShuttleControl}=req('../functions/lib/shuttleControl.js');
- const activeRoleIds=recommendedRoleIds(14),uids={GM1:'gm',...Object.fromEntries(Object.keys(runner.stationRoleIds).map(label=>[label,label]))};
- const players=Object.entries(runner.stationRoleIds).map(([label,assignedRoleId])=>({uid:uids[label],role:'player',assignedRoleId:assignedRoleId==='press-officer'?null:assignedRoleId,activeConsoleRoleId:assignedRoleId}));
+ const activeRoleIds=recommendedRoleIds(15),uids={GM1:'gm',...Object.fromEntries([...new Set([...Object.keys(runner.stationRoleIds),'Executive'])].map(label=>[label,label]))};
+ const players=Object.entries({...runner.stationRoleIds,Executive:'executive-officer'}).map(([label,assignedRoleId])=>({uid:uids[label],role:'player',assignedRoleId:assignedRoleId==='press-officer'?null:assignedRoleId,activeConsoleRoleId:assignedRoleId}));
  const dockings=initialShuttleDockingsForRoles(activeRoleIds);
  const root={activeRoleIds,pressEnabled:true,capybaraEnabled:false,shuttleDockings:dockings,shuttleControl:initialShuttleControl(roleOwnedCraftForRoles(activeRoleIds),players.map(player=>({uid:player.uid,roleId:player.assignedRoleId??player.activeConsoleRoleId})))};
  assert.equal(runner.assertStationOwnerCustody(root,players,uids).custodyValidated,true);
  assert.throws(()=>runner.assertStationOwnerCustody({...root,pressEnabled:false},players,uids));
  assert.throws(()=>runner.assertStationOwnerCustody(root,players.filter(player=>player.uid!=='Press'),uids));
  assert.throws(()=>runner.assertStationOwnerCustody(root,players.filter(player=>player.uid!=='Miner'),uids));
+ assert.throws(()=>runner.assertStationOwnerCustody(root,players.filter(player=>player.uid!=='Executive'),uids));
+ assert.throws(()=>runner.assertStationOwnerCustody(root,players.map(player=>player.uid==='Executive'?{...player,activeConsoleRoleId:'wing-commander'}:player),uids));
+ assert.throws(()=>runner.assertStationOwnerCustody(root,players,{...uids,Executive:uids.GM1}));
  assert.throws(()=>runner.assertStationOwnerCustody({...root,shuttleControl:{}},players,uids));
  assert.throws(()=>runner.assertStationOwnerCustody({...root,shuttleDockings:[...dockings,{shuttleId:'wobbly',shipId:'quellon'}]},players,uids));
 });
@@ -92,3 +95,14 @@ test('Station actual Wing-first consumer forwards cancellation evidence under th
   assert.equal(result, undefined);
   assert.deepEqual(transitions, [observation]);
 });
+
+// Executes the existing nested maintenance consumer; source-shaped, not native.
+test('actual Station maintenance charges legal EO weapons and PDF bay through normal maintenance',async()=>{
+ const {readFile}=await import('node:fs/promises');
+ const source=await readFile(new URL('./pc10-fresh-minimum-ring-proof.mjs',import.meta.url),'utf8');
+ const start=source.indexOf('async stationCombatMaintenance(){'),end=source.indexOf('async stationCombat(){',start);
+ assert.ok(start>0&&end>start);const trace=[];
+ const invoke=new Function('dependencies',`const {mark,ships,maintain,stationCombatConsoles,coordination}=dependencies;return ({${source.slice(start,end)}}).stationCombatMaintenance;`)({mark:async()=>{},ships:['aegis','refinery-124','icebreaker'],maintain:async(...args)=>trace.push(args),stationCombatConsoles:runner.stationCombatConsoles,coordination:async cycle=>trace.push(['coordination',cycle])});
+ await invoke();assert.deepEqual(trace,[['aegis',['jump-drive','fighter-bay-alpha','fighter-bay-bravo','missile-launchers','point-defence-lasers']],['refinery-124',['jump-drive','fighter-bay']],['icebreaker',['jump-drive']],['coordination',2]]);
+});
+test('Station normal cohort includes distinct actual Executive Officer without changing Press custody',()=>{assert.equal(runner.stationRoleIds.Executive,'executive-officer');assert.equal(runner.stationRoleIds.Press,'press-officer');});

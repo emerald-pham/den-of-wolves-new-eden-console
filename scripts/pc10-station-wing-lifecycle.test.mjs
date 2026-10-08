@@ -235,3 +235,16 @@ test('Station finalization rebookend cannot replace the original deadline after 
  finally {Date.now=actualNow;}
  assert.equal(f.counts().clicked,0);assert.deepEqual(f.observations,[]);
 });
+
+// The actual exported choose callback, with current opaque DOM options.
+function strategyWing(step) {
+ const f=fixture(step,{change:'same-step'}),effects={selected:[],checked:0,clicked:[]};
+ const control=name=>({isVisible:async()=>true,isEnabled:async()=>true,click:async()=>effects.clicked.push(name),selectOption:async value=>effects.selected.push([name,value]),getAttribute:async()=>name,locator:()=>({evaluateAll:async inspect=>inspect([{value:'first',textContent:'Wolf contact 1',disabled:false},{value:'last',textContent:'Wolf contact 2',disabled:false}])})});
+ const actions={count:async()=>2,nth:index=>control(`Fighter ${index+1} action`)};
+ const panel={isVisible:async()=>true,getByRole:(kind,{name}={})=>kind==='button'?control(name):kind==='checkbox'?{all:async()=>[{check:async()=>effects.checked++},{check:async()=>effects.checked++}]}:name instanceof RegExp?actions:control(name)};
+ f.dependencies.recipient.page.getByRole=()=>panel;
+ f.dependencies.action=async(_surface,endpoint,choose)=>{await choose();return {endpoint,httpStatus:200,result:{status:'committed'}}};
+ return {...f,effects};
+}
+test('actual Wing Medium chooses last opaque contact for every fighter',async()=>{const f=strategyWing('medium-range');assert.deepEqual(await f.invoke(),{committed:true});assert.deepEqual(f.effects.selected.filter(([name])=>name.endsWith('target')),[['Fighter 1 target','last'],['Fighter 2 target','last']]);});
+test('actual Wing Short explicitly passes without selecting or losing fighter offense',async()=>{const f=strategyWing('short-range');assert.deepEqual(await f.invoke(),{committed:true});assert.equal(f.effects.checked,0);assert.deepEqual(f.effects.clicked,['Pass Short Range']);});
