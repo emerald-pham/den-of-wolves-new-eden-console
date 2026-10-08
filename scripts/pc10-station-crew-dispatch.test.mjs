@@ -702,13 +702,21 @@ for (const stage of ['enabled-control wait', 'lifecycle capture wait']) {
         sessionId, turn: 3, revision: 8, wingRevision: 4, launched: false, eligible: true });
       const current = attack('targeting');
       let latestAttack = current;
+      let enabledAttackDrift = false, postEnableAttackReads = 0;
       const mutate = () => {
         if (changedField === 'turnStatePhase') pdf.testActor.turnStatePhase = 'coordination';
         else if (changedField === 'turnStatePhaseRevision') pdf.testActor.turnStatePhaseRevision++;
+        else if (stage === 'enabled-control wait') enabledAttackDrift = true;
         else latestAttack = attack('targeting', current.revision + 1);
       };
       const opts = options([{ roleId: pdf.label, surface: pdf }], current);
-      opts.readAttack = async () => latestAttack;
+      opts.readAttack = async () => {
+        if (enabledAttackDrift) {
+          postEnableAttackReads++;
+          return postEnableAttackReads === 1 ? current : attack('targeting', current.revision + 1);
+        }
+        return latestAttack;
+      };
 
       if (stage === 'enabled-control wait') {
         const originalLocator = pdf.page.locator;
@@ -733,7 +741,49 @@ for (const stage of ['enabled-control wait', 'lifecycle capture wait']) {
       try { result = await dispatchStationCrewChoice(current, opts); } catch (error) { failure = error; }
       assert.ok(failure, `Expected stale UI intent rejection; received ${JSON.stringify(result)}.`);
       assert.match(failure.message, changedField === 'attack revision' ? /attack|source changed/i : /phase|turnState/);
+      const [held] = heldProofFailureObservations(failure).filter(item => item.operation === 'station-crew-final-ui-intent');
+      assert.ok(held, 'The original final-intent failure must retain its frozen scope and read trace.');
+      assert.equal(held.deadlineAt, deadlineAt);
+      assert.equal(held.originalAttack.attackId, current.attackId);
+      assert.ok(held.consumedObservations.actorScopes.length > 0);
+      if (stage === 'enabled-control wait' && changedField === 'attack revision')
+        assert.equal(postEnableAttackReads, 2, 'The frozen attack must be rechecked inside the final UI-intent callback.');
       assert.deepEqual(pdf.effects.clicks, [], 'Stale UI intent must be rejected before a browser click.');
     });
   }
 }
+
+test('rechecks the exact P attack after the final actor sample before PDF launch intent', async () => {
+  const pdf = surface('refinery-124-pdf-colonel', { type: 'pdf-escort-wing-launch-view',
+    sessionId, turn: 3, revision: 8, wingRevision: 4, launched: false, eligible: true });
+  const current = attack('targeting');
+  let insideAction = false, finalAttackRead = false, latestAttack = current;
+  const opts = options([{ roleId: pdf.label, surface: pdf }], current);
+  opts.readAttack = async () => {
+    if (insideAction && !finalAttackRead) {
+      finalAttackRead = true;
+      return current;
+    }
+    return latestAttack;
+  };
+  const originalEvaluate = pdf.page.evaluate;
+  pdf.page.evaluate = async (...args) => {
+    const sample = await originalEvaluate(...args);
+    if (insideAction && finalAttackRead) latestAttack = attack('targeting', current.revision + 1);
+    return sample;
+  };
+  opts.action = async (surface, endpoint, choose, metadata) => {
+    insideAction = true;
+    await choose();
+    return { endpoint, data: metadata.expectedRequest, httpStatus: 200, result: { status: 'committed' } };
+  };
+
+  let result, failure;
+  try { result = await dispatchStationCrewChoice(current, opts); } catch (error) { failure = error; }
+  assert.ok(failure, `Expected post-sample attack drift rejection; received ${JSON.stringify(result)}.`);
+  assert.match(failure.message, /attack|source changed/i);
+  const [held] = heldProofFailureObservations(failure).filter(item => item.operation === 'station-crew-final-ui-intent');
+  assert.ok(held, 'The final-intent failure must retain the original source evidence.');
+  assert.equal(held.observedAttack.revision, current.revision + 1);
+  assert.deepEqual(pdf.effects.clicks, [], 'The old source action must not click after the attack changes during actor sampling.');
+});
