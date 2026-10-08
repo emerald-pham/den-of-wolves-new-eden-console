@@ -140,6 +140,68 @@ it('does not accept a recorded decision response after the current navigation or
   await expect(recording).rejects.toThrow(/changed while the rejoin decision was being recorded/i);
 });
 
+function provisionRejoinRecovery() {
+  const phase = { turn: 3, teamPhaseEndsAt: '2026-10-08T12:05:00.000Z',
+    openAirspaceEndsAt: '2026-10-08T12:20:00.000Z',
+    airspace: { state: 'lifted', tickerActive: true, pressAccess: false } };
+  const candidates = [{ coordinate: '1413', groupIds: ['fleet-1', 'fleet-2'],
+    pursuitBefore: { 'fleet-1': 2, 'fleet-2': 5 } }];
+  context = { sessionId: 's1', actorUid: 'alice', groupId: 'fleet-1', role: 'gm', gmInstanceId: 'bridge',
+    live: true, fresh: true, active: true, navigationRevision: 4, fleetPartitionRevision: 1,
+    currentCycle: 3, turnPhase: phase };
+  const preview = (revision: number) => ({ status: 'adjudication-required', navigationRevision: revision,
+    fleetPartitionRevision: 1, candidates, previewBinding: { actorUid: 'alice', instanceId: 'bridge',
+      leaseClaimedAt: null, navigationRevision: revision, fleetPartitionRevision: 1, currentTurn: 3,
+      turnPhase: phase, candidates } });
+  const original = [{ coordinate: '1413', groupIds: ['fleet-1', 'fleet-2'], pursuitAfter: 4 }];
+  const ids = vi.fn().mockReturnValueOnce('old-preview').mockReturnValueOnce('old-record')
+    .mockReturnValueOnce('new-preview').mockReturnValueOnce('new-record');
+  return { preview, original, ids };
+}
+
+it('permits a fresh decision after a definitive stale record reply and a refreshed preview', async () => {
+  const { preview, original, ids } = provisionRejoinRecovery();
+  let finish!: (value: unknown) => void;
+  const transport = vi.fn().mockResolvedValueOnce(preview(4))
+    .mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }))
+    .mockResolvedValueOnce(preview(5))
+    .mockResolvedValueOnce({ status: 'recorded', adjudicationId: 'new-record',
+      navigationRevision: 5, fleetPartitionRevision: 1 });
+  const actions = createFleetGroupActions(() => context, transport, ids);
+  await actions.confirmPartition();
+  const recording = actions.recordRejoinAdjudication(original);
+  context = { ...context, navigationRevision: 5 };
+  finish({ status: 'recorded', adjudicationId: 'old-record', navigationRevision: 4, fleetPartitionRevision: 1 });
+  await expect(recording).rejects.toThrow(/changed/i);
+  await expect(actions.confirmPartition()).resolves.toMatchObject({ navigationRevision: 5 });
+  await expect(actions.recordRejoinAdjudication([{ ...original[0]!, pursuitAfter: 3 }]))
+    .resolves.toMatchObject({ adjudicationId: 'new-record' });
+  expect(transport).toHaveBeenCalledTimes(4);
+});
+
+it('settles an exact uncertain record retry before allowing a fresh decision at a newer revision', async () => {
+  const { preview, original, ids } = provisionRejoinRecovery();
+  ids.mockReset().mockReturnValueOnce('old-preview').mockReturnValueOnce('old-record')
+    .mockReturnValueOnce('unused-retry').mockReturnValueOnce('new-preview').mockReturnValueOnce('new-record');
+  const transport = vi.fn().mockResolvedValueOnce(preview(4))
+    .mockRejectedValueOnce({ code: 'functions/unavailable' })
+    .mockResolvedValueOnce({ status: 'recorded', adjudicationId: 'old-record',
+      navigationRevision: 4, fleetPartitionRevision: 1 })
+    .mockResolvedValueOnce(preview(5))
+    .mockResolvedValueOnce({ status: 'recorded', adjudicationId: 'new-record',
+      navigationRevision: 5, fleetPartitionRevision: 1 });
+  const actions = createFleetGroupActions(() => context, transport, ids);
+  await actions.confirmPartition();
+  await expect(actions.recordRejoinAdjudication(original)).rejects.toThrow(/uncertain/i);
+  context = { ...context, navigationRevision: 5 };
+  await actions.recordRejoinAdjudication(original).catch(() => undefined);
+  expect(transport.mock.calls[1]).toEqual(transport.mock.calls[2]);
+  await expect(actions.confirmPartition()).resolves.toMatchObject({ navigationRevision: 5 });
+  await expect(actions.recordRejoinAdjudication([{ ...original[0]!, pursuitAfter: 3 }]))
+    .resolves.toMatchObject({ adjudicationId: 'new-record' });
+  expect(transport).toHaveBeenCalledTimes(5);
+});
+
 it('accepts a committed partition when the live store observes its server revision advance before the reply', async () => {
   context = { ...context, role: 'gm', gmInstanceId: 'bridge', groupId: 'fleet-1', navigationRevision: 4, fleetPartitionRevision: 1 };
   const phase = { turn: 3, teamPhaseEndsAt: '2026-10-08T12:05:00.000Z', openAirspaceEndsAt: '2026-10-08T12:20:00.000Z',

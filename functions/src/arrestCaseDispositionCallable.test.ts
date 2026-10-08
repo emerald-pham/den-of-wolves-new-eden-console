@@ -121,6 +121,7 @@ it('allows ordinary disposition during same-cycle Coordination before the next-T
     ...session,
     turnPhase: {
       ...turnPhase,
+      teamPhaseEndsAt: '2000-01-01T00:00:00.000Z',
       airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
     },
   });
@@ -133,6 +134,20 @@ it('allows ordinary disposition during same-cycle Coordination before the next-T
   expect(mock.documents.get('sessions/s1/arrestCases/u2')).toMatchObject({
     status: 'released', turn: 3, deadlineCycle: 4, revision: 2,
   });
+});
+
+it('rejects same-cycle disposition when lifted airspace still has a future Team clock', async () => {
+  mock.documents.clear();
+  provision(3);
+  const session = mock.documents.get('sessions/s1')!;
+  put('sessions/s1', { ...session, turnPhase: { ...(session.turnPhase as Fields),
+    airspace: { state: 'lifted', tickerActive: true, pressAccess: false } } });
+  await expect(resolveArrestCaseDisposition.run(request({
+    ...baseData, requestId: 'incoherent-phase-release', expectedCycle: 3, disposition: 'released',
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.documents.get('sessions/s1/arrestCases/u2')?.status).toBe('pending-resolution');
+  expect(mock.documents.has('sessions/s1/commandReceipts/incoherent-phase-release')).toBe(false);
+  expect(mock.documents.has('sessions/s1/arrestCases/u2/audit/incoherent-phase-release')).toBe(false);
 });
 
 it.each(['absent', 'foreign-cycle', 'paused'] as const)(
