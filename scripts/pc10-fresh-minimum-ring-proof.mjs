@@ -40,6 +40,42 @@ export function validateRingAllocation(input) {
  for(const key of ['sourceCommit','runnerSha256','compiledIndexSha256','compiledTreeSha256'])assert.match(input[key]??'',key==='sourceCommit'?/^[0-9a-f]{40}$/:/^[0-9a-f]{64}$/,key);
  return input;
 }
+// Ring-specific source contract seams. Pure fixtures are not runtime evidence.
+export function assertRingWorkspace(view,{sessionId,groupId,cycle,coordinate,gm}) {
+ assert.equal(view.type,'candidate-workspace');assert.equal(view.sessionId,sessionId);
+ assert.equal(view.groupId,groupId);assert.equal(view.cycle,cycle);
+ const paths=view.paths.filter(path=>path.code==='N'&&path.coordinate===coordinate);assert.equal(paths.length,1);
+ return paths[0];
+}
+export function assertRingCandidateCommit(result,data,view) {
+ assert.equal(result.type,'candidate-action-result');assert.equal(result.requestId,data.requestId);
+ assert.equal(result.action,data.action);assert.equal(result.code,'N');assert.equal(result.status,'committed');
+ assert.equal(result.revision,view.revision+1);
+}
+export function assertRingResourceIncrease(result,root,shipId,resourceId,amount) {
+ assert.equal(root.shipResources[shipId][resourceId],amount);assert.equal(result.amount,amount);
+}
+export function assertRingMaintenanceReply(result,root,shipId) {
+ assert.equal(result.status,'committed');assert.deepEqual(root.maintenanceCycles[shipId],result.cycle);
+}
+export function assertRingResearchChoice(result,{trackId,cycle,oreCost}) {
+ assert.equal(result.status,'committed');assert.equal(result.progress[trackId],cycle);assert.equal(result.oreCost,oreCost);
+}
+export function assertRingPaidArrival(result,before,after,shipId) {
+ assert.equal(result.status,'jumped');assert.equal(before.shipResources[shipId].fuel-after.shipResources[shipId].fuel,result.fuelCost);
+}
+export function assertRingNavigation(navigation,ships,coordinate) {
+ assert.ok(ships.every(ship=>navigation.get('shipGalacticCoordinates')[ship]===coordinate));
+}
+export function assertRingCraftConsumption(root,shuttleId) {
+ assert.equal(root.candidateCraftReservations[shuttleId].code,'N');assert.ok(!root.shuttleDockings.some(dock=>dock.shuttleId===shuttleId));
+}
+export function assertRingSuccessfulSnapshot(root) {
+ assert.equal(root.debriefSnapshot.source,'candidate');assert.equal(root.debriefSnapshot.result,'success');assert.equal(root.debriefSnapshot.candidate.code,'N');
+}
+export async function readRingEndingHistory(sdk,{sessionId,instanceId}) {
+ const freeze=await sdk('beginSessionDebrief',{sessionId,instanceId,requestId:crypto.randomUUID()});assert.equal(freeze.phase,'debrief');return freeze;
+}
 export async function readRingCoordinate(surface) {
  const chart=await surface.page.evaluate(async storeUrl=>{
   const {useSessionStore}=await import(storeUrl);const {auth}=await import('/src/lib/firebase.ts');
@@ -428,8 +464,7 @@ async function enterRole(surface,label){
    const count=Math.min(12,minimum-amount);
    const result=await sdk(gm,'applyShipCounterSteps',{sessionId:sid,instanceId:gm1Instance,shipId,
     counter:'resource',resourceId,steps:Array(count).fill(1),expectedRevision:current.vesselActionRevisions?.[shipId]??0,requestId:crypto.randomUUID()});
-   current=await recordRoot();assert.equal(current.shipResources[shipId][resourceId],amount+count);
-   amount+=count;assert.equal(result.amount,amount);
+   current=await recordRoot();amount+=count;assertRingResourceIncrease(result,current,shipId,resourceId,amount);
   }
   (evidence.gmPreparation??=[]).push({shipId,resourceId,before,after:amount,mechanism:'normal official GM counter handler; no gameplay injection'});
  }
@@ -447,8 +482,7 @@ async function enterRole(surface,label){
     expectedRevision:revision,requestId:crypto.randomUUID(),
     ...(step==='rations'?{foodLevel:3,waterLevel:3}:{}),...(step==='reactor'?{consoles:['jump-drive']}:{}),
     ...(step==='bays'?{refuels:{}}:{})});
-   assert.equal(result.status,'committed');revision=result.cycle.revision;
-   assert.deepEqual((await recordRoot()).maintenanceCycles[shipId],result.cycle);
+   assertRingMaintenanceReply(result,await recordRoot(),shipId);revision=result.cycle.revision;
    if(step==='begin'||step==='riot')await repair(shipId);
   }
  }
@@ -464,19 +498,14 @@ async function enterRole(surface,label){
  let coordinate,groupId,ships,crossing;
  async function workspace(surface=gm){
   const view=await sdk(surface,'readCandidateWorkspace',{sessionId:sid,expectedGroupId:groupId,...(surface===gm?{instanceId:gm1Instance}:{})});
-  const current=await recordRoot();assert.equal(view.type,'candidate-workspace');assert.equal(view.sessionId,sid);
-  assert.equal(view.groupId,groupId);assert.equal(view.cycle,current.currentTurn);
-  const paths=view.paths.filter(path=>path.code==='N'&&path.coordinate===coordinate);assert.equal(paths.length,1);
-  return{view,path:paths[0]};
+  const current=await recordRoot();const path=assertRingWorkspace(view,{sessionId:sid,groupId,cycle:current.currentTurn,coordinate,gm:surface===gm});return{view,path};
  }
  async function candidate(surface,actionName,choice={}){
   const{view}=await workspace(surface);if(choice.shipId&&surface===gm)await grant(choice.shipId);
   const data={sessionId:sid,requestId:crypto.randomUUID(),expectedRevision:view.revision,expectedGroupId:groupId,
    code:'N',coordinate,action:actionName,...choice,...(surface===gm?{instanceId:gm1Instance}:{})};
   const result=await sdk(surface,'executeCandidateAction',data);
-  assert.equal(result.type,'candidate-action-result');assert.equal(result.requestId,data.requestId);
-  assert.equal(result.action,actionName);assert.equal(result.code,'N');assert.equal(result.status,'committed');
-  assert.equal(result.revision,view.revision+1);return{data,result};
+  assertRingCandidateCommit(result,data,view);return{data,result};
  }
  async function ringWitness(){
   const current=await recordRoot();
@@ -533,7 +562,7 @@ async function enterRole(surface,label){
      expectedControlRevision:current.shuttleControl.endeavour.revision,expectedResearchRevision:view.researchRevision,
      trackId,funding:index<3?'standard':'shepherd-ore'};
     const result=await sdk(recipient,'advanceEndeavourResearchTrack',data);
-    assert.equal(result.status,'committed');assert.equal(result.progress[trackId],cycle);assert.equal(result.oreCost,index<3?0:5);
+    assertRingResearchChoice(result,{trackId,cycle,oreCost:index<3?0:5});
    }
    for(const ship of ships)await maintain(ship);
    await coordination(cycle);
@@ -555,10 +584,10 @@ async function enterRole(surface,label){
     await grant(shipId);const before=await recordRoot();
     const result=await sdk(gm,'jumpShip',{sessionId:sid,instanceId:gm1Instance,shipId,destination:coordinate,
      requestId:crypto.randomUUID(),expectedRevision:before.vesselActionRevisions?.[shipId]??0});
-    assert.equal(result.status,'jumped');const after=await recordRoot();assert.equal(before.shipResources[shipId].fuel-after.shipResources[shipId].fuel,result.fuelCost);
+    const after=await recordRoot();assertRingPaidArrival(result,before,after,shipId);
    }
    const navigation=await op(()=>db.doc(`sessions/${sid}/serverState/navigation`).get());
-   assert.ok(ships.every(ship=>navigation.get('shipGalacticCoordinates')[ship]===coordinate));
+   assertRingNavigation(navigation,ships,coordinate);
    await memberReady(recipient,'Recipient');await memberReady(owner,'Owner');
    claims.push('Six genuinely charged/paid arrivals provide new Ring discovery state; no scout matrix replay or relocation substitute');
   },
@@ -569,7 +598,7 @@ async function enterRole(surface,label){
    await candidate(recipient,'contribute-research',{trackIds:TRACKS});
    const {path}=await workspace(owner);assert.ok(path.engineeringShuttles.some(craft=>craft.id==='black-sheep'));
    await candidate(owner,'commit-engineering-shuttle',{shuttleId:'black-sheep'});
-   const after=await recordRoot();assert.equal(after.candidateCraftReservations['black-sheep'].code,'N');assert.ok(!after.shuttleDockings.some(dock=>dock.shuttleId==='black-sheep'));
+   const after=await recordRoot();assertRingCraftConsumption(after,'black-sheep');
    assert.equal((await workspace()).path.repaired,true);
    claims.push('Actual10material debit, five distinct real4-cross tracks, holder contribution, permanent craft reservation/docking removal and automatic Ring repair');
   },
@@ -606,10 +635,10 @@ async function enterRole(surface,label){
   async sabotageAndClose(){
    await mark('explicit far-side sabotage produces immutable candidate success');
    await candidate(gm,'sabotage-ring');await gm.until('Actual Ring debrief publication',v=>v.phase==='debrief'&&v.fullGameDemo?.status==='complete');
-   const ended=await recordRoot();assert.equal(ended.debriefSnapshot.source,'candidate');assert.equal(ended.debriefSnapshot.result,'success');assert.equal(ended.debriefSnapshot.candidate.code,'N');
+   const ended=await recordRoot();assertRingSuccessfulSnapshot(ended);
    const snapshotHash=hash(stable(ended.debriefSnapshot));
    const late=await sdk(gm,'executeCandidateAction',crossing.data);assert.deepEqual(late,{...crossing.serverReply,status:'replayed'});assert.equal(hash(stable((await recordRoot()).debriefSnapshot)),snapshotHash);
-   const freeze=await sdk(gm,'beginSessionDebrief',{sessionId:sid,instanceId:gm1Instance,requestId:crypto.randomUUID()});assert.equal(freeze.phase,'debrief');assert.equal(hash(stable((await recordRoot()).debriefSnapshot)),snapshotHash);
+   await readRingEndingHistory((name,data)=>sdk(gm,name,data),{sessionId:sid,instanceId:gm1Instance});assert.equal(hash(stable((await recordRoot()).debriefSnapshot)),snapshotHash);
    await gm.page.getByRole('dialog',{name:'Endgame evaluation',exact:true}).waitFor();await gm.page.screenshot({path:`${directory}/Ring-GM-ending.png`});
    await action(gm,'closeSession',()=>gm.page.getByRole('button',{name:'Close session',exact:true}).click());await gm.until('Actual closed Ring history',v=>v.phase==='closed');
    assert.equal(hash(stable((await recordRoot()).debriefSnapshot)),snapshotHash);
