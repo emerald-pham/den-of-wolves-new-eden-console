@@ -66,6 +66,7 @@ test('live station readiness still requires the exact current canonical seat', (
     activeConsoleRoleId: 'dione-engineer',
     seatId: 'dione-engineer',
     phase: 'active',
+    cycle: 1,
     currentCanonicalSeatOwned: true,
   };
   assert.equal(readiness?.(seatedMember, {
