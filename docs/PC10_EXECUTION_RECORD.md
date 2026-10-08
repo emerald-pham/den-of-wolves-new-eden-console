@@ -1051,3 +1051,22 @@ skipped or deleted. New Highwall proof functionality requires its own meaningful
 focused RED before implementation, separate test-first commit and bounded review.
 This reconciliation is prose only, so it uses documentation consistency checks
 and no invented RED or gameplay replay.
+
+
+Before any new Highwall proof implementation,21 focused source-consumer tests
+record6 meaningful RED and15GREEN against the retained successful recharge
+runner. Three failures discriminate the actual3-actor/Engineer-Captain/8-minute
+scope from the required2-actor/Miner/5-minute slice. The fourth executes the
+real finite interruption callback: mining's real `replayed` recovery disagrees
+with the old adapter's `committed` expectation. The fifth exercises its actual
+recharge witness against a valid1d6-mining payload; the sixth exercises the full
+witness against the valid3d6 ore transition and durable mining receipt/event/
+audit. These are real incompatible consumer contracts, not missing-import or
+syntax failures. Fifteen negatives preserve changed payload/reply/actor/dice/
+cargo, missing receipt, unrelated fuel, denied recovery and normal CORS checks.
+No browser, emulator, network or Auth actor starts. The tests do not assert a
+new product defect; the existing mining service already handles bare/prefixed
+uncertain SDK codes. Existing tests are unchanged. Reason: prepare the minimum
+distinct specialist proof without carrying cargo/maintenance/recharge scope,
+and bind actual server dice/once effects and exact recovery to its current Miner.
+RED log: `/tmp/dow-pc10-evidence/OWNER_HIGHWALL_MINIMUM_PROOF_RED_EXIT_VERIFIED_20261008.log`.
