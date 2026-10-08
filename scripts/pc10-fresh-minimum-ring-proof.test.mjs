@@ -155,6 +155,23 @@ test('station loss wait rejects torn before/after browser reads before accepting
   assert.equal(memberReads, 2);
 });
 
+test('station loss wait cannot credit inactivity when an awaited source read finishes after the original deadline', async () => {
+  const { actor, root, player, after } = stationLossFixture();
+  const inactive = [];
+  await assert.rejects(selectStationCombatCrew([actor], {
+    deadlineAt: Date.now() + 20,
+    readRoot: async () => {
+      await new Promise(resolve => setTimeout(resolve, 35));
+      return root;
+    },
+    readPlayers: async () => [player],
+    readMember: async () => after,
+    wait: async () => {},
+    onInactive: value => inactive.push(value.roleId),
+  }), /deadline/i);
+  assert.deepEqual(inactive, []);
+});
+
 import * as proof from './pc10-fresh-minimum-ring-proof.mjs';
 test('cleanup failure cannot publish a passed proof or erase the original failure', () => {
  const first = new Error('original crossing failure');
