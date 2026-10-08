@@ -21,7 +21,8 @@ it('automatically rejoins colocated groups with identical pursuit inputs', () =>
     { id: 'fleet-3', vesselIds: ['icebreaker'], memberUids: ['cara'], memberShipIds: { cara: 'icebreaker' } },
   ]);
   expect(plan.navigation.pursuitGroups).toEqual({ 'fleet-1': 3, 'fleet-3': 1 });
-  expect(plan.rejoins).toEqual([{ coordinate: '1413', survivingGroupId: 'fleet-1', absorbedGroupIds: ['fleet-2'], pursuitBefore: { 'fleet-1': 3, 'fleet-2': 3 }, pursuitAfter: 3 }]);
+  expect(plan.rejoins).toEqual([{ coordinate: '1413', survivingGroupId: 'fleet-1', absorbedGroupIds: ['fleet-2'],
+    pursuitBefore: { 'fleet-1': 3, 'fleet-2': 3 }, pursuitAfter: 3, resolution: 'identical-inputs' }]);
   expect(plan.memberGroups).toEqual({ alice: 'fleet-1', bob: 'fleet-1', cara: 'fleet-3' });
 });
 
@@ -41,6 +42,15 @@ it('keeps colocated groups with different pursuit values separate pending a live
   expect(plan.rejoins).toEqual([]);
   expect(plan.adjudicationRequired).toEqual([{ coordinate: '1413', groupIds: ['fleet-1', 'fleet-2'],
     pursuitBefore: { 'fleet-1': 2, 'fleet-2': 5 } }]);
+
+  const adjudicated = planFleetPartition(nav, groups,
+    [{ uid: 'alice', groupId: 'fleet-1', shipId: 'aegis' }, { uid: 'bob', groupId: 'fleet-2', shipId: 'dione' }], ships,
+    [{ coordinate: '1413', groupIds: ['fleet-1', 'fleet-2'], pursuitAfter: 4 }]);
+  expect(adjudicated.groups).toHaveLength(1);
+  expect(adjudicated.navigation.pursuitGroups).toEqual({ 'fleet-1': 4 });
+  expect(adjudicated.adjudicationRequired).toEqual([]);
+  expect(adjudicated.rejoins).toEqual([{ coordinate: '1413', survivingGroupId: 'fleet-1', absorbedGroupIds: ['fleet-2'],
+    pursuitBefore: { 'fleet-1': 2, 'fleet-2': 5 }, pursuitAfter: 4, resolution: 'facilitator-adjudication' }]);
 });
 
 it('shares only server-owned scanned coordinates to an explicit current-group ship subset', () => {
