@@ -4,6 +4,7 @@ import { awayMissionHandId } from './awayMissionCards';
 import { missionDeck, missionDeckStateFromCards } from './missionDeck';
 import { nextMissionCraftCommitments } from './missionCraftCommitment';
 import { createAwayMissionLifecycleCallables } from './awayMissionLifecycleCallable';
+import { createAwayMissionProjectionMaintenance } from './awayMissionProjectionMaintenance';
 import type { Firestore } from 'firebase-admin/firestore';
 import { prepareResolvedMissionConsequences, prepareMissionRewardConsequences, validateMissionRewardChoice,
   requireLiveMissionWolfSource } from './missionConsequences';
@@ -15,13 +16,14 @@ import type { AwayMissionLifecycleRecord, AwayMissionPrivateState, AwayMissionPu
 
 type Fields = Record<string, unknown>;
 type Write = Readonly<{ kind: 'set' | 'create' | 'update'; path: string; data: Fields }>;
+type Snapshot = {
+  readonly exists: boolean;
+  readonly id: string;
+  get(field: string): unknown;
+  data(): Fields | undefined;
+};
 type Transaction = {
-  get(ref: { readonly path: string }): Promise<{
-    readonly exists: boolean;
-    readonly id: string;
-    get(field: string): unknown;
-    data(): Fields | undefined;
-  }>;
+  get(ref: { readonly path: string; readonly collection?: boolean }): Promise<Snapshot & { readonly docs?: readonly Snapshot[] }>;
   set(ref: { readonly path: string }, data: Fields): void;
   create(ref: { readonly path: string }, data: Fields): void;
   update(ref: { readonly path: string }, data: Fields): void;
@@ -128,17 +130,27 @@ class FakeStore {
     return { path, id: path.split('/').at(-1) ?? '' };
   }
 
+  collection(path: string) {
+    return { ...this.doc(path), collection: true };
+  }
+
   async runTransaction<T>(work: (transaction: unknown) => Promise<T>): Promise<T> {
     let result!: T;
     let stagedWrites: Write[] = [];
     const tx: Transaction = {
       get: async (ref) => {
         const value = this.records.get(ref.path);
+        const snapshot = (path: string, fields: Fields): Snapshot => ({
+          exists: true, id: path.split('/').at(-1) ?? '',
+          get: field => fields[field], data: () => structuredClone(fields),
+        });
         return {
           exists: value !== undefined,
           id: ref.path.split('/').at(-1) ?? '',
           get: (field) => value?.[field],
           data: () => value === undefined ? undefined : structuredClone(value),
+          ...(ref.collection ? { docs: [...this.records].filter(([path]) => path.startsWith(ref.path + '/') &&
+            !path.slice(ref.path.length + 1).includes('/')).map(([path, fields]) => snapshot(path, fields)) } : {}),
         };
       },
       set: (ref, data) => stagedWrites.push({ kind: 'set', path: ref.path, data: structuredClone(data) }),
@@ -479,14 +491,43 @@ it.each(['alice', 'bob'] as const)(
     // Controlled raw snapshot consumer: this is persisted-field evidence, not
     // a rules/SDK-runtime claim and not a request to mutate gameplay replay.
     const pointerPath = uid === 'alice' ? paths().alicePointer : paths().bobPointer;
-    const snapshot = await store.runTransaction(async transaction => transaction.get(store.doc(pointerPath)));
+    const snapshot = await store.runTransaction(async transaction => (transaction as Transaction).get(store.doc(pointerPath)));
     expect(snapshot.exists).toBe(true);
     expect(snapshot.get('participantUid')).toBe(uid);
     const publicState = snapshot.get('lifecyclePublicState') as AwayMissionPublicState;
     expect(publicState.outcomes).toEqual([expect.objectContaining({ contributorCount: 1, total: 20,
       difficulty: 30, criticalThreshold: 40, outcome: 'failure' })]);
     expect(store.committedWrites).toHaveLength(writes);
-    expect(publicState.outcomes?.[0]).toMatchObject({ difficulty: null, criticalThreshold: null });
+
+    const maintenance = createAwayMissionProjectionMaintenance({ db: store as unknown as Firestore,
+      serverTimestamp: () => 'server-time',
+      requireActiveGm: async (rawTransaction, sessionId, actorUid, instanceId) => {
+        const transaction = rawTransaction as Transaction;
+        const [player, instance] = await Promise.all([
+          transaction.get(store.doc(`sessions/${sessionId}/players/${actorUid}`)),
+          transaction.get(store.doc(`sessions/${sessionId}/gmInstances/${instanceId}`)),
+        ]);
+        if (player.get('role') !== 'gm' || player.get('connected') !== true ||
+            instance.get('uid') !== actorUid || instance.get('active') !== true) {
+          throw new HttpsError('permission-denied', 'A current owned facilitator instance is required.');
+        }
+      },
+    });
+    const operate = (step: 'hold' | 'repair' | 'finalize', requestId = `maintenance-${step}`) => maintenance({
+      auth: { uid: 'gm' }, data: { sessionId: SESSION_ID, instanceId: 'gm-instance',
+        requestId, repairRunId: 'canonical-legacy-repair', step },
+    });
+    await operate('hold');
+    expect(await operate('repair')).toMatchObject({ state: 'held', pointerCount: 2, missionId: MISSION_ID });
+    await operate('repair', 'maintenance-verify');
+    expect(await operate('finalize')).toMatchObject({ state: 'ready' });
+    const fresh = await store.runTransaction(async transaction => (transaction as Transaction).get(store.doc(pointerPath)));
+    const freshPublicState = fresh.get('lifecyclePublicState') as AwayMissionPublicState;
+    expect(freshPublicState.outcomes?.[0]).toMatchObject({ difficulty: null, criticalThreshold: null });
+    expect(publicState.outcomes?.[0]).toMatchObject({ difficulty: 30, criticalThreshold: 40 });
+    expect(store.records.get(paths().mission)!.lifecycleRecord).toEqual(record);
+    expect(store.records.get(markerPath)).toEqual(before.find(([path]) => path === markerPath)![1]);
+    expect(callables.randomCalls).toBe(randomCalls); expect(callables.d6Calls).toBe(d6Calls);
   });
 
 it('rebuilds an exact legacy K receipt replay safely without changing saved numeric receipts or public pointers', async () => {
