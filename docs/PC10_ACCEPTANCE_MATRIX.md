@@ -1500,3 +1500,35 @@ client build pass. The blocked review is retained; bounded follow-up, exact
 source binding, fresh parent allocation and original native requester/peer/
 reload acceptance remain open. No protected Functions/rules change, native
 credit, fixed row closure or PC10 release is claimed.
+
+
+#### Actual3 requester/peer scout privacy and reload accepted
+
+Exact reviewed`cde408b5` passed the single fresh three-actor scout privacy slice:
+3 normal Auth accounts,3 independent Chrome processes/contexts, legal16 with
+other seats open,0 humans. Actual unlimited manual Cycle0→1/Coordination and
+one ordinary UI Endeavour request produced one bound result/note/audit; the
+requester report and saved note mounted. The inspected cropped report shows
+System6798, SITE N, Ancient Jump Ring and saved-note confirmation. Same-group
+peer gets allowed code/title only; full result/note/borrowed-GM reads and all
+ten populated SDK document/query attempts deny. Actual member envelope
+authority/privacy and scoped durable-state immutability pass before and after
+the original peer cold reload. Twelve scoped criteria are earned; previous
+admission/discovery prefix receives no duplicate catalog credit.
+
+Driver execution including owned game/account/browser cleanup took90,360ms.
+All own emulator/native/three Chrome main PIDs, eight ports and reservation
+were verified returned at07:12:19.259UTC before07:15. Vite/other reservations
+were preserved. All22 selected response bodies are retained in private files;
+19,397,792bytes of complete original logs/prefixes are hash-verified. Earlier
+actual2 and npm startup failures remain unchanged; this pass does not establish
+the exact earlier local cause. The shared installed15.29.0 launcher followed
+meaningful test-first REDs,41 focused checks, exact executable preflight and
+one independent source review; no download, permission change or config
+relocation occurred. Functions/rules/compiled/client bytes remain unchanged.
+
+Handoff:`/tmp/dow-pc10-evidence/OWNER_SCOUT_PRIVATE_AUDIENCE_3_CDE_PASSED_CLEAN_HANDBACK_20261008.json`.
+Screenshot inspection:`OWNER_SCOUT_PRIVATE_AUDIENCE_3_CDE_REQUESTER_SCREENSHOT_INSPECTION_20261008.json`.
+No full-game ending, foreign/revoked actor, human-device, capacity or complete
+manual-free usability acceptance is claimed. All48 fixed rows remain open at
+703/751 overall and245/293 campaign; NEXT181. PC10 and release are incomplete.
