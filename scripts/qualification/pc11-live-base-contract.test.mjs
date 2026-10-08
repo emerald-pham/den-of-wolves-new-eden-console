@@ -376,7 +376,8 @@ test('all six actual runner wait predicates consume the published ordinary setup
   assert.match(confirm,/setupConfirmed: true/);assert.doesNotMatch(confirm,/phase: 'casting'/,'confirmSetup retains the published lobby phase');
   const setupStart=handlers.indexOf('function setupWriteFields('),setupEnd=handlers.indexOf('type SetupCommandFingerprint',setupStart);
   const setupJs=ts.transpileModule(handlers.slice(setupStart,setupEnd),{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
-  const writeSetup=new Function(`${setupJs};return setupWriteFields;`)({activeRoleIds:[],activeVesselIds:[]});
+  const writeSetup=new Function(`${setupJs};return setupWriteFields;`)()({activeRoleIds:[],activeVesselIds:[]});
+  assert.deepEqual(writeSetup.activeRoleIds,[]);assert.deepEqual(writeSetup.activeVesselIds,[]);
   assert.equal(Object.hasOwn(writeSetup,'phase'),false,'Actual confirmSetup spread helper preserves lifecycle phase.');
   assert.match(assign,/tx\.update\(sessionRef,\s*\{\s*phase: 'casting'/);assert.match(start,/phase: 'active'/);
   const advanceStart=handlers.indexOf('function advanceTurnInTransaction('),advanceEnd=handlers.indexOf('function ',advanceStart+10);
