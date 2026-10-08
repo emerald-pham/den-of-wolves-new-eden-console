@@ -36,3 +36,21 @@ test('first prerequisite failure stops the workflow before candidate outcomes', 
   await assert.rejects(runRingWorkflow(operations), /real research unavailable/);
   assert.deepEqual(trace, ['setup', 'research']);
 });
+
+import * as proof from './pc10-fresh-minimum-ring-proof.mjs';
+test('cleanup failure cannot publish a passed proof or erase the original failure', () => {
+ const first = new Error('original crossing failure');
+ const evidence = {status:'passed'};
+ const cleanup = {errors:[{label:'owned Auth',error:'delete denied'}]};
+ assert.equal(typeof proof.finalizeRingEvidence, 'function');
+ const failure = proof.finalizeRingEvidence(evidence, cleanup, null);
+ assert.equal(evidence.status,'failed'); assert.match(failure.message,/cleanup/i);
+ assert.equal(proof.finalizeRingEvidence({status:'failed'},cleanup,first),first);
+});
+test('allocation binds the complete compiled tree before runtime', () => {
+ const input={status:'EXPLICIT_PARENT_ALLOCATION_GRANTED',sourceRoot:'/tmp/source',projectId:'demo-ring',
+ baseUrl:'http://127.0.0.1:5190',ports:{auth:9190,firestore:8180,functions:5100},
+ sourceCommit:'a'.repeat(40),runnerSha256:'b'.repeat(64),compiledIndexSha256:'c'.repeat(64)};
+ assert.throws(()=>proof.validateRingAllocation(input),/compiledTreeSha256/);
+ assert.equal(proof.validateRingAllocation({...input,compiledTreeSha256:'d'.repeat(64)}).compiledTreeSha256,'d'.repeat(64));
+});
