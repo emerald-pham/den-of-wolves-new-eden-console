@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { EventEmitter } from 'node:events';
 import { observeUiReceipt } from './pc10-browser-ui-receipt.mjs';
-import { runP181StarlightMovementScoutUiProof } from './pc10-starlight-movement-scout-ui-proof.mjs';
+import { createP181StarlightBrowserIo, runP181StarlightMovementScoutUiProof } from './pc10-starlight-movement-scout-ui-proof.mjs';
 
 // Keep the pre-implementation RED behavioral: the test invokes the expected
 // P181 consumer transition with controlled observers and receipts. A missing
@@ -279,4 +279,44 @@ test('first normal-start failure triggers one bounded owned cleanup and remains 
   assert.equal(cleanupCalls, 1, 'Cleanup runs once after an original startup failure.');
   assert.equal(cleanupInput.firstError, firstFailure);
   assert.equal(surfaced, firstFailure, 'Cleanup does not replace the original failure.');
+});
+
+test('fresh Cycle 0 native consumer uses the normal browser factory before requiring a live station', async () => {
+  const trace = [];
+  const freshInitial = { sessionId: 'fresh-normal-session', phase: 'lobby', cycle: 0,
+    setupConfirmed: false, playerCount: null, chartId: null, activeRoleIds: [], fullGameDemo: null };
+  const normalStart = {
+    async prepare({ initial }) {
+      assert.equal(initial.sessionId, freshInitial.sessionId);
+      trace.push('gm-create-session');
+      trace.push('gm-normal-auth-and-consent');
+      trace.push('gm-live-local-authorization-and-claim');
+      trace.push('confirmSetup');
+      trace.push('wing-commander-normal-join-and-consent');
+      trace.push('assignRole');
+      trace.push('normal-role-chooser');
+      trace.push('startGame');
+      trace.push('clearTurnAdvanceInterstitial');
+      throw new Error('controlled first mismatch after original normal setup/start receipts');
+    },
+  };
+  const io = createP181StarlightBrowserIo({ gm: { page: {} }, wingCommander: { page: {} },
+    gameplay: { async select(roleId) { trace.push(`chooser:${roleId}`); } }, directory: '/tmp/p181-controlled-normal-driver',
+    initial: freshInitial, started: undefined, expectedWingCommander: undefined, normalStart });
+  io.cleanupOwnedResources = async () => ({ status: 'controlled-owned-cleanup-complete' });
+
+  let firstFailure;
+  try {
+    await runP181StarlightMovementScoutUiProof({ initial: freshInitial, started: undefined,
+      roster: undefined, gm: undefined, expectedWingCommander: undefined, io,
+      absoluteDeadlineMs: Date.now() + 15 * 60_000 });
+  } catch (error) { firstFailure = error; }
+
+  assert.deepEqual(trace, [
+    'gm-create-session', 'gm-normal-auth-and-consent', 'gm-live-local-authorization-and-claim',
+    'confirmSetup', 'wing-commander-normal-join-and-consent', 'assignRole', 'normal-role-chooser',
+    'startGame', 'clearTurnAdvanceInterstitial',
+  ], `The executable consumer must cross ordinary admission and original ownership before movement; stopped at: ${firstFailure?.message ?? 'none'}`);
+  assert.match(firstFailure?.message ?? '', /controlled first mismatch/,
+    'A failure after the real source startup sequence remains the first error.');
 });
