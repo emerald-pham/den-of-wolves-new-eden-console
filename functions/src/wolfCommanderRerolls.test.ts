@@ -23,18 +23,18 @@ it('accepts canonical source rings and ordered participating subsets while denyi
 });
 
 it('rerolls a nonparticipating source face once into a bounded participating target draw', () => {
-  const ring = ['shepherd', 'quellon', 'refinery-124'] as const;
+  const ring = ['quellon', 'shepherd', 'refinery-124'] as const;
   const bounds: number[] = [];
   const receipt = resolveWolfTargeting(
     firstTurnWolfAttackComposition(), {}, ring, (upperBound) => {
       bounds.push(upperBound);
-      return upperBound === 6 ? 0 : 1;
+      return 0;
     }, CORE_WOLF_TARGET_RING,
   );
 
   expect(bounds.slice(0, 4)).toEqual([6, 3, 6, 3]);
   expect(receipt.rolls[0]).toMatchObject({
-    sourceDie: 1, initialDie: 2, target: 'quellon', nonparticipatingTargetRerolls: 1,
+    sourceDie: 1, initialDie: 1, target: 'quellon', nonparticipatingTargetRerolls: 1,
   });
   expect(parseWolfTargetingReceipt(receipt)).toEqual(receipt);
 });

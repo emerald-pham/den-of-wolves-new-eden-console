@@ -248,7 +248,7 @@ it('rerolls nonparticipating split-group targets in the declaration handler with
   const receipt = mock.documents.get('sessions/s1/wolfAttackState/current')!.calculationReceipt as Fields;
   const targeting = receipt.targeting as Fields;
   const rolls = targeting.rolls as Fields[];
-  expect(drawBounds.slice(0, 30)).toEqual(Array.from({ length: 15 }, () => [6, 3]).flat());
+  expect(drawBounds).toEqual(Array.from({ length: rolls.length }, () => [6, 3]).flat());
   expect(rolls.every(({ target }) => ['shepherd', 'quellon', 'refinery-124'].includes(target as string))).toBe(true);
   expect(rolls[0]).toMatchObject({ target: 'shepherd', nonparticipatingTargetRerolls: 1 });
 });

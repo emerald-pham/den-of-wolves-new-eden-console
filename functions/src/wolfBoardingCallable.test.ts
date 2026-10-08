@@ -308,7 +308,7 @@ async function commitSpecialFixture(kind: typeof specialCases[number]) {
   const pallas = await special('xo-1', { kind: 'reroll', source: 'pallas', targetShipId: 'aegis',
     dieIndexes: kind === 'pallas-reroll' ? [0] : [] }, 'review-pallas-reroll');
   if (kind === 'pallas-reroll') return pallas;
-  await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
+  if (!committedCommanderRuling) await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
   if (committedCommanderRuling) return committedCommanderRuling;
   put(`${sessionPath}/players/gm-1`, { uid: 'gm-1', role: 'gm', connected: true });
   put(`${sessionPath}/gmInstances/gm-instance`, { uid: 'gm-1', connected: true, lastSeenAt: new Date() });
@@ -436,6 +436,10 @@ it.each([20, 21, 22])('R3 uses Commander-adjusted parties for the Militia bounda
   seatMilitia();
   patch(sessionPath, { shipResources: { aegis: { securityTeams: teams } } });
   await special('commander-1', { kind: 'commander', targetShipId: 'aegis' }, 'review-commander');
+  put(`${sessionPath}/players/gm-1`, { uid: 'gm-1', role: 'gm', connected: true });
+  put(`${sessionPath}/gmInstances/gm-instance`, { uid: 'gm-1', connected: true, lastSeenAt: new Date() });
+  await special('gm-1', { kind: 'commander-ruling', targetShipId: 'aegis',
+    rulingText: 'The facilitator records the consequence.' }, 'review-commander-ruling', 'gm-instance');
   await special('xo-1', { kind: 'relocation', craftId: 'pallas', targetShipId: null,
     expectedControlRevision: 0 }, 'review-no-relocation');
   await crewDefence(1);
