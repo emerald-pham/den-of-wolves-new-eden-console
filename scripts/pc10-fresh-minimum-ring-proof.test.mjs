@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { minimumRingPlan, runRingWorkflow, selectStationCombatCrew } from './pc10-fresh-minimum-ring-proof.mjs';
+import { minimumRingPlan, runRingWorkflow, selectStationCombatCrew, stationCombatServerContext } from './pc10-fresh-minimum-ring-proof.mjs';
 
 function stationLossFixture({ originalGeneration = 4, currentGeneration = 4 } = {}) {
   const actor = { uid: 'pdf', roleId: 'refinery-124-pdf-colonel',
@@ -47,6 +47,25 @@ test('fresh workflow creates actual prerequisites, then original recovery and en
   assert.deepEqual(trace.filter(value => value.name === 'researchCycle').map(value => value.value), [1, 2, 3, 4]);
   assert.deepEqual(trace.filter(value => value.name === 'advance').map(value => value.value), [2, 3, 4]);
   assert.equal(trace.some(value => /discover|checkpoint/i.test(value.name)), false);
+});
+
+test('Station combat diagnostics retain population, alert, mutiny and terminal guards without retaining the whole root', () => {
+  const root = {
+    currentTurn: 2, phase: 'active', activeVesselIds: ['aegis', 'dione'], shipDamage: {},
+    shipResources: { dione: { food: 5, water: 4 } }, shipSurvivors: { aegis: 0, dione: 66000 },
+    shipUnrest: { dione: 3 }, shipMutinies: {},
+    populationAlerts: { dione: { shipId: 'dione', shipName: 'Dione', population: 66000,
+      targetGmInstanceIds: ['gm-original'], createdAt: '2026-10-08T12:00:00.000Z' } },
+    unrestAlerts: {}, vesselActionRevisions: { dione: 7 }, gameOutcome: null,
+    survivorOutcome: null, debriefSnapshot: null, debriefMode: { active: false, revision: 0 },
+    joinCode: 'private-code', ownerUid: 'private-uid', email: 'private@example.test',
+  };
+  const context = stationCombatServerContext({ sessionId: 'owned', root, pdfWing: null, publicAudience: null,
+    players: [], fleetGroups: [] });
+  for (const key of ['phase', 'shipResources', 'shipDamage', 'shipSurvivors', 'shipUnrest', 'shipMutinies',
+    'populationAlerts', 'unrestAlerts', 'vesselActionRevisions', 'gameOutcome', 'survivorOutcome',
+    'debriefSnapshot', 'debriefMode']) assert.deepEqual(context[key], root[key]);
+  for (const key of ['joinCode', 'ownerUid', 'email']) assert.equal(context[key], undefined);
 });
 
 test('first prerequisite failure stops the workflow before candidate outcomes', async () => {
