@@ -101,3 +101,9 @@ test('Station Reactor plan skips only a source-marked lost row and rejects malfo
  const missingCapacity=stationWorkspaceShips();delete missingCapacity[0].reactorCapacity;
  assert.throws(()=>adapter.stationReactorCapacity(missingCapacity),/capacity/i);
 });
+
+test('actual GM attack finalization is retained before an unavailable Wing action fence',async()=>{
+ const current={attackId:'same',turn:2,revision:3,threatSiteCode:'P',status:'resolved',currentStep:'resolved',pStationRepeat:{status:'stopped'}},states=[];
+ const final=await adapter.runSparseStationCombat({deadlineAt:Date.now()+1000,readAttack:async()=>current,onState:async value=>states.push(value),assertActors:async()=>{throw Error('Wing host was destroyed; no future Wing action')},choose:async()=>{throw Error('must not choose')}});
+ assert.equal(final,current);assert.deepEqual(states,[current]);
+});

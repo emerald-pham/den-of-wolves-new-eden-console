@@ -51,3 +51,24 @@ test('active ordinary Press requires its actual craft scope and explicit null sh
  assert.equal(runner.stationReady(value,'press-officer'),true);
  for(const patch of [{currentMemberBerthPresent:false},{currentMemberBerthNull:false},{memberVesselCount:1},{memberCraftCount:0}])assert.equal(runner.stationReady({...value,...patch},'press-officer'),false);
 });
+
+test('Station chooses additional current crew only after Wing makes no action',async()=>{
+ const current={currentStep:'targeting'},trace=[],deadlineAt=Date.now()+1000;
+ const result=await runner.chooseStationCombatActor(current,{deadlineAt,chooseWing:async()=>{trace.push('Wing');},chooseCrew:async(_,options)=>{assert.equal(options.deadlineAt,deadlineAt);trace.push('PDF');return {committed:true};}});
+ assert.deepEqual(trace,['Wing','PDF']);assert.deepEqual(result,{committed:true});
+});
+test('pending rejected Wing launch recovery cannot be replaced by another actor choice',async()=>{
+ let crewCalled=false;await runner.chooseStationCombatActor({currentStep:'targeting'},{deadlineAt:Date.now()+1000,pendingWingRecovery:true,chooseWing:async()=>undefined,chooseCrew:async()=>{crewCalled=true}});assert.equal(crewCalled,false);
+});
+
+test('committed Wing action cannot dispatch another actor against the old revision',async()=>{let crewCalled=false;const result=await runner.chooseStationCombatActor({currentStep:'medium-range'},{deadlineAt:Date.now()+1000,chooseWing:async()=>({committed:true}),chooseCrew:async()=>{crewCalled=true}});assert.deepEqual(result,{committed:true});assert.equal(crewCalled,false);});
+
+// Synthetic owned observation only; no native survival or relocation credit.
+test('escaped owner of an actually destroyed host retains custody but receives no future combat choice',()=>{
+ const actor={uid:'pdf',roleId:'refinery-124-pdf-colonel',original:{uidHash:'pdf-hash',sessionId:'sid',fleetGroupId:'fleet-1'}};
+ const root={shipDamage:{'refinery-124':{destroyed:true}}},player={uid:'pdf',sessionId:'sid',role:'player',assignedRoleId:actor.roleId,activeConsoleRoleId:null,fleetGroupId:'fleet-1',escapeState:{status:'pending',shipId:'refinery-124',destructionEventId:'attack-original',revision:1}};
+ const member={hasAuth:true,sameActor:true,uidHash:'pdf-hash',sessionId:'sid',meSessionId:'sid',profileRoleId:null,profileSessionId:null,playerRole:'player',assignedRoleId:actor.roleId,activeConsoleRoleId:null,fleetGroupId:'fleet-1',connection:'live',freshness:'server',escapeLocked:true,kicked:false,replacementRoleId:null,replacementStatus:null,invalidFields:[]};
+ assert.equal(runner.stationInactiveOwner(actor,root,player,member),true);
+ for(const patch of [{uid:'foreign'},{escapeState:null},{escapeState:{...player.escapeState,shipId:'icebreaker'}},{activeConsoleRoleId:actor.roleId}])assert.throws(()=>runner.stationInactiveOwner(actor,root,{...player,...patch},member));
+ assert.throws(()=>runner.stationInactiveOwner(actor,root,player,{...member,freshness:'cache'}));
+});

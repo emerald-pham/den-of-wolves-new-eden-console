@@ -8,10 +8,10 @@ export function assertSparseStationWing(actor,original){
 export async function runSparseStationCombat({deadlineAt,readAttack,assertActors,choose,wait=delay,onState=async()=>{},onDiagnosticError=async()=>{},recoverChoice=async()=>false}){
  assert.ok(Number.isFinite(deadlineAt));let original,stageKey,stageDeadline,recoveryDeadline;
  while(Date.now()<deadlineAt){
-  await assertActors();const current=await readAttack();assert.ok(current);assert.equal(current.threatSiteCode,'P');
+  const current=await readAttack();assert.ok(current);assert.equal(current.threatSiteCode,'P');
   original??={attackId:current.attackId,turn:current.turn};assert.equal(current.attackId,original.attackId);assert.equal(current.turn,original.turn);assert.ok(Number.isSafeInteger(current.revision));try{await onState(current);}catch(error){try{await onDiagnosticError(error,current);}catch{/* Diagnostic reporting cannot replace the gameplay failure. */}}
   if(current.status==='resolved'){assert.equal(current.currentStep,'resolved');assert.ok(['repeat','stopped'].includes(current.pStationRepeat?.status));return current;}
-  assert.equal(current.status,'declared');assert.ok(['targeting','long-range','medium-range','short-range','boarding'].includes(current.currentStep));
+  await assertActors();assert.equal(current.status,'declared');assert.ok(['targeting','long-range','medium-range','short-range','boarding'].includes(current.currentStep));
   const key=JSON.stringify([current.attackId,current.revision,current.currentStep]);if(key!==stageKey){stageKey=key;stageDeadline=Math.min(Date.now()+60000,deadlineAt,recoveryDeadline??Infinity);}
   assert.ok(Date.now()<stageDeadline,'Original Station combat stage deadline expired.');
   try { const choice=await choose(current,{deadlineAt:stageDeadline});if(choice?.committed)recoveryDeadline=undefined; } catch(error) {

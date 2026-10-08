@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import {assertSparseStationWing,runSparseStationCombat,stationBoardingRead,recoverStationLaunch,assertRecoveredStationLaunch,stationSurvivingRepairTargets} from './pc10-station-combat-adapter.mjs';
+import {dispatchStationCrewChoice} from './pc10-station-crew-dispatch.mjs';
 import {runMinimumCandidateSuccessProbe} from './pc10-minimum-candidate-success.mjs';
 import { runPursuitLimitEnding } from './pc10-full-game-cycle-ending.mjs';
 import { createHash } from 'node:crypto';
@@ -63,6 +64,23 @@ export function stationCombatServerContext({sessionId,root,pdfWing,publicAudienc
 export function stationCombatConsoles(){return ['jump-drive','fighter-bay-alpha','fighter-bay-bravo'];}
 export async function readStationLiberation(readDocument,root,expected){const require=createRequire(new URL('../functions/package.json',import.meta.url));const {parseCandidateStationLiberations}=require('../functions/lib/candidateStationLiberation.js');const markers=parseCandidateStationLiberations(await readDocument('serverState/candidateStationLiberations'));const marker=markers[`${expected.groupId}:${expected.coordinate}`];assert.ok(marker);for(const key of ['sessionId','groupId','coordinate','sourceId','cycle'])assert.equal(marker[key],expected[key]);assert.equal(marker.cycle,root.currentTurn);return marker;}
 export function stationReady(value,roleId){return roleId==='press-officer'?value.activeConsoleRoleId===roleId&&value.assignedRoleId===null&&value.seatId===null&&value.pressEnabled&&value.pressCraftScopeMatches&&(value.phase==='casting'||(value.currentMemberBerthPresent&&value.currentMemberBerthNull&&value.memberVesselCount===0&&value.memberCraftCount===1)):value.activeConsoleRoleId===roleId&&value.seatId===roleId&&value.currentCanonicalSeatOwned;}
+export async function chooseStationCombatActor(current,{chooseWing,chooseCrew,pendingWingRecovery=false,deadlineAt}){const choice=await chooseWing(current,{deadlineAt});if(choice?.committed||pendingWingRecovery&&current.currentStep==='targeting')return choice;return chooseCrew(current,{deadlineAt});}
+export function stationInactiveOwner(actor,root,player,member){
+ const require=createRequire(new URL('../functions/package.json',import.meta.url));
+ const {shipForRole}=require('../functions/lib/crewAccess.js'),{parsePlayerEscapeState}=require('../functions/lib/escapeState.js');
+ const shipId=shipForRole(actor.roleId);if(!shipId||root.shipDamage?.[shipId]?.destroyed!==true)return false;
+ assert.equal(player.uid,actor.uid);assert.equal(player.sessionId,actor.original.sessionId);assert.equal(player.role,'player');
+ assert.equal(player.assignedRoleId,actor.roleId);assert.equal(player.activeConsoleRoleId,null);assert.equal(player.fleetGroupId,actor.original.fleetGroupId);
+ assert.ok(!player.kickedAt&&!player.replacementRoleId&&!player.replacementStatus);
+ const escape=parsePlayerEscapeState(player.escapeState);assert.ok(escape,'Destroyed-host owner requires explicit current server escape state.');assert.equal(escape.shipId,shipId);
+ for(const key of ['uidHash','sessionId','fleetGroupId'])assert.equal(member[key],actor.original[key]);
+ assert.equal(member.meSessionId,actor.original.sessionId);assert.equal(member.hasAuth,true);assert.equal(member.sameActor,true);
+ assert.equal(member.profileRoleId,null);assert.equal(member.profileSessionId,null);assert.equal(member.playerRole,'player');
+ assert.equal(member.assignedRoleId,actor.roleId);assert.equal(member.activeConsoleRoleId,null);assert.equal(member.escapeLocked,true);
+ assert.equal(member.connection,'live');assert.equal(member.freshness,'server');assert.equal(member.kicked,false);
+ assert.equal(member.replacementRoleId,null);assert.equal(member.replacementStatus,null);assert.deepEqual(member.invalidFields,[]);
+ return true; // Read-only inactive custody owner; no private choice getter or mutation.
+}
 export const stationRoleIds={Recipient:'wing-commander',Miner:'icebreaker-miner',Scientist:'shepherd-scientist',Explorer:'quellon-explorer',Colonel:'refinery-124-pdf-colonel',Press:'press-officer'};
 // Read-only preflight of the actual normally admitted preset14 custody roster.
 export function assertStationOwnerCustody(root,players,actorUids){
@@ -786,7 +804,7 @@ async function enterRole(surface,label){
      await writeFile(`${directory}/Station-launch-recoveries.json`,JSON.stringify(evidence.stationLaunchRecoveries,null,2)+'\n');
     },
    });
-   const choose=async(current,{deadlineAt})=>{
+   const chooseWing=async(current,{deadlineAt})=>{
     assertSparseStationWing(await fullMember(recipient),evidence.stationWingOriginal);
     if(current.currentStep==='targeting'){
      const pendingRecovery=[...recoveredLaunches.values()].find(row=>row.view.attackId===current.attackId&&!row.committed);
@@ -797,22 +815,21 @@ async function enterRole(surface,label){
       if(range==='Medium Range'){const actions=panel.getByRole('combobox',{name:/^Fighter \d+ action$/});for(let i=0;i<await actions.count();i++){const select=actions.nth(i),name=(await select.getAttribute('aria-label')).replace('action','target');await select.selectOption('attack');const target=panel.getByRole('combobox',{name,exact:true}),options=await target.locator('option').evaluateAll(nodes=>nodes.filter(node=>node.value&&!node.disabled).map(node=>({value:node.value,label:node.textContent})));if(options.length)await target.selectOption((options.find(option=>/battlestation/i.test(option.label))??options[i%options.length]).value);}}
       else for(const box of await panel.getByRole('checkbox',{name:/^Fighter \d+ Short attack$/}).all())await box.check();
       const use=panel.getByRole('button',{name:range==='Medium Range'?'Resolve Medium actions':'Resolve selected Short attacks',exact:true}),pass=panel.getByRole('button',{name:range==='Medium Range'?'Pass Medium Range':'Pass Short Range',exact:true});const button=await use.isVisible()&&await use.isEnabled()?use:pass;
-      if(await button.isVisible()&&await button.isEnabled()){await action(recipient,'commitWolfFighterRangeActionChoice',()=>button.click());return;}
+      if(await button.isVisible()&&await button.isEnabled()){await action(recipient,'commitWolfFighterRangeActionChoice',()=>button.click(),{deadlineAt});return {committed:true};}
      }
-    }else if(current.currentStep==='boarding'){
-     const boarding=await stationBoardingRead(current,{sessionId:sid,readAttack,readChoice:()=>op(async()=>{
-      assertSparseStationWing(await fullMember(recipient),evidence.stationWingOriginal);
-      const data={sessionId:sid},reply=await recipient.callable(stationBoardingReadEndpoint,data,Math.min(35000,deadlineAt-Date.now()));
-      receipts.push({endpoint:stationBoardingReadEndpoint,request:data,result:reply,transport:'ordinary browser SDK; fresh original attack race fence'});return reply;
-     })});if(boarding.kind!=='choice')return;const view=boarding.view;
-     if(view.type==='wolf-boarding-defence-choice-view'&&view.choiceStatus==='pending'){
-      assert.equal(view.turn,current.turn);assert.equal(view.targetShipId,'aegis');assert.ok(Number.isSafeInteger(view.availableSecurityTeams)&&view.availableSecurityTeams>=0);
-      const panel=recipient.page.getByRole('region',{name:/ boarding defence$/i}).filter({has:recipient.page.getByRole('button',{name:'Commit defence',exact:true})});await panel.getByRole('combobox').selectOption(String(view.availableSecurityTeams));await action(recipient,'commitWolfBoardingDefenceChoice',()=>panel.getByRole('button',{name:'Commit defence',exact:true}).click());return;
-     }
-     assert.equal(view.type,'wolf-boarding-defence-choice-unavailable');assert.ok(['no-boarders','not-your-choice'].includes(view.reason));
     }
-    assert.ok(Date.now()<deadlineAt); // No absent EO/crew is impersonated; wait for ordinary server reconciliation.
+    assert.ok(Date.now()<deadlineAt); // Additional actors use only their current ordinary crew surfaces.
    };
+   const activeCrew=async(deadlineAt)=>{
+    const root=await candidateWait(()=>recordRoot(),deadlineAt,'Station current host loss');
+    stationSurvivingRepairTargets(ships,root);
+    const players=await candidateWait(()=>db.collection(`sessions/${sid}/players`).get(),deadlineAt,'Station current custody owners');
+    const byUid=new Map(players.docs.map(player=>[player.id,{...player.data(),uid:player.id}])),active=[];
+    for(const actor of stationCrew){const uid=actorUids.get(actor.label),member=await candidateWait(()=>fullMember(actor.surface),deadlineAt,'Station original owner projection');
+     if(stationInactiveOwner({...actor,uid},root,byUid.get(uid),member)){(evidence.stationInactiveOwners??=[]).push({roleId:actor.roleId,uidHash:member.uidHash,shipDestroyed:true,explicitEscape:true,noChoiceIssued:true});continue;}active.push(actor);
+    }return active;
+   };
+   const choose=(current,{deadlineAt})=>chooseStationCombatActor(current,{deadlineAt,chooseWing,pendingWingRecovery:[...recoveredLaunches.values()].some(row=>row.view.attackId===current.attackId&&!row.committed),chooseCrew:async(attack,options)=>dispatchStationCrewChoice(attack,{...options,sessionId:sid,actors:await activeCrew(options.deadlineAt),assertActor:assertCrewActor,readAttack,action})});
    try {
    let liberated=false;const waves=[];
    for(let wave=1;wave<=12&&!liberated;wave++){
