@@ -142,7 +142,7 @@ it('shows private left-most progress and field-upgrade cost to the current Scien
   render(<EndeavourResearchPanel control={control} />);
   expect(await screen.findByRole('region', { name: 'Endeavour research controls' })).toBeVisible();
   expect(screen.getByLabelText('Research track')).toHaveTextContent('Reactor');
-  expect(screen.getByText(/cross the left-most research box.*reactor.*cost is 7 materials/i)).toBeVisible();
+  expect(screen.getByText(/cross the left-most remaining research box.*reactor.*cost is 7 materials/i)).toBeVisible();
   expect(screen.getByRole('list', { name: 'Research progress' })).toHaveTextContent(
     'Reactor: 1 of 5 boxes crossed; next field-upgrade cost is 7 materials. Available for a research choice.',
   );
