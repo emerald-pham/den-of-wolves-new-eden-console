@@ -353,8 +353,14 @@ describe('normal PDF callable -> actual service -> mounted launch control', () =
       let finish!: (value: unknown) => void;
       const delayed = new Promise(resolve => { finish = resolve; });
       source(enabled);
-      io.call.mockImplementation(async (name: string) => name === 'getPdfEscortWingLaunch'
-        ? delayed : { data: { groupId: 'fleet-1', messages: [] } });
+      let sourceReads = 0;
+      io.call.mockImplementation(async (name: string) => {
+        if (name !== 'getPdfEscortWingLaunch') return { data: { groupId: 'fleet-1', messages: [] } };
+        if (++sourceReads === 1) return delayed;
+        // A newly mounted UID/scope starts a separate read. It does not get
+        // the previous actor's packet or an invented new launch entitlement.
+        throw new Error('permission-denied: new source scope has no launch grant');
+      });
       render(<PdfEscortWingReference writable />);
       await waitFor(() => expect(io.call.mock.calls.some(([name]) => name === 'getPdfEscortWingLaunch')).toBe(true));
       await act(async () => {
@@ -372,6 +378,28 @@ describe('normal PDF callable -> actual service -> mounted launch control', () =
       const panel = within(launchPanel());
       expect(panel.getByRole('button', { name: 'Launch PDF Escort Wing' })).toBeDisabled();
       expect(panel.queryByRole('button', { name: 'Pass PDF Escort Wing' })).not.toBeInTheDocument();
+      expect(mutationCalls()).toEqual([]);
+    },
+  );
+
+  it.each(['uid', 'session', 'role', 'freshness', 'connection', 'accepted server cursor'])(
+    'returns null from the actual original getter after %s changes during its await', async change => {
+      let finish!: (value: unknown) => void;
+      const delayed = new Promise(resolve => { finish = resolve; });
+      io.call.mockReturnValue(delayed);
+      const originalRead = getPdfEscortWingLaunch();
+      await waitFor(() => expect(io.call).toHaveBeenCalledTimes(1));
+      const state = useSessionStore.getState();
+      if (change === 'uid') useSessionStore.setState({ me: { ...colonel, uid: 'foreign-pdf' } });
+      if (change === 'session') state.setIdentity({ ...state.session!, id: 'foreign' }, { ...colonel, sessionId: 'foreign' });
+      if (change === 'role') useSessionStore.setState({ me: { ...colonel, activeConsoleRoleId: 'dione-engineer' } });
+      if (change === 'freshness') state.setSessionSnapshotFreshness('cache');
+      if (change === 'connection') state.setConnection('offline');
+      if (change === 'accepted server cursor') expect(acceptServerSessionAuthority(
+        sessionSnapshotAuthorityFor(enabled.sessionId, colonel.uid), { ...state.session!, updatedAt: '2026-10-08T23:31:12.000Z' }, undefined, false, true,
+      )).toBe(true);
+      finish({ data: callableEncode(producerView()) });
+      await expect(originalRead).resolves.toBeNull();
       expect(mutationCalls()).toEqual([]);
     },
   );
