@@ -93,3 +93,17 @@ test('CLI entrypoint validates arguments through both canonical and /tmp alias p
   assert.match(result.stderr,/Use --allocation/);
  }
 });
+
+test('Ring location comes from the entitled mounted GM chart, with exactly one candidate and locked chart',async()=>{
+ assert.equal(typeof proof.readRingCoordinate,'function');
+ let reads=0;
+ const surface={storeModuleUrl:()=>'/native/store',page:{evaluate:async(callback,url)=>{
+  assert.equal(typeof callback,'function');assert.equal(url,'/native/store');reads++;
+  return{chartId:'A',locked:true,candidates:[{code:'N',coordinate:'1234'}]};
+ }}};
+ assert.equal(await proof.readRingCoordinate(surface),'1234');assert.equal(reads,1);
+ surface.page.evaluate=async()=>({chartId:'A',locked:true,candidates:[]});
+ await assert.rejects(proof.readRingCoordinate(surface),/one Ring/i);
+ surface.page.evaluate=async()=>({chartId:'A',locked:false,candidates:[{code:'N',coordinate:'1234'}]});
+ await assert.rejects(proof.readRingCoordinate(surface),/locked/i);
+});
