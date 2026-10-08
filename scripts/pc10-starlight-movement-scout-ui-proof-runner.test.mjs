@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { EventEmitter } from 'node:events';
 import { observeUiReceipt } from './pc10-browser-ui-receipt.mjs';
-import { createP181StarlightBrowserIo, runP181StarlightMovementScoutUiProof } from './pc10-starlight-movement-scout-ui-proof.mjs';
+import { createP181StarlightBrowserIo, createP181StarlightNativeSurfaceFactory,
+  captureP181SourceBindings, runP181StarlightMovementScoutUiProof } from './pc10-starlight-movement-scout-ui-proof.mjs';
 
 // Keep the pre-implementation RED behavioral: the test invokes the expected
 // P181 consumer transition with controlled observers and receipts. A missing
@@ -319,4 +320,86 @@ test('fresh Cycle 0 native consumer uses the normal browser factory before requi
   ], `The executable consumer must cross ordinary admission and original ownership before movement; stopped at: ${firstFailure?.message ?? 'none'}`);
   assert.match(firstFailure?.message ?? '', /controlled first mismatch/,
     'A failure after the real source startup sequence remains the first error.');
+});
+
+test('controlled native factory owns exactly two processes and closes both after first startup error', async () => {
+  const browsers = [], surfaces = [], routeHandlers = [];
+  const chromium = {
+    async launch(options) {
+      assert.deepEqual(options, { channel: 'chrome', headless: true });
+      const browser = {
+        connected: true,
+        isConnected() { return this.connected; },
+        async close() { this.connected = false; },
+        async newContext() {
+          return {
+            async route(pattern, handler) { routeHandlers.push({ pattern, handler }); },
+            async newPage() {
+              const page = new EventEmitter();
+              page.url = () => 'http://127.0.0.1:5174/';
+              page.setDefaultTimeout = () => {};
+              page.setDefaultNavigationTimeout = () => {};
+              return page;
+            },
+          };
+        },
+      };
+      return browser;
+    },
+  };
+  const remoteRequests = [], pageErrors = [], calls = [], requests = [];
+  const factory = createP181StarlightNativeSurfaceFactory({ chromium, baseUrl: 'http://127.0.0.1:5174',
+    ports: { auth: 9109, firestore: 8090, functions: 5011 }, directory: '/tmp/p181-controlled-factory',
+    browsers, surfaces, remoteRequests, pageErrors, calls, requests });
+  const gm = await factory.launch('normal-gm');
+  const wing = await factory.launch('normal-wing-commander');
+  assert.equal(gm.browser, browsers[0]);
+  assert.equal(wing.browser, browsers[1]);
+  assert.equal(surfaces.length, 2);
+  assert.equal(routeHandlers.length, 2);
+  await assert.rejects(factory.launch('normal-wing-commander'), /exactly one browser process per ordinary Auth actor/);
+  let continued = 0, aborted = 0;
+  await routeHandlers[0].handler({ request: () => ({ url: () => 'https://remote.example/data' }),
+    async continue() { continued++; }, async abort() { aborted++; } });
+  await routeHandlers[0].handler({ request: () => ({ url: () => 'http://127.0.0.1:5011/demo-local/us-central1/joinSession' }),
+    async continue() { continued++; }, async abort() { aborted++; } });
+  assert.deepEqual({ continued, aborted }, { continued: 1, aborted: 1 },
+    'The controlled provider keeps the browser local-only and the original SDK port allowlisted.');
+
+  const firstError = new Error('first original controlled setup/authority failure');
+  let cleanupCalls = 0;
+  const io = createP181StarlightBrowserIo({ gm, wingCommander: wing,
+    gameplay: { async select() { throw new Error('No role selection after startup failure.'); } },
+    directory: '/tmp/p181-controlled-factory',
+    initial: { sessionId: 'fresh-native', phase: 'lobby', cycle: 0, setupConfirmed: false,
+      playerCount: null, chartId: null, activeRoleIds: [], fullGameDemo: null },
+    started: undefined, expectedWingCommander: undefined,
+    normalStart: { async prepare() { throw firstError; } },
+    async cleanupOwnedResources({ firstError: surfaced }) {
+      cleanupCalls++;
+      assert.equal(surfaced, firstError);
+      await Promise.all(browsers.map(browser => browser.close()));
+      return { status: 'owned-cleanup-complete' };
+    },
+  });
+  let surfaced;
+  try {
+    await runP181StarlightMovementScoutUiProof({
+      initial: { sessionId: 'fresh-native', phase: 'lobby', cycle: 0, setupConfirmed: false,
+        playerCount: null, chartId: null, activeRoleIds: [], fullGameDemo: null },
+      started: undefined, roster: undefined, gm: undefined, expectedWingCommander: undefined,
+      io, absoluteDeadlineMs: Date.now() + 15 * 60_000,
+    });
+  } catch (error) { surfaced = error; }
+  assert.equal(surfaced, firstError);
+  assert.equal(cleanupCalls, 1);
+  assert.deepEqual(browsers.map(browser => browser.isConnected()), [false, false]);
+});
+
+test('native source boundary resolves every normal-start, custody, transit and scout implementation file', async () => {
+  const { sourceFiles } = await captureP181SourceBindings(process.cwd());
+  assert.ok(Object.keys(sourceFiles).length >= 35);
+  for (const [path, digest] of Object.entries(sourceFiles)) {
+    assert.match(digest, /^[a-f0-9]{64}$/, `The exact ${path} source file is bound before native execution.`);
+  }
 });
