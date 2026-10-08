@@ -103,6 +103,13 @@ test('normal readiness rejects identity, server freshness, and mounted SDK autho
   }
 });
 
+test('member readiness rejects empty expected actor and session identities', () => {
+  const emptyIdentity = { ...castingMember, uidHash: '', sessionId: '', meSessionId: '' };
+  assert.equal(readiness?.(emptyIdentity, {
+    sessionId: '', uidHash: '', roleId: 'dione-engineer', stage: 'casting',
+  }), false);
+});
+
 test('member identity epoch cannot drift or regress without exact normal resume evidence', () => {
   const before = {
     uidHash: 'engineer-uid-hash',
@@ -133,6 +140,15 @@ test('member identity epoch cannot drift or regress without exact normal resume 
     identityHydrationRevision: 4, sdkHasServerAuthority: true,
   }), false);
   assert.equal(sameActorEpoch?.(before, { ...before, identityHydrationRevision: 2 }), false);
+  for (const invalid of [
+    { ...before, documentTimeOrigin: 0 },
+    { ...before, documentTimeOrigin: Number.NaN },
+    { ...before, documentTimeOrigin: Number.POSITIVE_INFINITY },
+    { ...before, connectionGeneration: 0 },
+    { ...before, identityHydrationRevision: 0 },
+  ]) {
+    assert.equal(sameActorEpoch?.(invalid, { ...invalid }), false);
+  }
 });
 
 test('GM readiness requires the exact current owned live instance and server authority', () => {
@@ -149,11 +165,15 @@ test('GM readiness requires the exact current owned live instance and server aut
     identityHydrationRevision: 1,
     connection: 'live',
     freshness: 'server',
+    connected: true,
+    kicked: false,
+    recoveryPending: false,
     currentOwnPlayerConfirmed: true,
     sdkHasServerAuthority: true,
     sdkResumePending: false,
     instanceId: 'fresh-gm-instance',
     gmInstanceOwned: true,
+    invalidFields: [],
   };
   const expected = {
     sessionId: 'fresh-normal-session',
@@ -164,6 +184,20 @@ test('GM readiness requires the exact current owned live instance and server aut
   assert.equal(gmReadiness?.({ ...gm, gmInstanceOwned: false }, expected), false);
   assert.equal(gmReadiness?.({ ...gm, instanceId: 'foreign-instance' }, expected), false);
   assert.equal(gmReadiness?.({ ...gm, sdkHasServerAuthority: false }, expected), false);
+  for (const changed of [
+    { uidHash: '', sessionId: '' , instanceId: '' },
+    { connected: false },
+    { kicked: true },
+    { recoveryPending: true },
+    { invalidFields: ['instanceId'] },
+  ]) {
+    assert.equal(gmReadiness?.({ ...gm, ...changed }, {
+      ...expected,
+      uidHash: changed.uidHash ?? expected.uidHash,
+      sessionId: changed.sessionId ?? expected.sessionId,
+      instanceId: changed.instanceId ?? expected.instanceId,
+    }), false);
+  }
 });
 
 function normalStartSnapshot() {
@@ -173,6 +207,7 @@ function normalStartSnapshot() {
     profileRoleId: null, profileSessionId: null, playerRole: 'gm',
     connectionGeneration: 1, identityHydrationRevision: 1,
     connection: 'live', freshness: 'server', currentOwnPlayerConfirmed: true,
+    connected: true, kicked: false, recoveryPending: false, invalidFields: [],
     sdkHasServerAuthority: true, sdkResumePending: false,
     instanceId: 'fresh-gm-instance', gmInstanceOwned: true, fullGameDemo: null,
   };
@@ -200,6 +235,10 @@ function normalStartSnapshot() {
     canonicalRoleIds: [...activeRoleIds],
     gm,
     expectedGm: { sessionId: 'fresh-normal-session', uidHash: 'gm-uid-hash', instanceId: 'fresh-gm-instance' },
+    expectedMembers: [
+      { roleId: 'dione-engineer', sessionId: 'fresh-normal-session', uidHash: 'engineer-uid-hash' },
+      { roleId: 'dione-president', sessionId: 'fresh-normal-session', uidHash: 'president-uid-hash' },
+    ],
     members: [player('engineer-uid-hash', 'dione-engineer'), player('president-uid-hash', 'dione-president')],
     occupiedSeatCount: 2,
   };
@@ -245,4 +284,33 @@ test('normal start preflight rejects missing, null, or empty fleet group identit
   const membersWithoutGroup = snapshot.members.map(({ fleetGroupId: _fleetGroupId, ...member }) => member);
   assert.ok(normalStartPreflight?.({ ...snapshot, members: membersWithoutGroup }).blockers
     .includes('two distinct live players must own the Engineer and President seats in one fleet group'));
+});
+
+test('normal start preflight binds the GM and players to the expected normal-session actors', () => {
+  const snapshot = normalStartSnapshot();
+  const foreignGm = {
+    ...snapshot,
+    gm: { ...snapshot.gm, sessionId: 'foreign-session', meSessionId: 'foreign-session' },
+    expectedGm: { ...snapshot.expectedGm, sessionId: 'foreign-session' },
+  };
+  assert.ok(normalStartPreflight?.(foreignGm).blockers
+    .includes('the normal authenticated GM must match the active session'));
+
+  const replacedPlayer = {
+    ...snapshot,
+    members: [{ ...snapshot.members[0], uidHash: 'replacement-actor' }, snapshot.members[1]],
+  };
+  assert.ok(normalStartPreflight?.(replacedPlayer).blockers
+    .includes('seated players must match their independently captured normal-admission identities'));
+});
+
+test('normal start preflight requires three distinct authenticated actors', () => {
+  const snapshot = normalStartSnapshot();
+  const gmIsEngineer = {
+    ...snapshot,
+    gm: { ...snapshot.gm, uidHash: snapshot.members[0].uidHash },
+    expectedGm: { ...snapshot.expectedGm, uidHash: snapshot.members[0].uidHash },
+  };
+  assert.ok(normalStartPreflight?.(gmIsEngineer).blockers
+    .includes('the normal GM and both players must be three distinct authenticated actors'));
 });
