@@ -75,6 +75,11 @@ Current parent next action is to acknowledge this revised 3/3/2 cohort and
 explicitly allocate a bounded **composition/qualification** window only after
 the missing prefix adapter contracts/review are ready. No fresh N/O/P proof,
 P619 closure or runtime launch is claimed by this handoff.
+The parent's subsequent canonical delegation message explicitly acknowledged
+the first source handoff (`Source handoff received`) and required this revision.
+That acknowledges receipt of the earlier handoff; it does not allocate runtime
+or acknowledge the new 3/3/2 allocation request. App-tool lookup failure below
+remains a route limitation, not evidence that the parent is unaware.
 
 Worker scope: Ancient Jump Ring N (544–549, 647), Deep Nebula O (550–554,
 648), Ancient Space Station P (555–559, 649), candidate explanation 563 and
