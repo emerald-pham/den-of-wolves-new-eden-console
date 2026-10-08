@@ -471,3 +471,30 @@ commit rule. The discriminating pre-fix RED remains intact; this closeout does
 not claim a fully compliant commit separation or rewrite the observed history.
 Actual12's three valid GM/setup claims remain earned. A fresh allocated normal
 gameplay run is required for remaining trade/Philia claims.
+
+
+## Accepted normal gameplay and release candidate
+
+Actual13 passed at `5b3a5350a59cdf9aac6cf7612645c424abeb39a2` with eleven
+claims from ordinary GM and two independent player admissions. Normal setup,
+role selection/seat ownership, production start and briefing clearance passed.
+The original exact-recipient offer moves one material once on acceptance, with
+both normal reload readbacks retained. Philia request/grant leave world state
+unchanged; apply damages the exact console and adds three materials; reloads
+agree and visible Engineer return preserves authority. Evidence:
+`/tmp/dow-pc11-normal-start-actual13-20261008/HANDBACK.json` and its
+`run/OWNER_RESULT.json`. The canonical parent accepted these claims and prior
+rendered GREEN/independent typography review. No whole-game, capacity, physical
+device or production gameplay proof is claimed.
+
+All three browsers closed and three Auth accounts/pointers removed. Owned
+session/join/root receipts are absent, scope and listeners zero, cleanup errors
+empty. Launcher ended 2026-10-08T03:38:04.142Z in 92217ms. Final source/native
+checks and independent review remain PASS. Product/build inputs still match
+rendered candidate `00321970`; current released main is `3e8bd3d9` (.70).
+
+Publication authorization is explicit for .71: one reconciled draft PR, required
+exact-candidate CI, merge and exact-main deployment checks. Selection must be
+Hosting only; no Functions, rules or unfinished PC10 changes are included.
+Preserve extraction RED records and documented historical chronology gaps.
+0.9.0 remains deferred until both PC10 and PC11 are released and verified.
