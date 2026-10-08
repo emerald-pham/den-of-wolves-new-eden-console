@@ -6848,7 +6848,7 @@ export const startGame = auditedOnCall<{
   let candidateMissionDeck: MissionDeckState | undefined;
 
   return db.runTransaction(async (tx) => {
-    const [prior, marker, authority, players, instances, seats, secrets, legacyEvent, craftOwnershipManifest, census, missionDeckSnapshot, storedGroup] = await Promise.all([
+    const [prior, marker, authority, players, instances, seats, secrets, legacyEvent, craftOwnershipManifest, census, missionDeckSnapshot, storedGroup, storedNavigation] = await Promise.all([
       tx.get(startRequestRef),
       tx.get(markerRef),
       requireFacilitatorInstance(tx, start.sessionId, uid, start.instanceId),
@@ -6861,6 +6861,7 @@ export const startGame = auditedOnCall<{
       tx.get(censusRef),
       tx.get(missionDeckRef),
       tx.get(fleetGroupRefForStart),
+      tx.get(navigationStateRef(start.sessionId)),
     ]);
     await rejectForeignLegacyM1Command(
       tx, start.sessionId, start.requestId, 'start', [startRequestRef.path, eventRef.path],
@@ -7129,6 +7130,16 @@ export const startGame = auditedOnCall<{
       loyaltySource = 'explicit-preserved';
     }
 
+    // Casting assigns roles without rewriting the earlier unassigned join
+    // discovery. Derive its current own-ship view from protected navigation,
+    // before projection writes/randomness, rather than retaining that
+    // shipless document.
+    const startNavigation = navigationStateForSession(storedNavigation, authority.session, activeVesselIds);
+    const storedNavigationRevision = storedNavigation.get('revision');
+    const startNavigationRevision = typeof storedNavigationRevision === 'number' &&
+      Number.isSafeInteger(storedNavigationRevision) && storedNavigationRevision >= 0
+      ? storedNavigationRevision : 0;
+
     // Do not draw randomness until every start precondition has passed. The
     // candidate is still shared across callback retries and only the first
     // successful transaction persists it.
@@ -7157,6 +7168,14 @@ export const startGame = auditedOnCall<{
     }, { mergeFields: ['pursuitGroups', 'shipFleetGroupIds', 'updatedAt'] });
     for (const player of players.docs) {
       if (!player.exists || isKickedPlayer(player)) continue;
+      // Replace complete audience-owned maps so an earlier role's discoveries
+      // cannot survive. Keep the existing group/pursuit initialization below.
+      writePlayerDiscoveryProjection(
+        tx, playerDiscoveryProjectionRef(start.sessionId, player.id),
+        { get: (field: string) => field === 'fleetGroupId' ? initialGroup.id : player.get(field) },
+        { ...startNavigation, pursuitGroups: initialPursuitGroups }, startNavigationRevision,
+        initialGroup.vesselIds, [], initialGroup.memberShipIds?.[player.id],
+      );
       tx.set(playerDiscoveryProjectionRef(start.sessionId, player.id), {
         groupId: initialGroup.id,
         fleetGroupVesselIds: [...initialGroup.vesselIds],

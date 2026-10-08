@@ -16,7 +16,7 @@ import { capturePc10Gate2SourceBinding } from './pc10-gate2-functional-proof.mjs
 const root=fileURLToPath(new URL('../',import.meta.url)).replace(/\/$/,''), projectId='demo-pc10-owner-integrated-2';
 const baseUrl='http://127.0.0.1:5174';
 const ports={auth:9109,functions:5011,firestore:8090};
-const directory='/tmp/dow-pc10-evidence/two-actor-highwall-mining-1';
+const directory='/tmp/dow-pc10-evidence/two-actor-highwall-mining-2';
 const hash=value=>createHash('sha256').update(value).digest('hex'), short=value=>hash(value).slice(0,16);
 const sourceCommit=execFileSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8'}).trim();
 assert.equal(sourceCommit,process.env.PC10_OWNER_SOURCE_COMMIT);
@@ -191,9 +191,9 @@ const adminRequire=createRequire(`${root}/functions/package.json`);const{initial
 await mkdir(directory,{mode:0o700});
 const runtime=validateProofRuntime(proofRuntimeFromViteSource(await(await fetch(`${baseUrl}/src/lib/firebaseConfig.ts`)).text()),{baseUrl,projectId,ports});evidence.runtime=runtime;
 assert.equal((await db.collection('sessions').get()).size,0);
-const preflight=JSON.parse(await readFile('/tmp/dow-pc10-evidence/OWNER_HIGHWALL_MINING_1_LAUNCH_PREFLIGHT_20261008.json','utf8'));assert.equal(preflight.source.sourceCommit,sourceCommit);assert.deepEqual(preflight.scope,{sessions:0,connectedPlayers:0,connectedGmInstances:0});
+const preflight=JSON.parse(await readFile('/tmp/dow-pc10-evidence/OWNER_HIGHWALL_MINING_2_LAUNCH_PREFLIGHT_20261008.json','utf8'));assert.equal(preflight.source.sourceCommit,sourceCommit);assert.deepEqual(preflight.scope,{sessions:0,connectedPlayers:0,connectedGmInstances:0});
 evidence.preflightSource=preflight.source;evidence.preflightRecordedAt=preflight.recordedAt;
-const freezeBytes=await readFile('/tmp/dow-pc10-evidence/OWNER_HIGHWALL_MINING_1_SOURCE_FREEZE_20261008.json');
+const freezeBytes=await readFile('/tmp/dow-pc10-evidence/OWNER_HIGHWALL_MINING_2_SOURCE_FREEZE_20261008.json');
 const freeze=JSON.parse(freezeBytes);assert.equal(freeze.sourceCommit,sourceCommit);
 const sourceTree=execFileSync('git',['rev-parse','HEAD^{tree}'],{cwd:root,encoding:'utf8'}).trim();
 assert.equal(freeze.sourceTree,sourceTree);
@@ -211,10 +211,10 @@ evidence.exactLaunchBinding={sourceTree,trackedTreeSha256:launchBinding.trackedT
  compiledTreeSha256:launchBinding.compiledTreeSha256,javascriptTreeSha256:launchBinding.javascriptTreeSha256,
  compiledSourceBuild:freeze.compiledSourceBuild,macAllocation:freeze.macAllocation};
 assert.equal(freeze.runner.sha256,hash(await readFile(new URL(import.meta.url))));
-assert.equal(freeze.preflight.sha256,hash(await readFile('/tmp/dow-pc10-evidence/OWNER_HIGHWALL_MINING_1_LAUNCH_PREFLIGHT_20261008.json')));
+assert.equal(freeze.preflight.sha256,hash(await readFile('/tmp/dow-pc10-evidence/OWNER_HIGHWALL_MINING_2_LAUNCH_PREFLIGHT_20261008.json')));
 assert.equal(freeze.status,'FROZEN_BEFORE_EXECUTION');assert.equal(freeze.review.currentStatus,'PASS_BOUNDED_SOURCE_ONLY');
 assert.equal(freeze.prelaunchWriterMustSucceed,true);assert.equal(freeze.recordWrittenAfterLaunch,false);
-evidence.sourceFreeze={path:'/tmp/dow-pc10-evidence/OWNER_HIGHWALL_MINING_1_SOURCE_FREEZE_20261008.json',sha256:hash(freezeBytes),recordedAt:freeze.recordedAt};
+evidence.sourceFreeze={path:'/tmp/dow-pc10-evidence/OWNER_HIGHWALL_MINING_2_SOURCE_FREEZE_20261008.json',sha256:hash(freezeBytes),recordedAt:freeze.recordedAt};
 
 
 
@@ -369,7 +369,28 @@ const substantiveFields=[
  'shuttleFuelled','consoleCharges','shipDamage','shipUnrest','shipSurvivors','shipUpgrades',
  'maintenanceCycles','serviceShuttleRecharges','fleetGroups','activeVesselIds','activeRoleIds','highwallMining',
 ];
-async function ownedWorld(deadlineAt=Date.now()+15000){
+async function ownedWorld(deadlineAt=Date.now()+15000,diagnosticOnly=false){
+ if(diagnosticOnly){
+  // Read-only first-failure evidence uses the already owned session/actors,
+  // never the stopped action budget or a new gameplay/recovery operation.
+  assert.equal(stopped,true);assert.equal(typeof sid,'string');assert.ok(sid&&!sid.includes('/'));
+  const gmUid=actorUids.get('GM1'),minerUid=actorUids.get('Miner');
+  assert.equal(typeof gmUid,'string');assert.equal(typeof minerUid,'string');assert.ok(gmUid&&minerUid&&gmUid!==minerUid&&!minerUid.includes('/'));
+  const read=async run=>{const left=deadlineAt-Date.now();assert.ok(left>0,'Original stopped Highwall diagnostic deadline expired.');
+   const value=await bounded(Promise.resolve().then(()=>{assert.ok(Date.now()<deadlineAt,'Original stopped Highwall diagnostic deadline expired.');return run();}),left,'Original stopped Highwall diagnostic deadline expired.');
+   assert.ok(Date.now()<deadlineAt,'Original stopped Highwall diagnostic deadline expired.');return value;};
+  const session=await read(()=>db.doc(`sessions/${sid}`).get());assert.equal(session.exists,true);assert.equal(session.get('ownerUid'),gmUid,'Refuse a foreign session diagnostic.');
+  const player=await read(()=>db.doc(`sessions/${sid}/players/${minerUid}`).get());assert.equal(player.exists,true);assert.equal(player.get('uid'),minerUid);assert.equal(player.get('sessionId'),sid);
+  const groupId=player.get('fleetGroupId');assert.equal(typeof groupId,'string');assert.match(groupId,/^fleet-[1-9][0-9]*$/);
+  const groupDoc=await read(()=>db.doc(`sessions/${sid}/fleetGroups/${groupId}`).get());const group=fleetGroupRecord(groupDoc.data());
+  assert.equal(groupDoc.exists,true);assert.ok(group&&group.id===groupId&&group.memberUids.includes(minerUid),'Refuse unowned group diagnostic.');
+  const discovery=await read(()=>db.doc(`sessions/${sid}/playerDiscoveries/${minerUid}`).get());
+  return{diagnosticOnly:true,adminGameplayWrites:0,session:{phase:session.get('phase'),cycle:session.get('currentTurn')},
+   actor:{uidHash:short(minerUid),groupId,assignedRoleId:player.get('assignedRoleId')??null,activeConsoleRoleId:player.get('activeConsoleRoleId')??null,connectionGeneration:player.get('connectionGeneration')??null},
+   currentGroup:{id:groupId,ownMemberIncluded:true,memberShipId:group.memberShipIds?.[minerUid]??null,vesselIds:group.vesselIds},
+   discovery:{exists:discovery.exists,groupId:discovery.get('groupId')??null,shipId:discovery.get('shipId')??null,fleetGroupVesselIds:discovery.get('fleetGroupVesselIds')??null,revision:discovery.get('revision')??null},
+   stoppedWorkRemainsStopped:true,privateKnowledgePayloadsIncluded:false};
+ }
  const names=['commandReceipts','actionAudits','procedureAudits','shuttleControlRequests','shuttleControlAudit','shuttleDepartures','shuttleTransitChains'];
  const [session,sets,events]=await candidateWait(()=>Promise.all([
   db.doc(`sessions/${sid}`).get(),Promise.all(names.map(name=>db.collection(`sessions/${sid}/${name}`).get())),
@@ -408,15 +429,18 @@ async function currentHighwall(surface,label,expectedWorld,deadlineAt=Date.now()
     miningState:s.session?.highwallMining,highwallCargo:s.session?.shuttleCargo?.highwall??{ore:0,materials:0},
     cycle:s.session?.currentTurn,phase:s.session?.turnState?.phase,progression:s.session?.turnPhase?.progression};
   }),surface.storeModuleUrl()),deadlineAt,'actual current Miner Highwall projection');
+  consumed={stage,label,currentHighwall:{member,value}};
   assert.equal(value.sessionId,sid);assert.equal(value.uid,actorUids.get(label));assert.equal(value.roleId,roleIds[label]);assert.equal(value.groupId,member.fleetGroupId);
   const parsed=parseHighwallMiningState(value.miningState);assert.ok(parsed);
+  if(value.discovery!==undefined){assert.equal(value.discovery.groupId,member.fleetGroupId);assert.equal(value.discovery.shipId,'icebreaker');assert.ok(value.discovery.fleetGroupVesselIds?.includes('icebreaker'));}
   if(stable(parsed)===stable(expectedWorld.miningState)&&stable(value.highwallCargo)===stable(expectedWorld.highwallCargo)&&
-   value.cycle===1&&value.phase==='coordination'&&value.progression==='manual'&&stable(value.control)===stable(expectedWorld.control))break;
+   value.cycle===1&&value.phase==='coordination'&&value.progression==='manual'&&stable(value.control)===stable(expectedWorld.control)&&
+   value.discovery?.groupId===member.fleetGroupId&&value.discovery?.shipId==='icebreaker'&&value.discovery?.fleetGroupVesselIds?.includes('icebreaker'))break;
   await candidateWait(()=>delay(100),deadlineAt,'original Highwall projection publication');
  }
- assert.ok(Date.now()<deadlineAt);assert.deepEqual(value.control,{shuttleId:'highwall',ownerRoleId:'icebreaker-miner',ownerUid:actorUids.get('Miner'),holderUid:actorUids.get('Miner'),revision:0});
+ assert.ok(Date.now()<deadlineAt,'Original Highwall discovery deadline expired.');assert.deepEqual(value.control,{shuttleId:'highwall',ownerRoleId:'icebreaker-miner',ownerUid:actorUids.get('Miner'),holderUid:actorUids.get('Miner'),revision:0});
  assert.equal(value.dockings.length,1);assert.equal(value.dockings[0].shipId,'icebreaker');assert.equal(value.fuelled,false);
- assert.equal(value.discovery?.groupId,member.fleetGroupId);assert.ok(value.discovery?.fleetGroupVesselIds?.includes('icebreaker'));
+ assert.equal(value.discovery?.groupId,member.fleetGroupId);assert.equal(value.discovery?.shipId,'icebreaker');assert.ok(value.discovery?.fleetGroupVesselIds?.includes('icebreaker'));
  const after=await memberReady(surface,label,{deadlineAt});for(const key of ['uidHash','sessionId','meSessionId','assignedRoleId','activeConsoleRoleId','seatId','fleetGroupId'])assert.equal(after[key],member[key]);
  return{member:after,value};
 }
@@ -544,7 +568,7 @@ try{await Promise.race([lossAckFailure.then(error=>{throw error;}),bounded((asyn
  })(),240000,'Stop Highwall work for five-minute total cap and original one-minute cleanup reserve.',()=>{stopped=true;})]);
 }catch(error){stopped=true;primaryFailure=error;evidence.status='BOUNDED_TWO_ACTOR_HIGHWALL_MINING_STOPPED_FIRST_FAILURE';evidence.failedStage=stage;evidence.originalError=originalProofError(error);evidence.consumedState=consumed;const diagnosticEnd=Math.min(Date.now()+10000,totalEnd-45000);evidence.failureDiagnosticErrors=[];
  for(const surface of surfaces){try{await bounded(snapshot(surface,`${surface.label}-first-failure`),Math.max(1,diagnosticEnd-Date.now()),'Original first-failure snapshot deadline');await surface.page.screenshot({path:`${directory}/${surface.label}-first-failure.png`,timeout:Math.max(1,Math.min(5000,diagnosticEnd-Date.now()))});}catch(failure){evidence.failureDiagnosticErrors.push(originalProofError(failure));}}
- try{evidence.firstFailureWorld=await bounded(ownedWorld(),Math.max(1,diagnosticEnd-Date.now()),'First-failure exact owned Highwall mining witness deadline');}catch(failure){evidence.failureDiagnosticErrors.push(originalProofError(failure));}await retainProofFailure(directory,'highwall-mining',error,{stage,consumed,claims});console.log(JSON.stringify({stoppedAt:stage,message:error.message.slice(0,500),claimsEarned:claims.length}));
+ try{evidence.firstFailureWorld=await bounded(ownedWorld(diagnosticEnd,true),Math.max(1,diagnosticEnd-Date.now()),'First-failure exact owned Highwall mining witness deadline');}catch(failure){evidence.failureDiagnosticErrors.push(originalProofError(failure));}await retainProofFailure(directory,'highwall-mining',error,{stage,consumed,claims});console.log(JSON.stringify({stoppedAt:stage,message:error.message.slice(0,500),claimsEarned:claims.length}));
 } finally {
  stopped=true;
  const cleanup={browsersClosed:0,sessionAbsent:false,joinCodeAbsent:false,deletedOwnPointers:0,deletedOwnAuth:0,otherDataChanged:false,errors:[]};

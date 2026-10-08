@@ -1232,3 +1232,39 @@ from meaningful RED credit. No emulator/browser or production gameplay is
 started during this source-only reconciliation. Final GREEN, the same bounded
 independent review and a fresh parent allocation still precede the next native
 attempt.
+
+The bounded repairs now publish a complete own-audience discovery projection
+inside the authoritative normal/manual start transaction, using protected
+navigation and the initial group's current berth. A replacement write removes
+old role/private-map remnants; the existing group/pursuit initialization stays
+intact. The observer waits for that own projection within its original deadline
+and still refuses wrong group, ship or host membership. The stopped diagnostic
+reads only four validated owned metadata documents within its original
+diagnostic deadline; it leaves work stopped and retains the primary error.
+
+The three repair regressions are committed separately in `0485bc7e`. A follow-up
+test-only commit, `4ffe9dcb`, corrects the newly added diagnostic fixture's array
+access and adds two meaningful pre-change RED cases for the next attempt's
+evidence directory and launch receipts. Existing attempt1 paths would refuse
+the immutable directory with EEXIST or consume old source bindings. Those
+paths now use fresh attempt2 records while preserving all attempt1 files.
+The fixture typo is retained in its original31-pass/1-fail log and earns no
+product RED credit. After repair, all34 actual proof-consumer contracts and
+212 affected tests across nine startup/projection/current-berth/Highwall files
+pass. Functions compilation and repository documentation checks pass. Existing
+client build/font evidence is reusable because their inputs did not change;
+final rendered typography and gameplay remain unproved by these source checks.
+
+No new runtime or family ran during this reconciliation. The same independent
+Sol review must bind its consolidated findings to the exact repaired commit,
+tree and compiled artifacts; attempt2 requires a fresh parent allocation,
+prelaunch ownership/scope checks, and source freeze before browser launch.
+The failed native record remains failed, and all48 catalog items remain open
+with no added closure or release credit.
+
+The parent reports PC11 released at0.5.71 on main `9bfe4c3a`, Hosting only, with
+candidate/main CI and live verification complete. The eventual final PC10
+candidate must reconcile that released base while preserving its unpublished
+Functions/rules work. This source-only repair does not integrate or execute
+PC11, post-PC10 work or conditional PC12; the private0.5.72 candidate remains
+unreleased.
