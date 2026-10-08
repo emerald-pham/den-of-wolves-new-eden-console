@@ -163,3 +163,14 @@ it.each(['candidate', 'failure-review'] as const)('closes %s debrief from the en
   await userEvent.click(close);
   expect(debriefMocks.close).toHaveBeenCalledTimes(1);
 });
+
+it('keeps Close disabled when the live GM has neither observer nor entitled debrief', async () => {
+  debriefMocks.read.mockRejectedValue(new Error('denied'));
+  useSessionStore.getState().setIdentity({ id: 's1', phase: 'debrief' } as never,
+    { uid: 'gm1', sessionId: 's1', role: 'gm', connectionGeneration: 1 } as never);
+  useSessionStore.getState().setGmInstance({ id: 'gm-1', sessionId: 's1', uid: 'gm1' } as never);
+  render(<EndgameDialog />);
+  expect(screen.getByRole('button', { name: 'Close session' })).toBeDisabled();
+  await userEvent.click(screen.getByRole('button', { name: 'Close session' }));
+  expect(debriefMocks.close).not.toHaveBeenCalled();
+});

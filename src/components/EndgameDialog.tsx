@@ -228,7 +228,7 @@ export default function EndgameDialog() {
             {actionPending ? 'Freezing debrief…' : 'Freeze failure into debrief'}
           </button>}
           {canClose && <button className="cic-action-button" type="button"
-            disabled={actionPending || !session.debriefSnapshot} onClick={() => void runLifecycleAction('close')}>
+            disabled={actionPending || !displayedDebrief} onClick={() => void runLifecycleAction('close')}>
             {actionPending ? 'Closing session…' : 'Close session'}
           </button>}
           {actionMessage && <p className="endgame-debrief__message" role="status">{actionMessage}</p>}
