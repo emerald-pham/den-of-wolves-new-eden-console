@@ -20,11 +20,15 @@ export const PC11_NORMAL_START = Object.freeze({
   }),
 });
 
+function isNonblankString(value) {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
 function commonLiveMember(value, expected) {
   return Boolean(value && expected &&
     value.hasAuth === true && value.sameActor === true &&
-    typeof expected.uidHash === 'string' && expected.uidHash.trim().length > 0 && value.uidHash === expected.uidHash &&
-    typeof expected.sessionId === 'string' && expected.sessionId.trim().length > 0 && value.sessionId === expected.sessionId &&
+    isNonblankString(expected.uidHash) && value.uidHash === expected.uidHash &&
+    isNonblankString(expected.sessionId) && value.sessionId === expected.sessionId &&
     value.meSessionId === expected.sessionId &&
     value.profileRoleId == null && value.profileSessionId == null &&
     value.playerRole === 'player' && value.connected === true &&
@@ -58,8 +62,9 @@ export function pc11MemberReadiness(value, expected) {
 
 /** Preserve the same Auth/session epoch; accept a changed epoch only with its exact server-resume receipt. */
 export function pc11SameActorEpoch(before, after, resumeEvidence) {
-  if (!before || !after || !before.uidHash || before.uidHash !== after.uidHash ||
-      !before.sessionId || before.sessionId !== after.sessionId ||
+  if (!before || !after || !isNonblankString(before.uidHash) || !isNonblankString(after.uidHash) ||
+      before.uidHash !== after.uidHash || !isNonblankString(before.sessionId) ||
+      !isNonblankString(after.sessionId) || before.sessionId !== after.sessionId ||
       before.profileRoleId !== after.profileRoleId || before.profileSessionId !== after.profileSessionId ||
       !Number.isFinite(before.documentTimeOrigin) || before.documentTimeOrigin <= 0 ||
       !Number.isFinite(after.documentTimeOrigin) || after.documentTimeOrigin <= 0 ||
@@ -89,8 +94,8 @@ export function pc11SameActorEpoch(before, after, resumeEvidence) {
 /** A live GM must own the exact current instance and mounted server-authority cursor. */
 export function pc11GmReadiness(value, expected) {
   return Boolean(value && expected && value.hasAuth === true && value.sameActor === true &&
-    typeof expected.uidHash === 'string' && expected.uidHash.trim().length > 0 && value.uidHash === expected.uidHash &&
-    typeof expected.sessionId === 'string' && expected.sessionId.trim().length > 0 && value.sessionId === expected.sessionId &&
+    isNonblankString(expected.uidHash) && value.uidHash === expected.uidHash &&
+    isNonblankString(expected.sessionId) && value.sessionId === expected.sessionId &&
     value.meSessionId === expected.sessionId && value.playerRole === 'gm' &&
     value.profileRoleId == null && value.profileSessionId == null && value.fullGameDemo == null &&
     Number.isSafeInteger(value.connectionGeneration) && value.connectionGeneration >= 1 &&
@@ -100,7 +105,7 @@ export function pc11GmReadiness(value, expected) {
     Array.isArray(value.invalidFields) && value.invalidFields.length === 0 &&
     value.currentOwnPlayerConfirmed === true && value.sdkHasServerAuthority === true &&
     value.sdkResumePending === false && value.gmInstanceOwned === true &&
-    typeof expected.instanceId === 'string' && expected.instanceId.trim().length > 0 && value.instanceId === expected.instanceId);
+    isNonblankString(expected.instanceId) && value.instanceId === expected.instanceId);
 }
 
 /** Check a read-only snapshot after normal production start, before trade/Philia actions. */
