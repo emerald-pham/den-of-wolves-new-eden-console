@@ -87,6 +87,14 @@ describe('ordinary candidate callable authority and durable replay', () => {
     const selected = await handlers.selectEdition(request(choice, 'gm'));
     expect(selected).toMatchObject({ status: 'committed', revision: 1, edition: 'deluxe' });
     expect(documents.get('sessions/s1/serverState/candidates')).toMatchObject({ revision: 1, edition: 'deluxe', sites: {} });
+    expect(documents.get('sessions/s1/actionAudits/edition-deluxe')).toMatchObject({
+      action: 'candidate-edition-selection', actorUid: 'gm', phase: 'active', requestId: 'edition-deluxe',
+      revision: 1, resolutionSource: 'facilitator', outcome: 'committed',
+    });
+    expect(documents.get('sessions/s1/procedureAudits/edition-deluxe')).toMatchObject({ type: 'procedure-audit',
+      sourceId: 'deluxe-v1-1-candidate-edition', requiredChoices: [{ actor: 'facilitator',
+        kind: 'candidate-edition-selection', value: { groupId: 'fleet-1', edition: 'deluxe', changed: true } }],
+    });
     const otherGroupStarted = { revision: 2, edition: 'deluxe', sites: { 'fleet-2:0408': {
       code: 'O', coordinate: '0408', groupId: 'fleet-2', materials: 0, researchIds: [], ships: {}, reactors: {},
     } } };
@@ -106,6 +114,8 @@ describe('ordinary candidate callable authority and durable replay', () => {
     put('sessions/s1/serverState/candidates', started);
     await expect(handlers.selectEdition(request(choice, 'gm'))).resolves.toEqual({ ...first, status: 'replayed' });
     expect(documents.get('sessions/s1/serverState/candidates')).toEqual(started);
+    expect([...documents.keys()].filter(path => path.endsWith('/actionAudits/edition-replay'))).toHaveLength(1);
+    expect([...documents.keys()].filter(path => path.endsWith('/procedureAudits/edition-replay'))).toHaveLength(1);
     await expect(handlers.selectEdition(request({ ...choice, edition: 'home' }, 'gm')))
       .rejects.toMatchObject({ code: 'failed-precondition' });
     await expect(handlers.selectEdition(request(choice, 'admiral'))).rejects.toMatchObject({ code: 'permission-denied' });
