@@ -232,7 +232,7 @@ test('stopped first-failure diagnostic retains the original owned raw discovery 
  assert.equal(evidence.firstFailureWorld.diagnosticOnly, true);
  assert.equal(evidence.firstFailureWorld.discovery.groupId, 'fleet-1');
  assert.equal(evidence.firstFailureWorld.discovery.shipId, null);
- assert.deepEqual(f.reads().sort(), ['sessions/owned-session', 'sessions/owned-session/fleetGroups/fleet-1',
+ assert.deepEqual(f.reads.sort(), ['sessions/owned-session', 'sessions/owned-session/fleetGroups/fleet-1',
   'sessions/owned-session/playerDiscoveries/miner-uid', 'sessions/owned-session/players/miner-uid'].sort());
 });
 
@@ -242,4 +242,42 @@ for (const [label, options, maxReads] of [
  ['expired original diagnostic deadline', { expired: true }, 0],
 ]) test(`stopped read-only diagnostic refuses ${label} before expanding scope`, async () => {
  const f = stoppedDiagnosticFixture(options); await assert.rejects(f.run()); assert.ok(f.reads.length <= maxReads);
+});
+
+test('next Highwall attempt creates fresh evidence while the immutable failed attempt directory exists', async () => {
+ const declaration = ast.statements.find(n => ts.isVariableStatement(n) &&
+  n.declarationList.declarations.some(d => d.name.getText(ast) === 'directory'));
+ const create = ast.statements.find(n => n.getText(ast).startsWith('await mkdir(directory,'));
+ assert.ok(declaration && create);
+ const retained = '/tmp/dow-pc10-evidence/two-actor-highwall-mining-1';
+ const directories = new Map([[retained, { status: 'STOPPED_FIRST_FAILURE', originalError: 'missing own discovery' }]]);
+ const before = JSON.stringify([...directories]); const created = [];
+ await execute(`${declaration.getText(ast)}\n${create.getText(ast)}`, { mkdir: async (path, options) => {
+  assert.deepEqual(plain(options), { mode: 0o700 });
+  if (directories.has(path)) throw Object.assign(Error('Immutable failed attempt evidence already exists'), { code: 'EEXIST' });
+  created.push(path); directories.set(path, { fresh: true });
+ } });
+ assert.deepEqual(created, ['/tmp/dow-pc10-evidence/two-actor-highwall-mining-2']);
+ assert.equal(JSON.stringify([[retained, directories.get(retained)]]), before);
+});
+
+test('next Highwall attempt consumes matching fresh preflight and source freeze without reading old launch receipts', async () => {
+ const statements = ast.statements.filter(n =>
+  (ts.isVariableStatement(n) && n.declarationList.declarations.some(d => ['preflight', 'freezeBytes'].includes(d.name.getText(ast)))) ||
+  n.getText(ast).startsWith('assert.equal(freeze.preflight.sha256,') ||
+  n.getText(ast).startsWith('evidence.sourceFreeze='));
+ assert.equal(statements.length, 4);
+ const prefix = '/tmp/dow-pc10-evidence/OWNER_HIGHWALL_MINING_2_';
+ const preflight = `${prefix}LAUNCH_PREFLIGHT_20261008.json`, freeze = `${prefix}SOURCE_FREEZE_20261008.json`;
+ const sourceCommit = 'exact-reviewed-candidate', hash = value => `sha:${String(value)}`;
+ const preflightBytes = JSON.stringify({ source: { sourceCommit }, scope: { sessions: 0, connectedPlayers: 0, connectedGmInstances: 0 } });
+ const freezeRecord = { recordedAt: 'original-prelaunch-time', preflight: { sha256: hash(preflightBytes) } };
+ const freezeBytes = JSON.stringify(freezeRecord), paths = [], evidence = {};
+ await execute(statements.map(n => n.getText(ast)).join('\n'), { assert: check, sourceCommit, evidence, hash, freeze: freezeRecord,
+  readFile: async path => {
+   paths.push(path); assert.ok(path === preflight || path === freeze, 'Refuse immutable prior-attempt launch receipts');
+   return path === preflight ? preflightBytes : freezeBytes;
+  } });
+ assert.deepEqual(paths, [preflight, freeze, preflight]);
+ assert.deepEqual(plain(evidence.sourceFreeze), { path: freeze, sha256: hash(freezeBytes), recordedAt: freezeRecord.recordedAt });
 });
