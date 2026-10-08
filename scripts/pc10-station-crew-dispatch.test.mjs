@@ -766,8 +766,8 @@ test('rejects restricted-to-lifted restoration after scope freeze inside the str
   const [held] = heldProofFailureObservations(failure);
   assert.equal(held.operation, 'station-crew-current-source-readiness');
   assert.equal(held.originalActor.airspace, 'restricted');
-  assert.equal(held.consumedObservations.actorScopes.length, 4,
-    'Failure evidence retains the actor samples consumed by the added normal-GM phase and post-freeze bookends.');
+  assert.equal(held.consumedObservations.actorScopes.length, 6,
+    'Failure evidence retains the canonical before/after samples plus normal-GM phase and post-freeze bookends.');
   assert.deepEqual(pdf.effects.reads, [], 'Strict post-freeze actor drift is rejected before private choice read.');
   assert.deepEqual(pdf.effects.clicks, []);
 });
@@ -1909,7 +1909,7 @@ test('Attempt26 actual PDF terminal rebookend retains canonical identity and zer
 test('Attempt26 actual PDF terminal rebookend never masks a canonical SDK revocation',async()=>{
  const f=await runtimeObserverFixture();let reached=false,terminalPhaseReads=0;
  mutateRuntimeObserverAt(f,'source getter',value=>value.finalize());
- f.hooks.phase=()=>{if(f.state.session.turnState.phase==='coordination'&&++terminalPhaseReads===3){
+ f.hooks.phase=()=>{if(f.state.session.turnState.phase==='coordination'&&++terminalPhaseReads===2){
   reached=true;f.sdkAuthority.hasServerSessionAuthority=false;}};
  await assert.rejects(f.invoke(),/sdkHasServerAuthority/);assert.equal(reached,true);
  assert.deepEqual(f.actorSurface.effects.clicks,[]);assert.equal(f.counts.capture,0);
