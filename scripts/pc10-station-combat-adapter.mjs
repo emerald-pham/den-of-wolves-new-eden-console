@@ -5,11 +5,11 @@ export function assertSparseStationWing(actor,original){
  for(const key of ['hasAuth','sameActor','currentCanonicalSeatOwned','currentMemberBerthPresent','currentMemberBerthMatches'])assert.equal(actor[key],true,`Station Wing requires ${key}`);
  assert.equal(actor.playerRole,'player');assert.equal(actor.assignedRoleId,'wing-commander');assert.equal(actor.activeConsoleRoleId,'wing-commander');assert.equal(actor.seatId,'wing-commander');assert.equal(actor.connection,'live');assert.equal(actor.freshness,'server');
 }
-export async function runSparseStationCombat({deadlineAt,readAttack,assertActors,choose,wait=delay}){
+export async function runSparseStationCombat({deadlineAt,readAttack,assertActors,choose,wait=delay,onState=async()=>{}}){
  assert.ok(Number.isFinite(deadlineAt));let original,stageKey,stageDeadline;
  while(Date.now()<deadlineAt){
   await assertActors();const current=await readAttack();assert.ok(current);assert.equal(current.threatSiteCode,'P');
-  original??={attackId:current.attackId,turn:current.turn};assert.equal(current.attackId,original.attackId);assert.equal(current.turn,original.turn);assert.ok(Number.isSafeInteger(current.revision));
+  original??={attackId:current.attackId,turn:current.turn};assert.equal(current.attackId,original.attackId);assert.equal(current.turn,original.turn);assert.ok(Number.isSafeInteger(current.revision));await onState(current);
   if(current.status==='resolved'){assert.equal(current.currentStep,'resolved');assert.ok(['repeat','stopped'].includes(current.pStationRepeat?.status));return current;}
   assert.equal(current.status,'declared');assert.ok(['targeting','long-range','medium-range','short-range','boarding'].includes(current.currentStep));
   const key=JSON.stringify([current.attackId,current.revision,current.currentStep]);if(key!==stageKey){stageKey=key;stageDeadline=Math.min(Date.now()+60000,deadlineAt);}

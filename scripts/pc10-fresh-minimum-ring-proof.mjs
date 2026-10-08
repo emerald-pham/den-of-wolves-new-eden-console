@@ -662,7 +662,25 @@ async function enterRole(surface,label){
    const preparation=gm.page.getByRole('region',{name:'Private Wolf attack preparation',exact:true});
    await preparation.getByLabel('Battlestation count',{exact:true}).fill('1');await preparation.getByLabel('Fleet Strikecarrier count',{exact:true}).fill('4');
    await action(gm,'stageWolfAttackPreparation',()=>preparation.getByRole('button',{name:'Save private attack draft',exact:true}).click());
-   async function readAttack(){await liveGm(gm,'GM1','active');return gm.page.evaluate(async sid=>{const source=await(await fetch('/src/lib/firestore.ts')).text(),match=source.match(/from\s+["']([^"']*firebase_firestore\.js[^"']*)["']/);if(!match)throw Error('Actual served Firestore SDK import required');const sdk=await import(match[1]),{db}=await import('/src/lib/firestore.ts');const doc=await sdk.getDocFromServer(sdk.doc(db(),`sessions/${sid}/wolfAttackState/current`));if(!doc.exists())throw Error('Current real Station attack missing');return doc.data();},sid);}
+   let serverCombatContext,lastCombatSampleHash;
+   async function readAttack(){
+    await liveGm(gm,'GM1','active');
+    const read=await gm.page.evaluate(async sid=>{
+     const source=await(await fetch('/src/lib/firestore.ts')).text(),match=source.match(/from\s+["']([^"']*firebase_firestore\.js[^"']*)["']/);if(!match)throw Error('Actual served Firestore SDK import required');
+     const sdk=await import(match[1]),{db}=await import('/src/lib/firestore.ts');
+     const [attack,session,audience]=await Promise.all(['wolfAttackState/current','', 'wolfAttackAudience/current'].map(path=>sdk.getDocFromServer(sdk.doc(db(),`sessions/${sid}${path?`/${path}`:''}`))));
+     if(!attack.exists()||!session.exists())throw Error('Current real Station attack/session missing');const root=session.data();
+     return {attack:attack.data(),context:{sessionId:sid,currentTurn:root.currentTurn,phase:root.phase,turnPhase:root.turnPhase,turnState:root.turnState,publicAudience:audience.exists()?audience.data():null}};
+    },sid);serverCombatContext=read.context;return read.attack;
+   }
+   const retainCombatState=async attack=>{
+    const member=await fullMember(recipient);
+    const mountedPanels=await recipient.page.locator('section[aria-label]').evaluateAll(nodes=>nodes.filter(node=>/fighter|wolf|boarding/i.test(node.getAttribute('aria-label')??'')).map(node=>({label:node.getAttribute('aria-label'),visible:node.getClientRects().length>0,text:node.innerText.slice(0,2000),buttons:[...node.querySelectorAll('button')].map(button=>({label:button.innerText,disabled:button.disabled})),selects:[...node.querySelectorAll('select')].map(select=>({label:select.getAttribute('aria-label'),disabled:select.disabled}))})));
+    const sample={attack,serverContext:serverCombatContext,member,mountedPanels};
+    evidence.stationCombatLatest={observedAt:new Date().toISOString(),...sample};
+    const sampleHash=hash(stable(sample));if(sampleHash!==lastCombatSampleHash){lastCombatSampleHash=sampleHash;(evidence.stationCombatTransitions??=[]).push({observedAt:evidence.stationCombatLatest.observedAt,attackId:attack.attackId,revision:attack.revision,step:attack.currentStep,status:attack.status,decisionSummary:attack.decisionSummary??null});}
+    await writeFile(`${directory}/Station-combat-latest.json`,JSON.stringify(evidence.stationCombatLatest,null,2)+'\n');
+   };
    const choose=async(current,{deadlineAt})=>{
     assertSparseStationWing(await fullMember(recipient),evidence.stationWingOriginal);
     if(current.currentStep==='targeting'){
@@ -692,7 +710,7 @@ async function enterRole(surface,label){
    let liberated=false;const waves=[];
    for(let wave=1;wave<=12&&!liberated;wave++){
     for(const ship of ships)await repair(ship);await liveGm(gm,'GM1','active');await action(gm,'declareWolfAttack',()=>preparation.getByRole('button',{name:'Declare Wolf attack',exact:true}).click());
-    const final=await runSparseStationCombat({deadlineAt:Math.min(Date.now()+480000,workEnd-60000),readAttack,assertActors:async()=>{budget();await liveGm(gm,'GM1','active');assertSparseStationWing(await fullMember(recipient),evidence.stationWingOriginal);},choose});
+    const final=await runSparseStationCombat({deadlineAt:Math.min(Date.now()+480000,workEnd-60000),readAttack,onState:retainCombatState,assertActors:async()=>{budget();await liveGm(gm,'GM1','active');assertSparseStationWing(await fullMember(recipient),evidence.stationWingOriginal);},choose});
     waves.push({wave,attackId:final.attackId,repeat:final.pStationRepeat});liberated=final.pStationRepeat.status==='stopped';await writeFile(`${directory}/Station-combat-waves.json`,JSON.stringify(waves,null,2)+'\n');
    }
    assert.equal(liberated,true,'Real Station combat must end with zero surviving Wolves before activation.');
