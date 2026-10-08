@@ -407,7 +407,7 @@ function blockerPattern(spec, view, reason) {
 }
 
 /** Read the real public labels; disabled/checking/absent controls remain pending. */
-export async function inspectWolfChoicePaint(page, spec, view) {
+export async function inspectWolfChoicePaint(page, spec, view, onPanelText) {
   const reason = wolfChoiceSourceReason(view);
   if (spec.kind === 'boarding-special' && ['not-your-choice', 'no-special-choice'].includes(reason))
     return { status: 'source-excluded', reason, explicit: true };
@@ -424,6 +424,7 @@ export async function inspectWolfChoicePaint(page, spec, view) {
     panel = panel.getByRole('article', { name: wingLabel(spec.sourceId), exact: true });
   }
   const text = await panel.innerText();
+  onPanelText?.(text);
   if (view.turn !== undefined && !['pdf-launch', 'maliades-launch'].includes(spec.kind) &&
       !new RegExp(`Cycle ${view.turn}(?:\\D|$)`, 'i').test(header)) return pending('The current cycle has not painted.');
   if (view.revision !== undefined && ['warheads', 'command-and-control', 'commander-targeting'].includes(spec.kind) &&

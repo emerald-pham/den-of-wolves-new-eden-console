@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { setTimeout as delay } from 'node:timers/promises';
 import { assertWolfChoiceActor, inspectWolfChoicePaint, observeWolfChoiceActor,
-  waitForWolfChoiceReadiness } from './pc10-combat-choice-readiness.mjs';
+  waitForWolfChoiceReadiness, wolfChoiceSourceReason } from './pc10-combat-choice-readiness.mjs';
 import { rememberProofFailure } from './pc10-proof-failure-evidence.mjs';
 
 const rangeSteps = new Set(['long-range', 'medium-range', 'short-range']);
@@ -118,24 +118,27 @@ function validateSourceView(view, spec, current, sessionId) {
   return view;
 }
 
-async function inspectSourcePaint(page, spec, view) {
-  const painted = await inspectWolfChoicePaint(page, spec, view);
-  if (painted.status !== 'pending') return painted;
+async function inspectSourcePaint(page, spec, view, onObservation) {
+  let panelText = null;
+  const painted = await inspectWolfChoicePaint(page, spec, view, text => { panelText = text; });
+  let result = painted;
 
   // The reviewed shared painter does not yet name these two known, inert
   // notices. They are still real current views and can be skipped only when
   // the matching text is actually painted by the corresponding source panel.
-  if (spec.kind === 'pdf-launch' && view.reason === 'waiting') {
-    const panel = page.locator('[aria-label="PDF Escort Wing launch control"]');
-    if (await panel.isVisible() && /Waiting for an active Wolf Attack targeting window\./.test(await panel.innerText()))
-      return { status: 'blocked', reason: 'waiting', explicit: true };
+  if (painted.status === 'pending' && spec.kind === 'pdf-launch' &&
+      wolfChoiceSourceReason(view) === 'waiting' &&
+      /Waiting for an active Wolf Attack targeting window\./.test(panelText ?? '')) {
+    result = { status: 'blocked', reason: 'waiting', explicit: true };
   }
-  if (spec.kind === 'boarding-special' && view.reason === 'automatic-progress-pending') {
+  if (painted.status === 'pending' && spec.kind === 'boarding-special' &&
+      view.reason === 'automatic-progress-pending') {
     const panel = page.getByRole('region', { name: 'Boarding decision', exact: true });
     if (await panel.isVisible() && /server is locking the committed defence dice/i.test(await panel.innerText()))
-      return { status: 'blocked', reason: 'automatic-progress-pending', explicit: true };
+      result = { status: 'blocked', reason: 'automatic-progress-pending', explicit: true };
   }
-  return painted;
+  if (spec.kind === 'pdf-launch') onObservation?.({ panelText, result });
+  return result;
 }
 
 const actorMemberKeys = ['uidHash', 'sessionId', 'meSessionId', 'profileRoleId', 'profileSessionId', 'playerRole',
@@ -301,7 +304,7 @@ function attackTrace(attack) {
 }
 
 async function waitForLockedActorScope(current, actor, context) {
-  const trace = { attackReads: [], actorScopes: [] };
+  const trace = { attackReads: [], actorScopes: [], sourceReplies: [], paintObservations: [] };
   const inspectAttack = async () => {
     assertBudget(context.deadlineAt);
     const attack = await context.readAttack();
@@ -390,6 +393,8 @@ async function readySource(current, actor, spec, { sessionId, deadlineAt, assert
       assert.ok(typeof original.instanceId === 'string' && original.instanceId,
         'Original facilitator instance is required for the source read.');
     const reply = await surface.callable(source.endpoint, payload, timeoutMs);
+    if (spec.kind === 'pdf-launch')
+      scope.trace.sourceReplies.push({ endpoint: source.endpoint, reply });
     assertBudget(deadlineAt);
     await fence();
     if (!lockedAttack(await inspectAttack(), current)) throw new SourceAttackChanged();
@@ -428,7 +433,11 @@ async function readySource(current, actor, spec, { sessionId, deadlineAt, assert
     const readiness = await waitForWolfChoiceReadiness({ original, expected,
       inspectActor, inspectAttack, readChoice, deadlineAt,
       requireBoardingDiscovery: spec.kind === 'boarding-defence',
-      inspectPaint: view => inspectSourcePaint(surface.page, spec, view),
+      inspectPaint: view => inspectSourcePaint(surface.page, spec, view, observation => {
+        // Retain the exact panel projection already consumed by the painter;
+        // diagnostics add no DOM, actor or source read.
+        if (spec.kind === 'pdf-launch') scope.trace.paintObservations.push(observation);
+      }),
     });
     return readiness.status === 'eligible' ? { ...readiness, finalIntentFence } : readiness;
   } catch (error) {

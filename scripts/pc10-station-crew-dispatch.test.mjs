@@ -212,9 +212,10 @@ test('retains the consumed PDF source reply and exact stale panel text when read
     wingRevision: 4, launched: false, eligible: false, choiceStatus: 'unavailable', reason: 'waiting' };
   const pdf = surface('refinery-124-pdf-colonel', view);
   const staleText = 'Waiting for an active Wolf Attack targeting window.';
+  let panelReads = 0;
   pdf.page.locator = selector => {
     assert.equal(selector, '[aria-label="PDF Escort Wing launch control"]');
-    return { isVisible: async () => true, innerText: async () => staleText };
+    return { isVisible: async () => true, innerText: async () => { panelReads++; return staleText; } };
   };
   const current = attack('targeting');
   const opts = options([{ roleId: pdf.label, surface: pdf }], current, undefined, Date.now() + 350);
@@ -229,6 +230,32 @@ test('retains the consumed PDF source reply and exact stale panel text when read
   assert.ok(held.consumedObservations.paintObservations.length > 0);
   assert.deepEqual(held.consumedObservations.paintObservations.at(-1), { panelText: staleText,
     result: { status: 'pending', reason: 'The current source blocker has not painted.' } });
+  assert.equal(panelReads, held.consumedObservations.paintObservations.length * 2,
+    'The retained text comes from the painter’s existing reads; no diagnostic DOM reread is allowed.');
+  assert.deepEqual(pdf.effects.clicks, []);
+});
+
+test('retains a committed PDF source reply before rejecting its foreign session', async () => {
+  const reply = { status: 'committed', result: { type: 'pdf-escort-wing-launch-view',
+    sessionId: 'foreign-session', turn: 3, revision: 8, wingRevision: 4,
+    launched: false, eligible: false, choiceStatus: 'unavailable', reason: 'waiting' } };
+  const pdf = surface('refinery-124-pdf-colonel', { type: 'pdf-escort-wing-launch-view',
+    sessionId, turn: 3, revision: 8, wingRevision: 4, launched: false, eligible: false,
+    choiceStatus: 'unavailable', reason: 'waiting' });
+  pdf.callable = async (endpoint, payload, timeoutMs) => {
+    pdf.effects.reads.push({ endpoint, payload, timeoutMs });
+    return reply;
+  };
+  const current = attack('targeting');
+  let failure;
+  try { await dispatchStationCrewChoice(current, options([{ roleId: pdf.label, surface: pdf }], current)); }
+  catch (error) { failure = error; }
+  assert.match(failure?.message ?? '', /source session must match/);
+  const held = heldProofFailureObservations(failure).find(entry =>
+    entry.operation === 'station-crew-current-source-readiness');
+  assert.ok(held);
+  assert.deepEqual(held.consumedObservations.sourceReplies, [{ endpoint: 'getPdfEscortWingLaunch', reply }]);
+  assert.deepEqual(held.consumedObservations.paintObservations, []);
   assert.deepEqual(pdf.effects.clicks, []);
 });
 
