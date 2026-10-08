@@ -152,6 +152,20 @@ describe('ordinary candidate callable authority and durable replay', () => {
       .rejects.toMatchObject({ code: 'failed-precondition' });
     await expect(handlers.selectEdition(request(choice, 'admiral'))).rejects.toMatchObject({ code: 'permission-denied' });
   });
+  it('does not replay a former GM edition receipt after demotion and lease disconnection', async () => {
+    const choice = { sessionId: 's1', requestId: 'edition-demoted-replay', expectedRevision: 0,
+      expectedGroupId: 'fleet-1', instanceId: 'instance1', edition: 'deluxe' };
+    const first = await handlers.selectEdition(request(choice, 'gm'));
+    put('sessions/s1/players/gm', { role: 'player', connected: true, assignedRoleId: 'admiral',
+      seatId: 'admiral', fleetGroupId: 'fleet-1' });
+    put('sessions/s1/gmInstances/instance1', { uid: 'gm', connected: false, lastSeenAt: '2026-10-05T11:00:00Z' });
+
+    await expect(handlers.selectEdition(request(choice, 'gm'))).rejects.toMatchObject({ code: 'permission-denied' });
+    expect(documents.get('sessions/s1/serverState/candidates')).toMatchObject({ revision: 1, edition: 'deluxe' });
+    expect(documents.get('sessions/s1/candidateActionReceipts/edition-demoted-replay')?.result).toEqual(first);
+    expect([...documents.keys()].filter(path => path.endsWith('/actionAudits/edition-demoted-replay'))).toHaveLength(1);
+    expect([...documents.keys()].filter(path => path.endsWith('/procedureAudits/edition-demoted-replay'))).toHaveLength(1);
+  });
   it('permanently consumes an available Engineering Shuttle in the candidate transaction and retains its exact receipt', async () => {
     const coordinate = Object.entries(organiserSitesForChart('A')).find(([, site]) => site.code === 'N')![0];
     const current = documents.get('sessions/s1')!;
