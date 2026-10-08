@@ -73,6 +73,7 @@ import { parseArrestPosseCalculation } from './firestore';
 import {
   acceptCallableSessionAuthority,
   sessionSnapshotAuthorityFor,
+  sessionSnapshotAuthorityVersion,
 } from './sessionSnapshotAuthority';
 import {
   captureSessionAuthority,
@@ -413,6 +414,66 @@ function commandAuthorityCheckpoint(
     : undefined;
 }
 
+interface GmClaimApplyContext {
+  readonly identityHydrationRevision: number;
+  readonly gmAccessAuthenticatedAt: number | null;
+  readonly gmInstance: GmInstance | null;
+}
+
+function gmClaimApplyContext(
+  command: PendingCommand,
+  store: ReturnType<typeof useSessionStore.getState>,
+): GmClaimApplyContext | undefined {
+  return command.kind === 'claimGmInstance' ? {
+    identityHydrationRevision: store.identityHydrationRevision,
+    gmAccessAuthenticatedAt: store.gmAccessAuthenticatedAt,
+    gmInstance: store.gmInstance,
+  } : undefined;
+}
+
+function sameGmClaimSlot(left: GmInstance | null, right: GmInstance | null): boolean {
+  if (left === null || right === null) return left === right;
+  return left.id === right.id && left.sessionId === right.sessionId &&
+    left.uid === right.uid && left.claimedAt === right.claimedAt;
+}
+
+/**
+ * A current-member bootstrap can accept a newer server projection while this
+ * browser's own claim callable is still in flight. That advances the general
+ * session cursor and would discard the claim acknowledgement even though the
+ * same fresh actor is now server-confirmed as GM. Rebase only that exact claim
+ * result, and only while every local identity/access/claim-slot fence survives.
+ */
+function canApplyGmClaimAfterServerHydration(
+  command: PendingCommand,
+  result: unknown,
+  checkpoint: SessionAuthorityCheckpoint | undefined,
+  context: GmClaimApplyContext | undefined,
+): boolean {
+  if (command.kind !== 'claimGmInstance' || !checkpoint || !context) return false;
+  const store = useSessionStore.getState();
+  if (!isPlainRecord(result) || !isPlainRecord(result.instance)) return false;
+  const instance = result.instance;
+  const authorityAdvanced = sessionSnapshotAuthorityFor(checkpoint.sessionId, checkpoint.uid) === checkpoint.authority &&
+    checkpoint.authority.hasServerSessionAuthority &&
+    sessionSnapshotAuthorityVersion(checkpoint.authority) > checkpoint.version;
+  return authorityAdvanced && checkpoint.sessionId === command.payload.sessionId &&
+    store.session?.id === checkpoint.sessionId && store.me?.sessionId === checkpoint.sessionId &&
+    store.session.phase !== 'closed' &&
+    store.me.uid === checkpoint.uid && store.me.role === 'gm' && auth().currentUser?.uid === checkpoint.uid &&
+    store.identityHydrationRevision === context.identityHydrationRevision &&
+    sameGmClaimSlot(store.gmInstance, context.gmInstance) &&
+    context.gmAccessAuthenticatedAt !== null &&
+    store.gmAccessAuthenticatedAt === context.gmAccessAuthenticatedAt &&
+    selectGmAccessAuthenticated(store) && window.navigator.onLine &&
+    store.connection === 'live' && store.sessionSnapshotFreshness === 'server' &&
+    instance.id === command.payload.instanceId && instance.sessionId === checkpoint.sessionId &&
+    instance.uid === checkpoint.uid && typeof instance.name === 'string' && instance.name.trim().length > 0 &&
+    typeof instance.deviceLabel === 'string' && instance.deviceLabel.trim().length > 0 &&
+    typeof instance.claimedAt === 'string' && Number.isFinite(Date.parse(instance.claimedAt)) &&
+    new Date(instance.claimedAt).toISOString() === instance.claimedAt;
+}
+
 /** Partial callable replies must not patch over a newer accepted snapshot. */
 function authorityCheckpointIsCurrent(
   checkpoint: SessionAuthorityCheckpoint | undefined,
@@ -590,8 +651,10 @@ function applyCommandResult(
   result: unknown,
   checkpoint?: SessionAuthorityCheckpoint,
   allowConnecting = false,
+  claimContext?: GmClaimApplyContext,
 ): void {
-  if (!isCleanupCommand(command) && !authorityCheckpointIsCurrent(checkpoint, allowConnecting)) return;
+  const authorityCurrent = isCleanupCommand(command) || authorityCheckpointIsCurrent(checkpoint, allowConnecting);
+  if (!authorityCurrent && !canApplyGmClaimAfterServerHydration(command, result, checkpoint, claimContext)) return;
   const store = useSessionStore.getState();
   if (
     (command.kind === 'authorFacilitatorRuleCall' || command.kind === 'setCandidatePlanCheckpoint' || command.kind === 'recordZealotryResponse' || command.kind === 'recordCivilUnrestResolution') &&
@@ -1061,6 +1124,7 @@ async function sendOrQueue(
     const checkpoint = cleanupCommand
       ? undefined
       : commandAuthorityCheckpoint(command, store);
+    const claimContext = gmClaimApplyContext(command, store);
     await ensureSignedIn();
     const result = await executeCommand(command);
     onResult?.(result);
@@ -1068,7 +1132,7 @@ async function sendOrQueue(
       recordStaleAuthorityReply();
       return 'stale';
     }
-    applyCommandResult(command, result, checkpoint);
+    applyCommandResult(command, result, checkpoint, false, claimContext);
     if (
       command.kind === 'popShipConfetti' && typeof result === 'object' && result !== null &&
       'status' in result && result.status === 'awaiting-officer'
@@ -1128,9 +1192,10 @@ async function flushPendingCommands(): Promise<boolean> {
       const checkpoint = isCleanupCommand(command)
         ? undefined
         : commandAuthorityCheckpoint(command, store);
+      const claimContext = gmClaimApplyContext(command, useSessionStore.getState());
       const result = await executeCommand(command);
       if (isStaleAuthorityReply(command, result)) recordStaleAuthorityReply();
-      else applyCommandResult(command, result, checkpoint, true);
+      else applyCommandResult(command, result, checkpoint, true, claimContext);
       store.removeCommand(command.id);
     } catch (cause) {
       if (isTransientCommandError(cause)) return false;
