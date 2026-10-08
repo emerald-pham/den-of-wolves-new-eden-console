@@ -77,6 +77,22 @@ beforeEach(() => {
 });
 
 describe('ordinary candidate callable authority and durable replay', () => {
+  it('persists a live GM edition choice in the shared session candidate record', async () => {
+    const choice = { sessionId: 's1', requestId: 'edition-behavior', expectedRevision: 0,
+      expectedGroupId: 'fleet-1', instanceId: 'instance1', edition: 'deluxe' };
+    const result = await handlers.selectEdition(request(choice, 'gm'));
+    expect(documents.get('sessions/s1/serverState/candidates')).toMatchObject({ revision: 1, edition: 'deluxe', sites: {} });
+    expect(result).toMatchObject({ type: 'candidate-edition-result', status: 'committed',
+      requestId: choice.requestId, revision: 1, edition: 'deluxe' });
+  });
+  it('returns the retained edition result on an exact live GM retry', async () => {
+    const choice = { sessionId: 's1', requestId: 'edition-behavior-replay', expectedRevision: 0,
+      expectedGroupId: 'fleet-1', instanceId: 'instance1', edition: 'deluxe' };
+    const first = await handlers.selectEdition(request(choice, 'gm'));
+    const retry = await handlers.selectEdition(request(choice, 'gm'));
+    expect(documents.get('sessions/s1/candidateActionReceipts/edition-behavior-replay')?.result).toEqual(first);
+    expect(retry).toEqual({ ...first, status: 'replayed' });
+  });
   it('authorizes edition selection only to the live GM instance and locks it across every fleet group', async () => {
     const choice = { sessionId: 's1', requestId: 'edition-deluxe', expectedRevision: 0,
       expectedGroupId: 'fleet-1', instanceId: 'instance1', edition: 'deluxe' };
