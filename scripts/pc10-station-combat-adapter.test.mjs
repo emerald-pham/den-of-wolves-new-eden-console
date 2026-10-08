@@ -240,7 +240,9 @@ test('Station declaration recovery fails closed on changed authority, phase, pre
 });
 
 test('Station declaration recovery permits a genuinely absent previous attack only on wave one and only once per declaration',async()=>{
- let now=1000;const expected=stationDeclareRetryContext({wave:1,attack:null});const used=new Set();
+ let now=1000;const initial=stationDeclareRetryContext();
+ const expected=stationDeclareRetryContext({wave:1,attack:null,
+  preparation:{...initial.preparation,compositionKind:'P'}});const used=new Set();
  const {error}=stationDeclare429Error({observation:{requestData:{sessionId:'owned-synthetic',
   instanceId:'gm-instance-synthetic',requestId:'first-wave-denial',expectedRevision:10}}});
  const options={expectedContext:expected,readCurrent:async()=>structuredClone(expected),assertActor:async()=>{},

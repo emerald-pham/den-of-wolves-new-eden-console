@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { assertStationPopulationAcknowledgmentTransition, assertStationPopulationGmActorAuthority, assertStationPopulationGmActorObserver, minimumRingPlan, runRingWorkflow, runStationCombatWaves, selectStationCombatCrew, stationCombatServerContext, stationDialogAccessibleName, stationPopulationAckMutinyRows, stationPopulationAlertsForGm, stationPopulationAssertFreshProjection, stationPopulationDialogMatches, stationPopulationDismissIntent, stationPopulationDismissLocator, stationPopulationGmActorAnchor, stationPopulationGmAuthorityPreflight, stationPopulationGmRetainedObserver, stationPopulationPostDismissProjection, stationPopulationSelectVisibleAlert, stationPopulationUiRows } from './pc10-fresh-minimum-ring-proof.mjs';
 import { heldProofFailureObservations, rememberProofFailure } from './pc10-proof-failure-evidence.mjs';
+import { stationDeclarationRetryProjection } from './pc10-station-combat-adapter.mjs';
 
 const stationPopulationGmAttemptEvidence = JSON.parse(readFileSync(
   new URL('./fixtures/pc10-population-gm-observer-attempt-evidence.json', import.meta.url), 'utf8'));
@@ -100,6 +101,29 @@ test('station wave consumer seam preserves actor, Declare, combat and publicatio
     { wave: 1, attackId: 'attack-1', repeat: { status: 'repeat' } },
     { wave: 2, attackId: 'attack-2', repeat: { status: 'stopped' } },
   ]);
+});
+
+test('first Station declaration consumer accepts the actual P preparation before any repeat attack exists',async()=>{
+ const actor={sessionId:'synthetic-station',uidHash:'synthetic-gm-hash',generation:1,hydrationRevision:1,
+  instanceId:'synthetic-gm-instance',claimedAt:'synthetic-claim',hasAuth:true,sameActor:true,
+  privateAudienceMatches:true,foreignPendingCount:0,playerRole:'gm',profileRoleId:null,profileSessionId:null,
+  gmInstanceOwned:true,connection:'live',freshness:'server',phase:'active',cycle:2};
+ const context={wave:1,actor,
+  session:{phase:'active',currentTurn:2,turnLimit:8,fullGameDemo:{status:'active',progression:'manual'},
+   turnPhase:{turn:2,teamPhaseEndsAt:'source-team-end',openAirspaceEndsAt:'source-open-end',
+    airspace:{state:'lifted',tickerActive:true,pressAccess:false},timerPause:null,progression:'manual'},
+   turnState:{currentTurn:2,maxTurn:8,phase:'coordination',phaseRevision:20,startedAt:'source-start',endsAt:'source-end'},
+   gameOutcome:null,survivorOutcome:null,debriefMode:{active:false,revision:0},hasDebriefSnapshot:false},
+  window:{status:'due',turn:2,revision:1,targetGroupId:'fleet-1',threatSiteCode:'P',threatSourceId:'arrival-p-source'},
+  preparation:{turn:2,shipIds:['wolf-strikecarrier','wolf-battlestation'],targetMode:'pre-rolled',
+   targetAssignments:[],modifiers:[],notes:'',revision:1,compositionKind:'P',targetGroupId:'fleet-1'},attack:null};
+ const trace=[];let waves;
+ waves=await runStationCombatWaves({maximumWaves:1,assertActors:async()=>trace.push('actors'),
+  prepareAndDeclare:async()=>{trace.push('preflight');stationDeclarationRetryProjection(context);trace.push('declared');},
+  runWave:async()=>{trace.push('combat');return {attackId:'first-p-attack',pStationRepeat:{status:'stopped'}};},
+  persistWaves:async()=>trace.push('persist')});
+ assert.deepEqual(trace,['actors','preflight','declared','combat','persist']);
+ assert.equal(waves[0].attackId,'first-p-attack');
 });
 
 test('station wave consumer resumes only after one bounded recovery of the exact observed declaration rate limit', async () => {
