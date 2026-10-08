@@ -35,7 +35,7 @@ export async function stationBoardingRead(current,{readChoice,readAttack,session
  if(view.type==='wolf-boarding-defence-choice-view'){
   assert.equal(view.turn,fresh.turn);assert.equal(view.targetShipId,'aegis');assert.ok(['pending','committed'].includes(view.choiceStatus));
   assert.ok(Number.isSafeInteger(view.revision)&&view.revision>=current.revision&&view.revision<=fresh.revision);
-  if(view.revision!==fresh.revision)return {kind:'refresh'};
+  if(view.revision!==fresh.revision||view.choiceStatus==='committed')return {kind:'refresh'};
  }else{
   assert.equal(view.type,'wolf-boarding-defence-choice-unavailable');assert.ok(['no-boarders','not-your-choice'].includes(view.reason));
  }

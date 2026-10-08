@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFile,writeFile,realpath} from 'node:fs/promises';
 import {resolve,isAbsolute} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {spawn} from 'node:child_process';
+import {runCommand} from './run-emulator-command.mjs';
 import {createHash} from 'node:crypto';
 import {validateRingAllocation} from './pc10-fresh-minimum-ring-proof.mjs';
 import {localGmAccessConfiguration} from './local-gm-access.mjs';
@@ -65,12 +65,7 @@ async function validateReceipt(receipt){
  assert.deepEqual(receipt.commands,stationLaunchCommands(allocation));
  return allocation;
 }
-export async function runStationLaunchCommand(command,args,{spawnProcess=spawn,signalSource=process}={}){
- const child=spawnProcess(command,args,{stdio:'inherit'});const forward=signal=>child.kill(signal);
- signalSource.on('SIGINT',forward);signalSource.on('SIGTERM',forward);
- try{await new Promise((resolve,reject)=>{child.once('error',reject);child.once('exit',resolve);});}
- finally{signalSource.removeListener('SIGINT',forward);signalSource.removeListener('SIGTERM',forward);}
-}
+export function runStationLaunchCommand(command,args,options={}){return runCommand(command,args,options);}
 async function main(){
  const [mode,...args]=process.argv.slice(2);
  if(mode==='--prepare'){
@@ -88,9 +83,10 @@ async function main(){
  const receiptPath=resolve(args[0]),receipt=JSON.parse(await readFile(receiptPath,'utf8'));await validateReceipt(receipt);
  if(mode==='--check'){console.log('Exact allocated source/build/ports/local GM launch validated; no resource started.');return;}
  const command=receipt.commands[mode.slice(2)];const childArgs=mode==='--proof'?[...command,receipt.allocationPath,'--evidence',args[2]]:command;
- const child=spawn(process.execPath,childArgs,{cwd:receipt.allocation.sourceRoot,env:{...process.env,...receipt.environment},stdio:'inherit'});
- const forward=signal=>child.kill(signal);process.on('SIGINT',forward);process.on('SIGTERM',forward);
- await new Promise((resolve,reject)=>{child.once('error',reject);child.once('exit',(code,signal)=>{process.exitCode=code??(signal?1:0);resolve();});});
- process.removeListener('SIGINT',forward);process.removeListener('SIGTERM',forward);
+ // The established wrapper forwards named signals to its detached owned tree,
+ // waits for the inner reservation wrapper to finish, and releases its listeners.
+ // Environment is explicit for the wrapper process and inherited by its children.
+ for(const[key,value]of Object.entries(receipt.environment))process.env[key]=value;
+ await runStationLaunchCommand(process.execPath,childArgs);
 }
 if(process.argv[1]&&await realpath(process.argv[1])===await realpath(fileURLToPath(import.meta.url)))main().catch(error=>{console.error(error.message);process.exitCode=1;});

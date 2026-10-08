@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {assertSparseStationWing,runSparseStationCombat} from './pc10-station-combat-adapter.mjs';
+import {assertSparseStationWing,runSparseStationCombat,stationBoardingRead} from './pc10-station-combat-adapter.mjs';
 import {runMinimumCandidateSuccessProbe} from './pc10-minimum-candidate-success.mjs';
 import { runPursuitLimitEnding } from './pc10-full-game-cycle-ending.mjs';
 import { createHash } from 'node:crypto';
@@ -41,7 +41,7 @@ export function stationActivationContext(input){return {code:'P',...input,gm:{..
 export function stationCombatConsoles(){return ['jump-drive','fighter-bay-alpha','fighter-bay-bravo'];}
 export async function readStationLiberation(readDocument,root,expected){const require=createRequire(new URL('../functions/package.json',import.meta.url));const {parseCandidateStationLiberations}=require('../functions/lib/candidateStationLiberation.js');const markers=parseCandidateStationLiberations(await readDocument('serverState/candidateStationLiberations'));const marker=markers[`${expected.groupId}:${expected.coordinate}`];assert.ok(marker);for(const key of ['sessionId','groupId','coordinate','sourceId','cycle'])assert.equal(marker[key],expected[key]);assert.equal(marker.cycle,root.currentTurn);return marker;}
 export function minimumStationPlan(){return {actualAuthenticatedActors:2,configuredRoles:13,browserProcesses:1,browserContexts:2,hardCapMs:1200000,probeFamily:'station-success',forcedOutcome:false};}
-export async function runStationWorkflow(operations){await operations.setup();await operations.stationArrivalMaintenance();await operations.stationArrival();await operations.stationDeferCombat();await operations.advance(2);await operations.stationCombatMaintenance();await operations.stationCombat();await operations.stationActivate();await operations.stationEnding();}
+export async function runStationWorkflow(operations){await operations.setup();await operations.stationArrivalMaintenance();await operations.stationDeferCombat();await operations.advance(2);await operations.stationCombatMaintenance();await operations.stationArrival();await operations.stationCombat();await operations.stationActivate();await operations.stationEnding();}
 export function minimumPursuitClosurePlan(){return {actualAuthenticatedActors:2,configuredRoles:13,browserProcesses:1,browserContexts:2,hardCapMs:300000,probeFamily:'pursuit-closure',nClosedHistoryObserved:false};}
 export async function presentPursuitCycle(surfaces,observe,present=completeOfferedCyclePresentation){for(const surface of surfaces)await present(surface,await observe(surface),{clearBriefing:true});}
 export async function runPursuitClosureWorkflow(operations){await operations.setup();await operations.pursuitAndClose();}
@@ -613,7 +613,7 @@ async function enterRole(surface,label){
    await action(gm,'startGame',async()=>{await training.getByRole('button',{name:'Start full-game demo // Advance to Cycle 1',exact:true}).click();await training.getByRole('button',{name:'ARE YOU SURE? // START FULL-GAME DEMO // CYCLE 1',exact:true}).click();});
    await liveGm(gm,'GM1','active');
    for(const surface of surfaces)await completeOfferedCyclePresentation(surface,await snapshot(surface,'Actual Cycle1 presentation'),{clearBriefing:true});
-   if(sparse){const reader=await memberReady(recipient,'Recipient');groupId=reader.fleetGroupId;claims.push(`Fresh normal13-role manual setup with only GM and ${stationOnly?'Wing':'one ordinary reader'}; no Ring prerequisites or recovery replay`);return;}
+   if(sparse){const reader=await memberReady(recipient,'Recipient');groupId=reader.fleetGroupId;if(stationOnly)evidence.stationWingOriginal=reader;claims.push(`Fresh normal13-role manual setup with only GM and ${stationOnly?'Wing':'one ordinary reader'}; no Ring prerequisites or recovery replay`);return;}
    const science=await memberReady(recipient,'Recipient'),engineer=await memberReady(owner,'Owner');assert.equal(science.fleetGroupId,engineer.fleetGroupId);groupId=science.fleetGroupId;
    const current=await recordRoot();ships=current.activeVesselIds;assert.equal(ships.length,6);assert.ok(ships.includes('aegis'));
    coordinate=await op(async deadlineAt=>{await liveGm(gm,'GM1','active',{deadlineAt});return readRingCoordinate(gm);});
@@ -631,7 +631,7 @@ async function enterRole(surface,label){
    await mark('actual paid Station arrival and genuine Wing berth');
    await runStationPaidArrivals(ships,{grant,jump:async shipId=>{const before=await recordRoot(),result=await sdk(gm,'jumpShip',{sessionId:sid,instanceId:gm1Instance,shipId,destination:coordinate,requestId:crypto.randomUUID()});assertRingPaidArrival(result,before,await recordRoot(),shipId);}});
    const nav=await db.doc(`sessions/${sid}/serverState/navigation`).get();assertStationNavigation(nav,ships,coordinate);
-   const wing=await fullMember(recipient);assertSparseStationWing(wing,wing);assert.equal(wing.fleetGroupId,groupId);evidence.stationWingOriginal=wing;
+   const wing=await fullMember(recipient);assert.equal((await recordRoot()).currentTurn,2);assert.equal(wing.fleetGroupId,groupId);evidence.stationWingOriginal=beginStationCombatWing(evidence.stationWingOriginal,wing);
    claims.push('Six real charged paid P arrivals; normal movement establishes exact original Wing AEGIS memberShipIds berth');
   },
   async stationDeferCombat(){
@@ -650,7 +650,7 @@ async function enterRole(surface,label){
   async stationCombatMaintenance(){
    await mark('legitimate Station Cycle2 maintenance and actual fighter charges');
    for(const ship of ships)await maintain(ship,ship==='aegis'?stationCombatConsoles():['jump-drive']);
-   await coordination(2);evidence.stationWingOriginal=beginStationCombatWing(evidence.stationWingOriginal,await fullMember(recipient));
+   await coordination(2);
   },
   async stationCombat(){
    await mark('source Station combat with real Wing choices and ordinary GM composition');
@@ -676,9 +676,13 @@ async function enterRole(surface,label){
       if(await button.isVisible()&&await button.isEnabled()){await action(recipient,'commitWolfFighterRangeActionChoice',()=>button.click());return;}
      }
     }else if(current.currentStep==='boarding'){
-     const view=await sdk(recipient,stationBoardingReadEndpoint,{sessionId:sid});assert.equal(view.sessionId,sid);
+     const boarding=await stationBoardingRead(current,{sessionId:sid,readAttack,readChoice:()=>op(async()=>{
+      assertSparseStationWing(await fullMember(recipient),evidence.stationWingOriginal);
+      const data={sessionId:sid},reply=await recipient.callable(stationBoardingReadEndpoint,data,Math.min(35000,deadlineAt-Date.now()));
+      receipts.push({endpoint:stationBoardingReadEndpoint,request:data,result:reply,transport:'ordinary browser SDK; fresh original attack race fence'});return reply;
+     })});if(boarding.kind!=='choice')return;const view=boarding.view;
      if(view.type==='wolf-boarding-defence-choice-view'&&view.choiceStatus==='pending'){
-      assert.equal(view.turn,current.turn);assert.equal(view.revision,current.revision);assert.equal(view.targetShipId,'aegis');assert.ok(Number.isSafeInteger(view.availableSecurityTeams)&&view.availableSecurityTeams>=0);
+      assert.equal(view.turn,current.turn);assert.equal(view.targetShipId,'aegis');assert.ok(Number.isSafeInteger(view.availableSecurityTeams)&&view.availableSecurityTeams>=0);
       const panel=recipient.page.getByRole('region',{name:/ boarding defence$/i}).filter({has:recipient.page.getByRole('button',{name:'Commit defence',exact:true})});await panel.getByRole('combobox').selectOption(String(view.availableSecurityTeams));await action(recipient,'commitWolfBoardingDefenceChoice',()=>panel.getByRole('button',{name:'Commit defence',exact:true}).click());return;
      }
      assert.equal(view.type,'wolf-boarding-defence-choice-unavailable');assert.ok(['no-boarders','not-your-choice'].includes(view.reason));
