@@ -436,6 +436,7 @@ export async function runP631MemberRateSecurityUiProof() {
           { deadlineAt: gmAdmissionDeadlineAt });
           failureStage = 'normal local GM authorization';
           await proofLabelStage('normal local GM authorization', evidence, gate.evidenceDirectory)();
+          const normalPlayerAtAdmission = live;
           const authorizationDeadlineAt = Date.now() + OPERATION_TIMEOUT_MS;
           budget.assertBefore(OPERATION_TIMEOUT_MS);
           await boundedUiAction(authorizationDeadlineAt, 'Open session settings', timeout =>
@@ -465,6 +466,19 @@ export async function runP631MemberRateSecurityUiProof() {
             settings.getByRole('button', { name: 'Revoke GM access', exact: true }).waitFor({ timeout }));
           await boundedUiAction(authorizationDeadlineAt, 'Close session settings', timeout =>
             settings.getByRole('button', { name: 'Close settings', exact: true }).click({ timeout }));
+          live = await gm.until('Original connected player after local GM authorization', state =>
+            state.hasAuth && state.sameActor && state.uidHash === shortHash(actorUids.get('GM')) &&
+            state.sessionId === owned.sessionId && state.meSessionId === owned.sessionId &&
+            state.profileRoleId === null && state.profileSessionId === null && state.playerRole === 'player' &&
+            state.connected === true && state.currentOwnPlayerConfirmed === true &&
+            state.connectionGeneration === live.connectionGeneration && state.connection === 'live' &&
+            state.freshness === 'server' && state.sdkHasServerAuthority === true && state.sdkResumePending === false &&
+            state.kicked === false && state.instanceId === null && state.gmInstanceOwned === false,
+          { deadlineAt: authorizationDeadlineAt });
+          for (const key of ['uidHash', 'sessionId', 'meSessionId', 'playerRole', 'connectionGeneration']) {
+            assert.equal(live[key], normalPlayerAtAdmission[key],
+              `Local GM authorization must preserve the original connected player ${key}.`);
+          }
           failureStage = 'normal live GM claim';
           const gmJoinDeadlineAt = Date.now() + OPERATION_TIMEOUT_MS;
           budget.assertBefore(OPERATION_TIMEOUT_MS);
@@ -474,17 +488,20 @@ export async function runP631MemberRateSecurityUiProof() {
             gm.page.getByLabel('Input GM Name', { exact: true }).fill('P631 rate-limit facilitator', { timeout }));
           const claimed = await action(gm, 'claimGmInstance', remaining =>
             gm.page.getByRole('button', { name: 'Join as GM', exact: true }).click({ timeout: remaining() }),
-          { gm: true, deadlineAt: gmJoinDeadlineAt });
+          { deadlineAt: gmJoinDeadlineAt });
           const claimedInstanceId = claimed.data.instanceId;
           assert.match(claimedInstanceId ?? '', /^[\w-]{1,128}$/);
           assert.equal(claimed.result.instance.id, claimedInstanceId);
           live = await gm.until('Original live GM authority', state => state.hasAuth && state.sameActor &&
             state.uidHash === shortHash(actorUids.get('GM')) && state.sessionId === owned.sessionId &&
-            state.meSessionId === owned.sessionId && state.playerRole === 'gm' && state.gmInstanceOwned &&
-            state.instanceId === claimedInstanceId && state.connection === 'live' && state.freshness === 'server' &&
+            state.meSessionId === owned.sessionId && state.playerRole === 'gm' && state.connected === true &&
+            state.currentOwnPlayerConfirmed === true && state.kicked === false && state.connectionGeneration >= 1 &&
+            state.gmInstanceOwned && state.instanceId === claimedInstanceId &&
+            state.connection === 'live' && state.freshness === 'server' &&
             state.sdkHasServerAuthority === true && state.sdkResumePending === false &&
             state.invalidFields?.length === 0 && state.profileRoleId === null && state.profileSessionId === null,
           { deadlineAt: gmJoinDeadlineAt });
+          const claimedGeneration = live.connectionGeneration;
           owned.instanceId = claimedInstanceId;
           assert.match(owned.instanceId ?? '', /^[\w-]{1,128}$/);
 
@@ -510,9 +527,12 @@ export async function runP631MemberRateSecurityUiProof() {
             setup.getByRole('button', { name: 'Confirm setup // Confirm roster', exact: true }).click({ timeout: remaining() }),
           { gm: true, deadlineAt: setupDeadlineAt });
           assert.equal(confirmed.result.status, 'committed');
-          const setupState = await gm.until('Original legal Cycle 0 roster', state => state.setupConfirmed &&
+          const setupState = await gm.until('Original legal Cycle 0 roster', state => state.hasAuth && state.sameActor &&
+            state.setupConfirmed &&
             state.uidHash === shortHash(actorUids.get('GM')) && state.sessionId === owned.sessionId &&
-            state.meSessionId === owned.sessionId && state.playerRole === 'gm' && state.cycle === 0 &&
+            state.meSessionId === owned.sessionId && state.playerRole === 'gm' && state.connected === true &&
+            state.currentOwnPlayerConfirmed === true && state.kicked === false &&
+            state.connectionGeneration === claimedGeneration && state.cycle === 0 &&
             state.phase === 'casting' && state.gmInstanceOwned && state.instanceId === owned.instanceId &&
             state.connection === 'live' && state.freshness === 'server' && state.sdkHasServerAuthority === true &&
             state.sdkResumePending === false && state.profileRoleId === null && state.profileSessionId === null &&
@@ -535,9 +555,12 @@ export async function runP631MemberRateSecurityUiProof() {
           assert.equal(original.httpStatus, 200);
           assert.equal(original.result.status, 'committed');
           assert.deepEqual(original.result.fullGameDemo, { status: 'preparing', progression: 'manual' });
-          const prepared = await gm.until('Original manual Cycle 0 preparation', state => state.cycle === 0 &&
+          const prepared = await gm.until('Original manual Cycle 0 preparation', state => state.hasAuth && state.sameActor &&
+            state.cycle === 0 &&
             state.uidHash === shortHash(actorUids.get('GM')) && state.sessionId === owned.sessionId &&
-            state.meSessionId === owned.sessionId && state.playerRole === 'gm' && state.phase === 'casting' &&
+            state.meSessionId === owned.sessionId && state.playerRole === 'gm' && state.connected === true &&
+            state.currentOwnPlayerConfirmed === true && state.kicked === false &&
+            state.connectionGeneration === claimedGeneration && state.phase === 'casting' &&
             state.gmInstanceOwned && state.instanceId === owned.instanceId && state.connection === 'live' &&
             state.freshness === 'server' && state.fullGameDemo?.status === 'preparing' &&
             state.fullGameDemo?.progression === 'manual' && state.sdkHasServerAuthority === true &&
@@ -815,6 +838,7 @@ async function createSurface(label) {
         current = await bounded(() => surface.observe(), remaining, `${description} SDK/store observation`);
         activeRun.lastReadinessTuple = { surface: label, description,
           observedAt: new Date().toISOString(), state: current };
+        remainingUiMs(deadlineAt, `${description} readiness`, OPERATION_TIMEOUT_MS);
         if (current.hasAuth && surface.originalUid && current.uidHash !== shortHash(surface.originalUid)) {
           throw new Error(`${description}: original registered Auth UID changed during readiness.`);
         }
