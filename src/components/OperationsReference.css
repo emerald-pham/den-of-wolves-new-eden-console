@@ -4,7 +4,7 @@
   gap: 0.5rem;
 }
 
-.operations-reference__toggle {
+.operations-reference .operations-reference__toggle {
   min-height: 44px;
   display: flex;
   align-items: center;
