@@ -136,7 +136,8 @@ export async function observeFullGameDemoPresentationMember(surface) {
       hasAuth: true, sameActor: true,
       uidHash: mode === 'readiness-changed-uid' && !member && phase === 'created' && !pending
         ? uidHash('different-registered-uid') : uidHash(pageUid),
-      sessionId: !member && mode === 'readiness-foreign-session' && phase === 'created' && !pending
+      sessionId: mode === 'readiness-foreign-session' && !member && phase === 'created' && !pending ||
+          member && mode === 'readiness-member-foreign-session'
         ? 'foreign-p631-session' : 'owned-p631-session',
       meSessionId: !member && mode === 'readiness-foreign-member-session' && phase === 'created' && !pending
         ? 'foreign-p631-session' : 'owned-p631-session',
@@ -144,11 +145,18 @@ export async function observeFullGameDemoPresentationMember(surface) {
       playerRole: phase === 'claimed' || phase === 'setup' || phase === 'prepared' ? 'gm' : 'player',
       connected: true, currentOwnPlayerConfirmed: true, kicked: false, escapeLocked: false,
       replacementRoleId: null, replacementStatus: null,
+      connectionGeneration: 1, identityHydrationRevision: 1, assignedRoleId: null,
+      activeConsoleRoleId: null, seatId: null, currentCanonicalSeatOwned: false,
       connection: 'live', freshness: 'server',
-      sdkHasServerAuthority: !pending && !(mode === 'readiness-stale-sdk' && !member && phase === 'created'),
-      sdkResumePending: pending || mode === 'readiness-stale-sdk' && !member && phase === 'created',
+      sdkHasServerAuthority: !pending && !(mode === 'readiness-stale-sdk' && !member && phase === 'created') &&
+        !(mode === 'readiness-member-stale-sdk' && member),
+      sdkResumePending: pending || mode === 'readiness-stale-sdk' && !member && phase === 'created' ||
+        mode === 'readiness-member-stale-sdk' && member,
       gmInstanceOwned: phase === 'claimed' || phase === 'setup' || phase === 'prepared',
-      instanceId: phase === 'claimed' || phase === 'setup' || phase === 'prepared'
+      instanceId: !member && mode === 'readiness-claimed-foreign-instance' &&
+          (phase === 'claimed' || phase === 'setup' || phase === 'prepared')
+        ? 'different-gm-instance'
+        : phase === 'claimed' || phase === 'setup' || phase === 'prepared'
         ? 'owned-p631-gm-instance'
         : mode === 'readiness-foreign-instance' && !member && phase === 'created' ? 'foreign-gm-instance' : null,
       setupConfirmed: phase === 'setup' || phase === 'prepared', cycle: 0,
@@ -156,7 +164,7 @@ export async function observeFullGameDemoPresentationMember(surface) {
       fullGameDemo: phase === 'prepared' ? { status: 'preparing', progression: 'manual' } : null,
       invalidFields: [],
     };
-    clock().now += mode.startsWith('readiness-') && !isPending ? 60_000 : 5_000;
+    clock().now += 5_000;
     clock().observations.push({ member, phase, sample, pending, state });
     await record(member ? 'member-observation' : 'gm-observation', { phase, sample, pending });
     return state;
@@ -164,9 +172,11 @@ export async function observeFullGameDemoPresentationMember(surface) {
   if (process.env.PC10_P631_TEST_MODE === 'authorization-body-stall') return {
     hasAuth: true, sameActor: true, uidHash: uidHash('controlled-gm-uid'),
     sessionId: 'owned-p631-session', meSessionId: 'owned-p631-session', profileRoleId: null,
-    profileSessionId: null, playerRole: 'player', meSessionId: 'owned-p631-session',
+    profileSessionId: null, playerRole: 'player',
     connected: true, currentOwnPlayerConfirmed: true, kicked: false, escapeLocked: false,
     replacementRoleId: null, replacementStatus: null, connection: 'live', freshness: 'server',
+    connectionGeneration: 1, identityHydrationRevision: 1, assignedRoleId: null,
+    activeConsoleRoleId: null, seatId: null, currentCanonicalSeatOwned: false,
     instanceId: null, gmInstanceOwned: false, invalidFields: [],
     sdkHasServerAuthority: true, sdkResumePending: false,
   };
@@ -257,6 +267,7 @@ class Locator {
   async count() { return 3; }
   async all() { return [1, 2, 3].map(index => new Locator('checkbox-' + index)); }
   getByRole(role, options = {}) { return new Locator(options.name ?? role); }
+  getByLabel(name) { return new Locator(name); }
   async click(options = {}) {
     trace().clickTimeouts ??= []; trace().clickTimeouts.push(options.timeout ?? null);
     trace().events.push({ kind: 'click', name: this.name }); await flush();
@@ -409,9 +420,10 @@ test('P631 local GM authorization response body remains inside its original oper
 test('P631 normal creator waits through pending SDK authority, then qualifies as a player before GM claim and member admission', async () => {
   const run = await runActualRunner('readiness-player-pending-ready');
   try {
+    const retained = JSON.parse(await readFile(join(run.evidenceDirectory, run.failureArtifacts[0]), 'utf8'));
     assert.equal(run.child.status, 1, run.child.stderr);
     assert.equal(run.ownerResult?.failureStage, 'ordinary current-member SDK read exhaustion and same-network GM read',
-      `${run.child.stdout}\n${run.child.stderr}`);
+      `${run.child.stdout}\n${run.child.stderr}\n${retained.originalError?.message ?? ''}`);
     assert.equal(run.ownerResult?.actualAuthenticatedActors, 2);
     assert.equal(run.ownerResult?.cleanup?.closedBrowsers, 2);
     assert.equal(run.ownerResult?.cleanup?.deletedAuthActors, 2);
@@ -449,6 +461,44 @@ test('P631 stale SDK readiness stays outside the GM-authority path and shares cr
     assert.equal(run.child.status, 1, run.child.stderr);
     assert.equal(run.ownerResult?.failureStage, 'normal GM admitted App/store authority');
     assert.equal(run.trace?.events?.some(item => item.kind === 'lifecycle-action'), false);
+    const retained = JSON.parse(await readFile(join(run.evidenceDirectory, run.failureArtifacts[0]), 'utf8'));
+    assert.match(retained.contextInspect ?? '', /sdkHasServerAuthority: false/);
+    assert.match(retained.contextInspect ?? '', /sdkResumePending: true/);
+  } finally { await rm(run.temporary, { recursive: true, force: true }); }
+});
+
+test('P631 live GM readiness must retain the exact instance claimed by the original UI receipt', async () => {
+  const run = await runActualRunner('readiness-claimed-foreign-instance');
+  try {
+    assert.equal(run.child.status, 1, run.child.stderr);
+    assert.equal(run.ownerResult?.failureStage, 'normal live GM claim');
+    assert.deepEqual(run.trace?.events?.filter(item => item.kind === 'lifecycle-action').map(item => item.endpoint),
+      ['claimGmInstance']);
+    assert.ok(run.trace?.observations?.some(item => item.phase === 'claimed'));
+    assert.equal(run.ownerResult?.cleanup?.closedBrowsers, 1);
+  } finally { await rm(run.temporary, { recursive: true, force: true }); }
+});
+
+test('P631 ordinary member readiness rejects a foreign session through its own mounted App authority', async () => {
+  const run = await runActualRunner('readiness-member-foreign-session');
+  try {
+    assert.equal(run.child.status, 1, run.child.stderr);
+    assert.equal(run.ownerResult?.failureStage, 'normal ordinary member App/store admission');
+    assert.equal(run.ownerResult?.actualAuthenticatedActors, 2);
+    assert.equal(run.ownerResult?.cleanup?.closedBrowsers, 2);
+    assert.match(run.trace?.observations?.filter(item => item.member).at(-1)?.state.sessionId ?? '', /^foreign-/);
+    const retained = JSON.parse(await readFile(join(run.evidenceDirectory, run.failureArtifacts[0]), 'utf8'));
+    assert.match(retained.originalError?.message ?? '', /unexpected session identity/);
+  } finally { await rm(run.temporary, { recursive: true, force: true }); }
+});
+
+test('P631 ordinary member does not qualify until current-member SDK authority is fresh', async () => {
+  const run = await runActualRunner('readiness-member-stale-sdk');
+  try {
+    assert.equal(run.child.status, 1, run.child.stderr);
+    assert.equal(run.ownerResult?.failureStage, 'normal ordinary member App/store admission');
+    assert.equal(run.ownerResult?.actualAuthenticatedActors, 2);
+    assert.equal(run.trace?.events?.some(item => item.kind === 'member-observation'), true);
     const retained = JSON.parse(await readFile(join(run.evidenceDirectory, run.failureArtifacts[0]), 'utf8'));
     assert.match(retained.contextInspect ?? '', /sdkHasServerAuthority: false/);
     assert.match(retained.contextInspect ?? '', /sdkResumePending: true/);
