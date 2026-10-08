@@ -6,6 +6,10 @@ import { dirname, join } from 'node:path';
 import { chromium } from 'playwright';
 import { createPc07AuthenticatedSession } from './pc07-authenticated-session.mjs';
 
+if (process.argv[2] === '--member-rate') {
+  const { runP631MemberRateSecurityUiProof } = await import('./pc10-member-rate-security-ui-proof.mjs');
+  await runP631MemberRateSecurityUiProof();
+} else {
 const evidencePath = process.env.PC10_SECURITY_EVIDENCE_PATH;
 assert.ok(evidencePath, 'An external evidence path is required.');
 const origin = process.env.PC07_LOCAL_GM_ORIGIN;
@@ -283,4 +287,5 @@ try {
 } finally {
   await browser?.close();
   await fixture?.cleanup();
+}
 }
