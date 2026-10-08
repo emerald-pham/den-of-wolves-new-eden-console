@@ -226,3 +226,13 @@ test('PR verification retains merge integration and trusted reusable verificatio
   assert.ok(checkout?.includes('ref: ${{ inputs.ref || github.sha }}'),
     'PR verification retains its synthetic merge; the trusted exact-main ref takes priority');
 });
+
+
+test('exact-SHA typography verification also exercises the production-built cycle briefing consumer', () => {
+  assert.equal(packageJson.scripts['test:cycle-briefing:browser'], 'node scripts/test-cycle-briefing-render.mjs');
+  const step = ci.split(/^      - /m).slice(1).find(step => step.startsWith('name: Production-built cycle briefing typography'));
+  assert.ok(step, 'the real consumer regression must be wired into CI rather than left as local-only evidence');
+  assert.ok(step.includes("if: steps.change_scope.outputs.typography == 'true'"));
+  assert.ok(step.includes('CYCLE_RENDER_EVIDENCE: /tmp/pc04-typography/cycle-briefing'));
+  assert.ok(step.includes('run: npm run test:cycle-briefing:browser'));
+});

@@ -424,8 +424,9 @@
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
   gap: 0.5rem;
-  padding: max(0.5rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-left)) max(0.5rem, env(safe-area-inset-bottom));
-  background: var(--cic-void);
+  /* Paint the blue envelope to the physical edges; inset content, not its ground. */
+  padding: 0;
+  background: var(--cic-panel);
   pointer-events: none;
 }
 .turn-interstitial-layout > .intrusion--fleet {
@@ -434,7 +435,8 @@
   grid-row: 1;
   grid-column: 1;
   min-height: 0;
-  padding: 0.5rem 0;
+  padding: max(0.5rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right))
+    0.5rem max(1rem, env(safe-area-inset-left));
   overflow-y: auto;
   align-items: center;
 }
@@ -443,7 +445,8 @@
   inset: auto;
   grid-row: 2;
   grid-column: 1;
-  width: min(40rem, 100%);
+  width: min(40rem, calc(100% - max(1rem, env(safe-area-inset-left)) - max(1rem, env(safe-area-inset-right))));
+  margin-bottom: max(0.5rem, env(safe-area-inset-bottom));
   pointer-events: auto;
 }
 .turn-interstitial-clear {

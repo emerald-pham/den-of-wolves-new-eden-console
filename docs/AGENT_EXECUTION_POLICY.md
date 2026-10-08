@@ -129,6 +129,45 @@ deployed, and live-proof gaps; reuse ordinary task documentation, not a new
 measurement system or universal gate. Record ownership transfer, preserve all
 work, and give the successor exact remaining seams and active worker boundaries.
 
+
+## Mandatory functional test-first; proportional test scope
+
+Owner correction, 2026-10-08: every functional change requires a meaningful
+test run observed RED before implementation, followed by implementation and
+GREEN. This includes repairs and interactive layout, visibility, defaults,
+parsers and provider behavior. Risk determines test selection, execution
+breadth and regression depth; it never permits implementation-first for
+low-risk functionality. Choose the smallest affected consumer/transition or
+rendered check that can discriminate the defect, and retain the actual failure.
+Pure prose/documentation uses consistency review. Preserve separate test-first
+commits and valid small-cohort evidence; do not turn this into a blanket full
+suite, every-state or all-account matrix. A later base-versus-fixed failure
+validates a guard retrospectively but does not establish test-first chronology.
+Report missing contemporaneous evidence honestly and hold unvalidated
+functionality from release. This correction supersedes contrary earlier rules.
+
+## Routine responsive UI acceptance
+
+For every UI change, map each affected risk to a concrete consumer test or
+rendered review of the actual final build. Routine acceptance includes narrow
+mobile widths, long titles/labels/values, enlarged text, and loading/error/empty
+states plus keyboard/focus wherever those conditions affect the changed UI.
+Assert no unintended horizontal overflow or clipped controls/text; preserve
+readable primary text and hierarchy. Keep content inset for safe areas without
+insetting a background meant to reach the screen edges.
+
+Choose a small representative set from those risks, not every combination or
+all actors/accounts. Independent typography review inspects actual painted
+fonts/fallback, hierarchy and readability alongside computed size, weight and
+line height; a matching CSS family string alone is insufficient. Include at
+least one targeted broken-path/negative control showing a new regression guard
+catches the original issue. Keep observed failing evidence and distinguish
+implemented assertions, rendered inspections, guidance-only requirements and
+remaining gaps in the handback. TDD protects the paths its tests actually
+exercise; a final-state fixture or helper assertion cannot prove a consumer
+transition, emitted build or pixel contract.
+
+
 ## Batched PC releases
 
 Treat one product checkpoint as one release candidate. Finish and reconcile all

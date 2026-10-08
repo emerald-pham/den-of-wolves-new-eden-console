@@ -1,7 +1,7 @@
 {
   "name": "den-of-wolves-new-eden-console",
   "private": true,
-  "version": "0.5.69",
+  "version": "0.5.70",
   "type": "module",
   "description": "Den of Wolves: New Eden Unofficial Companion Console",
   "engines": {
@@ -21,6 +21,7 @@
     "test:functions": "vitest run --project functions",
     "test:font-consistency": "vitest run --project unit src/styles/aesthetic.test.ts",
     "test:typography:browser": "node scripts/test-typography-browser.mjs",
+    "test:cycle-briefing:browser": "node scripts/test-cycle-briefing-render.mjs",
     "test:typography:release-gate": "node --test scripts/test-typography-release-gate.mjs",
     "test:render:p591": "node scripts/prompt-591-render.mjs",
     "test:render:p602": "node scripts/prompt-602-return-navigation.mjs",
