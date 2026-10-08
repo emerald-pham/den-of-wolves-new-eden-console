@@ -205,3 +205,53 @@ Prior observations retain their exact source binding; these planning updates
 alone add no implementation, native evidence, fixed catalog closure or release
 acceptance. The fixed 48 PC10 rows and all 751 statuses remain unchanged. Other
 source disputes outside the five approved scopes remain unresolved.
+
+## Remaining parity source reconciliation — October 8
+
+The remaining 18 audit obligations have bounded implementation owners across
+four groups. The isolated reconciliation candidate at `694a03c4` connects
+A, C and D, covering 11 obligations. B's seven obligations are still in its
+assigned checkout. The canonical parent owns current-main integration,
+acceptance, runtime allocations and release; this intermediate source work
+earns no fixed catalog closures.
+
+| Group | Obligations | Connected source and remaining acceptance |
+| --- | --- | --- |
+| A | T03, T04, T09 | Environmental damage applies its casualty consequence; ordinary quarantine arrivals retain the cycle limit; paired fighter exchange uses current Wing Commander authority. The worker's focused checks and exact handoff are retained. Reconciled review, normal authenticated gameplay and rendered verification remain open. |
+| B | T07, T08, T10, T18, T19, T20, T21 | The assigned owner is finishing Warrior opportunity/agency and durable mission research, console, nebula and K attack consequences. Root owns the shared transaction and listener integration after the committed handoff. No connected or native pass is inferred from leaf tests. |
+| C | T13–T17 | Final research prices, printed initial crosses, Command/Control and Detector tracks, and paid durable device construction are connected. Actual registered device checks passed 25 tests; research paint contracts passed 50; the affected proof composition passed 30 after its physical-cross recording repair. These are separate source checks, not gameplay or visual evidence. |
+| D | T12, T22, T23 | Amnesty is independent of the previous Address action; restored role goals and recipient-private loyalty guidance are connected. Actual private writers, resume and investigation preserve the guidance and existing private fields. The affected current-member and investigation checks passed 62 tests with existing assertions retained. Reconciled review, private gameplay and rendered verification remain open. |
+
+C's stored research values count additional earned marks. The canonical view
+adds the printed first cross once: three stored marks mean four physical
+crosses, and four mean five physical crosses and completion. Legacy five-mark
+records remain complete. The separately owned N/O candidate still compares
+raw stored values in its contribution and workspace consumers. Its owner must
+reconcile those consumers under meaningful behavioral RED, exact review and
+the existing legacy/edition/authority controls before combined acceptance.
+The approved Home and Deluxe requirements do not change.
+
+P181 Attempt 2 on `74911da2` started local emulators, then stopped at the first
+preflight failure before any browser or actor evidence. Runtime cleanup was
+verified at 18:53:29 UTC and the unused allocation was returned. The subsequent
+inert source preflight reported 32 passes and six failures: three missing
+fixture dependencies, two obsolete baseline applicability assertions and one
+normal navigation tuple mismatch. Missing imports and source-presence assertions
+receive no functional RED credit. The direct CLI retained only the safe error
+fingerprint, so the exact raw first error is unavailable.
+
+The original Sol source owner is repairing that bounded compatibility and
+private failure-retention scope in a new isolated checkout. Preserve real
+authority, privacy, receipt, resume and deadline requirements. Before another
+allocation request, the complete source preflight must actually pass against
+the exact reviewed candidate and retained build. A change to the preflight
+ordering requires meaningful consumer RED before implementation and exact
+independent review. Historical chronology gaps remain recorded; these repairs
+do not retroactively make them compliant.
+
+Exact worker, root and failure receipts remain in `/tmp/dow-pc10-evidence`,
+including `PC10_PARITY_A_T03_T04_T09_HANDOFF_20261008.json`,
+`PC10_PARITY_C_handoff.json`,
+`OWNER_PC10_PARITY_D_ROOT_SERIAL_RECONCILIATION_AND_FIDELITY_RECEIPT_20261008.json`,
+and `p181-normal-two-actor-74911da2-attempt2/FIRST_NATIVE_FAILURE_AND_CLEAN_HANDBACK.json`.
+All 48 PC10 rows remain open: 703/751 overall and 245/293 campaign.
