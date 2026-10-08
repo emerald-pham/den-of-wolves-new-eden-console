@@ -788,6 +788,28 @@ test('rejects a post-freeze turnStatePhase change inside the strict observer fen
   assert.deepEqual(pdf.effects.clicks, []);
 });
 
+test('rejects original member generation drift during the last authoritative phase read before UI intent', async () => {
+  const current = attack('targeting');
+  const pdf = surface('refinery-124-pdf-colonel', { type: 'pdf-escort-wing-launch-view',
+    sessionId, turn: 3, revision: 8, wingRevision: 4, launched: false, eligible: true });
+  const opts = options([{ roleId: pdf.label, surface: pdf }], current);
+  const pinned = structuredClone(stationPhaseEnvelope(pdf.testActor));
+  let inIntent = false, finalPhaseReads = 0;
+  opts.readTurnState = async () => {
+    if (inIntent && ++finalPhaseReads === 4) pdf.testActor.connectionGeneration++;
+    return structuredClone(pinned);
+  };
+  opts.action = async (surface, endpoint, choose, metadata) => {
+    inIntent = true;
+    await choose();
+    return { endpoint, data: metadata.expectedRequest, httpStatus: 200, result: { status: 'committed' } };
+  };
+
+  await assert.rejects(dispatchStationCrewChoice(current, opts), /generation|Original combat/i);
+  assert.equal(finalPhaseReads, 4, 'Drift is introduced during the last phase source await after prior actor samples.');
+  assert.deepEqual(pdf.effects.clicks, [], 'A final phase read must be followed by current actor and attack checks before UI intent.');
+});
+
 test('does not treat a generic action wrapper status as a committed source receipt', async () => {
   const pdf = surface('refinery-124-pdf-colonel', { type: 'pdf-escort-wing-launch-view',
     sessionId, turn: 3, revision: 8, wingRevision: 4, launched: false, eligible: true });
