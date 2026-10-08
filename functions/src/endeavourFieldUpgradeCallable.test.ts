@@ -85,6 +85,43 @@ const request = (data: Fields, uid = 'holder') =>
   ({ data, auth: { uid } }) as CallableRequest<Fields>;
 const put = (path: string, fields: Fields) => mock.documents.set(path, { ...fields });
 
+it.each([4, 5])('buys a permanently researched console from additional-mark count %s without advancing research', async (marks) => {
+  put('sessions/s1/serverState/endeavourResearch', { reactor: marks });
+  const session = mock.documents.get('sessions/s1')!;
+  const resources = session.shipResources as Record<string, Fields>;
+  resources.shepherd.materials = 4;
+  await expect(upgradeEndeavourFieldTargets.run(request({ ...command,
+    requestId: `final-price-${marks}`, targets: targets(['shepherd', 'reactor']),
+  }))).resolves.toMatchObject({ status: 'committed', upgradeRevision: 1 });
+  expect(mock.documents.get('sessions/s1')).toMatchObject({
+    shipResources: { shepherd: { materials: 0 } }, shipUpgrades: { shepherd: ['reactor'] },
+  });
+  expect(mock.documents.get('sessions/s1/serverState/endeavourResearch')).toEqual({ reactor: marks });
+  expect(mock.documents.get('sessions/s1/serverState/endeavourFieldUpgrades')).toMatchObject({
+    targets: [{ materialCost: 4, crossedBox: 4 }],
+  });
+});
+
+it('charges the fourth printed Command and Control price of seven materials and rejects six atomically', async () => {
+  put('sessions/s1/serverState/endeavourResearch', { 'command-and-control': 3 });
+  const session = mock.documents.get('sessions/s1')!;
+  const resources = session.shipResources as Record<string, Fields>;
+  resources.aegis.materials = 6;
+  const purchase = { ...command, requestId: 'command-control-fourth', targets: targets(['aegis', 'command-and-control']) };
+  await expect(upgradeEndeavourFieldTargets.run(request(purchase)))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+  resources.aegis.materials = 7;
+  await expect(upgradeEndeavourFieldTargets.run(request(purchase))).resolves.toMatchObject({ status: 'committed' });
+  expect(mock.documents.get('sessions/s1')).toMatchObject({
+    shipResources: { aegis: { materials: 0 } }, shipUpgrades: { aegis: ['storage', 'command-and-control'] },
+  });
+  expect(mock.documents.get('sessions/s1/serverState/endeavourFieldUpgrades')).toMatchObject({
+    targets: [{ materialCost: 7, crossedBox: 3 }],
+  });
+});
+
 beforeEach(() => {
   mock.documents.clear();
   mock.get.mockClear();
@@ -140,7 +177,7 @@ it('exports the Team research writer and private Scientist workspace from produc
       status: 'ready', sessionId: 's1', cycle: 3, researchRevision: 0,
       progress: { reactor: 1 },
       tracks: expect.arrayContaining([
-        expect.objectContaining({ trackId: 'reactor', crossedBoxes: 1, currentMaterialCost: 7 }),
+        expect.objectContaining({ trackId: 'reactor', crossedBoxes: 2, currentMaterialCost: 7 }),
       ]),
     });
 

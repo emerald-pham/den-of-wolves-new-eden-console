@@ -8,7 +8,7 @@ import {
   type EndeavourResearchTrackId,
 } from './endeavourResearch';
 
-const expectedCosts: Readonly<Record<EndeavourResearchTrackId, readonly number[]>> = {
+const expectedCosts: Readonly<Record<EndeavourResearchTrackId, readonly (number | null)[]>> = {
   reactor: [8, 7, 6, 5, 4],
   'jump-drive': [14, 10, 6, 4, 3],
   hydroponics: [8, 4, 2, 1, 1],
@@ -18,11 +18,11 @@ const expectedCosts: Readonly<Record<EndeavourResearchTrackId, readonly number[]
   'fuel-refinery': [14, 12, 8, 6, 5],
   'mining-drone-control': [18, 14, 10, 6, 4],
   'ram-scoop': [14, 12, 10, 8, 5],
-  'command-and-control': [12, 9, 7, 5, 6],
+  'command-and-control': [12, 9, 7, 7, 6],
   'point-defence-lasers': [12, 11, 8, 5, 2],
   'missile-launchers': [12, 10, 7, 5, 3],
   'ecm-device': [18, 13, 9, 7, 5],
-  'wolf-agent-detector': [18, 12, 7, 5],
+  'wolf-agent-detector': [null, null, 18, 12, 10],
 };
 
 const expectedConsoleTracks: Readonly<Record<string, EndeavourResearchTrackId>> = {
@@ -58,23 +58,23 @@ describe('Endeavour research tracks', () => {
       const costs = expectedCosts[trackId];
       const first = advanceEndeavourResearch({}, trackId);
       expect(first).toMatchObject({
-        crossedBox: 0,
+        crossedBox: 1,
         previousMaterialCost: costs[0],
         progress: { [trackId]: 1 },
         track: {
           trackId,
-          crossedBoxes: 1,
+          crossedBoxes: 2,
           currentMaterialCost: costs[1] ?? null,
           complete: costs.length === 1,
         },
       });
 
-      const later = advanceEndeavourResearch({ [trackId]: costs.length - 1 }, trackId);
+      const later = advanceEndeavourResearch({ [trackId]: costs.length - 2 }, trackId);
       expect(later).toMatchObject({
         crossedBox: costs.length - 1,
-        previousMaterialCost: costs.at(-1),
-        progress: { [trackId]: costs.length },
-        track: { currentMaterialCost: null, complete: true },
+        previousMaterialCost: costs.at(-2),
+        progress: { [trackId]: costs.length - 1 },
+        track: { crossedBoxes: costs.length, currentMaterialCost: costs.at(-1), complete: true },
       });
       expect(() => advanceEndeavourResearch(later.progress, trackId)).toThrow(/already complete/i);
     },

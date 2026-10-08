@@ -19,12 +19,28 @@ const workspace: EndeavourResearchWorkspace = {
   cadence: { cycle: 3, revision: 0, choices: [] },
   progress: { reactor: 1 },
   tracks: [{
-    trackId: 'reactor', name: 'Reactor', crossedBoxes: 1,
+    trackId: 'reactor', name: 'Reactor', crossedBoxes: 2,
     totalBoxes: 5, currentMaterialCost: 7, complete: false,
   }],
   shepherdOre: 10,
   fieldUpgradeState: { upgradeRevision: 0, targetsUsedThisCycle: 0 },
 };
+
+it('accepts completed research with a permanent price and incomplete unavailable Detector stages from the real reader', async () => {
+  const corrected = { ...workspace, progress: { reactor: 4, 'wolf-agent-detector': 1 }, tracks: [
+    { trackId: 'reactor', name: 'Reactor', crossedBoxes: 5, totalBoxes: 5, currentMaterialCost: 4, complete: true },
+    { trackId: 'wolf-agent-detector', name: 'Wolf Agent Detector', crossedBoxes: 2, totalBoxes: 5,
+      currentMaterialCost: null, complete: false },
+  ] };
+  mocks.call.mockResolvedValueOnce({ data: corrected });
+  await expect(readEndeavourResearchWorkspace()).resolves.toEqual(corrected);
+  const attempt = createEndeavourResearchAttempt({ workspace: corrected, trackId: 'wolf-agent-detector', funding: 'standard' });
+  mocks.call.mockResolvedValueOnce({ data: {
+    ...committedReply(attempt), progress: { reactor: 4, 'wolf-agent-detector': 2 },
+    previousMaterialCost: null, currentMaterialCost: 18,
+  } });
+  await expect(advanceEndeavourResearchTrack(attempt)).resolves.toEqual({ status: 'committed' });
+});
 
 function committedReply(attempt: EndeavourResearchAttempt) {
   return {
