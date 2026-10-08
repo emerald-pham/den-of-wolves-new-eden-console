@@ -95,15 +95,22 @@ async function audienceConsumer({ fault } = {}) {
   const member = { documentTimeOrigin: 1000, uidHash: 'peer-hash', sessionId: 'owned-session', meSessionId: 'owned-session',
     assignedRoleId: 'icebreaker-miner', activeConsoleRoleId: 'icebreaker-miner', seatId: 'icebreaker-miner',
     fleetGroupId: 'fleet-1', connectionGeneration: 2, identityHydrationRevision: 1 };
-  const discovery = { requestId: 'original-scout', noteId: 'original-note', fact: { coordinate: '6798', code: 'N', title: 'Ancient Jump Ring' } };
+  const discovery = { requestId: 'original-scout', noteId: 'original-note', noteRecordedAt: '2026-10-08T05:57:56.000Z',
+    fact: { coordinate: '6798', code: 'N', title: 'Ancient Jump Ring' } };
   let peerObservations = 0, worldReads = 0; const calls = [];
   const scientist = { callable: async (name, payload) => {
     calls.push({ actor: 'requester', name, payload });
     return { status: 'committed', result: name === 'listMyScoutReports'
-      ? [{ requestId: discovery.requestId, noteId: discovery.noteId, status: 'resolved' }]
+      ? [{ requestId: discovery.requestId, noteId: discovery.noteId, status: 'resolved', cycle: 1,
+        entitlementId: fault === 'index-entitlement' ? 'hummingbird' : 'endeavour', targetCoordinate: '6798' }]
       : name === 'readPrivateScoutResult'
-        ? { requesterUid: 'own-scientist', requestId: discovery.requestId, systemFact: discovery.fact }
-        : { id: discovery.noteId, systemFact: discovery.fact } };
+        ? { type: 'private-scout-result', sessionId: fault === 'result-session' ? 'foreign-session' : 'owned-session',
+          requesterUid: 'own-scientist', requestId: discovery.requestId, systemFact: discovery.fact,
+          sourceId: fault === 'result-source' ? 'hummingbird' : 'endeavour', cycle: fault === 'result-cycle' ? 2 : 1,
+          targetCoordinate: '6798', ...(fault === 'result-extra-field' ? { organiserSites: {} } : {}) }
+        : { type: 'player-discovery-note', id: discovery.noteId, systemFact: discovery.fact,
+          cycle: fault === 'note-cycle' ? 2 : 1, targetCoordinate: '6798', recordedAt: discovery.noteRecordedAt,
+          ...(fault === 'note-extra-field' ? { organiserSites: {} } : {}) } };
   } };
   const peer = { callable: async (name, payload) => {
     calls.push({ actor: 'peer', name, payload });
@@ -111,11 +118,14 @@ async function audienceConsumer({ fault } = {}) {
     if (name === 'getCurrentMemberSession') return { status: 'committed', result: {
       type: 'current-member-session', sessionId: 'owned-session', actorUid: 'own-peer', groupId: 'fleet-1',
       session: { id: 'owned-session', currentTurn: 1, ...(fault === 'server-session-leak' ? { scoutResults: {} } : {}) },
+      ...(fault === 'member-top-level-private' ? { scoutResults: {} } : {}),
     } };
     return fault === 'borrowed-gm-leak' && payload.instanceId
       ? { status: 'committed', result: {} } : { status: 'denied', code: 'functions/permission-denied' };
   }, page: { evaluate: async () => ({ candidateReveals: [{ code: 'N', title: 'Ancient Jump Ring', ...(fault === 'coordinate-leak' ? { coordinate: '6798' } : {}) }],
-    reads: [{ kind: 'private-result', status: fault === 'private-doc-leak' ? 'allowed' : 'denied', code: 'permission-denied' }],
+    reads: fault === 'missing-populated-read' ? [] : ['private-result', 'private-request', 'private-audit', 'requester-note',
+      'requester-discovery', 'results-query', 'requests-query', 'audit-query', 'requester-notes-query', 'discovery-query']
+      .map(kind => ({ kind, status: fault === 'private-doc-leak' && kind === 'private-result' ? 'allowed' : 'denied', code: 'permission-denied' })),
     currentMemberPrivateKeys: fault === 'member-session-leak' ? ['scoutResults'] : [], privatePayloadRecorded: false }) } };
   peer.storeModuleUrl = () => 'mounted-store';
   const consume = vm.runInNewContext(`(${node.getText(ast)})`, { assert: check, scientist, peer, sid: 'owned-session', gm1Instance: 'own-gm-instance',
@@ -136,6 +146,16 @@ test('actual audience consumer permits only requester data and same-group candid
 for (const fault of ['peer-index-leak', 'borrowed-gm-leak', 'coordinate-leak', 'private-doc-leak', 'member-session-leak',
   'foreign-group', 'changed-peer-epoch', 'durable-effect', 'server-session-leak']) {
   test(`actual audience consumer refuses ${fault} without granting proof credit`, async () => {
+    await assert.rejects(audienceConsumer({ fault }));
+  });
+}
+
+// These actual wire-shape negatives precede stricter native assertions. The
+// initial valid fixtures above now mirror the existing server projections;
+// no existing consumer assertion or native privacy target is removed.
+for (const fault of ['result-extra-field', 'result-source', 'result-cycle', 'result-session',
+  'note-extra-field', 'note-cycle', 'index-entitlement', 'member-top-level-private', 'missing-populated-read']) {
+  test(`actual audience consumer rejects incomplete or leaked wire contract ${fault}`, async () => {
     await assert.rejects(audienceConsumer({ fault }));
   });
 }
