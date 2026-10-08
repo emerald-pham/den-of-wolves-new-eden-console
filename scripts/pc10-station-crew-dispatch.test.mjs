@@ -4,6 +4,10 @@ import { dispatchStationCrewChoice } from './pc10-station-crew-dispatch.mjs';
 import { runSparseStationCombat } from './pc10-station-combat-adapter.mjs';
 import { observeUiReceipt } from './pc10-browser-ui-receipt.mjs';
 import { heldProofFailureObservations } from './pc10-proof-failure-evidence.mjs';
+import { readFile } from 'node:fs/promises';
+import { webcrypto } from 'node:crypto';
+import { observeFullGameDemoPresentationMember } from './pc10-full-game-demo-proof-helpers.mjs';
+import { dispatchStationWingChoice } from './pc10-fresh-minimum-ring-proof.mjs';
 
 const sessionId = 'session-pc10';
 const deadlineAt = Date.now() + 60_000;
@@ -1634,3 +1638,297 @@ test('Station crew requalifies terminal progress occurring during its ordered-st
  assert.deepEqual(crew.effects.clicks,[]);assert.equal(observations.length,1);
  assert.equal(observations[0].observedAttack.status,'resolved');
 });
+
+// Attempt26 retained Colonel fullMember epoch: generation2/hydration2, null
+// ordinary profile, active Cycle2 owned PDF seat. Its failed summary packet
+// was NOT retained. This executes the actual summary and browser observer
+// producers over controlled Auth/store modules; the surrounding state, UID,
+// mounted controls and mutation response are local source-shaped fixtures.
+const observerRunnerSource = await readFile(new URL('./pc10-fresh-minimum-ring-proof.mjs', import.meta.url), 'utf8');
+const normalObserveStart = observerRunnerSource.indexOf('    async function observe() {');
+const normalObserveEnd = observerRunnerSource.indexOf('    async function until(', normalObserveStart);
+assert.ok(normalObserveStart > 0 && normalObserveEnd > normalObserveStart);
+const actualSummaryProducer = new Function('page', 'storeUrl',
+  `${observerRunnerSource.slice(normalObserveStart, normalObserveEnd)} return observe;`);
+
+async function runtimeObserverFixture(roleId = 'refinery-124-pdf-colonel') {
+  const uid = `controlled-original-${roleId}`, sid = 'attempt26-observer-source';
+  const shipId = roleId === 'wing-commander' ? 'aegis' : 'refinery-124';
+  const member = { uid, sessionId: sid, role: 'player', connected: true, connectionGeneration: 2,
+    assignedRoleId: roleId, activeConsoleRoleId: roleId, seatId: roleId, fleetGroupId: 'fleet-1',
+    replacementRoleId: null, replacementStatus: null };
+  const state = { me: member, connection: 'live', sessionSnapshotFreshness: 'server',
+    identityHydrationRevision: 2, pendingCommands: [], seats: [{ id: roleId, roleId,
+      status: 'claimed', holderUid: uid }], gmInstance: null,
+    session: { id: sid, currentTurn: 2, phase: 'active', fullGameDemo: { status: 'active', progression: 'manual' },
+      memberSessionScope: { groupId: 'fleet-1', vesselIds: [shipId], craftIds: [] },
+      currentActorBerthAuthority: { sessionId: sid, actorUid: uid, groupId: 'fleet-1', role: 'player',
+        connectionGeneration: 2, assignedRoleId: roleId, activeConsoleRoleId: roleId,
+        replacementRoleId: null, replacementStatus: null, shipId },
+      playerDiscovery: { groupId: 'fleet-1', shipId, revision: 4, fleetGroupVesselIds: [shipId] },
+      turnPhase: { turn: 2, teamPhaseEndsAt: '9999-12-31T23:59:59.999Z', openAirspaceEndsAt: '9999-12-31T23:59:59.999Z',
+        airspace: { state: 'restricted', tickerActive: true, pressAccess: false }, progression: 'manual' },
+      turnState: { currentTurn: 2, maxTurn: 8, phase: 'team', phaseRevision: 5,
+        startedAt: '2026-10-08T20:16:10.138Z', endsAt: '9999-12-31T23:59:59.999Z' } } };
+  const authUser = { uid }, sdkAuthority = { hasServerSessionAuthority: true, resumePending: false };
+  const counts = { summary: 0, member: 0, atomic: 0, shared: 0, capture: 0, phase: 0 };
+  const hooks = {}, browserPerformance = { timeOrigin: 1791490623008.6 };
+  const deps = { firebase: { auth: () => ({ currentUser: authUser }) },
+    profile: { activeDemoActorProfile: null }, store: { useSessionStore: { getState: () => state } },
+    authority: { sessionSnapshotAuthorityFor: () => sdkAuthority,
+      memberSessionResumeBlocksFreshness: value => value.resumePending },
+    crypto: { subtle: { digest: async (...args) => { const value = await webcrypto.subtle.digest(...args);
+      await hooks.digest?.(); return value; } } }, performance: browserPerformance,
+    document: { querySelector: () => null, querySelectorAll: () => [] } };
+  const current = { attackId: 'attempt26-original', turn: 2, revision: 1, threatSiteCode: 'P',
+    status: 'declared', currentStep: 'targeting', airspaceLocked: true,
+    targetGroupId: 'fleet-1', threatSourceId: 'arrival-original-p' };
+  let latest = current;
+  const response = { type: 'pdf-escort-wing-launch-view', sessionId: sid, turn: 2, revision: 1,
+    wingRevision: 1, launched: false, eligible: true };
+  const actorSurface = surface(roleId, response, { profileRoleId: null, entitledShipId: shipId,
+    path: `/ships/${shipId}/roles/${roleId}` });
+  actorSurface.storeModuleUrl = () => 'http://127.0.0.1/src/state/useSessionStore.ts';
+  actorSurface.sessionAuthorityModuleUrl = () => 'http://127.0.0.1/src/lib/sessionSnapshotAuthority.ts';
+  actorSurface.page.evaluate = async (callback, args) => {
+    let code = callback.toString();
+    const kind = code.includes('naturalTransmissionMounted') ? 'summary' : code.includes('sdkResumePending') ? 'member'
+      : code.includes('turnPhaseOpenAirspaceEndsAt') ? 'atomic' : 'shared';
+    counts[kind]++; await hooks[kind]?.(counts[kind]);
+    code = code.replaceAll("await import('/src/lib/firebase.ts')", 'deps.firebase')
+      .replaceAll("await import('/src/lib/demoActorContext.ts')", 'deps.profile')
+      .replaceAll('await import(moduleUrl)', 'deps.store')
+      .replaceAll('await import(authorityModuleUrl)', 'deps.authority');
+    assert.doesNotMatch(code, /await import\(/, 'Inject only actual browser module dependencies.');
+    const value = await new Function('deps', 'args', `const {crypto,performance,document}=deps; return (${code})(args);`)(deps, args);
+    await hooks.produced?.(kind, value, counts[kind]);
+    return value;
+  };
+  actorSurface.observe = actualSummaryProducer(actorSurface.page, actorSurface.storeModuleUrl());
+  const readMember = () => observeFullGameDemoPresentationMember(actorSurface, { knownRoleIds: [roleId] });
+  const original = structuredClone(await readMember());
+  const assertMember = async () => {
+    const value = await readMember();
+    assert.deepEqual(value.invalidFields, [], 'Actual mounted member fields must be well formed.');
+    for (const key of ['hasAuth', 'sameActor', 'currentOwnPlayerConfirmed', 'memberScopeMatches',
+      'currentCanonicalSeatOwned', 'currentMemberBerthPresent', 'currentMemberBerthMatches', 'sdkHasServerAuthority'])
+      assert.equal(value[key], true, `Actual mounted member ${key} is required.`);
+    assert.equal(value.sdkResumePending, false);
+    for (const key of ['uidHash', 'sessionId', 'meSessionId', 'profileRoleId', 'profileSessionId', 'playerRole',
+      'assignedRoleId', 'activeConsoleRoleId', 'seatId', 'fleetGroupId', 'replacementRoleId', 'replacementStatus',
+      'connectionGeneration', 'identityHydrationRevision', 'documentTimeOrigin', 'cycle', 'phase'])
+      assert.deepEqual(value[key], original[key], `Actual original member ${key} changed.`);
+    assert.equal(value.connection, 'live');assert.equal(value.freshness, 'server');
+    return value;
+  };
+  const readPhase = async () => { counts.phase++;await hooks.phase?.(counts.phase);
+    return { sessionId: sid, gmAuthority: { ...originalStationGmAuthority, sessionId: sid },
+      session: { phase: state.session.phase, currentTurn: state.session.currentTurn, turnLimit: 8,
+        fullGameDemo: structuredClone(state.session.fullGameDemo), turnPhase: structuredClone(state.session.turnPhase),
+        turnState: structuredClone(state.session.turnState) } }; };
+  const action = async (_surface, endpoint, choose, metadata) => {
+    counts.capture++;await hooks.capture?.();await choose();
+    return { endpoint, httpStatus: 200, data: metadata?.expectedRequest ?? { wingId: 'fighter-wing-alpha' },
+      result: { status: 'committed', launched: true } };
+  };
+  const opts = { actors: [{ roleId, surface: actorSurface }], sessionId: sid, deadlineAt: Date.now() + 2000,
+    assertActor: assertMember, readAttack: async () => structuredClone(latest), readTurnState: readPhase,
+    gmAuthority: { ...originalStationGmAuthority, sessionId: sid }, action };
+  const finalize = () => {
+    latest = { ...current, revision: 4, status: 'resolved', currentStep: 'resolved', airspaceLocked: false,
+      pStationRepeat: { status: 'repeat' } };
+    state.session.turnPhase.airspace.state = 'lifted';
+    Object.assign(state.session.turnState, { phase: 'coordination', phaseRevision: 6,
+      startedAt: state.session.turnPhase.teamPhaseEndsAt, endsAt: state.session.turnPhase.openAirspaceEndsAt });
+  };
+  return { current, state, authUser, sdkAuthority, browserPerformance, deps, counts, hooks, original,
+    actorSurface, opts, readMember, assertMember, readPhase, action, finalize,
+    invoke: () => dispatchStationCrewChoice(current, opts) };
+}
+
+test('Attempt26 actual summary producer feeds mounted PDF getter and normal launch capture without invented security fields', async () => {
+ const f=await runtimeObserverFixture(), summary=await f.actorSurface.observe();
+ assert.equal(summary.hydrationRevision,2);
+ for(const key of ['identityHydrationRevision','seatId','replacementRoleId','replacementStatus','discoveryAuthority'])
+  assert.equal(Object.hasOwn(summary,key),false,`Actual summary intentionally lacks ${key}.`);
+ assert.deepEqual(await f.invoke(),{committed:true});
+ assert.equal(f.counts.capture,1);assert.deepEqual(f.actorSurface.effects.clicks,['Launch PDF Escort Wing']);
+ assert.equal(f.actorSurface.effects.reads[0].endpoint,'getPdfEscortWingLaunch');
+});
+
+test('Attempt26 default Wing observer composes actual fullMember and atomic producers inside normal capture', async () => {
+ const f=await runtimeObserverFixture('wing-commander');
+ f.actorSurface.page.getByRole=(_kind,{name})=>({isVisible:async()=>name==='Launch Fighter Wing Alpha',
+  isEnabled:async()=>true,click:async()=>f.actorSurface.effects.clicks.push(name)});
+ assert.deepEqual(await dispatchStationWingChoice(f.current,{deadlineAt:f.opts.deadlineAt,
+  recipient:f.actorSurface,fullMember:f.assertMember,evidence:{stationWingOriginal:f.original},
+  recoveredLaunches:new Map(),directory:'/tmp/unused-observer-fixture',readAttack:f.opts.readAttack,
+  readTurnState:f.readPhase,gmAuthority:f.opts.gmAuthority,action:f.action}),{committed:true});
+ assert.equal(f.counts.capture,1);assert.ok(f.counts.atomic>=3);assert.deepEqual(f.actorSurface.effects.clicks,['Launch Fighter Wing Alpha']);
+});
+
+// These controls mutate the actual producers' input after the original member
+// has been frozen. Every late boundary must be reached before rejection can
+// count as that boundary's proof; an earlier summary-shape failure is RED.
+function mutateRuntimeObserverAt(f, seam, mutate) {
+ let reached=false;
+ const trigger=()=>{if(!reached){reached=true;mutate(f);}};
+ if(seam==='canonical freeze') f.hooks.atomic=count=>{if(count===3)trigger();};
+ else if(seam==='source getter'){
+  const read=f.actorSurface.callable;
+  f.actorSurface.callable=async(...args)=>{const reply=await read(...args);trigger();return reply;};
+ }else if(seam==='source painter'){
+  const locate=f.actorSurface.page.locator;
+  f.actorSurface.page.locator=(...args)=>{const panel=locate(...args),text=panel.innerText;
+   return {...panel,innerText:async()=>{const value=await text();trigger();return value;}};};
+ }else if(seam==='final choose')f.hooks.capture=trigger;
+ else assert.fail(`Unknown actual observer seam ${seam}.`);
+ return ()=>reached;
+}
+
+for(const seam of ['canonical freeze','source getter','source painter','final choose']){
+ test(`Attempt26 actual PDF canonical adapter rejects hydration drift at ${seam}`,async()=>{
+  const f=await runtimeObserverFixture(),reached=mutateRuntimeObserverAt(f,seam,
+   value=>{value.state.identityHydrationRevision++;});
+  await assert.rejects(f.invoke(),/identityHydrationRevision/);
+  assert.equal(reached(),true,`The ${seam} consumer must actually run.`);
+  assert.deepEqual(f.actorSurface.effects.clicks,[]);
+ });
+}
+
+for(const [name,mutate,reason] of [
+ ['missing hydration',f=>{delete f.state.identityHydrationRevision;},/identityHydrationRevision/],
+ ['malformed hydration',f=>{f.state.identityHydrationRevision='2';},/well formed|identityHydrationRevision/],
+ ['missing member session',f=>{delete f.state.me.sessionId;},/Berth|meSessionId/],
+ ['missing player role',f=>{delete f.state.me.role;},/Berth|playerRole/],
+ ['missing assignment',f=>{delete f.state.me.assignedRoleId;},/Seat|Berth|assignedRoleId/],
+ ['missing active console',f=>{delete f.state.me.activeConsoleRoleId;},/Berth|activeConsoleRoleId/],
+ ['missing seat',f=>{delete f.state.me.seatId;},/seatId/],
+ ['missing generation',f=>{delete f.state.me.connectionGeneration;},/Berth|connectionGeneration/],
+ ['foreign UID',f=>{f.authUser.uid='foreign-user';},/sameActor|UID|OwnPlayer|Berth/],
+ ['foreign session',f=>{f.state.session.id='foreign-session';},/Berth|sessionId/],
+ ['foreign member session',f=>{f.state.me.sessionId='foreign-session';},/Berth|meSessionId/],
+ ['foreign profile role',f=>{f.deps.profile.activeDemoActorProfile={roleId:'wing-commander',sessionId:f.original.sessionId};},/well formed|profileRoleId/],
+ ['foreign profile session',f=>{f.deps.profile.activeDemoActorProfile={roleId:f.state.me.assignedRoleId,sessionId:'foreign-session'};},/profileRoleId|profileSessionId/],
+ ['foreign assignment',f=>{f.state.me.assignedRoleId='wing-commander';},/well formed|Seat|Berth|assignedRoleId/],
+ ['foreign active console',f=>{f.state.me.activeConsoleRoleId='wing-commander';},/well formed|Berth|activeConsoleRoleId/],
+ ['foreign seat',f=>{f.state.me.seatId='wing-commander';},/well formed|seatId/],
+ ['foreign group',f=>{f.state.me.fleetGroupId='fleet-2';},/Scope|Berth|fleetGroupId/],
+ ['replacement role',f=>{f.state.me.replacementRoleId='wing-commander';},/well formed|Berth|replacementRoleId/],
+ ['replacement status',f=>{f.state.me.replacementStatus='assigned';},/Berth|replacementStatus/],
+ ['generation drift',f=>{f.state.me.connectionGeneration++;},/Berth|connectionGeneration/],
+ ['malformed generation',f=>{f.state.me.connectionGeneration='2';},/well formed|connectionGeneration/],
+ ['document drift',f=>{f.browserPerformance.timeOrigin++;},/documentTimeOrigin/],
+ ['revoked canonical seat',f=>{f.state.seats[0].holderUid='foreign-user';},/CanonicalSeat/],
+ ['revoked berth',f=>{f.state.session.currentActorBerthAuthority.actorUid='foreign-user';},/Berth/],
+ ['missing berth',f=>{delete f.state.session.currentActorBerthAuthority;},/Berth/],
+ ['revoked SDK',f=>{f.sdkAuthority.hasServerSessionAuthority=false;},/sdkHasServerAuthority/],
+ ['pending SDK resume',f=>{f.sdkAuthority.resumePending=true;},/false/],
+ ['disconnected member',f=>{f.state.me.connected=false;},/OwnPlayer|Berth/],
+ ['cached projection',f=>{f.state.sessionSnapshotFreshness='cache';},/server/],
+ ['missing discovery',f=>{delete f.state.session.playerDiscovery;},/discovery|entitled ship/],
+ ['foreign discovery',f=>{f.state.session.playerDiscovery.shipId='foreign-ship';},/discovery|entitled ship/],
+ ['discovery revision drift',f=>{f.state.session.playerDiscovery.revision++;},/discovery/],
+]){
+ test(`Attempt26 actual PDF getter bookend rejects ${name}`,async()=>{
+  const f=await runtimeObserverFixture(),reached=mutateRuntimeObserverAt(f,'source getter',mutate);
+  await assert.rejects(f.invoke(),reason);
+  assert.equal(reached(),true,'The normal browser SDK getter must actually run.');
+  assert.deepEqual(f.actorSurface.effects.clicks,[]);
+ });
+}
+
+for(const [name,mutate] of [
+ ['missing airspace',f=>{delete f.state.session.turnPhase.airspace.state;}],
+ ['null airspace',f=>{f.state.session.turnPhase.airspace.state=null;}],
+ ['invalid airspace',f=>{f.state.session.turnPhase.airspace.state='open';}],
+ ['missing turnState phase',f=>{delete f.state.session.turnState.phase;}],
+ ['mixed phase pair',f=>{f.state.session.turnState.phase='coordination';}],
+ ['missing phase revision',f=>{delete f.state.session.turnState.phaseRevision;}],
+ ['malformed phase revision',f=>{f.state.session.turnState.phaseRevision='5';}],
+ ['missing Team deadline',f=>{delete f.state.session.turnPhase.teamPhaseEndsAt;}],
+ ['invalid Team instant',f=>{f.state.session.turnPhase.teamPhaseEndsAt='not-an-instant';f.state.session.turnState.endsAt='not-an-instant';}],
+ ['missing source start',f=>{delete f.state.session.turnState.startedAt;}],
+ ['automatic phase',f=>{f.state.session.turnPhase.progression='automatic';}],
+ ['foreign cycle',f=>{f.state.session.turnState.currentTurn=3;}],
+]){
+ test(`Attempt26 raw ${name} fails before canonical freeze can normalize expected Team`,async()=>{
+  const f=await runtimeObserverFixture(),reached=mutateRuntimeObserverAt(f,'canonical freeze',mutate);
+  await assert.rejects(f.invoke());assert.equal(reached(),true,'The actual canonical adapter boundary must run.');
+  assert.deepEqual(f.actorSurface.effects.clicks,[]);
+ });
+}
+
+test('Attempt26 actual SDK atomic enrichment cannot hide transient generation drift',async()=>{
+ const f=await runtimeObserverFixture();let reached=false;
+ f.hooks.produced=(kind,value)=>{if(kind==='shared'){reached=true;value.connectionGeneration++;}};
+ await assert.rejects(f.invoke(),/connectionGeneration/);assert.equal(reached,true);
+ assert.deepEqual(f.actorSurface.effects.clicks,[]);
+});
+
+for(const key of ['replacementRoleId','replacementStatus','seatId','discoveryAuthority','identityHydrationRevision']){
+ test(`Attempt26 missing produced canonical ${key} cannot be filled from original identity`,async()=>{
+  const f=await runtimeObserverFixture();let reached=false;
+  f.hooks.produced=(kind,value,count)=>{if(kind==='atomic'&&count===3){reached=true;delete value[key];}};
+  await assert.rejects(f.invoke());assert.equal(reached,true);
+  assert.deepEqual(f.actorSurface.effects.clicks,[]);
+ });
+}
+
+test('Attempt26 actual Auth digest-time change remains fatal after a normal PDF getter',async()=>{
+ const f=await runtimeObserverFixture();let reached=false;
+ mutateRuntimeObserverAt(f,'source getter',value=>{value.hooks.digest=()=>{
+  reached=true;value.authUser.uid='foreign-during-digest';};});
+ await assert.rejects(f.invoke(),/UID changed/);assert.equal(reached,true);
+ assert.deepEqual(f.actorSurface.effects.clicks,[]);
+});
+
+test('Attempt26 actual canonical final callback retains the original operation deadline',async()=>{
+ const f=await runtimeObserverFixture(),deadline=f.opts.deadlineAt;
+ const reached=mutateRuntimeObserverAt(f,'final choose',value=>{value.opts.deadlineAt=deadline;});
+ // Expire the same captured deadline through the existing clock, without a
+ // delay or resetting the consumer's operation context.
+ const now=Date.now;
+ const capture=f.hooks.capture;
+ f.hooks.capture=()=>{capture();Date.now=()=>deadline+1;};
+ try{await assert.rejects(f.invoke(),/deadline|expired/);}finally{Date.now=now;}
+ assert.equal(reached(),true);assert.deepEqual(f.actorSurface.effects.clicks,[]);
+});
+
+test('Attempt26 actual PDF terminal rebookend retains canonical identity and zero choice credit',async()=>{
+ const f=await runtimeObserverFixture(),observations=[];
+ const reached=mutateRuntimeObserverAt(f,'source getter',value=>value.finalize());
+ f.opts.onSourceProgress=async value=>observations.push(value);
+ assert.equal(await f.invoke(),undefined);assert.equal(reached(),true);
+ assert.equal(observations.length,1);assert.equal(observations[0].observedAttack.status,'resolved');
+ assert.equal(observations[0].actionCredit,false);assert.equal(observations[0].acceptanceCredit,false);
+ assert.ok(observations[0].consumedObservations.authorityScopes.length>=4);
+ assert.deepEqual(f.actorSurface.effects.clicks,[]);assert.equal(f.counts.capture,0);
+});
+
+test('Attempt26 actual PDF terminal rebookend never masks a canonical SDK revocation',async()=>{
+ const f=await runtimeObserverFixture();let reached=false,terminalPhaseReads=0;
+ mutateRuntimeObserverAt(f,'source getter',value=>value.finalize());
+ f.hooks.phase=()=>{if(f.state.session.turnState.phase==='coordination'&&++terminalPhaseReads===3){
+  reached=true;f.sdkAuthority.hasServerSessionAuthority=false;}};
+ await assert.rejects(f.invoke(),/sdkHasServerAuthority/);assert.equal(reached,true);
+ assert.deepEqual(f.actorSurface.effects.clicks,[]);assert.equal(f.counts.capture,0);
+});
+
+for(const [name,mutate] of [
+ ['missing raw phase',f=>{delete f.state.session.turnState.phase;}],
+ ['SDK revocation',f=>{f.sdkAuthority.hasServerSessionAuthority=false;}],
+ ['discovery drift',f=>{f.state.session.playerDiscovery.revision++;}],
+]){
+ test(`Attempt26 default Wing final choose rejects ${name} from actual producers`,async()=>{
+  const f=await runtimeObserverFixture('wing-commander');let reached=false;
+  f.actorSurface.page.getByRole=(_kind,{name})=>({isVisible:async()=>name==='Launch Fighter Wing Alpha',
+   isEnabled:async()=>true,click:async()=>f.actorSurface.effects.clicks.push(name)});
+  f.hooks.capture=()=>{reached=true;mutate(f);};
+  await assert.rejects(dispatchStationWingChoice(f.current,{deadlineAt:f.opts.deadlineAt,
+   recipient:f.actorSurface,fullMember:f.assertMember,evidence:{stationWingOriginal:f.original},
+   recoveredLaunches:new Map(),directory:'/tmp/unused-observer-fixture',readAttack:f.opts.readAttack,
+   readTurnState:f.readPhase,gmAuthority:f.opts.gmAuthority,action:f.action}));
+  assert.equal(reached,true);assert.deepEqual(f.actorSurface.effects.clicks,[]);
+ });
+}
