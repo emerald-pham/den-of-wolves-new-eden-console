@@ -5,8 +5,9 @@ Owner-requested isolated branch `feat/pc11-live-base-extraction-20261008` at
 `a0e38bef957b4cefccfff20808b8a054c5f71489` (0.5.69). The combined candidate
 `082f4ba4` remains preserved in its separate worktree. No publication/runtime
 is authorized until the parent approves this clean candidate and allocates it.
-Check the independently owned font/UI hotfix merge and current verified live
-baseline before final reconciliation; local origin/main still points at a0e38bef.
+The released font/UI0.5.70 baseline `3e8bd3d9` has been reconciled into this
+branch. Recheck current verified live before any parent-approved publication;
+the frozen PC11 app candidate is0.5.71 at `2cc643ea`.
 
 ## Frozen implementation groups
 
