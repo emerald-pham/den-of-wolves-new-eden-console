@@ -188,14 +188,16 @@ class Page {
     const request = { method: () => 'POST', postDataJSON: () => ({ data: {
       sessionId: 'owned-p631-session', instanceId: 'owned-p631-gm', requestId: 'original-ui-request' } }) };
     const authorization = process.env.PC10_P631_TEST_MODE === 'authorization-body-stall' && trace().observerTimeouts.length > 1;
-    const endpoint = authorization ? 'local-gm-access' : 'us-central1/createSession';
     const response = { url: () => authorization ? 'http://127.0.0.1:5174/__local-gm-access'
         : 'http://127.0.0.1:5011/us-central1/createSession', request: () => request,
-      status: () => 200, json: async () => {
+      status: () => {
+        const mode = process.env.PC10_P631_TEST_MODE;
+        if (mode === 'create-body-stall' && !authorization || mode === 'authorization-body-stall' && authorization)
+          trace().now += 59_900;
+        return 200;
+      }, json: async () => {
         const mode = process.env.PC10_P631_TEST_MODE;
         if (mode === 'create-body-stall' && !authorization || mode === 'authorization-body-stall' && authorization) {
-          trace().now += 59_900;
-          await flush();
           return new Promise(() => {});
         }
         return authorization ? { authenticated: true }
@@ -271,7 +273,7 @@ test('P631 consent controls share one original UI deadline across all checkboxes
 test('P631 createSession response body remains inside its original admission deadline', async () => {
   const run = await runActualRunner('create-body-stall', 2_000);
   try {
-    assert.equal(run.child.status, 1, run.child.stderr);
+    assert.equal(run.child.status, 1, `${run.child.stderr}\n${run.child.stdout}\n${run.child.error?.code ?? ''}`);
     assert.notEqual(run.child.error?.code, 'ETIMEDOUT', 'The runner must stop the stalled body before the test safety timeout.');
     assert.equal(run.ownerResult?.failureStage, 'normal GM create, consent, local authorization and original prepare');
     assert.equal(run.ownerResult?.cleanup?.closedBrowsers, 1);
@@ -282,7 +284,7 @@ test('P631 createSession response body remains inside its original admission dea
 test('P631 local GM authorization response body remains inside its original operation deadline', async () => {
   const run = await runActualRunner('authorization-body-stall', 2_000);
   try {
-    assert.equal(run.child.status, 1, run.child.stderr);
+    assert.equal(run.child.status, 1, `${run.child.stderr}\n${run.child.stdout}\n${run.child.error?.code ?? ''}`);
     assert.notEqual(run.child.error?.code, 'ETIMEDOUT', 'The runner must stop the stalled body before the test safety timeout.');
     assert.equal(run.ownerResult?.failureStage, 'normal local GM authorization');
     assert.equal(run.ownerResult?.cleanup?.closedBrowsers, 1);
