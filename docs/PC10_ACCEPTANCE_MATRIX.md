@@ -25,12 +25,12 @@ anchors; that coverage does not establish an enabled control or gameplay.
 | 541 | Reveal a New Eden candidate. | Connected Endeavour scout-derived current-group reveal. | Partial: actual N/O/P discovery, original own reports/reload and current-group reveal accepted; foreign-group/requester-peer withholding remains open. | 74 Functions + 74 client focused tests, 35 runner contracts and bounded Sol review pass; final review/render/CI/deployment pending |
 | 542 | Make candidate discovery retry-safe. | Connected original scouting identity and durable result/audit/note. | Partial: interrupted original N reply, same-cycle UI retry, cold reload and SDK replay preserve one effect; other discovery producers open. | focused tests/contracts and bounded Sol review pass; final release pending |
 | 543 | Track candidate plans by Cycle 6. | Connected real GM active Cycle 6 checkpoint and player encouragement. | Partial: plan-present save, original outbox/reload/exact receipt recovery, early denial and populated private/borrowed-authority denial accepted; other status/audience criteria open. | focused tests/contracts and bounded Sol review pass; final release pending |
-| 544 | Validate Ancient Jump Ring prerequisites. | pending | pending | pending |
-| 545 | Repair the Ancient Jump Ring. | pending | pending | pending |
-| 546 | Prevent duplicate Ring contributions. | pending | pending | pending |
-| 547 | Fuel each Ring passage. | pending | pending | pending |
-| 548 | Resolve Ring passage. | pending | pending | pending |
-| 549 | Record blocked Wolf pursuit through the Ring. | pending | pending | pending |
+| 544 | Validate Ancient Jump Ring prerequisites. | Connected candidate preparation and contributions. | Partial: Ring3 real ten-material/five-track/Engineering-craft prerequisites accepted; partial-state blocker assertions need exact mapping. | negative mapping and final gates pending |
+| 545 | Repair the Ancient Jump Ring. | Connected authoritative Ring contributions/repair. | Partial: Ring3 material debit, research/craft reservation and automatic repair accepted; per-contribution bindings and invalid actor/state negatives need mapping. | final scoped review/release pending |
+| 546 | Prevent duplicate Ring contributions. | Connected contribution uniqueness/replay. | Partial: distinct tracks, permanent consumed craft and retained replay accepted; duplicate device/material/craft/request and cross-request race negatives remain to map. | negative mapping and final gates pending |
+| 547 | Fuel each Ring passage. | Connected charged/paid Ring passages. | Partial: all six Ring3 ships each paid five fuel; explicit unfuelled-ship refusal remains to map. | negative mapping and final gates pending |
+| 548 | Resolve Ring passage. | Connected passage/sabotage/outcome. | Partial: six single passages, far-side sabotage and durable N success accepted; late/same-ship negatives/private outcome receipt mapping remain. N-specific closed history is separate and unobserved. | final scoped review/release pending |
+| 549 | Record blocked Wolf pursuit through the Ring. | Connected real GM sabotage and N outcome. | Partial: Ring3 explicit sabotage blocked pursuit; ordinary authenticated sabotage denial remains to map. | negative mapping and final gates pending |
 | 550 | Accumulate Deep Nebula scouting. | pending | pending | pending |
 | 551 | Attempt a Deep Nebula jump. | pending | pending | pending |
 | 552 | Lose a ship in the Deep Nebula. | pending | pending | pending |
@@ -41,10 +41,10 @@ anchors; that coverage does not establish an enabled control or gameplay.
 | 557 | Liberate the Ancient Space Station. | pending | pending | pending |
 | 558 | Validate Station Reactor contributions. | pending | pending | pending |
 | 559 | Power New Eden Station. | pending | pending | pending |
-| 563 | Explain candidate results. | pending | pending | pending |
+| 563 | Explain candidate results. | Connected entitled candidate/public failure evaluations. | Partial: Ring3 displayed N evaluation and retained public Pursuit history accepted; O/P results, audit and distinct private audiences remain open. | final rendered/release gates pending |
 | 564 | Enter debrief once. | Connected Pursuit failure freeze. | Partial: immutable Pursuit debrief and competing live-GM freeze/exact retries accepted; other outcomes and private audiences open. | focused 27 debrief cases, 501 affected resume/reader cases and bounded Sol 6.1 review pass; final release pending |
-| 565 | Close the session authoritatively. | Connected GM debrief → closed control. | Core Pursuit retention, competing live-GM close and exact actor-bound recovery accepted; remaining entitled audiences/privacy reconciliation and final release pending. | focused 27 debrief cases, 501 affected resume/reader cases and bounded Sol 6.1 review pass; final release pending |
-| 566 | Read debrief after closure. | Connected entitled closed-history reader. | Partial: original Press/Captain history plus current normal Captain return/reload with narrow history and settled SDK authority accepted; remaining audit/audience/privacy criteria open. | focused 27 debrief cases, 501 affected resume/reader cases and bounded Sol 6.1 review pass; final release pending |
+| 565 | Close the session authoritatively. | Connected GM debrief → closed control, including the displayed entitled-read gate repair. | Core Pursuit retention, competing live-GM close/exact recovery and fresh two-actor common Close/history accepted; remaining entitled audiences/privacy and final release pending. | retained debrief/resume tests plus16 repair checks and common native pass; final release pending |
+| 566 | Read debrief after closure. | Connected entitled closed-history reader. | Partial: original Press/Captain history, settled SDK recovery and fresh common Close original-reader authoritative reload accepted; allowed audit/distinct audiences remain open. N-specific history remains unobserved. | retained focused tests and common native pass; final release pending |
 | 576 | Resolve Macaw salvage dismantling. | pending | pending | pending |
 | 579 | Resolve Boa reclamation. | pending | pending | pending |
 | 581 | Create post-damage Scrap pickups. | pending | pending | pending |
@@ -52,7 +52,7 @@ anchors; that coverage does not establish an enabled control or gameplay.
 | 585 | Run the base/expansion isolation scenario. | pending | pending | pending |
 | 593 | Show candidate preparation help. | Mounted current-group N/O/P preparation. | Partial: distinct costs/blockers/next actor and Cycle 6 reload accepted; hidden bonus/Wolf/private calculation and foreign-group/requester-peer audiences remain open. | focused tests/contracts and bounded Sol review pass; final rendered usability/release pending |
 | 618 | Reconnect every live projection. | Connected current member/SDK recovery. | Partial: prior Captain/Press history, Black Sheep cargo/control reload, settled Host9/Shuttle1 desktop balances, and Water exact UI retry/cold reload/original SDK replay accepted with original identity/seat/group/current-holder/SDK authority; other projections/dropout paths open. | focused core tests/contracts and bounded Sol review pass; final gates pending |
-| 619 | Make candidate retries survive reconnect. | Related scout discovery/report recovery only. | Missing: no N/O/P fuel, roll, loss, contribution or outcome action ran; discovery recovery does not prove this acceptance. | pending |
+| 619 | Make candidate retries survive reconnect. | Connected paid Ring crossing exact intent/receipt recovery. | Partial: Ring3 Aegis committed-ack loss, original intent across cold GM reload, exact UI/SDK replay, borrowed-actor denial and late-success replay accepted; other N contribution/O roll-loss-fuel/P reactor-outcome recovery remain open. | scoped source/negative mapping and final gates pending |
 | 620 | Recover from stale revisions. | Connected phase confirmation and exact retry. | Partial: prior phase/flight/ending recovery, cargo and Water committed-ack loss/exact UI retry/cold reload/SDK replay, historical control receipts after revision2, and fresh current-maintenance-revision Water once-guard refusal accepted; other stale/conflicting role requests open. | focused core tests/contracts and bounded Sol review pass; final gates pending |
 | 629 | Protect private projections comprehensively. | Tested current scoped private readers and authority negatives. | Partial: prior populated private/borrowed-GM denials plus fresh Black Sheep nonowner/revoked-holder denial with selected gameplay/receipt/audit hashes unchanged accepted; other private audiences open. | focused core tests/contracts and bounded Sol review pass; final gates pending |
 | 630 | Prove server-owned randomness. | pending | pending | pending |
@@ -61,7 +61,7 @@ anchors; that coverage does not establish an enabled control or gameplay.
 | 635 | Standardize action audit records. | Real bound action receipts in accepted family. | Partial: one actor/request-bound cargo audit and one Water command receipt/service event/metadata audit/private procedure audit persist unchanged on UI/SDK replay and once-guard refusal; two dedicated custody request/audit pairs stay separate. Metadata/query/redaction and other unmigrated actions open. | focused core tests/contracts and bounded Sol review pass; final gates pending |
 | 641 | Run a complete base-game playthrough. | pending | pending | pending |
 | 642 | Run a complete Capybara playthrough. | pending | pending | pending |
-| 647 | Prove Ancient Jump Ring success. | pending | pending | pending |
+| 647 | Prove Ancient Jump Ring success. | Connected legitimate discovery/research/repair/paid passages/sabotage. | Partial: Ring3 actual N success, all six ships surviving and immutable entitled debrief accepted before the later Close failure; contribution-uniqueness negatives need mapping. Reuse the verified common Close path; N-specific closed history remains unobserved. | final scoped review/release pending |
 | 648 | Prove Deep Nebula success and loss. | pending | pending | pending |
 | 649 | Prove Ancient Space Station success. | pending | pending | pending |
 | 650 | Prove authoritative terminal failure and recovery paths. | Server-owned Pursuit failure through debrief/close. | Partial: genuine Pursuit failure, competing freeze/close and current narrow history/reload accepted; loss/destroyed ship/escape/evacuation/mutiny/arrest/candidate/unresolved-call branches open. | pending |
@@ -1093,6 +1093,38 @@ campaign,13partial/35missing, NEXT181; no release or catalog status is changed.
 | Complete rehearsal, usability and final release | Stitch valid unique-function/role families into the fresh two-browser solo game through ending; available actions/costs/blockers/next actor; final fonts/rendered review, exact candidate/main CI and deployment. | Checkpoint owner integration. Conditional justified simultaneous capacity is separate; human-device play is explicitly unclaimed. Post-PC10→PC11→PC12 remain future roadmap. |
 
 ### Selected next family — unfuelled Highwall mining
+
+The October8 independent acceptance audit at
+`/tmp/pc10-independent-acceptance-audit/PC10_READ_ONLY_GAP_MAP.md` is incorporated
+as reviewed planning evidence. It ran no tests/runtime and closed no IDs. Ring3
+source `522447d4` retains the failed combined status while preserving earned
+N/619 actions before Close; common Close source `ddfb7ee5` separately passes.
+The first-cycle startup repair at `2f3e9efc` is a real transitive dependency:
+170 affected checks and its independent review qualify source readiness,
+while the fresh Highwall actual remains required. Earlier family evidence stays
+bound to its original source and unchanged bodies; the audit does not validate
+the repair or supply final rendered/CI/deployment proof. Catalog counts remain
+703/751 overall,245/293 campaign,48open; criterion credit is not a closure.
+
+After the active Highwall slice, smallest remaining proof priorities are:
+
+1. Map Ring contribution/blocker/duplicate/unfuelled/wrong-role negatives and
+   existing Close/privacy receipts read-only; reuse positive N and common Close.
+2. Candidate/requester-peer/foreign withholding (541/543/593/629) and private
+   history/audit queries (566/635): two or three distinct relevant actors,
+   populated authoritative projections, no repeated discovery tour by default.
+3. Review existing entropy/rate/security-denial evidence (630/631/634) first;
+   run only missing adversarial request paths with their required identities.
+4. Complete specialist mechanics (181/215b/223b/233b): GM plus original role;
+   add a recipient/competitor only for a real handoff or contention claim.
+5. Core Starlight/remaining craft/repair/service reset, then expansion Macaw/Boa
+   salvage/reclamation/attack Scrap with real mission/combat prerequisites.
+6. O/P and remaining N variants stay helper-owned; do not duplicate Station
+   combat or the common Close probe. Politics/crisis/arrest remain distinct.
+7. Stitch every unique mechanic/role into fresh two-browser base/Capybara
+   rehearsals through ending and usable numbered solo guidance, then final
+   typography/review/CI/main deployment. These still require gameplay; capacity
+   is separate and unclaimed. PC11 guidance and PC12 remain later work.
 
 The actual function inventory's `runHighwallMining` row and Icebreaker Miner
 whole-role evidence remain pending. Qualify only this distinct specialist
