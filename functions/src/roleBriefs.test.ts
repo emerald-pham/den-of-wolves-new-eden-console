@@ -49,7 +49,7 @@ describe('role brief projection', () => {
 
     expect(brief).toMatchObject({ roleId: 'rosal-militia-leader', assignmentUid: 'militia-leader' });
     expect(brief?.text).toContain('defend on the ship where you are present');
-    expect(brief?.text).toContain('up to three extra defence dice whether or not the parties outnumber teams');
+    expect(brief?.text).toContain('Whether or not they outnumber the teams, you may lead from the front and roll up to three extra defence dice; a front-line 1 kills you.');
     expect(brief?.text).toContain('a front-line 1 kills you');
     expect(brief?.text).not.toContain('Shepherd security teams');
   });

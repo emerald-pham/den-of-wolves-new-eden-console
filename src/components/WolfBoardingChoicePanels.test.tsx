@@ -62,7 +62,7 @@ describe('Wolf boarding decision presenters', () => {
       .toBeVisible();
     fireEvent.change(select, { target: { value: '3' } });
     fireEvent.click(screen.getByRole('button', { name: /commit militia risk/i }));
-    expect(onChoose).toHaveBeenCalledWith({ militiaDoubleTeams: true, militiaFrontLineDice: 3 });
+    expect(onChoose).toHaveBeenCalledWith({ militiaDoubleTeams: false, militiaFrontLineDice: 3 });
   });
 
   it('selects indexed defense dice for each independent reroll allowance', () => {
