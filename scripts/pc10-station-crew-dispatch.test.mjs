@@ -1503,6 +1503,54 @@ test('Station ordered range progress during final capture cancels with zero stal
   assert.deepEqual(pdf.effects.clicks, []);
 });
 
+for (const field of ['targetGroupId', 'threatSourceId']) {
+  test(`Station exact-revision ${field} drift is fatal inside the final capture callback`, async () => {
+    const current = attack('targeting'), pdf = surface('refinery-124-pdf-colonel', {
+      type: 'pdf-escort-wing-launch-view', sessionId, turn: 3, revision: 8, wingRevision: 4,
+      launched: false, eligible: true });
+    const opts = options([{ roleId: pdf.label, surface: pdf }], current);
+    let inside = false;
+    opts.readAttack = async () => inside ? { ...current, [field]: 'foreign' } : current;
+    opts.action = async (_surface, endpoint, choose, metadata) => {
+      inside = true; await choose();
+      return { endpoint, data: metadata.expectedRequest, httpStatus: 200, result: { status: 'committed' } };
+    };
+    await assert.rejects(dispatchStationCrewChoice(current, opts));
+    assert.deepEqual(pdf.effects.clicks, []);
+  });
+}
+
+for (const discoveryDrift of [false, true]) {
+  test(`Station ordered progress during a getter ${discoveryDrift ? 'cannot mask discovery drift' : 'retains complete cancellation bookends'}`, async () => {
+    const current = attack('medium-range'), pdf = surface('refinery-124-pdf-colonel', {
+      type: 'wolf-fighter-range-action-view', sessionId, turn: 3, revision: 8,
+      wingId: 'pdf-escort-fighter-wing', wingLabel: 'P.D.F. Escort Fighter Wing',
+      range: 'medium-range', choiceStatus: 'pending', fighters: [{ fighterIndex: 0 }],
+      targets: [{ instanceId: 'wolf-contact' }] }, { entitledShipId: 'refinery-124' });
+    const opts = options([{ roleId: pdf.label, surface: pdf }], current), observations = [];
+    let latest = current;
+    opts.readAttack = async () => latest;
+    opts.onSourceProgress = async observation => observations.push(observation);
+    const read = pdf.callable;
+    pdf.callable = async (...args) => {
+      const reply = await read(...args);
+      latest = { ...current, revision: 11, currentStep: 'short-range' };
+      if (discoveryDrift) pdf.testAuthority.discoveryAuthority.revision++;
+      return reply;
+    };
+    if (discoveryDrift) {
+      await assert.rejects(dispatchStationCrewChoice(current, opts));
+      assert.deepEqual(observations, []);
+    } else {
+      assert.equal(await dispatchStationCrewChoice(current, opts), undefined);
+      assert.equal(observations.length, 1);
+      assert.equal(observations[0].observedAttack.revision, 11);
+      assert.ok(observations[0].consumedObservations.actorScopes.length > 0);
+    }
+    assert.deepEqual(pdf.effects.clicks, []);
+  });
+}
+
 
 test('Station benign cancellation retains its consumed phase and fresh source bookend without action credit', async () => {
   const scenario = stationFinalizationScenario('pre-freeze phase');
