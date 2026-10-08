@@ -179,3 +179,36 @@ capture/review: a separate five-to-eight-minute bounded window depending on
 representative states; can retain the same minimum actor surfaces if explicitly
 allocated. Report time limits separately from measured results. Parent schedules
 after PC10 cargo/recharge and editor priority. No runtime has started for either.
+
+## Reconciled released base and 0.5.71 qualification candidate
+
+Read-only GitHub verification: PR15 MERGED at2026-10-08T01:42:31Z, merge
+3e8bd3d92cae35a4f6b318122308e64e4af7427b; fetch origin/main agrees. Parent
+subsequently confirms exact-main run37714267605 and live HTML/JS/CSS byte
+verification for0.5.70. Reconciled viafaac5510; only conflict was CLAUDE prose,
+resolved retaining mandatoryRED and smallest-cohort policy. No functional
+conflict resolution or PC10 imports. Global iPhone font cause remains open.
+
+1650b135 applies0.5.71 metadata. Focused merged-base validation:123pass/1fail
+in4files; the sole failure is existing AppHeader visible catalog-progress note
+expectation (new changelog omitted the sentence). Restore unchanged703/751
+93.61% sentence to current0.5.71 prose; test unchanged then45/45 passes.
+Independent Sol reviews3e8bd3d..1650b135 with no findings and separately confirms
+this sole sentence matches counts and leaves history intact. Earlier465 source
+checks remain valid because PC11 functional files are unchanged. Other79
+merged-base checks remain valid; no blanket suite repeats. Native typography
+release-gate contract14/14 passes (new inherited cycle-consumer wiring included).
+
+Fresh selector against released3e8bd3d remains Hosting only, Functions names
+empty, unknown files[], font/typography required; functions/rules/config/server
+packages have zero changes. Evidence /tmp/dow-pc11-0571-deployment-audit.log.
+Production build passes after reconciliation; final release-note correction
+requires one refreshed exact build/artifact hash, not another gameplay suite.
+Logs /tmp/dow-pc11-0571-focused-tests.log, /tmp/dow-pc11-0571-header-green.log,
+/tmp/dow-pc11-0571-typography-contract.log. Documentation/catalog check passes
+703done/6partial/42missing; no catalog closures or fabricated PC10 acceptance.
+
+This is approved source qualification preparation, not final release approval.
+Pending parent runtime allocation (priority after font live read-only window,
+PC10 cargo/recharge and editor), clean-base authenticated flow and independent
+final rendered typography approval, then exact-candidate CI/publish ordering.

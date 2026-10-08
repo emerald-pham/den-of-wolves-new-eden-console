@@ -31,6 +31,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       'Same-table trade offers remain visible with server-normalized amounts, and the first accepted offer keeps its valid receipt.',
       'A fresh GM claim retains its own confirmed connection when a live session update arrives before the acknowledgement.',
       'Guidance text uses a readable body scale across supported console views.',
+      '703 of 751 planned items are complete in the catalog snapshot used to build this release (93.61%).',
     ],
   },
   {
