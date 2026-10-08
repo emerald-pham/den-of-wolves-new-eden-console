@@ -80,21 +80,18 @@ beforeEach(() => {
   useSessionStore.getState().setSessionSnapshotFreshness('server');
 });
 
-it('requires a live address before offering the printed condition to an active ship', async () => {
+it('offers the printed condition without publishing an address first', async () => {
   const user = userEvent.setup();
   render(<WolfCommanderAddressAmnestyPanel />);
 
   expect(await screen.findByRole('heading', { name: 'Commander address and amnesty' })).toBeVisible();
-  expect(screen.queryByRole('button', { name: 'Offer amnesty' })).not.toBeInTheDocument();
-  await user.type(screen.getByRole('textbox', { name: 'Fleet address' }), 'The fleet has one chance to yield.');
-  await user.click(screen.getByRole('button', { name: 'Address fleet for 30 seconds' }));
-  await waitFor(() => expect(mocks.address).toHaveBeenCalledWith('The fleet has one chance to yield.', 4));
-  expect(await screen.findByText(/Fleet address published for 30 seconds/i)).toBeVisible();
-
+  expect(screen.getByRole('textbox', { name: 'Fleet address' })).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Address fleet for 30 seconds' })).toBeVisible();
   await user.selectOptions(screen.getByRole('combobox', { name: 'Target ship' }), 'dione');
   await user.selectOptions(screen.getByRole('combobox', { name: 'Response deadline' }), '10');
   await user.click(screen.getByRole('button', { name: 'Offer amnesty' }));
   await waitFor(() => expect(mocks.offer).toHaveBeenCalledWith('dione', 4, 10));
+  expect(mocks.address).not.toHaveBeenCalled();
   expect((await screen.findAllByText(/surrender by medium jump to 0101/i)).length).toBeGreaterThanOrEqual(1);
   expect(screen.getByText(/Response due/i)).toBeVisible();
   expect(screen.queryByText(/targetUid|damage capacity|fleet composition/i)).not.toBeInTheDocument();

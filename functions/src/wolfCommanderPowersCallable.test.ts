@@ -184,21 +184,20 @@ it('still rejects an expired ordinary restricted Team address', async () => {
   expect(mock.documents.has('sessions/s1/wolfCommanderAddresses/cycle-3')).toBe(false);
 });
 
-it('requires the current-cycle Commander address before offering amnesty and records a pending consequence', async () => {
+it('offers the printed amnesty condition without requiring a prior address and records a pending consequence', async () => {
   const requestData = {
     sessionId: 's1', requestId: 'amnesty-offer-3', expectedCycle: 3,
     targetShipId: 'dione', responseDeadlineMinutes: 10,
   };
-  await expect(createWolfAmnestyOffer.run(request(requestData)))
-    .rejects.toMatchObject({ code: 'failed-precondition' });
-  await publishWolfCommanderAddress.run(request({
-    sessionId: 's1', requestId: 'amnesty-address-3', expectedCycle: 3, message: 'The fleet has been addressed.',
-  }));
-
-  await expect(createWolfAmnestyOffer.run(request(requestData))).resolves.toMatchObject({
+  const result = await createWolfAmnestyOffer.run(request(requestData));
+  expect(result).toMatchObject({
     status: 'offered', cycle: 3, targetShipId: 'dione', targetUid: 'dione-captain',
     condition: 'surrender-by-medium-jump-to-0101',
   });
+  expect(mock.documents.has('sessions/s1/wolfCommanderAddresses/cycle-3')).toBe(false);
+  await expect(createWolfAmnestyOffer.run(request(requestData))).resolves.toEqual(result);
+  await expect(createWolfAmnestyOffer.run(request(requestData, 'other-player')))
+    .rejects.toMatchObject({ code: 'permission-denied' });
   expect(mock.documents.get('sessions/s1/wolfCommanderAmnesty/current'))
     .toMatchObject({ status: 'offered', targetUid: 'dione-captain', responseDeadline: expect.any(String) });
   expect(mock.documents.get('sessions/s1/wolfCommanderAmnesty/current')).not.toHaveProperty('ruling');
