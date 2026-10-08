@@ -1,5 +1,78 @@
 # PC10 SUCCESS source-ready handoff — October 8
 
+## Revised sparse cohort and adapter — parent correction
+
+The previous 13-identity unchanged-driver count below is historical helper
+analysis, **not the revised allocation request or a product minimum**. Parent
+requested adaptation around genuine actor entitlements. Source review establishes:
+
+| Family | Admitted identities | Why each is required |
+|---|---:|---|
+| N | 3 | Real GM owns manual progression and scoped official ship control; ordinary Scientist owns Endeavour research; ordinary printed Engineering Shuttle owner creates the initial custody record. Use Shepherd Engineer/Black Sheep or Dione Engineer/Philia. An open unowned craft cannot be fabricated or transferred by GM to avoid that identity. |
+| O | 3 for loss revocation; 2 for outcomes only | GM owns progression/scoped official ship work; Scientist creates real scans. An additional ordinary Admiral/EO on Aegis is needed only to prove the lost ordinary player's fresh actions are revoked. The new callback qualifies this stronger three-actor slice. |
+| P | 2, conditionally sufficient | Real GM owns source threat declaration, scoped ship preparation and eventual Reactor choices; ordinary Wing Commander owns charged fighter/range choices. Empty EO/other seats use server-owned unavailable/pass/zero-team branches, not GM impersonation. Actual combat must leave at least 18 usable capacity; success is not guaranteed. |
+
+Configured role count and actual admitted Auth count are separate. For N,
+choose a legal configured roster actually including the selected Engineering
+owner (the default 14-role joint-engineering preset does not include Shepherd
+Engineer). A 13-role preset is one ordinary compatible choice with three Auth
+actors; use normal setup/consent/casting, keep unused seats open. O/P can keep
+the established legal 14-role configuration with their two/three actual actors.
+Never create controller/persona accounts solely to satisfy the old helper.
+
+Relevant source guards: `requireMaintenanceAuthority` and
+`requireShipCounterAuthority` at index.ts 42068/37423 permit official owned-GM
+work with actual per-ship write grants; jumpShip 20314 uses that authority.
+Candidate writer 128–136 validates active joined actors and owned live GM;
+candidate ship commands check the GM-capable ship authority. Research writer
+240 requires actual Scientist/custody. Start 7059 and shuttleControl.ts 31
+derive craft custody only from real printed role holders; GM transfer 7728
+still needs a current owner. Combat 27681–27700 requires actual Wing/EO
+players; it grants no GM role impersonation. Empty-owner branches 25315/27107
+and zero-team defence 26320 support sparse P. **No active core-role rotation**:
+assignment/release require unlocked lobby/casting under index.ts 5829.
+
+`scripts/pc10-minimum-candidate-success.mjs` now provides a bounded callable
+outcome slice using the sparse actors and official GM controls. It consumes
+genuine source-produced Ring repair or Station liberation, uses current
+actor/group/cycle/revision-bound workspace and requests, and stops at actual
+activation/terminal publication. It supplies no die or outcome fields. It does
+not instantiate browsers, accounts, emulators, role census or prepared state.
+Compose its `readRoot` with the accepted authenticated GM SDK/root observer,
+`selectGmShip` with the existing real scoped-grant control, and each surface's
+`observe` with current normal member/GM authority (including canonical seat).
+The callback passes `{deadlineAt, timeoutMs}` to those adapters; propagate it
+into actual page/SDK calls and retain `pendingOperations` / exact
+`pendingCandidateRequest` in the accepted primary-error-preserving cleanup.
+
+Test-first sparse census RED is commit `921dad16`: after correcting the initial
+fixture-shape error, the existing admission guard rejects missing full-roster
+accounts with its exact census assertion. Initial sparse Station contracts
+RED are `c059332f`, followed by adapter GREEN at `4e575067`. Independent review
+identified original-deadline, workspace/authority binding, delayed terminal
+publication and false old-Nebula reach credit gaps; all four observed RED at
+`49ce1dc0` before repair, then all nine focused adapter contracts passed.
+These are synthetic adapter/source checks. The N/O action routing was initially
+included in the shared adapter draft without a distinct N/O transition RED;
+do not claim a separate test-first N/O gameplay repair or acceptance from it.
+Add focused N/O transition regressions before any further functional adaptation.
+No product functionality changed and no historical product TDD is fabricated.
+
+**Composition still open before fresh-family allocation:** the callback is an
+actual source action slice, not a complete source-producing fresh runner. Wire
+normal sparse setup/start and GM maintenance/charged paid arrivals; N real
+Scientist research/materials/craft contribution; O zero-scout loss, subsequent
+real scans and ordinary lost-player denial; P actual Wing combat with empty-seat
+source transitions. The old full-roster combat resolver cannot supply that
+sparse prefix. No simulated liberation/repair or old fulfilled disposition can
+substitute. Interrupted original UI action retry/reload/replay, immutable
+freeze/close and entitled closed history remain additional runtime checks.
+
+Current parent next action is to acknowledge this revised 3/3/2 cohort and
+explicitly allocate a bounded **composition/qualification** window only after
+the missing prefix adapter contracts/review are ready. No fresh N/O/P proof,
+P619 closure or runtime launch is claimed by this handoff.
+
 Worker scope: Ancient Jump Ring N (544–549, 647), Deep Nebula O (550–554,
 648), Ancient Space Station P (555–559, 649), candidate explanation 563 and
 candidate action/outcome recovery 619 only. The acceptance matrix remains

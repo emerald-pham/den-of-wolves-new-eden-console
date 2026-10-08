@@ -42,8 +42,27 @@ export async function runMinimumCandidateSuccessProbe(context) {
   assert.match(coordinate, /^\d{4}$/); assert.equal(typeof readRoot, 'function');
   assert.equal(typeof selectGmShip, 'function'); assert.ok(Number.isFinite(deadlineAt));
   const budget = () => assert.ok(Date.now() < deadlineAt, 'Original candidate slice deadline expired.');
-  const observe = async surface => { budget(); const result = await surface.observe(); budget(); return result; };
-  const root = async () => { budget(); const result = await readRoot(); budget(); assert.equal(result.sessionId, sessionId); return result; };
+  // Uncertain SDK work remains tracked for the owning runner's original-error
+  // preserving teardown. A timed-out mutation never acquires a replacement ID.
+  context.pendingOperations ??= new Set();
+  async function bounded(run) {
+    budget(); let timer;
+    const remaining = deadlineAt - Date.now();
+    const operation = Promise.resolve().then(() => run({ deadlineAt, timeoutMs: remaining }));
+    context.pendingOperations.add(operation);
+    operation.then(() => context.pendingOperations.delete(operation), () => context.pendingOperations.delete(operation));
+    try {
+      const value = await Promise.race([operation, new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error('Original candidate slice deadline expired during operation.')), remaining);
+      })]);
+      budget(); return value;
+    } finally { clearTimeout(timer); }
+  }
+  const observe = surface => bounded(options => surface.observe(options));
+  const root = async () => {
+    const result = await bounded(options => readRoot(options));
+    assert.equal(result.sessionId, sessionId); return result;
+  };
   const initial = await root(), gmActor = await observe(gm);
   const actors = { code, sessionId, configuredRoleCount: initial.activeRoleIds.length, gm: gmActor };
   if (code === 'P') actors.wing = await observe(context.wing);
@@ -54,14 +73,22 @@ export async function runMinimumCandidateSuccessProbe(context) {
   async function callable(name, data) {
     budget(); const current = await observe(gm);
     for (const key of ['uidHash', 'sessionId', 'instanceId']) assert.equal(current[key], gmActor[key]);
+    assert.equal(current.hasAuth, true); assert.equal(current.sameActor, true);
+    assert.equal(current.connection, 'live'); assert.equal(current.freshness, 'server');
+    assert.equal(current.playerRole, 'gm'); assert.equal(current.phase, 'active');
+    assert.equal(current.cycle, gmActor.cycle);
     assert.equal(current.gmInstanceOwned, true);
-    const response = await gm.callable(name, data); budget();
+    if (name === 'executeCandidateAction') context.pendingCandidateRequest = { ...data };
+    const response = await bounded(options => gm.callable(name, data, options));
     assert.equal(response.status, 'committed', `${name} transport failed: ${response.code ?? 'unknown'}`);
     assert.ok(response.result); assert.notEqual(response.result.status, 'stale');
+    if (name === 'executeCandidateAction') context.pendingCandidateRequest = null;
     return response.result;
   }
   async function workspace() {
     const result = await callable('readCandidateWorkspace', { sessionId, instanceId: gmActor.instanceId, expectedGroupId: groupId });
+    assert.equal(result.type, 'candidate-workspace'); assert.equal(result.sessionId, sessionId);
+    assert.equal(result.groupId, groupId); assert.equal(result.cycle, gmActor.cycle);
     assert.ok(Number.isSafeInteger(result.revision) && result.revision >= 0);
     const paths = result.paths.filter(path => path.code === code && path.coordinate === coordinate);
     assert.equal(paths.length, 1, 'Use the exact genuinely discovered current-group candidate.');
@@ -69,7 +96,7 @@ export async function runMinimumCandidateSuccessProbe(context) {
   }
   async function action(actionName, extra = {}) {
     const view = await workspace();
-    if (extra.shipId) { budget(); await selectGmShip(extra.shipId); budget(); }
+    if (extra.shipId) await bounded(options => selectGmShip(extra.shipId, options));
     const data = { sessionId, instanceId: gmActor.instanceId, requestId: randomUUID(),
       expectedRevision: view.revision, expectedGroupId: groupId, code, coordinate, action: actionName, ...extra };
     const result = await callable('executeCandidateAction', data);
@@ -96,11 +123,24 @@ export async function runMinimumCandidateSuccessProbe(context) {
     const view = await workspace(); assert.equal(view.path.canSabotage, true);
     await action('sabotage-ring'); outcomeObserved = 'crossed';
   }
-  const ending = await root();
+  let ending = await root();
+  while (ending.phase === 'active') {
+    const current = await observe(gm);
+    for (const key of ['uidHash', 'sessionId', 'instanceId']) assert.equal(current[key], gmActor[key]);
+    assert.equal(current.hasAuth, true); assert.equal(current.sameActor, true);
+    assert.equal(current.connection, 'live'); assert.equal(current.freshness, 'server');
+    assert.equal(current.gmInstanceOwned, true); assert.equal(current.cycle, gmActor.cycle);
+    assert.ok(['active', 'debrief'].includes(current.phase));
+    await bounded(({ timeoutMs }) => new Promise(resolve => setTimeout(resolve, Math.min(25, timeoutMs))));
+    ending = await root();
+  }
   assert.equal(ending.phase, 'debrief', 'Other active groups or insufficient capacity retain an open outcome.');
   assert.equal(ending.debriefSnapshot?.source, 'candidate'); assert.equal(ending.debriefSnapshot?.result, 'success');
   assert.equal(ending.debriefSnapshot?.candidate?.code, code);
-  if (code === 'O') outcomeObserved = 'reached';
+  if (code === 'O') {
+    assert.ok(receipts.some(receipt => receipt.result.outcome === 'reached'), 'An actual reached receipt is required for new Nebula reach credit.');
+    outcomeObserved = 'reached';
+  }
   assert.ok(outcomeObserved, 'Station did not actually activate; preserve this failed bounded slice.');
   return { ...cohort, code, outcomeObserved, receipts, debriefSnapshot: ending.debriefSnapshot,
     interruptedActionRecoveryProved: false, closedHistoryProved: false, sourceOnlyUntilExecuted: true };
