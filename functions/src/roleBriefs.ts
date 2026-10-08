@@ -169,7 +169,7 @@ const ROLE_BRIEFS: Readonly<Record<string, Omit<RoleBriefContent, 'roleId'>>> = 
   'rosal-militia-leader': {
     roleName: 'Rosal Militia Leader',
     vesselName: 'Shepherd',
-    text: 'During Boarding, support Shepherd security teams with defence dice when they are outnumbered and lead from the front when the fleet needs it. The authoritative boarding result decides the outcome.',
+    text: 'During Boarding, defend on the ship where you are present. If Wolf boarding parties outnumber its Security Teams, roll up to two defence dice per Security Team. Whether or not they outnumber the teams, you may lead from the front and roll up to three extra defence dice; a front-line 1 kills you. The authoritative boarding result records losses.',
   },
   doctor: {
     roleName: 'Doctor',

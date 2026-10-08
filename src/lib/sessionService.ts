@@ -7757,7 +7757,7 @@ function wolfBoardingSpecialChoiceReadReply(value: unknown): WolfBoardingSpecial
         !Number.isSafeInteger(choice.selectedSecurityTeams) || (choice.selectedSecurityTeams as number) < 0 ||
         (choice.selectedSecurityTeams as number) > (choice.availableSecurityTeams as number) ||
         !Number.isSafeInteger(choice.maxFrontLineDice) || (choice.maxFrontLineDice as number) < 0 ||
-        (choice.maxFrontLineDice as number) > Math.min(3, choice.availableSecurityTeams as number) ||
+        (choice.maxFrontLineDice as number) > 3 ||
         typeof choice.doubleDiceAvailable !== 'boolean') return null;
     return { type: 'wolf-boarding-special-choice-view', sessionId: reply.sessionId,
       turn: reply.turn as number, revision: reply.revision as number, choice: {

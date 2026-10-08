@@ -125,7 +125,7 @@ export function WolfBoardingMilitiaChoicePanelView({
         ))}
       </select>
     </label>
-    {view.maxFrontLineDice > 0 && <p>A front-line 1 costs a Security Team and kills the Militia Leader.</p>}
+    {view.maxFrontLineDice > 0 && <p>A front-line 1 kills the Militia Leader. Team losses apply only up to the available Security Teams.</p>}
     <button type="button" disabled={busy} onClick={() => onChoose({
       militiaDoubleTeams: doubleTeams, militiaFrontLineDice: frontLineDice,
     })}>Commit Militia risk</button>

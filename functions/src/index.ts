@@ -32387,7 +32387,7 @@ export const getWolfBoardingSpecialChoice = auditedOnCall<{
         revision: snapshot.inputs.revision, choice: { kind: 'militia', targetShipId: stage.target as WolfFleetTargetId,
           boardingParties, availableSecurityTeams,
           selectedSecurityTeams: defense.securityTeams as number,
-          maxFrontLineDice: Math.min(3, availableSecurityTeams),
+          maxFrontLineDice: 3,
           doubleDiceAvailable: boardingParties > availableSecurityTeams } };
     }
     if (stage.kind === 'aegis-reroll') {
@@ -32627,8 +32627,8 @@ export const commitWolfBoardingSpecialChoice = auditedOnCall<{
       if (choice.militiaDoubleTeams === true && parties <= available) {
         throw commandError('failed-precondition', 'Double dice are available only while parties outnumber Security Teams.', 'conflict');
       }
-      if ((choice.militiaFrontLineDice as number) > Math.min(3, available)) {
-        throw commandError('failed-precondition', 'Front-line dice exceed the available team risk budget.', 'conflict');
+      if ((choice.militiaFrontLineDice as number) > 3) {
+        throw commandError('failed-precondition', 'The Militia Leader may choose no more than three front-line dice.', 'conflict');
       }
       const previous = isRecord(state.get('boardingMilitiaChoices')) ? state.get('boardingMilitiaChoices') as Record<string, unknown> : {};
       statePatch = { boardingMilitiaChoices: { ...previous, [stage.target]: {

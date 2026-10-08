@@ -897,9 +897,6 @@ export function resolveWolfBoarding(
     if (!Number.isSafeInteger(militiaFrontLineDice) || militiaFrontLineDice < 0 || militiaFrontLineDice > 3) {
       throw new Error('The Militia Leader may choose zero to three front-line dice.');
     }
-    if (militiaFrontLineDice > availableSecurityTeams) {
-      throw new Error('The Militia Leader cannot risk more teams than the available inventory.');
-    }
     const commanderBonus = chosen.commanderLed === true ? 2 : 0;
     const boardingParties = baseBoardingParties + commanderBonus;
     const militiaDoubleTeams = chosen.militiaDoubleTeams === true;
