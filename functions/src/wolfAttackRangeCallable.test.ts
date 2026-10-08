@@ -1544,6 +1544,13 @@ it('finalizes a source reroll on its own target when another attacked target fol
   await commitWolfBoardingSpecialChoice.run(request({ sessionId: 's1', requestId: 'multi-target-commander',
     expectedTurn: 1, expectedRevision: 10, choice: { kind: 'commander', targetShipId: 'aegis' },
   }, 'commander-1'));
+  put('sessions/s1/players/gm-1', { uid: 'gm-1', role: 'gm', connected: true });
+  put('sessions/s1/gmInstances/gm-instance', { uid: 'gm-1', connected: true, lastSeenAt: new Date() });
+  await commitWolfBoardingSpecialChoice.run(request({ sessionId: 's1', requestId: 'multi-target-ruling',
+    expectedTurn: 1, expectedRevision: 11,
+    instanceId: 'gm-instance',
+    choice: { kind: 'commander-ruling', targetShipId: 'aegis', rulingText: 'The facilitator records the consequence.' },
+  }, 'gm-1'));
 
   for (const { targetShipId, uid } of [
     { targetShipId: 'aegis', uid: 'xo-1' }, { targetShipId: 'dione', uid: 'dione-crew' },
@@ -1629,6 +1636,13 @@ it('finalizes the four-target max-team defence with Pallas rerolls at its reloca
   await commitWolfBoardingSpecialChoice.run(request({ sessionId: 's1', requestId: 'four-target-commander',
     expectedTurn: 1, expectedRevision: 10, choice: { kind: 'commander', targetShipId: 'aegis' },
   }, 'commander-1'));
+  put('sessions/s1/players/gm-1', { uid: 'gm-1', role: 'gm', connected: true });
+  put('sessions/s1/gmInstances/gm-instance', { uid: 'gm-1', connected: true, lastSeenAt: new Date() });
+  await commitWolfBoardingSpecialChoice.run(request({ sessionId: 's1', requestId: 'four-target-ruling',
+    expectedTurn: 1, expectedRevision: 11,
+    instanceId: 'gm-instance',
+    choice: { kind: 'commander-ruling', targetShipId: 'aegis', rulingText: 'The facilitator records the consequence.' },
+  }, 'gm-1'));
   const relocation = await getWolfBoardingSpecialChoice.run(request({ sessionId: 's1' }));
   expect(relocation).toMatchObject({ choice: { kind: 'relocation', craftId: 'pallas' } });
   await commitWolfBoardingSpecialChoice.run(request({ sessionId: 's1', requestId: 'four-target-pallas-move',
@@ -1672,7 +1686,8 @@ it('finalizes the four-target max-team defence with Pallas rerolls at its reloca
       expect.objectContaining({ target: 'refinery-124', survivingBoardingParties: 0, rerolls: [] }),
     ], returningInstanceIds: Array.from({ length: 9 }, (_, index) => `${index + 1}:wolf-fighter-wing`) },
   });
-  expect(resolved).not.toHaveProperty('boardingCommanderRulingRequiredTarget');
+  expect(resolved).toMatchObject({ boardingCommanderRulingRequiredTarget: 'aegis',
+    boardingCommanderRuling: { targetShipId: 'aegis', text: 'The facilitator records the consequence.' } });
   expect(resolved).not.toHaveProperty('resolutionBlocker');
   const finalAudit = testState.documents.get(`${statePath}/audit/wolf-finalized-1`);
   const drawCount = entropy.randomInt.mock.calls.length;
