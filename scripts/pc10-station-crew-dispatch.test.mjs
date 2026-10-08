@@ -259,6 +259,52 @@ test('retains a committed PDF source reply before rejecting its foreign session'
   assert.deepEqual(pdf.effects.clicks, []);
 });
 
+test('retains an exact denied boarding getter and its consumed attack-read bookends before failing closed', async () => {
+  // Source-shaped synthetic callable reply. Attempt22 did not retain the
+  // actual failed packet or denial-time transaction state, so this exercises
+  // the dispatch consumer contract without claiming a native capture.
+  const current = attack('boarding', 18);
+  const sourceAttack = { ...current, type: 'wolf-attack-state', sessionId };
+  const miner = surface('icebreaker-miner', { type: 'wolf-boarding-special-choice-view',
+    sessionId, turn: 3, revision: 18,
+    choice: { kind: 'relocation', craftId: 'chepu', currentHostId: 'refinery-124',
+      fuelled: false, controlRevision: 2, legalHostIds: ['refinery-124'] } });
+  const reply = { status: 'denied', code: 'functions/failed-precondition',
+    message: 'Wolf boarding defence is not currently open.' };
+  miner.callable = async (endpoint, payload, timeoutMs) => {
+    miner.effects.reads.push({ endpoint, payload, timeoutMs });
+    return reply;
+  };
+  let attackReads = 0, actions = 0;
+  const opts = options([{ roleId: miner.label, surface: miner }], current);
+  opts.readAttack = async () => { attackReads++; return structuredClone(sourceAttack); };
+  opts.action = async () => { actions++; throw new Error('Denied source read must never reach an action.'); };
+
+  let failure;
+  try { await dispatchStationCrewChoice(current, opts); } catch (error) { failure = error; }
+  assert.equal(failure?.message, reply.message);
+  const held = heldProofFailureObservations(failure).find(entry =>
+    entry.operation === 'station-crew-current-source-readiness');
+  assert.ok(held, 'The source-read rejection must retain the original readiness observations.');
+  const sourceRead = held.consumedObservations.sourceReadAttempts?.find(entry =>
+    entry.requestIntent?.endpoint === 'getWolfBoardingSpecialChoice');
+  assert.ok(sourceRead, 'Retain the denial before later actor or attack validation can fail.');
+  assert.deepEqual(sourceRead, {
+    requestIntent: { endpoint: 'getWolfBoardingSpecialChoice', payload: { sessionId },
+      source: 'dispatcher-built callable arguments' },
+    transportPacketCaptured: false,
+    beforeAttack: sourceAttack,
+    afterAttack: sourceAttack,
+    reply,
+  });
+  assert.equal(failure.code, reply.code, 'Keep the callable denial code without changing its classification.');
+  assert.equal(failure.cause, reply, 'Keep the exact raw SDK reply as the original denial cause.');
+  assert.ok(attackReads >= 5, 'The retained bookends are from the already consumed source-read path.');
+  assert.equal(miner.effects.reads.length, 1, 'A denied read must not be retried.');
+  assert.equal(actions, 0);
+  assert.deepEqual(miner.effects.clicks, []);
+});
+
 test('uses the current PDF choice status before interpreting a stale waiting reason', async () => {
   // These exact reply/UI pairs are backend/component-derived source fixtures,
   // not native Attempt21 source or DOM captures.
