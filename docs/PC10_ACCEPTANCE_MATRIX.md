@@ -18,7 +18,7 @@ anchors; that coverage does not establish an enabled control or gameplay.
 
 The October 8 owner choice makes Home the N/O default in the app and canonical
 paper, with coherent labeled Deluxe alternatives. Home N: 10 Materials,
-Engineering Shuttle, five research tracks with four crosses, 5 Fuel per passing
+Engineering Shuttle, five research tracks with four crosses, 5 Fuel per attempting
 ship. Home O: d6 + scouting + prior lost ships, threshold 9. Deluxe N:
 15 Materials and five completed technologies, with other exact source-face
 requirements retained; Deluxe O: threshold 8 without loss bonuses. This is

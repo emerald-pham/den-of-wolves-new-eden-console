@@ -1338,5 +1338,27 @@
     "fixedCatalogClosures": 0,
     "pc10Complete": false,
     "releaseAccepted": false
+  },
+  "homeNoCrossOwnerPaperAlignment": {
+    "paperHandoff": {
+      "path": "/tmp/dow-home-no-owner-choice-handoff.json",
+      "sha256": "b949084930adddb8ea4784188b7fbb6999ed8646ccffd6bf8cf9b141b1fa5012"
+    },
+    "originalClauseReviewRead": {
+      "path": "/Users/emeraldpham/Documents/New Eden Canonical Paper Kit 2026-10-08/reviews/original-no-clause-review.md",
+      "sha256": "51d445cea53523ea63c493a8732ec88849b994718d8d9e043039d7d2ec59b0b0"
+    },
+    "parentPaperContentLayoutStatus": "Reported PASS70PDFs566page occurrences; not independently whole-kit verified here",
+    "paperOnlyNotAppAcceptance": true,
+    "homePriorLossBonusScope": "Ships lost earlier in this same Nebula attempt sequence; subsequent rolls only",
+    "homeFourCrossConvention": "Five distinct qualifying Endeavour tracks with four displayed crosses; original mark counted once, not four new actions",
+    "deluxeCommonNRequirements": "Engineering Shuttle, at least five different completed Endeavour technologies and5Fuel per attempting ship; preserve its exact far-side wording",
+    "fiveConditionalHouseRuleGapFillersApproved": false,
+    "parentPaperCoordinationAcknowledged": true,
+    "appImplementationOwner": "Existing SUCCESS/P and checkpoint parent; no duplicate implementation here",
+    "appImplementationVerifiedHere": false,
+    "sourceOnlyRuntimeHeld": false,
+    "otherOwnersRuntimeThroughUtc": "2026-10-08T13:43:00Z",
+    "windowEndIsNotGrant": true
   }
 }

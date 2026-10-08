@@ -1368,7 +1368,7 @@ The owner's reply “go for it” to Home as default, with clearly labeled Delux
 alternatives, is recorded as `Sentinel_fa32623975ac81918781558eeb6a5395`. This
 is an owner edition choice, not author-confirmed precedence. Home N requires
 10 Materials, an Engineering Shuttle, five research tracks with four crosses,
-and 5 Fuel per passing ship. Home O uses d6 plus scouting plus prior lost
+and 5 Fuel per attempting ship. Home O uses d6 plus scouting plus prior lost
 ships, reaching 9. The coherent Deluxe alternative uses 15 Materials and five
 completed technologies for N, with its other exact source-face requirements
 preserved, and an O threshold of 8 without prior-loss bonuses. Verify each
@@ -1383,3 +1383,13 @@ and gameplay gates remain required. Older Ring/N/O results retain their
 original edition and source; no older result is relabeled as new Home proof.
 The shared owner-choice acknowledgment requests parent coordination and adds
 zero closures, native outcome credit or release acceptance.
+
+The parent subsequently delivered the canonical paper Home/Deluxe handoff,
+with independent paper content/layout PASS reported for 70 PDFs/566 page
+occurrences. The [source-clause alignment](PC10_PARITY_ACCEPTANCE_IMPACT.md#owner-selected-home-no-default)
+records the exact original page bindings, Endeavour's displayed four-cross
+convention, both editions' Engineering Shuttle and per-attempting-ship fuel,
+and Home's sequential Nebula-loss scope. Paper delivery grants no app
+implementation or new native outcome proof. Five conditional house-rule
+gap-fillers are separately proposed and remain pending. P's runtime through
+13:43 UTC is parent-owned; this executor holds no runtime grant.

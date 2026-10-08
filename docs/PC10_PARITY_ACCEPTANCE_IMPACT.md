@@ -138,7 +138,7 @@ post-PC10 work, PC11 and PC12 stay future work.
 On October 8, Emerald approved Home as the app and canonical paper default,
 with clearly labeled coherent Deluxe alternatives. This is owner choice,
 not author-confirmed precedence. Home N is 10 Materials, an Engineering
-Shuttle, five research tracks with four crosses and 5 Fuel per passing ship.
+Shuttle, five research tracks with four crosses and 5 Fuel per attempting ship.
 Home O is d6 + scouting + prior lost ships, threshold 9. Deluxe N is
 15 Materials and five completed technologies, retaining all other exact
 source-face requirements; Deluxe O is threshold 8 without loss bonuses.
@@ -152,3 +152,26 @@ its coherent edition. Retain older N/O discovery, costs, paid passages and
 results at their original source/edition binding; recheck affected claims
 rather than relabeling them. This planning amendment grants no new Home
 implementation, native outcome, fixed closure or release credit.
+
+The parent delivered the exact cross-owner paper record
+`/tmp/dow-home-no-owner-choice-handoff.json` (SHA-256
+`b949084930adddb8ea4784188b7fbb6999ed8646ccffd6bf8cf9b141b1fa5012`).
+Its retained original-clause review binds Home N/O to A4 Single v1.1 physical
+page 34 and Deluxe N/O to Away Missions v1.1 physical pages 14/15. Home's five
+tracks are distinct qualifying console-upgrade/science-device tracks on
+Endeavour, with four displayed crosses, including any originally supplied
+mark once; this is not four new research actions. Deluxe instead requires
+completion of at least five different technologies on Endeavour. Both N
+variants charge 5 Fuel per attempting ship and require the Engineering Shuttle.
+Home explicitly describes far-side sabotage stopping Wolf following; retain
+Deluxe's own printed far-side wording without adding Home's omitted clause.
+
+Both O variants require each ship's long jump, one d6 and +1 per qualifying
+in-range scout here, with the accrued scouting bonus private. Home adds +1
+per ship lost earlier in this same Nebula attempt sequence to subsequent
+ships only. It does not add unrelated casualties or change an earlier result.
+Deluxe has no loss bonus. The paper owner reports content/layout PASS for
+70 PDFs/566 page occurrences; this source executor read the handoff and clause
+review, not the whole delivered kit. App behavior remains unverified by the
+paper task. The five newly proposed conditional house-rule gap-fillers remain
+pending owner approval and must not be implemented from this edition choice.

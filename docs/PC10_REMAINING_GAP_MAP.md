@@ -122,7 +122,7 @@ remain unchanged.
 
 Home is the owner-approved app and canonical paper default, with a clearly
 labeled coherent Deluxe alternative. Home N: 10 Materials, Engineering
-Shuttle, five research tracks with four crosses, 5 Fuel per passing ship.
+Shuttle, five research tracks with four crosses, 5 Fuel per attempting ship.
 Home O: d6 + scouting + prior lost ships, threshold 9. Deluxe N: 15 Materials
 and five completed technologies, preserving its other exact source-face
 requirements. Deluxe O: threshold 8 with no loss bonus. This is an owner

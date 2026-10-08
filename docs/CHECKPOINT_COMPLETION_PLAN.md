@@ -251,7 +251,7 @@ notices remain unchanged.
 Emerald approved **Home as the default** for the app and canonical paper kit,
 with clearly labeled, coherent Deluxe alternatives. This owner choice is not
 author-confirmed precedence. Home N requires 10 Materials, an Engineering
-Shuttle, five research tracks with four crosses and 5 Fuel per passing ship.
+Shuttle, five research tracks with four crosses and 5 Fuel per attempting ship.
 Home O is d6 plus scouting plus prior lost ships, threshold 9. Deluxe N uses
 15 Materials and five completed technologies, preserving its other exact
 source-face requirements; Deluxe O uses threshold 8 without loss bonuses.
@@ -281,3 +281,12 @@ assessment. Earlier coarse estimates are not a reliable schedule. Deadline
 pressure does not weaken functionality, privacy, acceptance or release gates.
 The linked handoff records the current evidence limits, critical path and
 bounded offline architecture assessment.
+
+The subsequent canonical paper handoff is delivered locally with paper-only
+independent content/layout acceptance. Its exact original-clause alignment
+is recorded in [the PC10 acceptance impact](PC10_PARITY_ACCEPTANCE_IMPACT.md#owner-selected-home-no-default):
+Home's four displayed crosses include any original mark once; both N variants
+use Engineering Shuttle and 5 Fuel per attempting ship; Home O's loss bonus
+counts ships lost earlier in the same attempt sequence, for subsequent rolls
+only. Paper acceptance is not app acceptance. The five separate conditional
+house-rule gap-fillers remain pending and are not authorized by edition choice.
