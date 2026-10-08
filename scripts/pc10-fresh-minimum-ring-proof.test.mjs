@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { assertStationPopulationAcknowledgmentTransition, minimumRingPlan, runRingWorkflow, runStationCombatWaves, selectStationCombatCrew, stationCombatServerContext, stationPopulationAlertsForGm } from './pc10-fresh-minimum-ring-proof.mjs';
+import { assertStationPopulationAcknowledgmentTransition, minimumRingPlan, runRingWorkflow, runStationCombatWaves, selectStationCombatCrew, stationCombatServerContext, stationDialogAccessibleName, stationPopulationAckMutinyRows, stationPopulationAlertsForGm, stationPopulationDismissIntent } from './pc10-fresh-minimum-ring-proof.mjs';
 
 function stationLossFixture({ originalGeneration = 4, currentGeneration = 4 } = {}) {
   const actor = { uid: 'pdf', roleId: 'refinery-124-pdf-colonel',
@@ -174,6 +174,33 @@ test('station wave consumer acknowledges each current-GM threshold alert before 
     persistWaves: async () => {},
   });
   assert.deepEqual(trace, ['declare:1', 'dismiss:aegis', 'dismiss:dione', 'declare:2']);
+});
+
+test('population dialog accessible name resolves every whitespace-separated labelledby ID', () => {
+  assert.equal(stationDialogAccessibleName('population-title population-description', {
+    'population-title': 'Survivor population threshold reached',
+    'population-description': 'A census threshold requires GM attention.',
+  }), 'Survivor population threshold reached A census threshold requires GM attention.');
+});
+
+test('population acknowledgment blocks unrest at eight even when the mutiny row is absent', () => {
+  assert.deepEqual(stationPopulationAckMutinyRows({ activeVesselIds: ['dione'],
+    shipUnrest: { dione: 8 }, shipMutinies: {} }), [['dione', undefined]]);
+});
+
+test('population dismissal rechecks exact intent and original deadline before the normal click', async () => {
+  let clicks = 0, now = 100;
+  await assert.rejects(stationPopulationDismissIntent({ deadlineAt: 1000, now: () => now,
+    expected: { actor: 'gm-1', shipId: 'dione', revision: 7 },
+    readCurrentIntent: async () => ({ actor: 'gm-1', shipId: 'aegis', revision: 2 }),
+    click: async () => { clicks++; } }), /intent changed/i);
+  assert.equal(clicks, 0);
+
+  await assert.rejects(stationPopulationDismissIntent({ deadlineAt: 1000, now: () => now,
+    expected: { actor: 'gm-1', shipId: 'dione', revision: 7 },
+    readCurrentIntent: async () => { now = 1000; return { actor: 'gm-1', shipId: 'dione', revision: 7 }; },
+    click: async () => { clicks++; } }), /deadline/i);
+  assert.equal(clicks, 0);
 });
 
 test('first prerequisite failure stops the workflow before candidate outcomes', async () => {
