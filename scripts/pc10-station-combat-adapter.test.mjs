@@ -139,6 +139,20 @@ function stationDeclare429Error({observation={}, attach=true}={}) {
  return {error,held};
 }
 
+test('Station declaration accepts the native paired observer schemas without inventing lifecycle profile fields',()=>{
+ const context=stationDeclareRetryContext(),lifecycle={...context.actor};delete lifecycle.profileSessionId;
+ const live={hasAuth:true,sameActor:true,sessionId:context.actor.sessionId,uidHash:context.actor.uidHash,
+  connectionGeneration:context.actor.generation,hydrationRevision:context.actor.hydrationRevision,
+  instanceId:context.actor.instanceId,profileRoleId:null,profileSessionId:null,playerRole:'gm',
+  gmInstanceOwned:true,connection:'live',freshness:'server'};
+ const paired={...context,actor:{live,lifecycle}};
+ assert.deepEqual(adapter.stationDeclarationRetryProjection(paired).actor,context.actor);
+ for(const patch of [{profileSessionId:undefined},{profileSessionId:'foreign-profile-session'}]){
+  const invalid={...paired,actor:{...paired.actor,live:{...live,...patch}}};
+  assert.throws(()=>adapter.stationDeclarationRetryProjection(invalid));
+ }
+});
+
 test('rate-limited Station declaration waits once, then requires the identical normal-GM source and lease tuple',async()=>{
  let now=1000,reads=0,actorChecks=0,waited=0;const used=new Set(),expected=stationDeclareRetryContext();
  const {error,held}=stationDeclare429Error();
