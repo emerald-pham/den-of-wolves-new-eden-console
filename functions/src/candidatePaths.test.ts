@@ -151,8 +151,8 @@ describe('candidate source calculations and explicit choices', () => {
     const deluxeState = parseCandidateState({ revision: 0, edition: 'deluxe', sites: {} });
     expect(() => resolveCandidateAction(a, deluxeState, command('contribute-research', {
       trackIds: ['reactor', 'jump-drive', 'hydroponics', 'water-reclamation', 'fuel-refinery'],
-    }))).toThrow(/invalid crossed-box/i);
-    expect(() => candidateWorkspace(a, deluxeState)).toThrow(/invalid crossed-box/i);
+    }))).toThrow('Endeavour research progress contains an invalid crossed-box count.');
+    expect(() => candidateWorkspace(a, deluxeState)).toThrow('Endeavour research progress contains an invalid crossed-box count.');
   });
   it.each(['roll', 'dice', 'hiddenScoutCount', 'modifier', 'outcome', 'wolfRoster'])('rejects client-owned %s', field => {
     expect(() => command('nebula-jump', { shipId: 'aegis', [field]: 6 })).toThrow();
