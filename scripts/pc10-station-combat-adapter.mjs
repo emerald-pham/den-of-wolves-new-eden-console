@@ -1,16 +1,40 @@
 import assert from 'node:assert/strict';import {setTimeout as delay} from 'node:timers/promises';
 import { heldProofFailureObservations, rememberProofFailure } from './pc10-proof-failure-evidence.mjs';
 // P-specific source adapter. Injected synthetic tests do not establish native authority.
+const stationStepOrder = ['targeting', 'long-range', 'medium-range', 'short-range', 'boarding', 'resolved'];
+export function assertStationCombatSource(current, original = current, previous = original) {
+ assert.ok(current && original && previous, 'Current original Station attack source is required.');
+ for(const key of ['attackId','targetGroupId','threatSourceId']) {
+  assert.ok(typeof original[key]==='string'&&original[key].length>0, `Original Station ${key} is required.`);
+  assert.equal(current[key],original[key],`Original Station ${key} changed.`);
+ }
+ assert.ok(Number.isSafeInteger(original.turn)&&original.turn>=1,'Original Station attack cycle is required.');
+ assert.equal(current.turn,original.turn);assert.equal(original.threatSiteCode,'P');assert.equal(current.threatSiteCode,'P');
+ assert.ok(Number.isSafeInteger(current.revision)&&current.revision>=1&&current.revision>=previous.revision,
+  'Original Station attack revision regressed or is malformed.');
+ const priorStep=stationStepOrder.indexOf(previous.currentStep),nextStep=stationStepOrder.indexOf(current.currentStep);
+ assert.ok(priorStep>=0&&nextStep>=priorStep,'Original Station attack step regressed or is unknown.');
+ if(nextStep!==priorStep)assert.ok(current.revision>previous.revision,'Forward Station progress must advance revision.');
+ if(current.status==='resolved') {
+  assert.equal(current.currentStep,'resolved');assert.equal(current.airspaceLocked,false,'A finalized Station attack must release its lock.');
+  assert.ok(['repeat','stopped'].includes(current.pStationRepeat?.status),'A finalized Station attack requires its actual repeat or stopped outcome.');
+ } else {
+  assert.equal(current.status,'declared');assert.notEqual(current.currentStep,'resolved');
+  assert.equal(current.airspaceLocked,true,'A declared Station attack must keep its lock.');
+ }
+ return current;
+}
 export function assertSparseStationWing(actor,original){
  for(const key of ['uidHash','sessionId','fleetGroupId','cycle'])assert.equal(actor[key],original[key],`Original Station Wing ${key}`);
  for(const key of ['hasAuth','sameActor','currentCanonicalSeatOwned','currentMemberBerthPresent','currentMemberBerthMatches'])assert.equal(actor[key],true,`Station Wing requires ${key}`);
  assert.equal(actor.playerRole,'player');assert.equal(actor.assignedRoleId,'wing-commander');assert.equal(actor.activeConsoleRoleId,'wing-commander');assert.equal(actor.seatId,'wing-commander');assert.equal(actor.connection,'live');assert.equal(actor.freshness,'server');
 }
 export async function runSparseStationCombat({deadlineAt,readAttack,assertActors,choose,wait=delay,onState=async()=>{},onDiagnosticError=async()=>{},recoverChoice=async()=>false}){
- assert.ok(Number.isFinite(deadlineAt));let original,stageKey,stageDeadline,recoveryDeadline;
+ assert.ok(Number.isFinite(deadlineAt));let original,previous,stageKey,stageDeadline,recoveryDeadline;
  while(Date.now()<deadlineAt){
-  const current=await readAttack();assert.ok(current);assert.equal(current.threatSiteCode,'P');
-  original??={attackId:current.attackId,turn:current.turn};assert.equal(current.attackId,original.attackId);assert.equal(current.turn,original.turn);assert.ok(Number.isSafeInteger(current.revision));try{await onState(current);}catch(error){try{await onDiagnosticError(error,current);}catch{/* Diagnostic reporting cannot replace the gameplay failure. */}}
+  const current=await readAttack();assert.ok(Date.now()<deadlineAt,'Original Station combat budget expired during source read.');
+  original??=structuredClone(current);assertStationCombatSource(current,original,previous??original);
+  previous=structuredClone(current);try{await onState(current);}catch(error){try{await onDiagnosticError(error,current);}catch{/* Diagnostic reporting cannot replace the gameplay failure. */}}
   if(current.status==='resolved'){assert.equal(current.currentStep,'resolved');assert.ok(['repeat','stopped'].includes(current.pStationRepeat?.status));return current;}
   await assertActors();assert.equal(current.status,'declared');assert.ok(['targeting','long-range','medium-range','short-range','boarding'].includes(current.currentStep));
   const key=JSON.stringify([current.attackId,current.revision,current.currentStep]);if(key!==stageKey){stageKey=key;stageDeadline=Math.min(Date.now()+60000,deadlineAt,recoveryDeadline??Infinity);}

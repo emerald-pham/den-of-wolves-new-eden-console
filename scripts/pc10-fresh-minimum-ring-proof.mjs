@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {assertSparseStationWing,runSparseStationCombat,stationBoardingRead,recoverStationLaunch,assertRecoveredStationLaunch,stationSurvivingRepairTargets,stationDeclarationRetryProjection,assertStationDeclarationRetryContext,recoverStationRateLimitedDeclaration,assertRecoveredStationDeclaration} from './pc10-station-combat-adapter.mjs';
-import {dispatchStationCrewChoice} from './pc10-station-crew-dispatch.mjs';
+import {dispatchStationCrewChoice,readStationWingChoiceAuthority,readStationWingPhaseAuthority,stationWingFinalIntent} from './pc10-station-crew-dispatch.mjs';
 import {runMinimumCandidateSuccessProbe} from './pc10-minimum-candidate-success.mjs';
 import { runPursuitLimitEnding } from './pc10-full-game-cycle-ending.mjs';
 import { createHash } from 'node:crypto';
@@ -263,7 +263,61 @@ function sameStationLossTuple(left,right){
   left.escape.destructionEventId===right.escape.destructionEventId&&left.escape.revision===right.escape.revision&&
   left.escape.fleeRequestId===right.escape.fleeRequestId;
 }
-export async function chooseStationCombatActor(current,{chooseWing,chooseCrew,pendingWingRecovery=false,deadlineAt}){const choice=await chooseWing(current,{deadlineAt});if(choice?.committed||pendingWingRecovery&&current.currentStep==='targeting')return choice;return chooseCrew(current,{deadlineAt});}
+export async function chooseStationCombatActor(current,{chooseWing,chooseCrew,pendingWingRecovery=false,deadlineAt,onSourceProgress}){
+ let progressed=false;
+ const retainProgress=async observation=>{progressed=true;await onSourceProgress?.(observation);};
+ const choice=await chooseWing(current,{deadlineAt,onSourceProgress:retainProgress});
+ if(progressed||choice?.committed||pendingWingRecovery&&current.currentStep==='targeting')return choice;
+ return chooseCrew(current,{deadlineAt,...(onSourceProgress?{onSourceProgress}:{})});
+}
+class StationWingChoiceCanceled extends Error {}
+export async function dispatchStationWingChoice(current, {
+ recipient, fullMember, evidence, action: captureAction, recoveredLaunches, directory,
+ deadlineAt, readAttack, readTurnState, gmAuthority, readWingAuthority, onSourceProgress,
+}) {
+ const sessionId=evidence.stationWingOriginal.sessionId;
+ const readMember=async()=>{assert.ok(Date.now()<deadlineAt,'Original Station Wing choice deadline expired.');
+  const member=await fullMember(recipient);assertSparseStationWing(member,evidence.stationWingOriginal);return member;};
+ const originalMember=structuredClone(evidence.stationWingOriginal);
+ await readMember();
+ const actor={roleId:'wing-commander',surface:recipient};
+ const readAuthority=readWingAuthority??(()=>readStationWingChoiceAuthority(current,actor,{
+  sessionId,deadlineAt,assertActor:readMember}));
+ const originalAuthority=structuredClone(await readAuthority());
+ const originalPhase=await readStationWingPhaseAuthority(current,{readTurnState,deadlineAt,sessionId,gmAuthority});
+ const action=async(surface,endpoint,choose,options)=>{
+  const capture=await captureAction(surface,endpoint,async()=>{
+   const intent=await stationWingFinalIntent(current,{deadlineAt,sessionId,readAttack,readTurnState,gmAuthority,
+    readMember,readAuthority,originalMember,originalAuthority,originalPhase,onSourceProgress});
+   if(intent.canceled)throw new StationWingChoiceCanceled('Original Station Wing choice is now obsolete.');
+   assert.ok(Date.now()<deadlineAt,'Original Station Wing choice deadline expired before click.');
+   await choose();
+  },options);
+  assert.equal(capture?.endpoint,endpoint,'Station Wing must retain its actual current mutation endpoint.');
+  assert.equal(capture?.httpStatus,200,'Station Wing requires its actual successful mutation response.');
+  assert.ok(['committed','replayed'].includes(capture?.result?.status),'Unknown Station Wing mutation receipt.');
+  return capture;
+ };
+ try {
+
+    if(current.currentStep==='targeting'){
+     const pendingRecovery=[...recoveredLaunches.values()].find(row=>row.view.attackId===current.attackId&&!row.committed);
+     for(const label of ['Fighter Wing Alpha','Fighter Wing Bravo']){if(pendingRecovery&&pendingRecovery.view.wingId!==`fighter-wing-${label.endsWith('Alpha')?'alpha':'bravo'}`)continue;const launch=recipient.page.getByRole('button',{name:`Launch ${label}`,exact:true}),pass=recipient.page.getByRole('button',{name:`Pass ${label}`,exact:true});if(await launch.isVisible()&&await launch.isEnabled()){const capture=await action(recipient,'launchAegisFighterWing',()=>launch.click(),{deadlineAt});assertRecoveredStationLaunch(capture,current,recoveredLaunches);const recovered=evidence.stationLaunchRecoveries?.findLast(row=>row.freshAttack.attackId===current.attackId&&row.failedRequest.wingId===capture.data.wingId);if(recovered){recovered.committedReceipt=publicLifecycleReceipt(capture);await writeFile(`${directory}/Station-launch-recoveries.json`,JSON.stringify(evidence.stationLaunchRecoveries,null,2)+'\n');}return {committed:true};}if(await pass.isVisible()&&await pass.isEnabled()){assert.equal(Boolean(pendingRecovery),false,'A rejected launch cannot silently become a pass.');await action(recipient,'passWolfFighterLaunchChoice',()=>pass.click(),{deadlineAt});return {committed:true};}}
+    }else if(['medium-range','short-range'].includes(current.currentStep)){
+     const range=current.currentStep==='medium-range'?'Medium Range':'Short Range';
+     for(const label of ['Fighter Wing Alpha','Fighter Wing Bravo']){const panel=recipient.page.getByRole('region',{name:`${label} ${range} actions`,exact:true});if(!await panel.isVisible())continue;
+      if(range==='Medium Range'){const actions=panel.getByRole('combobox',{name:/^Fighter \d+ action$/});for(let i=0;i<await actions.count();i++){const select=actions.nth(i),name=(await select.getAttribute('aria-label')).replace('action','target');await select.selectOption('attack');const target=panel.getByRole('combobox',{name,exact:true}),options=await target.locator('option').evaluateAll(nodes=>nodes.filter(node=>node.value&&!node.disabled).map(node=>({value:node.value,label:node.textContent})));if(options.length)await target.selectOption((options.find(option=>/battlestation/i.test(option.label))??options[i%options.length]).value);}}
+      else for(const box of await panel.getByRole('checkbox',{name:/^Fighter \d+ Short attack$/}).all())await box.check();
+      const use=panel.getByRole('button',{name:range==='Medium Range'?'Resolve Medium actions':'Resolve selected Short attacks',exact:true}),pass=panel.getByRole('button',{name:range==='Medium Range'?'Pass Medium Range':'Pass Short Range',exact:true});const button=await use.isVisible()&&await use.isEnabled()?use:pass;
+      if(await button.isVisible()&&await button.isEnabled()){await action(recipient,'commitWolfFighterRangeActionChoice',()=>button.click(),{deadlineAt});return {committed:true};}
+     }
+    }
+    assert.ok(Date.now()<deadlineAt); // Additional actors use only their current ordinary crew surfaces.
+
+ } catch(error) {
+  if(!(error instanceof StationWingChoiceCanceled))throw error;
+ }
+}
 export function stationInactiveOwner(actor,root,player,member){
  const current=stationLossServerTuple(actor,root,player);if(!current)return false;
  for(const key of ['uidHash','sessionId','fleetGroupId'])assert.equal(member[key],actor.original[key]);
@@ -1364,22 +1418,8 @@ async function enterRole(surface,label){
      await writeFile(`${directory}/Station-launch-recoveries.json`,JSON.stringify(evidence.stationLaunchRecoveries,null,2)+'\n');
     },
    });
-   const chooseWing=async(current,{deadlineAt})=>{
-    assertSparseStationWing(await fullMember(recipient),evidence.stationWingOriginal);
-    if(current.currentStep==='targeting'){
-     const pendingRecovery=[...recoveredLaunches.values()].find(row=>row.view.attackId===current.attackId&&!row.committed);
-     for(const label of ['Fighter Wing Alpha','Fighter Wing Bravo']){if(pendingRecovery&&pendingRecovery.view.wingId!==`fighter-wing-${label.endsWith('Alpha')?'alpha':'bravo'}`)continue;const launch=recipient.page.getByRole('button',{name:`Launch ${label}`,exact:true}),pass=recipient.page.getByRole('button',{name:`Pass ${label}`,exact:true});if(await launch.isVisible()&&await launch.isEnabled()){const capture=await action(recipient,'launchAegisFighterWing',()=>launch.click(),{deadlineAt});assertRecoveredStationLaunch(capture,current,recoveredLaunches);const recovered=evidence.stationLaunchRecoveries?.findLast(row=>row.freshAttack.attackId===current.attackId&&row.failedRequest.wingId===capture.data.wingId);if(recovered){recovered.committedReceipt=publicLifecycleReceipt(capture);await writeFile(`${directory}/Station-launch-recoveries.json`,JSON.stringify(evidence.stationLaunchRecoveries,null,2)+'\n');}return {committed:true};}if(await pass.isVisible()&&await pass.isEnabled()){assert.equal(Boolean(pendingRecovery),false,'A rejected launch cannot silently become a pass.');await action(recipient,'passWolfFighterLaunchChoice',()=>pass.click(),{deadlineAt});return {committed:true};}}
-    }else if(['medium-range','short-range'].includes(current.currentStep)){
-     const range=current.currentStep==='medium-range'?'Medium Range':'Short Range';
-     for(const label of ['Fighter Wing Alpha','Fighter Wing Bravo']){const panel=recipient.page.getByRole('region',{name:`${label} ${range} actions`,exact:true});if(!await panel.isVisible())continue;
-      if(range==='Medium Range'){const actions=panel.getByRole('combobox',{name:/^Fighter \d+ action$/});for(let i=0;i<await actions.count();i++){const select=actions.nth(i),name=(await select.getAttribute('aria-label')).replace('action','target');await select.selectOption('attack');const target=panel.getByRole('combobox',{name,exact:true}),options=await target.locator('option').evaluateAll(nodes=>nodes.filter(node=>node.value&&!node.disabled).map(node=>({value:node.value,label:node.textContent})));if(options.length)await target.selectOption((options.find(option=>/battlestation/i.test(option.label))??options[i%options.length]).value);}}
-      else for(const box of await panel.getByRole('checkbox',{name:/^Fighter \d+ Short attack$/}).all())await box.check();
-      const use=panel.getByRole('button',{name:range==='Medium Range'?'Resolve Medium actions':'Resolve selected Short attacks',exact:true}),pass=panel.getByRole('button',{name:range==='Medium Range'?'Pass Medium Range':'Pass Short Range',exact:true});const button=await use.isVisible()&&await use.isEnabled()?use:pass;
-      if(await button.isVisible()&&await button.isEnabled()){await action(recipient,'commitWolfFighterRangeActionChoice',()=>button.click(),{deadlineAt});return {committed:true};}
-     }
-    }
-    assert.ok(Date.now()<deadlineAt); // Additional actors use only their current ordinary crew surfaces.
-   };
+   const chooseWing=(current,options)=>dispatchStationWingChoice(current,{...options,recipient,fullMember,evidence,
+    action,recoveredLaunches,directory,readAttack,readTurnState,gmAuthority:gm1OriginalAuthority});
    const readOwnedStationAuthority=deadlineAt=>candidateWait(()=>readStationCombatGuardAuthority({db,scope:{ownedSyntheticSession:true,sessionId:sid,ownedSessionId:sid,projectId,expectedProjectId:allocation.projectId,firestoreHost:process.env.FIRESTORE_EMULATOR_HOST,expectedFirestoreHost:`127.0.0.1:${ports.firestore}`,gmInstanceId:gm1Instance}}),deadlineAt,'Station population acknowledgment source read');
    const assertStationAckActor=(anchor,actor)=>assertStationPopulationGmActorObserver(anchor,actor);
    const assertStationAckAuthority=(anchor,actor,authority)=>{
@@ -1523,7 +1563,9 @@ async function enterRole(surface,label){
      onInactive:(actor,member)=>(evidence.stationInactiveOwners??=[]).push({roleId:actor.roleId,uidHash:member.uidHash,shipDestroyed:true,explicitEscape:true,noChoiceIssued:true}),
      wait:milliseconds=>candidateWait(()=>delay(milliseconds),deadlineAt,'Station normal owner feed wait'),deadlineAt});
    };
-   const choose=(current,{deadlineAt})=>chooseStationCombatActor(current,{deadlineAt,chooseWing,pendingWingRecovery:[...recoveredLaunches.values()].some(row=>row.view.attackId===current.attackId&&!row.committed),chooseCrew:async(attack,options)=>dispatchStationCrewChoice(attack,{...options,sessionId:sid,actors:await activeCrew(options.deadlineAt),assertActor:assertCrewActor,readAttack,readTurnState,gmAuthority:gm1OriginalAuthority,action})});
+   const choose=(current,{deadlineAt})=>chooseStationCombatActor(current,{deadlineAt,chooseWing,pendingWingRecovery:[...recoveredLaunches.values()].some(row=>row.view.attackId===current.attackId&&!row.committed),
+    onSourceProgress:async observation=>{(evidence.stationCrewSourceTransitions??=[]).push(observation);await writeFile(`${directory}/Station-crew-source-transitions.json`,JSON.stringify(evidence.stationCrewSourceTransitions,null,2)+'\n');},
+    chooseCrew:async(attack,options)=>dispatchStationCrewChoice(attack,{...options,sessionId:sid,actors:await activeCrew(options.deadlineAt),assertActor:assertCrewActor,readAttack,readTurnState,gmAuthority:gm1OriginalAuthority,action})});
    let stationDeclarationAttempt=null;const stationDeclarationRetries=new Set();
    const stationDeclareRequestMatches=(attempt,data)=>data?.sessionId===attempt.context.actor.sessionId&&
     data?.instanceId===attempt.context.actor.instanceId&&data?.expectedRevision===attempt.context.preparation.revision;
