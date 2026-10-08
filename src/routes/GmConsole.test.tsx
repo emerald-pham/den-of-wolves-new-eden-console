@@ -16,6 +16,7 @@ import {
   SESSION_WAIVER_STORAGE_KEY,
 } from '@/lib/sessionWaiver';
 import { getBoardingSecurityTeamLocations } from '@/lib/boardingSecurityTeamService';
+import type { ArrestCase, ArrestPosseCalculation } from '@/types/game';
 import GmConsole from './GmConsole';
 
 const ORGANISER_SYSTEMS = Object.fromEntries(LEGACY_SYSTEMS.map((system, index) => [
@@ -130,7 +131,7 @@ const { kickGmInstance, kickPlayer, assignRole, releaseRole, setReplacementEligi
   confirmSetup, setFacilitatorResponsibility, setFacilitatorCensusNote, deliverWolfCultIntelligence, authorUniversalArbourVision, authorFacilitatorRuleCall, setCandidatePlanCheckpoint, transitionCrisis, setDiseaseQuarantine, admitVoyage33, recordZealotryResponse, recordCivilUnrestResolution, applyShipCounterSteps, scavengeDestroyedShipStores, triggerDradisContact,
   setFighterWingCount } =
   await import('@/lib/sessionService');
-const { subscribeConnectedPlayers, subscribeSessionPlayers, subscribeReplacementEligibility, subscribeGmInstances, subscribeGmWolfAttackWindow, subscribeGmWolfAttackPreparation, subscribeGmWolfAttackState, subscribeWolfAttackMemberView, subscribeGmWolfAssignment, subscribeGmWolfActionReceipt, subscribeGmWolfSuspicionHistory, subscribeGmWolfClueDisclosure, subscribeGmWolfCultIntelligence, subscribeGmArbourVision, subscribeGmFacilitatorRuleCall, subscribeGmCrisisState, subscribeGmApproachingVesselResponse, subscribeGmZealotryResponse, subscribeGmCivilUnrestResolution, subscribeGmArrestPosseCalculation, subscribeSessionEvents, subscribeDamageDraws } =
+const { subscribeConnectedPlayers, subscribeSessionPlayers, subscribeReplacementEligibility, subscribeGmInstances, subscribeGmWolfAttackWindow, subscribeGmWolfAttackPreparation, subscribeGmWolfAttackState, subscribeWolfAttackMemberView, subscribeGmWolfAssignment, subscribeGmWolfActionReceipt, subscribeGmWolfSuspicionHistory, subscribeGmWolfClueDisclosure, subscribeGmWolfCultIntelligence, subscribeGmArbourVision, subscribeGmFacilitatorRuleCall, subscribeGmCrisisState, subscribeGmApproachingVesselResponse, subscribeGmZealotryResponse, subscribeGmCivilUnrestResolution, subscribeGmArrestPosseCalculation, subscribeGmArrestCase, subscribeSessionEvents, subscribeDamageDraws } =
   await import('@/lib/firestore');
 const { runSmallShipMaintenance } = await import('@/lib/smallShipService');
 
@@ -514,6 +515,82 @@ it('mounts the private arrest calculator only on the verified GM console and sub
 
   await waitFor(() => expect(calculateArrestPosse).toHaveBeenCalledWith('u2', 2, 1, 0));
   expect(await within(panel).findByRole('status')).toHaveTextContent('7 players needed');
+});
+
+it('routes only a current unpaused arrest phase to mounted prisoner actions', async () => {
+  let publishCalculation: ((calculation: ArrestPosseCalculation | null) => void) | undefined;
+  let publishCase: ((caseRecord: ArrestCase | null) => void) | undefined;
+  vi.mocked(subscribeGmArrestPosseCalculation).mockImplementation((_sessionId, onCalculation) => {
+    publishCalculation = onCalculation;
+    onCalculation(null);
+    return vi.fn();
+  });
+  vi.mocked(subscribeGmArrestCase).mockImplementation((_sessionId, _targetUid, onCase) => {
+    publishCase = onCase;
+    onCase(null);
+    return vi.fn();
+  });
+  const now = Date.now();
+  const teamPhaseEndsAt = new Date(now + 60_000).toISOString();
+  const openAirspaceEndsAt = new Date(now + 120_000).toISOString();
+  useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!,
+    phase: 'active', currentTurn: 3,
+    turnPhase: {
+      turn: 3, teamPhaseEndsAt, openAirspaceEndsAt,
+      airspace: { state: 'lifted', tickerActive: false, pressAccess: true },
+    },
+  });
+  useSessionStore.getState().setGmInstance(local);
+  useSessionStore.getState().setGmLoyaltyCensus({
+    revision: 9, entries: [{ uid: 'u2', kind: 'wolf-agent', suspicion: 14 }],
+  });
+  streamInstances([local]);
+  renderConsole();
+
+  const panel = await screen.findByRole('region', { name: 'Arrest posse calculator' });
+  await waitFor(() => expect(publishCalculation).toBeDefined());
+  act(() => publishCalculation?.({
+    type: 'arrest-posse-calculation', sessionId: 's1', revision: 1,
+    requestId: 'route-phase-calculation', targetUid: 'u2', defenders: 0,
+    requiredPlayers: 5, censusRevision: 9,
+  }));
+  await waitFor(() => expect(publishCase).toBeDefined());
+  const pendingCase: ArrestCase = {
+    type: 'arrest-case', sessionId: 's1', targetUid: 'u2', status: 'pending-resolution',
+    outcome: 'arrested', turn: 3, revision: 1, requiredPlayers: 5, presentPlayers: 5,
+    deadlineCycle: 4, requestId: 'route-phase-case',
+  };
+  act(() => publishCase?.(pendingCase));
+
+  expect(within(panel).getByRole('button', { name: 'Release prisoner' })).toBeVisible();
+  expect(within(panel).getByRole('button', { name: 'Execute prisoner' })).toBeVisible();
+
+  act(() => useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!,
+    turnPhase: {
+      turn: 3, teamPhaseEndsAt, openAirspaceEndsAt,
+      airspace: { state: 'lifted', tickerActive: false, pressAccess: true },
+      timerPause: { window: 'open', remainingMs: 30_000, pausedAt: new Date(now).toISOString(), reason: 'turn-interstitial' },
+    },
+  }));
+  expect(within(panel).queryByRole('button', { name: 'Release prisoner' })).not.toBeInTheDocument();
+  expect(within(panel).queryByRole('button', { name: 'Execute prisoner' })).not.toBeInTheDocument();
+  expect(within(panel).queryByRole('button', { name: 'Record facilitator resolution' })).not.toBeInTheDocument();
+  expect(within(panel).getByText(/a current unpaused phase is required/i)).toBeVisible();
+  expect(within(panel).queryByText(/team phase ruling window is closed/i)).not.toBeInTheDocument();
+
+  act(() => useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!,
+    turnPhase: {
+      turn: 2, teamPhaseEndsAt, openAirspaceEndsAt,
+      airspace: { state: 'lifted', tickerActive: false, pressAccess: true },
+    },
+  }));
+  expect(within(panel).queryByRole('button', { name: 'Release prisoner' })).not.toBeInTheDocument();
+  expect(within(panel).queryByRole('button', { name: 'Execute prisoner' })).not.toBeInTheDocument();
+  expect(within(panel).queryByRole('button', { name: 'Record facilitator resolution' })).not.toBeInTheDocument();
+  expect(within(panel).getByText(/a current unpaused phase is required/i)).toBeVisible();
 });
 
 it('clears a successful arrest reply when the live projection is invalidated', async () => {
