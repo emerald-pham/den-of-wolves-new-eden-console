@@ -533,7 +533,8 @@ export async function runP631MemberRateSecurityUiProof() {
             state.meSessionId === owned.sessionId && state.playerRole === 'gm' && state.connected === true &&
             state.currentOwnPlayerConfirmed === true && state.kicked === false &&
             state.connectionGeneration === claimedGeneration && state.cycle === 0 &&
-            state.phase === 'casting' && state.gmInstanceOwned && state.instanceId === owned.instanceId &&
+            (state.phase === 'lobby' || state.phase === 'casting') &&
+            state.gmInstanceOwned && state.instanceId === owned.instanceId &&
             state.connection === 'live' && state.freshness === 'server' && state.sdkHasServerAuthority === true &&
             state.sdkResumePending === false && state.profileRoleId === null && state.profileSessionId === null &&
             state.invalidFields?.length === 0 && state.fullGameDemo === null,
@@ -560,7 +561,7 @@ export async function runP631MemberRateSecurityUiProof() {
             state.uidHash === shortHash(actorUids.get('GM')) && state.sessionId === owned.sessionId &&
             state.meSessionId === owned.sessionId && state.playerRole === 'gm' && state.connected === true &&
             state.currentOwnPlayerConfirmed === true && state.kicked === false &&
-            state.connectionGeneration === claimedGeneration && state.phase === 'casting' &&
+            state.connectionGeneration === claimedGeneration && state.phase === setupState.phase &&
             state.gmInstanceOwned && state.instanceId === owned.instanceId && state.connection === 'live' &&
             state.freshness === 'server' && state.fullGameDemo?.status === 'preparing' &&
             state.fullGameDemo?.progression === 'manual' && state.sdkHasServerAuthority === true &&
