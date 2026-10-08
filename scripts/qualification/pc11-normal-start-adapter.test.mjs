@@ -151,6 +151,28 @@ test('member identity epoch cannot drift or regress without exact normal resume 
   }
 });
 
+const malformedEpochIdentifiers = [
+  ['whitespace-only uidHash', { uidHash: '   ' }],
+  ['whitespace-only sessionId', { sessionId: '\t ' }],
+  ['non-string uidHash', { uidHash: 17 }],
+  ['non-string sessionId', { sessionId: true }],
+];
+
+for (const [description, changedIdentity] of malformedEpochIdentifiers) {
+  test(`same actor epoch rejects ${description}`, () => {
+    const valid = {
+      uidHash: 'valid-uid-hash',
+      sessionId: 'valid-session-id',
+      documentTimeOrigin: 100,
+      connectionGeneration: 1,
+      identityHydrationRevision: 1,
+    };
+    const before = { ...valid, ...changedIdentity };
+    const after = { ...before };
+    assert.equal(sameActorEpoch?.(before, after), false);
+  });
+}
+
 test('GM readiness requires the exact current owned live instance and server authority', () => {
   const gm = {
     hasAuth: true,
