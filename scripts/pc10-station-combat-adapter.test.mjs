@@ -168,6 +168,10 @@ test('Station retry pins semantic source fields while ignoring ordinary document
  assert.equal(adapter.assertStationDeclarationRetryContext(expected,current),current);
  current.session.turnState.phaseRevision++;
  assert.throws(()=>adapter.assertStationDeclarationRetryContext(expected,current),/changed/i);
+ for(const patch of [{compositionKind:'commander'},{targetGroupId:'fleet-2'}]){
+  const mismatched=structuredClone(expected);Object.assign(mismatched.preparation,patch);
+  assert.throws(()=>adapter.assertStationDeclarationRetryContext(expected,mismatched),/changed|composition|targetGroup/i);
+ }
 });
 
 test('Station declaration recovery refuses unsupported errors, bodies, and retry hints without reading or waiting',async()=>{
