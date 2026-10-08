@@ -9,3 +9,9 @@ test('entitled GM ending read can start from source-normal debrief without obser
  assert.equal(ending.isReadyForEntitledGmEndingRead(current,'own'),true);
  for(const patch of [{sessionId:'foreign'},{gmInstanceOwned:false},{sameActor:false},{freshness:'cache'},{phase:'active'}])assert.equal(ending.isReadyForEntitledGmEndingRead({...current,...patch},'own'),false);
 });
+
+test('held new cycle completes both normal offered presentations before another Coordination request',async()=>{
+ const trace=[],actors=[{label:'GM'},{label:'Reader'}];
+ await runner.presentPursuitCycle(actors,async actor=>({phase:'active',cycle:2,ordinaryBriefingHeld:true,label:actor.label}),async(actor,state,options)=>{assert.equal(state.ordinaryBriefingHeld,true);assert.deepEqual(options,{clearBriefing:true});trace.push(actor.label);});
+ trace.push('Coordination');assert.deepEqual(trace,['GM','Reader','Coordination']);
+});
