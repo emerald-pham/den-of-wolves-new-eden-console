@@ -445,6 +445,50 @@ function legacyKPublicProjection(state: AwayMissionPublicState, record: AwayMiss
   }) };
 }
 
+it.each(['alice', 'bob'] as const)(
+  'requires legacy K sanitation before the actual raw %s pointer reader resumes, with canonical replay unchanged', async uid => {
+    const { store, callables, resolutionRequest } = await resolveConsequences('K', 'K-1', 1, 6);
+    const record = store.records.get(paths().mission)!.lifecycleRecord as AwayMissionLifecycleRecord;
+    expect(record.outcomes).toEqual([expect.objectContaining({ contributorCount: 1, total: 20,
+      difficulty: 30, criticalThreshold: 40, outcome: 'failure', rewardBranch: 'none' })]);
+    expect(record.rewards).toEqual([expect.objectContaining({ branch: 'none', resources: {}, effects: [] })]);
+    for (const path of [paths().alicePointer, paths().bobPointer]) {
+      const pointer = store.records.get(path)!;
+      store.records.set(path, { ...pointer,
+        lifecyclePublicState: legacyKPublicProjection(pointer.lifecyclePublicState as AwayMissionPublicState, record) });
+    }
+    const markerPath = `sessions/${SESSION_ID}/commandReceipts/${resolutionRequest.data.requestId}`;
+    const marker = store.records.get(markerPath)!;
+    const savedReply = marker.result as { publicState: AwayMissionPublicState };
+    store.records.set(markerPath, { ...marker, result: { ...savedReply,
+      publicState: legacyKPublicProjection(savedReply.publicState, record) } });
+    const before = structuredClone([...store.records]);
+    const writes = store.committedWrites.length;
+    const randomCalls = callables.randomCalls; const d6Calls = callables.d6Calls;
+
+    // The existing canonical loader validates all P403/start/deck/private-hand
+    // and raw pointer bindings. Its authorized replay must remain zero-write.
+    const replay = await callables.commitAwayMissionLifecycleCommand(resolutionRequest);
+    expect(replay.status).toBe('replayed');
+    expect(replay.publicState.outcomes).toEqual([expect.objectContaining({ total: 20,
+      difficulty: null, criticalThreshold: null, outcome: 'failure' })]);
+    expect([...store.records]).toEqual(before);
+    expect(store.committedWrites).toHaveLength(writes);
+    expect(callables.randomCalls).toBe(randomCalls); expect(callables.d6Calls).toBe(d6Calls);
+
+    // Controlled raw snapshot consumer: this is persisted-field evidence, not
+    // a rules/SDK-runtime claim and not a request to mutate gameplay replay.
+    const pointerPath = uid === 'alice' ? paths().alicePointer : paths().bobPointer;
+    const snapshot = await store.runTransaction(async transaction => transaction.get(store.doc(pointerPath)));
+    expect(snapshot.exists).toBe(true);
+    expect(snapshot.get('participantUid')).toBe(uid);
+    const publicState = snapshot.get('lifecyclePublicState') as AwayMissionPublicState;
+    expect(publicState.outcomes).toEqual([expect.objectContaining({ contributorCount: 1, total: 20,
+      difficulty: 30, criticalThreshold: 40, outcome: 'failure' })]);
+    expect(store.committedWrites).toHaveLength(writes);
+    expect(publicState.outcomes?.[0]).toMatchObject({ difficulty: null, criticalThreshold: null });
+  });
+
 it('rebuilds an exact legacy K receipt replay safely without changing saved numeric receipts or public pointers', async () => {
   const { store, callables, resolutionRequest } = await resolveConsequences('K', 'K-1', 1, 6);
   const record = store.records.get(paths().mission)!.lifecycleRecord as AwayMissionLifecycleRecord;
