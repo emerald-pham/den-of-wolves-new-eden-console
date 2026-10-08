@@ -650,7 +650,7 @@ test('returns from Highwall before directly offered Miner boarding defence', asy
   const miner = surface('icebreaker-miner', { type: 'wolf-range-support-action-choice-view',
     sessionId, attackId: 'attack-p', turn: 3, revision: 8, sourceId: 'highwall',
     actorRoleId: 'icebreaker-miner', range: 'long-range', choiceStatus: 'pending', eligible: true,
-    actionAvailable: false, deadlineAt: '9999-12-31T23:59:59.999Z', contacts: [] }, { responses: {
+    actionAvailable: false, deadlineAt: '9999-12-31T23:59:59.999Z', contacts: [] }, { defenceOptions: ['0', '1'], responses: {
     getWolfBoardingSpecialChoice: { type: 'wolf-boarding-special-choice-unavailable', sessionId, reason: 'no-special-choice' },
     getWolfBoardingDefenceChoice: { type: 'wolf-boarding-defence-choice-view', sessionId,
       turn: 3, revision: 8, choiceStatus: 'pending', targetShipId: 'icebreaker', availableSecurityTeams: 1 },
@@ -671,7 +671,7 @@ test('returns from Highwall before directly offered Miner boarding defence', asy
     'Back to Icebreaker Miner console', 'Commit defence']);
   assert.equal(miner.route(), '/ships/icebreaker/roles/icebreaker-miner');
   assert.deepEqual(miner.effects.reads.map(read => read.endpoint), [
-    'getWolfBoardingSpecialChoice', 'getWolfBoardingDefenceChoice',
+    'getWolfRangeSupportActionChoice', 'getWolfBoardingSpecialChoice', 'getWolfBoardingDefenceChoice',
   ]);
   assert.equal(accepted.endpoint, 'commitWolfBoardingDefenceChoice');
 });
@@ -684,7 +684,7 @@ test('does not click a Miner return link when the owner destination is not the a
     } });
   const current = attack('boarding');
   await assert.rejects(dispatchStationCrewChoice(current, options([{ roleId: miner.label, surface: miner }], current)),
-    /Miner owner return link does not target the assigned console/);
+    /printed Miner owner return link must target the assigned Miner console/);
   assert.deepEqual(miner.effects.clicks, []);
   assert.deepEqual(miner.effects.reads, []);
   assert.equal(miner.route(), '/shuttles/highwall');
