@@ -22,7 +22,7 @@ const originalRoleIds = Object.freeze([
 ]);
 
 const original = Object.freeze({
-  sessionId: 'normal-session', uid: 'wing-uid', uidHash: 'a'.repeat(16),
+  sessionId: 'normal-session', uid: 'wing-uid', uidHash: '81088b8f489c2407',
   meSessionId: 'normal-session',
   hasAuth: true, sameActor: true, playerRole: 'player', profileRoleId: null,
   assignedRoleId: 'wing-commander', activeConsoleRoleId: 'wing-commander',
