@@ -25514,6 +25514,14 @@ function wolfRangeSupportAvailability(input: Readonly<{
     if (!activeVessels.includes(vesselId)) return empty(roleId);
     const owners = currentWolfRoleOwners(players, fleetGroups, roleId, vesselId);
     if (owners.length > 1) throw commandError('failed-precondition', `The ${sourceId} source owner is ambiguous.`, 'conflict');
+    const control = parseShuttleControl(session.get('shuttleControl'));
+    // Casting creates no custody entry for an empty seat. No owner and no
+    // transfer means this source is unavailable, not malformed live custody.
+    // Existing custody (including a transferred holder) still uses every
+    // normal docking, fuel and entitlement check below.
+    if (control && !control[sourceId] && owners.length === 0) {
+      return { ...empty(roleId), applicable: true };
+    }
     const custody = wolfRangeSupportShuttleHost(session, sourceId, roleId);
     const holder = players.find((player) => player.id === custody.holderUid);
     const holderGroupId = holder?.get('fleetGroupId');

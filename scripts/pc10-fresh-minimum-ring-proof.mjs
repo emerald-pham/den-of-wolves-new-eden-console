@@ -38,6 +38,11 @@ export async function runStationPaidArrivals(ships,{grant,jump}){for(const ship 
 export function beginStationCombatWing(original,current){assert.equal(original.cycle,1);assert.equal(current.cycle,2);assertSparseStationWing(current,{...original,cycle:2});return current;}
 export function assertStationNavigation(navigation,ships,coordinate){return assertRingNavigation(navigation,ships,coordinate);}
 export function stationActivationContext(input){return {code:'P',...input,gm:{...input.gm,callable:(name,data,options)=>{const timeoutMs=Math.min(options.timeoutMs,options.deadlineAt-Date.now());assert.ok(Number.isFinite(timeoutMs)&&timeoutMs>0);return input.gm.callable(name,data,timeoutMs);}},readRoot:async()=>({...await input.recordRoot(),sessionId:input.sessionId})};}
+export function stationCombatServerContext({sessionId,root,pdfWing,publicAudience,players,fleetGroups}){
+ const keys=['currentTurn','phase','turnPhase','turnState','activeRoleIds','activeVesselIds','shipDamage','maintenanceCycles','shuttleControl','shuttleDockings','shuttleFuelled','maliadesState','shipResources','shipUpgrades','fighterWingCounts','smallShipStates','expansion','capybaraEnabled','shipSurvivors','candidateState','navigation'];
+ const playerKeys=['uid','role','assignedRoleId','activeConsoleRoleId','replacementRoleId','replacementStatus','connected','seatId','kickedAt','escapeState','fleetGroupId'];
+ return {sessionId,...Object.fromEntries(keys.filter(key=>root[key]!==undefined).map(key=>[key,root[key]])),pdfEscortWing:pdfWing,publicAudience,fleetGroups:fleetGroups.map(group=>Object.fromEntries(['id','vesselIds','memberUids','memberShipIds'].filter(key=>group[key]!==undefined).map(key=>[key,group[key]]))),players:players.map(player=>Object.fromEntries(playerKeys.filter(key=>player[key]!==undefined).map(key=>[key,player[key]])))};
+}
 export function stationCombatConsoles(){return ['jump-drive','fighter-bay-alpha','fighter-bay-bravo'];}
 export async function readStationLiberation(readDocument,root,expected){const require=createRequire(new URL('../functions/package.json',import.meta.url));const {parseCandidateStationLiberations}=require('../functions/lib/candidateStationLiberation.js');const markers=parseCandidateStationLiberations(await readDocument('serverState/candidateStationLiberations'));const marker=markers[`${expected.groupId}:${expected.coordinate}`];assert.ok(marker);for(const key of ['sessionId','groupId','coordinate','sourceId','cycle'])assert.equal(marker[key],expected[key]);assert.equal(marker.cycle,root.currentTurn);return marker;}
 export function minimumStationPlan(){return {actualAuthenticatedActors:2,configuredRoles:13,browserProcesses:1,browserContexts:2,hardCapMs:1200000,probeFamily:'station-success',forcedOutcome:false};}
@@ -670,8 +675,9 @@ async function enterRole(surface,label){
      const sdk=await import(match[1]),{db}=await import('/src/lib/firestore.ts');
      const [attack,session,audience]=await Promise.all(['wolfAttackState/current','', 'wolfAttackAudience/current'].map(path=>sdk.getDocFromServer(sdk.doc(db(),`sessions/${sid}${path?`/${path}`:''}`))));
      if(!attack.exists()||!session.exists())throw Error('Current real Station attack/session missing');const root=session.data();
-     return {attack:attack.data(),context:{sessionId:sid,currentTurn:root.currentTurn,phase:root.phase,turnPhase:root.turnPhase,turnState:root.turnState,publicAudience:audience.exists()?audience.data():null}};
-    },sid);serverCombatContext=read.context;return read.attack;
+     const [pdfWing,players,fleetGroups]=await Promise.all([sdk.getDocFromServer(sdk.doc(db(),`sessions/${sid}/serverState/pdfEscortWing`)),sdk.getDocsFromServer(sdk.collection(db(),`sessions/${sid}/players`)),sdk.getDocsFromServer(sdk.collection(db(),`sessions/${sid}/fleetGroups`))]);
+     return {attack:attack.data(),root,pdfWing:pdfWing.exists()?pdfWing.data():null,publicAudience:audience.exists()?audience.data():null,players:players.docs.map(player=>({...player.data(),uid:player.id})),fleetGroups:fleetGroups.docs.map(group=>({...group.data(),id:group.id}))};
+    },sid);serverCombatContext=stationCombatServerContext({sessionId:sid,...read});return read.attack;
    }
    const retainCombatState=async attack=>{
     const member=await fullMember(recipient);

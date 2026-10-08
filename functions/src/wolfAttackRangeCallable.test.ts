@@ -3091,7 +3091,7 @@ it('continues the captured P receipt past Long Range with actual empty-seat shut
   await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
   const medium = testState.documents.get('sessions/s1/wolfAttackState/current')!;
   expect(medium).toMatchObject({ currentStep: 'medium-range', revision: 6,
-    rangeDecisions: { 'long-range': { status: 'unavailable', reason: 'no-current-executive-officer' } } });
+    rangeDecisions: { 'long-range': { status: 'auto-passed', reason: 'no-eligible-range-action' } } });
   await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
   expect(testState.documents.get('sessions/s1/wolfAttackState/current')).toMatchObject({ currentStep: 'medium-range', revision: 6 });
   expect(testState.documents.get('sessions/s1')).toEqual(rootBefore);
@@ -3109,6 +3109,36 @@ it.each([undefined, { damagedSystemIds: ['unknown'], destroyed: false }, { damag
   const rootBefore = structuredClone(testState.documents.get('sessions/s1'));
   await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
   expect(testState.documents.get('sessions/s1/wolfAttackState/current')).toMatchObject({ currentStep: 'targeting', revision: 3 });
+  expect(testState.documents.get('sessions/s1')).toEqual(rootBefore);
+  expect(entropy.randomInt).not.toHaveBeenCalled();
+});
+
+it.each(['malformed-control', 'current-owner', 'transferred-holder'])('does not auto-pass a registered shuttle with %s', async condition => {
+  prepareCapturedP(true);
+  const session = testState.documents.get('sessions/s1')!;
+  if (condition === 'malformed-control') put('sessions/s1', { ...session, shuttleControl: { highwall: { holderUid: 'wing-captured' } } });
+  if (condition === 'current-owner') {
+    put('sessions/s1/players/miner', { uid: 'miner', role: 'player', connected: true, assignedRoleId: 'icebreaker-miner', activeConsoleRoleId: 'icebreaker-miner', fleetGroupId: 'fleet-1' });
+    const group = testState.documents.get('sessions/s1/fleetGroups/fleet-1')!;
+    put('sessions/s1/fleetGroups/fleet-1', { ...group, memberUids: ['wing-captured', 'miner'], memberShipIds: { 'wing-captured': 'aegis', miner: 'icebreaker' } });
+  }
+  if (condition === 'transferred-holder') put('sessions/s1', { ...session, shuttleControl: { highwall: { shuttleId: 'highwall', ownerRoleId: 'icebreaker-miner', ownerUid: 'old-miner', holderUid: 'wing-captured', revision: 1 } }, shuttleFuelled: { highwall: true }, shuttleDockings: capturedP.attack.parkedShuttleDockings.map(docking => docking.shuttleId === 'highwall' ? { ...docking, shipId: 'aegis' } : docking) });
+  const rootBefore = structuredClone(testState.documents.get('sessions/s1'));
+  for (let i = 0; i < 3; i++) await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
+  if (condition === 'transferred-holder') {
+    expect(testState.documents.get('sessions/s1/wolfAttackState/current')).toMatchObject({ currentStep: 'medium-range', revision: 6 });
+    for (const sourceId of ['fighter-wing-alpha', 'fighter-wing-bravo']) {
+      await commitWolfFighterRangeActionChoice.run(request({ sessionId: 's1', sourceId, range: 'medium-range',
+        requestId: `transferred-wing-pass-${sourceId}`, expectedTurn: 2,
+        expectedRevision: testState.documents.get('sessions/s1/wolfAttackState/current')!.revision, actions: [] }, 'wing-captured'));
+    }
+    // Both Wing choices are committed; live transferred Highwall still holds
+    // its real Medium action rather than being passed with the empty seat.
+    await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
+    expect(testState.documents.get('sessions/s1/wolfAttackState/current')).toMatchObject({ currentStep: 'medium-range' });
+  } else {
+    expect(testState.documents.get('sessions/s1/wolfAttackState/current')).toMatchObject({ currentStep: 'long-range', revision: 5 });
+  }
   expect(testState.documents.get('sessions/s1')).toEqual(rootBefore);
   expect(entropy.randomInt).not.toHaveBeenCalled();
 });
