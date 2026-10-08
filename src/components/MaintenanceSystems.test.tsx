@@ -143,7 +143,7 @@ it('keeps malformed Capybara survivor state rendered and locks ration submission
   expect(screen.getByRole('alert')).toHaveTextContent(/rations locked.*off the printed track/i);
   expect(screen.getByRole('button', { name: 'Proceed with rations' })).toBeDisabled();
 });
-it('shows Dione replacement costs at the crossed starred population and locks malformed state', () => {
+it('shows Dione replacement costs at the crossed starred population and locks malformed state', async () => {
   useSessionStore.setState({ session: {
     ...session,
     shipSurvivors: { dione: 90_000 },
@@ -151,6 +151,7 @@ it('shows Dione replacement costs at the crossed starred population and locks ma
   } });
   const view = render(<MaintenanceSystems name="Dione" shipId="dione" systems={[]}
     renderSystem={() => null} rations={null} />);
+  await userEvent.click(screen.getByRole('button', { name: 'Operations reference' }));
   expect(screen.getByText(/Food 0 \/ 5 \/ 11 \/ 16 \/\/ Water 0 \/ 5 \/ 10 \/ 13/)).toBeVisible();
   expect(screen.getByText(/70001-90000 survivors/)).toBeVisible();
   view.unmount();
@@ -432,6 +433,7 @@ it('offers AEGIS Shuttle Bay Zeta before Shuttle Bay Omega and clears the prior 
     ]}
     renderSystem={() => null} rations={null} />);
 
+  await userEvent.click(screen.getByRole('button', { name: 'Operations reference' }));
   expect(screen.getByText(/6 Shuttle Bay Zeta \/\/ 7 Shuttle Bay Omega/)).toBeVisible();
   const zeta = screen.getByRole('combobox', { name: 'Shuttle Bay Zeta refuelling' });
   const lockedOmega = screen.getByRole('combobox', { name: 'Shuttle Bay Omega refuelling' });
@@ -786,7 +788,7 @@ it('updates reference facts without collapsing, but returns to closed for a diff
   await userEvent.click(screen.getByRole('button', { name: 'Operations reference' }));
   act(() => useSessionStore.setState({ session: { ...session, shipUpgrades: { aegis: ['reactor'] } } }));
   expect(screen.getByRole('button', { name: 'Operations reference' })).toHaveAttribute('aria-expanded', 'true');
-  expect(screen.getByRole('complementary', { name: 'AEGIS maintenance reference' })).toHaveTextContent('choose up to 8 consoles');
+  expect(screen.getByRole('complementary', { name: 'AEGIS maintenance reference' })).toHaveTextContent('choose up to 6 consoles');
   view.rerender(ui('Dione', 'dione'));
   expect(screen.getByRole('button', { name: 'Operations reference' })).toHaveAttribute('aria-expanded', 'false');
   await userEvent.click(screen.getByRole('button', { name: 'Operations reference' }));
