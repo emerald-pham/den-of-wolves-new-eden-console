@@ -141,7 +141,7 @@ describe('Boa mission reclamation callables', () => {
       requiredChoices: [{ actor: 'player', kind: 'boa-reclamation-card', value: expect.objectContaining({
         missionOpportunityId: ARRIVAL, taskOpportunityId: 'L-1',
       }) }],
-      calculation: expect.objectContaining({ rounding: 'floor', printedDifficulty: 15, effectiveDifficulty: 7 }),
+      calculation: expect.objectContaining({ rounding: 'none', printedDifficulty: 15, effectiveDifficulty: 7.5 }),
       consequences: expect.objectContaining({ scrap: 1, criticalBonus: 0 }),
       audience: { operational: 'actor' },
     });

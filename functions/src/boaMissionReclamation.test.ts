@@ -32,10 +32,10 @@ describe('Boa reclamation difficulty', () => {
     ]);
   });
 
-  it('rounds an odd printed difficulty down and keeps the printed critical threshold unchanged', () => {
+  it('keeps an odd printed difficulty exact and leaves the printed critical threshold unchanged', () => {
     const current = [outcome('E-2', 12, 15, 25, 'failure')];
     expect(applyBoaReclamationDifficulty(current, 'E-2')).toEqual([
-      expect.objectContaining({ difficulty: 7, criticalThreshold: 25, outcome: 'success' }),
+      expect.objectContaining({ difficulty: 7.5, criticalThreshold: 25, outcome: 'success', rewardBranch: 'success' }),
     ]);
   });
 
