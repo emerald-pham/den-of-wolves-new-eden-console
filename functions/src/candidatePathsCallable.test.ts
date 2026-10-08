@@ -221,6 +221,141 @@ describe('ordinary candidate callable authority and durable replay', () => {
     expect(documents.has(`sessions/s1/actionAudits/${requestId}`)).toBe(false);
     expect(outcome).toMatchObject({ kind: 'rejected', error: { code: 'failed-precondition' } });
   });
+  it('keeps source-valid unmarked N/O legacy progress, costs, outcomes and exact receipts under Home', async () => {
+    seedTwoFleetGroups();
+    const ringCoordinate = Object.entries(organiserSitesForChart('A')).find(([, site]) => site.code === 'N')![0];
+    const ringSite = organiserSitesForChart('A')[ringCoordinate]!;
+    const navigation = structuredClone(documents.get('sessions/s1/serverState/navigation')!);
+    (navigation.shipGalacticCoordinates as Fields).shepherd = ringCoordinate;
+    (navigation.systemHistory as Fields).shepherd = { '0408': { coordinate: '0408', candidateDiscovery: {
+      id: 'legacy-shepherd-nebula', occurredAt: '2026-10-05T10:00:00.000Z', code: 'O',
+      title: 'Deep Nebula', source: 'arrival' } }, [ringCoordinate]: { coordinate: ringCoordinate,
+      candidateDiscovery: { id: 'legacy-shepherd-ring', occurredAt: '2026-10-05T10:30:00.000Z',
+        code: 'N', title: ringSite.name, source: 'arrival' } } };
+    put('sessions/s1/serverState/navigation', navigation);
+
+    const nRequestId = 'legacy-ring-materials';
+    const oRequestId = 'legacy-nebula-loss';
+    const nCommand = { sessionId: 's1', requestId: nRequestId, expectedRevision: 0,
+      expectedGroupId: 'fleet-2', instanceId: 'instance1', code: 'N', coordinate: ringCoordinate,
+      action: 'contribute-materials', shipId: 'shepherd', amount: 5 };
+    const oCommand = { ...command, requestId: oRequestId, expectedRevision: 1, instanceId: 'instance1' };
+    const nResult = { type: 'candidate-action-result', status: 'committed', sessionId: 's1',
+      requestId: nRequestId, revision: 1, code: 'N', action: 'contribute-materials',
+      summary: '5/10 Ring materials committed.' };
+    const oResult = { type: 'candidate-action-result', status: 'committed', sessionId: 's1',
+      requestId: oRequestId, revision: 2, code: 'O', action: 'nebula-jump',
+      summary: 'Long jump committed. The ship was lost within the Deep Nebula; its former actions are closed.',
+      outcome: 'lost', fuelSpent: 6, remainingFuel: 14 };
+    const nSite = { code: 'N', coordinate: ringCoordinate, groupId: 'fleet-2', materials: 5,
+      researchIds: ['reactor', 'jump-drive'], ships: {}, reactors: {} };
+    const oSite = { code: 'O', coordinate: '0408', groupId: 'fleet-1', materials: 0,
+      researchIds: [], ships: { aegis: oResult }, reactors: {} };
+    const legacyState = { revision: 2, sites: { [ringCoordinate]: nSite, '0408': oSite } };
+    put('sessions/s1/serverState/candidates', legacyState);
+    const nReceipt = { fingerprint: { action: 'candidate-action', actorUid: 'gm', sessionId: 's1',
+      requestId: nRequestId, instanceId: 'instance1', expectedRevision: 0, payload: { code: 'N',
+        coordinate: ringCoordinate, groupId: 'fleet-2', action: 'contribute-materials', shipId: 'shepherd',
+        amount: 5, trackIds: [], shuttleId: null } }, result: nResult, createdAt: '2026-10-05T10:40:00.000Z' };
+    const oReceipt = { fingerprint: { action: 'candidate-action', actorUid: 'gm', sessionId: 's1',
+      requestId: oRequestId, instanceId: 'instance1', expectedRevision: 1, payload: { code: 'O',
+        coordinate: '0408', groupId: 'fleet-1', action: 'nebula-jump', shipId: 'aegis', amount: null,
+        trackIds: [], shuttleId: null } }, result: oResult, createdAt: '2026-10-05T10:50:00.000Z' };
+    put(`sessions/s1/candidateActionReceipts/${nRequestId}`, nReceipt);
+    put(`sessions/s1/candidateActionReceipts/${oRequestId}`, oReceipt);
+    const session = documents.get('sessions/s1')!;
+    const resources = structuredClone(session.shipResources as Fields);
+    (resources.shepherd as Fields).materials = 5;
+    (resources.aegis as Fields).fuel = 14;
+    put('sessions/s1', { ...session, shipResources: resources,
+      shipSurvivors: { ...(session.shipSurvivors as Fields), aegis: 0 },
+      shipDamage: { aegis: { destroyed: true, damagedSystemIds: [] } },
+      shipJumpStates: { aegis: { lastJumpTurn: 6 } },
+      candidateVesselOutcomes: { aegis: { code: 'O', groupId: 'fleet-1', shipId: 'aegis',
+        sourceId: oRequestId, cycle: 6, outcome: 'lost' } } });
+    put('sessions/s1/players/admiral', { ...documents.get('sessions/s1/players/admiral'),
+      candidateDisposition: { code: 'O', outcome: 'lost', cycle: 6 } });
+
+    const beforeRead = structuredClone([...documents.entries()]);
+    const ringView = await handlers.read(request({ sessionId: 's1', expectedGroupId: 'fleet-2', instanceId: 'instance1' }, 'gm'));
+    expect(ringView).toMatchObject({ edition: 'home', editionLocked: true });
+    expect(ringView.paths.find(path => path.code === 'N')).toMatchObject({
+      materials: 5, materialsRequired: 10, researchCount: 2,
+    });
+    const nebulaView = await handlers.read(request({ sessionId: 's1', expectedGroupId: 'fleet-1', instanceId: 'instance1' }, 'gm'));
+    expect(nebulaView).toMatchObject({ edition: 'home', editionLocked: true,
+      paths: [expect.objectContaining({ code: 'O', ships: [expect.objectContaining({ shipId: 'aegis', result: 'lost' })] })] });
+    expect([...documents.entries()]).toEqual(beforeRead);
+    expect(documents.get('sessions/s1/serverState/candidates')).not.toHaveProperty('edition');
+
+    const beforeReplay = structuredClone([...documents.entries()]);
+    await expect(handlers.execute(request(nCommand, 'gm'))).resolves.toEqual({ ...nResult, status: 'replayed' });
+    await expect(handlers.execute(request(oCommand, 'gm'))).resolves.toEqual({ ...oResult, status: 'replayed' });
+    expect([...documents.entries()]).toEqual(beforeReplay);
+    expect(die).not.toHaveBeenCalled();
+
+    const choice = { sessionId: 's1', requestId: 'legacy-home-retarget', expectedRevision: 2,
+      expectedGroupId: 'fleet-1', instanceId: 'instance1', edition: 'deluxe' };
+    await expect(handlers.selectEdition(request(choice, 'gm'))).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect([...documents.entries()]).toEqual(beforeReplay);
+    expect(documents.get('sessions/s1/serverState/candidates')).toEqual(legacyState);
+    expect(documents.get(`sessions/s1/candidateActionReceipts/${nRequestId}`)).toEqual(nReceipt);
+    expect(documents.get(`sessions/s1/candidateActionReceipts/${oRequestId}`)).toEqual(oReceipt);
+  });
+  it('persists default Home with the first contribution to an unmarked blank candidate state', async () => {
+    const ringCoordinate = Object.entries(organiserSitesForChart('A')).find(([, site]) => site.code === 'N')![0];
+    const ringSite = organiserSitesForChart('A')[ringCoordinate]!;
+    const navigation = structuredClone(documents.get('sessions/s1/serverState/navigation')!);
+    (navigation.shipGalacticCoordinates as Fields).aegis = ringCoordinate;
+    (navigation.systemHistory as Fields).aegis = { [ringCoordinate]: { coordinate: ringCoordinate,
+      candidateDiscovery: { id: 'blank-home-ring', occurredAt: '2026-10-05T10:00:00.000Z',
+        code: 'N', title: ringSite.name, source: 'arrival' } } };
+    put('sessions/s1/serverState/navigation', navigation);
+    const action = { sessionId: 's1', requestId: 'blank-home-first-prep', expectedRevision: 0,
+      expectedGroupId: 'fleet-1', instanceId: 'instance1', code: 'N', coordinate: ringCoordinate,
+      action: 'contribute-materials', shipId: 'aegis', amount: 10 };
+
+    await expect(handlers.execute(request(action, 'gm'))).resolves.toMatchObject({
+      status: 'committed', code: 'N', action: 'contribute-materials', revision: 1,
+    });
+    expect(documents.get('sessions/s1/serverState/candidates')).toMatchObject({ revision: 1, edition: 'home',
+      sites: { [ringCoordinate]: { code: 'N', groupId: 'fleet-1', materials: 10, researchIds: [] } } });
+    expect(documents.get('sessions/s1/procedureAudits/blank-home-first-prep')).toMatchObject({
+      sourceId: 'home-v1-1-candidate-N',
+    });
+    await expect(handlers.selectEdition(request({ sessionId: 's1', requestId: 'blank-home-retarget',
+      expectedRevision: 1, expectedGroupId: 'fleet-1', instanceId: 'instance1', edition: 'deluxe' }, 'gm')))
+      .rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(documents.get('sessions/s1/serverState/candidates')).toMatchObject({ revision: 1, edition: 'home' });
+  });
+  it('keeps an explicitly selected Deluxe edition on its first preparation action', async () => {
+    const ringCoordinate = Object.entries(organiserSitesForChart('A')).find(([, site]) => site.code === 'N')![0];
+    const ringSite = organiserSitesForChart('A')[ringCoordinate]!;
+    const navigation = structuredClone(documents.get('sessions/s1/serverState/navigation')!);
+    (navigation.shipGalacticCoordinates as Fields).aegis = ringCoordinate;
+    (navigation.systemHistory as Fields).aegis = { [ringCoordinate]: { coordinate: ringCoordinate,
+      candidateDiscovery: { id: 'blank-deluxe-ring', occurredAt: '2026-10-05T10:00:00.000Z',
+        code: 'N', title: ringSite.name, source: 'arrival' } } };
+    put('sessions/s1/serverState/navigation', navigation);
+    const selected = await handlers.selectEdition(request({ sessionId: 's1', requestId: 'blank-deluxe-selection',
+      expectedRevision: 0, expectedGroupId: 'fleet-1', instanceId: 'instance1', edition: 'deluxe' }, 'gm'));
+    expect(selected).toMatchObject({ status: 'committed', edition: 'deluxe', revision: 1 });
+    const session = documents.get('sessions/s1')!;
+    const resources = structuredClone(session.shipResources as Fields);
+    (resources.aegis as Fields).materials = 15;
+    put('sessions/s1', { ...session, shipResources: resources });
+
+    await expect(handlers.execute(request({ sessionId: 's1', requestId: 'blank-deluxe-first-prep', expectedRevision: 1,
+      expectedGroupId: 'fleet-1', instanceId: 'instance1', code: 'N', coordinate: ringCoordinate,
+      action: 'contribute-materials', shipId: 'aegis', amount: 15 }, 'gm'))).resolves.toMatchObject({
+      status: 'committed', code: 'N', action: 'contribute-materials', revision: 2,
+    });
+    expect(documents.get('sessions/s1/serverState/candidates')).toMatchObject({ revision: 2, edition: 'deluxe',
+      sites: { [ringCoordinate]: { code: 'N', groupId: 'fleet-1', materials: 15, researchIds: [] } } });
+    expect(documents.get('sessions/s1/procedureAudits/blank-deluxe-first-prep')).toMatchObject({
+      sourceId: 'deluxe-v1-1-candidate-N',
+    });
+  });
   it('does not replay a former GM edition receipt after demotion and lease disconnection', async () => {
     const choice = { sessionId: 's1', requestId: 'edition-demoted-replay', expectedRevision: 0,
       expectedGroupId: 'fleet-1', instanceId: 'instance1', edition: 'deluxe' };

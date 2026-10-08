@@ -3,6 +3,7 @@ import {
   candidateWorkspace, parseCandidateAction, parseCandidateState, resolveCandidateAction,
   type CandidateAuthority, type CandidateAction, type CandidateState,
 } from './candidatePaths';
+import { organiserSitesForChart } from './starChartLookup';
 
 const now = '2026-10-05T12:00:00.000Z';
 const authority = (code: 'N' | 'O' | 'P' = 'N'): CandidateAuthority => ({
@@ -49,6 +50,25 @@ describe('candidate source calculations and explicit choices', () => {
       code: 'O', coordinate: '0408', groupId: 'fleet-2', materials: 0, researchIds: [], ships: {}, reactors: {},
     } } });
     expect(candidateWorkspace(authority('O'), otherGroupStarted)).toMatchObject({ edition: 'home', editionLocked: true });
+  });
+  it('projects source-valid unmarked Ring preparation as Home without rewriting its progress', () => {
+    const coordinate = Object.entries(organiserSitesForChart('A')).find(([, site]) => site.code === 'N')![0];
+    const original = { revision: 4, sites: { [coordinate]: { code: 'N', coordinate, groupId: 'fleet-1',
+      materials: 5, researchIds: ['reactor', 'jump-drive'], ships: {}, reactors: {} } } };
+    const state = parseCandidateState(original);
+    const a = authority('N');
+    a.discovered = [{ code: 'N', coordinate }];
+    const view = candidateWorkspace(a, state);
+
+    expect(view).toMatchObject({ edition: 'home', editionLocked: true, revision: 4,
+      paths: [{ materials: 5, materialsRequired: 10, researchCount: 2, researchRequired: 5,
+        blockers: expect.arrayContaining([
+          'Contribute 5 materials.', 'Commit five distinct research tracks with at least four crosses.',
+          'Commit one available Engineering Shuttle.',
+        ]) }],
+    });
+    expect(original).not.toHaveProperty('edition');
+    expect(state.sites[coordinate]).toEqual(original.sites[coordinate]);
   });
   it('accepts a Deluxe 15-material contribution and names the selected source edition', () => {
     const rawCommand: CandidateAction = { sessionId: 's1', requestId: 'deluxe-materials', expectedRevision: 0,
