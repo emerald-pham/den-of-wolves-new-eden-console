@@ -1483,3 +1483,20 @@ No outcomes, research or other family is replayed. Exact-source independent
 review, a fresh explicit allocation/prelaunch and native acceptance remain
 required. All48 rows stay open at703/751; final render/CI/main/deployment and
 PC10 release remain pending.
+
+
+#### Private audience review F1/F2 bounded repair
+
+Independent source review of`e43f6da9` found an incompatible five-key reader
+envelope assertion and mixed pending/resolved polling that bypassed the
+two-retry private-read cap. Test-first`7f1c8954` records four meaningful REDs
+with36 controls GREEN before either repair. Actual reader-shaped eight-field
+and conditional own-berth envelopes now satisfy the exact public allowlist,
+with original peer authority binding and unknown/private additions rejected.
+Exhausted private-result/note chains remain stopped while useful pending-index
+updates continue; an explicit refresh succeeds through unchanged authority
+guards. The35 affected client checks and37 proof contracts, affected lint and
+client build pass. The blocked review is retained; bounded follow-up, exact
+source binding, fresh parent allocation and original native requester/peer/
+reload acceptance remain open. No protected Functions/rules change, native
+credit, fixed row closure or PC10 release is claimed.

@@ -33,6 +33,7 @@ export default function ScoutReportController({ refreshKey, entitlementId = 'end
     let disposed = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let authorityRetries = 0;
+    let privateRecoveryStopped = false;
     const originalMember = useSessionStore.getState().me;
     setReports([]);
     setReport(null);
@@ -76,7 +77,10 @@ export default function ScoutReportController({ refreshKey, entitlementId = 'end
           ownReports[0] ?? null;
         setReport(latest);
         pending = ownReports.some(item => item.status === 'pending');
-        if (!latest || latest.status === 'pending') return;
+        // Keep a different pending request's index current without restarting
+        // an exhausted private recovery chain. Refresh or selection starts a
+        // new effect and reads through the original authority guards again.
+        if (!latest || latest.status === 'pending' || privateRecoveryStopped) return;
         const privateResult = await readPrivateScoutResult(latest.requestId);
         if (disposed) return;
         setResult(privateResult);
@@ -87,14 +91,20 @@ export default function ScoutReportController({ refreshKey, entitlementId = 'end
           } catch (error) {
             if (!disposed) {
               retrying = retryStaleAuthority(error);
-              if (!retrying) setStatus('The saved note is unavailable for this ship or fleet group.');
+              if (!retrying) {
+                privateRecoveryStopped = true;
+                setStatus('The saved note is unavailable for this ship or fleet group.');
+              }
             }
           }
         }
       } catch (error) {
         if (!disposed) {
           retrying = retryStaleAuthority(error);
-          if (!retrying) setStatus('Scout reports could not load. Reconnect and refresh this station.');
+          if (!retrying) {
+            privateRecoveryStopped = true;
+            setStatus('Scout reports could not load. Reconnect and refresh this station.');
+          }
         }
       } finally {
         if (!disposed) {

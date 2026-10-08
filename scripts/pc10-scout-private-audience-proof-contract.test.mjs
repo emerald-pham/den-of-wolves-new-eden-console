@@ -89,7 +89,7 @@ test('three-member cleanup still refuses an unknown actor before any deletion', 
 // Additional source-only validation of the new audience consumer. These were
 // added after the four discriminating cohort/timing REDs and driver adaptation;
 // they do not backfill native gameplay or separate test-first chronology.
-async function audienceConsumer({ fault, serverShape = false, berth = false } = {}) {
+async function audienceConsumer({ fault, serverShape = true, berth = false } = {}) {
   const node = ast.statements.find(statement => ts.isFunctionDeclaration(statement) && statement.name?.text === 'privateReadAudience');
   assert.ok(node);
   const member = { documentTimeOrigin: 1000, uidHash: 'peer-hash', sessionId: 'owned-session', meSessionId: 'owned-session',
@@ -166,8 +166,9 @@ for (const fault of ['peer-index-leak', 'borrowed-gm-leak', 'coordinate-leak', '
 }
 
 // These actual wire-shape negatives precede stricter native assertions. The
-// initial valid fixtures above now mirror the existing server projections;
-// no existing consumer assertion or native privacy target is removed.
+// valid fixtures above now include the reader authority fields; the two F1
+// positive REDs were recorded before adapting their default envelope. No
+// existing consumer assertion or native privacy target is removed.
 for (const fault of ['result-extra-field', 'result-source', 'result-cycle', 'result-session',
   'note-extra-field', 'note-cycle', 'index-entitlement', 'member-top-level-private', 'missing-populated-read']) {
   test(`actual audience consumer rejects incomplete or leaked wire contract ${fault}`, async () => {

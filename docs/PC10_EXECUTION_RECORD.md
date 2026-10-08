@@ -1201,3 +1201,34 @@ review cover the repaired controller and complete remaining requester/peer
 transitions together before a fresh attempt3 allocation. Original evidence,
 actual member SDK fences, authority/privacy rules and operation waits remain.
 P owns its separate runtime allocation; this repair stays source-only.
+
+
+### October8 independent report recovery findings and repairs
+
+The bounded independent review of`e43f6da9` returned two material findings,
+retained in`OWNER_SCOUT_PRIVATE_AUDIENCE_3_REPORT_RECOVERY_RECONCILED_SOURCE_REVIEW_20261008.json`.
+The proof's five-key member envelope excluded three mandatory real reader
+authority fields and its conditional own berth. A second pending request
+could also keep a resolved private-result/note recovery chain running after
+two retries. Both are source review findings; neither is claimed as the
+exact historical actual2 error.
+
+Separate test-first commit`7f1c8954` observed four meaningful REDs: two actual
+reader-shaped positive envelopes and two real-controller/real-service mixed
+pending/resolved cases, each exposing a fourth private read. All36 controls
+stayed GREEN. The proof now admits only the exact reader outer fields and
+binds generation/roles/conditional own berth to the original Icebreaker peer;
+unknown outer additions and private inner fields remain rejected. The
+controller stops an exhausted private chain while updating a pending index;
+explicit refresh or report selection starts guarded reads anew. All35 affected
+client checks and37 proof/diagnostic contracts pass, as do affected lint and
+one new client build. No protected Functions/rules source or compiled byte
+changed, and no Functions rebuild or native replay occurred. Original RED
+logs and previous blocked review remain immutable.
+
+Evidence:`/tmp/dow-pc10-evidence/OWNER_SCOUT_REVIEW_F1_F2_TEST_FIRST_RED_RECEIPT_20261008.json`.
+One follow-up of these repairs and materially changed privacy/recovery risk,
+exact new source/build binding, and a fresh explicit absolute parent allocation
+remain required before attempt3. P returned its separate runtime at06:33:25UTC;
+resource availability alone is not a grant. All48 rows remain open and PC10
+render, CI, main, deployment and release gates remain pending.

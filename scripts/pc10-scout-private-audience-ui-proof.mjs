@@ -410,7 +410,18 @@ async function privateReadAudience(discovery,deadlineAt){
  assert.equal(envelope.status,'committed');assert.equal(envelope.result.type,'current-member-session');assert.equal(envelope.result.sessionId,sid);
  assert.equal(envelope.result.actorUid,actorUids.get('Peer'));assert.equal(envelope.result.groupId,ordinaryPeer.fleetGroupId);
  assert.equal(envelope.result.session.id,sid);assert.equal(envelope.result.session.currentTurn,1);
- assert.deepEqual(Object.keys(envelope.result).sort(),['type','sessionId','actorUid','groupId','session'].sort());
+ // Match the protected reader's exact public envelope, including the caller's
+ // own authority fields; arbitrary outer/private additions remain rejected.
+ const envelopeKeys=['type','sessionId','actorUid','groupId','connectionGeneration','assignedRoleId','activeConsoleRoleId','session'];
+ if(ordinaryPeer.currentMemberBerthPresent)envelopeKeys.push('currentActorBerthAuthority');
+ assert.deepEqual(Object.keys(envelope.result).sort(),envelopeKeys.sort());
+ for(const key of ['connectionGeneration','assignedRoleId','activeConsoleRoleId'])assert.equal(envelope.result[key],ordinaryPeer[key],'Server envelope preserves the original peer authority.');
+ if(ordinaryPeer.currentMemberBerthPresent){
+  assert.equal(ordinaryPeer.currentMemberBerthMatches,true);assert.equal(ordinaryPeer.currentMemberBerthNull,false);
+  assert.deepEqual(envelope.result.currentActorBerthAuthority,{sessionId:sid,actorUid:actorUids.get('Peer'),groupId:ordinaryPeer.fleetGroupId,role:'player',
+   connectionGeneration:ordinaryPeer.connectionGeneration,assignedRoleId:ordinaryPeer.assignedRoleId,activeConsoleRoleId:ordinaryPeer.activeConsoleRoleId,
+   replacementRoleId:ordinaryPeer.replacementRoleId,replacementStatus:ordinaryPeer.replacementStatus,shipId:'icebreaker'});
+ }
  for(const key of ['organiserSites','organiserSystems','scoutRequests','scoutResults','scoutResolutionAudits','playerDiscoveryNotes','candidatePlanCheckpoint','privateCalculations'])assert.equal(Object.hasOwn(envelope.result.session,key),false,`Actual server member envelope leaked ${key}.`);
  const after=await scoutPrivateWorld(discovery.requestId,discovery.noteId,deadlineAt);assert.deepEqual(after,before,'Scoped private reads/denials do not mutate the original scout, note, navigation or receipts.');
  const originalAfter=await memberReady(peer,'Peer',{deadlineAt});
