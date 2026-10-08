@@ -163,6 +163,55 @@ it('does not excuse missing history for retained optional support craft', () => 
   expect(() => deriveWolfBoardingSupportCraft(seeded)).toThrow(/location does not match its visit history/);
 });
 
+it('keeps a legally docked optional craft tied to its exact current owner and holder custody', () => {
+  const seeded = normal14BoardingInput();
+  const wobblyDocking = { shuttleId: 'wobbly', shipId: 'quellon', dockedAt: 'SESSION START' };
+  const wobblyVisit = { id: 'wobbly-start', shuttleId: 'wobbly', shipId: 'quellon',
+    action: 'docked' as const, occurredAt: 'SESSION START' };
+  const result = deriveWolfBoardingSupportCraft({ ...seeded,
+    dockings: [...seeded.dockings, wobblyDocking], visits: [...seeded.visits, wobblyVisit],
+  });
+  expect(result).toEqual(expect.arrayContaining([
+    expect.objectContaining({ shuttleId: 'wobbly', ownerRoleId: 'joint-engineering-quellon-refinery',
+      ownerUid: 'holder-joint-engineering-quellon-refinery', holderUid: 'holder-joint-engineering-quellon-refinery',
+      controlRevision: 0, hostShipId: 'quellon', fuelled: true, pallasRerolls: false, fuelledRelocation: false }),
+  ]));
+});
+
+it('preserves transferred optional holders while they remain current player UIDs', () => {
+  const seeded = normal14BoardingInput();
+  const wobblyDocking = { shuttleId: 'wobbly', shipId: 'quellon', dockedAt: 'SESSION START' };
+  const wobblyVisit = { id: 'wobbly-start', shuttleId: 'wobbly', shipId: 'quellon',
+    action: 'docked' as const, occurredAt: 'SESSION START' };
+  const transferredControl = { ...(seeded.control as Record<string, { holderUid: string; revision: number }>),
+    wobbly: { ...(seeded.control as Record<string, { holderUid: string; revision: number }>).wobbly!,
+      holderUid: 'wobbly-pilot', revision: 4 },
+  };
+  const transferred = { ...seeded, dockings: [...seeded.dockings, wobblyDocking],
+    visits: [...seeded.visits, wobblyVisit], control: transferredControl,
+    playerUids: [...seeded.playerUids, 'wobbly-pilot'] };
+
+  expect(deriveWolfBoardingSupportCraft(transferred)).toEqual(expect.arrayContaining([
+    expect.objectContaining({ shuttleId: 'wobbly', ownerUid: 'holder-joint-engineering-quellon-refinery',
+      holderUid: 'wobbly-pilot', controlRevision: 4 }),
+  ]));
+  expect(deriveWolfBoardingSupportCraft({ ...transferred,
+    playerUids: transferred.playerUids.filter(uid => uid !== 'wobbly-pilot'),
+  }).map(({ shuttleId }) => shuttleId)).toEqual(['chepu']);
+});
+
+it('validates retained optional craft against their last docked history', () => {
+  const seeded = normal14BoardingInput();
+  const retained = { wobbly: { status: 'retained' as const, shuttleId: 'wobbly',
+    ownerRoleId: 'joint-engineering-quellon-refinery', holderUid: 'holder-joint-engineering-quellon-refinery',
+    destroyedHostShipId: 'quellon', controlRevision: 0, retainedAt: '2026-10-08T00:00:00.000Z' } };
+  const result = deriveWolfBoardingSupportCraft({ ...seeded, retainedShuttles: retained,
+    visits: [...seeded.visits, { id: 'wobbly-start', shuttleId: 'wobbly', shipId: 'quellon',
+      action: 'docked' as const, occurredAt: 'SESSION START' }],
+  });
+  expect(result.map(({ shuttleId }) => shuttleId)).toEqual(['chepu']);
+});
+
 it('validates optional craft history when present and rejects fabricated or location-mismatched visits', () => {
   const seeded = normal14BoardingInput();
   const wobblyHistory = [
@@ -179,5 +228,17 @@ it('validates optional craft history when present and rejects fabricated or loca
   expect(() => deriveWolfBoardingSupportCraft({ ...seeded,
     dockings: [...seeded.dockings, { shuttleId: 'wobbly', shipId: 'quellon', dockedAt: 'later' }],
     visits: [...seeded.visits, wobblyHistory[0]!, wobblyHistory[1]!],
+  })).toThrow(/location does not match its visit history/);
+
+  expect(() => deriveWolfBoardingSupportCraft({ ...seeded, visits: [...seeded.visits,
+    { id: 'unauthorized-wobbly-start', shuttleId: 'wobbly', shipId: 'capybara',
+      action: 'docked' as const, occurredAt: 'SESSION START' },
+  ] })).toThrow(/visit history is malformed or unauthorized/);
+});
+
+it('still rejects a mandatory standard craft with neither a current host nor any visit history', () => {
+  expect(() => deriveWolfBoardingSupportCraft({ ...input,
+    dockings: input.dockings.filter(({ shuttleId }) => shuttleId !== 'pallas'),
+    visits: input.visits.filter(({ shuttleId }) => shuttleId !== 'pallas'),
   })).toThrow(/location does not match its visit history/);
 });
