@@ -5,3 +5,7 @@ import { assertCandidateAdmission } from './pc10-candidate-proof-helpers.mjs';
 export function qualifyMinimumCandidateActors(input) {
   return assertCandidateAdmission(input.legacyAdmission, input.legacyConfiguration);
 }
+
+export async function runMinimumCandidateSuccessProbe() {
+  throw new Error('Existing ending driver requires a complete admitted roster.');
+}
