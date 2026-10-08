@@ -31,7 +31,9 @@ function routePath(page) {
 
 function routePathFromHref(page, href) {
   assert.ok(typeof href === 'string' && href, 'The visible current console return link must expose its ordinary destination.');
-  const url = new URL(href, page.url());
+  const currentUrl = new URL(page.url());
+  const url = new URL(href, currentUrl);
+  assert.equal(url.origin, currentUrl.origin, 'The current console navigation link must stay on the original browser origin.');
   return url.hash.startsWith('#/') ? new URL(url.hash.slice(1), url.origin).pathname : url.pathname;
 }
 
@@ -355,10 +357,6 @@ async function readySource(current, actor, spec, { sessionId, deadlineAt, assert
   const scope = await waitForLockedActorScope(current, actor, context);
   if (scope.status === 'source-changed') return scope;
   const original = scope.original;
-  if (spec.kind === 'range-support' && spec.sourceId === 'highwall')
-    await selectHighwallConsole(current, actor, context);
-  if (spec.kind === 'boarding-special')
-    await returnFromHighwallConsole(current, actor, context);
   const fence = async () => {
     assertBudget(deadlineAt);
     await assertActor(actor, { current, deadlineAt });
@@ -422,6 +420,10 @@ async function readySource(current, actor, spec, { sessionId, deadlineAt, assert
       throw error;
     }
   };
+  if (spec.kind === 'range-support' && spec.sourceId === 'highwall')
+    await selectHighwallConsole(current, actor, context, finalIntentFence);
+  if (spec.kind === 'boarding-special')
+    await returnFromHighwallConsole(current, actor, context, finalIntentFence);
   try {
     const readiness = await waitForWolfChoiceReadiness({ original, expected,
       inspectActor, inspectAttack, readChoice, deadlineAt,
@@ -488,39 +490,44 @@ async function dispatchPdfLaunch(current, actor, context) {
     expectedRequest, context, ready.finalIntentFence);
 }
 
-async function selectHighwallConsole(current, actor, context) {
+async function selectHighwallConsole(current, actor, context, finalIntentFence) {
   const page = actor.surface.page;
   const pathname = routePath(page);
   if (pathname === '/shuttles/highwall') return;
   const link = page.getByRole('link', { name: 'Open Highwall shuttle console', exact: true });
   assertBudget(context.deadlineAt);
-  await actorFence(actor, current, context);
+  await finalIntentFence();
   await link.waitFor({ state: 'visible', timeout: Math.max(1, context.deadlineAt - Date.now()) });
   assertBudget(context.deadlineAt);
-  await actorFence(actor, current, context);
+  await finalIntentFence();
+  const href = await link.getAttribute('href');
+  assertBudget(context.deadlineAt);
+  assert.equal(routePathFromHref(page, href), '/shuttles/highwall',
+    'The printed Miner Highwall entry link must target the current Highwall route.');
+  await finalIntentFence();
   await link.click({ timeout: Math.max(1, context.deadlineAt - Date.now()) });
   assertBudget(context.deadlineAt);
-  await actorFence(actor, current, context);
+  await finalIntentFence();
   assert.equal(routePath(page), '/shuttles/highwall', 'The original Miner member must remain on the actual Highwall route after entry.');
 }
 
-async function returnFromHighwallConsole(current, actor, context) {
+async function returnFromHighwallConsole(current, actor, context, finalIntentFence) {
   const page = actor.surface.page;
   if (actor.roleId !== 'icebreaker-miner' || routePath(page) !== '/shuttles/highwall') return;
   const expectedRoute = '/ships/icebreaker/roles/icebreaker-miner';
   const link = page.getByRole('link', { name: 'Back to Icebreaker Miner console', exact: true });
-  await actorFence(actor, current, context);
+  await finalIntentFence();
   await link.waitFor({ state: 'visible', timeout: Math.max(1, context.deadlineAt - Date.now()) });
   assertBudget(context.deadlineAt);
-  await actorFence(actor, current, context);
+  await finalIntentFence();
   const href = await link.getAttribute('href');
   assertBudget(context.deadlineAt);
   assert.equal(routePathFromHref(page, href), expectedRoute,
     'The printed Miner owner return link must target the assigned Miner console.');
-  await actorFence(actor, current, context);
+  await finalIntentFence();
   await link.click({ timeout: Math.max(1, context.deadlineAt - Date.now()) });
   assertBudget(context.deadlineAt);
-  await actorFence(actor, current, context);
+  await finalIntentFence();
   assert.equal(routePath(page), expectedRoute,
     'The original Miner member must return to its exact printed owner console.');
 }
