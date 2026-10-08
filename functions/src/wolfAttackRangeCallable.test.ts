@@ -3,6 +3,7 @@ import { recommendedRoleIds } from './roleConfiguration';
 import { beginPdfEscortWingAttack, initialPdfEscortWingState } from './pdfEscortWingState';
 import capturedP from './test-fixtures/pc10-p-targeting-stall.json';
 import capturedP8 from './test-fixtures/pc10-p-targeting-attempt8.json';
+import capturedP9 from './test-fixtures/pc10-p-launch-stale-attempt9.json';
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { CallableRequest } from 'firebase-functions/v2/https';
 import { firstTurnWolfAttackComposition } from './wolfAttackComposition';
@@ -59,7 +60,7 @@ vi.mock('firebase-admin/firestore', () => ({
 }));
 vi.mock('firebase-functions/v2', () => ({ setGlobalOptions: vi.fn() }));
 vi.mock('firebase-functions/v2/https', () => ({
-  HttpsError: class HttpsError extends Error { constructor(readonly code: string, message: string) { super(message); } },
+  HttpsError: class HttpsError extends Error { constructor(readonly code: string, message: string, readonly details?: unknown) { super(message); } },
   onCall: (optionsOrHandler: unknown, maybeHandler?: (request: unknown) => unknown) => ({ run: maybeHandler ?? optionsOrHandler }),
 }));
 vi.mock('firebase-functions/v2/firestore', () => ({
@@ -3181,5 +3182,49 @@ it('keeps a genuinely assigned Commander mandatory in the attempt8 diagnostic co
   await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
   await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
   expect(testState.documents.get('sessions/s1/wolfAttackState/current')).toMatchObject({ currentStep: 'targeting', revision: 3 });
+  expect(entropy.randomInt).not.toHaveBeenCalled();
+});
+
+it('keeps captured stale Alpha/Bravo CAS strict and permits fresh explicit launch choices once through concurrent progression', async () => {
+  for (const key of [...testState.documents.keys()]) if (key.startsWith('sessions/s1/players/') || key.startsWith('sessions/s1/fleetGroups/')) testState.documents.delete(key);
+  put('sessions/s1', structuredClone(capturedP9.root));
+  for (const player of capturedP9.players) put(`sessions/s1/players/${player.uid}`, structuredClone(player));
+  for (const group of capturedP9.fleetGroups) put(`sessions/s1/fleetGroups/${group.id}`, structuredClone(group));
+  put('sessions/s1/wolfAttackState/current', structuredClone(capturedP9.attack));
+  put('sessions/s1/serverState/pdfEscortWing', structuredClone(capturedP9.pdfWing));
+  const alphaOld = await getAegisFighterWingLaunch.run(request({ sessionId: 's1', wingId: 'fighter-wing-alpha' }, 'wing-captured'));
+  expect(alphaOld).toMatchObject({ revision: 1, wingRevision: 0, eligible: true });
+  // Legitimate server automatic unavailable decisions between displayed view and click.
+  await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
+  const beforeStale = structuredClone([...testState.documents.entries()]);
+  const oldPayload = { sessionId: 's1', wingId: 'fighter-wing-alpha', requestId: 'alpha-rejected-original',
+    expectedTurn: 2, expectedRevision: 1, expectedWingRevision: 0 };
+  await expect(launchAegisFighterWing.run(request(oldPayload, 'wing-captured'))).rejects.toMatchObject({ code: 'failed-precondition', details: { commandError: 'stale-revision' } });
+  expect([...testState.documents.entries()]).toEqual(beforeStale);
+  const alphaFresh = await getAegisFighterWingLaunch.run(request({ sessionId: 's1', wingId: 'fighter-wing-alpha' }, 'wing-captured'));
+  const bravoBeforeAlpha = await getAegisFighterWingLaunch.run(request({ sessionId: 's1', wingId: 'fighter-wing-bravo' }, 'wing-captured'));
+  const alphaPayload = { ...oldPayload, requestId: 'alpha-fresh-choice', expectedRevision: alphaFresh.revision, expectedWingRevision: alphaFresh.wingRevision };
+  const alphaResult = await launchAegisFighterWing.run(request(alphaPayload, 'wing-captured'));
+  expect(alphaResult).toMatchObject({ status: 'committed', launched: true, wingRevision: 1 });
+  expect(testState.documents.get('sessions/s1/wolfAttackState/current')?.currentStep).toBe('targeting');
+  const bravoOldPayload = { ...oldPayload, wingId: 'fighter-wing-bravo', requestId: 'bravo-rejected-original',
+    expectedRevision: bravoBeforeAlpha.revision, expectedWingRevision: bravoBeforeAlpha.wingRevision };
+  const beforeBravoStale = structuredClone([...testState.documents.entries()]);
+  await expect(launchAegisFighterWing.run(request(bravoOldPayload, 'wing-captured'))).rejects.toMatchObject({ code: 'failed-precondition', details: { commandError: 'stale-revision' } });
+  expect([...testState.documents.entries()]).toEqual(beforeBravoStale);
+  const bravoFresh = await getAegisFighterWingLaunch.run(request({ sessionId: 's1', wingId: 'fighter-wing-bravo' }, 'wing-captured'));
+  expect(bravoFresh).toMatchObject({ eligible: true, wingRevision: 1 });
+  const bravoPayload = { ...bravoOldPayload, requestId: 'bravo-fresh-choice', expectedRevision: bravoFresh.revision, expectedWingRevision: bravoFresh.wingRevision };
+  const bravoResult = await launchAegisFighterWing.run(request(bravoPayload, 'wing-captured'));
+  expect(bravoResult).toMatchObject({ status: 'committed', launched: true, wingRevision: 2 });
+  await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
+  expect(testState.documents.get('sessions/s1/wolfAttackState/current')).toMatchObject({ currentStep: 'medium-range',
+    aegisFighterWingState: { revision: 2, wings: { 'fighter-wing-alpha': { launched: true, fighters: 4 }, 'fighter-wing-bravo': { launched: true, fighters: 4 } } } });
+  await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } }); // settle same-range summary
+  const beforeReplay = structuredClone([...testState.documents.entries()]);
+  expect(await launchAegisFighterWing.run(request(alphaPayload, 'wing-captured'))).toMatchObject({ ...alphaResult, status: 'replayed' });
+  expect(await launchAegisFighterWing.run(request(bravoPayload, 'wing-captured'))).toMatchObject({ ...bravoResult, status: 'replayed' });
+  expect([...testState.documents.entries()]).toEqual(beforeReplay);
+  await expect(launchAegisFighterWing.run(request({ ...alphaPayload, expectedRevision: alphaPayload.expectedRevision + 1 }, 'wing-captured'))).rejects.toBeDefined();
   expect(entropy.randomInt).not.toHaveBeenCalled();
 });

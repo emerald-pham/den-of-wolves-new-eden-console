@@ -81,3 +81,40 @@ fresh explicit allocation for the exact repaired source, compiled Functions
 and unchanged runner, with the existing complete Admin/browser diagnostic
 capture and original fixed stage deadlines. Native P progression and success
 remain unproved. Parent owns product version/release metadata and integration.
+
+### October8 observed stale launch recovery
+
+Attempt9 stopped on the first actual Alpha HTTP400 `FAILED_PRECONDITION` with
+`details.commandError: stale-revision` (expected attack revision1/wing0).
+Its last pre-action browser/Admin snapshot was revision1; the precise winning
+concurrent transition was not captured and is not asserted. The server CAS is
+correct. The existing shared UI controller already clears rejected views and
+reads normal current Alpha/Bravo launch authority. Product authority and UI
+implementation are unchanged by this proof correction.
+
+Observed proof RED is in
+`/tmp/dow-pc10-evidence/STATION_ATTEMPT9_EXISTING_RECOVERY_PROOF_RED_20261008.log`.
+The source adapter now permits one bounded refresh per wing/attack only after
+that exact already-observed rejected response, never an uncertain commit.
+It verifies original actors/berth, same P attack/turn at a higher targeting
+revision, and passively observed normal UI launch reads for both wings at that
+revision. The selected wing must remain eligible/unlaunched. It retains the
+original rejection and fresh complete Admin/browser diagnostics before one
+new explicit UI click. That click must have a new request ID and exactly the
+refreshed attack/wing revisions; receipt attack/wing must match. It cannot
+silently pass another choice. No SDK mutation is issued by this recovery.
+Unknown, network, permission, other phase errors, repeated stale rejection,
+foreign authority or expired budgets remain fatal. A recovery retains its
+original deadline even across revision changes and readiness waits. Listener
+cleanup runs on both success and failure.
+
+The native captured-input regression schedules a legitimate automatic
+vacant-source transition between view and click, proves rejection causes no
+writes/receipts, then fresh Alpha and Bravo choices, mandatory outstanding
+Bravo, normal range advance, exact receipt replay without relaunch, and
+changed-payload denial. This controlled schedule does not prove which
+transition won the native attempt9 race. Component checks demonstrate existing
+UI recovery and Bravo rereads both shared revisions after Alpha. Synthetic
+adapter checks cannot claim native recovery or P success. Next runtime remains
+subject to a fresh parent allocation bound to the final reviewed runner/source
+and unchanged compiled product tree, with original progress and cleanup guards.

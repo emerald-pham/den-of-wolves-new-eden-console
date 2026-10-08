@@ -5,6 +5,7 @@ import type { WolfAttackMemberView } from '@/types/game';
 
 const mocks = vi.hoisted(() => ({
   getLaunch: vi.fn(),
+  launch: vi.fn(),
   subscribe: vi.fn(),
   receive: undefined as undefined | ((view: WolfAttackMemberView | null) => void),
 }));
@@ -14,7 +15,7 @@ vi.mock('@/lib/firestore', () => ({
 }));
 vi.mock('@/lib/sessionService', () => ({
   getAegisFighterWingLaunch: (sourceId: string) => mocks.getLaunch(sourceId),
-  launchAegisFighterWing: vi.fn(),
+  launchAegisFighterWing: mocks.launch,
   passWolfFighterLaunchChoice: vi.fn(),
 }));
 vi.mock('./PdfFighterAcePermissionControl', () => ({
@@ -52,6 +53,7 @@ function initialAudience(view: WolfAttackMemberView | null) {
 
 beforeEach(() => {
   mocks.receive = undefined;
+  mocks.launch.mockReset();
   mocks.getLaunch.mockReset().mockImplementation(async (wingId: string) => ({ ...alpha, wingId }));
   mocks.subscribe.mockReset();
   initialAudience(audience());
@@ -153,4 +155,34 @@ it('does not restore launched-wing controls from a read that completes after res
   act(() => mocks.receive?.(audience({ status: 'resolved', currentStep: 'resolved', revision: 5 })));
   await act(async () => { release?.(); await pending; });
   expect(screen.queryByTestId('ace-permission-fighter-wing-alpha')).not.toBeInTheDocument();
+});
+
+it('uses existing ordinary refresh after a stale Alpha rejection and rereads both revisions before Bravo', async () => {
+  let revision = 4, wingRevision = 0, alphaLaunched = false;
+  initialAudience(audience({ currentStep: 'targeting', range: null }));
+  mocks.getLaunch.mockImplementation(async (wingId: string) => ({ ...alpha, wingId, revision, wingRevision,
+    launched: wingId === 'fighter-wing-alpha' && alphaLaunched,
+    eligible: !(wingId === 'fighter-wing-alpha' && alphaLaunched),
+  }));
+  let rejectOriginal!: (cause: Error) => void;
+  mocks.launch.mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectOriginal = reject; }))
+    .mockResolvedValue({ status: 'committed' });
+  render(<AegisFighterWingLaunchPanel />);
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Launch Fighter Wing Alpha' })).toBeEnabled());
+  fireEvent.click(screen.getByRole('button', { name: 'Launch Fighter Wing Alpha' }));
+  expect(mocks.launch).toHaveBeenNthCalledWith(1, 'fighter-wing-alpha', 1, 4, 0);
+  revision = 5;
+  await act(async () => {
+    mocks.receive?.(audience({ revision, currentStep: 'targeting', range: null }));
+    rejectOriginal(new Error('The AEGIS Fighter Wing launch view is stale. Refresh the current Wolf attack.'));
+  });
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Launch Fighter Wing Alpha' })).toBeEnabled());
+  fireEvent.click(screen.getByRole('button', { name: 'Launch Fighter Wing Alpha' }));
+  expect(mocks.launch).toHaveBeenNthCalledWith(2, 'fighter-wing-alpha', 1, 5, 0);
+  revision = 6; wingRevision = 1; alphaLaunched = true;
+  await act(async () => { mocks.receive?.(audience({ revision, currentStep: 'targeting', range: null })); });
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Launch Fighter Wing Bravo' })).toBeEnabled());
+  expect(screen.getByRole('button', { name: 'Launch Fighter Wing Alpha' })).toBeDisabled();
+  await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Launch Fighter Wing Bravo' })); });
+  expect(mocks.launch).toHaveBeenNthCalledWith(3, 'fighter-wing-bravo', 1, 6, 1);
 });

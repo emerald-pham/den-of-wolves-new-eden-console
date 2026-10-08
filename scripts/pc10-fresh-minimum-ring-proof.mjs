@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {assertSparseStationWing,runSparseStationCombat,stationBoardingRead} from './pc10-station-combat-adapter.mjs';
+import {assertSparseStationWing,runSparseStationCombat,stationBoardingRead,recoverStationLaunch,assertRecoveredStationLaunch} from './pc10-station-combat-adapter.mjs';
 import {runMinimumCandidateSuccessProbe} from './pc10-minimum-candidate-success.mjs';
 import { runPursuitLimitEnding } from './pc10-full-game-cycle-ending.mjs';
 import { createHash } from 'node:crypto';
@@ -8,7 +8,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdir, readFile, writeFile, realpath } from 'node:fs/promises';
 import { setTimeout as delay } from 'node:timers/promises';
 import { observeUiReceipt, attachUiReceiptDiagnostics } from './pc10-browser-ui-receipt.mjs';
-import { originalProofError, retainProofFailure } from './pc10-proof-failure-evidence.mjs';
+import { originalProofError, retainProofFailure, heldProofFailureObservations } from './pc10-proof-failure-evidence.mjs';
 import { observeFullGameCallableDiagnostics } from './pc10-full-game-demo-ui-proof.mjs';
 import { observeFullGameDemoPresentationMember, proofRuntimeFromViteSource, validateProofRuntime } from './pc10-full-game-demo-proof-helpers.mjs';
 import { observeLifecycleActor, captureLifecycleUiAction, publicLifecycleReceipt, openLifecycleSettings, closeLifecycleSettings } from './pc10-member-gm-lifecycle-ui-proof.mjs';
@@ -718,10 +718,37 @@ async function enterRole(surface,label){
     const sampleHash=hash(stable(sample));if(sampleHash!==lastCombatSampleHash){lastCombatSampleHash=sampleHash;(evidence.stationCombatTransitions??=[]).push({observedAt:evidence.stationCombatLatest.observedAt,attackId:attack.attackId,revision:attack.revision,step:attack.currentStep,status:attack.status,decisionSummary:attack.decisionSummary??null});}
     await writeFile(`${directory}/Station-combat-latest.json`,JSON.stringify(evidence.stationCombatLatest,null,2)+'\n');
    };
+   const launchViews=new Map(),recoveredLaunches=new Map();
+   const observeLaunchRead=async response=>{
+    if(!new URL(response.url()).pathname.endsWith('/us-central1/getAegisFighterWingLaunch')||response.request().method()!=='POST'||response.status()!==200)return;
+    try {const body=await response.json(),view=body.result;
+     if(view?.sessionId===sid&&['fighter-wing-alpha','fighter-wing-bravo'].includes(view.wingId))launchViews.set(view.wingId,view);
+    } catch(error){recordDiagnosticError('passive-launch-ui-read',error,{});}
+   };
+   recipient.page.on('response',observeLaunchRead);
+   const assertStationActors=async()=>{budget();await liveGm(gm,'GM1','active');assertSparseStationWing(await fullMember(recipient),evidence.stationWingOriginal);};
+   const recoverChoice=async(error,current,{deadlineAt})=>recoverStationLaunch(error,current,{
+    observations:heldProofFailureObservations(error),readAttack:async()=>{const fresh=await readAttack();await retainCombatState(fresh);return fresh;},assertActors:assertStationActors,deadlineAt,used:recoveredLaunches,
+    readLaunchView:async(wingId,limit,fresh)=>{while(Date.now()<limit){
+     const views=['fighter-wing-alpha','fighter-wing-bravo'].map(id=>launchViews.get(id));
+     const button=recipient.page.getByRole('button',{name:`Launch Fighter Wing ${wingId.endsWith('alpha')?'Alpha':'Bravo'}`,exact:true});
+     if(views.every(view=>view?.sessionId===sid&&view.attackId===fresh.attackId&&view.turn===fresh.turn&&view.revision===fresh.revision)&&await button.isVisible()&&await button.isEnabled())return launchViews.get(wingId);
+     await delay(Math.min(100,limit-Date.now()));
+    }throw error;},
+    retain:async(original,context)=>{
+     const artifact=await retainProofFailure(directory,'station-launch-stale-recovery',original,context);
+     assert.equal(artifact.evidenceWriteFailed,false,'Original rejected launch must be retained before recovery.');
+     await retainCombatState(context.freshAttack);
+     (evidence.stationLaunchRecoveries??=[]).push({originalFailureArtifact:artifact.path,...context,
+      recovery:'existing UI refresh followed by one new explicit choice; no SDK mutation/replay'});
+     await writeFile(`${directory}/Station-launch-recoveries.json`,JSON.stringify(evidence.stationLaunchRecoveries,null,2)+'\n');
+    },
+   });
    const choose=async(current,{deadlineAt})=>{
     assertSparseStationWing(await fullMember(recipient),evidence.stationWingOriginal);
     if(current.currentStep==='targeting'){
-     for(const label of ['Fighter Wing Alpha','Fighter Wing Bravo']){const launch=recipient.page.getByRole('button',{name:`Launch ${label}`,exact:true}),pass=recipient.page.getByRole('button',{name:`Pass ${label}`,exact:true});if(await launch.isVisible()&&await launch.isEnabled()){await action(recipient,'launchAegisFighterWing',()=>launch.click());return;}if(await pass.isVisible()&&await pass.isEnabled()){await action(recipient,'passWolfFighterLaunchChoice',()=>pass.click());return;}}
+     const pendingRecovery=[...recoveredLaunches.values()].find(row=>row.view.attackId===current.attackId&&!row.committed);
+     for(const label of ['Fighter Wing Alpha','Fighter Wing Bravo']){if(pendingRecovery&&pendingRecovery.view.wingId!==`fighter-wing-${label.endsWith('Alpha')?'alpha':'bravo'}`)continue;const launch=recipient.page.getByRole('button',{name:`Launch ${label}`,exact:true}),pass=recipient.page.getByRole('button',{name:`Pass ${label}`,exact:true});if(await launch.isVisible()&&await launch.isEnabled()){const capture=await action(recipient,'launchAegisFighterWing',()=>launch.click(),{deadlineAt});assertRecoveredStationLaunch(capture,current,recoveredLaunches);const recovered=evidence.stationLaunchRecoveries?.findLast(row=>row.freshAttack.attackId===current.attackId&&row.failedRequest.wingId===capture.data.wingId);if(recovered){recovered.committedReceipt=publicLifecycleReceipt(capture);await writeFile(`${directory}/Station-launch-recoveries.json`,JSON.stringify(evidence.stationLaunchRecoveries,null,2)+'\n');}return {committed:true};}if(await pass.isVisible()&&await pass.isEnabled()){assert.equal(Boolean(pendingRecovery),false,'A rejected launch cannot silently become a pass.');await action(recipient,'passWolfFighterLaunchChoice',()=>pass.click(),{deadlineAt});return {committed:true};}}
     }else if(['medium-range','short-range'].includes(current.currentStep)){
      const range=current.currentStep==='medium-range'?'Medium Range':'Short Range';
      for(const label of ['Fighter Wing Alpha','Fighter Wing Bravo']){const panel=recipient.page.getByRole('region',{name:`${label} ${range} actions`,exact:true});if(!await panel.isVisible())continue;
@@ -744,15 +771,17 @@ async function enterRole(surface,label){
     }
     assert.ok(Date.now()<deadlineAt); // No absent EO/crew is impersonated; wait for ordinary server reconciliation.
    };
+   try {
    let liberated=false;const waves=[];
    for(let wave=1;wave<=12&&!liberated;wave++){
     for(const ship of ships)await repair(ship);await liveGm(gm,'GM1','active');await action(gm,'declareWolfAttack',()=>preparation.getByRole('button',{name:'Declare Wolf attack',exact:true}).click());
-    const final=await runSparseStationCombat({deadlineAt:Math.min(Date.now()+480000,workEnd-60000),readAttack,onState:retainCombatState,onDiagnosticError:async(error,attack)=>{recordDiagnosticError('diagnostic-retention',error,attack);},assertActors:async()=>{budget();await liveGm(gm,'GM1','active');assertSparseStationWing(await fullMember(recipient),evidence.stationWingOriginal);},choose});
+    const final=await runSparseStationCombat({deadlineAt:Math.min(Date.now()+480000,workEnd-60000),readAttack,onState:retainCombatState,onDiagnosticError:async(error,attack)=>{recordDiagnosticError('diagnostic-retention',error,attack);},assertActors:async()=>{budget();await liveGm(gm,'GM1','active');assertSparseStationWing(await fullMember(recipient),evidence.stationWingOriginal);},choose,recoverChoice});
     waves.push({wave,attackId:final.attackId,repeat:final.pStationRepeat});liberated=final.pStationRepeat.status==='stopped';await writeFile(`${directory}/Station-combat-waves.json`,JSON.stringify(waves,null,2)+'\n');
    }
    assert.equal(liberated,true,'Real Station combat must end with zero surviving Wolves before activation.');
    const current=await recordRoot();await readStationLiberation(path=>db.doc(`sessions/${sid}/${path}`).get().then(doc=>doc.data()),current,{sessionId:sid,groupId,coordinate,sourceId:waves.at(-1).attackId,cycle:current.currentTurn});evidence.stationCombatWaves=waves;
    claims.push('Actual source-bound Station waves finalized with real server rolls; durable zero-survivor liberation precedes any Reactor contribution');
+   } finally {recipient.page.off('response',observeLaunchRead);}
   },
   async stationActivate(){
    await mark('existing tested sparse activation callback after actual liberation');for(const ship of ships)await repair(ship);

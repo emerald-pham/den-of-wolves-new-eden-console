@@ -13,6 +13,8 @@ export function rememberProofFailure(error, detail) {
   if (error === null || !['object', 'function'].includes(typeof error)) return;
   const held = observations.get(error) ?? []; held.push(detail); observations.set(error, held);
 }
+// Read only already-held observations; this never issues a new SDK action.
+export function heldProofFailureObservations(error) { return [...(observations.get(error) ?? [])]; }
 export function originalProofError(error, seen = new WeakSet()) {
   if (error === null || !['object', 'function'].includes(typeof error)) return { fullInspect: fullInspect(error) };
   if (seen.has(error)) return { circular: true, fullInspect: fullInspect(error) };

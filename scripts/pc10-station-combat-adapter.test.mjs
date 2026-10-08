@@ -9,3 +9,37 @@ test('boarding invalid-phase is terminal only after fresh same original P attack
 test('boarding race never masks authority/transport rejection or foreign finalized attack',async()=>{for(const patch of [{status:'denied',code:'functions/permission-denied',message:'not entitled'},{status:'denied',code:'functions/unavailable',message:'network'}])await assert.rejects(adapter.stationBoardingRead(boarding,{sessionId:'sid',readChoice:async()=>patch,readAttack:async()=>({...boarding,status:'resolved',currentStep:'resolved',pStationRepeat:{status:'stopped'}})}));await assert.rejects(adapter.stationBoardingRead(boarding,{sessionId:'sid',readChoice:async()=>({status:'committed',result:pending}),readAttack:async()=>({...boarding,attackId:'foreign',revision:6})}));});
 test('already committed current boarding choice waits for normal progress without a second UI commit',async()=>{const result=await adapter.stationBoardingRead(boarding,{sessionId:'sid',readChoice:async()=>({status:'committed',result:{...pending,choiceStatus:'committed'}}),readAttack:async()=>({...boarding,revision:6})});assert.equal(result.kind,'refresh');});
 test('combat failure retains last authoritative original attack and stage instead of only timeout text',async()=>{const states=[];const current={attackId:'original',turn:2,revision:3,threatSiteCode:'P',status:'declared',currentStep:'long-range',deadlineAt:'9999-12-31T23:59:59.999Z',decisionSummary:{range:{status:'pending'}}};await assert.rejects(adapter.runSparseStationCombat({deadlineAt:Date.now()+1000,readAttack:async()=>current,assertActors:async()=>{},onState:async state=>states.push(state),choose:async()=>{throw Error('actionable held stage')},wait:async()=>{}}),/actionable held stage/);assert.deepEqual(states,[current]);});
+test('captured stale launch race can use bounded observed UI recovery before normal fresh clicks',async()=>{
+ let index=0,choices=0,recoveries=0;const stale=Error('launchAegisFighterWing: actual UI request rejected.');
+ const states=[{attackId:'original',turn:2,revision:1,status:'declared',currentStep:'targeting',threatSiteCode:'P'},{attackId:'original',turn:2,revision:2,status:'declared',currentStep:'targeting',threatSiteCode:'P'},{attackId:'original',turn:2,revision:3,status:'resolved',currentStep:'resolved',threatSiteCode:'P',pStationRepeat:{status:'repeat'}}];
+ const final=await adapter.runSparseStationCombat({deadlineAt:Date.now()+1000,readAttack:async()=>states[index],assertActors:async()=>{},choose:async()=>{if(choices++===0)throw stale;index=2;},recoverChoice:async(error,current,{deadlineAt})=>{assert.equal(error,stale);assert.equal(current.revision,1);assert.ok(deadlineAt>Date.now());recoveries++;index=1;return true;},wait:async()=>{}});
+ assert.equal(final.status,'resolved');assert.equal(recoveries,1);assert.equal(choices,2);
+});
+const rejectedLaunch={operation:'captureLifecycleUiAction',endpoint:'launchAegisFighterWing',httpStatus:400,
+ requestData:{sessionId:'sid',wingId:'fighter-wing-alpha',requestId:'rejected-id',expectedTurn:2,expectedRevision:1,expectedWingRevision:0},
+ before:{sessionId:'sid',uidHash:'wing'},current:{sessionId:'sid',uidHash:'wing'},body:{error:{status:'FAILED_PRECONDITION',details:{commandError:'stale-revision'},message:'The AEGIS Fighter Wing launch view is stale. Refresh the current Wolf attack.'}}};
+const launchCurrent={attackId:'original',turn:2,revision:1,status:'declared',currentStep:'targeting',threatSiteCode:'P'};
+const refreshedLaunch={sessionId:'sid',attackId:'original',turn:2,revision:2,wingId:'fighter-wing-alpha',wingRevision:0,eligible:true,launched:false};
+function recoveryOptions(patch={}){return {observations:[structuredClone(rejectedLaunch)],readAttack:async()=>({...launchCurrent,revision:2}),readLaunchView:async()=>refreshedLaunch,assertActors:async()=>{},deadlineAt:Date.now()+1000,used:new Map(),retain:async()=>{},...patch};}
+test('only exact observed stale rejection uses refreshed same-attack UI authority once',async()=>{
+ const original=Error('original observed rejection'),options=recoveryOptions();let checks=0,retained;
+ options.assertActors=async()=>checks++;options.retain=async(error,context)=>{assert.equal(error,original);retained=context};
+ assert.equal(await adapter.recoverStationLaunch(original,launchCurrent,options),true);assert.equal(checks,2);assert.equal(retained.freshUiLaunchView,refreshedLaunch);
+ await assert.rejects(adapter.recoverStationLaunch(original,launchCurrent,options),error=>error===original);
+ const capture={data:{...rejectedLaunch.requestData,requestId:'fresh-choice',expectedRevision:2},result:{attackId:'original',wingId:'fighter-wing-alpha',launched:true}};
+ adapter.assertRecoveredStationLaunch(capture,launchCurrent,options.used);
+ assert.throws(()=>adapter.assertRecoveredStationLaunch({...capture,data:{...capture.data,requestId:'rejected-id'}},launchCurrent,options.used));
+ assert.throws(()=>adapter.assertRecoveredStationLaunch({...capture,data:{...capture.data,expectedWingRevision:1}},launchCurrent,options.used));
+});
+test('stale recovery never admits transport uncertainty, other errors, foreign authority, ineligible wing or expiration',async()=>{
+ const original=Error('original');const bad=[];
+ for(const patch of [{httpStatus:500},{httpStatus:200},{endpoint:'passWolfFighterLaunchChoice'},{body:{error:{status:'PERMISSION_DENIED'}}},{current:{sessionId:'sid',uidHash:'foreign'}},{requestData:{...rejectedLaunch.requestData,expectedTurn:3}}])bad.push({observations:[{...rejectedLaunch,...patch}]});
+ for(const patch of [{attackId:'foreign'},{turn:3},{revision:1},{currentStep:'medium-range'},{status:'resolved'},{threatSiteCode:'N'}])bad.push({readAttack:async()=>({...launchCurrent,revision:2,...patch})});
+ for(const patch of [{sessionId:'foreign'},{attackId:'foreign'},{revision:1},{wingId:'fighter-wing-bravo'},{eligible:false},{launched:true},{wingRevision:-1}])bad.push({readLaunchView:async()=>({...refreshedLaunch,...patch})});
+ bad.push({observations:[]},{deadlineAt:Date.now()-1},{assertActors:async()=>{throw original}});
+ for(const patch of bad){let retained=false;await assert.rejects(adapter.recoverStationLaunch(original,launchCurrent,recoveryOptions({...patch,retain:async()=>{retained=true}})),error=>error===original);assert.equal(retained,false);}
+});
+test('accepted stale recovery never resets its original deadline at a higher attack revision',async()=>{
+ let i=0,limit;const original=Error('stale');
+ await assert.rejects(adapter.runSparseStationCombat({deadlineAt:Date.now()+1000,readAttack:async()=>({...launchCurrent,revision:i+1}),assertActors:async()=>{},choose:async(_state,{deadlineAt})=>{if(i===0){limit=deadlineAt;throw original;}assert.equal(deadlineAt,limit);throw Error('second rejection fatal');},recoverChoice:async error=>{if(error!==original)return false;i++;return true;},wait:async()=>{}}),/second rejection fatal/);
+});
