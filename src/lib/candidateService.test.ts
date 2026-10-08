@@ -1,6 +1,6 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import { useSessionStore } from '@/store/useSessionStore';
-import { createCandidateAttempt, executeCandidateAttempt, recoverCandidateAttempt } from './candidateService';
+import { createCandidateAttempt, executeCandidateAttempt, readCandidateWorkspace, recoverCandidateAttempt } from './candidateService';
 
 const transport = vi.hoisted(() => ({ call: vi.fn() }));
 vi.mock('firebase/functions', () => ({ httpsCallable: () => transport.call }));
@@ -14,6 +14,20 @@ beforeEach(() => {
   useSessionStore.setState({ session: { id: 's1' } as never,
     me: { uid: 'u1', role: 'player', sessionId: 's1', fleetGroupId: 'fleet-1' } as never,
     connection: 'live', sessionSnapshotFreshness: 'server', gmInstance: null });
+});
+it('projects the shared server-selected edition and global N/O lock to the current actor', async () => {
+  transport.call.mockResolvedValueOnce({ data: { type: 'candidate-workspace', sessionId: 's1', groupId: 'fleet-1',
+    cycle: 6, revision: 3, edition: 'deluxe', editionLocked: true, paths: [] } });
+  const workspace = await readCandidateWorkspace('fleet-1');
+  expect(workspace).toMatchObject({ edition: 'deluxe', editionLocked: true });
+});
+it('rejects an unknown or missing server edition instead of inferring rules in the client', async () => {
+  transport.call.mockResolvedValueOnce({ data: { type: 'candidate-workspace', sessionId: 's1', groupId: 'fleet-1',
+    cycle: 6, revision: 3, edition: 'unlisted', editionLocked: false, paths: [] } });
+  await expect(readCandidateWorkspace('fleet-1')).rejects.toThrow(/candidate operation report/i);
+  transport.call.mockResolvedValueOnce({ data: { type: 'candidate-workspace', sessionId: 's1', groupId: 'fleet-1',
+    cycle: 6, revision: 3, editionLocked: false, paths: [] } });
+  await expect(readCandidateWorkspace('fleet-1')).rejects.toThrow(/candidate operation report/i);
 });
 it('persists the exact interrupted attempt and recovers it across component reload without another identity', async () => {
   const attempt = createCandidateAttempt(choice);

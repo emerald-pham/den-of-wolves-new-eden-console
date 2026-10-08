@@ -3,6 +3,7 @@ import {
   candidateWorkspace, parseCandidateAction, parseCandidateState, resolveCandidateAction,
   type CandidateAuthority, type CandidateAction, type CandidateState,
 } from './candidatePaths';
+import { organiserSitesForChart } from './starChartLookup';
 
 const now = '2026-10-05T12:00:00.000Z';
 const authority = (code: 'N' | 'O' | 'P' = 'N'): CandidateAuthority => ({
@@ -43,8 +44,71 @@ describe('candidate source calculations and explicit choices', () => {
     ]));
     expect(JSON.stringify(view)).not.toMatch(/hiddenScoutCount|wolfRoster|chartId/);
   });
+  it('defaults legacy candidate state to Home and locks edition globally after another group starts N or O', () => {
+    expect(parseCandidateState({ revision: 0, sites: {} })).toMatchObject({ edition: 'home' });
+    const otherGroupStarted = parseCandidateState({ revision: 1, sites: { 'fleet-2:0408': {
+      code: 'O', coordinate: '0408', groupId: 'fleet-2', materials: 0, researchIds: [], ships: {}, reactors: {},
+    } } });
+    expect(candidateWorkspace(authority('O'), otherGroupStarted)).toMatchObject({ edition: 'home', editionLocked: true });
+  });
+  it('projects source-valid unmarked Ring preparation as Home without rewriting its progress', () => {
+    const coordinate = Object.entries(organiserSitesForChart('A')).find(([, site]) => site.code === 'N')![0];
+    const original = { revision: 4, sites: { [coordinate]: { code: 'N', coordinate, groupId: 'fleet-1',
+      materials: 5, researchIds: ['reactor', 'jump-drive'], ships: {}, reactors: {} } } };
+    const state = parseCandidateState(original);
+    const a = authority('N');
+    a.discovered = [{ code: 'N', coordinate }];
+    const view = candidateWorkspace(a, state);
+
+    expect(view).toMatchObject({ edition: 'home', editionLocked: true, revision: 4,
+      paths: [{ materials: 5, materialsRequired: 10, researchCount: 2, researchRequired: 5,
+        blockers: expect.arrayContaining([
+          'Contribute 5 materials.', 'Commit five distinct research tracks with at least four crosses.',
+          'Commit one available Engineering Shuttle.',
+        ]) }],
+    });
+    expect(original).not.toHaveProperty('edition');
+    expect(state.sites[coordinate]).toEqual(original.sites[coordinate]);
+  });
+  it('accepts a Deluxe 15-material contribution and names the selected source edition', () => {
+    const rawCommand: CandidateAction = { sessionId: 's1', requestId: 'deluxe-materials', expectedRevision: 0,
+      expectedGroupId: 'fleet-1', code: 'N', coordinate: '6798', action: 'contribute-materials',
+      shipId: 'aegis', amount: 15 };
+    expect(() => parseCandidateAction(rawCommand)).not.toThrow();
+    const base = authority();
+    const a = { ...base, ships: { ...base.ships, aegis: { ...base.ships.aegis!, materials: 15 } } };
+    const deluxeState = parseCandidateState({ revision: 0, edition: 'deluxe', sites: {} });
+    const result = resolveCandidateAction(a, deluxeState, parseCandidateAction(rawCommand));
+    expect(result.state.sites['6798']?.materials).toBe(15);
+    expect(result.calculation.source).toBe('deluxe-v1.1-candidate-N');
+  });
+  it('requires fully completed Endeavour technologies for Deluxe Ring repair', () => {
+    const base = authority();
+    const a = { ...base, research: { ...base.research, 'fuel-refinery': 4 } };
+    const deluxeState = parseCandidateState({ revision: 0, edition: 'deluxe', sites: {} });
+    expect(() => resolveCandidateAction(a, deluxeState, command('contribute-research', {
+      trackIds: ['reactor', 'jump-drive', 'hydroponics', 'water-reclamation', 'fuel-refinery'],
+    }))).toThrow(/complete/i);
+    const view = candidateWorkspace(a, deluxeState);
+    expect(view.paths[0]?.researchChoices.map(choice => choice.id)).not.toContain('fuel-refinery');
+  });
+  it('does not treat a track with more crosses than its catalogued final box as completed', () => {
+    const base = authority();
+    const a = { ...base, research: { reactor: 6, 'jump-drive': 5, hydroponics: 5,
+      'water-reclamation': 5, 'fuel-refinery': 5 } };
+    const deluxeState = parseCandidateState({ revision: 0, edition: 'deluxe', sites: {} });
+    expect(() => resolveCandidateAction(a, deluxeState, command('contribute-research', {
+      trackIds: ['reactor', 'jump-drive', 'hydroponics', 'water-reclamation', 'fuel-refinery'],
+    }))).toThrow(/complete/i);
+    expect(candidateWorkspace(a, deluxeState).paths[0]?.researchChoices.map(choice => choice.id)).not.toContain('reactor');
+  });
   it.each(['roll', 'dice', 'hiddenScoutCount', 'modifier', 'outcome', 'wolfRoster'])('rejects client-owned %s', field => {
     expect(() => command('nebula-jump', { shipId: 'aegis', [field]: 6 })).toThrow();
+  });
+  it('keeps edition selection out of per-action requests', () => {
+    expect(() => parseCandidateAction({ sessionId: 's1', requestId: 'r1', expectedRevision: 0,
+      expectedGroupId: 'fleet-1', code: 'N', coordinate: '6798', action: 'contribute-materials',
+      shipId: 'aegis', amount: 1, edition: 'deluxe' })).toThrow();
   });
   it('deducts materials once and never accepts overfunding or a foreign ship', () => {
     const a = authority();
@@ -101,6 +165,27 @@ describe('candidate source calculations and explicit choices', () => {
     expect(finish.groupOutcome).toMatchObject({ candidateCode: 'N', successfulShipIds: ['aegis'],
       leftBehindShipIds: ['shepherd', 'quellon', 'dione', 'icebreaker', 'refinery-124'] });
   });
+  it('permits Deluxe far-side sabotage after paid passage without the Home Wolf-stop claim', () => {
+    const base = authority();
+    const gm = { ...base, actor: { ...base.actor, gm: true } };
+    const state = { revision: 3, edition: 'deluxe', sites: { '6798': {
+      code: 'N', coordinate: '6798', groupId: 'fleet-1', materials: 15,
+      researchIds: Object.keys(base.research), shuttleId: 'philia', repairedAt: now,
+      ships: { aegis: { type: 'candidate-action-result', status: 'committed', sessionId: 's1', requestId: 'crossed',
+        revision: 1, code: 'N', action: 'ring-passage', summary: 'Ring passage committed.', outcome: 'crossed',
+        fuelSpent: 5, remainingFuel: 1 } }, reactors: {},
+    } } } as unknown as CandidateState;
+    const result = resolveCandidateAction(gm, state,
+      command('sabotage-ring', { expectedRevision: 3, requestId: 'deluxe-sabotage' }));
+    expect(result.groupOutcome).toMatchObject({ candidateCode: 'N', successfulShipIds: ['aegis'],
+      leftBehindShipIds: ['shepherd', 'quellon', 'dione', 'icebreaker', 'refinery-124'] });
+    expect(result.state.sites['6798']?.sabotagedAt).toBe(now);
+    expect(result.reply.summary).toMatch(/Ring sabotaged from the far side/i);
+    expect(result.reply.summary).not.toMatch(/Wolf|pursuit|stop/i);
+    expect(candidateWorkspace(gm, state).paths[0]).toMatchObject({ canSabotage: true });
+    expect(candidateWorkspace(gm, state).paths[0]?.nextActor).toMatch(/sabotage/i);
+    expect(candidateWorkspace(gm, state).paths[0]?.nextActor).not.toMatch(/Wolf|stop/i);
+  });
   it('uses a server die plus hidden scouts, adds only prior losses and hides all arithmetic from the actor', () => {
     const a = authority('O');
     const c = command('nebula-jump', { shipId: 'aegis' });
@@ -114,6 +199,19 @@ describe('candidate source calculations and explicit choices', () => {
     expect(next.reply).toMatchObject({ outcome: 'reached' });
     expect(next.calculation).toMatchObject({ priorLosses: 1, total: 9 });
     expect(next.groupOutcome).toBeUndefined();
+  });
+  it('uses Deluxe threshold eight and gives no later-ship bonus for an earlier loss', () => {
+    const base = authority('O');
+    const deluxeState = parseCandidateState({ revision: 0, edition: 'deluxe', sites: {} });
+    const first = resolveCandidateAction({ ...base, hiddenScoutCount: 0 }, deluxeState,
+      command('nebula-jump', { shipId: 'aegis' }), 1);
+    expect(first.reply.outcome).toBe('lost');
+    const nextAuthority = { ...base, hiddenScoutCount: 1, actor: { ...base.actor, shipIds: ['shepherd'] } };
+    const next = resolveCandidateAction(nextAuthority, first.state,
+      command('nebula-jump', { expectedRevision: 1, requestId: 'deluxe-next', shipId: 'shepherd' }), 6);
+    expect(next.reply.outcome).toBe('lost');
+    expect(next.calculation).toMatchObject({ die: 6, scouts: 1, total: 7, threshold: 8 });
+    expect(JSON.stringify(next.reply)).not.toMatch(/die|scouts|priorLosses|total|threshold/);
   });
   it('replays a lost or reached ship without another die or cost, and refuses an ordinary same-cycle jump', () => {
     const a = authority('O');

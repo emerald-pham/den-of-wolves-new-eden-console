@@ -50,6 +50,28 @@ const request = (data: Fields, uid = 'admiral') => ({ data, auth: { uid } });
 const command = { sessionId: 's1', requestId: 'n1', expectedRevision: 0,
   expectedGroupId: 'fleet-1', code: 'O', coordinate: '0408', action: 'nebula-jump', shipId: 'aegis' };
 const put = (path: string, value: Fields) => documents.set(path, value);
+const observeOutcome = <T,>(pending: Promise<T>) => pending.then(
+  value => ({ kind: 'resolved' as const, value }), error => ({ kind: 'rejected' as const, error }),
+);
+function seedTwoFleetGroups() {
+  put('sessions/s1/players/captain', { role: 'player', connected: true, assignedRoleId: 'shepherd-captain',
+    seatId: 'shepherd-captain', fleetGroupId: 'fleet-2' });
+  put('sessions/s1/fleetGroups/fleet-1', { id: 'fleet-1', vesselIds: ['aegis'], memberUids: ['admiral', 'gm'] });
+  put('sessions/s1/fleetGroups/fleet-2', { id: 'fleet-2', vesselIds: ['shepherd'], memberUids: ['captain', 'gm'] });
+  const navigation = structuredClone(documents.get('sessions/s1/serverState/navigation')!);
+  navigation.systemHistory = { ...(navigation.systemHistory as Fields), shepherd: { '0408': {
+    coordinate: '0408', candidateDiscovery: { id: 'fleet-two-arrival', occurredAt: '2026-10-05T10:00:00.000Z',
+      code: 'O', title: 'Deep Nebula', source: 'arrival' },
+  } } };
+  put('sessions/s1/serverState/navigation', navigation);
+}
+function editionReceipt(requestId: string, edition: 'home' | 'deluxe', expectedRevision: number, resultRevision: number) {
+  return { fingerprint: { action: 'candidate-edition-selection', actorUid: 'gm', sessionId: 's1', requestId,
+    instanceId: 'instance1', expectedRevision, payload: { groupId: 'fleet-1', edition } },
+    result: { type: 'candidate-edition-result', status: 'committed', sessionId: 's1', requestId,
+      revision: resultRevision, edition, summary: `N/O rules edition set to ${edition === 'home' ? 'Home' : 'Deluxe'}.` },
+    createdAt: '2026-10-05T12:00:00.000Z' };
+}
 
 beforeEach(() => {
   documents.clear(); die.mockClear(); requireShipAuthority.mockClear(); commitTerminal.mockClear(); survivorOutcome.mockClear();
@@ -77,6 +99,277 @@ beforeEach(() => {
 });
 
 describe('ordinary candidate callable authority and durable replay', () => {
+  it('persists a live GM edition choice in the shared session candidate record', async () => {
+    const choice = { sessionId: 's1', requestId: 'edition-behavior', expectedRevision: 0,
+      expectedGroupId: 'fleet-1', instanceId: 'instance1', edition: 'deluxe' };
+    const result = await handlers.selectEdition(request(choice, 'gm'));
+    expect(documents.get('sessions/s1/serverState/candidates')).toMatchObject({ revision: 1, edition: 'deluxe', sites: {} });
+    expect(result).toMatchObject({ type: 'candidate-edition-result', status: 'committed',
+      requestId: choice.requestId, revision: 1, edition: 'deluxe' });
+  });
+  it('returns the retained edition result on an exact live GM retry', async () => {
+    const choice = { sessionId: 's1', requestId: 'edition-behavior-replay', expectedRevision: 0,
+      expectedGroupId: 'fleet-1', instanceId: 'instance1', edition: 'deluxe' };
+    const first = await handlers.selectEdition(request(choice, 'gm'));
+    const retry = await handlers.selectEdition(request(choice, 'gm'));
+    expect(documents.get('sessions/s1/candidateActionReceipts/edition-behavior-replay')?.result).toEqual(first);
+    expect(retry).toEqual({ ...first, status: 'replayed' });
+  });
+  it('keeps edition selection behind the real current-GM instance authority guard', async () => {
+    const choice = { sessionId: 's1', requestId: 'edition-player-denied', expectedRevision: 0,
+      expectedGroupId: 'fleet-1', instanceId: 'instance1', edition: 'deluxe' };
+    await expect(handlers.selectEdition(request(choice, 'admiral'))).rejects.toMatchObject({ code: 'permission-denied' });
+    expect(documents.has('sessions/s1/serverState/candidates')).toBe(false);
+    expect(documents.has('sessions/s1/candidateActionReceipts/edition-player-denied')).toBe(false);
+    expect(documents.has('sessions/s1/actionAudits/edition-player-denied')).toBe(false);
+  });
+  it('does not open a new edition choice after the game lifecycle has ended', async () => {
+    update(ref('sessions/s1'), { phase: 'debrief' });
+    const choice = { sessionId: 's1', requestId: 'edition-after-end', expectedRevision: 0,
+      expectedGroupId: 'fleet-1', instanceId: 'instance1', edition: 'deluxe' };
+    await expect(handlers.selectEdition(request(choice, 'gm'))).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(documents.has('sessions/s1/serverState/candidates')).toBe(false);
+    expect(documents.has('sessions/s1/candidateActionReceipts/edition-after-end')).toBe(false);
+  });
+  it('authorizes edition selection only to the live GM instance and locks it across every fleet group', async () => {
+    const choice = { sessionId: 's1', requestId: 'edition-deluxe', expectedRevision: 0,
+      expectedGroupId: 'fleet-1', instanceId: 'instance1', edition: 'deluxe' };
+    await expect(handlers.selectEdition(request(choice, 'admiral'))).rejects.toMatchObject({ code: 'permission-denied' });
+    await expect(handlers.selectEdition(request({ ...choice, instanceId: 'missing' }, 'gm')))
+      .rejects.toMatchObject({ code: 'permission-denied' });
+    expect(documents.has('sessions/s1/serverState/candidates')).toBe(false);
+    const selected = await handlers.selectEdition(request(choice, 'gm'));
+    expect(selected).toMatchObject({ status: 'committed', revision: 1, edition: 'deluxe' });
+    expect(documents.get('sessions/s1/serverState/candidates')).toMatchObject({ revision: 1, edition: 'deluxe', sites: {} });
+    expect(documents.get('sessions/s1/actionAudits/edition-deluxe')).toMatchObject({
+      action: 'candidate-edition-selection', actorUid: 'gm', phase: 'active', requestId: 'edition-deluxe',
+      revision: 1, resolutionSource: 'facilitator', outcome: 'committed',
+    });
+    expect(documents.get('sessions/s1/procedureAudits/edition-deluxe')).toMatchObject({ type: 'procedure-audit',
+      sourceId: 'deluxe-v1-1-candidate-edition', requiredChoices: [{ actor: 'facilitator',
+        kind: 'candidate-edition-selection', value: { groupId: 'fleet-1', edition: 'deluxe', changed: true } }],
+    });
+    const otherGroupStarted = { revision: 2, edition: 'deluxe', sites: { 'fleet-2:0408': {
+      code: 'O', coordinate: '0408', groupId: 'fleet-2', materials: 0, researchIds: [], ships: {}, reactors: {},
+    } } };
+    put('sessions/s1/serverState/candidates', otherGroupStarted);
+    await expect(handlers.selectEdition(request({ ...choice, requestId: 'edition-home', expectedRevision: 2, edition: 'home' }, 'gm')))
+      .rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(documents.get('sessions/s1/serverState/candidates')).toEqual(otherGroupStarted);
+    expect(documents.has('sessions/s1/candidateActionReceipts/edition-home')).toBe(false);
+  });
+  it('replays the exact session edition receipt after another group starts and rejects request collisions', async () => {
+    const choice = { sessionId: 's1', requestId: 'edition-replay', expectedRevision: 0,
+      expectedGroupId: 'fleet-1', instanceId: 'instance1', edition: 'deluxe' };
+    const first = await handlers.selectEdition(request(choice, 'gm'));
+    const started = { revision: 2, edition: 'deluxe', sites: { 'fleet-2:0408': {
+      code: 'O', coordinate: '0408', groupId: 'fleet-2', materials: 0, researchIds: [], ships: {}, reactors: {},
+    } } };
+    put('sessions/s1/serverState/candidates', started);
+    await expect(handlers.selectEdition(request(choice, 'gm'))).resolves.toEqual({ ...first, status: 'replayed' });
+    expect(documents.get('sessions/s1/serverState/candidates')).toEqual(started);
+    expect([...documents.keys()].filter(path => path.endsWith('/actionAudits/edition-replay'))).toHaveLength(1);
+    expect([...documents.keys()].filter(path => path.endsWith('/procedureAudits/edition-replay'))).toHaveLength(1);
+    await expect(handlers.selectEdition(request({ ...choice, edition: 'home' }, 'gm')))
+      .rejects.toMatchObject({ code: 'failed-precondition' });
+    await expect(handlers.selectEdition(request(choice, 'admiral'))).rejects.toMatchObject({ code: 'permission-denied' });
+  });
+  it('rejects a Home switch against a synthetic N/O lock held by another fleet group', async () => {
+    seedTwoFleetGroups();
+    const candidateState = { revision: 4, edition: 'deluxe', sites: { 'fleet-2:0408': {
+      code: 'O', coordinate: '0408', groupId: 'fleet-2', materials: 0, researchIds: [], ships: {}, reactors: {},
+    } } };
+    put('sessions/s1/serverState/candidates', candidateState);
+    const choice = { sessionId: 's1', requestId: 'edition-other-group-lock', expectedRevision: 4,
+      expectedGroupId: 'fleet-1', instanceId: 'instance1', edition: 'home' };
+
+    const outcome = await observeOutcome(handlers.selectEdition(request(choice, 'gm')));
+    expect(documents.get('sessions/s1/serverState/candidates')).toEqual(candidateState);
+    expect(documents.has('sessions/s1/candidateActionReceipts/edition-other-group-lock')).toBe(false);
+    expect(documents.has('sessions/s1/actionAudits/edition-other-group-lock')).toBe(false);
+    expect(outcome).toMatchObject({ kind: 'rejected', error: { code: 'failed-precondition' } });
+  });
+  it('replays the exact synthetic receipt after another fleet group locks and revises N/O state', async () => {
+    seedTwoFleetGroups();
+    const candidateState = { revision: 8, edition: 'deluxe', sites: { 'fleet-2:0408': {
+      code: 'O', coordinate: '0408', groupId: 'fleet-2', materials: 0, researchIds: [], ships: {}, reactors: {},
+    } } };
+    const requestId = 'edition-replay-other-group-lock';
+    const receipt = editionReceipt(requestId, 'deluxe', 1, 2);
+    put('sessions/s1/serverState/candidates', candidateState);
+    put(`sessions/s1/candidateActionReceipts/${requestId}`, receipt);
+    const choice = { sessionId: 's1', requestId, expectedRevision: 1,
+      expectedGroupId: 'fleet-1', instanceId: 'instance1', edition: 'deluxe' };
+
+    const outcome = await observeOutcome(handlers.selectEdition(request(choice, 'gm')));
+    expect(documents.get('sessions/s1/serverState/candidates')).toEqual(candidateState);
+    expect(documents.get(`sessions/s1/candidateActionReceipts/${requestId}`)).toEqual(receipt);
+    expect(outcome).toEqual({ kind: 'resolved', value: { ...receipt.result, status: 'replayed' } });
+  });
+  it('rejects a synthetic same-request receipt when the requested edition changes', async () => {
+    const candidateState = { revision: 5, edition: 'deluxe', sites: {} };
+    const requestId = 'edition-changed-choice-collision';
+    const receipt = editionReceipt(requestId, 'deluxe', 5, 5);
+    put('sessions/s1/serverState/candidates', candidateState);
+    put(`sessions/s1/candidateActionReceipts/${requestId}`, receipt);
+    const choice = { sessionId: 's1', requestId, expectedRevision: 5,
+      expectedGroupId: 'fleet-1', instanceId: 'instance1', edition: 'home' };
+
+    const outcome = await observeOutcome(handlers.selectEdition(request(choice, 'gm')));
+    expect(documents.get('sessions/s1/serverState/candidates')).toEqual(candidateState);
+    expect(documents.get(`sessions/s1/candidateActionReceipts/${requestId}`)).toEqual(receipt);
+    expect(documents.has(`sessions/s1/actionAudits/${requestId}`)).toBe(false);
+    expect(outcome).toMatchObject({ kind: 'rejected', error: { code: 'failed-precondition' } });
+  });
+  it('keeps source-valid unmarked N/O legacy progress, costs, outcomes and exact receipts under Home', async () => {
+    seedTwoFleetGroups();
+    const ringCoordinate = Object.entries(organiserSitesForChart('A')).find(([, site]) => site.code === 'N')![0];
+    const ringSite = organiserSitesForChart('A')[ringCoordinate]!;
+    const navigation = structuredClone(documents.get('sessions/s1/serverState/navigation')!);
+    (navigation.shipGalacticCoordinates as Fields).shepherd = ringCoordinate;
+    (navigation.systemHistory as Fields).shepherd = { '0408': { coordinate: '0408', candidateDiscovery: {
+      id: 'legacy-shepherd-nebula', occurredAt: '2026-10-05T10:00:00.000Z', code: 'O',
+      title: 'Deep Nebula', source: 'arrival' } }, [ringCoordinate]: { coordinate: ringCoordinate,
+      candidateDiscovery: { id: 'legacy-shepherd-ring', occurredAt: '2026-10-05T10:30:00.000Z',
+        code: 'N', title: ringSite.name, source: 'arrival' } } };
+    put('sessions/s1/serverState/navigation', navigation);
+
+    const nRequestId = 'legacy-ring-materials';
+    const oRequestId = 'legacy-nebula-loss';
+    const nCommand = { sessionId: 's1', requestId: nRequestId, expectedRevision: 0,
+      expectedGroupId: 'fleet-2', instanceId: 'instance1', code: 'N', coordinate: ringCoordinate,
+      action: 'contribute-materials', shipId: 'shepherd', amount: 5 };
+    const oCommand = { ...command, requestId: oRequestId, expectedRevision: 1, instanceId: 'instance1' };
+    const nResult = { type: 'candidate-action-result', status: 'committed', sessionId: 's1',
+      requestId: nRequestId, revision: 1, code: 'N', action: 'contribute-materials',
+      summary: '5/10 Ring materials committed.' };
+    const oResult = { type: 'candidate-action-result', status: 'committed', sessionId: 's1',
+      requestId: oRequestId, revision: 2, code: 'O', action: 'nebula-jump',
+      summary: 'Long jump committed. The ship was lost within the Deep Nebula; its former actions are closed.',
+      outcome: 'lost', fuelSpent: 6, remainingFuel: 14 };
+    const nSite = { code: 'N', coordinate: ringCoordinate, groupId: 'fleet-2', materials: 5,
+      researchIds: ['reactor', 'jump-drive'], ships: {}, reactors: {} };
+    const oSite = { code: 'O', coordinate: '0408', groupId: 'fleet-1', materials: 0,
+      researchIds: [], ships: { aegis: oResult }, reactors: {} };
+    const legacyState = { revision: 2, sites: { [ringCoordinate]: nSite, '0408': oSite } };
+    put('sessions/s1/serverState/candidates', legacyState);
+    const nReceipt = { fingerprint: { action: 'candidate-action', actorUid: 'gm', sessionId: 's1',
+      requestId: nRequestId, instanceId: 'instance1', expectedRevision: 0, payload: { code: 'N',
+        coordinate: ringCoordinate, groupId: 'fleet-2', action: 'contribute-materials', shipId: 'shepherd',
+        amount: 5, trackIds: [], shuttleId: null } }, result: nResult, createdAt: '2026-10-05T10:40:00.000Z' };
+    const oReceipt = { fingerprint: { action: 'candidate-action', actorUid: 'gm', sessionId: 's1',
+      requestId: oRequestId, instanceId: 'instance1', expectedRevision: 1, payload: { code: 'O',
+        coordinate: '0408', groupId: 'fleet-1', action: 'nebula-jump', shipId: 'aegis', amount: null,
+        trackIds: [], shuttleId: null } }, result: oResult, createdAt: '2026-10-05T10:50:00.000Z' };
+    put(`sessions/s1/candidateActionReceipts/${nRequestId}`, nReceipt);
+    put(`sessions/s1/candidateActionReceipts/${oRequestId}`, oReceipt);
+    const session = documents.get('sessions/s1')!;
+    const resources = structuredClone(session.shipResources as Fields);
+    (resources.shepherd as Fields).materials = 5;
+    (resources.aegis as Fields).fuel = 14;
+    put('sessions/s1', { ...session, shipResources: resources,
+      shipSurvivors: { ...(session.shipSurvivors as Fields), aegis: 0 },
+      shipDamage: { aegis: { destroyed: true, damagedSystemIds: [] } },
+      shipJumpStates: { aegis: { lastJumpTurn: 6 } },
+      candidateVesselOutcomes: { aegis: { code: 'O', groupId: 'fleet-1', shipId: 'aegis',
+        sourceId: oRequestId, cycle: 6, outcome: 'lost' } } });
+    put('sessions/s1/players/admiral', { ...documents.get('sessions/s1/players/admiral'),
+      candidateDisposition: { code: 'O', outcome: 'lost', cycle: 6 } });
+
+    const beforeRead = structuredClone([...documents.entries()]);
+    const ringView = await handlers.read(request({ sessionId: 's1', expectedGroupId: 'fleet-2', instanceId: 'instance1' }, 'gm'));
+    expect(ringView).toMatchObject({ edition: 'home', editionLocked: true });
+    expect(ringView.paths.find(path => path.code === 'N')).toMatchObject({
+      materials: 5, materialsRequired: 10, researchCount: 2,
+    });
+    const nebulaView = await handlers.read(request({ sessionId: 's1', expectedGroupId: 'fleet-1', instanceId: 'instance1' }, 'gm'));
+    expect(nebulaView).toMatchObject({ edition: 'home', editionLocked: true,
+      paths: [expect.objectContaining({ code: 'O', ships: [expect.objectContaining({ shipId: 'aegis', result: 'lost' })] })] });
+    expect([...documents.entries()]).toEqual(beforeRead);
+    expect(documents.get('sessions/s1/serverState/candidates')).not.toHaveProperty('edition');
+
+    const beforeReplay = structuredClone([...documents.entries()]);
+    await expect(handlers.execute(request(nCommand, 'gm'))).resolves.toEqual({ ...nResult, status: 'replayed' });
+    await expect(handlers.execute(request(oCommand, 'gm'))).resolves.toEqual({ ...oResult, status: 'replayed' });
+    expect([...documents.entries()]).toEqual(beforeReplay);
+    expect(die).not.toHaveBeenCalled();
+
+    const choice = { sessionId: 's1', requestId: 'legacy-home-retarget', expectedRevision: 2,
+      expectedGroupId: 'fleet-1', instanceId: 'instance1', edition: 'deluxe' };
+    await expect(handlers.selectEdition(request(choice, 'gm'))).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect([...documents.entries()]).toEqual(beforeReplay);
+    expect(documents.get('sessions/s1/serverState/candidates')).toEqual(legacyState);
+    expect(documents.get(`sessions/s1/candidateActionReceipts/${nRequestId}`)).toEqual(nReceipt);
+    expect(documents.get(`sessions/s1/candidateActionReceipts/${oRequestId}`)).toEqual(oReceipt);
+  });
+  it('persists default Home with the first contribution to an unmarked blank candidate state', async () => {
+    const ringCoordinate = Object.entries(organiserSitesForChart('A')).find(([, site]) => site.code === 'N')![0];
+    const ringSite = organiserSitesForChart('A')[ringCoordinate]!;
+    const navigation = structuredClone(documents.get('sessions/s1/serverState/navigation')!);
+    (navigation.shipGalacticCoordinates as Fields).aegis = ringCoordinate;
+    (navigation.systemHistory as Fields).aegis = { [ringCoordinate]: { coordinate: ringCoordinate,
+      candidateDiscovery: { id: 'blank-home-ring', occurredAt: '2026-10-05T10:00:00.000Z',
+        code: 'N', title: ringSite.name, source: 'arrival' } } };
+    put('sessions/s1/serverState/navigation', navigation);
+    const action = { sessionId: 's1', requestId: 'blank-home-first-prep', expectedRevision: 0,
+      expectedGroupId: 'fleet-1', instanceId: 'instance1', code: 'N', coordinate: ringCoordinate,
+      action: 'contribute-materials', shipId: 'aegis', amount: 10 };
+
+    await expect(handlers.execute(request(action, 'gm'))).resolves.toMatchObject({
+      status: 'committed', code: 'N', action: 'contribute-materials', revision: 1,
+    });
+    expect(documents.get('sessions/s1/serverState/candidates')).toMatchObject({ revision: 1, edition: 'home',
+      sites: { [ringCoordinate]: { code: 'N', groupId: 'fleet-1', materials: 10, researchIds: [] } } });
+    expect(documents.get('sessions/s1/procedureAudits/blank-home-first-prep')).toMatchObject({
+      sourceId: 'home-v1-1-candidate-N',
+    });
+    await expect(handlers.selectEdition(request({ sessionId: 's1', requestId: 'blank-home-retarget',
+      expectedRevision: 1, expectedGroupId: 'fleet-1', instanceId: 'instance1', edition: 'deluxe' }, 'gm')))
+      .rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(documents.get('sessions/s1/serverState/candidates')).toMatchObject({ revision: 1, edition: 'home' });
+  });
+  it('keeps an explicitly selected Deluxe edition on its first preparation action', async () => {
+    const ringCoordinate = Object.entries(organiserSitesForChart('A')).find(([, site]) => site.code === 'N')![0];
+    const ringSite = organiserSitesForChart('A')[ringCoordinate]!;
+    const navigation = structuredClone(documents.get('sessions/s1/serverState/navigation')!);
+    (navigation.shipGalacticCoordinates as Fields).aegis = ringCoordinate;
+    (navigation.systemHistory as Fields).aegis = { [ringCoordinate]: { coordinate: ringCoordinate,
+      candidateDiscovery: { id: 'blank-deluxe-ring', occurredAt: '2026-10-05T10:00:00.000Z',
+        code: 'N', title: ringSite.name, source: 'arrival' } } };
+    put('sessions/s1/serverState/navigation', navigation);
+    const selected = await handlers.selectEdition(request({ sessionId: 's1', requestId: 'blank-deluxe-selection',
+      expectedRevision: 0, expectedGroupId: 'fleet-1', instanceId: 'instance1', edition: 'deluxe' }, 'gm'));
+    expect(selected).toMatchObject({ status: 'committed', edition: 'deluxe', revision: 1 });
+    const session = documents.get('sessions/s1')!;
+    const resources = structuredClone(session.shipResources as Fields);
+    (resources.aegis as Fields).materials = 15;
+    put('sessions/s1', { ...session, shipResources: resources });
+
+    await expect(handlers.execute(request({ sessionId: 's1', requestId: 'blank-deluxe-first-prep', expectedRevision: 1,
+      expectedGroupId: 'fleet-1', instanceId: 'instance1', code: 'N', coordinate: ringCoordinate,
+      action: 'contribute-materials', shipId: 'aegis', amount: 15 }, 'gm'))).resolves.toMatchObject({
+      status: 'committed', code: 'N', action: 'contribute-materials', revision: 2,
+    });
+    expect(documents.get('sessions/s1/serverState/candidates')).toMatchObject({ revision: 2, edition: 'deluxe',
+      sites: { [ringCoordinate]: { code: 'N', groupId: 'fleet-1', materials: 15, researchIds: [] } } });
+    expect(documents.get('sessions/s1/procedureAudits/blank-deluxe-first-prep')).toMatchObject({
+      sourceId: 'deluxe-v1-1-candidate-N',
+    });
+  });
+  it('does not replay a former GM edition receipt after demotion and lease disconnection', async () => {
+    const choice = { sessionId: 's1', requestId: 'edition-demoted-replay', expectedRevision: 0,
+      expectedGroupId: 'fleet-1', instanceId: 'instance1', edition: 'deluxe' };
+    const first = await handlers.selectEdition(request(choice, 'gm'));
+    put('sessions/s1/players/gm', { role: 'player', connected: true, assignedRoleId: 'admiral',
+      seatId: 'admiral', fleetGroupId: 'fleet-1' });
+    put('sessions/s1/gmInstances/instance1', { uid: 'gm', connected: false, lastSeenAt: '2026-10-05T11:00:00Z' });
+
+    await expect(handlers.selectEdition(request(choice, 'gm'))).rejects.toMatchObject({ code: 'permission-denied' });
+    expect(documents.get('sessions/s1/serverState/candidates')).toMatchObject({ revision: 1, edition: 'deluxe' });
+    expect(documents.get('sessions/s1/candidateActionReceipts/edition-demoted-replay')?.result).toEqual(first);
+    expect([...documents.keys()].filter(path => path.endsWith('/actionAudits/edition-demoted-replay'))).toHaveLength(1);
+    expect([...documents.keys()].filter(path => path.endsWith('/procedureAudits/edition-demoted-replay'))).toHaveLength(1);
+  });
   it('permanently consumes an available Engineering Shuttle in the candidate transaction and retains its exact receipt', async () => {
     const coordinate = Object.entries(organiserSitesForChart('A')).find(([, site]) => site.code === 'N')![0];
     const current = documents.get('sessions/s1')!;
@@ -125,6 +418,7 @@ describe('ordinary candidate callable authority and durable replay', () => {
     const view = await handlers.read(request({ sessionId: 's1', expectedGroupId: 'fleet-1' }));
     expect(view.paths).toHaveLength(1);
     expect(view.paths[0]).toMatchObject({ code: 'O', coordinate: '0408' });
+    expect(view).toMatchObject({ edition: 'home', editionLocked: false });
     expect(JSON.stringify(view)).not.toMatch(/hiddenScoutCount|scouts|calculation|wolfRoster|chartId/);
     await expect(handlers.read(request({ sessionId: 's1', expectedGroupId: 'fleet-1' }, 'gm'))).rejects.toThrow();
     const gm = await handlers.read(request({ sessionId: 's1', expectedGroupId: 'fleet-1', instanceId: 'instance1' }, 'gm'));

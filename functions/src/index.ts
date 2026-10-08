@@ -1325,6 +1325,7 @@ const candidateCallables = createCandidateCallables({
 });
 export const readCandidateWorkspace = auditedOnCall('readCandidateWorkspace', CALLABLE_RUNTIME_OPTIONS, request => candidateCallables.read(request));
 export const executeCandidateAction = auditedOnCall('executeCandidateAction', CALLABLE_RUNTIME_OPTIONS, request => candidateCallables.execute(request));
+export const selectCandidateEdition = auditedOnCall('selectCandidateEdition', CALLABLE_RUNTIME_OPTIONS, request => candidateCallables.selectEdition(request));
 
 /** Persist server-authoritative source events to the Press-only intake. */
 function writePressLogEvent(tx: Transaction, sessionId: string, event: PressLogEvent): void {

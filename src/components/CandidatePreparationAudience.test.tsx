@@ -11,10 +11,10 @@ vi.mock('@/lib/candidateService', () => ({ readCandidateWorkspace: service.read,
 const gmInstance = { id: 'original-instance', uid: 'actor', sessionId: 's1', name: 'GM',
   deviceLabel: 'test', claimedAt: '2026-10-05T10:00:00.000Z' };
 const privateWorkspace: CandidateWorkspace = { type: 'candidate-workspace', sessionId: 's1', groupId: 'fleet-1',
-  cycle: 6, revision: 1, paths: [], privateCalculations: [{ requestId: 'private-audit', code: 'O', result: 'lost',
+  cycle: 6, revision: 1, edition: 'home', editionLocked: false, paths: [], privateCalculations: [{ requestId: 'private-audit', code: 'O', result: 'lost',
     calculation: { privateScoutBonus: 3 } }] };
 const publicWorkspace: CandidateWorkspace = { type: 'candidate-workspace', sessionId: 's1', groupId: 'fleet-1',
-  cycle: 6, revision: 2, paths: [] };
+  cycle: 6, revision: 2, edition: 'home', editionLocked: false, paths: [] };
 function deferred() {
   let resolve!: (value: CandidateWorkspace) => void;
   const promise = new Promise<CandidateWorkspace>(done => { resolve = done; });

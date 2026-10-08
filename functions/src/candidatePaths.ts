@@ -1,6 +1,7 @@
 import { ENDEAVOUR_RESEARCH_TRACKS } from './endeavourResearch';
 
 export type CandidateCode = 'N' | 'O' | 'P';
+export type CandidateEdition = 'home' | 'deluxe';
 export type CandidateActionName = 'contribute-materials' | 'contribute-research' |
   'commit-engineering-shuttle' | 'ring-passage' | 'sabotage-ring' | 'nebula-jump' | 'contribute-reactor';
 export interface CandidateAction {
@@ -41,7 +42,9 @@ export interface CandidateSiteState {
   liberatedSourceId?: string; activatedAt?: string; sabotagedAt?: string;
   completed?: CandidateGroupOutcome;
 }
-export interface CandidateState { revision: number; sites: Record<string, CandidateSiteState> }
+export interface CandidateState {
+  revision: number; sites: Record<string, CandidateSiteState>; edition?: CandidateEdition;
+}
 export interface CandidateResolution {
   state: CandidateState; reply: CandidateActionReply;
   shipPatches: Record<string, { fuel?: number; materials?: number; destroyed?: true; survivors?: 0; cannibalised?: true }>;
@@ -50,6 +53,7 @@ export interface CandidateResolution {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 const id = (value: unknown): value is string => typeof value === 'string' && /^[\w-]{1,128}$/.test(value);
+export const isCandidateEdition = (value: unknown): value is CandidateEdition => value === 'home' || value === 'deluxe';
 const counter = (value: unknown): value is number => Number.isSafeInteger(value) && (value as number) >= 0;
 const fail = (message: string): never => { throw new Error(message); };
 const ACTION_FIELDS: Record<CandidateActionName, string[]> = {
@@ -76,7 +80,7 @@ export function parseCandidateAction(raw: unknown): CandidateAction {
       (raw.instanceId !== undefined && !id(raw.instanceId)) ||
       raw.code !== (action === 'nebula-jump' ? 'O' : action === 'contribute-reactor' ? 'P' : 'N') ||
       ('shipId' in raw && !id(raw.shipId)) || ('shuttleId' in raw && !id(raw.shuttleId)) ||
-      ('amount' in raw && (!counter(raw.amount) || raw.amount < 1 || raw.amount > 10)) ||
+      ('amount' in raw && (!counter(raw.amount) || raw.amount < 1 || raw.amount > 15)) ||
       ('trackIds' in raw && (!Array.isArray(raw.trackIds) || raw.trackIds.length < 1 || raw.trackIds.length > 5 ||
         raw.trackIds.some(track => typeof track !== 'string' || !Object.hasOwn(ENDEAVOUR_RESEARCH_TRACKS, track)) ||
         new Set(raw.trackIds).size !== raw.trackIds.length))) return fail('Invalid candidate choices; research must be distinct.');
@@ -84,13 +88,16 @@ export function parseCandidateAction(raw: unknown): CandidateAction {
 }
 
 export function parseCandidateState(raw: unknown): CandidateState {
-  if (raw === undefined) return { revision: 0, sites: {} };
-  if (!isRecord(raw) || !counter(raw.revision) || !isRecord(raw.sites)) return fail('Candidate authority is malformed.');
+  if (raw === undefined) return { revision: 0, edition: 'home', sites: {} };
+  if (!isRecord(raw) || !counter(raw.revision) || !isRecord(raw.sites) ||
+      (raw.edition !== undefined && !isCandidateEdition(raw.edition))) return fail('Candidate authority is malformed.');
+  const edition = isCandidateEdition(raw.edition) ? raw.edition : 'home';
+  const materialRequirement = edition === 'deluxe' ? 15 : 10;
   for (const [key, value] of Object.entries(raw.sites)) {
     if (!isRecord(value) || typeof value.coordinate !== 'string' || !/^\d{4}$/.test(value.coordinate) ||
         (key !== value.coordinate && key !== `${value.groupId}:${value.coordinate}`) ||
         !['N', 'O', 'P'].includes(String(value.code)) || !/^fleet-[1-9]\d*$/.test(String(value.groupId)) ||
-        !counter(value.materials) || value.materials > 10 || !Array.isArray(value.researchIds) ||
+        !counter(value.materials) || value.materials > materialRequirement || !Array.isArray(value.researchIds) ||
         value.researchIds.length > 5 || new Set(value.researchIds).size !== value.researchIds.length ||
         value.researchIds.some(track => typeof track !== 'string' || !Object.hasOwn(ENDEAVOUR_RESEARCH_TRACKS, track)) ||
         !isRecord(value.ships) || !isRecord(value.reactors) ||
@@ -104,7 +111,7 @@ export function parseCandidateState(raw: unknown): CandidateState {
           reply.status !== 'committed' || !counter(reply.revision) || !id(reply.requestId) ||
           !['crossed', 'reached', 'lost'].includes(String(reply.outcome)))) return fail('Candidate site authority is malformed.');
   }
-  return structuredClone(raw) as unknown as CandidateState;
+  return { ...structuredClone(raw), edition } as unknown as CandidateState;
 }
 
 function siteFor(a: CandidateAuthority, state: CandidateState, code: CandidateCode, coordinate: string): CandidateSiteState {
@@ -144,23 +151,29 @@ export function resolveCandidateAction(a: CandidateAuthority, original: Candidat
   if (priorSite.completed) return fail('This candidate outcome is already committed.');
   if (original.revision !== command.expectedRevision) return fail('Candidate revision changed; refresh the live record.');
   const state = structuredClone(original);
+  const edition = original.edition ?? 'home';
+  const ringMaterialsRequired = edition === 'deluxe' ? 15 : 10;
   const site = structuredClone(priorSite);
   const shipPatches: CandidateResolution['shipPatches'] = {};
-  const calculation: Record<string, unknown> = { source: `base-v1.1-candidate-${command.code}`, cycle: a.cycle };
+  const sourceId = command.code === 'P' ? `base-v1.1-candidate-${command.code}` : `${edition}-v1.1-candidate-${command.code}`;
+  const calculation: Record<string, unknown> = { source: sourceId, cycle: a.cycle };
   let summary = ''; let outcome: CandidateActionReply['outcome']; let fuelSpent: number | undefined; let remainingFuel: number | undefined;
   let groupOutcome: CandidateGroupOutcome | undefined;
   if (command.action === 'contribute-materials') {
     const ship = ownShip(a, command);
-    if (site.repairedAt || site.materials + command.amount! > 10) return fail('Ring materials are already funded or exceed the missing materials.');
+    if (site.repairedAt || site.materials + command.amount! > ringMaterialsRequired) return fail('Ring materials are already funded or exceed the missing materials.');
     if (ship.materials < command.amount!) return fail('This ship lacks the chosen materials.');
     site.materials += command.amount!;
     shipPatches[command.shipId!] = { materials: ship.materials - command.amount! };
-    calculation.materials = command.amount; summary = `${site.materials}/10 Ring materials committed.`;
+    calculation.materials = command.amount; summary = `${site.materials}/${ringMaterialsRequired} Ring materials committed.`;
   } else if (command.action === 'contribute-research') {
     if (!a.actor.research && !a.actor.gm) return fail('Current Endeavour Scientist authority is required.');
     if (site.repairedAt || command.trackIds!.some(track => site.researchIds.includes(track)) ||
         site.researchIds.length + command.trackIds!.length > 5) return fail('Research contributions must be distinct and cannot be used twice.');
-    if (command.trackIds!.some(track => (a.research[track] ?? 0) < 4)) return fail('Each lab track requires at least four crosses.');
+    if (command.trackIds!.some(track => {
+      const progress = a.research[track] ?? 0;
+      return edition === 'home' ? progress < 4 : progress !== ENDEAVOUR_RESEARCH_TRACKS[track as keyof typeof ENDEAVOUR_RESEARCH_TRACKS].materialCosts.length;
+    })) return fail(edition === 'home' ? 'Each lab track requires at least four crosses.' : 'Each technology must be fully completed.');
     site.researchIds.push(...command.trackIds!);
     calculation.researchIds = [...command.trackIds!]; summary = `${site.researchIds.length}/5 distinct Ring research tracks committed.`;
   } else if (command.action === 'commit-engineering-shuttle') {
@@ -183,19 +196,25 @@ export function resolveCandidateAction(a: CandidateAuthority, original: Candidat
     const leftBehind = a.vesselIds.filter(shipId => !crossed.includes(shipId));
     site.sabotagedAt = a.now; groupOutcome = outcomeFor(a, site, command, crossed, leftBehind);
     calculation.requiredChoice = 'opposite-side-sabotage'; calculation.leftBehindShipIds = leftBehind;
-    summary = 'Ring sabotaged from the far side. Wolf pursuit through the Ring is blocked; recorded ships remain behind.';
+    summary = edition === 'home'
+      ? 'Ring sabotaged from the far side. Wolf pursuit through the Ring is blocked; recorded ships remain behind.'
+      : 'Ring sabotaged from the far side after a paid crossing. Ships that did not cross remain behind.';
   } else if (command.action === 'nebula-jump') {
     const ship = ownShip(a, command);
     if (ship.jumpedThisCycle) return fail('This ship already jumped this cycle. Its original jump result is retained.');
     if (!ship.jumpCharged || ship.jumpDamaged) return fail('Charge and repair the Jump Drive before the long jump.');
     if (ship.fuel < ship.longJumpCost) return fail('This ship lacks the fuel required for its long jump.');
     if (!Number.isInteger(serverDie) || serverDie! < 1 || serverDie! > 6) return fail('An authoritative server die is required.');
-    const priorLosses = new Set(Object.values(state.sites).filter(other => other.code === 'O' && other.coordinate === site.coordinate)
-      .flatMap(other => Object.entries(other.ships).filter(([, result]) => result.outcome === 'lost').map(([shipId]) => shipId))).size;
+    const priorLosses = edition === 'home'
+      ? new Set(Object.values(state.sites).filter(other => other.code === 'O' && other.coordinate === site.coordinate)
+        .flatMap(other => Object.entries(other.ships).filter(([, result]) => result.outcome === 'lost').map(([shipId]) => shipId))).size
+      : 0;
+    const threshold = edition === 'home' ? 9 : 8;
     const total = serverDie! + a.hiddenScoutCount + priorLosses;
-    outcome = total >= 9 ? 'reached' : 'lost'; fuelSpent = ship.longJumpCost; remainingFuel = ship.fuel - fuelSpent;
+    outcome = total >= threshold ? 'reached' : 'lost'; fuelSpent = ship.longJumpCost; remainingFuel = ship.fuel - fuelSpent;
     shipPatches[command.shipId!] = { fuel: remainingFuel, ...(outcome === 'lost' ? { destroyed: true, survivors: 0 } : {}) };
-    Object.assign(calculation, { die: serverDie, scouts: a.hiddenScoutCount, priorLosses, total, threshold: 9, fuelSpent });
+    Object.assign(calculation, { die: serverDie, scouts: a.hiddenScoutCount,
+      ...(edition === 'home' ? { priorLosses } : {}), total, threshold, fuelSpent });
     summary = outcome === 'reached' ? 'Long jump committed. The ship reached New Eden within the Deep Nebula.' :
       'Long jump committed. The ship was lost within the Deep Nebula; its former actions are closed.';
   } else {
@@ -215,7 +234,7 @@ export function resolveCandidateAction(a: CandidateAuthority, original: Candidat
       summary += ' New Eden Station is active; its defences block future Wolf attacks.';
     }
   }
-  if (site.code === 'N' && !site.repairedAt && site.materials === 10 && site.researchIds.length === 5 && site.shuttleId) {
+  if (site.code === 'N' && !site.repairedAt && site.materials === ringMaterialsRequired && site.researchIds.length === 5 && site.shuttleId) {
     site.repairedAt = a.now; summary += ' Ancient Jump Ring repaired; each ship may choose a five-fuel passage.';
   }
   state.revision += 1;
@@ -238,16 +257,23 @@ export function resolveCandidateAction(a: CandidateAuthority, original: Candidat
 
 /** Member-safe operational view: private calculations and unrevealed coordinates are absent. */
 export function candidateWorkspace(a: CandidateAuthority, state: CandidateState) {
+  const edition = state.edition ?? 'home';
+  const ringMaterialsRequired = edition === 'deluxe' ? 15 : 10;
+  const editionLocked = Object.values(state.sites).some(site => site.code === 'N' || site.code === 'O');
+  const researchEligible = (track: string, crosses: number) => edition === 'home' ? crosses >= 4 :
+    Object.hasOwn(ENDEAVOUR_RESEARCH_TRACKS, track) && crosses === ENDEAVOUR_RESEARCH_TRACKS[track as keyof typeof ENDEAVOUR_RESEARCH_TRACKS].materialCosts.length;
   return { type: 'candidate-workspace' as const, sessionId: a.sessionId, groupId: a.groupId,
-    cycle: a.cycle, revision: state.revision,
+    cycle: a.cycle, revision: state.revision, edition, editionLocked,
     paths: a.discovered.map(({ code, coordinate }) => {
       const site = siteFor(a, state, code, coordinate);
       const blockers: string[] = [];
       if (a.phase !== 'active') blockers.push('Gameplay is complete. Original results remain available.');
       if (!a.coordination) blockers.push('Candidate actions open during Coordination Phase.');
       if (code === 'N' && !site.repairedAt) {
-        if (site.materials < 10) blockers.push(`Contribute ${10 - site.materials} materials.`);
-        if (site.researchIds.length < 5) blockers.push('Commit five distinct research tracks with at least four crosses.');
+        if (site.materials < ringMaterialsRequired) blockers.push(`Contribute ${ringMaterialsRequired - site.materials} materials.`);
+        if (site.researchIds.length < 5) blockers.push(edition === 'home'
+          ? 'Commit five distinct research tracks with at least four crosses.'
+          : 'Commit five distinct fully completed Endeavour technologies.');
         if (!site.shuttleId) blockers.push('Commit one available Engineering Shuttle.');
       }
       if (code === 'P' && !a.station?.liberated) blockers.push('Station combat must defeat every remaining Wolf force.');
@@ -270,14 +296,14 @@ export function candidateWorkspace(a: CandidateAuthority, state: CandidateState)
       return { code, coordinate, title: code === 'N' ? 'Ancient Jump Ring' : code === 'O' ? 'Deep Nebula' :
         site.activatedAt ? 'New Eden Station' : 'Ancient Space Station', blockers, ships,
         nextActor: site.completed ? 'Outcome committed.' : code === 'N' ? site.repairedAt ?
-          'Each ship chooses passage; the GM chooses opposite-side sabotage.' :
+          'Each ship chooses passage; the GM may choose opposite-side sabotage.' :
           'Ship crews, Endeavour Scientist and an Engineering Shuttle holder.' : code === 'O' ?
           'Each ship chooses its long jump. Scout the Nebula first if needed.' : a.station?.liberated ?
           'Each ship crew chooses whether to cannibalise its Reactor.' : 'Battle crews resolve the required Station attack.',
-        materials: site.materials, materialsRequired: 10, researchCount: site.researchIds.length,
+        materials: site.materials, materialsRequired: ringMaterialsRequired, researchCount: site.researchIds.length,
         researchRequired: 5, shuttleCommitted: !!site.shuttleId, repaired: !!site.repairedAt,
         researchChoices: code === 'N' && (a.actor.research || a.actor.gm) ? Object.entries(a.research)
-          .filter(([track, crosses]) => crosses >= 4 && !site.researchIds.includes(track))
+          .filter(([track, crosses]) => researchEligible(track, crosses) && !site.researchIds.includes(track))
           .map(([track]) => ({ id: track, name: ENDEAVOUR_RESEARCH_TRACKS[track as keyof typeof ENDEAVOUR_RESEARCH_TRACKS].name })) : [],
         engineeringShuttles: code === 'N' ? a.engineeringShuttles.filter(craft => craft.available &&
           (a.actor.gm || a.actor.shuttleIds.includes(craft.id))) : [],
