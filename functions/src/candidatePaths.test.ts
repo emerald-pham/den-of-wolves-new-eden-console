@@ -145,7 +145,7 @@ describe('candidate source calculations and explicit choices', () => {
     expect(finish.groupOutcome).toMatchObject({ candidateCode: 'N', successfulShipIds: ['aegis'],
       leftBehindShipIds: ['shepherd', 'quellon', 'dione', 'icebreaker', 'refinery-124'] });
   });
-  it('does not carry the Home far-side Wolf-stop choice into Deluxe Ring rules', () => {
+  it('permits Deluxe far-side sabotage after paid passage without the Home Wolf-stop claim', () => {
     const base = authority();
     const gm = { ...base, actor: { ...base.actor, gm: true } };
     const state = { revision: 3, edition: 'deluxe', sites: { '6798': {
@@ -155,9 +155,16 @@ describe('candidate source calculations and explicit choices', () => {
         revision: 1, code: 'N', action: 'ring-passage', summary: 'Ring passage committed.', outcome: 'crossed',
         fuelSpent: 5, remainingFuel: 1 } }, reactors: {},
     } } } as unknown as CandidateState;
-    expect(candidateWorkspace(gm, state).paths[0]?.canSabotage).toBe(false);
-    expect(() => resolveCandidateAction(gm, state,
-      command('sabotage-ring', { expectedRevision: 3, requestId: 'deluxe-sabotage' }))).toThrow(/Home|edition|not available/i);
+    const result = resolveCandidateAction(gm, state,
+      command('sabotage-ring', { expectedRevision: 3, requestId: 'deluxe-sabotage' }));
+    expect(result.groupOutcome).toMatchObject({ candidateCode: 'N', successfulShipIds: ['aegis'],
+      leftBehindShipIds: ['shepherd', 'quellon', 'dione', 'icebreaker', 'refinery-124'] });
+    expect(result.state.sites['6798']?.sabotagedAt).toBe(now);
+    expect(result.reply.summary).toMatch(/Ring sabotaged from the far side/i);
+    expect(result.reply.summary).not.toMatch(/Wolf|pursuit|stop/i);
+    expect(candidateWorkspace(gm, state).paths[0]).toMatchObject({ canSabotage: true });
+    expect(candidateWorkspace(gm, state).paths[0]?.nextActor).toMatch(/sabotage/i);
+    expect(candidateWorkspace(gm, state).paths[0]?.nextActor).not.toMatch(/Wolf|stop/i);
   });
   it('uses a server die plus hidden scouts, adds only prior losses and hides all arithmetic from the actor', () => {
     const a = authority('O');

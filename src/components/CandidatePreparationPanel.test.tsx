@@ -86,14 +86,22 @@ it('shows the selected N/O edition to players without exposing edition selection
   expect(await screen.findByText(/N\/O rules.*Home.*default/i)).toBeInTheDocument();
   expect(screen.queryByRole('combobox', { name: 'Candidate edition' })).not.toBeInTheDocument();
 });
-it('renders Deluxe thresholds without importing Home-only Ring stop-Wolf wording', async () => {
+it('renders Deluxe far-side sabotage without importing the Home-only Wolf-stop claim', async () => {
+  const ring = path('N', 'deluxe');
+  ring.repaired = true; ring.canSabotage = true;
+  ring.nextActor = 'Each ship chooses passage; the GM may choose far-side sabotage.';
   service.read.mockResolvedValueOnce({ type: 'candidate-workspace', sessionId: 's1', groupId: 'fleet-1', cycle: 6,
-    revision: 2, edition: 'deluxe', editionLocked: true, paths: [path('N', 'deluxe'), path('O', 'deluxe')] });
+    revision: 2, edition: 'deluxe', editionLocked: true, paths: [ring, path('O', 'deluxe')] });
+  useSessionStore.setState({ session: { id: 's1', phase: 'active', currentTurn: 6 } as never,
+    me: { uid: 'gm', sessionId: 's1', role: 'gm', fleetGroupId: 'fleet-1' } as never,
+    gmInstance: { id: 'instance1', uid: 'gm', sessionId: 's1', claimedAt: '2026-10-05T12:00:00.000Z' } as never });
   render(<CandidatePreparationPanel />);
   await screen.findByRole('heading', { name: 'Ancient Jump Ring' });
   expect(screen.getByText(/15 materials.*Engineering Shuttle.*five distinct fully completed Endeavour technologies.*five fuel from each ship/i)).toBeInTheDocument();
   expect(screen.getByText(/one d6.*protected scouting.*eight.*prior losses do not add a bonus/i)).toBeInTheDocument();
-  expect(screen.queryByText(/far-side sabotage.*Wolf|stop.*Wolf fleet|Wolf pursuit through the Ring/i)).not.toBeInTheDocument();
+  expect(screen.getByText(/GM may choose far-side sabotage after a paid crossing/i)).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Sabotage Ring from the far side' })).toBeInTheDocument();
+  expect(screen.queryByText(/stop.*Wolf fleet|Wolf pursuit through the Ring/i)).not.toBeInTheDocument();
 });
 it('offers safe Cycle 6 planning encouragement without revealing the private GM decision', async () => {
   render(<CandidatePreparationPanel />);
