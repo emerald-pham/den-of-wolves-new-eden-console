@@ -671,6 +671,8 @@ describe('dealPrivateInitialCards', () => {
     ]));
     const committedUpdates = [...mock.update.mock.calls];
     mock.marker = mock.set.mock.calls.find(([ref]) => ref.path === 'sessions/s1/commandReceipts/deal-1')?.[1];
+    mock.missionStartSnapshots[defaultOpportunity.id] = mock.create.mock.calls.find(([ref]) =>
+      ref.path === `sessions/s1/missionStartSnapshots/${defaultOpportunity.id}`)?.[1] as Record<string, unknown>;
     mock.set.mockClear(); mock.update.mockClear();
     expect((await dealPrivateInitialCards.run(request(command))).status).toBe('replayed');
     expect(mock.set).not.toHaveBeenCalled(); expect(mock.update).not.toHaveBeenCalled();
