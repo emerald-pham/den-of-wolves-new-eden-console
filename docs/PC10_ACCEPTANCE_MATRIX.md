@@ -995,3 +995,40 @@ The current0.5.72 release summary now reflects existing catalog statuses:
 with accepted discovery/preparation subcriteria. No prompt becomes done and no
 new gameplay credit follows from this accounting correction. The historical
 0.5.71 summary remains10/38; prior failed validator evidence is retained.
+
+#### October 8 actual result and smallest remaining recharge probe
+
+Actual2 at `d4392c07` earned15assertions and stopped at the missing committed
+recharge recovery warning. Its normal three-actor/manual progression,
+settled Host9/Shuttle1 paints before and after reload, ordinary eight-step
+maintenance, one-fuel refuelling and fresh wrong-holder denial remain valid.
+Water+2, unchanged fuel, the original receipt/service event and both audits were
+confirmed before acknowledgement interruption. Exact UI retry, post-recharge
+cold reload/SDK replay and a new same-cycle request were not reached. The run
+and all failures remain retained in
+`/tmp/dow-pc10-evidence/OWNER_SETTLED_CARGO_RECHARGE_2_ACTUAL_HANDOFF_20261008.json`.
+Cleanup removed only its three browsers/accounts, session/join code and
+membership pointers; the runtime window was returned. No fixed closure follows.
+
+The remaining claim is recovery of one committed Water recharge and refusal
+of a second effect. Source diagnosis/RED/repair are recorded in the execution
+record. The next probe requires a new allocation and source/build binding; it
+does not repeat the settled cargo load/reload captures or the already earned
+wrong-holder/full-world comparison. The original session was cleaned up, so a
+new normal authenticated GM, Engineer and Captain must still create/join/consent,
+use legitimate casting/berths and the existing manual Cycle0→1→2 controls,
+perform the ordinary holder handoff, and complete printed maintenance/refuelling
+to make Water eligible. This reuses qualified setup and its guards; it is not
+prepared-state or Admin gameplay setup. Three actors are needed for authentic
+GM progression and distinct ordinary maintenance/current-holder roles; zero
+human or capacity proof is inferred.
+
+Exercise only the real empty→Water selection, committed reply interruption,
+visible original-request warning/control, exact UI retry, same-Captain normal
+cold reload and captured SDK replay, then a fresh same-cycle second-use refusal.
+Require unchanged committed resources/fuel, one bound receipt/event/audit pair
+and a visible used-this-cycle blocker. Preserve original deadlines, stop at
+the first unexplained failure and clean up only owned identities/data/browsers.
+Do not replay earned cargo/custody families to supply unrelated confidence.
+Final responsive and independent rendered typography approval remain separate
+checkpoint gates; this focused source repair supplies neither.

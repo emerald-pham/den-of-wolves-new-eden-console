@@ -134,7 +134,9 @@ type ServiceShuttleRechargeRecovery =
 
 const EMPTY_SYSTEM_IDS: readonly string[] = Object.freeze([]);
 const AMBIGUOUS_RECHARGE_OUTCOME_CODES = new Set([
-  'unavailable', 'deadline-exceeded',
+  // Firebase reports a rejected fetch as internal, including a lost reply
+  // after commit. The caller still excludes classified server responses.
+  'unavailable', 'deadline-exceeded', 'internal',
 ]);
 
 function hasAmbiguousServiceShuttleRechargeOutcome(cause: unknown): boolean {

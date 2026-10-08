@@ -918,3 +918,10 @@ regressions; they create no native actors and grant no gameplay acceptance.
 The editor owns the current separate runtime window. A new allocation is
 required for the smallest remaining recharge recovery/reload/second-use probe;
 the earned cargo and maintenance evidence should be reused where unchanged.
+
+The repair adds only bare `internal` to the existing ambiguous-outcome codes.
+It retains every classified-response exclusion, original request/payload,
+current-holder/actor/group/host fence and server-owned receipt path. The full
+affected shuttle route and recharge service selection passes120tests, including
+the new transition and revocation cases; strict client TypeScript also passes.
+No Functions or rules source changes. This is source verification only.
