@@ -44,6 +44,16 @@ describe('role brief projection', () => {
     expect(serializedRoleBrief('s1', 'alice', 'unknown-role', 4)).toBeUndefined();
   });
 
+  it('ships the Rosal Militia briefing with its Boarding ability usable on the ship where the leader is present', () => {
+    const brief = serializedRoleBrief('s1', 'militia-leader', 'rosal-militia-leader', 4);
+
+    expect(brief).toMatchObject({ roleId: 'rosal-militia-leader', assignmentUid: 'militia-leader' });
+    expect(brief?.text).toContain('defend on the ship where you are present');
+    expect(brief?.text).toContain('up to three extra defence dice whether or not the parties outnumber teams');
+    expect(brief?.text).toContain('a front-line 1 kills you');
+    expect(brief?.text).not.toContain('Shepherd security teams');
+  });
+
   it('keeps replacement briefs private and free of loyalty data', () => {
     const record = serializedRoleBrief('s1', 'alice', 'wolf-commander', 5);
     expect(record).toMatchObject({

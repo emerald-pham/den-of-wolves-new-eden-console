@@ -91,6 +91,7 @@ const {
   listUnresolvedJumpFailures,
   getWolfBoardingDefenceChoice,
   commitWolfBoardingDefenceChoice,
+  getWolfBoardingSpecialChoice,
   commitWolfRangeActionChoice,
   assignWolfRangeTargets,
   getWolfRangeActionChoice,
@@ -159,6 +160,45 @@ describe('Wolf range contact guidance DTO', () => {
     vi.mocked(httpsCallable).mockReturnValue(callable);
 
     await expect(getWolfRangeActionChoice()).rejects.toThrow(/invalid Wolf range choice view/i);
+  });
+});
+
+describe('Wolf boarding Militia choice DTO', () => {
+  beforeEach(() => {
+    vi.mocked(httpsCallable).mockReset();
+    useSessionStore.getState().reset();
+    useSessionStore.getState().setIdentity({ ...session, phase: 'active' }, {
+      ...player, replacementRoleId: 'rosal-militia-leader', replacementStatus: null,
+    });
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+  });
+
+  it.each([0, 1, 2])('accepts all three front-line dice with %i available Security Teams from the current callable view', async teams => {
+    const read = callableReturning({ data: {
+      type: 'wolf-boarding-special-choice-view', sessionId: 's1', turn: 1, revision: 3,
+      choice: { kind: 'militia', targetShipId: 'aegis', boardingParties: 2,
+        availableSecurityTeams: teams, selectedSecurityTeams: 0, maxFrontLineDice: 3,
+        doubleDiceAvailable: true },
+    } });
+    vi.mocked(httpsCallable).mockReturnValue(read as never);
+
+    await expect(getWolfBoardingSpecialChoice()).resolves.toMatchObject({ choice: {
+      kind: 'militia', availableSecurityTeams: teams, maxFrontLineDice: 3,
+    } });
+    expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'getWolfBoardingSpecialChoice');
+    expect(read).toHaveBeenCalledWith({ sessionId: 's1' });
+  });
+
+  it.each([-1, 4, 1.5])('continues rejecting out-of-range front-line projections (%s)', async maxFrontLineDice => {
+    vi.mocked(httpsCallable).mockReturnValue(callableReturning({ data: {
+      type: 'wolf-boarding-special-choice-view', sessionId: 's1', turn: 1, revision: 3,
+      choice: { kind: 'militia', targetShipId: 'aegis', boardingParties: 2,
+        availableSecurityTeams: 0, selectedSecurityTeams: 0, maxFrontLineDice,
+        doubleDiceAvailable: true },
+    } }) as never);
+
+    await expect(getWolfBoardingSpecialChoice()).rejects.toThrow(/invalid boarding choice view/i);
   });
 });
 

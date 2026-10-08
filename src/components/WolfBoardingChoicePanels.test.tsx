@@ -48,6 +48,23 @@ describe('Wolf boarding decision presenters', () => {
     expect(onChoose).toHaveBeenCalledWith({ militiaDoubleTeams: true, militiaFrontLineDice: 2 });
   });
 
+  it('offers all three front-line dice with no Security Teams and explains the printed 1 consequence', () => {
+    const onChoose = vi.fn();
+    render(<WolfBoardingMilitiaChoicePanelView view={{
+      type: 'wolf-boarding-militia-choice-view', status: 'pending',
+      targetShipId: 'aegis', boardingParties: 2, availableSecurityTeams: 0,
+      selectedSecurityTeams: 0, maxFrontLineDice: 3, doubleDiceAvailable: true,
+    }} onChoose={onChoose} />);
+
+    const select = screen.getByRole('combobox', { name: /front-line dice/i });
+    expect(Array.from((select as HTMLSelectElement).options).map(option => option.value)).toEqual(['0', '1', '2', '3']);
+    expect(screen.getByText('A front-line 1 kills the Militia Leader. Team losses apply only up to the available Security Teams.'))
+      .toBeVisible();
+    fireEvent.change(select, { target: { value: '3' } });
+    fireEvent.click(screen.getByRole('button', { name: /commit militia risk/i }));
+    expect(onChoose).toHaveBeenCalledWith({ militiaDoubleTeams: true, militiaFrontLineDice: 3 });
+  });
+
   it('selects indexed defense dice for each independent reroll allowance', () => {
     const onChoose = vi.fn();
     render(<WolfBoardingRerollChoicePanelView view={{

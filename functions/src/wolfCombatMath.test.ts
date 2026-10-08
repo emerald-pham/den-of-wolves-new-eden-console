@@ -423,6 +423,26 @@ describe('central Wolf combat math', () => {
     });
   });
 
+  it.each([0, 1, 2])('allows three extra Militia dice with %i available Security Teams and preserves the 1 consequence', (available) => {
+    const [boarding] = resolveWolfBoarding(
+      firstTurnRoster(),
+      [{ target: 'aegis', securityTeams: 0, availableSecurityTeams: available,
+        militiaFrontLineDice: 3, lockedRolls: [1, 5, 6] }],
+      samples([]),
+    );
+
+    expect(boarding).toMatchObject({
+      rolls: [1, 5, 6], securityCasualties: Math.min(1, available),
+      frontLineDice: 3, militiaLeaderKilled: true,
+    });
+    expect(() => resolveWolfBoarding(
+      firstTurnRoster(),
+      [{ target: 'aegis', securityTeams: 0, availableSecurityTeams: available,
+        militiaFrontLineDice: 4, lockedRolls: [1, 2, 3, 4] }],
+      samples([]),
+    )).toThrow(/zero to three front-line dice/i);
+  });
+
   it('keeps AEGIS and Pallas reroll grants independent and applies a shared die sequentially', () => {
     const first = resolveWolfBoarding(
       firstTurnRoster(),
