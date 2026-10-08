@@ -376,7 +376,7 @@ it('starts a fully staffed roster in one transaction with locked setup, Turn 1, 
         visibleToUids?: readonly string[];
         payload?: { directives?: readonly unknown[] };
       },
-    });
+    }));
   expect(privateLoyaltyWrites.length).toBeGreaterThan(0);
   for (const write of privateLoyaltyWrites) {
     expect(write.document.visibleToUids).toEqual([write.uid]);
