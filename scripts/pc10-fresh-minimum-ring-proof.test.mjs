@@ -54,3 +54,10 @@ test('allocation binds the complete compiled tree before runtime', () => {
  assert.throws(()=>proof.validateRingAllocation(input),/compiledTreeSha256/);
  assert.equal(proof.validateRingAllocation({...input,compiledTreeSha256:'d'.repeat(64)}).compiledTreeSha256,'d'.repeat(64));
 });
+
+test('actual candidate recovery expects server replay status while preserving every original result field',()=>{
+ const original={type:'candidate-action-result',status:'committed',action:'ring-passage',requestId:'original',fuelSpent:5,outcome:'crossed'};
+ assert.equal(typeof proof.expectedRingRecoveryReply,'function');
+ assert.deepEqual(proof.expectedRingRecoveryReply(original),{...original,status:'replayed'});
+ assert.equal(original.status,'committed');
+});
