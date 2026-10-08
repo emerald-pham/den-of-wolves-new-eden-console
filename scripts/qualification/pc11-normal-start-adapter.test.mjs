@@ -281,7 +281,11 @@ test('normal start preflight rejects missing, null, or empty fleet group identit
       .includes('two distinct live players must own the Engineer and President seats in one fleet group'),
     `fleetGroupId ${String(invalidGroup)} must not satisfy shared-group readiness`);
   }
-  const membersWithoutGroup = snapshot.members.map(({ fleetGroupId: _fleetGroupId, ...member }) => member);
+  const membersWithoutGroup = snapshot.members.map(member => {
+    const copy = { ...member };
+    delete copy.fleetGroupId;
+    return copy;
+  });
   assert.ok(normalStartPreflight?.({ ...snapshot, members: membersWithoutGroup }).blockers
     .includes('two distinct live players must own the Engineer and President seats in one fleet group'));
 });
