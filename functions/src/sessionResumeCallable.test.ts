@@ -291,7 +291,7 @@ it('renews a current live member without scanning every player or rewriting shar
 });
 
 it('restores missing printed loyalty directives from the current holder private secret on resume', async () => {
-  const current = prepareResume({ status: 'open', holderUid: null });
+  prepareResume({ status: 'open', holderUid: null });
   const secretPath = 'sessions/s1/secrets/loyalty-u1';
   overrideResumeRead(secretPath, {
     visibleToUids: ['u1'],
