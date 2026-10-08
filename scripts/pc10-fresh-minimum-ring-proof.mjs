@@ -57,7 +57,7 @@ export async function readStationCombatGuardAuthority({db,scope}){
   inspection:{channel:'isolated-emulator-admin-read-only',projectId:scope.projectId,firestoreHost:scope.firestoreHost,observedAt:new Date().toISOString()}};
 }
 export function stationCombatServerContext({sessionId,root,pdfWing,publicAudience,players,fleetGroups}){
- const keys=['currentTurn','phase','turnPhase','turnState','activeRoleIds','activeVesselIds','shipDamage','maintenanceCycles','shuttleControl','shuttleDockings','shuttleFuelled','maliadesState','shipResources','shipUpgrades','fighterWingCounts','smallShipStates','expansion','capybaraEnabled','shipSurvivors','candidateState','navigation'];
+ const keys=['currentTurn','phase','turnPhase','turnState','activeRoleIds','activeVesselIds','shipDamage','maintenanceCycles','shuttleControl','shuttleDockings','shuttleVisitLog','retainedShuttles','shuttleFuelled','maliadesState','shipResources','shipUpgrades','fighterWingCounts','smallShipStates','expansion','capybaraEnabled','shipSurvivors','candidateState','navigation'];
  const playerKeys=['uid','role','assignedRoleId','activeConsoleRoleId','replacementRoleId','replacementStatus','connected','seatId','kickedAt','escapeState','fleetGroupId'];
  return {sessionId,...Object.fromEntries(keys.filter(key=>root[key]!==undefined).map(key=>[key,root[key]])),pdfEscortWing:pdfWing,publicAudience,fleetGroups:fleetGroups.map(group=>Object.fromEntries(['id','vesselIds','memberUids','memberShipIds'].filter(key=>group[key]!==undefined).map(key=>[key,group[key]]))),players:players.map(player=>Object.fromEntries(playerKeys.filter(key=>player[key]!==undefined).map(key=>[key,player[key]])))};
 }

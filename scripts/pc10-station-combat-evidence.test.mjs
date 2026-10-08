@@ -45,3 +45,12 @@ test('actual unchanged rules keep server authority private while GM current atta
  assert.match(rules,/match \/wolfAttackAudience\/\{projectionId\}\s*\{\s*allow get: if projectionId == 'current' && isMember\(sessionId\)/);
  assert.ok(source.includes('Promise.allSettled(['));assert.ok(source.includes('onDiagnosticError:async(error,attack)'));assert.ok(source.includes("evidence.stationDiagnosticStatus='incomplete'"));
 });
+
+test('boarding diagnostics retain actual visit and retained state without inventing absent fields',()=>{
+ const base={sessionId:'owned',root:{},players:[],fleetGroups:[]};
+ const visits=[{id:'real',shuttleId:'chepu',shipId:'refinery-124',action:'docked',occurredAt:'SESSION START'}];
+ const retained={chepu:{destroyedHostId:'refinery-124'}};
+ const context=runner.stationCombatServerContext({...base,root:{shuttleVisitLog:visits,retainedShuttles:retained}});
+ assert.deepEqual(context.shuttleVisitLog,visits);assert.deepEqual(context.retainedShuttles,retained);
+ const absent=runner.stationCombatServerContext(base);assert.equal(Object.hasOwn(absent,'shuttleVisitLog'),false);assert.equal(Object.hasOwn(absent,'retainedShuttles'),false);
+});
