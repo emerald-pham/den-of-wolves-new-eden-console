@@ -804,6 +804,17 @@ export default function GmConsole() {
     ? demoActorManagerUrl({ id: session.id, joinCode: session.joinCode }, window.location.href)
     : null;
   const phaseReadout = turnPhaseReadout(currentPhase, clock);
+  const currentDispositionPhase = currentPhase?.turn !== currentTurn
+    ? 'unavailable'
+    : currentPhase.timerPause !== undefined
+      ? 'paused'
+      : phaseReadout?.kind === 'team' && currentPhase.airspace.state === 'restricted'
+        ? 'team'
+        : phaseReadout?.kind === 'open' && currentPhase.airspace.state === 'lifted'
+          ? 'coordination'
+          : phaseReadout?.kind === 'complete' && currentPhase.airspace.state === 'lifted'
+            ? 'complete'
+            : 'unavailable';
   const activeAirspaceWindow: AirspaceWindow | null = !currentPhase?.timerPause && phaseReadout?.kind === 'team' &&
     currentPhase?.airspace.state === 'restricted'
     ? 'restricted'
@@ -5112,8 +5123,7 @@ export default function GmConsole() {
                 ? { attendanceEvidence: 'simulated-demo' as const } : {})}
               caseRecord={arrestCase}
               {...(typeof session?.currentTurn === 'number' ? { currentCycle: session.currentTurn } : {})}
-              deadlineTeamPhaseOpen={Boolean(currentPhase?.turn === currentTurn && phaseReadout?.kind === 'team' &&
-                currentPhase.airspace.state === 'restricted' && currentPhase.timerPause === undefined)}
+              currentDispositionPhase={currentDispositionPhase}
               {...(typeof session?.currentTurn === 'number' && Number.isSafeInteger(session.currentTurn) && session.currentTurn > 0
                 ? { expectedCycle: session.currentTurn } : {})}
               caseOutcome={arrestCase && arrestCase.targetUid === arrestPosseCalculation?.targetUid ? {
