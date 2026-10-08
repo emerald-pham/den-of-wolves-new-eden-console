@@ -217,3 +217,22 @@ test('proof evidence reports actual absolute allocation cap and preserves cleanu
   assert.throws(() => adapter.pc11ProofTiming(1000000, 1119999));
   assert.throws(() => adapter.pc11ProofTiming(1000000, Number.NaN));
 });
+
+test('owned-root cleanup counts only committed retry and never exposes raw owned paths', async () => {
+  const records=new Map([[`gmAccess/${uid}`,{uid}]]);
+  const ref=path=>({path,get:async()=>({exists:records.has(path),get:key=>records.get(path)?.[key]})});
+  const db={doc:ref,runTransaction:async callback=>{await callback({get:r=>r.get(),delete:()=>{}});return callback({get:r=>r.get(),delete:r=>records.delete(r.path)});}};
+  const result=await adapter.removePc11OwnedRootRecords({db,uid,sessionId:sid});
+  assert.equal(result.deleted,1);assert.equal(JSON.stringify(result).includes(uid),false);
+});
+
+test('passive original UI request tracker retains cleanup IDs even when reply diagnostics fail', async () => {
+  assert.equal(typeof adapter.createPc11OwnedRequestTracker,'function');
+  const page=new Page(),captured=[];
+  const tracker=adapter.createPc11OwnedRequestTracker(page,value=>captured.push(value));
+  const request=endpoint=>({url:()=>`http://127.0.0.1:5013/demo-pc11-test/us-central1/${endpoint}`,method:()=> 'POST',postDataJSON:()=>({data:{requestId:'original-1',sessionId:sid,instanceId:'gm-original'}})});
+  page.emit('request',request('startGame'));page.emit('request',request('createSession'));
+  assert.deepEqual(captured.map(v=>v.endpoint),['startGame','createSession']);
+  assert.equal(captured[0].requestId,'original-1');assert.equal(captured[0].sessionId,sid);
+  tracker.finish();assert.equal(page.listenerCount('request'),0);
+});
