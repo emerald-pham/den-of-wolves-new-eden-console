@@ -2,6 +2,7 @@ import { initialMaliadesState } from './maliadesState';
 import { recommendedRoleIds } from './roleConfiguration';
 import { beginPdfEscortWingAttack, initialPdfEscortWingState } from './pdfEscortWingState';
 import capturedP from './test-fixtures/pc10-p-targeting-stall.json';
+import capturedP8 from './test-fixtures/pc10-p-targeting-attempt8.json';
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { CallableRequest } from 'firebase-functions/v2/https';
 import { firstTurnWolfAttackComposition } from './wolfAttackComposition';
@@ -3140,5 +3141,45 @@ it.each(['malformed-control', 'current-owner', 'transferred-holder'])('does not 
     expect(testState.documents.get('sessions/s1/wolfAttackState/current')).toMatchObject({ currentStep: 'long-range', revision: 5 });
   }
   expect(testState.documents.get('sessions/s1')).toEqual(rootBefore);
+  expect(entropy.randomInt).not.toHaveBeenCalled();
+});
+
+// Captured guard whitelist, not a claimed full-root or native outcome replay.
+function prepareCapturedP8(omitFtl = false): void {
+  for (const key of [...testState.documents.keys()]) if (key.startsWith('sessions/s1/players/') || key.startsWith('sessions/s1/fleetGroups/')) testState.documents.delete(key);
+  const root = structuredClone(capturedP8.root);
+  if (omitFtl) delete (root.maintenanceCycles['refinery-124'].results as Record<string, unknown>).ftl;
+  put('sessions/s1', root);
+  for (const player of capturedP8.players) put(`sessions/s1/players/${player.uid}`, structuredClone(player));
+  for (const group of capturedP8.fleetGroups) put(`sessions/s1/fleetGroups/${group.id}`, structuredClone(group));
+  put('sessions/s1/wolfAttackState/current', structuredClone(capturedP8.attack));
+  put('sessions/s1/serverState/pdfEscortWing', structuredClone(capturedP8.pdfWing));
+}
+
+it('advances the exact attempt8 vacant Commander and EO captured targeting inputs', async () => {
+  prepareCapturedP8();
+  await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
+  await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
+  expect(testState.documents.get('sessions/s1/wolfAttackState/current')).toMatchObject({ currentStep: 'long-range' });
+  expect(entropy.randomInt).not.toHaveBeenCalled();
+});
+
+it('diagnoses attempt8 by removing only the server-authored Refinery FTL result', async () => {
+  prepareCapturedP8(true);
+  const rootBefore = structuredClone(testState.documents.get('sessions/s1'));
+  await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
+  await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
+  expect(testState.documents.get('sessions/s1/wolfAttackState/current')).toMatchObject({ currentStep: 'long-range',
+    targetingCompletion: { status: 'no-commander', commandAndControl: 'unavailable', reason: 'no-current-executive-officer' } });
+  expect(testState.documents.get('sessions/s1')).toEqual(rootBefore);
+  expect(entropy.randomInt).not.toHaveBeenCalled();
+});
+
+it('keeps a genuinely assigned Commander mandatory in the attempt8 diagnostic control', async () => {
+  prepareCapturedP8(true);
+  put('sessions/s1/players/commander-control', { uid: 'commander-control', role: 'player', replacementRoleId: 'wolf-commander', connected: false });
+  await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
+  await advanceWolfAttackLifecycle.run({ params: { sessionId: 's1' } });
+  expect(testState.documents.get('sessions/s1/wolfAttackState/current')).toMatchObject({ currentStep: 'targeting', revision: 3 });
   expect(entropy.randomInt).not.toHaveBeenCalled();
 });

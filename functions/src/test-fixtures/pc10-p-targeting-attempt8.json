@@ -1,0 +1,1071 @@
+{
+  "provenance": "Attempt8 captured isolated owned synthetic session read-only Admin guard observations. Exact captured whitelist, not full root; absence outside whitelist is unknown. No native outcome claim. UID/session/attack IDs normalized without changing field presence.",
+  "root": {
+    "currentTurn": 2,
+    "phase": "active",
+    "turnPhase": {
+      "turn": 2,
+      "teamPhaseEndsAt": "9999-12-31T23:59:59.999Z",
+      "openAirspaceEndsAt": "9999-12-31T23:59:59.999Z",
+      "airspace": {
+        "state": "restricted",
+        "tickerActive": true,
+        "pressAccess": false
+      },
+      "progression": "manual"
+    },
+    "turnState": {
+      "currentTurn": 2,
+      "maxTurn": 8,
+      "phase": "team",
+      "phaseRevision": 5,
+      "startedAt": "9999-12-31T23:59:59.999Z",
+      "endsAt": "9999-12-31T23:59:59.999Z"
+    },
+    "activeRoleIds": [
+      "admiral",
+      "executive-officer",
+      "wing-commander",
+      "dione-engineer",
+      "dione-president",
+      "icebreaker-engineer",
+      "icebreaker-miner",
+      "shepherd-engineer",
+      "shepherd-scientist",
+      "quellon-engineer",
+      "quellon-explorer",
+      "refinery-124-engineer",
+      "refinery-124-pdf-colonel"
+    ],
+    "activeVesselIds": [
+      "aegis",
+      "dione",
+      "icebreaker",
+      "shepherd",
+      "quellon",
+      "refinery-124"
+    ],
+    "shipDamage": {
+      "aegis": {
+        "damagedSystemIds": [],
+        "destroyed": false
+      },
+      "dione": {
+        "damagedSystemIds": [],
+        "destroyed": false
+      },
+      "icebreaker": {
+        "damagedSystemIds": [],
+        "destroyed": false
+      },
+      "shepherd": {
+        "damagedSystemIds": [],
+        "destroyed": false
+      },
+      "quellon": {
+        "damagedSystemIds": [],
+        "destroyed": false
+      },
+      "refinery-124": {
+        "damagedSystemIds": [],
+        "destroyed": false
+      }
+    },
+    "maintenanceCycles": {
+      "aegis": {
+        "step": 0,
+        "revision": 18,
+        "results": {
+          "1": "Storage intact. No resources lost.",
+          "2": "Spent 8 food and 6 water. Ration bonus +18.",
+          "3": "Rolled 4 + 4 + 18 = 26. Added 0 unrest; unrest 0.",
+          "4": "Rolled 1 against unrest 0. No riot.",
+          "5": "Reactor powered up. Previous unused charge lost. Charged 3/5 consoles.",
+          "6": "Shuttle Bay Zeta powered up. No shuttles refuelled.",
+          "7": "Shuttle Bay Omega powered up. No shuttles refuelled.",
+          "ftl": "FTL jump complete // 0000 \u2192 1964 // LONG // 6 fuel."
+        },
+        "charges": [
+          "fighter-bay-alpha",
+          "fighter-bay-bravo"
+        ],
+        "refuelled": [],
+        "turn": 2,
+        "rationBonus": 18,
+        "startedAt": "2026-10-08T06:14:28.929Z",
+        "unrestRolls": [
+          4,
+          4
+        ],
+        "unrestBeforeCheck": 0,
+        "completedAt": "2026-10-08T06:14:45.739Z"
+      },
+      "dione": {
+        "step": 0,
+        "revision": 16,
+        "results": {
+          "1": "Storage intact. No resources lost.",
+          "2": "Spent 18 food and 14 water. Ration bonus +18.",
+          "3": "Rolled 1 + 4 + 18 = 23. Added 0 unrest; unrest 0.",
+          "4": "Rolled 5 against unrest 0. No riot.",
+          "5": "Reactor powered up. Previous unused charge lost. Charged 1/4 consoles.",
+          "6": "Shuttle Bay powered up. No shuttles refuelled.",
+          "7": "Maintenance cycle complete.",
+          "ftl": "FTL jump complete // 0000 \u2192 1964 // LONG // 8 fuel."
+        },
+        "charges": [],
+        "refuelled": [],
+        "turn": 2,
+        "rationBonus": 18,
+        "startedAt": "2026-10-08T06:14:47.839Z",
+        "unrestRolls": [
+          1,
+          4
+        ],
+        "unrestBeforeCheck": 0,
+        "completedAt": "2026-10-08T06:15:02.559Z"
+      },
+      "icebreaker": {
+        "step": 0,
+        "revision": 16,
+        "results": {
+          "1": "Storage intact. No resources lost.",
+          "2": "Spent 13 food and 10 water. Ration bonus +18.",
+          "3": "Rolled 2 + 2 + 18 = 22. Added 0 unrest; unrest 0.",
+          "4": "Rolled 2 against unrest 0. No riot.",
+          "5": "Reactor powered up. Previous unused charge lost. Charged 1/4 consoles.",
+          "6": "Shuttle Bay powered up. No shuttles refuelled.",
+          "7": "Maintenance cycle complete.",
+          "ftl": "FTL jump complete // 0000 \u2192 1964 // LONG // 12 fuel."
+        },
+        "charges": [],
+        "refuelled": [],
+        "turn": 2,
+        "rationBonus": 18,
+        "startedAt": "2026-10-08T06:15:04.660Z",
+        "unrestRolls": [
+          2,
+          2
+        ],
+        "unrestBeforeCheck": 0,
+        "completedAt": "2026-10-08T06:15:19.367Z"
+      },
+      "shepherd": {
+        "step": 0,
+        "revision": 16,
+        "results": {
+          "1": "Storage intact. No resources lost.",
+          "2": "Spent 12 food and 9 water. Ration bonus +18.",
+          "3": "Rolled 3 + 2 + 18 = 23. Added 0 unrest; unrest 0.",
+          "4": "Rolled 4 against unrest 0. No riot.",
+          "5": "Reactor powered up. Previous unused charge lost. Charged 1/3 consoles.",
+          "6": "Shuttle Bay powered up. No shuttles refuelled.",
+          "7": "Maintenance cycle complete.",
+          "ftl": "FTL jump complete // 0000 \u2192 1964 // LONG // 12 fuel."
+        },
+        "charges": [],
+        "refuelled": [],
+        "turn": 2,
+        "rationBonus": 18,
+        "startedAt": "2026-10-08T06:15:21.473Z",
+        "unrestRolls": [
+          3,
+          2
+        ],
+        "unrestBeforeCheck": 0,
+        "completedAt": "2026-10-08T06:15:36.189Z"
+      },
+      "quellon": {
+        "step": 0,
+        "revision": 16,
+        "results": {
+          "1": "Storage intact. No resources lost.",
+          "2": "Spent 12 food and 9 water. Ration bonus +18.",
+          "3": "Rolled 2 + 2 + 18 = 22. Added 0 unrest; unrest 0.",
+          "4": "Rolled 1 against unrest 0. No riot.",
+          "5": "Reactor powered up. Previous unused charge lost. Charged 1/3 consoles.",
+          "6": "Shuttle Bay powered up. No shuttles refuelled.",
+          "7": "Maintenance cycle complete.",
+          "ftl": "FTL jump complete // 0000 \u2192 1964 // LONG // 8 fuel."
+        },
+        "charges": [],
+        "refuelled": [],
+        "turn": 2,
+        "rationBonus": 18,
+        "startedAt": "2026-10-08T06:15:38.288Z",
+        "unrestRolls": [
+          2,
+          2
+        ],
+        "unrestBeforeCheck": 0,
+        "completedAt": "2026-10-08T06:15:53.003Z"
+      },
+      "refinery-124": {
+        "step": 0,
+        "revision": 16,
+        "results": {
+          "1": "Storage intact. No resources lost.",
+          "2": "Spent 11 food and 8 water. Ration bonus +18.",
+          "3": "Rolled 4 + 6 + 18 = 28. Added 0 unrest; unrest 0.",
+          "4": "Rolled 2 against unrest 0. No riot.",
+          "5": "Reactor powered up. Previous unused charge lost. Charged 1/4 consoles.",
+          "6": "Shuttle Bay powered up. No shuttles refuelled.",
+          "7": "Maintenance cycle complete.",
+          "ftl": "FTL jump complete // 0000 \u2192 1964 // LONG // 8 fuel."
+        },
+        "charges": [],
+        "refuelled": [],
+        "turn": 2,
+        "rationBonus": 18,
+        "startedAt": "2026-10-08T06:15:55.107Z",
+        "unrestRolls": [
+          4,
+          6
+        ],
+        "unrestBeforeCheck": 0,
+        "completedAt": "2026-10-08T06:16:09.817Z"
+      }
+    },
+    "shuttleControl": {
+      "starlight": {
+        "shuttleId": "starlight",
+        "ownerRoleId": "wing-commander",
+        "ownerUid": "wing-captured",
+        "holderUid": "wing-captured",
+        "revision": 0
+      }
+    },
+    "shuttleDockings": [
+      {
+        "shuttleId": "snn-press-shuttle",
+        "shipId": "dione",
+        "dockedAt": "SESSION START"
+      },
+      {
+        "shuttleId": "starlight",
+        "shipId": "aegis",
+        "dockedAt": "SESSION START"
+      },
+      {
+        "shuttleId": "pallas",
+        "shipId": "aegis",
+        "dockedAt": "SESSION START"
+      },
+      {
+        "shuttleId": "philia",
+        "shipId": "dione",
+        "dockedAt": "SESSION START"
+      },
+      {
+        "shuttleId": "maliades",
+        "shipId": "dione",
+        "dockedAt": "SESSION START"
+      },
+      {
+        "shuttleId": "highwall",
+        "shipId": "icebreaker",
+        "dockedAt": "SESSION START"
+      },
+      {
+        "shuttleId": "blacksmith",
+        "shipId": "icebreaker",
+        "dockedAt": "SESSION START"
+      },
+      {
+        "shuttleId": "endeavour",
+        "shipId": "shepherd",
+        "dockedAt": "SESSION START"
+      },
+      {
+        "shuttleId": "black-sheep",
+        "shipId": "shepherd",
+        "dockedAt": "SESSION START"
+      },
+      {
+        "shuttleId": "hummingbird",
+        "shipId": "quellon",
+        "dockedAt": "SESSION START"
+      },
+      {
+        "shuttleId": "condor",
+        "shipId": "quellon",
+        "dockedAt": "SESSION START"
+      },
+      {
+        "shuttleId": "chacau",
+        "shipId": "refinery-124",
+        "dockedAt": "SESSION START"
+      },
+      {
+        "shuttleId": "chepu",
+        "shipId": "refinery-124",
+        "dockedAt": "SESSION START"
+      }
+    ],
+    "shuttleFuelled": {
+      "starlight": false,
+      "pallas": false,
+      "snn-press-shuttle": false,
+      "philia": false,
+      "maliades": false,
+      "highwall": false,
+      "blacksmith": false,
+      "endeavour": false,
+      "black-sheep": false,
+      "hummingbird": false,
+      "condor": false,
+      "chacau": false,
+      "chepu": false
+    },
+    "maliadesState": {
+      "revision": 1,
+      "attackId": "wolf-attack-afc4e514-0d2b-447a-902e-bb152930eb81",
+      "attackCycle": 2,
+      "launched": false,
+      "damage": 0,
+      "destroyed": false,
+      "medium": null,
+      "short": null
+    },
+    "shipResources": {
+      "aegis": {
+        "ore": 0,
+        "food": 0,
+        "water": 0,
+        "materials": 1,
+        "securityTeams": 9,
+        "fuel": 24
+      },
+      "dione": {
+        "ore": 0,
+        "food": 0,
+        "water": 0,
+        "materials": 0,
+        "securityTeams": 2,
+        "fuel": 22
+      },
+      "icebreaker": {
+        "ore": 0,
+        "food": 0,
+        "water": 0,
+        "materials": 3,
+        "securityTeams": 2,
+        "fuel": 18
+      },
+      "shepherd": {
+        "ore": 0,
+        "food": 0,
+        "water": 0,
+        "materials": 0,
+        "securityTeams": 2,
+        "fuel": 18
+      },
+      "quellon": {
+        "ore": 0,
+        "food": 0,
+        "water": 0,
+        "materials": 0,
+        "securityTeams": 2,
+        "fuel": 22
+      },
+      "refinery-124": {
+        "ore": 12,
+        "food": 0,
+        "water": 0,
+        "materials": 0,
+        "securityTeams": 6,
+        "fuel": 22
+      }
+    },
+    "fighterWingCounts": {
+      "fighter-wing-alpha": {
+        "count": 4,
+        "revision": 0
+      },
+      "fighter-wing-bravo": {
+        "count": 4,
+        "revision": 0
+      }
+    },
+    "smallShipStates": {},
+    "expansion": "base",
+    "capybaraEnabled": true,
+    "shipSurvivors": {
+      "aegis": 2500,
+      "dione": 100000,
+      "icebreaker": 40000,
+      "shepherd": 30000,
+      "quellon": 30000,
+      "refinery-124": 20000
+    }
+  },
+  "players": [
+    {
+      "uid": "wing-captured",
+      "role": "player",
+      "assignedRoleId": "wing-commander",
+      "activeConsoleRoleId": "wing-commander",
+      "connected": true,
+      "seatId": "wing-commander",
+      "fleetGroupId": "fleet-1"
+    },
+    {
+      "uid": "gm-captured",
+      "role": "gm",
+      "assignedRoleId": null,
+      "activeConsoleRoleId": null,
+      "connected": true,
+      "seatId": null,
+      "fleetGroupId": "fleet-1"
+    }
+  ],
+  "fleetGroups": [
+    {
+      "id": "fleet-1",
+      "vesselIds": [
+        "aegis",
+        "dione",
+        "icebreaker",
+        "shepherd",
+        "quellon",
+        "refinery-124"
+      ],
+      "memberUids": [
+        "wing-captured",
+        "gm-captured"
+      ],
+      "memberShipIds": {
+        "wing-captured": "aegis"
+      }
+    }
+  ],
+  "attack": {
+    "type": "wolf-attack-state",
+    "status": "declared",
+    "attackId": "wolf-attack-afc4e514-0d2b-447a-902e-bb152930eb81",
+    "turn": 2,
+    "attackNumber": 1,
+    "targetGroupId": "fleet-1",
+    "targetGroupVesselIds": [
+      "aegis",
+      "dione",
+      "icebreaker",
+      "quellon",
+      "refinery-124",
+      "shepherd"
+    ],
+    "threatSiteCode": "P",
+    "threatSourceId": "arrival-jump-c7b13461-c666-499f-b05c-86374dbc6f8b",
+    "pStationSequence": {
+      "type": "p-station-sequence",
+      "sequenceId": "wolf-p-station-jump-c7b13461-c666-499f-b05c-86374dbc6f8b",
+      "groupId": "fleet-1",
+      "chart": "B",
+      "coordinate": "1964",
+      "stationId": "P",
+      "sourceTransitionId": "jump-c7b13461-c666-499f-b05c-86374dbc6f8b",
+      "sourceCycle": 2,
+      "attackNumber": 1
+    },
+    "preparationRevision": 1,
+    "currentStep": "targeting",
+    "deadlineAt": "9999-12-31T23:59:59.999Z",
+    "airspaceLocked": true,
+    "parkedCraftIds": [
+      "snn-press-shuttle",
+      "starlight",
+      "fighter-wing-alpha",
+      "fighter-wing-bravo",
+      "pallas",
+      "philia",
+      "maliades",
+      "highwall",
+      "blacksmith",
+      "endeavour",
+      "black-sheep",
+      "hummingbird",
+      "condor",
+      "chacau",
+      "chepu",
+      "pdf-escort-fighter-wing"
+    ],
+    "parkingReleaseCondition": "normal-movement-reopened",
+    "battleTableCraftActions": [
+      {
+        "craftId": "fighter-wing-alpha",
+        "kind": "fighter-wing",
+        "ownerRoleId": "wing-commander"
+      },
+      {
+        "craftId": "fighter-wing-bravo",
+        "kind": "fighter-wing",
+        "ownerRoleId": "wing-commander"
+      },
+      {
+        "craftId": "maliades",
+        "kind": "shuttle",
+        "ownerRoleId": "dione-engineer"
+      },
+      {
+        "craftId": "highwall",
+        "kind": "shuttle",
+        "ownerRoleId": "icebreaker-miner"
+      },
+      {
+        "craftId": "pdf-escort-fighter-wing",
+        "kind": "fighter-wing",
+        "ownerRoleId": "refinery-124-pdf-colonel"
+      }
+    ],
+    "launchedCraftIds": [],
+    "parkedShuttleDockings": [
+      {
+        "shuttleId": "snn-press-shuttle",
+        "shipId": "dione",
+        "dockedAt": "SESSION START"
+      },
+      {
+        "shuttleId": "starlight",
+        "shipId": "aegis",
+        "dockedAt": "SESSION START"
+      },
+      {
+        "shuttleId": "pallas",
+        "shipId": "aegis",
+        "dockedAt": "SESSION START"
+      },
+      {
+        "shuttleId": "philia",
+        "shipId": "dione",
+        "dockedAt": "SESSION START"
+      },
+      {
+        "shuttleId": "maliades",
+        "shipId": "dione",
+        "dockedAt": "SESSION START"
+      },
+      {
+        "shuttleId": "highwall",
+        "shipId": "icebreaker",
+        "dockedAt": "SESSION START"
+      },
+      {
+        "shuttleId": "blacksmith",
+        "shipId": "icebreaker",
+        "dockedAt": "SESSION START"
+      },
+      {
+        "shuttleId": "endeavour",
+        "shipId": "shepherd",
+        "dockedAt": "SESSION START"
+      },
+      {
+        "shuttleId": "black-sheep",
+        "shipId": "shepherd",
+        "dockedAt": "SESSION START"
+      },
+      {
+        "shuttleId": "hummingbird",
+        "shipId": "quellon",
+        "dockedAt": "SESSION START"
+      },
+      {
+        "shuttleId": "condor",
+        "shipId": "quellon",
+        "dockedAt": "SESSION START"
+      },
+      {
+        "shuttleId": "chacau",
+        "shipId": "refinery-124",
+        "dockedAt": "SESSION START"
+      },
+      {
+        "shuttleId": "chepu",
+        "shipId": "refinery-124",
+        "dockedAt": "SESSION START"
+      }
+    ],
+    "parkingDecisions": [
+      {
+        "craftId": "snn-press-shuttle",
+        "source": "docked",
+        "hostShipId": "dione",
+        "distanceSquared": 0,
+        "tiedHostIds": [
+          "dione"
+        ]
+      },
+      {
+        "craftId": "starlight",
+        "source": "docked",
+        "hostShipId": "aegis",
+        "distanceSquared": 0,
+        "tiedHostIds": [
+          "aegis"
+        ]
+      },
+      {
+        "craftId": "pallas",
+        "source": "docked",
+        "hostShipId": "aegis",
+        "distanceSquared": 0,
+        "tiedHostIds": [
+          "aegis"
+        ]
+      },
+      {
+        "craftId": "philia",
+        "source": "docked",
+        "hostShipId": "dione",
+        "distanceSquared": 0,
+        "tiedHostIds": [
+          "dione"
+        ]
+      },
+      {
+        "craftId": "maliades",
+        "source": "docked",
+        "hostShipId": "dione",
+        "distanceSquared": 0,
+        "tiedHostIds": [
+          "dione"
+        ]
+      },
+      {
+        "craftId": "highwall",
+        "source": "docked",
+        "hostShipId": "icebreaker",
+        "distanceSquared": 0,
+        "tiedHostIds": [
+          "icebreaker"
+        ]
+      },
+      {
+        "craftId": "blacksmith",
+        "source": "docked",
+        "hostShipId": "icebreaker",
+        "distanceSquared": 0,
+        "tiedHostIds": [
+          "icebreaker"
+        ]
+      },
+      {
+        "craftId": "endeavour",
+        "source": "docked",
+        "hostShipId": "shepherd",
+        "distanceSquared": 0,
+        "tiedHostIds": [
+          "shepherd"
+        ]
+      },
+      {
+        "craftId": "black-sheep",
+        "source": "docked",
+        "hostShipId": "shepherd",
+        "distanceSquared": 0,
+        "tiedHostIds": [
+          "shepherd"
+        ]
+      },
+      {
+        "craftId": "hummingbird",
+        "source": "docked",
+        "hostShipId": "quellon",
+        "distanceSquared": 0,
+        "tiedHostIds": [
+          "quellon"
+        ]
+      },
+      {
+        "craftId": "condor",
+        "source": "docked",
+        "hostShipId": "quellon",
+        "distanceSquared": 0,
+        "tiedHostIds": [
+          "quellon"
+        ]
+      },
+      {
+        "craftId": "chacau",
+        "source": "docked",
+        "hostShipId": "refinery-124",
+        "distanceSquared": 0,
+        "tiedHostIds": [
+          "refinery-124"
+        ]
+      },
+      {
+        "craftId": "chepu",
+        "source": "docked",
+        "hostShipId": "refinery-124",
+        "distanceSquared": 0,
+        "tiedHostIds": [
+          "refinery-124"
+        ]
+      }
+    ],
+    "calculationReceipt": {
+      "type": "wolf-combat-calculation-stage",
+      "version": 1,
+      "turn": 2,
+      "step": "targeting",
+      "generatedAt": "2026-10-08T06:16:15.277Z",
+      "pursuitPressure": {
+        "navigationRevision": 8,
+        "targetGroupId": "fleet-1",
+        "targetGroupValue": 0
+      },
+      "composition": {
+        "shipIds": [
+          "wolf-fighter-wing",
+          "wolf-fighter-wing",
+          "wolf-fighter-wing",
+          "wolf-fighter-wing",
+          "wolf-fighter-wing",
+          "wolf-fighter-wing",
+          "wolf-fighter-wing",
+          "wolf-fighter-wing",
+          "wolf-fighter-wing",
+          "wolf-fighter-wing",
+          "wolf-assault-transport",
+          "wolf-assault-transport",
+          "wolf-assault-transport",
+          "wolf-assault-transport",
+          "wolf-assault-transport",
+          "wolf-strikecarrier",
+          "wolf-strikecarrier",
+          "wolf-strikecarrier",
+          "wolf-strikecarrier",
+          "wolf-battlestation"
+        ],
+        "counts": {
+          "wolf-fighter-wing": 10,
+          "wolf-assault-transport": 5,
+          "wolf-destroyer": 0,
+          "wolf-cruiser": 0,
+          "wolf-strikecarrier": 4,
+          "wolf-battlestation": 1
+        },
+        "damageCapacity": 46
+      },
+      "targeting": {
+        "ring": [
+          "aegis",
+          "dione",
+          "icebreaker",
+          "quellon",
+          "shepherd",
+          "refinery-124"
+        ],
+        "rolls": [
+          {
+            "rosterIndex": 0,
+            "shipId": "wolf-fighter-wing",
+            "initialDie": 3,
+            "finalDie": 3,
+            "target": "icebreaker",
+            "modifiers": []
+          },
+          {
+            "rosterIndex": 1,
+            "shipId": "wolf-fighter-wing",
+            "initialDie": 3,
+            "finalDie": 3,
+            "target": "icebreaker",
+            "modifiers": []
+          },
+          {
+            "rosterIndex": 2,
+            "shipId": "wolf-fighter-wing",
+            "initialDie": 4,
+            "finalDie": 4,
+            "target": "quellon",
+            "modifiers": []
+          },
+          {
+            "rosterIndex": 3,
+            "shipId": "wolf-fighter-wing",
+            "initialDie": 2,
+            "finalDie": 2,
+            "target": "dione",
+            "modifiers": []
+          },
+          {
+            "rosterIndex": 4,
+            "shipId": "wolf-fighter-wing",
+            "initialDie": 3,
+            "finalDie": 3,
+            "target": "icebreaker",
+            "modifiers": []
+          },
+          {
+            "rosterIndex": 5,
+            "shipId": "wolf-fighter-wing",
+            "initialDie": 5,
+            "finalDie": 5,
+            "target": "shepherd",
+            "modifiers": []
+          },
+          {
+            "rosterIndex": 6,
+            "shipId": "wolf-fighter-wing",
+            "initialDie": 2,
+            "finalDie": 2,
+            "target": "dione",
+            "modifiers": []
+          },
+          {
+            "rosterIndex": 7,
+            "shipId": "wolf-fighter-wing",
+            "initialDie": 5,
+            "finalDie": 5,
+            "target": "shepherd",
+            "modifiers": []
+          },
+          {
+            "rosterIndex": 8,
+            "shipId": "wolf-fighter-wing",
+            "initialDie": 4,
+            "finalDie": 4,
+            "target": "quellon",
+            "modifiers": []
+          },
+          {
+            "rosterIndex": 9,
+            "shipId": "wolf-fighter-wing",
+            "initialDie": 6,
+            "finalDie": 6,
+            "target": "refinery-124",
+            "modifiers": []
+          },
+          {
+            "rosterIndex": 10,
+            "shipId": "wolf-assault-transport",
+            "initialDie": 5,
+            "finalDie": 5,
+            "target": "shepherd",
+            "modifiers": []
+          },
+          {
+            "rosterIndex": 11,
+            "shipId": "wolf-assault-transport",
+            "initialDie": 6,
+            "finalDie": 6,
+            "target": "refinery-124",
+            "modifiers": []
+          },
+          {
+            "rosterIndex": 12,
+            "shipId": "wolf-assault-transport",
+            "initialDie": 1,
+            "finalDie": 1,
+            "target": "aegis",
+            "modifiers": []
+          },
+          {
+            "rosterIndex": 13,
+            "shipId": "wolf-assault-transport",
+            "initialDie": 1,
+            "finalDie": 1,
+            "target": "aegis",
+            "modifiers": []
+          },
+          {
+            "rosterIndex": 14,
+            "shipId": "wolf-assault-transport",
+            "initialDie": 5,
+            "finalDie": 5,
+            "target": "shepherd",
+            "modifiers": []
+          },
+          {
+            "rosterIndex": 15,
+            "shipId": "wolf-strikecarrier",
+            "initialDie": 6,
+            "finalDie": 6,
+            "target": "refinery-124",
+            "modifiers": []
+          },
+          {
+            "rosterIndex": 16,
+            "shipId": "wolf-strikecarrier",
+            "initialDie": 2,
+            "finalDie": 2,
+            "target": "dione",
+            "modifiers": []
+          },
+          {
+            "rosterIndex": 17,
+            "shipId": "wolf-strikecarrier",
+            "initialDie": 5,
+            "finalDie": 5,
+            "target": "shepherd",
+            "modifiers": []
+          },
+          {
+            "rosterIndex": 18,
+            "shipId": "wolf-strikecarrier",
+            "initialDie": 1,
+            "finalDie": 1,
+            "target": "aegis",
+            "modifiers": []
+          },
+          {
+            "rosterIndex": 19,
+            "shipId": "wolf-battlestation",
+            "initialDie": 1,
+            "finalDie": 1,
+            "target": "aegis",
+            "modifiers": []
+          }
+        ],
+        "modifierOrder": [
+          "commander-reroll",
+          "target-shift",
+          "command-and-control-redirect"
+        ]
+      }
+    },
+    "forceFieldChoice": {
+      "status": "unavailable",
+      "turn": 2,
+      "revision": 1,
+      "unavailableReason": "no-current-captain",
+      "determinedAt": "2026-10-08T06:16:15.277Z"
+    },
+    "maliadesRangeEffects": {
+      "attackId": "wolf-attack-afc4e514-0d2b-447a-902e-bb152930eb81",
+      "cycle": 2,
+      "medium": null,
+      "short": null
+    },
+    "commanderRerollIndexes": [],
+    "preparation": {
+      "revision": 1,
+      "turn": 2,
+      "shipIds": [
+        "wolf-fighter-wing",
+        "wolf-fighter-wing",
+        "wolf-fighter-wing",
+        "wolf-fighter-wing",
+        "wolf-fighter-wing",
+        "wolf-fighter-wing",
+        "wolf-fighter-wing",
+        "wolf-fighter-wing",
+        "wolf-fighter-wing",
+        "wolf-fighter-wing",
+        "wolf-assault-transport",
+        "wolf-assault-transport",
+        "wolf-assault-transport",
+        "wolf-assault-transport",
+        "wolf-assault-transport",
+        "wolf-strikecarrier",
+        "wolf-strikecarrier",
+        "wolf-strikecarrier",
+        "wolf-strikecarrier",
+        "wolf-battlestation"
+      ],
+      "targetMode": "pre-rolled",
+      "targetAssignments": [],
+      "modifiers": [],
+      "notes": "",
+      "compositionKind": "P",
+      "targetGroupId": "fleet-1"
+    },
+    "actorUid": "gm-captured",
+    "declaredAt": "2026-10-08T06:16:15.277Z",
+    "announcementId": "wolf-attack-afc4e514-0d2b-447a-902e-bb152930eb81",
+    "decisionSummary": {
+      "commander": {
+        "status": "pending",
+        "actors": [],
+        "reason": "no-configured-commander"
+      },
+      "commandAndControl": {
+        "status": "waiting-for-commander",
+        "actors": [],
+        "reason": "waiting-for-commander"
+      },
+      "forceField": {
+        "status": "unavailable",
+        "reason": "no-current-captain"
+      },
+      "enrichedWarheads": {
+        "status": "unavailable",
+        "actors": []
+      }
+    },
+    "fighterLaunchChoices": {
+      "fighter-wing-alpha": {
+        "sourceId": "fighter-wing-alpha",
+        "status": "launched",
+        "turn": 2,
+        "attackId": "wolf-attack-afc4e514-0d2b-447a-902e-bb152930eb81",
+        "revision": 2,
+        "actorUid": "wing-captured",
+        "actorRoleId": "wing-commander",
+        "requestId": "16adca63-0589-47ef-b4d8-f540789493a8"
+      },
+      "fighter-wing-bravo": {
+        "sourceId": "fighter-wing-bravo",
+        "status": "launched",
+        "turn": 2,
+        "attackId": "wolf-attack-afc4e514-0d2b-447a-902e-bb152930eb81",
+        "revision": 3,
+        "actorUid": "wing-captured",
+        "actorRoleId": "wing-commander",
+        "requestId": "fb609349-e0be-4a0d-9e3f-6d5e6af21ea2"
+      }
+    },
+    "aegisFighterWingState": {
+      "type": "aegis-fighter-wing-combat-state",
+      "attackId": "wolf-attack-afc4e514-0d2b-447a-902e-bb152930eb81",
+      "cycle": 2,
+      "revision": 2,
+      "wings": {
+        "fighter-wing-alpha": {
+          "fighters": 4,
+          "launched": true,
+          "mediumResolved": false,
+          "shortResolved": false,
+          "losses": 0
+        },
+        "fighter-wing-bravo": {
+          "fighters": 4,
+          "launched": true,
+          "mediumResolved": false,
+          "shortResolved": false,
+          "losses": 0
+        }
+      }
+    },
+    "revision": 3,
+    "updatedAt": {
+      "_seconds": 1791440177,
+      "_nanoseconds": 636000000
+    }
+  },
+  "pdfWing": {
+    "type": "pdf-escort-fighter-wing-state",
+    "revision": 0,
+    "attackId": "wolf-attack-afc4e514-0d2b-447a-902e-bb152930eb81",
+    "attackCycle": 2,
+    "wingId": "pdf-escort-fighter-wing",
+    "capacity": 4,
+    "fighters": 4,
+    "launched": false,
+    "mediumResolved": false,
+    "mediumActionFighterIndexes": [],
+    "shortResolved": false,
+    "shortRollFighterIndexes": [],
+    "losses": 0,
+    "mission": {
+      "eligible": true,
+      "requiresFuel": false,
+      "bonuses": {
+        "searchAndRescue": 2,
+        "salvage": 1
+      }
+    }
+  }
+}
