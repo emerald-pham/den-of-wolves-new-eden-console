@@ -33,8 +33,13 @@ export async function runRingWorkflow(operations) {
  await operations.arrive();await operations.repairRing();await operations.crossAndRecover();
  await operations.finishPassages();await operations.sabotageAndClose();
 }
-export function stationCombatConsoles(){return ['jump-drive','fighter-wing-alpha','fighter-wing-bravo'];}
-export async function readStationLiberation(readDocument,root,{groupId,coordinate}){const marker=root.candidateStationLiberations?.[`${groupId}:${coordinate}`];assert.ok(marker);return marker;}
+export const stationBoardingReadEndpoint='readWolfBoardingDefenceChoice';
+export async function runStationPaidArrivals(ships,{grant,jump}){for(const ship of ships)await jump(ship);}
+export function beginStationCombatWing(original,current){assertSparseStationWing(current,original);return original;}
+export function assertStationNavigation(navigation,ships,coordinate){return assertRingNavigation(navigation.data(),ships,coordinate);}
+export function stationActivationContext(input){return {code:'P',...input,readRoot:input.recordRoot};}
+export function stationCombatConsoles(){return ['jump-drive','fighter-bay-alpha','fighter-bay-bravo'];}
+export async function readStationLiberation(readDocument,root,expected){const require=createRequire(new URL('../functions/package.json',import.meta.url));const {parseCandidateStationLiberations}=require('../functions/lib/candidateStationLiberation.js');const markers=parseCandidateStationLiberations(await readDocument('serverState/candidateStationLiberations'));const marker=markers[`${expected.groupId}:${expected.coordinate}`];assert.ok(marker);for(const key of ['sessionId','groupId','coordinate','sourceId','cycle'])assert.equal(marker[key],expected[key]);assert.equal(marker.cycle,root.currentTurn);return marker;}
 export function minimumStationPlan(){return {actualAuthenticatedActors:2,configuredRoles:13,browserProcesses:1,browserContexts:2,hardCapMs:1200000,probeFamily:'station-success',forcedOutcome:false};}
 export async function runStationWorkflow(operations){await operations.setup();await operations.stationArrivalMaintenance();await operations.stationArrival();await operations.advance(2);await operations.stationCombatMaintenance();await operations.stationCombat();await operations.stationActivate();await operations.stationEnding();}
 export function minimumPursuitClosurePlan(){return {actualAuthenticatedActors:2,configuredRoles:13,browserProcesses:1,browserContexts:2,hardCapMs:300000,probeFamily:'pursuit-closure',nClosedHistoryObserved:false};}
@@ -624,15 +629,15 @@ async function enterRole(surface,label){
   },
   async stationArrival(){
    await mark('actual paid Station arrival and genuine Wing berth');
-   for(const shipId of ships){const before=await recordRoot(),result=await sdk(gm,'jumpShip',{sessionId:sid,instanceId:gm1Instance,shipId,destination:coordinate,requestId:crypto.randomUUID()});assertRingPaidArrival(result,before,await recordRoot(),shipId);}
-   const nav=await db.doc(`sessions/${sid}/serverState/navigation`).get();assertRingNavigation(nav.data(),ships,coordinate);
+   await runStationPaidArrivals(ships,{grant,jump:async shipId=>{const before=await recordRoot(),result=await sdk(gm,'jumpShip',{sessionId:sid,instanceId:gm1Instance,shipId,destination:coordinate,requestId:crypto.randomUUID()});assertRingPaidArrival(result,before,await recordRoot(),shipId);}});
+   const nav=await db.doc(`sessions/${sid}/serverState/navigation`).get();assertStationNavigation(nav,ships,coordinate);
    const wing=await fullMember(recipient);assertSparseStationWing(wing,wing);assert.equal(wing.fleetGroupId,groupId);evidence.stationWingOriginal=wing;
    claims.push('Six real charged paid P arrivals; normal movement establishes exact original Wing AEGIS memberShipIds berth');
   },
   async stationCombatMaintenance(){
    await mark('legitimate Station Cycle2 maintenance and actual fighter charges');
    for(const ship of ships)await maintain(ship,ship==='aegis'?stationCombatConsoles():['jump-drive']);
-   await coordination(2);
+   await coordination(2);evidence.stationWingOriginal=beginStationCombatWing(evidence.stationWingOriginal,await fullMember(recipient));
   },
   async stationCombat(){
    await mark('source Station combat with real Wing choices and ordinary GM composition');
@@ -658,7 +663,7 @@ async function enterRole(surface,label){
       if(await button.isVisible()&&await button.isEnabled()){await action(recipient,'commitWolfFighterRangeActionChoice',()=>button.click());return;}
      }
     }else if(current.currentStep==='boarding'){
-     const view=await sdk(recipient,'readWolfBoardingDefenceChoice',{sessionId:sid});assert.equal(view.sessionId,sid);
+     const view=await sdk(recipient,stationBoardingReadEndpoint,{sessionId:sid});assert.equal(view.sessionId,sid);
      if(view.type==='wolf-boarding-defence-choice-view'&&view.choiceStatus==='pending'){
       assert.equal(view.turn,current.turn);assert.equal(view.revision,current.revision);assert.equal(view.targetShipId,'aegis');assert.ok(Number.isSafeInteger(view.availableSecurityTeams)&&view.availableSecurityTeams>=0);
       const panel=recipient.page.getByRole('region',{name:/ boarding defence$/i}).filter({has:recipient.page.getByRole('button',{name:'Commit defence',exact:true})});await panel.getByRole('combobox').selectOption(String(view.availableSecurityTeams));await action(recipient,'commitWolfBoardingDefenceChoice',()=>panel.getByRole('button',{name:'Commit defence',exact:true}).click());return;
@@ -679,7 +684,7 @@ async function enterRole(surface,label){
   },
   async stationActivate(){
    await mark('existing tested sparse activation callback after actual liberation');for(const ship of ships)await repair(ship);
-   const before=await recordRoot();const result=await runMinimumCandidateSuccessProbe({code:'P',gm,wing:{...recipient,observe:()=>fullMember(recipient)},sessionId:sid,groupId,coordinate,readRoot:recordRoot,selectGmShip:grant,deadlineAt:Math.min(Date.now()+60000,workEnd),configuredRoleCount:13});
+   const before=await recordRoot();const result=await runMinimumCandidateSuccessProbe(stationActivationContext({gm,wing:{...recipient,observe:()=>fullMember(recipient)},sessionId:sid,groupId,coordinate,recordRoot,selectGmShip:grant,deadlineAt:Math.min(Date.now()+60000,workEnd),configuredRoleCount:13}));
    evidence.stationActivation=result;assert.equal((await recordRoot()).debriefSnapshot.candidate.code,'P');claims.push('Unique real available Reactors consumed through current GM scoped grants; actual18+ capacity triggers immutable P success');
   },
   async stationEnding(){
