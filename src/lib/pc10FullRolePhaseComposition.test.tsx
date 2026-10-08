@@ -323,6 +323,17 @@ it('standalone gameplay retains Team1 and the existing original research without
   expect(f.counts()).toEqual({ uiPhaseClicks: 0, uiResearchClicks: 1, exactReplays: 1, readCalls: 4 });
   expect(f.outcome().status).toBe('completed');
 });
+it('the real research proof records physical crosses separately from earned marks after a confirmed painted receipt', async () => {
+  const f = fixture();
+  await f.originalResearch();
+  const track = f.workspace().tracks.find(value => value.trackId === 'wolf-agent-detector')!;
+  expect(track.crossedBoxes).toBe(2);
+  expect((f.report.branches as Row)['detector-research-cross']).toMatchObject({
+    status: 'committed', researchRevision: 1, crossedBoxes: track.crossedBoxes,
+    earnedMarks: 1, exactSourceAndRenderedReceipt: true,
+  });
+  expect(f.counts()).toEqual({ uiPhaseClicks: 0, uiResearchClicks: 1, exactReplays: 1, readCalls: 4 });
+});
 it.each([undefined, null, true, 'ending'])('phase-owned role mode rejects missing/noncallable runEnding %s before I/O', runEnding => {
   expect(() => config({ gameplayOnly: false, gameplayManagesPhases: true, runEnding })).toThrow(/callback|function|ending/i);
 });
