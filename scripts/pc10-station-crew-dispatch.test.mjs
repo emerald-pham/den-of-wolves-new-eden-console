@@ -25,6 +25,12 @@ function stationPhaseEnvelope(actor, phaseRevision = actor.turnStatePhaseRevisio
   } };
 }
 
+function stationTeamPhaseEnvelope(actor, phaseRevision) {
+  const team = { ...actor, airspace: 'restricted', turnStatePhase: 'team',
+    turnStatePhaseRevision: phaseRevision, turnStateEndsAt: actor.turnPhaseTeamPhaseEndsAt };
+  return stationPhaseEnvelope(team, phaseRevision);
+}
+
 function surface(roleId, response, { entitledShipId = 'icebreaker', path = '/ships/icebreaker/roles/icebreaker-miner',
   responses = {}, defenceOptions = ['0', '1', '2'], profileRoleId = roleId,
   ownerReturnHref = '/ships/icebreaker/roles/icebreaker-miner', onLinkWait } = {}) {
@@ -694,6 +700,8 @@ test('rejects a mixed restricted/coordination pair during lock readiness', async
   };
   const opts = options([{ roleId: pdf.label, surface: pdf }], initial);
   opts.readAttack = async () => latest;
+  const authoritativeTeam = stationTeamPhaseEnvelope(pdf.testActor, 2);
+  opts.readTurnState = async () => structuredClone(authoritativeTeam);
   let failure;
   try { await dispatchStationCrewChoice(initial, opts); } catch (error) { failure = error; }
 
@@ -704,7 +712,7 @@ test('rejects a mixed restricted/coordination pair during lock readiness', async
   assert.deepEqual(pdf.effects.clicks, []);
 });
 
-test('rejects a phaseRevision jump beyond the exact declaration-derived increment', async () => {
+test('rejects a member phaseRevision newer than the pinned authoritative Team phase', async () => {
   const initial = { ...attack('targeting'), airspaceLocked: false };
   const pdf = surface('refinery-124-pdf-colonel', { type: 'pdf-escort-wing-launch-view',
     sessionId, turn: 3, revision: 8, wingRevision: 4, launched: false, eligible: true });
@@ -722,10 +730,12 @@ test('rejects a phaseRevision jump beyond the exact declaration-derived incremen
   };
   const opts = options([{ roleId: pdf.label, surface: pdf }], initial);
   opts.readAttack = async () => latest;
+  const authoritativeTeam = stationTeamPhaseEnvelope(pdf.testActor, 2);
+  opts.readTurnState = async () => structuredClone(authoritativeTeam);
   let failure;
   try { await dispatchStationCrewChoice(initial, opts); } catch (error) { failure = error; }
 
-  assert.match(failure?.message ?? '', /phaseRevision|turnState phase revision/);
+  assert.match(failure?.message ?? '', /phaseRevision|turnState phase revision|advance beyond the pinned current server phase/);
   const [held] = heldProofFailureObservations(failure);
   assert.equal(held.operation, 'station-crew-lock-readiness');
   assert.deepEqual(pdf.effects.reads, []);
@@ -736,14 +746,13 @@ test('rejects restricted-to-lifted restoration after scope freeze inside the str
   const current = attack('targeting');
   const pdf = surface('refinery-124-pdf-colonel', { type: 'pdf-escort-wing-launch-view',
     sessionId, turn: 3, revision: 8, wingRevision: 4, launched: false, eligible: true });
-  let strictSamples = 0;
-  pdf.observe = async () => ({ ...pdf.testActor });
-  pdf.page.evaluate = async () => {
-    strictSamples++;
-    if (strictSamples === 4) pdf.testActor.airspace = 'lifted';
-    return { ...pdf.testActor, ...pdf.testAuthority };
-  };
   const opts = options([{ roleId: pdf.label, surface: pdf }], current);
+  const pinnedSource = structuredClone(stationPhaseEnvelope(pdf.testActor));
+  let phaseReads = 0;
+  opts.readTurnState = async () => {
+    if (++phaseReads === 3) pdf.testActor.airspace = 'lifted';
+    return structuredClone(pinnedSource);
+  };
   let failure;
   try { await dispatchStationCrewChoice(current, opts); } catch (error) { failure = error; }
 
@@ -760,14 +769,13 @@ test('rejects a post-freeze turnStatePhase change inside the strict observer fen
   const current = attack('targeting');
   const pdf = surface('refinery-124-pdf-colonel', { type: 'pdf-escort-wing-launch-view',
     sessionId, turn: 3, revision: 8, wingRevision: 4, launched: false, eligible: true });
-  let strictSamples = 0;
-  pdf.observe = async () => ({ ...pdf.testActor });
-  pdf.page.evaluate = async () => {
-    strictSamples++;
-    if (strictSamples === 4) pdf.testActor.turnStatePhase = 'coordination';
-    return { ...pdf.testActor, ...pdf.testAuthority };
-  };
   const opts = options([{ roleId: pdf.label, surface: pdf }], current);
+  const pinnedSource = structuredClone(stationPhaseEnvelope(pdf.testActor));
+  let phaseReads = 0;
+  opts.readTurnState = async () => {
+    if (++phaseReads === 3) pdf.testActor.turnStatePhase = 'coordination';
+    return structuredClone(pinnedSource);
+  };
   let failure;
   try { await dispatchStationCrewChoice(current, opts); } catch (error) { failure = error; }
 
