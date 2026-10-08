@@ -2,19 +2,12 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { EventEmitter } from 'node:events';
 import { observeUiReceipt } from './pc10-browser-ui-receipt.mjs';
+import { runP181StarlightMovementScoutUiProof } from './pc10-starlight-movement-scout-ui-proof.mjs';
 
 // Keep the pre-implementation RED behavioral: the test invokes the expected
 // P181 consumer transition with controlled observers and receipts. A missing
 // implementation leaves the actual action trace empty; import failure alone
 // is not the assertion under test.
-let runProof;
-try {
-  ({ runP181StarlightMovementScoutUiProof: runProof } =
-    await import('./pc10-starlight-movement-scout-ui-proof.mjs'));
-} catch {
-  runProof = undefined;
-}
-
 const originalRoleIds = Object.freeze([
   'admiral', 'wing-commander', 'icebreaker-miner', 'shepherd-scientist',
   'quellon-explorer', 'refinery-124-pdf-colonel',
@@ -167,7 +160,7 @@ function makeConsumer() {
 
 test('controlled shared-receipt IO consumes one original Starlight movement and private scout flow', async () => {
   const { io, trace } = makeConsumer();
-  const result = await runProof?.({
+  const result = await runP181StarlightMovementScoutUiProof({
     initial: { sessionId: 'normal-session', phase: 'lobby', cycle: 0, setupConfirmed: true,
       playerCount: 8, chartId: 'A', fullGameDemo: null, activeRoleIds: originalRoleIds },
     started: { sessionId: 'normal-session', phase: 'active', cycle: 1, uidHash: 'b'.repeat(16),
@@ -201,10 +194,10 @@ test('controlled shared-receipt IO consumes one original Starlight movement and 
     'Recovery uses the original role chooser and actor after a normal reload.');
 });
 
-if (runProof) test('controlled actor observer stops on lost live berth before a source mutation', async () => {
+test('controlled actor observer stops on lost live berth before a source mutation', async () => {
   const { io, trace, state } = makeConsumer();
   state.actor.activeConsoleRoleId = null;
-  await assert.rejects(runProof?.({
+  await assert.rejects(runP181StarlightMovementScoutUiProof({
     initial: { sessionId: 'normal-session', phase: 'lobby', cycle: 0, setupConfirmed: true,
       playerCount: 8, chartId: 'A', fullGameDemo: null, activeRoleIds: originalRoleIds },
     started: { sessionId: 'normal-session', phase: 'active', cycle: 1, uidHash: 'b'.repeat(16),
@@ -220,7 +213,6 @@ if (runProof) test('controlled actor observer stops on lost live berth before a 
   }), /current.*Wing Commander|berth|authority/i);
   assert.equal(trace.some(item => item.endpoint), false, 'A missing current console/station must not trigger a request.');
 });
-else test('lost-live-berth negative guard is exercised after the consumer runner is implemented', t => t.skip('Main behavioral RED records the missing transition before implementation.'));
 
 test('fresh Cycle 0 consumer runs normal setup, assignment, start and briefing clear before movement', async () => {
   const { io, trace, receipt } = makeConsumer();
@@ -256,11 +248,35 @@ test('fresh Cycle 0 consumer runs normal setup, assignment, start and briefing c
 
   let failure;
   try {
-    await runProof?.({ initial: freshInitial, started: undefined, roster: undefined, gm: undefined,
+    await runP181StarlightMovementScoutUiProof({ initial: freshInitial, started: undefined, roster: undefined, gm: undefined,
       expectedWingCommander: undefined, io, absoluteDeadlineMs: Date.now() + 15 * 60_000 });
   } catch (error) { failure = error; }
   assert.deepEqual(trace.filter(item => ['confirmSetup', 'assignRole', 'startGame', 'clearTurnAdvanceInterstitial']
     .includes(item.endpoint)).map(item => item.endpoint),
   ['confirmSetup', 'assignRole', 'startGame', 'clearTurnAdvanceInterstitial'],
   `The executable normal-start transition must run from fresh Cycle 0 before readiness is required; early stop: ${failure?.message ?? 'none'}`);
+});
+
+test('first normal-start failure triggers one bounded owned cleanup and remains the surfaced error', async () => {
+  const { io } = makeConsumer();
+  const firstFailure = new Error('first original Cycle 0 start failure');
+  let cleanupCalls = 0, cleanupInput;
+  io.prepareNormalSession = async () => { throw firstFailure; };
+  io.cleanupOwnedResources = async value => {
+    cleanupCalls++;
+    cleanupInput = value;
+    return { status: 'owned-cleanup-complete' };
+  };
+  let surfaced;
+  try {
+    await runP181StarlightMovementScoutUiProof({
+      initial: { sessionId: 'normal-session', phase: 'lobby', cycle: 0, setupConfirmed: false,
+        playerCount: null, chartId: null, activeRoleIds: [], fullGameDemo: null },
+      started: undefined, roster: undefined, gm: undefined, expectedWingCommander: undefined,
+      io, absoluteDeadlineMs: Date.now() + 15 * 60_000,
+    });
+  } catch (error) { surfaced = error; }
+  assert.equal(cleanupCalls, 1, 'Cleanup runs once after an original startup failure.');
+  assert.equal(cleanupInput.firstError, firstFailure);
+  assert.equal(surfaced, firstFailure, 'Cleanup does not replace the original failure.');
 });
