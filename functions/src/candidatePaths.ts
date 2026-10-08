@@ -1,4 +1,5 @@
-import { ENDEAVOUR_RESEARCH_TRACKS } from './endeavourResearch';
+import { ENDEAVOUR_RESEARCH_TRACKS, endeavourResearchTrack,
+  type EndeavourResearchTrackId } from './endeavourResearch';
 
 export type CandidateCode = 'N' | 'O' | 'P';
 export type CandidateEdition = 'home' | 'deluxe';
@@ -171,8 +172,8 @@ export function resolveCandidateAction(a: CandidateAuthority, original: Candidat
     if (site.repairedAt || command.trackIds!.some(track => site.researchIds.includes(track)) ||
         site.researchIds.length + command.trackIds!.length > 5) return fail('Research contributions must be distinct and cannot be used twice.');
     if (command.trackIds!.some(track => {
-      const progress = a.research[track] ?? 0;
-      return edition === 'home' ? progress < 4 : progress !== ENDEAVOUR_RESEARCH_TRACKS[track as keyof typeof ENDEAVOUR_RESEARCH_TRACKS].materialCosts.length;
+      const view = endeavourResearchTrack(a.research, track as EndeavourResearchTrackId);
+      return edition === 'home' ? view.crossedBoxes < 4 : !view.complete;
     })) return fail(edition === 'home' ? 'Each lab track requires at least four crosses.' : 'Each technology must be fully completed.');
     site.researchIds.push(...command.trackIds!);
     calculation.researchIds = [...command.trackIds!]; summary = `${site.researchIds.length}/5 distinct Ring research tracks committed.`;
@@ -260,8 +261,10 @@ export function candidateWorkspace(a: CandidateAuthority, state: CandidateState)
   const edition = state.edition ?? 'home';
   const ringMaterialsRequired = edition === 'deluxe' ? 15 : 10;
   const editionLocked = Object.values(state.sites).some(site => site.code === 'N' || site.code === 'O');
-  const researchEligible = (track: string, crosses: number) => edition === 'home' ? crosses >= 4 :
-    Object.hasOwn(ENDEAVOUR_RESEARCH_TRACKS, track) && crosses === ENDEAVOUR_RESEARCH_TRACKS[track as keyof typeof ENDEAVOUR_RESEARCH_TRACKS].materialCosts.length;
+  const researchEligible = (track: string) => {
+    const view = endeavourResearchTrack(a.research, track as EndeavourResearchTrackId);
+    return edition === 'home' ? view.crossedBoxes >= 4 : view.complete;
+  };
   return { type: 'candidate-workspace' as const, sessionId: a.sessionId, groupId: a.groupId,
     cycle: a.cycle, revision: state.revision, edition, editionLocked,
     paths: a.discovered.map(({ code, coordinate }) => {
@@ -303,7 +306,7 @@ export function candidateWorkspace(a: CandidateAuthority, state: CandidateState)
         materials: site.materials, materialsRequired: ringMaterialsRequired, researchCount: site.researchIds.length,
         researchRequired: 5, shuttleCommitted: !!site.shuttleId, repaired: !!site.repairedAt,
         researchChoices: code === 'N' && (a.actor.research || a.actor.gm) ? Object.entries(a.research)
-          .filter(([track, crosses]) => researchEligible(track, crosses) && !site.researchIds.includes(track))
+          .filter(([track]) => researchEligible(track) && !site.researchIds.includes(track))
           .map(([track]) => ({ id: track, name: ENDEAVOUR_RESEARCH_TRACKS[track as keyof typeof ENDEAVOUR_RESEARCH_TRACKS].name })) : [],
         engineeringShuttles: code === 'N' ? a.engineeringShuttles.filter(craft => craft.available &&
           (a.actor.gm || a.actor.shuttleIds.includes(craft.id))) : [],
