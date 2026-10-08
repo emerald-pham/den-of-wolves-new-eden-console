@@ -172,12 +172,27 @@ for (const name of ['private attack permission', 'phase transport']) {
   test(`actual Wing ${name} error remains fatal alongside pending progress`, async () => {
     const f = fixture();
     const original = Error(name);
-    f.dependencies[name.startsWith('private') ? 'readAttack' : 'readTurnState'] = async () => { throw original; };
+    const key = name.startsWith('private') ? 'readAttack' : 'readTurnState', read = f.dependencies[key];
+    f.dependencies[key] = async (...args) => { if (f.counts().insideCapture) throw original; return read(...args); };
     await assert.rejects(f.invoke(), error => error === original);
     assert.equal(f.counts().clicked, 0);
     assert.deepEqual(f.observations, []);
   });
 }
+
+test('actual runner forwards Wing cancellation bookends and returns to fresh outer source before any crew choice', async () => {
+  const f = fixture(), retained = [];
+  const value = await runner.chooseStationCombatActor(f.current, { deadlineAt: f.deadlineAt,
+    chooseWing: (_current, options) => f.invoke(options),
+    chooseCrew: async () => { throw Error('A canceled stale Wing choice must return to the outer source read.'); },
+    onSourceProgress: async observation => retained.push(observation),
+  });
+  assert.equal(value, undefined);
+  assert.equal(f.counts().clicked, 0);
+  assert.equal(retained.length, 1);
+  assert.equal(retained[0].deadlineAt, f.deadlineAt);
+  assert.equal(retained[0].actionCredit, false);
+});
 
 for (const step of ['targeting', 'medium-range', 'short-range']) {
   for (const status of ['committed', 'replayed']) {
