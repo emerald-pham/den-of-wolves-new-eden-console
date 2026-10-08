@@ -136,7 +136,8 @@ it('shows Arbour and Wolf Cult variable intel only when its live recipient proje
     suppliesCoordinate: '0202', agentUid: 'u3', codeWord: 'private-token', label: 'WOLF INTEL',
   });
   const second = render(<PrivateLoyaltyPanel />);
-  expect(screen.getByText('Code word // private-token')).toBeVisible();
+  expect(within(screen.getByRole('region', { name: 'Private loyalty card' }))
+    .getByText('Code word // private-token')).toBeVisible();
   second.unmount();
 
   useSessionStore.getState().setWolfCultIntelligence({
