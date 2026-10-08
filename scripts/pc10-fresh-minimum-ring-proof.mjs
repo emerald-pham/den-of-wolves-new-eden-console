@@ -40,6 +40,7 @@ export function validateRingAllocation(input) {
  for(const key of ['sourceCommit','runnerSha256','compiledIndexSha256','compiledTreeSha256'])assert.match(input[key]??'',key==='sourceCommit'?/^[0-9a-f]{40}$/:/^[0-9a-f]{64}$/,key);
  return input;
 }
+export function expectedRingRecoveryReply(original) { return {...original,status:'replayed'}; }
 export function finalizeRingEvidence(evidence, cleanup, originalFailure) {
  evidence.cleanup=cleanup;
  if(cleanup.errors.length){
@@ -296,7 +297,7 @@ async function installLossAck(surface,endpoint,waitCommitted,operationDeadlineAt
         if(reply.error)throw reply.error;healthy();
         assert.equal(reply.value.status(),200,'Actual recovering POST must succeed.');
         const body=await bounded(reply.value.json(),remaining(),'Original recovering POST body deadline expired.');
-        const expected=(endpoint==='requestScout'||endpoint==='transferShuttleCargoCommand'||endpoint==='rechargeHostConsoleFromShuttle')?{...record.serverReply,status:'replayed'}:record.serverReply;
+        const expected=expectedRingRecoveryReply(record.serverReply);
         assert.deepEqual(body?.result,expected,'Actual recovering POST must equal the original durable receipt.');healthy();
         const observed={httpStatus:reply.value.status(),result:body.result,originalRequestIdentityMatched:true};
         record.recoveringReplies.push(observed);record.successfulRecoveries++;settleRecovery(observed);
