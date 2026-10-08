@@ -419,3 +419,29 @@ Next allocated render command uses the existing four-case regression with
 review remain open. The independently reviewed gameplay adapter is ready for a
 separate bounded runtime allocation. Prior Actual10/11 failures remain evidence;
 no source fixture grants live Auth, rules, navigation or mutation proof.
+
+
+## Rendered GREEN and normal-flow Actual12
+
+The fresh allocated four-case render passed on built candidate
+`0032197028451e8ac5dc8ae51e8c338545804f26`; evidence is
+`/tmp/dow-pc11-layout-green-20261008/result.json`. Landscape offer copy is
+252px; enlarged long-name copy is 239.4px with no overflow. Actual painted
+Courier-Bold, computed 14px/21px and enlarged 17.5px/26.25px metrics, and
+keyboard reachability were captured. Independent visual review found no
+layout/typography blocker. The transient focused skip-link overlay remains a
+synthetic-capture observation, not a gameplay or production claim.
+
+Actual12 source commit `9edef7137a407adadc281701b39cffa6f8e40446` earned normal
+GM create/Auth/consent, live owned GM connection, and legal 12-role setup.
+It stopped at the Owner admission predicate, which incorrectly required
+`casting`; actual released setup-confirmed Cycle0 remains `lobby`. No trade or
+Philia proof was earned. Complete wait-predicate/source-transition review and
+a discriminating native regression are required before another gameplay run.
+
+Runtime closed at 2026-10-08T03:25:45.907Z: all three browsers closed, both
+admitted Auth accounts and owned pointers removed, session/join/root records
+absent, zero remaining scope/listeners and no cleanup errors. Launcher elapsed
+115323ms, within allocation. Evidence and concise handback:
+`/tmp/dow-pc11-normal-start-actual12-20261008/HANDBACK.json`.
+The remaining capacity was released; no runtime restart, push or deployment.
