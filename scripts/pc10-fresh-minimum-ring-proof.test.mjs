@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { minimumRingPlan, runRingWorkflow } from './pc10-fresh-minimum-ring-proof.mjs';
+import { minimumRingPlan, runRingWorkflow, selectStationCombatCrew } from './pc10-fresh-minimum-ring-proof.mjs';
 
 test('fresh Ring plan has three entitled Auth identities and zero unused-seat accounts', () => {
   const plan = minimumRingPlan();
@@ -35,6 +35,43 @@ test('first prerequisite failure stops the workflow before candidate outcomes', 
     arrive: async () => trace.push('arrive') };
   await assert.rejects(runRingWorkflow(operations), /real research unavailable/);
   assert.deepEqual(trace, ['setup', 'research']);
+});
+
+test('station consumer waits for normal browser feed after authoritative server loss before removing the owner from choices', async () => {
+  const actor = { uid: 'pdf', roleId: 'refinery-124-pdf-colonel',
+    original: { uidHash: 'pdf-hash', sessionId: 'sid', fleetGroupId: 'fleet-1',
+      connectionGeneration: 4, documentTimeOrigin: 10000, identityHydrationRevision: 2 } };
+  const escapeState = { status: 'pending', shipId: 'refinery-124', destructionEventId: 'wolf-loss-1', revision: 3 };
+  const root = { shipDamage: { 'refinery-124': { damagedSystemIds: ['reactor'], destroyed: true } } };
+  const player = { uid: 'pdf', sessionId: 'sid', role: 'player', assignedRoleId: actor.roleId,
+    activeConsoleRoleId: null, seatId: actor.roleId, fleetGroupId: 'fleet-1', connectionGeneration: 4,
+    connected: true, escapeState };
+  const commonMember = { hasAuth: true, sameActor: true, uidHash: 'pdf-hash', sessionId: 'sid', meSessionId: 'sid',
+    profileRoleId: null, profileSessionId: null, playerRole: 'player', assignedRoleId: actor.roleId,
+    seatId: actor.roleId, fleetGroupId: 'fleet-1', connectionGeneration: 4, documentTimeOrigin: 10000,
+    identityHydrationRevision: 2, connection: 'live', freshness: 'server', kicked: false,
+    replacementRoleId: null, replacementStatus: null, invalidFields: [] };
+  const browserBeforeNormalFeed = { ...commonMember, activeConsoleRoleId: actor.roleId,
+    escapeLocked: false, escapeState: null, browserProjectionConsistent: true };
+  const browserAfterNormalFeed = { ...commonMember, activeConsoleRoleId: null,
+    escapeLocked: true, escapeState, browserProjectionConsistent: true };
+  const browserReads = [browserBeforeNormalFeed, browserAfterNormalFeed];
+  const reads = { root: 0, players: 0, member: 0 }, waits = [], inactive = [];
+
+  const active = await selectStationCombatCrew([actor], {
+    deadlineAt: Date.now() + 1000,
+    readRoot: async () => { reads.root++; return root; },
+    readPlayers: async () => { reads.players++; return [player]; },
+    readMember: async () => browserReads[Math.min(reads.member++, browserReads.length - 1)],
+    wait: async milliseconds => { waits.push(milliseconds); },
+    onInactive: (value, member) => inactive.push({ roleId: value.roleId, escapeState: member.escapeState }),
+  });
+
+  assert.deepEqual(active, []);
+  assert.deepEqual(inactive, [{ roleId: actor.roleId, escapeState }]);
+  assert.deepEqual(reads, { root: 2, players: 2, member: 2 });
+  assert.equal(waits.length, 1);
+  assert.ok(waits[0] > 0 && waits[0] <= 200);
 });
 
 import * as proof from './pc10-fresh-minimum-ring-proof.mjs';

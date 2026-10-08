@@ -65,10 +65,12 @@ test('committed Wing action cannot dispatch another actor against the old revisi
 
 // Synthetic owned observation only; no native survival or relocation credit.
 test('escaped owner of an actually destroyed host retains custody but receives no future combat choice',()=>{
- const actor={uid:'pdf',roleId:'refinery-124-pdf-colonel',original:{uidHash:'pdf-hash',sessionId:'sid',fleetGroupId:'fleet-1'}};
- const root={shipDamage:{'refinery-124':{destroyed:true}}},player={uid:'pdf',sessionId:'sid',role:'player',assignedRoleId:actor.roleId,activeConsoleRoleId:null,fleetGroupId:'fleet-1',escapeState:{status:'pending',shipId:'refinery-124',destructionEventId:'attack-original',revision:1}};
- const member={hasAuth:true,sameActor:true,uidHash:'pdf-hash',sessionId:'sid',meSessionId:'sid',profileRoleId:null,profileSessionId:null,playerRole:'player',assignedRoleId:actor.roleId,activeConsoleRoleId:null,fleetGroupId:'fleet-1',connection:'live',freshness:'server',escapeLocked:true,kicked:false,replacementRoleId:null,replacementStatus:null,invalidFields:[]};
+ const actor={uid:'pdf',roleId:'refinery-124-pdf-colonel',original:{uidHash:'pdf-hash',sessionId:'sid',fleetGroupId:'fleet-1',connectionGeneration:4,documentTimeOrigin:10000,identityHydrationRevision:2}};
+ const escapeState={status:'pending',shipId:'refinery-124',destructionEventId:'attack-original',revision:1};
+ const root={shipDamage:{'refinery-124':{destroyed:true}}},player={uid:'pdf',sessionId:'sid',role:'player',assignedRoleId:actor.roleId,activeConsoleRoleId:null,seatId:actor.roleId,fleetGroupId:'fleet-1',connectionGeneration:4,connected:true,escapeState};
+ const member={hasAuth:true,sameActor:true,uidHash:'pdf-hash',sessionId:'sid',meSessionId:'sid',profileRoleId:null,profileSessionId:null,playerRole:'player',assignedRoleId:actor.roleId,activeConsoleRoleId:null,seatId:actor.roleId,fleetGroupId:'fleet-1',connectionGeneration:4,documentTimeOrigin:10000,identityHydrationRevision:2,connection:'live',freshness:'server',escapeLocked:true,escapeState,browserProjectionConsistent:true,kicked:false,replacementRoleId:null,replacementStatus:null,invalidFields:[]};
  assert.equal(runner.stationInactiveOwner(actor,root,player,member),true);
  for(const patch of [{uid:'foreign'},{escapeState:null},{escapeState:{...player.escapeState,shipId:'icebreaker'}},{activeConsoleRoleId:actor.roleId}])assert.throws(()=>runner.stationInactiveOwner(actor,root,{...player,...patch},member));
  assert.throws(()=>runner.stationInactiveOwner(actor,root,player,{...member,freshness:'cache'}));
+ for(const patch of [{escapeState:{...escapeState,destructionEventId:'other-event'}},{escapeState:{...escapeState,revision:2}},{escapeState:{...escapeState,status:'fled'}},{connectionGeneration:5},{documentTimeOrigin:10001},{browserProjectionConsistent:false}])assert.throws(()=>runner.stationInactiveOwner(actor,root,player,{...member,...patch}));
 });
