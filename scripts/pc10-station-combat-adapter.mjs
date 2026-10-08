@@ -17,3 +17,8 @@ export async function runSparseStationCombat({deadlineAt,readAttack,assertActors
   await choose(current,{deadlineAt:stageDeadline});assert.ok(Date.now()<stageDeadline,'Original Station choice deadline expired.');await wait(Math.min(250,stageDeadline-Date.now()));
  }throw new Error('Original Station combat budget expired.');
 }
+export async function stationBoardingRead(current,{readChoice,readAttack,sessionId}){
+ const reply=await readChoice();assert.equal(reply.status,'committed');const view=reply.result;
+ assert.equal(view.sessionId,sessionId);if(view.choiceStatus==='pending')assert.equal(view.revision,current.revision);
+ return {kind:'choice',view};
+}
