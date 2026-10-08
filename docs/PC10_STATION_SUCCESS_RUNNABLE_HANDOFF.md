@@ -22,3 +22,21 @@ Integration overlaps: shared `scripts/pc10-fresh-minimum-ring-proof.mjs`; new P 
 
 
 Attempt1 at013eded9 earned six paid arrivals, genuine Wing berth, normal Cycle2 presentation and fighter maintenance; combat/liberation/activation did not start. The missing Target fleet group is an incorrect readiness assumption, not a product defect: GmConsole first-window availability at Cycle2 requires deferred/turn2; server index.ts enforces the same prerequisite. Observed deferral sequence RED ea56b750 precedes this proof-only correction. No historical earned evidence is replayed for qualification. A future fresh bounded P attempt still needs its own legitimate preparation because the prior synthetic session was safely deleted. New runtime allocation is required.
+
+## Self-checking runtime launch
+
+Attempt2 preserved at `/tmp/dow-pc10-evidence/station-success-2/OWNER_RESULT.json` stopped during admission because the manually reconstructed Vite command omitted `VITE_LOCAL_GM_ACCESS=1`. No P prerequisites or deferral ran. Its owned browser/account/pointer/session and runtime were cleanly removed. Attempt1 remains preserved separately.
+
+Use `scripts/pc10-station-runtime-launch.mjs` for the next freshly allocated candidate. It composes the existing `run-emulator-command.mjs` ownership wrappers and the existing `localGmAccessConfiguration` contract; no generic Auth or browser framework is introduced. It supplies all seven relevant Vite values explicitly: local GM opt-in, emulator opt-in, allocated demo project, Auth/Functions/Firestore ports and Vite port. Vite starts on the allocated loopback host with strict port selection. The earlier successful Station admission receipt has actual GM authorization/claim evidence, runtime ports and source/build bindings; it did **not** record raw launch environment. The new launcher explicitly discloses that limitation and verifies required flags against their canonical source gates, rather than claiming recovered historical flag bytes.
+
+After the parent grants a fresh allocation bound to the final launcher candidate and configures the isolated slot, use these executable commands from this worktree:
+
+```sh
+node scripts/pc10-station-runtime-launch.mjs --prepare --allocation /tmp/dow-pc10-evidence/STATION_PARENT_ALLOCATION_NEXT.json --reference /tmp/dow-pc10-evidence/station-success-1/OWNER_RESULT.json --receipt /tmp/dow-pc10-evidence/STATION_LAUNCH_NEXT.json
+node scripts/pc10-station-runtime-launch.mjs --check /tmp/dow-pc10-evidence/STATION_LAUNCH_NEXT.json
+node scripts/pc10-station-runtime-launch.mjs --emulators /tmp/dow-pc10-evidence/STATION_LAUNCH_NEXT.json
+node scripts/pc10-station-runtime-launch.mjs --vite /tmp/dow-pc10-evidence/STATION_LAUNCH_NEXT.json
+node scripts/pc10-station-runtime-launch.mjs --proof /tmp/dow-pc10-evidence/STATION_LAUNCH_NEXT.json --evidence /tmp/dow-pc10-evidence/station-success-NEXT
+```
+
+Run the two service commands in separate owned terminal sessions, wait for readiness, then run the proof. Preparation and `--check` are read-only validations plus an evidence receipt; they launch no resource. Every launch rechecks an unchanged explicit allocation, its remaining work/cleanup window, owned checkout, complete exact source/compiled bytes and configured ports before spawning. Closed attempts cannot be reused. The behavior runner and product sources remain unchanged from cc503bb0. A new source commit is needed only to bind this proof launcher and documentation. No further runtime has been started for this source-only correction.
