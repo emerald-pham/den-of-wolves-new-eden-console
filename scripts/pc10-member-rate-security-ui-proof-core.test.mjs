@@ -168,6 +168,26 @@ test('P631 denial log parser returns only allowlisted hashes and rejects extra b
   /requestHash.*64-character hash/i);
 });
 
+test('P631 member denial records reject a non-hash optional requestHash', () => {
+  const read = { type: 'security-denial', schemaVersion: 1, callableName: 'getCurrentMemberSession',
+    code: 'resource-exhausted', category: 'rate-limit', actorHash: 'a'.repeat(64),
+    sessionHash: 'b'.repeat(64), requestHash: 'PRIVATE_CANARY',
+    redactionPolicy: 'security-denial-hashed-metadata-v1' };
+  const records = parseP631SecurityDenialRecords(JSON.stringify(read));
+  assert.throws(() => assertP631RateDenialRecords(records, [{ callableName: read.callableName,
+    actorHash: read.actorHash, sessionHash: read.sessionHash }]), /requestHash.*64-character hash/i);
+});
+
+test('P631 current-member denial records omit requestHash for the one-field callable payload', () => {
+  const read = { type: 'security-denial', schemaVersion: 1, callableName: 'getCurrentMemberSession',
+    code: 'resource-exhausted', category: 'rate-limit', actorHash: 'a'.repeat(64),
+    sessionHash: 'b'.repeat(64), requestHash: 'c'.repeat(64),
+    redactionPolicy: 'security-denial-hashed-metadata-v1' };
+  const records = parseP631SecurityDenialRecords(JSON.stringify(read));
+  assert.throws(() => assertP631RateDenialRecords(records, [{ callableName: read.callableName,
+    actorHash: read.actorHash, sessionHash: read.sessionHash }]), /must omit requestHash/i);
+});
+
 test('owned journey always runs cleanup and rethrows the same first operation failure', async () => {
   const primary = new Error('first operation failure');
   const cleanupFailure = new Error('cleanup follow-up');
