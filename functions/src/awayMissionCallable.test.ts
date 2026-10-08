@@ -740,6 +740,34 @@ describe('dealPrivateInitialCards', () => {
     );
   });
 
+  it('recycles resolved mission discards for an initial deal only after the undealt deck is empty', async () => {
+    const recycledIds = ['Q♣', 'K♣'];
+    mock.documents['sessions/s1/serverState/missionDeck'] = {
+      ...deck,
+      dealtCount: 33,
+      resolvedDiscardCardIds: recycledIds,
+    };
+
+    await expect(dealPrivateInitialCards.run(request(command))).resolves.toMatchObject({
+      status: 'committed', participantCount: 2,
+    });
+
+    const handWrites = mock.set.mock.calls.filter(([ref]) => ref.path.includes('/awayMissionHands/'));
+    expect(handWrites.map(([, hand]) => hand.cardId)).toEqual(recycledIds);
+    const missionWrite = mock.set.mock.calls.find(([ref]) =>
+      ref.path === `sessions/s1/serverState/awayMissions/instances/mission-${defaultOpportunity.id}`);
+    expect(missionWrite?.[1]).toMatchObject({
+      cardIds: recycledIds,
+      recycledCardIds: recycledIds,
+      dealtFrom: 33,
+      dealtThrough: 33,
+    });
+    expect(mock.update).toHaveBeenCalledWith(
+      expect.objectContaining({ path: 'sessions/s1/serverState/missionDeck' }),
+      expect.objectContaining({ dealtCount: 33, resolvedDiscardCardIds: [] }),
+    );
+  });
+
   it('seeds reconnect lifecycle and isolated own-hand projections atomically with the first deal', async () => {
     await dealPrivateInitialCards.run(request(command));
     const mission = mock.set.mock.calls.find(([ref]) =>

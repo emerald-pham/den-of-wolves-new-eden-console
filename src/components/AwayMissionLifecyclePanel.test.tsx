@@ -178,6 +178,17 @@ describe('AwayMissionLifecyclePanel', () => {
     expect(within(panel).getByLabelText('Participant for extra card')).toBeInTheDocument();
   });
 
+  it('labels the finite mission-deck house rule and explains when extra requests stay undrawn', () => {
+    renderPanel({
+      actorUid: 'alice', isMissionLeader: true, privateState: null,
+      publicState: { ...basePublicMission, phase: 'awaiting-card-selection' },
+    });
+    const panel = screen.getByRole('region', { name: 'Away mission // mission-1' });
+    expect(within(panel).getByText(/HOUSE RULE.*finite mission deck/i)).toBeVisible();
+    expect(within(panel).getByText(/undealt cards are used first.*resolved mission discards.*unresolved.*undrawn/i))
+      .toBeVisible();
+  });
+
   it('gives the facilitator readiness and resolution controls without exposing private hands', () => {
     renderPanel({
       actorUid: 'gm', isGm: true, isMissionLeader: false, privateState: null,

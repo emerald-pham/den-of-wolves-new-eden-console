@@ -520,6 +520,127 @@ it('executes every lifecycle command, keeps the deck cursor and projections atom
   expect(store.records.get(paths().session)?.missionCraftCommitments).toEqual({});
 });
 
+it('adds hidden discards to the shared recycle pool only at the resolved mission transition', async () => {
+  const store = seededStore();
+  const commit = dependencies(store).commitAwayMissionLifecycleCommand;
+  const send = (uid: string, type: string, fields: Fields = {}) => commit(commandRequest(uid, {
+    type, requestId: `${type}-${currentRevision(store)}`, expectedRevision: currentRevision(store), ...fields,
+    ...(['openDiscards'].includes(type) ? { instanceId: 'gm-instance' } : {}),
+  }));
+
+  await send('bob', 'requestExtraCards', { count: 1 });
+  await send('alice', 'distributeExtraCard', { participantUid: 'bob', opportunityId: 'K-1' });
+  await send('gm', 'openDiscards');
+  await send('alice', 'discardCard', { cardId: ALICE_CARD });
+  await send('bob', 'discardCard', { cardId: EXTRA_CARD });
+  await send('alice', 'assignCards', { placements: [] });
+  const finalAssignment = commandRequest('bob', {
+    type: 'assignCards', requestId: 'resolve-with-discards', expectedRevision: currentRevision(store),
+    placements: [{ cardId: BOB_CARD, opportunityId: 'K-1' }],
+  });
+  const resolved = await commit(finalAssignment);
+
+  expect(resolved.publicState.status).toBe('resolved');
+  expect(store.records.get(paths().mission)?.discardedCardIds).toEqual([ALICE_CARD, EXTRA_CARD]);
+  expect(store.records.get(paths().deck)).toMatchObject({
+    dealtCount: 4,
+    resolvedDiscardCardIds: [ALICE_CARD, EXTRA_CARD],
+  });
+  const writesAfterResolve = store.committedWrites.length;
+  await expect(commit(finalAssignment)).resolves.toMatchObject({ status: 'replayed', publicState: { status: 'resolved' } });
+  expect(store.records.get(paths().deck)?.resolvedDiscardCardIds).toEqual([ALICE_CARD, EXTRA_CARD]);
+  expect(store.committedWrites).toHaveLength(writesAfterResolve);
+});
+
+it('uses remaining top cards before resolved discards, consumes recycled cards once, and replays without consuming again', async () => {
+  const store = seededStore({ siteCode: 'D' });
+  const deck = store.records.get(paths().deck)!;
+  const topCard = (deck.order as string[])[32];
+  store.records.set(paths().deck, { ...deck, dealtCount: 32, resolvedDiscardCardIds: ['J♥'] });
+  const commit = dependencies(store).commitAwayMissionLifecycleCommand;
+  const request = commandRequest('bob', {
+    type: 'requestExtraCards', requestId: 'two-extras', expectedRevision: 0, count: 2,
+  });
+  await commit(request);
+
+  await commit(commandRequest('alice', {
+    type: 'distributeExtraCard', requestId: 'extra-from-top', expectedRevision: 1,
+    participantUid: 'bob', opportunityId: 'D-1',
+  }));
+  expect(store.records.get(paths().deck)).toMatchObject({ dealtCount: 33, resolvedDiscardCardIds: ['J♥'] });
+
+  const recycledRequest = commandRequest('alice', {
+    type: 'distributeExtraCard', requestId: 'extra-from-recycle-pool', expectedRevision: 2,
+    participantUid: 'bob', opportunityId: 'D-2',
+  });
+  await commit(recycledRequest);
+  expect(store.records.get(paths().deck)).toMatchObject({ dealtCount: 33, resolvedDiscardCardIds: [] });
+  expect(store.records.get(paths().bobHand)?.lifecyclePrivateState).toMatchObject({
+    cards: [
+      { id: BOB_CARD, status: 'remaining' },
+      { id: topCard, status: 'remaining' },
+      { id: 'J♥', status: 'remaining' },
+    ],
+  });
+
+  const writesAfterRecycle = store.committedWrites.length;
+  await expect(commit(recycledRequest)).resolves.toMatchObject({ status: 'replayed' });
+  await expect(commit(commandRequest('alice', {
+    type: 'distributeExtraCard', requestId: 'extra-from-recycle-pool', expectedRevision: 3,
+    participantUid: 'bob', opportunityId: 'D-3',
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(store.records.get(paths().deck)?.resolvedDiscardCardIds).toEqual([]);
+  expect(store.committedWrites).toHaveLength(writesAfterRecycle);
+});
+
+it('leaves an undealable extra request unallocated when the undealt deck and resolved discard pool are empty', async () => {
+  const store = seededStore({ siteCode: 'D' });
+  store.records.set(paths().deck, { ...store.records.get(paths().deck)!, dealtCount: 33, resolvedDiscardCardIds: [] });
+  const commit = dependencies(store).commitAwayMissionLifecycleCommand;
+  await commit(commandRequest('bob', {
+    type: 'requestExtraCards', requestId: 'unavailable-extra-request', expectedRevision: 0, count: 1,
+  }));
+  const writesBeforeUndealableExtra = store.committedWrites.length;
+
+  await expect(commit(commandRequest('alice', {
+    type: 'distributeExtraCard', requestId: 'undealable-extra', expectedRevision: 1,
+    participantUid: 'bob', opportunityId: 'D-1',
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+
+  expect(store.records.get(paths().bobHand)?.lifecyclePrivateState?.cards).toEqual([
+    expect.objectContaining({ id: BOB_CARD, status: 'remaining' }),
+  ]);
+  expect(store.records.get(paths().deck)).toMatchObject({ dealtCount: 33, resolvedDiscardCardIds: [] });
+  expect(store.committedWrites).toHaveLength(writesBeforeUndealableExtra);
+});
+
+it('never recycles an unresolved mission private discard to satisfy a later facilitator draw', async () => {
+  const store = seededStore({ siteCode: 'D' });
+  const commit = dependencies(store).commitAwayMissionLifecycleCommand;
+  const send = (uid: string, type: string, fields: Fields = {}) => commit(commandRequest(uid, {
+    type, requestId: `${type}-${currentRevision(store)}`, expectedRevision: currentRevision(store), ...fields,
+    ...(['openDiscards'].includes(type) ? { instanceId: 'gm-instance' } : {}),
+  }));
+
+  await send('bob', 'requestExtraCards', { count: 1 });
+  await send('alice', 'distributeExtraCard', { participantUid: 'bob', opportunityId: 'D-1' });
+  store.records.set(paths().deck, { ...store.records.get(paths().deck)!, dealtCount: 33, resolvedDiscardCardIds: [] });
+  await send('gm', 'openDiscards');
+  await send('alice', 'discardCard', { cardId: ALICE_CARD });
+  await send('bob', 'discardCard', { cardId: EXTRA_CARD });
+  await send('alice', 'assignCards', { placements: [] });
+  const writesBeforeUndealableFacilitatorCard = store.committedWrites.length;
+
+  await expect(send('bob', 'assignCards', {
+    placements: [{ cardId: BOB_CARD, opportunityId: 'D-1' }],
+  })).rejects.toMatchObject({ code: 'failed-precondition' });
+
+  expect(store.records.get(paths().mission)?.discardedCardIds).toEqual([ALICE_CARD, EXTRA_CARD]);
+  expect(store.records.get(paths().mission)?.status).toBe('active');
+  expect(store.records.get(paths().deck)?.resolvedDiscardCardIds).toEqual([]);
+  expect(store.committedWrites).toHaveLength(writesBeforeUndealableFacilitatorCard);
+});
+
 it('keeps Warrior Reclamator choices and each participant’s cards private from every other command reply', async () => {
   const store = seededStore({ warrior: true, siteCode: 'D' });
   const { commitAwayMissionLifecycleCommand } = dependencies(store);
