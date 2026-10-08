@@ -2,39 +2,58 @@
   "schemaVersion": 1,
   "provenance": {
     "classification": "portable source-excerpt fixture containing full serialized observer objects from actual owned emulator evidence; it is not a byte-for-byte copy of the surrounding capture files",
-    "extraction": "Observer objects were copied from the named JSON paths with original keys, values, types, and omission/null semantics. Native ordinaryActor joinCode is the sole value redacted because it is a session join credential; its original whole-capture bytes remain bound by SHA-256 below. No identity or lease field was altered.",
+    "extraction": "Observer objects were copied from the named JSON paths with original keys, values, types, and omission/null semantics. Native ordinaryActor joinCode is the sole value redacted because it is a session join credential; original whole-capture bytes remain bound by SHA-256 below. No session, UID hash, instance, lease, or other observer field was altered.",
     "sourceArtifacts": {
-      "attempt18": {
-        "capturePath": "station-success-18/callable-ui-operations/caca4335-e0f4-44f8-8f36-52d34fc3a00e.json",
-        "captureSha256": "f6a712542ade8715e2ac95fe64c1dd4ad5dc304d806ba0b0d15e9bed39634d52",
-        "captureBytes": 17324,
-        "ownerResultPath": "station-success-18/OWNER_RESULT.json",
-        "ownerResultSha256": "f19dc8e674684e9b064b7e8ee316b0c3f88cf0f806a569f10c1456f270680cad",
-        "ownerResultBytes": 2368814,
-        "capturedEndpoint": "confirmSetup",
-        "lifecycleCapturePath": "consumed.before and consumed.current",
-        "nativeCapturePaths": [
+      "attempt18PostclaimPreflight": {
+        "path": "station-success-18/callable-ui-operations/caca4335-e0f4-44f8-8f36-52d34fc3a00e.json",
+        "sha256": "f6a712542ade8715e2ac95fe64c1dd4ad5dc304d806ba0b0d15e9bed39634d52",
+        "bytes": 17324,
+        "captureEndpoint": "confirmSetup",
+        "ownerResult": {
+          "path": "station-success-18/OWNER_RESULT.json",
+          "sha256": "f19dc8e674684e9b064b7e8ee316b0c3f88cf0f806a569f10c1456f270680cad",
+          "bytes": 2368814
+        },
+        "lifecyclePaths": [
+          "consumed.before",
+          "consumed.current"
+        ],
+        "nativePaths": [
           "stateBefore.ordinaryActor",
           "stateAfter.ordinaryActor"
         ]
       },
-      "attempt19": {
-        "capturePath": "station-success-19/callable-ui-operations/734f4e07-5ff2-4927-91b2-a5481367f9ae.json",
-        "captureSha256": "81f7cd7d72ebbeec7ccd56f35b9724f8866e26ed1a90d210814e6cbf1fb142fa",
-        "captureBytes": 13473,
-        "ownerResultPath": "station-success-19/OWNER_RESULT.json",
-        "ownerResultSha256": "48b5e5743a888f089966bc1e0839f573a168d3b4f56826de5c625e17653485d1",
-        "ownerResultBytes": 444586,
-        "capturedEndpoint": "claimGmInstance",
-        "lifecycleCapturePath": "consumed.before and consumed.current",
-        "nativeCapturePaths": [
+      "attempt18ActiveAck": {
+        "path": "station-success-18/callable-ui-operations/7145ad6b-6344-4f21-8505-70754ba01e41.json",
+        "sha256": "cf6fdb07b280b6f5c0883d2d048d4561c77f9877dfe0ea0dbbc8c6229c0ffc45",
+        "bytes": 15775,
+        "captureEndpoint": "advanceFullGameDemoPhase",
+        "lifecyclePath": "consumed.before",
+        "nativePath": "stateBefore.ordinaryActor"
+      },
+      "attempt19Preclaim": {
+        "path": "station-success-19/callable-ui-operations/734f4e07-5ff2-4927-91b2-a5481367f9ae.json",
+        "sha256": "81f7cd7d72ebbeec7ccd56f35b9724f8866e26ed1a90d210814e6cbf1fb142fa",
+        "bytes": 13473,
+        "captureEndpoint": "claimGmInstance",
+        "ownerResult": {
+          "path": "station-success-19/OWNER_RESULT.json",
+          "sha256": "48b5e5743a888f089966bc1e0839f573a168d3b4f56826de5c625e17653485d1",
+          "bytes": 444586
+        },
+        "lifecyclePaths": [
+          "consumed.before",
+          "consumed.current"
+        ],
+        "nativePaths": [
           "stateBefore.ordinaryActor",
           "stateAfter.ordinaryActor"
         ]
       }
     },
     "limits": [
-      "Attempt18 is the actual paired postclaim GM lifecycle/native observer sample used as a positive schema fixture; the fixture does not include actual server player/instance rows or claim receipt.",
+      "Attempt18 postclaim preflight is the actual paired postclaim GM lifecycle/native observer sample used as the positive schema fixture; the fixture does not include actual server player/instance rows or claim receipt.",
+      "Attempt18 active acknowledgment callback sample is a later actual same-actor active-cycle lifecycle/native observer pair from a separate capture in the same owner run; it is used only to exercise the existing actor-anchor callback consumer, not to construct server authority.",
       "Attempt19 consumed.before/current are the actual preclaim player lifecycle samples. Its ordinaryActor after sample is postclaim, but no postclaim lifecycle observation was retained in that capture; do not pair them as one postclaim actor tuple."
     ]
   },
@@ -288,6 +307,143 @@
         "airspace": null,
         "turnStatePhase": null,
         "turnStatePhaseRevision": null,
+        "gameOutcomeCause": null,
+        "debriefType": null,
+        "debriefVersion": null,
+        "debriefSource": null,
+        "debriefResult": null,
+        "debriefCause": null,
+        "debriefCycle": null,
+        "debriefCandidateCode": null,
+        "debriefGroupCount": null,
+        "debriefPaths": [],
+        "debriefGroupsPrivacySafe": false,
+        "privateLoyaltyPresent": false,
+        "briefRoleId": null,
+        "briefMatchesActor": false,
+        "pendingCommandCount": 0
+      }
+    },
+    "activeAck": {
+      "lifecycle": {
+        "sessionId": "G9P1xA0EUKjEWVRVR0tu",
+        "uidHash": "74c08d097531b9ab",
+        "hasAuth": true,
+        "sameActor": true,
+        "connection": "live",
+        "freshness": "server",
+        "generation": 1,
+        "hydrationRevision": 1,
+        "playerRole": "gm",
+        "profileRoleId": null,
+        "displayName": "GM",
+        "assignedRoleId": null,
+        "activeConsoleRoleId": null,
+        "seatId": null,
+        "instanceId": "caa83c0c-c90e-4dbb-90ec-678663a313f6",
+        "claimedAt": "2026-10-08T13:19:45.374Z",
+        "gmInstanceOwned": true,
+        "grantShipId": "refinery-124",
+        "gmAccessCached": true,
+        "phase": "active",
+        "cycle": 2,
+        "setupRevision": 12,
+        "privateCount": 6,
+        "privatePayloadCount": 5,
+        "privateAudienceMatches": true,
+        "pendingCount": 0,
+        "foreignPendingCount": 0,
+        "briefingPresent": false,
+        "transmissionPresent": false,
+        "phaseProgression": "manual",
+        "progression": "manual",
+        "airspace": "restricted",
+        "timerPause": null,
+        "teamEndsAt": "9999-12-31T23:59:59.999Z",
+        "openEndsAt": "9999-12-31T23:59:59.999Z",
+        "announcementRevision": 0,
+        "localReplayToken": null,
+        "singlePlayerDemo": null,
+        "fullGameDemo": {
+          "status": "active",
+          "progression": "manual"
+        },
+        "debriefMode": {
+          "active": false,
+          "revision": 0
+        },
+        "debriefSnapshot": null,
+        "pursuitEmergency": false,
+        "attackLocked": null
+      },
+      "native": {
+        "hasAuth": true,
+        "sameActor": true,
+        "uidHash": "74c08d097531b9ab",
+        "documentTimeOrigin": 1791465571179.6,
+        "sessionId": "G9P1xA0EUKjEWVRVR0tu",
+        "joinCode": "[redacted session join credential]",
+        "cycle": 2,
+        "phase": "active",
+        "announcementTurn": 2,
+        "announcementRevision": 0,
+        "naturalTransmissionMounted": false,
+        "ordinaryBriefingMounted": false,
+        "ordinaryBriefingHeld": false,
+        "playerRole": "gm",
+        "profileRoleId": null,
+        "profileSessionId": null,
+        "assignedRoleId": null,
+        "activeConsoleRoleId": null,
+        "connection": "live",
+        "freshness": "server",
+        "hydrationRevision": 1,
+        "fleetGroupId": "fleet-1",
+        "connectionGeneration": 1,
+        "communicationError": null,
+        "setupUi": {
+          "confirmEnabled": true,
+          "rosterStatus": "Roster synchronized // server receipt committed.",
+          "authorityStatus": ""
+        },
+        "gmInstanceOwned": true,
+        "instanceId": "caa83c0c-c90e-4dbb-90ec-678663a313f6",
+        "setupConfirmed": true,
+        "setupRevision": 12,
+        "activeRoleIds": [
+          "admiral",
+          "wing-commander",
+          "dione-captain",
+          "dione-president",
+          "icebreaker-captain",
+          "icebreaker-miner",
+          "shepherd-captain",
+          "shepherd-scientist",
+          "quellon-captain",
+          "quellon-explorer",
+          "refinery-124-captain",
+          "refinery-124-pdf-colonel",
+          "joint-engineering-quellon-refinery",
+          "joint-engineering-shepherd-icebreaker"
+        ],
+        "activeVesselIds": [
+          "aegis",
+          "dione",
+          "icebreaker",
+          "shepherd",
+          "quellon",
+          "refinery-124"
+        ],
+        "pressEnabled": true,
+        "capybaraEnabled": false,
+        "fullGameDemo": {
+          "status": "active",
+          "progression": "manual"
+        },
+        "phaseProgression": "manual",
+        "airspace": "restricted",
+        "turnStatePhase": "team",
+        "turnStatePhaseRevision": 3,
         "gameOutcomeCause": null,
         "debriefType": null,
         "debriefVersion": null,

@@ -204,6 +204,20 @@ test('Attempt18 serialized postclaim observer schemas pass the production GM pre
   assert.equal(result.anchor.claimedAt, input.lifecycle.claimedAt);
   assert.doesNotThrow(() => assertStationPopulationGmActorObserver(result.anchor,
     { live: input.live, lifecycle: input.lifecycle }));
+  const activeAck = stationPopulationGmAttemptEvidence.attempt18.activeAck;
+  assert.equal(activeAck.lifecycle.phase, 'active');
+  assert.equal(activeAck.lifecycle.playerRole, 'gm');
+  assert.equal(Object.hasOwn(activeAck.lifecycle, 'profileSessionId'), false);
+  assert.equal(activeAck.native.profileSessionId, null);
+  assert.equal(activeAck.lifecycle.sessionId, input.lifecycle.sessionId);
+  assert.equal(activeAck.lifecycle.uidHash, input.lifecycle.uidHash);
+  assert.equal(activeAck.lifecycle.generation, input.lifecycle.generation);
+  assert.equal(activeAck.lifecycle.hydrationRevision, input.lifecycle.hydrationRevision);
+  assert.equal(activeAck.lifecycle.instanceId, input.lifecycle.instanceId);
+  assert.equal(activeAck.lifecycle.claimedAt, input.lifecycle.claimedAt);
+  assert.doesNotThrow(() => assertStationPopulationGmActorObserver(result.anchor,
+    { live: activeAck.native, lifecycle: activeAck.lifecycle }),
+  'The actual active-phase actor sample passes the production wave acknowledgment callback guard.');
   assert.equal(assertStationPopulationGmActorAuthority(result.anchor, {
     live: input.live, lifecycle: input.lifecycle, serverPlayer: input.serverPlayer,
     serverInstance: input.serverInstance, claimInstance: input.claimInstance,
@@ -277,15 +291,15 @@ test('Attempt18 serialized schema keeps missing or changed identity and profile 
 
 test('Station GM claim preflight binds both native observer schemas and rejects a changed generation', async () => {
   // This is the liveGm/surface.observe schema from the native callback: it emits
-  // connectionGeneration and hydrationRevision, while lifecycle snapshots are a
-  // separate observer and provide generation/claimedAt.
+  // connectionGeneration, hydrationRevision, and null profileSessionId, while
+  // lifecycle snapshots omit profileSessionId and provide generation/claimedAt.
   const claimedAt = '2026-10-08T12:00:00.000Z', expectedUid = 'gm-uid';
   const liveGmObserver = { hasAuth: true, sameActor: true, sessionId: 'sid', uidHash: 'gm-hash',
     connection: 'live', freshness: 'server', connectionGeneration: 1, hydrationRevision: 2,
-    instanceId: 'gm-instance', gmInstanceOwned: true };
+    profileSessionId: null, instanceId: 'gm-instance', gmInstanceOwned: true };
   const lifecycleObserver = { hasAuth: true, sameActor: true, sessionId: 'sid', uidHash: 'gm-hash',
     connection: 'live', freshness: 'server', generation: 1, hydrationRevision: 2,
-    playerRole: 'gm', profileRoleId: null, profileSessionId: null, instanceId: 'gm-instance',
+    playerRole: 'gm', profileRoleId: null, instanceId: 'gm-instance',
     claimedAt, gmInstanceOwned: true };
   assert.equal(Object.hasOwn(liveGmObserver, 'generation'), false);
   assert.equal(Object.hasOwn(liveGmObserver, 'claimedAt'), false);
