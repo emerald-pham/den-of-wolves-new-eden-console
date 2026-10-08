@@ -65,6 +65,12 @@ async function validateReceipt(receipt){
  assert.deepEqual(receipt.commands,stationLaunchCommands(allocation));
  return allocation;
 }
+export async function runStationLaunchCommand(command,args,{spawnProcess=spawn,signalSource=process}={}){
+ const child=spawnProcess(command,args,{stdio:'inherit'});const forward=signal=>child.kill(signal);
+ signalSource.on('SIGINT',forward);signalSource.on('SIGTERM',forward);
+ try{await new Promise((resolve,reject)=>{child.once('error',reject);child.once('exit',resolve);});}
+ finally{signalSource.removeListener('SIGINT',forward);signalSource.removeListener('SIGTERM',forward);}
+}
 async function main(){
  const [mode,...args]=process.argv.slice(2);
  if(mode==='--prepare'){

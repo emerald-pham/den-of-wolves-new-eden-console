@@ -22,3 +22,9 @@ test('successful admission reference is genuine and binds prior product/build/po
  assert.throws(()=>compareStationAdmissionReference(allocation,{...binding,trackedFiles:[{path:'src/components/LocalGmAccess.tsx',sha256:'changed'}]},reference));
  assert.throws(()=>compareStationAdmissionReference(allocation,{...binding,compiledTreeSha256:'changed'},reference));
 });
+
+test('launcher forwards actual SIGINT to owned process tree and waits for scoped teardown',async()=>{
+ const {EventEmitter}=await import('node:events');const {runStationLaunchCommand}=await import('./pc10-station-runtime-launch.mjs');const signals=new EventEmitter(),child=new EventEmitter();child.pid=123;const stopped=[];child.kill=signal=>stopped.push(signal);let complete=false;
+ const pending=runStationLaunchCommand('node',['owned-wrapper'],{signalSource:signals,spawnProcess:()=>child,terminateProcessTree:(owned,signal)=>{assert.equal(owned,child);stopped.push(signal)}}).then(()=>{complete=true});
+ signals.emit('SIGINT');await Promise.resolve();assert.equal(complete,false);child.emit('exit',0,null);await pending;assert.deepEqual(stopped,['SIGINT']);assert.equal(signals.listenerCount('SIGINT'),0);assert.equal(signals.listenerCount('SIGTERM'),0);
+});
