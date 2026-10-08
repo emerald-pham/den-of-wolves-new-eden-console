@@ -50,6 +50,7 @@ function validateSupportVisitHistory(
   visits: WolfBoardingCraftAuthorityInput['visits'],
   activeVesselIds: readonly string[],
   retained: ReturnType<typeof parseRetainedShuttles>,
+  optionalGmCraftIds: ReadonlySet<string>,
 ): void {
   if (!Array.isArray(visits)) throw new Error('Shuttle visit history is unavailable.');
   const visitIds = new Set<string>();
@@ -74,6 +75,7 @@ function validateSupportVisitHistory(
     const last = latest.get(shuttleId);
     const retainedShuttle = retained?.[shuttleId];
     const host = dockById.get(shuttleId);
+    if (!last && optionalGmCraftIds.has(shuttleId) && host === undefined && retainedShuttle === undefined) continue;
     if (!last || (host !== undefined && (retainedShuttle !== undefined || last.action !== 'docked' || last.shipId !== host)) ||
         (host === undefined && retainedShuttle === undefined && last.action !== 'departed') ||
         (host === undefined && retainedShuttle !== undefined &&
@@ -103,8 +105,12 @@ export function deriveWolfBoardingSupportCraft(
     .filter((craft) => craft.kind === 'shuttle' && craft.boardingSupport !== undefined &&
       !input.consumedShuttleIds?.includes(craft.id));
   const supportIds = new Set(supportCraft.map(({ id }) => id));
+  const optionalGmCraftIds = new Set(supportCraft
+    .filter((craft) => craft.enabledMode === 'gm-controlled')
+    .map(({ id }) => id));
   validateSupportVisitHistory(supportIds, input.dockings,
-    input.visits.filter(visit => !input.consumedShuttleIds?.includes(visit.shuttleId)), input.activeVesselIds, retained);
+    input.visits.filter(visit => !input.consumedShuttleIds?.includes(visit.shuttleId)), input.activeVesselIds, retained,
+    optionalGmCraftIds);
   const dockById = new Map(input.dockings.map((docking) => [docking.shuttleId, docking.shipId]));
   const rawControl = input.control === undefined
     ? initialShuttleControl(supportCraft, input.roleHolders)
