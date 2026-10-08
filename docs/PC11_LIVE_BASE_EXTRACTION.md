@@ -305,3 +305,38 @@ then a separate five-to-eight-minute rendered typography window on the frozen
 built app. No push, PR, merge, deployment, browser or emulator access was performed
 for this qualification tooling. Release and checkpoint acceptance remain with
 the parent, with0.9.0 deferred until both PC10 and PC11 are released and verified.
+
+## Allocated clean-base actual evidence and handback
+
+Parent granted a conditional ten-minute window after independent binding/import
+review. The first sandbox launch was denied loopback5178 binding and cleaned
+without actors/browsers. The same authorized launch was then approved through
+execution permissions. Actual10 at `43f8f926` stopped before its first game choice
+because the reused observers imported unavailable `demoActorContext.ts`. All
+three browsers closed, empty session/player/GM scope and no open owned ports.
+
+`b0c2462c` records the three active missing-import RED cases;
+`1a4d70c3437519fb7c336ef9a4ad24cf7ef6a94e` removes only those observation imports,
+with explicit source absence and ordinary-profile-null contracts. Independent
+review approved these narrow source adaptations. Two previously copied helpers
+are now explicitly adapted and supersede their initial byte-identical reuse
+claim; the remaining copied modules remain unchanged. Qualification checks25/25
+pass; this source pass does not replace actual proof.
+
+Actual11 on `1a4d70c3` earned only actual normal create/Auth/consent, then stopped
+at GM authorization because the released authority module does not export
+`memberSessionResumeBlocksFreshness`. One owned Auth actor/pointer was removed,
+session and join code absent, all three browsers closed, scope0/0/0 and no open
+owned ports. Runtime released at2026-10-08T02:35:34.532Z, with no other data changed.
+Exact handback: `/tmp/dow-pc11-normal-start-actual11-20261008/HANDBACK.json`.
+The next attempt requires a source-reviewed published-SDK adapter repair and
+fresh parent allocation. No GM/trade/Philia success is claimed for these attempts.
+
+Independent reviewer inspected the exact audited0.5.71 dist: eight synthetic
+movement/trade samples across320,390,844x390 and1440, painted platform fonts,
+14px/21.7px guidance, no guidance/document overflow or remote requests/errors.
+Evidence `/tmp/dow-pc11-built-render-20261008/result.json`; browser/server closed.
+The synthetic landscape incoming-offer card wraps existing name/resource text
+almost one character per line. This is a presentation caveat, not demonstrated
+authenticated workspace sizing. All eleven authenticated guidance panels and
+full final typography acceptance remain unverified. No publication occurred.
