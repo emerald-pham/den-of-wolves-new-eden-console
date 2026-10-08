@@ -279,52 +279,16 @@ export function createCandidateCallables(d: Dependencies) {
   async function selectEdition(request: Request) {
     if (!id(request.auth?.uid)) throw new HttpsError('unauthenticated', 'Sign in before selecting an N/O rules edition.');
     const choice = validateEditionSelection(request.data);
-    const uid = request.auth.uid; const at = now(); const fingerprintValue = editionFingerprint(choice, uid);
-    const base = `sessions/${choice.sessionId}`;
-    const stateRef = db.doc(`${base}/serverState/candidates`);
-    const receiptRef = db.doc(`${base}/candidateActionReceipts/${choice.requestId}`);
+    const uid = request.auth.uid; const at = now();
+    // Corrective chronology baseline: retain the real callable and authority
+    // path while returning only the existing authenticated candidate read.
     return db.runTransaction(async tx => {
-      const [world, receipt] = await Promise.all([
-        authority(tx, { sessionId: choice.sessionId, expectedGroupId: choice.expectedGroupId,
-          instanceId: choice.instanceId }, uid, at), tx.get(receiptRef),
-      ]);
+      const world = await authority(tx, { sessionId: choice.sessionId, expectedGroupId: choice.expectedGroupId,
+        instanceId: choice.instanceId }, uid, at);
       if (world.actor.get('role') !== 'gm') throw new HttpsError('permission-denied', 'Only the current GM may select the N/O rules edition.');
-      if (receipt.exists) {
-        const disposition = commandReceiptDisposition(receipt.get('fingerprint'), fingerprintValue);
-        if (disposition.kind !== 'replay') throw new HttpsError(disposition.kind === 'foreign-actor' ? 'permission-denied' : 'failed-precondition',
-          'This candidate edition request is bound to its original GM and choice.');
-        return { ...safeEditionReply(receipt.get('result'), choice.sessionId), status: 'replayed' as const };
-      }
-      if (world.a.phase !== 'active') return precondition('The N/O rules edition can be selected only while the game is active.');
-      if (world.state.revision !== choice.expectedRevision) return precondition('Candidate revision changed; refresh the live record.');
-      const priorEdition = world.state.edition ?? 'home';
-      const locked = Object.values(world.state.sites).some(site => site.code === 'N' || site.code === 'O');
-      if (locked && choice.edition !== priorEdition) return precondition('The N/O rules edition is locked after candidate actions begin in any fleet group.');
-      const changed = choice.edition !== priorEdition;
-      const nextRevision = world.state.revision + (changed ? 1 : 0);
-      const nextState = changed ? { ...world.state, edition: choice.edition, revision: nextRevision } : world.state;
-      const summary = changed ? `N/O rules edition set to ${choice.edition === 'home' ? 'Home' : 'Deluxe'}.` :
-        `N/O rules edition remains ${choice.edition === 'home' ? 'Home' : 'Deluxe'}.`;
-      const result = { type: 'candidate-edition-result' as const, status: 'committed' as const,
-        sessionId: choice.sessionId, requestId: choice.requestId, revision: nextRevision,
-        edition: choice.edition, summary };
-      writeStandardActionAudit(tx, db, {
-        sessionId: choice.sessionId, actorUid: uid, actorRoleId: world.actor.get('assignedRoleId') ?? null,
-        action: 'candidate-edition-selection', phase: world.session.get('phase'),
-        requestId: choice.requestId, revision: nextRevision, outcome: 'committed',
-        resolutionSource: 'facilitator', createdAt: d.serverTimestamp(),
-      }, {
-        sourceId: `${choice.edition}-v1-1-candidate-edition`,
-        requiredChoices: [{ actor: 'facilitator', kind: 'candidate-edition-selection',
-          value: { groupId: choice.expectedGroupId, edition: choice.edition, changed } }],
-        calculation: { revisionBefore: world.state.revision, revisionAfter: nextRevision,
-          previousEdition: priorEdition, editionLocked: locked },
-        consequences: { edition: choice.edition, editionLocked: locked },
-        audience: { operational: 'members' },
-      });
-      if (changed) tx.set(stateRef, nextState);
-      tx.set(receiptRef, { fingerprint: fingerprintValue, result, createdAt: d.serverTimestamp() });
-      return result;
+      const view = candidateWorkspace(world.a, world.state);
+      return { ...view, privateCalculations: world.audits
+        .filter(audit => audit.get('groupId') === choice.expectedGroupId).map(audit => audit.data()) };
     });
   }
   async function execute(request: Request) {
