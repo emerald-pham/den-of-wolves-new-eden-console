@@ -445,3 +445,29 @@ absent, zero remaining scope/listeners and no cleanup errors. Launcher elapsed
 115323ms, within allocation. Evidence and concise handback:
 `/tmp/dow-pc11-normal-start-actual12-20261008/HANDBACK.json`.
 The remaining capacity was released; no runtime restart, push or deployment.
+
+
+## Normal setup predicate readiness after Actual12
+
+Observed test-only RED `308406f1` executes the actual join wait and rejects the
+published configured lobby; it also reproduces blank-origin diagnostic import
+failure. Repair `9e48d648f8642c761beb324af1e31a5a8142a33b` accepts only
+setup-confirmed lobby/casting Cycle0 for unseated admission and skips diagnostic
+imports before the App origin mounts. Assigned station and active-play authority
+floors are unchanged. Test-only follow-up `58a9aa47` anchors the complete six-wait
+chain to actual setup-write fields, role-assignment casting, ordinary active start,
+and held/cleared clock helpers, including active GM and mixed briefing negatives.
+The contract/control table is in scripts/qualification/PC11_LIVE_BASE_CONTRACT.md.
+
+Final owner source preflight passed (`/tmp/pc11-phase-final-preflight.json`),
+launcher/preflight integration passed 8/8 (`/tmp/pc11-phase-final-launch.log`),
+and native contract tests passed 18/18. Syntax/diff checks passed. No product,
+server or build input differs from accepted rendered candidate `00321970`, so
+its rendered GREEN remains valid. No browser/emulator was opened for this repair.
+
+Workflow deviation: the implementation commit also adjusted existing fixture
+code and an additional active-phase assertion, contrary to the separate-test
+commit rule. The discriminating pre-fix RED remains intact; this closeout does
+not claim a fully compliant commit separation or rewrite the observed history.
+Actual12's three valid GM/setup claims remain earned. A fresh allocated normal
+gameplay run is required for remaining trade/Philia claims.
