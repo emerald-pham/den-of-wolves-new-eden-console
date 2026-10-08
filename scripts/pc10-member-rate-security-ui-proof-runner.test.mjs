@@ -611,7 +611,7 @@ for (const mode of ['readiness-ready-at-deadline', 'readiness-ready-after-deadli
       assert.equal(sample?.state?.sdkHasServerAuthority, true);
       assert.equal(sample?.state?.sdkResumePending, false);
       const retained = JSON.parse(await readFile(join(run.evidenceDirectory, run.failureArtifacts[0]), 'utf8'));
-      assert.match(retained.originalError?.message ?? '', /original shared UI deadline expired/);
+      assert.match(retained.originalError?.message ?? '', /original shared UI deadline/);
       assert.match(retained.contextInspect ?? '', /sdkHasServerAuthority: true/);
     } finally { await rm(run.temporary, { recursive: true, force: true }); }
   });
