@@ -138,7 +138,6 @@ export async function observeFullGameDemoPresentationMember(surface, { knownRole
   assert.equal(authorityUrl.pathname, '/src/lib/sessionSnapshotAuthority.ts');
   return surface.page.evaluate(async ({ moduleUrl, knownRoleIds, authorityModuleUrl }) => {
     const { auth } = await import('/src/lib/firebase.ts');
-    const { activeDemoActorProfile } = await import('/src/lib/demoActorContext.ts');
     const { useSessionStore } = await import(moduleUrl);
     const { sessionSnapshotAuthorityFor, memberSessionResumeBlocksFreshness } =
       await import(authorityModuleUrl);
@@ -187,8 +186,8 @@ export async function observeFullGameDemoPresentationMember(surface, { knownRole
     return { hasAuth: !!user, sameActor: !!user && user.uid === me?.uid, uidHash,
       documentTimeOrigin: typed('documentTimeOrigin', performance.timeOrigin, n => Number.isFinite(n) && n > 0),
       sessionId: sessionId('sessionId', session?.id), meSessionId: sessionId('meSessionId', me?.sessionId),
-      profileRoleId: roleId('profileRoleId', activeDemoActorProfile?.roleId),
-      profileSessionId: sessionId('profileSessionId', activeDemoActorProfile?.sessionId),
+      profileRoleId: null,
+      profileSessionId: null,
       playerRole: enumeration('playerRole', me?.role, ['player', 'gm']), assignedRoleId: roleId('assignedRoleId', me?.assignedRoleId),
       activeConsoleRoleId: roleId('activeConsoleRoleId', me?.activeConsoleRoleId), seatId: roleId('seatId', me?.seatId),
       fleetGroupId: typed('fleetGroupId', me?.fleetGroupId ?? null, id => id === null || typeof id === 'string' && /^fleet-[1-9][0-9]*$/.test(id)),

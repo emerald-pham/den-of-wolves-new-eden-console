@@ -10,21 +10,6 @@ const runnerUrl = new URL('./pc11-three-actor-trade-philia.mjs', import.meta.url
 const runnerSource = await readFile(runnerUrl, 'utf8');
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 
-async function runnerHelperClosure() {
-  const pending = [fileURLToPath(runnerUrl)];
-  const visited = new Set();
-  while (pending.length > 0) {
-    const file = pending.pop();
-    if (visited.has(file)) continue;
-    visited.add(file);
-    const source = await readFile(file, 'utf8');
-    for (const match of source.matchAll(/(?:from\s*|import\s*\()\s*['"](\.{1,2}\/[^'"]+\.mjs)['"]/g)) {
-      pending.push(resolve(dirname(file), match[1]));
-    }
-  }
-  return [...visited].map(async file => ({ file, source: await readFile(file, 'utf8') }));
-}
-
 function functionSource(name, nextName) {
   const start = runnerSource.indexOf(`function ${name}`);
   const end = runnerSource.indexOf(`function ${nextName}`, start + 1);
@@ -85,12 +70,14 @@ function namedRegion(source, startMarker, endMarker) {
 test('every active mounted browser source import exists in the clean source checkout', async () => {
   const lifecycleSource = await readFile(new URL('../pc10-member-gm-lifecycle-ui-proof.mjs', import.meta.url), 'utf8');
   const memberSource = await readFile(new URL('../pc10-full-game-demo-proof-helpers.mjs', import.meta.url), 'utf8');
+  const lifecycleObserver = namedRegion(lifecycleSource,
+    'export async function observeLifecycleActor', '\nexport async function untilLifecycle');
+  const memberObserver = namedRegion(memberSource,
+    'export async function observeFullGameDemoPresentationMember', '/** Await the existing App recovery');
   const activeObservers = [
     { importer: 'scripts/qualification/pc11-three-actor-trade-philia.mjs', source: runnerSource },
-    { importer: 'scripts/pc10-member-gm-lifecycle-ui-proof.mjs', source: namedRegion(lifecycleSource,
-      'export async function observeLifecycleActor', '\nexport async function untilLifecycle') },
-    { importer: 'scripts/pc10-full-game-demo-proof-helpers.mjs', source: namedRegion(memberSource,
-      'export async function observeFullGameDemoPresentationMember', '/** Await the existing App recovery') },
+    { importer: 'scripts/pc10-member-gm-lifecycle-ui-proof.mjs', source: lifecycleObserver },
+    { importer: 'scripts/pc10-full-game-demo-proof-helpers.mjs', source: memberObserver },
   ];
   const missing = [];
   for (const { importer, source } of activeObservers) {
@@ -102,4 +89,10 @@ test('every active mounted browser source import exists in the clean source chec
     }
   }
   assert.deepEqual(missing, [], `Mounted source imports must exist before runtime: ${JSON.stringify(missing)}`);
+  assert.equal(existsSync(resolve(repoRoot, 'src/lib/demoActorContext.ts')), false,
+    'The selected normal baseline must not silently acquire demo actor profile semantics.');
+  assert.match(runnerSource, /existsSync\(`\$\{root\}\/src\/lib\/demoActorContext\.ts`\)/);
+  assert.match(runnerSource, /profileRoleId: null, profileSessionId: null/);
+  assert.match(lifecycleObserver, /profileRoleId: null/);
+  assert.match(memberObserver, /profileRoleId: null,[\s\S]*?profileSessionId: null/);
 });

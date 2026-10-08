@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { execFileSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { mkdir, readFile, writeFile, realpath } from 'node:fs/promises';
 import { setTimeout as delay } from 'node:timers/promises';
 import { observeUiReceipt, attachUiReceiptDiagnostics } from '../pc10-browser-ui-receipt.mjs';
@@ -18,6 +19,7 @@ const ports=JSON.parse(process.env.PC11_PORTS_JSON??'null');
 assert.ok(baseUrl?.startsWith('http://127.0.0.1:') && ports && Object.values(ports).every(Number.isSafeInteger));
 const directory=process.env.PC11_EVIDENCE_DIRECTORY;assert.ok(directory?.startsWith('/tmp/'));
 assert.equal(await realpath(root),await realpath(new URL('../..',import.meta.url)), 'Source must be this integration checkout');
+assert.equal(existsSync(`${root}/src/lib/demoActorContext.ts`),false,'Normal PC11 baseline must not silently acquire demo-actor profile semantics.');
 assert.ok(!Object.values(ports).some(p=>[9109,5011,8090,9119,5021,8100].includes(p)), 'PC10/hotfix retained ports are excluded');
 const hash=value=>createHash('sha256').update(value).digest('hex'), short=value=>hash(value).slice(0,16);
 const sourceCommit=execFileSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8'}).trim();
@@ -83,7 +85,6 @@ async function action(surface,endpoint,choose,options={}) { budget();const value
     async function observe() {
       return page.evaluate(async moduleUrl => {
         const { auth } = await import('/src/lib/firebase.ts');
-        const { activeDemoActorProfile } = await import('/src/lib/demoActorContext.ts');
         const { useSessionStore } = await import(moduleUrl);
         const originalUid = auth().currentUser?.uid;
         const hash = async value => value ? Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))))
@@ -102,8 +103,7 @@ async function action(surface,endpoint,choose,options={}) { budget();const value
           naturalTransmissionMounted: document.querySelector('.intrusion--fleet .turn-start-announcement__console')?.isConnected === true,
           ordinaryBriefingMounted: document.querySelector('[aria-label="Cycle briefing clearance"]')?.isConnected === true,
           ordinaryBriefingHeld: state.session?.turnPhase?.timerPause?.reason === 'turn-interstitial',
-          playerRole: state.me?.role ?? null, profileRoleId: activeDemoActorProfile?.roleId ?? null,
-          profileSessionId: activeDemoActorProfile?.sessionId ?? null,
+          playerRole: state.me?.role ?? null, profileRoleId: null, profileSessionId: null,
           assignedRoleId: state.me?.assignedRoleId ?? null, activeConsoleRoleId: state.me?.activeConsoleRoleId ?? null,
           connection: state.connection, freshness: state.sessionSnapshotFreshness,
           communicationError: state.communicationError ? { code: state.communicationError.code,

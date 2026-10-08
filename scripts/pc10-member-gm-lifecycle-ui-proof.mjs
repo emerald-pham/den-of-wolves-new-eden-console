@@ -77,7 +77,6 @@ export async function assertMemberTurnContext(context) {
 export async function observeLifecycleActor(surface, expectedSessionId) {
   return surface.page.evaluate(async ({ moduleUrl, expectedSessionId }) => {
     const { auth } = await import('/src/lib/firebase.ts');
-    const { activeDemoActorProfile } = await import('/src/lib/demoActorContext.ts');
     const { useSessionStore } = await import(moduleUrl);
     const s = useSessionStore.getState(), user = auth().currentUser, session = s.session;
     const hash = async value => value ? Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))))
@@ -108,7 +107,7 @@ export async function observeLifecycleActor(surface, expectedSessionId) {
     return { sessionId: session?.id ?? null, uidHash: await hash(user?.uid), hasAuth: !!user,
       sameActor: !!user && s.me?.uid === user.uid, connection: s.connection, freshness: s.sessionSnapshotFreshness,
       generation: s.me?.connectionGeneration ?? null, hydrationRevision: s.identityHydrationRevision,
-      playerRole: s.me?.role ?? null, profileRoleId: activeDemoActorProfile?.roleId ?? null,
+      playerRole: s.me?.role ?? null, profileRoleId: null,
       displayName: s.me?.displayName ?? null, assignedRoleId: s.me?.assignedRoleId ?? null,
       activeConsoleRoleId: s.me?.activeConsoleRoleId ?? null, seatId: s.me?.seatId ?? null,
       instanceId: s.gmInstance?.id ?? null, claimedAt: s.gmInstance?.claimedAt ?? null,
