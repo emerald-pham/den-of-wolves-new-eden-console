@@ -5341,7 +5341,11 @@ function dioneMaliadesLaunchResultReply(value: unknown): DioneMaliadesLaunchResu
 function pdfEscortWingLaunchViewReply(value: unknown): PdfEscortWingLaunchView | null {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
   const reply = value as Record<string, unknown>;
-  const validReason = reply.reason === undefined || reply.reason === 'waiting' ||
+  // The enabled PDF producer owns reason: undefined, which callable encoding
+  // sends as null. Only this complete enabled arm may omit the typed reason.
+  const enabledNullReason = reply.eligible === true && reply.launched === false &&
+    reply.choiceStatus === undefined && reply.reason === null;
+  const validReason = enabledNullReason || reply.reason === undefined || reply.reason === 'waiting' ||
     reply.reason === 'uncharged' || reply.reason === 'damaged' ||
     reply.reason === 'destroyed' || reply.reason === 'no-fighters' ||
     reply.reason === 'already-launched' || reply.reason === 'passed';
@@ -5352,10 +5356,11 @@ function pdfEscortWingLaunchViewReply(value: unknown): PdfEscortWingLaunchView |
       !Number.isSafeInteger(reply.revision) || (reply.revision as number) < 0 ||
       !Number.isSafeInteger(reply.wingRevision) || (reply.wingRevision as number) < 0 ||
       typeof reply.launched !== 'boolean' || typeof reply.eligible !== 'boolean' || !validReason || !validChoiceStatus ||
-      (reply.eligible && (reply.launched || reply.reason !== undefined)) ||
+      (reply.eligible && (reply.launched || reply.choiceStatus !== undefined ||
+        (reply.reason !== undefined && !enabledNullReason))) ||
       (reply.launched && reply.reason !== 'already-launched') ||
       (!reply.eligible && !reply.reason)) return null;
-  const reason = reply.reason as PdfEscortWingLaunchView['reason'];
+  const reason = enabledNullReason ? undefined : reply.reason as PdfEscortWingLaunchView['reason'];
   return {
     type: 'pdf-escort-wing-launch-view', sessionId: reply.sessionId,
     turn: reply.turn as number, revision: reply.revision as number,
