@@ -76,6 +76,21 @@ describe('wolf attack aftermath', () => {
     expect(mitigated.populationByTarget.aegis).toBe(250);
   });
 
+  it('uses the lower integer half of an odd Doctor casualty count', () => {
+    const result = resolveDoctorMedicalAid({
+      shipResults: [damage('aegis', [true, true, true, true, true], 750)],
+      populationBeforeByTarget: { aegis: 2_500 },
+      resourcesByTarget: { aegis: { food: 8, water: 6 } },
+      selectedShipIds: ['aegis'],
+    });
+
+    expect(result.mitigated).toEqual([{
+      shipId: 'aegis', casualtiesBefore: 5, casualtiesAfter: 2,
+      casualtiesPrevented: 3, foodSpent: 0, waterSpent: 0,
+    }]);
+    expect(result.populationByTarget.aegis).toBe(1_500);
+  });
+
   it('rolls one server d6 per damage point dealt by either side and awards one material on each 5+', () => {
     const randomInt = vi.fn().mockReturnValueOnce(3).mockReturnValueOnce(4).mockReturnValueOnce(5)
       .mockReturnValueOnce(3).mockReturnValueOnce(4).mockReturnValueOnce(5)

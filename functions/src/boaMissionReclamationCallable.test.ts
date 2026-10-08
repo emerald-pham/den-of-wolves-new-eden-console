@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { BoaMissionReclamationCallableDatabase } from './boaMissionReclamationCallable';
 import { createBoaMissionReclamationCallables } from './boaMissionReclamationCallable';
+import { organiserSitesForChart } from './starChartLookup';
 
 type Fields = Record<string, unknown>;
 const mock = vi.hoisted(() => {
@@ -50,6 +51,9 @@ const ARRIVAL_FIELDS = {
   id: ARRIVAL, groupId: 'fleet-1', chart: 'A', coordinate: '5143', siteCode: 'L',
   sourceShipId: 'aegis', sourceTransitionId: 'jump-entry-1', sourceCycle: 2,
 };
+const ASTEROID_COORDINATE = Object.entries(organiserSitesForChart('A'))
+  .find(([, site]) => site.code === 'A')?.[0];
+if (!ASTEROID_COORDINATE) throw new Error('Expected a chart A lichen asteroid location.');
 const command = {
   sessionId: SESSION, requestId: 'boa-choice-1', missionOpportunityId: ARRIVAL,
   taskOpportunityId: 'L-1', expectedControlRevision: 2, expectedChoiceRevision: 0, expectedCycle: 2,
@@ -117,7 +121,7 @@ describe('Boa mission reclamation callables', () => {
       .rejects.toMatchObject({ code: 'permission-denied' });
   });
 
-  it('atomically records the choice, actor-bound receipt, and GM-private floor-assumption audit', async () => {
+  it('atomically records the choice, actor-bound receipt, and exact half-point audit', async () => {
     await expect(callables.chooseBoaMissionReclamationOpportunity(request(command))).resolves.toEqual({
       status: 'committed', sessionId: SESSION, requestId: command.requestId,
       missionOpportunityId: ARRIVAL, taskOpportunityId: 'L-1', choiceRevision: 1,
@@ -140,6 +144,28 @@ describe('Boa mission reclamation callables', () => {
       calculation: expect.objectContaining({ rounding: 'floor', printedDifficulty: 15, effectiveDifficulty: 7 }),
       consequences: expect.objectContaining({ scrap: 1, criticalBonus: 0 }),
       audience: { operational: 'actor' },
+    });
+  });
+
+  it('records 17/2 as an exact 8.5 threshold in the private Boa-choice audit', async () => {
+    const opportunityId = `arrival-fleet-1-A-${ASTEROID_COORDINATE}`;
+    put(`sessions/s1/missionOpportunities/${opportunityId}`, {
+      ...ARRIVAL_FIELDS, id: opportunityId, coordinate: ASTEROID_COORDINATE, siteCode: 'A',
+    });
+    put('sessions/s1/serverState/navigation', {
+      shipGalacticCoordinates: { capybara: ASTEROID_COORDINATE, aegis: ASTEROID_COORDINATE }, revision: 4,
+    });
+    const exactChoice = {
+      ...command, requestId: 'boa-choice-seventeen', missionOpportunityId: opportunityId, taskOpportunityId: 'A-1',
+    };
+
+    await expect(callables.chooseBoaMissionReclamationOpportunity(request(exactChoice))).resolves.toMatchObject({
+      status: 'committed', taskOpportunityId: 'A-1',
+    });
+    expect(mock.documents.get('sessions/s1/procedureAudits/boa-choice-seventeen')).toMatchObject({
+      calculation: {
+        rounding: 'none', printedDifficulty: 17, effectiveDifficulty: 8.5, criticalThreshold: null,
+      },
     });
   });
 

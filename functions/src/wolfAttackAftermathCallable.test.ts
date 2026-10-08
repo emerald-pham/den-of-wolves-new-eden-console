@@ -135,6 +135,29 @@ describe('Wolf attack aftermath command contract', () => {
     expect(mock.documents.get('sessions/s-1/wolfAttackAudience/current')).not.toHaveProperty('calculationReceipt');
   });
 
+  it('commits the lower integer half of five casualties from the private Doctor receipt', async () => {
+    mock.documents.get('sessions/s-1')!.shipSurvivors = { aegis: 750 };
+    const attack = mock.documents.get('sessions/s-1/wolfAttackState/current')!;
+    (attack.calculationReceipt as Fields).fleetDamage = [{
+      target: 'aegis', amount: 5, populationBefore: 2_500, population: 750,
+      state: { damagedSystemIds: [], destroyed: false },
+      draws: Array.from({ length: 5 }, () => ({ casualty: true })),
+    }];
+
+    await expect(resolveWolfAttackAftermath.run(request({
+      sessionId: 's-1', attackId: 'attack-7', requestId: 'doctor-odd-five',
+      action: 'doctor', selectedShipIds: ['aegis'],
+    }))).resolves.toMatchObject({
+      status: 'committed', mitigated: [{
+        shipId: 'aegis', casualtiesBefore: 5, casualtiesAfter: 2, casualtiesPrevented: 3,
+      }],
+    });
+
+    expect(mock.documents.get('sessions/s-1')?.shipSurvivors).toEqual({ aegis: 1_500 });
+    expect(mock.documents.get('sessions/s-1/wolfAttackState/current')?.aftermath)
+      .toMatchObject({ doctor: { mitigated: [{ casualtiesBefore: 5, casualtiesAfter: 2, casualtiesPrevented: 3 }] } });
+  });
+
   it('replays semantic Doctor fingerprints across map ordering but binds exact fields and array order', async () => {
     const session = mock.documents.get('sessions/s-1')!;
     (session.shipSurvivors as Fields).dione = 95_000;

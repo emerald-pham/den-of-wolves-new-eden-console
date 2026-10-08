@@ -126,6 +126,33 @@ function boaReclamationFixture() {
   } as never);
 }
 
+function boaSeventeenDifficultyFixture(facilitatorCardId: '4♣' | '5♣') {
+  const reserved = new Set(['4♥', '4♦', facilitatorCardId]);
+  const orderedCards = ['4♥', '4♦', facilitatorCardId, ...missionDeck()
+    .map(({ id }) => id).filter((id) => !reserved.has(id))];
+  const deckState = missionDeckStateFromCards(orderedCards.map((id) =>
+    missionDeck().find((card) => card.id === id)!));
+  const lifecycle = createMissionLifecycleState({
+    missionId: 'mission-boa-seventeen',
+    siteCode: 'A',
+    leaderUid: 'boa-player',
+    participants: [{ uid: 'boa-player', roleId: 'capybara-recycler' }],
+    availableCarrierCraftIds: ['boa'],
+    deckState,
+    dealtCount: 1,
+    initialCards: [{ participantUid: 'boa-player', cardId: '4♥' }],
+  });
+  if (!lifecycle) throw new Error('Expected valid 17-difficulty Boa lifecycle fixture.');
+  return createAwayMissionLifecycleRecord({
+    sessionId: 'session-boa-seventeen',
+    groupId: 'fleet-1',
+    sourceCycle: 3,
+    lifecycle,
+    participantCrafts: [{ participantUid: 'boa-player', craftIds: ['boa'] }],
+    boaReclamation: { actorUid: 'boa-player', opportunityId: 'A-1' },
+  } as never);
+}
+
 function act(
   record: ReturnType<typeof fixture>,
   type: string,
@@ -361,6 +388,41 @@ describe('away-mission lifecycle adapter', () => {
       bulkHaulageApplied: false,
     });
   });
+
+  it.each([
+    [8, '4♣', 'failure', 'none'],
+    [9, '5♣', 'success', 'success'],
+  ] as const)(
+    'resolves total %s against the exact Boa threshold 17/2 = 8.5',
+    (total, facilitatorCardId, expectedOutcome, rewardBranch) => {
+      let record = boaSeventeenDifficultyFixture(facilitatorCardId);
+      for (const [type, command, actorUid, authority] of [
+        ['requestExtraCards', { count: 1 }, 'boa-player', {}],
+        ['distributeExtraCard', { participantUid: 'boa-player', opportunityId: 'A-1' }, 'boa-player', {}],
+        ['openDiscards', {}, 'gm', { isActiveGm: true }],
+        ['discardCard', { cardId: '4♥' }, 'boa-player', {}],
+        ['assignCards', { placements: [{ cardId: '4♦', opportunityId: 'A-1' }] }, 'boa-player', {}],
+        ['addFacilitatorCards', {}, 'gm', { isActiveGm: true, randomIndex: () => 0 }],
+      ] as const) {
+        const result = act(record, type, command, actorUid, authority);
+        expect(result.status).toBe('committed');
+        record = result.record!;
+      }
+
+      const resolved = act(record, 'resolve', {}, 'gm', {
+        isActiveGm: true, bonusSources: [], secretD6Rolls: {},
+      });
+      expect(resolved.status).toBe('committed');
+      const calculatedOutcome = resolved.record?.outcomes?.find(({ opportunityId }) => opportunityId === 'A-1');
+      expect(calculatedOutcome).toMatchObject({
+        total, difficulty: 8.5, outcome: expectedOutcome, rewardBranch,
+      });
+      expect(projectAwayMissionPublicState(resolved.record!, 'boa-player')?.outcomes)
+        .toEqual(expect.arrayContaining([expect.objectContaining({
+          opportunityId: 'A-1', total, difficulty: 8.5, outcome: expectedOutcome,
+        })]));
+    },
+  );
 
   it('keeps committed participant craft movement-locked through a Team Phase overrun until resolution', () => {
     const record = fixture();

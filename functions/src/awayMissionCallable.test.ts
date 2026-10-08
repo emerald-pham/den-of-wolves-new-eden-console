@@ -74,6 +74,7 @@ import { activeVesselIdsForRoles } from './gameSetup';
 import { initialPdfEscortWingState } from './pdfEscortWingState';
 import { emptySmallShipState } from './smallShip';
 import { awayMissionHandId } from './awayMissionCards';
+import { organiserSitesForChart } from './starChartLookup';
 import { applyAwayMissionLifecycleCommand, createAwayMissionLifecycleBootstrap, projectAwayMissionPrivateState, projectAwayMissionPublicState, type AwayMissionLifecycleCommand } from './awayMissionLifecycleAdapter';
 
 const activeRoleIds = [...recommendedRoleIds(8)];
@@ -862,8 +863,17 @@ describe('dealPrivateInitialCards', () => {
     });
   });
 
-  it('binds a pre-deal Boa mission-card choice to its active recycler and records the floor-modified rule privately', async () => {
+  it('binds a pre-deal Boa mission-card choice and records the exact half-point threshold privately', async () => {
     mock.expansionCapybara = true;
+    const asteroidCoordinate = Object.entries(organiserSitesForChart('A'))
+      .find(([, site]) => site.code === 'A')?.[0];
+    if (!asteroidCoordinate) throw new Error('Expected a chart A lichen asteroid location.');
+    const asteroidOpportunityId = `arrival-fleet-1-A-${asteroidCoordinate}`;
+    mock.missionOpportunities = {
+      [asteroidOpportunityId]: {
+        ...defaultOpportunity, id: asteroidOpportunityId, coordinate: asteroidCoordinate, siteCode: 'A',
+      },
+    };
     const boaPlayer = players.find(({ id }) => id === 'capybara')!;
     Object.assign(boaPlayer.fields, {
       assignedRoleId: 'capybara-recycler', replacementRoleId: null, replacementStatus: null,
@@ -872,21 +882,23 @@ describe('dealPrivateInitialCards', () => {
     mock.fleetGroups[0]!.fields.vesselIds = expansionCapybaraVesselIds;
     mock.navigationState = {
       revision: 5,
-      shipGalacticCoordinates: Object.fromEntries(expansionCapybaraVesselIds.map((vesselId) => [vesselId, '5143'])),
+      shipGalacticCoordinates: Object.fromEntries(
+        expansionCapybaraVesselIds.map((vesselId) => [vesselId, asteroidCoordinate]),
+      ),
     };
     mock.shuttleDockings.push({ shuttleId: 'boa', shipId: 'capybara', dockedAt: 'now' });
-    mock.documents[`sessions/s1/boaMissionReclamationChoices/${defaultOpportunity.id}`] = {
+    mock.documents[`sessions/s1/boaMissionReclamationChoices/${asteroidOpportunityId}`] = {
       type: 'boa-mission-reclamation-choice', schemaVersion: 1, status: 'selected', sessionId: 's1',
-      opportunityId: defaultOpportunity.id, groupId: 'fleet-1', chart: 'A',
-      coordinate: '5143', siteCode: 'L', sourceCycle: 2, actorRoleId: 'capybara-recycler',
-      actorUid: 'capybara', opportunityTaskId: 'L-1', controlRevision: 1,
+      opportunityId: asteroidOpportunityId, groupId: 'fleet-1', chart: 'A',
+      coordinate: asteroidCoordinate, siteCode: 'A', sourceCycle: 2, actorRoleId: 'capybara-recycler',
+      actorUid: 'capybara', opportunityTaskId: 'A-1', controlRevision: 1,
       requestId: 'boa-choice-1', revision: 1,
     };
     const capybaraCommand = {
       sessionId: 's1', instanceId: 'bridge', requestId: 'deal-boa',
       expectedSetupRevision: 1, expectedPhaseRevision: 3, expectedCycle: 2,
-      opportunityId: defaultOpportunity.id, groupId: 'fleet-1', chart: 'A',
-      coordinate: '5143', sourceCycle: 2, missionLeaderUid: 'alice',
+      opportunityId: asteroidOpportunityId, groupId: 'fleet-1', chart: 'A',
+      coordinate: asteroidCoordinate, sourceCycle: 2, missionLeaderUid: 'alice',
       participantUids: ['alice', 'bob', 'capybara'],
     };
 
@@ -894,23 +906,23 @@ describe('dealPrivateInitialCards', () => {
       status: 'committed', participantCount: 3, missionLeaderUid: 'alice',
     });
     const missionWrite = mock.set.mock.calls.find(([ref]) =>
-      ref.path === `sessions/s1/serverState/awayMissions/instances/mission-${defaultOpportunity.id}`);
+      ref.path === `sessions/s1/serverState/awayMissions/instances/mission-${asteroidOpportunityId}`);
     const startWrite = mock.create.mock.calls.find(([ref]) =>
-      ref.path === `sessions/s1/missionStartSnapshots/${defaultOpportunity.id}`);
+      ref.path === `sessions/s1/missionStartSnapshots/${asteroidOpportunityId}`);
     expect(missionWrite?.[1]).toMatchObject({
       participantCrafts: expect.arrayContaining([{ participantUid: 'capybara', craftIds: ['boa'] }]),
-      lifecycleRecord: { boaReclamation: { actorUid: 'capybara', opportunityId: 'L-1' } },
+      lifecycleRecord: { boaReclamation: { actorUid: 'capybara', opportunityId: 'A-1' } },
     });
     expect(startWrite?.[1]).toMatchObject({
-      modifiers: [expect.stringContaining('Boa reclamation L-1')],
+      modifiers: [expect.stringContaining('Boa reclamation A-1')],
       boaReclamation: expect.objectContaining({
-        actorUid: 'capybara', missionCardOpportunityId: 'L-1',
-        rounding: 'floor', printedDifficulty: 15, effectiveDifficulty: 7,
+        actorUid: 'capybara', missionCardOpportunityId: 'A-1',
+        rounding: 'none', printedDifficulty: 17, effectiveDifficulty: 8.5,
       }),
     });
     expect(mock.update).toHaveBeenCalledWith(
-      expect.objectContaining({ path: `sessions/s1/boaMissionReclamationChoices/${defaultOpportunity.id}` }),
-      expect.objectContaining({ status: 'consumed', missionId: `mission-${defaultOpportunity.id}` }),
+      expect.objectContaining({ path: `sessions/s1/boaMissionReclamationChoices/${asteroidOpportunityId}` }),
+      expect.objectContaining({ status: 'consumed', missionId: `mission-${asteroidOpportunityId}` }),
     );
   });
 

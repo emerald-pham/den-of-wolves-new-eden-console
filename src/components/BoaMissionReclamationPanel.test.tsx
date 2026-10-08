@@ -75,6 +75,27 @@ it('shows only the current fleet’s mission tasks and binds the pre-deal choice
   expect(await within(panel).findByRole('status')).toHaveTextContent(/selected L-1.*before the initial deal/i);
 });
 
+it('shows the exact half-point adjustment for the 17-difficulty mission task', async () => {
+  mocks.read.mockResolvedValueOnce({
+    status: 'available', sessionId: 's1', actorUid: 'holder', groupId: 'fleet-1',
+    hostShipId: 'aegis', controlRevision: 4, cycle: 3,
+    opportunities: [{
+      ...opportunity, missionOpportunityId: 'arrival-fleet-1-A-asteroid', siteCode: 'A',
+      taskOpportunities: [{
+        id: 'A-1', description: 'Harvest proto-lichen from the asteroids to feed the fleet.',
+        difficulty: 17, criticalThreshold: null,
+      }],
+    }],
+  });
+
+  renderPanel();
+  const panel = await screen.findByRole('region', { name: 'Boa mission reclamation' });
+  fireEvent.click(within(panel).getByRole('button', { name: /Review Asterion mission tasks/ }));
+
+  expect(within(panel).getByText((_, element) => element?.tagName === 'SMALL' &&
+    element.textContent === 'Printed difficulty 17; Boa adjustment 8.5.')).toBeVisible();
+});
+
 it('allows returning to the mission chooser without submitting a draft', async () => {
   renderPanel();
   const panel = await screen.findByRole('region', { name: 'Boa mission reclamation' });

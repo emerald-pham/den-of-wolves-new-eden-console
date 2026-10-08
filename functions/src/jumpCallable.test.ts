@@ -1693,9 +1693,12 @@ it('records an under-fuel attempt without spending resources so an exact GM adju
   expect(mock.randomInt).not.toHaveBeenCalled();
 });
 
-it('accepts a pursuit-10 emergency jump without a charge or fuel and damages the drive plus half the remaining consoles', async () => {
+it('rounds the emergency jump half-console exception up when the remaining count is odd', async () => {
   mock.charges = [];
   mock.fuel = 0;
+  // Aegis has ten remaining non-drive, non-armoured consoles; one already
+  // damaged console leaves an odd nine for the printed half-up exception.
+  mock.damage.aegis = { damagedSystemIds: ['reactor'], destroyed: false };
   mock.pursuitGroups = { 'fleet-1': 10 };
   mock.pursuitEmergencyWindow = {
     type: 'pursuit-emergency-window', status: 'offered', cycle: 1,
@@ -1704,14 +1707,17 @@ it('accepts a pursuit-10 emergency jump without a charge or fuel and damages the
   mock.update.mockClear();
   mock.set.mockClear();
 
-  await expect(jumpShip.run(request({
+  const jumpReply = await jumpShip.run(request({
     ...data, requestId: 'emergency-at-pursuit-ten', destination: '5143', emergency: true,
-  }))).resolves.toMatchObject({
+  }));
+  expect(jumpReply).toMatchObject({
     status: 'jumped', emergency: true, shipId: 'aegis',
     origin: '0000', destination: '5143', fuelSpent: 0, remainingFuel: 0,
     state: { lastJumpTurn: 1, emergencyJumpUsed: true },
     damage: { destroyed: false, damagedSystemIds: expect.arrayContaining(['jump-drive']) },
+    damageDraws: expect.any(Array),
   });
+  expect((jumpReply as { damageDraws: unknown[] }).damageDraws).toHaveLength(5);
 
   expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
     'shipResources.aegis.fuel': 0,
@@ -2715,6 +2721,31 @@ it('rounds half of an odd d6 failed-jump damage roll down before drawing cards',
   expect((reply as { damageDraws: unknown[] }).damageDraws).toHaveLength(2);
   expect(mock.update).toHaveBeenCalledWith('sessions/s1/jumpFailures/odd-half-failure',
     expect.objectContaining({ resolution: 'half-d6-damage', damageRoll: 5, appliedDamageCount: 2 }));
+});
+
+it('does not invent a minimum damage draw for a failed-jump roll of one', async () => {
+  mock.fuel = 1;
+  mock.jumpStates = { aegis: { lastFailureRequestId: 'minimum-half-failure' } };
+  mock.jumpFailures = {
+    'minimum-half-failure': {
+      type: 'ship-jump-failure', status: 'unresolved', adjudicable: true,
+      requestId: 'minimum-half-failure', shipId: 'aegis', origin: '0000', destination: '9997',
+      failureStatus: 'fuel-shortage', failureRevision: 0, currentTurn: 1, fuelAtFailure: 1,
+      requiredFuel: 3,
+    },
+  };
+  mock.randomInt.mockReturnValue(1);
+
+  const reply = await adjudicateFailedJump.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'minimum-half-resolution',
+    expectedRevision: 0, failureRequestId: 'minimum-half-failure', destination: '5143',
+    consequence: 'half-d6-damage',
+  }));
+
+  expect(reply).toMatchObject({ status: 'jumped', consequence: 'half-d6-damage', failureRoll: 1, damageCount: 0 });
+  expect((reply as { damageDraws: unknown[] }).damageDraws).toHaveLength(0);
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1/jumpFailures/minimum-half-failure',
+    expect.objectContaining({ resolution: 'half-d6-damage', damageRoll: 1, appliedDamageCount: 0 }));
 });
 
 it('commits the documented no-jump delay without fuel, movement, or damage mutations', async () => {
