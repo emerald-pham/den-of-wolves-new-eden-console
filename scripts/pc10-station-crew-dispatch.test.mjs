@@ -11,10 +11,11 @@ function attack(currentStep, revision = 8) {
 }
 
 function surface(roleId, response, { entitledShipId = 'icebreaker', path = '/ships/icebreaker/roles/icebreaker-miner',
-  responses = {}, defenceOptions = ['0', '1', '2'] } = {}) {
-  const effects = { clicks: [], selected: [], reads: [] };
+  responses = {}, defenceOptions = ['0', '1', '2'], profileRoleId = roleId } = {}) {
+  const effects = { clicks: [], selected: [], reads: [], enabledChecks: [] };
+  const selectedValues = new Map();
   const actor = { hasAuth: true, sameActor: true, uidHash: `uid-${roleId}`, sessionId,
-    profileRoleId: roleId, assignedRoleId: roleId, activeConsoleRoleId: roleId, seatId: roleId,
+    profileRoleId, assignedRoleId: roleId, activeConsoleRoleId: roleId, seatId: roleId,
     playerRole: 'player', phase: 'active', cycle: 3, fleetGroupId: 'fleet-p', connectionGeneration: 1,
     identityHydrationRevision: 1, replacementRoleId: null, replacementStatus: null,
     airspace: 'lifted', turnStatePhase: 'coordination', phaseProgression: 'manual',
@@ -28,10 +29,14 @@ function surface(roleId, response, { entitledShipId = 'icebreaker', path = '/shi
     ? requested.test(candidate) : candidate === requested;
   const locator = (name, enabled = true, visible = true) => ({
     isVisible: async () => visible,
-    isEnabled: async () => enabled,
+    isEnabled: async () => {
+      const actual = typeof enabled === 'function' ? enabled() : enabled;
+      effects.enabledChecks.push({ name, actual });
+      return actual;
+    },
     click: async () => { effects.clicks.push(name); },
     waitFor: async () => {},
-    selectOption: async value => { effects.selected.push([name, value]); },
+    selectOption: async value => { effects.selected.push([name, value]); selectedValues.set(name, String(value)); },
     check: async () => { effects.selected.push([name, true]); },
     count: async () => 1,
     first() { return this; },
@@ -54,8 +59,14 @@ function surface(roleId, response, { entitledShipId = 'icebreaker', path = '/shi
       }
       if (kind === 'combobox') {
         const name = options.name;
-        const known = typeof name === 'string' ? name : String(name);
-        return locator(known, true, true);
+        const fighterLabels = (currentResponse?.fighters ?? []).flatMap(({ fighterIndex }) => [
+          `Fighter ${fighterIndex + 1} action`, `Fighter ${fighterIndex + 1} target`,
+        ]);
+        const known = typeof name === 'string' ? name : fighterLabels.find(label => name?.test?.(label)) ?? String(name);
+        const enabled = known.endsWith(' target')
+          ? () => ['attack', 'target-shift'].includes(selectedValues.get(known.replace('target', 'action')))
+          : true;
+        return locator(known, enabled, true);
       }
       if (kind === 'checkbox') return locator(String(options.name), true, true);
       return locator(String(options.name), true, true);
@@ -70,7 +81,10 @@ function surface(roleId, response, { entitledShipId = 'icebreaker', path = '/shi
     buttons['Use Highwall Cannon'] = response.actionAvailable;
     buttons['Pass this range'] = true;
   }
-  if (response?.wingId === 'pdf-escort-fighter-wing') buttons['Pass Medium Range'] = true;
+  if (response?.wingId === 'pdf-escort-fighter-wing') {
+    buttons['Pass Medium Range'] = true;
+    buttons['Resolve Medium actions'] = true;
+  }
   if (response?.choice?.kind === 'relocation') buttons['Stay at REFINERY 124'] = true;
   if ([response, ...Object.values(responses)].some(view => view?.type === 'wolf-boarding-defence-choice-view'))
     buttons['Commit defence'] = true;
@@ -115,7 +129,8 @@ function surface(roleId, response, { entitledShipId = 'icebreaker', path = '/shi
 function options(actors, current, onAction) {
   const actorChecks = [];
   return { actors, sessionId, deadlineAt, assertActor: async (actor, context) => {
-    actorChecks.push({ roleId: actor.roleId, stage: context.stage });
+    actorChecks.push({ roleId: actor.roleId, stage: context.stage,
+      profileRoleId: (await actor.surface.observe()).profileRoleId });
     assert.equal(actor.surface.label, actor.roleId);
   }, readAttack: async () => current, action: async (surface, endpoint, choose, metadata) => {
     await choose();
@@ -126,7 +141,7 @@ function options(actors, current, onAction) {
 
 test('dispatches the currently offered PDF launch through its colonel console and original deadline', async () => {
   const pdf = surface('refinery-124-pdf-colonel', { type: 'pdf-escort-wing-launch-view',
-    sessionId, turn: 3, revision: 8, wingRevision: 4, launched: false, eligible: true });
+    sessionId, turn: 3, revision: 8, wingRevision: 4, launched: false, eligible: true }, { profileRoleId: null });
   let accepted;
   const opts = options([{ roleId: pdf.label, surface: pdf }], attack('targeting'), value => { accepted = value; });
   const result = await dispatchStationCrewChoice(attack('targeting'), opts);
@@ -135,6 +150,8 @@ test('dispatches the currently offered PDF launch through its colonel console an
   assert.deepEqual(pdf.effects.clicks, ['Launch PDF Escort Wing']);
   assert.equal(accepted.endpoint, 'launchPdfEscortWing');
   assert.equal(accepted.metadata.deadlineAt, deadlineAt);
+  assert.ok(opts.actorChecks.length > 0 && opts.actorChecks.every(check => check.profileRoleId === null),
+    'An assigned actor with null profileRoleId stays bound to its observed live identity.');
 });
 
 test('dispatches the PDF medium-range choice from the current escort view', async () => {
