@@ -77,6 +77,39 @@ beforeEach(() => {
 });
 
 describe('ordinary candidate callable authority and durable replay', () => {
+  it('authorizes edition selection only to the live GM instance and locks it across every fleet group', async () => {
+    const choice = { sessionId: 's1', requestId: 'edition-deluxe', expectedRevision: 0,
+      expectedGroupId: 'fleet-1', instanceId: 'instance1', edition: 'deluxe' };
+    await expect(handlers.selectEdition(request(choice, 'admiral'))).rejects.toMatchObject({ code: 'permission-denied' });
+    await expect(handlers.selectEdition(request({ ...choice, instanceId: 'missing' }, 'gm')))
+      .rejects.toMatchObject({ code: 'permission-denied' });
+    expect(documents.has('sessions/s1/serverState/candidates')).toBe(false);
+    const selected = await handlers.selectEdition(request(choice, 'gm'));
+    expect(selected).toMatchObject({ status: 'committed', revision: 1, edition: 'deluxe' });
+    expect(documents.get('sessions/s1/serverState/candidates')).toMatchObject({ revision: 1, edition: 'deluxe', sites: {} });
+    const otherGroupStarted = { revision: 2, edition: 'deluxe', sites: { 'fleet-2:0408': {
+      code: 'O', coordinate: '0408', groupId: 'fleet-2', materials: 0, researchIds: [], ships: {}, reactors: {},
+    } } };
+    put('sessions/s1/serverState/candidates', otherGroupStarted);
+    await expect(handlers.selectEdition(request({ ...choice, requestId: 'edition-home', expectedRevision: 2, edition: 'home' }, 'gm')))
+      .rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(documents.get('sessions/s1/serverState/candidates')).toEqual(otherGroupStarted);
+    expect(documents.has('sessions/s1/candidateActionReceipts/edition-home')).toBe(false);
+  });
+  it('replays the exact session edition receipt after another group starts and rejects request collisions', async () => {
+    const choice = { sessionId: 's1', requestId: 'edition-replay', expectedRevision: 0,
+      expectedGroupId: 'fleet-1', instanceId: 'instance1', edition: 'deluxe' };
+    const first = await handlers.selectEdition(request(choice, 'gm'));
+    const started = { revision: 2, edition: 'deluxe', sites: { 'fleet-2:0408': {
+      code: 'O', coordinate: '0408', groupId: 'fleet-2', materials: 0, researchIds: [], ships: {}, reactors: {},
+    } } };
+    put('sessions/s1/serverState/candidates', started);
+    await expect(handlers.selectEdition(request(choice, 'gm'))).resolves.toEqual({ ...first, status: 'replayed' });
+    expect(documents.get('sessions/s1/serverState/candidates')).toEqual(started);
+    await expect(handlers.selectEdition(request({ ...choice, edition: 'home' }, 'gm')))
+      .rejects.toMatchObject({ code: 'failed-precondition' });
+    await expect(handlers.selectEdition(request(choice, 'admiral'))).rejects.toMatchObject({ code: 'permission-denied' });
+  });
   it('permanently consumes an available Engineering Shuttle in the candidate transaction and retains its exact receipt', async () => {
     const coordinate = Object.entries(organiserSitesForChart('A')).find(([, site]) => site.code === 'N')![0];
     const current = documents.get('sessions/s1')!;
