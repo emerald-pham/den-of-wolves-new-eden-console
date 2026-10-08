@@ -13,12 +13,12 @@ import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
 import Starmap from './Starmap';
 
-it('renders a selectable 3D projection of the printed chart without inventing spatial truth', async () => {
+it('renders all 41 source links, including the printed 5143–1413 edge, in the selectable chart', async () => {
   const user = userEvent.setup();
   const onChartChange = vi.fn();
   const onSystemSelect = vi.fn();
 
-  render(
+  const { container } = render(
     <Starmap
       chart="A"
       onChartChange={onChartChange}
@@ -34,7 +34,10 @@ it('renders a selectable 3D projection of the printed chart without inventing sp
 
   const map = screen.getByRole('region', { name: '3D starmap' });
   expect(map).toHaveAttribute('data-chart', 'A');
-  expect(map).toHaveTextContent(/22 systems \/\/ 40 jump links/i);
+  // The source chart adds this edge, so both the rendered network and its count read 41.
+  expect.soft(map).toHaveTextContent(/22 systems \/\/ 41 jump links/i);
+  expect.soft(container.querySelectorAll('line')).toHaveLength(41);
+  expect.soft(container.querySelector('line[x1="32"][y1="80"][x2="61"][y2="85"]')).toBeInTheDocument();
   expect(map).toHaveTextContent(/perspective depth is display only/i);
   expect(screen.getAllByRole('button', { name: /system /i })).toHaveLength(22);
   expect(screen.getByRole('button', { name: /system 0000.*start/i })).toHaveAttribute('aria-pressed', 'true');

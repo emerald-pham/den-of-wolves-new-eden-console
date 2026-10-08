@@ -6,11 +6,20 @@ import {
   neighborsForCoordinate,
 } from './starChartGraph';
 
+it('keeps the printed 5143–1413 edge in both backend directions at distance one', () => {
+  // The original A4 single-sided chart (physical PDF pages 28–30) prints this direct edge.
+  expect.soft(STAR_CHART_CONNECTIONS).toHaveLength(41);
+  expect.soft(neighborsForCoordinate('5143')).toContain('1413');
+  expect.soft(neighborsForCoordinate('1413')).toContain('5143');
+  expect.soft(jumpDistanceBetween('5143', '1413')).toBe(1);
+  expect.soft(jumpDistanceBetween('1413', '5143')).toBe(1);
+});
+
 it('returns exactly the source adjacency for every printed system', () => {
   const expected: Record<string, readonly string[]> = {
     '0000': ['5143', '1413'],
-    '5143': ['0000', '9997', '6837'],
-    '1413': ['0000', '6837', '0488'],
+    '5143': ['0000', '9997', '6837', '1413'],
+    '1413': ['0000', '6837', '0488', '5143'],
     '9997': ['5143', '6931'],
     '6837': ['5143', '1413', '0488', '6931', '4454'],
     '0488': ['1413', '6837', '4454'],
