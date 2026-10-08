@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import ts from 'typescript';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { act, render, within } from '@testing-library/react';
@@ -116,7 +117,10 @@ const proofReceipt = new Function('assert', 'delay', js(
   `${functionText(helpers, 'waitForBaseResearchReceipt')}\nreturn waitForBaseResearchReceipt;`,
 ))(assert, async () => { assert.fail('Immediate native receipt must not need another sample or timer.'); }) as
   (input: Row) => Promise<unknown>;
-const observeReceipt = new Function(js(`${functionText(receipts, 'observeUiReceipt')}\nreturn observeUiReceipt;`))() as
+const { createUiReceiptDiagnostic } = await import(pathToFileURL(resolve(root, 'scripts/pc10-ui-receipt-diagnostics.mjs')).href);
+const { rememberProofFailure } = await import(pathToFileURL(resolve(root, 'scripts/pc10-proof-failure-evidence.mjs')).href);
+const observeReceipt = new Function('createUiReceiptDiagnostic', 'rememberProofFailure',
+  js(`${functionText(receipts, 'observeUiReceipt')}\nreturn observeUiReceipt;`))(createUiReceiptDiagnostic, rememberProofFailure) as
   (input: Row) => Promise<unknown>;
 const originalActor = new Function('assert', js(`${functionText(helpers, 'assertOriginalIdentity')}\n` +
   `${functionText(helpers, 'assertOriginalBaseActor')}\nreturn assertOriginalBaseActor;`))(assert) as
