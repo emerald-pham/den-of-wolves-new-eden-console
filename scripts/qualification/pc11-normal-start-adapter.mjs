@@ -58,7 +58,7 @@ function commonLiveMember(value, expected) {
 export function pc11MemberReadiness(value, expected) {
   if (!commonLiveMember(value, expected)) return false;
   if (expected.stage === 'casting') {
-    return value.cycle === 0 && value.phase === 'casting' && value.setupConfirmed === true &&
+    return value.cycle === 0 && (value.phase === 'lobby' || value.phase === 'casting') && value.setupConfirmed === true &&
       value.assignedRoleId === (expected.roleId ?? null) &&
       value.activeConsoleRoleId == null && value.seatId == null;
   }

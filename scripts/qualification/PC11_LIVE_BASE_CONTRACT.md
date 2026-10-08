@@ -120,3 +120,39 @@ Native proof gaps: real browsers, UI geometry, SDK transport/rules, live subscri
 actual mutation/reply chronology, actual reload/passive resume, physical tabletop counts
 and final rendered acceptance require the separately allocated bounded proof. Native
 fixtures do not establish those outcomes or override the two recorded runtime stops.
+
+## Actual12 ordinary phase/wait correction
+
+Actual12 earned ordinary GM create, owned live GM, and legal twelve-seat setup
+claims, then stopped at the first join: the observer incorrectly required `casting`
+while the published configured session remained `lobby`. No trade/Philia proof was
+earned. The source-only correction changes admission observation, not product state.
+
+The published create handler replies/writes `lobby` at Cycle0. `confirmSetup` writes
+setupConfirmed and configuration without changing phase. `requireCastingWindow`
+allows lobby/casting. `assignRole` writes the first primary role and `casting`;
+normal station selection then owns the canonical seat. The second join can therefore
+see casting. Ordinary `startGame` advances to active Cycle1 with the briefing held;
+actual briefing clearance removes that hold. No helper name defines those phases.
+
+The native test extracts and executes **all six actual runner until predicates** with
+this faithful transition sequence, plus both actual casting-station consumers and
+real admission/station authority helpers. A new wait changes the inventory count.
+
+| Wait | Source/store contract and mounted action | Native positive/negative boundary |
+| --- | --- | --- |
+| fresh ordinary Cycle0 | createSession result/store currentTurn0; Create a session and existing consent | original authenticated same actor/session, server freshness |
+| original live GM | claimGmInstance descriptor/member GM role and mounted SDK authority; Join as GM | owned original GM; active phase required when requested, lobby rejected then |
+| legal12 roster | confirmSetup setupConfirmed/activeRoleIds; Confirm setup // Confirm roster | actual recommended12 ordered roster; final ordinary-start helper retains exact roster check |
+| normal joined pre-start | joinSession projects confirmed lobby for first player or casting after first assignment; Join a session and existing consent | both phases with Cycle0, setupConfirmed, live/server and own actor/session; offline/cache/foreign/active/closed fail |
+| original persisted member | cold-document reload retains member/seat, followed by strict memberReady/map readback | own live/server primary role; original identity assertions and lost-authority negatives retained |
+| briefing cleared | startGame activeCycle1 then clearTurnAdvanceInterstitial; Clear cycle briefing // resume clock | held/mounted briefing fails; only both cleared flags succeed in activeCycle1 |
+
+Unseated admission readiness permits only configured lobby/casting at Cycle0. Exact
+assigned-station readiness still requires castingCycle0 or activeCycle1 and the owned
+canonical seat. Hosted Philia and operational berth checks remain activeCycle1.
+Untouched `about:blank` or foreign-origin surfaces skip first-failure actor observation
+before importing App modules; mounted original App surfaces still run the full observer.
+The diagnostic skip gives no actor/readiness/proof credit. Original identity, UID,
+server/SDK authority, generation/hydration, epoch, seat/map, target and cleanup floors
+are unchanged. This source correction has no runtime or rendered acceptance claim.
