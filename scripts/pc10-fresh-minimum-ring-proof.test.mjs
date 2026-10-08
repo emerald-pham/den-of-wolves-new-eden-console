@@ -75,3 +75,9 @@ test('owned Auth freshness tolerates second precision but forbids a preexisting 
  assert.throws(()=>proof.assertFreshRingIdentity({uid:'old',metadata:{creationTime:new Date(100000).toUTCString()}},100999,new Set(['old'])),/preexisting/i);
  assert.throws(()=>proof.assertFreshRingIdentity({uid:'old',metadata:{creationTime:new Date(99000).toUTCString()}},100999,new Set()),/fresh/i);
 });
+test('page errors and blocked remote requests preclude successful native proof',()=>{
+ assert.equal(typeof proof.assertRingRuntimeClean,'function');
+ proof.assertRingRuntimeClean([],[]);
+ assert.throws(()=>proof.assertRingRuntimeClean([{message:'page failed'}],[]),/page/i);
+ assert.throws(()=>proof.assertRingRuntimeClean([],['https://outside.example/']),/remote/i);
+});
