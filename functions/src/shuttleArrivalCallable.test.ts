@@ -1,6 +1,7 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { CallableRequest } from 'firebase-functions/v2/https';
 import { enterShuttleTransit, toPublicShuttleTransit, toShuttleTransitChain } from './shuttleTransit';
+import { setQuarantineDockingPolicy } from './quarantineDocking';
 
 type Fields = Record<string, unknown>;
 
@@ -256,6 +257,60 @@ it('commits docking, history, event, transit deletion, and one replay receipt at
   });
   expect(mock.set.mock.calls.length + mock.update.mock.calls.length +
     mock.create.mock.calls.length + mock.remove.mock.calls.length).toBe(writes);
+});
+
+it('enforces one quarantined destination arrival per cycle across replay and depart-return travel', async () => {
+  const session = mock.documents.get('sessions/s1')!;
+  session.quarantineDocking = setQuarantineDockingPolicy({
+    existing: null, action: 'activate', crisisId: 'outbreak-1', crisisRevision: 3,
+    affectedShipIds: ['icebreaker'],
+  });
+
+  await expect(completeShuttleArrival.run(request())).resolves.toMatchObject({
+    status: 'arrived', hostShipId: 'icebreaker',
+  });
+  expect(session.quarantineDocking).toMatchObject({
+    status: 'active', acceptedByShip: { icebreaker: { shuttleId: 'starlight', cycle: 2 } },
+  });
+  const acceptanceAfterFirstArrival = structuredClone(session.quarantineDocking);
+
+  await expect(completeShuttleArrival.run(request())).resolves.toMatchObject({ status: 'replayed' });
+  expect(session.quarantineDocking).toEqual(acceptanceAfterFirstArrival);
+
+  const installTransit = (transitRequestId: string, originShipId: string, destinationShipId: string) => {
+    const now = Date.now() - 60_000;
+    const control = (session.shuttleControl as Record<string, Fields>).starlight!;
+    const entered = enterShuttleTransit({
+      transitRequestId, actorUid: 'holder', expectedDepartureRequestId: `departure-${transitRequestId}`,
+      expectedControlRevision: 2, expectedCycle: 2,
+      departure: {
+        status: 'requested', requestId: `departure-${transitRequestId}`, shuttleId: 'starlight',
+        holderUid: 'holder', fleetGroupId: 'fleet-1', originShipId, destinationShipId,
+        cycle: 2, controlRevision: 2, requestedAt: new Date(now - 60_000).toISOString(),
+      },
+      control: control as never,
+      dockings: session.shuttleDockings as never,
+      group: { id: 'fleet-1', vesselIds: ['aegis', 'icebreaker'], memberUids: ['holder', 'owner'] },
+      phase: session.turnPhase as never,
+      now,
+    });
+    session.shuttleDockings = entered.dockings;
+    const transit = entered.transit;
+    put(`sessions/s1/shuttleDepartures/starlight`, toPublicShuttleTransit(transit));
+    put(`sessions/s1/shuttleTransitChains/starlight`, toShuttleTransitChain(transit));
+  };
+
+  installTransit('return-transit', 'icebreaker', 'aegis');
+  await expect(completeShuttleArrival.run(request({ ...command, transitRequestId: 'return-transit' })))
+    .resolves.toMatchObject({ status: 'arrived', hostShipId: 'aegis' });
+  installTransit('second-inbound', 'aegis', 'icebreaker');
+  await expect(completeShuttleArrival.run(request({ ...command, transitRequestId: 'second-inbound' })))
+    .rejects.toMatchObject({ code: 'failed-precondition', message: expect.stringMatching(/already accepted one shuttle this cycle/i) });
+  expect(session.quarantineDocking).toEqual(acceptanceAfterFirstArrival);
+  expect(mock.documents.has('sessions/s1/shuttleArrivalReceipts/second-inbound')).toBe(false);
+  expect(session.shuttleDockings).not.toEqual(expect.arrayContaining([
+    expect.objectContaining({ shuttleId: 'starlight', shipId: 'icebreaker' }),
+  ]));
 });
 
 it('returns the fresh current transit for a stale arrival identity without side effects', async () => {
