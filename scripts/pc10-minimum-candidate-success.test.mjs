@@ -69,6 +69,7 @@ function stationProbe() {
   const gm = { observe: async () => gmActor, callable: async (endpoint, data) => {
     calls.push({ endpoint, data });
     if (endpoint === 'readCandidateWorkspace') return { status: 'committed', result: {
+      type: 'candidate-workspace', sessionId: 'owned-s1', groupId: 'fleet-1', cycle: 2,
       revision: state.revision, paths: [{ code: 'P', coordinate: '2222', liberated: true,
         ships: Object.entries(capacities).filter(([id]) => !committed.includes(id)).map(([shipId, reactorCapacity]) => ({ shipId, reactorCapacity, canAct: true })) }] } };
     assert.equal(endpoint, 'executeCandidateAction');
@@ -106,4 +107,58 @@ test('unliberated Station produces no Reactor mutation or injected combat outcom
   };
   await assert.rejects(runMinimumCandidateSuccessProbe(context), /liberat/i);
   assert.equal(calls.filter(call => call.endpoint === 'executeCandidateAction').length, 0);
+});
+
+test('never-settling original reader fails within its original deadline', async () => {
+  const { context } = stationProbe(); context.deadlineAt = Date.now() + 15;
+  context.readRoot = () => new Promise(() => {});
+  const result = await Promise.race([
+    runMinimumCandidateSuccessProbe(context).then(() => 'unexpected-success', error => error.message),
+    new Promise(resolve => setTimeout(() => resolve('unbounded-operation'), 60)),
+  ]);
+  assert.match(result, /deadline expired/i);
+});
+
+test('foreign workspace envelope and changed live authority cannot mutate', async () => {
+  for (const patch of [{ type: 'foreign' }, { sessionId: 'foreign' }, { groupId: 'fleet-2' }, { cycle: 3 }]) {
+    const { context, calls } = stationProbe(), original = context.gm.callable;
+    context.gm.callable = async (name, data) => {
+      const reply = await original(name, data);
+      if (name === 'readCandidateWorkspace') Object.assign(reply.result, patch);
+      return reply;
+    };
+    await assert.rejects(runMinimumCandidateSuccessProbe(context));
+    assert.equal(calls.filter(call => call.endpoint === 'executeCandidateAction').length, 0);
+  }
+  const { context, calls } = stationProbe(); let observations = 0;
+  context.gm.observe = async () => ({ ...actor('gm-hash', 'gm'), connection: ++observations > 1 ? 'offline' : 'live' });
+  await assert.rejects(runMinimumCandidateSuccessProbe(context));
+  assert.equal(calls.filter(call => call.endpoint === 'executeCandidateAction').length, 0);
+});
+
+test('last committed activation waits for source-owned publication without another mutation', async () => {
+  const { context, calls } = stationProbe(), original = context.readRoot; let delayed = false;
+  context.readRoot = async () => {
+    const value = await original();
+    if (value.phase === 'debrief' && !delayed) { delayed = true; return { ...value, phase: 'active', debriefSnapshot: null }; }
+    return value;
+  };
+  const result = await runMinimumCandidateSuccessProbe(context);
+  assert.equal(result.outcomeObserved, 'activated');
+  assert.equal(calls.filter(call => call.endpoint === 'executeCandidateAction').length, 5);
+});
+
+test('Nebula success from old dispositions cannot be relabeled as a new reached action', async () => {
+  const input = fixture('O'); let reads = 0;
+  const context = { ...input, groupId: 'fleet-1', coordinate: '2222', deadlineAt: Date.now() + 100,
+    gm: { observe: async () => input.gm, callable: async () => ({ status: 'committed', result: {
+      type: 'candidate-workspace', sessionId: 'owned-s1', groupId: 'fleet-1', cycle: 2,
+      revision: 5, paths: [{ code: 'O', coordinate: '2222', ships: [] }] } }) },
+    scientist: { observe: async () => input.scientist }, representative: { observe: async () => input.representative },
+    readRoot: async () => ({ sessionId: 'owned-s1', currentTurn: 2,
+      activeRoleIds: Array(14).fill('configured'), phase: ++reads === 1 ? 'active' : 'debrief',
+      debriefSnapshot: { source: 'candidate', result: 'success', candidate: { code: 'O' } } }),
+    selectGmShip: async () => {},
+  };
+  await assert.rejects(runMinimumCandidateSuccessProbe(context), /reached.*receipt|receipt.*reached/i);
 });
