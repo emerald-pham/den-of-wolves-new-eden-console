@@ -705,7 +705,8 @@ test('does not follow a same-path Miner return href from a foreign origin', asyn
       getWolfBoardingDefenceChoice: { type: 'wolf-boarding-defence-choice-unavailable', sessionId, reason: 'no-boarders' },
     } });
   const current = attack('boarding');
-  await dispatchStationCrewChoice(current, options([{ roleId: miner.label, surface: miner }], current));
+  await assert.rejects(dispatchStationCrewChoice(current, options([{ roleId: miner.label, surface: miner }], current)),
+    /current console navigation link must stay on the original browser origin/);
   assert.deepEqual(miner.effects.clicks, [], 'A same-path cross-origin owner href must be rejected before click.');
   assert.equal(miner.route(), '/shuttles/highwall');
 });
