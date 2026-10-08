@@ -4,7 +4,9 @@ import {readFile} from 'node:fs/promises';
 import {runSparseStationCombat} from './pc10-station-combat-adapter.mjs';
 const source=await readFile(new URL('./pc10-fresh-minimum-ring-proof.mjs',import.meta.url),'utf8');
 test('actual browser combat collection never reads server-only authority',()=>{
- const browserRead=source.slice(source.indexOf('const read=await gm.page.evaluate(async sid=>'),source.indexOf('},sid);',source.indexOf('const read=await gm.page.evaluate(async sid=>')));
+ const start=source.indexOf('async function readAttack');
+ const end=source.indexOf('async function readTurnState',start);
+ const browserRead=source.slice(start,end);
  assert.ok(browserRead.includes('wolfAttackState/current'));assert.ok(browserRead.includes('wolfAttackAudience/current'));
  assert.doesNotMatch(browserRead,/serverState\/|getDocsFromServer|\/players|\/fleetGroups/);
 });
