@@ -10,6 +10,17 @@ test('actual browser combat collection never reads server-only authority',()=>{
  assert.ok(browserRead.includes('wolfAttackState/current'));assert.ok(browserRead.includes('wolfAttackAudience/current'));
  assert.doesNotMatch(browserRead,/serverState\/|getDocsFromServer|\/players|\/fleetGroups/);
 });
+test('default original GM attack reads preserve the existing 60-second cap while explicit stage deadlines stay bounded',()=>{
+ const start=source.indexOf('async function readAttack');
+ const end=source.indexOf('async function readTurnState',start);
+ const browserRead=source.slice(start,end);
+ assert.match(browserRead,/async function readAttack\(\{deadlineAt:operationDeadlineAt=Math\.min\(Date\.now\(\)\+60000,workEnd\)\}=\{\}\)/,
+  'A default attack read must retain the original live-GM 60-second cap and the outer work deadline.');
+ assert.ok(browserRead.includes("liveGm(gm,'GM1','active',{deadlineAt:operationDeadlineAt})"),
+  'Explicit stage deadlines must reach the existing live-GM authority reader.');
+ assert.ok(browserRead.includes("operationDeadlineAt,'Original GM browser P attack read expired.'"),
+  'The actual Firestore read must remain bounded by that same operation deadline.');
+});
 test('Station phase catch-up reads the whole phase envelope and original GM lease from its owned browser',()=>{
  const start=source.indexOf('async function readTurnState');
  const end=source.indexOf('const recordDiagnosticError',start);
