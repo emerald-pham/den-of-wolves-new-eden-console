@@ -28,3 +28,15 @@ test('launcher forwards actual SIGINT to owned process tree and waits for scoped
  const pending=runStationLaunchCommand('node',['owned-wrapper'],{signalSource:signals,spawnProcess:()=>child,terminateProcessTree:(owned,signal)=>{assert.equal(owned,child);stopped.push(signal)}}).then(()=>{complete=true});
  signals.emit('SIGINT');await Promise.resolve();assert.equal(complete,false);child.emit('exit',0,null);await pending;assert.deepEqual(stopped,['SIGINT']);assert.equal(signals.listenerCount('SIGINT'),0);assert.equal(signals.listenerCount('SIGTERM'),0);
 });
+
+test('reviewed backend repair reports historical admission delta and requires fresh current admission',async()=>{
+ const {compareStationAdmissionReference}=await import('./pc10-station-runtime-launch.mjs');
+ const prior={compiledTreeSha256:'old-build',trackedFiles:[{path:'src/components/LocalGmAccess.tsx',sha256:'same'},{path:'functions/src/index.ts',sha256:'old-source'}]};
+ const reference={probeFamily:'station-success',sourceCommit:'prior',sourceBinding:{sourceCommit:'prior',...prior},runtime:{useEmulators:true,ports:allocation.ports,projectId:'demo-prior'},claims:['GM1 ordinary admission/consent, normal local GM authorization and independent owned live instance'],receipts:[{endpoint:'claimGmInstance',httpStatus:200}]};
+ const current={compiledTreeSha256:'new-build',trackedFiles:[{path:'src/components/LocalGmAccess.tsx',sha256:'same'},{path:'functions/src/index.ts',sha256:'new-source'}]};
+ const result=compareStationAdmissionReference(allocation,current,reference);
+ assert.equal(result.compiledTreeEqual,false);assert.equal(result.productSourcesEqual,false);assert.equal(result.requiresFreshAdmission,true);
+ assert.deepEqual(result.backendSourceChanges,[{path:'functions/src/index.ts',priorSha256:'old-source',currentSha256:'new-source'}]);
+ assert.throws(()=>compareStationAdmissionReference(allocation,{...prior,compiledTreeSha256:'unexplained-build'},reference));
+ assert.throws(()=>compareStationAdmissionReference(allocation,{...current,trackedFiles:[{path:'src/components/LocalGmAccess.tsx',sha256:'changed'},{path:'functions/src/index.ts',sha256:'new-source'}]},reference));
+});
