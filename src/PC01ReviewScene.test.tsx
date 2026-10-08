@@ -12,15 +12,17 @@ it('lets the owner try the synthetic Team research and Coordination purchase wit
   expect(within(sampleNotice).getByText('SAMPLE ONLY')).toBeVisible();
   expect(within(sampleNotice).getByText(/No live session is connected/)).toBeVisible();
   expect(screen.getByRole('link', { name: 'Return to console landing' })).toHaveAttribute('href', '/');
+  expect(screen.getByRole('list', { name: 'Research progress' })).toHaveTextContent('Jump Drive: 1 of 5 boxes crossed');
+  expect(screen.getByRole('list', { name: 'Research progress' })).toHaveTextContent('Reactor: 2 of 5 boxes crossed');
 
   await user.selectOptions(screen.getByRole('combobox', { name: 'Research track' }), 'jump-drive');
   await user.click(screen.getByRole('button', { name: 'Advance standard research' }));
   expect(await screen.findByRole('status')).toHaveTextContent('Sample research choice recorded.');
-  expect(screen.getByRole('list', { name: 'Research progress' })).toHaveTextContent('Jump Drive: 1 of 5 boxes crossed');
+  expect(screen.getByRole('list', { name: 'Research progress' })).toHaveTextContent('Jump Drive: 2 of 5 boxes crossed');
 
   await user.click(screen.getByRole('button', { name: 'Coordination upgrades' }));
-  expect(screen.getByRole('checkbox', { name: 'DIONE // Jump Drive // 13 materials' })).toBeVisible();
-  await user.click(screen.getByRole('checkbox', { name: 'DIONE // Jump Drive // 13 materials' }));
+  expect(screen.getByRole('checkbox', { name: 'DIONE // Jump Drive // 10 materials' })).toBeVisible();
+  await user.click(screen.getByRole('checkbox', { name: 'DIONE // Jump Drive // 10 materials' }));
   await user.click(screen.getByRole('button', { name: 'Purchase sample upgrades' }));
   expect(await screen.findByRole('status')).toHaveTextContent('Sample purchase successful.');
 
