@@ -260,7 +260,7 @@ it('commits docking, history, event, transit deletion, and one replay receipt at
 });
 
 it('enforces one quarantined destination arrival per cycle across replay and depart-return travel', async () => {
-  const session = mock.documents.get('sessions/s1')!;
+  let session = mock.documents.get('sessions/s1')!;
   session.quarantineDocking = setQuarantineDockingPolicy({
     existing: null, action: 'activate', crisisId: 'outbreak-1', crisisRevision: 3,
     affectedShipIds: ['icebreaker'],
@@ -269,6 +269,7 @@ it('enforces one quarantined destination arrival per cycle across replay and dep
   await expect(completeShuttleArrival.run(request())).resolves.toMatchObject({
     status: 'arrived', hostShipId: 'icebreaker',
   });
+  session = mock.documents.get('sessions/s1')!;
   expect(session.quarantineDocking).toMatchObject({
     status: 'active', acceptedByShip: { icebreaker: { shuttleId: 'starlight', cycle: 2 } },
   });
@@ -303,9 +304,11 @@ it('enforces one quarantined destination arrival per cycle across replay and dep
   installTransit('return-transit', 'icebreaker', 'aegis');
   await expect(completeShuttleArrival.run(request({ ...command, transitRequestId: 'return-transit' })))
     .resolves.toMatchObject({ status: 'arrived', hostShipId: 'aegis' });
+  session = mock.documents.get('sessions/s1')!;
   installTransit('second-inbound', 'aegis', 'icebreaker');
   await expect(completeShuttleArrival.run(request({ ...command, transitRequestId: 'second-inbound' })))
     .rejects.toMatchObject({ code: 'failed-precondition', message: expect.stringMatching(/already accepted one shuttle this cycle/i) });
+  session = mock.documents.get('sessions/s1')!;
   expect(session.quarantineDocking).toEqual(acceptanceAfterFirstArrival);
   expect(mock.documents.has('sessions/s1/shuttleArrivalReceipts/second-inbound')).toBe(false);
   expect(session.shuttleDockings).not.toEqual(expect.arrayContaining([
