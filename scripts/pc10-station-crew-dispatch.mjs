@@ -144,19 +144,82 @@ function assertMemberSampleMatches(member, sample, label) {
     assert.equal(sample.sessionId, member.meSessionId, `Current Station actor member session changed during ${label}.`);
 }
 
-function assertActorScopeUnchanged(current, original) {
-  // The only field allowed to settle while the server lock arrives is airspace.
-  // In particular, turnStatePhase, identity epochs and discovery remain exact.
-  assertWolfChoiceActor({ ...current, airspace: original.airspace }, original);
-  assert.ok(current.airspace === original.airspace ||
-    original.airspace === 'lifted' && current.airspace === 'restricted',
-  'Station actor airspace moved outside the declaration lock transition.');
+function turnStateFields(actor) {
+  return Object.fromEntries(['turnPhaseTurn', 'turnPhaseOpenAirspaceEndsAt', 'turnPhaseTeamPhaseEndsAt',
+    'turnStateCurrentTurn', 'turnStateMaxTurn', 'turnStatePhaseRevision', 'turnStateStartedAt', 'turnStateEndsAt']
+    .map(key => [key, actor[key]]));
+}
+
+function assertTurnStateProjection(actor, current) {
+  assert.equal(actor.turnPhaseTurn, current.turn, 'Original Station turn phase must match the declared attack cycle.');
+  assert.equal(actor.turnStateCurrentTurn, current.turn, 'Original Station turn-state cycle must match the declared attack.');
+  assert.ok([6, 7, 8].includes(actor.turnStateMaxTurn), 'Original Station turn-state maximum must be source-backed.');
+  assert.ok(Number.isSafeInteger(actor.turnStatePhaseRevision) && actor.turnStatePhaseRevision >= 1,
+    'Original Station turn-state phase revision is required.');
+  assert.ok(typeof actor.turnPhaseOpenAirspaceEndsAt === 'string' && actor.turnPhaseOpenAirspaceEndsAt,
+    'Original Station Coordination deadline is required.');
+  assert.ok(typeof actor.turnPhaseTeamPhaseEndsAt === 'string' && actor.turnPhaseTeamPhaseEndsAt,
+    'Original Station Team deadline is required.');
+  assert.ok(typeof actor.turnStateStartedAt === 'string' && actor.turnStateStartedAt,
+    'Original Station turn-state start time is required.');
+  assert.ok(typeof actor.turnStateEndsAt === 'string' && actor.turnStateEndsAt,
+    'Original Station turn-state end time is required.');
+  const expectedPhase = actor.airspace === 'lifted' ? 'coordination' : 'team';
+  assert.equal(actor.turnStatePhase, expectedPhase,
+    `Unsupported Station airspace/turn-state phase pair: ${actor.airspace}/${actor.turnStatePhase}.`);
+  assert.equal(actor.turnStateEndsAt, actor.airspace === 'lifted'
+    ? actor.turnPhaseOpenAirspaceEndsAt : actor.turnPhaseTeamPhaseEndsAt,
+  'Station turn-state deadline must match its source airspace phase.');
+  if (actor.airspace === 'lifted')
+    assert.equal(actor.turnStateStartedAt, actor.turnPhaseTeamPhaseEndsAt,
+      'Station Coordination turn-state start must retain the Team phase deadline.');
+}
+
+function assertActorScopeUnchanged(current, original, { attack, expectedAttack, allowDeclarationLock = false } = {}) {
+  const samePair = current.airspace === original.airspace && current.turnStatePhase === original.turnStatePhase;
+  if (samePair) {
+    assert.deepEqual(turnStateFields(current), turnStateFields(original),
+      'Original Station turn-state projection changed outside the declaration lock transition.');
+  } else {
+    const exactDeclarationTransition = allowDeclarationLock &&
+      original.airspace === 'lifted' && original.turnStatePhase === 'coordination' &&
+      current.airspace === 'restricted' && current.turnStatePhase === 'team';
+    assert.ok(exactDeclarationTransition,
+      `Unsupported Station airspace/turn-state phase transition: ${original.airspace}/${original.turnStatePhase} -> ${current.airspace}/${current.turnStatePhase}.`);
+    assert.ok(expectedAttack && lockedAttack(attack, expectedAttack),
+      'Station declaration phase publication requires the same current locked P attack.');
+    assert.equal(current.turnPhaseTurn, original.turnPhaseTurn);
+    assert.equal(current.turnStateCurrentTurn, original.turnStateCurrentTurn);
+    assert.equal(current.turnStateMaxTurn, original.turnStateMaxTurn);
+    assert.equal(current.turnStateStartedAt, original.turnStateStartedAt,
+      'The source Team transition retains the existing turn-state start time.');
+    assert.equal(current.turnPhaseOpenAirspaceEndsAt, original.turnPhaseOpenAirspaceEndsAt);
+    assert.equal(current.turnPhaseTeamPhaseEndsAt, original.turnPhaseTeamPhaseEndsAt);
+    assert.equal(current.turnStatePhaseRevision, original.turnStatePhaseRevision + 1,
+      'The source Coordination-to-Team transition increments phaseRevision exactly once.');
+    assert.equal(current.turnStateEndsAt, current.turnPhaseTeamPhaseEndsAt,
+      'The source Team transition sets the turn-state deadline to teamPhaseEndsAt.');
+  }
+  const normalized = samePair ? current : { ...current,
+    airspace: original.airspace, turnStatePhase: original.turnStatePhase };
+  assertWolfChoiceActor(normalized, original);
   assert.deepEqual(current.discoveryAuthority, original.discoveryAuthority,
     'Original Station member discovery authority changed before choice scope freeze.');
   assert.equal(current.entitledShipId, original.entitledShipId,
     'Original Station member entitled ship changed before choice scope freeze.');
   assert.equal(current.documentTimeOrigin, original.documentTimeOrigin,
     'Original Station browser document changed before choice scope freeze.');
+}
+
+function assertStrictObservationMatchesAtomic(strict, atomic) {
+  assertWolfChoiceActor(strict, atomic);
+  assert.deepEqual(strict.discoveryAuthority, atomic.discoveryAuthority,
+    'Strict Station observer and atomic phase sample disagree on member discovery.');
+  assert.equal(strict.entitledShipId, atomic.entitledShipId);
+  assert.equal(strict.documentTimeOrigin, atomic.documentTimeOrigin);
+  assert.equal(strict.connection, atomic.connection);
+  assert.equal(strict.freshness, atomic.freshness);
+  assert.equal(strict.connected, atomic.connected);
 }
 
 async function observePreFreezeActor(actor, current, context, trace) {
@@ -183,6 +246,14 @@ async function observePreFreezeActor(actor, current, context, trace) {
       seatId: me?.seatId ?? null, assignedRoleId: me?.assignedRoleId ?? null,
       activeConsoleRoleId: me?.activeConsoleRoleId ?? null, airspace: session?.turnPhase?.airspace?.state ?? null,
       turnStatePhase: session?.turnState?.phase ?? null, phaseProgression: session?.turnPhase?.progression ?? null,
+      turnPhaseTurn: session?.turnPhase?.turn ?? null,
+      turnPhaseOpenAirspaceEndsAt: session?.turnPhase?.openAirspaceEndsAt ?? null,
+      turnPhaseTeamPhaseEndsAt: session?.turnPhase?.teamPhaseEndsAt ?? null,
+      turnStateCurrentTurn: session?.turnState?.currentTurn ?? null,
+      turnStateMaxTurn: session?.turnState?.maxTurn ?? null,
+      turnStatePhaseRevision: session?.turnState?.phaseRevision ?? null,
+      turnStateStartedAt: session?.turnState?.startedAt ?? null,
+      turnStateEndsAt: session?.turnState?.endsAt ?? null,
       connection: state.connection, freshness: state.sessionSnapshotFreshness,
       documentTimeOrigin: performance.timeOrigin, instanceId: state.gmInstance?.id ?? null,
       gmInstanceOwned: !!state.gmInstance && state.gmInstance.uid === user?.uid &&
@@ -200,17 +271,18 @@ async function observePreFreezeActor(actor, current, context, trace) {
   }
   assertMemberSampleMatches(memberBefore, sample, 'pre-sample member fence');
   sample.entitledShipId = sample.replacementStatus == null ? sample.discoveryAuthority?.shipId ?? null : null;
+  trace.actorScopes.push(sample);
   assertWolfChoiceActor(sample, sample);
   assert.equal(sample.sessionId, context.sessionId, 'Lock readiness must stay in the original Station session.');
   assert.equal(sample.phase, 'active', 'Lock readiness requires the original active gameplay phase.');
   assert.equal(sample.cycle, current.turn, 'Lock readiness must stay in the original attack cycle.');
+  assertTurnStateProjection(sample, current);
   assert.ok(Number.isSafeInteger(sample.connectionGeneration) && sample.connectionGeneration >= 0,
     'Original Station connection generation is required before choice scope freeze.');
   assert.ok(Number.isSafeInteger(sample.identityHydrationRevision) && sample.identityHydrationRevision >= 0,
     'Original Station identity hydration revision is required before choice scope freeze.');
   assert.ok(['lifted', 'restricted'].includes(sample.airspace),
     `Unknown pre-freeze Station airspace state: ${sample.airspace ?? '(missing)'}.`);
-  trace.actorScopes.push(sample);
   return sample;
 }
 
@@ -235,27 +307,30 @@ async function waitForLockedActorScope(current, actor, context) {
     if (!sameAttack(attack, current)) return { status: 'source-changed', trace };
     let observed = original;
     while (Date.now() < context.deadlineAt) {
-      assertActorScopeUnchanged(observed, original);
-      if (lockedAttack(attack, current) && observed.airspace === 'restricted') {
+      assertActorScopeUnchanged(observed, original, { attack, expectedAttack: current,
+        allowDeclarationLock: true });
+      if (lockedAttack(attack, current) && observed.airspace === 'restricted' &&
+          observed.turnStatePhase === 'team') {
         const strict = await observeWolfChoiceActor(actor.surface);
         assertBudget(context.deadlineAt);
-        assertActorScopeUnchanged(strict, original);
-        assert.equal(strict.airspace, 'restricted', 'The strict source snapshot must follow the authoritative restricted lock.');
         const locked = await inspectAttack();
         if (!sameAttack(locked, current) || !lockedAttack(locked, current))
           return { status: 'source-changed', trace };
         const after = await observePreFreezeActor(actor, current, context, trace);
-        assertActorScopeUnchanged(after, original);
+        assertActorScopeUnchanged(after, original, { attack: locked, expectedAttack: current,
+          allowDeclarationLock: true });
         assert.equal(after.airspace, 'restricted', 'The original member projection must remain restricted after scope freeze.');
-        assertActorScopeUnchanged(strict, after);
-        return { status: 'locked', original: strict, trace };
+        assert.equal(after.turnStatePhase, 'team', 'The original member must show the complete declared Team phase.');
+        assertStrictObservationMatchesAtomic(strict, after);
+        return { status: 'locked', original: after, trace };
       }
       await delay(Math.min(200, Math.max(1, context.deadlineAt - Date.now())));
       assertBudget(context.deadlineAt);
       attack = await inspectAttack();
       if (!sameAttack(attack, current)) return { status: 'source-changed', trace };
       observed = await observePreFreezeActor(actor, current, context, trace);
-      assertActorScopeUnchanged(observed, original);
+      assertActorScopeUnchanged(observed, original, { attack, expectedAttack: current,
+        allowDeclarationLock: true });
     }
     assertBudget(context.deadlineAt);
   } catch (error) {
@@ -285,8 +360,10 @@ async function readySource(current, actor, spec, { sessionId, deadlineAt, assert
   };
   const inspectActor = async () => {
     await fence();
-    const observed = await observeWolfChoiceActor(surface);
+    const strict = await observeWolfChoiceActor(surface);
     assertBudget(deadlineAt);
+    const observed = await observePreFreezeActor(actor, current, { sessionId, deadlineAt, assertActor }, scope.trace);
+    assertStrictObservationMatchesAtomic(strict, observed);
     assertActorScopeUnchanged(observed, original);
     return observed;
   };
