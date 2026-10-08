@@ -51,14 +51,14 @@ anchors; that coverage does not establish an enabled control or gameplay.
 | 584 | Run the Capybara vertical scenario. | pending | pending | pending |
 | 585 | Run the base/expansion isolation scenario. | pending | pending | pending |
 | 593 | Show candidate preparation help. | Mounted current-group N/O/P preparation. | Partial: distinct costs/blockers/next actor and Cycle 6 reload accepted; hidden bonus/Wolf/private calculation and foreign-group/requester-peer audiences remain open. | focused tests/contracts and bounded Sol review pass; final rendered usability/release pending |
-| 618 | Reconnect every live projection. | Connected current member/SDK recovery. | Partial: prior Captain/Press history plus ordinary Black Sheep holder/owner cold reload, original identity/seat/group/SDK authority and durable cargo/control receipt recovery accepted; settled inventory rendering and other projections/dropout paths open. | focused core tests/contracts and bounded Sol review pass; final gates pending |
+| 618 | Reconnect every live projection. | Connected current member/SDK recovery. | Partial: prior Captain/Press history, Black Sheep cargo/control reload, settled Host9/Shuttle1 desktop balances, and Water exact UI retry/cold reload/original SDK replay accepted with original identity/seat/group/current-holder/SDK authority; other projections/dropout paths open. | focused core tests/contracts and bounded Sol review pass; final gates pending |
 | 619 | Make candidate retries survive reconnect. | Related scout discovery/report recovery only. | Missing: no N/O/P fuel, roll, loss, contribution or outcome action ran; discovery recovery does not prove this acceptance. | pending |
-| 620 | Recover from stale revisions. | Connected phase confirmation and exact retry. | Partial: prior phase/flight/ending recovery plus cargo lost-ack UI retry/cold reload/SDK replay and historical control receipts after revision2 accepted; other fresh stale/conflicting role requests open. | focused core tests/contracts and bounded Sol review pass; final gates pending |
+| 620 | Recover from stale revisions. | Connected phase confirmation and exact retry. | Partial: prior phase/flight/ending recovery, cargo and Water committed-ack loss/exact UI retry/cold reload/SDK replay, historical control receipts after revision2, and fresh current-maintenance-revision Water once-guard refusal accepted; other stale/conflicting role requests open. | focused core tests/contracts and bounded Sol review pass; final gates pending |
 | 629 | Protect private projections comprehensively. | Tested current scoped private readers and authority negatives. | Partial: prior populated private/borrowed-GM denials plus fresh Black Sheep nonowner/revoked-holder denial with selected gameplay/receipt/audit hashes unchanged accepted; other private audiences open. | focused core tests/contracts and bounded Sol review pass; final gates pending |
 | 630 | Prove server-owned randomness. | pending | pending | pending |
 | 631 | Rate-limit expensive callables. | pending | pending | pending |
 | 634 | Record security denials privately. | pending | pending | pending |
-| 635 | Standardize action audit records. | Real bound action receipts in accepted family. | Partial: prior action receipts plus one original actor/request-bound shuttle-cargo audit on UI/SDK replay accepted; two dedicated control request/audit pairs stay separate. Metadata/query/redaction and other unmigrated actions open. | focused core tests/contracts and bounded Sol review pass; final gates pending |
+| 635 | Standardize action audit records. | Real bound action receipts in accepted family. | Partial: one actor/request-bound cargo audit and one Water command receipt/service event/metadata audit/private procedure audit persist unchanged on UI/SDK replay and once-guard refusal; two dedicated custody request/audit pairs stay separate. Metadata/query/redaction and other unmigrated actions open. | focused core tests/contracts and bounded Sol review pass; final gates pending |
 | 641 | Run a complete base-game playthrough. | pending | pending | pending |
 | 642 | Run a complete Capybara playthrough. | pending | pending | pending |
 | 647 | Prove Ancient Jump Ring success. | pending | pending | pending |
@@ -72,7 +72,7 @@ anchors; that coverage does not establish an enabled control or gameplay.
 | PC10-A01 | Joined primary Settings ordinary join QR/link/code; ordinary admission/Auth/consent/privacy | Scoped QR payload/pixel and ordinary admission evidence accepted below; final current-source rendering/release pending. |
 | PC10-A02 | Actual authenticated GM, fresh cycle 0→1, unlimited/manual full-game demo beside existing cycle demo | Actual ordinary GM, fresh manual 0→1/Coordination retry, current Cycle 1 Press transmission and bounded Press natural flight/Pursuit ending/reload accepted within their scopes; complete fresh solo demo and every-role/function ending remain pending. |
 | Gate 1 | Every role/function in fresh full game through ending across two browsers | pending; function inventory to be reconciled |
-| Gate 2 | Claim-based overlap/reconnect/retry/privacy with the smallest sufficient cohort; 21 accounts only for a justified scale claim | pending; record actual Auth actors, browser contexts, cohort reason and regression scope separately |
+| Gate 2 | Claim-based overlap/reconnect/retry/privacy with the smallest sufficient cohort; 21 accounts only for a justified scale claim | Partial local criteria accepted in the bounded families below. Conditional scale/capacity remains unclaimed and does not block unrelated local credit; record actual Auth actors, browser contexts and cohort reason. |
 | Gate 3 | Available actions, costs, blockers and next actor can be understood in app | pending; broader PC11 guidance is future work |
 
 Prepared presentation, native tests, normal authenticated emulator HTTP/UI/rules, automated concurrent browsers, human/device playtesting, CI and production deployment are separate evidence classes. No unavailable evidence earns closure credit.
@@ -604,7 +604,7 @@ All 48 catalog closures, the three complete gates and release remain pending.
 | Ordinary Settings QR | Fresh normal admission and actual GM manual start; four unchanged pixel captures decoded to the exact ordinary join payload; accessible link/code and responsive presentation. | Final current-source/release reconciliation; no physical-device scan is claimed. |
 | Member and GM lifecycle / GM recipes | GM17 completed four mounted recipes, ordinary Pursuit ending, immutable debrief/closure and entitled crew reload across two browsers. GM26 qualified ordinary PRIMARY casting, real manual start, both mounted counters with exact retries, ordinary Pursuit ending, debrief, closure and entitled crew reload. | The current resource-counter mapping qualified in GM26; GM25's failed evidence and missing historical tuple remain unchanged. Remaining mounted member/GM functions and full-game recovery are separately tracked. GM22's verified local JVM heap failure is retained separately; only the owned emulator was restored with unchanged version, configuration and compiled bytes. GM23's caller label lookup was corrected using the existing accessible combobox name. Remaining mounted member/GM functions and interrupted/repeated recovery stay open. The intentionally unmounted registration-lock writer earns no UI credit. |
 | Full Base / combat / politics / crisis / arrest | Combat29 committed nine paid maintenance actions and its opening combat choices before failure. | Combat29 and the separate eight-core Miner1/Miner2 qualifiers changed the original pre-selection generation before station acceptance; initiating callback attribution is unretained. Miner2 still failed after the independently valid foreground presence repair (12 new plus 77 retained native cases). A separate whole-App native counterexample shows a short visible-tab return starting same-document resume despite live/server authority; the current-identity visibility repair is integrated with 12 new and 202 retained client cases. Neither counterexample supplies an exclusive historical cause. Miner3 stopped before a start request at the disabled GM control. A distinct queued GM draft defect is repaired and current fresh manual starts work; its historical cause and stable full-role recovery remain unproved. Complete stable role selection, release/reselection/reload, range/aftermath and subsequent ordinary Base actions through ending. |
-| Core and Press shuttle transit | Core8 qualified Request departure for the original Wing Commander/Starlight holder, retaining its original host, group, generation, hydration and document. Begin and exact replay returned 200 but failed source qualification. Press2 confirmed canonical null replacement status and its own SNN scope/control; Press3 failed before departure. | Core movement, natural arrival, adjacent commands, printed-owner handoff/reclaim and reload through ending remain open. The existing ten-file native slice passes 159 cases with disclosed fixture completions; all original route assertions/titles remain exact. Press selection passes 14 new and 94 unchanged checks. A full default Begin mapping characterization passes without changing any acceptance guard. Core10 retains raw latestLive=true and matching original authority/movement, with dockingCount1 and a rejected docking/member-group predicate. A bounded source-coupled investigation is open; no live or authority guard is relaxed. No native total or SDK 200 establishes completed transit or an exclusive historical cause. |
+| Core and Press shuttle transit / Black Sheep custody and service | Press actual4 qualified ordinary Request/Begin/Retarget/natural arrival, exact recovery, privacy negatives and Pursuit ending/history. Black Sheep custody actual4 qualified handoff/reclaim/cargo/exact replay/reload/revocation; settled/recharge actual2 qualified desktop Host9/Shuttle1, printed maintenance/refuel and wrong-holder denial; recharge recovery actual4 qualified Water committed-ack loss/UI retry/cold reload/SDK replay/current-revision once guard. | Core Starlight Request remains qualified while Begin/natural arrival and the Core10 docking/group predicate remain unresolved. Other craft/hosts/consoles, same-cycle stale service recovery, cross-cycle reset, foreign audiences and final rendered acceptance remain distinct. The failed Core/Press/cargo/recharge runs retain their original stops; no test or SDK200 backfills them. |
 | N/O/P candidate games | CandidatePanel6 completed four ordinary cycles and twenty Scientist choices; phone/landscape targets and all viewport overflow/target-size checks passed. | Desktop native Tab reached seven of eight targets within the unchanged 48-Tab cap; all three distinct candidate outcomes and endings remain open. |
 | Capybara, sparse joint engineering and replacement-role families | Capybara2 retains real manual start, 662 normal GM resource preparation receipts and 60 qualified maintenance step receipts through six ship sequence ends. | The seventh Capybara maintenance response remains unqualified, followed by all missions and the existing ordinary ending. Sparse joint/replacement functions, costs, replay/recovery/privacy and endings remain open. |
 | Gate 2 independent sessions | Attempt4 completed all 21 browser joins/consent and the first three commanded privacy states; its 273 issued commands/63 checks passed the issued-subset contract. | Natural lease expiry failed before scheduler/resume, without per-actor post-wait timestamps. Qualify the affected expiry/reconnect/privacy claim with justified actors under the October 7 plan; the historical 340/84 fixture remains incomplete and opt-in. No concurrency acceptance or historical cause is inferred. |
@@ -1032,3 +1032,115 @@ the first unexplained failure and clean up only owned identities/data/browsers.
 Do not replay earned cargo/custody families to supply unrelated confidence.
 Final responsive and independent rendered typography approval remain separate
 checkpoint gates; this focused source repair supplies neither.
+
+
+### October 8 reconciled cargo, refuel and recharge criteria
+
+Parent accepted recharge recovery Actual4 at
+`1459f1b56aec21d529978273f1d505ed939ab8bb`, tree
+`9ea5d403a44aaee4affe12462aeb379e8deb2f7e`. The native result passed15
+scoped assertions in147,853ms including cleanup, using three independent
+normally admitted Auth actors, three automated Chrome processes/contexts and
+zero humans. Legal16 was configured with other seats open. These assertions
+overlap earlier setup/maintenance evidence and are not summed as unique
+functions, roles or catalog closures. The canonical actual result is
+`/tmp/dow-pc10-evidence/three-actor-water-recharge-recovery-4/OWNER_RESULT.json`
+(SHA256 `b5b0cdf368f62bbc03a2c5807722a63a20065839e7d3d82cba1a62367c512dc6`);
+its accepted handoff is
+`/tmp/dow-pc10-evidence/OWNER_WATER_RECHARGE_RECOVERY_4_ACTUAL_HANDOFF_20261008.json`
+(SHA256 `0828fa9d99926359ac0b52d872dd55dc84a40a2a90d2d3748b2150f1c3fc739c`).
+
+| Function / role criterion | Earned evidence to reuse | Exact remaining limit |
+|---|---|---|
+| `transferShuttleControlCommand`; original Shepherd Engineer and transferred Captain | Custody actual4: UI handoff0→1, UI reclaim1→2, two dedicated actor/request-bound request/audit pairs, original receipt replay after reclaim, owner/holder reload and revoked/nonowner denials with selected substantive effects unchanged. | Other craft/holders/groups and movement are separate. Dedicated custody audits are not counted as standardized cargo/service audits. |
+| `transferShuttleCargoCommand`; current Black Sheep holder | Custody actual4: one food debit/credit, actual committed acknowledgement loss, original UI retry and SDK replay, reload and former-holder denial. Settled/recharge actual2: current desktop Host9/Shuttle1 is actually painted and retained after ordinary reload. | Pending cargo intent persistence across a cold document, other resources/craft/hosts, mobile/keyboard/final typography and complete usability remain unproved. The earlier unsettled capture remains unsettled. |
+| `runMaintenance`; original Shepherd Engineer | Settled/recharge actual2 and recovery actual4: actual Cycle2 printed storage/ration/unrest/riot/reactor/bay/end sequence; real None→Short choices pay8food/6water with +12 ration bonus, server unrest/riot results, actual Jump Drive choice, and Black Sheep refuel costs exactly one host fuel. | The successful shared sequence is reusable; no need to replay it for unrelated credit. Other ships, sparse/joint configurations, damaged storage/console repair, fuelled-third-operation benefits and cross-cycle service reset remain separate. |
+| `rechargeHostConsoleFromShuttle`; current transferred Captain | Actual2 confirms immediate water2→4, fuel3 unchanged, one original command receipt/service event/metadata audit/private procedure audit, and fresh former-holder denial. Actual4 adds real committed reply interruption, offered exact original UI retry returning `replayed`, same-UID/role/seat/group/holder/SDK cold reload, captured original SDK replay and visible used-this-cycle blocker. A fresh current-maintenance-revision request reaches the actual once guard with all substantive effects/receipts/events/audits unchanged. | Same-cycle stale recovery, cross-cycle reset/recharge, other consoles/hosts/craft and foreign-private audiences are still open. Cold reload proves durable result recovery, not persistence of pending UI intent. |
+
+Actual4's Captain entry accepted ordinary original G1/HD1 station/seat/SDK
+authority without an entry resume. The59 navigation regressions and reconciled
+review cover the pending-response/body-arrival race; this native pass does not
+claim to reproduce that race. The native runner's functional bytes are the
+already-reviewed recharge runner, changing only exclusive evidence paths.
+Product recovery repair, observer repair and runner all have bounded independent
+Sol6.1 review; unchanged reader/adapter contracts remain valid. Final typography
+and current-release rendering are not accepted by these captures.
+
+Exact owned cleanup and the separate read-only postflight both returned
+session/player/GM scope0/0/0. Three browsers/accounts and only owned membership,
+join and session records were removed. Emulator listeners closed before03:02:22UTC;
+the retained own Vite server is idle. Current debug-log prefixes were copied
+and hash-verified before stop, their inodes protected, and complete shutdown
+suffixes/full copies verified after writers closed. Plaintext remains; the
+previous lost verbose log is still unrecovered.
+
+The blanket full-cohort gate is superseded. Local criteria above are accepted
+without21 accounts; conditional capacity/scale remains unclaimed and cannot
+invalidate those unrelated local claims. No human-device or complete manual-free
+claim follows. The48 fixed closures stay open at703/751 overall and245/293
+campaign,13partial/35missing, NEXT181; no release or catalog status is changed.
+
+### Current remaining families and separate owners — October 8
+
+| Distinct remaining family | Concrete unqualified criteria | Owner / boundary |
+|---|---|---|
+| Highwall mining, Icebreaker Miner | Two standard unfuelled choices and actual server dice/cargo; committed-ack loss/exact UI retry; original cold reload/replay; stale-revision no-effect envelope; wrong-role/GM denial; fresh third-operation quota refusal. Fuelled third operation and foreign/peer custody are separate. | Selected next owner source-only slice below. Leaf proof/tests only unless a focused product RED proves a defect. No emulator/browser starts until a new parent allocation. |
+| N/O/P outcomes | Ancient Ring contributions/fuel/passage, Nebula scouting/loss/threshold and Station combat/contributions/power; distinct endings/outcome recovery/privacy. | Existing N/O/P helper owns implementation and native proof, including retained Ring attempt2 projection failure. No overlapping fixes or replay by this owner. |
+| Other specialist and expansion actions | Wing Commander builds/launches/scouting/missions; Scientist private research/devices/field upgrades; Explorer harvesting/scouting/missions; PDF Colonel launch/boarding/reference; Capybara Macaw/Boa salvage/reclamation/Scrap and remaining maintenance/missions. | Separately assignable complete mechanic groups. Accepted Scientist candidate discovery/preparation and maintenance prefixes remain reusable. Highwall slice makes no credit for these. |
+| Combat, politics, crisis and arrest | Stable eligible role selection, genuine range choices/targets/damage/aftermath, political/crisis choices and posse/arrest resolution with costs, repeats/recovery and actual authority/private audiences. | Unassigned local gameplay families; avoid N/O/P Station combat ownership. Preserve Combat29/Miner failures; source repairs are not native outcomes. |
+| Core movement, repair and remaining custody | Original Starlight Begin/retarget/natural arrival/current group; remaining craft/host moves, ally repair and service stale/cross-cycle variants. | Unassigned Core slice; Press natural flight and closed Black Sheep custody/cargo/Water family are reused, not replayed. |
+| Member/GM/private projection and durable boundaries | Remaining current-role/private audience reads, receipt/query/redaction/security-denial coverage, lease/reconnect/revocation and terminal branches not covered by Pursuit/history. | Unassigned distinct authority/audience slice. Historical source-only taxonomies and unmounted compatibility endpoints are not fabricated UI functions. |
+| Complete rehearsal, usability and final release | Stitch valid unique-function/role families into the fresh two-browser solo game through ending; available actions/costs/blockers/next actor; final fonts/rendered review, exact candidate/main CI and deployment. | Checkpoint owner integration. Conditional justified simultaneous capacity is separate; human-device play is explicitly unclaimed. Post-PC10→PC11→PC12 remain future roadmap. |
+
+### Selected next family — unfuelled Highwall mining
+
+The actual function inventory's `runHighwallMining` row and Icebreaker Miner
+whole-role evidence remain pending. Qualify only this distinct specialist
+mechanic, not every Miner/ship/function or P630/P618/P620/P629/P635 closure.
+Two independent normal Auth actors and two Chrome processes/contexts are the
+minimum: GM for actual create/consent/authorization/casting/manual preparation
+and Cycle0→1/Coordination, Miner for original printed holder/role/seat/group and
+normal Highwall choices. The GM supplies a real wrong-role denial; this does
+not substitute for a peer/foreign-player custody or private-audience negative.
+Legal16 is configured, other seats remain open. No Engineer, refuel, resource
+counter preparation, cargo transfer, candidate combat, entropy injection or
+Admin gameplay write is needed for the two unfuelled operations.
+
+Reuse the successful setup factory, local GM authorization, normal assignment,
+casting-station versus operational-berth checks, same-document normal resume
+observer, actual GM controls/phase-publication wait, original35s/60s deadlines,
+first-error-preserving interruption/cleanup and exact source/build freeze.
+Expected bounded cap is five minutes including one-minute cleanup reserve;
+request runtime only after focused RED→implementation→GREEN and one bounded
+independent review. Actual native proof remains unrun until then.
+
+Required sequence and stop criteria:
+
+1. Require real active Cycle1 Coordination, parked Highwall on Icebreaker,
+   original Miner owner/current holder, current Source berth/group/seat and SDK
+   authority, unfuelled ledger and zero current operations.
+2. Click actual `Roll 1d6 materials`, interrupt only its real committed reply
+   after the bound durable receipt/event/audit and observed cargo/state witness.
+   Require one integer1–6, sum/effect equality, +1 operation/revision, unchanged
+   host resources/fuel and all unrelated shuttle ledgers. The offered exact
+   retry must retain every original payload field and return the original
+   `replayed` receipt without another draw/effect/event/audit.
+3. Send a fresh captured-payload-derived stale mining revision and an independent
+   GM wrong-role request through the actual SDK. Require the authoritative stale
+   envelope and role denial respectively, with no new substantive effect or
+   mining receipt/event/audit. A stale envelope is not a completed operation.
+4. Click actual `Roll 3d6 strytium ore` with current revisions. Require three
+   server dice1–6, sum-equal ore increment, second operation/revision and one
+   additional bound receipt/event/audit. Materials, host resources and fuel stay
+   unchanged. Current rendered results and remaining0-of2 controls must agree.
+5. Same original Miner normal cold reload must retain identity/role/seat/group/
+   holder and actual persisted cargo/operations/used quota. Captured original
+   SDK replay is accepted only with the original result and unchanged effects.
+   A new current-revision third operation must hit the actual unfuelled quota
+   guard, with no effects/receipt/event/audit, and visible controls stay blocked.
+
+Stop at the first unexplained failure; retain original observations and close
+only owned resources/data. Fuelled operation3, new-cycle reset, transferred/peer/
+foreign holder boundaries, other specialist actions, whole game, capacity and
+final rendered typography are outside this first Highwall slice. No failed
+historical Miner run is relabelled and no new fixed catalog closure is invented.

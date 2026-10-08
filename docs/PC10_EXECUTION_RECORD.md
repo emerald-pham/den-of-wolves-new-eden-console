@@ -1020,3 +1020,34 @@ that intermediate generation/hydration phase. Denied, failed and foreign
 requests/replies still reject; no acceptance is granted by waiting. All59
 affected navigation tests now pass. The previous42reader/adapter/prepared-probe
 checks remain valid because neither their source nor product behavior changed.
+
+
+### October 8 accepted recharge recovery and next distinct family
+
+Parent accepted the exact bounded Actual4 native pass at1459f1b5:15 scoped
+claims, three independent Auth actors/Chrome contexts,147,853ms including owned
+cleanup. The existing acceptance matrix now reconciles cargo/custody, settled
+desktop balances, printed maintenance/refuel and Water acknowledgement-loss/UI
+retry/cold reload/SDK replay/current-revision once refusal. Prior failures and
+limits remain unchanged. The full-cohort default is superseded; conditional
+scale does not block this local credit. All48 fixed closures remain open.
+Current logs were protected/copied/hashed before stop and complete shutdown
+bytes verified after exit; the older lost log remains unrecovered.
+
+N/O/P success stays with the existing helper. The next owner family is the
+unqualified Highwall `runHighwallMining` action: two unfuelled operations with
+actual server dice/cargo, exact interrupted-reply recovery, stale/no-effect and
+wrong-GM-role negatives, original reload/replay and quota refusal. Two ordinary
+Auth/browser actors suffice: GM plus Icebreaker Miner. Fuelled third-operation,
+peer/foreign holder and new-cycle reset claims stay separate. The existing
+successful setup/observers/cleanup are reused. Source work only; a new parent
+allocation is required before native execution.
+
+The proposed separate Captain-entry two-actor test draft was retained outside
+the tracked tree without implementation when the parent selected the already
+reviewed three-actor recharge runner for Actual4. Its five observed scope REDs
+are not application regressions or acceptance; no existing test was changed,
+skipped or deleted. New Highwall proof functionality requires its own meaningful
+focused RED before implementation, separate test-first commit and bounded review.
+This reconciliation is prose only, so it uses documentation consistency checks
+and no invented RED or gameplay replay.
