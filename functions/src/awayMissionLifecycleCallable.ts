@@ -7,8 +7,10 @@ import {
   type CommandFingerprint,
 } from './commandIdempotency';
 import {
+  addResolvedMissionDiscards,
   awayMissionHandId,
   missionDeckDealtCount,
+  missionDeckResolvedDiscardCardIds,
   type AwayMissionParticipantSnapshot,
 } from './awayMissionCards';
 import {
@@ -185,6 +187,7 @@ interface P403MissionContext {
   readonly participantCrafts?: readonly AwayMissionParticipantCrafts[];
   readonly handIds: readonly string[];
   readonly cardIds: readonly MissionCardId[];
+  readonly recycledCardIds: readonly MissionCardId[];
   readonly dealtFrom: number;
   readonly dealtThrough: number;
   readonly discardedParticipantUids: readonly string[];
@@ -295,7 +298,10 @@ export function createAwayMissionLifecycleCallables(
         const deckData = requireSnapshotData(deckSnapshot, 'The shared away-mission deck is missing.');
         const deckState = parseMissionDeckState(deckData);
         const deckCount = deckState ? missionDeckDealtCount(deckData, deckState.order.length) : null;
-        if (!deckState || deckCount === null) {
+        const resolvedDiscardCardIds = deckState && deckCount !== null
+          ? missionDeckResolvedDiscardCardIds(deckData, deckState, deckCount)
+          : null;
+        if (!deckState || deckCount === null || resolvedDiscardCardIds === null) {
           fail('failed-precondition', 'The shared away-mission deck is malformed.');
         }
         if (p403.dealtThrough > deckCount) {
@@ -374,6 +380,7 @@ export function createAwayMissionLifecycleCallables(
             p403,
             deckState,
             deckCount,
+            resolvedDiscardCardIds,
             loadedParticipants,
             parsed.sessionId,
           );
@@ -460,7 +467,7 @@ export function createAwayMissionLifecycleCallables(
         });
         validateGameContext(context, record.sourceCycle);
 
-        let recordForCommand = rebasePreResolutionDeckCursor(record, deckCount);
+        let recordForCommand = rebasePreResolutionDeckCursor(record, deckCount, resolvedDiscardCardIds);
         recordForCommand = markAwayMissionOverrun(
           recordForCommand,
           context.teamPhase || context.currentCycle > recordForCommand.sourceCycle,
@@ -520,6 +527,31 @@ export function createAwayMissionLifecycleCallables(
         if (nextDeckCount > deckState.order.length) {
           fail('failed-precondition', 'The away-mission command exhausted the shared deck.');
         }
+        let nextResolvedDiscardCardIds = resolvedDiscardCardIds;
+        if (!sameJson(
+          nextRecord.lifecycle.availableResolvedDiscardCardIds,
+          recordForCommand.lifecycle.availableResolvedDiscardCardIds,
+        )) {
+          const consumedPool = missionDeckResolvedDiscardCardIds({
+            resolvedDiscardCardIds: nextRecord.lifecycle.availableResolvedDiscardCardIds,
+          }, deckState, nextDeckCount);
+          if (consumedPool === null) {
+            fail('failed-precondition', 'The mission lifecycle resolved-discard allocation is malformed.');
+          }
+          nextResolvedDiscardCardIds = consumedPool;
+        }
+        if (record.status === 'active' && nextRecord.status === 'resolved') {
+          const resolvedPool = addResolvedMissionDiscards(
+            deckState,
+            nextDeckCount,
+            nextResolvedDiscardCardIds,
+            nextRecord.lifecycle.discardedCardIds,
+          );
+          if (!resolvedPool) {
+            fail('failed-precondition', 'Resolved mission discards do not match the shared deck ledger.');
+          }
+          nextResolvedDiscardCardIds = resolvedPool;
+        }
 
         const commitCraftCommitments = await dependencies.prepareCraftCommitments({
           transaction: rawTransaction, sessionId: parsed.sessionId, missionId: parsed.missionId,
@@ -551,8 +583,13 @@ export function createAwayMissionLifecycleCallables(
           lifecycleRecord: nextRecord,
           updatedAt,
         });
-        if (nextDeckCount !== deckCount) {
-          transaction.update(dependencies.db.doc(p.deck), { dealtCount: nextDeckCount, updatedAt });
+        if (nextDeckCount !== deckCount ||
+            !sameJson(nextResolvedDiscardCardIds, resolvedDiscardCardIds)) {
+          transaction.update(dependencies.db.doc(p.deck), {
+            ...(nextDeckCount !== deckCount ? { dealtCount: nextDeckCount } : {}),
+            resolvedDiscardCardIds: nextResolvedDiscardCardIds,
+            updatedAt,
+          });
         }
         loadedParticipants.forEach(({ participant, handRef, pointerRef }) => {
           const privateState = privateProjections.get(participant.uid)!;
@@ -735,6 +772,9 @@ function parseP403MissionContext(value: Data, requestedMissionId: string): P403M
     : undefined;
   const handIds = stringArray(value.handIds);
   const cardIds = stringArray(value.cardIds) as readonly MissionCardId[] | null;
+  const recycledCardIds = Object.hasOwn(value, 'recycledCardIds')
+    ? stringArray(value.recycledCardIds) as readonly MissionCardId[] | null
+    : [];
   const discardedParticipantUids = uniqueStringArray(value.discardedParticipantUids);
   const discardedCardIds = uniqueStringArray(value.discardedCardIds) as readonly MissionCardId[] | null;
   const dealtFrom = value.dealtFrom;
@@ -753,12 +793,12 @@ function parseP403MissionContext(value: Data, requestedMissionId: string): P403M
       !missionLeaderUid || !missionLeaderRoleId || !leader || leader.roleId !== missionLeaderRoleId ||
       !availableCarrierCraftIds || availableCarrierCraftIds.length === 0 ||
       (Object.hasOwn(value, 'participantCrafts') && participantCrafts === null) ||
-      !handIds || !cardIds || handIds.length !== participantSnapshots.length ||
+      !handIds || !cardIds || !recycledCardIds || handIds.length !== participantSnapshots.length ||
       cardIds.length !== participantSnapshots.length ||
       !discardedParticipantUids || !discardedCardIds ||
       !Number.isSafeInteger(dealtFrom) || (dealtFrom as number) < 0 ||
-      !Number.isSafeInteger(dealtThrough) || (dealtThrough as number) <= (dealtFrom as number) ||
-      (dealtThrough as number) - (dealtFrom as number) !== participantSnapshots.length ||
+      !Number.isSafeInteger(dealtThrough) || (dealtThrough as number) < (dealtFrom as number) ||
+      (dealtThrough as number) - (dealtFrom as number) + recycledCardIds.length !== participantSnapshots.length ||
       !Number.isSafeInteger(revision) || (revision as number) < 0 ||
       typeof phase !== 'string' || !LIFECYCLE_PHASES.has(phase)) {
     fail('failed-precondition', 'The P403 away-mission record is malformed.');
@@ -768,6 +808,8 @@ function parseP403MissionContext(value: Data, requestedMissionId: string): P403M
   }
   if (new Set(cardIds).size !== cardIds.length ||
       cardIds.some((cardId) => !CANONICAL_MISSION_CARD_IDS.has(cardId)) ||
+      new Set(recycledCardIds).size !== recycledCardIds.length ||
+      recycledCardIds.some((cardId) => !CANONICAL_MISSION_CARD_IDS.has(cardId)) ||
       discardedCardIds.some((cardId) => !CANONICAL_MISSION_CARD_IDS.has(cardId)) ||
       discardedParticipantUids.some((uid) => !participantSnapshots.some((participant) => participant.uid === uid))) {
     fail('failed-precondition', 'The P403 initial card ledger is malformed.');
@@ -788,6 +830,7 @@ function parseP403MissionContext(value: Data, requestedMissionId: string): P403M
     ...(participantCrafts == null ? {} : { participantCrafts }),
     handIds,
     cardIds,
+    recycledCardIds,
     dealtFrom: dealtFrom as number,
     dealtThrough: dealtThrough as number,
     discardedParticipantUids,
@@ -805,6 +848,7 @@ async function bootstrapLifecycleRecord(
   p403: P403MissionContext,
   deckState: MissionDeckState,
   deckCount: number,
+  resolvedDiscardCardIds: readonly MissionCardId[],
   participants: readonly LoadedParticipantDocuments[],
   sessionId: string,
 ): Promise<AwayMissionLifecycleRecord> {
@@ -812,9 +856,13 @@ async function bootstrapLifecycleRecord(
     fail('failed-precondition', 'The legacy P403 mission phase cannot initialize the lifecycle safely.');
   }
   const cardsById = new Map(missionCardsForState(deckState).map((card) => [card.id, card]));
-  const orderedP403Cards = deckState.order.slice(p403.dealtFrom, p403.dealtThrough);
+  const orderedP403Cards = [
+    ...deckState.order.slice(p403.dealtFrom, p403.dealtThrough),
+    ...p403.recycledCardIds,
+  ];
   if (orderedP403Cards.length !== p403.cardIds.length ||
-      p403.cardIds.some((cardId, index) => orderedP403Cards[index] !== cardId)) {
+      p403.cardIds.some((cardId, index) => orderedP403Cards[index] !== cardId) ||
+      p403.recycledCardIds.some((cardId) => deckState.order.indexOf(cardId) >= p403.dealtFrom)) {
     fail('failed-precondition', 'The P403 initial cards do not match the shared deck order.');
   }
   const initialCards = participants.map(({ participant, hand }) => ({
@@ -834,6 +882,7 @@ async function bootstrapLifecycleRecord(
     availableCarrierCraftIds: p403.availableCarrierCraftIds,
     deckState,
     dealtCount: deckCount,
+    availableResolvedDiscardCardIds: resolvedDiscardCardIds,
     initialCards,
     phase: p403.phase as 'awaiting-card-selection' | 'discarding' | 'assignment-ready',
     discardedParticipantUids: p403.discardedParticipantUids,
@@ -940,10 +989,13 @@ function validateStartSnapshot(value: Data, p403: P403MissionContext, sessionId:
       value.siteCode !== p403.siteCode || value.sourceCycle !== p403.sourceCycle ||
       !inputs || !sameJson(inputs.participantSnapshots, p403.participantSnapshots) ||
       !sameJson(inputs.availableCarrierCraftIds, p403.availableCarrierCraftIds) ||
+      !sameJson(value.recycledCardIds ?? [], p403.recycledCardIds) ||
       (p403.participantCrafts !== undefined && !sameJson(inputs.participantCrafts, p403.participantCrafts)) ||
       inputs.missionLeaderUid !== p403.missionLeaderUid ||
       !stateDelta || stateDelta.missionDeckDealtCountBefore !== p403.dealtFrom ||
       stateDelta.missionDeckDealtCountAfter !== p403.dealtThrough ||
+      (stateDelta.missionDeckRecycleCount !== undefined &&
+        stateDelta.missionDeckRecycleCount !== p403.recycledCardIds.length) ||
       !deckRevision || deckRevision.before !== p403.dealtFrom || deckRevision.after !== p403.dealtThrough ||
       !leader || leader.uid !== p403.missionLeaderUid || leader.roleId !== p403.missionLeaderRoleId) {
     fail('failed-precondition', 'The P403 mission-start receipt does not match the active mission instance.');
@@ -951,9 +1003,13 @@ function validateStartSnapshot(value: Data, p403: P403MissionContext, sessionId:
 }
 
 function validateP403DeckSlice(p403: P403MissionContext, deckState: MissionDeckState): void {
-  const originalDeal = deckState.order.slice(p403.dealtFrom, p403.dealtThrough);
+  const originalDeal = [
+    ...deckState.order.slice(p403.dealtFrom, p403.dealtThrough),
+    ...p403.recycledCardIds,
+  ];
   if (originalDeal.length !== p403.cardIds.length ||
-      originalDeal.some((cardId, index) => cardId !== p403.cardIds[index])) {
+      originalDeal.some((cardId, index) => cardId !== p403.cardIds[index]) ||
+      p403.recycledCardIds.some((cardId) => deckState.order.indexOf(cardId) >= p403.dealtFrom)) {
     fail('failed-precondition', 'The P403 initial cards no longer match the shared deck order.');
   }
 }
@@ -1025,15 +1081,21 @@ function validateGameContext(context: AwayMissionLifecycleGameContext, sourceCyc
 function rebasePreResolutionDeckCursor(
   record: AwayMissionLifecycleRecord,
   deckCount: number,
+  availableResolvedDiscardCardIds: readonly MissionCardId[],
 ): AwayMissionLifecycleRecord {
   if (record.status !== 'active' || record.lifecycle.phase === 'facilitator-cards-added') return record;
   if (record.lifecycle.dealtCount > deckCount) {
     fail('failed-precondition', 'The lifecycle deck cursor is ahead of the shared mission deck.');
   }
-  if (record.lifecycle.dealtCount === deckCount) return record;
+  if (record.lifecycle.dealtCount === deckCount &&
+      sameJson(record.lifecycle.availableResolvedDiscardCardIds, availableResolvedDiscardCardIds)) return record;
   return {
     ...record,
-    lifecycle: { ...record.lifecycle, dealtCount: deckCount },
+    lifecycle: {
+      ...record.lifecycle,
+      dealtCount: deckCount,
+      availableResolvedDiscardCardIds,
+    },
   };
 }
 

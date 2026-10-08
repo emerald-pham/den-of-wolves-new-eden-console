@@ -649,10 +649,11 @@ import { discoverySystemsForCoordinates } from './starChartProjection';
 import { pursuitDistancesForCoordinates } from './starChartProjection';
 import type { LifecyclePhase } from './lifecycle';
 import {
-  allocateMissionCards,
+  allocateMissionCardsWithResolvedDiscards,
   awayMissionCraftForRole,
   awayMissionHandId,
   missionDeckDealtCount,
+  missionDeckResolvedDiscardCardIds,
   type AwayMissionParticipantSnapshot,
 } from './awayMissionCards';
 import { wolfAttackWindowState, type WolfAttackWindow } from './wolfAttackWindow';
@@ -7276,6 +7277,7 @@ export const startGame = auditedOnCall<{
       tx.set(missionDeckRef, {
         ...missionDeckState,
         dealtCount: 0,
+        resolvedDiscardCardIds: [],
         createdAt: FieldValue.serverTimestamp(),
       });
     } else if (missionDeckSnapshot.get('dealtCount') === undefined) {
@@ -11197,17 +11199,23 @@ export const dealPrivateInitialCards = auditedOnCall<{
       throw commandError('failed-precondition', 'Away-mission deal blocked: mission-deck.', 'conflict');
     }
     const dealtCount = missionDeckDealtCount(missionDeckSnapshot.data(), persistedDeck.order.length);
-    if (dealtCount === null) {
+    const resolvedDiscardCardIds = dealtCount === null
+      ? null
+      : missionDeckResolvedDiscardCardIds(missionDeckSnapshot.data(), persistedDeck, dealtCount);
+    if (dealtCount === null || resolvedDiscardCardIds === null) {
       throw commandError('failed-precondition', 'Away-mission deal blocked: mission-deck cursor.', 'conflict');
     }
-    const allocations = allocateMissionCards(persistedDeck, dealtCount, participants);
-    if (allocations === null) {
+    const finiteDeal = allocateMissionCardsWithResolvedDiscards(
+      persistedDeck, dealtCount, resolvedDiscardCardIds, participants,
+    );
+    if (!finiteDeal) {
       throw commandError(
         'failed-precondition',
         'The away-mission deck is depleted for this participant selection.',
         'conflict',
       );
     }
+    const allocations = finiteDeal.allocations;
 
     const missionLeader = participants.find((participant) => participant.uid === command.missionLeaderUid)!;
     const lifecycleBootstrap = createAwayMissionLifecycleBootstrap({
@@ -11225,7 +11233,8 @@ export const dealPrivateInitialCards = auditedOnCall<{
         participants,
         availableCarrierCraftIds: carrierCraftIds,
         deckState: persistedDeck,
-        dealtCount: dealtCount + allocations.length,
+        dealtCount: finiteDeal.dealtCountAfter,
+        availableResolvedDiscardCardIds: finiteDeal.remainingResolvedDiscardCardIds,
         initialCards: allocations.map(({ participant, card }) => ({ participantUid: participant.uid, cardId: card.id })),
       },
     });
@@ -11274,6 +11283,7 @@ export const dealPrivateInitialCards = auditedOnCall<{
         participantCrafts,
         missionLeaderUid: missionLeader.uid,
       },
+      recycledCardIds: [...finiteDeal.recycledCardIds],
       modifiers: boaReclamation ? [
         `Boa reclamation ${boaReclamation.opportunityId} // printed difficulty ${boaReclamation.printedDifficulty ?? 'server-calculated'} // effective difficulty ${boaReclamation.effectiveDifficulty ?? 'floor of server-calculated difficulty'} (floor assumption) // reward replaced by 1 Scrap on success; no ordinary or critical bonus`,
       ] : [],
@@ -11294,14 +11304,15 @@ export const dealPrivateInitialCards = auditedOnCall<{
         participantHandCount: participants.length,
         participantPointerCount: participants.length,
         missionDeckDealtCountBefore: dealtCount,
-        missionDeckDealtCountAfter: dealtCount + allocations.length,
+        missionDeckDealtCountAfter: finiteDeal.dealtCountAfter,
+        missionDeckRecycleCount: finiteDeal.recycledCardIds.length,
       },
       revisions: {
         startSnapshot: 0, mission: 0,
         setup: currentSetupRevision,
         phase: { cycle: currentTurnState.currentTurn, phase: currentTurnState.phase, revision: currentTurnState.phaseRevision },
         navigation: currentNavigationRevision,
-        missionDeck: { before: dealtCount, after: dealtCount + allocations.length },
+        missionDeck: { before: dealtCount, after: finiteDeal.dealtCountAfter },
       },
       replay: {
         status: 'committed', requestId: command.requestId,
@@ -11345,8 +11356,9 @@ export const dealPrivateInitialCards = auditedOnCall<{
       availableCarrierCraftIds: [...carrierCraftIds],
       handIds: participants.map((participant) => awayMissionHandId(missionId, participant.uid)),
       cardIds: allocations.map(({ card }) => card.id),
+      recycledCardIds: [...finiteDeal.recycledCardIds],
       dealtFrom: dealtCount,
-      dealtThrough: dealtCount + allocations.length,
+      dealtThrough: finiteDeal.dealtCountAfter,
       createdAt: FieldValue.serverTimestamp(),
     });
     // A source opportunity can start only once, even when two valid GM
@@ -11393,7 +11405,8 @@ export const dealPrivateInitialCards = auditedOnCall<{
       });
     }
     tx.update(missionDeckRef, {
-      dealtCount: dealtCount + allocations.length,
+      dealtCount: finiteDeal.dealtCountAfter,
+      resolvedDiscardCardIds: [...finiteDeal.remainingResolvedDiscardCardIds],
       updatedAt: FieldValue.serverTimestamp(),
     });
     for (const supportView of gorgoneionMissionSupportViewsSnapshot.docs) {

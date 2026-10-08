@@ -1,8 +1,10 @@
 import {
-  allocateMissionCards,
+  allocateMissionCardsWithResolvedDiscards,
   AWAY_MISSION_ROLE_CRAFT,
   awayMissionCraftForRole,
+  drawMissionCardsWithResolvedDiscards,
   missionDeckDealtCount,
+  missionDeckResolvedDiscardCardIds,
   type AwayMissionParticipantSnapshot,
 } from './awayMissionCards';
 import {
@@ -59,6 +61,8 @@ export interface MissionLifecycleStateInput {
   readonly deckState: MissionDeckState;
   /** The P402 cursor after P403's initial deal. */
   readonly dealtCount: number;
+  /** Server-private discards already released by resolved missions. */
+  readonly availableResolvedDiscardCardIds?: readonly MissionCardId[];
   /** P403's one private starting card for each selected participant. */
   readonly initialCards: readonly MissionLifecycleInitialCard[];
   readonly phase?: 'awaiting-card-selection' | 'discarding' | 'assignment-ready';
@@ -96,6 +100,7 @@ export interface MissionLifecycleState {
   readonly phase: MissionLifecyclePhase;
   readonly deckState: MissionDeckState;
   readonly dealtCount: number;
+  readonly availableResolvedDiscardCardIds: readonly MissionCardId[];
   readonly cards: readonly MissionLifecycleOwnedCard[];
   /** Extra-card requests after P403's one private initial card; no reason is stored. */
   readonly requestsByParticipant: readonly { readonly participantUid: string; readonly count: number }[];
@@ -123,6 +128,7 @@ export interface MissionLifecycleState {
     readonly fingerprint: string;
     readonly dealtCountBefore: number;
     readonly addedCount: number;
+    readonly recycledCardIds: readonly MissionCardId[];
     readonly opportunityIds: readonly string[];
   } | null;
 }
@@ -197,8 +203,13 @@ export function createMissionLifecycleState(
   const deckState = parseMissionDeckState(input.deckState);
   const availableCarrierCraftIds = normalizeAvailableCarrierCraftIds(input.availableCarrierCraftIds);
   const dealtCount = missionDeckDealtCount({ dealtCount: input.dealtCount }, deckState?.order.length ?? 0);
+  const availableResolvedDiscardCardIds = deckState && dealtCount !== null
+    ? missionDeckResolvedDiscardCardIds({
+      resolvedDiscardCardIds: input.availableResolvedDiscardCardIds ?? [],
+    }, deckState, dealtCount)
+    : null;
   if (!isNonEmptyString(input.missionId) || !opportunity || !deckState || !availableCarrierCraftIds ||
-      dealtCount === null ||
+      dealtCount === null || availableResolvedDiscardCardIds === null ||
       !isNonEmptyString(input.leaderUid) || !Array.isArray(input.participants) ||
       input.participants.length === 0 || !Array.isArray(input.initialCards) ||
       input.initialCards.length !== input.participants.length) return null;
@@ -243,6 +254,7 @@ export function createMissionLifecycleState(
     phase,
     deckState,
     dealtCount,
+    availableResolvedDiscardCardIds,
     cards: normalizedParticipants.map((participant) => ({
       participantUid: participant.uid,
       cardId: initialByParticipant.get(participant.uid)!,
@@ -330,13 +342,19 @@ export function allocateBlindExtraMissionCard(
   if (alreadyAllocatedExtraCount >= requestedExtraCount) return null;
 
   const participant = state.participants.find(({ uid }) => uid === command.participantUid)!;
-  const allocations = allocateMissionCards(state.deckState, state.dealtCount, [participant]);
-  const allocation = allocations?.[0];
-  if (!allocation || !isMissionCardId(allocation.card.id) ||
+  const finiteDeal = allocateMissionCardsWithResolvedDiscards(
+    state.deckState,
+    state.dealtCount,
+    state.availableResolvedDiscardCardIds,
+    [participant],
+  );
+  const allocation = finiteDeal?.allocations[0];
+  if (!finiteDeal || !allocation || !isMissionCardId(allocation.card.id) ||
       state.cards.some(({ cardId }) => cardId === allocation.card.id)) return null;
   const nextState: MissionLifecycleState = {
     ...state,
-    dealtCount: state.dealtCount + 1,
+    dealtCount: finiteDeal.dealtCountAfter,
+    availableResolvedDiscardCardIds: finiteDeal.remainingResolvedDiscardCardIds,
     cards: [...state.cards, {
       participantUid: command.participantUid,
       cardId: allocation.card.id,
@@ -553,9 +571,14 @@ export function addFacilitatorCardsFromTopDeck(
   const definition = missionCardForCode(state.siteCode)!;
   const nonemptyOpportunities = definition.opportunities
     .filter(({ id }) => state.assignments.some((assignment) => assignment.opportunityId === id));
-  const orderedDeck = missionCardsForState(state.deckState);
-  const drawn = orderedDeck.slice(state.dealtCount, state.dealtCount + nonemptyOpportunities.length);
-  if (drawn.length !== nonemptyOpportunities.length || drawn.some(({ id }) =>
+  const finiteDeal = drawMissionCardsWithResolvedDiscards(
+    state.deckState,
+    state.dealtCount,
+    state.availableResolvedDiscardCardIds,
+    nonemptyOpportunities.length,
+  );
+  const drawn = finiteDeal?.cards ?? [];
+  if (!finiteDeal || drawn.length !== nonemptyOpportunities.length || drawn.some(({ id }) =>
     !isMissionCardId(id) || state.cards.some((card) => card.cardId === id))) return null;
 
   const facilitatorCards = nonemptyOpportunities.map((opportunity, index) => ({
@@ -578,7 +601,8 @@ export function addFacilitatorCardsFromTopDeck(
   const nextState: MissionLifecycleState = {
     ...state,
     phase: 'facilitator-cards-added',
-    dealtCount: state.dealtCount + drawn.length,
+    dealtCount: finiteDeal.dealtCountAfter,
+    availableResolvedDiscardCardIds: finiteDeal.remainingResolvedDiscardCardIds,
     facilitatorCards,
     shuffledPiles,
     facilitatorDealReceipt: {
@@ -586,6 +610,7 @@ export function addFacilitatorCardsFromTopDeck(
       fingerprint,
       dealtCountBefore: state.dealtCount,
       addedCount: drawn.length,
+      recycledCardIds: [...finiteDeal.recycledCardIds],
       opportunityIds: nonemptyOpportunities.map(({ id }) => id),
     },
   };
@@ -742,6 +767,7 @@ function isValidMissionLifecycleState(value: unknown): value is MissionLifecycle
       !isNonEmptyString(value.leaderUid) || !Array.isArray(value.participants) ||
       value.participants.length === 0 || !Array.isArray(value.availableCarrierCraftIds) ||
       !normalizeAvailableCarrierCraftIds(value.availableCarrierCraftIds) || !Array.isArray(value.cards) ||
+      (value.availableResolvedDiscardCardIds !== undefined && !Array.isArray(value.availableResolvedDiscardCardIds)) ||
       !Array.isArray(value.requestsByParticipant) || !Array.isArray(value.discardedParticipantUids) ||
       !Array.isArray(value.discardedCardIds) || !Array.isArray(value.reclamatorParticipantUids) ||
       !Array.isArray(value.reclamatorCardIds) || !Array.isArray(value.extraAllocationReceipts) ||
@@ -750,8 +776,13 @@ function isValidMissionLifecycleState(value: unknown): value is MissionLifecycle
       (value.facilitatorDealReceipt !== null && !isRecord(value.facilitatorDealReceipt))) return false;
   const deckState = parseMissionDeckState(value.deckState);
   const dealtCount = missionDeckDealtCount({ dealtCount: value.dealtCount }, deckState?.order.length ?? 0);
+  const availableResolvedDiscardCardIds = deckState && dealtCount !== null
+    ? missionDeckResolvedDiscardCardIds({
+      resolvedDiscardCardIds: value.availableResolvedDiscardCardIds ?? [],
+    }, deckState, dealtCount)
+    : null;
   const definition = missionCardForCode(value.siteCode);
-  if (!deckState || dealtCount === null || !definition ||
+  if (!deckState || dealtCount === null || availableResolvedDiscardCardIds === null || !definition ||
       !['awaiting-card-selection', 'discarding', 'assignment-ready', 'assigning',
         'assignments-complete', 'facilitator-cards-added'].includes(String(value.phase))) return false;
 
@@ -788,6 +819,7 @@ function isValidMissionLifecycleState(value: unknown): value is MissionLifecycle
     }
   }
   if (normalizedParticipants.some(({ uid }) => initialCounts.get(uid) !== 1)) return false;
+  if (availableResolvedDiscardCardIds.some((cardId) => cardOwners.has(cardId))) return false;
 
   const requests = new Set<string>();
   const requestedExtraCounts = new Map<string, number>();
@@ -888,7 +920,7 @@ function isValidMissionLifecycleState(value: unknown): value is MissionLifecycle
         !opportunityIdSet.has(facilitatorCard.opportunityId) || !isMissionCardId(facilitatorCard.cardId) ||
         facilitatorByOpportunity.has(facilitatorCard.opportunityId) || allCardIds.has(facilitatorCard.cardId)) return false;
     const cardIndex = deckState.order.indexOf(facilitatorCard.cardId);
-    if (cardIndex < 0 || cardIndex >= dealtCount) return false;
+    if (cardIndex < 0 || cardIndex >= dealtCount || availableResolvedDiscardCardIds.includes(facilitatorCard.cardId)) return false;
     facilitatorByOpportunity.set(facilitatorCard.opportunityId, facilitatorCard.cardId);
     allCardIds.add(facilitatorCard.cardId);
   }
@@ -928,23 +960,35 @@ function isValidMissionLifecycleState(value: unknown): value is MissionLifecycle
         pileByOpportunity.size !== expectedOpportunityIds.length || !isRecord(value.facilitatorDealReceipt)) return false;
     const receipt = value.facilitatorDealReceipt;
     const receiptOpportunityIds = receipt.opportunityIds;
+    const recycledCardIds = Array.isArray(receipt.recycledCardIds) ? receipt.recycledCardIds : [];
     if (!isNonEmptyString(receipt.requestId) || typeof receipt.fingerprint !== 'string' ||
         typeof receipt.dealtCountBefore !== 'number' || !Number.isSafeInteger(receipt.dealtCountBefore) ||
         receipt.dealtCountBefore < 0 ||
         typeof receipt.addedCount !== 'number' || !Number.isSafeInteger(receipt.addedCount) ||
+        (receipt.recycledCardIds !== undefined && !Array.isArray(receipt.recycledCardIds)) ||
+        !Array.isArray(recycledCardIds) || new Set(recycledCardIds).size !== recycledCardIds.length ||
+        recycledCardIds.some((cardId) => !isMissionCardId(cardId) ||
+          deckState.order.indexOf(cardId) >= receipt.dealtCountBefore ||
+          availableResolvedDiscardCardIds.includes(cardId)) ||
         !Array.isArray(receiptOpportunityIds) ||
         receipt.addedCount !== expectedOpportunityIds.length ||
-        receipt.dealtCountBefore + receipt.addedCount !== dealtCount ||
-        receipt.dealtCountBefore + receipt.addedCount > deckState.order.length ||
+        recycledCardIds.length > receipt.addedCount ||
+        receipt.dealtCountBefore + receipt.addedCount - recycledCardIds.length !== dealtCount ||
+        dealtCount > deckState.order.length ||
         receiptOpportunityIds.length !== expectedOpportunityIds.length ||
         expectedOpportunityIds.some((id, index) => receiptOpportunityIds[index] !== id)) return false;
+    const topCardCount = receipt.addedCount - recycledCardIds.length;
     const expectedTopCards = missionCardsForState(deckState).slice(
       receipt.dealtCountBefore,
-      receipt.dealtCountBefore + receipt.addedCount,
+      receipt.dealtCountBefore + topCardCount,
     );
-    if (expectedTopCards.length !== expectedOpportunityIds.length ||
+    const expectedDrawnCardIds = [
+      ...expectedTopCards.map(({ id }) => id),
+      ...recycledCardIds as MissionCardId[],
+    ];
+    if (expectedDrawnCardIds.length !== expectedOpportunityIds.length ||
         expectedOpportunityIds.some((opportunityId, index) =>
-          facilitatorByOpportunity.get(opportunityId) !== expectedTopCards[index]?.id)) return false;
+          facilitatorByOpportunity.get(opportunityId) !== expectedDrawnCardIds[index])) return false;
     for (const opportunityId of expectedOpportunityIds) {
       const expectedCards = [
         ...(assignmentsByParticipant.size === 0 ? [] : value.assignments

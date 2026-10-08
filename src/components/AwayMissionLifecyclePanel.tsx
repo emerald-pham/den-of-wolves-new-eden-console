@@ -161,6 +161,11 @@ export default function AwayMissionLifecyclePanel({
         <p className="gm-console__status" role="status">{publicState.status} // {publicState.phase}</p>
       </header>
 
+      <p className="away-mission-lifecycle__muted">
+        HOUSE RULE // finite mission deck. Undealt cards are used first; resolved mission discards are recycled only when needed.
+        Discards from unresolved missions and private hands remain unavailable; extra requests beyond available cards stay undrawn.
+      </p>
+
       <div className="away-mission-lifecycle__grid" aria-label="Mission opportunities">
         {publicState.opportunities.map((opportunity) => (
           <article className="away-mission-lifecycle__opportunity" key={opportunity.id}>
