@@ -179,12 +179,12 @@ const ROLE_BRIEFS: Readonly<Record<string, Omit<RoleBriefContent, 'roleId'>>> = 
   doctor: {
     roleName: 'Doctor',
     vesselName: 'Quellon',
-    text: 'Objective // Preserve as many survivors as possible and reserve resources so more than one ship can receive care. After a Wolf Attack, choose one ship and halve its survivor casualties from damage. Additional ships require the stated food and water cost; the facilitator records every authoritative result.',
+    text: 'Objective // Preserve as many survivors as possible and reserve resources so more than one ship can receive care. After a Wolf Attack, choose one ship and halve its survivor casualties from damage at no food or water cost. Each additional ship costs 3 food and 3 water from that ship\'s storage; the facilitator records every authoritative result.',
   },
   'pdf-fighter-ace': {
     roleName: 'P.D.F. Fighter Ace',
     vesselName: 'Refinery 124',
-    text: 'Defend the fleet with personal combat during Wolf attacks and pursue the goal of destroying a Wolf capital ship, specifically a cruiser or carrier. Use only the authoritative Fighter Ace controls.',
+    text: 'Defend the fleet with personal combat during Wolf attacks and pursue the goal of destroying a Wolf capital ship, specifically a cruiser or carrier. With the commander\'s permission, pilot one fighter from Alpha, Bravo, or Refinery 124\'s P.D.F. wing. Choose Long range: roll 3 dice against one target, dealing 1 damage for each 3 or higher; if the target survives, your fighter is destroyed and you die. Alternatively, at Medium range deal 1 damage to an enemy and optionally change its targeting die by +1 or -1, wrapping 0 to Refinery 124 and 7 to AEGIS. At Short range deal 1 damage, with an optional second damage to the same or another enemy; taking the second damage destroys your fighter, and you survive in an escape pod. Use only the authoritative Fighter Ace controls.',
   },
   'gorgoneion-captain': {
     roleName: 'Gorgoneion Captain',

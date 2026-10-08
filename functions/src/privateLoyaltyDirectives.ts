@@ -4,6 +4,7 @@ import type { LoyaltyKind } from './gameSetup';
 const PRIVATE_LOYALTY_DIRECTIVES: Readonly<Record<LoyaltyKind, readonly string[]>> = {
   'fleet-loyalist': [
     'Objective // Reach New Eden with as many survivors as possible; keep faith with the fleet.',
+    'Recognise that other fleet members may have different loyalties.',
   ],
   'wolf-agent': [
     'Your sleeper priority overrides your former loyalty objective when you activate. Objective // Keep the fleet from escaping by spreading fear or confusion, weakening its infrastructure or defences, or reducing morale.',
