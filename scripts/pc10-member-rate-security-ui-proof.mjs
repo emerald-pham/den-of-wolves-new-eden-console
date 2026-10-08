@@ -8,13 +8,12 @@ import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 import { chromium } from 'playwright';
 import { observeUiReceipt } from './pc10-browser-ui-receipt.mjs';
-import {
-  captureLifecycleUiAction, openLifecycleSettings, closeLifecycleSettings,
-} from './pc10-member-gm-lifecycle-ui-proof.mjs';
+import { captureLifecycleUiAction } from './pc10-member-gm-lifecycle-ui-proof.mjs';
 import {
   observeFullGameDemoPresentationMember, proofRuntimeFromViteSource, validateProofRuntime,
 } from './pc10-full-game-demo-proof-helpers.mjs';
 import { capturePc10Gate2SourceBinding } from './pc10-gate2-functional-proof.mjs';
+import { retainProofFailure } from './pc10-proof-failure-evidence.mjs';
 import {
   P631_MEMBER_READ_LIMIT,
   provePreparationRateLimit, proveCurrentMemberReadRateLimit,
@@ -169,6 +168,33 @@ async function bounded(operation, timeoutMs, label) {
   } finally { clearTimeout(timer); }
 }
 
+function remainingUiMs(deadlineAt, label, maximumMs = PAGE_TIMEOUT_MS) {
+  const remaining = Math.min(maximumMs, deadlineAt - Date.now());
+  assert.ok(Number.isFinite(remaining) && remaining > 0,
+    `${label} exceeded its original shared UI deadline.`);
+  return remaining;
+}
+
+async function boundedUiAction(deadlineAt, label, action, maximumMs = PAGE_TIMEOUT_MS) {
+  const timeout = remainingUiMs(deadlineAt, label, maximumMs);
+  return bounded(() => action(timeout), timeout, label);
+}
+
+async function observeP631UiReceipt({ surface, endpoint, deadlineAt, timeoutMs, consumed, matches, choose, label }) {
+  const operationLabel = label ?? `Original ${endpoint} UI receipt`;
+  const deadline = deadlineAt ?? Date.now() + timeoutMs;
+  const remaining = (maximumMs = PAGE_TIMEOUT_MS) => remainingUiMs(deadline, operationLabel, maximumMs);
+  activeRun.budget.assertBefore(remaining(timeoutMs));
+  const observation = observeUiReceipt({ page: surface.page,
+    consumed: { ...consumed, endpoint, deadlineAt: deadline, originalTimeoutMs: timeoutMs },
+    waitForResponse: () => surface.page.waitForResponse(response => matches(response),
+      { timeout: remaining(timeoutMs) }),
+    choose: () => bounded(() => choose({ deadlineAt: deadline, remaining }), remaining(),
+      `${operationLabel} UI choices`),
+  });
+  return bounded(() => observation, remaining(timeoutMs), operationLabel);
+}
+
 function makeBudget(allocationDeadlineMs) {
   const workDeadlineMs = allocationDeadlineMs - CLEANUP_RESERVE_MS;
   const assertBefore = (maximumMs = OPERATION_TIMEOUT_MS) => {
@@ -313,6 +339,18 @@ export async function runP631MemberRateSecurityUiProof() {
   };
   activeRun.cleanup = cleanup;
 
+  const retainPrimaryFailure = async error => {
+    evidence.primaryFailure = safeError(error);
+    evidence.primaryFailureStage = failureStage;
+    if (!gate?.evidenceDirectory) return;
+    const retained = await retainProofFailure(gate.evidenceDirectory, 'p631-primary', error, {
+      failureStage, sourceCommit: gate.sourceCommit,
+      ...(error?.p631CleanupError ? { cleanupError: safeError(error.p631CleanupError) } : {}),
+      cleanup: evidence.cleanup ?? null,
+    });
+    evidence.primaryFailureArtifact = { path: retained.path, retained: !retained.evidenceWriteFailed };
+  };
+
   try {
     gate = await verifySourceFreeze();
     activeRun.gate = gate;
@@ -345,7 +383,7 @@ export async function runP631MemberRateSecurityUiProof() {
   } catch (error) {
     primaryFailure = error;
     failureStage = 'source-preflight';
-    evidence.primaryFailure = safeError(error);
+    await retainPrimaryFailure(error);
   }
 
   if (!primaryFailure) {
@@ -355,17 +393,22 @@ export async function runP631MemberRateSecurityUiProof() {
           failureStage = 'normal GM create, consent, local authorization and original prepare';
           await proofLabelStage('launch normal GM Chrome process', evidence, gate.evidenceDirectory)();
           const gm = await createSurface('browser-A-normal-GM');
+          const gmAdmissionDeadlineAt = Date.now() + OPERATION_TIMEOUT_MS;
+          budget.assertBefore(OPERATION_TIMEOUT_MS);
           const initialUrl = EXPECTED_RUNTIME.baseUrl;
-          await gm.page.goto(initialUrl);
-          await gm.reducedMotion();
-          const created = await observeUiReceipt({ page: gm.page,
+          await boundedUiAction(gmAdmissionDeadlineAt, 'Normal GM page navigation', timeout =>
+            gm.page.goto(initialUrl, { timeout }));
+          await gm.reducedMotion(gmAdmissionDeadlineAt);
+          const created = await observeP631UiReceipt({ surface: gm, endpoint: 'createSession',
+            deadlineAt: gmAdmissionDeadlineAt, timeoutMs: PAGE_TIMEOUT_MS,
+            label: 'Normal GM create and identity receipt',
             consumed: { stage: evidence.stage, ordinaryAdmission: true },
-            waitForResponse: () => gm.page.waitForResponse(response =>
-              new URL(response.url()).pathname.endsWith('/us-central1/createSession') &&
-              response.request().method() === 'POST', { timeout: PAGE_TIMEOUT_MS }),
-            choose: async () => {
-              await gm.page.getByRole('button', { name: 'Create a session', exact: true }).click();
-              await registerActor(gm, 'GM');
+            matches: response => new URL(response.url()).pathname.endsWith('/us-central1/createSession') &&
+              response.request().method() === 'POST',
+            choose: async ({ deadlineAt, remaining }) => {
+              await gm.page.getByRole('button', { name: 'Create a session', exact: true })
+                .click({ timeout: remaining() });
+              await registerActor(gm, 'GM', { deadlineAt });
             },
           });
           assert.equal(created.status(), 200);
@@ -374,32 +417,52 @@ export async function runP631MemberRateSecurityUiProof() {
           owned.joinCode = body.result?.session?.joinCode;
           assert.match(owned.sessionId ?? '', /^[\w-]{1,128}$/);
           assert.match(owned.joinCode ?? '', /^[\w-]{4,16}$/);
-          await gm.consent();
+          failureStage = 'normal GM regulation consent';
+          await gm.consent({ deadlineAt: gmAdmissionDeadlineAt });
+          failureStage = 'normal GM admitted App/store authority';
           let live = await gm.until('Original normally admitted fresh GM', state => state.hasAuth && state.sameActor &&
             state.sessionId === owned.sessionId && state.profileRoleId === null && state.profileSessionId === null &&
             state.playerRole === null && state.connection === 'live' && state.freshness === 'server');
           assert.equal(live.sdkHasServerAuthority, true);
           assert.equal(live.sdkResumePending, false);
+          failureStage = 'normal local GM authorization';
           await proofLabelStage('normal local GM authorization', evidence, gate.evidenceDirectory)();
-          const settings = await openLifecycleSettings(gm);
+          const authorizationDeadlineAt = Date.now() + OPERATION_TIMEOUT_MS;
+          budget.assertBefore(OPERATION_TIMEOUT_MS);
+          await boundedUiAction(authorizationDeadlineAt, 'Open session settings', timeout =>
+            gm.page.getByRole('button', { name: 'Settings', exact: true }).click({ timeout }));
+          const settings = gm.page.getByRole('dialog', { name: 'Session settings', exact: true });
+          await boundedUiAction(authorizationDeadlineAt, 'Wait for session settings', timeout =>
+            settings.waitFor({ state: 'visible', timeout }));
           const authorize = settings.getByRole('button', { name: 'Authorize local emulator GM', exact: true });
-          await authorize.waitFor({ state: 'visible', timeout: PAGE_TIMEOUT_MS });
+          await boundedUiAction(authorizationDeadlineAt, 'Wait for local GM authorization control', timeout =>
+            authorize.waitFor({ state: 'visible', timeout }));
           const origin = new URL(gm.page.url()).origin;
-          const authorization = await observeUiReceipt({ page: gm.page,
+          const authorization = await observeP631UiReceipt({ surface: gm, endpoint: 'local GM authorization',
+            deadlineAt: authorizationDeadlineAt, timeoutMs: OPERATION_TIMEOUT_MS,
+            label: 'Normal local GM authorization receipt',
             consumed: { stage: evidence.stage, credentialPayloadRecorded: false },
-            waitForResponse: () => gm.page.waitForResponse(response =>
+            matches: response =>
               new URL(response.url()).origin === origin && new URL(response.url()).pathname === '/__local-gm-access' &&
-              response.request().method() === 'POST', { timeout: OPERATION_TIMEOUT_MS }),
-            choose: () => authorize.click(),
+              response.request().method() === 'POST',
+            choose: ({ remaining }) => authorize.click({ timeout: remaining() }),
           });
           assert.equal(authorization.status(), 200);
           assert.equal((await authorization.json()).authenticated, true);
-          await settings.getByRole('button', { name: 'Revoke GM access', exact: true }).waitFor();
-          await closeLifecycleSettings(settings);
-          await gm.page.getByRole('link', { name: /GM join$/i }).click();
-          await gm.page.getByLabel('Input GM Name', { exact: true }).fill('P631 rate-limit facilitator');
-          const claimed = await action(gm, 'claimGmInstance', () =>
-            gm.page.getByRole('button', { name: 'Join as GM', exact: true }).click(), { gm: true });
+          await boundedUiAction(authorizationDeadlineAt, 'Wait for local GM authorization state', timeout =>
+            settings.getByRole('button', { name: 'Revoke GM access', exact: true }).waitFor({ timeout }));
+          await boundedUiAction(authorizationDeadlineAt, 'Close session settings', timeout =>
+            settings.getByRole('button', { name: 'Close settings', exact: true }).click({ timeout }));
+          failureStage = 'normal live GM claim';
+          const gmJoinDeadlineAt = Date.now() + OPERATION_TIMEOUT_MS;
+          budget.assertBefore(OPERATION_TIMEOUT_MS);
+          await boundedUiAction(gmJoinDeadlineAt, 'Open GM join form', timeout =>
+            gm.page.getByRole('link', { name: /GM join$/i }).click({ timeout }));
+          await boundedUiAction(gmJoinDeadlineAt, 'Fill GM display name', timeout =>
+            gm.page.getByLabel('Input GM Name', { exact: true }).fill('P631 rate-limit facilitator', { timeout }));
+          const claimed = await action(gm, 'claimGmInstance', remaining =>
+            gm.page.getByRole('button', { name: 'Join as GM', exact: true }).click({ timeout: remaining() }),
+          { gm: true, deadlineAt: gmJoinDeadlineAt });
           live = await gm.until('Original live GM authority', state => state.hasAuth && state.sameActor &&
             state.sessionId === owned.sessionId && state.playerRole === 'gm' && state.gmInstanceOwned &&
             state.connection === 'live' && state.freshness === 'server' && state.sdkHasServerAuthority &&
@@ -409,28 +472,41 @@ export async function runP631MemberRateSecurityUiProof() {
           assert.equal(claimed.data.instanceId, owned.instanceId);
           assert.equal(claimed.result.instance.id, owned.instanceId);
 
+          failureStage = 'legal roster configuration and setup';
           await proofLabelStage('legal roster configuration and setup', evidence, gate.evidenceDirectory)();
-          if (!(await gm.page.getByRole('region', { name: 'Setup', exact: true }).isVisible())) {
-            await gm.page.getByRole('button', { name: /^Open station catalog/ }).click();
-            await gm.page.getByRole('link', { name: 'GM Console', exact: true }).click();
-          }
+          const setupDeadlineAt = Date.now() + OPERATION_TIMEOUT_MS;
+          budget.assertBefore(OPERATION_TIMEOUT_MS);
           const setup = gm.page.getByRole('region', { name: 'Setup', exact: true });
-          await setup.getByRole('button', { name: 'Setup', exact: true }).click();
-          await setup.getByLabel('Recommended player count', { exact: true }).selectOption('16');
-          await setup.getByLabel('Star chart', { exact: true }).selectOption('A');
-          const confirmed = await action(gm, 'confirmSetup', () =>
-            setup.getByRole('button', { name: 'Confirm setup // Confirm roster', exact: true }).click(), { gm: true });
+          const setupVisible = await boundedUiAction(setupDeadlineAt, 'Check setup region', () => setup.isVisible());
+          if (!setupVisible) {
+            await boundedUiAction(setupDeadlineAt, 'Open station catalog', timeout =>
+              gm.page.getByRole('button', { name: /^Open station catalog/ }).click({ timeout }));
+            await boundedUiAction(setupDeadlineAt, 'Open GM console', timeout =>
+              gm.page.getByRole('link', { name: 'GM Console', exact: true }).click({ timeout }));
+          }
+          await boundedUiAction(setupDeadlineAt, 'Open roster setup', timeout =>
+            setup.getByRole('button', { name: 'Setup', exact: true }).click({ timeout }));
+          await boundedUiAction(setupDeadlineAt, 'Select recommended player count', timeout =>
+            setup.getByLabel('Recommended player count', { exact: true }).selectOption('16', { timeout }));
+          await boundedUiAction(setupDeadlineAt, 'Select star chart', timeout =>
+            setup.getByLabel('Star chart', { exact: true }).selectOption('A', { timeout }));
+          const confirmed = await action(gm, 'confirmSetup', remaining =>
+            setup.getByRole('button', { name: 'Confirm setup // Confirm roster', exact: true }).click({ timeout: remaining() }),
+          { gm: true, deadlineAt: setupDeadlineAt });
           assert.equal(confirmed.result.status, 'committed');
           const setupState = await gm.until('Original legal Cycle 0 roster', state => state.setupConfirmed &&
             state.cycle === 0 && state.phase === 'casting' && state.gmInstanceOwned &&
             state.fullGameDemo === null && state.sdkHasServerAuthority && !state.sdkResumePending);
           assert.equal(setupState.playerRole, 'gm');
 
+          failureStage = 'original UI preparation before ordinary join';
           await proofLabelStage('original UI preparation before ordinary join', evidence, gate.evidenceDirectory)();
           const training = gm.page.locator('fieldset[aria-label="Full-game demo preparation"]');
-          const original = await action(gm, 'prepareFullGameDemo', async () => {
-            await training.getByRole('button', { name: 'Prepare full-game demo', exact: true }).click();
-            await training.getByRole('button', { name: 'ARE YOU SURE? // PREPARE FULL-GAME DEMO', exact: true }).click();
+          const original = await action(gm, 'prepareFullGameDemo', async remaining => {
+            await training.getByRole('button', { name: 'Prepare full-game demo', exact: true })
+              .click({ timeout: remaining() });
+            await training.getByRole('button', { name: 'ARE YOU SURE? // PREPARE FULL-GAME DEMO', exact: true })
+              .click({ timeout: remaining() });
           }, { gm: true, matches: data => data?.sessionId === owned.sessionId && data?.instanceId === owned.instanceId });
           assert.equal(original.httpStatus, 200);
           assert.equal(original.result.status, 'committed');
@@ -481,21 +557,29 @@ export async function runP631MemberRateSecurityUiProof() {
           failureStage = 'normal ordinary member join and consent';
           await proofLabelStage('normal ordinary member join after preparation replay', evidence, gate.evidenceDirectory)();
           const member = await createSurface('browser-B-normal-member');
-          await member.page.goto(EXPECTED_RUNTIME.baseUrl);
-          await member.reducedMotion();
-          await member.page.getByRole('textbox', { name: 'Session code', exact: true }).fill(owned.joinCode);
-          const joined = await observeUiReceipt({ page: member.page,
+          const memberAdmissionDeadlineAt = Date.now() + OPERATION_TIMEOUT_MS;
+          budget.assertBefore(OPERATION_TIMEOUT_MS);
+          await boundedUiAction(memberAdmissionDeadlineAt, 'Normal member page navigation', timeout =>
+            member.page.goto(EXPECTED_RUNTIME.baseUrl, { timeout }));
+          await member.reducedMotion(memberAdmissionDeadlineAt);
+          await boundedUiAction(memberAdmissionDeadlineAt, 'Fill normal member session code', timeout =>
+            member.page.getByRole('textbox', { name: 'Session code', exact: true }).fill(owned.joinCode, { timeout }));
+          const joined = await observeP631UiReceipt({ surface: member, endpoint: 'joinSession',
+            deadlineAt: memberAdmissionDeadlineAt, timeoutMs: PAGE_TIMEOUT_MS,
+            label: 'Normal member join and identity receipt',
             consumed: { stage: evidence.stage, ordinaryOrigin: EXPECTED_RUNTIME.baseUrl },
-            waitForResponse: () => member.page.waitForResponse(response =>
-              new URL(response.url()).pathname.endsWith('/us-central1/joinSession') &&
-              response.request().method() === 'POST', { timeout: PAGE_TIMEOUT_MS }),
-            choose: async () => {
-              await member.page.getByRole('button', { name: 'Join a session', exact: true }).click();
-              await registerActor(member, 'Member');
+            matches: response => new URL(response.url()).pathname.endsWith('/us-central1/joinSession') &&
+              response.request().method() === 'POST',
+            choose: async ({ deadlineAt, remaining }) => {
+              await member.page.getByRole('button', { name: 'Join a session', exact: true })
+                .click({ timeout: remaining() });
+              await registerActor(member, 'Member', { deadlineAt });
             },
           });
           assert.equal(joined.status(), 200);
-          await member.consent();
+          failureStage = 'normal ordinary member consent';
+          await member.consent({ deadlineAt: memberAdmissionDeadlineAt });
+          failureStage = 'normal ordinary member App/store admission';
           const admitted = await member.until('Original normal member join and current SDK authority', state =>
             state.hasAuth && state.sameActor && state.sessionId === gmContext.sessionId &&
             state.playerRole === 'player' && state.connection === 'live' && state.freshness === 'server' &&
@@ -571,7 +655,8 @@ export async function runP631MemberRateSecurityUiProof() {
           return summaries;
         },
         cleanup: async originalError => {
-          failureStage = 'owned-only browser/Auth/session cleanup';
+          evidence.cleanupStage = 'owned-only browser/Auth/session cleanup';
+          if (!originalError) failureStage = evidence.cleanupStage;
           await cleanup(originalError);
         },
       });
@@ -594,12 +679,13 @@ export async function runP631MemberRateSecurityUiProof() {
       if (evidence.cleanup?.errors?.length || Date.now() > gate.allocationDeadlineMs) evidence.status = 'cleanup-incomplete';
     } catch (error) {
       primaryFailure = error;
-      evidence.primaryFailure = safeError(error);
+      await retainPrimaryFailure(error);
     }
   }
 
   if (!gate || !evidence.cleanup) {
     if (!evidence.cleanup) {
+      evidence.cleanupStage = 'owned-only browser/Auth/session cleanup';
       try { await cleanup(primaryFailure); }
       catch (error) { evidence.secondaryCleanupFailure = safeError(error); }
     }
@@ -673,11 +759,13 @@ async function createSurface(label) {
   const surface = { label, browser, context, page,
     storeModuleUrl: () => storeUrl,
     sessionAuthorityModuleUrl: () => authorityUrl,
-    async reducedMotion() {
-      budget.assertBefore(PAGE_TIMEOUT_MS);
+    async reducedMotion(deadlineAt = Date.now() + PAGE_TIMEOUT_MS) {
+      budget.assertBefore(remainingUiMs(deadlineAt, `${label} reduced-motion UI action`));
       const button = page.getByRole('button', { name: /^REDUCED MOTION/i });
-      if (await button.isVisible().catch(() => false)) await bounded(() => button.click({ timeout: PAGE_TIMEOUT_MS }),
-        PAGE_TIMEOUT_MS, `${label} reduced-motion UI action`);
+      const visible = await boundedUiAction(deadlineAt, `${label} reduced-motion visibility`,
+        () => button.isVisible().catch(() => false));
+      if (visible) await boundedUiAction(deadlineAt, `${label} reduced-motion UI action`, timeout =>
+        button.click({ timeout }));
     },
     async observe() {
       return observeFullGameDemoPresentationMember(surface, { knownRoleIds: [ROLE_ID, 'icebreaker-miner'] });
@@ -697,24 +785,34 @@ async function createSurface(label) {
       }
       throw new Error(`${description}: original mounted App/store/SDK authority tuple did not become ready.`);
     },
-    async consent() {
+    async consent({ deadlineAt = Date.now() + PAGE_TIMEOUT_MS } = {}) {
       const waiver = page.getByRole('dialog', { name: 'CODE OF CONDUCT', exact: true });
-      budget.assertBefore(PAGE_TIMEOUT_MS);
-      const deadline = Date.now() + PAGE_TIMEOUT_MS;
-      while (!(await waiver.isVisible()) && Date.now() < deadline) await delay(100);
-      assert.equal(await waiver.isVisible(), true, 'Normal UI admission must mount existing regulation consent.');
+      const consentDeadlineAt = Math.min(deadlineAt, Date.now() + PAGE_TIMEOUT_MS);
+      budget.assertBefore(consentDeadlineAt - Date.now());
+      let visible = false;
+      while (!visible) {
+        visible = await boundedUiAction(consentDeadlineAt, `${label} regulation consent visibility`, () => waiver.isVisible());
+        if (!visible) await delay(Math.min(100, remainingUiMs(consentDeadlineAt, `${label} regulation consent visibility`)));
+      }
+      assert.equal(visible, true, 'Normal UI admission must mount existing regulation consent.');
       const checks = waiver.getByRole('checkbox', { name: /^Acknowledge regulation/ });
-      assert.equal(await checks.count(), 3);
-      for (const checkbox of await checks.all()) await checkbox.check();
+      assert.equal(await boundedUiAction(consentDeadlineAt, `${label} regulation checkbox count`, () => checks.count()), 3);
+      const checkboxes = await boundedUiAction(consentDeadlineAt, `${label} regulation checkbox list`, () => checks.all());
+      for (const checkbox of checkboxes) {
+        await boundedUiAction(consentDeadlineAt, `${label} regulation checkbox action`, timeout => checkbox.check({ timeout }));
+      }
       const continueButton = waiver.getByRole('button', { name: 'Acknowledge regulations and continue', exact: true });
-      while (!(await continueButton.isEnabled()) && Date.now() < deadline) await delay(100);
-      assert.equal(await continueButton.isEnabled(), true);
-      const remaining = deadline - Date.now();
-      assert.ok(remaining > 0, 'Normal UI regulation consent exceeded its original 35-second budget.');
-      await bounded(async () => {
-        await continueButton.click({ timeout: remaining });
-        await waiver.waitFor({ state: 'hidden', timeout: Math.max(1, deadline - Date.now()) });
-      }, remaining, `${label} regulation consent`);
+      let enabled = false;
+      while (!enabled) {
+        enabled = await boundedUiAction(consentDeadlineAt, `${label} regulation continue visibility`, () => continueButton.isEnabled());
+        if (!enabled) await delay(Math.min(100, remainingUiMs(consentDeadlineAt, `${label} regulation continue visibility`)));
+      }
+      assert.equal(enabled, true);
+      await boundedUiAction(consentDeadlineAt, `${label} regulation consent`, async timeout => {
+        await continueButton.click({ timeout });
+        await waiver.waitFor({ state: 'hidden', timeout: remainingUiMs(consentDeadlineAt,
+          `${label} regulation consent hide`) });
+      });
     },
     async callable(name, data) {
       assert.ok(functionsSdkUrl, 'Capture the mounted App Firebase Functions SDK before proof calls.');
@@ -773,17 +871,16 @@ async function createSurface(label) {
   return surface;
 }
 
-async function registerActor(surface, label) {
-  const deadline = Date.now() + PAGE_TIMEOUT_MS;
-  activeRun.budget.assertBefore(PAGE_TIMEOUT_MS);
+async function registerActor(surface, label, { deadlineAt = Date.now() + PAGE_TIMEOUT_MS } = {}) {
+  activeRun.budget.assertBefore(remainingUiMs(deadlineAt, `${surface.label} original Auth identity observation`));
   let uid = null;
-  while (!uid && Date.now() < deadline) {
-    const remaining = Math.min(PAGE_TIMEOUT_MS, deadline - Date.now());
+  while (!uid) {
+    const remaining = remainingUiMs(deadlineAt, `${surface.label} original Auth identity observation`);
     uid = await bounded(() => surface.page.evaluate(async () => {
       const { auth } = await import('/src/lib/firebase.ts');
       return auth().currentUser?.uid ?? null;
     }), remaining, `${surface.label} original Auth identity observation`);
-    if (!uid) await delay(100);
+    if (!uid) await delay(Math.min(100, remainingUiMs(deadlineAt, `${surface.label} original Auth identity observation`)));
   }
   assert.ok(uid, 'Normal UI admission must create an Auth identity before its callable response is consumed.');
   assert.ok(![...activeRun.actorUids.values()].includes(uid), 'Each actor needs an independent original Auth identity.');
@@ -794,11 +891,15 @@ async function registerActor(surface, label) {
 
 async function action(surface, endpoint, choose, options = {}) {
   const { budget } = activeRun;
-  budget.assertBefore(options.timeout ?? OPERATION_TIMEOUT_MS);
-  return captureLifecycleUiAction(surface, endpoint, async () => {
-    budget.assertBefore(options.timeout ?? OPERATION_TIMEOUT_MS);
-    return choose();
-  }, { timeout: options.timeout ?? OPERATION_TIMEOUT_MS, ...options });
+  const timeout = options.timeout ?? OPERATION_TIMEOUT_MS;
+  const deadlineAt = options.deadlineAt ?? Date.now() + timeout;
+  const remaining = (maximumMs = timeout) => remainingUiMs(deadlineAt, `${endpoint} UI action`, maximumMs);
+  budget.assertBefore(remaining(timeout));
+  const capture = captureLifecycleUiAction(surface, endpoint, async () => {
+    budget.assertBefore(remaining(timeout));
+    return bounded(() => choose(() => remaining(PAGE_TIMEOUT_MS)), remaining(), `${endpoint} UI choices`);
+  }, { ...options, timeout, deadlineAt });
+  return bounded(() => capture, remaining(), `${endpoint} original UI receipt`);
 }
 
 async function readRateMarker(reference, identity) {
