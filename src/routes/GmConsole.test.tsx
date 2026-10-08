@@ -3308,15 +3308,22 @@ it('withholds full-game preparation while the original GM claim is recovering', 
   const session = useSessionStore.getState().session!;
   useSessionStore.getState().setSession({ ...session, phase: 'casting', currentTurn: 0, setupRevision: 4 });
   useSessionStore.getState().setGmInstance(local);
-  useSessionStore.setState(state => ({ ...state, gmRecoveryPending: true }));
   streamInstances([local]);
   renderConsole();
 
-  const setup = screen.queryByRole('button', { name: /^setup$/i });
-  if (setup) await user.click(setup);
+  await user.click(screen.getByRole('button', { name: /^setup$/i }));
+  expect(screen.getByRole('button', { name: /prepare full-game demo/i })).toBeVisible();
+
+  // Exercise the existing recovery consumer after the active route mounts.
+  act(() => useSessionStore.getState().setGmRecoveryPending(true));
 
   expect(screen.queryByRole('button', { name: /prepare full-game demo/i })).not.toBeInTheDocument();
   expect(screen.getByRole('status', { name: 'GM connection recovery' })).toBeVisible();
+  expect(prepareFullGameDemo).not.toHaveBeenCalled();
+
+  act(() => useSessionStore.getState().setGmRecoveryPending(false));
+  expect(screen.getByRole('button', { name: /prepare full-game demo/i })).toBeVisible();
+  expect(screen.queryByRole('status', { name: 'GM connection recovery' })).not.toBeInTheDocument();
   expect(prepareFullGameDemo).not.toHaveBeenCalled();
 });
 

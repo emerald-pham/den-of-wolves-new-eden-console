@@ -163,6 +163,10 @@ behavior needs a
 meaningful failing regression before code in separate commits. Navigation or
 integration needs a focused behavioral test or mounted slice; documentation,
 copy and presentation without logic changes need consistency or rendered checks.
+For behavior-changing transitions, exercise the real consumer or change handler
+from its previous state. A helper test or fixture already in the final state
+does not prove the transition. Check equivalent entry points that must share
+the rule, using focused regressions proportional to the risk.
 Never weaken, skip, or delete an existing test to pass; leave a suspect test
 intact and flag it. Never modify an existing test in the code commit it covers.
 Record reasons for every test added, changed, skipped, or deleted in the
