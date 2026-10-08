@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { dispatchStationCrewChoice } from './pc10-station-crew-dispatch.mjs';
+import { dispatchStationCrewChoice, readStationWingChoiceAuthority } from './pc10-station-crew-dispatch.mjs';
 import { runSparseStationCombat } from './pc10-station-combat-adapter.mjs';
 import { observeUiReceipt } from './pc10-browser-ui-receipt.mjs';
 import { heldProofFailureObservations } from './pc10-proof-failure-evidence.mjs';
@@ -59,6 +59,7 @@ function surface(roleId, response, { entitledShipId = 'icebreaker', path = '/shi
   const authority = { sessionId, fleetGroupId: 'fleet-p', connectionGeneration: 1,
     identityHydrationRevision: 1, replacementRoleId: null, replacementStatus: null,
     seatId: roleId, connected: true,
+    currentBerthShipId: entitledShipId,
     discoveryAuthority: { groupId: 'fleet-p', shipId: entitledShipId, revision: 2,
       fleetGroupVesselIds: [entitledShipId] } };
   const matches = (candidate, requested) => requested instanceof RegExp
@@ -1932,3 +1933,84 @@ for(const [name,mutate] of [
   assert.equal(reached,true);assert.deepEqual(f.actorSurface.effects.clicks,[]);
  });
 }
+
+// These initial states intentionally precede the first combat scope. The
+// original fullMember remains legitimate; discovery must earn initial
+// audience validity rather than becoming valid through later equality.
+for(const [name,mutate] of [
+ ['missing',f=>{delete f.state.session.playerDiscovery;}],
+ ['foreign group and ship',f=>{Object.assign(f.state.session.playerDiscovery,{groupId:'fleet-foreign',shipId:'foreign-ship'});}],
+ ['malformed revision and duplicate vessels',f=>{Object.assign(f.state.session.playerDiscovery,{revision:'4',fleetGroupVesselIds:['refinery-124','refinery-124']});}],
+ ['null',f=>{f.state.session.playerDiscovery=null;}],
+ ['incomplete group',f=>{delete f.state.session.playerDiscovery.groupId;}],
+ ['incomplete revision',f=>{delete f.state.session.playerDiscovery.revision;}],
+ ['negative revision',f=>{f.state.session.playerDiscovery.revision=-1;}],
+ ['incomplete vessels',f=>{delete f.state.session.playerDiscovery.fleetGroupVesselIds;}],
+ ['empty vessels',f=>{f.state.session.playerDiscovery.fleetGroupVesselIds=[];}],
+ ['malformed vessels',f=>{f.state.session.playerDiscovery.fleetGroupVesselIds=[null];}],
+ ['missing entitled ship',f=>{delete f.state.session.playerDiscovery.shipId;}],
+ ['unknown entitled ship',f=>{f.state.session.playerDiscovery.shipId='unknown-ship';}],
+ ['foreign berth ship',f=>{f.state.session.memberSessionScope.vesselIds.push('icebreaker');
+   f.state.session.currentActorBerthAuthority.shipId='icebreaker';}],
+]){
+ test(`Attempt26 initial ${name} discovery cannot become frozen PDF authority`,async()=>{
+  const f=await runtimeObserverFixture();mutate(f);
+  await assert.rejects(f.invoke(),/discovery|audience|berth|ship/i);
+  assert.equal(f.counts.capture,0);assert.deepEqual(f.actorSurface.effects.reads,[]);
+  assert.deepEqual(f.actorSurface.effects.clicks,[]);
+ });
+}
+
+for(const [name,mutate] of [
+ ['missing discovery',f=>{delete f.state.session.playerDiscovery;}],
+ ['foreign entitlement',f=>{f.state.session.playerDiscovery.shipId='foreign-ship';}],
+ ['duplicate vessels',f=>{f.state.session.playerDiscovery.fleetGroupVesselIds=['aegis','aegis'];}],
+]){
+ test(`Attempt26 initial default Wing ${name} fails before normal capture`,async()=>{
+  const f=await runtimeObserverFixture('wing-commander');mutate(f);
+  f.actorSurface.page.getByRole=(_kind,{name})=>({isVisible:async()=>name==='Launch Fighter Wing Alpha',
+   isEnabled:async()=>true,click:async()=>f.actorSurface.effects.clicks.push(name)});
+  await assert.rejects(dispatchStationWingChoice(f.current,{deadlineAt:f.opts.deadlineAt,
+   recipient:f.actorSurface,fullMember:f.assertMember,evidence:{stationWingOriginal:f.original},
+   recoveredLaunches:new Map(),directory:'/tmp/unused-observer-fixture',readAttack:f.opts.readAttack,
+   readTurnState:f.readPhase,gmAuthority:f.opts.gmAuthority,action:f.action}),/discovery|audience|berth|ship/i);
+  assert.equal(f.counts.capture,0);assert.deepEqual(f.actorSurface.effects.clicks,[]);
+ });
+}
+
+test('Attempt26 initial Press craft scope with null berth remains a legitimate observation and zero Station intent',async()=>{
+ const f=await runtimeObserverFixture('press-officer');
+ Object.assign(f.state.me,{assignedRoleId:null,seatId:null});f.state.seats=[];
+ f.state.session.currentActorBerthAuthority=null;
+ f.state.session.memberSessionScope={groupId:'fleet-1',vesselIds:[],craftIds:['snn-press-shuttle']};
+ f.state.session.shuttleControl={'snn-press-shuttle':{shuttleId:'snn-press-shuttle',ownerRoleId:'press-officer',
+  ownerUid:f.authUser.uid,holderUid:f.authUser.uid,revision:1}};
+ f.state.session.playerDiscovery={groupId:'fleet-1',revision:4,fleetGroupVesselIds:[]};
+ const observe=async()=>{const member=await f.readMember();assert.deepEqual(member.invalidFields,[]);
+  assert.equal(member.sdkHasServerAuthority,true);assert.equal(member.sameActor,true);
+  assert.equal(member.currentMemberBerthPresent,true);assert.equal(member.currentMemberBerthNull,true);
+  assert.equal(member.pressCraftScopeMatches,true);return member;};
+ const sample=await readStationWingChoiceAuthority(f.current,{roleId:'press-officer',surface:f.actorSurface},
+  {...f.opts,assertActor:observe});
+ assert.equal(sample.entitledShipId,null);assert.equal(sample.assignedRoleId,null);
+ assert.equal(await dispatchStationCrewChoice({...f.current,currentStep:'boarding'},
+  {...f.opts,assertActor:observe,readAttack:async()=>({...f.current,currentStep:'boarding'})}),undefined);
+ assert.equal(f.counts.capture,0);assert.deepEqual(f.actorSurface.effects.reads,[]);
+ assert.deepEqual(f.actorSurface.effects.clicks,[]);
+});
+
+test('Attempt26 scoped GM with absent ship berth preserves actual lease authority without Station intent',async()=>{
+ const f=await runtimeObserverFixture();
+ Object.assign(f.state.me,{role:'gm',assignedRoleId:null,activeConsoleRoleId:null,seatId:null,fleetGroupId:null});
+ f.state.seats=[];delete f.state.session.currentActorBerthAuthority;delete f.state.session.playerDiscovery;
+ f.state.gmInstance={id:'current-gm-lease',uid:f.authUser.uid,sessionId:f.original.sessionId};
+ const observe=async()=>{const member=await f.readMember();assert.deepEqual(member.invalidFields,[]);
+  assert.equal(member.sdkHasServerAuthority,true);assert.equal(member.sameActor,true);
+  assert.equal(member.playerRole,'gm');assert.equal(member.gmInstanceOwned,true);return member;};
+ const sample=await readStationWingChoiceAuthority(f.current,{roleId:'facilitator',surface:f.actorSurface},
+  {...f.opts,assertActor:observe});
+ assert.equal(sample.entitledShipId,null);assert.equal(sample.instanceId,'current-gm-lease');
+ assert.equal(sample.gmInstanceOwned,true);assert.equal(f.counts.capture,0);
+ assert.deepEqual(f.actorSurface.effects.clicks,[]);
+});
+
