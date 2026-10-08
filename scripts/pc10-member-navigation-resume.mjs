@@ -163,11 +163,13 @@ export function createMemberNavigationResumeObserver(page, { directory, roleId, 
       // The own-player feed may publish the new lease before HTTP delivery or
       // SDK applySession. Only that exact captured ordinary request may wait;
       // no authority is accepted until the receipt and hydration checks below.
+      // HTTP200 body parsing can also begin during the await above.
       if (current.connectionGeneration === original.connectionGeneration + 1 &&
           current.identityHydrationRevision === original.identityHydrationRevision &&
           current.hasAuth === true && current.sameActor === true &&
           stableObservationFields.every(key => current[key] === original[key]) &&
-          originalRequests.some(row => row.respondedAt === undefined || row === receipt)) return false;
+          originalRequests.some(row => row.respondedAt === undefined || row === receipt ||
+            row.httpStatus === 200 && row.bodyStatus === 'reading')) return false;
       assert.ok(receipt && current.identityHydrationRevision === original.identityHydrationRevision + 1,
         'Original role navigation epoch changed without its matching normal resume receipt and accepted hydration.');
       // The actual normal DTO omits connected. Current own-player confirmation

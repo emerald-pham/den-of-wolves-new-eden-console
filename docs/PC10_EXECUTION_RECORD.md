@@ -1014,3 +1014,9 @@ tests add no accepted authority, native actors or gameplay; they require the
 pending successful body to wait and a known denial to remain rejected. The
 original budget and existing tests stay intact. The independent reviewer
 holds the same bounded review open for this material finding.
+
+The follow-up allows only a matchingHTTP200 body still being read to wait in
+that intermediate generation/hydration phase. Denied, failed and foreign
+requests/replies still reject; no acceptance is granted by waiting. All59
+affected navigation tests now pass. The previous42reader/adapter/prepared-probe
+checks remain valid because neither their source nor product behavior changed.
