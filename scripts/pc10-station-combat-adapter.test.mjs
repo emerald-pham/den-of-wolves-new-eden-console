@@ -153,11 +153,11 @@ test('rate-limited Station declaration waits once, then requires the identical n
   before:{...expected.actor},result:{status:'committed',type:'wolf-attack-declaration',sessionId:'owned-synthetic',
    requestId:'fresh-request',turn:2,revision:11,currentStep:'targeting',airspaceLocked:true,
    deadlineAt:'2026-10-08T19:00:00.000Z',parkedCraftCount:2,announcementId:'announcement-1'}};
+ assert.throws(()=>adapter.assertRecoveredStationDeclaration({...capture,data:{...capture.data,
+  requestId:'denied-request'}},{...recovery,committed:false}),/fresh|different|request/i);
+ assert.throws(()=>adapter.assertRecoveredStationDeclaration({...capture,data:{...capture.data,
+  expectedRevision:11}},{...recovery,committed:false}),error=>error?.actual===11&&error?.expected===10);
  assert.equal(adapter.assertRecoveredStationDeclaration(capture,recovery),true);
- assert.throws(()=>adapter.assertRecoveredStationDeclaration({...capture,data:{...capture.data,
-  requestId:'denied-request'}},recovery),/fresh|different|request/i);
- assert.throws(()=>adapter.assertRecoveredStationDeclaration({...capture,data:{...capture.data,
-  expectedRevision:11}},recovery),/revision/i);
 });
 
 test('Station declaration recovery refuses unsupported errors, bodies, and retry hints without reading or waiting',async()=>{
@@ -208,11 +208,11 @@ test('Station declaration recovery fails closed on changed authority, phase, pre
 });
 
 test('Station declaration recovery permits a genuinely absent previous attack only on wave one and only once per declaration',async()=>{
- const expected=stationDeclareRetryContext({wave:1,attack:null});const used=new Set();
+ let now=1000;const expected=stationDeclareRetryContext({wave:1,attack:null});const used=new Set();
  const {error}=stationDeclare429Error({observation:{requestData:{sessionId:'owned-synthetic',
   instanceId:'gm-instance-synthetic',requestId:'first-wave-denial',expectedRevision:10}}});
  const options={expectedContext:expected,readCurrent:async()=>structuredClone(expected),assertActor:async()=>{},
-  deadlineAt:100_000,now:()=>1000,wait:async()=>{},used};
+  deadlineAt:100_000,now:()=>now,wait:async ms=>{now+=ms;},used};
  assert.equal((await adapter.recoverStationRateLimitedDeclaration(error,options)).deniedRequestId,'first-wave-denial');
  await assert.rejects(adapter.recoverStationRateLimitedDeclaration(error,options),value=>value===error);
  const secondWave=stationDeclareRetryContext({attack:null});const {error:secondError}=stationDeclare429Error();
