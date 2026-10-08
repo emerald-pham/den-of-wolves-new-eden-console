@@ -16,6 +16,19 @@ The current compiled inventory has 242 exports and 233 callables, with
 The source-only taxonomy audit resolves all 233 review rows and 842 declaration
 anchors; that coverage does not establish an enabled control or gameplay.
 
+The October 8 owner choice makes Home the N/O default in the app and canonical
+paper, with coherent labeled Deluxe alternatives. Home N: 10 Materials,
+Engineering Shuttle, five research tracks with four crosses, 5 Fuel per passing
+ship. Home O: d6 + scouting + prior lost ships, threshold 9. Deluxe N:
+15 Materials and five completed technologies, with other exact source-face
+requirements retained; Deluxe O: threshold 8 without loss bonuses. This is
+owner choice, not author precedence or selection of separate facilitator
+policies. Existing N/O observations below retain their original source and
+edition; they are not newly earned Home-default proof. The existing app/paper
+owners must verify source faces, implement and rebind affected criteria under
+meaningful RED, independent review and rendered/gameplay gates. See the
+[acceptance impact](PC10_PARITY_ACCEPTANCE_IMPACT.md#owner-selected-home-no-default).
+
 | ID | Required behavior | Implementation / connection | Authenticated gameplay / recovery / privacy | Review / release |
 |---|---|---|---|---|
 | 181 | Create the Wing Commander workspace. | pending | pending | pending |
@@ -25,17 +38,17 @@ anchors; that coverage does not establish an enabled control or gameplay.
 | 541 | Reveal a New Eden candidate. | Connected Endeavour scout-derived current-group reveal. | Partial: actual N/O/P discovery, original own reports/reload and current-group reveal accepted; foreign-group/requester-peer withholding remains open. | 74 Functions + 74 client focused tests, 35 runner contracts and bounded Sol review pass; final review/render/CI/deployment pending |
 | 542 | Make candidate discovery retry-safe. | Connected original scouting identity and durable result/audit/note. | Partial: interrupted original N reply, same-cycle UI retry, cold reload and SDK replay preserve one effect; other discovery producers open. | focused tests/contracts and bounded Sol review pass; final release pending |
 | 543 | Track candidate plans by Cycle 6. | Connected real GM active Cycle 6 checkpoint and player encouragement. | Partial: plan-present save, original outbox/reload/exact receipt recovery, early denial and populated private/borrowed-authority denial accepted; other status/audience criteria open. | focused tests/contracts and bounded Sol review pass; final release pending |
-| 544 | Validate Ancient Jump Ring prerequisites. | Connected candidate preparation and contributions. | Partial: Ring3 real ten-material/five-track/Engineering-craft prerequisites accepted; partial-state blocker assertions need exact mapping. | negative mapping and final gates pending |
-| 545 | Repair the Ancient Jump Ring. | Connected authoritative Ring contributions/repair. | Partial: Ring3 material debit, research/craft reservation and automatic repair accepted; per-contribution bindings and invalid actor/state negatives need mapping. | final scoped review/release pending |
-| 546 | Prevent duplicate Ring contributions. | Connected contribution uniqueness/replay. | Partial: distinct tracks, permanent consumed craft and retained replay accepted; duplicate device/material/craft/request and cross-request race negatives remain to map. | negative mapping and final gates pending |
-| 547 | Fuel each Ring passage. | Connected charged/paid Ring passages. | Partial: all six Ring3 ships each paid five fuel; explicit unfuelled-ship refusal remains to map. | negative mapping and final gates pending |
-| 548 | Resolve Ring passage. | Connected passage/sabotage/outcome. | Partial: six single passages, far-side sabotage and durable N success accepted; late/same-ship negatives/private outcome receipt mapping remain. N-specific closed history is separate and unobserved. | final scoped review/release pending |
-| 549 | Record blocked Wolf pursuit through the Ring. | Connected real GM sabotage and N outcome. | Partial: Ring3 explicit sabotage blocked pursuit; ordinary authenticated sabotage denial remains to map. | negative mapping and final gates pending |
-| 550 | Accumulate Deep Nebula scouting. | pending | pending | pending |
-| 551 | Attempt a Deep Nebula jump. | pending | pending | pending |
-| 552 | Lose a ship in the Deep Nebula. | pending | pending | pending |
-| 553 | Reach the Deep Nebula threshold. | pending | pending | pending |
-| 554 | Prevent repeat Nebula attempts. | pending | pending | pending |
+| 544 | Validate Ancient Jump Ring prerequisites. | Connected candidate preparation and contributions. | Partial: Ring3 real ten-material/five-track/Engineering-craft prerequisites accepted; partial-state blocker assertions need exact mapping. | negative mapping and final gates pending; coherent Home-default/Deluxe edition rebind pending |
+| 545 | Repair the Ancient Jump Ring. | Connected authoritative Ring contributions/repair. | Partial: Ring3 material debit, research/craft reservation and automatic repair accepted; per-contribution bindings and invalid actor/state negatives need mapping. | final scoped review/release pending; coherent Home-default/Deluxe edition rebind pending |
+| 546 | Prevent duplicate Ring contributions. | Connected contribution uniqueness/replay. | Partial: distinct tracks, permanent consumed craft and retained replay accepted; duplicate device/material/craft/request and cross-request race negatives remain to map. | negative mapping and final gates pending; coherent Home-default/Deluxe edition rebind pending |
+| 547 | Fuel each Ring passage. | Connected charged/paid Ring passages. | Partial: all six Ring3 ships each paid five fuel; explicit unfuelled-ship refusal remains to map. | negative mapping and final gates pending; coherent Home-default/Deluxe edition rebind pending |
+| 548 | Resolve Ring passage. | Connected passage/sabotage/outcome. | Partial: six single passages, far-side sabotage and durable N success accepted; late/same-ship negatives/private outcome receipt mapping remain. N-specific closed history is separate and unobserved. | final scoped review/release pending; coherent Home-default/Deluxe edition rebind pending |
+| 549 | Record blocked Wolf pursuit through the Ring. | Connected real GM sabotage and N outcome. | Partial: Ring3 explicit sabotage blocked pursuit; ordinary authenticated sabotage denial remains to map. | negative mapping and final gates pending; coherent Home-default/Deluxe edition rebind pending |
+| 550 | Accumulate Deep Nebula scouting. | pending | pending | pending; coherent Home-default/Deluxe edition rebind pending |
+| 551 | Attempt a Deep Nebula jump. | pending | pending | pending; coherent Home-default/Deluxe edition rebind pending |
+| 552 | Lose a ship in the Deep Nebula. | pending | pending | pending; coherent Home-default/Deluxe edition rebind pending |
+| 553 | Reach the Deep Nebula threshold. | pending | pending | pending; coherent Home-default/Deluxe edition rebind pending |
+| 554 | Prevent repeat Nebula attempts. | pending | pending | pending; coherent Home-default/Deluxe edition rebind pending |
 | 555 | Trigger Ancient Space Station arrival combat. | pending | pending | pending |
 | 556 | Repeat Station combat while Wolves survive. | pending | pending | pending |
 | 557 | Liberate the Ancient Space Station. | pending | pending | pending |
@@ -61,8 +74,8 @@ anchors; that coverage does not establish an enabled control or gameplay.
 | 635 | Standardize action audit records. | Real bound action receipts in accepted family. | Partial: one actor/request-bound cargo audit and one Water command receipt/service event/metadata audit/private procedure audit persist unchanged on UI/SDK replay and once-guard refusal; two dedicated custody request/audit pairs stay separate. Metadata/query/redaction and other unmigrated actions open. | focused core tests/contracts and bounded Sol review pass; final gates pending |
 | 641 | Run a complete base-game playthrough. | pending | pending | pending |
 | 642 | Run a complete Capybara playthrough. | pending | pending | pending |
-| 647 | Prove Ancient Jump Ring success. | Connected legitimate discovery/research/repair/paid passages/sabotage. | Partial: Ring3 actual N success, all six ships surviving and immutable entitled debrief accepted before the later Close failure; contribution-uniqueness negatives need mapping. Reuse the verified common Close path; N-specific closed history remains unobserved. | final scoped review/release pending |
-| 648 | Prove Deep Nebula success and loss. | pending | pending | pending |
+| 647 | Prove Ancient Jump Ring success. | Connected legitimate discovery/research/repair/paid passages/sabotage. | Partial: Ring3 actual N success, all six ships surviving and immutable entitled debrief accepted before the later Close failure; contribution-uniqueness negatives need mapping. Reuse the verified common Close path; N-specific closed history remains unobserved. | final scoped review/release pending; coherent Home-default/Deluxe edition rebind pending |
+| 648 | Prove Deep Nebula success and loss. | pending | pending | pending; coherent Home-default/Deluxe edition rebind pending |
 | 649 | Prove Ancient Space Station success. | pending | pending | pending |
 | 650 | Prove authoritative terminal failure and recovery paths. | Server-owned Pursuit failure through debrief/close. | Partial: genuine Pursuit failure, competing freeze/close and current narrow history/reload accepted; loss/destroyed ship/escape/evacuation/mutiny/arrest/candidate/unresolved-call branches open. | pending |
 | 651 | Run the final release-readiness audit. | pending | pending | pending |

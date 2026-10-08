@@ -295,7 +295,7 @@ and actual versus hypothetical damage states.
 ### GM starmap instrument
 
 The GM-only starmap is a ruled navigation instrument in the main GM workspace.
-It renders the printed 22-system, 40-link topology and swaps only the selected
+It renders the printed 22-system, 41-link topology and swaps only the selected
 organiser A/B/C site-code overlay. Its CSS perspective is display-only: no third
 gameplay coordinate is implied. Coordinate nodes remain square native buttons
 with at least 44px targets, while the selected-system readout keeps the chart

@@ -135,3 +135,14 @@ pass; the formal handback timing gate failed. See the
 and whole-role proof fields stay pending; no taxonomy or fixed catalog closure
 is promoted. P181 source preparation and original-paper parity reconciliation
 remain separate, with no new runtime grant or complete-game acceptance.
+
+## October 8 N/O edition alignment
+
+Home is the owner-selected default for app and canonical paper N/O behavior;
+coherent Deluxe alternatives must remain clearly labeled. The [acceptance
+impact](PC10_PARITY_ACCEPTANCE_IMPACT.md#owner-selected-home-no-default)
+records exact owner-selected costs, research requirements and arithmetic,
+required source-face verification, assigned app/paper ownership and unselected
+facilitator policies. The generated source matrix remains a historical
+inventory pending final Functions reconciliation. No existing source trace,
+role proof or N/O result is relabeled as current Home-default acceptance.

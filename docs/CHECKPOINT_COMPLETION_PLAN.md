@@ -246,6 +246,24 @@ third-party/game material, dependencies, other contributors and assets with
 unconfirmed provenance are excluded. Existing asset bytes and third-party
 notices remain unchanged.
 
+## October 8 owner N/O edition choice
+
+Emerald approved **Home as the default** for the app and canonical paper kit,
+with clearly labeled, coherent Deluxe alternatives. This owner choice is not
+author-confirmed precedence. Home N requires 10 Materials, an Engineering
+Shuttle, five research tracks with four crosses and 5 Fuel per passing ship.
+Home O is d6 plus scouting plus prior lost ships, threshold 9. Deluxe N uses
+15 Materials and five completed technologies, preserving its other exact
+source-face requirements; Deluxe O uses threshold 8 without loss bonuses.
+Verify the exact source faces before implementation and do not mix clauses.
+
+The existing SUCCESS/P app and canonical paper owners retain implementation,
+coordinated by the checkpoint parent. Separately proposed facilitator policies
+remain unselected. The [acceptance impact](PC10_PARITY_ACCEPTANCE_IMPACT.md#owner-selected-home-no-default)
+requires edition-bound consumer RED, independent review and relevant rendered
+and gameplay evidence. Older N/O observations retain their original bindings;
+this planning/catalog amendment grants no closure or new Home outcome credit.
+
 ## October 10 deadline and sequential PC11 handoff
 
 The owner's October 5 steering sets **October 10** as the available work

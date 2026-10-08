@@ -55,12 +55,24 @@ operational capacity and unproved branches. P634 stays missing: the two scoped
 rate-denial logs do not accept auth/schema/App Check or broader telemetry.
 
 The next independent slice is **P181 Starlight normal movement and scouting**.
-The parent dispatched source preparation to a separate Luna Max worker. Its
-minimum cohort is normal GM plus ordinary Wing Commander, two independent
+The Luna worker's exact source is integrated at `393d8310`; eight controlled
+actual-consumer checks pass. Independent review returned eleven material
+findings across launch/claim, safe current authority, automatic arrival,
+cleanup, deadlines, early Auth ownership, private failure retention, complete
+build binding and final status. One bounded test-first repair bundle is active,
+followed by an unresolved-only review. P181 is blocked and not ready for runtime. The initial invalid
+RED and implementation-first history gap remain explicit; later scoped REDs
+cover their particular repairs only.
+
+The minimum cohort is normal GM plus ordinary Wing Commander, two independent
 Chrome processes/contexts when a future runtime is granted. The original
 normal create/join/consent, GM claim, supported role/seat chooser, actual Cycle
-0→1, manual phase progression, current craft custody/berth/control revision,
-lifted airspace, real transit timing and scout cadence/fuel are prerequisites.
+0→1, current craft custody/berth/control revision, lifted airspace, real transit
+timing and scout cadence/fuel are prerequisites. This source driver uses an
+ordinary timed production game and natural waits; it does not qualify A02
+manual full-game behavior. The app-supported eight-seat preset retains Wing
+under the explicit AMB-13 owner decision, rather than reproducing the original
+eight-seat table. The complete rehearsal still requires unlimited manual play.
 A peer/recipient is added only for a genuinely new audience or handoff claim.
 SUCCESS/P retains fighter/combat/boarding work and candidate 619 recovery.
 
@@ -68,20 +80,31 @@ A meaningful actual-consumer RED must precede functional implementation in a
 separate test-first commit, followed by focused GREEN and one bounded
 independent Sol review. Bind the reconciled source, unchanged matched builds,
 installed Firebase 15.29 CLI and empty owned scope before browser launch.
-SUCCESS owns runtime through **12:04 UTC**; that time is not a launch grant.
+SUCCESS's earlier planned 12:04 UTC window was returned at 11:47:39 UTC.
+Availability is not a launch grant; this source task holds no runtime resources.
 Request a realistic total allocation covering startup, original proof waits,
 owned teardown, independent final port/process/reservation verification and
 immediate reporting. Reserve at least two minutes for final cleanup,
 verification and reporting; preserve original waits and first-error stopping.
 No P181 runtime or native acceptance is earned by source preparation.
 
-The independent original-paper audit reports missing route 5143↔1413,
+The original-paper audit identified missing route 5143↔1413,
 research/device and mission-effect mismatches, a normal-arrival quarantine
 guard bypass, fighter exchange and original objective omissions, with other
 bounded ambiguities. Parity is unestablished. Corresponding gameplay claims
 must be reevaluated against its source-cited findings before final PC10/0.9;
-passing old source-only tests does not resolve them. The parity owner retains
-repair-scope reconciliation; this source group does not patch those rules.
+passing old source-only tests does not resolve them. The owner authorized the
+suggested parity repairs and internal audit handoff. Three separate Luna groups
+have now restored the chart edge/count, first Coordination 25-minute duration,
+and Militia extra-dice/present-ship briefing in the source candidate `4cb893f6`.
+Their contemporaneous test-only RED and focused GREEN are preserved. One
+independent review of the exact first batch passes without material findings;
+final owner checks pass: 172 Functions, 278 client and 21 targeted lint files.
+Native routes, authority, visual behavior and release remain unqualified. Other parity scopes
+remain parent-assigned, with no overlapping implementation. The prison upper
+deadline is owner-resolved to the end of the next Team phase; unsupported
+minimum waiting belongs in the separate prison repair. Other disputed rules
+remain unresolved.
 P631's independent rate/replay/privacy observations remain earned. Original
 paper is the shared-mechanics baseline; intentional additions are separate.
 
@@ -94,3 +117,18 @@ CIC AUTHENTICATION/Settings awaiting-GM-start copy. Existing post-PC10 tasks,
 PC11 major in-app cross-game rules guidance and PC12 same-repository Mac
 authoritative offline LAN backup remain future work. Licensing/assets/notices
 remain unchanged.
+
+## Owner N/O edition decision
+
+Home is the owner-approved app and canonical paper default, with a clearly
+labeled coherent Deluxe alternative. Home N: 10 Materials, Engineering
+Shuttle, five research tracks with four crosses, 5 Fuel per passing ship.
+Home O: d6 + scouting + prior lost ships, threshold 9. Deluxe N: 15 Materials
+and five completed technologies, preserving its other exact source-face
+requirements. Deluxe O: threshold 8 with no loss bonus. This is an owner
+choice, not author-confirmed precedence or approval of separate facilitator
+policy proposals. Existing SUCCESS/P app and canonical paper owners must
+verify exact source faces and reconcile their assigned implementations.
+Prior N/O observations keep their original edition/source binding; none is
+relabeled as newly implemented Home behavior. Planning changes add zero
+closures or native credit. See the [acceptance impact](PC10_PARITY_ACCEPTANCE_IMPACT.md#owner-selected-home-no-default).

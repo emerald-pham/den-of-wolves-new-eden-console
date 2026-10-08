@@ -30,8 +30,11 @@ catalog closures remain unaccepted; all 48 PC10 rows are open.
 
 ## Claims that cannot presently pass
 
-- Full printed graph fidelity is contradicted: original charts have 41 edges;
-  client/server graphs omit 5143↔1413 and old tests assert 40 (M826).
+- The old source binding contradicts printed graph fidelity: the original has
+  41 edges while the audited graph omitted 5143↔1413 (M826). The new candidate
+  restores that route in both graphs and rendered count; source checks pass,
+  with independent first-batch review and 450 scoped owner checks passing.
+  Affected native paths and responsive rendering remain pending.
 - General Quarantine normal-arrival protection is contradicted: the control
   transfer guard is not applied at ordinary arrival (C137).
 - Complete Wing Commander functionality is incomplete: original Team-phase
@@ -63,8 +66,9 @@ Emerald's “Complete all suggested things please” authorization covers the
 suggested parity restorations. Three independent Luna groups implement the
 unambiguous first batch from `23834a82`, with a separate test-only commit and
 meaningful executed-consumer/backend RED before each functional correction.
-The source executor reconciles their exact handbacks for one independent Sol
-review; the checkpoint parent retains release and runtime allocation ownership.
+The exact reconciled source `4cb893f6` has passed one independent Sol review
+and final affected checks: 172 Functions and 278 client tests plus targeted
+lint. The checkpoint parent retains release and runtime allocation ownership.
 
 | Obligation | Implementation owner | Complete shipping scope |
 | --- | --- | --- |
@@ -78,6 +82,12 @@ parity repairs remain separately assigned by the checkpoint parent. These four
 audit obligations are not four fixed catalog closures. Source checks establish
 no native gameplay or visual acceptance; affected normal authenticated paths
 and responsive rendering remain for a later allocated verification.
+
+The graph's affected shortest paths are 1413↔5143 (two edges to one) and
+1413↔9997 (three edges to two). Rebind those movement/range/scout criteria;
+the latter changes from long to medium under the unchanged range policy.
+Pursuit depths from 0000 are unchanged, so unaffected observations retain their
+original immutable binding rather than receiving fabricated new credit.
 
 The prison upper deadline is now an explicit owner ruling: **the end of the
 next Team phase**, following the Facilitator Guide. The mandatory minimum wait
@@ -104,15 +114,41 @@ and fuel prerequisites; it is not earned by a controlled fixture.
 The first worker RED swallowed an import failure and invoked no consumer
 actions. Its empty-trace failure is preserved as **invalid test-first evidence**.
 The worker has since added normal startup, owned cleanup, and actor-bound
-reload/reselection wiring. Eight controlled actual-consumer checks pass at
-`aa656077`; these use controlled IO and shared observers, with no native
+reload/reselection wiring, integrated at `393d8310`. Eight controlled
+actual-consumer checks pass; these use controlled IO and shared observers, with no native
 browser, Auth, or emulator execution. The initial test-first history gap remains
 explicit; later RED checks cover their specific repairs and do not backfill
-the first implementation. Complete exact handback and one bounded independent
-Sol review remain before source readiness. P181 is not native-ready, and shared
-runtime becoming free is not a launch grant.
+the first implementation. Complete handback is preserved. Independent review
+returned eleven material findings, including launch/claim and safe authority,
+automatic arrival, cleanup, fixed deadlines, early Auth ownership, private
+failure evidence, complete build binding and final status precedence. One
+bounded test-first repair bundle is active, followed by an unresolved-only
+review. P181 is blocked and not native-ready. Its app-supported eight-seat cohort follows
+the explicit AMB-13 owner adaptation; it is not the literal original table.
+The driver uses ordinary timed production start and natural waits, with no
+A02 unlimited-manual acceptance. Shared runtime becoming free is not a grant.
 
 Original paper remains the shared-mechanics baseline. The approved GM/manual
 demo, join QR, Press and other documented adaptations keep their own bounded
 accounting. Preserve CIC/Settings copy and real admission/privacy. Existing
 post-PC10 work, PC11 and PC12 stay future work.
+
+## Owner-selected Home N/O default
+
+On October 8, Emerald approved Home as the app and canonical paper default,
+with clearly labeled coherent Deluxe alternatives. This is owner choice,
+not author-confirmed precedence. Home N is 10 Materials, an Engineering
+Shuttle, five research tracks with four crosses and 5 Fuel per passing ship.
+Home O is d6 + scouting + prior lost ships, threshold 9. Deluxe N is
+15 Materials and five completed technologies, retaining all other exact
+source-face requirements; Deluxe O is threshold 8 without loss bonuses.
+Exact face verification must precede implementation. No mixed-edition costs,
+research requirements or arithmetic qualify acceptance.
+
+Existing SUCCESS/P and canonical paper owners retain their assigned work,
+coordinated by the parent. Separate facilitator policy proposals are not
+selected by this approval. Bind each new result and rendered checklist to
+its coherent edition. Retain older N/O discovery, costs, paid passages and
+results at their original source/edition binding; recheck affected claims
+rather than relabeling them. This planning amendment grants no new Home
+implementation, native outcome, fixed closure or release credit.

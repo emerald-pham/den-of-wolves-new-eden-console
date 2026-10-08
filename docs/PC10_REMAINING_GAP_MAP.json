@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "recordedAt": "2026-10-08T11:46:59.628195+00:00",
-  "status": "CURRENT_GAPS_WITH_P631_NARROW_NATIVE_PASS_P181_SOURCE_ONLY",
-  "sourceCommit": "18aabd20bb26f515421249b016e0fc2771a02a5a",
-  "sourceBindingScope": "Current planning incorporates immutable accepted native source18aabd20; documentation is not fresh gameplay, CI, capacity or release evidence.",
+  "recordedAt": "2026-10-08T13:14:03.927168+00:00",
+  "status": "CURRENT_GAPS_FIRST_PARITY_BATCH_REVIEWED_FINAL_FOCUSED_GREEN_P181_ELEVEN_FINDING_REPAIR_ACTIVE_HOME_N_O_CHOICE_RECORDED",
+  "sourceCommit": "4cb893f64df4c4db2121d8ee28605bbe44be8ad3",
+  "sourceBindingScope": "Reviewed product/test source4cb893f6 and blocked P181 source393d8310. Docs-only Home N/O choice alignment grants no implementation/native credit. Accepted native evidence retains its original bindings including18aabd20. No CI, capacity or release acceptance.",
   "remoteMainVerified": "9bfe4c3ae338f21eb564323c0d26822a28b628ec",
   "releasedVersion": "0.5.71",
   "unreleasedOwnerVersion": "0.5.72",
@@ -1143,14 +1143,14 @@
   },
   "nextFamily": {
     "family": "Normal Wing Commander Starlight movement and scouting through the existing role/station/shuttle chooser.",
-    "stage": "P181_TEST_FIRST_SOURCE_PREPARATION_DISPATCHED",
+    "stage": "P181_ELEVEN_FINDING_TEST_FIRST_REPAIR_ACTIVE",
     "minimumAuthActors": 2,
     "plannedIndependentChromeProcesses": 2,
     "plannedContexts": 2,
     "actualAuthActors": 0,
     "actualHumans": 0,
     "roles": [
-      "Real normal GM for fresh setup/manual progression",
+      "Real normal GM for fresh setup/production start and briefing clear",
       "Ordinary original Wing Commander, roleId wing-commander"
     ],
     "scope": [
@@ -1161,7 +1161,7 @@
     ],
     "initialLivePrerequisites": [
       "Supported normal preset retains AEGIS/Wing Commander/Starlight; actual Primary Auth, join code, consent and legitimate role/seat assignment.",
-      "Reuse real GM authorization/claim and exact-instance/live-epoch readiness; actual Cycle0->1 start and manual phase publication through existing served controls.",
+      "Reuse real GM authorization/claim and exact-instance/live-epoch readiness; actual Cycle0->1 normal production start and briefing clear through existing served controls. The complete PC10 rehearsal still requires approved unlimited manual demo behavior.",
       "Qualify canonical casting role first, then the source-projected current operational station/berth after start/movement. Preserve original UID/session/lease/current-own membership.",
       "Observe actual Starlight custody/docking/control revision and normal eligible destinations. Existing departure/transit receipt and real movement timer/cycle are required.",
       "Observe active Cycle>=1 and lifted airspace for scouting; actual entitlement/cadence/range/roster/fuel blockers come from current server/UI. No Admin markers, fake profiles, clock changes or fabricated outcomes."
@@ -1175,7 +1175,6 @@
       "scripts/pc10-starlight-movement-scout-ui-proof-runner.test.mjs"
     ],
     "parentAuthorizedSourceOnly": true,
-    "successRuntimeWindowThroughUtc": "2026-10-08T12:04:00Z",
     "runtimeStarted": false,
     "runtimeGrantRequired": true,
     "requiredBeforeRuntime": [
@@ -1183,12 +1182,12 @@
       "One bounded independent Sol review of the completed coupled source group, plus exact current source/build/installed launcher/data-scope binding and prebrowser freeze.",
       "Normal original Auth/consent/GM/setup/chooser/start/manual phase and current custody/control/cycle/airspace/scout prerequisites; no Admin gameplay writes, fake receipts or clock acceleration.",
       "A realistic total allocation must include startup, original waits, owned teardown, independent final port/process/reservation verification and immediate reporting. Reserve at least two minutes for final cleanup/verification/reporting; do not shorten proof waits.",
-      "Fresh explicit parent absolute allocation only after the other runtime owner returns cleanly;12:04 is not an automatic grant."
+      "Fresh explicit parent absolute allocation only after source repair/review/readiness and clean preceding resource handback; no automatic launch at a prior planned window end."
     ],
     "wholeWorkspaceBranchesStillSeparate": [
       "SUCCESS/P retains fighter/combat/boarding implementation and P619 candidate recovery.",
       "Away missions, bonuses and fighter rebuild require their own source-backed prerequisites and scoped unchanged-evidence reuse.",
-      "Original chart edge, quarantine normal-arrival guard and fighter exchange remain parity-owner findings; no independent rule patch or parity acceptance."
+      "T01 graph source is restored in the authorized first parity batch; native route/range effects remain unqualified. Normal-arrival quarantine and Alpha/Bravo fighter exchange remain separately assigned parity repairs."
     ],
     "notClaimed": [
       "P181 closure",
@@ -1197,7 +1196,41 @@
       "capacity",
       "whole-game usability",
       "PC10 or release acceptance"
-    ]
+    ],
+    "sourceHandoff": {
+      "path": "/tmp/dow-pc10-evidence/P181_STARLIGHT_MOVEMENT_SCOUT_SOURCE_HANDOFF_20261008.json",
+      "sha256": "a9a99d70069de1a78ccc114701ceb9bb11aa7c5c3f31392f37e18025a87830ae"
+    },
+    "integratedSourceCommit": "393d83105378f85de12b74125710e223b1c3640d",
+    "controlledConsumerChecksPassed": 8,
+    "controlledIoIsNotNative": true,
+    "initialTestFirstHistoryGapPreserved": true,
+    "independentReviewStatus": "BLOCKED_ELEVEN_FINDINGS_REPAIR_ACTIVE",
+    "confirmedReviewBlockers": [
+      "F1 wrong checkout source-root resolution",
+      "F2 first GM claim incorrectly requires already-held GM authority",
+      "F3 flight custody checks raw UID absent from actual safe DTO",
+      "F4 recursive arrival adapter and automatic-arrival observation race",
+      "F5 owned session cleanup removes its ownership proof too early",
+      "F6 fixed allocation/operation/cleanup deadlines are not maintained across awaited work",
+      "F7 fresh Auth ownership registration and teardown do not cover early admission/acquisition failure",
+      "F8 current actor tuple fabricates or omits real SDK/lease/seat/berth/membership fences",
+      "F9 public error messages can leak private data and original immutable failure retention is absent",
+      "F10 entrypoint-only build hash omits transitive compiled build and chronology",
+      "F11 proofResult can overwrite authoritative final failure status"
+    ],
+    "normalRuntimeMode": "Ordinary timed production game with natural source timers; not an A02 full-game manual demo proof",
+    "cohortProvenance": "App-supported8 preset retains Wing by explicit AMB-13 owner decision2026-09-08; do not represent it as the literal original8-seat table.",
+    "previousPlannedSuccessRuntimeWindowThroughUtc": "2026-10-08T12:04:00Z",
+    "successRuntimeReturnedAtUtc": "2026-10-08T11:47:39Z",
+    "runtimeAvailabilityIsNotGrant": true,
+    "independentReviewReceipt": {
+      "path": "/tmp/dow-pc10-evidence/OWNER_PC10_P181_RECONCILED_SOURCE_REVIEW_20261008.json",
+      "sha256": "17a96928695b7022f6af894ee229b903b3ef9f61a8dacc3c1014849c0efac30f"
+    },
+    "repairWorktree": "/private/tmp/dow-pc10-p181-review-repair-20261008",
+    "repairBaseCommit": "4cb893f64df4c4db2121d8ee28605bbe44be8ad3",
+    "boundedUnresolvedOnlyFollowupRequired": true
   },
   "aggregateGates": [
     "Complete fresh-game every unique role/mechanic solo rehearsal across two browsers through ending; prepared tours alone insufficient.",
@@ -1218,17 +1251,92 @@
   "releaseAccepted": false,
   "runtimeHeld": false,
   "parityAcceptanceBoundary": {
-    "sourceAudit": "/tmp/dow-parity/early-critical-findings.md",
+    "sourceAudit": "/Users/emeraldpham/Documents/Codex/2026-10-08/task-5/audit-output/repair-triage.md",
     "sourceOnly": true,
     "originalPaperBaseline": true,
     "pendingFindings": [
-      "5143\u21941413 original chart edge absent in client/server graph",
-      "Normal shuttle arrival quarantine docking limit guard absent",
-      "Alpha/Bravo player fighter exchange absent"
+      "Restored5143↔1413edge passes source review and focused checks; affected native route/range/visual verification remains pending",
+      "Normal shuttle arrival quarantine docking limit guard absent at original audit binding; parent owns separate repair",
+      "Alpha/Bravo player fighter exchange absent at original audit binding; parent owns separate repair"
     ],
     "auditOwnerThread": "01a11b43-740e-76eb-b5d3-0988a0c11037",
     "independentRuleChanges": false,
     "completeParityAccepted": false,
-    "releaseGateEffect": "Corresponding route, arrival and complete fighter-workspace parity/acceptance cannot be claimed before source-cited parity-owner resolution. Narrow P631 acceptance is retained."
+    "releaseGateEffect": "First authorized parity source batch is reviewed PASS and final focused GREEN. Native/visual behavior and other repairs remain unqualified. Narrow P631 observations retain original binding. No complete parity or fixed closure.",
+    "sourceAuditReadAuthorizedAndSucceeded": true,
+    "firstBatchSourceIntegrated": true,
+    "firstBatchSourceCommit": "4cb893f64df4c4db2121d8ee28605bbe44be8ad3",
+    "firstBatchReviewStatus": "PASS_NO_MATERIAL_FINDINGS",
+    "prisonUpperDeadlineOwnerRuling": "end of next Team phase",
+    "prisonUnsupportedMinimumWait": "remove in separately assigned prison repair",
+    "otherDisputedRulesRemainUnresolved": true,
+    "authorizedRestorations": [
+      "T01/M826 chart",
+      "T02/C016 opening Coordination",
+      "T05/R043 Militia dice",
+      "T06/R029 Militia present-ship briefing"
+    ],
+    "firstBatchReviewReceipt": {
+      "path": "/tmp/dow-pc10-evidence/OWNER_PC10_PARITY_FIRST_BATCH_RECONCILED_SOURCE_REVIEW_20261008.json",
+      "sha256": "88ff13dbd4042a47b88cb36a122fb9883f146f99c2f7127d1e3188929218092b"
+    },
+    "firstBatchFinalSourceHandoff": {
+      "path": "/tmp/dow-pc10-evidence/OWNER_PC10_PARITY_FIRST_BATCH_REVIEWED_FINAL_SOURCE_HANDOFF_20261008.json",
+      "sha256": "6ee44c3c3619e94a728814ee2bcec4314d1c73aa538eda0328af9d96389ad0a5"
+    },
+    "firstBatchFinalScopedChecks": {
+      "functions": 172,
+      "client": 278,
+      "targetedEslintFiles": 21,
+      "fullSuiteClaimed": false,
+      "nativeCredit": 0
+    }
+  },
+  "remoteMainVerificationIsHistorical": true,
+  "homeNoEditionChoice": {
+    "recordedAt": "2026-10-08T13:06:55.102326+00:00",
+    "status": "OWNER_HOME_N_O_DEFAULT_CHOICE_ACKNOWLEDGED_INTERNAL_ALIGNMENT_HANDOFF",
+    "canonicalParent": "01a113c4-8fd0-7734-8cab-3e39b01220f9",
+    "ownerAuthorization": {
+      "sentinelMessageId": "Sentinel_fa32623975ac81918781558eeb6a5395",
+      "assistantProposal": "Use Home as default with clearly labeled Deluxe alternatives",
+      "ownerReply": "go for it",
+      "provenance": "Direct owner edition choice; NOT original author-confirmed precedence"
+    },
+    "defaultEdition": "Home",
+    "defaultHomeN": {
+      "materials": 10,
+      "craftRequirement": "Engineering Shuttle",
+      "researchRequirement": "five research tracks with four crosses",
+      "fuelPerPassingShip": 5
+    },
+    "defaultHomeO": {
+      "roll": "d6 plus scouting and prior lost ships",
+      "threshold": 9
+    },
+    "alternativeEdition": "Deluxe, clearly labeled and coherent",
+    "alternativeDeluxeN": {
+      "materials": 15,
+      "researchRequirement": "five completed technologies",
+      "otherRequirements": "retain exact source-face requirements"
+    },
+    "alternativeDeluxeO": {
+      "threshold": 8,
+      "priorLostShipBonus": false
+    },
+    "sourceFaceVerificationRequiredBeforeImplementation": true,
+    "clausesMayNotBeMixed": true,
+    "separateFacilitatorPolicyChoicesApproved": false,
+    "appNopImplementationOwner": "Existing SUCCESS/P and canonical checkpoint parent; source executor does not duplicate their candidate transaction work",
+    "canonicalPaperImplementationOwner": "Existing canonical paper-kit owner coordinated by parent; no paper artifact edits here",
+    "sourceExecutorNextAction": "Record owner ruling in PC10 planning/acceptance/catalog and preserve edition-specific limits of older N/O observations",
+    "parentOnlyCoordinationAction": "Relay exact owner choice and face-verification requirement to existing app N/O and canonical-paper owners; reconcile one coherent edition across server/UI/paper/evidence, and acknowledge scope ownership. Outgoing thread tool unavailable; shared file is canonical fallback.",
+    "parentCoordinationAcknowledgementPending": true,
+    "noNativeOrNewEditionOutcomeCredit": true,
+    "heavyRuntimeStarted": false,
+    "runtimeHeld": false,
+    "fixedCatalogClosures": 0,
+    "pc10Complete": false,
+    "releaseAccepted": false
   }
 }

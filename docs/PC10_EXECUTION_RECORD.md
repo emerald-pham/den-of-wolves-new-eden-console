@@ -1297,3 +1297,89 @@ result are preserved, owned runtime is returned, and the original dirty
 checkout remains unchanged. See the [report](PC10_P631_NARROW_NATIVE_REPORT.md)
 for source/test-first/review binding, exact cleanup times and residual limits.
 No P631/P634 fixed closure, whole-game, capacity, CI or release is accepted.
+
+### October 8 authorized first parity source batch
+
+The owner's “Complete all suggested things please” authorization includes the
+suggested original-paper restorations and internal audit handoff. The assigned
+three Luna groups returned complete test-first source work, now integrated at
+`4cb893f6`: T01 restores the original 5143↔1413 route in client/server graphs
+and the rendered link count; T02 restores first Coordination to 25 minutes
+while preserving later 15-minute and unlimited manual phases; T05/T06 removes
+the unsupported Militia inventory cap on up to three extra dice and describes
+the leader's ability on the ship where they are present. The live client parser,
+panel and authoritative projection/commit/resolution share that cap, preserving
+roll-1 death, team-loss limits, current actor/ship authority and exact replay.
+
+Meaningful consumer/backend RED preceded implementation in separate test-only
+commits. T01's focused 27 Functions and nine component/data checks pass; T02's
+executed start/phase/pause/resume/Turn-2 and manual controls pass; T05/T06's
+118 Functions and 269 client/parser/component checks pass. These are in-process
+mocked callable and component DOM checks, with no native Auth/browser/emulator
+execution. Source PDF/page hashes, test-correction reasons and unchanged
+evidence limits remain in the immutable worker handoffs. Independent Sol review
+of exact `4cb893f6` passes with no material findings. Final owner checks pass:
+171 affected Functions checks plus one production clock consumer, 278 client
+checks and targeted ESLint on all 21 changed source/test files. The clock
+consumer run selected one test by name; 19 other tests were excluded by that
+filter, with no test disabled or removed. These 450 scoped checks do not claim
+a full suite. Printed source and source-level restoration do not establish
+complete-gameplay parity or responsive visual acceptance.
+
+The twelve changed test files exercise graph adjacency/distance, jump-range
+classification and the actual SVG/count consumer (five files); production
+start, phase and elapsed pause/resume timing (two files); and Militia math,
+callable authority/replay, serialized briefing, live parser and mounted choice
+copy (five files). Clock actor-lease fixtures were aligned with the actual
+consumer; one Militia assertion was corrected before implementation, with its
+original failure preserved. The injected panel already offered 0–3 options,
+so its observed RED proves the changed copy only; the actual parser and
+backend checks establish the independent dice cap. Existing authority,
+roll-1 death, inventory-loss and replay assertions remain intact. The review
+and final logs are bound in
+`OWNER_PC10_PARITY_FIRST_BATCH_REVIEWED_FINAL_SOURCE_HANDOFF_20261008.json`.
+
+The parent separately owns the other parity repairs and rulings. The prison
+upper deadline is now explicitly the end of the next Team phase; no unsupported
+mandatory minimum wait is retained as an original requirement. Other disputed
+rules remain unresolved. This group changes no arrest, research, mission,
+objective, loyalty, license or asset behavior. Current Functions source changes
+require a new exact matched build and deployment inventory reconciliation at
+the parent's final candidate; old `18aabd20` compiled reuse cannot qualify it.
+
+The P181 driver is integrated at `393d8310`, with eight controlled consumer
+checks and explicit initial test-first history gaps. Its separate independent
+review returned eleven material findings, covering launch binding, GM claim,
+current safe actor authority, automatic arrival, owned cleanup, deadlines,
+early Auth registration, private failure evidence, complete compiled-build
+binding and final status precedence. One bounded test-first repair bundle is
+active in the original Luna worker's separate worktree; only unresolved
+findings receive the follow-up review. The original blocked review and initial
+history gaps remain retained. No P181 runtime may start from this candidate.
+Source preparation and the first parity batch
+add zero fixed closures: all 48 PC10 rows stay open, 703/751 overall and
+245/293 campaign. Parent runtime/release ownership, complete fresh two-browser
+rehearsal, visual/CI/deployment gates and the future post-PC10/PC11/PC12 order
+remain intact.
+
+### October 8 owner N/O edition choice
+
+The owner's reply “go for it” to Home as default, with clearly labeled Deluxe
+alternatives, is recorded as `Sentinel_fa32623975ac81918781558eeb6a5395`. This
+is an owner edition choice, not author-confirmed precedence. Home N requires
+10 Materials, an Engineering Shuttle, five research tracks with four crosses,
+and 5 Fuel per passing ship. Home O uses d6 plus scouting plus prior lost
+ships, reaching 9. The coherent Deluxe alternative uses 15 Materials and five
+completed technologies for N, with its other exact source-face requirements
+preserved, and an O threshold of 8 without prior-loss bonuses. Verify each
+exact source face before implementation and never mix edition clauses.
+
+Existing SUCCESS/P and parent candidate owners retain app N/O implementation;
+the existing canonical paper-kit owner retains paper implementation. This
+source executor records planning and acceptance alignment only. The approval
+does not select separately proposed facilitator policies. Meaningful consumer
+RED, independent review, exact edition/source binding and relevant rendered
+and gameplay gates remain required. Older Ring/N/O results retain their
+original edition and source; no older result is relabeled as new Home proof.
+The shared owner-choice acknowledgment requests parent coordination and adds
+zero closures, native outcome credit or release acceptance.
