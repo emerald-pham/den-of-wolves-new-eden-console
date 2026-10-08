@@ -538,7 +538,10 @@ export function projectAwayMissionPublicState(
   const outcomes = record.status === 'active' || !record.outcomes
     ? null
     : record.outcomes.map(({ opportunityId, contributorCount, total, bonusTotal, difficulty, criticalThreshold, outcome }) => ({
-      opportunityId, contributorCount, total, bonusTotal, difficulty, criticalThreshold, outcome,
+      opportunityId, contributorCount, total, bonusTotal,
+      difficulty: record.lifecycle.siteCode === 'K' ? null : difficulty,
+      criticalThreshold: record.lifecycle.siteCode === 'K' ? null : criticalThreshold,
+      outcome,
     }));
   const rewards = record.status === 'active' ? null : record.rewards;
   return {
