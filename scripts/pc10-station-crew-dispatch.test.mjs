@@ -12,7 +12,8 @@ function attack(currentStep, revision = 8) {
 }
 
 function surface(roleId, response, { entitledShipId = 'icebreaker', path = '/ships/icebreaker/roles/icebreaker-miner',
-  responses = {}, defenceOptions = ['0', '1', '2'], profileRoleId = roleId } = {}) {
+  responses = {}, defenceOptions = ['0', '1', '2'], profileRoleId = roleId,
+  ownerReturnHref = '/ships/icebreaker/roles/icebreaker-miner', onLinkWait } = {}) {
   const effects = { clicks: [], selected: [], reads: [], enabledChecks: [] };
   const selectedValues = new Map();
   const actor = { hasAuth: true, sameActor: true, uidHash: `uid-${roleId}`, sessionId,
@@ -101,17 +102,28 @@ function surface(roleId, response, { entitledShipId = 'icebreaker', path = '/shi
   const page = {
     locator: () => ({ ...panel, isVisible: async () => currentRoute !== '/shuttles/highwall' }),
     getByRole: (kind, options = {}) => {
-      if (kind === 'link') return {
-        isVisible: async () => roleId === 'icebreaker-miner' &&
+      if (kind === 'link') {
+        const isVisible = async () => roleId === 'icebreaker-miner' &&
           (options.name === 'Open Highwall shuttle console' ? currentRoute !== '/shuttles/highwall'
-            : options.name === 'Back to assigned console' && currentRoute === '/shuttles/highwall'),
-        waitFor: async () => {},
-        click: async () => {
-          currentRoute = options.name === 'Open Highwall shuttle console'
-            ? '/shuttles/highwall' : '/ships/icebreaker/roles/icebreaker-miner';
-          effects.clicks.push(options.name);
-        },
-      };
+            : options.name === 'Back to Icebreaker Miner console' && currentRoute === '/shuttles/highwall');
+        return {
+          isVisible,
+          waitFor: async ({ state } = {}) => {
+            if (state === 'visible' && !(await isVisible()))
+              throw new Error(`Link ${String(options.name)} is not visible on ${currentRoute}.`);
+            await onLinkWait?.(options.name, currentRoute);
+          },
+          getAttribute: async name => name === 'href' && options.name === 'Back to Icebreaker Miner console'
+            ? ownerReturnHref : null,
+          click: async () => {
+            if (!(await isVisible())) throw new Error(`Link ${String(options.name)} is not visible on ${currentRoute}.`);
+            currentRoute = options.name === 'Open Highwall shuttle console'
+              ? '/shuttles/highwall' : '/ships/icebreaker/roles/icebreaker-miner';
+            effects.clicks.push(options.name);
+            effects.routes.push(currentRoute);
+          },
+        };
+      }
       if (kind === 'region' && /boarding/i.test(options.name ?? '')) return {
         ...panel,
         isVisible: async () => currentRoute !== '/shuttles/highwall',
@@ -125,7 +137,8 @@ function surface(roleId, response, { entitledShipId = 'icebreaker', path = '/shi
     url: () => `https://new-eden.invalid/#${currentRoute}`,
     evaluate: async () => ({ ...actor, ...authority }),
   };
-  return Object.assign({ label: roleId, page,
+  effects.routes = [];
+  return Object.assign({ label: roleId, page, route: () => currentRoute,
     observe: async () => actor,
     storeModuleUrl: () => 'test://useSessionStore',
     testActor: actor,
@@ -152,12 +165,13 @@ function publishDeclaredAttackLock(actor, current) {
   return { ...current, airspaceLocked: true };
 }
 
-function options(actors, current, onAction) {
+function options(actors, current, onAction, deadline = deadlineAt) {
   const actorChecks = [];
-  return { actors, sessionId, deadlineAt, assertActor: async (actor, context) => {
-    actorChecks.push({ roleId: actor.roleId, stage: context.stage,
-      profileRoleId: (await actor.surface.observe()).profileRoleId });
+  return { actors, sessionId, deadlineAt: deadline, assertActor: async (actor, context) => {
+    const observed = await actor.surface.observe();
+    actorChecks.push({ roleId: actor.roleId, stage: context.stage, profileRoleId: observed.profileRoleId });
     assert.equal(actor.surface.label, actor.roleId);
+    return observed;
   }, readAttack: async () => current, action: async (surface, endpoint, choose, metadata) => {
     await choose();
     onAction?.({ surface, endpoint, metadata });
@@ -615,7 +629,7 @@ test('opens the current Miner Highwall console and explicitly passes a long-rang
   assert.equal(accepted.metadata.deadlineAt, deadlineAt);
 });
 
-test('returns from the real Highwall route before reading a Miner boarding choice', async () => {
+test('returns from the real Highwall route to the printed Miner console before boarding reads', async () => {
   const miner = surface('icebreaker-miner', null, { path: '/shuttles/highwall', responses: {
     getWolfBoardingSpecialChoice: { type: 'wolf-boarding-special-choice-unavailable', sessionId, reason: 'no-special-choice' },
     getWolfBoardingDefenceChoice: { type: 'wolf-boarding-defence-choice-unavailable', sessionId, reason: 'no-boarders' },
@@ -624,10 +638,97 @@ test('returns from the real Highwall route before reading a Miner boarding choic
   const result = await dispatchStationCrewChoice(current, { ...options([{ roleId: miner.label, surface: miner }], current),
     deadlineAt: Date.now() + 400 });
   assert.equal(result, undefined);
-  assert.equal(miner.effects.clicks[0], 'Back to assigned console');
+  assert.equal(miner.effects.clicks[0], 'Back to Icebreaker Miner console');
+  assert.equal(miner.route(), '/ships/icebreaker/roles/icebreaker-miner');
+  assert.deepEqual(miner.effects.routes, ['/ships/icebreaker/roles/icebreaker-miner']);
   assert.deepEqual(miner.effects.reads.map(read => read.endpoint), [
     'getWolfBoardingSpecialChoice', 'getWolfBoardingDefenceChoice',
   ]);
+});
+
+test('returns from Highwall before directly offered Miner boarding defence', async () => {
+  const miner = surface('icebreaker-miner', { type: 'wolf-range-support-action-choice-view',
+    sessionId, attackId: 'attack-p', turn: 3, revision: 8, sourceId: 'highwall',
+    actorRoleId: 'icebreaker-miner', range: 'long-range', choiceStatus: 'pending', eligible: true,
+    actionAvailable: false, deadlineAt: '9999-12-31T23:59:59.999Z', contacts: [] }, { responses: {
+    getWolfBoardingSpecialChoice: { type: 'wolf-boarding-special-choice-unavailable', sessionId, reason: 'no-special-choice' },
+    getWolfBoardingDefenceChoice: { type: 'wolf-boarding-defence-choice-view', sessionId,
+      turn: 3, revision: 8, choiceStatus: 'pending', targetShipId: 'icebreaker', availableSecurityTeams: 1 },
+  } });
+  const rangeAttack = attack('long-range');
+  const rangeResult = await dispatchStationCrewChoice(rangeAttack,
+    { ...options([{ roleId: miner.label, surface: miner }], rangeAttack), deadlineAt: Date.now() + 10_000 });
+  assert.deepEqual(rangeResult, { committed: true });
+  assert.deepEqual(miner.effects.clicks, ['Open Highwall shuttle console', 'Pass this range']);
+  assert.equal(miner.route(), '/shuttles/highwall');
+
+  const current = attack('boarding');
+  let accepted;
+  const result = await dispatchStationCrewChoice(current, options([{ roleId: miner.label, surface: miner }], current,
+    value => { accepted = value; }, Date.now() + 10_000));
+  assert.deepEqual(result, { committed: true });
+  assert.deepEqual(miner.effects.clicks, ['Open Highwall shuttle console', 'Pass this range',
+    'Back to Icebreaker Miner console', 'Commit defence']);
+  assert.equal(miner.route(), '/ships/icebreaker/roles/icebreaker-miner');
+  assert.deepEqual(miner.effects.reads.map(read => read.endpoint), [
+    'getWolfBoardingSpecialChoice', 'getWolfBoardingDefenceChoice',
+  ]);
+  assert.equal(accepted.endpoint, 'commitWolfBoardingDefenceChoice');
+});
+
+test('does not click a Miner return link when the owner destination is not the assigned console', async () => {
+  const miner = surface('icebreaker-miner', null, { path: '/shuttles/highwall',
+    ownerReturnHref: '/ships/quellon/roles/quellon-engineer', responses: {
+      getWolfBoardingSpecialChoice: { type: 'wolf-boarding-special-choice-unavailable', sessionId, reason: 'no-special-choice' },
+      getWolfBoardingDefenceChoice: { type: 'wolf-boarding-defence-choice-unavailable', sessionId, reason: 'no-boarders' },
+    } });
+  const current = attack('boarding');
+  await assert.rejects(dispatchStationCrewChoice(current, options([{ roleId: miner.label, surface: miner }], current)),
+    /Miner owner return link does not target the assigned console/);
+  assert.deepEqual(miner.effects.clicks, []);
+  assert.deepEqual(miner.effects.reads, []);
+  assert.equal(miner.route(), '/shuttles/highwall');
+});
+
+test('rejects Miner generation drift while the owner return link is becoming visible', async () => {
+  let miner;
+  miner = surface('icebreaker-miner', null, { path: '/shuttles/highwall',
+    onLinkWait: async name => {
+      if (name === 'Back to Icebreaker Miner console') miner.testActor.connectionGeneration++;
+    }, responses: {
+      getWolfBoardingSpecialChoice: { type: 'wolf-boarding-special-choice-unavailable', sessionId, reason: 'no-special-choice' },
+      getWolfBoardingDefenceChoice: { type: 'wolf-boarding-defence-choice-unavailable', sessionId, reason: 'no-boarders' },
+    } });
+  const originalGeneration = miner.testActor.connectionGeneration;
+  const current = attack('boarding');
+  const opts = options([{ roleId: miner.label, surface: miner }], current);
+  const assertActor = opts.assertActor;
+  opts.assertActor = async (actor, context) => {
+    const observed = await assertActor(actor, context);
+    assert.equal(observed.connectionGeneration, originalGeneration,
+      'The original Miner member generation must remain exact through return navigation.');
+    return observed;
+  };
+  await assert.rejects(dispatchStationCrewChoice(current, opts),
+    /Original Station actor connectionGeneration changed during lock readiness|original Miner member generation/);
+  assert.deepEqual(miner.effects.clicks, []);
+  assert.equal(miner.route(), '/shuttles/highwall');
+});
+
+test('Highwall entry is a no-op when already mounted and remains stable on repeated range dispatch', async () => {
+  const miner = surface('icebreaker-miner', { type: 'wolf-range-support-action-choice-view',
+    sessionId, attackId: 'attack-p', turn: 3, revision: 8, sourceId: 'highwall',
+    actorRoleId: 'icebreaker-miner', range: 'long-range', choiceStatus: 'pending', eligible: true,
+    actionAvailable: false, deadlineAt: '9999-12-31T23:59:59.999Z', contacts: [] }, { path: '/shuttles/highwall' });
+  const current = attack('long-range');
+  const first = await dispatchStationCrewChoice(current, options([{ roleId: miner.label, surface: miner }], current));
+  assert.deepEqual(first, { committed: true });
+  assert.deepEqual(miner.effects.clicks, ['Pass this range']);
+  const second = await dispatchStationCrewChoice(current, options([{ roleId: miner.label, surface: miner }], current));
+  assert.deepEqual(second, { committed: true });
+  assert.deepEqual(miner.effects.clicks, ['Pass this range', 'Pass this range']);
+  assert.equal(miner.route(), '/shuttles/highwall');
+  assert.deepEqual(miner.effects.routes, []);
 });
 
 test('continues across supplied boarding actors until the source offers a current crew special choice', async () => {
