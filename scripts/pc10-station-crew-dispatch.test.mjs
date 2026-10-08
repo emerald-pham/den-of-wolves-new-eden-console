@@ -5,10 +5,24 @@ import { heldProofFailureObservations } from './pc10-proof-failure-evidence.mjs'
 
 const sessionId = 'session-pc10';
 const deadlineAt = Date.now() + 60_000;
+const originalStationGmAuthority = Object.freeze({ sessionId, uidHash: 'uid-original-gm', generation: 4,
+  hydrationRevision: 2, instanceId: 'gm-instance-original', claimedAt: 'lease-original' });
 
 function attack(currentStep, revision = 8) {
   return { attackId: 'attack-p', threatSiteCode: 'P', turn: 3, revision,
     status: 'declared', currentStep, airspaceLocked: true };
+}
+
+function stationPhaseEnvelope(actor, phaseRevision = actor.turnStatePhaseRevision, gmAuthority = originalStationGmAuthority) {
+  return { sessionId, gmAuthority: { ...gmAuthority }, session: {
+    phase: 'active', currentTurn: actor.turnStateCurrentTurn,
+    turnLimit: actor.turnStateMaxTurn, fullGameDemo: { status: 'active', progression: 'manual' },
+    turnPhase: { turn: actor.turnPhaseTurn, teamPhaseEndsAt: actor.turnPhaseTeamPhaseEndsAt,
+      openAirspaceEndsAt: actor.turnPhaseOpenAirspaceEndsAt,
+      airspace: { state: actor.airspace, tickerActive: true, pressAccess: false }, progression: actor.phaseProgression },
+    turnState: { currentTurn: actor.turnStateCurrentTurn, maxTurn: actor.turnStateMaxTurn,
+      phase: actor.turnStatePhase, phaseRevision, startedAt: actor.turnStateStartedAt, endsAt: actor.turnStateEndsAt },
+  } };
 }
 
 function surface(roleId, response, { entitledShipId = 'icebreaker', path = '/ships/icebreaker/roles/icebreaker-miner',
@@ -180,7 +194,10 @@ function options(actors, current, onAction, deadline = deadlineAt) {
     assert.equal(observed.cycle, context.current.turn);
     assert.equal(observed.phase, 'active');
     return observed;
-  }, readAttack: async () => current, action: async (surface, endpoint, choose, metadata) => {
+  }, readAttack: async () => current,
+  gmAuthority: originalStationGmAuthority,
+  readTurnState: async () => stationPhaseEnvelope(actors[0]?.surface?.testActor ?? {}),
+  action: async (surface, endpoint, choose, metadata) => {
     await choose();
     onAction?.({ surface, endpoint, metadata });
     return { endpoint, data: metadata.expectedRequest, httpStatus: 200, result: { status: 'committed' } };
@@ -1108,21 +1125,6 @@ test('rechecks the exact P attack after the final actor sample before PDF launch
   assert.equal(held.observedAttack.revision, current.revision + 1);
   assert.deepEqual(pdf.effects.clicks, [], 'The old source action must not click after the attack changes during actor sampling.');
 });
-
-const originalStationGmAuthority = Object.freeze({ sessionId, uidHash: 'uid-original-gm', generation: 4,
-  hydrationRevision: 2, instanceId: 'gm-instance-original', claimedAt: 'lease-original' });
-
-function stationPhaseEnvelope(actor, phaseRevision = actor.turnStatePhaseRevision, gmAuthority = originalStationGmAuthority) {
-  return { sessionId, gmAuthority: { ...gmAuthority }, session: {
-    phase: 'active', currentTurn: actor.turnStateCurrentTurn,
-    fullGameDemo: { status: 'active', progression: 'manual' },
-    turnPhase: { turn: actor.turnPhaseTurn, teamPhaseEndsAt: actor.turnPhaseTeamPhaseEndsAt,
-      openAirspaceEndsAt: actor.turnPhaseOpenAirspaceEndsAt,
-      airspace: { state: actor.airspace, tickerActive: true, pressAccess: false }, progression: actor.phaseProgression },
-    turnState: { currentTurn: actor.turnStateCurrentTurn, maxTurn: actor.turnStateMaxTurn,
-      phase: actor.turnStatePhase, phaseRevision, startedAt: actor.turnStateStartedAt, endsAt: actor.turnStateEndsAt },
-  } };
-}
 
 test('waits for the pinned normal GM Team projection before freezing and acting on a stale actor', async () => {
   const current = attack('targeting');
