@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { assertStationPopulationAcknowledgmentTransition, minimumRingPlan, runRingWorkflow, runStationCombatWaves, selectStationCombatCrew, stationCombatServerContext, stationDialogAccessibleName, stationPopulationAckMutinyRows, stationPopulationAlertsForGm, stationPopulationDismissIntent } from './pc10-fresh-minimum-ring-proof.mjs';
+import { assertStationPopulationAcknowledgmentTransition, minimumRingPlan, runRingWorkflow, runStationCombatWaves, selectStationCombatCrew, stationCombatServerContext, stationDialogAccessibleName, stationPopulationAckMutinyRows, stationPopulationAlertsForGm, stationPopulationDismissIntent, stationPopulationGmActorAnchor } from './pc10-fresh-minimum-ring-proof.mjs';
 
 function stationLossFixture({ originalGeneration = 4, currentGeneration = 4 } = {}) {
   const actor = { uid: 'pdf', roleId: 'refinery-124-pdf-colonel',
@@ -147,6 +147,20 @@ test('population alert selector keeps the existing single current-GM target boun
   const second = { shipId: 'shepherd', targetGmInstanceIds: ['gm-1'] };
   assert.deepEqual(stationPopulationAlertsForGm({ dione: first, aegis: other, shepherd: second }, 'gm-1'),
     [['dione', first], ['shepherd', second]]);
+});
+
+test('Station GM anchor reads the actual live observer generation field', () => {
+  // This is the liveGm/surface.observe schema from the native callback: it emits
+  // connectionGeneration and hydrationRevision, while lifecycle snapshots are a
+  // separate observer and provide generation/claimedAt.
+  const liveGmObserver = { hasAuth: true, sameActor: true, sessionId: 'sid', uidHash: 'gm-hash',
+    connection: 'live', freshness: 'server', connectionGeneration: 1, hydrationRevision: 1,
+    instanceId: 'gm-instance', gmInstanceOwned: true };
+  assert.equal(Object.hasOwn(liveGmObserver, 'generation'), false);
+  assert.equal(Object.hasOwn(liveGmObserver, 'claimedAt'), false);
+  const anchor = stationPopulationGmActorAnchor(liveGmObserver);
+  assert.equal(anchor.generation, liveGmObserver.connectionGeneration,
+    'Attempt18 observed projection generation 1 against an undefined saved generation.');
 });
 
 test('station wave consumer acknowledges each current-GM threshold alert before the next Declare', async () => {
