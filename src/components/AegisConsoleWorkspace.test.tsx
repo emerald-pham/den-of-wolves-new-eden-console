@@ -134,6 +134,42 @@ it('offers and invokes the live paired fighter exchange during Team', async () =
   await waitFor(() => expect(exchangeMock.exchange).toHaveBeenCalledWith('fighter-wing-alpha', 1));
 });
 
+it('disables the live Fighter Wing exchange while the restricted Team clock is paused', () => {
+  const session = useSessionStore.getState().session;
+  if (!session) throw new Error('Expected a session.');
+  useSessionStore.getState().setIdentity({
+    ...session,
+    currentTurn: 2,
+    turnPhase: {
+      turn: 2,
+      teamPhaseEndsAt: new Date(Date.now() + 60_000).toISOString(),
+      openAirspaceEndsAt: new Date(Date.now() + 120_000).toISOString(),
+      airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+      timerPause: {
+        window: 'restricted', remainingMs: 60_000,
+        pausedAt: new Date().toISOString(), reason: 'turn-interstitial',
+      },
+    },
+    fighterWingCounts: {
+      'fighter-wing-alpha': { count: 3, revision: 4 },
+      'fighter-wing-bravo': { count: 2, revision: 7 },
+    },
+  }, {
+    uid: 'wing', sessionId: 's1', displayName: 'Wing Commander', role: 'player', seatId: 'wing-commander',
+    assignedRoleId: 'wing-commander', activeConsoleRoleId: 'wing-commander',
+    joinedAt: '2026-09-06T12:00:00.000Z',
+  });
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+
+  render(<MemoryRouter><AegisConsoleWorkspace roleId="wing-commander" galacticCoordinate="0000" fuel={3} /></MemoryRouter>);
+
+  const exchange = screen.getByRole('region', { name: /fighter wing exchange/i });
+  expect(exchange).toBeVisible();
+  expect(screen.getByRole('button', { name: /transfer fighter/i })).toBeDisabled();
+  expect(exchange).toHaveTextContent(/fighters can be exchanged during the current team phase/i);
+});
+
 it('describes the Starlight fuel readout as tracked at its console', () => {
   render(<MemoryRouter><AegisConsoleWorkspace roleId="wing-commander" galacticCoordinate="0000" fuel={3} /></MemoryRouter>);
 

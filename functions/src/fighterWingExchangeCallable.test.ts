@@ -220,3 +220,31 @@ it('allows only one concurrent exchange from the same displayed pair of revision
   expect(currentCounts()['fighter-wing-alpha']!.revision).toBe(5);
   expect(currentCounts()['fighter-wing-bravo']!.revision).toBe(8);
 });
+
+it('denies a fresh exchange while the current restricted Team clock is paused', async () => {
+  const session = mock.documents.get('sessions/s1')!;
+  session.turnPhase = {
+    ...(session.turnPhase as Fields),
+    timerPause: {
+      window: 'restricted', remainingMs: 60_000,
+      pausedAt: new Date().toISOString(), reason: 'turn-interstitial',
+    },
+  };
+  const before = structuredClone(currentCounts());
+
+  await expect(exchangeAegisFighterWings.run(request())).rejects.toMatchObject({ code: 'failed-precondition' });
+
+  expect(currentCounts()).toEqual(before);
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.create).not.toHaveBeenCalled();
+});
+
+it('keeps a manually held Team phase open even when compatibility deadlines elapsed', async () => {
+  const session = mock.documents.get('sessions/s1')!;
+  session.turnPhase = {
+    ...(session.turnPhase as Fields), progression: 'manual',
+    teamPhaseEndsAt: '2000-01-01T00:00:00.000Z', openAirspaceEndsAt: '2000-01-01T00:01:00.000Z',
+  };
+
+  await expect(exchangeAegisFighterWings.run(request())).resolves.toMatchObject({ status: 'committed' });
+});
