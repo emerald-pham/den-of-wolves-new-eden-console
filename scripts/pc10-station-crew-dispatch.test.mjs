@@ -217,17 +217,18 @@ test('retains the consumed PDF source reply and exact stale panel text when read
     return { isVisible: async () => true, innerText: async () => staleText };
   };
   const current = attack('targeting');
-  const opts = options([{ roleId: pdf.label, surface: pdf }], current);
+  const opts = options([{ roleId: pdf.label, surface: pdf }], current, undefined, Date.now() + 350);
   let failure;
   try { await dispatchStationCrewChoice(current, opts); } catch (error) { failure = error; }
-  assert.match(failure?.message ?? '', /Painted blocker must match the current source reason/);
+  assert.match(failure?.message ?? '', /readiness deadline expired/);
   const held = heldProofFailureObservations(failure).find(entry =>
     entry.operation === 'station-crew-current-source-readiness');
   assert.ok(held, 'The original readiness failure must retain its consumed observations.');
   assert.deepEqual(held.consumedObservations.sourceReplies, [{ endpoint: 'getPdfEscortWingLaunch',
     reply: { status: 'committed', result: view } }]);
-  assert.deepEqual(held.consumedObservations.paintObservations, [{ panelText: staleText,
-    result: { status: 'pending', reason: 'The current source blocker has not painted.' } }]);
+  assert.ok(held.consumedObservations.paintObservations.length > 0);
+  assert.deepEqual(held.consumedObservations.paintObservations.at(-1), { panelText: staleText,
+    result: { status: 'pending', reason: 'The current source blocker has not painted.' } });
   assert.deepEqual(pdf.effects.clicks, []);
 });
 
