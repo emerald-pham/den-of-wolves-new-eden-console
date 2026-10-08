@@ -61,3 +61,17 @@ test('actual candidate recovery expects server replay status while preserving ev
  assert.deepEqual(proof.expectedRingRecoveryReply(original),{...original,status:'replayed'});
  assert.equal(original.status,'committed');
 });
+
+test('maintenance pacing prevents the server thirty-request minute burst without retry or bypass',async()=>{
+ let now=0;const waits=[];
+ assert.equal(typeof proof.createRingMaintenancePacer,'function');
+ const pace=proof.createRingMaintenancePacer({now:()=>now,wait:async ms=>{waits.push(ms);now+=ms;}});
+ const times=[];for(let i=0;i<31;i++){await pace();times.push(now);}
+ assert.ok(times[30]-times[0]>60000);assert.equal(waits.length,30);
+});
+test('owned Auth freshness tolerates second precision but forbids a preexisting identity',()=>{
+ assert.equal(typeof proof.assertFreshRingIdentity,'function');
+ proof.assertFreshRingIdentity({uid:'fresh',metadata:{creationTime:new Date(100000).toUTCString()}},100999,new Set());
+ assert.throws(()=>proof.assertFreshRingIdentity({uid:'old',metadata:{creationTime:new Date(100000).toUTCString()}},100999,new Set(['old'])),/preexisting/i);
+ assert.throws(()=>proof.assertFreshRingIdentity({uid:'old',metadata:{creationTime:new Date(99000).toUTCString()}},100999,new Set()),/fresh/i);
+});
