@@ -41,7 +41,7 @@ function surface(roleId, response, { entitledShipId = 'icebreaker', path = '/shi
     count: async () => 1,
     first() { return this; },
     nth() { return this; },
-    all: async () => [this],
+    all() { return Promise.resolve([this]); },
     locator: () => ({ evaluateAll: async inspect => inspect(defenceOptions.map(value => ({ value: String(value), disabled: false }))) }),
   });
   let currentRoute = path;
@@ -83,7 +83,9 @@ function surface(roleId, response, { entitledShipId = 'icebreaker', path = '/shi
   }
   if (response?.wingId === 'pdf-escort-fighter-wing') {
     buttons['Pass Medium Range'] = true;
+    buttons['Pass Short Range'] = true;
     buttons['Resolve Medium actions'] = true;
+    buttons['Resolve selected Short attacks'] = true;
   }
   if (response?.choice?.kind === 'relocation') buttons['Stay at REFINERY 124'] = true;
   if ([response, ...Object.values(responses)].some(view => view?.type === 'wolf-boarding-defence-choice-view'))
@@ -214,6 +216,23 @@ test('dispatches the PDF medium-range choice from the current escort view', asyn
   assert.ok(pdf.effects.selected.some(([, value]) => value === 'contact-1'));
   assert.equal(accepted.endpoint, 'commitWolfEscortRangeActionChoice');
   assert.equal(accepted.metadata.deadlineAt, deadlineAt);
+  assert.deepEqual(accepted.metadata.expectedRequest.actions,
+    [{ kind: 'attack', targetContactId: 'contact-1', fighterIndex: 0 }]);
+});
+
+test('commits the visible PDF Short fighters from the current source view', async () => {
+  const pdf = surface('refinery-124-pdf-colonel', { type: 'wolf-fighter-range-action-view',
+    sessionId, attackId: 'attack-p', turn: 3, revision: 8, wingId: 'pdf-escort-fighter-wing',
+    wingLabel: 'P.D.F. Escort Fighter Wing', range: 'short-range', choiceStatus: 'pending', launched: true,
+    fighters: [{ fighterIndex: 0 }], targets: [{ instanceId: 'contact-1', label: 'Wolf contact 1', targetNumber: 4 }] });
+  let accepted;
+  const current = attack('short-range');
+  const opts = options([{ roleId: pdf.label, surface: pdf }], current, value => { accepted = value; });
+  const result = await dispatchStationCrewChoice(current, opts);
+  assert.deepEqual(result, { committed: true });
+  assert.ok(pdf.effects.selected.some(([name, value]) => String(name).includes('Short attack') && value === true));
+  assert.equal(accepted.endpoint, 'commitWolfEscortRangeActionChoice');
+  assert.deepEqual(accepted.metadata.expectedRequest.fighterIndexes, [0]);
 });
 
 test('opens the current Miner Highwall console and explicitly passes a long-range choice', async () => {
