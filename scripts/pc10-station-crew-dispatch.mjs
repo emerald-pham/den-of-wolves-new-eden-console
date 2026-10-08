@@ -305,12 +305,16 @@ function assertStationLifecycleIdentity(current, original) {
     'Original Station actor phase revision regressed during source progress.');
 }
 
-async function observeStationActorAuthority(surface, original, trace) {
+async function observeStationActorAuthority(actor, current, context, original, trace) {
+  const { surface } = actor;
   let latest;
   const strict = await observeWolfChoiceActor({ ...surface, observe: async () => {
-    latest = await surface.observe();
-    // Preserve all identity/liveness checks in the shared observer while the
-    // complete raw phase is separately bookended by the original GM source.
+    // The normal surface summary belongs to the lifecycle namespace. Compose
+    // current canonical member/SDK authority and complete raw combat phase
+    // before the shared observer's atomic authority sample; retain both fresh
+    // member fences and the original operation deadline on each bookend.
+    latest = await observePreFreezeActor(actor, current, { ...context,
+      frozenActor: original, deferFrozenPhase: true }, trace);
     const normalized = { ...latest, airspace: original.airspace, turnStatePhase: original.turnStatePhase };
     assertWolfChoiceActor(normalized, original);
     (trace.authorityScopes ??= []).push(structuredClone(latest));
@@ -386,7 +390,7 @@ async function cancelForwardStationChoice(current, fresh, actor, context, trace,
     const sample = await observePreFreezeActor(actor, current, { ...context,
       frozenActor: original, deferFrozenPhase: true }, trace);
     assertStationLifecycleIdentity(sample, original);
-    const strict = await observeStationActorAuthority(actor.surface, original, trace);
+    const strict = await observeStationActorAuthority(actor, current, context, original, trace);
     assertStationLifecycleIdentity({ ...sample, ...strict }, original);
     assert.ok(strict.airspace === 'restricted' && strict.turnStatePhase === 'team' ||
       strict.airspace === 'lifted' && strict.turnStatePhase === 'coordination',
@@ -447,13 +451,13 @@ function assertTurnStateProjection(actor, current) {
   assert.ok([6, 7, 8].includes(actor.turnStateMaxTurn), 'Original Station turn-state maximum must be source-backed.');
   assert.ok(Number.isSafeInteger(actor.turnStatePhaseRevision) && actor.turnStatePhaseRevision >= 1,
     'Original Station turn-state phase revision is required.');
-  assert.ok(typeof actor.turnPhaseOpenAirspaceEndsAt === 'string' && actor.turnPhaseOpenAirspaceEndsAt,
+  assert.ok(typeof actor.turnPhaseOpenAirspaceEndsAt === 'string' && Number.isFinite(Date.parse(actor.turnPhaseOpenAirspaceEndsAt)),
     'Original Station Coordination deadline is required.');
-  assert.ok(typeof actor.turnPhaseTeamPhaseEndsAt === 'string' && actor.turnPhaseTeamPhaseEndsAt,
+  assert.ok(typeof actor.turnPhaseTeamPhaseEndsAt === 'string' && Number.isFinite(Date.parse(actor.turnPhaseTeamPhaseEndsAt)),
     'Original Station Team deadline is required.');
-  assert.ok(typeof actor.turnStateStartedAt === 'string' && actor.turnStateStartedAt,
+  assert.ok(typeof actor.turnStateStartedAt === 'string' && Number.isFinite(Date.parse(actor.turnStateStartedAt)),
     'Original Station turn-state start time is required.');
-  assert.ok(typeof actor.turnStateEndsAt === 'string' && actor.turnStateEndsAt,
+  assert.ok(typeof actor.turnStateEndsAt === 'string' && Number.isFinite(Date.parse(actor.turnStateEndsAt)),
     'Original Station turn-state end time is required.');
   const expectedPhase = actor.airspace === 'lifted' ? 'coordination' : 'team';
   assert.equal(actor.turnStatePhase, expectedPhase,
@@ -563,25 +567,22 @@ async function observePreFreezeActor(actor, current, context, trace) {
   assertMemberSampleMatches(memberBefore, sample, 'pre-sample member fence');
   sample.entitledShipId = sample.replacementStatus == null ? sample.discoveryAuthority?.shipId ?? null : null;
   trace.actorScopes.push(sample);
+  // Raw source fields must be complete and valid before identity checks may
+  // defer a legitimate declaration/finalization phase transition. Expected
+  // Team/Coordination values cannot make a missing or malformed phase valid.
+  assertWolfChoiceActor(sample, sample);
+  assert.equal(sample.sessionId, context.sessionId, 'Lock readiness must stay in the original Station session.');
+  assert.equal(sample.phase, 'active', 'Lock readiness requires the original active gameplay phase.');
+  assert.equal(sample.cycle, current.turn, 'Lock readiness must stay in the original attack cycle.');
+  assert.equal(sample.phaseProgression, 'manual', 'Original Station actor must retain manual source progression.');
   if (context.frozenActor) {
-    assertStationLifecycleIdentity(sample, context.frozenActor);
     if (sample.airspace !== context.frozenActor.airspace && sample.turnStatePhase === context.frozenActor.turnStatePhase)
       assert.equal(sample.airspace, context.frozenActor.airspace,
         'Original combat airspace changed after the Station actor scope was frozen.');
     if (sample.turnStatePhase !== context.frozenActor.turnStatePhase && sample.airspace === context.frozenActor.airspace)
       assert.equal(sample.turnStatePhase, context.frozenActor.turnStatePhase,
         'Original combat turnStatePhase changed after the Station actor scope was frozen.');
-    if (!context.deferFrozenPhase) {
-      assert.equal(sample.airspace, context.frozenActor.airspace,
-        'Original combat airspace changed after the Station actor scope was frozen.');
-      assert.equal(sample.turnStatePhase, context.frozenActor.turnStatePhase,
-        'Original combat turnStatePhase changed after the Station actor scope was frozen.');
-    }
   }
-  assertWolfChoiceActor(sample, sample);
-  assert.equal(sample.sessionId, context.sessionId, 'Lock readiness must stay in the original Station session.');
-  assert.equal(sample.phase, 'active', 'Lock readiness requires the original active gameplay phase.');
-  assert.equal(sample.cycle, current.turn, 'Lock readiness must stay in the original attack cycle.');
   assertTurnStateProjection(sample, current);
   assert.ok(Number.isSafeInteger(sample.connectionGeneration) && sample.connectionGeneration >= 0,
     'Original Station connection generation is required before choice scope freeze.');
@@ -589,6 +590,15 @@ async function observePreFreezeActor(actor, current, context, trace) {
     'Original Station identity hydration revision is required before choice scope freeze.');
   assert.ok(['lifted', 'restricted'].includes(sample.airspace),
     `Unknown pre-freeze Station airspace state: ${sample.airspace ?? '(missing)'}.`);
+  if (context.frozenActor) {
+    assertStationLifecycleIdentity(sample, context.frozenActor);
+    if (!context.deferFrozenPhase) {
+      assert.equal(sample.airspace, context.frozenActor.airspace,
+        'Original combat airspace changed after the Station actor scope was frozen.');
+      assert.equal(sample.turnStatePhase, context.frozenActor.turnStatePhase,
+        'Original combat turnStatePhase changed after the Station actor scope was frozen.');
+    }
+  }
   return sample;
 }
 
@@ -661,7 +671,7 @@ async function waitForLockedActorScope(current, actor, context) {
         }
         const actorReady = actorMatchesPinnedTurnPhase(observed, original, pinnedTurnPhase);
         if (actorReady) {
-          const strict = await observeStationActorAuthority(actor.surface, original, trace);
+          const strict = await observeStationActorAuthority(actor, current, context, original, trace);
           assertBudget(context.deadlineAt);
           const after = await observePreFreezeActor(actor, current, context, trace);
           assertStationLifecycleIdentity(after, original);
@@ -737,7 +747,7 @@ async function readySource(current, actor, spec, { sessionId, deadlineAt, assert
   };
   const inspectActorScope = async () => {
     assertBudget(deadlineAt);
-    const strict = await observeStationActorAuthority(surface, original, scope.trace);
+    const strict = await observeStationActorAuthority(actor, current, context, original, scope.trace);
     assertBudget(deadlineAt);
     const observed = await observePreFreezeActor(actor, current, { sessionId, deadlineAt, assertActor,
       frozenActor: original, deferFrozenPhase: true }, scope.trace);
