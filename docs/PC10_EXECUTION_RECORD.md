@@ -989,3 +989,17 @@ remain unchanged. This repairs the proof contract; a new parent allocation is
 still required to establish actual Captain entry and remaining recharge
 recovery/reload/second-use behavior. Prior earned native claims remain bounded
 to their original sources and are not repeated or promoted to family completion.
+
+### October 8 disposable log preservation protocol
+
+The old verbose log loss is recorded honestly in the retained incident receipt.
+The new [PC10 log preservation procedure](PC10_LOG_PRESERVATION.md) requires a
+protected copy and checksum **before** any shutdown, with an independently
+retained same-inode link for final shutdown bytes. A disposable experiment
+executes the installed CLI's exact exit callback: unsafe copy-after-exit fails
+`ENOENT`; copy/hash/link verified before exit preserves the final suffix and
+passes complete-copy and gzip/decompression comparisons. The full CLI and
+emulators were not started. All protected disposable plaintext remains;
+no existing unique log was cleaned, rotated or deleted. The initial fixture
+dependency error is retained separately and is not credited as product RED
+or a protocol pass. Independent review remains required before real-log use.
