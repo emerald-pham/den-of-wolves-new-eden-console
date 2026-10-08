@@ -23,6 +23,7 @@ const originalRoleIds = Object.freeze([
 
 const original = Object.freeze({
   sessionId: 'normal-session', uid: 'wing-uid', uidHash: 'a'.repeat(16),
+  meSessionId: 'normal-session',
   hasAuth: true, sameActor: true, playerRole: 'player', profileRoleId: null,
   assignedRoleId: 'wing-commander', activeConsoleRoleId: 'wing-commander',
   seatId: 'wing-commander', replacementRoleId: null, replacementStatus: null,
@@ -37,7 +38,7 @@ function makeConsumer() {
   const trace = [];
   const state = {
     actor: { ...original },
-    session: { phase: 'active', cycle: 1, airspace: 'lifted', turnStatePhase: 'coordination',
+    session: { sessionId: 'normal-session', phase: 'active', cycle: 1, airspace: 'lifted', turnStatePhase: 'coordination',
       activeRoleIds: ['admiral', 'wing-commander', 'icebreaker-miner', 'shepherd-scientist',
         'quellon-explorer', 'refinery-124-pdf-colonel', 'joint-engineering-quellon-refinery',
         'joint-engineering-shepherd-icebreaker'],
