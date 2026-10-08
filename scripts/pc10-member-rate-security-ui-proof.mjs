@@ -412,7 +412,9 @@ export async function runP631MemberRateSecurityUiProof() {
             },
           });
           assert.equal(created.status(), 200);
-          const body = await created.json();
+          const body = await bounded(() => created.json(),
+            remainingUiMs(gmAdmissionDeadlineAt, 'Normal GM create response body', OPERATION_TIMEOUT_MS),
+            'Normal GM create response body');
           owned.sessionId = body.result?.session?.id;
           owned.joinCode = body.result?.session?.joinCode;
           assert.match(owned.sessionId ?? '', /^[\w-]{1,128}$/);
@@ -448,7 +450,10 @@ export async function runP631MemberRateSecurityUiProof() {
             choose: ({ remaining }) => authorize.click({ timeout: remaining() }),
           });
           assert.equal(authorization.status(), 200);
-          assert.equal((await authorization.json()).authenticated, true);
+          const authorizationBody = await bounded(() => authorization.json(),
+            remainingUiMs(authorizationDeadlineAt, 'Local GM authorization response body', OPERATION_TIMEOUT_MS),
+            'Local GM authorization response body');
+          assert.equal(authorizationBody.authenticated, true);
           await boundedUiAction(authorizationDeadlineAt, 'Wait for local GM authorization state', timeout =>
             settings.getByRole('button', { name: 'Revoke GM access', exact: true }).waitFor({ timeout }));
           await boundedUiAction(authorizationDeadlineAt, 'Close session settings', timeout =>
