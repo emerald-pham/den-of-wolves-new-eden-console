@@ -43,8 +43,42 @@ describe('candidate source calculations and explicit choices', () => {
     ]));
     expect(JSON.stringify(view)).not.toMatch(/hiddenScoutCount|wolfRoster|chartId/);
   });
+  it('defaults legacy candidate state to Home and locks edition globally after another group starts N or O', () => {
+    expect(parseCandidateState({ revision: 0, sites: {} })).toMatchObject({ edition: 'home' });
+    const otherGroupStarted = parseCandidateState({ revision: 1, sites: { 'fleet-2:0408': {
+      code: 'O', coordinate: '0408', groupId: 'fleet-2', materials: 0, researchIds: [], ships: {}, reactors: {},
+    } } });
+    expect(candidateWorkspace(authority('O'), otherGroupStarted)).toMatchObject({ edition: 'home', editionLocked: true });
+  });
+  it('accepts a Deluxe 15-material contribution and names the selected source edition', () => {
+    const rawCommand: CandidateAction = { sessionId: 's1', requestId: 'deluxe-materials', expectedRevision: 0,
+      expectedGroupId: 'fleet-1', code: 'N', coordinate: '6798', action: 'contribute-materials',
+      shipId: 'aegis', amount: 15 };
+    expect(() => parseCandidateAction(rawCommand)).not.toThrow();
+    const base = authority();
+    const a = { ...base, ships: { ...base.ships, aegis: { ...base.ships.aegis!, materials: 15 } } };
+    const deluxeState = parseCandidateState({ revision: 0, edition: 'deluxe', sites: {} });
+    const result = resolveCandidateAction(a, deluxeState, parseCandidateAction(rawCommand));
+    expect(result.state.sites['6798']?.materials).toBe(15);
+    expect(result.calculation.source).toBe('deluxe-v1.1-candidate-N');
+  });
+  it('requires fully completed Endeavour technologies for Deluxe Ring repair', () => {
+    const base = authority();
+    const a = { ...base, research: { ...base.research, 'fuel-refinery': 4 } };
+    const deluxeState = parseCandidateState({ revision: 0, edition: 'deluxe', sites: {} });
+    expect(() => resolveCandidateAction(a, deluxeState, command('contribute-research', {
+      trackIds: ['reactor', 'jump-drive', 'hydroponics', 'water-reclamation', 'fuel-refinery'],
+    }))).toThrow(/complete/i);
+    const view = candidateWorkspace(a, deluxeState);
+    expect(view.paths[0]?.researchChoices.map(choice => choice.id)).not.toContain('fuel-refinery');
+  });
   it.each(['roll', 'dice', 'hiddenScoutCount', 'modifier', 'outcome', 'wolfRoster'])('rejects client-owned %s', field => {
     expect(() => command('nebula-jump', { shipId: 'aegis', [field]: 6 })).toThrow();
+  });
+  it('keeps edition selection out of per-action requests', () => {
+    expect(() => parseCandidateAction({ sessionId: 's1', requestId: 'r1', expectedRevision: 0,
+      expectedGroupId: 'fleet-1', code: 'N', coordinate: '6798', action: 'contribute-materials',
+      shipId: 'aegis', amount: 1, edition: 'deluxe' })).toThrow();
   });
   it('deducts materials once and never accepts overfunding or a foreign ship', () => {
     const a = authority();
@@ -114,6 +148,19 @@ describe('candidate source calculations and explicit choices', () => {
     expect(next.reply).toMatchObject({ outcome: 'reached' });
     expect(next.calculation).toMatchObject({ priorLosses: 1, total: 9 });
     expect(next.groupOutcome).toBeUndefined();
+  });
+  it('uses Deluxe threshold eight and gives no later-ship bonus for an earlier loss', () => {
+    const base = authority('O');
+    const deluxeState = parseCandidateState({ revision: 0, edition: 'deluxe', sites: {} });
+    const first = resolveCandidateAction({ ...base, hiddenScoutCount: 0 }, deluxeState,
+      command('nebula-jump', { shipId: 'aegis' }), 1);
+    expect(first.reply.outcome).toBe('lost');
+    const nextAuthority = { ...base, hiddenScoutCount: 1, actor: { ...base.actor, shipIds: ['shepherd'] } };
+    const next = resolveCandidateAction(nextAuthority, first.state,
+      command('nebula-jump', { expectedRevision: 1, requestId: 'deluxe-next', shipId: 'shepherd' }), 6);
+    expect(next.reply.outcome).toBe('lost');
+    expect(next.calculation).toMatchObject({ die: 6, scouts: 1, total: 7, threshold: 8 });
+    expect(JSON.stringify(next.reply)).not.toMatch(/die|scouts|priorLosses|total|threshold/);
   });
   it('replays a lost or reached ship without another die or cost, and refuses an ordinary same-cycle jump', () => {
     const a = authority('O');

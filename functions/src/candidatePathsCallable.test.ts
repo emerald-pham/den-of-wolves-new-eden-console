@@ -125,6 +125,7 @@ describe('ordinary candidate callable authority and durable replay', () => {
     const view = await handlers.read(request({ sessionId: 's1', expectedGroupId: 'fleet-1' }));
     expect(view.paths).toHaveLength(1);
     expect(view.paths[0]).toMatchObject({ code: 'O', coordinate: '0408' });
+    expect(view).toMatchObject({ edition: 'home', editionLocked: false });
     expect(JSON.stringify(view)).not.toMatch(/hiddenScoutCount|scouts|calculation|wolfRoster|chartId/);
     await expect(handlers.read(request({ sessionId: 's1', expectedGroupId: 'fleet-1' }, 'gm'))).rejects.toThrow();
     const gm = await handlers.read(request({ sessionId: 's1', expectedGroupId: 'fleet-1', instanceId: 'instance1' }, 'gm'));
