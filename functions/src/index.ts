@@ -7267,6 +7267,7 @@ export const startGame = auditedOnCall<{
       activeVesselIds,
       shipDamage: authority.session.get('shipDamage'),
       maintenanceCycles: authority.session.get('maintenanceCycles'),
+      shuttleFuelled: authority.session.get('shuttleFuelled'),
       fighterWingCounts: authority.session.get('fighterWingCounts'),
       fleetRedAlert: authority.session.get('fleetRedAlert'),
       pressDispatch: authority.session.get('pressDispatch'),

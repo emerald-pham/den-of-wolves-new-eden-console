@@ -1085,7 +1085,7 @@ campaign,13partial/35missing, NEXT181; no release or catalog status is changed.
 | Distinct remaining family | Concrete unqualified criteria | Owner / boundary |
 |---|---|---|
 | Highwall mining, Icebreaker Miner | Two standard unfuelled choices and actual server dice/cargo; committed-ack loss/exact UI retry; original cold reload/replay; stale-revision no-effect envelope; wrong-role/GM denial; fresh third-operation quota refusal. Fuelled third operation and foreign/peer custody are separate. | Selected next owner source-only slice below. Leaf proof/tests only unless a focused product RED proves a defect. No emulator/browser starts until a new parent allocation. |
-| N/O/P outcomes | Ancient Ring contributions/fuel/passage, Nebula scouting/loss/threshold and Station combat/contributions/power; distinct endings/outcome recovery/privacy. | Existing N/O/P helper owns implementation and native proof, including retained Ring attempt2 projection failure. No overlapping fixes or replay by this owner. |
+| N/O/P outcomes | Remaining candidate-specific variants/privacy, N-specific closed history, Nebula scouting/loss/threshold and Station combat/contributions/power. Parent accepted helper Ring attempt3 N success/partial619 recovery; those scoped criteria remain retained. | Existing N/O/P helper owns remaining implementation/native proof. Its common Pursuit closure/history pass verifies the narrow Close repair integrated here; N-specific closed history remains unobserved. No overlapping fixes or replay by this owner; prior Ring failures stay retained. |
 | Other specialist and expansion actions | Wing Commander builds/launches/scouting/missions; Scientist private research/devices/field upgrades; Explorer harvesting/scouting/missions; PDF Colonel launch/boarding/reference; Capybara Macaw/Boa salvage/reclamation/Scrap and remaining maintenance/missions. | Separately assignable complete mechanic groups. Accepted Scientist candidate discovery/preparation and maintenance prefixes remain reusable. Highwall slice makes no credit for these. |
 | Combat, politics, crisis and arrest | Stable eligible role selection, genuine range choices/targets/damage/aftermath, political/crisis choices and posse/arrest resolution with costs, repeats/recovery and actual authority/private audiences. | Unassigned local gameplay families; avoid N/O/P Station combat ownership. Preserve Combat29/Miner failures; source repairs are not native outcomes. |
 | Core movement, repair and remaining custody | Original Starlight Begin/retarget/natural arrival/current group; remaining craft/host moves, ally repair and service stale/cross-cycle variants. | Unassigned Core slice; Press natural flight and closed Black Sheep custody/cargo/Water family are reused, not replayed. |
@@ -1113,6 +1113,16 @@ first-error-preserving interruption/cleanup and exact source/build freeze.
 Expected bounded cap is five minutes including one-minute cleanup reserve;
 request runtime only after focused RED→implementation→GREEN and one bounded
 independent review. Actual native proof remains unrun until then.
+
+The bounded source review found the normal first-cycle producer omitted the
+fuel ledger required by actual mining authority. Separate `343bff2c` records
+the real start→manual Coordination→mining consumer RED before repair. The
+authoritative normal-start materializer now fills only an absent ledger;
+existing valid/malformed values and mining authority guards remain. All170
+affected source tests and21 proof contracts pass. This is a discovered startup
+defect within the selected slice, not a new catalog closure or prepared-state
+substitute. The old `eb844bee` five-minute grant is unusable for this changed
+producer; a new exact-candidate allocation remains required after review.
 
 Required sequence and stop criteria:
 

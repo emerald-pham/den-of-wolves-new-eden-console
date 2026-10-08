@@ -6,6 +6,7 @@ import { fighterWingCounts, type FighterWingCountState } from './fighterWings';
 export interface AtomicStartState {
   readonly shipDamage: Record<string, ShipDamageState>;
   readonly maintenanceCycles: Record<string, unknown>;
+  readonly shuttleFuelled: unknown;
   readonly fighterWingCounts?: Partial<Record<string, FighterWingCountState>>;
   readonly fleetRedAlert: { readonly active: boolean; readonly revision: number } | unknown;
   readonly pressDispatch: PressDispatchState | unknown;
@@ -28,6 +29,7 @@ export function atomicStartState(input: {
   readonly activeVesselIds: readonly string[];
   readonly shipDamage?: unknown;
   readonly maintenanceCycles?: unknown;
+  readonly shuttleFuelled?: unknown;
   readonly fighterWingCounts?: unknown;
   readonly fleetRedAlert?: unknown;
   readonly pressDispatch?: unknown;
@@ -55,6 +57,7 @@ export function atomicStartState(input: {
   return {
     shipDamage: damage,
     maintenanceCycles,
+    shuttleFuelled: input.shuttleFuelled === undefined ? {} : input.shuttleFuelled,
     ...(input.fighterWingCounts === undefined
       ? {}
       : { fighterWingCounts: fighterWingCounts(input.fighterWingCounts) }),

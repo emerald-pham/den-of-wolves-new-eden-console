@@ -1125,3 +1125,30 @@ an absent fuel ledger so the original unfuelled Miner can use its printed
 choices before any maintenance. Preserve existing valid and malformed state;
 do not seed via Admin, normalize the mining guard or add an Engineer prefix.
 RED log: `/tmp/dow-pc10-evidence/OWNER_HIGHWALL_FIRST_CYCLE_FINAL_MEANINGFUL_RED_20261008.log`.
+
+Separate startup test-first commit: `343bff2c8c3a57277303be4a584e313524e845f8`.
+The normal authoritative start now supplies `shuttleFuelled` to its existing
+first-turn materializer, which creates an empty unfuelled ledger only when
+absent. Existing valid or malformed values pass through unchanged; the mining
+authority still rejects malformed state. This four-line producer repair adds
+no mining bypass, Admin seeding, actor, maintenance or timing change. All170
+affected start/composition/mining panel/service/engine/callable checks across
+six files pass, including the real first-cycle consumer and eight malformed
+negatives. All21 proof contracts also pass. Native Highwall remains unrun.
+
+Parent supplied a five-minute allocation for `eb844bee` or a prose-only tip
+while this finding was being repaired. That grant does not cover the changed
+executable producer; no runtime was started under it. Finish this same bounded
+review, bind the current compiled source, then obtain a new exact-candidate
+allocation before native execution. No gate is weakened to use the old window.
+
+The helper's common Pursuit closure/history now has an actual accepted pass:
+candidate `ddfb7ee5d2e6a6342a5717201a64d02d56d05857`, two ordinary Auth actors,
+one Chrome process/two contexts, normal GM freeze/Close retaining the immutable
+snapshot, and original-reader reload bound to real server receipt/public history.
+Its owned session/accounts/pointers and browser were cleaned, errors zero;
+other-data change was not measured. Evidence:
+`/tmp/dow-pc10-evidence/OWNER_PC10_PURSUIT_CLOSURE_PASSED_HANDOFF_20261008.json`
+(SHA `b793537bb27529a109ea60bea5beb7075cedef0b60958f6ad70251169544b6d1`).
+This verifies the integrated common Close UI repair. It does not prove native
+N-specific closed history, whole-game completion, human play or a release.
