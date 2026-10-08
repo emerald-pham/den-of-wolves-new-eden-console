@@ -55,6 +55,42 @@ test('preparation bucket reaches six, denies the seventh fresh request, and repl
   assert.equal(bucket.windowStartedAtMs, 50_000);
 });
 
+test('preparation replay must remain inside the original exhausted 60-second window', async () => {
+  const payload = { sessionId: 'owned-session', instanceId: 'owned-gm-instance',
+    requestId: 'original-ui-request', expectedSetupRevision: 4 };
+  const original = { endpoint: 'prepareFullGameDemo', data: payload, httpStatus: 200,
+    before: { playerRole: 'gm', gmInstanceOwned: true },
+    result: { status: 'committed', expectedSetupRevision: 4, currentSetupRevision: 4,
+      fullGameDemo: { status: 'preparing', progression: 'manual' } } };
+  let time = 50_000;
+  let bucket = marker('prepareFullGameDemo', 1, 50_000);
+  let replayCalls = 0, fresh = 0;
+  const gm = { callable: async (_name, request) => {
+    if (request.requestId === payload.requestId) {
+      replayCalls++;
+      return { status: 'committed', result: { status: 'replayed', sessionMatches: true,
+        requestMatches: true, expectedSetupRevision: 4, currentSetupRevision: 4,
+        fullGameDemo: { status: 'preparing', progression: 'manual' } } };
+    }
+    if (bucket.requestCount < P631_PREPARATION_LIMIT) {
+      bucket = { ...bucket, requestCount: bucket.requestCount + 1 };
+      return { status: 'committed', result: { status: 'committed', sessionMatches: true,
+        requestMatches: true, expectedSetupRevision: 4,
+        fullGameDemo: { status: 'preparing', progression: 'manual' } } };
+    }
+    time = 110_000;
+    return { status: 'denied', code: 'functions/resource-exhausted',
+      details: { commandError: 'rate-limited', retryAfterSeconds: 1 } };
+  } };
+  await assert.rejects(provePreparationRateLimit({ gm, original,
+    readMarker: async () => bucket,
+    readEffect: async () => ({ setupRevision: 4, status: 'preparing' }),
+    readOriginalReceipt: async () => ({ exists: true, updateTimeMs: 51_000 }),
+    makeRequestId: () => `fresh-${++fresh}`, now: () => time,
+  }), /original preparation window expired/i);
+  assert.equal(replayCalls, 0, 'Do not claim replay idempotency after its original rate window has expired.');
+});
+
 test('ordinary current-member reads exhaust only that UID marker while same-session GM SDK read succeeds', async () => {
   let memberMarker = marker('getCurrentMemberSession', 118, 10_000, 'b'.repeat(64));
   const gmMarker = marker('getCurrentMemberSession', 3, 10_000, 'c'.repeat(64));
@@ -86,6 +122,22 @@ test('ordinary current-member reads exhaust only that UID marker while same-sess
   assert.equal(time - proof.memberWindowStartedAtMs, 20_000);
 });
 
+test('same-session GM success must complete before the exhausted member read window expires', async () => {
+  let time = 30_000;
+  const memberMarker = marker('getCurrentMemberSession', 120, 10_000, 'b'.repeat(64));
+  const gmMarker = marker('getCurrentMemberSession', 3, 10_000, 'c'.repeat(64));
+  const member = { callable: async () => ({ status: 'denied', code: 'resource-exhausted',
+    details: { commandError: 'rate-limited', retryAfterSeconds: 40 } }) };
+  const gm = { callable: async () => {
+    time = 70_000;
+    return { status: 'committed', result: { type: 'current-member-session',
+      sessionMatches: true, actorMatches: true } };
+  } };
+  await assert.rejects(proveCurrentMemberReadRateLimit({ member, gm, sessionId: 'owned-session',
+    readMemberMarker: async () => memberMarker, readGmMarker: async () => gmMarker, now: () => time,
+  }), /original member window expired/i);
+});
+
 test('P631 denial log parser returns only allowlisted hashes and rejects extra body fields', () => {
   const prep = { type: 'security-denial', schemaVersion: 1, callableName: 'prepareFullGameDemo',
     code: 'resource-exhausted', category: 'rate-limit', actorHash: p631LoggerHash('actor', 'gm-uid'),
@@ -104,14 +156,16 @@ test('P631 denial log parser returns only allowlisted hashes and rejects extra b
     { callableName: 'prepareFullGameDemo', actorHash: prep.actorHash, sessionHash: prep.sessionHash, requestHash: prep.requestHash },
     { callableName: 'getCurrentMemberSession', actorHash: read.actorHash, sessionHash: read.sessionHash },
   ];
-  assert.deepEqual(assertP631RateDenialRecords(records, expected).map(record => record.callableName),
+  assert.deepEqual(assertP631RateDenialRecords(records.slice(0, 2), expected).map(record => record.callableName),
     ['prepareFullGameDemo', 'getCurrentMemberSession']);
   assert.equal(JSON.stringify(records).includes('PRIVATE_CANARY'), false);
-  assert.throws(() => assertP631RateDenialRecords(records.filter(record => record.extraFields.includes('facilitatorNotes')),
-    [expected[0]]), /arbitrary request\/body fields/i);
+  assert.throws(() => assertP631RateDenialRecords(records, expected), /arbitrary request\/body fields/i);
   assert.throws(() => assertP631RateDenialRecords(parseP631SecurityDenialRecords(
     JSON.stringify({ severity: 'WARNING', message: 'PRIVATE_CANARY', ...read })), [expected[1]]),
   /arbitrary request\/body fields/i);
+  assert.throws(() => assertP631RateDenialRecords(parseP631SecurityDenialRecords(
+    JSON.stringify({ severity: 'WARNING', ...read, requestHash: 'PRIVATE_CANARY' })), [expected[1]]),
+  /requestHash.*64-character hash/i);
 });
 
 test('owned journey always runs cleanup and rethrows the same first operation failure', async () => {
