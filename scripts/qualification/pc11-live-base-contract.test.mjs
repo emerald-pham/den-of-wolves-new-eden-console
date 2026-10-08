@@ -100,6 +100,22 @@ test('ordinary operational berth accepts server-started exact own memberShipIds 
   }
 });
 
+test('actual runner operational reader consumes a present own server map and rereads the mounted tuple', async () => {
+  const source = await readFile(resolve(root, 'scripts/qualification/pc11-three-actor-trade-philia.mjs'), 'utf8');
+  const start = source.indexOf('async function currentMemberBerthReady('), end = source.indexOf('async function memberReady(', start);
+  assert.ok(start >= 0 && end > start);
+  let reads = 0;
+  const dependencies = { assert, sid, stage: 'native-operational-read', states: [],
+    bounded: operation => operation, db: { doc: path => ({ get: async () => { reads++; assert.equal(path, `sessions/${sid}/fleetGroups/fleet-1`); return { exists: true, data: () => rawGroup }; } }) },
+    fleetGroupRecord: fleet.fleetGroupRecord, fullMember: async () => member(), observeNormalMember: async () => member(),
+    actorUids: new Map([['Owner', uid]]), currentMember: value => adapter.pc11MemberReadiness(value, { sessionId: sid, uidHash: hash(uid), roleId, stage: 'station' }),
+    stationReady: value => value.currentCanonicalSeatOwned, pc11OwnBerthWitness: adapter.pc11OwnBerthWitness,
+    short: hash, roleIds: { Owner: roleId } };
+  const execute = new Function('deps', `const {${Object.keys(dependencies).join(',')}}=deps;${source.slice(start, end)};return currentMemberBerthReady;`);
+  const observed = await execute(dependencies)({}, member(), 'Owner', roleId, Date.now() + 5000);
+  assert.equal(observed?.currentOwnBerthConfirmed, true); assert.equal(reads, 1);
+});
+
 function stateFixture(role = 'player') {
   const session = { id: sid, phase: 'active', currentTurn: 1, setupConfirmed: true, playerCount: 12,
     chartId: 'A', activeRoleIds: ['dione-engineer', 'dione-president'], activeVesselIds: ['aegis', 'dione'],
