@@ -1003,3 +1003,14 @@ emulators were not started. All protected disposable plaintext remains;
 no existing unique log was cleaned, rotated or deleted. The initial fixture
 dependency error is retained separately and is not credited as product RED
 or a protocol pass. Independent review remains required before real-log use.
+
+Before the single reconciled review closed, source self-review found a second
+in-flight timing window: HTTP can arrive after `accept` snapshots an undefined
+parser promise but before it checks the receipt. Two deterministic observer
+tests deliver the response in that exact window while its body stays pending.
+On `f106e197`, HTTP200 incorrectly asserts; HTTP403 still rejects. The focused
+file records1contemporaneous RED/11GREEN before a follow-up repair. These two
+tests add no accepted authority, native actors or gameplay; they require the
+pending successful body to wait and a known denial to remain rejected. The
+original budget and existing tests stay intact. The independent reviewer
+holds the same bounded review open for this material finding.

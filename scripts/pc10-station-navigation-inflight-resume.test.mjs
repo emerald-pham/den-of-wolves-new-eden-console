@@ -1,9 +1,13 @@
 import assert from 'node:assert/strict';
-import { readFile, readdir } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { EventEmitter } from 'node:events';
+import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { setTimeout as delay } from 'node:timers/promises';
 import { stationNavigationResumeFixture } from './fixtures/pc10-station-navigation-resume-native-fixture.mjs';
+import { createMemberNavigationResumeObserver } from './pc10-member-navigation-resume.mjs';
 
 // Native-only regression for Actual3: the normal SDK request is pending when
 // its own-player generation arrives. No product store writes or extra resume
@@ -121,4 +125,41 @@ test('the recharge presentation reader pending SDK fence cannot grant station ac
     const saved = await packet(f); assert.equal(saved.transitions.length, 0);
     assert.equal(f.events.eventNames().length, 0); assert.equal(f.counters.sdkCalls, 0);
   } finally { await f.cleanup(); }
+});
+
+for (const httpStatus of [200, 403]) test(`HTTP${httpStatus} arriving during acceptance keeps the original pending-body boundary`, async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'pc10-native-body-race-'));
+  const events = new EventEmitter(), roleId = 'shepherd-captain', uid = 'private-native-body-race';
+  const page = { on: (...args) => events.on(...args), off: (...args) => events.off(...args),
+    url: () => 'http://127.0.0.1:5174/#/ships/shepherd/roles/shepherd-captain' };
+  const original = { documentTimeOrigin: 1000, hasAuth: true, sameActor: true,
+    uidHash: createHash('sha256').update(uid).digest('hex').slice(0, 16),
+    profileRoleId: roleId, profileSessionId: 'native-session', sessionId: 'native-session', meSessionId: 'native-session',
+    playerRole: 'player', assignedRoleId: roleId, activeConsoleRoleId: roleId, seatId: roleId, fleetGroupId: 'fleet-1',
+    replacementRoleId: null, replacementStatus: null, escapeLocked: false, connected: true,
+    connectionGeneration: 2, identityHydrationRevision: 1, connection: 'live', freshness: 'server',
+    currentMemberBerthPresent: true, currentMemberBerthMatches: true, currentOwnPlayerConfirmed: true,
+    currentCanonicalSeatOwned: true };
+  const pending = { ...original, connectionGeneration: 3, connection: 'offline', freshness: 'cache' };
+  const observer = createMemberNavigationResumeObserver(page, { directory, roleId, deadlineAt: Date.now() + 500 });
+  const request = { method: () => 'POST', url: () => 'http://127.0.0.1:5011/demo-native/us-central1/resumeSession',
+    postDataJSON: () => ({ data: { sessionId: 'native-session' } }) };
+  let releaseBody;
+  const body = new Promise(resolve => { releaseBody = resolve; });
+  try {
+    await observer.prepare(original); events.emit('request', request);
+    // accept snapshots an undefined parser, then yields. Deliver HTTP now,
+    // while its body remains in flight, to exercise that exact async window.
+    const acceptance = observer.accept(original, pending, () => assert.fail('An unfinished response grants no SDK acceptance observation.'));
+    events.emit('response', { request: () => request, status: () => httpStatus, url: request.url, json: () => body });
+    if (httpStatus === 200) assert.equal(await acceptance, false);
+    else await assert.rejects(acceptance, /matching normal resume receipt and accepted hydration/);
+  } finally {
+    releaseBody({ error: { status: 'PERMISSION_DENIED' } }); await delay(0);
+    await observer.finish(new Error('Source-only pending-body fixture complete; no station accepted.'));
+    assert.equal(events.eventNames().length, 0);
+    const saved = JSON.parse(await readFile(observer.path, 'utf8')); assert.equal(saved.transitions.length, 0);
+    assert.equal(JSON.stringify(saved).includes(uid), false);
+    await rm(directory, { recursive: true, force: true });
+  }
 });
