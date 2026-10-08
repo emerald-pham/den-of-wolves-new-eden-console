@@ -231,6 +231,41 @@ test('retains the consumed PDF source reply and exact stale panel text when read
   assert.deepEqual(pdf.effects.clicks, []);
 });
 
+test('uses the current PDF choice status before interpreting a stale waiting reason', async () => {
+  // These exact reply/UI pairs are backend/component-derived source fixtures,
+  // not native Attempt21 source or DOM captures.
+  const waitingText = 'Waiting for an active Wolf Attack targeting window.';
+  const cases = [
+    { name: 'ordinary waiting', view: { eligible: false, launched: false, reason: 'waiting' },
+      texts: [waitingText] },
+    { name: 'passed', view: { eligible: false, launched: false, choiceStatus: 'passed', reason: 'passed' },
+      texts: ['Launch choice passed for this attack.'] },
+    { name: 'already launched', view: { eligible: false, launched: true, choiceStatus: 'launched', reason: 'already-launched' },
+      texts: ['Launched // Cycle 3'] },
+    { name: 'unavailable with stale waiting paint',
+      view: { eligible: false, launched: false, choiceStatus: 'unavailable', reason: 'waiting' },
+      texts: [waitingText, waitingText, waitingText, 'The Escort Wing could not launch for this attack.'] },
+  ];
+
+  for (const scenario of cases) {
+    const view = { type: 'pdf-escort-wing-launch-view', sessionId, turn: 3, revision: 8,
+      wingRevision: 4, ...scenario.view };
+    const pdf = surface('refinery-124-pdf-colonel', view);
+    let panelReads = 0;
+    pdf.page.locator = selector => {
+      assert.equal(selector, '[aria-label="PDF Escort Wing launch control"]');
+      return { isVisible: async () => true,
+        innerText: async () => scenario.texts[Math.min(panelReads++, scenario.texts.length - 1)] };
+    };
+    const current = attack('targeting');
+    assert.equal(await dispatchStationCrewChoice(current,
+      options([{ roleId: pdf.label, surface: pdf }], current)), undefined, scenario.name);
+    assert.deepEqual(pdf.effects.clicks, [], `${scenario.name} cannot earn action credit.`);
+    assert.equal(pdf.effects.reads.length, 1, `${scenario.name} stays on its single original source view.`);
+    if (scenario.name === 'unavailable with stale waiting paint') assert.ok(panelReads >= 4);
+  }
+});
+
 test('stops without a second actor choice when the attack tuple changes during the source read', async () => {
   let latest = attack('targeting');
   const pdf = surface('refinery-124-pdf-colonel', { type: 'pdf-escort-wing-launch-view',
