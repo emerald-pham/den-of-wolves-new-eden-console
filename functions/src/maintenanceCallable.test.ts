@@ -196,7 +196,10 @@ vi.mock('firebase-admin/firestore', () => ({
                 } as Record<string, unknown>;
                 return { exists: true, get: (key: string) => fields[key] };
               }
-              if (path.endsWith('/gmInstances')) return { exists: true, docs: [] };
+              if (path.endsWith('/gmInstances')) return {
+                exists: true,
+                docs: Object.keys(mock.gmInstanceOwners).map((id) => ({ id })),
+              };
               return { exists: true, get: (key: string) => readSnapshot(key) };
             };
             const tx = {
@@ -875,6 +878,43 @@ it.each([
     }),
     { mergeFields: expect.arrayContaining(['systemHistory', 'revision', 'pursuitEmergencyWindow']) },
   );
+});
+
+it('applies environmental damage casualties and threshold consequences in the maintenance transaction', async () => {
+  setEnvironmentalHistoryAuthority();
+  mock.navigation = environmentalNavigation('1096');
+  mock.gmInstanceOwners.bridge = 'u1';
+  mock.randomInt.mockImplementationOnce(() => 0).mockImplementationOnce(() => 3).mockImplementationOnce(() => 3);
+  const maintenance = {
+    session: {
+      phase: 'active', currentTurn: 1, activeVesselIds: ['aegis'], activeRoleIds: ['admiral'],
+      chartId: 'A', chartSelectionLocked: true,
+      maintenanceCycles: {},
+      shipResources: { aegis: { ore: 0, fuel: 4, food: 8, water: 6, materials: 1, securityTeams: 2 } },
+      shipDamage: { aegis: { damagedSystemIds: [], destroyed: false } },
+      shipUnrest: { aegis: 7 }, shipSurvivors: { aegis: 250 },
+      shuttleDockings: [], shuttleCargo: {}, shuttleFuelled: {},
+      unrestAlerts: {}, populationAlerts: {}, capybaraEnabled: true, dioneEnabled: true,
+    } as Record<string, unknown>,
+    receipts: {}, undo: {}, events: {}, damageDraws: {},
+  };
+  mock.race = { attempts: 0, ready: Promise.resolve(), release: () => undefined, version: 0, maintenance };
+
+  await expect(runMaintenance.run(request({
+    ...data, requestId: 'environmental-casualty',
+  }))).resolves.toMatchObject({
+    status: 'committed',
+    cycle: { results: { '0': expect.stringMatching(/Ion Nebula.*causes damage/) } },
+    result: { population: 0, unrest: 9, damage: { damagedSystemIds: ['fighter-bay-alpha'], destroyed: false } },
+  });
+
+  expect(maintenance.session.shipSurvivors).toEqual({ aegis: 0 });
+  expect(maintenance.session.shipUnrest).toEqual({ aegis: 9 });
+  expect(maintenance.session.populationAlerts).toMatchObject({ aegis: { population: 0 } });
+  expect(maintenance.session.unrestAlerts).toHaveProperty('aegis');
+  expect(Object.keys(maintenance.damageDraws)).toEqual([
+    'sessions/s1/damageDraws/maintenance-environmental-casualty',
+  ]);
 });
 
 it('records a below-threshold Ion Nebula check without drawing damage', async () => {
