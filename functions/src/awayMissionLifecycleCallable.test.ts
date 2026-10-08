@@ -359,6 +359,63 @@ it('bootstraps only from the exact P403 record, atomically projects a participan
   expect(store.records.get(paths().deck)?.dealtCount).toBe(2);
 });
 
+it('bootstraps a P403 start that combines top-deck cards with resolved mission discards', async () => {
+  const store = seededStore({ siteCode: 'D' });
+  const deck = store.records.get(paths().deck)!;
+  const order = deck.order as string[];
+  const topCardId = order[32];
+  if (!topCardId) throw new Error('The canonical mission deck must contain a final undealt card.');
+  const recycledCardId = EXTRA_CARD;
+  store.records.set(paths().deck, { ...deck, dealtCount: 33, resolvedDiscardCardIds: [] });
+  store.records.set(paths().mission, {
+    ...store.records.get(paths().mission)!,
+    cardIds: [topCardId, recycledCardId],
+    recycledCardIds: [recycledCardId],
+    dealtFrom: 32,
+    dealtThrough: 33,
+  });
+  const allCards = missionDeck();
+  const aliceCard = allCards.find(({ id }) => id === topCardId)!;
+  const bobCard = allCards.find(({ id }) => id === recycledCardId)!;
+  store.records.set(paths().aliceHand, {
+    ...store.records.get(paths().aliceHand)!,
+    cardId: aliceCard.id, rank: aliceCard.rank, suit: aliceCard.suit, value: aliceCard.value,
+  });
+  store.records.set(paths().bobHand, {
+    ...store.records.get(paths().bobHand)!,
+    cardId: bobCard.id, rank: bobCard.rank, suit: bobCard.suit, value: bobCard.value,
+  });
+  const start = store.records.get(paths().start)!;
+  store.records.set(paths().start, {
+    ...start,
+    recycledCardIds: [recycledCardId],
+    stateDelta: {
+      missionDeckDealtCountBefore: 32,
+      missionDeckDealtCountAfter: 33,
+      missionDeckRecycleCount: 1,
+    },
+    revisions: { missionDeck: { before: 32, after: 33 } },
+  });
+
+  const reply = await dependencies(store).commitAwayMissionLifecycleCommand(commandRequest('bob', {
+    type: 'requestExtraCards', requestId: 'request-after-recycled-start', expectedRevision: 0, count: 1,
+  }));
+
+  expect(reply).toMatchObject({
+    status: 'committed',
+    privateState: { participantUid: 'bob', cards: [{ id: recycledCardId, status: 'remaining' }] },
+  });
+  expect(JSON.stringify(reply)).not.toContain(topCardId);
+  expect(store.records.get(paths().mission)?.lifecycleRecord).toMatchObject({
+    lifecycle: {
+      cards: [
+        { participantUid: 'alice', cardId: topCardId, source: 'initial' },
+        { participantUid: 'bob', cardId: recycledCardId, source: 'initial' },
+      ],
+    },
+  });
+});
+
 it('binds exact replays to both authenticated actor and unchanged command, and returns revision conflicts without writes', async () => {
   const store = seededStore();
   const { commitAwayMissionLifecycleCommand } = dependencies(store);
