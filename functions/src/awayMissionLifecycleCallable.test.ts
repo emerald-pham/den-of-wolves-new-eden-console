@@ -593,6 +593,38 @@ it('uses remaining top cards before resolved discards, consumes recycled cards o
   expect(store.committedWrites).toHaveLength(writesAfterRecycle);
 });
 
+it('uses a resolved discard for the required facilitator card after top stock is exhausted', async () => {
+  const store = seededStore({ siteCode: 'D' });
+  const commit = dependencies(store).commitAwayMissionLifecycleCommand;
+  const send = (uid: string, type: string, fields: Fields = {}) => commit(commandRequest(uid, {
+    type, requestId: `${type}-${currentRevision(store)}`, expectedRevision: currentRevision(store), ...fields,
+    ...(['openDiscards'].includes(type) ? { instanceId: 'gm-instance' } : {}),
+  }));
+
+  await send('bob', 'requestExtraCards', { count: 1 });
+  await send('alice', 'distributeExtraCard', { participantUid: 'bob', opportunityId: 'D-2' });
+  store.records.set(paths().deck, {
+    ...store.records.get(paths().deck)!, dealtCount: 33, resolvedDiscardCardIds: ['J♦'],
+  });
+  await send('gm', 'openDiscards');
+  await send('alice', 'discardCard', { cardId: ALICE_CARD });
+  await send('bob', 'discardCard', { cardId: EXTRA_CARD });
+  await send('alice', 'assignCards', { placements: [] });
+
+  const resolved = await send('bob', 'assignCards', {
+    placements: [{ cardId: BOB_CARD, opportunityId: 'D-1' }],
+  });
+
+  expect(resolved.publicState.status).toBe('resolved');
+  expect(store.records.get(paths().mission)?.lifecycleRecord.lifecycle.facilitatorCards).toEqual([
+    { opportunityId: 'D-1', cardId: 'J♦' },
+  ]);
+  expect(store.records.get(paths().deck)).toMatchObject({
+    dealtCount: 33,
+    resolvedDiscardCardIds: [ALICE_CARD, EXTRA_CARD],
+  });
+});
+
 it('leaves an undealable extra request unallocated when the undealt deck and resolved discard pool are empty', async () => {
   const store = seededStore({ siteCode: 'D' });
   store.records.set(paths().deck, { ...store.records.get(paths().deck)!, dealtCount: 33, resolvedDiscardCardIds: [] });
