@@ -206,3 +206,9 @@ for (const step of ['targeting', 'medium-range', 'short-range']) {
     });
   }
 }
+
+test('Station Wing requalifies later restored actor after its earlier Team phase read', async () => {
+ const f=fixture(), read=f.dependencies.readTurnState, initial=await read();let reads=0;
+ f.dependencies.readTurnState=async(...args)=>f.counts().insideCapture&&reads++===0?structuredClone(initial):read(...args);
+ assert.equal(await f.invoke(),undefined);assert.equal(f.counts().clicked,0);assert.equal(f.observations.length,1);
+});

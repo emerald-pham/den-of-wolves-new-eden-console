@@ -1606,3 +1606,31 @@ for (const [name, drift] of [
     assert.deepEqual(scenario.crew.effects.clicks, []);
   });
 }
+
+test('Station crew requalifies terminal progress occurring during its ordered-stage actor bookend', async () => {
+ const current=attack('medium-range'), crew=surface('refinery-124-pdf-colonel', {
+  type:'wolf-fighter-range-action-view',sessionId,turn:3,revision:8,wingId:'pdf-escort-fighter-wing',
+  wingLabel:'P.D.F. Escort Fighter Wing',range:'medium-range',choiceStatus:'pending',
+  fighters:[{fighterIndex:0}],targets:[{instanceId:'wolf-contact'}]}, {entitledShipId:'refinery-124'});
+ const opts=options([{roleId:crew.label,surface:crew}],current), observations=[];
+ let latest=current, progressed=false, progressedPhaseRead=false;
+ opts.readAttack=async()=>structuredClone(latest);
+ opts.onSourceProgress=async row=>observations.push(row);
+ opts.readTurnState=async()=>{if(progressed)progressedPhaseRead=true;return stationPhaseEnvelope(crew.testActor);};
+ const read=crew.callable;
+ crew.callable=async(...args)=>{const reply=await read(...args);progressed=true;
+  latest={...current,revision:11,currentStep:'short-range'};return reply;};
+ const evaluate=crew.page.evaluate;
+ crew.page.evaluate=async(...args)=>{
+  if(progressedPhaseRead&&latest.status==='declared'){
+   latest={...latest,revision:15,status:'resolved',currentStep:'resolved',airspaceLocked:false,pStationRepeat:{status:'repeat'}};
+   Object.assign(crew.testActor,{airspace:'lifted',turnStatePhase:'coordination',
+    turnStatePhaseRevision:crew.testActor.turnStatePhaseRevision+1,
+    turnStateStartedAt:crew.testActor.turnPhaseTeamPhaseEndsAt,turnStateEndsAt:crew.testActor.turnPhaseOpenAirspaceEndsAt});
+  }
+  return evaluate(...args);
+ };
+ assert.equal(await dispatchStationCrewChoice(current,opts),undefined);
+ assert.deepEqual(crew.effects.clicks,[]);assert.equal(observations.length,1);
+ assert.equal(observations[0].observedAttack.status,'resolved');
+});
