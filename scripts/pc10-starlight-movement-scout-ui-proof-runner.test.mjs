@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { EventEmitter } from 'node:events';
+import { pc11SameActorEpoch } from './qualification/pc11-normal-start-adapter.mjs';
 import { observeUiReceipt } from './pc10-browser-ui-receipt.mjs';
 import { createP181StarlightBrowserIo, createP181StarlightNativeSurfaceFactory,
   captureP181SourceBindings, runP181StarlightMovementScoutUiProof } from './pc10-starlight-movement-scout-ui-proof.mjs';
@@ -402,4 +403,43 @@ test('native source boundary resolves every normal-start, custody, transit and s
   for (const [path, digest] of Object.entries(sourceFiles)) {
     assert.match(digest, /^[a-f0-9]{64}$/, `The exact ${path} source file is bound before native execution.`);
   }
+});
+
+test('original actor consumer accepts reload only after the shared normal-resume receipt accepts its new epoch', async () => {
+  const { io, trace, state } = makeConsumer();
+  io.reloadAndReselectWingCommander = async () => {
+    trace.push({ ui: 'original-normal-resumeSession-response-and-accepted-hydration' });
+    state.actor.documentTimeOrigin = 1_000;
+    const before = structuredClone(state.actor);
+    state.actor = { ...state.actor, connectionGeneration: before.connectionGeneration + 1,
+      identityHydrationRevision: before.identityHydrationRevision + 1, documentTimeOrigin: 2_000 };
+    const resumeEvidence = { status: 'accepted', source: 'normal-resumeSession',
+      uidHash: state.actor.uidHash, sessionId: state.actor.sessionId,
+      connectionGeneration: state.actor.connectionGeneration,
+      identityHydrationRevision: state.actor.identityHydrationRevision, sdkHasServerAuthority: true };
+    assert.equal(pc11SameActorEpoch(before, state.actor, resumeEvidence), true,
+      'The shared helper accepts only this same-actor server resume tuple.');
+    return { actor: structuredClone(state.actor), flight: structuredClone(state.session), resumeEvidence };
+  };
+
+  const result = await runP181StarlightMovementScoutUiProof({
+    initial: { sessionId: 'normal-session', phase: 'lobby', cycle: 0, setupConfirmed: true,
+      playerCount: 8, chartId: 'A', fullGameDemo: null, activeRoleIds: originalRoleIds },
+    started: { sessionId: 'normal-session', phase: 'active', cycle: 1, uidHash: 'b'.repeat(16),
+      instanceId: 'gm-original-instance', fullGameDemo: null },
+    roster: [{ roleId: 'wing-commander', uidHash: original.uidHash, sessionId: 'normal-session' }],
+    gm: { uidHash: 'b'.repeat(16), sessionId: 'normal-session', meSessionId: 'normal-session',
+      instanceId: 'gm-original-instance', hasAuth: true, sameActor: true, playerRole: 'gm',
+      profileRoleId: null, profileSessionId: null, fullGameDemo: null, connectionGeneration: 2,
+      identityHydrationRevision: 3, connection: 'live', freshness: 'server', connected: true,
+      kicked: false, recoveryPending: false, invalidFields: [], currentOwnPlayerConfirmed: true,
+      sdkHasServerAuthority: true, gmInstanceOwned: true },
+    expectedWingCommander: { ...original, documentTimeOrigin: 1_000 }, io,
+    absoluteDeadlineMs: Date.now() + 15 * 60_000,
+  });
+
+  assert.equal(result.movement.status, 'observed');
+  assert.equal(io.expectedWingCommander.connectionGeneration, original.connectionGeneration + 1);
+  assert.equal(io.expectedWingCommander.identityHydrationRevision, original.identityHydrationRevision + 1);
+  assert.equal(trace.filter(item => item.endpoint === 'beginShuttleTransit').length, 1);
 });
