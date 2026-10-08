@@ -20,7 +20,7 @@ function wingConsumer(dependencies) {
     ${runnerSource.slice(start, end)} return chooseWing;`)(dependencies);
 }
 
-function fixture(step = 'targeting', { change = 'resolved', drift, sameStepFailure, receiptStatus = 'committed' } = {}) {
+function fixture(step = 'targeting', { change = 'resolved', drift, sameStepFailure, receiptStatus = 'committed', afterClick } = {}) {
   const current = { attackId: 'original', turn: 2, revision: 7, status: 'declared', currentStep: step,
     threatSiteCode: 'P', targetGroupId: 'fleet-1', threatSourceId: 'arrival-owned', airspaceLocked: true };
   const member = { hasAuth: true, sameActor: true, uidHash: 'wing-original', sessionId: 'sid', meSessionId: 'sid',
@@ -29,7 +29,11 @@ function fixture(step = 'targeting', { change = 'resolved', drift, sameStepFailu
     connection: 'live', freshness: 'server', fleetGroupId: 'fleet-1', cycle: 2, phase: 'active',
     connectionGeneration: 2, identityHydrationRevision: 3, documentTimeOrigin: 1000,
     profileRoleId: null, profileSessionId: null, replacementRoleId: null, replacementStatus: null };
-  const authority = { ...structuredClone(member), airspace: 'restricted', turnStatePhase: 'team',
+  const authority = { ...structuredClone(member), airspace: 'restricted', turnStatePhase: 'team', phaseProgression: 'manual',
+    turnPhaseTurn: 2, turnPhaseOpenAirspaceEndsAt: '9999-12-31T23:59:59.999Z',
+    turnPhaseTeamPhaseEndsAt: '9999-12-31T23:59:59.999Z', turnStateCurrentTurn: 2, turnStateMaxTurn: 6,
+    turnStatePhaseRevision: 5, turnStateStartedAt: '2026-10-08T00:00:00.000Z',
+    turnStateEndsAt: '9999-12-31T23:59:59.999Z',
     discoveryAuthority: { groupId: 'fleet-1', shipId: 'aegis', revision: 4, fleetGroupVesselIds: ['aegis'] },
     entitledShipId: 'aegis' };
   const gmAuthority = { sessionId: 'sid', uidHash: 'gm-original', generation: 1, hydrationRevision: 2,
@@ -41,6 +45,7 @@ function fixture(step = 'targeting', { change = 'resolved', drift, sameStepFailu
       latest = { ...current, revision: 11, status: 'resolved', currentStep: 'resolved',
         airspaceLocked: false, pStationRepeat: { status: 'repeat' } };
       authority.airspace = 'lifted'; authority.turnStatePhase = 'coordination';
+      authority.turnStatePhaseRevision = 6; authority.turnStateStartedAt = authority.turnPhaseTeamPhaseEndsAt;
     } else if (change === 'ordered') latest = { ...current, revision: 10,
       currentStep: step === 'targeting' ? 'medium-range' : 'short-range' };
     else if (change === 'same-step') latest = { ...current, revision: 8 };
@@ -49,7 +54,7 @@ function fixture(step = 'targeting', { change = 'resolved', drift, sameStepFailu
   const button = name => ({
     isVisible: async () => true,
     isEnabled: async () => step === 'targeting' ? name === 'Launch Fighter Wing Alpha' : name.startsWith('Pass '),
-    click: async () => { clicked++; },
+    click: async () => { clicked++; afterClick?.({ member, authority, latest, gmAuthority }); },
   });
   const recipient = { page: { getByRole: (role, options = {}) => role === 'region' ? {
     isVisible: async () => true,
@@ -103,6 +108,8 @@ for (const step of ['targeting', 'medium-range', 'short-range']) {
       assert.equal(f.observations.length, 1);
       assert.equal(f.observations[0].deadlineAt, f.deadlineAt);
       assert.equal(f.observations[0].actionCredit, false);
+      assert.equal(f.observations[0].originalAttack.targetGroupId, f.current.targetGroupId);
+      assert.equal(f.observations[0].observedAttack.threatSourceId, f.current.threatSourceId);
     });
   }
 }
@@ -113,6 +120,11 @@ for (const [name, drift] of [
   ['hydration', ({ member, authority }) => { member.identityHydrationRevision++; authority.identityHydrationRevision++; }],
   ['document', ({ member, authority }) => { member.documentTimeOrigin++; authority.documentTimeOrigin++; }],
   ['discovery', ({ authority }) => { authority.discoveryAuthority.revision++; }],
+  ['entitled ship', ({ authority }) => { authority.entitledShipId = 'foreign-ship'; }],
+  ['canonical seat', ({ member }) => { member.currentCanonicalSeatOwned = false; }],
+  ['live connection', ({ member }) => { member.connection = 'reconnecting'; }],
+  ['restored phase revision', ({ authority }) => { authority.turnStatePhaseRevision++; }],
+  ['restored deadline', ({ authority }) => { authority.turnStateEndsAt = '9999-12-30T23:59:59.999Z'; }],
   ['arrival', ({ latest }) => { latest.threatSourceId = 'arrival-foreign'; }],
   ['group', ({ latest }) => { latest.targetGroupId = 'fleet-foreign'; }],
   ['GM lease', ({ gmAuthority }) => { gmAuthority.instanceId = 'foreign-instance'; }],
@@ -145,3 +157,37 @@ test('actual Wing original final callback deadline cannot expire into another ch
   await assert.rejects(f.invoke({ deadlineAt: Date.now() - 1 }));
   assert.equal(f.counts().clicked, 0);
 });
+
+test('actual Wing restored Coordination alone cannot cancel a still-declared same-step attack', async () => {
+  const f = fixture('targeting', { change: 'same-step', drift: ({ authority }) => {
+    authority.airspace = 'lifted'; authority.turnStatePhase = 'coordination';
+    authority.turnStatePhaseRevision = 6; authority.turnStateStartedAt = authority.turnPhaseTeamPhaseEndsAt;
+  } });
+  await assert.rejects(f.invoke());
+  assert.equal(f.counts().clicked, 0);
+  assert.deepEqual(f.observations, []);
+});
+
+for (const name of ['private attack permission', 'phase transport']) {
+  test(`actual Wing ${name} error remains fatal alongside pending progress`, async () => {
+    const f = fixture();
+    const original = Error(name);
+    f.dependencies[name.startsWith('private') ? 'readAttack' : 'readTurnState'] = async () => { throw original; };
+    await assert.rejects(f.invoke(), error => error === original);
+    assert.equal(f.counts().clicked, 0);
+    assert.deepEqual(f.observations, []);
+  });
+}
+
+for (const step of ['targeting', 'medium-range', 'short-range']) {
+  for (const status of ['committed', 'replayed']) {
+    test(`actual Wing ${step} retains successful ${status} receipt despite post-click progress`, async () => {
+      const f = fixture(step, { change: 'same-step', receiptStatus: status,
+        afterClick: ({ latest }) => { latest.revision += 2; latest.currentStep = 'boarding'; } });
+      assert.deepEqual(await f.invoke(), { committed: true });
+      assert.equal(f.counts().clicked, 1);
+      assert.equal(f.counts().captures, 1);
+      assert.deepEqual(f.observations, []);
+    });
+  }
+}
