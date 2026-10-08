@@ -9,7 +9,7 @@ test('actual browser combat collection never reads server-only authority',()=>{
  assert.doesNotMatch(browserRead,/serverState\/|getDocsFromServer|\/players|\/fleetGroups/);
 });
 test('Station phase catch-up reads the whole phase envelope and original GM lease from its owned browser',()=>{
- const start=source.indexOf('async function readTurnState()');
+ const start=source.indexOf('async function readTurnState');
  const end=source.indexOf('const recordDiagnosticError',start);
  const browserRead=source.slice(start,end);
  assert.ok(browserRead.includes('getDocFromServer'),'The turn phase must come from a current server read through the original browser SDK.');
