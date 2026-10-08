@@ -5,9 +5,10 @@ released `9bfe4c3a`/0.5.71 and pending `18aabd20`/0.5.72 against the original
 kit. Its 1,238 comparison rows, 67 flagged rows, 38 partial/pending rows and
 66 ambiguous rows overlap; they are neither distinct bug counts nor runtime
 passes. The source-cited report is `/tmp/dow-parity/audit-report.md`, with
-core, role, component and decision matrices alongside it. The parity owner
-retains deduplication, ambiguity resolution and repair scopes. This document
-maps impact on existing PC10 evidence; it introduces no rule changes.
+core, role, component and decision matrices alongside it. The parity auditor
+retains audit deduplication; the checkpoint parent assigns repairs and records
+owner rulings. This document maps impact on existing PC10 evidence. Repair
+execution is separately recorded below and earns no catalog closures.
 
 ## Existing scoped evidence
 
@@ -52,8 +53,45 @@ unsatisfied. A green old source-only test, inventory, exact-SHA CI or deployment
 does not override a source-confirmed missing mechanic or unresolved rule.
 Retain narrow observed evidence; reevaluate affected criteria after the parent
 assigns repairs or records a source-backed intentional adaptation. Do not
-silently reinterpret prior failed or partial runs, reopen all observations,
-alter licensing, or implement the new audit scopes in this source group.
+silently reinterpret prior failed or partial runs, reopen all observations, or
+alter licensing. The owner has now authorized the parity repairs and internal
+audit handoff; the parent assigned the first bounded source batch below.
+
+## Authorized first parity repair batch
+
+Emerald's “Complete all suggested things please” authorization covers the
+suggested parity restorations. Three independent Luna groups implement the
+unambiguous first batch from `23834a82`, with a separate test-only commit and
+meaningful executed-consumer/backend RED before each functional correction.
+The source executor reconciles their exact handbacks for one independent Sol
+review; the checkpoint parent retains release and runtime allocation ownership.
+
+| Obligation | Implementation owner | Complete shipping scope |
+| --- | --- | --- |
+| T01 / M826: original direct 5143↔1413 route | `parity_chart` | Client and server adjacency and distance consumers, 41-edge consistency, and the Starmap displayed jump-link count. |
+| T02 / C016: opening Coordination 25 minutes | `parity_opening_clock` | Fresh-game opening timing, later 15-minute Coordination, elapsed pause/resume behavior and preserved manual progression. |
+| T05 / R043 and T06 / R029: Militia leadership | `parity_militia` | Authoritative choice/projection/resolution, 0–3 extra dice independent of Security Team inventory, live client parser/panel, and briefing for the ship where the leader is present. Preserve current authority, replay, and the printed roll-1 death consequence. |
+
+The Militia worker is the only writer of its role-brief entry and narrow
+Militia sections of `index.ts` and `sessionService.ts` until handback. Other
+parity repairs remain separately assigned by the checkpoint parent. These four
+audit obligations are not four fixed catalog closures. Source checks establish
+no native gameplay or visual acceptance; affected normal authenticated paths
+and responsive rendering remain for a later allocated verification.
+
+The prison upper deadline is now an explicit owner ruling: **the end of the
+next Team phase**, following the Facilitator Guide. The mandatory minimum wait
+has no original support and belongs in the separately assigned prison repair.
+Other disputed Pursuit, rounding, Wolf Commander consequence, and finite
+component/carryover rules remain unresolved; this batch adds no default for them.
+
+Canonical source evidence and dispatch receipts remain in
+`/tmp/dow-pc10-evidence/OWNER_PC10_AUTHORIZED_PARITY_FIRST_BATCH_DISPATCH_20261008.json`
+and `OWNER_PC10_PARITY_FIRST_BATCH_ACTUAL_DISPATCH_PARENT_STAGE_20261008.json`.
+The stable audit triage is
+`/Users/emeraldpham/Documents/Codex/2026-10-08/task-5/audit-output/repair-triage.md`.
+These authorized local reads succeeded; the audit's earlier disclosure rejection
+is historical and is not a current source-access failure.
 
 ## Current P181 source boundary
 
@@ -65,12 +103,14 @@ and fuel prerequisites; it is not earned by a controlled fixture.
 
 The first worker RED swallowed an import failure and invoked no consumer
 actions. Its empty-trace failure is preserved as **invalid test-first evidence**.
-The current post-start IO draft also lacks complete normal browser startup and
-cleanup. The worker owns their bounded source correction in the assigned two
-files; P181 is not native-ready. A meaningful executed-consumer counterexample,
-honest historical test-first limits, complete driver, focused GREEN and one
-bounded independent Sol review are required before another parent allocation.
-Shared runtime becoming free is not a launch grant.
+The worker has since added normal startup, owned cleanup, and actor-bound
+reload/reselection wiring. Eight controlled actual-consumer checks pass at
+`aa656077`; these use controlled IO and shared observers, with no native
+browser, Auth, or emulator execution. The initial test-first history gap remains
+explicit; later RED checks cover their specific repairs and do not backfill
+the first implementation. Complete exact handback and one bounded independent
+Sol review remain before source readiness. P181 is not native-ready, and shared
+runtime becoming free is not a launch grant.
 
 Original paper remains the shared-mechanics baseline. The approved GM/manual
 demo, join QR, Press and other documented adaptations keep their own bounded
