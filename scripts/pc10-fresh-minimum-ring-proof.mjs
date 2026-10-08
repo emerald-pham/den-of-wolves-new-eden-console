@@ -33,6 +33,8 @@ export async function runRingWorkflow(operations) {
  await operations.arrive();await operations.repairRing();await operations.crossAndRecover();
  await operations.finishPassages();await operations.sabotageAndClose();
 }
+export function stationCombatConsoles(){return ['jump-drive','fighter-wing-alpha','fighter-wing-bravo'];}
+export async function readStationLiberation(readDocument,root,{groupId,coordinate}){const marker=root.candidateStationLiberations?.[`${groupId}:${coordinate}`];assert.ok(marker);return marker;}
 export function minimumStationPlan(){return {actualAuthenticatedActors:2,configuredRoles:13,browserProcesses:1,browserContexts:2,hardCapMs:1200000,probeFamily:'station-success',forcedOutcome:false};}
 export async function runStationWorkflow(operations){await operations.setup();await operations.stationArrivalMaintenance();await operations.stationArrival();await operations.advance(2);await operations.stationCombatMaintenance();await operations.stationCombat();await operations.stationActivate();await operations.stationEnding();}
 export function minimumPursuitClosurePlan(){return {actualAuthenticatedActors:2,configuredRoles:13,browserProcesses:1,browserContexts:2,hardCapMs:300000,probeFamily:'pursuit-closure',nClosedHistoryObserved:false};}
@@ -629,7 +631,7 @@ async function enterRole(surface,label){
   },
   async stationCombatMaintenance(){
    await mark('legitimate Station Cycle2 maintenance and actual fighter charges');
-   for(const ship of ships)await maintain(ship,ship==='aegis'?['jump-drive','fighter-wing-alpha','fighter-wing-bravo']:['jump-drive']);
+   for(const ship of ships)await maintain(ship,ship==='aegis'?stationCombatConsoles():['jump-drive']);
    await coordination(2);
   },
   async stationCombat(){
@@ -672,7 +674,7 @@ async function enterRole(surface,label){
     waves.push({wave,attackId:final.attackId,repeat:final.pStationRepeat});liberated=final.pStationRepeat.status==='stopped';await writeFile(`${directory}/Station-combat-waves.json`,JSON.stringify(waves,null,2)+'\n');
    }
    assert.equal(liberated,true,'Real Station combat must end with zero surviving Wolves before activation.');
-   const current=await recordRoot();assert.ok(current.candidateStationLiberations?.[`${groupId}:${coordinate}`]);evidence.stationCombatWaves=waves;
+   const current=await recordRoot();await readStationLiberation(path=>db.doc(`sessions/${sid}/${path}`).get().then(doc=>doc.data()),current,{sessionId:sid,groupId,coordinate,sourceId:waves.at(-1).attackId,cycle:current.currentTurn});evidence.stationCombatWaves=waves;
    claims.push('Actual source-bound Station waves finalized with real server rolls; durable zero-survivor liberation precedes any Reactor contribution');
   },
   async stationActivate(){
