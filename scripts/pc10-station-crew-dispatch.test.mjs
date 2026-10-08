@@ -2059,6 +2059,7 @@ test('actual EO unknown getter denial cannot become a pass',async()=>{const eo=e
 
 test('actual summary and canonical EO producer drive normal SDK use then locked-target capture receipts',async()=>{
  const f=await runtimeObserverFixture('executive-officer',eoRange());f.current.currentStep='medium-range';
+ const summary=await f.actorSurface.observe();assert.equal(summary.hydrationRevision,2);assert.equal(Object.hasOwn(summary,'identityHydrationRevision'),false);
  // The actual response producer replaces turn/cycle above; paint uses that live value.
  const panel=f.actorSurface.page.getByRole('region',{name:'Wolf range actions'}),text=panel.innerText;
  panel.innerText=async()=> (await text()).replace('Cycle 3','Cycle 2');
@@ -2073,3 +2074,12 @@ for(const [name,change] of [
  ['foreign discovery',f=>{f.state.session.playerDiscovery.groupId='fleet-foreign'}],
  ['SDK authority revoked',f=>{f.sdkAuthority.hasServerSessionAuthority=false}],
 ]) test(`actual EO producer ${name} has zero normal capture`,async()=>{const f=await runtimeObserverFixture('executive-officer',eoRange());f.current.currentStep='medium-range';change(f);await assert.rejects(f.invoke());assert.equal(f.counts.capture,0);assert.deepEqual(f.actorSurface.effects.clicks,[]);});
+
+for(const [name,mutate] of [
+ ['unknown private view field',v=>{v.privateRoster=[{shipId:'battlestation'}]}],
+ ['impossible Long laser',v=>{v.range=v.currentStep='long-range';v.eligibleActions=[{actionId:'laser',sourceId:'aegis-point-defence-lasers',range:'long-range'}]}],
+]) test(`actual EO ${name} is rejected before any weapon capture`,async()=>{const view=eoRange();mutate(view);const eo=eoSurface(view);let captures=0;await assert.rejects(dispatchStationCrewChoice(attack(view.range),options([{roleId:eo.label,surface:eo}],attack(view.range),()=>captures++)));assert.equal(captures,0);assert.deepEqual(eo.effects.clicks,[]);});
+test('actual EO known waiting range view requires its mounted unavailable notice and makes no action',async()=>{
+ const view={type:'wolf-range-action-choice-unavailable',sessionId,reason:'waiting'};const eo=eoSurface(view);let captures=0;assert.equal(await dispatchStationCrewChoice(attack('medium-range'),options([{roleId:eo.label,surface:eo}],attack('medium-range'),()=>captures++)),undefined);assert.equal(eo.effects.reads[0].endpoint,'getWolfRangeActionChoice');assert.equal(captures,0);assert.deepEqual(eo.effects.clicks,[]);
+});
+test('actual EO warhead choice missing attack identity cannot use original expected identity',async()=>{const view={type:'aegis-enriched-warhead-view',sessionId,turn:3,revision:8,eligible:true,choiceStatus:'pending',oreCost:5};const eo=eoSurface(view);await assert.rejects(dispatchStationCrewChoice(attack('targeting'),options([{roleId:eo.label,surface:eo}],attack('targeting'))));assert.deepEqual(eo.effects.clicks,[]);});
