@@ -11,6 +11,7 @@ import { missionRewardConsoleTargets, planMissionRewardDelivery } from './missio
 import { organiserSitesForChart } from './starChartLookup';
 import { endeavourResearchTrack } from './endeavourResearch';
 import { resolveEndeavourResearchChoice } from './endeavourResearchCadence';
+import type { AwayMissionLifecycleRecord, AwayMissionPrivateState, AwayMissionPublicState } from './awayMissionLifecycleAdapter';
 
 type Fields = Record<string, unknown>;
 type Write = Readonly<{ kind: 'set' | 'create' | 'update'; path: string; data: Fields }>;
@@ -473,6 +474,64 @@ it.each([['F', 'F-3', 'upgrade', [{ shipId: 'refinery-124', systemId: 'fuel-refi
     // This fixture includes a Capybara contributor: retain its printed +1 bulk-haulage reward.
     expect(session.shipResources.aegis.materials).toBe(site === 'G' ? 7 : 0);
   });
+
+it.each([
+  ['upgrade', [{ shipId: 'refinery-124', systemId: 'fuel-refinery' }]],
+  ['repair', [{ shipId: 'refinery-124', systemId: 'reactor' }, { shipId: 'refinery-124', systemId: 'jump-drive' }]],
+] as const)('keeps the actual F3 %s selection leader-private while preserving its public printed alternatives', async (action, targets) => {
+  const { store, send, callables } = await resolveConsequences('F', 'F-3');
+  const choice = { kind: 'consoles', action, targets };
+  const selection = [{ opportunityId: 'F-3', choice }];
+  const selected = await send('alice', 'chooseRewardTargets', { opportunityId: 'F-3', choice });
+  expect(selected.privateState?.rewardChoices).toEqual(selection);
+  expect(selected.privateState?.rewardOptions).toEqual(expect.arrayContaining([
+    expect.objectContaining({ opportunityId: 'F-3', consoleTargets: expect.arrayContaining([
+      expect.objectContaining({ shipId: 'refinery-124', systemId: targets[0].systemId }),
+    ]) }),
+  ]));
+  expect((store.records.get(paths().mission)?.lifecycleRecord as AwayMissionLifecycleRecord | undefined)?.rewardChoices).toEqual(selection);
+
+  const request = commandRequest('alice', { type: 'dropOff', requestId: `private-f3-${action}`,
+    expectedRevision: currentRevision(store), shipId: 'aegis' });
+  store.retryCallbacks = 1;
+  const delivered = await callables.commitAwayMissionLifecycleCommand(request);
+  expect(delivered.publicState.status).toBe('complete');
+  const writes = store.committedWrites.length;
+  const replay = await callables.commitAwayMissionLifecycleCommand(request);
+  expect(replay.status).toBe('replayed');
+  expect(store.committedWrites).toHaveLength(writes);
+
+  const printedEffects = [{ kind: 'upgradeOrRepairConsoles', target: 'refinery-124',
+    choices: [{ action: 'upgrade', amount: 1 }, { action: 'repair', amount: 2 }], selection: 'choice' }];
+  const privateKeys = new Set(['rewardChoices', 'rewardOptions', 'choice', 'trackIds', 'targets',
+    'consoleTargets', 'consoleActions', 'systemId', 'canUpgrade', 'canRepair', 'cardId', 'cardIds', 'cards']);
+  const assertNoPrivateFields = (value: unknown): void => {
+    if (Array.isArray(value)) { value.forEach(assertNoPrivateFields); return; }
+    if (!value || typeof value !== 'object') return;
+    for (const [key, nested] of Object.entries(value)) {
+      expect(privateKeys.has(key)).toBe(false);
+      assertNoPrivateFields(nested);
+    }
+  };
+  for (const publicState of [selected.publicState, delivered.publicState, replay.publicState,
+    store.records.get(paths().alicePointer)?.lifecyclePublicState as AwayMissionPublicState,
+    store.records.get(paths().bobPointer)?.lifecyclePublicState as AwayMissionPublicState]) {
+    expect(Object.keys(publicState).sort()).toEqual(['missionId', 'groupId', 'siteCode', 'revision', 'phase', 'status',
+      'overrun', 'missionLeaderUid', 'participantCount', 'opportunities', 'requestCounts', 'outcomes', 'rewards',
+      'specialRewards', 'custody', 'legalDropOffShipIds'].sort());
+    expect(publicState.rewards?.find(({ opportunityId }) => opportunityId === 'F-3')?.effects)
+      .toEqual(printedEffects);
+    assertNoPrivateFields(publicState);
+  }
+  for (const privateState of [delivered.privateState, replay.privateState,
+    store.records.get(paths().aliceHand)?.lifecyclePrivateState as AwayMissionPrivateState | undefined]) {
+    expect(privateState?.rewardChoices).toEqual(selection);
+  }
+  const otherParticipant = store.records.get(paths().bobHand)?.lifecyclePrivateState;
+  expect(otherParticipant).toMatchObject({ participantUid: 'bob' });
+  expect(otherParticipant).not.toHaveProperty('rewardChoices');
+  expect(otherParticipant).not.toHaveProperty('rewardOptions');
+});
 
 it.each(['I-1', 'I-2', 'I-3'])('applies %s through actual automatic resolution and retains retry atomicity', async opportunityId => {
   const { store } = await resolveConsequences('I', opportunityId);
