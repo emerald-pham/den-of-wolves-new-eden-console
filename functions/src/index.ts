@@ -24811,7 +24811,7 @@ function wolfAttackThreatSourceDocumentRefs(
   windowProjection: DocumentSnapshot,
 ): Readonly<{ schedule: DocumentReference; pressure: DocumentReference }> | undefined {
   const window = windowProjection.exists ? wolfAttackWindowState(windowProjection.data()) : undefined;
-  if (!window || (window.threatSiteCode !== 'L' && window.threatSiteCode !== 'M' && window.threatSiteCode !== 'P')) {
+  if (!window || (window.threatSiteCode !== 'K' && window.threatSiteCode !== 'L' && window.threatSiteCode !== 'M' && window.threatSiteCode !== 'P')) {
     return undefined;
   }
   if (!window.targetGroupId || !window.threatSourceId) {
@@ -24819,7 +24819,8 @@ function wolfAttackThreatSourceDocumentRefs(
   }
   return {
     schedule: db.doc(`sessions/${sessionId}/wolfAttackPressure/${window.threatSourceId}`),
-    pressure: wolfArrivalPressureStateRef(sessionId, window.targetGroupId),
+    pressure: window.threatSiteCode === 'K' ? missionWolfSourceRef(sessionId, window.threatSourceId)
+      : wolfArrivalPressureStateRef(sessionId, window.targetGroupId),
   };
 }
 
@@ -24884,6 +24885,9 @@ function validateWolfAttackDeclaration(
       'invalid-phase',
     );
   }
+  const missionSource = window.threatSiteCode === 'K' ? requireLiveMissionWolfThreatSource(session,
+    window.targetGroupId!, window.threatSourceId!, fleetGroups.docs.find(snapshot => snapshot.id === window.targetGroupId),
+    threatScheduleProjection, threatPressureProjection, currentTurn) : undefined;
   const preparation = preparationProjection.exists
     ? wolfAttackPreparationState(preparationProjection.data())
     : undefined;
@@ -24960,6 +24964,9 @@ function validateWolfAttackDeclaration(
           repeatContext,
         );
         previous = pStationPrevious;
+      } else if (missionSource) {
+        previous = resolvedWolfAttackForCarryover(rawPrior, rawFinalizationAudit, currentTurn,
+          missionWolfCarryoverContext(missionSource, rawPrior));
       } else if (commanderCarryoverContext) {
         previous = resolvedWolfAttackForCarryover(
           rawPrior,
@@ -24982,7 +24989,7 @@ function validateWolfAttackDeclaration(
       );
     }
     const isPStationRepeat = pStationPrevious !== undefined;
-    if (!isPStationRepeat && previous.attackNumber >= 3 && !commanderCycleAttack) {
+    if (!isPStationRepeat && previous.attackNumber >= 3 && !commanderCycleAttack && !missionSource) {
       throw commandError(
         'failed-precondition',
         'Only one or two additional Wolf attacks may be selected after the first.',
@@ -25005,7 +25012,7 @@ function validateWolfAttackDeclaration(
         );
       }
       pStationRepeatContext = pStationPrevious!.repeatContext;
-    } else if (currentTurn === previous.turn) {
+    } else if (currentTurn === previous.turn && !missionSource) {
       throw commandError(
         'failed-precondition',
         'Only an audited P Station sequence may repeat in the same cycle.',
@@ -25597,6 +25604,11 @@ export const declareWolfAttack = auditedOnCall<{
     }
     if (carryoverRefs && state.exists && inputs.previousAttackId) {
       tx.set(carryoverRefs.archive, state.data()!);
+    }
+    if (inputs.window.threatSiteCode === 'K') {
+      tx.update(db.doc(`sessions/${declaration.sessionId}/wolfAttackPressure/${inputs.window.threatSourceId!}`), {
+        status: 'declared', attackId: announcementId, declaredAt, updatedAt: FieldValue.serverTimestamp(),
+      });
     }
     tx.set(stateRef, { ...stageState, updatedAt: FieldValue.serverTimestamp() });
     tx.set(audienceRef, projectWolfAttackMemberView({
