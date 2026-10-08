@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { minimumRingPlan, runRingWorkflow, selectStationCombatCrew, stationCombatServerContext } from './pc10-fresh-minimum-ring-proof.mjs';
+import { minimumRingPlan, runRingWorkflow, runStationCombatWaves, selectStationCombatCrew, stationCombatServerContext } from './pc10-fresh-minimum-ring-proof.mjs';
 
 function stationLossFixture({ originalGeneration = 4, currentGeneration = 4 } = {}) {
   const actor = { uid: 'pdf', roleId: 'refinery-124-pdf-colonel',
@@ -47,6 +47,25 @@ test('fresh workflow creates actual prerequisites, then original recovery and en
   assert.deepEqual(trace.filter(value => value.name === 'researchCycle').map(value => value.value), [1, 2, 3, 4]);
   assert.deepEqual(trace.filter(value => value.name === 'advance').map(value => value.value), [2, 3, 4]);
   assert.equal(trace.some(value => /discover|checkpoint/i.test(value.name)), false);
+});
+
+test('station wave consumer seam preserves actor, Declare, combat and publication order through liberation', async () => {
+  const trace = [], results = [
+    { attackId: 'attack-1', pStationRepeat: { status: 'repeat' } },
+    { attackId: 'attack-2', pStationRepeat: { status: 'stopped' } },
+  ];
+  const waves = await runStationCombatWaves({ maximumWaves: 12,
+    assertActors: async ({ wave }) => trace.push(`actors:${wave}`),
+    prepareAndDeclare: async ({ wave }) => trace.push(`declare:${wave}`),
+    runWave: async ({ wave }) => { trace.push(`combat:${wave}`); return results[wave - 1]; },
+    persistWaves: async current => trace.push(`persist:${current.length}`),
+  });
+  assert.deepEqual(trace, ['actors:1', 'declare:1', 'combat:1', 'persist:1',
+    'actors:2', 'declare:2', 'combat:2', 'persist:2']);
+  assert.deepEqual(waves, [
+    { wave: 1, attackId: 'attack-1', repeat: { status: 'repeat' } },
+    { wave: 2, attackId: 'attack-2', repeat: { status: 'stopped' } },
+  ]);
 });
 
 test('Station combat diagnostics retain population, alert, mutiny and terminal guards without retaining the whole root', () => {

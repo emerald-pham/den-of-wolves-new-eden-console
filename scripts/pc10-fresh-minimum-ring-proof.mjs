@@ -34,6 +34,19 @@ export async function runRingWorkflow(operations) {
  await operations.arrive();await operations.repairRing();await operations.crossAndRecover();
  await operations.finishPassages();await operations.sabotageAndClose();
 }
+export async function runStationCombatWaves({maximumWaves=12,assertActors,prepareAndDeclare,runWave,persistWaves}) {
+ let liberated=false;const waves=[];
+ for(let wave=1;wave<=maximumWaves&&!liberated;wave++){
+  await assertActors({wave});
+  await prepareAndDeclare({wave});
+  const final=await runWave({wave});
+  waves.push({wave,attackId:final.attackId,repeat:final.pStationRepeat});
+  liberated=final.pStationRepeat.status==='stopped';
+  await persistWaves(waves);
+ }
+ assert.equal(liberated,true,'Real Station combat must end with zero surviving Wolves before activation.');
+ return waves;
+}
 export const stationBoardingReadEndpoint='getWolfBoardingDefenceChoice';
 export async function runStationPaidArrivals(ships,{grant,jump}){for(const ship of ships){await grant(ship);await jump(ship);}}
 export function beginStationCombatWing(original,current){assert.equal(original.cycle,1);assert.equal(current.cycle,2);assertSparseStationWing(current,{...original,cycle:2});return current;}
@@ -1047,14 +1060,11 @@ async function enterRole(surface,label){
    };
    const choose=(current,{deadlineAt})=>chooseStationCombatActor(current,{deadlineAt,chooseWing,pendingWingRecovery:[...recoveredLaunches.values()].some(row=>row.view.attackId===current.attackId&&!row.committed),chooseCrew:async(attack,options)=>dispatchStationCrewChoice(attack,{...options,sessionId:sid,actors:await activeCrew(options.deadlineAt),assertActor:assertCrewActor,readAttack,action})});
    try {
-   let liberated=false;const waves=[];
-   for(let wave=1;wave<=12&&!liberated;wave++){
-    await assertStationActors(); // No next wave or repair after original Wing action authority is lost.
-    for(const ship of stationSurvivingRepairTargets(ships,await recordRoot()))await repair(ship);await liveGm(gm,'GM1','active');await action(gm,'declareWolfAttack',()=>preparation.getByRole('button',{name:'Declare Wolf attack',exact:true}).click());
-    const final=await runSparseStationCombat({deadlineAt:Math.min(Date.now()+480000,workEnd-60000),readAttack,onState:retainCombatState,onDiagnosticError:async(error,attack)=>{recordDiagnosticError('diagnostic-retention',error,attack);},assertActors:async()=>{budget();await liveGm(gm,'GM1','active');assertSparseStationWing(await fullMember(recipient),evidence.stationWingOriginal);},choose,recoverChoice});
-    waves.push({wave,attackId:final.attackId,repeat:final.pStationRepeat});liberated=final.pStationRepeat.status==='stopped';await writeFile(`${directory}/Station-combat-waves.json`,JSON.stringify(waves,null,2)+'\n');
-   }
-   assert.equal(liberated,true,'Real Station combat must end with zero surviving Wolves before activation.');
+   const waves=await runStationCombatWaves({maximumWaves:12,
+    assertActors:async()=>{await assertStationActors();},
+    prepareAndDeclare:async()=>{for(const ship of stationSurvivingRepairTargets(ships,await recordRoot()))await repair(ship);await liveGm(gm,'GM1','active');await action(gm,'declareWolfAttack',()=>preparation.getByRole('button',{name:'Declare Wolf attack',exact:true}).click());},
+    runWave:async()=>runSparseStationCombat({deadlineAt:Math.min(Date.now()+480000,workEnd-60000),readAttack,onState:retainCombatState,onDiagnosticError:async(error,attack)=>{recordDiagnosticError('diagnostic-retention',error,attack);},assertActors:async()=>{budget();await liveGm(gm,'GM1','active');assertSparseStationWing(await fullMember(recipient),evidence.stationWingOriginal);},choose,recoverChoice}),
+    persistWaves:currentWaves=>writeFile(`${directory}/Station-combat-waves.json`,JSON.stringify(currentWaves,null,2)+'\n')});
    const current=await recordRoot();await readStationLiberation(path=>db.doc(`sessions/${sid}/${path}`).get().then(doc=>doc.data()),current,{sessionId:sid,groupId,coordinate,sourceId:waves.at(-1).attackId,cycle:current.currentTurn});evidence.stationCombatWaves=waves;
    claims.push('Actual source-bound Station waves finalized with real server rolls; durable zero-survivor liberation precedes any Reactor contribution');
    } finally {recipient.page.off('response',observeLaunchRead);}
