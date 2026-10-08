@@ -28,7 +28,7 @@ function pureSourceModule(file) {
   const output = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
   const exports = {}; sourceModules.set(path, exports);
   runInNewContext(output, { exports, Date, Map, Set, JSON, Number, Object, Array, Error,
-    require: name => { assert.ok(name.startsWith('.'), `Unexpected native fixture dependency: ${name}`); return pureSourceModule(resolve(dirname(path), `${name}.ts`)); } });
+    require: name => { if(name.startsWith('@/assets/')) { readFileSync(resolve(root,'src',name.slice(2))); return {default:name}; } assert.ok(name.startsWith('.'), `Unexpected native fixture dependency: ${name}`); return pureSourceModule(resolve(dirname(path), `${name}.ts`)); } });
   return exports;
 }
 const sdk = await pureSourceModule('src/lib/sessionSnapshotAuthority.ts');
@@ -235,4 +235,61 @@ test('passive original UI request tracker retains cleanup IDs even when reply di
   assert.deepEqual(captured.map(v=>v.endpoint),['startGame','createSession']);
   assert.equal(captured[0].requestId,'original-1');assert.equal(captured[0].sessionId,sid);
   tracker.finish();assert.equal(page.listenerCount('request'),0);
+});
+
+test('every active runner browser callback binds published modules and normal fields without runtime', async () => {
+  const source=await readFile(resolve(root,'scripts/qualification/pc11-three-actor-trade-philia.mjs'),'utf8');
+  const ast=ts.createSourceFile('runner.mjs',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.JS);
+  const callbacks=[];
+  function visit(node){
+    if(ts.isCallExpression(node)&&ts.isPropertyAccessExpression(node.expression)&&['evaluate','evaluateAll'].includes(node.expression.name.text)&&node.arguments[0]&&(ts.isArrowFunction(node.arguments[0])||ts.isFunctionExpression(node.arguments[0]))){
+      const callback=node.arguments[0],text=callback.getText(ast);
+      // The copied factory's callable controller is never invoked by this UI-only runner.
+      if(!text.includes('httpsCallable'))callbacks.push({text,kind:node.expression.name.text});
+    }ts.forEachChild(node,visit);
+  }visit(ast);assert.equal(callbacks.length,14,'Active browser callback inventory must be updated for changes.');
+  const rolePresets=pureSourceModule('src/data/rolePresets.ts');
+  const state=stateFixture('gm');state.session.shipDamage={dione:{damagedSystemIds:[]}};state.session.shipResources={dione:{materials:3}};
+  state.session.shuttleControl={philia:{holderUid:uid}};state.session.shuttleDockings=[{shuttleId:'philia',shipId:'dione'}];
+  const authority=sdk.sessionSnapshotAuthorityFor(sid,uid);authority.hasServerSessionAuthority=true;
+  const store={getState:()=>state,subscribe:callback=>{callback();return()=>{};}};
+  const heldBalances={ore:0,fuel:0,food:0,water:0,materials:1,securityTeams:0};
+  const modules={'/src/lib/firebase.ts':{auth:()=>({currentUser:{uid}})},'/src/store/useSessionStore.ts':{useSessionStore:store},
+    '/src/lib/sessionSnapshotAuthority.ts':sdk,'/src/data/rolePresets.ts':rolePresets,'/src/lib/firestore.ts':{db:()=>({})},
+    '/node_modules/.vite/deps/firebase_firestore.js':{doc:(_db,path)=>{assert.equal(path,`sessions/${sid}/playerHeldResourceInventories/${uid}`);return path;},getDocFromServer:async()=>({exists:()=>true,data:()=>({balances:heldBalances})})}};
+  const window={};const node={textContent:'actual diagnostic',isConnected:true,querySelectorAll:()=>[],getAttribute:()=>null};
+  const document={querySelector:selector=>selector==='section.same-table-trade'?node:null,querySelectorAll:()=>[]};
+  const context={load:async path=>{assert.ok(Object.hasOwn(modules,path),`Unavailable active browser import ${path}`);return modules[path];},
+    crypto:webcrypto,performance:{timeOrigin:100,now:()=>1},document,window,TextEncoder,
+    requestAnimationFrame:callback=>callback(),fetch:async path=>{assert.equal(path,'/src/lib/firestore.ts');return{text:async()=>`import {getDocFromServer} from '/node_modules/.vite/deps/firebase_firestore.js';`};}};
+  let executed=0;
+  for(const {text,kind}of callbacks){
+    const func=new Function(...Object.keys(context),`return (${text.replace(/\bimport\s*\(/g,'load(')});`)(...Object.values(context));
+    const parameter=text.match(/^(?:async\s*)?(?:\(([^)]*)\)|([A-Za-z]+))\s*=>/)?.slice(1).find(Boolean)?.trim();
+    const argument=kind==='evaluateAll'?[]:parameter==='playerCount'?12:parameter==='moduleUrl'||parameter==='storeUrl'?'/src/store/useSessionStore.ts':
+      {sid,uid,authorityUrl:'/src/lib/sessionSnapshotAuthority.ts',storeUrl:'/src/store/useSessionStore.ts'};
+    const result=await func(argument);executed++;
+    if(text.includes('wrongSessionAuthority'))assert.deepEqual(result,{ownAuthority:true,wrongSessionAuthority:false});
+    if(text.includes('Held inventory absent'))assert.deepEqual(result,heldBalances);
+    if(text.includes('recommendedRoleIds'))assert.equal(result.length,12);
+    if(text.includes('occupiedSeatCount'))assert.equal(result.occupiedSeatCount,1);
+  }assert.equal(executed,14);assert.equal(window.__pc11GmClaimObservation,undefined);
+});
+
+test('hosted Philia and normal reload retain original Dione seat and exact own host map',()=>{
+  const philia=pureSourceModule('src/data/vessels/philia.ts').default;
+  assert.equal(philia.captainRoleId,'dione-engineer');assert.equal(philia.initialDocking.shipId,'dione');
+  for(const epoch of [{documentTimeOrigin:100,connectionGeneration:2,identityHydrationRevision:3},{documentTimeOrigin:200,connectionGeneration:3,identityHydrationRevision:4}]){
+    const observed=member(epoch);
+    assert.equal(adapter.pc11OwnBerthWitness(observed,{...observed},{uid,uidHash:hash(uid),group:fleet.fleetGroupRecord(rawGroup),expectedShipId:philia.initialDocking.shipId}),true);
+    assert.equal(adapter.pc11OwnBerthWitness(observed,member({...epoch,activeConsoleRoleId:'philia-engineer'}),{uid,uidHash:hash(uid),group:fleet.fleetGroupRecord(rawGroup),expectedShipId:'dione'}),false);
+  }
+});
+
+test('partial committed create recovers only exact captured UID/request receipt and refuses foreign scope',async()=>{
+  assert.equal(typeof adapter.recoverPc11CreatedSession,'function');
+  const record={requestId:'create-1',sessionId:sid,fingerprint:{actorUid:uid,requestId:'create-1'}};
+  const db={doc:path=>{assert.equal(path,`sessionCreationRequests/${uid}_create-1`);return{get:async()=>({exists:true,get:key=>record[key]})};}};
+  assert.equal(await adapter.recoverPc11CreatedSession({db,uid,requestId:'create-1'}),sid);
+  record.fingerprint.actorUid='foreign';await assert.rejects(adapter.recoverPc11CreatedSession({db,uid,requestId:'create-1'}));
 });
