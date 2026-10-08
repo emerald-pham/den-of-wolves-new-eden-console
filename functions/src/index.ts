@@ -13625,14 +13625,17 @@ export const resolveArrestCaseDisposition = auditedOnCall<{
       throw commandError('failed-precondition', 'This prisoner case is no longer pending at the expected revision.', 'conflict');
     }
     const phase = turnPhaseState(authority.session.get('turnPhase'));
-    if (!phase || phase.turn !== currentTurn || phase.timerPause !== undefined) {
+    const nowMs = Date.now();
+    if (!phase || phase.turn !== currentTurn || phase.timerPause !== undefined ||
+        phase.progression !== 'manual' && phase.airspace.state === 'lifted' &&
+          !turnPhaseDeadlinePassed(phase, 'team', nowMs)) {
       throw commandError('failed-precondition',
         'A current unpaused phase is required before recording a prisoner disposition.', 'invalid-phase');
     }
-    const teamPhaseOpen = phase.airspace.state === 'restricted' && !turnPhaseDeadlinePassed(phase, 'team');
+    const teamPhaseOpen = phase.airspace.state === 'restricted' && !turnPhaseDeadlinePassed(phase, 'team', nowMs);
     const sameCyclePhaseOpen = phase.airspace.state === 'restricted'
       ? teamPhaseOpen
-      : !turnPhaseDeadlinePassed(phase, 'open');
+      : !turnPhaseDeadlinePassed(phase, 'open', nowMs);
     const sameCycleOpen = currentTurn === caseTurn && sameCyclePhaseOpen;
     const deadlineOpen = currentTurn === deadlineCycle && teamPhaseOpen;
     const deadlineMet = sameCycleOpen || deadlineOpen;

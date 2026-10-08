@@ -293,12 +293,17 @@ export function createFleetGroupActions(getContext: () => FleetGroupContext, tra
                 reply.groupIds.every(id => typeof id === 'string' && /^fleet-[1-9][0-9]*$/.test(id))
             : action === 'recordFleetGroupRejoinAdjudication'
               ? reply.status === 'recorded' && reply.adjudicationId === attempt.payload.requestId &&
-                reply.navigationRevision === context.navigationRevision &&
-                reply.fleetPartitionRevision === (context.fleetPartitionRevision ?? 0)
+                reply.navigationRevision === attempt.payload.expectedNavigationRevision &&
+                reply.fleetPartitionRevision === attempt.payload.expectedFleetPartitionRevision
               : Number.isSafeInteger(reply.navigationRevision) && (reply.navigationRevision as number) >= 0 && Array.isArray(reply.groupIds) &&
                 reply.groupIds.length > 0 && new Set(reply.groupIds).size === reply.groupIds.length &&
                 reply.groupIds.every(id => typeof id === 'string' && /^fleet-[1-9][0-9]*$/.test(id)));
       if (!valid) throw new Error('The group action result is uncertain. Retry the exact action.');
+      if (action === 'recordFleetGroupRejoinAdjudication') {
+        attempts.delete(action);
+        guard(attempt.context, action, reply);
+        return reply;
+      }
       guard(context, action, reply); attempts.delete(action); return reply;
     })();
     flights.set(action, flight);
