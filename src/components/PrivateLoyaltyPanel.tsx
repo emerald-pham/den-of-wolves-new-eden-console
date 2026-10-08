@@ -108,6 +108,7 @@ function wolfSupplyLoadingShuttles(session: GameSession | null, me: Player | nul
 export default function PrivateLoyaltyPanel() {
   const loyalty = useSessionStore((state) => state.privateLoyalty);
   const wolfCultIntelligence = useSessionStore((state) => state.wolfCultIntelligence);
+  const arbourVision = useSessionStore((state) => state.arbourVision);
   const setPrivateLoyalty = useSessionStore((state) => state.setPrivateLoyalty);
   const session = useSessionStore((state) => state.session);
   const sessionId = session?.id;
@@ -153,6 +154,9 @@ export default function PrivateLoyaltyPanel() {
   const currentWolfCultIntelligence = privateReader && wolfCultIntelligence &&
     wolfCultIntelligence.sessionId === sessionId && wolfCultIntelligence.recipientUid === me?.uid
     ? wolfCultIntelligence : null;
+  const currentArbourVision = privateReader && arbourVision &&
+    arbourVision.sessionId === sessionId && arbourVision.recipientUid === me?.uid
+    ? arbourVision : null;
   const privateResultKey = currentWolfResult || currentInvestigation || currentWolfCultIntelligence
     ? [
       identity,
@@ -455,6 +459,17 @@ export default function PrivateLoyaltyPanel() {
         <p className="private-loyalty-panel__suspicion">
           Suspicion // {loyalty.suspicion === null ? 'unassigned' : loyalty.suspicion}
         </p>
+        {((loyalty.directives?.length ?? 0) > 0 || loyalty.kind === 'universal-arbour' || loyalty.kind === 'arbour') && (
+          <section className="role-brief__rules private-loyalty-panel__directives" aria-label="Private loyalty goals">
+            {loyalty.directives?.map((directive, index) => <p key={`${index}:${directive}`}>{directive}</p>)}
+            {(loyalty.kind === 'universal-arbour' || loyalty.kind === 'arbour') && (
+              <>
+                <p>Private vision //</p>
+                <p>{currentArbourVision?.text ?? 'No session-specific facilitator vision is assigned yet.'}</p>
+              </>
+            )}
+          </section>
+        )}
         {partnerLabel(loyalty) && (
           <p className="private-loyalty-panel__partner">
             {loyalty.kind === 'friend' ? 'Friend trust // partner role' : 'Partner assignment'} // {partnerLabel(loyalty)}

@@ -1884,6 +1884,8 @@ export interface RoleOwnedCraftRecord {
 export interface PrivateLoyalty {
   readonly kind: string;
   readonly suspicion: number | null;
+  /** Server-authored goals and private overrides from this holder's secret payload. */
+  readonly directives?: readonly string[];
   readonly partnerUid?: PlayerId;
   /** Server-authored role named by a reciprocal Friend card. */
   readonly partnerRoleId?: RoleId;

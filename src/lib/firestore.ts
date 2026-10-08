@@ -315,9 +315,14 @@ function privateLoyalty(value: unknown, ownerUid?: string): PrivateLoyalty | nul
     ? undefined
     : parseEntityId('role', payload.partnerRoleId);
   const proofMarker = payload.proofRevealed;
+  const directives = payload.directives === undefined ? undefined : payload.directives;
+  if (directives !== undefined && (!Array.isArray(directives) || directives.length > 8 ||
+      directives.some((entry) => typeof entry !== 'string' || entry.trim().length === 0 || entry.length > 1_000))) {
+    return null;
+  }
   if (payload.kind === 'android' && (
     payload.type !== 'loyalty' || payload.suspicion !== null ||
-    Object.keys(payload).some((key) => !['type', 'kind', 'suspicion', 'proofRevealed'].includes(key))
+    Object.keys(payload).some((key) => !['type', 'kind', 'suspicion', 'proofRevealed', 'directives'].includes(key))
   )) return null;
   if (payload.type !== 'loyalty' || typeof payload.kind !== 'string' ||
       (typeof payload.suspicion !== 'number' && payload.suspicion !== null) ||
@@ -337,6 +342,7 @@ function privateLoyalty(value: unknown, ownerUid?: string): PrivateLoyalty | nul
   return {
     kind: payload.kind,
     suspicion: payload.suspicion,
+    ...(directives ? { directives: [...directives] } : {}),
     ...(partnerUid ? { partnerUid } : {}),
     ...(payload.kind === 'friend' && partnerRoleId ? { partnerRoleId } : {}),
     ...(payload.kind === 'android' && proofMarker === true ? { proofRevealed: true } : {}),
