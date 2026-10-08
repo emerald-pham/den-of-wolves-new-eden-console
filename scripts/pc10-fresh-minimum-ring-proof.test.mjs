@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { assertStationPopulationAcknowledgmentTransition, assertStationPopulationGmActorAuthority, assertStationPopulationGmActorObserver, minimumRingPlan, runRingWorkflow, runStationCombatWaves, selectStationCombatCrew, stationCombatServerContext, stationDialogAccessibleName, stationPopulationAckMutinyRows, stationPopulationAlertsForGm, stationPopulationAssertFreshProjection, stationPopulationDialogMatches, stationPopulationDismissIntent, stationPopulationDismissLocator, stationPopulationGmActorAnchor, stationPopulationGmAuthorityPreflight, stationPopulationGmRetainedObserver, stationPopulationPostDismissProjection, stationPopulationSelectVisibleAlert, stationPopulationUiRows } from './pc10-fresh-minimum-ring-proof.mjs';
 import { heldProofFailureObservations, rememberProofFailure } from './pc10-proof-failure-evidence.mjs';
-import { stationDeclarationRetryProjection } from './pc10-station-combat-adapter.mjs';
+import { assertStationDeclarationRetryContext, stationDeclarationRetryProjection } from './pc10-station-combat-adapter.mjs';
 
 const stationPopulationGmAttemptEvidence = JSON.parse(readFileSync(
   new URL('./fixtures/pc10-population-gm-observer-attempt-evidence.json', import.meta.url), 'utf8'));
@@ -35,6 +35,25 @@ function stationPopulationGmPreflight(input, { readActor, readServerAuthority, o
     expectedUid: input.expectedUid,
     onActorObservation,
   });
+}
+
+function stationPDeclarationSourceContext({wave=1,repeat=false,actorPatch={}}={}) {
+  const actor={sessionId:'synthetic-station',uidHash:'synthetic-gm-hash',generation:1,hydrationRevision:1,
+    instanceId:'synthetic-gm-instance',claimedAt:'synthetic-claim',hasAuth:true,sameActor:true,
+    privateAudienceMatches:true,foreignPendingCount:0,playerRole:'gm',profileRoleId:null,profileSessionId:null,
+    gmInstanceOwned:true,connection:'live',freshness:'server',phase:'active',cycle:2,...actorPatch};
+  return {wave,actor,
+    session:{phase:'active',currentTurn:2,turnLimit:8,fullGameDemo:{status:'active',progression:'manual'},
+      turnPhase:{turn:2,teamPhaseEndsAt:'source-team-end',openAirspaceEndsAt:'source-open-end',
+        airspace:{state:'lifted',tickerActive:true,pressAccess:false},timerPause:null,progression:'manual'},
+      turnState:{currentTurn:2,maxTurn:8,phase:'coordination',phaseRevision:20,startedAt:'source-start',endsAt:'source-end'},
+      gameOutcome:null,survivorOutcome:null,debriefMode:{active:false,revision:0},hasDebriefSnapshot:false},
+    window:{status:'due',turn:2,revision:1,targetGroupId:'fleet-1',threatSiteCode:'P',threatSourceId:'arrival-p-source'},
+    preparation:{turn:2,shipIds:['wolf-strikecarrier','wolf-battlestation'],targetMode:'pre-rolled',
+      targetAssignments:[],modifiers:[],notes:'',revision:1,compositionKind:repeat?'p-station-repeat':'P',targetGroupId:'fleet-1'},
+    attack:repeat?{type:'wolf-attack-state',attackId:'previous-resolved-attack',turn:2,attackNumber:9,revision:10,
+      preparationRevision:0,status:'resolved',currentStep:'resolved',airspaceLocked:false,targetGroupId:'fleet-1',
+      threatSiteCode:'P',threatSourceId:'arrival-p-source',pStationRepeat:{status:'repeat'}}:null};
 }
 
 function stationLossFixture({ originalGeneration = 4, currentGeneration = 4 } = {}) {
@@ -104,19 +123,7 @@ test('station wave consumer seam preserves actor, Declare, combat and publicatio
 });
 
 test('first Station declaration consumer accepts the actual P preparation before any repeat attack exists',async()=>{
- const actor={sessionId:'synthetic-station',uidHash:'synthetic-gm-hash',generation:1,hydrationRevision:1,
-  instanceId:'synthetic-gm-instance',claimedAt:'synthetic-claim',hasAuth:true,sameActor:true,
-  privateAudienceMatches:true,foreignPendingCount:0,playerRole:'gm',profileRoleId:null,profileSessionId:null,
-  gmInstanceOwned:true,connection:'live',freshness:'server',phase:'active',cycle:2};
- const context={wave:1,actor,
-  session:{phase:'active',currentTurn:2,turnLimit:8,fullGameDemo:{status:'active',progression:'manual'},
-   turnPhase:{turn:2,teamPhaseEndsAt:'source-team-end',openAirspaceEndsAt:'source-open-end',
-    airspace:{state:'lifted',tickerActive:true,pressAccess:false},timerPause:null,progression:'manual'},
-   turnState:{currentTurn:2,maxTurn:8,phase:'coordination',phaseRevision:20,startedAt:'source-start',endsAt:'source-end'},
-   gameOutcome:null,survivorOutcome:null,debriefMode:{active:false,revision:0},hasDebriefSnapshot:false},
-  window:{status:'due',turn:2,revision:1,targetGroupId:'fleet-1',threatSiteCode:'P',threatSourceId:'arrival-p-source'},
-  preparation:{turn:2,shipIds:['wolf-strikecarrier','wolf-battlestation'],targetMode:'pre-rolled',
-   targetAssignments:[],modifiers:[],notes:'',revision:1,compositionKind:'P',targetGroupId:'fleet-1'},attack:null};
+ const context=stationPDeclarationSourceContext();
  const trace=[];let waves;
  waves=await runStationCombatWaves({maximumWaves:1,assertActors:async()=>trace.push('actors'),
   prepareAndDeclare:async()=>{trace.push('preflight');stationDeclarationRetryProjection(context);trace.push('declared');},
@@ -124,6 +131,55 @@ test('first Station declaration consumer accepts the actual P preparation before
   persistWaves:async()=>trace.push('persist')});
  assert.deepEqual(trace,['actors','preflight','declared','combat','persist']);
  assert.equal(waves[0].attackId,'first-p-attack');
+});
+
+test('Station declaration source read rejects private audience drift in its final phase actor bookend',async()=>{
+ const context=stationPDeclarationSourceContext({wave:10,repeat:true});
+ const safeActor={live:{hasAuth:true,sameActor:true,sessionId:context.actor.sessionId,uidHash:context.actor.uidHash,
+   connectionGeneration:context.actor.generation,hydrationRevision:context.actor.hydrationRevision,
+   instanceId:context.actor.instanceId,profileRoleId:null,profileSessionId:null,playerRole:'gm',
+   gmInstanceOwned:true,connection:'live',freshness:'server'},lifecycle:{...context.actor}};
+ const driftedActor={live:{...safeActor.live},lifecycle:{...safeActor.lifecycle,privateAudienceMatches:false}};
+ let phaseReads=0;const gm1OriginalAuthority={sessionId:context.actor.sessionId,uidHash:context.actor.uidHash,
+  generation:context.actor.generation,hydrationRevision:context.actor.hydrationRevision,
+  instanceId:context.actor.instanceId,claimedAt:context.actor.claimedAt};
+ const source=readFileSync(new URL('./pc10-fresh-minimum-ring-proof.mjs',import.meta.url),'utf8');
+ const start=source.indexOf('async function readStationDeclarationContext(wave,deadlineAt)');
+ const end=source.indexOf('   const recordDiagnosticError=',start);
+ assert.ok(start>=0&&end>start,'The production declaration context reader must remain source-extractable for this regression.');
+ const body=source.slice(start,end);
+ const readTurnState=async()=>({session:structuredClone(context.session),gmAuthority:structuredClone(gm1OriginalAuthority),
+   gmActor:phaseReads++===0?structuredClone(safeActor):structuredClone(driftedActor)});
+ const readStationGmActor=async()=>structuredClone(safeActor);
+ const gm={page:{evaluate:async()=>({preparation:context.preparation,window:context.window,attack:context.attack})},
+  storeModuleUrl:()=>'/store',sessionAuthorityModuleUrl:()=>'/authority'};
+ const evidence={};
+ const read=new Function('assert','evidence','gm','gm1OriginalAuthority','sid','readTurnState','readStationGmActor',
+  'assertStationPopulationGmActorObserver','stationOperationWait','stationDeclarationRetryProjection',
+  'assertStationDeclarationRetryContext','stable',body+';return readStationDeclarationContext;')(
+   assert,evidence,gm,gm1OriginalAuthority,context.actor.sessionId,readTurnState,readStationGmActor,()=>{},async run=>run(),
+   stationDeclarationRetryProjection,assertStationDeclarationRetryContext,value=>JSON.stringify(value));
+ await assert.rejects(read(10,Date.now()+1000),/audience|changed|private/i);
+});
+
+test('Station Declare choose callback rechecks the exact actor after its last awaited DOM check',async()=>{
+ const context=stationPDeclarationSourceContext({wave:10,repeat:true});let generation=1,audienceMatches=true,clicks=0;
+ const handle={evaluate:async()=>({connected:true,tagName:'BUTTON',type:'button',text:'Declare Wolf attack',disabled:false,ariaDisabled:null}),
+  isVisible:async()=>true,isEnabled:async()=>{generation=2;audienceMatches=false;return true;},click:async()=>{clicks++;}};
+ const control={waitFor:async()=>{},count:async()=>1,isEnabled:async()=>true,elementHandle:async()=>handle};
+ const preparation={getByRole:()=>control};
+ const readStationDeclarationContext=async()=>({context:{...context,actor:{...context.actor,generation,
+  privateAudienceMatches:audienceMatches}}});
+ const source=readFileSync(new URL('./pc10-fresh-minimum-ring-proof.mjs',import.meta.url),'utf8');
+ const start=source.indexOf('async function chooseStationDeclarationControl(attempt)');
+ const end=source.indexOf('   async function assertCurrentStationDeclarationActor',start);
+ assert.ok(start>=0&&end>start,'The production Declare callback must remain source-extractable for this regression.');
+ const body=source.slice(start,end);
+ const choose=new Function('assert','preparation','readStationDeclarationContext','assertStationDeclarationRetryContext',
+  body+';return chooseStationDeclarationControl;')(assert,preparation,readStationDeclarationContext,assertStationDeclarationRetryContext);
+ let failure;try{await choose({wave:10,deadlineAt:Date.now()+1000,context});}catch(error){failure=error;}
+ assert.deepEqual({rejected:Boolean(failure),clicks},{rejected:true,clicks:0},
+  'Actor generation or private-audience drift at the final awaited DOM check must stop before any click.');
 });
 
 test('station wave consumer resumes only after one bounded recovery of the exact observed declaration rate limit', async () => {
