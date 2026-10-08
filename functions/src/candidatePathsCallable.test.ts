@@ -118,7 +118,7 @@ beforeEach(() => {
 
 describe('ordinary candidate callable authority and durable replay', () => {
   it('offers the canonical four-cross Home research choice through the ordinary workspace read', async () => {
-    const coordinate = seedScientistRing({ reactor: 2 });
+    seedScientistRing({ reactor: 2 });
     const below = await handlers.read(request({ sessionId: 's1', expectedGroupId: 'fleet-1' }, 'captain'));
     expect(below.paths.find(path => path.code === 'N')?.researchChoices).not.toContainEqual(
       expect.objectContaining({ id: 'reactor' }));
