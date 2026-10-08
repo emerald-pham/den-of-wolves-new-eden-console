@@ -163,3 +163,44 @@ edge coverage and zero horizontal overflow. Exclusions are authenticated full-ap
 runtime, selected live profile, other routes/dialogs/recovery, full animation
 sequence, nonzero safe areas and real iOS devices. Preserve this scoped evidence;
 it does not substitute for final review of a materially changed reconciled release.
+
+## Late owner corrections and change-by-change RED audit
+
+The October8 owner correction requires meaningful observedRED before every
+functional implementation; risk governs scope/breadth/depth, never timing.
+CLAUDE and execution guidance now state that explicitly, with routine responsive
+acceptance and actual painted-font/hierarchy review. Current hotfix functionality:
+
+- GM visibility: fc253cd3 tests observed five runtime assertion failures before
+  bec5779d implementation, followed by21 passing focused tests.
+- Interactive full-bleed layout: 7e147b4c consumer guard observed x16,width358
+  at viewport390 before bbda43da CSS implementation, followed by six passing
+  actual production-built consumer renders. The emitted guard catches the
+  original gutter defect; it is not a final-state helper-only assertion.
+- CI functional wiring: fef3b2ee contract observed the missing-step assertion
+  before94d8ba9c added the workflow step; all14 contracts then passed.
+- Version/changelog and pure guidance: consistency/build/header checks, with no
+  implementation of a new product behavior. Package metadata remains synchronized.
+
+The later screenshot-state/motion fixture refinement dc522a1f does not have a
+separate contemporaneous automatedRED log. Visual review detected an entrance
+opacity issue first; the fixture was repaired and then six steady rendered
+checks including all-ancestor-opacity1 passed. This is a disclosed tooling
+chronology gap, not claimed as test-first. Later base comparisons are explicitly
+retrospective and do not establish earlier execution. Current product changes
+have real contemporaneousRED evidence and validatedGREEN; the global iPhone
+font issue is outside this release and remains unvalidated/open.
+
+Freshly implemented checks cover real actor/descriptor transitions, long06/07
+primary copy, phone390,short landscape844 and desktop1440 geometry, overflow,
+computed/painted typography, steady opacity, final emitted CSS and independent
+scoped review. Existing broader typography gate retains320px sampling elsewhere.
+New enlarged-text/long-value/relevant loading/error/empty and keyboard/focus
+checklist language is guidance, not a claim these cases were freshly run across
+all three apps. Risk must map each future changed UI contract to concrete checks.
+
+The late explicit owner guidance correction is the reason for the additional
+candidate commit and resulting required CI refresh. Runtime/product source and
+built artifact are unchanged; scoped rendered and independent source evidence
+are reused, with exact final-candidate CI/deployment still required. No manual
+duplicate workflow is authorized merely to refresh this prose change.

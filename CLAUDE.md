@@ -155,12 +155,18 @@ need focused rules and callable tests: assert Firestore denies privileged
 client writes, callable authorization rejects the wrong actor, and the server
 transaction owns the mutation. New routes need a route-level test that activates
 the visible return control. Components should use accessible roles and text;
-pure logic belongs in focused unit tests. For new behavior, commit a failing
-test before code, in separate commits. Never weaken, skip, or delete an
+pure logic belongs in focused unit tests. For every functional change, including
+repairs and interactive layout, visibility, defaults, parsers and provider behavior,
+run and observe a meaningful failing test before implementation; commit the test
+before code, in separate commits. Risk determines test selection, execution
+breadth and regression depth, never permission to implement low-risk functionality
+first. Later base-versus-fixed validation does not establish test-first chronology. Never weaken, skip, or delete an
 existing test to pass; leave a suspect test intact and flag it. Never modify
 an existing test in the code commit it covers. Record reasons for every test
 added, changed, skipped, or deleted in the nontechnical checkpoint report.
-Low-impact changes without new behavior need a focused or rendered check.
+Pure prose/documentation without functional changes needs consistency review.
+Interactive presentation changes require a meaningful failing rendered/consumer
+check first, then the smallest implementation and a passing check.
 Future gameplay proof uses normal authenticated local/emulator native, HTTP/UI and rules paths; prepared scenes alone do not establish behavior. Keep local tests, gameplay, rendered QA, CI, production deployment and actual production behavior distinct. Independent risk review, CI and deployment remain required; production-GM gameplay is not a closure prerequisite.
 
 Typical checks are:
@@ -424,3 +430,5 @@ findings, evidence and what was not checked. An inaccessible runtime is an
 unresolved review gap, not a pass inferred from unit, inference or source tests.
 Fix actionable typography findings and obtain the affected independent review
 before publication.
+
+Apply the [routine responsive UI acceptance checklist](docs/AGENT_EXECUTION_POLICY.md#routine-responsive-ui-acceptance) to every UI change, including enlarged text and relevant content/state risks.
