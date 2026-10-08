@@ -162,10 +162,10 @@ function makeConsumer() {
       return { actor: structuredClone(state.actor), flight: structuredClone(state.session) };
     },
   };
-  return { io, trace, state, commandCount };
+  return { io, trace, state, commandCount, receipt: result };
 }
 
-test('a normally admitted current Wing Commander performs one original Starlight departure, Begin, retarget, arrival and private scout flow', async () => {
+test('controlled shared-receipt IO consumes one original Starlight movement and private scout flow', async () => {
   const { io, trace } = makeConsumer();
   const result = await runProof?.({
     initial: { sessionId: 'normal-session', phase: 'lobby', cycle: 0, setupConfirmed: true,
@@ -201,7 +201,7 @@ test('a normally admitted current Wing Commander performs one original Starlight
     'Recovery uses the original role chooser and actor after a normal reload.');
 });
 
-if (runProof) test('a lost live berth or non-lifted phase stops before the first source mutation', async () => {
+if (runProof) test('controlled actor observer stops on lost live berth before a source mutation', async () => {
   const { io, trace, state } = makeConsumer();
   state.actor.activeConsoleRoleId = null;
   await assert.rejects(runProof?.({
@@ -221,3 +221,46 @@ if (runProof) test('a lost live berth or non-lifted phase stops before the first
   assert.equal(trace.some(item => item.endpoint), false, 'A missing current console/station must not trigger a request.');
 });
 else test('lost-live-berth negative guard is exercised after the consumer runner is implemented', t => t.skip('Main behavioral RED records the missing transition before implementation.'));
+
+test('fresh Cycle 0 consumer runs normal setup, assignment, start and briefing clear before movement', async () => {
+  const { io, trace, receipt } = makeConsumer();
+  const freshInitial = { sessionId: 'normal-session', phase: 'lobby', cycle: 0,
+    setupConfirmed: false, playerCount: null, chartId: null, activeRoleIds: [], fullGameDemo: null };
+  io.prepareNormalSession = async ({ initial }) => {
+    assert.equal(initial.phase, 'lobby');
+    assert.equal(initial.cycle, 0);
+    const setupReceipt = await receipt('confirmSetup',
+      { sessionId: initial.sessionId, playerCount: 8, chartId: 'A' }, { status: 'committed', setupRevision: 1 });
+    const assignmentReceipt = await receipt('assignRole',
+      { sessionId: initial.sessionId, roleId: 'wing-commander' }, { status: 'assigned', roleId: 'wing-commander' });
+    const startReceipt = await receipt('startGame',
+      { sessionId: initial.sessionId, requestId: 'start-original', instanceId: 'gm-original-instance' },
+      { status: 'committed', phase: 'active', cycle: 1, instanceId: 'gm-original-instance' });
+    const briefingReceipt = await receipt('clearTurnAdvanceInterstitial',
+      { sessionId: initial.sessionId, requestId: 'clear-original' }, { status: 'cleared', cycle: 1 });
+    return {
+      initial: { ...initial, setupConfirmed: true, playerCount: 8, chartId: 'A', activeRoleIds: originalRoleIds },
+      started: { sessionId: initial.sessionId, phase: 'active', cycle: 1, uidHash: 'b'.repeat(16),
+        instanceId: 'gm-original-instance', fullGameDemo: null },
+      roster: [{ roleId: 'wing-commander', uidHash: original.uidHash, sessionId: initial.sessionId }],
+      gm: { uidHash: 'b'.repeat(16), sessionId: initial.sessionId, meSessionId: initial.sessionId,
+        instanceId: 'gm-original-instance', hasAuth: true, sameActor: true, playerRole: 'gm',
+        profileRoleId: null, profileSessionId: null, fullGameDemo: null, connectionGeneration: 2,
+        identityHydrationRevision: 3, connection: 'live', freshness: 'server', connected: true,
+        kicked: false, recoveryPending: false, invalidFields: [], currentOwnPlayerConfirmed: true,
+        sdkHasServerAuthority: true, gmInstanceOwned: true },
+      expectedWingCommander: original,
+      setupReceipt, assignmentReceipt, startReceipt, briefingReceipt,
+    };
+  };
+
+  let failure;
+  try {
+    await runProof?.({ initial: freshInitial, started: undefined, roster: undefined, gm: undefined,
+      expectedWingCommander: undefined, io, absoluteDeadlineMs: Date.now() + 15 * 60_000 });
+  } catch (error) { failure = error; }
+  assert.deepEqual(trace.filter(item => ['confirmSetup', 'assignRole', 'startGame', 'clearTurnAdvanceInterstitial']
+    .includes(item.endpoint)).map(item => item.endpoint),
+  ['confirmSetup', 'assignRole', 'startGame', 'clearTurnAdvanceInterstitial'],
+  `The executable normal-start transition must run from fresh Cycle 0 before readiness is required; early stop: ${failure?.message ?? 'none'}`);
+});
