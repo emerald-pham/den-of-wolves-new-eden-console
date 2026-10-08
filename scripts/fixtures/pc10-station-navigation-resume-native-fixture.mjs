@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createContext, Script, SyntheticModule } from 'node:vm';
 import { createTwoBrowserGameplay } from '../pc10-two-browser-gameplay.mjs';
+import { observeFullGameDemoPresentationMember } from '../pc10-full-game-demo-proof-helpers.mjs';
 import { projectionFixture } from './pc10-member-projection-native-fixture.mjs';
 
 // Native-only public selection, actual normal client resume/fence functions,
@@ -101,6 +102,7 @@ export async function stationNavigationResumeFixture(options = {}) {
     if (options.bareDecoyAccepted) bareAuthorityFns.sessionSnapshotAuthorityFor(sid, uid).hasServerSessionAuthority = true;
   }
   const authorityImports = [];
+  const presentationAcceptanceReads = [];
   f.crew.sessionAuthorityModuleUrl = () => Object.hasOwn(options, 'capturedAuthorityModuleUrl')
     ? options.capturedAuthorityModuleUrl : mountedAuthorityUrl;
   const leaseContext = createContext({ HttpsError: class extends Error {} });
@@ -172,13 +174,7 @@ export async function stationNavigationResumeFixture(options = {}) {
   const clientReleaseRole = async () => { await new Script(`releaseRole(${JSON.stringify(uid)})`).runInContext(gmContext); await f.receiveMemberProjection(); };
   const clientJoin = async () => { f.store.setState({ session: null, me: null, identityHydrationRevision: 0 }); await joinSession('NATIVE'); await f.receiveMemberProjection(); };
   const originalEvaluate = f.crew.page.evaluate;
-  f.crew.page.evaluate = async (callback, input) => {
-    if (typeof input === 'string') {
-      const value = await originalEvaluate(callback, input);
-      if (deferredResume && value.connectionGeneration === start.me.connectionGeneration + 1 &&
-          value.identityHydrationRevision === start.identityHydrationRevision) earlyObservation.release(value);
-      return value;
-    }
+  const evaluateMemberCallback = async (callback, input) => {
     if (options.acceptanceObservationPending) return new Promise(() => {});
     const crypto = { subtle: { digest: async (algorithm, bytes) => {
       const digest = await webcrypto.subtle.digest(algorithm, bytes);
@@ -209,6 +205,23 @@ export async function stationNavigationResumeFixture(options = {}) {
       if (name.includes('sessionSnapshotAuthority.ts')) authorityImports.push(name);
       return modules.get(name);
     } }).runInContext(browser));
+  };
+  f.crew.page.evaluate = async (callback, input) => {
+    if (typeof input === 'string') {
+      const value = await originalEvaluate(callback, input);
+      if (deferredResume && value.connectionGeneration === start.me.connectionGeneration + 1 &&
+          value.identityHydrationRevision === start.identityHydrationRevision) earlyObservation.release(value);
+      return value;
+    }
+    const value = await evaluateMemberCallback(callback, input);
+    if (options.nativePresentationAcceptance && Object.hasOwn(value, 'clientAcceptance')) {
+      // Execute the exact reader used by the retained recharge proof, including
+      // its mounted authority module and post-digest identity observation.
+      const current = await observeFullGameDemoPresentationMember({ ...f.crew,
+        page: { ...f.crew.page, evaluate: evaluateMemberCallback } }, { knownRoleIds: [roleId] });
+      presentationAcceptanceReads.push(current); return current;
+    }
+    return value;
   };
   f.crew.page.on = (...args) => { events.on(...args); return f.crew.page; };
   f.crew.page.off = (...args) => { events.off(...args); return f.crew.page; };
@@ -265,7 +278,7 @@ export async function stationNavigationResumeFixture(options = {}) {
     requestObserved: () => requestObserved.promise, earlyGenerationObserved: () => earlyObservation.promise,
     releaseResumeResponse: responseGate.release, releaseResumeApplication: applicationGate.release,
     finishPendingResume: () => backgroundResume,
-    authorityImports, mountedAuthorityUrl, authorityBinding: () => {
+    authorityImports, presentationAcceptanceReads, mountedAuthorityUrl, authorityBinding: () => {
       const bare = bareAuthorityFns.sessionSnapshotAuthorityFor(sid, uid);
       return { sameObject: bare === authority, mountedHasServerAuthority: authority.hasServerSessionAuthority,
         bareHasServerAuthority: bare.hasServerSessionAuthority,

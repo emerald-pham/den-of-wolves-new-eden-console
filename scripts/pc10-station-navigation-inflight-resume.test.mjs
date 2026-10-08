@@ -93,3 +93,32 @@ for (const [name, options] of [
     const saved = await packet(f); assert.equal(saved.transitions.length, 0); assert.equal(saved.status, 'failed');
   } finally { await cleanup(f, run); }
 });
+
+test('station acceptance consumes the exact recharge presentation reader mounted SDK flags', async () => {
+  const f = await stationNavigationResumeFixture({ roleId: 'shepherd-captain', initialSeatNull: true,
+    sourceResumeReply: true, nativePresentationAcceptance: true });
+  try {
+    assert.equal(await f.run(), f.crew);
+    assert.ok(f.presentationAcceptanceReads.length > 0);
+    const actual = f.presentationAcceptanceReads[0];
+    assert.equal(Object.hasOwn(actual, 'clientAcceptance'), false, 'Use the actual native reader schema.');
+    assert.equal(actual.sdkHasServerAuthority, true); assert.equal(actual.sdkResumePending, false);
+    assert.equal(f.application.length, 1); assert.deepEqual(f.sdkRequests, ['resumeSession']);
+    const saved = await packet(f);
+    assert.equal(saved.transitions.length, 1);
+    assert.deepEqual(saved.transitions[0].clientAcceptance, { hasServerAuthority: true, resumePending: false });
+    assert.equal(f.events.eventNames().length, 0); assert.equal(f.counters.sdkCalls, 0);
+  } finally { await f.cleanup(); }
+});
+
+test('the recharge presentation reader pending SDK fence cannot grant station acceptance', async () => {
+  const f = await stationNavigationResumeFixture({ roleId: 'shepherd-captain', initialSeatNull: true,
+    sourceResumeReply: true, nativePresentationAcceptance: true, pendingNewerResume: true, shortDeadline: true });
+  try {
+    await assert.rejects(f.run(), /original role navigation deadline expired/i);
+    assert.ok(f.presentationAcceptanceReads.length > 0);
+    assert.equal(f.presentationAcceptanceReads[0].sdkResumePending, true);
+    const saved = await packet(f); assert.equal(saved.transitions.length, 0);
+    assert.equal(f.events.eventNames().length, 0); assert.equal(f.counters.sdkCalls, 0);
+  } finally { await f.cleanup(); }
+});

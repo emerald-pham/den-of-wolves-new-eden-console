@@ -965,3 +965,13 @@ not credited as product RED. Meaningful failure log:
 `/tmp/dow-pc10-evidence/OWNER_CAPTAIN_INFLIGHT_RESUME_MEANINGFUL_RED_20261008.log`.
 This is source diagnosis only; remaining recharge recovery, native entry,
 whole-game, capacity and release acceptance are still held.
+
+A further source-only check found that the retained recharge proof's actual
+presentation reader returns `sdkHasServerAuthority` and `sdkResumePending`,
+while this observer expects a `clientAcceptance` object. Two additional tests
+execute that exact mounted reader: a completed normal source resume must
+accept its genuine SDK flags, and a pending newer resume must remain denied.
+The completed case reaches the original deadline on unchanged observer code;
+the negative remains GREEN. Combined10tests record4RED/6GREEN before repair.
+This is a proof schema mismatch with observed source regression, not an
+additional native failure or evidence that the product eventually resumed.
