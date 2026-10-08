@@ -15,12 +15,19 @@ try {
   runProof = undefined;
 }
 
+const originalRoleIds = Object.freeze([
+  'admiral', 'wing-commander', 'icebreaker-miner', 'shepherd-scientist',
+  'quellon-explorer', 'refinery-124-pdf-colonel',
+  'joint-engineering-quellon-refinery', 'joint-engineering-shepherd-icebreaker',
+]);
+
 const original = Object.freeze({
   sessionId: 'normal-session', uid: 'wing-uid', uidHash: 'a'.repeat(16),
   hasAuth: true, sameActor: true, playerRole: 'player', profileRoleId: null,
   assignedRoleId: 'wing-commander', activeConsoleRoleId: 'wing-commander',
   seatId: 'wing-commander', replacementRoleId: null, replacementStatus: null,
-  generation: 2, hydrationRevision: 3, connection: 'live', freshness: 'server',
+  roleId: 'wing-commander', generation: 2, connectionGeneration: 2,
+  hydrationRevision: 3, identityHydrationRevision: 3, connection: 'live', freshness: 'server',
   phase: 'active', cycle: 1, airspace: 'lifted', turnStatePhase: 'coordination',
   fullGameDemo: null, currentOwnPlayerConfirmed: true, sdkHasServerAuthority: true,
   groupId: 'fleet-1', shipId: 'aegis',
@@ -35,7 +42,7 @@ function makeConsumer() {
         'quellon-explorer', 'refinery-124-pdf-colonel', 'joint-engineering-quellon-refinery',
         'joint-engineering-shepherd-icebreaker'],
       activeVesselIds: ['aegis', 'icebreaker', 'shepherd', 'quellon', 'refinery-124'],
-      control: { holderUid: 'wing-uid', ownerUid: 'wing-uid', revision: 4 },
+      control: { shuttleId: 'starlight', holderUid: 'wing-uid', ownerUid: 'wing-uid', revision: 4 },
       docking: { shuttleId: 'starlight', shipId: 'aegis' },
       departure: null, transit: null,
       scoutOffer: { entitled: true, firstRequestAvailable: true, fuelledSecondRequestAvailable: true,
@@ -85,7 +92,7 @@ function makeConsumer() {
         expectedCycle: before.cycle };
       state.session.transit = { transitRequestId: 'transit-1', status: 'in-transit',
         originShipId: 'aegis', destinationShipId: departure.destinationShipId,
-        arrivedAt: new Date(Date.now() + 60_000).toISOString(), cycle: before.cycle };
+        departedAt: new Date().toISOString(), arrivesAt: new Date(Date.now() + 60_000).toISOString(), cycle: before.cycle };
       state.session.departure = null;
       return result('beginShuttleTransit', request, { ...state.session.transit, requestId: request.requestId });
     },
@@ -95,10 +102,16 @@ function makeConsumer() {
         transitRequestId: transit.transitRequestId, destinationShipId: destination,
         expectedControlRevision: before.control.revision, expectedCycle: before.cycle };
       state.session.transit = { ...state.session.transit, destinationShipId: destination,
-        retargetRequestId: request.requestId, arrivedAt: new Date(Date.now() + 60_000).toISOString() };
+        retargetRequestId: request.requestId, departedAt: new Date().toISOString(),
+        arrivesAt: new Date(Date.now() + 60_000).toISOString() };
       return result('retargetShuttleTransit', request, { ...state.session.transit, requestId: request.requestId });
     },
-    async waitForArrivalWindow() { return structuredClone(state.session); },
+    async waitForArrivalWindow(transit, timeout) {
+      assert.equal(timeout, 60_000);
+      assert.equal(Date.parse(transit.arrivesAt) - Date.parse(transit.departedAt), 60_000,
+        'Controlled source timer models the native Starlight 60-second duration without sleeping or making actors.');
+      return structuredClone(state.session);
+    },
     async completeArrival(transit, before) {
       const request = { sessionId: 'normal-session', shuttleId: 'starlight',
         transitRequestId: transit.transitRequestId, expectedControlRevision: before.control.revision };
@@ -143,12 +156,16 @@ test('a normally admitted current Wing Commander performs one original Starlight
   const { io, trace } = makeConsumer();
   const result = await runProof?.({
     initial: { sessionId: 'normal-session', phase: 'lobby', cycle: 0, setupConfirmed: true,
-      playerCount: 8, chartId: 'A', fullGameDemo: null },
+      playerCount: 8, chartId: 'A', fullGameDemo: null, activeRoleIds: originalRoleIds },
     started: { sessionId: 'normal-session', phase: 'active', cycle: 1, uidHash: 'b'.repeat(16),
       instanceId: 'gm-original-instance', fullGameDemo: null },
-    roster: [{ roleId: 'wing-commander', uidHash: original.uidHash }],
-    gm: { uidHash: 'b'.repeat(16), sessionId: 'normal-session', instanceId: 'gm-original-instance',
-      hasAuth: true, sameActor: true, playerRole: 'gm', gmInstanceOwned: true, connection: 'live', freshness: 'server' },
+    roster: [{ roleId: 'wing-commander', uidHash: original.uidHash, sessionId: 'normal-session' }],
+    gm: { uidHash: 'b'.repeat(16), sessionId: 'normal-session', meSessionId: 'normal-session',
+      instanceId: 'gm-original-instance', hasAuth: true, sameActor: true, playerRole: 'gm',
+      profileRoleId: null, profileSessionId: null, fullGameDemo: null, connectionGeneration: 2,
+      identityHydrationRevision: 3, connection: 'live', freshness: 'server', connected: true,
+      kicked: false, recoveryPending: false, invalidFields: [], currentOwnPlayerConfirmed: true,
+      sdkHasServerAuthority: true, gmInstanceOwned: true },
     expectedWingCommander: original,
     io,
     absoluteDeadlineMs: Date.now() + 15 * 60_000,
@@ -173,12 +190,16 @@ if (runProof) test('a lost live berth or non-lifted phase stops before the first
   state.actor.activeConsoleRoleId = null;
   await assert.rejects(runProof?.({
     initial: { sessionId: 'normal-session', phase: 'lobby', cycle: 0, setupConfirmed: true,
-      playerCount: 8, chartId: 'A', fullGameDemo: null },
+      playerCount: 8, chartId: 'A', fullGameDemo: null, activeRoleIds: originalRoleIds },
     started: { sessionId: 'normal-session', phase: 'active', cycle: 1, uidHash: 'b'.repeat(16),
       instanceId: 'gm-original-instance', fullGameDemo: null },
-    roster: [{ roleId: 'wing-commander', uidHash: original.uidHash }],
-    gm: { uidHash: 'b'.repeat(16), sessionId: 'normal-session', instanceId: 'gm-original-instance',
-      hasAuth: true, sameActor: true, playerRole: 'gm', gmInstanceOwned: true, connection: 'live', freshness: 'server' },
+    roster: [{ roleId: 'wing-commander', uidHash: original.uidHash, sessionId: 'normal-session' }],
+    gm: { uidHash: 'b'.repeat(16), sessionId: 'normal-session', meSessionId: 'normal-session',
+      instanceId: 'gm-original-instance', hasAuth: true, sameActor: true, playerRole: 'gm',
+      profileRoleId: null, profileSessionId: null, fullGameDemo: null, connectionGeneration: 2,
+      identityHydrationRevision: 3, connection: 'live', freshness: 'server', connected: true,
+      kicked: false, recoveryPending: false, invalidFields: [], currentOwnPlayerConfirmed: true,
+      sdkHasServerAuthority: true, gmInstanceOwned: true },
     expectedWingCommander: original, io, absoluteDeadlineMs: Date.now() + 15 * 60_000,
   }), /current.*Wing Commander|berth|authority/i);
   assert.equal(trace.some(item => item.endpoint), false, 'A missing current console/station must not trigger a request.');
