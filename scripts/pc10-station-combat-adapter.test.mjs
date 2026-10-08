@@ -111,7 +111,7 @@ function stationDeclareRetryContext(overrides={}) {
  return {
   wave:10,
   actor,
-  session:{phase:'active',currentTurn:2,fullGameDemo:{status:'active',progression:'manual'},
+  session:{phase:'active',currentTurn:2,turnLimit:8,fullGameDemo:{status:'active',progression:'manual'},
    turnPhase:{turn:2,teamPhaseEndsAt:'source-deadline-team',openAirspaceEndsAt:'source-deadline-open',
     airspace:{state:'lifted',tickerActive:true,pressAccess:false},timerPause:null,progression:'manual'},
    turnState:{currentTurn:2,maxTurn:8,phase:'coordination',phaseRevision:22,
@@ -158,6 +158,15 @@ test('rate-limited Station declaration waits once, then requires the identical n
  assert.throws(()=>adapter.assertRecoveredStationDeclaration({...capture,data:{...capture.data,
   expectedRevision:11}},{...recovery,committed:false}),error=>error?.actual===11&&error?.expected===10);
  assert.equal(adapter.assertRecoveredStationDeclaration(capture,recovery),true);
+});
+
+test('Station retry pins semantic source fields while ignoring ordinary document update metadata',()=>{
+ const expected=stationDeclareRetryContext(),current=structuredClone(expected);
+ current.session.updatedAt='ordinary-feed-heartbeat';current.window.updatedAt='window-write-time';
+ current.preparation.updatedAt='preparation-write-time';current.attack.updatedAt='attack-write-time';
+ assert.equal(adapter.assertStationDeclarationRetryContext(expected,current),current);
+ current.session.turnState.phaseRevision++;
+ assert.throws(()=>adapter.assertStationDeclarationRetryContext(expected,current),/changed/i);
 });
 
 test('Station declaration recovery refuses unsupported errors, bodies, and retry hints without reading or waiting',async()=>{

@@ -125,10 +125,11 @@ test('station wave consumer resumes only after one bounded recovery of the exact
   const waves = await runStationCombatWaves({ maximumWaves: 1,
     assertActors: async () => trace.push('actors'),
     prepareAndDeclare: async () => { trace.push('declare:first-click'); throw denied; },
+    getDeclarationDeadline: () => deadlineAt,
     retryDeclaration: async ({ wave }) => {
       assert.equal(wave, 1);
       trace.push('declare:fresh-click');
-      return { httpStatus: 200,
+      return { endpoint:'declareWolfAttack',httpStatus: 200,
         data: { sessionId: 'owned-synthetic', instanceId: 'gm-instance-synthetic',
           requestId: 'attempt24-source-shaped-retry', expectedRevision: 10 } };
     },
@@ -151,7 +152,7 @@ test('station wave consumer resumes only after one bounded recovery of the exact
       assert.equal(capture.data.instanceId, held.requestData.instanceId);
       assert.equal(capture.data.expectedRevision, held.requestData.expectedRevision);
       assert.notEqual(capture.data.requestId, held.requestData.requestId);
-      return true;
+      return capture;
     },
     runWave: async () => { trace.push('combat'); return { attackId: 'same-wave', pStationRepeat: { status: 'stopped' } }; },
     persistWaves: async () => trace.push('persist'),
