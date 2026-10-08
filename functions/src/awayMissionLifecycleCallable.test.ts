@@ -793,11 +793,19 @@ it('fails closed when a committed lifecycle record has lost its atomic event rec
   });
   await commitAwayMissionLifecycleCommand(request);
   store.records.delete(`sessions/${SESSION_ID}/events/away-mission-lifecycle-lost-event-receipt`);
+  const writesBeforeDeniedReplay = store.committedWrites.length;
 
   await expect(commitAwayMissionLifecycleCommand(request)).rejects.toMatchObject({ code: 'failed-precondition' });
   expect(currentRevision(store)).toBe(1);
-  // The initial lifecycle write now also holds craft on the shared session ledger.
-  expect(store.committedWrites).toHaveLength(8);
+  expect(store.committedWrites).toHaveLength(writesBeforeDeniedReplay);
+  const safetyWrites = store.committedWrites.filter(write => write.path === paths().session &&
+    Object.hasOwn(write.data, 'awayMissionProjectionSafety'));
+  expect(safetyWrites).toEqual([{ kind: 'update', path: paths().session,
+    data: { awayMissionProjectionSafety: { policyVersion: 1, epoch: 1, state: 'held', writeRevision: 1 } } }]);
+  // Preserve all eight original gameplay writes, including the craft ledger;
+  // the dedicated administrative safety witness is exactly one additional row.
+  expect(store.committedWrites.filter(write => !safetyWrites.includes(write))).toHaveLength(8);
+  expect(store.committedWrites).toHaveLength(9);
 });
 
 it('rejects nonparticipants, nonleaders, and requests without a live GM instance before writing', async () => {
