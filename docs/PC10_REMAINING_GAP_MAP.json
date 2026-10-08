@@ -1290,7 +1290,14 @@
       "targetedEslintFiles": 21,
       "fullSuiteClaimed": false,
       "nativeCredit": 0
-    }
+    },
+    "ownerHouseRulesApproved": true,
+    "unresolvedOutsideHouseRuleApproval": [
+      "Pursuit net-depth versus cumulative outward-jump interpretation is not selected by the individual-group/exceptional-merge rule",
+      "Fractional Boa difficulty is not an unspecified half-loss; preserve its exact comparison",
+      "Wolf class future carryover and physical component cap are not resolved by mission-discard recycling",
+      "Wolf Commander missing consequence itself remains a per-case explicit GM record, with no default"
+    ]
   },
   "remoteMainVerificationIsHistorical": true,
   "homeNoEditionChoice": {
@@ -1353,12 +1360,113 @@
     "homePriorLossBonusScope": "Ships lost earlier in this same Nebula attempt sequence; subsequent rolls only",
     "homeFourCrossConvention": "Five distinct qualifying Endeavour tracks with four displayed crosses; original mark counted once, not four new actions",
     "deluxeCommonNRequirements": "Engineering Shuttle, at least five different completed Endeavour technologies and5Fuel per attempting ship; preserve its exact far-side wording",
-    "fiveConditionalHouseRuleGapFillersApproved": false,
+    "fiveConditionalHouseRuleGapFillersApproved": true,
     "parentPaperCoordinationAcknowledged": true,
     "appImplementationOwner": "Existing SUCCESS/P and checkpoint parent; no duplicate implementation here",
     "appImplementationVerifiedHere": false,
     "sourceOnlyRuntimeHeld": false,
     "otherOwnersRuntimeThroughUtc": "2026-10-08T13:43:00Z",
-    "windowEndIsNotGrant": true
-  }
+    "windowEndIsNotGrant": true,
+    "approvalBoundary": "Separate later five-house-rule approval; edition choice itself did not select them"
+  },
+  "ownerApprovedHouseRules": {
+    "recordedAt": "2026-10-08T13:35:01.054124+00:00",
+    "status": "OWNER_FIVE_APP_AND_PAPER_HOUSE_RULES_ACKNOWLEDGED_SCOPE_ALIGNMENT_IN_PROGRESS",
+    "canonicalParent": "01a113c4-8fd0-7734-8cab-3e39b01220f9",
+    "authorization": {
+      "assistantSentinel": "Sentinel_a0dcb330864c8191bbd5b06981f753b7",
+      "ownerSentinel": "Sentinel_cdb7e2735ee4819188a584d06e6b3756",
+      "ownerReply": "go for it",
+      "source": "Parent-delivered direct owner approval for both app and paper; gap-fillers, not original-author intent"
+    },
+    "approvedHouseRules": [
+      "Reroll targets that are not participating",
+      "Recycle resolved mission discards only when needed; leave undealable extras undrawn",
+      "Track separated groups pursuit individually; adjudicate exceptional merges before they affect play",
+      "Round unspecified half-losses down, preserving explicit exceptions",
+      "Keep unfinished optional Wolf Commander action unavailable until GM records its consequence"
+    ],
+    "requirements": [
+      "Label all five owner-approved house rules",
+      "Preserve exact source exceptions and Capybara override",
+      "No invented default consequence for Wolf Commander",
+      "Meaningful consumer/backend RED before every functional change, then GREEN",
+      "Independent exact source review and final relevant rendered review",
+      "Keep app and local-only paper implementation ownership separate"
+    ],
+    "unresolvedOutsideThisApproval": [
+      "Pursuit net-depth versus cumulative outward-jump interpretation is not selected by the individual-group/exceptional-merge rule",
+      "Fractional Boa difficulty is not an unspecified half-loss; preserve its exact comparison",
+      "Wolf class future carryover and physical component cap are not resolved by mission-discard recycling",
+      "Wolf Commander missing consequence itself remains a per-case explicit GM record, with no default"
+    ],
+    "implementationOwners": {
+      "app": "Canonical main PC10 parent owns changes and coordinating existing helper; no duplicate app writers here",
+      "paper": "Existing canonical-kit task owns local-only documents",
+      "sourceExecutor": "Record catalog/checkpoint/acceptance alignment; continue already assigned P181 two-file repair"
+    },
+    "parentOnlyAction": "Assign or acknowledge the existing app helper ownership for target participation, resolved mission deck recycling, group exceptional merges, undefined half-loss rounding and optional Wolf Commander precondition. Coordinate the canonical-paper owner; share exact approved clauses and exceptions. Return only a genuinely unassigned bounded scope, not a duplicate writer.",
+    "parentActionAcknowledgementPending": true,
+    "sharedFileCanonicalFallback": true,
+    "runtimeHeld": false,
+    "heavyRuntimeStarted": false,
+    "freshBoundedParentAllocationRequiredAfterSourceReadiness": true,
+    "fixedClosureCredit": 0,
+    "nativeCredit": 0,
+    "pc10Complete": false,
+    "releaseAccepted": false
+  },
+  "houseRuleCatalogAlignmentIds": [
+    "077",
+    "115",
+    "173",
+    "185",
+    "195",
+    "280",
+    "299",
+    "300",
+    "307",
+    "338",
+    "340",
+    "341",
+    "342",
+    "343",
+    "344",
+    "345",
+    "346",
+    "347",
+    "348",
+    "349",
+    "350",
+    "402",
+    "403",
+    "404",
+    "406",
+    "407",
+    "408",
+    "409",
+    "411",
+    "414",
+    "422",
+    "424",
+    "428",
+    "429",
+    "430",
+    "431",
+    "432",
+    "434",
+    "435",
+    "450",
+    "464",
+    "490",
+    "499",
+    "521",
+    "573",
+    "579",
+    "584",
+    "585",
+    "643",
+    "650",
+    "651"
+  ]
 }

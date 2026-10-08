@@ -21,7 +21,7 @@ catalog closures remain unaccepted; all 48 PC10 rows are open.
 | --- | --- | --- |
 | P631 member/preparation rate, exact replay and SDK privacy | The parent-accepted two-actor limits/replay/UID isolation/private-marker denials and two sanitized logs remain earned. | These mechanisms do not establish graph, game-rule, capacity, full P634 or complete-game parity. Formal allocation handback timing failed separately. |
 | Scout requester/peer privacy | Own result/note, peer allowlist, denied full/borrowed-GM/private SDK reads and original cold reload remain observed. | Chart adjacency/range and original eligibility/results need the corrected source graph and affected producer checks. Existing privacy is not a test of restored private objectives. |
-| Press flight and Pursuit ending/history | Actual Request/Begin/retarget/arrival, receipt recovery and recorded debrief/history remain observed. | Missing chart edge and quarantine arrival bypass limit general route/arrival acceptance. Pursuit recomputation is an explicitly unresolved original-rule interpretation; current-app completion cannot settle it. |
+| Press flight and Pursuit ending/history | Actual Request/Begin/retarget/arrival, receipt recovery and recorded debrief/history remain observed. | Missing chart edge and quarantine arrival bypass limit general route/arrival acceptance. The later owner house rule settles independent tracking and exceptional-merge adjudication, while the net-depth/cumulative interpretation remains unresolved; current-app completion cannot settle it. |
 | Two-GM ending race | Competing original GM freeze/close requests, one effect and actor-bound receipts remain observed. | Atomicity does not prove original ending eligibility or casualty/resource-derived tally correctness. Pending N/O/P and Boa outcomes still need their own proof. |
 | Candidate discovery/preparation | Actual discoveries, original checkpoint/reload/outbox behavior and currently displayed blockers/costs remain observed. | Research final availability, paid device construction, mission effects and printed N/O/P conditions affect plan/cost/eligibility correctness. Do not infer a successful ending from discovery or a pending writer. |
 | Black Sheep custody/cargo | Current holder transfer/reclaim, debit/credit and exact retry/reload/revocation remain observed. | Control-transfer quarantine protection does not establish normal-arrival protection. General docking/cycle limits need the authoritative arrival seam verified. |
@@ -173,5 +173,35 @@ ships only. It does not add unrelated casualties or change an earlier result.
 Deluxe has no loss bonus. The paper owner reports content/layout PASS for
 70 PDFs/566 page occurrences; this source executor read the handoff and clause
 review, not the whole delivered kit. App behavior remains unverified by the
-paper task. The five newly proposed conditional house-rule gap-fillers remain
-pending owner approval and must not be implemented from this edition choice.
+paper task. At this paper-only handoff, the five proposed conditional house-rule
+gap-fillers were pending. The separate owner approval below now governs them;
+the edition choice itself did not authorize them.
+
+## October 8 owner-approved house rules
+
+Emerald's direct “go for it” response (`Sentinel_cdb7e2735ee4819188a584d06e6b3756`)
+to proposal `Sentinel_a0dcb330864c8191bbd5b06981f753b7` approves these five
+clearly labeled house rules for app and local canonical paper. They fill
+unspecified cases; they do not claim original-author intent.
+
+| Rule | Approved behavior and boundary |
+| --- | --- |
+| Nonparticipating targets | Reroll targets that are not participating. Preserve exact source targeting exceptions and the Capybara override. |
+| Finite mission deck | Recycle resolved mission discards only when needed; leave undealable extras undrawn. Do not recycle unresolved/in-hand cards or invent extra cards. This is not a Wolf or damage-deck carryover ruling. |
+| Split pursuit | Track separated groups' pursuit individually; adjudicate exceptional merges before they affect play. Preserve normal documented merge policy and source exceptions. This does not select net-depth versus cumulative outward-jump arithmetic. |
+| Unspecified half-losses | Round unspecified half-losses down, preserving explicit exceptions, including printed emergency-jump rounding. Do not apply this rule to fractional Boa opportunity difficulty or invent range/tie conventions. |
+| Unfinished Wolf Commander action | Keep the optional unfinished action unavailable until the GM records its consequence. Preserve the printed effects and actual phase/role authority. No automatic default death, capture, escape or other consequence is approved. |
+
+The canonical main PC10 parent owns app changes and coordinating existing
+helpers; the canonical-kit task owns local-only documents. Avoid overlapping
+writers. Each functional correction requires meaningful consumer/backend RED
+in a separate test-only commit, GREEN, independent exact source review and
+final relevant rendered review. Current authority/privacy, cost accounting,
+replay/recovery and explicit source exceptions remain gates. The GM records a
+real adjudication where required; ordinary calculation remains server-owned.
+Request a bounded parent runtime allocation only when source-ready.
+
+Prior observations retain their exact source binding; these planning updates
+alone add no implementation, native evidence, fixed catalog closure or release
+acceptance. The fixed 48 PC10 rows and all 751 statuses remain unchanged. Other
+source disputes outside the five approved scopes remain unresolved.

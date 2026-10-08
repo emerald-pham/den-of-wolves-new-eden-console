@@ -1393,3 +1393,23 @@ and Home's sequential Nebula-loss scope. Paper delivery grants no app
 implementation or new native outcome proof. Five conditional house-rule
 gap-fillers are separately proposed and remain pending. P's runtime through
 13:43 UTC is parent-owned; this executor holds no runtime grant.
+
+### October 8 subsequent house-rule approval
+
+The parent delivered Emerald's explicit “go for it” response
+`Sentinel_cdb7e2735ee4819188a584d06e6b3756` to all five proposed gap-fillers for
+both app and canonical paper. The [exact approved boundaries](PC10_PARITY_ACCEPTANCE_IMPACT.md#october-8-owner-approved-house-rules)
+now govern nonparticipating-target rerolls, resolved mission-discard recycling
+and undrawn extras, independent pursuit with pre-effect exceptional-merge
+adjudication, unspecified half-loss rounding down with source exceptions,
+and disabling the unfinished optional Wolf Commander action until an actual
+GM consequence record exists. No default consequence, fractional-difficulty
+rounding, pursuit recomputation formula or Wolf supply/carryover policy is
+invented from this approval. Preserve the explicit Capybara override.
+
+Main PC10 and its existing helpers retain app implementation; the canonical-kit
+owner retains local-only paper. This executor records the plan/catalog and
+continues P181 source repair without overlapping writers. Functional RED/GREEN,
+independent exact review and final relevant renders remain mandatory. No heavy
+runtime is held; a new bounded parent allocation is needed after readiness.
+This approval and planning add zero fixed closures or native credit.

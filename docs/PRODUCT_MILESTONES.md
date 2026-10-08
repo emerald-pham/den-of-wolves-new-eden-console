@@ -692,3 +692,20 @@ assessment. Earlier coarse estimates are not a reliable schedule. Deadline
 pressure does not weaken functionality, privacy, acceptance or release gates.
 The linked handoff records the current evidence limits, critical path and
 bounded offline architecture assessment.
+
+## October 8 PC10 owner house-rule alignment
+
+The owner's separate approval adopts five labeled gap-fillers in both app
+and local canonical paper: reroll nonparticipating targets; recycle resolved
+mission discards only when needed and leave undealable extras undrawn; track
+split-group pursuit independently and adjudicate exceptional merges before
+play; round unspecified half-losses down while retaining explicit exceptions;
+and keep the unfinished optional Wolf Commander action unavailable until the
+GM records its consequence. Preserve Capybara override. These are owner house
+rules, not original-author intent; no default Commander consequence is added.
+The [PC10 acceptance impact](PC10_PARITY_ACCEPTANCE_IMPACT.md#october-8-owner-approved-house-rules)
+records boundaries and existing app/paper ownership. Meaningful functional
+RED/GREEN, exact independent review and relevant final renders remain gates.
+This aligns affected catalog acceptances without changing statuses or adding
+closures. Existing post-PC10, PC11 and conditional PC12 stay sequential future
+work.

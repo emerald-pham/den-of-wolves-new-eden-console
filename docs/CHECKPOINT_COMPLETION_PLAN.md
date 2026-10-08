@@ -288,5 +288,34 @@ is recorded in [the PC10 acceptance impact](PC10_PARITY_ACCEPTANCE_IMPACT.md#own
 Home's four displayed crosses include any original mark once; both N variants
 use Engineering Shuttle and 5 Fuel per attempting ship; Home O's loss bonus
 counts ships lost earlier in the same attempt sequence, for subsequent rolls
-only. Paper acceptance is not app acceptance. The five separate conditional
-house-rule gap-fillers remain pending and are not authorized by edition choice.
+only. Paper acceptance is not app acceptance. At the paper-only handoff the five conditional
+house-rule gap-fillers were pending; the subsequent separate approval below governs.
+
+## October 8 owner-approved house rules
+
+Emerald's direct “go for it” response (`Sentinel_cdb7e2735ee4819188a584d06e6b3756`)
+to proposal `Sentinel_a0dcb330864c8191bbd5b06981f753b7` approves these five
+clearly labeled house rules for app and local canonical paper. They fill
+unspecified cases; they do not claim original-author intent.
+
+| Rule | Approved behavior and boundary |
+| --- | --- |
+| Nonparticipating targets | Reroll targets that are not participating. Preserve exact source targeting exceptions and the Capybara override. |
+| Finite mission deck | Recycle resolved mission discards only when needed; leave undealable extras undrawn. Do not recycle unresolved/in-hand cards or invent extra cards. This is not a Wolf or damage-deck carryover ruling. |
+| Split pursuit | Track separated groups' pursuit individually; adjudicate exceptional merges before they affect play. Preserve normal documented merge policy and source exceptions. This does not select net-depth versus cumulative outward-jump arithmetic. |
+| Unspecified half-losses | Round unspecified half-losses down, preserving explicit exceptions, including printed emergency-jump rounding. Do not apply this rule to fractional Boa opportunity difficulty or invent range/tie conventions. |
+| Unfinished Wolf Commander action | Keep the optional unfinished action unavailable until the GM records its consequence. Preserve the printed effects and actual phase/role authority. No automatic default death, capture, escape or other consequence is approved. |
+
+The canonical main PC10 parent owns app changes and coordinating existing
+helpers; the canonical-kit task owns local-only documents. Avoid overlapping
+writers. Each functional correction requires meaningful consumer/backend RED
+in a separate test-only commit, GREEN, independent exact source review and
+final relevant rendered review. Current authority/privacy, cost accounting,
+replay/recovery and explicit source exceptions remain gates. The GM records a
+real adjudication where required; ordinary calculation remains server-owned.
+Request a bounded parent runtime allocation only when source-ready.
+
+Prior observations retain their exact source binding; these planning updates
+alone add no implementation, native evidence, fixed catalog closure or release
+acceptance. The fixed 48 PC10 rows and all 751 statuses remain unchanged. Other
+source disputes outside the five approved scopes remain unresolved.

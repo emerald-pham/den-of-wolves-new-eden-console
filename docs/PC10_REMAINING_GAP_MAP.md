@@ -132,3 +132,16 @@ verify exact source faces and reconcile their assigned implementations.
 Prior N/O observations keep their original edition/source binding; none is
 relabeled as newly implemented Home behavior. Planning changes add zero
 closures or native credit. See the [acceptance impact](PC10_PARITY_ACCEPTANCE_IMPACT.md#owner-selected-home-no-default).
+
+## Five house rules now approved
+
+The separate later owner approval authorizes all five labeled app/paper
+house rules in [the acceptance impact](PC10_PARITY_ACCEPTANCE_IMPACT.md#october-8-owner-approved-house-rules).
+Preserve source exceptions and Capybara override. The Wolf Commander optional
+action remains disabled until an actual GM consequence record, with no default
+consequence. Main PC10 coordinates existing app helpers; canonical paper stays
+local-only under its own owner. Net-depth/cumulative pursuit interpretation,
+fractional Boa difficulty, range/tie conventions and Wolf physical supply/
+carryover are not settled by these five rules. Source repair/review and final
+relevant renders remain ahead of native/release acceptance; no new runtime or
+closure is earned by this planning update.
