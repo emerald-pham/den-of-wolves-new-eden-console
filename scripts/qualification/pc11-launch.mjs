@@ -20,7 +20,7 @@ export function launchPlan({slot=5,projectId,evidenceDirectory}){
  const ports=emulatorPortsForSlot(slot),baseUrl=`http://127.0.0.1:${vitePortForSlot(slot)}`;
  const env={...emulatorEnvironmentForSlot(slot),VITE_FIREBASE_PROJECT_ID:projectId,VITE_LOCAL_GM_ACCESS:'1'};
  assert.deepEqual(localGmAccessConfiguration('serve',env),{projectId,authPort:ports.auth,firestorePort:ports.firestore});
- return {slot,projectId,evidenceDirectory,baseUrl,ports:{auth:ports.auth,functions:ports.functions,firestore:ports.firestore},env};
+ return {allocationMilliseconds:300000,slot,projectId,evidenceDirectory,baseUrl,ports:{auth:ports.auth,functions:ports.functions,firestore:ports.firestore},env};
 }
 export function checkServedEnvironment(source,plan){
  const match=source.match(/import\.meta\.env\s*=\s*(\{[^\n]+\});/);assert.ok(match,'Actual Vite environment assignment');
@@ -44,7 +44,7 @@ async function main(){
  assert.ok(args.includes('--allocated'),'Fresh owner runtime allocation is required');
  const sourceCommit=execFileSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8'}).trim();
  assert.equal(execFileSync('git',['status','--porcelain','--untracked-files=no'],{cwd:root,encoding:'utf8'}).trim(),'');
- const deadline=Date.now()+480000,children=[],cleanup={errors:[]};let configured=false,cancelled=false,notifyCancellation;
+ const deadline=Date.now()+plan.allocationMilliseconds,children=[],cleanup={errors:[]};let configured=false,cancelled=false,notifyCancellation;
  const cancellation=new Promise(resolve=>{notifyCancellation=resolve;});
  const onCancel=signal=>{cancelled=true;notifyCancellation(new Error(`Owner cancelled ${signal}; cleanup required`));};
  const onInt=()=>onCancel('SIGINT'),onTerm=()=>onCancel('SIGTERM');process.once('SIGINT',onInt);process.once('SIGTERM',onTerm);
