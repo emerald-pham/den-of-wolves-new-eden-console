@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { useSessionStore } from '@/store/useSessionStore';
 import { acceptServerSessionAuthority, sessionSnapshotAuthorityFor } from '@/lib/sessionSnapshotAuthority';
@@ -29,9 +29,10 @@ function acceptNewServerProjection() {
     next, { seconds: tick, nanoseconds: 0 })).toBe(true);
   useSessionStore.setState({ session: next });
 }
-function wire(privateRead: ReturnType<typeof vi.fn>, noteRead = vi.fn().mockResolvedValue({ data: note })) {
+function wire(privateRead: ReturnType<typeof vi.fn>, noteRead = vi.fn().mockResolvedValue({ data: note }),
+  ownReports: () => readonly unknown[] = () => [report]) {
   const index = vi.fn().mockImplementation(() => Promise.resolve({ data:
-    useSessionStore.getState().me?.uid === 'original-scientist' ? [report] : [] }));
+    useSessionStore.getState().me?.uid === 'original-scientist' ? ownReports() : [] }));
   vi.mocked(httpsCallable).mockImplementation((_functions, name) => {
     if (name === 'listMyScoutReports') return index as never;
     if (name === 'readPrivateScoutResult') return privateRead as never;
@@ -121,3 +122,44 @@ it('does not retry or display an invalid chart-bearing HTTP200 private payload',
   expect(privateRead).toHaveBeenCalledTimes(1); expect(noteRead).not.toHaveBeenCalled();
   expect(screen.queryByText(fact.title)).not.toBeInTheDocument();
 });
+
+// Independent review F2: an unrelated pending request may keep the index live,
+// but it must not restart an exhausted resolved-result/note recovery chain.
+for (const invalidatedRead of ['result', 'note'] as const) {
+  it(`bounds ${invalidatedRead} retries with a mixed pending/resolved index and preserves polling and explicit refresh`, async () => {
+    let invalidate = true;
+    let pendingReport = { ...report, requestId: 'other-pending', status: 'pending', noteId: null as string | null,
+      targetCoordinate: '6799' };
+    const privateRead = vi.fn().mockImplementation(async () => {
+      if (invalidate && invalidatedRead === 'result') acceptNewServerProjection();
+      return { data: result() };
+    });
+    const noteRead = vi.fn().mockImplementation(async () => {
+      if (invalidate && invalidatedRead === 'note') acceptNewServerProjection();
+      return { data: note };
+    });
+    const { index } = wire(privateRead, noteRead, () => [report, pendingReport]);
+    render(<ScoutReportController refreshKey="original" />);
+    await waitFor(() => expect(privateRead).toHaveBeenCalledTimes(3), { timeout: 3500 });
+    await screen.findByText(invalidatedRead === 'result'
+      ? 'Scout reports could not load. Reconnect and refresh this station.'
+      : 'The saved note is unavailable for this ship or fleet group.');
+    const indexCountAtStop = index.mock.calls.length;
+    await waitFor(() => expect(index.mock.calls.length).toBeGreaterThan(indexCountAtStop), { timeout: 2000 });
+    expect(privateRead).toHaveBeenCalledTimes(3);
+    expect(noteRead).toHaveBeenCalledTimes(invalidatedRead === 'result' ? 0 : 3);
+    pendingReport = { ...pendingReport, status: 'resolved', noteId: 'b'.repeat(64) };
+    await screen.findByRole('option', { name: 'Cycle 1 · System 6799 · resolved' }, { timeout: 2000 });
+    expect(privateRead).toHaveBeenCalledTimes(3);
+    expect(screen.getByRole('button', { name: 'Refresh reports' })).toBeEnabled();
+    expect(screen.queryByText('Discovery note saved for this station.')).not.toBeInTheDocument();
+    invalidate = false;
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh reports' }));
+    await screen.findByText(fact.title);
+    await screen.findByText('Discovery note saved for this station.');
+    expect(privateRead).toHaveBeenCalledTimes(4);
+    expect(noteRead).toHaveBeenCalledTimes(invalidatedRead === 'result' ? 1 : 4);
+    expect(screen.queryByText('Scout reports could not load. Reconnect and refresh this station.')).not.toBeInTheDocument();
+    expect(screen.queryByText('The saved note is unavailable for this ship or fleet group.')).not.toBeInTheDocument();
+  });
+}

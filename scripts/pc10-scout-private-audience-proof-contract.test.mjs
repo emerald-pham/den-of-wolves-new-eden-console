@@ -89,12 +89,14 @@ test('three-member cleanup still refuses an unknown actor before any deletion', 
 // Additional source-only validation of the new audience consumer. These were
 // added after the four discriminating cohort/timing REDs and driver adaptation;
 // they do not backfill native gameplay or separate test-first chronology.
-async function audienceConsumer({ fault } = {}) {
+async function audienceConsumer({ fault, serverShape = false, berth = false } = {}) {
   const node = ast.statements.find(statement => ts.isFunctionDeclaration(statement) && statement.name?.text === 'privateReadAudience');
   assert.ok(node);
   const member = { documentTimeOrigin: 1000, uidHash: 'peer-hash', sessionId: 'owned-session', meSessionId: 'owned-session',
     assignedRoleId: 'icebreaker-miner', activeConsoleRoleId: 'icebreaker-miner', seatId: 'icebreaker-miner',
-    fleetGroupId: 'fleet-1', connectionGeneration: 2, identityHydrationRevision: 1 };
+    fleetGroupId: 'fleet-1', connectionGeneration: 2, identityHydrationRevision: 1,
+    currentMemberBerthPresent: berth, currentMemberBerthMatches: berth, currentMemberBerthNull: false,
+    replacementRoleId: null, replacementStatus: null };
   const discovery = { requestId: 'original-scout', noteId: 'original-note', noteRecordedAt: '2026-10-08T05:57:56.000Z',
     fact: { coordinate: '6798', code: 'N', title: 'Ancient Jump Ring' } };
   let peerObservations = 0, worldReads = 0; const calls = [];
@@ -117,6 +119,19 @@ async function audienceConsumer({ fault } = {}) {
     if (name === 'listMyScoutReports') return { status: 'committed', result: fault === 'peer-index-leak' ? [{ requestId: discovery.requestId }] : [] };
     if (name === 'getCurrentMemberSession') return { status: 'committed', result: {
       type: 'current-member-session', sessionId: 'owned-session', actorUid: 'own-peer', groupId: 'fleet-1',
+      ...(serverShape ? {
+        ...(fault === 'missing-generation' ? {} : { connectionGeneration: fault === 'foreign-generation' ? 3 : 2 }),
+        assignedRoleId: fault === 'foreign-assigned-role' ? 'shepherd-scientist' : 'icebreaker-miner',
+        activeConsoleRoleId: fault === 'foreign-console-role' ? 'shepherd-scientist' : 'icebreaker-miner',
+        ...(berth ? { currentActorBerthAuthority: {
+          sessionId: 'owned-session', actorUid: fault === 'foreign-berth-actor' ? 'own-scientist' : 'own-peer',
+          groupId: 'fleet-1', role: 'player', connectionGeneration: 2,
+          assignedRoleId: 'icebreaker-miner', activeConsoleRoleId: 'icebreaker-miner',
+          replacementRoleId: null, replacementStatus: null,
+          shipId: fault === 'foreign-berth-ship' ? 'shepherd' : 'icebreaker',
+          ...(fault === 'berth-private-field' ? { scoutResults: {} } : {}),
+        } } : {}),
+      } : {}),
       session: { id: 'owned-session', currentTurn: 1, ...(fault === 'server-session-leak' ? { scoutResults: {} } : {}) },
       ...(fault === 'member-top-level-private' ? { scoutResults: {} } : {}),
     } };
@@ -157,5 +172,22 @@ for (const fault of ['result-extra-field', 'result-source', 'result-cycle', 'res
   'note-extra-field', 'note-cycle', 'index-entitlement', 'member-top-level-private', 'missing-populated-read']) {
   test(`actual audience consumer rejects incomplete or leaked wire contract ${fault}`, async () => {
     await assert.rejects(audienceConsumer({ fault }));
+  });
+}
+
+// Independent review F1: the actual protected reader always returns all three
+// authority fields and conditionally the caller's own berth. These positive
+// cases must fail against the five-key proof before adapting that consumer.
+for (const berth of [false, true]) {
+  test(`actual reader-shaped member envelope succeeds with own berth ${berth}`, async () => {
+    const { result } = await audienceConsumer({ serverShape: true, berth });
+    assert.equal(result.actualServerMemberAllowlistPrivateKeysAbsent, true);
+    assert.equal(result.scopedDurableStateUnchanged, true);
+  });
+}
+for (const fault of ['missing-generation', 'foreign-generation', 'foreign-assigned-role', 'foreign-console-role',
+  'foreign-berth-actor', 'foreign-berth-ship', 'berth-private-field']) {
+  test(`reader-shaped member envelope refuses ${fault}`, async () => {
+    await assert.rejects(audienceConsumer({ serverShape: true, berth: true, fault }));
   });
 }
