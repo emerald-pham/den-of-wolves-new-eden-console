@@ -56,6 +56,7 @@ async function runActualRunner(mode, safetyTimeoutMs = 10_000) {
   const fakeBindingPath = join(temporary, 'fake-gate-binding.mjs');
   const fakeProofHelpersPath = join(temporary, 'fake-proof-helpers.mjs');
   const fakeLifecyclePath = join(temporary, 'fake-lifecycle.mjs');
+  const fakeCorePath = join(temporary, 'fake-core.mjs');
   await writeFile(loaderPath, `
 const target = ${JSON.stringify(runnerUrl)};
 const playwright = ${JSON.stringify(pathToFileURL(fakePlaywrightPath).href)};
@@ -64,6 +65,7 @@ const childProcess = ${JSON.stringify(pathToFileURL(fakeChildProcessPath).href)}
 const binding = ${JSON.stringify(pathToFileURL(fakeBindingPath).href)};
 const proofHelpers = ${JSON.stringify(pathToFileURL(fakeProofHelpersPath).href)};
 const lifecycle = ${JSON.stringify(pathToFileURL(fakeLifecyclePath).href)};
+const core = ${JSON.stringify(pathToFileURL(fakeCorePath).href)};
 export async function resolve(specifier, context, nextResolve) {
   if (context.parentURL === target) {
     if (specifier === 'playwright') return { url: playwright, shortCircuit: true };
@@ -72,13 +74,16 @@ export async function resolve(specifier, context, nextResolve) {
     if (specifier === './pc10-gate2-functional-proof.mjs') return { url: binding, shortCircuit: true };
     if (specifier === './pc10-full-game-demo-proof-helpers.mjs') return { url: proofHelpers, shortCircuit: true };
     if (specifier === './pc10-member-gm-lifecycle-ui-proof.mjs') return { url: lifecycle, shortCircuit: true };
+    if (specifier === './pc10-member-rate-security-ui-proof-core.mjs' &&
+        process.env.PC10_P631_TEST_MODE?.startsWith('readiness-')) return { url: core, shortCircuit: true };
   }
   return nextResolve(specifier, context);
 }
 `);
   await writeFile(preloadPath, `
 const NativeDate = Date;
-globalThis.__P631_CONTROLLED_CLOCK = { now: NativeDate.now(), checkboxTimeouts: [], observerTimeouts: [] };
+globalThis.__P631_CONTROLLED_CLOCK = { now: NativeDate.now(), checkboxTimeouts: [], observerTimeouts: [],
+  events: [], observations: [], nextPageId: 0, gmPhase: 'created', memberPhase: 'created' };
 class ControlledDate extends NativeDate { static now() { return globalThis.__P631_CONTROLLED_CLOCK.now; } }
 globalThis.Date = ControlledDate;
 globalThis.fetch = async () => ({ status: 200, text: async () => '' });
@@ -107,19 +112,114 @@ export async function capturePc10Gate2SourceBinding() {
 export function proofRuntimeFromViteSource() { return { projectId: 'demo-pc10-owner-integrated-2',
   useEmulators: true, ports: { auth: 9109, functions: 5011, firestore: 8090 } }; }
 export function validateProofRuntime(runtime) { return runtime; }
-export async function observeFullGameDemoPresentationMember() {
+import { createHash } from 'node:crypto';
+import { writeFile } from 'node:fs/promises';
+const clock = () => globalThis.__P631_CONTROLLED_CLOCK;
+const record = async (kind, fields = {}) => {
+  clock().events.push({ kind, ...fields });
+  await writeFile(process.env.PC10_P631_TEST_TRACE, JSON.stringify(clock()), { mode: 0o600 });
+};
+const uidHash = value => createHash('sha256').update(value).digest('hex').slice(0, 16);
+export async function observeFullGameDemoPresentationMember(surface) {
+  const mode = process.env.PC10_P631_TEST_MODE;
+  if (mode.startsWith('readiness-')) {
+    const member = surface.label === 'browser-B-normal-member';
+    const pageUid = member ? 'controlled-member-uid' : 'controlled-gm-uid';
+    const phaseKey = member ? 'memberPhase' : 'gmPhase';
+    const phase = clock()[phaseKey];
+    const observationKey = member ? 'memberObservationCount' : 'gmObservationCount';
+    clock()[observationKey] ??= 0;
+    const sample = clock()[observationKey]++;
+    const isPending = mode === 'readiness-player-pending-ready' || mode === 'readiness-deadline';
+    const pending = sample === 0 && (member || isPending && phase === 'created');
+    const state = {
+      hasAuth: true, sameActor: true,
+      uidHash: mode === 'readiness-changed-uid' && !member && phase === 'created' && !pending
+        ? uidHash('different-registered-uid') : uidHash(pageUid),
+      sessionId: !member && mode === 'readiness-foreign-session' && phase === 'created' && !pending
+        ? 'foreign-p631-session' : 'owned-p631-session',
+      meSessionId: !member && mode === 'readiness-foreign-member-session' && phase === 'created' && !pending
+        ? 'foreign-p631-session' : 'owned-p631-session',
+      profileRoleId: null, profileSessionId: null,
+      playerRole: phase === 'claimed' || phase === 'setup' || phase === 'prepared' ? 'gm' : 'player',
+      connected: true, currentOwnPlayerConfirmed: true, kicked: false, escapeLocked: false,
+      replacementRoleId: null, replacementStatus: null,
+      connection: 'live', freshness: 'server',
+      sdkHasServerAuthority: !pending && !(mode === 'readiness-stale-sdk' && !member && phase === 'created'),
+      sdkResumePending: pending || mode === 'readiness-stale-sdk' && !member && phase === 'created',
+      gmInstanceOwned: phase === 'claimed' || phase === 'setup' || phase === 'prepared',
+      instanceId: phase === 'claimed' || phase === 'setup' || phase === 'prepared'
+        ? 'owned-p631-gm-instance'
+        : mode === 'readiness-foreign-instance' && !member && phase === 'created' ? 'foreign-gm-instance' : null,
+      setupConfirmed: phase === 'setup' || phase === 'prepared', cycle: 0,
+      phase: phase === 'setup' || phase === 'prepared' ? 'casting' : 'lobby',
+      fullGameDemo: phase === 'prepared' ? { status: 'preparing', progression: 'manual' } : null,
+      invalidFields: [],
+    };
+    clock().now += mode.startsWith('readiness-') && !isPending ? 60_000 : 5_000;
+    clock().observations.push({ member, phase, sample, pending, state });
+    await record(member ? 'member-observation' : 'gm-observation', { phase, sample, pending });
+    return state;
+  }
   if (process.env.PC10_P631_TEST_MODE === 'authorization-body-stall') return {
-    hasAuth: true, sameActor: true, sessionId: 'owned-p631-session', profileRoleId: null,
-    profileSessionId: null, playerRole: null, connection: 'live', freshness: 'server',
+    hasAuth: true, sameActor: true, uidHash: uidHash('controlled-gm-uid'),
+    sessionId: 'owned-p631-session', meSessionId: 'owned-p631-session', profileRoleId: null,
+    profileSessionId: null, playerRole: 'player', meSessionId: 'owned-p631-session',
+    connected: true, currentOwnPlayerConfirmed: true, kicked: false, escapeLocked: false,
+    replacementRoleId: null, replacementStatus: null, connection: 'live', freshness: 'server',
+    instanceId: null, gmInstanceOwned: false, invalidFields: [],
     sdkHasServerAuthority: true, sdkResumePending: false,
   };
   throw new Error('CONTROLLED_STOP_AFTER_CONSENT');
 }
 `);
   await writeFile(fakeLifecyclePath, `
-export async function captureLifecycleUiAction() { throw new Error('Unexpected lifecycle action in controlled runner test.'); }
+import { writeFile } from 'node:fs/promises';
+const clock = () => globalThis.__P631_CONTROLLED_CLOCK;
+const record = async (kind, fields = {}) => {
+  clock().events.push({ kind, ...fields });
+  await writeFile(process.env.PC10_P631_TEST_TRACE, JSON.stringify(clock()), { mode: 0o600 });
+};
+export async function captureLifecycleUiAction(surface, endpoint, choose, options = {}) {
+  if (!process.env.PC10_P631_TEST_MODE.startsWith('readiness-'))
+    throw new Error('Unexpected lifecycle action in controlled runner test.');
+  await choose();
+  await record('lifecycle-action', { endpoint, surface: surface.label });
+  if (endpoint === 'claimGmInstance') clock().gmPhase = 'claimed';
+  if (endpoint === 'confirmSetup') clock().gmPhase = 'setup';
+  if (endpoint === 'prepareFullGameDemo') clock().gmPhase = 'prepared';
+  await writeFile(process.env.PC10_P631_TEST_TRACE, JSON.stringify(clock()), { mode: 0o600 });
+  if (endpoint === 'claimGmInstance') return { endpoint, data: { instanceId: 'owned-p631-gm-instance' },
+    result: { instance: { id: 'owned-p631-gm-instance' } } };
+  if (endpoint === 'confirmSetup') return { endpoint, result: { status: 'committed' } };
+  if (endpoint === 'prepareFullGameDemo') return { endpoint,
+    data: { sessionId: 'owned-p631-session', instanceId: 'owned-p631-gm-instance',
+      requestId: 'original-prepare-request', expectedSetupRevision: 1 },
+    before: { playerRole: 'gm', gmInstanceOwned: true }, httpStatus: 200,
+    result: { status: 'committed', fullGameDemo: { status: 'preparing', progression: 'manual' } } };
+  throw new Error('Unexpected controlled lifecycle endpoint: ' + endpoint);
+}
 export async function openLifecycleSettings() { throw new Error('Unexpected settings path in controlled runner test.'); }
 export async function closeLifecycleSettings() {}
+`);
+  const actualCoreUrl = pathToFileURL(join(root, 'scripts/pc10-member-rate-security-ui-proof-core.mjs')).href;
+  await writeFile(fakeCorePath, `
+import * as actual from ${JSON.stringify(actualCoreUrl)};
+export const P631_MEMBER_READ_LIMIT = actual.P631_MEMBER_READ_LIMIT;
+export const parseP631SecurityDenialRecords = actual.parseP631SecurityDenialRecords;
+export const assertP631RateDenialRecords = actual.assertP631RateDenialRecords;
+export const p631LoggerHash = actual.p631LoggerHash;
+export const runP631OwnedJourney = actual.runP631OwnedJourney;
+export async function provePreparationRateLimit(options) {
+  if (process.env.PC10_P631_TEST_MODE.startsWith('readiness-'))
+    return { freshRequestLoggerHash: 'a'.repeat(64), exactOriginalReplay: true };
+  return actual.provePreparationRateLimit(options);
+}
+export async function proveCurrentMemberReadRateLimit(options) {
+  if (process.env.PC10_P631_TEST_MODE.startsWith('readiness-'))
+    throw new Error('CONTROLLED_STOP_AFTER_MEMBER_READINESS');
+  return actual.proveCurrentMemberReadRateLimit(options);
+}
 `);
   await writeFile(fakeModulesPath, `
 const empty = () => ({ size: 0, docs: [] });
@@ -157,9 +257,12 @@ class Locator {
   async count() { return 3; }
   async all() { return [1, 2, 3].map(index => new Locator('checkbox-' + index)); }
   getByRole(role, options = {}) { return new Locator(options.name ?? role); }
-  async click(options = {}) { trace().clickTimeouts ??= []; trace().clickTimeouts.push(options.timeout ?? null); await flush(); }
-  async fill() {}
-  async selectOption() {}
+  async click(options = {}) {
+    trace().clickTimeouts ??= []; trace().clickTimeouts.push(options.timeout ?? null);
+    trace().events.push({ kind: 'click', name: this.name }); await flush();
+  }
+  async fill(value) { trace().events.push({ kind: 'fill', name: this.name, value }); await flush(); }
+  async selectOption(value) { trace().events.push({ kind: 'select', name: this.name, value }); await flush(); }
   async check(options = {}) {
     trace().checkboxTimeouts.push(options.timeout ?? null);
     trace().now += 10_000;
@@ -168,7 +271,7 @@ class Locator {
   async waitFor() {}
 }
 class Page {
-  constructor() { this.listeners = new Map(); this.frame = {}; }
+  constructor(index) { this.listeners = new Map(); this.frame = {}; this.index = index; this.responses = 0; }
   on(name, callback) { this.listeners.set(name, callback); }
   off(name) { this.listeners.delete(name); }
   setDefaultTimeout() {}
@@ -179,7 +282,11 @@ class Page {
   getByRole(role, options = {}) { return new Locator(options.name ?? role); }
   getByLabel(name) { return new Locator(name); }
   locator(name) { return new Locator(name); }
-  async evaluate() { return 'controlled-gm-uid'; }
+  async evaluate(_callback, args) {
+    if (args?.name === 'prepareFullGameDemo' && process.env.PC10_P631_TEST_MODE.startsWith('readiness-'))
+      throw new Error('CONTROLLED_STOP_AFTER_MEMBER_READINESS');
+    return this.index === 0 ? 'controlled-gm-uid' : 'controlled-member-uid';
+  }
   async waitForResponse(predicate, options = {}) {
     trace().observerTimeouts.push(options.timeout ?? null);
     await flush();
@@ -187,21 +294,28 @@ class Page {
       throw new Error('PC10_PRIVATE_FAILURE_CANARY');
     const request = { method: () => 'POST', postDataJSON: () => ({ data: {
       sessionId: 'owned-p631-session', instanceId: 'owned-p631-gm', requestId: 'original-ui-request' } }) };
-    const authorization = process.env.PC10_P631_TEST_MODE === 'authorization-body-stall' && trace().observerTimeouts.length > 1;
-    const response = { url: () => authorization ? 'http://127.0.0.1:5174/__local-gm-access'
-        : 'http://127.0.0.1:5011/us-central1/createSession', request: () => request,
+    const mode = process.env.PC10_P631_TEST_MODE;
+    const authorization = this.index === 0 && this.responses > 0;
+    const memberJoin = this.index === 1;
+    this.responses++;
+    const endpoint = memberJoin ? 'joinSession' : authorization ? null : 'createSession';
+    if (authorization && mode.startsWith('readiness-')) trace().gmPhase = 'authorized';
+    if (memberJoin && mode.startsWith('readiness-')) trace().memberPhase = 'joined';
+    const response = { url: () => memberJoin ? 'http://127.0.0.1:5011/us-central1/joinSession'
+        : authorization ? 'http://127.0.0.1:5174/__local-gm-access'
+          : 'http://127.0.0.1:5011/us-central1/createSession', request: () => request,
       status: () => {
-        const mode = process.env.PC10_P631_TEST_MODE;
         if (mode === 'create-body-stall' && !authorization || mode === 'authorization-body-stall' && authorization)
           trace().now += 59_900;
         return 200;
       }, json: async () => {
-        const mode = process.env.PC10_P631_TEST_MODE;
+        if (mode === 'readiness-deadline' && !authorization && !memberJoin) trace().now += 25_000;
         if (mode === 'create-body-stall' && !authorization || mode === 'authorization-body-stall' && authorization) {
           return new Promise(() => {});
         }
         return authorization ? { authenticated: true }
-          : { result: { session: { id: 'owned-p631-session', joinCode: '1234' } } };
+          : memberJoin ? { result: { session: { id: 'owned-p631-session' } } }
+            : { result: { session: { id: 'owned-p631-session', joinCode: '1234' } } };
       } };
     if (!predicate(response)) throw new Error('Controlled response did not match the actual observer predicate.');
     return response;
@@ -210,7 +324,7 @@ class Page {
 export const chromium = { launch: async () => {
   let connected = true;
   return { close: async () => { connected = false; }, isConnected: () => connected,
-    newContext: async () => ({ route: async () => {}, newPage: async () => new Page() }) };
+    newContext: async () => ({ route: async () => {}, newPage: async () => new Page(trace().nextPageId++) }) };
 } };
 `);
 
@@ -289,5 +403,65 @@ test('P631 local GM authorization response body remains inside its original oper
     assert.equal(run.ownerResult?.failureStage, 'normal local GM authorization');
     assert.equal(run.ownerResult?.cleanup?.closedBrowsers, 1);
     assert.equal(run.ownerResult?.cleanup?.deletedAuthActors, 1);
+  } finally { await rm(run.temporary, { recursive: true, force: true }); }
+});
+
+test('P631 normal creator waits through pending SDK authority, then qualifies as a player before GM claim and member admission', async () => {
+  const run = await runActualRunner('readiness-player-pending-ready');
+  try {
+    assert.equal(run.child.status, 1, run.child.stderr);
+    assert.equal(run.ownerResult?.failureStage, 'ordinary current-member SDK read exhaustion and same-network GM read',
+      `${run.child.stdout}\n${run.child.stderr}`);
+    assert.equal(run.ownerResult?.actualAuthenticatedActors, 2);
+    assert.equal(run.ownerResult?.cleanup?.closedBrowsers, 2);
+    assert.equal(run.ownerResult?.cleanup?.deletedAuthActors, 2);
+    assert.deepEqual(run.trace?.observations?.filter(item => item.phase === 'created').map(item => item.pending), [true, false]);
+    const lifecycle = run.trace?.events?.filter(item => item.kind === 'lifecycle-action').map(item => item.endpoint);
+    assert.deepEqual(lifecycle, ['claimGmInstance', 'confirmSetup', 'prepareFullGameDemo']);
+    assert.ok(run.trace?.events?.some(item => item.kind === 'member-observation' && item.phase === 'joined'));
+    assert.ok(run.ownerResult?.primaryFailureArtifact?.retained);
+  } finally { await rm(run.temporary, { recursive: true, force: true }); }
+});
+
+for (const [mode, expectedMessage] of [
+  ['readiness-foreign-session', /unexpected session identity/],
+  ['readiness-foreign-member-session', /unexpected current-member identity/],
+  ['readiness-changed-uid', /registered Auth UID changed/],
+  ['readiness-foreign-instance', /pre-existing GM instance/],
+]) {
+  test(`P631 initial admission rejects ${mode.slice('readiness-'.length)} before local GM authorization`, async () => {
+    const run = await runActualRunner(mode);
+    try {
+      assert.equal(run.child.status, 1, run.child.stderr);
+      assert.equal(run.ownerResult?.failureStage, 'normal GM admitted App/store authority');
+      assert.equal(run.ownerResult?.actualAuthenticatedActors, 1);
+      assert.equal(run.ownerResult?.cleanup?.closedBrowsers, 1);
+      assert.equal(run.trace?.events?.some(item => item.kind === 'lifecycle-action'), false);
+      const retained = JSON.parse(await readFile(join(run.evidenceDirectory, run.failureArtifacts[0]), 'utf8'));
+      assert.match(retained.originalError?.message ?? '', expectedMessage);
+    } finally { await rm(run.temporary, { recursive: true, force: true }); }
+  });
+}
+
+test('P631 stale SDK readiness stays outside the GM-authority path and shares create admission deadline', async () => {
+  const run = await runActualRunner('readiness-stale-sdk');
+  try {
+    assert.equal(run.child.status, 1, run.child.stderr);
+    assert.equal(run.ownerResult?.failureStage, 'normal GM admitted App/store authority');
+    assert.equal(run.trace?.events?.some(item => item.kind === 'lifecycle-action'), false);
+    const retained = JSON.parse(await readFile(join(run.evidenceDirectory, run.failureArtifacts[0]), 'utf8'));
+    assert.match(retained.contextInspect ?? '', /sdkHasServerAuthority: false/);
+    assert.match(retained.contextInspect ?? '', /sdkResumePending: true/);
+  } finally { await rm(run.temporary, { recursive: true, force: true }); }
+});
+
+test('P631 initial readiness does not extend the original create-and-consent operation deadline', async () => {
+  const run = await runActualRunner('readiness-deadline');
+  try {
+    assert.equal(run.child.status, 1, run.child.stderr);
+    assert.equal(run.ownerResult?.failureStage, 'normal GM admitted App/store authority');
+    assert.equal(run.trace?.observations?.filter(item => item.phase === 'created').length, 1);
+    const retained = JSON.parse(await readFile(join(run.evidenceDirectory, run.failureArtifacts[0]), 'utf8'));
+    assert.match(retained.originalError?.message ?? '', /original shared UI deadline expired/);
   } finally { await rm(run.temporary, { recursive: true, force: true }); }
 });
