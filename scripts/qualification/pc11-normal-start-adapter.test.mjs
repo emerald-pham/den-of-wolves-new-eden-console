@@ -166,7 +166,7 @@ test('GM readiness requires the exact current owned live instance and server aut
   assert.equal(gmReadiness?.({ ...gm, sdkHasServerAuthority: false }, expected), false);
 });
 
-test('normal start preflight requires the legal twelve-seat Dione and docked Philia state', () => {
+function normalStartSnapshot() {
   const gm = {
     hasAuth: true, sameActor: true, uidHash: 'gm-uid-hash',
     sessionId: 'fresh-normal-session', meSessionId: 'fresh-normal-session',
@@ -186,21 +186,27 @@ test('normal start preflight requires the legal twelve-seat Dione and docked Phi
     seatId: roleId,
     currentCanonicalSeatOwned: true,
   });
-  const snapshot = {
+  const activeRoleIds = ['admiral', 'wing-commander', 'dione-engineer', 'dione-president',
+    'icebreaker-engineer', 'icebreaker-miner', 'shepherd-engineer', 'shepherd-scientist',
+    'quellon-engineer', 'quellon-explorer', 'refinery-124-engineer', 'refinery-124-pdf-colonel'];
+  return {
     session: {
       id: 'fresh-normal-session', phase: 'active', currentTurn: 1,
       fullGameDemo: null, setupConfirmed: true, playerCount: 12, chartId: 'A',
-      activeRoleIds: ['admiral', 'wing-commander', 'dione-engineer', 'dione-president',
-        'icebreaker-engineer', 'icebreaker-miner', 'shepherd-engineer', 'shepherd-scientist',
-        'quellon-engineer', 'quellon-explorer', 'refinery-124-engineer', 'refinery-124-pdf-colonel'],
+      activeRoleIds,
       dioneEnabled: true, activeVesselIds: ['dione'],
       shuttleDockings: [{ shuttleId: 'philia', shipId: 'dione' }],
     },
+    canonicalRoleIds: [...activeRoleIds],
     gm,
     expectedGm: { sessionId: 'fresh-normal-session', uidHash: 'gm-uid-hash', instanceId: 'fresh-gm-instance' },
     members: [player('engineer-uid-hash', 'dione-engineer'), player('president-uid-hash', 'dione-president')],
     occupiedSeatCount: 2,
   };
+}
+
+test('normal start preflight requires a configured twelve-seat Dione and docked Philia state', () => {
+  const snapshot = normalStartSnapshot();
   assert.deepEqual(normalStartPreflight?.(snapshot), { ready: true, blockers: [] });
   assert.ok(normalStartPreflight?.({ ...snapshot, session: { ...snapshot.session, phase: 'closed' } })
     .blockers.includes('session must be active and nonterminal'));
@@ -208,10 +214,35 @@ test('normal start preflight requires the legal twelve-seat Dione and docked Phi
     .blockers.includes('session must be a normal production session without a training marker'));
   assert.ok(normalStartPreflight?.({ ...snapshot, occupiedSeatCount: 1 }).blockers
     .includes('exactly the Engineer and President seats must be occupied'));
+});
+
+test('normal start preflight requires the live canonical role source and exact configured roster', () => {
+  const snapshot = normalStartSnapshot();
+  assert.ok(normalStartPreflight?.({ ...snapshot, canonicalRoleIds: undefined }).blockers
+    .includes('canonical twelve-seat roster must be supplied from live normal setup configuration'));
+
+  const differentCanonicalRoster = [...snapshot.canonicalRoleIds];
+  differentCanonicalRoster.reverse();
+  assert.ok(normalStartPreflight?.({ ...snapshot, canonicalRoleIds: differentCanonicalRoster }).blockers
+    .includes('active twelve-seat roster must exactly match live normal setup configuration'));
+
   const illegalRoles = [...snapshot.session.activeRoleIds];
   illegalRoles[11] = 'not-a-configured-role';
   assert.ok(normalStartPreflight?.({
     ...snapshot,
     session: { ...snapshot.session, activeRoleIds: illegalRoles },
-  }).blockers.includes('setup must match the legal twelve-seat Chart A role preset'));
+  }).blockers.includes('active twelve-seat roster must exactly match live normal setup configuration'));
+});
+
+test('normal start preflight rejects missing, null, or empty fleet group identities', () => {
+  const snapshot = normalStartSnapshot();
+  for (const invalidGroup of [undefined, null, '']) {
+    const members = snapshot.members.map(member => ({ ...member, fleetGroupId: invalidGroup }));
+    assert.ok(normalStartPreflight?.({ ...snapshot, members }).blockers
+      .includes('two distinct live players must own the Engineer and President seats in one fleet group'),
+    `fleetGroupId ${String(invalidGroup)} must not satisfy shared-group readiness`);
+  }
+  const membersWithoutGroup = snapshot.members.map(({ fleetGroupId: _fleetGroupId, ...member }) => member);
+  assert.ok(normalStartPreflight?.({ ...snapshot, members: membersWithoutGroup }).blockers
+    .includes('two distinct live players must own the Engineer and President seats in one fleet group'));
 });
