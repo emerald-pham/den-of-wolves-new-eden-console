@@ -133,7 +133,7 @@ const pendingCase: ArrestCase = {
   deadlineCycle: 4, requestId: 'arrest-1',
 };
 
-it('offers release or execution only during the next Team Phase and binds the ruling to the case revision', async () => {
+it('blocks ordinary disposition after the next Team deadline and requires a reasoned facilitator resolution', async () => {
   const user = userEvent.setup();
   const onDisposition = vi.fn().mockResolvedValue({ status: 'committed' });
   const props = {
@@ -142,16 +142,41 @@ it('offers release or execution only during the next Team Phase and binds the ru
     expectedRevision: 1,
     calculation: result,
     caseRecord: pendingCase,
-    currentCycle: 3,
+    currentCycle: 4,
     deadlineTeamPhaseOpen: false,
     onCalculate: vi.fn(),
     onDisposition,
   };
-  const { rerender } = render(<ArrestPosseCalculator {...props} />);
+  render(<ArrestPosseCalculator {...props} />);
   expect(screen.getByRole('heading', { name: /prisoner ruling.*Team Phase 4/i })).toBeInTheDocument();
+  expect(screen.getByText('The Team Phase ruling window is closed. Record a reasoned facilitator resolution.')).toBeVisible();
+  expect(screen.queryByRole('button', { name: 'Release prisoner' })).not.toBeInTheDocument();
   expect(screen.queryByRole('button', { name: 'Execute prisoner' })).not.toBeInTheDocument();
+  const resolve = screen.getByRole('button', { name: 'Record facilitator resolution' });
+  expect(resolve).toBeDisabled();
+  await user.type(screen.getByLabelText('Facilitator ruling'), 'The table agrees on a final ruling.');
+  await user.click(resolve);
+  await waitFor(() => expect(onDisposition).toHaveBeenCalledWith(
+    'u2', 'facilitator-resolution', 4, 1, 'The table agrees on a final ruling.',
+  ));
+});
 
-  rerender(<ArrestPosseCalculator {...props} currentCycle={4} deadlineTeamPhaseOpen />);
+it('offers ordinary release or execution during the next Team Phase', async () => {
+  const user = userEvent.setup();
+  const onDisposition = vi.fn().mockResolvedValue({ status: 'committed' });
+  render(<ArrestPosseCalculator
+    targetOptions={[{ uid: 'u2', label: 'Rae (u2)' }]}
+    censusRevision={9}
+    expectedRevision={1}
+    calculation={result}
+    caseRecord={pendingCase}
+    currentCycle={4}
+    deadlineTeamPhaseOpen
+    onCalculate={vi.fn()}
+    onDisposition={onDisposition}
+  />);
+
+  expect(screen.getByText(/release or execute by the end of team phase 4/i)).toBeVisible();
   await user.click(screen.getByRole('button', { name: 'Execute prisoner' }));
   await waitFor(() => expect(onDisposition).toHaveBeenCalledWith('u2', 'executed', 4, 1, undefined));
 });
