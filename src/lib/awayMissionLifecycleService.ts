@@ -11,6 +11,7 @@ import {
 import { httpsCallable } from 'firebase/functions';
 import { app, auth, functions } from './firebase';
 import { useSessionStore } from '@/store/useSessionStore';
+import { validMissionRewardChoiceProjection, type MissionRewardChoice, type MissionRewardSelection, type MissionRewardChoiceOptions } from './missionRewardChoices';
 import {
   captureSessionAuthority,
   hasFreshSessionAuthority,
@@ -54,6 +55,9 @@ export interface AwayMissionPublicState {
 }
 
 export interface AwayMissionPrivateState {
+  readonly rewardOptions?: readonly MissionRewardChoiceOptions[];
+  readonly rewardChoices?: readonly MissionRewardSelection[];
+  readonly extraCardRecipientUids?: readonly string[];
   readonly assignmentCommitted?: boolean;
   readonly canUseReclamator?: boolean;
   readonly missionId: string;
@@ -82,6 +86,7 @@ type LifecycleCommandType =
   | 'addFacilitatorCards'
   | 'resolve'
   | 'exploreSystems'
+  | 'chooseRewardTargets'
   | 'dropOff';
 
 export interface AwayMissionLifecycleMission {
@@ -162,6 +167,7 @@ export interface AwayMissionLifecycleCallablePayload {
   readonly opportunityId?: string;
   readonly cardId?: string;
   readonly choices?: readonly Readonly<{ cardId: string; resource: 'food' | 'water' | 'materials' }>[];
+  readonly choice?: MissionRewardChoice;
   readonly placements?: readonly Readonly<{ cardId: string; opportunityId: string }> [];
   readonly targetCoordinates?: readonly string[];
   readonly shipId?: string;
@@ -196,6 +202,7 @@ export interface AwayMissionLifecycleClientActions {
   readonly resolve: () => Promise<void>;
   readonly exploreSystems: (opportunityId: string, targetCoordinates: readonly string[]) => Promise<void>;
   readonly dropOff: (shipId: string) => Promise<void>;
+  readonly chooseRewardTargets: (opportunityId: string, choice: MissionRewardChoice) => Promise<void>;
 }
 
 export interface AwayMissionLifecycleActionDependencies {
@@ -230,7 +237,7 @@ const AMBIGUOUS_TRANSPORT_ERRORS = new Set([
   'functions/unavailable', 'functions/unknown',
 ]);
 const GM_COMMANDS = new Set<LifecycleCommandType>(['openDiscards', 'addFacilitatorCards', 'resolve', 'exploreSystems']);
-const LEADER_COMMANDS = new Set<LifecycleCommandType>(['distributeExtraCard', 'dropOff']);
+const LEADER_COMMANDS = new Set<LifecycleCommandType>(['distributeExtraCard', 'dropOff', 'chooseRewardTargets']);
 
 function isRecord(value: unknown): value is Data {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -364,8 +371,13 @@ export function parseAwayMissionLifecyclePrivateState(
   if (!isRecord(value) || !hasExactKeys(value, [...PRIVATE_KEYS,
       ...(Object.hasOwn(value, 'canUseReclamator') ? ['canUseReclamator'] : []),
       ...(Object.hasOwn(value, 'assignmentCommitted') ? ['assignmentCommitted'] : []),
+      ...(Object.hasOwn(value, 'extraCardRecipientUids') ? ['extraCardRecipientUids'] : []),
+      ...(Object.hasOwn(value, 'rewardOptions') ? ['rewardOptions'] : []),
+      ...(Object.hasOwn(value, 'rewardChoices') ? ['rewardChoices'] : []),
     ]) || (value.canUseReclamator !== undefined && typeof value.canUseReclamator !== 'boolean') ||
       (value.assignmentCommitted !== undefined && typeof value.assignmentCommitted !== 'boolean') ||
+      (value.extraCardRecipientUids !== undefined && !isUniqueStringArray(value.extraCardRecipientUids)) ||
+      ((value.rewardOptions !== undefined || value.rewardChoices !== undefined) && !validMissionRewardChoiceProjection(value.rewardOptions, value.rewardChoices)) ||
       value.missionId !== expected.missionId || value.participantUid !== expected.participantUid ||
       value.revision !== expected.revision || typeof value.phase !== 'string' ||
       !MISSION_PHASES.has(value.phase) || !Array.isArray(value.cards) || value.cards.length > 33) return null;
@@ -848,6 +860,7 @@ export function createAwayMissionLifecycleActions(
     resolve: () => submit('resolve'),
     exploreSystems: (opportunityId, targetCoordinates) => submit('exploreSystems', { opportunityId, targetCoordinates }),
     dropOff: (shipId) => submit('dropOff', { shipId }),
+    chooseRewardTargets: (opportunityId, choice) => submit('chooseRewardTargets', { opportunityId, choice }),
   };
 }
 

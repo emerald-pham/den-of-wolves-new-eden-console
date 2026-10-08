@@ -17,8 +17,11 @@ import {
   type CandidatePlanCheckpoint,
 } from './candidatePlanCheckpoint';
 import type { CandidateReveal } from './candidateRevealProjection';
+import { parseMissionNebulaBenefits, type MissionNebulaBenefitsByShip } from './missionNebulaBenefits';
 
 export interface NavigationState {
+  /** Protected per-ship grant; never included in player discovery projections. */
+  readonly missionNebulaBenefitsByShip?: MissionNebulaBenefitsByShip;
   /** Mission reward knowledge follows its entitled UID, never a later ship occupant. */
   readonly missionExploredCoordinatesByUid?: Readonly<Record<string, readonly string[]>>;
   readonly shipGalacticCoordinates: Readonly<Record<string, string>>;
@@ -146,6 +149,10 @@ export function navigationState(
   );
   const missionExploredCoordinatesByUid = parseMissionExploredCoordinatesByUid(raw.missionExploredCoordinatesByUid);
   if (!missionExploredCoordinatesByUid) throw new Error('Mission discovery authority is malformed.');
+  const storedMissionNebulaBenefits = parseMissionNebulaBenefits(raw.missionNebulaBenefitsByShip);
+  if (!storedMissionNebulaBenefits) throw new Error('Mission nebula benefit authority is malformed.');
+  const missionNebulaBenefitsByShip = Object.fromEntries(Object.entries(storedMissionNebulaBenefits)
+    .filter(([shipId, benefit]) => activeVesselIds.includes(shipId) && coordinates[shipId] === benefit.coordinate));
   const normalizedHistory = systemHistory(raw.systemHistory, activeVesselIds, shipNavigationLogs);
   const candidatePlanCheckpoint = parseCandidatePlanCheckpoint(raw.candidatePlanCheckpoint);
   return {
@@ -158,6 +165,7 @@ export function navigationState(
     shipNavigationLogs,
     ...(scoutedCoordinatesByShip ? { scoutedCoordinatesByShip } : {}),
     ...(Object.keys(missionExploredCoordinatesByUid).length ? { missionExploredCoordinatesByUid } : {}),
+    ...(Object.keys(missionNebulaBenefitsByShip).length ? { missionNebulaBenefitsByShip } : {}),
     ...(normalizedHistory ? { systemHistory: normalizedHistory } : {}),
     ...(candidatePlanCheckpoint ? { candidatePlanCheckpoint } : {}),
     pursuitGroups: pursuitGroups(raw, legacyPursuitGroups),

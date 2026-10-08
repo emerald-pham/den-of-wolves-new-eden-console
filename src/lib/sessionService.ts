@@ -5282,10 +5282,11 @@ function wolfAttackWindowReply(value: unknown): WolfAttackWindow | null {
     (reply.targetGroupId !== undefined &&
       (typeof reply.targetGroupId !== 'string' || !/^fleet-[1-9][0-9]*$/.test(reply.targetGroupId))) ||
     (reply.threatSiteCode !== undefined &&
-      reply.threatSiteCode !== 'L' && reply.threatSiteCode !== 'M' &&
+      reply.threatSiteCode !== 'K' && reply.threatSiteCode !== 'L' && reply.threatSiteCode !== 'M' &&
       reply.threatSiteCode !== 'P' && reply.threatSiteCode !== 'commander') ||
     (reply.threatSourceId !== undefined &&
-      (typeof reply.threatSourceId !== 'string' || !/^arrival-[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(reply.threatSourceId)))
+      !validWolfThreatSourceId(reply.threatSiteCode, reply.threatSourceId)) ||
+    (reply.threatSiteCode === 'K' && (typeof reply.targetGroupId !== 'string' || !validWolfThreatSourceId('K', reply.threatSourceId)))
   ) return null;
   return {
     status: reply.status,
@@ -5293,7 +5294,7 @@ function wolfAttackWindowReply(value: unknown): WolfAttackWindow | null {
     revision: reply.revision,
     ...(typeof reply.targetGroupId === 'string'
       ? { targetGroupId: reply.targetGroupId as NonNullable<WolfAttackWindow['targetGroupId']> } : {}),
-    ...(reply.threatSiteCode === 'L' || reply.threatSiteCode === 'M' ||
+    ...(reply.threatSiteCode === 'K' || reply.threatSiteCode === 'L' || reply.threatSiteCode === 'M' ||
       reply.threatSiteCode === 'P' || reply.threatSiteCode === 'commander'
       ? { threatSiteCode: reply.threatSiteCode } : {}),
     ...(typeof reply.threatSourceId === 'string' ? { threatSourceId: reply.threatSourceId } : {}),
@@ -5306,11 +5307,16 @@ export interface WolfAttackThreatWindowOptions {
   readonly targetGroupId: string;
   readonly cycle: number;
   readonly sources: readonly Readonly<{
-    siteCode: 'L' | 'M' | 'P';
+    siteCode: 'K' | 'L' | 'M' | 'P';
     sourceId: string;
     sourceCycle: number;
     coordinate: string;
   }>[];
+}
+
+function validWolfThreatSourceId(siteCode: unknown, sourceId: unknown): sourceId is string {
+  return typeof sourceId === 'string' && (siteCode === 'K'
+    ? /^mission-[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/ : /^arrival-[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/).test(sourceId);
 }
 
 function wolfAttackThreatWindowOptionsReply(
@@ -5326,8 +5332,8 @@ function wolfAttackThreatWindowOptionsReply(
     const source = candidate as Record<string, unknown>;
     return Object.keys(source).length === 4 &&
       Object.keys(source).every((key) => ['siteCode', 'sourceId', 'sourceCycle', 'coordinate'].includes(key)) &&
-      (source.siteCode === 'L' || source.siteCode === 'M' || source.siteCode === 'P') &&
-      typeof source.sourceId === 'string' && /^arrival-[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(source.sourceId) &&
+      (source.siteCode === 'K' || source.siteCode === 'L' || source.siteCode === 'M' || source.siteCode === 'P') &&
+      validWolfThreatSourceId(source.siteCode, source.sourceId) &&
       Number.isSafeInteger(source.sourceCycle) && (source.sourceCycle as number) >= 1 &&
       (source.sourceCycle as number) <= expectedCycle &&
       typeof source.coordinate === 'string' && /^\d{4}$/.test(source.coordinate)
@@ -6357,7 +6363,7 @@ export async function acknowledgeWolfHackingAlert(
 export async function setWolfAttackWindow(
   status: WolfAttackWindowStatus,
   expectedRevision: number,
-  threat?: Readonly<{ targetGroupId: string; threatSiteCode?: 'L' | 'M' | 'P'; threatSourceId?: string }>,
+  threat?: Readonly<{ targetGroupId: string; threatSiteCode?: 'K' | 'L' | 'M' | 'P'; threatSourceId?: string }>,
 ): Promise<WolfAttackWindow> {
   const store = useSessionStore.getState();
   if (!store.session || !store.gmInstance) {
@@ -6369,7 +6375,7 @@ export async function setWolfAttackWindow(
   await ensureSignedIn();
   if (status === 'due' && threat && (!/^fleet-[1-9][0-9]*$/.test(threat.targetGroupId) ||
       (threat.threatSiteCode === undefined) !== (threat.threatSourceId === undefined) ||
-      (threat.threatSourceId !== undefined && !/^arrival-[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(threat.threatSourceId)))) {
+      (threat.threatSourceId !== undefined && !validWolfThreatSourceId(threat.threatSiteCode, threat.threatSourceId)))) {
     throw new Error('Select a current fleet group and live source before marking a Wolf threat due.');
   }
   const payload = {

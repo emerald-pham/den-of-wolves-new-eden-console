@@ -48,6 +48,15 @@ export interface CommanderCycleCarryoverContext {
   readonly nextAttackNumber: number;
 }
 
+/** Constructed only after the handler verifies the protected K mission and schedule. */
+export interface MissionKCarryoverContext {
+  readonly type: 'mission-k';
+  readonly sourceId: string; readonly missionId: string;
+  readonly resolutionRevision: number; readonly resolutionRequestId: string;
+  readonly sourceCycle: number; readonly groupId: string;
+  readonly parentAttackId: string; readonly nextAttackNumber: number;
+}
+
 export interface ResolvedPStationRepeat extends ResolvedWolfAttackForCarryover {
   readonly repeatContext: PStationRepeatContext;
   readonly survivingShips: readonly Readonly<{ instanceId: string; shipId: string }>[];
@@ -254,6 +263,12 @@ export function resolvedWolfAttackForCarryover(
   stateValue: unknown,
   finalizationAuditValue: unknown,
   currentTurn: number,
+  missionContext: MissionKCarryoverContext,
+): ResolvedWolfAttackForCarryover;
+export function resolvedWolfAttackForCarryover(
+  stateValue: unknown,
+  finalizationAuditValue: unknown,
+  currentTurn: number,
   repeatContext?: unknown,
 ): ResolvedWolfAttackForCarryover | ResolvedPStationRepeat {
   if (!record(stateValue) || !record(finalizationAuditValue)) {
@@ -281,6 +296,15 @@ export function resolvedWolfAttackForCarryover(
   const parsedContext = contextType === 'p-station-repeat' ? parsePStationRepeatContext(repeatContext) : undefined;
   const parsedCommanderContext = contextType === 'commander-cycle'
     ? parseCommanderCycleContext(repeatContext) : undefined;
+  const missionContext = contextType === 'mission-k' && record(repeatContext) &&
+    hasExactKeys(repeatContext, ['type', 'sourceId', 'missionId', 'resolutionRevision', 'resolutionRequestId', 'sourceCycle', 'groupId', 'parentAttackId', 'nextAttackNumber']) &&
+    typeof repeatContext.missionId === 'string' && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(repeatContext.missionId) &&
+    repeatContext.sourceId === `mission-${repeatContext.missionId}` && Number.isSafeInteger(repeatContext.resolutionRevision) && (repeatContext.resolutionRevision as number) > 0 &&
+    typeof repeatContext.resolutionRequestId === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(repeatContext.resolutionRequestId) &&
+    Number.isSafeInteger(repeatContext.sourceCycle) && (repeatContext.sourceCycle as number) > 0 && (repeatContext.sourceCycle as number) <= currentTurn &&
+    typeof repeatContext.groupId === 'string' && /^fleet-[1-9][0-9]*$/.test(repeatContext.groupId) &&
+    repeatContext.parentAttackId === attackId && Number.isSafeInteger(repeatContext.nextAttackNumber)
+      ? repeatContext as unknown as MissionKCarryoverContext : undefined;
   if (state.type !== 'wolf-attack-state' || state.status !== 'resolved' || state.currentStep !== 'resolved' ||
       state.airspaceLocked !== false || state.parkingReleaseCondition !== 'normal-movement-reopened' ||
       typeof attackId !== 'string' || !/^wolf-attack-[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/.test(attackId) ||
@@ -289,7 +313,7 @@ export function resolvedWolfAttackForCarryover(
       !revisionBindingValid ||
       !Number.isSafeInteger(currentTurn) ||
       (repeatWasRequested
-        ? contextType === 'p-station-repeat' ? currentTurn !== turn : currentTurn <= (turn as number)
+        ? contextType === 'p-station-repeat' ? currentTurn !== turn : missionContext ? currentTurn < (turn as number) : currentTurn <= (turn as number)
         : currentTurn <= (turn as number)) ||
       typeof state.resolvedAt !== 'string' || !Number.isFinite(Date.parse(state.resolvedAt)) ||
       typeof state.finalizationRequestId !== 'string' ||
@@ -324,6 +348,9 @@ export function resolvedWolfAttackForCarryover(
       state, attackId, turn: turn as number, attackNumber: attackNumber as number,
       returningInstanceIds: [...receipt.returningInstanceIds], repeatContext: parsedContext, survivingShips: survivors,
     };
+  } else if (contextType === 'mission-k') {
+    if (!missionContext || missionContext.nextAttackNumber !== (attackNumber as number) + 1 ||
+        (attackNumber as number) >= Number.MAX_SAFE_INTEGER) throw new Error('The K attempt is not bound to the finalized parent attack.');
   } else if (repeatWasRequested) {
     const marker = parseCommanderCycleMarker(state.commanderCycleAttack);
     const auditedMarker = parseCommanderCycleMarker(audit.commanderCycleAttack);
@@ -351,7 +378,7 @@ export function resolvedWolfAttackForCarryover(
     if (typeof state.previousAttackId !== 'string' || state.previousAttackId === attackId ||
         !record(carryover) || carryover.sourceAttackId !== state.previousAttackId ||
         !Number.isSafeInteger(carryover.sourceTurn) || (carryover.sourceTurn as number) < 1 ||
-        (pStationRepeat ? (carryover.sourceTurn as number) > (turn as number) :
+        (pStationRepeat || missionContext ? (carryover.sourceTurn as number) > (turn as number) :
           (carryover.sourceTurn as number) >= (turn as number)) ||
         !Array.isArray(carryover.sourceInstanceIds) ||
         !carryover.sourceInstanceIds.every(isReturningInstanceId) ||

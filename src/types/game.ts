@@ -538,7 +538,7 @@ export interface FleetTickerState {
 
 /** Facilitator-only marker for the approximate first Wolf-attack window. */
 export type WolfAttackWindowStatus = 'due' | 'resolved' | 'deferred';
-export type WolfAttackThreatSiteCode = 'L' | 'M' | 'P' | 'commander';
+export type WolfAttackThreatSiteCode = 'K' | 'L' | 'M' | 'P' | 'commander';
 
 export interface WolfAttackWindow {
   readonly status: WolfAttackWindowStatus;

@@ -38,6 +38,7 @@ import {
   type MissionLifecycleStateInput,
   type MissionBonusSourceInput,
 } from './missionLifecycle';
+import { validMissionRewardChoice, validMissionRewardChoiceProjection, type MissionRewardConsoleTarget } from './missionRewardDelivery';
 
 type Data = Record<string, unknown>;
 type LifecycleCommandType = AwayMissionLifecycleCommand['type'];
@@ -93,6 +94,8 @@ export interface AwayMissionLifecycleParticipantCraftContext {
 }
 
 export interface AwayMissionLifecycleGameContext {
+  readonly rewardConsoleTargets?: readonly MissionRewardConsoleTarget[];
+  readonly currentGroupId?: string;
   readonly currentCycle: number;
   readonly teamPhase: boolean;
   readonly legalDropOffShipIds: readonly string[];
@@ -138,6 +141,15 @@ export interface AwayMissionLifecycleCallableDependencies {
     readonly nextRecord: AwayMissionLifecycleRecord;
     readonly shipId: string;
   }) => Promise<() => void>;
+  /** Source-deterministic research, nebula and attack consequences at the real resolution transition. */
+  readonly prepareResolvedConsequences?: (context: AwayMissionLifecycleAuthorityContext & {
+    readonly nextRecord: AwayMissionLifecycleRecord;
+    readonly currentGroupId?: string;
+  }) => Promise<() => void>;
+  /** Recheck private targets against current server authority before storing the choice. */
+  readonly validateRewardChoice?: (context: AwayMissionLifecycleAuthorityContext & {
+    readonly nextRecord: AwayMissionLifecycleRecord;
+  }) => Promise<void>;
   /** Validate printed chart targets and prepare UID-private knowledge in this transaction. */
   readonly prepareExplorationApplication: (context: AwayMissionLifecycleAuthorityContext & {
     readonly opportunityId: string;
@@ -220,12 +232,13 @@ const COMMAND_FIELDS: Readonly<Record<LifecycleCommandType, readonly string[]>> 
   addFacilitatorCards: [],
   resolve: [],
   exploreSystems: ['opportunityId', 'targetCoordinates'],
+  chooseRewardTargets: ['opportunityId', 'choice'],
   dropOff: ['shipId'],
 };
 
 const COMMAND_TYPES = Object.keys(COMMAND_FIELDS) as LifecycleCommandType[];
 const GM_COMMANDS = new Set<LifecycleCommandType>(['openDiscards', 'addFacilitatorCards', 'resolve', 'exploreSystems']);
-const LEADER_COMMANDS = new Set<LifecycleCommandType>(['distributeExtraCard', 'dropOff']);
+const LEADER_COMMANDS = new Set<LifecycleCommandType>(['distributeExtraCard', 'dropOff', 'chooseRewardTargets']);
 const PARTICIPANT_COMMANDS = new Set<LifecycleCommandType>([
   'requestExtraCards', 'discardCard', 'reclamatorSalvage', 'assignCards',
 ]);
@@ -478,6 +491,7 @@ export function createAwayMissionLifecycleCallables(
           teamPhase: context.teamPhase,
           currentCycle: context.currentCycle,
           legalDropOffShipIds: context.legalDropOffShipIds,
+          ...(context.rewardConsoleTargets ? { rewardConsoleTargets: context.rewardConsoleTargets } : {}),
           ...(context.bonusSources === undefined ? {} : { bonusSources: context.bonusSources }),
           ...(parsed.command.type === 'addFacilitatorCards' ? { randomIndex: random.next } : {}),
           ...(parsed.command.type === 'resolve'
@@ -515,6 +529,8 @@ export function createAwayMissionLifecycleCallables(
           nextRecord = {
             ...resolved.record,
             revision: result.record.revision,
+            resolutionRevision: result.record.revision,
+            resolutionRequestId: parsed.requestId,
             commandReceipts: result.record.commandReceipts,
           };
         }
@@ -569,10 +585,21 @@ export function createAwayMissionLifecycleCallables(
             session: sessionSnapshot, mission: missionSnapshot, record,
             commandType: parsed.command.type, nextRecord, shipId: parsed.command.shipId,
           }) : undefined;
+        if (parsed.command.type === 'chooseRewardTargets') await dependencies.validateRewardChoice?.({
+          transaction: rawTransaction, sessionId: parsed.sessionId, missionId: parsed.missionId,
+          session: sessionSnapshot, mission: missionSnapshot, record, commandType: parsed.command.type, nextRecord,
+        });
+        const commitConsequences = record.status === 'active' && nextRecord.status === 'resolved'
+          ? await dependencies.prepareResolvedConsequences?.({
+            transaction: rawTransaction, sessionId: parsed.sessionId, missionId: parsed.missionId,
+            session: sessionSnapshot, mission: missionSnapshot, record, commandType: parsed.command.type, nextRecord,
+            currentGroupId: context.currentGroupId,
+          }) : undefined;
         const updatedAt = dependencies.serverTimestamp();
         commitCraftCommitments();
         commitExploration?.();
         commitDelivery?.();
+        commitConsequences?.();
         transaction.update(dependencies.db.doc(p.mission), {
           phase: nextRecord.lifecycle.phase,
           revision: nextRecord.revision,
@@ -743,6 +770,17 @@ function parseCallableCommand(value: unknown): ParsedCallableCommand {
       if (!safePathSegment(value.shipId)) fail('invalid-argument', 'Invalid mission reward drop-off ship.');
       command = { type, requestId, expectedRevision: expectedRevision as number, shipId: value.shipId as string };
       break;
+    case 'chooseRewardTargets': {
+      if (!safePathSegment(value.opportunityId) || !isRecord(value.choice)) fail('invalid-argument', 'Choose the printed reward targets.');
+      // The selected reward's structural/target validation is authoritative in the adapter and delivery preparation.
+      const definition = missionCardForCode(value.opportunityId.split('-')[0] as string);
+      const opportunity = definition?.opportunities.find(opportunity => opportunity.id === value.opportunityId);
+      const effectReward = opportunity && { opportunityId: opportunity.id, branch: 'critical' as const,
+        resources: {}, effects: [...opportunity.reward.successEffects, ...(opportunity.reward.criticalEffects ?? [])], bulkHaulageApplied: false };
+      if (!effectReward || !validMissionRewardChoice(effectReward, value.choice)) fail('invalid-argument', 'The targets do not match a printed reward choice.');
+      command = { type, requestId, expectedRevision: expectedRevision as number, opportunityId: value.opportunityId as string, choice: value.choice };
+      break;
+    }
   }
   return {
     sessionId,
@@ -1246,8 +1284,17 @@ function validateStoredCommandReply(
       'missionId', 'participantUid', 'revision', 'phase', 'cards', 'reclamatorSalvage',
       ...(Object.hasOwn(privateState, 'canUseReclamator') ? ['canUseReclamator'] : []),
       ...(Object.hasOwn(privateState, 'assignmentCommitted') ? ['assignmentCommitted'] : []),
+      ...(Object.hasOwn(privateState, 'extraCardRecipientUids') ? ['extraCardRecipientUids'] : []),
+      ...(Object.hasOwn(privateState, 'rewardOptions') ? ['rewardOptions'] : []),
+      ...(Object.hasOwn(privateState, 'rewardChoices') ? ['rewardChoices'] : []),
     ]) || (privateState.canUseReclamator !== undefined && typeof privateState.canUseReclamator !== 'boolean') || privateState.missionId !== command.missionId || privateState.participantUid !== actorUid ||
         (privateState.assignmentCommitted !== undefined && typeof privateState.assignmentCommitted !== 'boolean') ||
+        (privateState.extraCardRecipientUids !== undefined &&
+          (publicState.missionLeaderUid !== actorUid || !Array.isArray(privateState.extraCardRecipientUids) ||
+            privateState.extraCardRecipientUids.some(uid => !safePathSegment(uid)) ||
+            new Set(privateState.extraCardRecipientUids).size !== privateState.extraCardRecipientUids.length)) ||
+        ((privateState.rewardChoices !== undefined || privateState.rewardOptions !== undefined) &&
+          (publicState.missionLeaderUid !== actorUid || !validMissionRewardChoiceProjection(privateState.rewardOptions, privateState.rewardChoices))) ||
         privateState.revision !== value.revision || !Array.isArray(privateState.cards) ||
         privateState.cards.some((card) => !isRecord(card) ||
           !hasExactKeys(card, ['id', 'value', 'status', 'opportunityId']))) {

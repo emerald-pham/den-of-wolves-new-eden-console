@@ -20,6 +20,8 @@ export interface JumpTransition {
 }
 
 export interface JumpAttemptInput {
+  /** Set only by the protected navigation grant for this ship and origin. */
+  readonly freeExitFuel?: boolean;
   readonly shipId: string;
   readonly origin: string;
   readonly destination: string;
@@ -157,7 +159,7 @@ export function resolveJumpAttempt(input: JumpAttemptInput): JumpAttemptResult {
   const length = jumpLengthBetween(input.origin, input.destination);
   if (!length) return integrityLockout(input);
 
-  const fuelCost = jumpFuelCost(input.shipId, length, input.upgraded);
+  const fuelCost = input.freeExitFuel === true ? 0 : jumpFuelCost(input.shipId, length, input.upgraded);
   if (input.fuel < fuelCost) throw new Error('Insufficient strytium fuel for this jump.');
   if (input.state?.lastJumpTurn === input.currentTurn) {
     throw new Error('This ship has already jumped this cycle.');

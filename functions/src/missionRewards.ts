@@ -142,7 +142,7 @@ export function resolveWarriorReclamatorHand(
   if (!isRecord(input) || !isNonEmptyString(input.participantUid) || input.roleId !== 'warrior-captain' ||
       !missionCardForCode(input.siteCode) || !Array.isArray(input.handCardIds) || input.handCardIds.length === 0 ||
       !Array.isArray(input.choices) || input.choices.length !== input.handCardIds.length ||
-      !missionCardForCode(input.siteCode)?.opportunities.some(({ id, traits }) => id === input.opportunityId && traits.includes('salvage'))) return null;
+      !missionCardForCode(input.siteCode)?.opportunities.some(({ id }) => id === input.opportunityId)) return null;
   const cards = input.handCardIds;
   if (cards.some((cardId) => typeof cardId !== 'string' || !CARD_IDS.has(cardId)) ||
       new Set(cards).size !== cards.length) return null;

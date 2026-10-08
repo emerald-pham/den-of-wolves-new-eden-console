@@ -110,6 +110,8 @@ export interface MissionLifecycleState {
   /** Full private hands consumed by the Warrior Reclamator special action. */
   readonly reclamatorParticipantUids: readonly string[];
   readonly reclamatorCardIds: readonly MissionCardId[];
+  /** Server-private exclusive claims; absent only in legacy lifecycle snapshots. */
+  readonly reclamatorOpportunityClaims?: readonly Readonly<{ participantUid: string; opportunityId: string }>[];
   readonly extraAllocationReceipts: readonly {
     readonly requestId: string;
     readonly participantUid: string;
@@ -304,8 +306,8 @@ export function missionLeaderCardRequestCounts(
 }
 
 /**
- * Give one server-drawn card to a participant, up to their requested number of
- * extras. `opportunityId` is the leader's distribution slot for the
+ * Give one server-drawn card to an admitted participant. Requests are optional.
+ * `opportunityId` is the leader's distribution slot for the
  * one-per-player-per-opportunity cap; the participant can still choose the
  * final opportunity during assignment.
  */
@@ -335,11 +337,11 @@ export function allocateBlindExtraMissionCard(
       state.cards.some((card) => card.source === 'leader-extra' &&
         card.participantUid === command.participantUid &&
         card.distributionOpportunityId === command.opportunityId)) return null;
-  const requestedExtraCount = state.requestsByParticipant.find(({ participantUid }) =>
-    participantUid === command.participantUid)?.count ?? 0;
   const alreadyAllocatedExtraCount = state.cards.filter((card) => card.source === 'leader-extra' &&
     card.participantUid === command.participantUid).length;
-  if (alreadyAllocatedExtraCount >= requestedExtraCount) return null;
+  const definition = missionCardForCode(state.siteCode)!;
+  if (alreadyAllocatedExtraCount >= definition.opportunityCount ||
+      state.extraAllocationReceipts.length >= definition.cardsDealt) return null;
 
   const participant = state.participants.find(({ uid }) => uid === command.participantUid)!;
   const finiteDeal = allocateMissionCardsWithResolvedDiscards(
@@ -424,12 +426,16 @@ export function discardMissionCardSecretly(
 export function discardMissionHandForWarriorReclamator(
   state: MissionLifecycleState,
   participantUid: string,
+  opportunityId?: string,
 ): Readonly<{ state: MissionLifecycleState; receipt: MissionWarriorReclamatorDiscardReceipt }> | null {
   if (!isValidMissionLifecycleState(state) || state.phase !== 'discarding' ||
       !isParticipant(state, participantUid) ||
       state.participants.find(({ uid }) => uid === participantUid)?.roleId !== 'warrior-captain' ||
       state.discardedParticipantUids.includes(participantUid) ||
       state.reclamatorParticipantUids.includes(participantUid)) return null;
+  if (opportunityId !== undefined && (!isOpportunityId(state.siteCode, opportunityId) ||
+      state.reclamatorOpportunityClaims?.some(claim => claim.opportunityId === opportunityId) ||
+      state.assignments.some(assignment => assignment.opportunityId === opportunityId))) return null;
   const handCardIds = state.cards.filter(({ participantUid: owner }) => owner === participantUid)
     .map(({ cardId }) => cardId);
   if (handCardIds.length === 0 || handCardIds.some((cardId) => state.discardedCardIds.includes(cardId) ||
@@ -449,6 +455,9 @@ export function discardMissionHandForWarriorReclamator(
       : 'discarding',
     reclamatorParticipantUids,
     reclamatorCardIds,
+    ...(opportunityId === undefined ? {} : { reclamatorOpportunityClaims: [
+      ...(state.reclamatorOpportunityClaims ?? []), { participantUid, opportunityId },
+    ] }),
     assignedParticipantUids,
   };
   if (!isValidMissionLifecycleState(nextState)) return null;
@@ -470,7 +479,8 @@ export function assignRemainingMissionCards(
   const normalized: { cardId: MissionCardId; opportunityId: string }[] = [];
   for (const placement of placements) {
     if (!isRecord(placement) || !isMissionCardId(placement.cardId) ||
-        !isOpportunityId(state.siteCode, placement.opportunityId)) return null;
+        !isOpportunityId(state.siteCode, placement.opportunityId) ||
+        state.reclamatorOpportunityClaims?.some(claim => claim.opportunityId === placement.opportunityId)) return null;
     normalized.push({ cardId: placement.cardId, opportunityId: placement.opportunityId });
   }
   const remainingCardIds = state.cards
@@ -822,7 +832,6 @@ function isValidMissionLifecycleState(value: unknown): value is MissionLifecycle
   if (availableResolvedDiscardCardIds.some((cardId) => cardOwners.has(cardId))) return false;
 
   const requests = new Set<string>();
-  const requestedExtraCounts = new Map<string, number>();
   for (const request of value.requestsByParticipant) {
     if (!isRecord(request) || Object.keys(request).some((key) => key !== 'participantUid' && key !== 'count') ||
         typeof request.participantUid !== 'string' || !participantSet.has(request.participantUid) ||
@@ -830,9 +839,9 @@ function isValidMissionLifecycleState(value: unknown): value is MissionLifecycle
       return false;
     }
     requests.add(request.participantUid);
-    requestedExtraCounts.set(request.participantUid, request.count as number);
   }
-  if ([...extraCounts].some(([uid, count]) => count > (requestedExtraCounts.get(uid) ?? 0))) return false;
+  if ([...extraCounts.values()].some(count => count > definition.opportunityCount) ||
+      [...extraCounts.values()].reduce((sum, count) => sum + count, 0) > definition.cardsDealt) return false;
 
   const discardedUids = new Set<string>();
   const discardedCardIds = new Set<string>();
@@ -864,6 +873,19 @@ function isValidMissionLifecycleState(value: unknown): value is MissionLifecycle
     if (ownedCardIds.length === 0 || ownedCardIds.some((cardId) => !reclamatorCardIds.has(cardId))) return false;
   }
   if ([...reclamatorCardIds].some((cardId) => !reclamatorUids.has(cardOwners.get(cardId) ?? ''))) return false;
+  const claimedOpportunityIds = new Set<string>();
+  const claimingUids = new Set<string>();
+  if (value.reclamatorOpportunityClaims !== undefined) {
+    if (!Array.isArray(value.reclamatorOpportunityClaims)) return false;
+    for (const claim of value.reclamatorOpportunityClaims) {
+      if (!isRecord(claim) || Object.keys(claim).length !== 2 || typeof claim.participantUid !== 'string' ||
+          !reclamatorUids.has(claim.participantUid) || claimingUids.has(claim.participantUid) ||
+          typeof claim.opportunityId !== 'string' || !opportunityIdSet.has(claim.opportunityId) ||
+          claimedOpportunityIds.has(claim.opportunityId)) return false;
+      claimingUids.add(claim.participantUid);
+      claimedOpportunityIds.add(claim.opportunityId);
+    }
+  }
   const allDiscardedUids = new Set([...discardedUids, ...reclamatorUids]);
   const allDiscardedCardIds = new Set([...discardedCardIds, ...reclamatorCardIds]);
 
@@ -888,7 +910,7 @@ function isValidMissionLifecycleState(value: unknown): value is MissionLifecycle
   for (const assignment of value.assignments) {
     if (!isRecord(assignment) || typeof assignment.participantUid !== 'string' ||
         !participantSet.has(assignment.participantUid) || typeof assignment.opportunityId !== 'string' ||
-        !opportunityIdSet.has(assignment.opportunityId) || !isMissionCardId(assignment.cardId) ||
+        !opportunityIdSet.has(assignment.opportunityId) || claimedOpportunityIds.has(assignment.opportunityId) || !isMissionCardId(assignment.cardId) ||
         assignment.faceDown !== true || assignmentCards.has(assignment.cardId) ||
         allDiscardedCardIds.has(assignment.cardId) || cardOwners.get(assignment.cardId) !== assignment.participantUid) return false;
     const pair = `${assignment.participantUid}\u0000${assignment.opportunityId}`;
