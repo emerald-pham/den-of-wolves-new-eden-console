@@ -21,9 +21,11 @@ function surface(roleId, response, { entitledShipId = 'icebreaker', path = '/shi
     identityHydrationRevision: 1, replacementRoleId: null, replacementStatus: null,
     airspace: 'restricted', turnStatePhase: 'team', turnStatePhaseRevision: 1,
     turnStateCurrentTurn: 3, turnStateMaxTurn: 6,
-    turnStateStartedAt: '2026-10-08T00:00:00.000Z',
-    turnStateEndsAt: '2026-10-08T00:20:00.000Z',
-    openAirspaceEndsAt: '2026-10-08T00:10:00.000Z', teamPhaseEndsAt: '2026-10-08T00:20:00.000Z',
+    turnStateStartedAt: '2026-10-08T00:10:00.000Z',
+    turnStateEndsAt: '2026-10-08T00:10:00.000Z',
+    openAirspaceEndsAt: '2026-10-08T00:30:00.000Z', teamPhaseEndsAt: '2026-10-08T00:10:00.000Z',
+    turnPhaseTurn: 3, turnPhaseOpenAirspaceEndsAt: '2026-10-08T00:30:00.000Z',
+    turnPhaseTeamPhaseEndsAt: '2026-10-08T00:10:00.000Z',
     phaseProgression: 'manual',
     connection: 'live', freshness: 'server' };
   const authority = { sessionId, fleetGroupId: 'fleet-p', connectionGeneration: 1,
@@ -256,7 +258,7 @@ test('waits for the declared attack lock and restricted member view before freez
       'The declaration must derive the Team phase revision from the captured Coordination revision.');
     assert.equal(pdf.testActor.turnStateCurrentTurn, 3);
     assert.equal(pdf.testActor.turnStateMaxTurn, 6);
-    assert.equal(pdf.testActor.turnStateStartedAt, '2026-10-08T00:00:00.000Z');
+    assert.equal(pdf.testActor.turnStateStartedAt, '2026-10-08T00:10:00.000Z');
     assert.equal(pdf.testActor.turnStateEndsAt, pdf.testActor.teamPhaseEndsAt);
     return callable(...args);
   };
@@ -286,7 +288,7 @@ function installDelayedRestrictedProjection(actor, current) {
       'The source-derived Coordination-to-Team phase revision must be exactly one higher.');
     assert.equal(actor.testActor.turnStateCurrentTurn, 3);
     assert.equal(actor.testActor.turnStateMaxTurn, 6);
-    assert.equal(actor.testActor.turnStateStartedAt, '2026-10-08T00:00:00.000Z');
+    assert.equal(actor.testActor.turnStateStartedAt, '2026-10-08T00:10:00.000Z');
     assert.equal(actor.testActor.turnStateEndsAt, actor.testActor.teamPhaseEndsAt);
     return callable(...args);
   };
