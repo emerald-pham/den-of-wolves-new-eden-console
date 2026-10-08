@@ -3353,3 +3353,29 @@ it('ignores a deferred manual retry after identity changes and preserves the new
   }));
   expect(await within(screen.getByRole('region', { name: 'Shuttle control' })).findByRole('status', { name: '' })).toHaveTextContent('Shuttle arrived at Icebreaker.');
 });
+
+it('returns the normal Highwall printed Miner owner through the named parent console without reclaiming a role', async () => {
+  const state = useSessionStore.getState();
+  state.setSession({ ...state.session!, phase: 'active', currentTurn: 2,
+    activeRoleIds: ['icebreaker-miner'], activeVesselIds: ['icebreaker'],
+    shuttleControl: { highwall: { shuttleId: 'highwall', ownerRoleId: 'icebreaker-miner',
+      ownerUid: 'u1', holderUid: 'u1', revision: 0 } },
+    shuttleDockings: [{ shuttleId: 'highwall', shipId: 'icebreaker', dockedAt: 'SESSION START' }],
+  });
+  state.setMe({ ...state.me!, assignedRoleId: 'icebreaker-miner', activeConsoleRoleId: 'icebreaker-miner',
+    seatId: 'icebreaker-miner', fleetGroupId: 'fleet-1', connectionGeneration: 3 });
+  state.setConnection('live'); state.setSessionSnapshotFreshness('server');
+  const original = useSessionStore.getState().me!;
+  render(<MemoryRouter initialEntries={['/shuttles/highwall']}><Routes>
+    <Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} />
+    <Route path="/ships/icebreaker/roles/icebreaker-miner" element={<p>Actual Miner parent console</p>} />
+  </Routes></MemoryRouter>);
+  expect(screen.queryByRole('link', { name: 'Back to assigned console', exact: true })).not.toBeInTheDocument();
+  const back = screen.getByRole('link', { name: 'Back to Icebreaker Miner console', exact: true });
+  expect(back).toHaveAttribute('href', '/ships/icebreaker/roles/icebreaker-miner');
+  fireEvent.click(back);
+  expect(screen.getByText('Actual Miner parent console')).toBeInTheDocument();
+  expect(useSessionStore.getState().me).toEqual(original);
+  expect(selectConsoleRole).not.toHaveBeenCalled();
+  expect(releaseConsoleRole).not.toHaveBeenCalled();
+});
