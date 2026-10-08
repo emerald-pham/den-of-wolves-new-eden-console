@@ -212,3 +212,26 @@ test('Station Wing requalifies later restored actor after its earlier Team phase
  f.dependencies.readTurnState=async(...args)=>f.counts().insideCapture&&reads++===0?structuredClone(initial):read(...args);
  assert.equal(await f.invoke(),undefined);assert.equal(f.counts().clicked,0);assert.equal(f.observations.length,1);
 });
+
+test('Station finalization rebookend preserves unknown GM read failure after already valid terminal progress', async () => {
+ const f=fixture(), read=f.dependencies.readTurnState, original=Error('fresh GM phase read unavailable');let reads=0;
+ f.dependencies.readTurnState=async(...args)=>{if(++reads===3)throw original;return read(...args);};
+ await assert.rejects(f.invoke(), error=>error===original);
+ assert.equal(f.counts().clicked,0);assert.deepEqual(f.observations,[]);
+});
+
+test('Station finalization rebookend preserves discovery identity even after already valid terminal progress', async () => {
+ const f=fixture(), read=f.dependencies.readWingAuthority;let reads=0;
+ f.dependencies.readWingAuthority=async(...args)=>{const value=await read(...args);if(++reads===4)value.discoveryAuthority.revision++;return value;};
+ await assert.rejects(f.invoke());
+ assert.equal(f.counts().clicked,0);assert.deepEqual(f.observations,[]);
+});
+
+test('Station finalization rebookend cannot replace the original deadline after its fresh GM phase read', async () => {
+ const f=fixture(), read=f.dependencies.readTurnState, actualNow=Date.now;let reads=0, expired=false;
+ f.dependencies.readTurnState=async(...args)=>{const value=await read(...args);if(++reads===3)expired=true;return value;};
+ Date.now=()=>expired?f.deadlineAt+1:actualNow();
+ try {await assert.rejects(f.invoke(),/deadline|expired/i);}
+ finally {Date.now=actualNow;}
+ assert.equal(f.counts().clicked,0);assert.deepEqual(f.observations,[]);
+});
