@@ -288,13 +288,13 @@ export function createCandidateCallables(d: Dependencies) {
         authority(tx, { sessionId: choice.sessionId, expectedGroupId: choice.expectedGroupId,
           instanceId: choice.instanceId }, uid, at), tx.get(receiptRef),
       ]);
+      if (world.actor.get('role') !== 'gm') throw new HttpsError('permission-denied', 'Only the current GM may select the N/O rules edition.');
       if (receipt.exists) {
         const disposition = commandReceiptDisposition(receipt.get('fingerprint'), fingerprintValue);
         if (disposition.kind !== 'replay') throw new HttpsError(disposition.kind === 'foreign-actor' ? 'permission-denied' : 'failed-precondition',
           'This candidate edition request is bound to its original GM and choice.');
         return { ...safeEditionReply(receipt.get('result'), choice.sessionId), status: 'replayed' as const };
       }
-      if (world.actor.get('role') !== 'gm') throw new HttpsError('permission-denied', 'Only the current GM may select the N/O rules edition.');
       if (world.a.phase !== 'active') return precondition('The N/O rules edition can be selected only while the game is active.');
       if (world.state.revision !== choice.expectedRevision) return precondition('Candidate revision changed; refresh the live record.');
       const priorEdition = world.state.edition ?? 'home';

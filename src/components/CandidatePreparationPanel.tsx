@@ -176,7 +176,7 @@ function CandidatePreparationWorkspace() {
             <h3>{path.title}</h3>
             <p>{path.code === 'N' ? currentWorkspace.edition === 'home'
               ? 'Repair: 10 materials, one Engineering Shuttle and five distinct research tracks with at least four crosses. Ring repair permanently consumes the Engineering Shuttle; it cannot launch, repair, recharge or join a mission afterward. Passage: five fuel from each ship. In Home, the GM may choose far-side sabotage after a paid crossing to stop Wolf pursuit through the Ring.'
-              : 'Repair: 15 materials, one Engineering Shuttle and five distinct fully completed Endeavour technologies. Ring repair permanently consumes the Engineering Shuttle; it cannot launch, repair, recharge or join a mission afterward. Passage: five fuel from each ship.' :
+              : 'Repair: 15 materials, one Engineering Shuttle and five distinct fully completed Endeavour technologies. Ring repair permanently consumes the Engineering Shuttle; it cannot launch, repair, recharge or join a mission afterward. Passage: five fuel from each ship. The GM may choose far-side sabotage after a paid crossing.' :
               path.code === 'O' ? currentWorkspace.edition === 'home'
                 ? 'Scout within range, then each ship chooses a long jump. One d6 plus protected scouting reaches New Eden at nine; earlier losses at that coordinate also add to the total. The server resolves the result; scouting totals stay private.'
                 : 'Scout within range, then each ship chooses a long jump. One d6 plus protected scouting reaches New Eden at eight; prior losses do not add a bonus. The server resolves the result; scouting totals stay private.' :

@@ -191,13 +191,14 @@ export function resolveCandidateAction(a: CandidateAuthority, original: Candidat
     calculation.fuelSpent = 5;
   } else if (command.action === 'sabotage-ring') {
     if (!a.actor.gm) return fail('Opposite-side Ring sabotage is an explicit facilitator choice.');
-    if (edition !== 'home') return fail('The Home far-side Wolf-stop choice is not available in the selected N/O edition.');
     const crossed = a.vesselIds.filter(shipId => site.ships[shipId]?.outcome === 'crossed');
     if (!site.repairedAt || crossed.length === 0) return fail('At least one paid Ring passage must complete before opposite-side sabotage.');
     const leftBehind = a.vesselIds.filter(shipId => !crossed.includes(shipId));
     site.sabotagedAt = a.now; groupOutcome = outcomeFor(a, site, command, crossed, leftBehind);
     calculation.requiredChoice = 'opposite-side-sabotage'; calculation.leftBehindShipIds = leftBehind;
-    summary = 'Ring sabotaged from the far side. Wolf pursuit through the Ring is blocked; recorded ships remain behind.';
+    summary = edition === 'home'
+      ? 'Ring sabotaged from the far side. Wolf pursuit through the Ring is blocked; recorded ships remain behind.'
+      : 'Ring sabotaged from the far side after a paid crossing. Ships that did not cross remain behind.';
   } else if (command.action === 'nebula-jump') {
     const ship = ownShip(a, command);
     if (ship.jumpedThisCycle) return fail('This ship already jumped this cycle. Its original jump result is retained.');
@@ -295,7 +296,7 @@ export function candidateWorkspace(a: CandidateAuthority, state: CandidateState)
       return { code, coordinate, title: code === 'N' ? 'Ancient Jump Ring' : code === 'O' ? 'Deep Nebula' :
         site.activatedAt ? 'New Eden Station' : 'Ancient Space Station', blockers, ships,
         nextActor: site.completed ? 'Outcome committed.' : code === 'N' ? site.repairedAt ?
-          edition === 'home' ? 'Each ship chooses passage; the GM may choose opposite-side sabotage.' : 'Each ship chooses passage.' :
+          'Each ship chooses passage; the GM may choose opposite-side sabotage.' :
           'Ship crews, Endeavour Scientist and an Engineering Shuttle holder.' : code === 'O' ?
           'Each ship chooses its long jump. Scout the Nebula first if needed.' : a.station?.liberated ?
           'Each ship crew chooses whether to cannibalise its Reactor.' : 'Battle crews resolve the required Station attack.',
@@ -310,7 +311,7 @@ export function candidateWorkspace(a: CandidateAuthority, state: CandidateState)
         chargeCapacity: Object.values(site.reactors).reduce((sum, capacity) => sum + capacity, 0),
         requiredCapacity: 18, reactorShipIds: Object.keys(site.reactors),
         activated: !!site.activatedAt, sabotaged: !!site.sabotagedAt, completed: !!site.completed,
-        canSabotage: edition === 'home' && a.actor.gm && !!site.repairedAt && !site.completed &&
+        canSabotage: a.actor.gm && !!site.repairedAt && !site.completed &&
           Object.values(site.ships).some(result => result.outcome === 'crossed'),
       };
     }) };
