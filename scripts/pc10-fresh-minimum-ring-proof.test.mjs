@@ -144,8 +144,9 @@ test('population alert selector keeps the existing single current-GM target boun
   const first = { shipId: 'dione', targetGmInstanceIds: ['gm-1'] };
   const other = { shipId: 'aegis', targetGmInstanceIds: ['gm-2'] };
   assert.deepEqual(stationPopulationAlertsForGm({ dione: first, aegis: other }, 'gm-1'), [['dione', first]]);
-  assert.throws(() => stationPopulationAlertsForGm({ dione: first,
-    shepherd: { shipId: 'shepherd', targetGmInstanceIds: ['gm-1'] } }, 'gm-1'), /multiple current-GM population alerts/i);
+  const second = { shipId: 'shepherd', targetGmInstanceIds: ['gm-1'] };
+  assert.deepEqual(stationPopulationAlertsForGm({ dione: first, aegis: other, shepherd: second }, 'gm-1'),
+    [['dione', first], ['shepherd', second]]);
 });
 
 test('station wave consumer acknowledges each current-GM threshold alert before the next Declare', async () => {
@@ -186,6 +187,11 @@ test('population dialog accessible name resolves every whitespace-separated labe
 test('population acknowledgment blocks unrest at eight even when the mutiny row is absent', () => {
   assert.deepEqual(stationPopulationAckMutinyRows({ activeVesselIds: ['dione'],
     shipUnrest: { dione: 8 }, shipMutinies: {} }), [['dione', undefined]]);
+});
+
+test('population acknowledgment fails closed on malformed mutiny data', () => {
+  assert.throws(() => stationPopulationAckMutinyRows({ activeVesselIds: ['dione'], shipUnrest: { dione: 2 },
+    shipMutinies: { dione: { status: 'active' } } }), /malformed mutiny record/i);
 });
 
 test('population dismissal rechecks exact intent and original deadline before the normal click', async () => {
