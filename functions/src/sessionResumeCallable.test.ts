@@ -193,6 +193,7 @@ function prepareResume(
     if (path === 'sessions/s1/fleetGroups/fleet-1') return snapshot({}, false);
     if (path === 'sessions/s1') return session;
     if (path === 'sessions/s1/players/u1') return player;
+    if (path === 'sessions/s1/secrets/loyalty-u1') return snapshot({}, false);
     if (path === 'sessions/s1/players') return snapshot({}, true);
     if (path === 'activeMemberships/u1') return snapshot({}, false);
     if (storedSeatId !== null && path === `sessions/s1/seats/${storedSeatId}`) {
