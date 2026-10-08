@@ -17,7 +17,7 @@ import { capturePc10Gate2SourceBinding } from './pc10-gate2-functional-proof.mjs
 const root=fileURLToPath(new URL('../',import.meta.url)).replace(/\/$/,''), projectId='demo-pc10-owner-integrated-2';
 const baseUrl='http://127.0.0.1:5174';
 const ports={auth:9109,functions:5011,firestore:8090};
-const directory='/tmp/dow-pc10-evidence/three-actor-scout-private-audience-2';
+const directory='/tmp/dow-pc10-evidence/three-actor-scout-private-audience-3';
 const hash=value=>createHash('sha256').update(value).digest('hex'), short=value=>hash(value).slice(0,16);
 const sourceCommit=execFileSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8'}).trim();
 assert.equal(sourceCommit,process.env.PC10_OWNER_SOURCE_COMMIT);
@@ -25,6 +25,7 @@ assert.equal(execFileSync('git',['status','--porcelain','--untracked-files=no'],
 const require=createRequire(`${root}/package.json`), {chromium}=require('playwright');
 
 const browsers=[],surfaces=[],errors=[],calls=[],requests=[],remoteRequests=[],states=[],receipts=[],claims=[];
+const scoutResponseBodies=[],pendingScoutResponses=[];
 let gm,scientist,peer,sid,joinCode,stage='not-started',consumed=null,primaryFailure=null,startAt,workEnd,totalEnd;
 const actorUids=new Map(),pendingLaunches=[];let stopped=false;
 const roleIds={Scientist:'shepherd-scientist',Peer:'icebreaker-miner'};
@@ -36,7 +37,7 @@ const evidence={schemaVersion:1,sourceCommit,configuredRoles:16,actualHumans:0,p
  cohortReason:'Three original normal Auth identities: live GM for protected fresh setup/manual start, Shepherd Scientist for one actual Endeavour request, and same-group Icebreaker Miner peer for entitled candidate names versus requester-only report/index/note. Foreign-group, revoked-member, outcome and human-device claims are outside this slice.',
  unchangedAdmissionManualSetupAndObserversReused:true,acceptedDiscoveryPrefixReplayedOnlyForNewPopulatedAudience:true,
  originalPageTimeoutMs:35000,originalOperationTimeoutMs:60000,executionTargetMs:180000,
- states,receipts,claims,requests,calls,remoteRequests,errors};
+ states,receipts,claims,requests,calls,remoteRequests,errors,scoutResponseBodies};
 async function bounded(operation,timeout,name,onTimeout=()=>{}) {let timer;try{return await Promise.race([operation,new Promise((_,reject)=>{timer=setTimeout(()=>{onTimeout();reject(new Error(name));},timeout);})]);}finally{clearTimeout(timer);}}
 function budget() { assert.equal(stopped,false,'Work has stopped; do not begin a subsequent action.');assert.ok(Date.now()+60000<=workEnd,'Not enough cap budget to begin another full original60s operation and normal cleanup.'); }
 async function mark(name) { budget();stage=name; await writeFile(`${directory}/progress.json`,JSON.stringify({sourceCommit,stage,elapsedMs:Date.now()-startAt,claims},null,2)+'\n');console.log(JSON.stringify({stage,elapsedMs:Date.now()-startAt})); }
@@ -77,6 +78,26 @@ async function action(surface,endpoint,choose,options={}) { budget();const value
       const endpoint = new URL(response.url()).pathname.match(/\/us-central1\/([A-Za-z][A-Za-z0-9_]*)$/)?.[1];
       if (endpoint && response.request().method() === 'POST') calls.push({ surface: label, endpoint,
         transport: 'actual browser Firebase SDK', status: response.status(), at: new Date().toISOString() });
+      if (!['listMyScoutReports','readPrivateScoutResult','readMyScoutDiscoveryNote'].includes(endpoint) ||
+          response.request().method() !== 'POST') return;
+      const index=scoutResponseBodies.length;
+      const bodyRecord={surface:label,endpoint,httpStatus:response.status(),at:new Date().toISOString(),bodyStatus:'pending'};
+      scoutResponseBodies.push(bodyRecord);
+      const pending=(async()=>{
+        try {
+          const request=response.request().postDataJSON()?.data;
+          bodyRecord.requestData=Object.fromEntries(['sessionId','requestId','noteId']
+            .filter(key=>Object.hasOwn(request??{},key)).map(key=>[key,request[key]]));
+          if(Object.hasOwn(request??{},'instanceId'))bodyRecord.borrowedInstanceHash=hash(request.instanceId);
+          bodyRecord.rawResponse=await response.json();
+          bodyRecord.bodyStatus='received';
+        } catch(error) {bodyRecord.bodyStatus='failed';bodyRecord.originalError=originalProofError(error);}
+        await writeFile(`${directory}/scout-response-${index+1}.json`,JSON.stringify(bodyRecord,null,2)+'\n',{flag:'wx',mode:0o600});
+      })();
+      // Attach a rejection handler immediately; cleanup still checks the
+      // original rejected promise and reports any diagnostic writer failure.
+      void pending.catch(()=>{});
+      pendingScoutResponses.push(pending);
     });
     async function observe() {
       return page.evaluate(async moduleUrl => {
@@ -189,9 +210,9 @@ const adminRequire=createRequire(`${root}/functions/package.json`);const{initial
 await mkdir(directory,{mode:0o700});
 const runtime=validateProofRuntime(proofRuntimeFromViteSource(await bounded(fetch(`${baseUrl}/src/lib/firebaseConfig.ts`).then(value=>value.text()),15000,'Original Vite runtime read deadline')),{baseUrl,projectId,ports});evidence.runtime=runtime;
 assert.equal((await bounded(db.collection('sessions').get(),15000,'Original empty-scope read deadline')).size,0);
-const preflight=JSON.parse(await readFile('/tmp/dow-pc10-evidence/OWNER_SCOUT_PRIVATE_AUDIENCE_2_LAUNCH_PREFLIGHT_20261008.json','utf8'));assert.equal(preflight.source.sourceCommit,sourceCommit);assert.deepEqual(preflight.scope,{sessions:0,connectedPlayers:0,connectedGmInstances:0});
+const preflight=JSON.parse(await readFile('/tmp/dow-pc10-evidence/OWNER_SCOUT_PRIVATE_AUDIENCE_3_LAUNCH_PREFLIGHT_20261008.json','utf8'));assert.equal(preflight.source.sourceCommit,sourceCommit);assert.deepEqual(preflight.scope,{sessions:0,connectedPlayers:0,connectedGmInstances:0});
 evidence.preflightSource=preflight.source;evidence.preflightRecordedAt=preflight.recordedAt;
-const freezeBytes=await readFile('/tmp/dow-pc10-evidence/OWNER_SCOUT_PRIVATE_AUDIENCE_2_SOURCE_FREEZE_20261008.json');
+const freezeBytes=await readFile('/tmp/dow-pc10-evidence/OWNER_SCOUT_PRIVATE_AUDIENCE_3_SOURCE_FREEZE_20261008.json');
 const freeze=JSON.parse(freezeBytes);assert.equal(freeze.sourceCommit,sourceCommit);
 const sourceTree=execFileSync('git',['rev-parse','HEAD^{tree}'],{cwd:root,encoding:'utf8'}).trim();
 assert.equal(freeze.sourceTree,sourceTree);
@@ -209,10 +230,10 @@ evidence.exactLaunchBinding={sourceTree,trackedTreeSha256:launchBinding.trackedT
  compiledTreeSha256:launchBinding.compiledTreeSha256,javascriptTreeSha256:launchBinding.javascriptTreeSha256,
  compiledSourceBuild:freeze.compiledSourceBuild,macAllocation:freeze.macAllocation};
 assert.equal(freeze.runner.sha256,hash(await readFile(new URL(import.meta.url))));
-assert.equal(freeze.preflight.sha256,hash(await readFile('/tmp/dow-pc10-evidence/OWNER_SCOUT_PRIVATE_AUDIENCE_2_LAUNCH_PREFLIGHT_20261008.json')));
+assert.equal(freeze.preflight.sha256,hash(await readFile('/tmp/dow-pc10-evidence/OWNER_SCOUT_PRIVATE_AUDIENCE_3_LAUNCH_PREFLIGHT_20261008.json')));
 assert.equal(freeze.status,'FROZEN_BEFORE_EXECUTION');assert.equal(freeze.review.currentStatus,'PASS_BOUNDED_SOURCE_ONLY');
 assert.equal(freeze.prelaunchWriterMustSucceed,true);assert.equal(freeze.recordWrittenAfterLaunch,false);
-evidence.sourceFreeze={path:'/tmp/dow-pc10-evidence/OWNER_SCOUT_PRIVATE_AUDIENCE_2_SOURCE_FREEZE_20261008.json',sha256:hash(freezeBytes),recordedAt:freeze.recordedAt};
+evidence.sourceFreeze={path:'/tmp/dow-pc10-evidence/OWNER_SCOUT_PRIVATE_AUDIENCE_3_SOURCE_FREEZE_20261008.json',sha256:hash(freezeBytes),recordedAt:freeze.recordedAt};
 
 
 
@@ -337,7 +358,7 @@ async function resolveOriginalScout(data,reply,deadlineAt){
  assert.equal(request.get('actorUid'),actorUids.get('Scientist'));assert.equal(request.get('anchorShipId'),'shepherd');assert.equal(request.get('receivingShipId'),'shepherd');
  assert.equal(notes.docs[0].get('requesterUid'),actorUids.get('Scientist'));assert.equal(notes.docs[0].get('shipId'),'shepherd');
  assert.equal(audit.get('resolutionMode'),'automatic');
- return{requestId:data.requestId,noteId:notes.docs[0].id,coordinate:data.targetCoordinate,fact:result.get('systemFact'),requesterUidHash:short(result.get('requesterUid')),
+ return{requestId:data.requestId,noteId:notes.docs[0].id,noteRecordedAt:notes.docs[0].get('recordedAt'),coordinate:data.targetCoordinate,fact:result.get('systemFact'),requesterUidHash:short(result.get('requesterUid')),
   resultSha256:hash(stable(result.data())),noteSha256:hash(stable(notes.docs[0].data())),auditSha256:hash(stable(audit.data()))};
 }
 async function privateReadAudience(discovery,deadlineAt){
@@ -347,10 +368,13 @@ async function privateReadAudience(discovery,deadlineAt){
  const ownIndex=await candidateWait(()=>scientist.callable('listMyScoutReports',{sessionId:sid}),deadlineAt,'original requester report index');
  assert.equal(ownIndex.status,'committed');assert.equal(ownIndex.result.length,1);
  assert.equal(ownIndex.result[0].requestId,discovery.requestId);assert.equal(ownIndex.result[0].noteId,discovery.noteId);assert.equal(ownIndex.result[0].status,'resolved');
+ assert.deepEqual(ownIndex.result,[{requestId:discovery.requestId,cycle:1,entitlementId:'endeavour',targetCoordinate:discovery.fact.coordinate,status:'resolved',noteId:discovery.noteId}]);
  const own=await candidateWait(()=>scientist.callable('readPrivateScoutResult',{sessionId:sid,requestId:discovery.requestId}),deadlineAt,'original requester full scout result');
  assert.equal(own.status,'committed');assert.equal(own.result.requesterUid,actorUids.get('Scientist'));assert.equal(own.result.requestId,discovery.requestId);assert.deepEqual(own.result.systemFact,discovery.fact);
+ assert.deepEqual(own.result,{type:'private-scout-result',sessionId:sid,requestId:discovery.requestId,requesterUid:actorUids.get('Scientist'),sourceId:'endeavour',cycle:1,targetCoordinate:discovery.fact.coordinate,systemFact:discovery.fact});
  const note=await candidateWait(()=>scientist.callable('readMyScoutDiscoveryNote',{sessionId:sid,noteId:discovery.noteId}),deadlineAt,'original requester durable scout note');
  assert.equal(note.status,'committed');assert.equal(note.result.id,discovery.noteId);assert.deepEqual(note.result.systemFact,discovery.fact);
+ assert.deepEqual(note.result,{type:'player-discovery-note',id:discovery.noteId,cycle:1,targetCoordinate:discovery.fact.coordinate,systemFact:discovery.fact,recordedAt:discovery.noteRecordedAt});
  const peerIndex=await candidateWait(()=>peer.callable('listMyScoutReports',{sessionId:sid}),deadlineAt,'ordinary peer own empty scout report index');
  assert.equal(peerIndex.status,'committed');assert.deepEqual(peerIndex.result,[]);
  for(const[name,payload]of[
@@ -379,12 +403,14 @@ async function privateReadAudience(discovery,deadlineAt){
    currentMemberPrivateKeys:['organiserSites','organiserSystems','scoutRequests','scoutResults','scoutResolutionAudits','playerDiscoveryNotes','candidatePlanCheckpoint','privateCalculations'].filter(key=>Object.hasOwn(state.session,key))};
  },{sid,storeUrl:peer.storeModuleUrl(),requesterUid:actorUids.get('Scientist'),requestId:discovery.requestId,noteId:discovery.noteId}),deadlineAt,'actual ordinary peer populated document and query reads');
  assert.deepEqual(mounted.candidateReveals,[{code:discovery.fact.code,title:discovery.fact.title}],'Same-group names are entitled; requester identity, request, note and coordinate are outside this allowlist.');
+ assert.deepEqual(mounted.reads.map(read=>read.kind),['private-result','private-request','private-audit','requester-note','requester-discovery','results-query','requests-query','audit-query','requester-notes-query','discovery-query']);
  for(const read of mounted.reads){assert.equal(read.status,'denied',`Populated peer boundary leaked ${read.kind}.`);assert.equal(read.code,'permission-denied');}
  assert.deepEqual(mounted.currentMemberPrivateKeys,[]);
  const envelope=await candidateWait(()=>peer.callable('getCurrentMemberSession',{sessionId:sid}),deadlineAt,'actual ordinary peer server member allowlist');
  assert.equal(envelope.status,'committed');assert.equal(envelope.result.type,'current-member-session');assert.equal(envelope.result.sessionId,sid);
  assert.equal(envelope.result.actorUid,actorUids.get('Peer'));assert.equal(envelope.result.groupId,ordinaryPeer.fleetGroupId);
  assert.equal(envelope.result.session.id,sid);assert.equal(envelope.result.session.currentTurn,1);
+ assert.deepEqual(Object.keys(envelope.result).sort(),['type','sessionId','actorUid','groupId','session'].sort());
  for(const key of ['organiserSites','organiserSystems','scoutRequests','scoutResults','scoutResolutionAudits','playerDiscoveryNotes','candidatePlanCheckpoint','privateCalculations'])assert.equal(Object.hasOwn(envelope.result.session,key),false,`Actual server member envelope leaked ${key}.`);
  const after=await scoutPrivateWorld(discovery.requestId,discovery.noteId,deadlineAt);assert.deepEqual(after,before,'Scoped private reads/denials do not mutate the original scout, note, navigation or receipts.');
  const originalAfter=await memberReady(peer,'Peer',{deadlineAt});
@@ -457,6 +483,7 @@ try{await bounded((async()=>{
  };
  await cleanupStep('settle all owned launches',()=>Promise.allSettled(pendingLaunches));
  for(const browser of browsers)await cleanupStep('close owned browser',async()=>{await browser.close();assert.equal(browser.isConnected(),false);cleanup.browsersClosed++;});
+ await cleanupStep('settle private scout response body diagnostics',async()=>{const settled=await Promise.allSettled(pendingScoutResponses);assert.ok(settled.every(item=>item.status==='fulfilled'),'Preserve response-body diagnostic write failures.');});
  if(sid) {
   await cleanupStep('remove verified exact owned join-code pointer',async()=>{
    if(!joinCode){const originalSession=await db.doc(`sessions/${sid}`).get();joinCode=originalSession.get('joinCode');}

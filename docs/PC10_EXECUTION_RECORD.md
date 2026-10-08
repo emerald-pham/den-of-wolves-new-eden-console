@@ -1176,3 +1176,28 @@ allocation. Only exclusive proof artifact paths are rebound for attempt2;
 all three-actor admission, audience, cleanup and deadline behavior is unchanged.
 The[acceptance matrix](PC10_ACCEPTANCE_MATRIX.md) carries the exact limits.
 No new native or release credit is earned; all48 fixed rows remain open.
+
+
+### October8 private report actual2 stop and source repair
+
+Reviewed`e9adb78b` actual2 stopped after its correctly scoped requester report
+mounted an unavailable/load-error state. Normal3-account/3-process/3-context
+setup and actual automatic N scout result/note/audit are earned; peer privacy
+and reload are unproved. The118,312ms driver cleaned its owned game/identities;
+all own emulator/native/Chrome main PIDs and eight ports were returned clean
+at05:59:10.799UTC before06:04. Vite/other reservations and16,132,289bytes of
+complete original logs remain preserved. No test, HTTP200 or later successful
+fixture backfills the missing original response body or privacy acceptance.
+
+Three meaningful controller/service REDs in`e27534e0` preceded bounded
+same-member current-authority recovery in`e9e47221`; all33 affected checks pass.
+The retained screenshot proves correct region/Coordination but not the exact
+local error. The reproduced race is a source-backed inference for actual2.
+Additional exact requester/peer wire guards and private actual-body diagnostics
+follow11 REDs in`19406af9`; the asynchronous writer cleanup guard follows its
+separate RED in`59bf5387`. All28 proof contracts pass. No Functions/rules input
+is changed or compiled anew. A new client build and bounded exact-source
+review cover the repaired controller and complete remaining requester/peer
+transitions together before a fresh attempt3 allocation. Original evidence,
+actual member SDK fences, authority/privacy rules and operation waits remain.
+P owns its separate runtime allocation; this repair stays source-only.

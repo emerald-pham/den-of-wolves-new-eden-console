@@ -1423,3 +1423,63 @@ reviews only this path/prose delta.
 
 Evidence:`/tmp/dow-pc10-evidence/OWNER_SCOUT_PRIVATE_AUDIENCE_1_NOT_STARTED_CLEAN_HANDBACK_20261008.json`
 and`OWNER_SCOUT_PRIVATE_AUDIENCE_1_ALLOCATION_CLARIFICATION_20261008.json`.
+
+
+#### Private audience actual2 failure and bounded report recovery
+
+Actual2 ran reviewed`e9adb78b` with3 normal Auth accounts,3 independently
+observed Chrome main processes and3 contexts; legal16 was configured with
+other seats open,0 humans. Normal create/consent/GM authorization/casting,
+protected unlimited manual preparation and real Cycle0→1/Coordination passed.
+The one original UI Endeavour request at6798 automatically produced the bound
+N result, durable note and automatic audit. The parent accepted those scoped
+criteria. The correct requester report region mounted in live Coordination,
+but displayed “Report unavailable” and a load failure. Its title wait failed
+after the original35seconds. The read's HTTP200 was retained without its body;
+that status does not prove parse or client-authority acceptance. Peer audience
+and reload checks were never reached. The original failure/evidence remain
+unchanged; no privacy, whole-game or catalog closure credit is backfilled.
+
+Native execution including driver cleanup took118,312ms. All3 browsers, Auth
+accounts and membership pointers plus the exact session/join code were cleaned;
+final session/player/GM scope was zero. The owner emulator wrapper/CLI/native/
+Chrome main PIDs and all eight ports were verified closed at05:59:10.799UTC,
+before the explicit06:04UTC deadline. Retained Vite/other reservations stayed
+untouched. Complete original log prefixes and16,132,289bytes are hash-preserved.
+Handoff:`/tmp/dow-pc10-evidence/OWNER_SCOUT_PRIVATE_AUDIENCE_2_FAILED_CLEAN_HANDBACK_20261008.json`.
+
+Source-only diagnosis distinguishes a product consumer gap from wrong region
+or phase observation. A real member-session response arrived while the private
+result was in flight; a newer accepted snapshot can correctly invalidate that
+read. Three meaningful real-controller/real-service REDs before repair
+reproduced a stalled resolved result, stalled saved note and missing bounded
+retry policy. Two wrong-actor/chart-payload negatives stayed GREEN. Separate
+test commit`e27534e0` precedes product repair`e9e47221`. The controller now
+retries at most twice only for the existing stale-authority error while the
+original member/seat/role/group/lease remains current and live. Every retry
+re-fetches index/result/note through unchanged guards; no old reply is accepted.
+All33 affected controller/panel/service checks pass. This independently proven
+race is consistent with actual2; its exact historical local error/body was not
+retained, so the original native cause remains an inference.
+
+Before proof changes, test commit`19406af9` observed11 meaningful REDs with
+16 controls GREEN:9 missing wire-shape/audience guards and2 missing actual
+body/failure diagnostics. The driver now checks exact index/result/note and
+member-envelope projections, all ten populated peer SDK attempts and their
+denials. It preserves actual selected scout response bodies in unique local
+mode600 files, excluding Auth/admission/resume replies and all headers. A
+separate writer-failure RED preceded the immediate rejection handler that
+retains the original failed promise for cleanup; writer failure cannot abort
+the process before cleanup or silently become success. All28 final proof
+contracts pass. Previous assertions and original35/60second waits remain.
+
+Attempt3 uses fresh exclusive evidence/preflight/freeze paths. Its three-actor
+cohort, one original request, same-group candidate code/title projection,
+requester-only index/result/note, borrowed-GM denial, actual member envelope and
+original-peer cold reload are unchanged in scope. Reuse the accepted automatic
+result/note/audit and admission criteria without duplicate credit; a fresh
+minimal populated fixture is needed because actual2 cleaned its owned game.
+No outcomes, research or other family is replayed. Exact-source independent
+review, a fresh explicit allocation/prelaunch and native acceptance remain
+required. All48 rows stay open at703/751; final render/CI/main/deployment and
+PC10 release remain pending.
