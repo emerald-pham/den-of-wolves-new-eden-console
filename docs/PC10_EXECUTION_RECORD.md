@@ -925,3 +925,43 @@ current-holder/actor/group/host fence and server-owned receipt path. The full
 affected shuttle route and recharge service selection passes120tests, including
 the new transition and revocation cases; strict client TypeScript also passes.
 No Functions or rules source changes. This is source verification only.
+
+### October 8 Captain entry observer diagnosis and test-first regression
+
+The minimal three-actor recharge run at `519ef230` stopped before recharge,
+after7setup assertions. Captain's ordinary role entry issued `resumeSession`
+at02:06:56.925UTC. Its own-player generation changed1→2 while identity
+hydration stayed1, with an offline/cache presentation. The observer asserted
+at02:06:57.102 before any response or parsed receipt was captured. The prior
+successful Captain entry kept its original generation/hydration and issued no
+resume, so it did not exercise this ordering. The eventual product response
+was not observed; this finding establishes a premature proof assertion, not
+an eventual application success or product failure. The failed native packet,
+screenshots and cleanup handoff remain unchanged. Runtime was returned.
+
+Read-only comparison found the reviewed PC11 GM startup listener/claim repairs
+in `63d8c8b1` and `7bd9f265`, and the normalized trade receipt repair in
+`549a53e4`. They concern GM private subscriptions, GM claim acknowledgements
+and trade parsing respectively; none changes this normal player resume or
+operation-local observer. No PC11 branch or helper work was edited or merged.
+
+The new native-only source fixture holds the normal resume transport before
+HTTP delivery or before SDK application, publishes the own-player lease, then
+lets the existing source resume consumer finish. Two regressions require the
+selection to keep waiting during that intermediate state and then accept only
+its real matching receipt, hydration, member feed and SDK fence. A third
+requires an undelivered response to fail at the original finite deadline.
+Five negative cases preserve rejection of foreign/failed requests and
+denied/error/foreign-UID replies before hydration. These8tests add no native
+actors, gameplay commands or forced resumes. Existing tests remain intact.
+
+Before any observer repair, the corrected fixture records3meaningful RED
+and5GREEN; all47existing station navigation tests still pass. The first
+fixture run is also retained: it incorrectly expected the prior server
+authority flag to clear and its cleanup obscured that assertion. The corrected
+test checks the actual pending-resume/freshness fence and finishes its own
+observer before deleting disposable fixtures. That initial fixture error is
+not credited as product RED. Meaningful failure log:
+`/tmp/dow-pc10-evidence/OWNER_CAPTAIN_INFLIGHT_RESUME_MEANINGFUL_RED_20261008.log`.
+This is source diagnosis only; remaining recharge recovery, native entry,
+whole-game, capacity and release acceptance are still held.

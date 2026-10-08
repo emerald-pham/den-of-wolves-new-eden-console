@@ -44,6 +44,13 @@ export async function stationNavigationResumeFixture(options = {}) {
   const start = f.store.getState(), uid = start.me.uid, sid = start.session.id;
   const directory = await mkdtemp(join(tmpdir(), 'pc10-native-navigation-'));
   const events = new EventEmitter(), sdkRequests = [], application = [], seatClaims = [], lifecycleCommands = [];
+  // Inert transport barriers reproduce the real native ordering: the own-player
+  // feed can publish the server lease before HTTP delivery or SDK application.
+  // The actual source resume/finally fence still owns identity hydration.
+  const barrier = () => { let release; const promise = new Promise(resolve => { release = resolve; }); return { promise, release }; };
+  const responseGate = barrier(), applicationGate = barrier(), requestObserved = barrier(), earlyObservation = barrier();
+  const deferredResume = options.deferResumeResponse || options.deferResumeApplication;
+  let backgroundResume;
   let actualNormalClaim, acceptanceClaims = 0;
   let resumedServerPlayer;
   if (options.initialSeatNull) {
@@ -132,10 +139,19 @@ export async function stationNavigationResumeFixture(options = {}) {
         postDataJSON: () => ({ data: { sessionId: options.requestSession ?? data.sessionId } }),
         allHeaders: () => assert.fail('No request headers'), headers: () => assert.fail('No request headers') };
       if (!options.hideRequest) events.emit('request', request);
+      if (options.publishGenerationBeforeResponse) {
+        const current = f.store.getState();
+        f.store.setState({ me: { ...current.me, connectionGeneration: player.connectionGeneration },
+          connection: 'offline', sessionSnapshotFreshness: 'cache' });
+      }
+      requestObserved.release();
+      if (options.failResumeRequest) events.emit('requestfailed', request);
+      if (options.deferResumeResponse) await responseGate.promise;
       const response = { request: () => request, url: request.url, status: () => options.httpStatus ?? 200,
         json: async () => options.responseBodyPending ? new Promise(() => {}) :
           options.responseError ? { error: { status: 'PERMISSION_DENIED' } } : { result: reply } };
       if (!options.hideResponse) events.emit('response', response);
+      if (options.deferResumeApplication) await applicationGate.promise;
       return { data: reply };
     },
   });
@@ -157,7 +173,12 @@ export async function stationNavigationResumeFixture(options = {}) {
   const clientJoin = async () => { f.store.setState({ session: null, me: null, identityHydrationRevision: 0 }); await joinSession('NATIVE'); await f.receiveMemberProjection(); };
   const originalEvaluate = f.crew.page.evaluate;
   f.crew.page.evaluate = async (callback, input) => {
-    if (typeof input === 'string') return originalEvaluate(callback, input);
+    if (typeof input === 'string') {
+      const value = await originalEvaluate(callback, input);
+      if (deferredResume && value.connectionGeneration === start.me.connectionGeneration + 1 &&
+          value.identityHydrationRevision === start.identityHydrationRevision) earlyObservation.release(value);
+      return value;
+    }
     if (options.acceptanceObservationPending) return new Promise(() => {});
     const crypto = { subtle: { digest: async (algorithm, bytes) => {
       const digest = await webcrypto.subtle.digest(algorithm, bytes);
@@ -214,6 +235,17 @@ export async function stationNavigationResumeFixture(options = {}) {
       if (options.unwitnessed) {
         const current = f.store.getState(); f.store.setState({ me: { ...current.me, connectionGeneration: current.me.connectionGeneration + 1 }, identityHydrationRevision: 2 });
       } else if (!options.skipResume && !options.resumeBeforeClaim) {
+        if (deferredResume) {
+          backgroundResume = (async () => {
+            await resume(sid);
+            options.mutateAfter?.(f);
+            if (!options.noFreshMember) await f.receiveMemberProjection();
+            else if (options.feedAfterMs !== undefined) setTimeout(() => void f.receiveMemberProjection(), options.feedAfterMs);
+          })();
+          // A rejected proof must not leave an unhandled inert SDK task.
+          void backgroundResume.catch(() => undefined);
+          return;
+        }
         await resume(sid);
         if (options.forgeAfterRejected) {
           const current = f.store.getState(); f.store.setState({ me: { ...current.me, connectionGeneration: current.me.connectionGeneration + 1 }, identityHydrationRevision: 2 });
@@ -230,6 +262,9 @@ export async function stationNavigationResumeFixture(options = {}) {
     started: { fullGameDemo: { status: 'active', progression: 'manual' } },
     roster: [{ roleId, uidHash: sha(uid) }], directory });
   return { ...f, sdkRequests, application, seatClaims, lifecycleCommands, clientJoin, clientAssignRole, clientReleaseRole, directory, events, adapter,
+    requestObserved: () => requestObserved.promise, earlyGenerationObserved: () => earlyObservation.promise,
+    releaseResumeResponse: responseGate.release, releaseResumeApplication: applicationGate.release,
+    finishPendingResume: () => backgroundResume,
     authorityImports, mountedAuthorityUrl, authorityBinding: () => {
       const bare = bareAuthorityFns.sessionSnapshotAuthorityFor(sid, uid);
       return { sameObject: bare === authority, mountedHasServerAuthority: authority.hasServerSessionAuthority,
@@ -238,6 +273,10 @@ export async function stationNavigationResumeFixture(options = {}) {
         bareResumePending: bareAuthorityFns.memberSessionResumeBlocksFreshness(bare) };
     },
     run: () => adapter.select(roleId, { deadlineAt: Date.now() + (options.shortDeadline ? 120 : 1500) }),
-    cleanup: () => rm(directory, { recursive: true, force: true }) };
+    cleanup: async () => {
+      responseGate.release(); applicationGate.release();
+      await backgroundResume?.catch(() => undefined);
+      await rm(directory, { recursive: true, force: true });
+    } };
 }
 
