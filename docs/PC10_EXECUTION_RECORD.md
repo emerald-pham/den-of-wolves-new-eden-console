@@ -1086,3 +1086,18 @@ or server source changes. These GREEN checks are source readiness only: no
 native browser/emulator/gameplay run or function acceptance has occurred.
 Independent bounded source review and a new parent runtime allocation remain
 required; final rendered typography, whole-game and release gates stay open.
+
+Parent subsequently supplied the helper's narrow common Close UI repair.
+Its separate test-first `6879c12d` was integrated as `f7595ee2`: both candidate
+and failure-review fixtures reproduced the disabled Close button despite the
+normal entitled GM read displaying the debrief (2RED/6GREEN, exit1). Helper
+repair `b726f65f` was then integrated as `aee511ab`; all16 EndgameDialog and
+next-actor component checks pass. Close now uses the already-displayed validated
+debrief. Its live-GM/owned-instance/phase controls and server authority remain.
+Reason: let the real entitled GM close when the member-safe session observer
+omits the snapshot already returned by the authorized read. No member authority
+or private projection is widened. This source repair is separate from Highwall;
+the helper owns its pending two-actor common Pursuit closure/history probe and
+N/O/P work. N-specific closed history remains unobserved. The helper's retained
+Ring evidence report is imported without promoting it to new catalog closures,
+checkpoint completion or release acceptance.
