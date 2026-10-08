@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { assertStationPopulationAcknowledgmentTransition, assertStationPopulationGmActorAuthority, assertStationPopulationGmActorObserver, minimumRingPlan, runRingWorkflow, runStationCombatWaves, selectStationCombatCrew, stationCombatServerContext, stationDialogAccessibleName, stationPopulationAckMutinyRows, stationPopulationAlertsForGm, stationPopulationDialogMatches, stationPopulationDismissIntent, stationPopulationDismissLocator, stationPopulationGmActorAnchor, stationPopulationGmAuthorityPreflight, stationPopulationGmRetainedObserver, stationPopulationSelectVisibleAlert, stationPopulationUiRows } from './pc10-fresh-minimum-ring-proof.mjs';
+import { assertStationPopulationAcknowledgmentTransition, assertStationPopulationGmActorAuthority, assertStationPopulationGmActorObserver, minimumRingPlan, runRingWorkflow, runStationCombatWaves, selectStationCombatCrew, stationCombatServerContext, stationDialogAccessibleName, stationPopulationAckMutinyRows, stationPopulationAlertsForGm, stationPopulationAssertFreshProjection, stationPopulationDialogMatches, stationPopulationDismissIntent, stationPopulationDismissLocator, stationPopulationGmActorAnchor, stationPopulationGmAuthorityPreflight, stationPopulationGmRetainedObserver, stationPopulationPostDismissProjection, stationPopulationSelectVisibleAlert, stationPopulationUiRows } from './pc10-fresh-minimum-ring-proof.mjs';
 
 const stationPopulationGmAttemptEvidence = JSON.parse(readFileSync(
   new URL('./fixtures/pc10-population-gm-observer-attempt-evidence.json', import.meta.url), 'utf8'));
@@ -296,6 +296,56 @@ test('population dismissal locator cannot click a replacement alert after its fi
   assert.equal(await mounted.dismiss.count(), 0);
   await assert.rejects(mounted.dismiss.click(), /no longer matches/i);
   assert.deepEqual(clicks, [], 'A generic title locator must never dismiss the newly selected ship.');
+});
+
+test('population publication stops before its next wait if a new or non-first tuple replaces the dialog', () => {
+  const sourceAlerts = stationAttempt20OrderedAlerts();
+  const acknowledged = sourceAlerts[4];
+  const remainingAlerts = sourceAlerts.filter(([shipId]) => shipId !== acknowledged[0]);
+  const uiAlerts = stationPopulationUiRows(remainingAlerts);
+  const revisions = Object.fromEntries(remainingAlerts.map(([shipId]) => [shipId, 3]));
+  const unknown = { shipId: 'new-ship', shipName: 'New Ship', population: 9000,
+    targetGmInstanceIds: acknowledged[1].targetGmInstanceIds };
+  let waitCalls = 0;
+  for (const dialog of [
+    stationAttempt20Dialog(unknown),
+    stationAttempt20Dialog(remainingAlerts[2][1]),
+  ]) {
+    assert.throws(() => {
+      const publication = stationPopulationPostDismissProjection({ acknowledgedAlert: acknowledged[1],
+        remainingAlerts, projection: { targetedPopulation: uiAlerts, visibleDialogs: [dialog], vesselActionRevisions: revisions },
+        expectedRevisions: revisions });
+      if (!publication.settled) waitCalls++;
+    }, /changed|unrecognized/i);
+  }
+  assert.equal(waitCalls, 0, 'An unknown or non-client-first dialog must stop before any publication wait.');
+});
+
+test('population publication permits only the acknowledged stale dialog or the current client-first remaining alert', () => {
+  const sourceAlerts = stationAttempt20OrderedAlerts();
+  const acknowledged = sourceAlerts[4];
+  const remainingAlerts = sourceAlerts.filter(([shipId]) => shipId !== acknowledged[0]);
+  const uiAlerts = stationPopulationUiRows(remainingAlerts);
+  const revisions = Object.fromEntries(remainingAlerts.map(([shipId]) => [shipId, 3]));
+  const base = { targetedPopulation: uiAlerts, vesselActionRevisions: revisions };
+  const stale = stationPopulationPostDismissProjection({ acknowledgedAlert: acknowledged[1], remainingAlerts,
+    projection: { ...base, visibleDialogs: [stationAttempt20Dialog(acknowledged[1])] }, expectedRevisions: revisions });
+  assert.equal(stale.settled, false, 'The old acknowledged dialog may remain while publication converges, but does not complete it.');
+  const current = stationPopulationPostDismissProjection({ acknowledgedAlert: acknowledged[1], remainingAlerts,
+    projection: { ...base, visibleDialogs: [stationAttempt20Dialog(uiAlerts[0])] }, expectedRevisions: revisions });
+  assert.equal(current.settled, true);
+});
+
+test('fresh before-dismiss GM projection is retained before exact ready-sample validation', () => {
+  const ready = { sessionId: 'owned', generation: 1, hydrationRevision: 1, instanceId: 'gm-1', targetedPopulation: [] };
+  const changed = { ...ready, generation: 2, visibleDialogs: [{ role: 'alertdialog',
+    textContent: 'Dione survivor population has reached 70,000.', innerText: 'DIONE SURVIVOR POPULATION HAS REACHED 70,000.',
+    computedTextTransform: 'uppercase' }] };
+  const retained = [];
+  assert.throws(() => stationPopulationAssertFreshProjection(ready, changed, {
+    onObservation: sample => retained.push(structuredClone(sample)),
+  }), /projection changed/i);
+  assert.deepEqual(retained, [changed], 'The exact fresh sample must survive even when it fails the stability guard.');
 });
 
 test('Attempt18 serialized postclaim observer schemas pass the production GM preflight and bind its callback anchor', async () => {
